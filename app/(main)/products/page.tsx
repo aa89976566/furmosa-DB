@@ -33,9 +33,11 @@ export default async function ProductsPage() {
         title="產品 Products"
         description="所有可銷售商品（含廠商來源、庫存與補貨點）"
         actions={
-          <Button size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            新增商品
+          <Button size="sm" asChild>
+            <Link href="/products/new">
+              <Plus className="mr-1 h-4 w-4" />
+              新增商品
+            </Link>
           </Button>
         }
       />
@@ -102,7 +104,7 @@ export default async function ProductsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/products/${p.id}`}>查看</Link>
+                        <Link href={`/products/${p.id}`}>編輯</Link>
                       </Button>
                     </TableCell>
                   </TableRow>

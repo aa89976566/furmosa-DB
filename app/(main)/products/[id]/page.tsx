@@ -17,29 +17,38 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDateTime, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
 import { ArrowLeft, Building2, Store, Scale, DollarSign } from 'lucide-react';
+import { ProductForm } from './product-form';
+import { updateProduct, deleteProduct } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
-  const product = await prisma.product.findUnique({
-    where: { id: params.id },
-    include: {
-      vendor: true,
-      priceTiers: {
-        orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
+  const [product, vendors] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id: params.id },
+      include: {
+        vendor: true,
+        priceTiers: {
+          orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
+        },
+        inventoryBalances: { include: { warehouse: true } },
+        inventoryTransactions: {
+          include: { warehouse: true },
+          orderBy: { createdAt: 'desc' },
+          take: 12,
+        },
+        merchantRules: {
+          include: { merchant: true },
+          orderBy: { suggestedPrice: 'desc' },
+        },
       },
-      inventoryBalances: { include: { warehouse: true } },
-      inventoryTransactions: {
-        include: { warehouse: true },
-        orderBy: { createdAt: 'desc' },
-        take: 12,
-      },
-      merchantRules: {
-        include: { merchant: true },
-        orderBy: { suggestedPrice: 'desc' },
-      },
-    },
-  });
+    }),
+    prisma.vendor.findMany({
+      where: { status: 'active' },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, vendorId: true },
+    }),
+  ]);
   if (!product) notFound();
 
   const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
@@ -57,11 +66,22 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     return { ...r, commissionAmount, companyRevenue, effectivePercent };
   });
 
+  const statusLabel =
+    product.status === 'active' ? '上架' : product.status === 'draft' ? '草稿' : '下架';
+
   return (
     <>
       <PageHeader
         title={product.name}
-        description={`${product.productId} · ${product.sku}`}
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-mono">{product.productId}</span>
+            <span>·</span>
+            <span className="font-mono text-xs">{product.sku}</span>
+            <Badge variant="secondary">{productCategoryLabel[product.category]}</Badge>
+            <Badge variant={product.status === 'active' ? 'success' : 'muted'}>{statusLabel}</Badge>
+          </span>
+        }
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/products">
@@ -73,9 +93,27 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       />
       <div className="grid gap-6 p-6 lg:grid-cols-3">
         <SectionCard title="商品資訊" className="lg:col-span-1">
-          <dl className="space-y-2 text-sm">
-            <Row label="商品編號" value={product.productId} />
-            <Row label="SKU" value={product.sku} />
+          <ProductForm
+            product={{
+              id: product.id,
+              productId: product.productId,
+              sku: product.sku,
+              name: product.name,
+              category: product.category,
+              style: product.style,
+              unit: product.unit,
+              price: Number(product.price),
+              cost: Number(product.cost),
+              reorderPoint: product.reorderPoint,
+              status: product.status,
+              vendorId: product.vendorId,
+              notes: product.notes,
+            }}
+            vendors={vendors}
+            saveAction={updateProduct}
+            deleteAction={deleteProduct}
+          />
+          <dl className="mt-4 space-y-2 border-t pt-4 text-sm">
             {product.sourceSku && (
               <Row
                 label="單價表 SKU"
@@ -83,34 +121,12 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               />
             )}
             <Row
-              label="分類"
-              value={<Badge variant="secondary">{productCategoryLabel[product.category]}</Badge>}
-            />
-            {product.style && <Row label="款式" value={product.style} />}
-            <Row label="計價單位" value={product.unit} />
-            <Row label="基礎售價" value={formatCurrency(Number(product.price))} />
-            <Row label="成本" value={formatCurrency(Number(product.cost))} />
-            <Row
               label="毛利"
               value={`${formatCurrency(margin)} (${(marginRate * 100).toFixed(1)}%)`}
             />
-            <Row label="補貨點" value={formatNumber(product.reorderPoint)} />
             <Row label="總庫存" value={formatNumber(totalOnHand)} />
-            <Row
-              label="狀態"
-              value={
-                <Badge variant={product.status === 'active' ? 'success' : 'muted'}>
-                  {product.status === 'active' ? '上架' : product.status === 'draft' ? '草稿' : '下架'}
-                </Badge>
-              }
-            />
+            <Row label="建立時間" value={formatDateTime(product.createdAt)} />
           </dl>
-          {product.notes && (
-            <div className="mt-4 rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-line text-muted-foreground">
-              <div className="mb-1 font-medium text-foreground">備註</div>
-              {product.notes}
-            </div>
-          )}
         </SectionCard>
 
         <SectionCard
