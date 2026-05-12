@@ -1,0 +1,625 @@
+// Furmosa HQ - Prisma schema
+// Production: Supabase Postgres
+//   - DATABASE_URL  → pgbouncer 6543（runtime 共用連線池）
+//   - DIRECT_URL    → 5432（prisma migrate / introspect 專用）
+// 金額目前仍用 Float（先求快速上線），日後可全面改 Decimal(12,2)。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =====================================================
+// Enums (SQLite 用 String + 應用層約束)
+// 對應的合法值參考 lib/labels.ts。
+// =====================================================
+
+// =====================================================
+// Users (system operators)
+// =====================================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         String   @default("staff") // admin / staff / finance / warehouse
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedTasks Task[] @relation("AssignedTasks")
+}
+
+// =====================================================
+// Master Data
+// =====================================================
+
+model Vendor {
+  id           String   @id @default(cuid())
+  vendorId     String   @unique // VEND-0001
+  name         String
+  contactName  String?
+  phone        String?
+  email        String?
+  address      String?
+  paymentTerms String?
+  notes        String?
+  status       String   @default("active") // active / inactive
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  products Product[]
+}
+
+// 客戶（人）= 主檔。會員身份、訂閱身份都掛在 Customer 上。
+model Customer {
+  id         String  @id @default(cuid())
+  customerId String  @unique // CUST-0001
+  name       String
+  type       String  @default("individual") // individual / business
+  phone      String?
+  email      String?
+  address    String?
+
+  // 聯繫 / 社群
+  lineUserId  String?
+  lineDisplay String? // LINE 顯示名稱
+  socialIg    String?
+  socialFb    String?
+
+  // 個資
+  birthday DateTime?
+  gender   String? // female / male / other / unknown
+
+  // 換罐會員（loyalty）— 不是會員時這些欄位為 null/0
+  isLoyaltyMember Boolean   @default(false)
+  loyaltyMemberId String?   @unique // MEM-0001
+  loyaltyTier     String? // bronze / silver / gold / platinum
+  loyaltyPoints   Int       @default(0)
+  loyaltyEarned   Int       @default(0)
+  loyaltyRedeemed Int       @default(0)
+  joinedLoyaltyAt DateTime?
+
+  // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
+  hasActiveSubscription Boolean @default(false)
+
+  // 標籤
+  tags String @default("[]") // JSON-encoded string array
+
+  // 銷售統計
+  totalSpent  Float     @default(0)
+  lastOrderAt DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders        Order[]
+  pointLedger   PointLedger[]
+  redemptions   Redemption[]
+  subscriptions Subscription[]
+  shipments     Shipment[]
+
+  @@index([isLoyaltyMember])
+  @@index([hasActiveSubscription])
+}
+
+model Merchant {
+  id             String   @id @default(cuid())
+  merchantId     String   @unique // MER-0001
+  name           String
+  type           String   @default("consignment") // consignment / pop_up / flagship / partner
+  contactName    String?
+  phone          String?
+  email          String?
+  address        String?
+  city           String?
+  commissionRate Float    @default(0.30) // fallback；個別商品仍以 MerchantProductRule 為準
+  notes          String?
+  status         String   @default("active")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders       Order[]
+  settlements  Settlement[]
+  redemptions  Redemption[]
+  productRules MerchantProductRule[]
+  stocks       MerchantStock[]
+  stockTxns    MerchantStockTxn[]
+  shipments    Shipment[]
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  code      String   @unique // WH-MAIN
+  name      String
+  address   String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventoryBalances     InventoryBalance[]
+  inventoryTransactions InventoryTransaction[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  productId    String   @unique // PROD-0001
+  sku          String   @unique
+  sourceSku    String? // 使用者單價表的 SKU（DK-01 / FD-04 / PF-02 ...）
+  name         String
+  category     String   @default("other") // staple_food / treats / health / freeze_dried / toys / accessories / other
+  style        String? // 款式（凍肉 / 蔬果 ...）
+  description  String?
+  imageUrl     String?
+  unit         String   @default("件") // 克 / 隻 / 片 / 包...
+  price        Float // 基礎售價（最小重量級距，方便舊 UI 顯示）
+  cost         Float    @default(0) // 進貨成本（每包/隻/片）
+  reorderPoint Int      @default(10)
+  status       String   @default("active") // active / inactive / draft
+  vendorId     String?
+  notes        String? // 備註（單價表手寫欄位）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  vendor                Vendor?                @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  priceTiers            ProductPriceTier[]
+  orderItems            OrderItem[]
+  inventoryBalances     InventoryBalance[]
+  inventoryTransactions InventoryTransaction[]
+  merchantRules         MerchantProductRule[]
+  merchantStocks        MerchantStock[]
+  merchantStockTxns     MerchantStockTxn[]
+  shipmentItems         ShipmentItem[]
+}
+
+// 同一個產品可能依重量分多種售價（30g / 50g / 100g / 150g），
+// 或以「隻 / 片」為單位賣（unitQty>1 例如 5隻=325）。
+model ProductPriceTier {
+  id          String  @id @default(cuid())
+  productId   String
+  weightGrams Int? // 30 / 50 / 100 / 150；以隻/片計時可為 null
+  unit        String // 克 / 隻 / 片
+  unitQty     Int     @default(1) // 內含幾份（5隻一袋之類）
+  price       Float
+  cost        Float? // 此規格成本（選填）
+  notes       String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, weightGrams, unit, unitQty])
+  @@index([productId])
+}
+
+// 寄賣商品 × 店家 的售價與抽成規則
+model MerchantProductRule {
+  id              String   @id @default(cuid())
+  merchantId      String
+  productId       String
+  suggestedPrice  Float // 建議售價（給消費者的價格）
+  commissionMode  String   @default("amount") // amount / percent
+  commissionValue Float // 若 amount：每件抽多少錢；若 percent：抽幾 %
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, productId])
+  @@index([productId])
+  @@index([merchantId])
+}
+
+// =====================================================
+// Shipment（出貨／物流）— 統一 B2B（寄賣進貨）和 B2C（客戶/訂閱）
+// 流程：pending → packed → shipped → delivered（或 cancelled）
+// 只有 delivered 才會真正 +到店家庫存 / 標 fulfillment_done
+// =====================================================
+model Shipment {
+  id             String @id @default(cuid())
+  shipmentNumber String @unique // SHP-202605-0001
+  type           String // merchant_restock / customer_order / subscription
+  status         String @default("pending") // pending / packed / shipped / delivered / cancelled
+
+  // 來源／關聯（依 type 不同填一個）
+  merchantId             String? // for merchant_restock
+  customerId             String? // for customer_order
+  orderId                String? // for customer_order
+  subscriptionShipmentId String? @unique // for subscription（一對一）
+
+  // 收件 / 物流
+  recipientName    String?
+  recipientPhone   String?
+  recipientAddress String?
+  carrier          String? // 黑貓 / 7-11 / 順豐 / 自送 / ...
+  trackingNumber   String?
+
+  // 時間軸
+  packedAt    DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  merchant             Merchant?             @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  customer             Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  subscriptionShipment SubscriptionShipment? @relation(fields: [subscriptionShipmentId], references: [id], onDelete: SetNull)
+  items                ShipmentItem[]
+
+  @@index([status])
+  @@index([type])
+  @@index([merchantId])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+model ShipmentItem {
+  id          String  @id @default(cuid())
+  shipmentId  String
+  productId   String
+  productName String
+  sku         String
+  quantity    Int
+  weightGrams Int? // 每件重量（g）— 同商品可有不同 g 數
+  unit        String? // 片 / 包 / 支 / 件...
+  notes       String?
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([shipmentId])
+  @@index([productId])
+}
+
+// 寄賣店目前持有的庫存（每家店每個商品一筆）
+model MerchantStock {
+  id            String    @id @default(cuid())
+  merchantId    String
+  productId     String
+  quantity      Int       @default(0)
+  lastRestockAt DateTime?
+  lastSaleAt    DateTime?
+  lastCountAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, productId])
+  @@index([merchantId])
+  @@index([productId])
+}
+
+// 寄賣動作流水帳：進貨 / 銷售 / 盤點 / 退回
+model MerchantStockTxn {
+  id               String   @id @default(cuid())
+  txnNumber        String   @unique // MTXN-202605-0001
+  merchantId       String
+  productId        String
+  type             String // restock / sale / adjust / return
+  quantity         Int // 進貨正、銷售/退回負；adjust 為 「異動量」（balanceAfter - 之前）
+  balanceAfter     Int // 異動後該店該商品庫存
+  unitPrice        Float? // 銷售時的售價
+  commissionAmount Float? // 銷售時店家抽成總額
+  companyRevenue   Float? // 銷售時公司實收總額
+  orderId          String? // 對應的訂單
+  settlementId     String? // 已被某筆結算 lock；結算時填入，避免重複結清
+  note             String?
+  createdAt        DateTime @default(now())
+
+  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order      Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  settlement Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId])
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([settlementId])
+}
+
+// =====================================================
+// Inventory
+// =====================================================
+
+model InventoryBalance {
+  id          String   @id @default(cuid())
+  productId   String
+  warehouseId String
+  quantity    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, warehouseId])
+  @@index([productId])
+}
+
+model InventoryTransaction {
+  id          String   @id @default(cuid())
+  txnNumber   String   @unique // INV-202605-001
+  type        String // purchase_in / sales_out / transfer / adjustment / stocktake / return_in / return_out
+  productId   String
+  warehouseId String
+  quantity    Int
+  unitCost    Float?
+  reference   String?
+  batchCode   String?
+  serialCode  String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// =====================================================
+// Order Hub
+// =====================================================
+
+model Order {
+  id                String    @id @default(cuid())
+  orderNumber       String    @unique // ORD-202605-001
+  source            String // website / line / consignment / subscription / manual
+  status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
+  paymentStatus     String    @default("unpaid") // unpaid / partial / paid / refunded
+  fulfillmentStatus String    @default("pending") // pending / packed / shipped / delivered / returned
+  customerId        String?
+  merchantId        String?
+  subscriptionId    String? // 若為訂閱衍生的訂單
+  subtotal          Float
+  discount          Float     @default(0)
+  shippingFee       Float     @default(0)
+  total             Float
+  pointsEarned      Int       @default(0)
+  pointsUsed        Int       @default(0)
+  shippingAddress   String?
+  note              String?
+  orderedAt         DateTime  @default(now())
+  shippedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  merchant          Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  subscription      Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  items             OrderItem[]
+  merchantStockTxns MerchantStockTxn[]
+  shipments         Shipment[]
+
+  @@index([source])
+  @@index([status])
+  @@index([orderedAt])
+  @@index([subscriptionId])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  productName String
+  sku         String
+  quantity    Int
+  unitPrice   Float
+  subtotal    Float
+  weightGrams Int? // 每件重量（g）
+  unit        String? // 片 / 包 / 支 / 件...
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+// =====================================================
+// Settlement
+// =====================================================
+
+model Settlement {
+  id               String    @id @default(cuid())
+  settlementId     String    @unique // SET-202605-001
+  merchantId       String
+  periodStart      DateTime
+  periodEnd        DateTime
+  grossSales       Float // 店家收的現金（依銷售流水加總）
+  commissionRate   Float // 此期實際抽成率（commissionAmount / grossSales）
+  commissionAmount Float // 店家應得分潤
+  rewardPayout     Float     @default(0) // 換罐補貼（公司付給店家）
+  shippingFee      Float     @default(0) // 運費（公司補給店家／或店家代墊）
+  merchantOwesUs   Float     @default(0) // 店家應返公司金額 = grossSales - commissionAmount - rewardPayout - shippingFee
+  payable          Float // 兼容舊欄位：等於 commissionAmount + rewardPayout + shippingFee（公司應付店家）
+  status           String    @default("draft") // draft / reviewing / approved / paid
+  paidAt           DateTime?
+  note             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  merchant Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  txns     MerchantStockTxn[]
+
+  @@index([merchantId])
+  @@index([status])
+}
+
+// =====================================================
+// CRM / Loyalty (換罐會員)
+// 注意：Member 已合併進 Customer。下面只剩點數 / 兌換相關紀錄。
+// =====================================================
+
+model PointLedger {
+  id           String   @id @default(cuid())
+  customerId   String
+  type         String // earn / redeem / adjust / expire
+  source       String // serial_code / order / campaign / manual / redemption
+  points       Int
+  balanceAfter Int
+  reference    String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([type])
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  rewardId    String   @unique // RWD-0001
+  name        String
+  description String?
+  imageUrl    String?
+  pointsCost  Int
+  cashCost    Float    @default(0)
+  stock       Int      @default(0)
+  status      String   @default("active") // active / inactive
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  redemptions Redemption[]
+}
+
+model Redemption {
+  id               String    @id @default(cuid())
+  redemptionId     String    @unique // RED-0001
+  customerId       String
+  rewardId         String
+  pointsUsed       Int
+  payoutMerchantId String?
+  payoutAmount     Float     @default(0)
+  status           String    @default("pending") // pending / fulfilled / cancelled
+  fulfilledAt      DateTime?
+  note             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  reward         Reward    @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  payoutMerchant Merchant? @relation(fields: [payoutMerchantId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+}
+
+// =====================================================
+// Subscription (訂閱制)
+// =====================================================
+
+// 方案定義（小食組 / 標準組 / 豪華組）
+model SubscriptionPlan {
+  id                String   @id @default(cuid())
+  planCode          String   @unique // PLAN-LIGHT / PLAN-STANDARD / PLAN-DELUXE
+  name              String // 小食組
+  tagline           String? // 輕鬆入門 / 嚐鮮首選
+  monthlyPrice      Float // 399
+  halfYearPrice     Float? // 2100
+  halfYearSavings   Float? // 294
+  shipmentsPerMonth Int      @default(1) // 1 / 2
+  shipDays          String   @default("[15]") // JSON: [15] 或 [1, 15]
+  contents          String   @default("[]") // JSON: [{name, weight, note}]
+  bonusItems        String? // JSON: [{name, interval}]
+  recommendedFor    String? // 5kg 以下小型犬 / ...
+  sortOrder         Int      @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// 客戶的訂閱合約
+model Subscription {
+  id               String    @id @default(cuid())
+  subscriptionNo   String    @unique // SUB-202605-001
+  customerId       String
+  planId           String
+  status           String    @default("active") // active / paused / cancelled / expired
+  billingCycle     String    @default("monthly") // monthly / halfyear
+  startDate        DateTime
+  endDate          DateTime? // 半年方案會有結束日
+  nextShipmentDate DateTime?
+  recipientName    String
+  recipientPhone   String
+  shippingAddress  String
+  notes            String?
+  pausedAt         DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  customer  Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plan      SubscriptionPlan       @relation(fields: [planId], references: [id], onDelete: Restrict)
+  shipments SubscriptionShipment[]
+  orders    Order[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([nextShipmentDate])
+}
+
+// 每次預定 / 已出的訂閱出貨
+model SubscriptionShipment {
+  id             String    @id @default(cuid())
+  shipmentNo     String    @unique // SHIP-202605-001
+  subscriptionId String
+  scheduledDate  DateTime
+  status         String    @default("pending") // pending / packed / shipped / delivered / skipped
+  packedAt       DateTime?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  trackingNo     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  shipment     Shipment? // 對應到統一的 Shipment 紀錄（後建）
+
+  @@index([subscriptionId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+// =====================================================
+// Task Ops
+// =====================================================
+
+model Task {
+  id          String    @id @default(cuid())
+  taskId      String    @unique // TASK-0001
+  title       String
+  description String?
+  type        String    @default("general") // inventory_issue / settlement_followup / customer_service / vendor_followup / marketing / shipment / general
+  status      String    @default("todo") // todo / in_progress / done / blocked
+  priority    String    @default("medium") // low / medium / high / urgent
+  dueDate     DateTime?
+  assigneeId  String?
+  reference   String? // 可放 SHIP-xxx / ORD-xxx 等
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  assignee User? @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([type])
+  @@index([dueDate])
+}
