@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatDateTime } from '@/lib/format';
+import { formatCurrency, formatDateTime } from '@/lib/format';
+import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
 import {
   shipmentStatusLabel,
   shipmentStatusVariant,
@@ -27,7 +28,7 @@ import { productLabel } from '@/lib/product-label';
 import { cn } from '@/lib/utils';
 import { markShipmentStatus } from '../actions';
 import { CarrierSelect } from '@/components/shared/carrier-select';
-import { parsePlanContents } from '@/lib/subscription-shipment-sync';
+import { parsePlanContents } from '@/lib/plan-contents';
 import {
   ArrowLeft,
   Package,
@@ -37,6 +38,8 @@ import {
   Truck,
   Repeat,
   CalendarClock,
+  HandCoins,
+  BadgeCheck,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +66,15 @@ export default async function ShipmentDetailPage({
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'cancelled'].includes(shipment.status);
 
+  // 運輸人員需要的收款資訊：是否要當面跟客戶收錢
+  const order = shipment.order;
+  const codGoods = order?.paymentStatus === 'cod';
+  const codFreight = order?.shippingFeeType === 'cod';
+  const needCollect = codGoods || codFreight;
+  const collectAmount = order
+    ? (codGoods ? Number(order.total) : 0) + (codFreight ? Number(order.shippingFee) : 0)
+    : 0;
+
   const isSubscription = shipment.type === 'subscription';
   const subscription = shipment.subscriptionShipment?.subscription ?? null;
   const planContents = isSubscription
@@ -86,16 +98,56 @@ export default async function ShipmentDetailPage({
           </span>
         }
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/shipments">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回隊列
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {shipment.order ? (
+              <Button variant="default" size="sm" asChild>
+                <Link href={`/orders/${shipment.order.id}`}>
+                  訂單 {shipment.order.orderNumber}
+                </Link>
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/shipments">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回隊列
+              </Link>
+            </Button>
+          </div>
         }
       />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
+        {needCollect && !isFinal && (
+          <div className="rounded-lg border-2 border-warning bg-warning/10 p-4 lg:col-span-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning text-warning-foreground">
+                <HandCoins className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">送達時請向客戶當面收款</div>
+                <div className="mt-1 flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-xs text-muted-foreground">應收：</span>
+                  <span className="font-mono text-2xl font-bold text-warning">
+                    {formatCurrency(collectAmount)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    （
+                    {codGoods && <span>貨款 {formatCurrency(Number(order!.total))}</span>}
+                    {codGoods && codFreight && <span> + </span>}
+                    {codFreight && (
+                      <span>運費 {formatCurrency(Number(order!.shippingFee))}</span>
+                    )}
+                    ）
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  收到款項後再點下方「送達」，並在備註寫上收款方式（現金 / 行動支付等）。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <SectionCard title="物流時間軸" className="lg:col-span-3">
           <ol className="grid gap-3 md:grid-cols-4">
             {steps.map((step, idx) => {
@@ -181,17 +233,59 @@ export default async function ShipmentDetailPage({
               }
             />
             {shipment.order && (
-              <Row
-                label="關聯訂單"
-                value={
-                  <Link
-                    href={`/orders/${shipment.order.id}`}
-                    className="font-mono text-xs hover:underline"
-                  >
-                    {shipment.order.orderNumber}
-                  </Link>
-                }
-              />
+              <>
+                <Row
+                  label="關聯訂單"
+                  value={
+                    <Link
+                      href={`/orders/${shipment.order.id}`}
+                      className="font-mono text-xs hover:underline"
+                    >
+                      {shipment.order.orderNumber}
+                    </Link>
+                  }
+                />
+                <Row
+                  label="付款狀態"
+                  value={
+                    <Badge
+                      variant={
+                        shipment.order.paymentStatus === 'paid'
+                          ? 'success'
+                          : shipment.order.paymentStatus === 'cod'
+                            ? 'warning'
+                            : 'secondary'
+                      }
+                    >
+                      {shipment.order.paymentStatus === 'paid' && (
+                        <BadgeCheck className="mr-1 h-3 w-3" />
+                      )}
+                      {shipment.order.paymentStatus === 'cod' && (
+                        <HandCoins className="mr-1 h-3 w-3" />
+                      )}
+                      {paymentStatusLabel[shipment.order.paymentStatus] ??
+                        shipment.order.paymentStatus}
+                    </Badge>
+                  }
+                />
+                <Row
+                  label="運費類型"
+                  value={
+                    <Badge variant="outline">
+                      {shippingFeeTypeLabel[shipment.order.shippingFeeType] ??
+                        shipment.order.shippingFeeType}
+                    </Badge>
+                  }
+                />
+                <Row
+                  label="訂單金額"
+                  value={
+                    <span className="font-mono">
+                      {formatCurrency(Number(shipment.order.total))}
+                    </span>
+                  }
+                />
+              </>
             )}
             {shipment.subscriptionShipment?.subscription && (
               <Row
@@ -333,7 +427,11 @@ export default async function ShipmentDetailPage({
         {!isFinal && (
           <SectionCard
             title="推進狀態"
-            description="物流人員操作 — 包裝、寄出時要填物流商與追蹤碼"
+            description={
+              shipment.type === 'customer_order'
+                ? '物流人員操作 — 狀態會同步更新關聯訂單的出貨與訂單狀態'
+                : '物流人員操作 — 寄出時要填物流商與追蹤碼'
+            }
             className="lg:col-span-3"
           >
             <div className="grid gap-4 lg:grid-cols-3">
@@ -383,7 +481,6 @@ function StatusActionCard({
       <input type="hidden" name="next" value={next} />
 
       <div className="flex items-center gap-2">
-        {next === 'packed' && <Package className="h-4 w-4 text-info" />}
         {next === 'shipped' && <Truck className="h-4 w-4 text-info" />}
         {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-success" />}
         {next === 'cancelled' && <XCircle className="h-4 w-4 text-destructive" />}

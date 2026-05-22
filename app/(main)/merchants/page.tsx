@@ -1,30 +1,26 @@
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
+import { MerchantsOperationsDashboard } from '@/components/merchants/merchants-operations-dashboard';
+import { MerchantWorkspace } from '@/components/merchants/merchant-ui';
+import { MerchantsPeriodSwitch } from '@/components/merchants/merchants-period-switch';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { merchantTypeLabel } from '@/lib/labels';
-import { formatPercent } from '@/lib/format';
-import { Plus } from 'lucide-react';
+  loadMerchantsPortfolioReport,
+  resolveMerchantReportPeriod,
+  type MerchantReportPeriod,
+} from '@/lib/merchant-report';
+import { PackagePlus, Plus, ScanLine } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantsPage() {
-  const merchants = await prisma.merchant.findMany({
-    include: {
-      _count: { select: { orders: true, settlements: true } },
-    },
-    orderBy: { merchantId: 'asc' },
-  });
+export default async function MerchantsPage({
+  searchParams,
+}: {
+  searchParams?: { period?: string };
+}) {
+  const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
+  const { start: periodStart, end: periodEnd } = resolveMerchantReportPeriod(period);
+  const report = await loadMerchantsPortfolioReport(periodStart, periodEnd);
 
   return (
     <>
@@ -32,54 +28,32 @@ export default async function MerchantsPage() {
         title="寄賣店家 Merchants"
         description="寄賣 / 快閃 / 旗艦 / 合作夥伴 通路管理"
         actions={
-          <Button size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            新增店家
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <MerchantsPeriodSwitch value={period} />
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/merchants/restock">
+                <PackagePlus className="mr-1 h-4 w-4" />
+                新增進貨
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/merchants/adjust?mode=count">
+                <ScanLine className="mr-1 h-4 w-4" />
+                清點
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/merchants/new">
+                <Plus className="mr-1 h-4 w-4" />
+                新增店家
+              </Link>
+            </Button>
+          </div>
         }
       />
-      <div className="p-6">
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>編號</TableHead>
-                <TableHead>店家名稱</TableHead>
-                <TableHead>類型</TableHead>
-                <TableHead>城市</TableHead>
-                <TableHead>聯絡電話</TableHead>
-                <TableHead className="text-right">分潤</TableHead>
-                <TableHead className="text-right">訂單</TableHead>
-                <TableHead className="text-right">結算</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {merchants.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-mono text-xs">{m.merchantId}</TableCell>
-                  <TableCell className="font-medium">{m.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{merchantTypeLabel[m.type]}</Badge>
-                  </TableCell>
-                  <TableCell>{m.city ?? '-'}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{m.phone ?? '-'}</TableCell>
-                  <TableCell className="text-right text-sm">
-                    {formatPercent(Number(m.commissionRate), 0)}
-                  </TableCell>
-                  <TableCell className="text-right">{m._count.orders}</TableCell>
-                  <TableCell className="text-right">{m._count.settlements}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/merchants/${m.id}`}>查看</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
+      <MerchantWorkspace>
+        <MerchantsOperationsDashboard report={report} />
+      </MerchantWorkspace>
     </>
   );
 }

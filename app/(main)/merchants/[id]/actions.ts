@@ -1,6 +1,10 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
+import { parseMerchantCommissionPercent } from '@/lib/merchant-commission';
+import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
+import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -10,14 +14,50 @@ function ymd(d = new Date()) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-async function nextStockTxnNumber() {
-  const prefix = `MTXN-${ymd()}-`;
-  const last = await prisma.merchantStockTxn.findFirst({
-    where: { txnNumber: { startsWith: prefix } },
-    orderBy: { txnNumber: 'desc' },
-  });
-  const seq = last ? Number(last.txnNumber.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${pad(seq, 4)}`;
+function toNullableField(value: FormDataEntryValue | null) {
+  const trimmed = String(value ?? '').trim();
+  return trimmed || null;
+}
+
+// ============================================================
+// 0. 店家運輸／地址（進貨時自動帶入出貨單）
+// ============================================================
+export async function updateMerchantShipping(formData: FormData) {
+  const merchantId = String(formData.get('merchantId') ?? '');
+  if (!merchantId) throw new Error('缺少店家');
+
+  const preferredCarrier = toNullableField(formData.get('preferredCarrier'));
+  let pickupStoreName = toNullableField(formData.get('pickupStoreName'));
+  const contactName = toNullableField(formData.get('contactName'));
+  const phone = toNullableField(formData.get('phone'));
+  const email = toNullableField(formData.get('email'));
+  const city = toNullableField(formData.get('city'));
+  let address = toNullableField(formData.get('address'));
+
+  if (preferredCarrier === CARRIER_711) {
+    if (!pickupStoreName) throw new Error('請填寫 7-11 門市名稱');
+    address = null;
+  } else if (preferredCarrier === '黑貓') {
+    pickupStoreName = null;
+    if (!address) throw new Error('請填寫黑貓收件地址');
+  }
+
+  await prisma.$executeRaw`
+    UPDATE "Merchant"
+    SET
+      "contactName" = ${contactName},
+      "phone" = ${phone},
+      "email" = ${email},
+      "city" = ${city},
+      "preferredCarrier" = ${preferredCarrier},
+      "pickupStoreName" = ${pickupStoreName},
+      "address" = ${address}
+    WHERE "id" = ${merchantId}
+  `;
+
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/restock`);
+  revalidatePath('/merchants/restock');
 }
 
 async function nextShipmentNumber() {
@@ -52,7 +92,7 @@ function commissionFor(rule: { commissionMode: string; commissionValue: number; 
 
 // ============================================================
 // 1. 進貨：建立「待出貨」運送單（不立即動店家庫存）
-//    流程：pending → packed → shipped → delivered
+//    流程：pending → shipped → delivered
 //    送達後才實際 +店家庫存（見 markShipmentDelivered）
 // ============================================================
 export async function restockMerchant(formData: FormData) {
@@ -81,6 +121,11 @@ export async function restockMerchant(formData: FormData) {
   const merchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
   if (!merchant) throw new Error('店家不存在');
 
+  const pickup711 = resolve711PickupFromForm(formData, carrier);
+  const profileName = merchant.contactName ?? merchant.name;
+  const profilePhone = merchant.phone;
+  const profileAddress = merchant.address;
+
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
   });
@@ -92,9 +137,9 @@ export async function restockMerchant(formData: FormData) {
       type: 'merchant_restock',
       status: 'pending',
       merchantId,
-      recipientName: merchant.contactName ?? merchant.name,
-      recipientPhone: merchant.phone,
-      recipientAddress: merchant.address,
+      recipientName: pickup711?.recipientName ?? profileName,
+      recipientPhone: pickup711?.recipientPhone ?? profilePhone,
+      recipientAddress: pickup711?.recipientAddress ?? profileAddress,
       carrier,
       notes: note,
       items: {
@@ -115,6 +160,7 @@ export async function restockMerchant(formData: FormData) {
   });
 
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath('/merchants');
   revalidatePath('/shipments');
   redirect(`/shipments/${shipment.id}`);
 }
@@ -143,7 +189,7 @@ export async function adjustMerchantStock(formData: FormData) {
   });
   await prisma.merchantStockTxn.create({
     data: {
-      txnNumber: await nextStockTxnNumber(),
+      txnNumber: await nextStockTxnNumber(prisma),
       merchantId,
       productId,
       type: 'adjust',
@@ -154,7 +200,8 @@ export async function adjustMerchantStock(formData: FormData) {
   });
 
   revalidatePath(`/merchants/${merchantId}`);
-  redirect(`/merchants/${merchantId}?tab=stock`);
+  revalidatePath('/merchants');
+  redirect(`/merchants/${merchantId}/products`);
 }
 
 // ============================================================
@@ -195,6 +242,9 @@ export async function createMerchantSale(formData: FormData) {
   // 拿商品資料
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
+    include: {
+      priceTiers: { orderBy: { price: 'asc' } },
+    },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -205,7 +255,7 @@ export async function createMerchantSale(formData: FormData) {
     const product = productById.get(it.productId);
     if (!product) throw new Error('商品不存在');
     const rule = ruleByProduct.get(it.productId);
-    const unitPrice = it.unitPrice || rule?.suggestedPrice || product.price;
+    const unitPrice = it.unitPrice || merchantSuggestedUnitPrice(product, rule);
     const calc = rule
       ? commissionFor(rule, it.quantity, unitPrice)
       : { perUnit: 0, commission: 0, gross: unitPrice * it.quantity, companyRevenue: unitPrice * it.quantity };
@@ -257,8 +307,9 @@ export async function createMerchantSale(formData: FormData) {
     },
   });
 
-  // 扣庫存 + 寫流水
-  for (const r of itemRows) {
+  const saleTxnNumbers = await reserveStockTxnNumbers(prisma, itemRows.length);
+  for (let i = 0; i < itemRows.length; i++) {
+    const r = itemRows[i];
     const existing = await prisma.merchantStock.findUnique({
       where: { merchantId_productId: { merchantId, productId: r.productId } },
     });
@@ -271,7 +322,7 @@ export async function createMerchantSale(formData: FormData) {
     });
     await prisma.merchantStockTxn.create({
       data: {
-        txnNumber: await nextStockTxnNumber(),
+        txnNumber: saleTxnNumbers[i],
         merchantId,
         productId: r.productId,
         type: 'sale',
@@ -287,7 +338,8 @@ export async function createMerchantSale(formData: FormData) {
   }
 
   revalidatePath(`/merchants/${merchantId}`);
-  redirect(`/merchants/${merchantId}?tab=stock`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  redirect(`/merchants/${merchantId}/products`);
 }
 
 // ============================================================
@@ -303,13 +355,18 @@ export async function recordMerchantQuickSale(formData: FormData) {
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
   if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('賣出數量需大於 0');
 
-  const product = await prisma.product.findUnique({ where: { id: productId } });
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: {
+      priceTiers: { orderBy: { price: 'asc' } },
+    },
+  });
   if (!product) throw new Error('商品不存在');
 
   const rule = await prisma.merchantProductRule.findUnique({
     where: { merchantId_productId: { merchantId, productId } },
   });
-  const unitPrice = rule?.suggestedPrice ?? product.price;
+  const unitPrice = merchantSuggestedUnitPrice(product, rule);
   const calc = rule
     ? commissionFor(rule, quantity, unitPrice)
     : { perUnit: 0, commission: 0, gross: unitPrice * quantity, companyRevenue: unitPrice * quantity };
@@ -328,7 +385,7 @@ export async function recordMerchantQuickSale(formData: FormData) {
 
   await prisma.merchantStockTxn.create({
     data: {
-      txnNumber: await nextStockTxnNumber(),
+      txnNumber: await nextStockTxnNumber(prisma),
       merchantId,
       productId,
       type: 'sale',
@@ -342,6 +399,7 @@ export async function recordMerchantQuickSale(formData: FormData) {
   });
 
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath('/merchants');
   redirect(`/merchants/${merchantId}`);
 }
 
@@ -352,23 +410,33 @@ export async function upsertMerchantRule(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
   const productId = String(formData.get('productId') ?? '');
   const suggestedPrice = Number(formData.get('suggestedPrice'));
-  const commissionMode = String(formData.get('commissionMode') ?? 'amount');
-  const commissionValue = Number(formData.get('commissionValue'));
+  const commissionPercent = parseMerchantCommissionPercent(formData);
   const notes = String(formData.get('notes') ?? '').trim() || null;
 
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
   if (!Number.isFinite(suggestedPrice) || suggestedPrice <= 0) throw new Error('建議售價不合法');
-  if (!Number.isFinite(commissionValue) || commissionValue < 0) throw new Error('抽成不合法');
-  if (!['amount', 'percent'].includes(commissionMode)) throw new Error('抽成方式錯誤');
 
   await prisma.merchantProductRule.upsert({
     where: { merchantId_productId: { merchantId, productId } },
-    update: { suggestedPrice, commissionMode, commissionValue, notes },
-    create: { merchantId, productId, suggestedPrice, commissionMode, commissionValue, notes },
+    update: {
+      suggestedPrice,
+      commissionMode: 'percent',
+      commissionValue: commissionPercent,
+      notes,
+    },
+    create: {
+      merchantId,
+      productId,
+      suggestedPrice,
+      commissionMode: 'percent',
+      commissionValue: commissionPercent,
+      notes,
+    },
   });
 
   revalidatePath(`/merchants/${merchantId}`);
-  redirect(`/merchants/${merchantId}?tab=stock`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  redirect(`/merchants/${merchantId}/products`);
 }
 
 export async function deleteMerchantRule(formData: FormData) {
@@ -378,5 +446,6 @@ export async function deleteMerchantRule(formData: FormData) {
 
   await prisma.merchantProductRule.delete({ where: { id: ruleId } });
   revalidatePath(`/merchants/${merchantId}`);
-  redirect(`/merchants/${merchantId}?tab=stock`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  redirect(`/merchants/${merchantId}/products`);
 }

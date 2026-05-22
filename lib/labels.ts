@@ -3,7 +3,7 @@
 export const orderStatusLabel: Record<string, string> = {
   draft: '草稿',
   confirmed: '已確認',
-  packed: '已包裝',
+  packed: '待出貨',
   shipped: '已出貨',
   delivered: '已送達',
   completed: '已完成',
@@ -22,12 +22,20 @@ export const paymentStatusLabel: Record<string, string> = {
   unpaid: '未付款',
   partial: '部分付款',
   paid: '已付款',
+  cod: '貨到付款',
   refunded: '已退款',
+};
+
+export const shippingFeeTypeLabel: Record<string, string> = {
+  free: '包郵',
+  prepaid: '已付費（運費已收）',
+  unpaid: '不包郵（運費另計）',
+  cod: '運費貨到付款',
 };
 
 export const fulfillmentStatusLabel: Record<string, string> = {
   pending: '待出貨',
-  packed: '已包裝',
+  packed: '待出貨',
   shipped: '已出貨',
   delivered: '已送達',
   returned: '已退貨',
@@ -138,9 +146,16 @@ export const subscriptionBillingCycleLabel: Record<string, string> = {
   halfyear: '半年付清',
 };
 
+/** 訂閱付款方式（營運備註，非刷卡串接） */
+export const subscriptionPaymentTypeLabel: Record<string, string> = {
+  full: '已付全額',
+  monthly: '月付',
+  other: '其他',
+};
+
 export const subscriptionShipmentStatusLabel: Record<string, string> = {
   pending: '待出貨',
-  packed: '已包裝',
+  packed: '待出貨',
   shipped: '已出貨',
   delivered: '已送達',
   skipped: '本次跳過',

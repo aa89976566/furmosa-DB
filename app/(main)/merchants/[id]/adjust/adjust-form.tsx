@@ -9,6 +9,7 @@ type ProductOption = {
   id: string;
   name: string;
   sku: string;
+  isConsigned: boolean;
   currentStock: number;
   suggestedPrice: number | null;
   commissionMode: string | null;
@@ -122,11 +123,24 @@ export function AdjustForm({
           className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">請選擇商品</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} ({p.sku}) — 系統現存 {p.currentStock}
-            </option>
-          ))}
+          <optgroup label="-- 此店已寄賣 --">
+            {products
+              .filter((product) => product.isConsigned)
+              .map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.sku}) — 系統現存 {product.currentStock}
+                </option>
+              ))}
+          </optgroup>
+          <optgroup label="-- 其他商品 --">
+            {products
+              .filter((product) => !product.isConsigned)
+              .map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.sku}) — 系統現存 {product.currentStock}
+                </option>
+              ))}
+          </optgroup>
         </select>
         {product && (
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">

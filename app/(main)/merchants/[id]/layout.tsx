@@ -1,10 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
 import { merchantTypeLabel } from '@/lib/labels';
+import { MerchantBackButton } from './merchant-back-button';
 import { MerchantTabs } from './merchant-tabs';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +30,7 @@ export default async function MerchantLayout({
 
   return (
     <>
-      <div className="flex flex-col gap-2 border-b bg-background/50 px-6 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border/60 bg-surface-raised px-6 py-5 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{merchant.name}</h1>
@@ -41,12 +39,7 @@ export default async function MerchantLayout({
           <p className="font-mono text-xs text-muted-foreground">{merchant.merchantId}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/merchants">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回列表
-            </Link>
-          </Button>
+          <MerchantBackButton merchantId={merchant.id} />
         </div>
       </div>
 
@@ -62,7 +55,7 @@ export default async function MerchantLayout({
         ]}
       />
 
-      {children}
+      <div className="bg-canvas">{children}</div>
     </>
   );
 }

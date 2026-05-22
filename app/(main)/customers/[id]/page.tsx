@@ -153,6 +153,37 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                 </div>
               }
             />
+            <Row
+              label="預設運輸方式"
+              value={
+                customer.preferredShippingMethod === 'convenience' ? (
+                  <div className="text-right">
+                    <Badge variant="secondary">超商取貨</Badge>
+                    {(customer.preferredCvsBrand ||
+                      customer.preferredCvsStoreName ||
+                      customer.preferredCvsStoreId) && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {customer.preferredCvsBrand === '711'
+                          ? '7-ELEVEN'
+                          : customer.preferredCvsBrand === 'familymart'
+                            ? '全家'
+                            : customer.preferredCvsBrand === 'hilife'
+                              ? '萊爾富'
+                              : (customer.preferredCvsBrand ?? '')}{' '}
+                        {customer.preferredCvsStoreName ?? ''}
+                        {customer.preferredCvsStoreId
+                          ? `（店號 ${customer.preferredCvsStoreId}）`
+                          : ''}
+                      </div>
+                    )}
+                  </div>
+                ) : customer.preferredShippingMethod === 'home' ? (
+                  <Badge variant="outline">宅配</Badge>
+                ) : (
+                  <span className="text-muted-foreground">未設定</span>
+                )
+              }
+            />
           </dl>
         </SectionCard>
 

@@ -67,6 +67,12 @@ model Customer {
   email      String?
   address    String?
 
+  // 預設運輸偏好（新增訂單時自動帶入）
+  preferredShippingMethod String? // home / convenience
+  preferredCvsBrand       String? // 711 / familymart / hilife
+  preferredCvsStoreId     String?
+  preferredCvsStoreName   String?
+
   // 聯繫 / 社群
   lineUserId  String?
   lineDisplay String? // LINE 顯示名稱
@@ -118,8 +124,11 @@ model Merchant {
   contactName    String?
   phone          String?
   email          String?
-  address        String?
+  address        String? // 黑貓／宅配收件地址
   city           String?
+  // 進貨預設運輸（建立出貨單時自動帶入）
+  preferredCarrier String? // 7-11 / 黑貓
+  pickupStoreName  String? // 7-11 取件門市名稱
   commissionRate Float    @default(0.30) // fallback；個別商品仍以 MerchantProductRule 為準
   notes          String?
   status         String   @default("active")
@@ -380,7 +389,8 @@ model Order {
   orderNumber       String    @unique // ORD-202605-001
   source            String // website / line / consignment / subscription / manual
   status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
-  paymentStatus     String    @default("unpaid") // unpaid / partial / paid / refunded
+  paymentStatus     String    @default("unpaid") // unpaid / partial / paid / cod / refunded
+  shippingFeeType   String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款
   fulfillmentStatus String    @default("pending") // pending / packed / shipped / delivered / returned
   customerId        String?
   merchantId        String?
@@ -391,7 +401,11 @@ model Order {
   total             Float
   pointsEarned      Int       @default(0)
   pointsUsed        Int       @default(0)
-  shippingAddress   String?
+  shippingMethod    String    @default("home") // home / convenience
+  shippingAddress   String? // 宅配：家用地址；超商：可填門市地址
+  cvsBrand          String? // 711 / familymart / hilife（僅 shippingMethod=convenience 時使用）
+  cvsStoreId        String? // 門市店號
+  cvsStoreName      String? // 門市名稱
   note              String?
   orderedAt         DateTime  @default(now())
   shippedAt         DateTime?
@@ -560,6 +574,8 @@ model Subscription {
   recipientPhone   String
   shippingAddress  String
   notes            String?
+  paymentType      String    @default("monthly") // full / monthly / other
+  paymentNote      String? // 選「其他」時可填说明
   pausedAt         DateTime?
   cancelledAt      DateTime?
   createdAt        DateTime  @default(now())

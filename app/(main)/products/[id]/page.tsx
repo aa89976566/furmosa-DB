@@ -16,9 +16,13 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDateTime, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
-import { ArrowLeft, Building2, Store, Scale, DollarSign } from 'lucide-react';
+import { ArrowLeft, Boxes, Layers } from 'lucide-react';
 import { ProductForm } from './product-form';
 import { updateProduct, deleteProduct } from '../actions';
+import { PriceTierManager } from './price-tier-manager';
+import { VendorInfoCard } from '@/components/vendors/vendor-info-card';
+import { resolveTierCost } from '@/lib/product-price-tier';
+import { summarizeVariations } from '@/lib/product-variations';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +41,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           orderBy: { createdAt: 'desc' },
           take: 12,
         },
-        merchantRules: {
-          include: { merchant: true },
-          orderBy: { suggestedPrice: 'desc' },
-        },
       },
     }),
     prisma.vendor.findMany({
@@ -51,20 +51,28 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   ]);
   if (!product) notFound();
 
-  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
-  const margin = Number(product.price) - Number(product.cost);
-  const marginRate = Number(product.price) > 0 ? margin / Number(product.price) : 0;
+  // 修正歷史資料：誤把重量存成規格成本
+  for (const tier of product.priceTiers) {
+    if (tier.cost != null && resolveTierCost(tier.cost, tier.weightGrams) == null) {
+      await prisma.productPriceTier.update({
+        where: { id: tier.id },
+        data: { cost: null },
+      });
+      tier.cost = null;
+    }
+  }
 
-  // 計算每個 rule 的「公司收入」(售價 - 抽成)
-  const ruleRows = product.merchantRules.map((r) => {
-    const commissionAmount =
-      r.commissionMode === 'percent'
-        ? (r.suggestedPrice * r.commissionValue) / 100
-        : r.commissionValue;
-    const companyRevenue = r.suggestedPrice - commissionAmount;
-    const effectivePercent = r.suggestedPrice > 0 ? (commissionAmount / r.suggestedPrice) * 100 : 0;
-    return { ...r, commissionAmount, companyRevenue, effectivePercent };
-  });
+  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
+  const variations = product.priceTiers.map((tier) => ({
+    id: tier.id,
+    weightGrams: tier.weightGrams,
+    unit: tier.unit,
+    unitQty: tier.unitQty,
+    price: tier.price,
+    cost: tier.cost,
+    notes: tier.notes,
+  }));
+  const variationSummary = summarizeVariations(variations);
 
   const statusLabel =
     product.status === 'active' ? '上架' : product.status === 'draft' ? '草稿' : '下架';
@@ -79,6 +87,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <span>·</span>
             <span className="font-mono text-xs">{product.sku}</span>
             <Badge variant="secondary">{productCategoryLabel[product.category]}</Badge>
+            <Badge variant="info">可變商品</Badge>
             <Badge variant={product.status === 'active' ? 'success' : 'muted'}>{statusLabel}</Badge>
           </span>
         }
@@ -91,9 +100,35 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
           </Button>
         }
       />
-      <div className="grid gap-6 p-6 lg:grid-cols-3">
-        <SectionCard title="商品資訊" className="lg:col-span-1">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetric label="規格數" value={formatNumber(variationSummary.count)} />
+          <SummaryMetric label="售價區間" value={variationSummary.priceRange} />
+          <SummaryMetric label="毛利區間" value={variationSummary.marginRange} />
+          <SummaryMetric label="總庫存" value={formatNumber(totalOnHand)} />
+        </div>
+
+        <SectionCard
+          title="商品規格"
+          description="依重量（30g / 50g / 100g…）設定各規格的售價與成本"
+          icon={Layers}
+          contentClassName="pt-6"
+        >
+          <PriceTierManager
+            productId={product.id}
+            productUnit={product.unit}
+            tiers={variations}
+          />
+        </SectionCard>
+
+        <SectionCard
+          title="商品主檔"
+          description="共用名稱、分類、廠商與補貨設定；售價請在上方規格維護"
+          contentClassName="pt-6"
+        >
           <ProductForm
+            layout="studio"
+            productType="variable"
             product={{
               id: product.id,
               productId: product.productId,
@@ -113,207 +148,82 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             saveAction={updateProduct}
             deleteAction={deleteProduct}
           />
-          <dl className="mt-4 space-y-2 border-t pt-4 text-sm">
+          <dl className="mt-6 grid gap-3 border-t pt-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
             {product.sourceSku && (
-              <Row
+              <MetaItem
                 label="單價表 SKU"
                 value={<span className="font-mono text-xs">{product.sourceSku}</span>}
               />
             )}
-            <Row
-              label="毛利"
-              value={`${formatCurrency(margin)} (${(marginRate * 100).toFixed(1)}%)`}
-            />
-            <Row label="總庫存" value={formatNumber(totalOnHand)} />
-            <Row label="建立時間" value={formatDateTime(product.createdAt)} />
+            <MetaItem label="建立時間" value={formatDateTime(product.createdAt)} />
+            <MetaItem label="補貨點" value={formatNumber(product.reorderPoint)} />
+            <MetaItem label="列表參考售價" value={formatCurrency(Number(product.price))} />
           </dl>
         </SectionCard>
 
         <SectionCard
-          title="廠商資訊"
-          description="點擊可看廠商完整資料"
-          className="lg:col-span-2"
+          title="供應與庫存"
+          description="廠商來源與各倉庫現有數量"
+          contentClassName="space-y-6 pt-6"
         >
-          {product.vendor ? (
-            <div className="flex items-start justify-between rounded-lg border bg-muted/30 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-mono text-muted-foreground">
-                    {product.vendor.vendorId}
-                  </div>
-                  <div className="text-base font-semibold">{product.vendor.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {product.vendor.contactName ?? '-'} · {product.vendor.phone ?? '-'} ·{' '}
-                    {product.vendor.email ?? '-'}
-                  </div>
-                  {product.vendor.paymentTerms ? (
-                    <div className="text-xs text-muted-foreground">
-                      付款條件：{product.vendor.paymentTerms}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/vendors/${product.vendor.id}`}>查看廠商</Link>
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">尚未指定廠商</p>
-          )}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              廠商
+            </p>
+            {product.vendor ? (
+              <VendorInfoCard
+                vendor={{
+                  id: product.vendor.id,
+                  vendorId: product.vendor.vendorId,
+                  name: product.vendor.name,
+                  contactName: product.vendor.contactName,
+                  phone: product.vendor.phone,
+                  email: product.vendor.email,
+                  address: product.vendor.address,
+                  paymentTerms: product.vendor.paymentTerms,
+                  notes: product.vendor.notes,
+                  status: product.vendor.status,
+                }}
+              />
+            ) : (
+              <p className="rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                尚未指定廠商
+              </p>
+            )}
+          </div>
 
-          <h4 className="mt-6 mb-2 text-sm font-medium">各倉庫庫存</h4>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>倉庫</TableHead>
-                <TableHead>代碼</TableHead>
-                <TableHead className="text-right">數量</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {product.inventoryBalances.map((b) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium">{b.warehouse.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {b.warehouse.code}
-                  </TableCell>
-                  <TableCell className="text-right">{formatNumber(b.quantity)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </SectionCard>
-
-        <SectionCard
-          title={
-            <span className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-success" />
-              售價對照表
-            </span>
-          }
-          description="各規格的售價（依單價表）；可在搜尋頁輸入名稱+重量直接查詢"
-          className="lg:col-span-3"
-        >
-          {product.priceTiers.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-              尚無價格資料 — 請在單價表填入該商品後重新匯入
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {product.priceTiers.map((t) => {
-                const label = t.weightGrams
-                  ? `${t.weightGrams}g`
-                  : `${t.unitQty} ${t.unit}`;
-                const perGramPrice =
-                  t.weightGrams && t.weightGrams > 0 ? t.price / t.weightGrams : null;
-                const tierMargin =
-                  Number(product.cost) > 0 && t.weightGrams
-                    ? t.price - Number(product.cost) * t.weightGrams
-                    : null;
-                return (
-                  <div
-                    key={t.id}
-                    className="rounded-lg border bg-card p-4 shadow-sm transition hover:border-primary/40"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Scale className="h-3.5 w-3.5" />
-                        {label}
-                      </div>
-                      {t.notes && (
-                        <Badge variant="info" className="text-xs">
-                          {t.notes}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-2 text-2xl font-bold tabular-nums">
-                      {formatCurrency(t.price)}
-                    </div>
-                    {perGramPrice !== null && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        = {perGramPrice.toFixed(2)} /g
-                      </div>
-                    )}
-                    {tierMargin !== null && (
-                      <div className="mt-2 text-xs text-success">
-                        毛利 {formatCurrency(tierMargin)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="各寄賣店銷售規則"
-          description="這個商品在每家寄賣店的建議售價、抽成方式、公司每件實收"
-          className="lg:col-span-3"
-        >
-          {ruleRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">尚無寄賣規則</p>
-          ) : (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              各倉庫庫存
+            </p>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>寄賣店</TableHead>
-                  <TableHead className="text-right">建議售價</TableHead>
-                  <TableHead>抽成方式</TableHead>
-                  <TableHead className="text-right">店家抽成</TableHead>
-                  <TableHead className="text-right">每件抽成換算</TableHead>
-                  <TableHead className="text-right">公司每件實收</TableHead>
+                  <TableHead>倉庫</TableHead>
+                  <TableHead>代碼</TableHead>
+                  <TableHead className="text-right">數量</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ruleRows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <Link
-                        href={`/merchants/${r.merchant.id}`}
-                        className="flex items-center gap-2 font-medium hover:underline"
-                      >
-                        <Store className="h-4 w-4 text-muted-foreground" />
-                        {r.merchant.name}
-                      </Link>
-                      <div className="ml-6 text-xs text-muted-foreground">
-                        {r.merchant.merchantId}
-                      </div>
+                {product.inventoryBalances.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{b.warehouse.name}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {b.warehouse.code}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(r.suggestedPrice)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={r.commissionMode === 'percent' ? 'info' : 'warning'}>
-                        {r.commissionMode === 'percent' ? '百分比抽成' : '固定金額'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {r.commissionMode === 'percent'
-                        ? `${r.commissionValue}%`
-                        : formatCurrency(r.commissionValue)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">
-                      {formatCurrency(r.commissionAmount)}
-                      <span className="ml-1 text-xs">({r.effectivePercent.toFixed(1)}%)</span>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-success">
-                      {formatCurrency(r.companyRevenue)}
-                    </TableCell>
+                    <TableCell className="text-right">{formatNumber(b.quantity)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
+          </div>
         </SectionCard>
 
         <SectionCard
           title="近期庫存異動"
           description="最新 12 筆"
-          className="lg:col-span-3"
+          icon={Boxes}
+          contentClassName="pt-6"
         >
           <Table>
             <TableHeader>
@@ -351,11 +261,20 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
+    <div className="rounded-xl border border-border/70 bg-card px-4 py-4 shadow-card">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight">{value}</p>
+    </div>
+  );
+}
+
+function MetaItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
+      <dd className="mt-1 font-medium">{value}</dd>
     </div>
   );
 }

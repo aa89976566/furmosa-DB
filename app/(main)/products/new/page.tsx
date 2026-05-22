@@ -9,7 +9,13 @@ import { createProduct } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewProductPage() {
+export default async function NewProductPage({
+  searchParams,
+}: {
+  searchParams?: { vendorId?: string };
+}) {
+  const preselectedVendorId = searchParams?.vendorId ?? null;
+
   const vendors = await prisma.vendor.findMany({
     where: { status: 'active' },
     orderBy: { name: 'asc' },
@@ -30,8 +36,9 @@ export default async function NewProductPage() {
         }
       />
       <div className="p-6">
-        <SectionCard title="商品資訊" className="max-w-2xl">
+        <SectionCard title="商品主檔" className="max-w-2xl">
           <ProductForm
+            productType="variable"
             product={{
               name: '',
               category: 'other',
@@ -41,7 +48,7 @@ export default async function NewProductPage() {
               cost: 0,
               reorderPoint: 10,
               status: 'active',
-              vendorId: null,
+              vendorId: preselectedVendorId,
               notes: null,
             }}
             vendors={vendors}
@@ -49,7 +56,7 @@ export default async function NewProductPage() {
             submitLabel="建立商品"
           />
           <p className="mt-4 text-[11px] text-muted-foreground">
-            商品編號（PROD-XXXX）與 SKU（FUR-XXXX）會在儲存時自動產生。
+            商品編號（PROD-XXXX）與 SKU（FUR-XXXX）會在儲存時自動產生。建立後請到商品頁新增規格變體與售價。
           </p>
         </SectionCard>
       </div>

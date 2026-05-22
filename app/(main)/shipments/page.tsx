@@ -1,50 +1,77 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
-import { SectionCard } from '@/components/shared/section-card';
+import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { formatDate, formatRelative } from '@/lib/format';
-import {
+  isPreShipStatus,
   shipmentStatusLabel,
   shipmentStatusVariant,
-  shipmentTypeLabel,
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
-import { productLabel } from '@/lib/product-label';
-import {
-  syncUpcomingSubscriptionShipments,
-  parsePlanContents,
-  formatPlanContents,
-} from '@/lib/subscription-shipment-sync';
-import { Truck, Store, User, Repeat, Package, CalendarClock } from 'lucide-react';
+import { syncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
+import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-const ICONS: Record<string, typeof Store> = {
-  merchant_restock: Store,
-  customer_order: User,
-  subscription: Repeat,
-};
+const merchantLogisticsSelect = {
+  id: true,
+  name: true,
+  contactName: true,
+  phone: true,
+  address: true,
+  city: true,
+  preferredCarrier: true,
+  pickupStoreName: true,
+} as const;
+
+const shipmentInclude = {
+  merchant: { select: merchantLogisticsSelect },
+  customer: true,
+  order: {
+    select: {
+      id: true,
+      orderNumber: true,
+      shippingMethod: true,
+      cvsBrand: true,
+      cvsStoreId: true,
+      cvsStoreName: true,
+    },
+  },
+  items: true,
+  subscriptionShipment: {
+    include: {
+      subscription: { include: { plan: true } },
+    },
+  },
+} as const;
+
+const QUEUE_SECTIONS = [
+  {
+    status: 'pending',
+    title: '待出貨',
+    description: '點列表在下方開啟訂單內容，下拉可標記已寄出',
+    tone: 'operations' as const,
+  },
+  {
+    status: 'shipped',
+    title: '在途',
+    description: '已寄出 — 下拉選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
+    tone: 'logistics' as const,
+  },
+];
 
 export default async function ShipmentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; type?: string };
+  searchParams?: { status?: string; type?: string; s?: string };
 }) {
   const status = searchParams?.status;
   const type = searchParams?.type;
+  const selectedShipmentId = searchParams?.s;
 
-  // 進入隊列前先同步：把「一週內要寄」的訂閱方案補成 pending Shipment
   await syncUpcomingSubscriptionShipments();
 
   const where: Record<string, unknown> = {};
@@ -54,16 +81,7 @@ export default async function ShipmentsPage({
   const [shipments, counts] = await Promise.all([
     prisma.shipment.findMany({
       where,
-      include: {
-        merchant: true,
-        customer: true,
-        items: true,
-        subscriptionShipment: {
-          include: {
-            subscription: { include: { plan: true } },
-          },
-        },
-      },
+      include: shipmentInclude,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
       take: 100,
     }),
@@ -75,30 +93,87 @@ export default async function ShipmentsPage({
 
   const countByStatus = Object.fromEntries(counts.map((c) => [c.status, c._count._all]));
   const total = counts.reduce((s, c) => s + c._count._all, 0);
+  const grouped = !status;
+  const panelRefreshKey = shipments
+    .map((s) => `${s.id}:${s.status}:${s.updatedAt.toISOString()}`)
+    .join('|');
+
+  // 訂閱近期安排：只顯示尚未寄出
+  const subscriptionRows = shipments
+    .filter((s) => s.type === 'subscription' && (s.status === 'pending' || s.status === 'packed'))
+    .sort((a, b) => {
+      const aDate = new Date(a.subscriptionShipment?.scheduledDate ?? a.createdAt).getTime();
+      const bDate = new Date(b.subscriptionShipment?.scheduledDate ?? b.createdAt).getTime();
+      return aDate - bDate;
+    });
+  const operationalRows = shipments.filter((s) => s.type !== 'subscription');
+
+  const operationalSections = QUEUE_SECTIONS.map((section) => {
+    const rows = operationalRows.filter((s) =>
+      section.status === 'pending' ? isPreShipStatus(s.status) : s.status === section.status,
+    );
+    return {
+      key: section.status,
+      title: `${section.title} (${rows.length})`,
+      description: section.description,
+      tone: section.tone,
+      tableVariant: 'default' as const,
+      shipments: rows,
+    };
+  });
+  const pendingSection = operationalSections.find((section) => section.key === 'pending');
+  const otherOperationalSections = operationalSections.filter((section) => section.key !== 'pending');
+
+  const workspaceSections = grouped
+    ? [
+        ...(pendingSection ? [pendingSection] : []),
+        {
+          key: 'subscription',
+          title: `訂閱近期安排 (${subscriptionRows.length})`,
+          description: '僅顯示未寄出；標記「已寄出」後會移至出貨歷史',
+          tone: 'subscription' as const,
+          tableVariant: 'subscription' as const,
+          shipments: subscriptionRows,
+        },
+        ...otherOperationalSections,
+      ]
+    : [
+        {
+          key: status!,
+          title: `${shipmentStatusLabel[status!]} (${shipments.length})`,
+          description: '點列表任一筆，在下方開啟訂單內容；運輸狀態可直接在列表修改',
+          tone: 'logistics' as const,
+          tableVariant: 'default' as const,
+          shipments,
+        },
+      ];
 
   return (
     <>
       <PageHeader
+        tone="logistics"
         title="出貨隊列"
-        description="物流人員的工作台 — 待包裝、待寄出、在途中的所有出貨單"
+        description="物流工作台 — 點列表任一筆，在下方開啟訂單內容（品項、運輸、物流狀態）"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/inventory/transactions">
-              <Package className="mr-1 h-4 w-4" />
-              庫存異動
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/shipments/history">
+                出貨歷史 ({(countByStatus.shipped ?? 0) + (countByStatus.delivered ?? 0)})
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/inventory/transactions">
+                <Package className="mr-1 h-4 w-4" />
+                庫存異動
+              </Link>
+            </Button>
+          </div>
         }
       />
       <div className="grid gap-6 p-6">
-        <div className="grid gap-3 sm:grid-cols-5">
-          <FilterChip
-            href="/shipments"
-            label="全部"
-            count={total}
-            active={!status}
-          />
-          {(['pending', 'packed', 'shipped', 'delivered', 'cancelled'] as const).map((s) => (
+        <div className="grid gap-3 sm:grid-cols-4">
+          <FilterChip href="/shipments" label="全部" count={total} active={!status} />
+          {(['pending', 'shipped', 'delivered'] as const).map((s) => (
             <FilterChip
               key={s}
               href={`/shipments?status=${s}`}
@@ -110,146 +185,20 @@ export default async function ShipmentsPage({
           ))}
         </div>
 
-        <SectionCard
-          title={
-            status
-              ? `${shipmentStatusLabel[status]} (${shipments.length})`
-              : `所有出貨單 (${shipments.length})`
-          }
-          description="點任一單進入詳情，可推進狀態（包裝 / 寄出 / 送達）"
-        >
-          {shipments.length === 0 ? (
+        <Suspense
+          fallback={
             <div className="rounded-lg border border-dashed bg-muted/20 p-10 text-center text-sm text-muted-foreground">
-              沒有符合的出貨單
+              載入出貨工作台…
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>單號</TableHead>
-                  <TableHead>類型</TableHead>
-                  <TableHead>狀態</TableHead>
-                  <TableHead>收件人</TableHead>
-                  <TableHead>商品</TableHead>
-                  <TableHead className="text-right">總件數</TableHead>
-                  <TableHead>建立 / 預定</TableHead>
-                  <TableHead>物流</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shipments.map((s) => {
-                  const Icon = ICONS[s.type] ?? Truck;
-                  const totalQty = s.items.reduce((sum, i) => sum + i.quantity, 0);
-                  const isSub = s.type === 'subscription';
-                  const planContents = isSub
-                    ? parsePlanContents(s.subscriptionShipment?.subscription?.plan?.contents)
-                    : [];
-                  const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
-                  return (
-                    <TableRow key={s.id} className="cursor-pointer hover:bg-muted/40">
-                      <TableCell>
-                        <Link
-                          href={`/shipments/${s.id}`}
-                          className="font-mono text-xs hover:underline"
-                        >
-                          {s.shipmentNumber}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                          {shipmentTypeLabel[s.type] ?? s.type}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={shipmentStatusVariant[s.status] ?? 'secondary'}>
-                          {shipmentStatusLabel[s.status] ?? s.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {s.merchant ? (
-                          <Link
-                            href={`/merchants/${s.merchant.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {s.merchant.name}
-                          </Link>
-                        ) : s.customer ? (
-                          <Link
-                            href={`/customers/${s.customer.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {s.customer.name}
-                          </Link>
-                        ) : (
-                          (s.recipientName ?? '-')
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {isSub && planContents.length > 0 ? (
-                          <>
-                            <div className="font-medium">
-                              {s.subscriptionShipment?.subscription?.plan?.name ?? '訂閱方案'}
-                            </div>
-                            <div className="text-xs text-muted-foreground line-clamp-2">
-                              {formatPlanContents(planContents)}
-                            </div>
-                          </>
-                        ) : s.items.length > 0 ? (
-                          <>
-                            {s.items.length} 項
-                            <div className="text-xs text-muted-foreground line-clamp-2">
-                              {s.items
-                                .slice(0, 2)
-                                .map((it) => productLabel(it.productName, it.weightGrams))
-                                .join('、')}
-                              {s.items.length > 2 ? `、+${s.items.length - 2}` : ''}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        {isSub ? '—' : totalQty}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {isSub && scheduledDate ? (
-                          <>
-                            <div className="flex items-center gap-1 text-foreground">
-                              <CalendarClock className="h-3.5 w-3.5 text-info" />
-                              <span className="font-medium">預定 {formatDate(scheduledDate)}</span>
-                            </div>
-                            <div className="text-xs">{formatRelative(scheduledDate)}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div>{formatDate(s.createdAt)}</div>
-                            <div className="text-xs">{formatRelative(s.createdAt)}</div>
-                          </>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {s.carrier ? (
-                          <>
-                            <div>{s.carrier}</div>
-                            {s.trackingNumber && (
-                              <div className="font-mono text-muted-foreground">
-                                {s.trackingNumber}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </SectionCard>
+          }
+        >
+          <ShipmentQueueWorkspace
+            sections={workspaceSections}
+            statusFilter={status}
+            panelRefreshKey={panelRefreshKey}
+            initialShipmentId={selectedShipmentId}
+          />
+        </Suspense>
       </div>
     </>
   );

@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
+import { ProductsListFilters } from '@/components/products/products-list-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -14,24 +16,69 @@ import {
 } from '@/components/ui/table';
 import { productCategoryLabel } from '@/lib/labels';
 import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatPriceRange } from '@/lib/product-variations';
 import { Plus, AlertTriangle } from 'lucide-react';
+import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProductsPage() {
-  const products = await prisma.product.findMany({
-    include: {
-      vendor: true,
-      inventoryBalances: { select: { quantity: true } },
-    },
-    orderBy: { productId: 'asc' },
-  });
+function productSearchWhere(q: string): Prisma.ProductWhereInput {
+  const term = q.trim();
+  if (!term) return {};
+  const contains = { contains: term, mode: 'insensitive' as const };
+  return {
+    OR: [
+      { name: contains },
+      { sku: contains },
+      { productId: contains },
+      { sourceSku: contains },
+      { style: contains },
+      { vendor: { name: contains } },
+    ],
+  };
+}
+
+const VALID_STATUSES = ['active', 'inactive', 'draft'] as const;
+
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams?: { q?: string; status?: string };
+}) {
+  const q = (searchParams?.q ?? '').trim();
+  const status =
+    searchParams?.status && (VALID_STATUSES as readonly string[]).includes(searchParams.status)
+      ? searchParams.status
+      : '';
+
+  const where: Prisma.ProductWhereInput = {
+    ...productSearchWhere(q),
+    ...(status ? { status } : {}),
+  };
+
+  const [products, totalAll, activeCount] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      include: {
+        vendor: true,
+        priceTiers: { select: { price: true } },
+        inventoryBalances: { select: { quantity: true } },
+      },
+      orderBy: { productId: 'asc' },
+    }),
+    prisma.product.count(),
+    prisma.product.count({ where: { status: 'active' } }),
+  ]);
 
   return (
     <>
       <PageHeader
         title="產品 Products"
-        description="所有可銷售商品（含廠商來源、庫存與補貨點）"
+        description={
+          q || status
+            ? `篩選結果 ${products.length} 筆 · 資料庫共 ${totalAll} 個商品`
+            : `共 ${totalAll} 個商品（上架 ${activeCount}）· 含廠商、庫存與規格`
+        }
         actions={
           <Button size="sm" asChild>
             <Link href="/products/new">
@@ -42,7 +89,15 @@ export default async function ProductsPage() {
         }
       />
       <div className="p-6">
-        <Card>
+        <Card className="overflow-hidden">
+          <Suspense fallback={null}>
+            <ProductsListFilters
+              total={products.length}
+              activeCount={activeCount}
+              q={q}
+              status={status}
+            />
+          </Suspense>
           <Table>
             <TableHeader>
               <TableRow>
@@ -50,14 +105,21 @@ export default async function ProductsPage() {
                 <TableHead>名稱</TableHead>
                 <TableHead>分類</TableHead>
                 <TableHead>廠商</TableHead>
-                <TableHead className="text-right">售價</TableHead>
-                <TableHead className="text-right">成本</TableHead>
+                <TableHead className="text-right">規格數</TableHead>
+                <TableHead className="text-right">售價區間</TableHead>
                 <TableHead className="text-right">總庫存</TableHead>
                 <TableHead>狀態</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
+              {products.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                    {q ? `找不到符合「${q}」的商品` : '尚無商品'}
+                  </TableCell>
+                </TableRow>
+              ) : null}
               {products.map((p) => {
                 const onHand = p.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
                 const low = onHand <= p.reorderPoint;
@@ -71,7 +133,9 @@ export default async function ProductsPage() {
                       <div className="text-xs text-muted-foreground">{p.sku}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{productCategoryLabel[p.category]}</Badge>
+                      <Badge variant="secondary">
+                        {productCategoryLabel[p.category] ?? p.category}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
                       {p.vendor ? (
@@ -85,9 +149,11 @@ export default async function ProductsPage() {
                         <span className="text-muted-foreground">未指定</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{formatCurrency(Number(p.price))}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatCurrency(Number(p.cost))}
+                    <TableCell className="text-right">{formatNumber(p.priceTiers.length)}</TableCell>
+                    <TableCell className="text-right">
+                      {p.priceTiers.length > 0
+                        ? formatPriceRange(p.priceTiers.map((tier) => tier.price))
+                        : formatCurrency(Number(p.price))}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={low ? 'text-warning font-semibold' : ''}>

@@ -2,9 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
+import {
+  HorizontalSectionBand,
+  HorizontalSectionPane,
+} from '@/components/shared/horizontal-sections';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -14,7 +19,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDateTime } from '@/lib/format';
-import { ArrowLeft, AlertTriangle, Phone, MapPin, StickyNote } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
+import { LogisticsSummary } from '@/components/shared/logistics-summary';
+import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
+import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
+import {
+  ArrowLeft,
+  AlertTriangle,
+  MapPin,
+  StickyNote,
+  Truck,
+  CreditCard,
+  Clock,
+  Package,
+  ClipboardList,
+} from 'lucide-react';
+import { updateOrderPaymentStatus, updateOrderShippingFeeType } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,13 +47,17 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       customer: true,
       merchant: true,
       items: { include: { product: true } },
+      shipments: { orderBy: { createdAt: 'desc' } },
     },
   });
   if (!order) notFound();
 
+  const logistics = resolveLogisticsForOrderList(order);
+
   return (
     <>
       <PageHeader
+        tone="orders"
         title={order.orderNumber}
         description={`下單時間 ${formatDateTime(order.orderedAt)}`}
         actions={
@@ -44,90 +70,178 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         }
       />
 
-      <div className="grid gap-6 p-6 lg:grid-cols-3">
-        <SectionCard title="訂單摘要" className="lg:col-span-1">
-          <dl className="space-y-3 text-sm">
-            <Row label="訂單編號" value={<span className="font-mono">{order.orderNumber}</span>} />
-            <Row label="來源" value={<StatusBadge kind="orderSource" value={order.source} />} />
-            <Row label="狀態" value={<StatusBadge kind="order" value={order.status} />} />
-            <Row label="付款狀態" value={<StatusBadge kind="payment" value={order.paymentStatus} />} />
-            <Row label="出貨狀態" value={<StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />} />
-            <Row
-              label="客戶"
-              value={
-                order.customer ? (
-                  <Link
-                    href={`/customers/${order.customer.id}`}
-                    className="text-info hover:underline"
-                  >
-                    {order.customer.name}
-                  </Link>
-                ) : (
-                  '-'
-                )
-              }
-            />
-            {order.customer?.phone && (
-              <Row
-                label="電話"
-                value={
-                  <span className="inline-flex items-center gap-1 font-mono text-xs">
-                    <Phone className="h-3 w-3 text-muted-foreground" />
-                    {order.customer.phone}
-                  </span>
-                }
-              />
-            )}
-            <Row
-              label="寄賣店家"
-              value={
-                order.merchant ? (
-                  <Link
-                    href={`/merchants/${order.merchant.id}`}
-                    className="text-info hover:underline"
-                  >
-                    {order.merchant.name}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )
-              }
-            />
-            <Row
-              label="送貨地址"
-              value={
-                order.shippingAddress ? (
-                  <span className="inline-flex items-start gap-1">
-                    <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span>{order.shippingAddress}</span>
-                  </span>
-                ) : order.customer?.address ? (
-                  <span className="inline-flex items-start gap-1 text-muted-foreground">
-                    <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
-                    <span>{order.customer.address}（客戶預設）</span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">-</span>
-                )
-              }
-            />
-            {order.completedAt ? (
-              <Row label="完成時間" value={formatDateTime(order.completedAt)} />
-            ) : null}
-          </dl>
+      <div className="space-y-6 p-6">
+        <HorizontalSectionBand>
+          <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
+            <DetailBadgeRow className="mb-3">
+              <StatusBadge kind="orderSource" value={order.source} />
+              <StatusBadge kind="order" value={order.status} />
+              <StatusBadge kind="payment" value={order.paymentStatus} />
+              <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
+            </DetailBadgeRow>
 
-          {order.note && (
-            <div className="mt-4 flex gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span className="whitespace-pre-line">{order.note}</span>
+            <DetailStrip
+              columns={1}
+              items={[
+                {
+                  label: '訂單編號',
+                  value: <span className="font-mono">{order.orderNumber}</span>,
+                },
+                {
+                  label: '客戶',
+                  value: order.customer ? (
+                    <span className="block min-w-0">
+                      <Link
+                        href={`/customers/${order.customer.id}`}
+                        className="text-info hover:underline"
+                      >
+                        {order.customer.name}
+                      </Link>
+                      {order.customer.phone ? (
+                        <span className="mt-0.5 block font-mono text-xs font-normal text-muted-foreground">
+                          {order.customer.phone}
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  ),
+                },
+                {
+                  label: '寄賣店家',
+                  value: order.merchant ? (
+                    <Link
+                      href={`/merchants/${order.merchant.id}`}
+                      className="text-info hover:underline"
+                    >
+                      {order.merchant.name}
+                    </Link>
+                  ) : (
+                    <span className="font-normal text-muted-foreground">—</span>
+                  ),
+                },
+                ...(order.completedAt
+                  ? [{ label: '完成時間', value: formatDateTime(order.completedAt) }]
+                  : []),
+              ]}
+            />
+
+            {order.note ? (
+              <div className="mt-3 flex gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-pre-line">{order.note}</span>
+              </div>
+            ) : null}
+          </HorizontalSectionPane>
+
+          <HorizontalSectionPane tone="logistics" icon={Truck} title="運輸資訊">
+            <LogisticsSummary logistics={logistics} />
+            {order.shippingAddress &&
+            order.shippingMethod === 'convenience' &&
+            !logistics.destination.includes(order.shippingAddress.trim()) ? (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-pre-line">{order.shippingAddress}</span>
+              </p>
+            ) : null}
+            {order.merchant && !order.shippingMethod ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                顯示寄賣店家檔案中的預設運輸資料。
+                <Link
+                  href={`/merchants/${order.merchant.id}`}
+                  className="ml-1 text-info hover:underline"
+                >
+                  編輯店家運輸
+                </Link>
+              </p>
+            ) : null}
+
+            <div className="mt-3 border-t pt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">出貨單</p>
+              {order.shipments.length === 0 ? (
+                <p className="text-xs text-muted-foreground">尚未建立出貨單</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {order.shipments.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5"
+                    >
+                      <Link
+                        href={`/shipments/${s.id}`}
+                        className="min-w-0 font-mono text-xs text-info hover:underline"
+                      >
+                        {s.shipmentNumber}
+                      </Link>
+                      <Badge
+                        variant={shipmentStatusVariant[s.status] ?? 'secondary'}
+                        className="shrink-0"
+                      >
+                        {shipmentStatusLabel[s.status] ?? s.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-        </SectionCard>
+          </HorizontalSectionPane>
+
+          <HorizontalSectionPane
+            tone="finance"
+            icon={CreditCard}
+            title="付款與運費"
+            description="可隨時調整"
+          >
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">付款狀態</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['unpaid', 'partial', 'paid', 'cod', 'refunded'] as const).map((s) => (
+                    <form key={s} action={updateOrderPaymentStatus}>
+                      <input type="hidden" name="orderId" value={order.id} />
+                      <input type="hidden" name="paymentStatus" value={s} />
+                      <button
+                        type="submit"
+                        disabled={order.paymentStatus === s}
+                        className={toggleButtonClass(order.paymentStatus === s, false)}
+                      >
+                        {paymentStatusLabel[s]}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">運費類型</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(['free', 'prepaid', 'unpaid', 'cod'] as const).map((s) => (
+                    <form key={s} action={updateOrderShippingFeeType}>
+                      <input type="hidden" name="orderId" value={order.id} />
+                      <input type="hidden" name="shippingFeeType" value={s} />
+                      <button
+                        type="submit"
+                        disabled={order.shippingFeeType === s}
+                        className={toggleButtonClass(order.shippingFeeType === s, false)}
+                      >
+                        {shippingFeeTypeLabel[s]}
+                      </button>
+                    </form>
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  切到「包郵 / 已付費」時，運費會自動歸 0。
+                </p>
+              </div>
+            </div>
+          </HorizontalSectionPane>
+        </HorizontalSectionBand>
 
         <SectionCard
+          tone="orders"
+          icon={Package}
           title="訂單品項"
           description={`${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
-          className="lg:col-span-2"
         >
           {(() => {
             const incomplete = order.items.filter(
@@ -241,9 +355,10 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         </SectionCard>
 
         <SectionCard
+          tone="operations"
+          icon={Clock}
           title="活動紀錄"
           description="訂單流程時間軸"
-          className="lg:col-span-3"
         >
           <ol className="relative ml-3 space-y-4 border-l pl-6">
             <TimelineItem
@@ -279,12 +394,13 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
-    </div>
+function toggleButtonClass(selected: boolean, fullWidth = false) {
+  return cn(
+    'rounded-md border px-2.5 py-1 text-xs whitespace-nowrap transition disabled:cursor-not-allowed',
+    fullWidth && 'w-full text-left',
+    selected
+      ? 'border-primary/40 bg-primary/10 font-medium text-primary'
+      : 'border-border bg-background hover:bg-muted',
   );
 }
 

@@ -5,17 +5,30 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { parseWeightFromName, productLabel } from '@/lib/product-label';
+import { variationLabel } from '@/lib/product-variations';
 
-type Product = {
+type ProductTierOption = {
+  id: string;
+  weightGrams: number | null;
+  unit: string;
+  unitQty: number;
+  price: number;
+  notes: string | null;
+};
+
+export type RestockProductOption = {
   id: string;
   name: string;
   sku: string;
   isConsigned: boolean;
   currentStock: number;
+  defaultUnit: string;
+  priceTiers: ProductTierOption[];
 };
 
 type Line = {
   productId: string;
+  tierId: string;
   quantity: number;
   weightGrams: number | '';
   unit: string;
@@ -23,9 +36,14 @@ type Line = {
 
 const UNIT_OPTIONS = ['包', '片', '支', '罐', '盒', '袋', '組', '件'];
 
-export function RestockForm({ products }: { products: Product[] }) {
+function weightFromTier(tier?: ProductTierOption | null) {
+  if (!tier?.weightGrams || tier.weightGrams <= 0) return '';
+  return tier.weightGrams;
+}
+
+export function RestockForm({ products }: { products: RestockProductOption[] }) {
   const [lines, setLines] = useState<Line[]>([
-    { productId: '', quantity: 1, weightGrams: '', unit: '包' },
+    { productId: '', tierId: '', quantity: 1, weightGrams: '', unit: '包' },
   ]);
 
   function update(idx: number, patch: Partial<Line>) {
@@ -34,16 +52,67 @@ export function RestockForm({ products }: { products: Product[] }) {
 
   function selectProduct(idx: number, productId: string) {
     const p = products.find((x) => x.id === productId);
-    const detected = p ? parseWeightFromName(p.name) : null;
+    if (!p) {
+      setLines((ls) =>
+        ls.map((l, i) =>
+          i === idx
+            ? { productId: '', tierId: '', quantity: 1, weightGrams: '', unit: '包' }
+            : l,
+        ),
+      );
+      return;
+    }
+
+    if (p.priceTiers.length > 0) {
+      const tier = p.priceTiers[0];
+      setLines((ls) =>
+        ls.map((l, i) =>
+          i === idx
+            ? {
+                ...l,
+                productId,
+                tierId: tier.id,
+                weightGrams: weightFromTier(tier),
+                unit: tier.unit,
+              }
+            : l,
+        ),
+      );
+      return;
+    }
+
+    const detected = parseWeightFromName(p.name);
     setLines((ls) =>
       ls.map((l, i) =>
         i === idx
           ? {
               ...l,
               productId,
-              weightGrams: detected ?? l.weightGrams,
+              tierId: '',
+              quantity: l.quantity,
+              weightGrams: detected ?? '',
+              unit: p.defaultUnit || '包',
             }
           : l,
+      ),
+    );
+  }
+
+  function selectTier(idx: number, tierId: string) {
+    const line = lines[idx];
+    const p = products.find((x) => x.id === line.productId);
+    const tier = p?.priceTiers.find((x) => x.id === tierId);
+    if (!p || !tier) return;
+    setLines((ls) =>
+      ls.map((current, i) =>
+        i === idx
+          ? {
+              ...current,
+              tierId,
+              weightGrams: weightFromTier(tier),
+              unit: tier.unit,
+            }
+          : current,
       ),
     );
   }
@@ -51,7 +120,7 @@ export function RestockForm({ products }: { products: Product[] }) {
   function add() {
     setLines((ls) => [
       ...ls,
-      { productId: '', quantity: 1, weightGrams: '', unit: '包' },
+      { productId: '', tierId: '', quantity: 1, weightGrams: '', unit: '包' },
     ]);
   }
 
@@ -61,9 +130,9 @@ export function RestockForm({ products }: { products: Product[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
-        <div className="col-span-5">商品</div>
-        <div className="col-span-2 text-right">重量 (g)</div>
+      <div className="grid grid-cols-12 gap-3 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="col-span-4">商品</div>
+        <div className="col-span-3">規格</div>
         <div className="col-span-2 text-right">數量</div>
         <div className="col-span-1 text-center">單位</div>
         <div className="col-span-1 text-right">現存</div>
@@ -71,6 +140,7 @@ export function RestockForm({ products }: { products: Product[] }) {
       </div>
       {lines.map((line, idx) => {
         const selected = products.find((p) => p.id === line.productId);
+        const hasTiers = (selected?.priceTiers.length ?? 0) > 0;
         const previewLabel = selected
           ? productLabel(
               selected.name,
@@ -81,9 +151,9 @@ export function RestockForm({ products }: { products: Product[] }) {
         return (
           <div
             key={idx}
-            className="grid grid-cols-12 items-start gap-3 rounded-lg border bg-muted/30 p-3"
+            className="grid grid-cols-12 items-start gap-3 rounded-xl border border-border/70 bg-muted/30 p-4"
           >
-            <div className="col-span-5 space-y-1">
+            <div className="col-span-4 space-y-1">
               <select
                 name="productId"
                 required
@@ -122,21 +192,26 @@ export function RestockForm({ products }: { products: Product[] }) {
                 </div>
               )}
             </div>
-            <div className="col-span-2">
-              <input
-                name="weightGrams"
-                type="number"
-                min={0}
-                step={1}
-                value={line.weightGrams}
-                onChange={(e) =>
-                  update(idx, {
-                    weightGrams: e.target.value === '' ? '' : Number(e.target.value),
-                  })
-                }
-                className="block w-full rounded-md border bg-background px-3 py-2 text-right text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="50"
-              />
+            <div className="col-span-3 space-y-1">
+              <input type="hidden" name="weightGrams" value={line.weightGrams} />
+              {hasTiers ? (
+                <select
+                  value={line.tierId}
+                  onChange={(e) => selectTier(idx, e.target.value)}
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {selected!.priceTiers.map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {variationLabel(tier)}
+                      {tier.notes ? ` · ${tier.notes}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+                  {selected ? '無規格（重量依品名或使用單位）' : '請先選商品'}
+                </div>
+              )}
             </div>
             <div className="col-span-2">
               <input

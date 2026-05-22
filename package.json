@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "db:check": "prisma migrate deploy && node -e \"const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.\\$queryRaw\\`SELECT 1\\`.then(()=>{console.log('資料庫連線成功');return p.\\$disconnect();}).catch(e=>{console.error('連線失敗:',e.message);process.exit(1);})\"",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
     "db:setup": "prisma migrate dev --name init && prisma db seed",

@@ -1,21 +1,42 @@
 import * as React from 'react';
+import { cn } from '@/lib/utils';
+import { sectionToneStyles, type SectionTone } from '@/lib/section-tone';
 
 interface PageHeaderProps {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  tone?: SectionTone;
 }
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, tone }: PageHeaderProps) {
+  const styles = tone ? sectionToneStyles[tone] : null;
+
   return (
-    <div className="flex flex-col gap-2 border-b bg-background/50 px-6 py-5 md:flex-row md:items-center md:justify-between">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        ) : null}
+    <div
+      className={cn(
+        'border-b border-border/70 bg-card/80 px-6 py-6 backdrop-blur-sm md:py-7',
+        tone && 'border-l-4',
+        tone && styles?.cardBorder,
+      )}
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="space-y-2">
+          <p
+            className={cn(
+              'text-[11px] font-semibold uppercase tracking-[0.14em]',
+              styles?.eyebrow ?? 'text-primary',
+            )}
+          >
+            {styles?.label ?? 'Furmosa HQ'}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-navy md:text-3xl">{title}</h1>
+          {description ? (
+            <div className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{description}</div>
+          ) : null}
+        </div>
+        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex gap-2">{actions}</div> : null}
     </div>
   );
 }

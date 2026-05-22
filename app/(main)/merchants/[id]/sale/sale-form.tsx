@@ -5,12 +5,25 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { parseWeightFromName, productLabel } from '@/lib/product-label';
+import { variationLabel } from '@/lib/product-variations';
+
+type ProductTierOption = {
+  id: string;
+  weightGrams: number | null;
+  unit: string;
+  unitQty: number;
+  price: number;
+  notes: string | null;
+};
 
 type Item = {
   id: string;
   name: string;
   sku: string;
   stock: number;
+  isConsigned: boolean;
+  defaultUnit: string;
+  priceTiers: ProductTierOption[];
   suggestedPrice: number;
   commissionMode: string | null;
   commissionValue: number | null;
@@ -20,6 +33,7 @@ type Item = {
 
 type Line = {
   productId: string;
+  tierId: string;
   quantity: number;
   unitPrice: number;
   weightGrams: number | '';
@@ -33,25 +47,93 @@ const fmt = (n: number) =>
     .format(n)
     .replace('NT$', 'NT$');
 
+function hasMerchantRule(item: Item) {
+  return item.commissionMode != null;
+}
+
+function unitPriceForItem(item: Item, tier?: ProductTierOption | null) {
+  if (hasMerchantRule(item)) return item.suggestedPrice;
+  if (tier) return tier.price;
+  return item.suggestedPrice;
+}
+
+function weightGramsForTier(tier?: ProductTierOption | null) {
+  if (!tier?.weightGrams || tier.weightGrams <= 0) return '';
+  return tier.weightGrams;
+}
+
 export function SaleForm({ items }: { items: Item[] }) {
   const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const [lines, setLines] = useState<Line[]>([
-    { productId: '', quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' },
+    { productId: '', tierId: '', quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' },
   ]);
 
   function selectProduct(idx: number, productId: string) {
     const item = itemMap.get(productId);
-    const detected = item ? parseWeightFromName(item.name) : null;
+    if (!item) {
+      setLines((ls) =>
+        ls.map((line, i) =>
+          i === idx
+            ? { productId: '', tierId: '', quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' }
+            : line,
+        ),
+      );
+      return;
+    }
+
+    if (item.priceTiers.length > 0) {
+      const tier = item.priceTiers[0];
+      setLines((ls) =>
+        ls.map((line, i) =>
+          i === idx
+            ? {
+                ...line,
+                productId,
+                tierId: tier.id,
+                unitPrice: unitPriceForItem(item, tier),
+                weightGrams: weightGramsForTier(tier),
+                unit: tier.unit,
+              }
+            : line,
+        ),
+      );
+      return;
+    }
+
+    const detected = parseWeightFromName(item.name);
     setLines((ls) =>
-      ls.map((l, i) =>
+      ls.map((line, i) =>
         i === idx
           ? {
-              ...l,
+              ...line,
               productId,
-              unitPrice: item?.suggestedPrice ?? 0,
-              weightGrams: detected ?? l.weightGrams,
+              tierId: '',
+              unitPrice: item.suggestedPrice,
+              weightGrams: detected ?? '',
+              unit: item.defaultUnit || '包',
             }
-          : l,
+          : line,
+      ),
+    );
+  }
+
+  function selectTier(idx: number, tierId: string) {
+    const line = lines[idx];
+    const item = itemMap.get(line.productId);
+    const tier = item?.priceTiers.find((option) => option.id === tierId);
+    if (!item || !tier) return;
+
+    setLines((ls) =>
+      ls.map((current, i) =>
+        i === idx
+          ? {
+              ...current,
+              tierId,
+              unitPrice: unitPriceForItem(item, tier),
+              weightGrams: weightGramsForTier(tier),
+              unit: tier.unit,
+            }
+          : current,
       ),
     );
   }
@@ -63,7 +145,7 @@ export function SaleForm({ items }: { items: Item[] }) {
   function add() {
     setLines((ls) => [
       ...ls,
-      { productId: '', quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' },
+      { productId: '', tierId: '', quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' },
     ]);
   }
 
@@ -71,7 +153,6 @@ export function SaleForm({ items }: { items: Item[] }) {
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((_, i) => i !== idx)));
   }
 
-  // 統計
   let total = 0;
   let totalCommission = 0;
   let totalRevenue = 0;
@@ -92,15 +173,16 @@ export function SaleForm({ items }: { items: Item[] }) {
     <div className="space-y-3">
       <div className="grid grid-cols-12 gap-3 px-1 text-xs font-medium text-muted-foreground">
         <div className="col-span-3">商品</div>
-        <div className="col-span-1 text-right">重量(g)</div>
+        <div className="col-span-3">規格</div>
         <div className="col-span-2 text-right">單價</div>
         <div className="col-span-1 text-right">數量</div>
         <div className="col-span-1 text-center">單位</div>
-        <div className="col-span-3 text-right">抽成 / 公司實收</div>
+        <div className="col-span-1 text-right">抽成 / 公司實收</div>
         <div className="col-span-1"></div>
       </div>
       {lines.map((line, idx) => {
         const item = itemMap.get(line.productId);
+        const hasTiers = (item?.priceTiers.length ?? 0) > 0;
         const overstock = item && line.quantity > item.stock;
         return (
           <div
@@ -116,11 +198,24 @@ export function SaleForm({ items }: { items: Item[] }) {
                 className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="">請選擇商品</option>
-                {items.map((p) => (
-                  <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                    {p.name} ({p.sku}) — 庫存 {p.stock}
-                  </option>
-                ))}
+                <optgroup label="-- 此店已寄賣 --">
+                  {items
+                    .filter((product) => product.isConsigned)
+                    .map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} ({product.sku}) — 庫存 {product.stock}
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="-- 其他商品 --">
+                  {items
+                    .filter((product) => !product.isConsigned)
+                    .map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} ({product.sku}) — 庫存 {product.stock}
+                      </option>
+                    ))}
+                </optgroup>
               </select>
               {item && (
                 <div className="text-xs text-muted-foreground">
@@ -134,28 +229,38 @@ export function SaleForm({ items }: { items: Item[] }) {
                   </span>
                 </div>
               )}
-              {item && item.commissionMode == null && (
+              {item && !item.isConsigned && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  此商品尚未設定此店寄賣規則
+                </div>
+              )}
+              {item && item.commissionMode == null && item.isConsigned && (
                 <div className="flex items-center gap-1 text-xs text-warning">
                   <AlertTriangle className="h-3 w-3" />
                   此店家未設定抽成規則
                 </div>
               )}
             </div>
-            <div className="col-span-1">
-              <input
-                name="weightGrams"
-                type="number"
-                min={0}
-                step={1}
-                value={line.weightGrams}
-                onChange={(e) =>
-                  update(idx, {
-                    weightGrams: e.target.value === '' ? '' : Number(e.target.value),
-                  })
-                }
-                className="block w-full rounded-md border bg-background px-2 py-2 text-right text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="50"
-              />
+            <div className="col-span-3 space-y-1">
+              <input type="hidden" name="weightGrams" value={line.weightGrams} />
+              {hasTiers ? (
+                <select
+                  value={line.tierId}
+                  onChange={(e) => selectTier(idx, e.target.value)}
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {item!.priceTiers.map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {variationLabel(tier)}
+                      {tier.notes ? ` · ${tier.notes}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
+                  {item ? '無規格' : '請先選商品'}
+                </div>
+              )}
             </div>
             <div className="col-span-2">
               <input
@@ -205,7 +310,7 @@ export function SaleForm({ items }: { items: Item[] }) {
                 ))}
               </select>
             </div>
-            <div className="col-span-3 text-right text-sm">
+            <div className="col-span-1 text-right text-sm">
               {item && line.quantity > 0 ? (
                 <>
                   <div>

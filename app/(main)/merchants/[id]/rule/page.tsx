@@ -6,8 +6,21 @@ import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { upsertMerchantRule, deleteMerchantRule } from '../actions';
+import {
+  MERCHANT_COMMISSION_PERCENTS,
+  type MerchantCommissionPercent,
+} from '@/lib/merchant-commission';
 
 export const dynamic = 'force-dynamic';
+
+function resolveInitialPercent(
+  mode: string | null | undefined,
+  value: number | null | undefined,
+): MerchantCommissionPercent {
+  if (mode === 'percent' && value === 20) return 20;
+  if (mode === 'percent' && value === 30) return 30;
+  return 30;
+}
 
 export default async function MerchantRulePage({
   params,
@@ -20,43 +33,47 @@ export default async function MerchantRulePage({
     where: { id: params.id },
     include: {
       productRules: { include: { product: true } },
-      stocks: { include: { product: true } },
     },
   });
   if (!merchant) notFound();
 
   const productId = searchParams?.productId;
   if (!productId) {
-    redirect(`/merchants/${merchant.id}`);
+    redirect(`/merchants/${merchant.id}/products`);
   }
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) notFound();
 
   const existingRule = merchant.productRules.find((r) => r.productId === productId);
-
+  const initialPercent = resolveInitialPercent(
+    existingRule?.commissionMode,
+    existingRule?.commissionValue,
+  );
   const previewPrice = existingRule?.suggestedPrice ?? product.price;
 
   return (
     <>
       <PageHeader
-        title={`${existingRule ? '編輯' : '設定'}寄賣規則`}
+        title={`${existingRule ? '編輯' : '設定'}寄賣分潤`}
         description={`${merchant.name} × ${product.name}`}
         actions={
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/merchants/${merchant.id}`}>
+            <Link href={`/merchants/${merchant.id}/products`}>
               <ArrowLeft className="mr-1 h-4 w-4" />
-              返回
+              返回商品列表
             </Link>
           </Button>
         }
       />
       <div className="grid gap-6 p-6 lg:grid-cols-2">
-        <SectionCard title="抽成規則" description="同一商品在不同店家可有不同售價/抽成；只影響這家店">
+        <SectionCard
+          title="寄賣分潤"
+          description="此店此商品的分潤比例，僅可選 20% 或 30%"
+        >
           <form action={upsertMerchantRule} className="space-y-4">
             <input type="hidden" name="merchantId" value={merchant.id} />
             <input type="hidden" name="productId" value={productId} />
-
             <div className="space-y-2">
               <label htmlFor="suggestedPrice" className="text-sm font-medium">
                 建議售價（消費者付的錢）
@@ -74,46 +91,29 @@ export default async function MerchantRulePage({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">抽成方式</label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                  <input
-                    type="radio"
-                    name="commissionMode"
-                    value="amount"
-                    defaultChecked={(existingRule?.commissionMode ?? 'amount') === 'amount'}
-                  />
-                  <span>固定金額（每件抽 NT$）</span>
-                </label>
-                <label className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                  <input
-                    type="radio"
-                    name="commissionMode"
-                    value="percent"
-                    defaultChecked={existingRule?.commissionMode === 'percent'}
-                  />
-                  <span>百分比（按售價抽 %）</span>
-                </label>
+              <span className="text-sm font-medium">寄賣分潤</span>
+              <div className="inline-flex rounded-md border bg-background p-0.5">
+                {MERCHANT_COMMISSION_PERCENTS.map((p) => (
+                  <label
+                    key={p}
+                    className="cursor-pointer rounded px-4 py-2 text-sm has-[:checked]:bg-primary has-[:checked]:text-primary-foreground"
+                  >
+                    <input
+                      type="radio"
+                      name="commissionPercent"
+                      value={p}
+                      defaultChecked={initialPercent === p}
+                      className="sr-only"
+                    />
+                    {p}%
+                  </label>
+                ))}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="commissionValue" className="text-sm font-medium">
-                抽成數值
-              </label>
-              <input
-                id="commissionValue"
-                name="commissionValue"
-                type="number"
-                min={0}
-                step="0.01"
-                required
-                defaultValue={existingRule?.commissionValue ?? 20}
-                className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <p className="text-xs text-muted-foreground">
-                若選「固定金額」就填 NT$ 數字（如 60）；若選「百分比」就填 % 數字（如 20）。
-              </p>
+              {existingRule?.commissionMode === 'amount' ? (
+                <p className="text-xs text-warning">
+                  此商品先前為固定金額抽成，儲存後會改為百分比分潤。
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -131,9 +131,9 @@ export default async function MerchantRulePage({
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" asChild>
-                <Link href={`/merchants/${merchant.id}`}>取消</Link>
+                <Link href={`/merchants/${merchant.id}/products`}>取消</Link>
               </Button>
-              <Button type="submit">{existingRule ? '更新規則' : '建立規則'}</Button>
+              <Button type="submit">{existingRule ? '更新' : '建立'}</Button>
             </div>
           </form>
 
@@ -161,11 +161,8 @@ export default async function MerchantRulePage({
             <Row label="名稱" value={product.name} />
             <Row label="分類" value={product.category} />
             <Row label="預設定價" value={`NT$${product.price}`} />
-            <Row label="此店現有規則" value={existingRule ? '已存在' : '尚未設定'} />
-            <Row
-              label="此店參考售價"
-              value={`NT$${previewPrice}`}
-            />
+            <Row label="此店規則" value={existingRule ? '已設定' : '尚未設定'} />
+            <Row label="參考售價" value={`NT$${previewPrice}`} />
           </dl>
         </SectionCard>
       </div>

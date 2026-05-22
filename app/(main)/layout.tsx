@@ -7,7 +7,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex-1 overflow-x-hidden">{children}</main>
+        <main className="flex-1 overflow-x-hidden bg-canvas">{children}</main>
       </div>
     </div>
   );

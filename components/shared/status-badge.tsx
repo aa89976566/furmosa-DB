@@ -21,7 +21,7 @@ type Variant = 'default' | 'secondary' | 'success' | 'warning' | 'info' | 'destr
 const orderStatusVariant: Record<string, Variant> = {
   draft: 'muted',
   confirmed: 'info',
-  packed: 'info',
+  packed: 'warning',
   shipped: 'info',
   delivered: 'success',
   completed: 'success',
@@ -32,12 +32,13 @@ const paymentStatusVariant: Record<string, Variant> = {
   unpaid: 'warning',
   partial: 'warning',
   paid: 'success',
+  cod: 'warning',
   refunded: 'destructive',
 };
 
 const fulfillmentStatusVariant: Record<string, Variant> = {
   pending: 'warning',
-  packed: 'info',
+  packed: 'warning',
   shipped: 'info',
   delivered: 'success',
   returned: 'destructive',
@@ -81,7 +82,7 @@ const subscriptionStatusVariant: Record<string, Variant> = {
 
 const subscriptionShipmentVariant: Record<string, Variant> = {
   pending: 'warning',
-  packed: 'info',
+  packed: 'warning',
   shipped: 'info',
   delivered: 'success',
   skipped: 'muted',

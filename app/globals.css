@@ -4,62 +4,71 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+  /* Monzo-inspired: coral CTA, navy text, soft canvas */
+    --background: 220 20% 97%;
+    --foreground: 215 44% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 215 44% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 222 47% 14%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 222 47% 14%;
-    --radius: 0.5rem;
+    --popover-foreground: 215 44% 14%;
+    --primary: 6 100% 63%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 18% 93%;
+    --secondary-foreground: 215 44% 14%;
+    --muted: 220 16% 95%;
+    --muted-foreground: 215 12% 46%;
+    --accent: 6 100% 96%;
+    --accent-foreground: 215 44% 14%;
+    --destructive: 4 88% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 16% 89%;
+    --input: 220 16% 89%;
+    --ring: 6 90% 58%;
+    --radius: 0.875rem;
 
-    --success: 142 71% 45%;
+    --success: 148 100% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 217 91% 60%;
+    --warning: 38 95% 52%;
+    --warning-foreground: 215 44% 14%;
+    --info: 212 80% 48%;
     --info-foreground: 0 0% 100%;
+    --navy: 215 44% 14%;
+    --coral: 6 100% 63%;
+    --canvas: 220 20% 97%;
+    --surface-raised: 0 0% 100%;
   }
 
   .dark {
-    --background: 222 47% 6%;
+    --background: 215 44% 8%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
+    --card: 215 40% 11%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 8%;
+    --popover: 215 40% 11%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
+    --primary: 6 100% 66%;
+    --primary-foreground: 215 44% 10%;
+    --secondary: 215 32% 16%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 45%;
+    --muted: 215 32% 16%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 6 55% 18%;
+    --accent-foreground: 6 100% 92%;
+    --destructive: 4 78% 55%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 213 27% 84%;
+    --border: 215 28% 18%;
+    --input: 215 28% 18%;
+    --ring: 6 90% 62%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
+    --success: 148 72% 42%;
+    --success-foreground: 215 44% 10%;
     --warning: 38 92% 55%;
-    --warning-foreground: 222 47% 11%;
-    --info: 217 91% 60%;
-    --info-foreground: 222 47% 11%;
+    --warning-foreground: 215 44% 10%;
+    --info: 212 75% 58%;
+    --info-foreground: 215 44% 10%;
+    --navy: 210 40% 98%;
+    --coral: 6 100% 66%;
+    --canvas: 215 44% 8%;
+    --surface-raised: 215 40% 11%;
   }
 }
 
@@ -73,13 +82,34 @@
   }
 }
 
-/* Custom scrollbar */
+@layer utilities {
+  .bg-canvas {
+    background-color: hsl(var(--canvas));
+  }
+  .bg-surface-raised {
+    background-color: hsl(var(--surface-raised));
+  }
+  .text-navy {
+    color: hsl(var(--navy));
+  }
+  .shadow-card {
+    box-shadow:
+      0 1px 2px hsl(215 44% 14% / 0.04),
+      0 8px 24px hsl(215 44% 14% / 0.06);
+  }
+  .shadow-card-hover {
+    box-shadow:
+      0 2px 4px hsl(215 44% 14% / 0.05),
+      0 12px 32px hsl(215 44% 14% / 0.08);
+  }
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded;
+  @apply bg-muted-foreground/30 rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/50;

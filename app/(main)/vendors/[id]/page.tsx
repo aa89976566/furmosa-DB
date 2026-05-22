@@ -5,18 +5,10 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { formatCurrency, formatDateTime } from '@/lib/format';
-import { productCategoryLabel } from '@/lib/labels';
+import { formatDateTime } from '@/lib/format';
 import { ArrowLeft } from 'lucide-react';
 import { VendorForm } from './vendor-form';
+import { VendorProductsSection } from '@/components/vendors/vendor-products-section';
 import { updateVendor, deleteVendor } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +21,31 @@ export default async function VendorDetailPage({ params }: { params: { id: strin
     },
   });
   if (!vendor) notFound();
+
+  const [linkableProducts] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        OR: [{ vendorId: null }, { vendorId: { not: vendor.id } }],
+      },
+      orderBy: { productId: 'asc' },
+      select: {
+        id: true,
+        productId: true,
+        name: true,
+        vendor: { select: { name: true } },
+      },
+      take: 200,
+    }),
+  ]);
+
+  const productRows = vendor.products.map((p) => ({
+    id: p.id,
+    productId: p.productId,
+    name: p.name,
+    category: p.category,
+    price: Number(p.price),
+    cost: Number(p.cost),
+  }));
 
   return (
     <>
@@ -76,44 +93,22 @@ export default async function VendorDetailPage({ params }: { params: { id: strin
           </p>
         </SectionCard>
 
-        <SectionCard title="廠商商品" className="lg:col-span-2">
-          {vendor.products.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">尚未綁定任何商品</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>商品編號</TableHead>
-                  <TableHead>名稱</TableHead>
-                  <TableHead>分類</TableHead>
-                  <TableHead className="text-right">售價</TableHead>
-                  <TableHead className="text-right">成本</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vendor.products.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-xs">{p.productId}</TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/products/${p.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {p.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{productCategoryLabel[p.category]}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(Number(p.price))}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatCurrency(Number(p.cost))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+        <SectionCard
+          title="廠商商品"
+          description="新增或連結的商品會同步顯示於「產品」列表"
+          className="lg:col-span-2"
+          contentClassName="pt-6"
+        >
+          <VendorProductsSection
+            vendorId={vendor.id}
+            products={productRows}
+            linkableProducts={linkableProducts.map((p) => ({
+              id: p.id,
+              productId: p.productId,
+              name: p.name,
+              vendorName: p.vendor?.name ?? null,
+            }))}
+          />
         </SectionCard>
       </div>
     </>

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import { productCategoryLabel } from '@/lib/labels';
+import { cn } from '@/lib/utils';
 
 type ProductInput = {
   id?: string;
@@ -37,137 +38,166 @@ export function ProductForm({
   saveAction,
   deleteAction,
   submitLabel,
+  layout = 'default',
+  productType = 'simple',
 }: {
   product: ProductInput;
   vendors: VendorOption[];
   saveAction: (formData: FormData) => void | Promise<void>;
   deleteAction?: (formData: FormData) => void | Promise<void>;
   submitLabel?: string;
+  layout?: 'default' | 'studio';
+  productType?: 'simple' | 'variable';
 }) {
   const deleteFormRef = useRef<HTMLFormElement>(null);
   const isEdit = Boolean(product.id);
+  const studio = layout === 'studio';
+  const variable = productType === 'variable';
 
   return (
     <div className="space-y-4">
-      <form action={saveAction} className="space-y-4">
+      <form action={saveAction} className={studio ? 'space-y-6' : 'space-y-4'}>
         {product.id && <input type="hidden" name="id" value={product.id} />}
+        <input type="hidden" name="productType" value={productType} />
+        {variable ? (
+          <>
+            <input type="hidden" name="price" value={product.price} />
+            <input type="hidden" name="cost" value={product.cost} />
+            <input type="hidden" name="unit" value={product.unit} />
+          </>
+        ) : null}
 
-        {product.productId && (
-          <Field label="商品編號">
-            <span className="font-mono text-sm text-muted-foreground">{product.productId}</span>
-          </Field>
-        )}
-        {product.sku && (
-          <Field label="SKU">
-            <span className="font-mono text-sm text-muted-foreground">{product.sku}</span>
-          </Field>
-        )}
+        <div className={studio ? 'grid gap-4 md:grid-cols-2' : 'space-y-4'}>
+          {product.productId && (
+            <Field label="商品編號" layout={layout}>
+              <span className="font-mono text-sm text-muted-foreground">{product.productId}</span>
+            </Field>
+          )}
+          {product.sku && (
+            <Field label="SKU" layout={layout}>
+              <span className="font-mono text-sm text-muted-foreground">{product.sku}</span>
+            </Field>
+          )}
 
-        <Field label="商品名稱" required>
-          <Input name="name" defaultValue={product.name} required maxLength={120} />
-        </Field>
-
-        <Field label="分類">
-          <select
-            name="category"
-            defaultValue={product.category}
-            className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {Object.entries(productCategoryLabel).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="款式">
-          <Input
-            name="style"
-            defaultValue={product.style ?? ''}
-            maxLength={60}
-            placeholder="例：凍肉 / 蔬果"
-          />
-        </Field>
-
-        <Field label="計價單位">
-          <Input
-            name="unit"
-            defaultValue={product.unit}
-            maxLength={20}
-            placeholder="例：件 / 包 / 隻 / 片 / g"
-          />
-        </Field>
-
-        <Field label="基礎售價" required>
-          <Input
-            name="price"
-            type="number"
-            min={0}
-            step="0.01"
-            defaultValue={product.price}
+          <Field
+            label="商品名稱"
             required
-          />
-        </Field>
-
-        <Field label="成本">
-          <Input
-            name="cost"
-            type="number"
-            min={0}
-            step="0.01"
-            defaultValue={product.cost}
-          />
-        </Field>
-
-        <Field label="補貨點">
-          <Input
-            name="reorderPoint"
-            type="number"
-            min={0}
-            step={1}
-            defaultValue={product.reorderPoint}
-          />
-        </Field>
-
-        <Field label="廠商">
-          <select
-            name="vendorId"
-            defaultValue={product.vendorId ?? ''}
-            className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            layout={layout}
+            className={studio ? 'md:col-span-2' : undefined}
           >
-            <option value="">— 未指定 —</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name} ({v.vendorId})
-              </option>
-            ))}
-          </select>
-        </Field>
+            <Input name="name" defaultValue={product.name} required maxLength={120} />
+          </Field>
 
-        <Field label="狀態">
-          <select
-            name="status"
-            defaultValue={product.status}
-            className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          <Field label="分類" layout={layout}>
+            <select
+              name="category"
+              defaultValue={product.category}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {Object.entries(productCategoryLabel).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="款式" layout={layout}>
+            <Input
+              name="style"
+              defaultValue={product.style ?? ''}
+              maxLength={60}
+              placeholder="例：凍肉 / 蔬果"
+            />
+          </Field>
+
+          {!variable ? (
+            <>
+              <Field label="計價單位" layout={layout}>
+                <Input
+                  name="unit"
+                  defaultValue={product.unit}
+                  maxLength={20}
+                  placeholder="例：件 / 包 / 隻 / 片 / g"
+                />
+              </Field>
+
+              <Field label="基礎售價" required layout={layout}>
+                <Input
+                  name="price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={product.price}
+                  required
+                />
+              </Field>
+
+              <Field label="成本" layout={layout}>
+                <Input
+                  name="cost"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={product.cost}
+                />
+              </Field>
+            </>
+          ) : null}
+
+          <Field label="補貨點" layout={layout}>
+            <Input
+              name="reorderPoint"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={product.reorderPoint}
+            />
+          </Field>
+
+          <Field label="廠商" layout={layout}>
+            <select
+              name="vendorId"
+              defaultValue={product.vendorId ?? ''}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">— 未指定 —</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name} ({v.vendorId})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="狀態" layout={layout}>
+            <select
+              name="status"
+              defaultValue={product.status}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field
+            label="備註"
+            layout={layout}
+            className={studio ? 'md:col-span-2' : undefined}
           >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="備註">
-          <textarea
-            name="notes"
-            defaultValue={product.notes ?? ''}
-            rows={3}
-            maxLength={1000}
-            className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </Field>
+            <textarea
+              name="notes"
+              defaultValue={product.notes ?? ''}
+              rows={3}
+              maxLength={1000}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </Field>
+        </div>
 
         <div className="flex items-center justify-between gap-2 border-t pt-4">
           {isEdit && deleteAction ? (
@@ -209,13 +239,29 @@ function Field({
   label,
   required,
   children,
+  layout = 'default',
+  className,
 }: {
   label: string;
   required?: boolean;
   children: React.ReactNode;
+  layout?: 'default' | 'studio';
+  className?: string;
 }) {
+  if (layout === 'studio') {
+    return (
+      <div className={cn('space-y-1.5', className)}>
+        <label className="text-xs font-medium text-muted-foreground">
+          {label}
+          {required && <span className="ml-0.5 text-destructive">*</span>}
+        </label>
+        <div>{children}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-1.5 sm:grid-cols-[120px_1fr] sm:items-center sm:gap-4">
+    <div className={cn('grid gap-1.5 sm:grid-cols-[120px_1fr] sm:items-center sm:gap-4', className)}>
       <label className="text-xs text-muted-foreground sm:text-right">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}

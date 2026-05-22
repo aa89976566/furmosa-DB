@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
+import { CustomersListFilters } from '@/components/customers/customers-list-filters';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -21,16 +23,32 @@ export const dynamic = 'force-dynamic';
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams?: { filter?: string };
+  searchParams?: { filter?: string; q?: string };
 }) {
   const filter = searchParams?.filter;
+  const q = (searchParams?.q ?? '').trim();
 
-  const where =
+  const where: Record<string, unknown> =
     filter === 'loyalty'
       ? { isLoyaltyMember: true }
       : filter === 'subscription'
-      ? { hasActiveSubscription: true }
-      : {};
+        ? { hasActiveSubscription: true }
+        : {};
+
+  if (q) {
+    const contains = { contains: q, mode: 'insensitive' };
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : []),
+      {
+        OR: [
+          { name: contains },
+          { phone: contains },
+          { email: contains },
+          { customerId: contains },
+        ],
+      },
+    ];
+  }
 
   const [customers, total, loyaltyCount, subCount] = await Promise.all([
     prisma.customer.findMany({
@@ -57,15 +75,25 @@ export default async function CustomersPage({
     { key: 'subscription', label: '訂閱中', count: subCount },
   ];
 
+  const tabHref = (tabKey?: string) => {
+    const params = new URLSearchParams();
+    if (tabKey) params.set('filter', tabKey);
+    if (q) params.set('q', q);
+    const query = params.toString();
+    return query ? `/customers?${query}` : '/customers';
+  };
+
   return (
     <>
       <PageHeader
         title="客戶 Customers"
         description="一個人 = 一筆資料：含基本聯絡、換罐會員、訂閱、訂單史"
         actions={
-          <Button size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            新增客戶
+          <Button size="sm" asChild>
+            <Link href="/customers/new">
+              <Plus className="mr-1 h-4 w-4" />
+              新增客戶
+            </Link>
           </Button>
         }
       />
@@ -80,7 +108,7 @@ export default async function CustomersPage({
                 size="sm"
                 asChild
               >
-                <Link href={t.key ? `/customers?filter=${t.key}` : '/customers'}>
+                <Link href={tabHref(t.key)}>
                   {t.label}
                   <span className="ml-2 text-xs opacity-70">{t.count}</span>
                 </Link>
@@ -91,6 +119,14 @@ export default async function CustomersPage({
 
         <Card>
           <CardContent className="p-0">
+            <Suspense fallback={null}>
+              <CustomersListFilters
+                q={q}
+                filter={filter ?? ''}
+                shown={customers.length}
+                total={total}
+              />
+            </Suspense>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -159,7 +195,7 @@ export default async function CustomersPage({
                 {customers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
-                      此分類沒有客戶
+                      {q ? `找不到符合「${q}」的客戶` : '此分類沒有客戶'}
                     </TableCell>
                   </TableRow>
                 )}

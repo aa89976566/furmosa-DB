@@ -20,7 +20,7 @@ import { CalendarDays, Truck } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_FILTER = ['pending', 'packed'] as const;
+const STATUS_FILTER = ['pending', 'packed', 'planned', 'preparing'] as const;
 
 export default async function SubscriptionShipmentsPage() {
   const now = new Date();
@@ -52,8 +52,9 @@ export default async function SubscriptionShipmentsPage() {
   // 統計
   const counts = {
     thisWeekTotal: thisWeekShipments.length,
-    thisWeekPending: thisWeekShipments.filter((s) => s.status === 'pending').length,
-    thisWeekPacked: thisWeekShipments.filter((s) => s.status === 'packed').length,
+    thisWeekPending: thisWeekShipments.filter((s) =>
+      ['pending', 'packed', 'planned', 'preparing'].includes(s.status),
+    ).length,
     thisWeekShipped: thisWeekShipments.filter(
       (s) => s.status === 'shipped' || s.status === 'delivered',
     ).length,
@@ -78,7 +79,7 @@ export default async function SubscriptionShipmentsPage() {
       />
       <div className="space-y-6 p-6">
         {/* KPI */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <KpiCard
             icon={<CalendarDays className="h-4 w-4 text-info" />}
             label="本週總出貨"
@@ -90,11 +91,6 @@ export default async function SubscriptionShipmentsPage() {
             value={counts.thisWeekPending}
           />
           <KpiCard
-            icon={<Badge variant="info">包</Badge>}
-            label="本週已包裝"
-            value={counts.thisWeekPacked}
-          />
-          <KpiCard
             icon={<Badge variant="success">送</Badge>}
             label="本週已出 / 送達"
             value={counts.thisWeekShipped}
@@ -104,7 +100,7 @@ export default async function SubscriptionShipmentsPage() {
         {/* 本週出貨明細 */}
         <SectionCard
           title={`本週 (${format(thisWeekStart, 'M/d')} - ${format(addDays(thisWeekStart, 6), 'M/d')})`}
-          description="所有狀態：待出貨、已包裝、已出貨、已送達、本次跳過"
+          description="所有狀態：待出貨、已出貨、已送達、本次跳過"
         >
           {thisWeekShipments.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -179,7 +175,7 @@ export default async function SubscriptionShipmentsPage() {
         {/* 未來 4 週分組 */}
         <SectionCard
           title="未來 4 週待出貨"
-          description="只顯示 pending / packed 狀態，已寄送的不再列出"
+          description="只顯示尚未寄出，已寄送的不再列出"
         >
           {weekBuckets.every((b) => b.items.length === 0) ? (
             <p className="py-8 text-center text-sm text-muted-foreground">

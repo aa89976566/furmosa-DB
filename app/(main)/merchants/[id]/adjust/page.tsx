@@ -1,10 +1,13 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import {
+  loadActiveMerchantProductCatalog,
+  merchantSuggestedUnitPrice,
+} from '@/lib/merchant-product-catalog';
 import { adjustMerchantStock, recordMerchantQuickSale } from '../actions';
 import { AdjustForm } from './adjust-form';
 
@@ -17,35 +20,20 @@ export default async function MerchantAdjustPage({
   params: { id: string };
   searchParams?: { productId?: string; mode?: string };
 }) {
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: params.id },
-    include: {
-      stocks: { include: { product: true }, orderBy: { product: { name: 'asc' } } },
-      productRules: { include: { product: true } },
-    },
-  });
-  if (!merchant) notFound();
+  const catalog = await loadActiveMerchantProductCatalog(params.id);
+  if (!catalog) notFound();
 
-  const productIds = new Set<string>();
-  for (const s of merchant.stocks) productIds.add(s.productId);
-  for (const r of merchant.productRules) productIds.add(r.productId);
+  const { merchant, products, ruleByProduct, stockByProduct, consignedProductIds } = catalog;
 
-  const products = await prisma.product.findMany({
-    where: { id: { in: [...productIds] } },
-    orderBy: { name: 'asc' },
-  });
-
-  const stockByProduct = new Map(merchant.stocks.map((s) => [s.productId, s.quantity]));
-  const ruleByProduct = new Map(merchant.productRules.map((r) => [r.productId, r]));
-
-  const productOptions = products.map((p) => {
-    const rule = ruleByProduct.get(p.id);
+  const productOptions = products.map((product) => {
+    const rule = ruleByProduct.get(product.id);
     return {
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      currentStock: stockByProduct.get(p.id) ?? 0,
-      suggestedPrice: rule?.suggestedPrice ?? null,
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      isConsigned: consignedProductIds.has(product.id),
+      currentStock: stockByProduct.get(product.id) ?? 0,
+      suggestedPrice: merchantSuggestedUnitPrice(product, rule),
       commissionMode: rule?.commissionMode ?? null,
       commissionValue: rule?.commissionValue ?? null,
     };
@@ -72,7 +60,7 @@ export default async function MerchantAdjustPage({
           className="lg:col-span-2"
         >
           {productOptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">這家店還沒有任何商品紀錄</p>
+            <p className="text-sm text-muted-foreground">系統尚無可選商品，請先到產品主檔建立並啟用商品。</p>
           ) : (
             <AdjustForm
               merchantId={merchant.id}

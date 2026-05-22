@@ -59,9 +59,11 @@ export default async function SubscriptionsPage({
         title="訂閱合約 Subscriptions"
         description="所有客戶訂閱合約 — 含進行中、暫停、到期、取消"
         actions={
-          <Button size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            新增訂閱
+          <Button size="sm" asChild>
+            <Link href="/subscriptions/new">
+              <Plus className="mr-1 h-4 w-4" />
+              新增訂閱
+            </Link>
           </Button>
         }
       />

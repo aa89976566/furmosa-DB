@@ -1,13 +1,22 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { SectionCard } from '@/components/shared/section-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
 import { merchantTypeLabel } from '@/lib/labels';
 import { MerchantOperationsHub } from './merchant-operations-hub';
-import { ChevronRight } from 'lucide-react';
+import { MerchantShippingForm } from '@/components/merchants/merchant-shipping-form';
+import {
+  MerchantDlRow,
+  MerchantSection,
+  MerchantStat,
+  MerchantStatGrid,
+  MerchantWorkspace,
+} from '@/components/merchants/merchant-ui';
+import { merchantCarrierLabel } from '@/lib/merchant-shipping-defaults';
+import { CARRIER_711 } from '@/lib/carrier-cvs';
+import { ChevronRight, MapPin } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,126 +62,145 @@ export default async function MerchantOverviewPage({
   const outOfStock = merchant.stocks.filter((r) => r.quantity === 0).length;
 
   return (
-    <div className="grid gap-6 p-6 lg:grid-cols-4">
-      <div className="lg:col-span-3 space-y-6">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Kpi label="商品總數" value={productCount} suffix="項" />
-          <Kpi label="目前在店庫存" value={totalStockUnits} suffix="件" />
-          <Kpi
-            label="缺貨 / 庫存緊張"
-            value={`${outOfStock} / ${lowStock}`}
-            tone={outOfStock > 0 ? 'danger' : lowStock > 0 ? 'warning' : 'default'}
-          />
+    <MerchantWorkspace>
+      <MerchantStatGrid>
+        <MerchantStat label="商品總數" value={productCount} suffix="項" />
+        <MerchantStat label="目前在店庫存" value={totalStockUnits} suffix="件" />
+        <MerchantStat
+          label="缺貨 / 庫存緊張"
+          value={`${outOfStock} / ${lowStock}`}
+          tone={outOfStock > 0 ? 'danger' : lowStock > 0 ? 'warning' : 'default'}
+        />
+      </MerchantStatGrid>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <MerchantSection title="常用操作" description="進貨、銷售、盤點與結算入口">
+            <MerchantOperationsHub merchantId={merchant.id} />
+          </MerchantSection>
+
+          <MerchantSection
+            title="運輸與地址"
+            description="進貨建立出貨單時會自動帶入；在此更新店家預設收件資料。"
+          >
+            <MerchantShippingForm
+              merchant={{
+                id: merchant.id,
+                contactName: merchant.contactName,
+                phone: merchant.phone,
+                email: merchant.email,
+                city: merchant.city,
+                address: merchant.address,
+                preferredCarrier: merchant.preferredCarrier,
+                pickupStoreName: merchant.pickupStoreName,
+              }}
+            />
+          </MerchantSection>
+
+          <MerchantSection
+            title="最近動作"
+            description="最新五筆庫存異動"
+            action={
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/merchants/${merchant.id}/ledger`}>
+                  查看全部
+                  <ChevronRight className="ml-1 h-3 w-3" />
+                </Link>
+              </Button>
+            }
+            contentClassName="px-0 py-0"
+          >
+            {merchant.stockTxns.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-muted-foreground">尚無紀錄</p>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {merchant.stockTxns.map((t) => (
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3 text-sm"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Badge variant={stockTxnTypeStyle[t.type] ?? 'secondary'}>
+                        {stockTxnTypeLabel[t.type] ?? t.type}
+                      </Badge>
+                      <Link
+                        href={`/products/${t.productId}`}
+                        className="truncate font-medium hover:underline"
+                      >
+                        {t.product.name}
+                      </Link>
+                    </div>
+                    <div className="flex items-center gap-4 whitespace-nowrap">
+                      <span
+                        className={
+                          t.quantity > 0
+                            ? 'font-mono font-semibold text-success'
+                            : t.quantity < 0
+                              ? 'font-mono font-semibold text-destructive'
+                              : 'font-mono'
+                        }
+                      >
+                        {t.quantity > 0 ? '+' : ''}
+                        {t.quantity}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(t.createdAt)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MerchantSection>
         </div>
 
-        <MerchantOperationsHub merchantId={merchant.id} />
-
-        <SectionCard
-          title="最近動作"
-          action={
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={`/merchants/${merchant.id}/ledger`}>
-                查看全部
-                <ChevronRight className="ml-1 h-3 w-3" />
-              </Link>
-            </Button>
-          }
-        >
-          {merchant.stockTxns.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">尚無紀錄</p>
-          ) : (
-            <ul className="divide-y">
-              {merchant.stockTxns.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between gap-3 py-3 text-sm"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Badge variant={stockTxnTypeStyle[t.type] ?? 'secondary'}>
-                      {stockTxnTypeLabel[t.type] ?? t.type}
-                    </Badge>
-                    <Link
-                      href={`/products/${t.productId}`}
-                      className="truncate font-medium hover:underline"
-                    >
-                      {t.product.name}
-                    </Link>
-                  </div>
-                  <div className="flex items-center gap-4 whitespace-nowrap">
-                    <span
-                      className={
-                        t.quantity > 0
-                          ? 'font-mono font-semibold text-success'
-                          : t.quantity < 0
-                            ? 'font-mono font-semibold text-destructive'
-                            : 'font-mono'
-                      }
-                    >
-                      {t.quantity > 0 ? '+' : ''}
-                      {t.quantity}
+        <MerchantSection title="店家資料" description="基本檔案與聯絡方式">
+          <dl>
+            <MerchantDlRow
+              label="編號"
+              value={<span className="font-mono text-xs">{merchant.merchantId}</span>}
+            />
+            <MerchantDlRow
+              label="類型"
+              value={<Badge variant="secondary">{merchantTypeLabel[merchant.type]}</Badge>}
+            />
+            <MerchantDlRow
+              label="預設物流"
+              value={merchantCarrierLabel(merchant.preferredCarrier)}
+            />
+            {merchant.preferredCarrier === CARRIER_711 ? (
+              <MerchantDlRow label="7-11 門市" value={merchant.pickupStoreName ?? '—'} />
+            ) : merchant.preferredCarrier === '黑貓' ? (
+              <MerchantDlRow
+                label="收件地址"
+                value={
+                  merchant.address ? (
+                    <span className="inline-flex max-w-[12rem] items-start justify-end gap-1 text-right">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="break-words">{merchant.address}</span>
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDateTime(t.createdAt)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
+            ) : null}
+            <MerchantDlRow label="聯絡人" value={merchant.contactName ?? '—'} />
+            <MerchantDlRow label="電話" value={merchant.phone ?? '—'} />
+            <MerchantDlRow label="城市" value={merchant.city ?? '—'} />
+          </dl>
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+            寄賣分潤（20%／30%）請至
+            <Link
+              href={`/merchants/${merchant.id}/products`}
+              className="font-medium text-primary hover:underline"
+            >
+              商品與庫存
+            </Link>
+            依商品設定。
+          </p>
+        </MerchantSection>
       </div>
-
-      <SectionCard title="店家資料" className="lg:col-span-1 lg:row-start-1">
-        <dl className="space-y-2 text-sm">
-          <Row label="編號" value={<span className="font-mono">{merchant.merchantId}</span>} />
-          <Row
-            label="類型"
-            value={<Badge variant="secondary">{merchantTypeLabel[merchant.type]}</Badge>}
-          />
-          <Row label="聯絡人" value={merchant.contactName ?? '-'} />
-          <Row label="電話" value={merchant.phone ?? '-'} />
-          <Row label="Email" value={merchant.email ?? '-'} />
-          <Row label="城市" value={merchant.city ?? '-'} />
-          <Row label="地址" value={merchant.address ?? '-'} />
-          <Row
-            label="預設店家分潤"
-            value={`${(merchant.commissionRate * 100).toFixed(0)}%`}
-          />
-        </dl>
-      </SectionCard>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  suffix,
-  tone = 'default',
-}: {
-  label: string;
-  value: string | number;
-  suffix?: string;
-  tone?: 'default' | 'warning' | 'danger';
-}) {
-  const toneClass =
-    tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-warning' : '';
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${toneClass}`}>
-        {value}
-        {suffix && <span className="ml-1 text-sm font-normal text-muted-foreground">{suffix}</span>}
-      </div>
-    </div>
+    </MerchantWorkspace>
   );
 }

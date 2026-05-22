@@ -1,17 +1,7 @@
 import Link from 'next/link';
-import {
-  AlertTriangle,
-  CalendarRange,
-  CircleDollarSign,
-  PackageSearch,
-  Repeat,
-  ShoppingBag,
-  Store,
-  UserRound,
-  Wallet,
-} from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
-import { StatCard } from '@/components/shared/stat-card';
+import { SectionBlock } from '@/components/shared/section-block';
+import { DashboardKpiOverview } from '@/components/dashboard/dashboard-kpi-overview';
 import { SectionCard } from '@/components/shared/section-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,96 +14,74 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency, formatDate, formatNumber, formatPercent } from '@/lib/format';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { getDashboardData } from '@/features/dashboard/queries';
 import { RevenueTrendChart, SourcePieChart, TopProductsChart } from '@/features/dashboard/charts';
+import { DashboardSearch } from '@/components/dashboard/dashboard-search';
+import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
+import { getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
+import { Plus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  const [data, todayTasks] = await Promise.all([
+    getDashboardData(),
+    getTodayTasksForDashboard(),
+  ]);
 
   return (
     <>
       <PageHeader
+        tone="overview"
         title="Furmosa Dashboard"
         description="即時掌握全品牌營運狀況：訂單、營收、庫存、寄賣表現、會員與待辦"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/orders">查看訂單</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" asChild>
+              <Link href="/orders/new">
+                <Plus className="mr-1 h-4 w-4" />
+                快速建立訂單
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/orders">訂單列表</Link>
+            </Button>
+          </div>
         }
       />
 
-      <div className="space-y-6 p-6">
-        {/* KPI */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            title="今日訂單"
-            value={formatNumber(data.kpis.todayOrderCount)}
-            description="不含已取消"
-            icon={ShoppingBag}
-            accent="info"
-          />
-          <StatCard
-            title="本月營收"
-            value={formatCurrency(data.kpis.monthRevenue)}
-            description="不含已取消"
-            icon={CircleDollarSign}
-            accent="success"
-          />
-          <StatCard
-            title="庫存總值（成本）"
-            value={formatCurrency(data.kpis.inventoryValue)}
-            description="所有倉庫加總"
-            icon={PackageSearch}
-            accent="primary"
-          />
-          <StatCard
-            title="低庫存品項"
-            value={data.kpis.lowStockCount}
-            description="低於補貨點"
-            icon={AlertTriangle}
-            accent="warning"
-          />
-          <StatCard
-            title="寄賣店家數"
-            value={data.kpis.merchantsCount}
-            icon={Store}
-            accent="info"
-          />
-          <StatCard
-            title="待結算金額"
-            value={formatCurrency(data.kpis.pendingSettlementAmount)}
-            description="draft / reviewing / approved"
-            icon={Wallet}
-            accent="warning"
-          />
-          <StatCard
-            title="換罐會員總數"
-            value={formatNumber(data.kpis.membersCount)}
-            icon={UserRound}
-            accent="primary"
-          />
-          <StatCard
-            title="訂閱中合約"
-            value={formatNumber(data.kpis.activeSubscriptionsCount)}
-            description="active 狀態"
-            icon={Repeat}
-            accent="info"
-          />
-          <StatCard
-            title="本月回購率"
-            value={formatPercent(data.kpis.repurchaseRate)}
-            description="本月下單者中曾有下單紀錄占比"
-            icon={CalendarRange}
-            accent="success"
-          />
-        </div>
+      <div className="space-y-8 p-6">
+        <SectionBlock
+          tone="orders"
+          title="搜尋與今日任務"
+          description="快速找到訂單、會員、商品；勾選紀錄今日待辦"
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="relative z-0 min-w-0">
+              <DashboardSearch />
+            </div>
+            <div className="relative z-10 min-w-0">
+              <DashboardTodayTasks
+                key={todayTasks.map((t) => t.id).join('-') || 'empty'}
+                tasks={todayTasks}
+              />
+            </div>
+          </div>
+        </SectionBlock>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <SectionBlock
+          tone="overview"
+          title="營運概覽"
+          description="主指標優先、分組掃讀 — 參考 SaaS 儀表板資訊層級（5–8 項核心 KPI）"
+        >
+          <DashboardKpiOverview kpis={data.kpis} />
+        </SectionBlock>
+
+        <SectionBlock tone="orders" title="訂單與營收" description="趨勢、來源與熱銷表現">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <SectionCard
+            tone="orders"
             title="近 30 天營收趨勢"
             description="每日訂單合計（不含已取消）"
             className="lg:col-span-2"
@@ -121,7 +89,11 @@ export default async function DashboardPage() {
             <RevenueTrendChart data={data.revenueTrend} />
           </SectionCard>
 
-          <SectionCard title="本月訂單來源分布" description="官網 / LINE / 寄賣 / 手動">
+          <SectionCard
+            tone="orders"
+            title="本月訂單來源分布"
+            description="官網 / LINE / 寄賣 / 手動"
+          >
             <SourcePieChart data={data.sourceData} />
             <div className="mt-3 space-y-1.5">
               {data.sourceData.map((s) => (
@@ -143,6 +115,7 @@ export default async function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <SectionCard
+            tone="master"
             title="熱銷商品 Top 10"
             description="近 30 天銷售額排行"
             className="lg:col-span-2"
@@ -154,7 +127,7 @@ export default async function DashboardPage() {
             )}
           </SectionCard>
 
-          <SectionCard title="寄賣店銷售排行" description="近 30 天">
+          <SectionCard tone="master" title="寄賣店銷售排行" description="近 30 天">
             <div className="space-y-3">
               {data.topMerchants.length === 0 ? (
                 <p className="text-sm text-muted-foreground">尚無寄賣訂單</p>
@@ -177,10 +150,13 @@ export default async function DashboardPage() {
             </div>
           </SectionCard>
         </div>
+        </SectionBlock>
 
+        <SectionBlock tone="subscription" title="訂閱出貨" description="本週待處理的訂閱包裹">
         <SectionCard
+          tone="subscription"
           title="本週訂閱出貨"
-          description="待出貨 / 已包裝的訂閱出貨清單，依排定日期排序"
+          description="待出貨的訂閱出貨清單，依排定日期排序"
           action={
             <Button variant="ghost" size="sm" asChild>
               <Link href="/subscriptions/shipments">出貨排程</Link>
@@ -234,9 +210,12 @@ export default async function DashboardPage() {
             </Table>
           )}
         </SectionCard>
+        </SectionBlock>
 
+        <SectionBlock tone="inventory" title="庫存與任務" description="需要優先處理的警示與待辦">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <SectionCard
+            tone="inventory"
             title="低庫存警示"
             description="WH-MAIN 數量已達或低於補貨點"
             action={
@@ -264,16 +243,16 @@ export default async function DashboardPage() {
                   data.lowStockBalances.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell>
-                        <div className="font-medium">{b.product.name}</div>
+                        <div className="font-medium">{b.product?.name ?? '—'}</div>
                         <div className="text-xs text-muted-foreground">
-                          {b.product.productId} · {b.product.sku}
+                          {b.product?.productId ?? '—'} · {b.product?.sku ?? '—'}
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-sm font-semibold text-warning">
                         {formatNumber(b.quantity)}
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatNumber(b.product.reorderPoint)}
+                        {formatNumber(b.product?.reorderPoint ?? 0)}
                       </TableCell>
                     </TableRow>
                   ))
@@ -283,6 +262,7 @@ export default async function DashboardPage() {
           </SectionCard>
 
           <SectionCard
+            tone="operations"
             title="待處理任務"
             description="todo / in_progress / blocked"
             action={
@@ -312,6 +292,7 @@ export default async function DashboardPage() {
             </div>
           </SectionCard>
         </div>
+        </SectionBlock>
       </div>
     </>
   );

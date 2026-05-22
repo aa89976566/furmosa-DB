@@ -4,6 +4,19 @@ const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
+/** Supabase pooler connection_limit 較小時，避免一次 Promise.all 搶光連線 */
+async function runInBatches(
+  tasks: (() => Promise<unknown>)[],
+  batchSize = 4,
+): Promise<unknown[]> {
+  const results: unknown[] = [];
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const chunk = tasks.slice(i, i + batchSize);
+    results.push(...(await Promise.all(chunk.map((fn) => fn()))));
+  }
+  return results;
+}
+
 export async function getDashboardData() {
   const now = new Date();
   const startOfDay = new Date(now);
@@ -21,11 +34,11 @@ export async function getDashboardData() {
   const [
     todayOrderCount,
     monthRevenueAgg,
-    inventoryValueRows,
     products,
     merchantsCount,
     pendingSettlement,
     membersCount,
+    newCustomersThisMonth,
     activeSubscriptionsCount,
     weekShipments,
     last30Orders,
@@ -34,90 +47,164 @@ export async function getDashboardData() {
     topMerchantsRaw,
     lowStockBalances,
     pendingTasks,
-  ] = await Promise.all([
-    prisma.order.count({
-      where: { orderedAt: { gte: startOfDay }, status: { not: 'cancelled' } },
-    }),
-    prisma.order.aggregate({
-      _sum: { total: true },
-      where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
-    }),
-    prisma.inventoryBalance.findMany({
-      include: { product: { select: { cost: true } } },
-    }),
-    prisma.product.findMany({
-      select: { id: true, productId: true, name: true, reorderPoint: true, sku: true },
-    }),
-    prisma.merchant.count(),
-    prisma.settlement.aggregate({
-      _sum: { payable: true },
-      where: { status: { in: ['draft', 'reviewing', 'approved'] } },
-    }),
-    prisma.customer.count({ where: { isLoyaltyMember: true } }),
-    prisma.subscription.count({ where: { status: 'active' } }),
-    prisma.subscriptionShipment.findMany({
-      where: {
-        scheduledDate: { gte: startOfWeek, lt: endOfWeek },
-        status: { in: ['pending', 'packed'] },
-      },
-      include: {
-        subscription: {
-          include: { customer: true, plan: true },
+  ] = (await runInBatches([
+    // 順序必須與上方解構變數一致
+    () =>
+      prisma.order.count({
+        where: { orderedAt: { gte: startOfDay }, status: { not: 'cancelled' } },
+      }),
+    () =>
+      prisma.order.aggregate({
+        _sum: { total: true },
+        where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
+      }),
+    () =>
+      prisma.product.findMany({
+        select: {
+          id: true,
+          productId: true,
+          name: true,
+          reorderPoint: true,
+          sku: true,
+          cost: true,
         },
-      },
-      orderBy: { scheduledDate: 'asc' },
-    }),
-    prisma.order.findMany({
-      where: { orderedAt: { gte: last30 }, status: { not: 'cancelled' } },
-      select: { orderedAt: true, total: true, source: true },
-    }),
-    prisma.order.groupBy({
-      by: ['source'],
-      _sum: { total: true },
-      _count: { _all: true },
-      where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
-    }),
-    prisma.orderItem.groupBy({
-      by: ['productId', 'productName'],
-      _sum: { quantity: true, subtotal: true },
-      where: {
-        order: {
+      }),
+    () => prisma.merchant.count(),
+    () =>
+      prisma.settlement.aggregate({
+        _sum: { payable: true },
+        where: { status: { in: ['draft', 'reviewing', 'approved'] } },
+      }),
+    () => prisma.customer.count({ where: { isLoyaltyMember: true } }),
+    () =>
+      prisma.customer.count({
+        where: { createdAt: { gte: startOfMonth } },
+      }),
+    () => prisma.subscription.count({ where: { status: 'active' } }),
+    () =>
+      prisma.subscriptionShipment.findMany({
+        where: {
+          scheduledDate: { gte: startOfWeek, lt: endOfWeek },
+          status: { in: ['pending', 'packed'] },
+        },
+        include: {
+          subscription: {
+            include: { customer: true, plan: true },
+          },
+        },
+        orderBy: { scheduledDate: 'asc' },
+      }),
+    () =>
+      prisma.order.findMany({
+        where: { orderedAt: { gte: last30 }, status: { not: 'cancelled' } },
+        select: { orderedAt: true, total: true, source: true },
+      }),
+    () =>
+      prisma.order.groupBy({
+        by: ['source'],
+        _sum: { total: true },
+        _count: { _all: true },
+        where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
+      }),
+    () =>
+      prisma.orderItem.groupBy({
+        by: ['productId', 'productName'],
+        _sum: { quantity: true, subtotal: true },
+        where: {
+          order: {
+            orderedAt: { gte: last30 },
+            status: { not: 'cancelled' },
+          },
+        },
+        orderBy: { _sum: { subtotal: 'desc' } },
+        take: 10,
+      }),
+    () =>
+      prisma.order.groupBy({
+        by: ['merchantId'],
+        _sum: { total: true },
+        _count: { _all: true },
+        where: {
+          merchantId: { not: null },
           orderedAt: { gte: last30 },
           status: { not: 'cancelled' },
         },
-      },
-      orderBy: { _sum: { subtotal: 'desc' } },
-      take: 10,
-    }),
-    prisma.order.groupBy({
-      by: ['merchantId'],
-      _sum: { total: true },
-      _count: { _all: true },
-      where: {
-        merchantId: { not: null },
-        orderedAt: { gte: last30 },
-        status: { not: 'cancelled' },
-      },
-      orderBy: { _sum: { total: 'desc' } },
-      take: 5,
-    }),
-    prisma.inventoryBalance.findMany({
-      include: { product: true, warehouse: true },
-    }),
-    prisma.task.findMany({
-      where: { status: { in: ['todo', 'in_progress', 'blocked'] } },
-      include: { assignee: true },
-      orderBy: { dueDate: 'asc' },
-      take: 6,
-    }),
-  ]);
+        orderBy: { _sum: { total: 'desc' } },
+        take: 5,
+      }),
+    () =>
+      prisma.inventoryBalance.findMany({
+        include: { product: true, warehouse: true },
+      }),
+    () =>
+      prisma.task.findMany({
+        where: { status: { in: ['todo', 'in_progress', 'blocked'] } },
+        include: { assignee: true },
+        orderBy: { dueDate: 'asc' },
+        take: 6,
+      }),
+  ])) as [
+    number,
+    { _sum: { total: number | null } },
+    {
+      id: string;
+      productId: string;
+      name: string;
+      reorderPoint: number;
+      sku: string;
+      cost: number;
+    }[],
+    number,
+    { _sum: { payable: number | null } },
+    number,
+    number,
+    number,
+    Awaited<
+      ReturnType<
+        typeof prisma.subscriptionShipment.findMany<{
+          include: {
+            subscription: { include: { customer: true; plan: true } };
+          };
+        }>
+      >
+    >,
+    { orderedAt: Date; total: number; source: string }[],
+    { source: string; _sum: { total: number | null }; _count: { _all: number } }[],
+    {
+      productId: string;
+      productName: string;
+      _sum: { quantity: number | null; subtotal: number | null };
+    }[],
+    {
+      merchantId: string | null;
+      _sum: { total: number | null };
+      _count: { _all: number };
+    }[],
+    Awaited<
+      ReturnType<
+        typeof prisma.inventoryBalance.findMany<{
+          include: { product: true; warehouse: true };
+        }>
+      >
+    >,
+    Awaited<
+      ReturnType<
+        typeof prisma.task.findMany<{
+          include: { assignee: true };
+        }>
+      >
+    >,
+  ];
 
   // 庫存總值 + 低庫存
   const productMap = new Map(products.map((p) => [p.id, p]));
   let inventoryValue = 0;
   const productTotals = new Map<string, number>();
-  for (const b of inventoryValueRows) {
-    inventoryValue += b.quantity * Number(b.product.cost);
+  for (const b of lowStockBalances) {
+    const unitCost = Number(
+      b.product?.cost ?? productMap.get(b.productId)?.cost ?? 0,
+    );
+    inventoryValue += b.quantity * unitCost;
     productTotals.set(b.productId, (productTotals.get(b.productId) ?? 0) + b.quantity);
   }
   const lowStockProducts = products
@@ -212,13 +299,19 @@ export async function getDashboardData() {
       membersCount,
       activeSubscriptionsCount,
       repurchaseRate,
+      newCustomersThisMonth,
     },
     revenueTrend,
     sourceData,
     topProducts,
     topMerchants,
     lowStockBalances: lowStockBalances
-      .filter((b) => b.quantity <= b.product.reorderPoint && b.warehouse.code === 'WH-MAIN')
+      .filter(
+        (b) =>
+          b.product != null &&
+          b.warehouse?.code === 'WH-MAIN' &&
+          b.quantity <= b.product.reorderPoint,
+      )
       .sort((a, b) => a.quantity - b.quantity)
       .slice(0, 8),
     pendingTasks,

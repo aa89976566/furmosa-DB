@@ -15,7 +15,7 @@ export function MerchantTabs({ merchantId, tabs }: { merchantId: string; tabs: T
   const base = `/merchants/${merchantId}`;
 
   return (
-    <nav className="border-b bg-background px-6">
+    <nav className="border-b border-border/60 bg-surface-raised px-6">
       <ul className="-mb-px flex flex-wrap gap-1 overflow-x-auto">
         {tabs.map((t) => {
           const href = t.href === '' ? base : `${base}/${t.href}`;

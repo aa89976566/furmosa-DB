@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { formatConsignmentCommission } from '@/lib/merchant-commission';
 import { Package, PackagePlus, Pencil, AlertTriangle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -95,7 +96,8 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
   return (
     <div className="space-y-6 p-6">
       <SectionCard
-        title="寄賣商品 × 庫存 × 抽成"
+        title="寄賣商品 × 庫存 × 分潤"
+        description="寄賣分潤依商品設定為 20% 或 30%"
         action={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" asChild>
@@ -130,8 +132,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                 <TableHead>商品</TableHead>
                 <TableHead className="text-right">店家庫存</TableHead>
                 <TableHead className="text-right">建議售價</TableHead>
-                <TableHead>抽成方式</TableHead>
-                <TableHead className="text-right">店家抽成</TableHead>
+                <TableHead className="text-center">寄賣分潤</TableHead>
                 <TableHead className="text-right">公司實收</TableHead>
                 <TableHead className="text-right">最近進貨</TableHead>
                 <TableHead className="w-px"></TableHead>
@@ -175,32 +176,40 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                   <TableCell className="text-right font-medium">
                     {r.suggestedPrice ? formatCurrency(r.suggestedPrice) : '-'}
                   </TableCell>
-                  <TableCell>
-                    {r.commissionMode ? (
-                      <Badge variant={r.commissionMode === 'percent' ? 'info' : 'warning'}>
-                        {r.commissionMode === 'percent' ? '百分比' : '固定'}
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">未設定</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {r.commissionMode == null ? (
-                      '-'
-                    ) : (
-                      <>
-                        <div className="font-semibold">
-                          {r.commissionMode === 'percent'
-                            ? `${r.commissionValue}%`
-                            : formatCurrency(Number(r.commissionValue))}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {r.commissionPerUnit != null
-                            ? `(${formatCurrency(r.commissionPerUnit)} / 件)`
-                            : ''}
-                        </div>
-                      </>
-                    )}
+                  <TableCell className="text-center">
+                    {(() => {
+                      const label = formatConsignmentCommission(
+                        r.commissionMode,
+                        r.commissionValue,
+                      );
+                      if (label) {
+                        const isStandard =
+                          r.commissionMode === 'percent' &&
+                          (r.commissionValue === 20 || r.commissionValue === 30);
+                        return (
+                          <div className="space-y-0.5">
+                            <Badge variant={isStandard ? 'info' : 'secondary'}>
+                              {label}
+                            </Badge>
+                            {r.commissionPerUnit != null && r.suggestedPrice ? (
+                              <div className="text-[10px] text-muted-foreground">
+                                約 {formatCurrency(r.commissionPerUnit)} / 件
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+                      if (r.commissionMode === 'amount' && r.commissionValue != null) {
+                        return (
+                          <span className="text-xs text-muted-foreground">
+                            舊制 {formatCurrency(r.commissionValue)}/件
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-xs text-muted-foreground">未設定</span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-success">
                     {r.companyRevenuePerUnit != null

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,12 +31,23 @@ export function VendorForm({
   deleteAction?: (formData: FormData) => void | Promise<void>;
   submitLabel?: string;
 }) {
+  const router = useRouter();
   const deleteFormRef = useRef<HTMLFormElement>(null);
   const isEdit = Boolean(vendor.id);
 
   return (
     <div className="space-y-4">
-      <form action={saveAction} className="space-y-4">
+      <form
+        action={async (formData) => {
+          try {
+            await saveAction(formData);
+            router.refresh();
+          } catch (e) {
+            alert(e instanceof Error ? e.message : '儲存失敗');
+          }
+        }}
+        className="space-y-4"
+      >
         {vendor.id && <input type="hidden" name="id" value={vendor.id} />}
 
         {vendor.vendorId && (
@@ -65,10 +77,11 @@ export function VendorForm({
         <Field label="Email">
           <Input
             name="email"
-            type="email"
+            type="text"
+            inputMode="email"
             defaultValue={vendor.email ?? ''}
             maxLength={120}
-            placeholder="contact@example.com"
+            placeholder="contact@example.com（選填）"
           />
         </Field>
 
@@ -99,8 +112,8 @@ export function VendorForm({
           <label className="inline-flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              name="status"
-              value="active"
+              name="statusActive"
+              value="1"
               defaultChecked={vendor.status === 'active'}
               className="h-4 w-4 rounded border"
             />
@@ -115,11 +128,18 @@ export function VendorForm({
               variant="ghost"
               size="sm"
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  confirm('確定要刪除此廠商？刪除後無法復原（若仍綁定商品將無法刪除）。')
+                  !confirm('確定要刪除此廠商？刪除後無法復原（若仍綁定商品將無法刪除）。')
                 ) {
-                  deleteFormRef.current?.requestSubmit();
+                  return;
+                }
+                const fd = new FormData();
+                fd.set('id', vendor.id!);
+                try {
+                  await deleteAction(fd);
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : '刪除失敗');
                 }
               }}
             >
@@ -132,12 +152,6 @@ export function VendorForm({
           <SaveButton label={submitLabel ?? '儲存變更'} />
         </div>
       </form>
-
-      {isEdit && deleteAction && (
-        <form ref={deleteFormRef} action={deleteAction} className="hidden">
-          <input type="hidden" name="id" value={vendor.id} />
-        </form>
-      )}
     </div>
   );
 }

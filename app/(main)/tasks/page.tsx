@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { taskStatusLabel, taskTypeLabel } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
 import { Plus, CalendarClock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +54,11 @@ export default async function TasksPage() {
         {columns.map((col) => {
           const list = grouped.get(col.key) ?? [];
           return (
-            <div key={col.key} className="space-y-3">
+            <div
+              key={col.key}
+              id={col.key === 'done' ? 'column-done' : undefined}
+              className={cn('space-y-3', col.key === 'done' && 'scroll-mt-24')}
+            >
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-semibold">{col.label}</h2>

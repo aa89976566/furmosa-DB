@@ -1,12 +1,16 @@
 import * as React from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { sectionToneStyles, type SectionTone } from '@/lib/section-tone';
 
 interface SectionCardProps {
   id?: string;
   title: React.ReactNode;
   description?: React.ReactNode;
   action?: React.ReactNode;
+  icon?: LucideIcon;
+  tone?: SectionTone;
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
@@ -17,16 +21,55 @@ export function SectionCard({
   title,
   description,
   action,
+  icon: Icon,
+  tone,
   children,
   className,
   contentClassName,
 }: SectionCardProps) {
+  const styles = tone ? sectionToneStyles[tone] : null;
+
   return (
-    <Card id={id} className={className}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div className="space-y-1">
-          <CardTitle>{title}</CardTitle>
-          {description ? <CardDescription>{description}</CardDescription> : null}
+    <Card
+      id={id}
+      className={cn(
+        'overflow-hidden shadow-card',
+        styles?.card,
+        styles?.cardBorder,
+        className,
+      )}
+    >
+      <CardHeader
+        className={cn(
+          'flex flex-row items-center justify-between space-y-0 border-b pb-4',
+          styles?.header ?? 'border-border/60 bg-muted/20',
+        )}
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          {Icon ? (
+            <div
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl',
+                styles?.icon ?? 'bg-muted text-muted-foreground',
+              )}
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+          ) : null}
+          <div className="min-w-0 space-y-1">
+            {tone ? (
+              <span
+                className={cn(
+                  'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
+                  styles?.chip,
+                )}
+              >
+                {styles?.label}
+              </span>
+            ) : null}
+            <CardTitle>{title}</CardTitle>
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
         </div>
         {action}
       </CardHeader>

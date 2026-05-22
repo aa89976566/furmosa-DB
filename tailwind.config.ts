@@ -14,6 +14,9 @@ const config: Config = {
       screens: { '2xl': '1400px' },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
@@ -60,11 +63,21 @@ const config: Config = {
           DEFAULT: 'hsl(var(--info))',
           foreground: 'hsl(var(--info-foreground))',
         },
+        navy: 'hsl(var(--navy))',
+        coral: 'hsl(var(--coral))',
+        canvas: 'hsl(var(--canvas))',
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        xl: 'calc(var(--radius) + 4px)',
+        '2xl': 'calc(var(--radius) + 8px)',
+      },
+      boxShadow: {
+        card: '0 1px 2px hsl(215 44% 14% / 0.04), 0 8px 24px hsl(215 44% 14% / 0.06)',
+        'card-hover':
+          '0 2px 4px hsl(215 44% 14% / 0.05), 0 12px 32px hsl(215 44% 14% / 0.08)',
       },
       keyframes: {
         'accordion-down': {
