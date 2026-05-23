@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -17,8 +17,16 @@ function getPrismaGeneratedPackageName(): string {
   }
 }
 
-/** 變更 Merchant 運輸欄位等 schema 時遞增，開發模式會丟棄快取的 PrismaClient */
-const PRISMA_CLIENT_SCHEMA_REV = 4;
+/** 變更 schema 時遞增，開發模式會丟棄快取的 PrismaClient（含 companyShippingCost） */
+const PRISMA_CLIENT_SCHEMA_REV = 6;
+
+function assertOrderShippingCostField() {
+  if (!('companyShippingCost' in Prisma.OrderScalarFieldEnum)) {
+    throw new Error(
+      'Prisma Client 過期：請停止所有 dev server 後執行 npx prisma generate && npm run dev',
+    );
+  }
+}
 
 type GlobalPrisma = {
   prisma?: PrismaClient;
@@ -40,11 +48,17 @@ if (g.prisma && cacheStale) {
   g.prisma = undefined;
 }
 
-export const prisma = cacheStale
+const prismaClient = cacheStale
   ? new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     })
   : g.prisma!;
+
+if (process.env.NODE_ENV === 'development') {
+  assertOrderShippingCostField();
+}
+
+export const prisma = prismaClient;
 
 if (process.env.NODE_ENV !== 'production') {
   g.prisma = prisma;

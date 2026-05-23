@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { defaultTaipeiMonthRange } from '@/lib/taipei-date';
+import { fetchSettlementSaleTxns } from '@/lib/merchant-settlement-sales';
 
 // 寄賣結算的計算來源：
 // - 銷售流水：MerchantStockTxn(type='sale')
@@ -9,6 +11,8 @@ import { prisma } from '@/lib/prisma';
 export type SettlementLine = {
   txnId: string;
   txnNumber: string;
+  orderId: string | null;
+  orderNumber: string | null;
   productId: string;
   productName: string;
   sku: string;
@@ -20,6 +24,7 @@ export type SettlementLine = {
   createdAt: Date;
   note: string | null;
   settlementId: string | null; // null=未結清
+  lineSource: 'sale' | 'stocktake'; // stocktake = 清點盤點減量
 };
 
 export type SettlementSummary = {
@@ -60,36 +65,31 @@ export async function calcSettlement({
     ? { OR: [{ settlementId: null }, { settlementId: includeSettlementId }] }
     : { settlementId: null };
 
-  const txns = await prisma.merchantStockTxn.findMany({
-    where: {
-      merchantId,
-      type: 'sale',
-      createdAt: { gte: periodStart, lte: periodEnd },
-      ...settlementFilter,
-    },
-    include: { product: { select: { name: true, sku: true } } },
-    orderBy: { createdAt: 'asc' },
+  const settled = await fetchSettlementSaleTxns({
+    merchantId,
+    periodStart,
+    periodEnd,
+    settlementFilter,
   });
 
-  const lines: SettlementLine[] = txns.map((t) => {
-    const qty = Math.abs(t.quantity);
-    const unitPrice = t.unitPrice ?? 0;
-    return {
-      txnId: t.id,
-      txnNumber: t.txnNumber,
-      productId: t.productId,
-      productName: t.product.name,
-      sku: t.product.sku,
-      quantity: qty,
-      unitPrice,
-      grossSales: qty * unitPrice,
-      commissionAmount: t.commissionAmount ?? 0,
-      companyRevenue: t.companyRevenue ?? 0,
-      createdAt: t.createdAt,
-      note: t.note,
-      settlementId: t.settlementId,
-    };
-  });
+  const lines: SettlementLine[] = settled.map((row) => ({
+    txnId: row.txn.id,
+    txnNumber: row.txn.txnNumber,
+    orderId: row.txn.order?.id ?? null,
+    orderNumber: row.txn.order?.orderNumber ?? null,
+    productId: row.txn.productId,
+    productName: row.txn.product.name,
+    sku: row.txn.product.sku,
+    quantity: row.qty,
+    unitPrice: row.unitPrice,
+    grossSales: row.grossSales,
+    commissionAmount: row.commissionAmount,
+    companyRevenue: row.companyRevenue,
+    createdAt: row.txn.createdAt,
+    note: row.txn.note,
+    settlementId: row.txn.settlementId,
+    lineSource: row.lineSource,
+  }));
 
   const totalQuantity = lines.reduce((s, l) => s + l.quantity, 0);
   const grossSales = lines.reduce((s, l) => s + l.grossSales, 0);
@@ -129,7 +129,5 @@ export async function nextSettlementId(periodEnd: Date): Promise<string> {
 }
 
 export function defaultPeriod(today = new Date()): { start: Date; end: Date } {
-  const start = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0);
-  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
-  return { start, end };
+  return defaultTaipeiMonthRange(today);
 }

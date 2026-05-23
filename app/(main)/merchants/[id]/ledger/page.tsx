@@ -2,114 +2,71 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { SectionCard } from '@/components/shared/section-card';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { MerchantStockFilterLinks } from '@/components/merchants/merchant-stock-filter-links';
+import { MerchantStockTxnTable } from '@/components/merchants/merchant-stock-txn-table';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { formatCurrency, formatDateTime } from '@/lib/format';
+  buildMerchantStockTxnWhere,
+  parseMerchantStockLedgerSearchParams,
+} from '@/lib/merchant-stock-query';
 
 export const dynamic = 'force-dynamic';
 
-type BadgeVariant = 'success' | 'info' | 'warning' | 'secondary' | 'destructive';
-const stockTxnTypeLabel: Record<string, string> = {
-  restock: '進貨',
-  sale: '銷售',
-  adjust: '盤點',
-  return: '退回',
-};
-const stockTxnTypeStyle: Record<string, BadgeVariant> = {
-  restock: 'success',
-  sale: 'info',
-  adjust: 'warning',
-  return: 'secondary',
-};
-
-export default async function MerchantLedgerPage({ params }: { params: { id: string } }) {
+export default async function MerchantLedgerPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const merchant = await prisma.merchant.findUnique({
     where: { id: params.id },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (!merchant) notFound();
 
+  const filters = parseMerchantStockLedgerSearchParams(searchParams ?? {});
+  const where = buildMerchantStockTxnWhere({ ...filters, merchantId: merchant.id });
+
   const txns = await prisma.merchantStockTxn.findMany({
-    where: { merchantId: merchant.id },
-    include: { product: true, order: true },
+    where,
+    include: {
+      merchant: { select: { id: true, name: true, merchantId: true } },
+      product: { select: { id: true, name: true, sku: true } },
+      order: { select: { id: true, orderNumber: true } },
+      settlement: { select: { id: true, settlementId: true } },
+    },
     orderBy: { createdAt: 'desc' },
     take: 200,
   });
 
+  const basePath = `/merchants/${merchant.id}/ledger`;
+
   return (
     <div className="space-y-6 p-6">
-      <SectionCard title={`動作流水（最近 ${txns.length} 筆）`}>
-        {txns.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">尚無紀錄</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>時間</TableHead>
-                <TableHead>類型</TableHead>
-                <TableHead>商品</TableHead>
-                <TableHead className="text-right">數量</TableHead>
-                <TableHead className="text-right">異動後庫存</TableHead>
-                <TableHead className="text-right">公司實收</TableHead>
-                <TableHead>備註 / 訂單</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {txns.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDateTime(t.createdAt)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={stockTxnTypeStyle[t.type] ?? 'secondary'}>
-                      {stockTxnTypeLabel[t.type] ?? t.type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/products/${t.productId}`}
-                      className="hover:underline"
-                    >
-                      {t.product.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell
-                    className={
-                      t.quantity > 0
-                        ? 'text-right font-mono font-semibold text-success'
-                        : t.quantity < 0
-                          ? 'text-right font-mono font-semibold text-destructive'
-                          : 'text-right font-mono'
-                    }
-                  >
-                    {t.quantity > 0 ? '+' : ''}
-                    {t.quantity}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">{t.balanceAfter}</TableCell>
-                  <TableCell className="text-right">
-                    {t.companyRevenue != null ? formatCurrency(Number(t.companyRevenue)) : '-'}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {t.order ? (
-                      <Link href={`/orders/${t.order.id}`} className="hover:underline">
-                        {t.order.orderNumber}
-                      </Link>
-                    ) : (
-                      (t.note ?? '-')
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {merchant.name} 的庫存異動；全站紀錄請至寄賣庫存頁
+        </p>
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/merchants/stock?merchantId=${merchant.id}`}>全站庫存紀錄</Link>
+        </Button>
+      </div>
+
+      <MerchantStockFilterLinks
+        basePath={basePath}
+        merchants={[]}
+        hideViewTabs
+        showMerchantFilter={false}
+        filters={{
+          type: filters.type,
+          month: filters.month,
+          settled: filters.settled,
+        }}
+      />
+
+      <SectionCard title={`動作流水（${txns.length} 筆）`}>
+        <MerchantStockTxnTable txns={txns} />
       </SectionCard>
     </div>
   );

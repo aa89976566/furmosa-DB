@@ -28,9 +28,9 @@ export const paymentStatusLabel: Record<string, string> = {
 
 export const shippingFeeTypeLabel: Record<string, string> = {
   free: '包郵',
-  prepaid: '已付費（運費已收）',
-  unpaid: '不包郵（運費另計）',
-  cod: '運費貨到付款',
+  prepaid: '已付費',
+  unpaid: '不包郵',
+  cod: '運費貨到付',
 };
 
 export const fulfillmentStatusLabel: Record<string, string> = {
@@ -49,6 +49,13 @@ export const inventoryTxnTypeLabel: Record<string, string> = {
   stocktake: '盤點',
   return_in: '退貨入庫',
   return_out: '退回廠商',
+};
+
+export const merchantStockTxnTypeLabel: Record<string, string> = {
+  restock: '進貨',
+  sale: '銷售',
+  adjust: '盤點',
+  return: '退回',
 };
 
 export const settlementStatusLabel: Record<string, string> = {

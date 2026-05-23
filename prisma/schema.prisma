@@ -397,8 +397,9 @@ model Order {
   subscriptionId    String? // 若為訂閱衍生的訂單
   subtotal          Float
   discount          Float     @default(0)
-  shippingFee       Float     @default(0)
-  total             Float
+  shippingFee           Float @default(0) // 買家於此單支付的運費（不包郵／貨到付時為標準運費）
+  companyShippingCost   Float @default(0) // 公司負擔的運費成本（包郵時為 711/黑貓 標準運費）
+  total                 Float
   pointsEarned      Int       @default(0)
   pointsUsed        Int       @default(0)
   shippingMethod    String    @default("home") // home / convenience

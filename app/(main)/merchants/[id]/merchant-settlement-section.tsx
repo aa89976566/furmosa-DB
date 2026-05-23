@@ -13,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
+import { SettlementTxnLink } from '@/components/settlements/settlement-txn-link';
 import {
   Calculator,
   ChevronDown,
@@ -26,6 +28,8 @@ import {
 type Line = {
   txnId: string;
   txnNumber: string;
+  orderId?: string | null;
+  orderNumber?: string | null;
   productId: string;
   productName: string;
   sku: string;
@@ -35,12 +39,16 @@ type Line = {
   commissionAmount: number;
   companyRevenue: number;
   createdAt: string; // ISO
+  lineSource?: 'sale' | 'stocktake';
 };
 
 type Summary = {
   totalQuantity: number;
   cashCollected: number;
   commissionAmount: number;
+  rewardPayout: number;
+  shippingFee: number;
+  merchantOwesUs: number;
   effectiveCommissionRate: number;
   lines: Line[];
 };
@@ -66,10 +74,13 @@ export function MerchantSettlementSection({
   currentFrom,
   currentTo,
   shippingFee,
+  rewardPayout,
   preview,
   pastSettlements,
   createSettlementAction,
   hasPreviewQuery,
+  previewBasePath,
+  showPastSettlements = true,
 }: {
   merchantId: string;
   defaultFrom: string;
@@ -77,15 +88,18 @@ export function MerchantSettlementSection({
   currentFrom: string | null;
   currentTo: string | null;
   shippingFee: number;
+  rewardPayout: number;
   preview: Summary | null;
   pastSettlements: PastSettlement[];
   createSettlementAction: (formData: FormData) => void | Promise<void>;
   hasPreviewQuery: boolean;
+  /** 試算 GET 表單送出網址，預設為單店結算頁 */
+  previewBasePath?: string;
+  showPastSettlements?: boolean;
 }) {
   const [showDetail, setShowDetail] = useState(false);
-  const merchantOwesUs = preview
-    ? preview.cashCollected - preview.commissionAmount - shippingFee
-    : 0;
+  const formAction = previewBasePath ?? `/merchants/${merchantId}/settlement`;
+  const merchantOwesUs = preview?.merchantOwesUs ?? 0;
 
   return (
     <SectionCard
@@ -100,10 +114,11 @@ export function MerchantSettlementSection({
       {/* 篩選表單（GET，會帶到 merchant page 自己的 search params） */}
       <form
         method="get"
-        className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-[1fr_1fr_1fr_auto]"
+        action={formAction}
+        className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]"
       >
-        {/* 保留店家頁可能會用到的其他 query 參數 */}
-        <input type="hidden" name="tab" value="settlement" />
+        {previewBasePath ? <input type="hidden" name="view" value="create" /> : null}
+        {previewBasePath ? <input type="hidden" name="merchantId" value={merchantId} /> : null}
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">期間起</label>
           <input
@@ -125,6 +140,17 @@ export function MerchantSettlementSection({
           />
         </div>
         <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">換罐補貼（公司付店家）</label>
+          <input
+            type="number"
+            name="settle_reward"
+            defaultValue={rewardPayout}
+            min={0}
+            step="1"
+            className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="space-y-1">
           <label className="text-xs text-muted-foreground">運費（公司補店家／可填）</label>
           <input
             type="number"
@@ -135,7 +161,7 @@ export function MerchantSettlementSection({
             className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        <div className="flex items-end">
+        <div className="flex items-end md:col-span-2 lg:col-span-1">
           <Button type="submit" className="w-full md:w-auto">
             <Calculator className="mr-1 h-4 w-4" />
             試算
@@ -147,7 +173,7 @@ export function MerchantSettlementSection({
       {hasPreviewQuery && preview && preview.lines.length === 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
           <AlertCircle className="h-4 w-4" />
-          這段期間沒有「未結清」的銷售紀錄
+          這段期間沒有「未結清」的銷售或清點減量紀錄
         </div>
       )}
 
@@ -168,14 +194,17 @@ export function MerchantSettlementSection({
               hint={`抽成率 ${(preview.effectiveCommissionRate * 100).toFixed(1)}%`}
               tone="warning"
             />
+            {rewardPayout > 0 && (
+              <Kpi
+                label="換罐補貼"
+                value={formatCurrency(rewardPayout)}
+                tone="info"
+              />
+            )}
             <Kpi
               label="店家應返公司"
               value={formatCurrency(merchantOwesUs)}
-              hint={
-                shippingFee > 0
-                  ? `已扣運費 ${formatCurrency(shippingFee)}`
-                  : '收現金 - 分潤 - 運費'
-              }
+              hint="收現金 − 分潤 − 換罐補貼 − 運費"
               tone="success"
             />
           </div>
@@ -215,7 +244,14 @@ export function MerchantSettlementSection({
                       <TableCell className="text-xs text-muted-foreground">
                         {formatDateTime(new Date(l.createdAt))}
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{l.txnNumber}</TableCell>
+                      <TableCell>
+                        <SettlementTxnLink
+                          txnId={l.txnId}
+                          txnNumber={l.txnNumber}
+                          orderId={l.orderId}
+                          orderNumber={l.orderNumber}
+                        />
+                      </TableCell>
                       <TableCell>
                         <Link
                           href={`/products/${l.productId}`}
@@ -223,6 +259,11 @@ export function MerchantSettlementSection({
                         >
                           {l.productName}
                         </Link>
+                        {l.lineSource === 'stocktake' && (
+                          <Badge variant="secondary" className="ml-1 text-[10px]">
+                            清點減量
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono">{l.quantity}</TableCell>
                       <TableCell className="text-right text-sm">
@@ -253,6 +294,7 @@ export function MerchantSettlementSection({
             <input type="hidden" name="periodStart" value={currentFrom ?? defaultFrom} />
             <input type="hidden" name="periodEnd" value={currentTo ?? defaultTo} />
             <input type="hidden" name="shippingFee" value={shippingFee} />
+            <input type="hidden" name="rewardPayout" value={rewardPayout} />
 
             <div className="flex-1 space-y-1 min-w-[200px]">
               <label className="text-xs text-muted-foreground">備註（選填）</label>
@@ -277,7 +319,7 @@ export function MerchantSettlementSection({
       )}
 
       {/* 過往結算清單 */}
-      {pastSettlements.length > 0 && (
+      {showPastSettlements && pastSettlements.length > 0 && (
         <div className="mt-6 space-y-2">
           <h4 className="text-sm font-medium">過往結算（{pastSettlements.length}）</h4>
           <div className="rounded-lg border">
@@ -318,7 +360,7 @@ export function MerchantSettlementSection({
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/settlements/${s.id}`}>查看</Link>
+                        <Link href={`/merchants/settlements/${s.id}`}>查看</Link>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -329,7 +371,7 @@ export function MerchantSettlementSection({
         </div>
       )}
 
-      {!hasPreviewQuery && pastSettlements.length === 0 && (
+      {!hasPreviewQuery && (!showPastSettlements || pastSettlements.length === 0) && (
         <div className="mt-4 rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
           尚無結算紀錄。選擇期間後點「試算」即可開始
         </div>

@@ -71,8 +71,10 @@ export async function createSettlement(formData: FormData) {
   });
 
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/settlement`);
+  revalidatePath('/merchants/settlements');
   revalidatePath('/settlements');
-  redirect(`/merchants/${merchantId}#settlement-${created.id}`);
+  redirect(`/merchants/settlements/${created.id}`);
 }
 
 const STATUS_FLOW = ['draft', 'reviewing', 'approved', 'paid'] as const;
@@ -91,6 +93,8 @@ export async function updateSettlementStatus(formData: FormData) {
     },
   });
 
+  revalidatePath('/merchants/settlements');
+  revalidatePath(`/merchants/settlements/${id}`);
   revalidatePath('/settlements');
   revalidatePath(`/settlements/${id}`);
   revalidatePath(`/merchants/${updated.merchantId}`);
@@ -112,6 +116,7 @@ export async function deleteSettlement(formData: FormData) {
     await tx.settlement.delete({ where: { id } });
   });
 
+  revalidatePath('/merchants/settlements');
   revalidatePath('/settlements');
   revalidatePath(`/merchants/${s.merchantId}`);
   redirect(`/merchants/${s.merchantId}`);

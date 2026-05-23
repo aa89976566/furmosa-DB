@@ -5,6 +5,7 @@ import {
   paymentStatusLabel,
   fulfillmentStatusLabel,
   inventoryTxnTypeLabel,
+  merchantStockTxnTypeLabel,
   settlementStatusLabel,
   taskStatusLabel,
   taskPriorityLabel,
@@ -110,6 +111,13 @@ const inventoryTxnVariant: Record<string, Variant> = {
   return_out: 'destructive',
 };
 
+const merchantStockTxnVariant: Record<string, Variant> = {
+  restock: 'success',
+  sale: 'info',
+  adjust: 'warning',
+  return: 'secondary',
+};
+
 const redemptionStatusVariant: Record<string, Variant> = {
   pending: 'warning',
   fulfilled: 'success',
@@ -132,6 +140,7 @@ type StatusKind =
   | 'task'
   | 'taskPriority'
   | 'inventory'
+  | 'merchantStock'
   | 'redemption'
   | 'point'
   | 'subscription'
@@ -148,6 +157,7 @@ const variantMap: Record<StatusKind, Record<string, Variant>> = {
   task: taskStatusVariant,
   taskPriority: taskPriorityVariant,
   inventory: inventoryTxnVariant,
+  merchantStock: merchantStockTxnVariant,
   redemption: redemptionStatusVariant,
   point: pointLedgerVariant,
   subscription: subscriptionStatusVariant,
@@ -165,6 +175,7 @@ const labelMap: Record<StatusKind, Record<string, string>> = {
   task: taskStatusLabel,
   taskPriority: taskPriorityLabel,
   inventory: inventoryTxnTypeLabel,
+  merchantStock: merchantStockTxnTypeLabel,
   redemption: redemptionStatusLabel,
   point: pointLedgerTypeLabel,
   subscription: subscriptionStatusLabel,

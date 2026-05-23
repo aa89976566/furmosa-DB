@@ -514,7 +514,12 @@ async function main() {
         subtotal: sub,
       });
     }
-    const shippingFee = source === 'website' && subtotal < 1500 ? 80 : 0;
+    const shippingFeeType =
+      source === 'website' && subtotal < 1500 ? 'free' : 'unpaid';
+    const shippingMethod = 'home';
+    const standardFee = 120; // 黑貓宅配
+    const shippingFee = shippingFeeType === 'free' ? 0 : standardFee;
+    const companyShippingCost = shippingFeeType === 'free' ? standardFee : 0;
     const discount = randInt(0, 1) === 1 ? Math.floor(subtotal * 0.05) : 0;
     const total = subtotal - discount + shippingFee;
     const pointsEarned = Math.floor(total / 50);
@@ -542,6 +547,9 @@ async function main() {
         subtotal,
         discount,
         shippingFee,
+        companyShippingCost,
+        shippingFeeType,
+        shippingMethod,
         total,
         pointsEarned,
         pointsUsed: 0,

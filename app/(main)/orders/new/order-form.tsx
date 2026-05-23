@@ -31,7 +31,14 @@ import {
 } from 'lucide-react';
 import { customerShippingDefaults } from '@/lib/customer-shipping-defaults';
 import { merchantShippingToOrderFields } from '@/lib/merchant-shipping-defaults';
+import {
+  resolveOrderShipping,
+  shippingMethodLabel,
+  SHIPPING_FEE_CVS_711,
+  SHIPPING_FEE_HOME_BLACK_CAT,
+} from '@/lib/shipping-policy';
 import { createOrder } from '../actions';
+import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { createCustomer } from '../../customers/actions';
 
 export type ProductTierOption = {
@@ -131,7 +138,6 @@ export function OrderForm({
     },
   ]);
   const [discount, setDiscount] = useState<number>(0);
-  const [shippingFee, setShippingFee] = useState<number>(0);
   // 運費類型：free 包郵 / prepaid 已付費（不算進此單） / unpaid 不包郵（運費隨此單收）/ cod 貨到付款（運費隨貨）
   const [shippingFeeType, setShippingFeeType] = useState<
     'free' | 'prepaid' | 'unpaid' | 'cod'
@@ -170,10 +176,16 @@ export function OrderForm({
     () => items.reduce((s, it) => s + it.quantity * it.unitPrice, 0),
     [items],
   );
-  // 包郵 / 已付費 → 訂單上的運費歸 0（不算進 total）
-  const effectiveShippingFee =
-    shippingFeeType === 'free' || shippingFeeType === 'prepaid' ? 0 : shippingFee;
-  const total = Math.max(0, subtotal - discount + effectiveShippingFee);
+  const shippingResolved = useMemo(
+    () =>
+      resolveOrderShipping({
+        shippingFeeType,
+        shippingMethod,
+        cvsBrand,
+      }),
+    [shippingFeeType, shippingMethod, cvsBrand],
+  );
+  const total = Math.max(0, subtotal - discount + shippingResolved.shippingFee);
 
   const showMerchantOptional =
     orderType === 'customer' && customerSource === 'consignment';
@@ -368,6 +380,7 @@ export function OrderForm({
       <input type="hidden" name="orderType" value={orderType} />
       <input type="hidden" name="customerSource" value={customerSource} />
       <input type="hidden" name="shippingFeeType" value={shippingFeeType} />
+      <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
 
       {/* Step 1: 訂單類型 */}
@@ -449,20 +462,12 @@ export function OrderForm({
                 />
               </>
             ) : (
-              <select
-                name="customerId"
+              <CustomerSearchSelect
+                customers={customers}
                 value={customerId}
-                onChange={(e) => onCustomerChange(e.target.value)}
+                onChange={onCustomerChange}
                 required
-                className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">— 選擇客戶 —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.customerId})
-                  </option>
-                ))}
-              </select>
+              />
             )}
             {!showNewCustomer && customers.length === 0 && (
               <p className="mt-1 text-xs text-warning">
@@ -541,19 +546,14 @@ export function OrderForm({
                 />
               </>
             ) : (
-              <select
-                name="customerId"
+              <CustomerSearchSelect
+                customers={customers}
                 value={customerId}
-                onChange={(e) => onCustomerChange(e.target.value)}
-                className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">— 不指定 —</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.customerId})
-                  </option>
-                ))}
-              </select>
+                onChange={onCustomerChange}
+                allowEmpty
+                emptyLabel="— 不指定 —"
+                placeholder="搜尋買家（選填）…"
+              />
             )}
           </div>
         </section>
@@ -701,35 +701,30 @@ export function OrderForm({
       <section className="space-y-4 rounded-lg border bg-card p-4">
         <div className="text-sm font-medium">④ 金額與出貨</div>
 
-        {/* 運費類型 */}
-        <FieldInline label="運費">
+        <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <FeeTypeCard
               active={shippingFeeType === 'free'}
               icon={<Truck className="h-4 w-4" />}
               title="包郵"
-              desc="運費由我方吸收"
               onClick={() => setShippingFeeType('free')}
             />
             <FeeTypeCard
               active={shippingFeeType === 'prepaid'}
               icon={<CheckCircle2 className="h-4 w-4" />}
               title="已付費"
-              desc="運費已另行收取"
               onClick={() => setShippingFeeType('prepaid')}
             />
             <FeeTypeCard
               active={shippingFeeType === 'unpaid'}
               icon={<Coins className="h-4 w-4" />}
               title="不包郵"
-              desc="運費於此單支付"
               onClick={() => setShippingFeeType('unpaid')}
             />
             <FeeTypeCard
               active={shippingFeeType === 'cod'}
               icon={<HandCoins className="h-4 w-4" />}
               title="運費貨到付"
-              desc="運費由買家取貨時付"
               onClick={() => setShippingFeeType('cod')}
             />
           </div>
@@ -774,18 +769,22 @@ export function OrderForm({
               onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
             />
           </FieldInline>
-          <FieldInline label={shippingFeeType === 'free' || shippingFeeType === 'prepaid' ? '運費（不計入此單）' : '運費'}>
-            <Input
-              name="shippingFee"
-              type="number"
-              min={0}
-              step="0.01"
-              value={shippingFeeType === 'free' || shippingFeeType === 'prepaid' ? 0 : shippingFee}
-              onChange={(e) => setShippingFee(Math.max(0, Number(e.target.value) || 0))}
-              disabled={shippingFeeType === 'free' || shippingFeeType === 'prepaid'}
-            />
+          <FieldInline label="運費試算">
+            <div className="space-y-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <p className="text-xs text-muted-foreground">
+                {shippingMethodLabel({ shippingMethod, cvsBrand })}
+              </p>
+              <p className="font-mono tabular-nums">
+                買家運費 {formatCurrency(shippingResolved.shippingFee)}
+              </p>
+              {shippingResolved.companyShippingCost > 0 ? (
+                <p className="text-xs text-warning">
+                  公司運費成本 {formatCurrency(shippingResolved.companyShippingCost)}（不計入合計）
+                </p>
+              ) : null}
+            </div>
           </FieldInline>
-          <Stat label="總額" value={formatCurrency(total)} highlight />
+          <Stat label="合計（買家應付）" value={formatCurrency(total)} highlight />
         </div>
 
         <FieldInline label="出貨與收件">
@@ -837,7 +836,7 @@ export function OrderForm({
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
-                宅配（完整地址）
+                宅配 · 黑貓（{SHIPPING_FEE_HOME_BLACK_CAT} 元）
               </button>
               <button
                 type="button"
@@ -848,9 +847,12 @@ export function OrderForm({
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
-                超商取貨（7-11 等）
+                超商 · 7-11（{SHIPPING_FEE_CVS_711} 元）
               </button>
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              運費依運送方式自動帶入：7-11 {SHIPPING_FEE_CVS_711} 元、黑貓宅配 {SHIPPING_FEE_HOME_BLACK_CAT} 元。
+            </p>
 
             {shippingMethod === 'home' ? (
               <div>
@@ -1255,28 +1257,25 @@ function FeeTypeCard({
   active: boolean;
   icon: React.ReactNode;
   title: string;
-  desc: string;
+  desc?: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-left transition ${
+      className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left transition ${
         active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
       }`}
     >
       <div
-        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded ${
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded ${
           active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
         }`}
       >
         {icon}
       </div>
-      <div className="min-w-0">
-        <div className="text-xs font-medium">{title}</div>
-        <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{desc}</div>
-      </div>
+      <div className="min-w-0 text-xs font-medium">{title}</div>
     </button>
   );
 }

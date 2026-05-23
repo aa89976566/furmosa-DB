@@ -101,6 +101,59 @@ export async function loadMerchantRestockProductOptions(merchantId: string) {
   }));
 }
 
+export type MerchantStockSnapshotRow = {
+  productId: string;
+  name: string;
+  sku: string;
+  quantity: number;
+  isConsigned: boolean;
+  lastRestockAt: Date | null;
+  lastSaleAt: Date | null;
+  lastCountAt: Date | null;
+};
+
+/** 清點頁：該店已進貨／現有庫存（有庫存或曾有進貨紀錄） */
+export async function loadMerchantStockSnapshot(
+  merchantId: string,
+): Promise<MerchantStockSnapshotRow[] | null> {
+  const stocks = await prisma.merchantStock.findMany({
+    where: {
+      merchantId,
+      OR: [{ quantity: { gt: 0 } }, { lastRestockAt: { not: null } }],
+    },
+    include: {
+      product: { select: { id: true, name: true, sku: true } },
+    },
+    orderBy: [{ quantity: 'desc' }, { product: { name: 'asc' } }],
+  });
+
+  if (stocks.length === 0) {
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true },
+    });
+    if (!merchant) return null;
+    return [];
+  }
+
+  const rules = await prisma.merchantProductRule.findMany({
+    where: { merchantId },
+    select: { productId: true },
+  });
+  const consigned = new Set(rules.map((r) => r.productId));
+
+  return stocks.map((s) => ({
+    productId: s.product.id,
+    name: s.product.name,
+    sku: s.product.sku,
+    quantity: s.quantity,
+    isConsigned: consigned.has(s.productId),
+    lastRestockAt: s.lastRestockAt,
+    lastSaleAt: s.lastSaleAt,
+    lastCountAt: s.lastCountAt,
+  }));
+}
+
 export async function loadMerchantAdjustProductOptions(merchantId: string) {
   const catalog = await loadActiveMerchantProductCatalog(merchantId);
   if (!catalog) return null;

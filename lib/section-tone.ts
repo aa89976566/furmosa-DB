@@ -157,7 +157,9 @@ export function getRouteTone(pathname: string): SectionTone {
   ) {
     return 'loyalty';
   }
-  if (pathname.startsWith('/settlements')) return 'finance';
+  if (pathname.startsWith('/settlements') || pathname.startsWith('/merchants/settlements')) {
+    return 'finance';
+  }
   if (pathname.startsWith('/tasks')) return 'operations';
   return 'overview';
 }

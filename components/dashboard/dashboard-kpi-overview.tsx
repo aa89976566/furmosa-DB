@@ -290,7 +290,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
             description="draft · reviewing · approved"
             icon={Wallet}
             accent="warning"
-            href="/settlements"
+            href="/merchants/settlements"
           />
         </KpiGroup>
       </div>

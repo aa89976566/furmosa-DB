@@ -1,6 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import {
+  orderTotalFromAmounts,
+  resolveOrderShipping,
+  shipmentCarrierFromOrder,
+  SHIPPING_FEE_TYPES,
+} from '@/lib/shipping-policy';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -30,7 +36,7 @@ async function nextShipmentNumber() {
   return `${prefix}${pad(seq, 4)}`;
 }
 
-const VALID_SHIPPING_FEE_TYPES = ['free', 'prepaid', 'unpaid', 'cod'] as const;
+const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
 
 function toNullableString(v: FormDataEntryValue | null): string | null {
@@ -66,10 +72,8 @@ export async function createOrder(formData: FormData) {
 
   // 共用欄位
   const discount = toNumber(formData.get('discount'));
-  let shippingFee = toNumber(formData.get('shippingFee'));
   const note = toNullableString(formData.get('note'));
   if (discount < 0) throw new Error('折扣不可為負數');
-  if (shippingFee < 0) throw new Error('運費不可為負數');
 
   // 運費類型：free 包郵 / prepaid 已付費 / unpaid 不包郵（買家於此單付運費） / cod 貨到付款（運費隨貨）
   const shippingFeeTypeRaw = String(formData.get('shippingFeeType') ?? 'unpaid');
@@ -78,11 +82,6 @@ export async function createOrder(formData: FormData) {
   )
     ? shippingFeeTypeRaw
     : 'unpaid';
-
-  // 包郵 / 已付費：訂單上不再記運費（不計入 total）
-  if (shippingFeeType === 'free' || shippingFeeType === 'prepaid') {
-    shippingFee = 0;
-  }
 
   // 付款狀態（建立時就能設定）
   const paymentStatusRaw = String(formData.get('paymentStatus') ?? 'unpaid');
@@ -113,6 +112,13 @@ export async function createOrder(formData: FormData) {
     cvsStoreName = null;
   }
   const cvsStoreId = null;
+
+  const { shippingFee, companyShippingCost } = resolveOrderShipping({
+    shippingFeeType,
+    shippingMethod,
+    cvsBrand,
+  });
+  const shipmentCarrier = shipmentCarrierFromOrder({ shippingMethod, cvsBrand });
 
   // 訂單來源 + 客戶/店家
   let source: string;
@@ -176,7 +182,7 @@ export async function createOrder(formData: FormData) {
   }
 
   const subtotal = items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
-  const total = Math.max(0, subtotal - discount + shippingFee);
+  const total = orderTotalFromAmounts(subtotal, discount, shippingFee);
 
   // 預先撈客戶資料：之後要同步到 Shipment 收件人
   const customer = customerId
@@ -204,6 +210,7 @@ export async function createOrder(formData: FormData) {
         subtotal,
         discount,
         shippingFee,
+        companyShippingCost,
         total,
         shippingMethod,
         shippingAddress,
@@ -252,6 +259,7 @@ export async function createOrder(formData: FormData) {
           shippingMethod === 'convenience'
             ? (shippingAddress ?? cvsAddress)
             : (shippingAddress ?? customer?.address ?? null),
+        carrier: shipmentCarrier,
         notes:
           shippingMethod === 'convenience' && cvsStoreName
             ? `超商取貨：${cvsBrand?.toUpperCase() ?? ''} ${cvsStoreName}`
@@ -309,22 +317,43 @@ export async function updateOrderShippingFeeType(formData: FormData) {
   }
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { subtotal: true, discount: true, shippingFee: true },
+    select: {
+      subtotal: true,
+      discount: true,
+      shippingMethod: true,
+      cvsBrand: true,
+    },
   });
   if (!order) throw new Error('訂單不存在');
 
-  // 切換為包郵 / 已付費時，shippingFee 歸 0 並重算 total
-  let nextShippingFee = Number(order.shippingFee);
-  if (next === 'free' || next === 'prepaid') nextShippingFee = 0;
-  const total = Math.max(
-    0,
-    Number(order.subtotal) - Number(order.discount) + nextShippingFee,
+  const { shippingFee, companyShippingCost } = resolveOrderShipping({
+    shippingFeeType: next,
+    shippingMethod: order.shippingMethod,
+    cvsBrand: order.cvsBrand,
+  });
+  const total = orderTotalFromAmounts(
+    Number(order.subtotal),
+    Number(order.discount),
+    shippingFee,
   );
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { shippingFeeType: next, shippingFee: nextShippingFee, total },
+  const carrier = shipmentCarrierFromOrder({
+    shippingMethod: order.shippingMethod,
+    cvsBrand: order.cvsBrand,
   });
+
+  await prisma.$transaction([
+    prisma.order.update({
+      where: { id: orderId },
+      data: { shippingFeeType: next, shippingFee, companyShippingCost, total },
+    }),
+    prisma.shipment.updateMany({
+      where: { orderId },
+      data: { carrier },
+    }),
+  ]);
+
   revalidatePath('/orders');
   revalidatePath(`/orders/${orderId}`);
+  revalidatePath('/shipments');
 }

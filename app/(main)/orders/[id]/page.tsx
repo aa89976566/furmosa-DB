@@ -21,6 +21,8 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+import { shippingMethodLabel } from '@/lib/shipping-policy';
+import { OrderAmountSummary } from '@/components/orders/order-amount-summary';
 import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
@@ -53,7 +55,6 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   if (!order) notFound();
 
   const logistics = resolveLogisticsForOrderList(order);
-
   return (
     <>
       <PageHeader
@@ -230,7 +231,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                   ))}
                 </div>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  切到「包郵 / 已付費」時，運費會自動歸 0。
+                  {shippingMethodLabel(order)}。合計為買家應付；包郵時公司運費成本另列、不計入合計。
                 </p>
               </div>
             </div>
@@ -324,29 +325,21 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             </TableBody>
           </Table>
 
-          <div className="mt-6 ml-auto w-full max-w-xs space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">小計</span>
-              <span>{formatCurrency(Number(order.subtotal))}</span>
-            </div>
-            {Number(order.discount) > 0 ? (
-              <div className="flex justify-between text-success">
-                <span>折扣</span>
-                <span>- {formatCurrency(Number(order.discount))}</span>
-              </div>
-            ) : null}
-            {Number(order.shippingFee) > 0 ? (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">運費</span>
-                <span>{formatCurrency(Number(order.shippingFee))}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between border-t pt-2 text-base font-semibold">
-              <span>合計</span>
-              <span>{formatCurrency(Number(order.total))}</span>
-            </div>
+          <div className="mt-6 ml-auto w-full max-w-xs">
+            <OrderAmountSummary
+              order={{
+                subtotal: Number(order.subtotal),
+                discount: Number(order.discount),
+                shippingFee: Number(order.shippingFee),
+                shippingFeeType: order.shippingFeeType,
+                shippingMethod: order.shippingMethod,
+                cvsBrand: order.cvsBrand,
+                companyShippingCost: Number(order.companyShippingCost),
+                total: Number(order.total),
+              }}
+            />
             {order.pointsEarned > 0 ? (
-              <div className="flex justify-between text-xs text-muted-foreground">
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                 <span>本訂單獲得點數</span>
                 <span>{order.pointsEarned} 點</span>
               </div>

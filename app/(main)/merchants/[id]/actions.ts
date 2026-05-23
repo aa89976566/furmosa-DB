@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { parseMerchantCommissionPercent } from '@/lib/merchant-commission';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
+import { saleAmountsForQty } from '@/lib/merchant-settlement-sales';
 import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -173,6 +174,7 @@ export async function adjustMerchantStock(formData: FormData) {
   const productId = String(formData.get('productId') ?? '');
   const newQuantity = Number(formData.get('newQuantity'));
   const note = String(formData.get('note') ?? '').trim() || null;
+  const returnTo = String(formData.get('returnTo') ?? '').trim();
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
   if (!Number.isFinite(newQuantity) || newQuantity < 0) throw new Error('庫存數量不合法');
 
@@ -199,9 +201,41 @@ export async function adjustMerchantStock(formData: FormData) {
     },
   });
 
+  // 盤點後庫存減少 → 同步寫入 sale 流水，月結才能納入（與「賣出」模式一致）
+  if (delta < 0) {
+    const soldQty = Math.abs(delta);
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { priceTiers: { orderBy: { price: 'asc' } } },
+    });
+    if (!product) throw new Error('商品不存在');
+    const rule = await prisma.merchantProductRule.findUnique({
+      where: { merchantId_productId: { merchantId, productId } },
+    });
+    const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty);
+    await prisma.merchantStockTxn.create({
+      data: {
+        txnNumber: await nextStockTxnNumber(prisma),
+        merchantId,
+        productId,
+        type: 'sale',
+        quantity: -soldQty,
+        balanceAfter: stock.quantity,
+        unitPrice: amounts.unitPrice,
+        commissionAmount: amounts.commissionAmount,
+        companyRevenue: amounts.companyRevenue,
+        note: note ?? `清點賣出（盤點 ${before} → ${newQuantity}）`,
+      },
+    });
+  }
+
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/adjust`);
+  revalidatePath('/merchants/adjust');
+  revalidatePath(`/merchants/${merchantId}/settlement`);
+  revalidatePath('/merchants/settlements');
   revalidatePath('/merchants');
-  redirect(`/merchants/${merchantId}/products`);
+  redirect(returnTo || `/merchants/${merchantId}/products`);
 }
 
 // ============================================================
@@ -399,8 +433,12 @@ export async function recordMerchantQuickSale(formData: FormData) {
   });
 
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/adjust`);
+  revalidatePath('/merchants/adjust');
+  revalidatePath(`/merchants/${merchantId}/settlement`);
+  revalidatePath('/merchants/settlements');
   revalidatePath('/merchants');
-  redirect(`/merchants/${merchantId}`);
+  redirect(`/merchants/adjust?merchantId=${merchantId}`);
 }
 
 // ============================================================
