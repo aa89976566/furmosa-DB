@@ -1,4 +1,4 @@
-import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id-format';
 
 export const LINE_WELCOME_TEXT = `歡迎來到匠寵罐罐存款 🐾
 

@@ -13,7 +13,7 @@ import {
   createJarExchangeMemberFromForm,
   searchCustomersForJarMember,
 } from '@/app/(main)/jar-exchange/actions';
-import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id-format';
 
 type Mode = 'existing' | 'new';
 

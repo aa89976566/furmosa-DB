@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { fetchLineUserDisplayName } from '@/lib/line/profile';
-import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id-format';
 
 function normalizePhone(raw: string): string {
   return raw.replace(/[\s\-()]/g, '');
