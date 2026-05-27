@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getLineChannelSecret, isLineWebhookConfigured } from '@/lib/line/config';
+import {
+  getLineChannelSecret,
+  getLineWebhookEnvChecks,
+  isLineWebhookConfigured,
+} from '@/lib/line/config';
 import { handleLineWebhookEvent, type LineWebhookEvent } from '@/lib/line/handle-event';
 import { verifyLineSignature } from '@/lib/line/verify-signature';
 
@@ -52,5 +56,6 @@ export async function GET() {
     ok: true,
     message: '匠寵 LINE Webhook（請在 LINE Developers 使用 POST）',
     configured: isLineWebhookConfigured(),
+    checks: getLineWebhookEnvChecks(),
   });
 }
