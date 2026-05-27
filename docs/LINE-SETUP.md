@@ -50,7 +50,18 @@ GET /api/line/webhook
 Scope：`profile`（需取得 ID Token）。  
 將各 LIFF 的 App ID 填入對應的 `LINE_LIFF_ID_*` 環境變數。
 
-## Rich Menu（建議三按鈕）
+## 對話框內按鈕（Flex Message，已內建）
+
+Bot 回覆會附 **對話氣泡內可點按鈕**（非底部圖文選單）：
+
+- **加入會員（填表單）** → 開啟 LIFF 註冊頁
+- **會員資料與存罐紀錄** / **兌換獎勵** → 開啟對應 LIFF
+- **存罐完整說明** → 在聊天室送出「存罐攻略」
+
+表單欄位在 LIFF 網頁內填寫（LINE 聊天室無法嵌入 HTML 表單）。  
+需設定 `LINE_LIFF_ID_*` 與 `LINE_CHANNEL_ID`（LINE Login 頻道）。
+
+## Rich Menu（選用，非必要）
 
 | 按鈕文字 | 動作 | 目標 |
 |----------|------|------|

@@ -21,6 +21,7 @@ import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
+import { replyJarDepositHub } from '@/lib/line/flex-menu';
 import { replyLineText } from '@/lib/line/reply';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
 
@@ -56,7 +57,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     const follow = event as LineFollowEvent;
     const lineUserId = follow.source?.userId;
     if (!lineUserId) return;
-    await replyLineText(event.replyToken, `${LINE_WELCOME_TEXT}\n\n${LINE_HELP_TEXT}`);
+    await replyJarDepositHub(event.replyToken, {
+      title: '歡迎來匠寵罐罐存款',
+      body: LINE_WELCOME_TEXT,
+      emphasizeRegister: true,
+    });
     return;
   }
 
@@ -78,12 +83,20 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   const customer = await findCustomerByLineUserId(lineUserId);
 
   if (parsed.kind === 'help') {
-    await replyLineText(replyToken, LINE_HELP_TEXT);
+    await replyJarDepositHub(replyToken, {
+      title: '匠寵罐罐存款｜怎麼用',
+      body: LINE_HELP_TEXT,
+      emphasizeRegister: !customer,
+    });
     return;
   }
 
   if (parsed.kind === 'bind_help') {
-    await replyLineText(replyToken, LINE_BIND_HELP_TEXT);
+    await replyJarDepositHub(replyToken, {
+      title: '開戶存罐罐',
+      body: LINE_BIND_HELP_TEXT,
+      emphasizeRegister: true,
+    });
     return;
   }
 
@@ -96,19 +109,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       );
       return;
     }
-    await replyLineText(
-      replyToken,
-      `${LINE_WELCOME_TEXT}\n\n您還沒開戶，請點選單「加入會員（註冊）」或傳「如何綁定」。`,
-    );
+    await replyJarDepositHub(replyToken, {
+      title: '歡迎！先開戶存罐罐',
+      body: '您還沒開戶。請點下方按鈕填表單，或傳「如何綁定」。',
+      emphasizeRegister: true,
+    });
     return;
   }
 
   if (parsed.kind === 'status') {
     if (!customer) {
-      await replyLineText(
-        replyToken,
-        `還沒開戶存罐罐。\n\n${LINE_BIND_HELP_TEXT}`,
-      );
+      await replyJarDepositHub(replyToken, {
+        title: '尚未開戶',
+        body: '還沒開戶存罐罐，請點下方按鈕填表單。',
+        emphasizeRegister: true,
+      });
       return;
     }
     await replyLineText(replyToken, formatSavingsStatusMessage(await loadDepositSnapshot(customer)));
@@ -130,7 +145,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'balance') {
     if (!customer) {
-      await replyLineText(replyToken, lineBindRequiredText());
+      await replyJarDepositHub(replyToken, {
+        title: '請先開戶',
+        body: lineBindRequiredText(),
+        emphasizeRegister: true,
+      });
       return;
     }
     await replyLineText(replyToken, formatQuickBalanceMessage(await loadDepositSnapshot(customer)));
@@ -139,7 +158,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'savings') {
     if (!customer) {
-      await replyLineText(replyToken, lineBindRequiredText());
+      await replyJarDepositHub(replyToken, {
+        title: '請先開戶',
+        body: lineBindRequiredText(),
+        emphasizeRegister: true,
+      });
       return;
     }
     await replyLineText(replyToken, formatSavingsStatusMessage(await loadDepositSnapshot(customer)));
@@ -156,13 +179,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
     const snapshot = await loadDepositSnapshot(customer);
-    await replyLineText(replyToken, formatRewardMenuText(rewards, snapshot.pointsBalance));
+    await replyJarDepositHub(replyToken, {
+      title: '可兌換獎勵',
+      body: formatRewardMenuText(rewards, snapshot.pointsBalance),
+      emphasizeRegister: false,
+    });
     return;
   }
 
   if (parsed.kind === 'redeem_reward') {
     if (!customer) {
-      await replyLineText(replyToken, lineBindRequiredText());
+      await replyJarDepositHub(replyToken, {
+        title: '請先開戶',
+        body: lineBindRequiredText(),
+        emphasizeRegister: true,
+      });
       return;
     }
     const rewards = await listActiveRewardsForLine();
@@ -189,7 +220,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'jar_code') {
     if (!customer) {
-      await replyLineText(replyToken, lineBindRequiredText());
+      await replyJarDepositHub(replyToken, {
+        title: '請先開戶再存罐',
+        body: lineBindRequiredText(),
+        emphasizeRegister: true,
+      });
       return;
     }
 
@@ -213,5 +248,9 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
-  await replyLineText(replyToken, lineUnknownText());
+  await replyJarDepositHub(replyToken, {
+    title: '需要幫忙嗎？',
+    body: lineUnknownText(),
+    emphasizeRegister: !customer,
+  });
 }

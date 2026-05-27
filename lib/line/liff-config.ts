@@ -14,15 +14,18 @@ export function getLineChannelId(): string {
   return id;
 }
 
-export function getLiffId(page: LiffPage): string {
+function getLiffIdOptional(page: LiffPage): string | undefined {
   const specific = {
     register: readEnv('LINE_LIFF_ID_REGISTER'),
     profile: readEnv('LINE_LIFF_ID_PROFILE'),
     rewards: readEnv('LINE_LIFF_ID_REWARDS'),
   }[page];
-
   const fallback = readEnv('LINE_LIFF_ID');
-  const id = specific ?? fallback;
+  return specific ?? fallback;
+}
+
+export function getLiffId(page: LiffPage): string {
+  const id = getLiffIdOptional(page);
   if (!id) {
     throw new Error(`缺少 LIFF ID（${page}），請設定 LINE_LIFF_ID 或 LINE_LIFF_ID_${page.toUpperCase()}`);
   }
@@ -33,6 +36,12 @@ export function getLiffUrl(page: LiffPage): string {
   return `https://liff.line.me/${getLiffId(page)}`;
 }
 
+/** 給 Bot 回覆用；未設定 env 時回傳 null，改走純文字 */
+export function getLiffUrlIfConfigured(page: LiffPage): string | null {
+  const id = getLiffIdOptional(page);
+  return id ? `https://liff.line.me/${id}` : null;
+}
+
 export function isLiffConfigured(): boolean {
-  return Boolean(readEnv('LINE_LIFF_ID') || readEnv('LINE_LIFF_ID_REGISTER'));
+  return Boolean(getLiffIdOptional('register'));
 }

@@ -1,8 +1,10 @@
 import { getLineChannelAccessToken } from '@/lib/line/config';
 
-type LineTextMessage = { type: 'text'; text: string };
+export type LineReplyMessage =
+  | { type: 'text'; text: string }
+  | { type: 'flex'; altText: string; contents: Record<string, unknown> };
 
-export async function replyLineMessage(replyToken: string, messages: LineTextMessage[]) {
+export async function replyLineMessage(replyToken: string, messages: LineReplyMessage[]) {
   const token = getLineChannelAccessToken();
   const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
