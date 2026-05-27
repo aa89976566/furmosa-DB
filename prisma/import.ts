@@ -654,22 +654,24 @@ async function importMerchantsAndRules() {
 // https://docs.google.com/spreadsheets/d/1K1WkNFb3Rqr2JGn1Y0L-VySN2PsmSjrzC0SA3TxTmmA/edit?gid=81103062
 // ============================================================
 type PriceRow = {
-  vendor?: string; // 飽管家 / 匠寵 / Nibo / 寵物村 / null（與廠商訂單分頁一致）
+  vendor?: string; // 飽管家 / 匠寵 / Nibo / 寵物村
   sourceSku: string;
   name: string;
+  category?: 'treats' | 'health' | 'freeze_dried' | 'staple_food' | 'other';
   cost?: number;
   style?: string;
   unit: string; // 克 / 隻 / 片
-  prices: { weightGrams?: number; unitQty?: number; price: number; notes?: string }[];
+  prices: { weightGrams?: number; unitQty?: number; price: number; cost?: number; notes?: string }[];
   isActive?: boolean; // false = 紅色列 (停售)
   notes?: string;
 };
 const PRICE_LIST: PriceRow[] = [
-  // 飽管家（原誤植「嫁家家」；對齊廠商訂單分頁）
+  // ── 飽管家 ──
   {
     vendor: '飽管家',
     sourceSku: 'DK-01',
-    name: '小傢乾',
+    name: '小魚乾',
+    category: 'treats',
     cost: 2.8,
     unit: '克',
     prices: [
@@ -677,12 +679,13 @@ const PRICE_LIST: PriceRow[] = [
       { weightGrams: 50, price: 140 },
       { weightGrams: 100, price: 250 },
     ],
-    notes: '滴小+三隻 120元，雞胗+1包雞群=30g商品',
+    notes: '滷小小三拼 120元',
   },
   {
     vendor: '飽管家',
     sourceSku: 'DK-02',
-    name: '鴨脖喉',
+    name: '鴨喉嚨',
+    category: 'treats',
     cost: 3,
     unit: '克',
     prices: [{ weightGrams: 30, price: 105 }],
@@ -690,48 +693,73 @@ const PRICE_LIST: PriceRow[] = [
   {
     vendor: '飽管家',
     sourceSku: 'DK-03',
-    name: '鴨頭',
-    cost: 35,
-    unit: '隻',
+    name: '鴨肺',
+    category: 'treats',
+    cost: 3,
+    unit: '克',
     prices: [
       { weightGrams: 30, price: 105 },
       { weightGrams: 50, price: 160 },
-      { weightGrams: 100, price: 300 },
     ],
-    notes: '30g=2隻',
+  },
+  {
+    vendor: '飽管家',
+    sourceSku: 'DK-05',
+    name: '鴨翅',
+    category: 'treats',
+    cost: 2.8,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 90 },
+      { weightGrams: 50, price: 150 },
+    ],
   },
 
-  // Nibo（原誤植 ribo；PK 系列 — 紅色列停售）
+  // ── Nibo 零嘴（原 PK 豬系列）──
+  {
+    vendor: 'Nibo',
+    sourceSku: 'PK-01',
+    name: '豬蛋蛋',
+    category: 'treats',
+    cost: 4.5,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 135 },
+      { weightGrams: 50, price: 225 },
+    ],
+  },
   {
     vendor: 'Nibo',
     sourceSku: 'PK-02',
-    name: '雞耳朵片',
-    isActive: false,
+    name: '豬耳朵片',
+    category: 'treats',
+    cost: 3.2,
     unit: '克',
-    prices: [],
+    prices: [
+      { weightGrams: 30, price: 96 },
+      { weightGrams: 50, price: 160 },
+      { weightGrams: 100, price: 320 },
+    ],
   },
   {
     vendor: 'Nibo',
     sourceSku: 'PK-03',
-    name: '雞耳朵條',
-    isActive: false,
+    name: '豬耳朵條',
+    category: 'treats',
+    cost: 3.5,
     unit: '克',
-    prices: [],
-  },
-  {
-    vendor: 'Nibo',
-    sourceSku: 'PK-01',
-    name: '雞耳朵',
-    isActive: false,
-    unit: '克',
-    prices: [],
+    prices: [
+      { weightGrams: 30, price: 105 },
+      { weightGrams: 50, price: 175 },
+    ],
   },
 
-  // 匠寵（單價表 A 欄；原誤植「巨爵」）
+  // ── 匠寵・肉乾 ──
   {
     vendor: '匠寵',
     sourceSku: 'DK-04',
-    name: '鴨肉地瓜乾',
+    name: '鴨肉蘋果乾',
+    category: 'treats',
     cost: 4.2,
     unit: '克',
     prices: [
@@ -744,6 +772,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '匠寵',
     sourceSku: 'BF-02',
     name: '牛肉地瓜乾',
+    category: 'treats',
     cost: 3.2,
     unit: '克',
     prices: [
@@ -756,6 +785,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '匠寵',
     sourceSku: 'CK-04',
     name: '雞肉南瓜乾',
+    category: 'treats',
     cost: 2.5,
     unit: '克',
     prices: [
@@ -768,7 +798,8 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '匠寵',
     sourceSku: 'CK-05',
     name: '原味雞霸',
-    style: '凍肉',
+    category: 'treats',
+    style: '原味',
     unit: '片',
     prices: [{ unitQty: 1, price: 89 }],
   },
@@ -776,38 +807,58 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '匠寵',
     sourceSku: 'CK-06',
     name: '胡蘿蔔雞霸',
+    category: 'treats',
     style: '蔬果',
     unit: '片',
     prices: [{ unitQty: 1, price: 79 }],
   },
   {
+    vendor: 'Nibo',
+    sourceSku: 'CK-08',
+    name: '貓草雞肉薄片',
+    category: 'treats',
+    cost: 4.2,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 126 },
+      { weightGrams: 50, price: 210 },
+    ],
+  },
+  {
     vendor: '匠寵',
     sourceSku: 'CK-07',
-    name: '蝶旦舞肉澤片',
+    name: '蝶豆花雞肉薄片',
+    category: 'treats',
     cost: 4.2,
     isActive: false,
     unit: '片',
     prices: [{ unitQty: 1, price: 89 }],
   },
 
-  // 凍乾系列 (FD) — 單價表 A 欄空白者不加 vendor
+  // ── 凍乾系列 (FD) ──
   {
     sourceSku: 'FD-01',
     name: '雞肝凍乾',
+    category: 'freeze_dried',
     cost: 4,
     unit: '克',
     prices: [{ weightGrams: 30, price: 125 }],
   },
   {
     sourceSku: 'FD-02',
-    name: '雞丁凍乾',
+    name: '雞肉丁凍乾',
+    category: 'freeze_dried',
     cost: 1.8,
     unit: '克',
-    prices: [{ weightGrams: 30, price: 135 }],
+    prices: [
+      { weightGrams: 30, price: 135 },
+      { weightGrams: 50, price: 220 },
+    ],
   },
   {
     sourceSku: 'FD-03',
     name: '雞肉串凍乾',
+    category: 'freeze_dried',
     cost: 4.8,
     unit: '克',
     prices: [
@@ -819,6 +870,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: 'Nibo',
     sourceSku: 'FD-04',
     name: '青蛙凍乾',
+    category: 'freeze_dried',
     cost: 70,
     unit: '隻',
     prices: [
@@ -827,9 +879,22 @@ const PRICE_LIST: PriceRow[] = [
     ],
   },
   {
+    vendor: 'Nibo',
+    sourceSku: 'FD-05',
+    name: '南瓜凍乾',
+    category: 'freeze_dried',
+    cost: 1.7,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 120 },
+      { weightGrams: 50, price: 195 },
+    ],
+  },
+  {
     vendor: '寵物村',
     sourceSku: 'FD-06',
     name: '鵪鶉凍乾',
+    category: 'freeze_dried',
     cost: 50,
     unit: '隻',
     prices: [
@@ -842,6 +907,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '寵物村',
     sourceSku: 'FD-07',
     name: '柳葉魚凍乾',
+    category: 'freeze_dried',
     cost: 2.5,
     unit: '克',
     prices: [
@@ -854,6 +920,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '寵物村',
     sourceSku: 'FD-08',
     name: '水晶魚凍乾',
+    category: 'freeze_dried',
     cost: 2.5,
     unit: '克',
     prices: [
@@ -865,14 +932,31 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '寵物村',
     sourceSku: 'FD-09',
     name: '丁香魚凍乾',
+    category: 'freeze_dried',
     cost: 3.2,
     unit: '克',
-    prices: [{ weightGrams: 50, price: 216 }],
+    prices: [
+      { weightGrams: 30, price: 130 },
+      { weightGrams: 50, price: 216 },
+    ],
+  },
+  {
+    vendor: '寵物村',
+    sourceSku: 'FD-10',
+    name: '牛肉丁凍乾',
+    category: 'freeze_dried',
+    cost: 3.5,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 150 },
+      { weightGrams: 50, price: 245 },
+    ],
   },
   {
     vendor: '寵物村',
     sourceSku: 'FD-11',
-    name: '永益魚凍乾',
+    name: '虱目魚凍乾',
+    category: 'freeze_dried',
     cost: 5.7,
     unit: '克',
     prices: [
@@ -885,6 +969,7 @@ const PRICE_LIST: PriceRow[] = [
     vendor: '寵物村',
     sourceSku: 'FD-12',
     name: '混合蔬果凍乾',
+    category: 'freeze_dried',
     cost: 1.7,
     unit: '克',
     prices: [
@@ -892,11 +977,36 @@ const PRICE_LIST: PriceRow[] = [
       { weightGrams: 50, price: 280 },
     ],
   },
+  {
+    vendor: 'Nibo',
+    sourceSku: 'FD-13',
+    name: '櫛瓜凍乾',
+    category: 'freeze_dried',
+    cost: 1.7,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 120 },
+      { weightGrams: 50, price: 195 },
+    ],
+  },
+  {
+    vendor: '寵物村',
+    sourceSku: 'FD-14',
+    name: '鴨脖凍乾',
+    category: 'freeze_dried',
+    cost: 3,
+    unit: '克',
+    prices: [
+      { weightGrams: 30, price: 105 },
+      { weightGrams: 50, price: 160 },
+    ],
+  },
 
-  // 粉類精品 (沒掛廠商)
+  // ── 粉類補品 (PF) ──
   {
     sourceSku: 'PF-01',
     name: '雞肝凍乾粉',
+    category: 'health',
     cost: 2.9,
     unit: '克',
     prices: [
@@ -906,7 +1016,8 @@ const PRICE_LIST: PriceRow[] = [
   },
   {
     sourceSku: 'PF-02',
-    name: '雞肉紅蘿蔔凍乾粉',
+    name: '雞肉紅麴凍乾粉',
+    category: 'health',
     cost: 3.6,
     unit: '克',
     prices: [
@@ -916,7 +1027,8 @@ const PRICE_LIST: PriceRow[] = [
   },
   {
     sourceSku: 'PF-03',
-    name: '牛腦凍乾粉',
+    name: '牛腱凍乾粉',
+    category: 'health',
     cost: 2.9,
     unit: '克',
     prices: [
@@ -928,13 +1040,19 @@ const PRICE_LIST: PriceRow[] = [
 
 // 不同名字但指同個產品（系統現有名 → 單價表名）
 const PRICE_NAME_ALIASES: Record<string, string> = {
-  // 系統現有名 ↔ 單價表名
   簡記牛肉地瓜: '牛肉地瓜乾',
-  鴨肉蘋果: '鴨肉蘋果乾', // 不在此表
+  鴨肉蘋果: '鴨肉蘋果乾',
+  鴨肉蘋果乾: '鴨肉蘋果乾',
   '壕大大雞霸*原味': '原味雞霸',
   蔬果凍乾: '混合蔬果凍乾',
   柳葉魚凍乾: '柳葉魚凍乾',
-  鴨喉嚨: '鴨脖喉',
+  鴨喉嚨: '鴨喉嚨',
+  鴨脖喉: '鴨喉嚨',
+  小傢乾: '小魚乾',
+  永益魚凍乾: '虱目魚凍乾',
+  雞丁凍乾: '雞肉丁凍乾',
+  雞肉紅蘿蔔凍乾粉: '雞肉紅麴凍乾粉',
+  牛腦凍乾粉: '牛腱凍乾粉',
 };
 
 /** 將舊版手打／誤植的廠商名，合併為試算表「廠商訂單」分頁 B 欄用字。 */
@@ -942,9 +1060,8 @@ async function reconcileLegacyVendorDisplayNames() {
   const pairs: [string, string][] = [
     ['嫁家家', '飽管家'],
     ['脆管家', '飽管家'],
-    ['ribo', 'Nibo'],
-    ['Ribo', 'Nibo'],
-    ['nibc', 'Nibo'],
+    ['nibo', 'Nibo'],
+    ['Nibo', 'Nibo'],
     ['巨爵', '匠寵'],
   ];
   for (const [oldName, newName] of pairs) {
@@ -1030,14 +1147,23 @@ async function importPriceList() {
     const minPrice = row.prices.length
       ? Math.min(...row.prices.map((t) => t.price))
       : 0;
+    const category =
+      row.category ??
+      (row.sourceSku.startsWith('FD')
+        ? 'freeze_dried'
+        : row.sourceSku.startsWith('PF')
+          ? 'health'
+          : 'treats');
 
     let product = findProductByNameOrSku(row);
     if (product) {
       product = await prisma.product.update({
         where: { id: product.id },
         data: {
+          name: row.name,
           sourceSku: row.sourceSku,
           vendorId,
+          category,
           cost: row.cost ?? product.cost,
           price: minPrice || product.price,
           unit: row.unit,
@@ -1059,11 +1185,7 @@ async function importPriceList() {
           sku,
           sourceSku: row.sourceSku,
           name: row.name,
-          category: row.sourceSku.startsWith('FD')
-            ? 'freeze_dried'
-            : row.sourceSku.startsWith('PF')
-              ? 'health'
-              : 'treats',
+          category,
           unit: row.unit,
           style: row.style ?? null,
           price: minPrice,
@@ -1086,6 +1208,7 @@ async function importPriceList() {
           unit: row.unit,
           unitQty: t.unitQty ?? 1,
           price: t.price,
+          cost: t.cost ?? row.cost ?? null,
           notes: t.notes ?? null,
         },
       });
@@ -1368,6 +1491,13 @@ async function ensureInventory() {
 
 // ============================================================
 async function main() {
+  if (process.argv.includes('--price-only')) {
+    console.log('📥 匯入商品單價表（廠商 / 種類 / 規格售價）...\n');
+    await importPriceList();
+    console.log('\n✅ 單價表匯入完成');
+    return;
+  }
+
   console.log('📥 開始匯入 Furmosa 真實資料...\n');
 
   console.log('--- (A) 廠商合作分成計算表（截圖）→ 寄賣店、商品、規則、出貨紀錄 ---');
