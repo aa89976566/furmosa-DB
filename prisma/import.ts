@@ -666,11 +666,19 @@ type PriceRow = {
   notes?: string;
 };
 const PRICE_LIST: PriceRow[] = [
-  // ── 飽管家 ──
+  // ── 一般零嘴 ──
+  {
+    sourceSku: 'FS-01',
+    name: '小魚乾',
+    category: 'treats',
+    cost: 2.8,
+    unit: '克',
+    prices: [],
+  },
   {
     vendor: '飽管家',
     sourceSku: 'DK-01',
-    name: '小魚乾',
+    name: '鴨喉嚨',
     category: 'treats',
     cost: 2.8,
     unit: '克',
@@ -679,43 +687,33 @@ const PRICE_LIST: PriceRow[] = [
       { weightGrams: 50, price: 140 },
       { weightGrams: 100, price: 250 },
     ],
-    notes: '滷小小三拼 120元',
+    notes: '滷小小三拼 120元 鴨翅+15g鴨肺+30g鴨喉',
   },
   {
     vendor: '飽管家',
     sourceSku: 'DK-02',
-    name: '鴨喉嚨',
-    category: 'treats',
-    cost: 3,
-    unit: '克',
-    prices: [{ weightGrams: 30, price: 105 }],
-  },
-  {
-    vendor: '飽管家',
-    sourceSku: 'DK-03',
     name: '鴨肺',
     category: 'treats',
     cost: 3,
     unit: '克',
-    prices: [
-      { weightGrams: 30, price: 105 },
-      { weightGrams: 50, price: 160 },
-    ],
+    prices: [],
   },
   {
     vendor: '飽管家',
-    sourceSku: 'DK-05',
+    sourceSku: 'DK-03',
     name: '鴨翅',
     category: 'treats',
-    cost: 2.8,
-    unit: '克',
+    cost: 35,
+    unit: '隻',
     prices: [
-      { weightGrams: 30, price: 90 },
-      { weightGrams: 50, price: 150 },
+      { unitQty: 1, price: 35 },
+      { weightGrams: 30, price: 105 },
+      { weightGrams: 50, price: 160 },
+      { weightGrams: 100, price: 300 },
     ],
   },
 
-  // ── Nibo 零嘴（原 PK 豬系列）──
+  // ── Nibo 豬系列 ──
   {
     vendor: 'Nibo',
     sourceSku: 'PK-01',
@@ -726,6 +724,7 @@ const PRICE_LIST: PriceRow[] = [
     prices: [
       { weightGrams: 30, price: 135 },
       { weightGrams: 50, price: 225 },
+      { weightGrams: 100, price: 399 },
     ],
   },
   {
@@ -737,8 +736,8 @@ const PRICE_LIST: PriceRow[] = [
     unit: '克',
     prices: [
       { weightGrams: 30, price: 96 },
-      { weightGrams: 50, price: 160 },
-      { weightGrams: 100, price: 320 },
+      { weightGrams: 50, price: 155 },
+      { weightGrams: 100, price: 298 },
     ],
   },
   {
@@ -746,15 +745,16 @@ const PRICE_LIST: PriceRow[] = [
     sourceSku: 'PK-03',
     name: '豬耳朵條',
     category: 'treats',
-    cost: 3.5,
+    cost: 3.8,
     unit: '克',
     prices: [
-      { weightGrams: 30, price: 105 },
-      { weightGrams: 50, price: 175 },
+      { weightGrams: 30, price: 114 },
+      { weightGrams: 50, price: 185 },
+      { weightGrams: 100, price: 355 },
     ],
   },
 
-  // ── 匠寵・肉乾 ──
+  // ── 肉乾 ──
   {
     vendor: '匠寵',
     sourceSku: 'DK-04',
@@ -763,7 +763,7 @@ const PRICE_LIST: PriceRow[] = [
     cost: 4.2,
     unit: '克',
     prices: [
-      { weightGrams: 30, price: 96 },
+      { weightGrams: 30, price: 126 },
       { weightGrams: 50, price: 210 },
       { weightGrams: 100, price: 385 },
     ],
@@ -814,14 +814,15 @@ const PRICE_LIST: PriceRow[] = [
   },
   {
     vendor: 'Nibo',
-    sourceSku: 'CK-08',
+    sourceSku: 'CT-01',
     name: '貓草雞肉薄片',
     category: 'treats',
     cost: 4.2,
     unit: '克',
     prices: [
       { weightGrams: 30, price: 126 },
-      { weightGrams: 50, price: 210 },
+      { weightGrams: 50, price: 200 },
+      { weightGrams: 100, price: 398 },
     ],
   },
   {
@@ -838,7 +839,7 @@ const PRICE_LIST: PriceRow[] = [
   // ── 凍乾系列 (FD) ──
   {
     sourceSku: 'FD-01',
-    name: '雞肝凍乾',
+    name: '椰瓜凍乾',
     category: 'freeze_dried',
     cost: 4,
     unit: '克',
@@ -846,18 +847,15 @@ const PRICE_LIST: PriceRow[] = [
   },
   {
     sourceSku: 'FD-02',
-    name: '雞肉丁凍乾',
+    name: '南瓜凍乾',
     category: 'freeze_dried',
     cost: 1.8,
     unit: '克',
-    prices: [
-      { weightGrams: 30, price: 135 },
-      { weightGrams: 50, price: 220 },
-    ],
+    prices: [{ weightGrams: 30, price: 135 }],
   },
   {
     sourceSku: 'FD-03',
-    name: '雞肉串凍乾',
+    name: '虱目魚凍乾',
     category: 'freeze_dried',
     cost: 4.8,
     unit: '克',
@@ -873,34 +871,31 @@ const PRICE_LIST: PriceRow[] = [
     category: 'freeze_dried',
     cost: 70,
     unit: '隻',
+    prices: [{ unitQty: 1, price: 175 }],
+  },
+  {
+    vendor: '寵物村',
+    sourceSku: 'FD-05',
+    name: '鵪鶉凍乾',
+    category: 'freeze_dried',
+    cost: 40,
+    unit: '隻',
     prices: [
-      { unitQty: 1, price: 175 },
-      { unitQty: 5, price: 325, notes: '5隻特價' },
+      { unitQty: 1, price: 115 },
+      { weightGrams: 30, price: 330 },
+      { weightGrams: 50, price: 520 },
     ],
   },
   {
     vendor: 'Nibo',
-    sourceSku: 'FD-05',
-    name: '南瓜凍乾',
-    category: 'freeze_dried',
-    cost: 1.7,
-    unit: '克',
-    prices: [
-      { weightGrams: 30, price: 120 },
-      { weightGrams: 50, price: 195 },
-    ],
-  },
-  {
-    vendor: '寵物村',
     sourceSku: 'FD-06',
-    name: '鵪鶉凍乾',
+    name: '鴨脖凍乾',
     category: 'freeze_dried',
     cost: 50,
     unit: '隻',
     prices: [
       { unitQty: 1, price: 75 },
-      { weightGrams: 50, price: 330 },
-      { weightGrams: 100, price: 520 },
+      { unitQty: 5, price: 325, notes: '5支特價' },
     ],
   },
   {
@@ -911,21 +906,20 @@ const PRICE_LIST: PriceRow[] = [
     cost: 2.5,
     unit: '克',
     prices: [
-      { weightGrams: 30, price: 115 },
-      { weightGrams: 50, price: 174 },
-      { weightGrams: 100, price: 255 },
+      { weightGrams: 30, price: 174 },
+      { weightGrams: 50, price: 255 },
     ],
   },
   {
     vendor: '寵物村',
     sourceSku: 'FD-08',
-    name: '水晶魚凍乾',
+    name: '牛肉丁凍乾',
     category: 'freeze_dried',
     cost: 2.5,
     unit: '克',
     prices: [
-      { weightGrams: 50, price: 195 },
-      { weightGrams: 100, price: 300 },
+      { weightGrams: 30, price: 195 },
+      { weightGrams: 50, price: 300 },
     ],
   },
   {
@@ -935,29 +929,23 @@ const PRICE_LIST: PriceRow[] = [
     category: 'freeze_dried',
     cost: 3.2,
     unit: '克',
-    prices: [
-      { weightGrams: 30, price: 130 },
-      { weightGrams: 50, price: 216 },
-    ],
+    prices: [{ weightGrams: 30, price: 216 }],
   },
   {
     vendor: '寵物村',
     sourceSku: 'FD-10',
-    name: '牛肉丁凍乾',
+    name: '水晶魚凍乾',
     category: 'freeze_dried',
-    cost: 3.5,
+    cost: 5.7,
     unit: '克',
-    prices: [
-      { weightGrams: 30, price: 150 },
-      { weightGrams: 50, price: 245 },
-    ],
+    prices: [{ weightGrams: 30, price: 375 }],
   },
   {
     vendor: '寵物村',
     sourceSku: 'FD-11',
-    name: '虱目魚凍乾',
+    name: '雞肉丁凍乾',
     category: 'freeze_dried',
-    cost: 5.7,
+    cost: 1.7,
     unit: '克',
     prices: [
       { weightGrams: 30, price: 156 },
@@ -970,35 +958,11 @@ const PRICE_LIST: PriceRow[] = [
     sourceSku: 'FD-12',
     name: '混合蔬果凍乾',
     category: 'freeze_dried',
-    cost: 1.7,
+    cost: 2.4,
     unit: '克',
     prices: [
       { weightGrams: 30, price: 156 },
-      { weightGrams: 50, price: 280 },
-    ],
-  },
-  {
-    vendor: 'Nibo',
-    sourceSku: 'FD-13',
-    name: '櫛瓜凍乾',
-    category: 'freeze_dried',
-    cost: 1.7,
-    unit: '克',
-    prices: [
-      { weightGrams: 30, price: 120 },
-      { weightGrams: 50, price: 195 },
-    ],
-  },
-  {
-    vendor: '寵物村',
-    sourceSku: 'FD-14',
-    name: '鴨脖凍乾',
-    category: 'freeze_dried',
-    cost: 3,
-    unit: '克',
-    prices: [
-      { weightGrams: 30, price: 105 },
-      { weightGrams: 50, price: 160 },
+      { weightGrams: 50, price: 260 },
     ],
   },
 
@@ -1021,7 +985,7 @@ const PRICE_LIST: PriceRow[] = [
     cost: 3.6,
     unit: '克',
     prices: [
-      { weightGrams: 30, price: 100 },
+      { weightGrams: 30, price: 108 },
       { weightGrams: 50, price: 180 },
     ],
   },
@@ -1042,14 +1006,13 @@ const PRICE_LIST: PriceRow[] = [
 const PRICE_NAME_ALIASES: Record<string, string> = {
   簡記牛肉地瓜: '牛肉地瓜乾',
   鴨肉蘋果: '鴨肉蘋果乾',
-  鴨肉蘋果乾: '鴨肉蘋果乾',
   '壕大大雞霸*原味': '原味雞霸',
   蔬果凍乾: '混合蔬果凍乾',
-  柳葉魚凍乾: '柳葉魚凍乾',
-  鴨喉嚨: '鴨喉嚨',
   鴨脖喉: '鴨喉嚨',
   小傢乾: '小魚乾',
   永益魚凍乾: '虱目魚凍乾',
+  雞肝凍乾: '椰瓜凍乾',
+  雞肉串凍乾: '虱目魚凍乾',
   雞丁凍乾: '雞肉丁凍乾',
   雞肉紅蘿蔔凍乾粉: '雞肉紅麴凍乾粉',
   牛腦凍乾粉: '牛腱凍乾粉',
