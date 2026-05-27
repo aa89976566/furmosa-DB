@@ -8,9 +8,18 @@ export type LineRewardOption = {
   pointsRequired: number;
 };
 
-/** LINE 兌換列表：標示為贈品 */
+/** 文字版兌換說明（無 Flex 時） */
 export function formatLineRewardLabel(r: Pick<LineRewardOption, 'rewardName' | 'pointsRequired'>): string {
-  return `贈品｜${r.rewardName}（${r.pointsRequired} 點）`;
+  return `${r.rewardName}（${r.pointsRequired} 點）`;
+}
+
+/** Flex 按鈕標籤：直接顯示品相＋點數（LINE 上限 40 字） */
+export function formatRedeemButtonLabel(
+  r: Pick<LineRewardOption, 'rewardName' | 'pointsRequired'>,
+): string {
+  const label = `${r.rewardName.trim()}（${r.pointsRequired}點）`;
+  if (label.length <= 40) return label;
+  return `${r.rewardName.trim().slice(0, 24)}…（${r.pointsRequired}點）`;
 }
 
 export async function listActiveRewardsForLine(): Promise<LineRewardOption[]> {

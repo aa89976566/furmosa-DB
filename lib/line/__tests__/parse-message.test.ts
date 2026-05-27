@@ -5,15 +5,15 @@ import {
   formatJarDepositSuccessMessage,
   formatSavingsStatusMessage,
 } from '../jar-deposit-copy';
-import { formatLineRewardLabel } from '../reward-menu';
+import { formatRedeemButtonLabel } from '../reward-menu';
 import { parseLineUserText } from '../parse-message';
 import { CUSTOMER_ID_EXAMPLE } from '../../customers/customer-id';
 
 describe('parseLineUserText', () => {
-  it('formats reward line with 贈品 prefix', () => {
+  it('formats redeem button label with gift name and points', () => {
     assert.equal(
-      formatLineRewardLabel({ rewardName: '洗澡折 250', pointsRequired: 10 }),
-      '贈品｜洗澡折 250（10 點）',
+      formatRedeemButtonLabel({ rewardName: '洗澡折 250', pointsRequired: 10 }),
+      '洗澡折 250（10點）',
     );
   });
 

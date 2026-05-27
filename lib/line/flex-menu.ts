@@ -1,4 +1,4 @@
-import { formatLineRewardLabel, type LineRewardOption } from '@/lib/line/reward-menu';
+import { formatRedeemButtonLabel, type LineRewardOption } from '@/lib/line/reward-menu';
 import {
   LINE_BTN,
   LINE_MENU_HINT_GUEST,
@@ -185,10 +185,10 @@ export function buildRedeemPickerMessages(
     ];
   }
 
-  const lines = rewards.map((r) => `${r.index}. ${r.rewardName}（${r.pointsRequired} 點）`);
-  const pick = rewards
-    .slice(0, 4)
-    .map((r) => pbBtn(LINE_BTN.redeemItem(r.index), `jd=rd&i=${r.index}`, 'secondary'));
+  const pick = rewards.slice(0, 4).map((r) => {
+    const label = formatRedeemButtonLabel(r);
+    return pbBtn(label, `jd=rd&i=${r.index}`, 'secondary');
+  });
 
   return [
     {
@@ -210,7 +210,7 @@ export function buildRedeemPickerMessages(
             },
             {
               type: 'text',
-              text: `目前罐罐點數：${balance} 點\n\n可兌換贈品：\n${lines.join('\n')}`,
+              text: `目前罐罐點數：${balance} 點`,
               size: 'sm',
               wrap: true,
             },
