@@ -10,19 +10,60 @@ import {
   type RegisterDraft,
 } from '@/lib/line/chat-session';
 import { buildMainMenuMessages, buildSpeciesPickerMessages, buildRegisterConfirmMessages } from '@/lib/line/flex-menu';
+import {
+  LINE_BTN,
+  LINE_PET_AGE_PROMPT,
+  LINE_REGISTER_INTRO,
+} from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
 import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 
-const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有)$/i;
+const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
+
+function parsePetAgeOrBirthday(input: string): {
+  petAgeYears: number | null;
+  petBirthday: string | null;
+  error?: string;
+} {
+  const t = input.trim();
+  if (SKIP_RE.test(t)) {
+    return { petAgeYears: null, petBirthday: null };
+  }
+
+  const ageMatch = t.match(/^(\d{1,2})\s*歲?$/);
+  if (ageMatch) {
+    const n = parseInt(ageMatch[1], 10);
+    if (n >= 0 && n <= 30) return { petAgeYears: n, petBirthday: null };
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const d = new Date(`${t}T12:00:00.000Z`);
+    if (!Number.isNaN(d.getTime())) {
+      return { petAgeYears: null, petBirthday: t };
+    }
+  }
+
+  return {
+    petAgeYears: null,
+    petBirthday: null,
+    error: '請傳 0–30 的歲數（例：3）、生日（2020-05-06）或「略過」',
+  };
+}
+
+function petBirthdayToDate(iso: string | null | undefined): Date | null {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const d = new Date(`${iso}T12:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export async function startRegisterFlow(replyToken: string, lineUserId: string) {
   const existing = await findCustomerByLineUserId(lineUserId);
   if (existing) {
     await replyLineTextPlus(
       replyToken,
-      `您已是會員（${existing.name}）！\n傳 8 位序號即可存罐，或點「金庫」查紀錄。`,
+      `您已是會員（${existing.name}）！\n傳 8 位序號即可存罐，或點「${LINE_BTN.vault}」查紀錄。`,
       buildMainMenuMessages({ registered: true }),
     );
     return;
@@ -32,7 +73,7 @@ export async function startRegisterFlow(replyToken: string, lineUserId: string) 
   await replyLineMessage(replyToken, [
     {
       type: 'text',
-      text: '【加入會員】請直接在對話框輸入您的稱呼（例：王小姐）\n\n輸入「取消」可結束。',
+      text: LINE_REGISTER_INTRO,
     },
   ]);
 }
@@ -77,8 +118,21 @@ export async function handleRegisterFlowMessage(
       return true;
     }
     draft.petName = trimmed.slice(0, 80);
+    await upsertLineChatSession(lineUserId, 'register', 'pet_age', draft);
+    await replyLineText(replyToken, LINE_PET_AGE_PROMPT);
+    return true;
+  }
+
+  if (session.step === 'pet_age') {
+    const parsed = parsePetAgeOrBirthday(trimmed);
+    if (parsed.error) {
+      await replyLineText(replyToken, parsed.error);
+      return true;
+    }
+    draft.petAgeYears = parsed.petAgeYears;
+    draft.petBirthday = parsed.petBirthday;
     await upsertLineChatSession(lineUserId, 'register', 'phone', draft);
-    await replyLineText(replyToken, '手機號碼？（選填，直接傳「略過」）');
+    await replyLineText(replyToken, '手機號碼？（選填，傳「略過」可跳過）');
     return true;
   }
 
@@ -119,7 +173,7 @@ export async function handleRegisterPostback(
   const session = await getLineChatSession(lineUserId);
   if (!session || session.flow !== 'register') {
     if (action === 'sp') {
-      await replyLineText(replyToken, '請先點「加入會員」開始填寫。');
+      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);
       return true;
     }
     return false;
@@ -131,7 +185,7 @@ export async function handleRegisterPostback(
     await clearLineChatSession(lineUserId);
     await replyLineMessage(
       replyToken,
-      buildMainMenuMessages({ registered: false, body: '已取消，需要時再點「加入會員」。' }),
+      buildMainMenuMessages({ registered: false, body: `已取消，需要時再點「${LINE_BTN.register}」。` }),
     );
     return true;
   }
@@ -164,7 +218,7 @@ export async function handleRegisterPostback(
 
   if (action === 'reg_ok') {
     if (session.step !== 'confirm' || !draft.name) {
-      await replyLineText(replyToken, '資料不完整，請重新點「加入會員」。');
+      await replyLineText(replyToken, `資料不完整，請重新點「${LINE_BTN.register}」。`);
       await clearLineChatSession(lineUserId);
       return true;
     }
@@ -177,8 +231,8 @@ export async function handleRegisterPostback(
         petSpecies: draft.petSpecies ?? null,
         petSpeciesOther: draft.petSpeciesOther ?? null,
         petName: draft.petName ?? null,
-        petAgeYears: null,
-        petBirthday: null,
+        petAgeYears: draft.petAgeYears ?? null,
+        petBirthday: petBirthdayToDate(draft.petBirthday),
       });
       await ensureJarExchangeService(prisma, created.id);
       await clearLineChatSession(lineUserId);
@@ -187,11 +241,17 @@ export async function handleRegisterPostback(
         draft.petSpecies ?? null,
         draft.petSpeciesOther ?? null,
       );
+      const agePart =
+        draft.petBirthday != null
+          ? ` · 生日 ${draft.petBirthday}`
+          : draft.petAgeYears != null
+            ? ` · 約 ${draft.petAgeYears} 歲`
+            : '';
       const petLine =
         draft.petName && petLabel
-          ? `\n毛孩：${petLabel} · ${draft.petName}`
+          ? `\n毛孩：${petLabel} · ${draft.petName}${agePart}`
           : draft.petName
-            ? `\n毛孩：${draft.petName}`
+            ? `\n毛孩：${draft.petName}${agePart}`
             : '';
 
       await replyLineMessage(replyToken, [
@@ -220,6 +280,9 @@ export function formatRegisterSummary(draft: RegisterDraft): string {
       `毛孩：${resolvePetSpeciesLabel(draft.petSpecies, draft.petSpeciesOther ?? null) ?? draft.petSpecies}`,
     );
     if (draft.petName) lines.push(`名字：${draft.petName}`);
+    if (draft.petBirthday) lines.push(`生日：${draft.petBirthday}`);
+    else if (draft.petAgeYears != null) lines.push(`約幾歲：${draft.petAgeYears} 歲`);
+    else if (draft.petName || draft.petSpecies) lines.push('年齡／生日：（未填）');
   } else {
     lines.push('毛孩：（未填）');
   }

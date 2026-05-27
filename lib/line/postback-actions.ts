@@ -10,6 +10,7 @@ import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
+import { LINE_BTN } from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
 import {
   listActiveRewardsForLine,
@@ -48,7 +49,7 @@ export async function handleLinePostback(
     if (!customer) {
       await replyLineTextPlus(
         replyToken,
-        '還沒加入會員，請先點「加入會員」。',
+        `還沒開戶，請先點「${LINE_BTN.register}」。`,
         buildMainMenuMessages({ registered: false }),
       );
       return;
@@ -66,7 +67,7 @@ export async function handleLinePostback(
     if (!customer) {
       await replyLineTextPlus(
         replyToken,
-        '還沒加入會員，請先點「加入會員」。',
+        `還沒開戶，請先點「${LINE_BTN.register}」。`,
         buildMainMenuMessages({ registered: false }),
       );
       return;
@@ -81,7 +82,7 @@ export async function handleLinePostback(
     const rewards = await listActiveRewardsForLine();
     const reward = await resolveRewardFromLineInput(params.get('i') ?? '', rewards);
     if (!reward) {
-      await replyLineText(replyToken, '找不到此獎勵，請再點「兌換」重試。');
+      await replyLineText(replyToken, `找不到此獎勵，請再點「${LINE_BTN.redeem}」重試。`);
       return;
     }
     const result = await redeemRewardForCustomer(customer.id, reward.id);

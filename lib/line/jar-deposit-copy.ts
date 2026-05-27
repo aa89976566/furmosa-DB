@@ -31,7 +31,7 @@ export function formatJarDepositSuccessMessage(s: JarDepositSnapshot): string {
   const lines = [
     '✅ 存罐成功！',
     s.code ? `序號 ${s.code} → +${s.pointsEarnedThisTime ?? 0} 罐罐點數` : null,
-    `毛孩小金庫：${s.pointsBalance} 點`,
+    `罐罐點數：${s.pointsBalance} 點`,
     `累積已換：${s.jarsDeposited} 罐`,
     '',
     s.customerName,
@@ -46,7 +46,7 @@ export function formatJarDepositSuccessMessage(s: JarDepositSnapshot): string {
 
 export function formatSavingsStatusMessage(s: JarDepositSnapshot): string {
   const lines = [
-    '🏦 毛孩小金庫',
+    '📒 罐罐存摺',
     '',
     s.customerName,
     '',
@@ -61,10 +61,10 @@ export function formatSavingsStatusMessage(s: JarDepositSnapshot): string {
     lines.push('', '還沒存過罐。傳 8 位序號就能開始記帳 🐾');
   }
 
-  lines.push('', '傳「獎勵」或點 Bot 回覆裡的按鈕兌換');
+  lines.push('', '點「兌換好康」或傳「獎勵」選項目');
   return lines.join('\n');
 }
 
 export function formatQuickBalanceMessage(s: JarDepositSnapshot): string {
-  return `${s.customerName}\n罐罐點數：${s.pointsBalance} 點 · 已換 ${s.jarsDeposited} 罐\n\n傳「會員資料」可看完整記錄`;
+  return `${s.customerName}\n罐罐點數：${s.pointsBalance} 點 · 已換 ${s.jarsDeposited} 罐\n\n點「罐罐存摺」可看完整記錄`;
 }

@@ -179,7 +179,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     const rewards = await listActiveRewardsForLine();
     if (!customer) {
       await replyJarDepositHub(replyToken, {
-        body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「加入會員」。`,
+        body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「幫毛孩開戶」。`,
         registered: false,
       });
       return;

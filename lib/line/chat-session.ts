@@ -5,6 +5,8 @@ export type RegisterDraft = {
   petSpecies?: string | null;
   petSpeciesOther?: string | null;
   petName?: string | null;
+  petAgeYears?: number | null;
+  petBirthday?: string | null;
   phone?: string | null;
 };
 

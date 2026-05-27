@@ -1,4 +1,9 @@
 import type { LineRewardOption } from '@/lib/line/reward-menu';
+import {
+  LINE_BTN,
+  LINE_MENU_HINT_GUEST,
+  LINE_MENU_HINT_REGISTERED,
+} from '@/lib/line/line-copy';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 
 type FlexButton = {
@@ -58,9 +63,9 @@ export function buildMainMenuBubble(body: string) {
       layout: 'vertical',
       spacing: 'sm',
       contents: [
-        pbBtn('加入會員', 'jd=reg', 'primary'),
-        pbBtn('金庫', 'jd=vault', 'secondary'),
-        pbBtn('兌換', 'jd=redeem', 'secondary'),
+        pbBtn(LINE_BTN.register, 'jd=reg', 'primary'),
+        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
+        pbBtn(LINE_BTN.redeem, 'jd=redeem', 'secondary'),
       ],
     },
   };
@@ -70,9 +75,7 @@ export function buildMainMenuMessages(opts?: {
   registered?: boolean;
   body?: string;
 }): LineReplyMessage[] {
-  const defaultBody = opts?.registered
-    ? '點「金庫」看點數與罐數，點「兌換」用點數換好康。'
-    : '第一次請點「加入會員」，在對話裡依序填寫即可。';
+  const defaultBody = opts?.registered ? LINE_MENU_HINT_REGISTERED : LINE_MENU_HINT_GUEST;
   const body = opts?.body ?? defaultBody;
   return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body) }];
 }
@@ -86,7 +89,7 @@ export function buildSpeciesPickerMessages(): LineReplyMessage[] {
     pbBtn('鳥／爬蟲', 'jd=sp&c=bird_reptile'),
     pbBtn('水族', 'jd=sp&c=fish'),
     pbBtn('其他', 'jd=sp&c=other'),
-    pbBtn('不填毛孩', 'jd=sp&c=none', 'link'),
+    pbBtn(LINE_BTN.speciesSkip, 'jd=sp&c=none', 'link'),
   ];
 
   return [
@@ -160,8 +163,8 @@ export function buildRegisterConfirmMessages(summary: string): LineReplyMessage[
           layout: 'vertical',
           spacing: 'sm',
           contents: [
-            pbBtn('確認送出', 'jd=reg_ok', 'primary'),
-            pbBtn('取消重填', 'jd=reg_no', 'link'),
+            pbBtn(LINE_BTN.confirm, 'jd=reg_ok', 'primary'),
+            pbBtn(LINE_BTN.cancel, 'jd=reg_no', 'link'),
           ],
         },
       },
@@ -183,12 +186,14 @@ export function buildRedeemPickerMessages(
   }
 
   const lines = rewards.map((r) => `${r.index}. ${r.rewardName}（${r.pointsRequired} 點）`);
-  const pick = rewards.slice(0, 4).map((r) => pbBtn(`兌換 ${r.index}`, `jd=rd&i=${r.index}`, 'secondary'));
+  const pick = rewards
+    .slice(0, 4)
+    .map((r) => pbBtn(LINE_BTN.redeemItem(r.index), `jd=rd&i=${r.index}`, 'secondary'));
 
   return [
     {
       type: 'flex',
-      altText: '兌換獎勵',
+      altText: LINE_BTN.redeem,
       contents: {
         type: 'bubble',
         size: 'mega',
@@ -199,13 +204,13 @@ export function buildRedeemPickerMessages(
           contents: [
             {
               type: 'text',
-              text: '兌換獎勵',
+              text: LINE_BTN.redeem,
               weight: 'bold',
               size: 'lg',
             },
             {
               type: 'text',
-              text: `目前點數：${balance} 點\n\n${lines.join('\n')}`,
+              text: `目前罐罐點數：${balance} 點\n\n${lines.join('\n')}`,
               size: 'sm',
               wrap: true,
             },
