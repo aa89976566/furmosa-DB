@@ -13,6 +13,7 @@ export type OrderAmountInput = {
   shippingMethod: string;
   cvsBrand?: string | null;
   companyShippingCost?: number;
+  giftCost?: number;
   total?: number;
 };
 
@@ -93,9 +94,12 @@ export function buildOrderAmountSummary(order: OrderAmountInput) {
       ? Number(order.companyShippingCost)
       : shipping.companyShippingCost;
 
+  const giftCost = Number(order.giftCost ?? 0);
+
   return {
     lines,
     buyerTotal,
+    giftCost,
     companyShippingCost: companyCost,
     standardShippingFee: shipping.standardFee,
     feeTypeLabel,

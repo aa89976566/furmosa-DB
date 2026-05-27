@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { customerTypeLabel } from '@/lib/labels';
-import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
-import { Plus, Crown, Repeat } from 'lucide-react';
+import { formatCurrency, formatDate } from '@/lib/format';
+import { Plus, Repeat } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,11 +29,7 @@ export default async function CustomersPage({
   const q = (searchParams?.q ?? '').trim();
 
   const where: Record<string, unknown> =
-    filter === 'loyalty'
-      ? { isLoyaltyMember: true }
-      : filter === 'subscription'
-        ? { hasActiveSubscription: true }
-        : {};
+    filter === 'subscription' ? { hasActiveSubscription: true } : {};
 
   if (q) {
     const contains = { contains: q, mode: 'insensitive' };
@@ -50,7 +46,7 @@ export default async function CustomersPage({
     ];
   }
 
-  const [customers, total, loyaltyCount, subCount] = await Promise.all([
+  const [customers, total, subCount] = await Promise.all([
     prisma.customer.findMany({
       where,
       include: {
@@ -65,13 +61,11 @@ export default async function CustomersPage({
       orderBy: [{ lastOrderAt: 'desc' }, { customerId: 'asc' }],
     }),
     prisma.customer.count(),
-    prisma.customer.count({ where: { isLoyaltyMember: true } }),
     prisma.customer.count({ where: { hasActiveSubscription: true } }),
   ]);
 
   const filterTabs = [
     { key: undefined, label: '全部', count: total },
-    { key: 'loyalty', label: '換罐會員', count: loyaltyCount },
     { key: 'subscription', label: '訂閱中', count: subCount },
   ];
 
@@ -87,7 +81,7 @@ export default async function CustomersPage({
     <>
       <PageHeader
         title="客戶 Customers"
-        description="一個人 = 一筆資料：含基本聯絡、換罐會員、訂閱、訂單史"
+        description="一個人 = 一筆資料：含基本聯絡、訂閱、訂單史"
         actions={
           <Button size="sm" asChild>
             <Link href="/customers/new">
@@ -136,7 +130,6 @@ export default async function CustomersPage({
                   <TableHead>身份</TableHead>
                   <TableHead>電話</TableHead>
                   <TableHead className="text-right">訂單</TableHead>
-                  <TableHead className="text-right">點數</TableHead>
                   <TableHead className="text-right">累計消費</TableHead>
                   <TableHead>最近下單</TableHead>
                   <TableHead></TableHead>
@@ -158,27 +151,17 @@ export default async function CustomersPage({
                       </Badge>
                     </TableCell>
                     <TableCell className="space-x-1">
-                      {c.isLoyaltyMember && (
-                        <Badge variant="warning" className="gap-1">
-                          <Crown className="h-3 w-3" />
-                          換罐
-                        </Badge>
-                      )}
-                      {c.subscriptions[0] && (
+                      {c.subscriptions[0] ? (
                         <Badge variant="info" className="gap-1">
                           <Repeat className="h-3 w-3" />
                           {c.subscriptions[0].plan.name}
                         </Badge>
-                      )}
-                      {!c.isLoyaltyMember && !c.subscriptions[0] && (
+                      ) : (
                         <span className="text-xs text-muted-foreground">一般</span>
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{c.phone}</TableCell>
                     <TableCell className="text-right">{c._count.orders}</TableCell>
-                    <TableCell className="text-right">
-                      {c.isLoyaltyMember ? formatNumber(c.loyaltyPoints) : '-'}
-                    </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(Number(c.totalSpent))}
                     </TableCell>
@@ -194,7 +177,7 @@ export default async function CustomersPage({
                 ))}
                 {customers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
                       {q ? `找不到符合「${q}」的客戶` : '此分類沒有客戶'}
                     </TableCell>
                   </TableRow>

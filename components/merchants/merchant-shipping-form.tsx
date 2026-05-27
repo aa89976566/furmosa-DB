@@ -8,10 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Save } from 'lucide-react';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
 import { updateMerchantShipping } from '@/app/(main)/merchants/[id]/actions';
+import { merchantIndustryLabel } from '@/lib/labels';
+import { MerchantTypeFields } from '@/components/merchants/merchant-type-fields';
 import { MerchantField, MerchantFormActions } from '@/components/merchants/merchant-ui';
+import type { MerchantType } from '@/lib/merchant-types';
 
 export type MerchantShippingInput = {
   id: string;
+  types: MerchantType[];
+  industry: string | null;
   contactName: string | null;
   phone: string | null;
   email: string | null;
@@ -76,7 +81,25 @@ export function MerchantShippingForm({ merchant }: { merchant: MerchantShippingI
 
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/30 p-4">
         <p className="text-xs font-medium text-muted-foreground">聯絡資料</p>
+        <MerchantTypeFields defaultTypes={merchant.types} />
         <div className="grid gap-4 sm:grid-cols-2">
+          <MerchantField label="產業">
+            <select
+              name="industry"
+              defaultValue={merchant.industry ?? ''}
+              className="flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+            >
+              <option value="">未設定</option>
+              {Object.entries(merchantIndustryLabel).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </MerchantField>
+          <MerchantField label="城市">
+            <Input name="city" defaultValue={merchant.city ?? ''} maxLength={40} placeholder="例：新北" />
+          </MerchantField>
           <MerchantField label="聯絡人（取件人）">
             <Input
               name="contactName"
@@ -102,9 +125,6 @@ export function MerchantShippingForm({ merchant }: { merchant: MerchantShippingI
               defaultValue={merchant.email ?? ''}
               maxLength={120}
             />
-          </MerchantField>
-          <MerchantField label="城市">
-            <Input name="city" defaultValue={merchant.city ?? ''} maxLength={40} placeholder="例：新北" />
           </MerchantField>
         </div>
       </div>

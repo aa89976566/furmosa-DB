@@ -5,8 +5,8 @@ export const SECTION_TONES = [
   'logistics',
   'subscription',
   'inventory',
-  'loyalty',
   'finance',
+  'supply',
   'operations',
 ] as const;
 
@@ -98,17 +98,17 @@ export const sectionToneStyles: Record<SectionTone, SectionToneStyle> = {
     sidebar: 'text-muted-foreground',
     sidebarActive: 'bg-emerald-500/10 text-navy ring-emerald-500/15',
   },
-  loyalty: {
-    label: '會員',
-    chip: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
-    header: 'border-rose-500/15 bg-rose-500/[0.07]',
+  supply: {
+    label: '補給站',
+    chip: 'bg-neutral-500/10 text-neutral-700 dark:text-neutral-300',
+    header: 'border-neutral-200/80 bg-neutral-50/80',
     card: 'bg-card',
-    cardBorder: 'border-rose-400/35 dark:border-rose-500/30',
-    icon: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
-    marker: 'bg-rose-500',
-    eyebrow: 'text-rose-700 dark:text-rose-300',
+    cardBorder: 'border-neutral-200/60',
+    icon: 'bg-neutral-500/10 text-neutral-700 dark:text-neutral-300',
+    marker: 'bg-neutral-400',
+    eyebrow: 'text-neutral-600 dark:text-neutral-400',
     sidebar: 'text-muted-foreground',
-    sidebarActive: 'bg-rose-500/10 text-navy ring-rose-500/15',
+    sidebarActive: 'bg-neutral-500/10 text-navy ring-neutral-400/20',
   },
   finance: {
     label: '財務',
@@ -150,13 +150,7 @@ export function getRouteTone(pathname: string): SectionTone {
   if (pathname.startsWith('/shipments')) return 'logistics';
   if (pathname.startsWith('/subscriptions')) return 'subscription';
   if (pathname.startsWith('/inventory')) return 'inventory';
-  if (
-    pathname.startsWith('/points') ||
-    pathname.startsWith('/rewards') ||
-    pathname.startsWith('/redemptions')
-  ) {
-    return 'loyalty';
-  }
+  if (pathname.startsWith('/supply') || pathname.startsWith('/jar-exchange')) return 'supply';
   if (pathname.startsWith('/settlements') || pathname.startsWith('/merchants/settlements')) {
     return 'finance';
   }

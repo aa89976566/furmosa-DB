@@ -17,7 +17,8 @@
     "db:setup": "prisma migrate dev --name init && prisma db seed",
     "db:clear": "tsx prisma/clear.ts",
     "db:import": "tsx prisma/import.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -48,6 +49,7 @@
     "lucide-react": "^0.451.0",
     "next": "^14.2.15",
     "next-themes": "^0.3.0",
+    "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",

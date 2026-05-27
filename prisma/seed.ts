@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { generateShipmentDates, parseShipDays } from '../lib/subscription';
+import { syncCustomerServices, ensureJarExchangeService } from '../lib/jar-exchange/services';
+import { redeemJarCode } from '../lib/jar-exchange/redeem-code';
+import { generateJarCode } from '../lib/jar-exchange/codes';
 
 // 本機 seed 走 DIRECT_URL（5432，不經 PgBouncer），可避免 connection_limit=1 把幾千筆操作排隊到極慢
 const prisma = new PrismaClient({
@@ -23,9 +26,12 @@ const daysLater = (n: number) => daysAgo(-n);
 
 async function reset() {
   // 子表先清；不然 Product / Merchant / Customer deleteMany 會被 FK 擋住
-  await prisma.redemption.deleteMany();
-  await prisma.reward.deleteMany();
-  await prisma.pointLedger.deleteMany();
+  await prisma.marketingCostRecord.deleteMany();
+  await prisma.rewardRedemption.deleteMany();
+  await prisma.memberPointsLedger.deleteMany();
+  await prisma.jarCode.deleteMany();
+  await prisma.rewardCatalog.deleteMany();
+  await prisma.customerService.deleteMany();
   await prisma.subscriptionShipment.deleteMany();
   await prisma.subscription.deleteMany();
   await prisma.subscriptionPlan.deleteMany();
@@ -93,38 +99,35 @@ async function main() {
   }
   const vendors = await prisma.vendor.findMany();
 
-  // ===== Customers（含換罐會員 / 訂閱身份的旗標）=====
+  // ===== Customers =====
   const customerSeed: Array<{
     name: string;
     type?: 'individual' | 'business';
-    isLoyaltyMember?: boolean;
-    loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'platinum';
     lineUserId?: string;
     socialIg?: string;
   }> = [
-    { name: '陳小明', isLoyaltyMember: true, loyaltyTier: 'silver', lineUserId: 'U1000001' },
-    { name: '林美麗', isLoyaltyMember: true, loyaltyTier: 'gold', lineUserId: 'U1000002', socialIg: '@meili.pet' },
-    { name: '王大文', isLoyaltyMember: true, loyaltyTier: 'bronze' },
-    { name: '張雅婷', isLoyaltyMember: true, loyaltyTier: 'platinum', lineUserId: 'U1000004' },
+    { name: '陳小明', lineUserId: 'U1000001' },
+    { name: '林美麗', lineUserId: 'U1000002', socialIg: '@meili.pet' },
+    { name: '王大文' },
+    { name: '張雅婷', lineUserId: 'U1000004' },
     { name: '李志強' },
-    { name: '黃淑芬', isLoyaltyMember: true, loyaltyTier: 'silver', lineUserId: 'U1000006' },
+    { name: '黃淑芬', lineUserId: 'U1000006' },
     { name: '吳建宏', type: 'business' },
-    { name: '蔡佳玲', isLoyaltyMember: true, loyaltyTier: 'gold' },
-    { name: '周思源', isLoyaltyMember: true, loyaltyTier: 'silver', lineUserId: 'U1000009' },
+    { name: '蔡佳玲' },
+    { name: '周思源', lineUserId: 'U1000009' },
     { name: '徐怡君' },
-    { name: '劉俊傑', isLoyaltyMember: true, loyaltyTier: 'bronze' },
-    { name: '許雅雯', isLoyaltyMember: true, loyaltyTier: 'silver', lineUserId: 'U1000012', socialIg: '@yawen.dog' },
+    { name: '劉俊傑' },
+    { name: '許雅雯', lineUserId: 'U1000012', socialIg: '@yawen.dog' },
     { name: '鄭文豪' },
-    { name: '何明珠', isLoyaltyMember: true, loyaltyTier: 'gold', lineUserId: 'U1000014' },
-    { name: '彭雅琪', isLoyaltyMember: true, loyaltyTier: 'silver' },
+    { name: '何明珠', lineUserId: 'U1000014' },
+    { name: '彭雅琪' },
     { name: '趙世昌', type: 'business' },
-    { name: '楊淑慧', isLoyaltyMember: true, loyaltyTier: 'bronze' },
+    { name: '楊淑慧' },
     { name: '潘建文' },
-    { name: '馬曉菁', isLoyaltyMember: true, loyaltyTier: 'platinum', lineUserId: 'U1000019', socialIg: '@maxiao.cats' },
-    { name: '高振宇', isLoyaltyMember: true, loyaltyTier: 'gold' },
+    { name: '馬曉菁', lineUserId: 'U1000019', socialIg: '@maxiao.cats' },
+    { name: '高振宇' },
   ];
 
-  let memberSeq = 1;
   for (let i = 0; i < customerSeed.length; i++) {
     const c = customerSeed[i];
     const orderDate = daysAgo(randInt(1, 60));
@@ -140,14 +143,7 @@ async function main() {
         lineDisplay: c.lineUserId ? c.name : null,
         socialIg: c.socialIg ?? null,
         birthday: i % 3 === 0 ? new Date(1985 + randInt(0, 15), randInt(0, 11), randInt(1, 28)) : null,
-        isLoyaltyMember: c.isLoyaltyMember ?? false,
-        loyaltyMemberId: c.isLoyaltyMember ? `MEM-${pad(memberSeq++)}` : null,
-        loyaltyTier: c.loyaltyTier ?? null,
-        loyaltyPoints: 0, // 點數歸零
-        loyaltyEarned: 0,
-        loyaltyRedeemed: 0,
-        joinedLoyaltyAt: c.isLoyaltyMember ? daysAgo(randInt(30, 365)) : null,
-        tags: JSON.stringify(c.isLoyaltyMember ? ['換罐會員'] : []),
+        tags: JSON.stringify([]),
         totalSpent: randInt(500, 25000),
         lastOrderAt: orderDate,
       },
@@ -522,7 +518,6 @@ async function main() {
     const companyShippingCost = shippingFeeType === 'free' ? standardFee : 0;
     const discount = randInt(0, 1) === 1 ? Math.floor(subtotal * 0.05) : 0;
     const total = subtotal - discount + shippingFee;
-    const pointsEarned = Math.floor(total / 50);
     const completedAt =
       status === 'completed' || status === 'delivered'
         ? new Date(orderedAt.getTime() + 1000 * 60 * 60 * 24 * randInt(1, 3))
@@ -551,8 +546,6 @@ async function main() {
         shippingFeeType,
         shippingMethod,
         total,
-        pointsEarned,
-        pointsUsed: 0,
         shippingAddress: customer.address ?? '',
         orderedAt,
         completedAt,
@@ -638,30 +631,48 @@ async function main() {
     });
   }
 
-  // ===== Rewards =====
-  const rewards = [
-    { name: 'Furmosa 零食體驗包', points: 100, cash: 35 },
-    { name: '純鮮凍乾 50g', points: 300, cash: 145 },
-    { name: '寵物用山羊奶 200ml', points: 150, cash: 38 },
-    { name: '逗貓棒禮盒', points: 250, cash: 65 },
-    { name: '主食罐 4 入組', points: 600, cash: 168 },
-    { name: 'Furmosa 限定購物袋', points: 400, cash: 60 },
+  // ===== 換罐會員範例 =====
+  const jarRewards = [
+    { name: '洗澡折 100', points: 5, face: 100, cost: 85 },
+    { name: '免費零食兌換', points: 3, face: 50, cost: 35 },
+    { name: '限定雞肉片', points: 8, face: 120, cost: 90 },
   ];
-  for (let i = 0; i < rewards.length; i++) {
-    const r = rewards[i];
-    await prisma.reward.create({
+  for (let i = 0; i < jarRewards.length; i++) {
+    const r = jarRewards[i];
+    await prisma.rewardCatalog.create({
       data: {
-        rewardId: `RWD-${pad(i + 1)}`,
-        name: r.name,
-        description: `會員可使用點數兌換的「${r.name}」，由合作寄賣店家履約。`,
-        pointsCost: r.points,
-        cashCost: r.cash,
-        stock: randInt(20, 200),
-        status: 'active',
+        rewardCode: `JAR-RWD-${pad(i + 1, 3)}`,
+        rewardName: r.name,
+        rewardType: 'grooming_coupon',
+        pointsRequired: r.points,
+        couponFaceValue: r.face,
+        internalCost: r.cost,
+        activeStatus: 'active',
+        sortOrder: i + 1,
       },
     });
   }
-  // 點數歸零，所以不建 redemption / pointLedger 範例
+
+  const sampleCustomers = await prisma.customer.findMany({ take: 3, orderBy: { customerId: 'asc' } });
+  for (const c of sampleCustomers) {
+    await syncCustomerServices(prisma, c.id);
+    await ensureJarExchangeService(prisma, c.id);
+  }
+
+  const batchNo = 'SEED-BATCH-001';
+  const seedCodes: string[] = [];
+  while (seedCodes.length < 5) {
+    const code = generateJarCode();
+    if (!seedCodes.includes(code)) seedCodes.push(code);
+  }
+  for (const code of seedCodes) {
+    await prisma.jarCode.create({
+      data: { code, batchNo, pointValue: 1, status: 'unused' },
+    });
+  }
+  if (sampleCustomers[0]) {
+    await redeemJarCode(sampleCustomers[0].id, seedCodes[0]);
+  }
 
   // ===== Tasks =====
   const tasks: Array<{ title: string; type: string; priority: string; status: string }> = [
@@ -675,7 +686,6 @@ async function main() {
     { title: 'LINE 客服月度報表', type: 'customer_service', priority: 'low', status: 'done' },
     { title: '新品上架照片拍攝', type: 'marketing', priority: 'medium', status: 'in_progress' },
     { title: '盤點：南部倉儲', type: 'inventory_issue', priority: 'high', status: 'todo' },
-    { title: '會員集點序號發行 (Q3)', type: 'marketing', priority: 'medium', status: 'todo' },
     { title: '寄賣店家季度業績檢討', type: 'settlement_followup', priority: 'medium', status: 'done' },
   ];
   for (let i = 0; i < tasks.length; i++) {

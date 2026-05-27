@@ -9,12 +9,9 @@ import {
   settlementStatusLabel,
   taskStatusLabel,
   taskPriorityLabel,
-  redemptionStatusLabel,
-  pointLedgerTypeLabel,
   subscriptionStatusLabel,
   subscriptionShipmentStatusLabel,
   subscriptionBillingCycleLabel,
-  loyaltyTierLabel,
 } from '@/lib/labels';
 
 type Variant = 'default' | 'secondary' | 'success' | 'warning' | 'info' | 'destructive' | 'muted' | 'outline';
@@ -94,13 +91,6 @@ const subscriptionCycleVariant: Record<string, Variant> = {
   halfyear: 'info',
 };
 
-const loyaltyTierVariant: Record<string, Variant> = {
-  bronze: 'muted',
-  silver: 'secondary',
-  gold: 'warning',
-  platinum: 'info',
-};
-
 const inventoryTxnVariant: Record<string, Variant> = {
   purchase_in: 'success',
   sales_out: 'info',
@@ -118,19 +108,6 @@ const merchantStockTxnVariant: Record<string, Variant> = {
   return: 'secondary',
 };
 
-const redemptionStatusVariant: Record<string, Variant> = {
-  pending: 'warning',
-  fulfilled: 'success',
-  cancelled: 'destructive',
-};
-
-const pointLedgerVariant: Record<string, Variant> = {
-  earn: 'success',
-  redeem: 'info',
-  adjust: 'secondary',
-  expire: 'muted',
-};
-
 type StatusKind =
   | 'order'
   | 'orderSource'
@@ -141,12 +118,9 @@ type StatusKind =
   | 'taskPriority'
   | 'inventory'
   | 'merchantStock'
-  | 'redemption'
-  | 'point'
   | 'subscription'
   | 'subscriptionShipment'
-  | 'subscriptionCycle'
-  | 'loyaltyTier';
+  | 'subscriptionCycle';
 
 const variantMap: Record<StatusKind, Record<string, Variant>> = {
   order: orderStatusVariant,
@@ -158,12 +132,9 @@ const variantMap: Record<StatusKind, Record<string, Variant>> = {
   taskPriority: taskPriorityVariant,
   inventory: inventoryTxnVariant,
   merchantStock: merchantStockTxnVariant,
-  redemption: redemptionStatusVariant,
-  point: pointLedgerVariant,
   subscription: subscriptionStatusVariant,
   subscriptionShipment: subscriptionShipmentVariant,
   subscriptionCycle: subscriptionCycleVariant,
-  loyaltyTier: loyaltyTierVariant,
 };
 
 const labelMap: Record<StatusKind, Record<string, string>> = {
@@ -176,12 +147,9 @@ const labelMap: Record<StatusKind, Record<string, string>> = {
   taskPriority: taskPriorityLabel,
   inventory: inventoryTxnTypeLabel,
   merchantStock: merchantStockTxnTypeLabel,
-  redemption: redemptionStatusLabel,
-  point: pointLedgerTypeLabel,
   subscription: subscriptionStatusLabel,
   subscriptionShipment: subscriptionShipmentStatusLabel,
   subscriptionCycle: subscriptionBillingCycleLabel,
-  loyaltyTier: loyaltyTierLabel,
 };
 
 export function StatusBadge({ kind, value }: { kind: StatusKind; value: string }) {

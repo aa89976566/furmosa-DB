@@ -39,7 +39,9 @@ import {
 } from '@/lib/shipping-policy';
 import { createOrder } from '../actions';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
+import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
+import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
 
 export type ProductTierOption = {
   id: string;
@@ -47,6 +49,7 @@ export type ProductTierOption = {
   unit: string;
   unitQty: number;
   price: number;
+  cost: number | null;
   notes: string | null;
 };
 export type ProductOption = {
@@ -54,6 +57,7 @@ export type ProductOption = {
   name: string;
   sku: string;
   price: number;
+  cost: number;
   unit: string;
   priceTiers: ProductTierOption[];
 };
@@ -95,6 +99,10 @@ type LineItem = {
   tierId: string; // 規格選擇；無 tier 時為空字串
   quantity: number;
   unitPrice: number;
+  unitCost: number;
+  isGift: boolean;
+  /** 勾選贈品前暫存售價，取消贈品時還原 */
+  retailUnitPrice: number;
   weightGrams: number | null;
   unit: string | null;
 };
@@ -107,6 +115,201 @@ const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[]
 
 function genKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function OrderLineItemsTable({
+  title,
+  hint,
+  items,
+  products,
+  productMap,
+  onSelectProduct,
+  onSelectTier,
+  onToggleGift,
+  updateItem,
+  addItem,
+  removeItem,
+}: {
+  title: string;
+  hint?: string;
+  items: LineItem[];
+  products: ProductOption[];
+  productMap: Map<string, ProductOption>;
+  onSelectProduct: (key: string, productId: string) => void;
+  onSelectTier: (key: string, productId: string, tierId: string) => void;
+  onToggleGift: (key: string, isGift: boolean) => void;
+  updateItem: (key: string, patch: Partial<LineItem>) => void;
+  addItem: () => void;
+  removeItem: (key: string) => void;
+}) {
+  const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          {hint ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
+          ) : null}
+        </div>
+        <Button type="button" size="sm" variant="outline" onClick={addItem}>
+          <Plus className="mr-1 h-4 w-4" />
+          新增一筆
+        </Button>
+      </div>
+
+      <Table className="min-w-[760px] table-fixed">
+        <colgroup>
+          <col className="w-[30%]" />
+          <col className="w-[20%]" />
+          <col className="w-[11%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[7%]" />
+          <col className="w-[6%]" />
+        </colgroup>
+        <TableHeader>
+          <TableRow>
+            <TableHead>商品</TableHead>
+            <TableHead>規格</TableHead>
+            <TableHead className="text-right">數量</TableHead>
+            <TableHead className="text-right">單價</TableHead>
+            <TableHead className="text-right">小計</TableHead>
+            <TableHead className="text-center">贈品</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((it) => {
+            const buyerLineSubtotal = it.isGift ? 0 : it.quantity * it.unitPrice;
+            const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
+            const prod = productMap.get(it.productId);
+            const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
+            const rowRequired =
+              !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
+            return (
+              <TableRow key={it.key}>
+                <TableCell>
+                  <ProductSearchSelect
+                    products={products}
+                    value={it.productId}
+                    onChange={(productId) => onSelectProduct(it.key, productId)}
+                    required={rowRequired}
+                  />
+                  {prod ? (
+                    <div className="mt-1 text-[11px] text-muted-foreground">
+                      基礎單位：{prod.unit} · 售價 {formatCurrency(prod.price)}
+                      {prod.cost > 0 ? ` · 成本 ${formatCurrency(prod.cost)}` : ''}
+                    </div>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  <input type="hidden" name="tierId" value={it.tierId} />
+                  <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
+                  <input type="hidden" name="unit" value={it.unit ?? ''} />
+                  <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
+                  {hasTiers ? (
+                    <select
+                      value={it.tierId}
+                      onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
+                      className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {prod!.priceTiers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {tierLabel(t)}
+                          {t.notes ? ` · ${t.notes}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {prod ? '無規格' : '請先選商品'}
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="align-middle">
+                  <Input
+                    name="quantity"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={it.quantity}
+                    onChange={(e) =>
+                      updateItem(it.key, {
+                        quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
+                      })
+                    }
+                    required={rowRequired && Boolean(it.productId)}
+                    className="h-9 min-w-[4.5rem] text-right tabular-nums"
+                  />
+                </TableCell>
+                <TableCell className="align-middle">
+                  <Input
+                    name="unitPrice"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={it.isGift ? 0 : it.unitPrice}
+                    readOnly={it.isGift}
+                    onChange={(e) =>
+                      updateItem(it.key, {
+                        unitPrice: Math.max(0, Number(e.target.value) || 0),
+                        retailUnitPrice: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    required={rowRequired && Boolean(it.productId) && !it.isGift}
+                    className="h-9 min-w-[5.5rem] text-right tabular-nums disabled:opacity-60"
+                  />
+                  {it.isGift && it.retailUnitPrice > 0 ? (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground line-through">
+                      售價 {formatCurrency(it.retailUnitPrice)}
+                    </p>
+                  ) : null}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {it.isGift ? (
+                    <div className="space-y-0.5">
+                      <Badge variant="secondary" className="font-normal">
+                        贈品
+                      </Badge>
+                      <div className="text-[11px] text-warning">
+                        成本 {formatCurrency(giftLineCost)}
+                      </div>
+                    </div>
+                  ) : (
+                    formatCurrency(buyerLineSubtotal)
+                  )}
+                </TableCell>
+                <TableCell className="text-center align-middle">
+                  <input
+                    type="checkbox"
+                    checked={it.isGift}
+                    disabled={!it.productId}
+                    title="贈品不計入買家應付，計入公司成本"
+                    className="h-4 w-4 rounded border-input"
+                    onChange={(e) => onToggleGift(it.key, e.target.checked)}
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeItem(it.key)}
+                    disabled={items.length <= 1}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </section>
+  );
 }
 
 export function OrderForm({
@@ -133,6 +336,9 @@ export function OrderForm({
       tierId: '',
       quantity: 1,
       unitPrice: 0,
+      unitCost: 0,
+      isGift: false,
+      retailUnitPrice: 0,
       weightGrams: null,
       unit: null,
     },
@@ -172,8 +378,25 @@ export function OrderForm({
 
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
+  const hasValidLines = useMemo(
+    () => items.some((it) => it.productId && it.quantity > 0),
+    [items],
+  );
+
   const subtotal = useMemo(
-    () => items.reduce((s, it) => s + it.quantity * it.unitPrice, 0),
+    () =>
+      items.reduce(
+        (s, it) => (it.isGift ? s : s + it.quantity * it.unitPrice),
+        0,
+      ),
+    [items],
+  );
+  const giftCostTotal = useMemo(
+    () =>
+      items.reduce(
+        (s, it) => (it.isGift ? s + it.quantity * it.unitCost : s),
+        0,
+      ),
     [items],
   );
   const shippingResolved = useMemo(
@@ -193,52 +416,83 @@ export function OrderForm({
   function updateItem(key: string, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
   }
+  function linePricing(
+    p: ProductOption,
+    tierId: string,
+  ): { unitPrice: number; unitCost: number; weightGrams: number | null; unit: string | null; tierId: string } {
+    if (p.priceTiers.length > 0) {
+      const t = p.priceTiers.find((x) => x.id === tierId) ?? p.priceTiers[0];
+      return {
+        tierId: t.id,
+        unitPrice: t.price,
+        unitCost: resolveOrderItemUnitCost(p, t.id),
+        weightGrams: t.weightGrams,
+        unit: t.unit,
+      };
+    }
+    return {
+      tierId: '',
+      unitPrice: p.price,
+      unitCost: resolveOrderItemUnitCost(p),
+      weightGrams: null,
+      unit: p.unit,
+    };
+  }
+
   function onSelectProduct(key: string, productId: string) {
     const p = productMap.get(productId);
+    const current = items.find((it) => it.key === key);
     if (!p) {
       updateItem(key, {
         productId,
         tierId: '',
         unitPrice: 0,
+        unitCost: 0,
+        retailUnitPrice: 0,
         weightGrams: null,
         unit: null,
       });
       return;
     }
-    // 有規格：預設選第一個規格、帶入該規格價格、weight、unit
-    if (p.priceTiers.length > 0) {
-      const t = p.priceTiers[0];
-      updateItem(key, {
-        productId,
-        tierId: t.id,
-        unitPrice: t.price,
-        weightGrams: t.weightGrams,
-        unit: t.unit,
-      });
-    } else {
-      // 沒規格：用商品基礎 price / unit、無重量
-      updateItem(key, {
-        productId,
-        tierId: '',
-        unitPrice: p.price,
-        weightGrams: null,
-        unit: p.unit,
-      });
-    }
+    const pricing = linePricing(p, p.priceTiers[0]?.id ?? '');
+    const isGift = current?.isGift ?? false;
+    updateItem(key, {
+      productId,
+      ...pricing,
+      unitPrice: isGift ? 0 : pricing.unitPrice,
+      retailUnitPrice: pricing.unitPrice,
+    });
   }
   function onSelectTier(key: string, productId: string, tierId: string) {
     const p = productMap.get(productId);
-    const t = p?.priceTiers.find((x) => x.id === tierId);
-    if (!t) {
+    if (!p) {
       updateItem(key, { tierId: '' });
       return;
     }
+    const pricing = linePricing(p, tierId);
+    const current = items.find((it) => it.key === key);
+    const isGift = current?.isGift ?? false;
     updateItem(key, {
-      tierId,
-      unitPrice: t.price,
-      weightGrams: t.weightGrams,
-      unit: t.unit,
+      ...pricing,
+      unitPrice: isGift ? 0 : pricing.unitPrice,
+      retailUnitPrice: pricing.unitPrice,
     });
+  }
+  function onToggleGift(key: string, isGift: boolean) {
+    const it = items.find((x) => x.key === key);
+    if (!it) return;
+    if (isGift) {
+      updateItem(key, {
+        isGift: true,
+        retailUnitPrice: it.unitPrice > 0 ? it.unitPrice : it.retailUnitPrice,
+        unitPrice: 0,
+      });
+    } else {
+      updateItem(key, {
+        isGift: false,
+        unitPrice: it.retailUnitPrice > 0 ? it.retailUnitPrice : it.unitPrice,
+      });
+    }
   }
   function addItem() {
     setItems((prev) => [
@@ -249,6 +503,9 @@ export function OrderForm({
         tierId: '',
         quantity: 1,
         unitPrice: 0,
+        unitCost: 0,
+        isGift: false,
+        retailUnitPrice: 0,
         weightGrams: null,
         unit: null,
       },
@@ -368,6 +625,10 @@ export function OrderForm({
           alert('請填寫收件人姓名');
           return;
         }
+        if (!hasValidLines) {
+          alert('請至少新增一筆商品明細');
+          return;
+        }
         try {
           await createOrder(formData);
         } catch (e) {
@@ -382,7 +643,6 @@ export function OrderForm({
       <input type="hidden" name="shippingFeeType" value={shippingFeeType} />
       <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
-
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
@@ -559,143 +819,20 @@ export function OrderForm({
         </section>
       )}
 
-      {/* Step 3: 商品 */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-medium">③ 商品明細</div>
-          <Button type="button" size="sm" variant="outline" onClick={addItem}>
-            <Plus className="mr-1 h-4 w-4" />
-            新增一筆
-          </Button>
-        </div>
-
-        <Table className="min-w-[720px] table-fixed">
-          <colgroup>
-            <col className="w-[34%]" />
-            <col className="w-[22%]" />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
-            <col className="w-[12%]" />
-            <col className="w-[6%]" />
-          </colgroup>
-          <TableHeader>
-            <TableRow>
-              <TableHead>商品</TableHead>
-              <TableHead>規格</TableHead>
-              <TableHead className="text-right">數量</TableHead>
-              <TableHead className="text-right">單價</TableHead>
-              <TableHead className="text-right">小計</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((it) => {
-              const lineSubtotal = it.quantity * it.unitPrice;
-              const prod = productMap.get(it.productId);
-              const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
-              return (
-                <TableRow key={it.key}>
-                  <TableCell>
-                    <select
-                      name="productId"
-                      value={it.productId}
-                      onChange={(e) => onSelectProduct(it.key, e.target.value)}
-                      required
-                      className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="">— 選擇商品 —</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} · {p.sku}
-                        </option>
-                      ))}
-                    </select>
-                    {prod && (
-                      <div className="mt-1 text-[11px] text-muted-foreground">
-                        基礎單位：{prod.unit} · 基礎售價 {formatCurrency(prod.price)}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {/* hidden inputs：把規格的 weightGrams / unit 傳到 server */}
-                    <input
-                      type="hidden"
-                      name="weightGrams"
-                      value={it.weightGrams ?? ''}
-                    />
-                    <input type="hidden" name="unit" value={it.unit ?? ''} />
-                    {hasTiers ? (
-                      <select
-                        value={it.tierId}
-                        onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
-                        className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        {prod!.priceTiers.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {tierLabel(t)}
-                            {t.notes ? ` · ${t.notes}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        {prod ? '無規格' : '請先選商品'}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    <Input
-                      name="quantity"
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={it.quantity}
-                      onChange={(e) =>
-                        updateItem(it.key, {
-                          quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
-                        })
-                      }
-                      required
-                      className="h-9 min-w-[4.5rem] text-right tabular-nums"
-                    />
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    <Input
-                      name="unitPrice"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={it.unitPrice}
-                      onChange={(e) =>
-                        updateItem(it.key, {
-                          unitPrice: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      required
-                      className="h-9 min-w-[5.5rem] text-right tabular-nums"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCurrency(lineSubtotal)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeItem(it.key)}
-                      disabled={items.length <= 1}
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </section>
+      {/* Step 3: 商品明細 */}
+      <OrderLineItemsTable
+        title="③ 商品明細"
+        hint="勾選「贈品」的品項不計入買家應付，進貨成本計入公司開銷。"
+        items={items}
+        products={products}
+        productMap={productMap}
+        onSelectProduct={onSelectProduct}
+        onSelectTier={onSelectTier}
+        onToggleGift={onToggleGift}
+        updateItem={updateItem}
+        addItem={addItem}
+        removeItem={removeItem}
+      />
 
       {/* Step 4: 金額 + 出貨資訊 */}
       <section className="space-y-4 rounded-lg border bg-card p-4">
@@ -756,6 +893,12 @@ export function OrderForm({
             />
           </div>
         </FieldInline>
+
+        {giftCostTotal > 0 ? (
+          <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+            贈品成本 {formatCurrency(giftCostTotal)} 不計入買家合計，建立訂單時會記為公司開銷。
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="小計" value={formatCurrency(subtotal)} />

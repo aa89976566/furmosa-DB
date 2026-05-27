@@ -6,15 +6,16 @@
  */
 import { prisma } from '@/lib/prisma';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
+import { insertMerchantRecord } from '@/lib/merchant-create';
+import { parseMerchantShippingFromForm } from '@/lib/merchant-shipping-persist';
+import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import {
-  createMerchantBaseRecord,
-  parseMerchantShippingFromForm,
-} from '@/lib/merchant-shipping-persist';
+  parseMerchantTypesFromForm,
+  primaryMerchantType,
+} from '@/lib/merchant-types';
 import { isRedirectError } from '@/lib/redirect-error';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-const MERCHANT_TYPES = ['consignment', 'pop_up', 'flagship', 'partner'] as const;
 
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
@@ -40,23 +41,30 @@ export async function createMerchantAction(
     const name = String(formData.get('name') ?? '').trim();
     if (!name) return { error: '店家名稱為必填' };
 
-    const typeRaw = String(formData.get('type') ?? 'consignment');
-    if (!MERCHANT_TYPES.includes(typeRaw as (typeof MERCHANT_TYPES)[number])) {
-      return { error: '店家類型錯誤' };
-    }
+    const types = parseMerchantTypesFromForm(formData);
+    if (types.length === 0) return { error: '請至少選擇一種類型' };
+    const type = primaryMerchantType(types);
 
     const email = toNullableField(formData.get('email'));
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { error: 'Email 格式錯誤' };
     }
 
+    const industryRaw = String(formData.get('industry') ?? '').trim();
+    if (industryRaw && !parseMerchantIndustry(industryRaw)) {
+      return { error: '店家產業錯誤' };
+    }
+    const industry = parseMerchantIndustry(industryRaw);
+
     const shipping = parseMerchantShippingFromForm(formData);
     if (shipping.error) return { error: shipping.error };
 
-    const merchant = await createMerchantBaseRecord(prisma, {
+    const merchant = await insertMerchantRecord(prisma, {
       merchantId: await nextMerchantId(),
       name,
-      type: typeRaw,
+      type,
+      types,
+      industry,
       contactName: toNullableField(formData.get('contactName')),
       phone: toNullableField(formData.get('phone')),
       email,

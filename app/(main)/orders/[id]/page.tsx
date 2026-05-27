@@ -246,7 +246,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         >
           {(() => {
             const incomplete = order.items.filter(
-              (it) => Number(it.unitPrice) === 0 || !it.sku || it.sku.startsWith('FUR-'),
+              (it) =>
+                !it.isGift &&
+                (Number(it.unitPrice) === 0 || !it.sku || it.sku.startsWith('FUR-')),
             );
             return incomplete.length > 0 ? (
               <div className="mb-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
@@ -274,16 +276,23 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             <TableBody>
               {order.items.map((it) => {
                 const skuMissing = !it.sku || it.sku.startsWith('FUR-');
-                const priceMissing = Number(it.unitPrice) === 0;
+                const priceMissing = !it.isGift && Number(it.unitPrice) === 0;
                 return (
                   <TableRow key={it.id}>
                     <TableCell>
-                      <Link
-                        href={`/products/${it.productId}`}
-                        className="font-medium hover:underline"
-                      >
-                        {it.productName}
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/products/${it.productId}`}
+                          className="font-medium hover:underline"
+                        >
+                          {it.productName}
+                        </Link>
+                        {it.isGift ? (
+                          <Badge variant="secondary" className="text-[10px] font-normal">
+                            贈品
+                          </Badge>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {skuMissing ? (
@@ -303,7 +312,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                     </TableCell>
                     <TableCell className="text-right font-mono">{it.quantity}</TableCell>
                     <TableCell className="text-right">
-                      {priceMissing ? (
+                      {it.isGift ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : priceMissing ? (
                         <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-xs text-warning">
                           <AlertTriangle className="h-3 w-3" />
                           未填
@@ -313,7 +324,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {priceMissing ? (
+                      {it.isGift ? (
+                        <span className="text-xs text-warning">
+                          成本 {formatCurrency(Number(it.unitCost ?? 0) * it.quantity)}
+                        </span>
+                      ) : priceMissing ? (
                         <span className="text-muted-foreground">-</span>
                       ) : (
                         formatCurrency(Number(it.subtotal))
@@ -335,15 +350,10 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 shippingMethod: order.shippingMethod,
                 cvsBrand: order.cvsBrand,
                 companyShippingCost: Number(order.companyShippingCost),
+                giftCost: Number(order.giftCost ?? 0),
                 total: Number(order.total),
               }}
             />
-            {order.pointsEarned > 0 ? (
-              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                <span>本訂單獲得點數</span>
-                <span>{order.pointsEarned} 點</span>
-              </div>
-            ) : null}
           </div>
         </SectionCard>
 
@@ -374,11 +384,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               />
             ) : null}
             {order.completedAt ? (
-              <TimelineItem
-                time={order.completedAt}
-                title="訂單完成"
-                description={`累計獲得 ${order.pointsEarned} 點`}
-              />
+              <TimelineItem time={order.completedAt} title="訂單完成" description="交易完成" />
             ) : null}
           </ol>
         </SectionCard>

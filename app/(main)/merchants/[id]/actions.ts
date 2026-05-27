@@ -7,6 +7,12 @@ import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
 import { saleAmountsForQty } from '@/lib/merchant-settlement-sales';
 import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import { revalidatePath } from 'next/cache';
+import { parseMerchantIndustry } from '@/lib/merchant-industry';
+import { persistMerchantTypes } from '@/lib/merchant-types-persist';
+import {
+  parseMerchantTypesFromForm,
+  primaryMerchantType,
+} from '@/lib/merchant-types';
 import { redirect } from 'next/navigation';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
@@ -35,6 +41,15 @@ export async function updateMerchantShipping(formData: FormData) {
   const city = toNullableField(formData.get('city'));
   let address = toNullableField(formData.get('address'));
 
+  const industryRaw = String(formData.get('industry') ?? '').trim();
+  if (industryRaw && !parseMerchantIndustry(industryRaw)) {
+    throw new Error('店家產業錯誤');
+  }
+  const industry = parseMerchantIndustry(industryRaw);
+
+  const types = parseMerchantTypesFromForm(formData);
+  if (types.length === 0) throw new Error('請至少選擇一種類型');
+
   if (preferredCarrier === CARRIER_711) {
     if (!pickupStoreName) throw new Error('請填寫 7-11 門市名稱');
     address = null;
@@ -46,6 +61,7 @@ export async function updateMerchantShipping(formData: FormData) {
   await prisma.$executeRaw`
     UPDATE "Merchant"
     SET
+      "industry" = ${industry},
       "contactName" = ${contactName},
       "phone" = ${phone},
       "email" = ${email},
@@ -55,6 +71,8 @@ export async function updateMerchantShipping(formData: FormData) {
       "address" = ${address}
     WHERE "id" = ${merchantId}
   `;
+
+  await persistMerchantTypes(prisma, merchantId, types);
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/restock`);

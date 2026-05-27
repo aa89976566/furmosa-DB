@@ -33,7 +33,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedTasks Task[] @relation("AssignedTasks")
+  assignedTasks       Task[]               @relation("AssignedTasks")
+  pointsLedgerCreated MemberPointsLedger[] @relation("PointsLedgerCreatedBy")
 }
 
 // =====================================================
@@ -83,15 +84,6 @@ model Customer {
   birthday DateTime?
   gender   String? // female / male / other / unknown
 
-  // 換罐會員（loyalty）— 不是會員時這些欄位為 null/0
-  isLoyaltyMember Boolean   @default(false)
-  loyaltyMemberId String?   @unique // MEM-0001
-  loyaltyTier     String? // bronze / silver / gold / platinum
-  loyaltyPoints   Int       @default(0)
-  loyaltyEarned   Int       @default(0)
-  loyaltyRedeemed Int       @default(0)
-  joinedLoyaltyAt DateTime?
-
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)
 
@@ -106,21 +98,156 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders        Order[]
-  pointLedger   PointLedger[]
-  redemptions   Redemption[]
-  subscriptions Subscription[]
-  shipments     Shipment[]
+  orders              Order[]
+  subscriptions       Subscription[]
+  shipments           Shipment[]
+  services            CustomerService[]
+  jarCodesRedeemed    JarCode[]              @relation("JarCodesRedeemed")
+  pointsLedger        MemberPointsLedger[]
+  rewardRedemptions   RewardRedemption[]
+  marketingCosts      MarketingCostRecord[]
 
-  @@index([isLoyaltyMember])
   @@index([hasActiveSubscription])
+}
+
+// =====================================================
+// 換罐會員（Jar Exchange）— 服務類型可疊加
+// =====================================================
+
+/// 會員服務類型：personal | subscription | jar_exchange（同一客戶可多筆）
+model CustomerService {
+  id            String    @id @default(cuid())
+  customerId    String    @map("customer_id")
+  serviceType   String    @map("service_type")
+  serviceStatus String    @default("active") @map("service_status") // active | paused | closed
+  startedAt     DateTime  @default(now()) @map("started_at")
+  endedAt       DateTime? @map("ended_at")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, serviceType])
+  @@index([serviceType, serviceStatus])
+  @@map("customer_services")
+}
+
+model JarCode {
+  id                   String    @id @default(cuid())
+  code                 String    @unique
+  batchNo              String?   @map("batch_no")
+  productSku           String?   @map("product_sku")
+  pointValue           Int       @default(1) @map("point_value")
+  status               String    @default("unused") // unused | used | expired
+  redeemedByCustomerId String?   @map("redeemed_by_customer_id")
+  redeemedAt           DateTime? @map("redeemed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  redeemedByCustomer Customer? @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([batchNo])
+  @@index([redeemedByCustomerId])
+  @@map("jar_codes")
+}
+
+model MemberPointsLedger {
+  id              String   @id @default(cuid())
+  customerId      String   @map("customer_id")
+  sourceType      String   @map("source_type") // jar_code_redeem | manual_adjustment | reward_redemption | campaign_bonus
+  sourceRefId     String?  @map("source_ref_id")
+  pointsChange    Int      @map("points_change")
+  balanceAfter    Int      @map("balance_after")
+  note            String?
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  customer  Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation("PointsLedgerCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, createdAt])
+  @@index([sourceType])
+  @@map("member_points_ledger")
+}
+
+model RewardCatalog {
+  id                  String    @id @default(cuid())
+  rewardCode          String    @unique @map("reward_code")
+  rewardName          String    @map("reward_name")
+  rewardType          String    @default("grooming_coupon") @map("reward_type")
+  pointsRequired      Int       @map("points_required")
+  couponFaceValue     Float     @map("coupon_face_value")
+  internalCost        Float     @map("internal_cost")
+  partnerMerchantId   String?   @map("partner_merchant_id")
+  activeStatus        String    @default("active") @map("active_status") // active | inactive
+  startAt             DateTime? @map("start_at")
+  endAt               DateTime? @map("end_at")
+  description         String?
+  sortOrder           Int       @default(0) @map("sort_order")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  partnerMerchant Merchant?          @relation("RewardPartnerMerchant", fields: [partnerMerchantId], references: [id], onDelete: SetNull)
+  redemptions     RewardRedemption[]
+
+  @@index([activeStatus])
+  @@map("reward_catalog")
+}
+
+model RewardRedemption {
+  id                  String    @id @default(cuid())
+  redemptionCode      String    @unique @map("redemption_code")
+  customerId          String    @map("customer_id")
+  rewardId            String    @map("reward_id")
+  pointsSpent         Int       @map("points_spent")
+  couponCode          String?   @map("coupon_code")
+  couponStatus        String    @default("issued") @map("coupon_status") // issued | used | cancelled
+  issuedAt            DateTime  @default(now()) @map("issued_at")
+  usedAt              DateTime? @map("used_at")
+  partnerMerchantId   String?   @map("partner_merchant_id")
+  costBookedStatus    String    @default("booked") @map("cost_booked_status") // pending | booked | void
+  note                String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  customer        Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  reward          RewardCatalog        @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  partnerMerchant Merchant?            @relation("RedemptionPartnerMerchant", fields: [partnerMerchantId], references: [id], onDelete: SetNull)
+  marketingCost   MarketingCostRecord?
+
+  @@index([customerId])
+  @@index([couponStatus])
+  @@map("reward_redemptions")
+}
+
+/// 換罐／會員獎勵行銷成本（非商品銷售收入）
+model MarketingCostRecord {
+  id            String   @id @default(cuid())
+  costCode      String   @unique @map("cost_code")
+  redemptionId  String?  @unique @map("redemption_id")
+  customerId    String?  @map("customer_id")
+  amount        Float
+  costCategory  String   @map("cost_category") // jar_return_program | member_loyalty | marketing
+  paymentStatus String   @default("accrued") @map("payment_status") // accrued | paid | void
+  bookedAt      DateTime @default(now()) @map("booked_at")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  redemption RewardRedemption? @relation(fields: [redemptionId], references: [id], onDelete: SetNull)
+  customer   Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([bookedAt])
+  @@index([costCategory])
+  @@map("marketing_cost_records")
 }
 
 model Merchant {
   id             String   @id @default(cuid())
   merchantId     String   @unique // MER-0001
   name           String
-  type           String   @default("consignment") // consignment / pop_up / flagship / partner
+  type           String   @default("consignment") // 主要類型（複選時取第一項）
+  types          String[] @default(["consignment"]) // consignment / pop_up / flagship / partner / jar_exchange
+  industry       String? // beauty / restaurant / cafe / hypermarket
   contactName    String?
   phone          String?
   email          String?
@@ -135,10 +262,11 @@ model Merchant {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  orders       Order[]
-  settlements  Settlement[]
-  redemptions  Redemption[]
-  productRules MerchantProductRule[]
+  orders                 Order[]
+  settlements            Settlement[]
+  productRules           MerchantProductRule[]
+  partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
+  partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
   stocks       MerchantStock[]
   stockTxns    MerchantStockTxn[]
   shipments    Shipment[]
@@ -399,9 +527,8 @@ model Order {
   discount          Float     @default(0)
   shippingFee           Float @default(0) // 買家於此單支付的運費（不包郵／貨到付時為標準運費）
   companyShippingCost   Float @default(0) // 公司負擔的運費成本（包郵時為 711/黑貓 標準運費）
+  giftCost              Float @default(0) // 贈品進貨成本合計（不計入買家應付）
   total                 Float
-  pointsEarned      Int       @default(0)
-  pointsUsed        Int       @default(0)
   shippingMethod    String    @default("home") // home / convenience
   shippingAddress   String? // 宅配：家用地址；超商：可填門市地址
   cvsBrand          String? // 711 / familymart / hilife（僅 shippingMethod=convenience 時使用）
@@ -436,6 +563,8 @@ model OrderItem {
   quantity    Int
   unitPrice   Float
   subtotal    Float
+  isGift      Boolean @default(false) // 贈品：買家單價為 0，仍計入公司成本
+  unitCost    Float? // 贈品／成本紀錄：單件進貨成本
   weightGrams Int? // 每件重量（g）
   unit        String? // 片 / 包 / 支 / 件...
 
@@ -473,65 +602,6 @@ model Settlement {
 
   @@index([merchantId])
   @@index([status])
-}
-
-// =====================================================
-// CRM / Loyalty (換罐會員)
-// 注意：Member 已合併進 Customer。下面只剩點數 / 兌換相關紀錄。
-// =====================================================
-
-model PointLedger {
-  id           String   @id @default(cuid())
-  customerId   String
-  type         String // earn / redeem / adjust / expire
-  source       String // serial_code / order / campaign / manual / redemption
-  points       Int
-  balanceAfter Int
-  reference    String?
-  note         String?
-  createdAt    DateTime @default(now())
-
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  @@index([customerId])
-  @@index([type])
-}
-
-model Reward {
-  id          String   @id @default(cuid())
-  rewardId    String   @unique // RWD-0001
-  name        String
-  description String?
-  imageUrl    String?
-  pointsCost  Int
-  cashCost    Float    @default(0)
-  stock       Int      @default(0)
-  status      String   @default("active") // active / inactive
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  redemptions Redemption[]
-}
-
-model Redemption {
-  id               String    @id @default(cuid())
-  redemptionId     String    @unique // RED-0001
-  customerId       String
-  rewardId         String
-  pointsUsed       Int
-  payoutMerchantId String?
-  payoutAmount     Float     @default(0)
-  status           String    @default("pending") // pending / fulfilled / cancelled
-  fulfilledAt      DateTime?
-  note             String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  reward         Reward    @relation(fields: [rewardId], references: [id], onDelete: Restrict)
-  payoutMerchant Merchant? @relation(fields: [payoutMerchantId], references: [id], onDelete: SetNull)
-
-  @@index([customerId])
 }
 
 // =====================================================

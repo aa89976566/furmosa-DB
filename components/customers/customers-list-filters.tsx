@@ -50,7 +50,7 @@ export function CustomersListFilters({
           href={buildHref({ filter: null })}
           className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs hover:bg-muted"
         >
-          篩選：{filter === 'loyalty' ? '換罐會員' : '訂閱中'}
+          篩選：訂閱中
           <X className="h-3 w-3" />
         </Link>
       ) : null}

@@ -8,8 +8,8 @@ import {
   ShoppingBag,
   Store,
   UserPlus,
-  UserRound,
   Wallet,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/format';
@@ -22,10 +22,11 @@ export type DashboardKpis = {
   lowStockCount: number;
   merchantsCount: number;
   pendingSettlementAmount: number;
-  membersCount: number;
   activeSubscriptionsCount: number;
   repurchaseRate: number;
   newCustomersThisMonth: number;
+  monthJarPointsIssued: number;
+  monthGroomingCouponCost: number;
 };
 
 const accentStyles = {
@@ -233,14 +234,6 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
             href="/customers"
           />
           <MetricKpi
-            title="換罐會員"
-            value={formatNumber(kpis.membersCount)}
-            description="loyalty 會員總數"
-            icon={UserRound}
-            accent="primary"
-            href="/customers"
-          />
-          <MetricKpi
             title="本月回購率"
             value={formatPercent(kpis.repurchaseRate)}
             description="本月下單客戶中曾有訂單占比"
@@ -254,6 +247,25 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
             icon={Repeat}
             accent="info"
             href="/subscriptions"
+          />
+        </KpiGroup>
+
+        <KpiGroup title="換罐會員" description="本月返航與美容券成本">
+          <MetricKpi
+            title="本月換罐點數發放"
+            value={formatNumber(kpis.monthJarPointsIssued)}
+            description="序號返航入帳點數合計"
+            icon={Sparkles}
+            accent="info"
+            href="/jar-exchange/manage?tab=ledger"
+          />
+          <MetricKpi
+            title="本月美容券成本"
+            value={formatCurrency(kpis.monthGroomingCouponCost)}
+            description="行銷成本 · 非銷售收入"
+            icon={Wallet}
+            accent="warning"
+            href="/jar-exchange/manage?tab=rewards"
           />
         </KpiGroup>
 

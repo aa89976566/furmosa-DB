@@ -55,6 +55,13 @@ export function OrderAmountSummary({
           <span className="tabular-nums">{formatCurrency(summary.companyShippingCost)}</span>
         </div>
       ) : null}
+      {summary.giftCost > 0 ? (
+        <div className="flex justify-between rounded-md bg-warning/5 px-2 py-1.5 text-xs text-warning">
+          <span>贈品成本（公司開銷）</span>
+          <span className="tabular-nums">{formatCurrency(summary.giftCost)}</span>
+        </div>
+      ) : null}
+
       {summary.companyShippingCost > 0 ? (
         <p className="text-[11px] text-muted-foreground">
           公司運費成本不計入買家合計；{summary.feeTypeLabel}。

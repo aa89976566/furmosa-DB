@@ -42,6 +42,7 @@ export async function loadOrderFormOptions() {
           name: true,
           sku: true,
           price: true,
+          cost: true,
           unit: true,
           priceTiers: {
             orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
@@ -51,6 +52,7 @@ export async function loadOrderFormOptions() {
               unit: true,
               unitQty: true,
               price: true,
+              cost: true,
               notes: true,
             },
           },

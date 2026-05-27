@@ -7,6 +7,7 @@ import {
   shipmentCarrierFromOrder,
   SHIPPING_FEE_TYPES,
 } from '@/lib/shipping-policy';
+import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -143,45 +144,77 @@ export async function createOrder(formData: FormData) {
     }
   }
 
-  // 解析商品 line items（含規格資訊：weightGrams / unit）
   const productIds = formData.getAll('productId').map(String);
+  const tierIds = formData.getAll('tierId').map(String);
   const quantities = formData.getAll('quantity').map(String);
   const unitPrices = formData.getAll('unitPrice').map(String);
   const weightGrams = formData.getAll('weightGrams').map(String);
   const units = formData.getAll('unit').map(String);
+  const lineIsGifts = formData.getAll('lineIsGift').map(String);
 
-  const items = productIds
+  type ParsedLine = {
+    productId: string;
+    tierId: string;
+    quantity: number;
+    unitPrice: number;
+    isGift: boolean;
+    unitCost: number;
+    weightGrams: number | null;
+    unit: string | null;
+  };
+
+  const items: ParsedLine[] = productIds
     .map((pid, idx) => {
       const wRaw = (weightGrams[idx] ?? '').trim();
       const w = wRaw === '' ? null : Number(wRaw);
       const u = (units[idx] ?? '').trim();
+      const tierId = (tierIds[idx] ?? '').trim();
+      const isGift = (lineIsGifts[idx] ?? '0') === '1';
       return {
         productId: pid,
+        tierId,
         quantity: toInt(quantities[idx]),
-        unitPrice: toNumber(unitPrices[idx]),
+        unitPrice: isGift ? 0 : toNumber(unitPrices[idx]),
+        isGift,
+        unitCost: 0,
         weightGrams: w != null && Number.isFinite(w) && w > 0 ? Math.round(w) : null,
         unit: u.length > 0 ? u : null,
       };
     })
     .filter((it) => it.productId && it.quantity > 0);
 
-  if (items.length === 0) throw new Error('至少要有一筆商品，且數量大於 0');
+  if (items.length === 0) {
+    throw new Error('至少要有一筆商品，且數量大於 0');
+  }
 
-  // 撈商品名稱/SKU/重量/單位，避免依賴 client 端傳
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
-    select: { id: true, name: true, sku: true, unit: true, price: true },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      unit: true,
+      price: true,
+      cost: true,
+      priceTiers: { select: { id: true, cost: true } },
+    },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
 
+  let giftCost = 0;
   for (const it of items) {
-    if (!productMap.has(it.productId)) {
-      throw new Error('包含不存在的商品');
-    }
+    const prod = productMap.get(it.productId);
+    if (!prod) throw new Error('包含不存在的商品');
     if (it.unitPrice < 0) throw new Error('單價不可為負數');
+    if (it.isGift) {
+      it.unitCost = resolveOrderItemUnitCost(prod, it.tierId || null);
+      giftCost += it.unitCost * it.quantity;
+    }
   }
 
-  const subtotal = items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
+  const subtotal = items
+    .filter((it) => !it.isGift)
+    .reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
   const total = orderTotalFromAmounts(subtotal, discount, shippingFee);
 
   // 預先撈客戶資料：之後要同步到 Shipment 收件人
@@ -211,6 +244,7 @@ export async function createOrder(formData: FormData) {
         discount,
         shippingFee,
         companyShippingCost,
+        giftCost,
         total,
         shippingMethod,
         shippingAddress,
@@ -229,7 +263,8 @@ export async function createOrder(formData: FormData) {
               quantity: it.quantity,
               unitPrice: it.unitPrice,
               subtotal: it.unitPrice * it.quantity,
-              // 規格資訊：若使用者選了規格 tier，會傳重量 / 單位；否則退回商品基礎 unit
+              isGift: it.isGift,
+              unitCost: it.isGift ? it.unitCost : null,
               weightGrams: it.weightGrams,
               unit: it.unit ?? prod.unit,
             };

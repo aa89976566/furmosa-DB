@@ -68,6 +68,8 @@ export type CreateMerchantBaseInput = {
   merchantId: string;
   name: string;
   type: string;
+  types: string[];
+  industry: string | null;
   contactName: string | null;
   phone: string | null;
   email: string | null;
@@ -76,41 +78,11 @@ export type CreateMerchantBaseInput = {
   shipping: MerchantShippingFields;
 };
 
-/**
- * 建立店家：create 僅含 Prisma 舊版也認得的欄位，其餘聯絡／運輸欄位用 raw SQL 補上。
- */
+/** @deprecated 請改用 insertMerchantRecord（lib/merchant-create.ts） */
 export async function createMerchantBaseRecord(
   prisma: PrismaClient,
   input: CreateMerchantBaseInput,
 ) {
-  const displayAddress = merchantShippingDisplayAddress(
-    input.shipping.preferredCarrier,
-    input.shipping.pickupStoreName,
-    input.shipping.address,
-  );
-
-  const merchant = await prisma.merchant.create({
-    data: {
-      merchantId: input.merchantId,
-      name: input.name,
-      type: input.type,
-      status: 'active',
-    },
-  });
-
-  await prisma.$executeRaw`
-    UPDATE "Merchant"
-    SET
-      "contactName" = ${input.contactName},
-      "phone" = ${input.phone},
-      "email" = ${input.email},
-      "city" = ${input.city},
-      "notes" = ${input.notes},
-      "preferredCarrier" = ${input.shipping.preferredCarrier},
-      "pickupStoreName" = ${input.shipping.pickupStoreName},
-      "address" = ${input.shipping.address ?? displayAddress}
-    WHERE "id" = ${merchant.id}
-  `;
-
-  return merchant;
+  const { insertMerchantRecord } = await import('@/lib/merchant-create');
+  return insertMerchantRecord(prisma, input);
 }

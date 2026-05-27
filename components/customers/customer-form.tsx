@@ -45,6 +45,14 @@ export function CustomerForm() {
         <Field label="Email">
           <Input name="email" type="text" inputMode="email" maxLength={120} placeholder="選填" />
         </Field>
+        <Field label="LINE User ID" className="sm:col-span-2">
+          <Input
+            name="lineUserId"
+            maxLength={40}
+            placeholder="選填，例：Uxxxxxxxx（Messaging API 的 userId）"
+            className="font-mono text-sm"
+          />
+        </Field>
         <Field label="LINE 顯示名稱" className="sm:col-span-2">
           <Input name="lineDisplay" maxLength={60} placeholder="選填" />
         </Field>

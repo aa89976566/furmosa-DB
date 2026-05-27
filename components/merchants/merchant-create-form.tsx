@@ -10,7 +10,8 @@ import {
   type CreateMerchantState,
 } from '@/app/(main)/merchants/create-merchant-action';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
-import { merchantTypeLabel } from '@/lib/labels';
+import { MerchantTypeFields } from '@/components/merchants/merchant-type-fields';
+import { merchantIndustryLabel } from '@/lib/labels';
 import {
   MerchantField,
   MerchantFormActions,
@@ -38,19 +39,21 @@ export function MerchantCreateForm() {
       <MerchantSection
         step={1}
         title="基本資料"
-        description="店家名稱與類型；編號 MER-XXXX 會自動產生。"
+        description="店家名稱與類型（可複選）；編號 MER-XXXX 會自動產生。"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <MerchantField label="店家名稱" required className="sm:col-span-2">
             <Input name="name" required maxLength={120} placeholder="例：淡水妞妞" />
           </MerchantField>
-          <MerchantField label="類型">
+          <MerchantTypeFields defaultTypes={['consignment']} />
+          <MerchantField label="產業">
             <select
-              name="type"
-              defaultValue="consignment"
+              name="industry"
+              defaultValue=""
               className="flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
             >
-              {Object.entries(merchantTypeLabel).map(([value, label]) => (
+              <option value="">未設定</option>
+              {Object.entries(merchantIndustryLabel).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

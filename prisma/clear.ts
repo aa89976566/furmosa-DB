@@ -11,9 +11,12 @@ async function main() {
   console.log('🧹 清空業務資料中（保留登入帳號、倉庫、訂閱方案）...');
 
   // 子表先清
-  await prisma.redemption.deleteMany();
-  await prisma.reward.deleteMany();
-  await prisma.pointLedger.deleteMany();
+  await prisma.marketingCostRecord.deleteMany();
+  await prisma.rewardRedemption.deleteMany();
+  await prisma.memberPointsLedger.deleteMany();
+  await prisma.jarCode.deleteMany();
+  await prisma.rewardCatalog.deleteMany();
+  await prisma.customerService.deleteMany();
   await prisma.subscriptionShipment.deleteMany();
   await prisma.subscription.deleteMany();
   // 不刪 subscriptionPlan：3 個方案是真實營運用，要保留

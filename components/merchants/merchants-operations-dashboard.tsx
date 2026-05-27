@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
 import type { MerchantsPortfolioReport } from '@/lib/merchant-report';
-import { merchantTypeLabel } from '@/lib/labels';
+import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges';
+import { merchantIndustryDisplay } from '@/lib/labels';
 import { ChevronRight } from 'lucide-react';
 
 export function MerchantsOperationsDashboard({ report }: { report: MerchantsPortfolioReport }) {
@@ -93,8 +94,9 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
                   <TableCell className="font-mono text-xs">{merchant.merchantId}</TableCell>
                   <TableCell className="font-medium">{merchant.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{merchantTypeLabel[merchant.type]}</Badge>
+                    <MerchantTypeBadges types={merchant.types} />
                   </TableCell>
+                  <TableCell>{merchantIndustryDisplay(merchant.industry)}</TableCell>
                   <TableCell>{merchant.city ?? '-'}</TableCell>
                   <TableCell className="text-right">
                     <StockQty quantity={merchant.stockUnits} />

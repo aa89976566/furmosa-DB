@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
 
 const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual'] as const;
 
@@ -37,7 +38,6 @@ export async function getDashboardData() {
     products,
     merchantsCount,
     pendingSettlement,
-    membersCount,
     newCustomersThisMonth,
     activeSubscriptionsCount,
     weekShipments,
@@ -47,6 +47,7 @@ export async function getDashboardData() {
     topMerchantsRaw,
     lowStockBalances,
     pendingTasks,
+    jarKpis,
   ] = (await runInBatches([
     // 順序必須與上方解構變數一致
     () =>
@@ -75,7 +76,6 @@ export async function getDashboardData() {
         _sum: { payable: true },
         where: { status: { in: ['draft', 'reviewing', 'approved'] } },
       }),
-    () => prisma.customer.count({ where: { isLoyaltyMember: true } }),
     () =>
       prisma.customer.count({
         where: { createdAt: { gte: startOfMonth } },
@@ -143,6 +143,7 @@ export async function getDashboardData() {
         orderBy: { dueDate: 'asc' },
         take: 6,
       }),
+    () => getMonthJarExchangeKpis(),
   ])) as [
     number,
     { _sum: { total: number | null } },
@@ -156,7 +157,6 @@ export async function getDashboardData() {
     }[],
     number,
     { _sum: { payable: number | null } },
-    number,
     number,
     number,
     Awaited<
@@ -194,6 +194,7 @@ export async function getDashboardData() {
         }>
       >
     >,
+    Awaited<ReturnType<typeof getMonthJarExchangeKpis>>,
   ];
 
   // 庫存總值 + 低庫存
@@ -296,10 +297,11 @@ export async function getDashboardData() {
       lowStockCount: lowStockProducts.length,
       merchantsCount,
       pendingSettlementAmount: Number(pendingSettlement._sum.payable ?? 0),
-      membersCount,
       activeSubscriptionsCount,
       repurchaseRate,
       newCustomersThisMonth,
+      monthJarPointsIssued: jarKpis.monthJarPointsIssued,
+      monthGroomingCouponCost: jarKpis.monthGroomingCouponCost,
     },
     revenueTrend,
     sourceData,

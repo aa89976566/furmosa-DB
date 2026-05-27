@@ -99,12 +99,17 @@ export const productCategoryLabel: Record<string, string> = {
   other: '其他',
 };
 
-export const merchantTypeLabel: Record<string, string> = {
-  consignment: '寄賣',
-  pop_up: '快閃',
-  flagship: '旗艦',
-  partner: '合作夥伴',
-};
+export {
+  merchantTypeLabel,
+  merchantTypeDisplay,
+  MERCHANT_TYPES,
+} from '@/lib/merchant-types';
+
+export {
+  merchantIndustryLabel,
+  merchantIndustryDisplay,
+  MERCHANT_INDUSTRIES,
+} from '@/lib/merchant-industry';
 
 export const customerTypeLabel: Record<string, string> = {
   individual: '個人',
@@ -114,27 +119,6 @@ export const customerTypeLabel: Record<string, string> = {
 export const memberStatusBadge: Record<string, string> = {
   active: '啟用',
   inactive: '停用',
-};
-
-export const pointLedgerTypeLabel: Record<string, string> = {
-  earn: '入點',
-  redeem: '兌換',
-  adjust: '調整',
-  expire: '過期',
-};
-
-export const pointSourceLabel: Record<string, string> = {
-  serial_code: '序號集點',
-  order: '訂單贈點',
-  campaign: '活動贈點',
-  manual: '人工調整',
-  redemption: '兌換扣點',
-};
-
-export const redemptionStatusLabel: Record<string, string> = {
-  pending: '待履約',
-  fulfilled: '已履約',
-  cancelled: '已取消',
 };
 
 // =====================================================
@@ -166,11 +150,4 @@ export const subscriptionShipmentStatusLabel: Record<string, string> = {
   shipped: '已出貨',
   delivered: '已送達',
   skipped: '本次跳過',
-};
-
-export const loyaltyTierLabel: Record<string, string> = {
-  bronze: '銅',
-  silver: '銀',
-  gold: '金',
-  platinum: '白金',
 };

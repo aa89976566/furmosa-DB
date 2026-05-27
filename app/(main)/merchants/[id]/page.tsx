@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getMerchantIndustry } from '@/lib/merchant-industry-persist';
 import { prisma } from '@/lib/prisma';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
-import { merchantTypeLabel } from '@/lib/labels';
+import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
+import { merchantIndustryDisplay } from '@/lib/labels';
 import { MerchantOperationsHub } from './merchant-operations-hub';
 import { MerchantShippingForm } from '@/components/merchants/merchant-shipping-form';
 import {
@@ -53,6 +56,11 @@ export default async function MerchantOverviewPage({
   });
   if (!merchant) notFound();
 
+  const [industry, types] = await Promise.all([
+    getMerchantIndustry(prisma, merchant.id),
+    getMerchantTypes(prisma, merchant.id, merchant.type),
+  ]);
+
   const productCount = new Set([
     ...merchant.stocks.map((s) => s.productId),
     ...merchant.productRules.map((r) => r.id),
@@ -86,6 +94,8 @@ export default async function MerchantOverviewPage({
             <MerchantShippingForm
               merchant={{
                 id: merchant.id,
+                types,
+                industry,
                 contactName: merchant.contactName,
                 phone: merchant.phone,
                 email: merchant.email,
@@ -160,10 +170,8 @@ export default async function MerchantOverviewPage({
               label="編號"
               value={<span className="font-mono text-xs">{merchant.merchantId}</span>}
             />
-            <MerchantDlRow
-              label="類型"
-              value={<Badge variant="secondary">{merchantTypeLabel[merchant.type]}</Badge>}
-            />
+            <MerchantDlRow label="類型" value={<MerchantTypeBadges types={types} />} />
+            <MerchantDlRow label="產業" value={merchantIndustryDisplay(industry)} />
             <MerchantDlRow
               label="預設物流"
               value={merchantCarrierLabel(merchant.preferredCarrier)}

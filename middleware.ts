@@ -9,6 +9,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/line') ||
     pathname.startsWith('/favicon') ||
     pathname.match(/\.(svg|png|jpg|jpeg|webp|ico|css|js)$/)
   ) {

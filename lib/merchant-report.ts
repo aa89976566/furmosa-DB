@@ -1,3 +1,6 @@
+import { getMerchantIndustryMap } from '@/lib/merchant-industry-persist';
+import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
+import type { MerchantType } from '@/lib/merchant-types';
 import { prisma } from '@/lib/prisma';
 import { defaultPeriod } from '@/lib/settlement-calc';
 
@@ -29,6 +32,8 @@ export type MerchantPortfolioRow = {
   merchantId: string;
   name: string;
   type: string;
+  types: MerchantType[];
+  industry: string | null;
   city: string | null;
   phone: string | null;
   commissionRate: number;
@@ -169,6 +174,15 @@ export async function loadMerchantsPortfolioReport(
     );
   }
 
+  const industryByMerchant = await getMerchantIndustryMap(
+    prisma,
+    merchants.map((m) => m.id),
+  );
+  const typesByMerchant = await getMerchantTypesMap(
+    prisma,
+    merchants.map((m) => ({ id: m.id, type: m.type })),
+  );
+
   const merchantRows: MerchantPortfolioRow[] = merchants.map((merchant) => {
     const stock = stockByMerchant.get(merchant.id) ?? { total: 0, low: 0, out: 0 };
     const sales = salesByMerchant.get(merchant.id) ?? {
@@ -183,6 +197,8 @@ export async function loadMerchantsPortfolioReport(
       merchantId: merchant.merchantId,
       name: merchant.name,
       type: merchant.type,
+      types: typesByMerchant.get(merchant.id) ?? ['consignment'],
+      industry: industryByMerchant.get(merchant.id) ?? null,
       city: merchant.city,
       phone: merchant.phone,
       commissionRate: Number(merchant.commissionRate),

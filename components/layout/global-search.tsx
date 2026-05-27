@@ -19,12 +19,14 @@ export function GlobalSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const qFromUrl = searchParams.get('q') ?? '';
+  const jarExchange = pathname.startsWith('/jar-exchange');
+  const qFromUrl = jarExchange ? '' : (searchParams.get('q') ?? '');
   const [value, setValue] = useState(qFromUrl);
 
   useEffect(() => {
-    setValue(qFromUrl);
-  }, [qFromUrl]);
+    if (!jarExchange) setValue(qFromUrl);
+    else setValue('');
+  }, [qFromUrl, jarExchange]);
 
   const searchable = SEARCHABLE_PREFIXES.some((prefix) => {
     // 廠商詳情頁不掛 q，避免以為有篩選；搜尋改導向產品列表
