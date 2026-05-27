@@ -3,13 +3,24 @@ import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes
 export type ParsedLineText =
   | { kind: 'jar_code'; code: string }
   | { kind: 'bind'; identifier: string }
+  | { kind: 'bind_help' }
   | { kind: 'balance' }
   | { kind: 'help' }
+  | { kind: 'greeting' }
+  | { kind: 'status' }
+  | { kind: 'rewards_list' }
+  | { kind: 'redeem_reward'; target: string }
   | { kind: 'unknown'; text: string };
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
-const BALANCE_RE = /^(?:點數|点数|餘額|余额|balance|查點數)$/i;
-const HELP_RE = /^(?:說明|帮助|help|\?|？)$/i;
+const REDEEM_REWARD_RE = /^(?:兌換|兑换|換|redeem)\s*[：:\s]?\s*(.+)$/i;
+const BALANCE_RE = /^(?:點數|点数|餘額|余额|balance|查點數|查点数)$/i;
+const HELP_RE = /^(?:說明|帮助|help|\?|？|指令|使用方法)$/i;
+const BIND_HELP_RE =
+  /^(?:如何綁定|怎么绑定|怎麼綁定|如何绑定|綁定方式|绑定方式|怎麼綁|如何綁|我要綁定)$/i;
+const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
+const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑定状态|我是誰|我是谁)$/i;
+const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|reward|rewards)$/i;
 
 export function parseLineUserText(raw: string): ParsedLineText {
   const text = raw.trim();
@@ -20,8 +31,17 @@ export function parseLineUserText(raw: string): ParsedLineText {
     return { kind: 'bind', identifier: bind[1].trim() };
   }
 
+  const redeemReward = text.match(REDEEM_REWARD_RE);
+  if (redeemReward?.[1]) {
+    return { kind: 'redeem_reward', target: redeemReward[1].trim() };
+  }
+
+  if (BIND_HELP_RE.test(text)) return { kind: 'bind_help' };
   if (BALANCE_RE.test(text)) return { kind: 'balance' };
   if (HELP_RE.test(text)) return { kind: 'help' };
+  if (GREETING_RE.test(text)) return { kind: 'greeting' };
+  if (STATUS_RE.test(text)) return { kind: 'status' };
+  if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
 
   const code = normalizeJarCode(text);
   if (code && isValidJarCodeFormat(code)) {
@@ -31,14 +51,4 @@ export function parseLineUserText(raw: string): ParsedLineText {
   return { kind: 'unknown', text };
 }
 
-export const LINE_HELP_TEXT = `【匠寵換罐 LINE 服務】
-
-1️⃣ 首次使用請先綁定會員：
-綁定 CUST-0001
-或：綁定 0912345678
-
-2️⃣ 返航序號（8 位數字）直接傳送即可兌換點數
-
-3️⃣ 查詢點數：傳「點數」
-
-綁定後後台可依您的 LINE ID 對應會員資料。`;
+export { LINE_HELP_TEXT, LINE_BIND_HELP_TEXT, LINE_WELCOME_TEXT } from '@/lib/line/messages';

@@ -18,7 +18,7 @@
     "db:clear": "tsx prisma/clear.ts",
     "db:import": "tsx prisma/import.ts",
     "db:reset": "prisma migrate reset --force",
-    "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts"
+    "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
