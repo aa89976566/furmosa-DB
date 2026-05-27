@@ -18,6 +18,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('開戶存罐罐').kind, 'bind_help');
     assert.equal(parseLineUserText('存罐攻略').kind, 'help');
     assert.equal(parseLineUserText('小金庫').kind, 'savings');
+    assert.equal(parseLineUserText('會員資料').kind, 'savings');
   });
 
   it('recognizes jar codes', () => {

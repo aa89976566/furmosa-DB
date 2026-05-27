@@ -92,13 +92,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       const snapshot = await loadDepositSnapshot(customer);
       await replyLineText(
         replyToken,
-        `${LINE_WELCOME_TEXT}\n\n${formatQuickBalanceMessage(snapshot)}\n\n有空罐就傳序號存進小金庫～`,
+        `${LINE_WELCOME_TEXT}\n\n${formatQuickBalanceMessage(snapshot)}\n\n有空罐就傳序號存罐～`,
       );
       return;
     }
     await replyLineText(
       replyToken,
-      `${LINE_WELCOME_TEXT}\n\n您還沒開戶，傳「如何綁定」或「開戶存罐罐」就能開始。`,
+      `${LINE_WELCOME_TEXT}\n\n您還沒開戶，請點選單「加入會員（註冊）」或傳「如何綁定」。`,
     );
     return;
   }
@@ -107,7 +107,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     if (!customer) {
       await replyLineText(
         replyToken,
-        `還沒開戶存罐罐。\n\n${LINE_BIND_HELP_TEXT}\n\n您的 LINE ID：${lineUserId}`,
+        `還沒開戶存罐罐。\n\n${LINE_BIND_HELP_TEXT}`,
       );
       return;
     }
@@ -123,7 +123,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     }
     await replyLineText(
       replyToken,
-      `✅ 開戶成功！\n${result.customerName}（${result.customerCode}）\n\n接下來：\n• 傳 8 位序號 → 存罐入帳\n• 小金庫 → 看累積幾罐\n• 獎勵 → 看能換什麼`,
+      `✅ 開戶成功！\n${result.customerName}\n\n接下來：\n• 傳 8 位序號 → 存罐入帳\n• 選單「會員資料與存罐紀錄」→ 看點數與罐數\n• 選單「兌換獎勵」→ 用點數換好康`,
     );
     return;
   }
