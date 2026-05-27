@@ -1,4 +1,4 @@
-import type { LineRewardOption } from '@/lib/line/reward-menu';
+import { formatLineRewardLabel, type LineRewardOption } from '@/lib/line/reward-menu';
 import {
   LINE_BTN,
   LINE_MENU_HINT_GUEST,
@@ -210,7 +210,7 @@ export function buildRedeemPickerMessages(
             },
             {
               type: 'text',
-              text: `目前罐罐點數：${balance} 點\n\n${lines.join('\n')}`,
+              text: `目前罐罐點數：${balance} 點\n\n可兌換贈品：\n${lines.join('\n')}`,
               size: 'sm',
               wrap: true,
             },

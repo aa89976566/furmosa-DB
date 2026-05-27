@@ -5,10 +5,18 @@ import {
   formatJarDepositSuccessMessage,
   formatSavingsStatusMessage,
 } from '../jar-deposit-copy';
+import { formatLineRewardLabel } from '../reward-menu';
 import { parseLineUserText } from '../parse-message';
 import { CUSTOMER_ID_EXAMPLE } from '../../customers/customer-id';
 
 describe('parseLineUserText', () => {
+  it('formats reward line with 贈品 prefix', () => {
+    assert.equal(
+      formatLineRewardLabel({ rewardName: '洗澡折 250', pointsRequired: 10 }),
+      '贈品｜洗澡折 250（10 點）',
+    );
+  });
+
   it('recognizes bind commands', () => {
     assert.equal(parseLineUserText(`綁定 ${CUSTOMER_ID_EXAMPLE}`).kind, 'bind');
     assert.equal(parseLineUserText('綁定 0912345678').kind, 'bind');

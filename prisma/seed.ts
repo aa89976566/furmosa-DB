@@ -633,8 +633,8 @@ async function main() {
 
   // ===== 換罐會員範例 =====
   const jarRewards = [
-    { name: '洗澡折 100', points: 5, face: 100, cost: 85 },
-    { name: '免費零食兌換', points: 3, face: 50, cost: 35 },
+    { name: '洗澡折 250', points: 10, face: 250, cost: 200 },
+    { name: '免費 50g', points: 5, face: 50, cost: 35 },
     { name: '限定雞肉片', points: 8, face: 120, cost: 90 },
   ];
   for (let i = 0; i < jarRewards.length; i++) {

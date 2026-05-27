@@ -8,6 +8,11 @@ export type LineRewardOption = {
   pointsRequired: number;
 };
 
+/** LINE 兌換列表：標示為贈品 */
+export function formatLineRewardLabel(r: Pick<LineRewardOption, 'rewardName' | 'pointsRequired'>): string {
+  return `贈品｜${r.rewardName}（${r.pointsRequired} 點）`;
+}
+
 export async function listActiveRewardsForLine(): Promise<LineRewardOption[]> {
   const now = new Date();
   const rows = await prisma.rewardCatalog.findMany({
@@ -47,7 +52,7 @@ export function formatRewardMenuText(
       ? `【可兌換獎勵】目前點數：${balance} 點\n`
       : '【可兌換獎勵】\n';
 
-  const lines = rewards.map((r) => `${r.index}. ${r.rewardName} — ${r.pointsRequired} 罐罐點數`);
+  const lines = rewards.map((r) => `${r.index}. ${formatLineRewardLabel(r)}`);
 
   const redeemHint =
     rewards.length === 1

@@ -10,7 +10,7 @@ export const LINE_BTN = {
   cancel: '重新填寫',
   speciesSkip: '先不填毛孩',
   /** 兌換 */
-  redeemItem: (n: number) => `用點數換（${n}）`,
+  redeemItem: (n: number) => `換贈品（${n}）`,
 } as const;
 
 export const LINE_MENU_HINT_REGISTERED =
