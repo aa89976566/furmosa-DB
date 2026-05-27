@@ -1,13 +1,13 @@
 import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
-import { prisma } from '@/lib/prisma';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
   formatSavingsStatusMessage,
 } from '@/lib/line/jar-deposit-copy';
+import { buildMainMenuMessages, buildRedeemPickerMessages, replyJarDepositHub } from '@/lib/line/flex-menu';
 import {
   LINE_BIND_HELP_TEXT,
   LINE_HELP_TEXT,
@@ -15,19 +15,27 @@ import {
   lineBindRequiredText,
   lineUnknownText,
 } from '@/lib/line/messages';
+import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
+import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
 import {
   formatRewardMenuText,
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
-import { replyJarDepositHub } from '@/lib/line/flex-menu';
-import { replyLineText } from '@/lib/line/reply';
+import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
 
 type LineMessageEvent = {
   type: 'message';
   message: { type: string; id: string; text?: string };
+  source: { type: string; userId?: string };
+  replyToken: string;
+};
+
+type LinePostbackEvent = {
+  type: 'postback';
+  postback: { data: string };
   source: { type: string; userId?: string };
   replyToken: string;
 };
@@ -38,7 +46,11 @@ type LineFollowEvent = {
   replyToken: string;
 };
 
-export type LineWebhookEvent = LineMessageEvent | LineFollowEvent | { type: string; replyToken?: string };
+export type LineWebhookEvent =
+  | LineMessageEvent
+  | LinePostbackEvent
+  | LineFollowEvent
+  | { type: string; replyToken?: string };
 
 type BoundCustomer = NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>;
 
@@ -55,13 +67,26 @@ async function loadDepositSnapshot(customer: BoundCustomer) {
 export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<void> {
   if (event.type === 'follow' && 'replyToken' in event && event.replyToken) {
     const follow = event as LineFollowEvent;
-    const lineUserId = follow.source?.userId;
-    if (!lineUserId) return;
+    if (!follow.source?.userId) return;
     await replyJarDepositHub(event.replyToken, {
-      title: '歡迎來匠寵罐罐存款',
       body: LINE_WELCOME_TEXT,
-      emphasizeRegister: true,
+      registered: false,
     });
+    return;
+  }
+
+  if (event.type === 'postback' && 'replyToken' in event && event.replyToken) {
+    const pb = event as LinePostbackEvent;
+    const lineUserId = pb.source?.userId;
+    if (!lineUserId) return;
+
+    const rl = checkLineRateLimit(`line:user:${lineUserId}`, { limit: 30, windowMs: 60_000 });
+    if (!rl.ok) {
+      await replyLineText(pb.replyToken, '操作過於頻繁，請稍後再試');
+      return;
+    }
+
+    await handleLinePostback(pb.replyToken, lineUserId, pb.postback.data);
     return;
   }
 
@@ -79,54 +104,47 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
+    return;
+  }
+
   const parsed = parseLineUserText(msgEvent.message.text);
   const customer = await findCustomerByLineUserId(lineUserId);
 
   if (parsed.kind === 'help') {
-    await replyJarDepositHub(replyToken, {
-      title: '匠寵罐罐存款｜怎麼用',
-      body: LINE_HELP_TEXT,
-      emphasizeRegister: !customer,
-    });
+    await replyJarDepositHub(replyToken, { body: LINE_HELP_TEXT, registered: Boolean(customer) });
     return;
   }
 
   if (parsed.kind === 'bind_help') {
-    await replyJarDepositHub(replyToken, {
-      title: '開戶存罐罐',
-      body: LINE_BIND_HELP_TEXT,
-      emphasizeRegister: true,
-    });
+    await replyJarDepositHub(replyToken, { body: LINE_BIND_HELP_TEXT, registered: false });
     return;
   }
 
   if (parsed.kind === 'greeting') {
     if (customer) {
       const snapshot = await loadDepositSnapshot(customer);
-      await replyLineText(
+      await replyLineTextPlus(
         replyToken,
         `${LINE_WELCOME_TEXT}\n\n${formatQuickBalanceMessage(snapshot)}\n\n有空罐就傳序號存罐～`,
+        buildMainMenuMessages({ registered: true }),
       );
       return;
     }
-    await replyJarDepositHub(replyToken, {
-      title: '歡迎！先開戶存罐罐',
-      body: '您還沒開戶。請點下方按鈕填表單，或傳「如何綁定」。',
-      emphasizeRegister: true,
-    });
+    await replyJarDepositHub(replyToken, { body: LINE_WELCOME_TEXT, registered: false });
     return;
   }
 
-  if (parsed.kind === 'status') {
+  if (parsed.kind === 'status' || parsed.kind === 'savings') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, {
-        title: '尚未開戶',
-        body: '還沒開戶存罐罐，請點下方按鈕填表單。',
-        emphasizeRegister: true,
-      });
+      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
       return;
     }
-    await replyLineText(replyToken, formatSavingsStatusMessage(await loadDepositSnapshot(customer)));
+    await replyLineTextPlus(
+      replyToken,
+      formatSavingsStatusMessage(await loadDepositSnapshot(customer)),
+      buildMainMenuMessages({ registered: true }),
+    );
     return;
   }
 
@@ -136,70 +154,50 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineText(
+    await replyLineTextPlus(
       replyToken,
-      `✅ 開戶成功！\n${result.customerName}\n\n接下來：\n• 傳 8 位序號 → 存罐入帳\n• 選單「會員資料與存罐紀錄」→ 看點數與罐數\n• 選單「兌換獎勵」→ 用點數換好康`,
+      `✅ 開戶成功！\n${result.customerName}\n\n傳 8 位序號存罐，或點下方按鈕。`,
+      buildMainMenuMessages({ registered: true }),
     );
     return;
   }
 
   if (parsed.kind === 'balance') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, {
-        title: '請先開戶',
-        body: lineBindRequiredText(),
-        emphasizeRegister: true,
-      });
+      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
       return;
     }
-    await replyLineText(replyToken, formatQuickBalanceMessage(await loadDepositSnapshot(customer)));
-    return;
-  }
-
-  if (parsed.kind === 'savings') {
-    if (!customer) {
-      await replyJarDepositHub(replyToken, {
-        title: '請先開戶',
-        body: lineBindRequiredText(),
-        emphasizeRegister: true,
-      });
-      return;
-    }
-    await replyLineText(replyToken, formatSavingsStatusMessage(await loadDepositSnapshot(customer)));
+    await replyLineTextPlus(
+      replyToken,
+      formatQuickBalanceMessage(await loadDepositSnapshot(customer)),
+      buildMainMenuMessages({ registered: true }),
+    );
     return;
   }
 
   if (parsed.kind === 'rewards_list') {
     const rewards = await listActiveRewardsForLine();
     if (!customer) {
-      await replyLineText(
-        replyToken,
-        `${formatRewardMenuText(rewards)}\n\n⚠️ 兌換前先開戶存罐罐\n${LINE_BIND_HELP_TEXT}`,
-      );
+      await replyJarDepositHub(replyToken, {
+        body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「加入會員」。`,
+        registered: false,
+      });
       return;
     }
-    const snapshot = await loadDepositSnapshot(customer);
-    await replyJarDepositHub(replyToken, {
-      title: '可兌換獎勵',
-      body: formatRewardMenuText(rewards, snapshot.pointsBalance),
-      emphasizeRegister: false,
-    });
+    const stats = await getJarExchangeStatsForCustomer(customer.id);
+    await replyLineMessage(replyToken, buildRedeemPickerMessages(rewards, stats.pointsBalance));
     return;
   }
 
   if (parsed.kind === 'redeem_reward') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, {
-        title: '請先開戶',
-        body: lineBindRequiredText(),
-        emphasizeRegister: true,
-      });
+      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
       return;
     }
     const rewards = await listActiveRewardsForLine();
     const reward = await resolveRewardFromLineInput(parsed.target, rewards);
-    const snapshot = await loadDepositSnapshot(customer);
     if (!reward) {
+      const snapshot = await loadDepositSnapshot(customer);
       await replyLineText(
         replyToken,
         `找不到獎勵「${parsed.target}」。\n\n${formatRewardMenuText(rewards, snapshot.pointsBalance)}`,
@@ -211,20 +209,17 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineText(
+    await replyLineTextPlus(
       replyToken,
-      `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 罐罐點數，餘額 ${result.balanceAfter} 點\n\n兌換編號：${result.redemptionCode}\n優惠券碼：${result.couponCode}\n\n請妥善保存券碼，至合作店家使用。`,
+      `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}`,
+      buildMainMenuMessages({ registered: true }),
     );
     return;
   }
 
   if (parsed.kind === 'jar_code') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, {
-        title: '請先開戶再存罐',
-        body: lineBindRequiredText(),
-        emphasizeRegister: true,
-      });
+      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
       return;
     }
 
@@ -234,7 +229,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
     const stats = await getJarExchangeStatsForCustomer(customer.id);
-    await replyLineText(
+    await replyLineTextPlus(
       replyToken,
       formatJarDepositSuccessMessage({
         customerName: customer.name,
@@ -244,13 +239,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
         pointsEarnedThisTime: result.pointsEarned,
         code: result.code,
       }),
+      buildMainMenuMessages({ registered: true }),
     );
     return;
   }
 
   await replyJarDepositHub(replyToken, {
-    title: '需要幫忙嗎？',
     body: lineUnknownText(),
-    emphasizeRegister: !customer,
+    registered: Boolean(customer),
   });
 }

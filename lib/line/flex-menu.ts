@@ -1,4 +1,4 @@
-import { getLiffUrlIfConfigured, isLiffConfigured } from '@/lib/line/liff-config';
+import type { LineRewardOption } from '@/lib/line/reward-menu';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 
 type FlexButton = {
@@ -6,55 +6,21 @@ type FlexButton = {
   style: 'primary' | 'secondary' | 'link';
   height: 'sm';
   action:
-    | { type: 'uri'; label: string; uri: string }
+    | { type: 'postback'; label: string; data: string; displayText?: string }
     | { type: 'message'; label: string; text: string };
 };
 
-function uriBtn(label: string, uri: string, style: FlexButton['style'] = 'secondary'): FlexButton {
+function pbBtn(label: string, data: string, style: FlexButton['style'] = 'secondary'): FlexButton {
   return {
     type: 'button',
     style,
     height: 'sm',
-    action: { type: 'uri', label, uri },
+    action: { type: 'postback', label, data, displayText: label },
   };
 }
 
-function msgBtn(label: string, text: string): FlexButton {
-  return {
-    type: 'button',
-    style: 'link',
-    height: 'sm',
-    action: { type: 'message', label, text },
-  };
-}
-
-/** 對話框內主要操作按鈕（開 LIFF 表單） */
-export function buildJarDepositActionBubble(opts: {
-  title: string;
-  body: string;
-  /** 尚未註冊時強調「加入會員」 */
-  emphasizeRegister?: boolean;
-}) {
-  const register = getLiffUrlIfConfigured('register');
-  const profile = getLiffUrlIfConfigured('profile');
-  const rewards = getLiffUrlIfConfigured('rewards');
-
-  const buttons: FlexButton[] = [];
-
-  if (opts.emphasizeRegister && register) {
-    buttons.push(uriBtn('加入會員（填表單）', register, 'primary'));
-  } else {
-    if (profile) buttons.push(uriBtn('會員資料與存罐紀錄', profile, 'primary'));
-    if (rewards) buttons.push(uriBtn('兌換獎勵', rewards, 'secondary'));
-    if (!profile && register) buttons.push(uriBtn('加入會員（填表單）', register, 'primary'));
-  }
-
-  if (!opts.emphasizeRegister) {
-    if (register) buttons.push(uriBtn('更新會員資料', register, 'link'));
-  }
-
-  buttons.push(msgBtn('存罐完整說明', '存罐攻略'));
-
+/** 匠寵主選單：加入會員、金庫、兌換 */
+export function buildMainMenuBubble(body: string) {
   return {
     type: 'bubble',
     size: 'mega',
@@ -65,21 +31,21 @@ export function buildJarDepositActionBubble(opts: {
       contents: [
         {
           type: 'text',
-          text: opts.title,
+          text: '匠寵罐罐存款',
           weight: 'bold',
           size: 'lg',
           color: '#1a1a1a',
         },
         {
           type: 'text',
-          text: opts.body,
+          text: body,
           size: 'sm',
           color: '#555555',
           wrap: true,
         },
         {
           type: 'text',
-          text: '存罐：直接在對話框傳 8 位空罐序號即可入帳。',
+          text: '存罐：直接傳 8 位空罐序號即可入帳。',
           size: 'xs',
           color: '#888888',
           wrap: true,
@@ -91,33 +57,185 @@ export function buildJarDepositActionBubble(opts: {
       type: 'box',
       layout: 'vertical',
       spacing: 'sm',
-      contents: buttons.slice(0, 4),
+      contents: [
+        pbBtn('加入會員', 'jd=reg', 'primary'),
+        pbBtn('金庫', 'jd=vault', 'secondary'),
+        pbBtn('兌換', 'jd=redeem', 'secondary'),
+      ],
     },
   };
 }
 
-export function buildJarDepositHubMessages(opts: {
-  title: string;
-  body: string;
-  emphasizeRegister?: boolean;
+export function buildMainMenuMessages(opts?: {
+  registered?: boolean;
+  body?: string;
 }): LineReplyMessage[] {
-  if (!isLiffConfigured()) {
-    return [{ type: 'text', text: `${opts.title}\n\n${opts.body}` }];
-  }
+  const defaultBody = opts?.registered
+    ? '點「金庫」看點數與罐數，點「兌換」用點數換好康。'
+    : '第一次請點「加入會員」，在對話裡依序填寫即可。';
+  const body = opts?.body ?? defaultBody;
+  return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body) }];
+}
+
+export function buildSpeciesPickerMessages(): LineReplyMessage[] {
+  const speciesButtons: FlexButton[] = [
+    pbBtn('犬', 'jd=sp&c=dog'),
+    pbBtn('貓', 'jd=sp&c=cat'),
+    pbBtn('兔', 'jd=sp&c=rabbit'),
+    pbBtn('鼠兔類', 'jd=sp&c=small_mammal'),
+    pbBtn('鳥／爬蟲', 'jd=sp&c=bird_reptile'),
+    pbBtn('水族', 'jd=sp&c=fish'),
+    pbBtn('其他', 'jd=sp&c=other'),
+    pbBtn('不填毛孩', 'jd=sp&c=none', 'link'),
+  ];
 
   return [
     {
       type: 'flex',
-      altText: opts.title,
-      contents: buildJarDepositActionBubble(opts),
+      altText: '選擇毛孩種類',
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'md',
+          contents: [
+            {
+              type: 'text',
+              text: '毛孩種類',
+              weight: 'bold',
+              size: 'md',
+            },
+            {
+              type: 'text',
+              text: '請點選一項（在對話框內操作，無需跳轉）',
+              size: 'xs',
+              color: '#888888',
+              wrap: true,
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'sm',
+              margin: 'lg',
+              contents: speciesButtons,
+            },
+          ],
+        },
+      },
     },
   ];
 }
 
-/** 在對話框回覆：說明文字 + 可點按鈕（開 LIFF） */
+export function buildRegisterConfirmMessages(summary: string): LineReplyMessage[] {
+  return [
+    {
+      type: 'flex',
+      altText: '確認會員資料',
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'md',
+          contents: [
+            {
+              type: 'text',
+              text: '確認資料',
+              weight: 'bold',
+              size: 'lg',
+            },
+            {
+              type: 'text',
+              text: summary,
+              size: 'sm',
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            pbBtn('確認送出', 'jd=reg_ok', 'primary'),
+            pbBtn('取消重填', 'jd=reg_no', 'link'),
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export function buildRedeemPickerMessages(
+  rewards: LineRewardOption[],
+  balance: number,
+): LineReplyMessage[] {
+  if (rewards.length === 0) {
+    return [
+      {
+        type: 'text',
+        text: '目前沒有可兌換的獎勵，請稍後再試。',
+      },
+    ];
+  }
+
+  const lines = rewards.map((r) => `${r.index}. ${r.rewardName}（${r.pointsRequired} 點）`);
+  const pick = rewards.slice(0, 4).map((r) => pbBtn(`兌換 ${r.index}`, `jd=rd&i=${r.index}`, 'secondary'));
+
+  return [
+    {
+      type: 'flex',
+      altText: '兌換獎勵',
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'md',
+          contents: [
+            {
+              type: 'text',
+              text: '兌換獎勵',
+              weight: 'bold',
+              size: 'lg',
+            },
+            {
+              type: 'text',
+              text: `目前點數：${balance} 點\n\n${lines.join('\n')}`,
+              size: 'sm',
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: pick,
+        },
+      },
+    },
+  ];
+}
+
+/** 對話框主選單（三按鈕，postback，不跳 LIFF） */
 export async function replyJarDepositHub(
   replyToken: string,
-  opts: { title: string; body: string; emphasizeRegister?: boolean },
+  opts: { title?: string; body: string; emphasizeRegister?: boolean; registered?: boolean },
 ) {
-  await replyLineMessage(replyToken, buildJarDepositHubMessages(opts));
+  await replyLineMessage(
+    replyToken,
+    buildMainMenuMessages({
+      registered: opts.registered,
+      body: opts.body || opts.title,
+    }),
+  );
+}
+
+export function parseLinePostbackData(data: string): URLSearchParams {
+  return new URLSearchParams(data);
 }

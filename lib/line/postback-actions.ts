@@ -1,0 +1,101 @@
+import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
+import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
+import { formatSavingsStatusMessage } from '@/lib/line/jar-deposit-copy';
+import {
+  buildMainMenuMessages,
+  buildRedeemPickerMessages,
+  parseLinePostbackData,
+} from '@/lib/line/flex-menu';
+import {
+  handleRegisterPostback,
+  startRegisterFlow,
+} from '@/lib/line/register-from-chat';
+import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
+import {
+  listActiveRewardsForLine,
+  resolveRewardFromLineInput,
+} from '@/lib/line/reward-menu';
+import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
+
+async function loadSnapshot(customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>) {
+  const stats = await getJarExchangeStatsForCustomer(customer.id);
+  return {
+    customerName: customer.name,
+    customerCode: customer.customerId,
+    pointsBalance: stats.pointsBalance,
+    jarsDeposited: stats.codesRedeemed,
+  };
+}
+
+export async function handleLinePostback(
+  replyToken: string,
+  lineUserId: string,
+  data: string,
+): Promise<void> {
+  const params = parseLinePostbackData(data);
+  const action = params.get('jd');
+
+  if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
+
+  const customer = await findCustomerByLineUserId(lineUserId);
+
+  if (action === 'reg') {
+    await startRegisterFlow(replyToken, lineUserId);
+    return;
+  }
+
+  if (action === 'vault') {
+    if (!customer) {
+      await replyLineTextPlus(
+        replyToken,
+        '還沒加入會員，請先點「加入會員」。',
+        buildMainMenuMessages({ registered: false }),
+      );
+      return;
+    }
+    const snapshot = await loadSnapshot(customer);
+    await replyLineTextPlus(
+      replyToken,
+      formatSavingsStatusMessage(snapshot),
+      buildMainMenuMessages({ registered: true }),
+    );
+    return;
+  }
+
+  if (action === 'redeem') {
+    if (!customer) {
+      await replyLineTextPlus(
+        replyToken,
+        '還沒加入會員，請先點「加入會員」。',
+        buildMainMenuMessages({ registered: false }),
+      );
+      return;
+    }
+    const rewards = await listActiveRewardsForLine();
+    const stats = await getJarExchangeStatsForCustomer(customer.id);
+    await replyLineMessage(replyToken, buildRedeemPickerMessages(rewards, stats.pointsBalance));
+    return;
+  }
+
+  if (action === 'rd' && customer) {
+    const rewards = await listActiveRewardsForLine();
+    const reward = await resolveRewardFromLineInput(params.get('i') ?? '', rewards);
+    if (!reward) {
+      await replyLineText(replyToken, '找不到此獎勵，請再點「兌換」重試。');
+      return;
+    }
+    const result = await redeemRewardForCustomer(customer.id, reward.id);
+    if (!result.ok) {
+      await replyLineText(replyToken, result.error);
+      return;
+    }
+    await replyLineTextPlus(
+      replyToken,
+      `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}\n請妥善保存，至合作店家使用。`,
+      buildMainMenuMessages({ registered: true }),
+    );
+    return;
+  }
+
+  await replyLineMessage(replyToken, buildMainMenuMessages({ registered: Boolean(customer) }));
+}

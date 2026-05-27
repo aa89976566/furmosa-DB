@@ -117,6 +117,17 @@ model Customer {
   @@index([hasActiveSubscription])
 }
 
+// LINE 官方帳號多步驟對話（加入會員等）暫存
+model LineChatSession {
+  id         String   @id @default(cuid())
+  lineUserId String   @unique
+  flow       String
+  step       String
+  payload    String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 // =====================================================
 // 換罐會員（Jar Exchange）— 服務類型可疊加
 // =====================================================

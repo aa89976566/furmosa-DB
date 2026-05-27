@@ -23,3 +23,12 @@ export async function replyLineMessage(replyToken: string, messages: LineReplyMe
 export async function replyLineText(replyToken: string, text: string) {
   await replyLineMessage(replyToken, [{ type: 'text', text }]);
 }
+
+/** 同一 replyToken 僅能回覆一次，文字 + 其他訊息請合併 */
+export async function replyLineTextPlus(
+  replyToken: string,
+  text: string,
+  more: LineReplyMessage[],
+) {
+  await replyLineMessage(replyToken, [{ type: 'text', text }, ...more]);
+}
