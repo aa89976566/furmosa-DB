@@ -7,6 +7,7 @@ import {
   type CustomerCreateInput,
   type CreatedCustomerOption,
 } from '@/lib/customers/create-customer';
+import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 
 export type { CustomerCreateInput, CreatedCustomerOption };
 
@@ -20,6 +21,7 @@ export async function createCustomer(input: CustomerCreateInput): Promise<Create
 
 /** 客戶列表頁「新增客戶」表單 */
 export async function createCustomerFromForm(formData: FormData) {
+  const pet = parsePetFieldsFromFormData(formData);
   const created = await createCustomer({
     name: String(formData.get('name') ?? ''),
     type: String(formData.get('type') ?? 'individual') === 'business' ? 'business' : 'individual',
@@ -37,6 +39,7 @@ export async function createCustomerFromForm(formData: FormData) {
     preferredCvsBrand: String(formData.get('preferredCvsBrand') ?? ''),
     preferredCvsStoreId: String(formData.get('preferredCvsStoreId') ?? ''),
     preferredCvsStoreName: String(formData.get('preferredCvsStoreName') ?? ''),
+    ...pet,
   });
 
   redirect(`/customers/${created.id}`);

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save } from 'lucide-react';
 import { createCustomerFromForm } from '@/app/(main)/customers/actions';
+import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
 
 type ShippingPref = '' | 'home' | 'convenience';
 
@@ -115,6 +116,8 @@ export function CustomerForm() {
           </Field>
         )}
       </div>
+
+      <PetProfileFieldsBlock />
 
       <div className="flex justify-end border-t pt-4">
         <SubmitButton />

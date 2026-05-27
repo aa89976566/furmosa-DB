@@ -133,7 +133,7 @@ async function main() {
     const orderDate = daysAgo(randInt(1, 60));
     await prisma.customer.create({
       data: {
-        customerId: `CUST-${pad(i + 1)}`,
+        customerId: `furmosa-${pad(i + 1)}`,
         name: c.name,
         type: c.type ?? 'individual',
         phone: `09${randInt(10000000, 99999999)}`,

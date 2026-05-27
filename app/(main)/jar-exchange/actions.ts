@@ -18,6 +18,7 @@ import {
   createCustomerRecord,
   type CustomerCreateInput,
 } from '@/lib/customers/create-customer';
+import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 
 function revalidateJar() {
   revalidatePath('/jar-exchange/members');
@@ -357,6 +358,7 @@ export async function createJarExchangeMember(input: CustomerCreateInput) {
 }
 
 export async function createJarExchangeMemberFromForm(formData: FormData) {
+  const pet = parsePetFieldsFromFormData(formData);
   return createJarExchangeMember({
     name: String(formData.get('name') ?? ''),
     type: String(formData.get('type') ?? 'individual') === 'business' ? 'business' : 'individual',
@@ -364,6 +366,7 @@ export async function createJarExchangeMemberFromForm(formData: FormData) {
     email: String(formData.get('email') ?? ''),
     address: String(formData.get('address') ?? ''),
     lineDisplay: String(formData.get('lineDisplay') ?? ''),
+    ...pet,
   });
 }
 

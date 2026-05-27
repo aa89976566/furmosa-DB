@@ -1,15 +1,6 @@
 import { prisma } from '@/lib/prisma';
-
-const pad = (n: number, width = 4) => String(n).padStart(width, '0');
-
-async function nextCustomerId() {
-  const last = await prisma.customer.findFirst({
-    where: { customerId: { startsWith: 'CUST-' } },
-    orderBy: { customerId: 'desc' },
-  });
-  const seq = last ? Number(last.customerId.slice('CUST-'.length)) + 1 : 1;
-  return `CUST-${pad(seq, 4)}`;
-}
+import { nextCustomerId } from '@/lib/customers/customer-id';
+import { validatePetFieldsConsistency, type ParsedPetFields } from '@/lib/customers/pet-fields';
 
 export type CustomerCreateInput = {
   name: string;
@@ -23,7 +14,7 @@ export type CustomerCreateInput = {
   preferredCvsBrand?: string | null;
   preferredCvsStoreId?: string | null;
   preferredCvsStoreName?: string | null;
-};
+} & Partial<ParsedPetFields>;
 
 export type CreatedCustomerOption = {
   id: string;
@@ -77,6 +68,15 @@ export async function createCustomerRecord(
       ? null
       : (input.address ?? '').trim() || null;
 
+  const pet: ParsedPetFields = {
+    petSpecies: input.petSpecies ?? null,
+    petSpeciesOther: input.petSpeciesOther ?? null,
+    petName: input.petName ?? null,
+    petAgeYears: input.petAgeYears ?? null,
+    petBirthday: input.petBirthday ?? null,
+  };
+  validatePetFieldsConsistency(pet);
+
   const customerId = await nextCustomerId();
   return prisma.customer.create({
     data: {
@@ -92,6 +92,11 @@ export async function createCustomerRecord(
       preferredCvsBrand,
       preferredCvsStoreId,
       preferredCvsStoreName,
+      petSpecies: pet.petSpecies,
+      petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
+      petName: pet.petName,
+      petAgeYears: pet.petAgeYears,
+      petBirthday: pet.petBirthday,
     },
     select: {
       id: true,

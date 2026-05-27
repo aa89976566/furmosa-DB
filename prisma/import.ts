@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
+import { formatCustomerId, maxCustomerIdSeq } from '../lib/customers/customer-id';
 
 // 本機 import 走 DIRECT_URL（5432，不經 PgBouncer），避免 connection_limit=1 把大量 upsert 排隊
 const prisma = new PrismaClient({
@@ -234,7 +235,7 @@ async function importWeeklyTasks() {
   const customerMap = new Map<string, string>(); // name → id
   let custSeq = 100; // 從 100 開始，避免跟 換罐會員 # 衝突
   for (const [name, info] of customersNeeded) {
-    const customerId = `CUST-${pad(custSeq++)}`;
+    const customerId = formatCustomerId(custSeq++);
     const customer = await prisma.customer.upsert({
       where: { customerId },
       update: {},
@@ -1209,7 +1210,7 @@ async function importPendingOrders() {
   }
   const allCustomers = await prisma.customer.findMany({ select: { customerId: true } });
   const allProducts = await prisma.product.findMany({ select: { productId: true, sku: true } });
-  let nextCustomerSeq = maxSeq(allCustomers.map((c) => c.customerId), 'CUST') + 1;
+  let nextCustomerSeq = maxCustomerIdSeq(allCustomers.map((c) => c.customerId)) + 1;
   let nextProductSeq = maxSeq(allProducts.map((p) => p.productId), 'PROD') + 1;
   let nextSkuSeq = maxSeq(allProducts.map((p) => p.sku), 'FUR') + 1;
 
@@ -1222,7 +1223,7 @@ async function importPendingOrders() {
       where: { OR: [{ phone: c.phone }, { name: c.name }] },
     });
     if (cust) return cust;
-    const customerId = `CUST-${pad(nextCustomerSeq++, 4)}`;
+    const customerId = formatCustomerId(nextCustomerSeq++);
     return prisma.customer.create({
       data: {
         customerId,

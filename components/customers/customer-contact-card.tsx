@@ -3,7 +3,8 @@ import { SectionCard } from '@/components/shared/section-card';
 import { InfoField } from '@/components/customers/customer-detail-ui';
 import { formatDate } from '@/lib/format';
 import { customerTypeLabel } from '@/lib/labels';
-import { MessageCircle, AtSign, Phone, Mail, MapPin, Truck } from 'lucide-react';
+import { MessageCircle, AtSign, Phone, Mail, MapPin, Truck, PawPrint } from 'lucide-react';
+import { resolvePetSpeciesLabel } from '@/lib/customers/pet-fields';
 
 export function CustomerContactCard({
   customer,
@@ -20,6 +21,11 @@ export function CustomerContactCard({
     lineDisplay: string | null;
     socialIg: string | null;
     socialFb: string | null;
+    petSpecies: string | null;
+    petSpeciesOther: string | null;
+    petName: string | null;
+    petAgeYears: number | null;
+    petBirthday: Date | null;
     preferredShippingMethod: string | null;
     preferredCvsBrand: string | null;
     preferredCvsStoreId: string | null;
@@ -41,6 +47,7 @@ export function CustomerContactCard({
     customer.lineUserId || customer.lineDisplay
       ? customer.lineDisplay || customer.lineUserId
       : null;
+  const petSpeciesLabel = resolvePetSpeciesLabel(customer.petSpecies, customer.petSpeciesOther);
 
   return (
     <SectionCard title="聯絡方式" tone="master">
@@ -79,6 +86,25 @@ export function CustomerContactCard({
         </InfoField>
         <InfoField label={<span className="inline-flex items-center gap-1"><AtSign className="h-3 w-3" />Instagram</span>}>
           {customer.socialIg ?? '—'}
+        </InfoField>
+        <InfoField
+          label={<span className="inline-flex items-center gap-1"><PawPrint className="h-3 w-3" />毛孩</span>}
+          className="sm:col-span-2"
+        >
+          {customer.petName || petSpeciesLabel || customer.petAgeYears !== null || customer.petBirthday ? (
+            <div className="space-y-1">
+              <p className="font-medium">
+                {customer.petName ?? '未填名字'}
+                {petSpeciesLabel ? <span className="ml-2 text-xs text-muted-foreground">({petSpeciesLabel})</span> : null}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {customer.petAgeYears !== null ? `年齡：約 ${customer.petAgeYears} 歲` : '年齡未填'}
+                {customer.petBirthday ? ` · 生日 ${formatDate(customer.petBirthday)}` : ''}
+              </p>
+            </div>
+          ) : (
+            <span className="text-muted-foreground">未填寫</span>
+          )}
         </InfoField>
         <InfoField label="類型">
           <Badge variant="secondary">{customerTypeLabel[customer.type] ?? customer.type}</Badge>

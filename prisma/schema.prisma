@@ -61,7 +61,7 @@ model Vendor {
 // 客戶（人）= 主檔。會員身份、訂閱身份都掛在 Customer 上。
 model Customer {
   id         String  @id @default(cuid())
-  customerId String  @unique // CUST-0001
+  customerId String  @unique // furmosa-0001
   name       String
   type       String  @default("individual") // individual / business
   phone      String?
@@ -83,6 +83,13 @@ model Customer {
   // 個資
   birthday DateTime?
   gender   String? // female / male / other / unknown
+
+  // 毛孩（與主檔會員一對一；選填，見 lib/customers/pet-fields.ts）
+  petSpecies       String?   @map("pet_species") // dog / cat / rabbit / … / other
+  petSpeciesOther  String?   @map("pet_species_other")
+  petName          String?   @map("pet_name")
+  petAgeYears      Int?      @map("pet_age_years")
+  petBirthday      DateTime? @map("pet_birthday")
 
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)

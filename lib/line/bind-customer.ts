@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { fetchLineUserDisplayName } from '@/lib/line/profile';
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
 
 function normalizePhone(raw: string): string {
   return raw.replace(/[\s\-()]/g, '');
@@ -24,7 +25,7 @@ export async function bindLineUserToCustomer(
 ): Promise<BindLineCustomerResult> {
   const identifier = normalizeBindIdentifier(identifierRaw);
   if (!identifier) {
-    return { ok: false, error: '請提供會員編號（例：CUST-0001）或註冊手機' };
+    return { ok: false, error: `請提供會員編號（例：${CUSTOMER_ID_EXAMPLE}）或註冊手機` };
   }
 
   const phoneNorm = normalizePhone(identifier);

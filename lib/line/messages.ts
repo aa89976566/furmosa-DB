@@ -1,68 +1,74 @@
-export const LINE_WELCOME_TEXT = `歡迎加入匠寵換罐 LINE 服務 🐾
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
 
-首次使用請先綁定會員，之後即可：
-• 傳 8 位返航序號 → 累積點數
-• 傳「點數」→ 查餘額
-• 傳「獎勵」→ 查看可兌換項目
-• 傳「說明」→ 完整指令`;
+export const LINE_WELCOME_TEXT = `歡迎來到匠寵罐罐存款 🐾
 
-export const LINE_BIND_HELP_TEXT = `【如何綁定會員】
+把空罐序號傳上來，幫毛孩記帳、累積罐罐點數。
+第一次來？先「開戶存罐罐」對好檔案就好（不是辦會員喔）。
 
-請在後台先建立您的會員資料，然後在 LINE 傳以下其中一種：
+• 8 位序號 → 存罐入帳
+• 小金庫 → 看累積幾罐、多少點
+• 獎勵 → 點數能換什麼
+• 存罐攻略 → 完整說明`;
 
-1️⃣ 用會員編號
-綁定 CUST-0001
+export const LINE_BIND_HELP_TEXT = `【開戶存罐罐｜大概 30 秒】
 
-2️⃣ 用註冊手機
-綁定 0912345678
+開戶不是辦會員 😮‍💨
+只是把「這個 LINE」跟「您家毛孩的檔案」對起來，
+之後空罐序號的罐罐點數才會記對人。
 
-綁定成功後，直接傳 8 位返航序號即可兌換點數。
-查詢點數請傳：點數`;
+請傳其中一種：
+・綁定 ${CUSTOMER_ID_EXAMPLE}
+・綁定 0912345678
 
-export const LINE_HELP_TEXT = `【匠寵換罐 LINE 指令】
+沒有會費，也不會狂發廣告。
+對好之後 → 直接傳 8 位序號就會入帳。`;
 
-🔹 綁定會員（首次必做）
-綁定 CUST-0001
+export const LINE_HELP_TEXT = `【匠寵罐罐存款｜指令】
+
+🔹 第一次（開戶）
+綁定 ${CUSTOMER_ID_EXAMPLE}
 或：綁定 0912345678
+也可傳：如何綁定
 
-🔹 兌換返航序號
-直接傳 8 位數字（例：35085664）
+🔹 存空罐
+直接傳 8 位序號（例：35085664）
 
-🔹 查詢點數
+🔹 查小金庫（點數 + 累積幾罐）
+小金庫
+
+🔹 快速查點數
 點數
 
-🔹 查看獎勵目錄
+🔹 看兌換項目
 獎勵
 
-🔹 兌換獎勵（需已綁定且點數足夠）
-兌換 1
-或：兌換 JAR-RWD-001
+🔹 兌換獎勵（依清單上的編號）
+兌換 1、兌換 2…
 
-🔹 查綁定狀態
-會員
+🔹 完整攻略
+存罐攻略 或 說明`;
 
-🔹 綁定教學
-如何綁定
+export function lineBindRequiredText() {
+  return `序號收到了，但還不知道是哪位毛孩的罐罐 🤔
 
-🔹 本說明
-說明`;
+先「開戶存罐罐」對好檔案，就能開始記帳：
 
-export function lineBindRequiredText(lineUserId: string) {
-  return `請先綁定會員再使用此功能。
-
-${LINE_BIND_HELP_TEXT}
-
-您的 LINE ID：${lineUserId}`;
+${LINE_BIND_HELP_TEXT}`;
 }
 
-export function lineUnknownText(lineUserId: string) {
-  return `無法辨識的訊息，您可以試試：
+export function lineUnknownText() {
+  return `小管家沒看懂這句，您可以試：
 
-• 如何綁定
-• 點數
-• 說明
+• 如何綁定（開戶）
+• 小金庫（看累積幾罐）
+• 存罐攻略
 
-${LINE_HELP_TEXT}
-
-您的 LINE ID：${lineUserId}`;
+${LINE_HELP_TEXT}`;
 }
+
+/** Rich Menu A 建議按鈕對應的 Message 文字 */
+export const LINE_RICH_MENU_A = {
+  openAccount: '如何綁定',
+  guide: '存罐攻略',
+  support: '說明',
+} as const;

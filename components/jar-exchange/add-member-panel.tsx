@@ -7,11 +7,13 @@ import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
 import {
   addJarExchangeMember,
   createJarExchangeMemberFromForm,
   searchCustomersForJarMember,
 } from '@/app/(main)/jar-exchange/actions';
+import { CUSTOMER_ID_EXAMPLE } from '@/lib/customers/customer-id';
 
 type Mode = 'existing' | 'new';
 
@@ -188,7 +190,7 @@ export function JarExchangeAddMemberPanel() {
                   aria-expanded={open}
                   aria-controls={listId}
                   value={displayValue}
-                  placeholder="例如：王小明 或 CUST-0106"
+                  placeholder={`例如：王小明 或 ${CUSTOMER_ID_EXAMPLE}`}
                   className="pl-9 pr-9"
                   onFocus={() => {
                     setOpen(true);
@@ -313,6 +315,9 @@ export function JarExchangeAddMemberPanel() {
             <div className="space-y-1.5 sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground">LINE 顯示名稱</label>
               <Input name="lineDisplay" maxLength={60} placeholder="選填" />
+            </div>
+            <div className="sm:col-span-2">
+              <PetProfileFieldsBlock />
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
               <Button type="submit" disabled={pending}>

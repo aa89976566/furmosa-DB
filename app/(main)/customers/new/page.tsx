@@ -26,7 +26,7 @@ export default function NewCustomerPage() {
         <SectionCard title="基本資料">
           <CustomerForm />
           <p className="mt-4 text-[11px] text-muted-foreground">
-            客戶編號（CUST-XXXX）會在儲存時自動產生。
+            客戶編號（furmosa-XXXX）會在儲存時自動產生。
           </p>
         </SectionCard>
       </div>
