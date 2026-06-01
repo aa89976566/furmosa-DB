@@ -102,14 +102,14 @@ export default async function OrdersPage({
         }
       />
 
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {totals.map((t) => (
             <Card key={t.source}>
               <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   <StatusBadge kind="orderSource" value={t.source} />
-                </p>
+                </div>
                 <p className="mt-1 text-xl font-semibold">
                   {formatCurrency(Number(t._sum.total ?? 0))}
                 </p>
@@ -131,9 +131,7 @@ export default async function OrdersPage({
           })}
         </div>
 
-        <Card className="p-0">
-          <OrderListTable orders={orders} />
-        </Card>
+        <OrderListTable orders={orders} />
       </div>
     </>
   );

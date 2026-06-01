@@ -78,14 +78,14 @@ export function PlanEditCard({ plan }: { plan: PlanCardData }) {
             <span className="ml-1 text-sm font-normal text-muted-foreground">/ 月</span>
           </p>
           {plan.halfYearPrice != null && (
-            <p className="text-xs text-muted-foreground">
-              半年付清：{formatCurrency(Number(plan.halfYearPrice))}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>半年付清：{formatCurrency(Number(plan.halfYearPrice))}</span>
               {plan.halfYearSavings != null && (
-                <Badge variant="success" className="ml-2">
+                <Badge variant="success">
                   現省 {formatCurrency(Number(plan.halfYearSavings))}
                 </Badge>
               )}
-            </p>
+            </div>
           )}
         </div>
 
