@@ -15,6 +15,8 @@ import {
 import { formatCurrency, formatDate } from '@/lib/format';
 import { formatConsignmentCommission } from '@/lib/merchant-commission';
 import { Package, PackagePlus, Pencil, AlertTriangle } from 'lucide-react';
+import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
+import { MerchantStockQuickEdit } from '@/components/merchants/merchant-stock-quick-edit';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,17 +154,15 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                     <div className="ml-6 font-mono text-xs text-muted-foreground">{r.sku}</div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span
-                      className={
-                        r.quantity === 0
-                          ? 'font-mono font-semibold text-destructive'
-                          : r.quantity <= 3
-                            ? 'font-mono font-semibold text-warning'
-                            : 'font-mono font-semibold'
-                      }
-                    >
-                      {r.quantity}
-                    </span>
+                    <div className="flex justify-end">
+                      <MerchantStockQuickEdit
+                        merchantId={merchant.id}
+                        productId={r.productInternalId}
+                        productName={r.productName}
+                        quantity={r.quantity}
+                        returnTo={`/merchants/${merchant.id}/products`}
+                      />
+                    </div>
                     {r.quantity === 0 && r.ruleId && (
                       <div className="text-[10px] text-destructive">缺貨</div>
                     )}
@@ -220,18 +220,26 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                     {r.lastRestockAt ? formatDate(r.lastRestockAt) : '-'}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link
-                        href={
-                          r.ruleId
-                            ? `/merchants/${merchant.id}/rule?productId=${r.productInternalId}`
-                            : `/merchants/${merchant.id}/rule?productId=${r.productInternalId}&new=1`
-                        }
-                      >
-                        <Pencil className="mr-1 h-3 w-3" />
-                        {r.ruleId ? '編輯' : '設定'}
-                      </Link>
-                    </Button>
+                    <div className="flex items-center justify-end">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link
+                          href={
+                            r.ruleId
+                              ? `/merchants/${merchant.id}/rule?productId=${r.productInternalId}`
+                              : `/merchants/${merchant.id}/rule?productId=${r.productInternalId}&new=1`
+                          }
+                        >
+                          <Pencil className="mr-1 h-3 w-3" />
+                          {r.ruleId ? '編輯' : '設定'}
+                        </Link>
+                      </Button>
+                      <MerchantProductDeleteButton
+                        merchantId={merchant.id}
+                        productId={r.productInternalId}
+                        productName={r.productName}
+                        quantity={r.quantity}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

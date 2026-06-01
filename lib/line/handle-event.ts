@@ -7,7 +7,7 @@ import {
   formatQuickBalanceMessage,
   formatSavingsStatusMessage,
 } from '@/lib/line/jar-deposit-copy';
-import { buildMainMenuMessages, buildRedeemPickerMessages, replyJarDepositHub } from '@/lib/line/flex-menu';
+import { buildRedeemPickerMessages } from '@/lib/line/flex-menu';
 import {
   LINE_BIND_HELP_TEXT,
   LINE_HELP_TEXT,
@@ -23,7 +23,8 @@ import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
-import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
+import { replyLineMessage, replyLineText } from '@/lib/line/reply';
+import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
 
 type LineMessageEvent = {
@@ -68,7 +69,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   if (event.type === 'follow' && 'replyToken' in event && event.replyToken) {
     const follow = event as LineFollowEvent;
     if (!follow.source?.userId) return;
-    await replyJarDepositHub(event.replyToken, {
+    await replyMenuHub(event.replyToken, follow.source.userId, {
       body: LINE_WELCOME_TEXT,
       registered: false,
     });
@@ -112,38 +113,40 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   const customer = await findCustomerByLineUserId(lineUserId);
 
   if (parsed.kind === 'help') {
-    await replyJarDepositHub(replyToken, { body: LINE_HELP_TEXT, registered: Boolean(customer) });
+    await replyMenuHub(replyToken, lineUserId, { body: LINE_HELP_TEXT, registered: Boolean(customer) });
     return;
   }
 
   if (parsed.kind === 'bind_help') {
-    await replyJarDepositHub(replyToken, { body: LINE_BIND_HELP_TEXT, registered: false });
+    await replyMenuHub(replyToken, lineUserId, { body: LINE_BIND_HELP_TEXT, registered: false });
     return;
   }
 
   if (parsed.kind === 'greeting') {
     if (customer) {
       const snapshot = await loadDepositSnapshot(customer);
-      await replyLineTextPlus(
+      await replyLineTextWithMenu(
         replyToken,
+        lineUserId,
         `${LINE_WELCOME_TEXT}\n\n${formatQuickBalanceMessage(snapshot)}\n\n有空罐就傳序號存罐～`,
-        buildMainMenuMessages({ registered: true }),
+        { registered: true },
       );
       return;
     }
-    await replyJarDepositHub(replyToken, { body: LINE_WELCOME_TEXT, registered: false });
+    await replyMenuHub(replyToken, lineUserId, { body: LINE_WELCOME_TEXT, registered: false });
     return;
   }
 
   if (parsed.kind === 'status' || parsed.kind === 'savings') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
       return;
     }
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       formatSavingsStatusMessage(await loadDepositSnapshot(customer)),
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
@@ -154,23 +157,25 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       `✅ 開戶成功！\n${result.customerName}\n\n傳 8 位序號存罐，或點下方按鈕。`,
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
   if (parsed.kind === 'balance') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
       return;
     }
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       formatQuickBalanceMessage(await loadDepositSnapshot(customer)),
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
@@ -178,7 +183,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   if (parsed.kind === 'rewards_list') {
     const rewards = await listActiveRewardsForLine();
     if (!customer) {
-      await replyJarDepositHub(replyToken, {
+      await replyMenuHub(replyToken, lineUserId, {
         body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「幫毛孩開戶」。`,
         registered: false,
       });
@@ -191,7 +196,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'redeem_reward') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
       return;
     }
     const rewards = await listActiveRewardsForLine();
@@ -209,17 +214,18 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}`,
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
   if (parsed.kind === 'jar_code') {
     if (!customer) {
-      await replyJarDepositHub(replyToken, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
       return;
     }
 
@@ -229,8 +235,9 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
     const stats = await getJarExchangeStatsForCustomer(customer.id);
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       formatJarDepositSuccessMessage({
         customerName: customer.name,
         customerCode: customer.customerId,
@@ -239,12 +246,12 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
         pointsEarnedThisTime: result.pointsEarned,
         code: result.code,
       }),
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
-  await replyJarDepositHub(replyToken, {
+  await replyMenuHub(replyToken, lineUserId, {
     body: lineUnknownText(),
     registered: Boolean(customer),
   });

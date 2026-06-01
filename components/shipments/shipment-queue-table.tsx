@@ -14,7 +14,7 @@ import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
 import { productLabel } from '@/lib/product-label';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { cn } from '@/lib/utils';
-import { CalendarClock, MapPin, Phone, Truck } from 'lucide-react';
+import { CalendarClock, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
   id: string;
@@ -95,8 +95,12 @@ export function ShipmentQueueTable({
 }) {
   if (shipments.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-        此區沒有出貨單
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-10 text-center">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <PackageCheck className="h-5 w-5" />
+        </span>
+        <p className="text-sm font-medium text-foreground">此區沒有出貨單</p>
+        <p className="text-xs text-muted-foreground">目前沒有待處理的項目</p>
       </div>
     );
   }
@@ -143,8 +147,10 @@ export function ShipmentQueueTable({
             <TableRow
               key={s.id}
               className={cn(
-                'cursor-pointer align-top hover:bg-muted/40',
-                selectedShipmentId === s.id && 'bg-primary/5 ring-1 ring-inset ring-primary/30',
+                'relative cursor-pointer align-top transition-colors hover:bg-muted/40',
+                'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary before:opacity-0 before:transition-opacity',
+                selectedShipmentId === s.id &&
+                  'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
               )}
               onClick={() => onSelectShipment(s)}
               title={s.shipmentNumber}
@@ -200,13 +206,17 @@ export function ShipmentQueueTable({
               </TableCell>
               <TableCell className="py-3">
                 {productLines.length > 0 ? (
-                  <div className="space-y-1">
-                    <div className="text-sm font-semibold tabular-nums">
-                      {productLines.length} 項 · 共 {isSub ? productLines.length : totalQty} 件
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
+                        {productLines.length} 項 · 共 {isSub ? productLines.length : totalQty} 件
+                      </span>
+                      {isSub ? (
+                        <span className="inline-flex items-center rounded-md bg-violet-500/12 px-2 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">
+                          {planName}
+                        </span>
+                      ) : null}
                     </div>
-                    {isSub ? (
-                      <div className="text-xs font-medium text-foreground">{planName}</div>
-                    ) : null}
                     <ItemBulletList items={productLines} />
                   </div>
                 ) : (

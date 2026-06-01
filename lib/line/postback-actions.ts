@@ -2,7 +2,6 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { formatSavingsStatusMessage } from '@/lib/line/jar-deposit-copy';
 import {
-  buildMainMenuMessages,
   buildRedeemPickerMessages,
   parseLinePostbackData,
 } from '@/lib/line/flex-menu';
@@ -11,7 +10,8 @@ import {
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
 import { LINE_BTN } from '@/lib/line/line-copy';
-import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
+import { replyLineMessage, replyLineText } from '@/lib/line/reply';
+import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
@@ -47,28 +47,31 @@ export async function handleLinePostback(
 
   if (action === 'vault') {
     if (!customer) {
-      await replyLineTextPlus(
+      await replyLineTextWithMenu(
         replyToken,
+        lineUserId,
         `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        buildMainMenuMessages({ registered: false }),
+        { registered: false },
       );
       return;
     }
     const snapshot = await loadSnapshot(customer);
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       formatSavingsStatusMessage(snapshot),
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
   if (action === 'redeem') {
     if (!customer) {
-      await replyLineTextPlus(
+      await replyLineTextWithMenu(
         replyToken,
+        lineUserId,
         `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        buildMainMenuMessages({ registered: false }),
+        { registered: false },
       );
       return;
     }
@@ -90,13 +93,17 @@ export async function handleLinePostback(
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}\n請妥善保存，至合作店家使用。`,
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
-  await replyLineMessage(replyToken, buildMainMenuMessages({ registered: Boolean(customer) }));
+  await replyMenuHub(replyToken, lineUserId, {
+    body: '可從下方選單操作，或直接傳 8 位空罐序號存罐～',
+    registered: Boolean(customer),
+  });
 }

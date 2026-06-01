@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 
 export type RegisterDraft = {
+  signupStore?: string | null;
   name?: string;
   petSpecies?: string | null;
   petSpeciesOther?: string | null;

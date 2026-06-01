@@ -9,13 +9,21 @@ import {
   upsertLineChatSession,
   type RegisterDraft,
 } from '@/lib/line/chat-session';
-import { buildMainMenuMessages, buildSpeciesPickerMessages, buildRegisterConfirmMessages } from '@/lib/line/flex-menu';
+import {
+  buildSpeciesPickerMessages,
+  buildRegisterConfirmMessages,
+  buildStorePickerMessages,
+} from '@/lib/line/flex-menu';
 import {
   LINE_BTN,
   LINE_PET_AGE_PROMPT,
   LINE_REGISTER_INTRO,
+  LINE_SIGNUP_STORE_CODES,
+  resolveSignupStoreLabel,
+  type SignupStoreCode,
 } from '@/lib/line/line-copy';
-import { replyLineMessage, replyLineText, replyLineTextPlus } from '@/lib/line/reply';
+import { replyLineMessage, replyLineText } from '@/lib/line/reply';
+import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 
@@ -61,21 +69,17 @@ function petBirthdayToDate(iso: string | null | undefined): Date | null {
 export async function startRegisterFlow(replyToken: string, lineUserId: string) {
   const existing = await findCustomerByLineUserId(lineUserId);
   if (existing) {
-    await replyLineTextPlus(
+    await replyLineTextWithMenu(
       replyToken,
+      lineUserId,
       `您已是會員（${existing.name}）！\n傳 8 位序號即可存罐，或點「${LINE_BTN.vault}」查紀錄。`,
-      buildMainMenuMessages({ registered: true }),
+      { registered: true },
     );
     return;
   }
 
-  await upsertLineChatSession(lineUserId, 'register', 'name', {});
-  await replyLineMessage(replyToken, [
-    {
-      type: 'text',
-      text: LINE_REGISTER_INTRO,
-    },
-  ]);
+  await upsertLineChatSession(lineUserId, 'register', 'store', {});
+  await replyLineMessage(replyToken, buildStorePickerMessages());
 }
 
 export async function handleRegisterFlowMessage(
@@ -89,15 +93,17 @@ export async function handleRegisterFlowMessage(
   const draft = parseRegisterDraft(session.payload);
   const trimmed = text.trim();
 
+  if (session.step === 'store' && !CANCEL_RE.test(trimmed)) {
+    await replyLineMessage(replyToken, buildStorePickerMessages());
+    return true;
+  }
+
   if (CANCEL_RE.test(trimmed)) {
     await clearLineChatSession(lineUserId);
-    await replyLineMessage(
-      replyToken,
-      buildMainMenuMessages({
-        registered: Boolean(await findCustomerByLineUserId(lineUserId)),
-        body: '已取消加入會員。',
-      }),
-    );
+    await replyMenuHub(replyToken, lineUserId, {
+      registered: Boolean(await findCustomerByLineUserId(lineUserId)),
+      body: '已取消加入會員。',
+    });
     return true;
   }
 
@@ -168,11 +174,18 @@ export async function handleRegisterPostback(
   params: URLSearchParams,
 ): Promise<boolean> {
   const action = params.get('jd');
-  if (action !== 'sp' && action !== 'reg_ok' && action !== 'reg_no') return false;
+  if (
+    action !== 'store' &&
+    action !== 'sp' &&
+    action !== 'reg_ok' &&
+    action !== 'reg_no'
+  ) {
+    return false;
+  }
 
   const session = await getLineChatSession(lineUserId);
   if (!session || session.flow !== 'register') {
-    if (action === 'sp') {
+    if (action === 'store' || action === 'sp') {
       await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);
       return true;
     }
@@ -181,12 +194,24 @@ export async function handleRegisterPostback(
 
   const draft = parseRegisterDraft(session.payload);
 
+  if (action === 'store') {
+    const code = params.get('c');
+    if (!code || !LINE_SIGNUP_STORE_CODES.includes(code as SignupStoreCode)) {
+      await replyLineMessage(replyToken, buildStorePickerMessages());
+      return true;
+    }
+    draft.signupStore = code;
+    await upsertLineChatSession(lineUserId, 'register', 'name', draft);
+    await replyLineText(replyToken, LINE_REGISTER_INTRO);
+    return true;
+  }
+
   if (action === 'reg_no') {
     await clearLineChatSession(lineUserId);
-    await replyLineMessage(
-      replyToken,
-      buildMainMenuMessages({ registered: false, body: `已取消，需要時再點「${LINE_BTN.register}」。` }),
-    );
+    await replyMenuHub(replyToken, lineUserId, {
+      registered: false,
+      body: `已取消，需要時再點「${LINE_BTN.register}」。`,
+    });
     return true;
   }
 
@@ -228,6 +253,7 @@ export async function handleRegisterPostback(
         name: draft.name,
         phone: draft.phone ?? null,
         lineUserId,
+        signupStore: draft.signupStore ?? null,
         petSpecies: draft.petSpecies ?? null,
         petSpeciesOther: draft.petSpeciesOther ?? null,
         petName: draft.petName ?? null,
@@ -253,14 +279,15 @@ export async function handleRegisterPostback(
           : draft.petName
             ? `\n毛孩：${draft.petName}${agePart}`
             : '';
+      const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
+      const storeLine = storeLabel ? `\n開戶店家：${storeLabel}` : '';
 
-      await replyLineMessage(replyToken, [
-        {
-          type: 'text',
-          text: `✅ 加入完成！${draft.name}${petLine}\n\n之後直接傳 8 位空罐序號就會入帳。`,
-        },
-        ...buildMainMenuMessages({ registered: true }),
-      ]);
+      await replyLineTextWithMenu(
+        replyToken,
+        lineUserId,
+        `✅ 加入完成！${draft.name}${storeLine}${petLine}\n\n之後直接傳 8 位空罐序號就會入帳。`,
+        { registered: true },
+      );
     } catch (e) {
       await replyLineText(
         replyToken,
@@ -274,7 +301,10 @@ export async function handleRegisterPostback(
 }
 
 export function formatRegisterSummary(draft: RegisterDraft): string {
-  const lines = [`稱呼：${draft.name ?? '—'}`];
+  const lines: string[] = [];
+  const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
+  if (storeLabel) lines.push(`開戶店家：${storeLabel}`);
+  lines.push(`稱呼：${draft.name ?? '—'}`);
   if (draft.petSpecies) {
     lines.push(
       `毛孩：${resolvePetSpeciesLabel(draft.petSpecies, draft.petSpeciesOther ?? null) ?? draft.petSpecies}`,

@@ -171,14 +171,22 @@ export default async function ShipmentsPage({
         }
       />
       <div className="grid gap-6 p-6">
-        <div className="grid gap-3 sm:grid-cols-4">
-          <FilterChip href="/shipments" label="全部" count={total} active={!status} />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FilterChip
+            href="/shipments"
+            label="全部"
+            count={total}
+            total={total}
+            active={!status}
+            variant="all"
+          />
           {(['pending', 'shipped', 'delivered'] as const).map((s) => (
             <FilterChip
               key={s}
               href={`/shipments?status=${s}`}
               label={shipmentStatusLabel[s]}
               count={countByStatus[s] ?? 0}
+              total={total}
               active={status === s}
               variant={shipmentStatusVariant[s]}
             />
@@ -204,42 +212,114 @@ export default async function ShipmentsPage({
   );
 }
 
+type ChipVariant = 'all' | 'warning' | 'info' | 'success' | 'destructive' | 'secondary';
+
+const CHIP_TONES: Record<
+  ChipVariant,
+  { dot: string; bar: string; accent: string; ring: string; tint: string }
+> = {
+  all: {
+    dot: 'bg-primary',
+    bar: 'bg-primary',
+    accent: 'text-primary',
+    ring: 'ring-primary/30 border-primary/50',
+    tint: 'bg-primary/[0.04]',
+  },
+  warning: {
+    dot: 'bg-warning',
+    bar: 'bg-warning',
+    accent: 'text-amber-700 dark:text-amber-300',
+    ring: 'ring-warning/30 border-warning/50',
+    tint: 'bg-warning/[0.05]',
+  },
+  info: {
+    dot: 'bg-info',
+    bar: 'bg-info',
+    accent: 'text-info',
+    ring: 'ring-info/30 border-info/50',
+    tint: 'bg-info/[0.05]',
+  },
+  success: {
+    dot: 'bg-success',
+    bar: 'bg-success',
+    accent: 'text-success',
+    ring: 'ring-success/30 border-success/50',
+    tint: 'bg-success/[0.05]',
+  },
+  destructive: {
+    dot: 'bg-destructive',
+    bar: 'bg-destructive',
+    accent: 'text-destructive',
+    ring: 'ring-destructive/30 border-destructive/50',
+    tint: 'bg-destructive/[0.05]',
+  },
+  secondary: {
+    dot: 'bg-muted-foreground',
+    bar: 'bg-muted-foreground',
+    accent: 'text-muted-foreground',
+    ring: 'ring-border border-border',
+    tint: 'bg-muted/30',
+  },
+};
+
 function FilterChip({
   href,
   label,
   count,
+  total,
   active,
-  variant,
+  variant = 'secondary',
 }: {
   href: string;
   label: string;
   count: number;
+  total: number;
   active?: boolean;
-  variant?: 'secondary' | 'warning' | 'info' | 'success' | 'destructive';
+  variant?: ChipVariant;
 }) {
-  const dot =
-    variant === 'warning'
-      ? 'bg-warning'
-      : variant === 'info'
-        ? 'bg-info'
-        : variant === 'success'
-          ? 'bg-success'
-          : variant === 'destructive'
-            ? 'bg-destructive'
-            : 'bg-muted-foreground';
+  const tone = CHIP_TONES[variant];
+  const share = total > 0 ? Math.round((count / total) * 100) : 0;
+
   return (
     <Link
       href={href}
+      aria-current={active ? 'page' : undefined}
       className={cn(
-        'rounded-lg border bg-card p-4 transition hover:bg-muted/40',
-        active && 'border-primary ring-2 ring-primary/30',
+        'group relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all duration-200',
+        'hover:-translate-y-0.5 hover:shadow-md',
+        active ? cn('ring-2', tone.ring, tone.tint) : 'border-border/70 hover:border-border',
       )}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className={cn('inline-block h-2 w-2 rounded-full', dot)} />
-        {label}
+      <span
+        className={cn(
+          'absolute inset-y-0 left-0 w-1 transition-opacity',
+          tone.bar,
+          active ? 'opacity-100' : 'opacity-0 group-hover:opacity-60',
+        )}
+      />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <span className={cn('inline-block h-2 w-2 rounded-full', tone.dot)} />
+          {label}
+        </div>
+        {variant !== 'all' ? (
+          <span className={cn('text-[11px] font-semibold tabular-nums', tone.accent)}>
+            {share}%
+          </span>
+        ) : null}
       </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <span className="text-3xl font-semibold tabular-nums tracking-tight text-navy">
+          {count}
+        </span>
+        <span className="text-xs text-muted-foreground">張</span>
+      </div>
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
+        <span
+          className={cn('block h-full rounded-full transition-all duration-500', tone.bar)}
+          style={{ width: `${variant === 'all' ? 100 : share}%` }}
+        />
+      </div>
     </Link>
   );
 }

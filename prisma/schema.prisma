@@ -91,6 +91,9 @@ model Customer {
   petAgeYears      Int?      @map("pet_age_years")
   petBirthday      DateTime? @map("pet_birthday")
 
+  // 換罐計畫開戶店家（LINE 開戶時選填）
+  signupStore String? @map("signup_store")
+
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)
 
@@ -126,6 +129,13 @@ model LineChatSession {
   payload    String   @default("{}")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+// 記錄每個 LINE 用戶最後一次收到主選單的時間，用來在 24 小時內避免重複洗版選單
+model LineMenuState {
+  lineUserId     String   @id
+  lastMenuSentAt DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 // =====================================================
@@ -663,6 +673,9 @@ model Subscription {
   recipientPhone   String
   shippingAddress  String
   notes            String?
+  // 此訂閱專屬的盒內內容（JSON），未設定則沿用方案 plan.contents / plan.bonusItems
+  customContents   String? // JSON: [{name, weight, note}]
+  customBonus      String? // JSON: [{name}]
   paymentType      String    @default("monthly") // full / monthly / other
   paymentNote      String? // 選「其他」時可填说明
   pausedAt         DateTime?

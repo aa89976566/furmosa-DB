@@ -3,8 +3,10 @@ import {
   LINE_BTN,
   LINE_MENU_HINT_GUEST,
   LINE_MENU_HINT_REGISTERED,
+  LINE_SIGNUP_STORES,
+  LINE_STORE_PROMPT,
 } from '@/lib/line/line-copy';
-import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
+import type { LineReplyMessage } from '@/lib/line/reply';
 
 type FlexButton = {
   type: 'button';
@@ -78,6 +80,50 @@ export function buildMainMenuMessages(opts?: {
   const defaultBody = opts?.registered ? LINE_MENU_HINT_REGISTERED : LINE_MENU_HINT_GUEST;
   const body = opts?.body ?? defaultBody;
   return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body) }];
+}
+
+export function buildStorePickerMessages(): LineReplyMessage[] {
+  const storeButtons: FlexButton[] = LINE_SIGNUP_STORES.map((s) =>
+    pbBtn(s.label, `jd=store&c=${s.code}`),
+  );
+
+  return [
+    {
+      type: 'flex',
+      altText: '選擇開戶店家',
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'md',
+          contents: [
+            {
+              type: 'text',
+              text: '選擇開戶店家',
+              weight: 'bold',
+              size: 'md',
+            },
+            {
+              type: 'text',
+              text: LINE_STORE_PROMPT,
+              size: 'xs',
+              color: '#888888',
+              wrap: true,
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'sm',
+              margin: 'lg',
+              contents: storeButtons,
+            },
+          ],
+        },
+      },
+    },
+  ];
 }
 
 export function buildSpeciesPickerMessages(): LineReplyMessage[] {
@@ -225,20 +271,6 @@ export function buildRedeemPickerMessages(
       },
     },
   ];
-}
-
-/** 對話框主選單（三按鈕，postback，不跳 LIFF） */
-export async function replyJarDepositHub(
-  replyToken: string,
-  opts: { title?: string; body: string; emphasizeRegister?: boolean; registered?: boolean },
-) {
-  await replyLineMessage(
-    replyToken,
-    buildMainMenuMessages({
-      registered: opts.registered,
-      body: opts.body || opts.title,
-    }),
-  );
 }
 
 export function parseLinePostbackData(data: string): URLSearchParams {

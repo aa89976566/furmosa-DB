@@ -209,7 +209,7 @@ export function ProductForm({
               onClick={() => {
                 if (
                   confirm(
-                    '確定要刪除此商品？\n\n刪除後無法復原。若商品已有訂單／庫存／寄賣紀錄，系統會擋下並提示改為「下架」。',
+                    '確定要刪除此商品？\n\n刪除後無法復原，並會一併移除寄賣店庫存／分潤規則與內部庫存紀錄。\n若商品已用於正式訂單或出貨，系統會擋下並提示改為「下架」。',
                   )
                 ) {
                   deleteFormRef.current?.requestSubmit();

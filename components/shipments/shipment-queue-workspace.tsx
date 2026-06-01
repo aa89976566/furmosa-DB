@@ -9,7 +9,7 @@ import {
 import { ShipmentOrderPanel } from '@/components/shipments/shipment-order-panel';
 import { SectionBlock } from '@/components/shared/section-block';
 import type { SectionTone } from '@/lib/section-tone';
-import { X } from 'lucide-react';
+import { ClipboardList, MousePointerClick, X } from 'lucide-react';
 
 type QueueSection = {
   key: string;
@@ -116,30 +116,35 @@ export function ShipmentQueueWorkspace({
       {selectedShipmentId ? (
         <section
           ref={detailRef}
-          className="scroll-mt-6 rounded-xl border-2 border-primary/20 bg-card shadow-sm"
+          className="scroll-mt-6 overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-md"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                訂單內容
-              </p>
-              <h2 className="mt-1 font-mono text-base font-semibold">
-                {selectedShipment ? getShipmentLabel(selectedShipment) : selectedShipmentId}
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
-              </p>
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-primary/[0.04] px-5 py-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+                <ClipboardList className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                  訂單內容
+                </p>
+                <h2 className="mt-0.5 font-mono text-base font-semibold text-navy">
+                  {selectedShipment ? getShipmentLabel(selectedShipment) : selectedShipmentId}
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
+                </p>
+              </div>
             </div>
             <button
               type="button"
               onClick={closeDetail}
-              className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="inline-flex items-center gap-1 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
               關閉
             </button>
           </div>
-          <div className="p-4">
+          <div className="p-5">
             <ShipmentOrderPanel
               key={`${selectedShipmentId}-${panelRefreshKey}`}
               shipmentId={selectedShipmentId}
@@ -148,8 +153,14 @@ export function ShipmentQueueWorkspace({
           </div>
         </section>
       ) : (
-        <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <MousePointerClick className="h-5 w-5" />
+          </span>
+          <p className="text-sm font-medium text-foreground">尚未選取出貨單</p>
+          <p className="max-w-md text-xs text-muted-foreground">
+            點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
+          </p>
         </div>
       )}
     </div>

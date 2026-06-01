@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, formatNumber } from '@/lib/format';
 import { customerServiceTypeLabel } from '@/lib/jar-exchange/labels';
+import { resolveSignupStoreLabel } from '@/lib/line/line-copy';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,7 @@ export default async function JarExchangeMembersPage({
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="px-4 py-3 font-medium">會員</th>
                 <th className="px-4 py-3 font-medium">聯絡</th>
+                <th className="px-4 py-3 font-medium">開戶店家</th>
                 <th className="px-4 py-3 font-medium">服務類型</th>
                 <th className="px-4 py-3 font-medium text-right">點數</th>
                 <th className="px-4 py-3 font-medium text-right">已兌序號</th>
@@ -110,6 +112,9 @@ export default async function JarExchangeMembersPage({
                     <div className="font-mono text-xs text-muted-foreground">{c.customerId}</div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{c.phone ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {resolveSignupStoreLabel(c.signupStore) ?? '—'}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {c.services.map((s) => (
@@ -150,7 +155,7 @@ export default async function JarExchangeMembersPage({
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
                     尚無換罐會員，請使用上方「新增換罐會員」加入
                   </td>
                 </tr>

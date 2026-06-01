@@ -505,3 +505,30 @@ export async function deleteMerchantRule(formData: FormData) {
   revalidatePath(`/merchants/${merchantId}/products`);
   redirect(`/merchants/${merchantId}/products`);
 }
+
+// ============================================================
+// 4b. 刪除寄賣商品：移除此店此商品的庫存列與分潤規則
+//     （歷史流水 MerchantStockTxn 保留，供結算與報表追溯）
+// ============================================================
+export async function removeMerchantProduct(formData: FormData) {
+  const merchantId = String(formData.get('merchantId') ?? '');
+  const productId = String(formData.get('productId') ?? '');
+  const redirectTo = String(formData.get('redirectTo') ?? '').trim();
+  if (!merchantId || !productId) throw new Error('缺少店家或商品');
+
+  // 有尚未結算的銷售流水時，禁止刪除，以免漏結帳款
+  const unsettledSale = await prisma.merchantStockTxn.findFirst({
+    where: { merchantId, productId, type: 'sale', settlementId: null },
+    select: { id: true },
+  });
+  if (unsettledSale) {
+    throw new Error('此商品仍有未結算的銷售紀錄，請先完成結算後再刪除。');
+  }
+
+  await prisma.merchantProductRule.deleteMany({ where: { merchantId, productId } });
+  await prisma.merchantStock.deleteMany({ where: { merchantId, productId } });
+
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  redirect(redirectTo || `/merchants/${merchantId}/products`);
+}

@@ -6,6 +6,7 @@ import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { upsertMerchantRule, deleteMerchantRule } from '../actions';
+import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
 import {
   MERCHANT_COMMISSION_PERCENTS,
   type MerchantCommissionPercent,
@@ -44,6 +45,12 @@ export default async function MerchantRulePage({
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) notFound();
+
+  const stock = await prisma.merchantStock.findUnique({
+    where: { merchantId_productId: { merchantId: merchant.id, productId } },
+    select: { quantity: true },
+  });
+  const stockQuantity = stock?.quantity ?? 0;
 
   const existingRule = merchant.productRules.find((r) => r.productId === productId);
   const initialPercent = resolveInitialPercent(
@@ -137,21 +144,30 @@ export default async function MerchantRulePage({
             </div>
           </form>
 
-          {existingRule && (
-            <form action={deleteMerchantRule} className="mt-6 border-t pt-4">
-              <input type="hidden" name="ruleId" value={existingRule.id} />
-              <input type="hidden" name="merchantId" value={merchant.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="mr-1 h-4 w-4" />
-                刪除這條規則
-              </Button>
-            </form>
-          )}
+          <div className="mt-6 space-y-2 border-t pt-4">
+            <MerchantProductDeleteButton
+              merchantId={merchant.id}
+              productId={productId}
+              productName={product.name}
+              quantity={stockQuantity}
+              label="刪除寄賣商品"
+            />
+            {existingRule && (
+              <form action={deleteMerchantRule}>
+                <input type="hidden" name="ruleId" value={existingRule.id} />
+                <input type="hidden" name="merchantId" value={merchant.id} />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  只刪除分潤規則（保留庫存）
+                </Button>
+              </form>
+            )}
+          </div>
         </SectionCard>
 
         <SectionCard title="商品資訊" description="參考用，不會被改動">

@@ -14,6 +14,7 @@ export type CustomerCreateInput = {
   preferredCvsBrand?: string | null;
   preferredCvsStoreId?: string | null;
   preferredCvsStoreName?: string | null;
+  signupStore?: string | null;
 } & Partial<ParsedPetFields>;
 
 export type CreatedCustomerOption = {
@@ -92,6 +93,7 @@ export async function createCustomerRecord(
       preferredCvsBrand,
       preferredCvsStoreId,
       preferredCvsStoreName,
+      signupStore: (input.signupStore ?? '').trim() || null,
       petSpecies: pet.petSpecies,
       petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
       petName: pet.petName,

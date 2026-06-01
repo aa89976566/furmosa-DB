@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { LinkifiedText } from '@/components/shared/linkified-text';
 import {
@@ -15,11 +14,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime } from '@/lib/format';
 import { parsePlanContents, parsePlanBonus, parseShipDays } from '@/lib/subscription';
-import { subscriptionPaymentTypeLabel } from '@/lib/labels';
 import { SubscriptionSettingsForm } from './subscription-settings-form';
-import { ArrowLeft, Check, Gift, Truck } from 'lucide-react';
+import { SubscriptionContentsCard } from '@/components/subscriptions/subscription-contents-card';
+import { SubscriptionStatsCard } from '@/components/subscriptions/subscription-stats-card';
+import { SubscriptionNotesEditor } from '@/components/subscriptions/subscription-notes-editor';
+import { ArrowLeft } from 'lucide-react';
+
+function toDateInput(d: Date | null | undefined): string {
+  if (!d) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +53,13 @@ export default async function SubscriptionDetailPage({ params }: { params: { id:
     },
   });
 
-  const contents = parsePlanContents(sub.plan.contents);
-  const bonus = parsePlanBonus(sub.plan.bonusItems);
+  const planContents = parsePlanContents(sub.plan.contents);
+  const planBonus = parsePlanBonus(sub.plan.bonusItems);
+  const customContents = parsePlanContents(sub.customContents);
+  const customBonus = parsePlanBonus(sub.customBonus);
+  const isCustom = sub.customContents != null;
+  const effectiveContents = isCustom ? customContents : planContents;
+  const effectiveBonus = isCustom ? customBonus : planBonus;
   const shipDays = parseShipDays(sub.plan.shipDays);
   const totalShip = sub.shipments.length;
   const completedShip = sub.shipments.filter(
@@ -110,109 +121,54 @@ export default async function SubscriptionDetailPage({ params }: { params: { id:
                 )
               }
             />
-            {sub.notes && (
-              <Row
-                label="備註"
-                value={
-                  <LinkifiedText
-                    text={sub.notes}
-                    className="block text-right whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-                  />
-                }
-              />
-            )}
           </dl>
+          <div className="mt-3 space-y-1.5 border-t pt-3">
+            <p className="text-xs text-muted-foreground">備註</p>
+            <SubscriptionNotesEditor subscriptionId={sub.id} notes={sub.notes ?? ''} />
+          </div>
         </SectionCard>
 
         <SectionCard title="方案內容" className="min-w-0 lg:col-span-1" contentClassName="min-w-0 pt-6">
-          <div className="min-w-0 space-y-3">
-            <div>
-              <p className="font-mono text-xs text-muted-foreground">{sub.plan.planCode}</p>
-              <h3 className="break-words text-xl font-bold">{sub.plan.name}</h3>
-              {sub.plan.tagline && (
-                <p className="text-xs text-muted-foreground">{sub.plan.tagline}</p>
-              )}
-            </div>
-            <div className="text-2xl font-bold text-primary">
-              {formatCurrency(Number(sub.plan.monthlyPrice))}
-              <span className="ml-1 text-sm font-normal text-muted-foreground">/ 月</span>
-            </div>
-            {sub.billingCycle === 'halfyear' && sub.plan.halfYearPrice && (
-              <Badge variant="success">
-                半年付清 {formatCurrency(Number(sub.plan.halfYearPrice))}
-                {sub.plan.halfYearSavings && (
-                  <> · 省 {formatCurrency(Number(sub.plan.halfYearSavings))}</>
-                )}
-              </Badge>
-            )}
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Truck className="h-4 w-4 shrink-0 text-info" />
-              <span className="min-w-0 break-words">
-                每月 {sub.plan.shipmentsPerMonth} 次（
-                {shipDays.map((d) => `${d}日`).join(' / ')}）
-              </span>
-            </div>
-            <div className="min-w-0 space-y-1 border-t pt-3 text-sm">
-              {contents.map((c, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                  <span className="min-w-0 break-words">
-                    <span className="font-medium">{c.name}</span>
-                    {c.weight && (
-                      <span className="ml-1 text-xs text-muted-foreground">({c.weight})</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-              {bonus.map((b, i) => (
-                <div key={`b-${i}`} className="flex items-start gap-2">
-                  <Gift className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                  <span className="min-w-0 break-words">{b.name}</span>
-                </div>
-              ))}
-            </div>
-            <Button variant="ghost" size="sm" asChild className="w-full">
-              <Link href="/subscriptions/plans">查看所有方案</Link>
-            </Button>
-          </div>
+          <SubscriptionContentsCard
+            data={{
+              subscriptionId: sub.id,
+              planCode: sub.plan.planCode,
+              planName: sub.plan.name,
+              tagline: sub.plan.tagline,
+              monthlyPrice: Number(sub.plan.monthlyPrice),
+              billingCycle: sub.billingCycle,
+              halfYearPrice: sub.plan.halfYearPrice == null ? null : Number(sub.plan.halfYearPrice),
+              halfYearSavings:
+                sub.plan.halfYearSavings == null ? null : Number(sub.plan.halfYearSavings),
+              shipmentsPerMonth: sub.plan.shipmentsPerMonth,
+              shipDays,
+              contents: effectiveContents,
+              bonus: effectiveBonus,
+              isCustom,
+            }}
+          />
         </SectionCard>
 
         <SectionCard title="訂閱統計" className="min-w-0 lg:col-span-1" contentClassName="min-w-0 pt-6">
-          <div className="grid grid-cols-2 gap-3">
-            <Stat label="開始日" value={formatDate(sub.startDate)} />
-            <Stat
-              label="到期日"
-              value={sub.endDate ? formatDate(sub.endDate) : '無限期'}
-            />
-            <Stat
-              label="下次出貨"
-              value={
+          <SubscriptionStatsCard
+            data={{
+              subscriptionId: sub.id,
+              statusActive: sub.status === 'active',
+              startInput: toDateInput(sub.startDate),
+              endInput: toDateInput(sub.endDate),
+              nextInput: toDateInput(sub.nextShipmentDate),
+              startLabel: formatDate(sub.startDate),
+              endLabel: sub.endDate ? formatDate(sub.endDate) : '無限期',
+              nextLabel:
                 sub.status === 'active' && sub.nextShipmentDate
                   ? formatDate(sub.nextShipmentDate)
-                  : '-'
-              }
-              note={sub.status === 'active' ? '依方案排程' : '未進行中'}
-            />
-            <Stat
-              label="出貨進度"
-              value={`${completedShip} / ${totalShip}`}
-              note="已寄 / 全部排程"
-            />
-            <Stat
-              label="付款方式"
-              value={
-                subscriptionPaymentTypeLabel[sub.paymentType] ?? sub.paymentType ?? '月付'
-              }
-            />
-            <Stat
-              label="付款說明"
-              value={
-                sub.paymentType === 'other' && sub.paymentNote?.trim()
-                  ? sub.paymentNote
-                  : '—'
-              }
-            />
-          </div>
+                  : '-',
+              nextNote: sub.status === 'active' ? '依方案排程' : '未進行中',
+              progressLabel: `${completedShip} / ${totalShip}`,
+              paymentType: sub.paymentType,
+              paymentNote: sub.paymentNote ?? '',
+            }}
+          />
         </SectionCard>
 
         <SectionCard
@@ -292,16 +248,6 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
     <div className="flex flex-col gap-1 border-b border-border/60 pb-2 last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <dt className="shrink-0 text-xs text-muted-foreground">{label}</dt>
       <dd className="min-w-0 max-w-full flex-1 text-sm font-medium sm:text-right">{value}</dd>
-    </div>
-  );
-}
-
-function Stat({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 break-words text-base font-semibold">{value}</div>
-      {note && <div className="text-[11px] text-muted-foreground">{note}</div>}
     </div>
   );
 }
