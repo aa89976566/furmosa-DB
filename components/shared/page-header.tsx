@@ -15,7 +15,7 @@ export function PageHeader({ title, description, actions, tone }: PageHeaderProp
   return (
     <div
       className={cn(
-        'border-b border-border/70 bg-card/80 px-6 py-6 backdrop-blur-sm md:py-7',
+        'border-b border-border/70 bg-card/80 px-4 py-5 backdrop-blur-sm sm:px-6 sm:py-6 md:py-7',
         tone && 'border-l-4',
         tone && styles?.cardBorder,
       )}
