@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { LinkifiedText } from '@/components/shared/linkified-text';
 import {
   Table,
   TableBody,
@@ -20,6 +19,7 @@ import { SubscriptionSettingsForm } from './subscription-settings-form';
 import { SubscriptionContentsCard } from '@/components/subscriptions/subscription-contents-card';
 import { SubscriptionStatsCard } from '@/components/subscriptions/subscription-stats-card';
 import { SubscriptionNotesEditor } from '@/components/subscriptions/subscription-notes-editor';
+import { SubscriptionRecipientEditor } from '@/components/subscriptions/subscription-recipient-editor';
 import { ArrowLeft } from 'lucide-react';
 
 function toDateInput(d: Date | null | undefined): string {
@@ -106,22 +106,15 @@ export default async function SubscriptionDetailPage({ params }: { params: { id:
               label="客戶編號"
               value={<span className="font-mono text-xs">{sub.customer.customerId}</span>}
             />
-            <Row label="收件人" value={sub.recipientName} />
-            <Row label="收件電話" value={sub.recipientPhone} />
-            <Row
-              label="收件地址"
-              value={
-                sub.shippingAddress ? (
-                  <LinkifiedText
-                    text={sub.shippingAddress}
-                    className="block text-right break-words [overflow-wrap:anywhere]"
-                  />
-                ) : (
-                  '—'
-                )
-              }
-            />
           </dl>
+          <div className="mt-3 border-t pt-3">
+            <SubscriptionRecipientEditor
+              subscriptionId={sub.id}
+              recipientName={sub.recipientName}
+              recipientPhone={sub.recipientPhone}
+              shippingAddress={sub.shippingAddress}
+            />
+          </div>
           <div className="mt-3 space-y-1.5 border-t pt-3">
             <p className="text-xs text-muted-foreground">備註</p>
             <SubscriptionNotesEditor subscriptionId={sub.id} notes={sub.notes ?? ''} />

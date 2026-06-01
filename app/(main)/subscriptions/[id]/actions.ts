@@ -66,6 +66,34 @@ export async function updateSubscriptionNotes(formData: FormData) {
   revalidatePath(`/subscriptions/${subscriptionId}`);
 }
 
+// 更新收件資料（收件人 / 收件電話 / 收件地址）
+export async function updateSubscriptionRecipient(formData: FormData) {
+  const subscriptionId = String(formData.get('subscriptionId') ?? '').trim();
+  if (!subscriptionId) throw new Error('缺少訂閱');
+
+  const existing = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    select: { id: true },
+  });
+  if (!existing) throw new Error('訂閱不存在');
+
+  const recipientName = String(formData.get('recipientName') ?? '').trim();
+  const recipientPhone = String(formData.get('recipientPhone') ?? '').trim();
+  const shippingAddress = String(formData.get('shippingAddress') ?? '').trim();
+
+  if (!recipientName) throw new Error('請填寫收件人');
+  if (!recipientPhone) throw new Error('請填寫收件電話');
+  if (!shippingAddress) throw new Error('請填寫收件地址');
+
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: { recipientName, recipientPhone, shippingAddress },
+  });
+
+  revalidatePath(`/subscriptions/${subscriptionId}`);
+  revalidatePath('/subscriptions');
+}
+
 // 更新訂閱統計欄位（開始日 / 到期日 / 下次出貨 / 付款）
 export async function updateSubscriptionStats(formData: FormData) {
   const subscriptionId = String(formData.get('subscriptionId') ?? '').trim();
