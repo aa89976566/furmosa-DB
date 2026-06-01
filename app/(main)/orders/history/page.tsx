@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { OrderListTable } from '@/components/orders/order-list-table';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { ArrowLeft, History } from 'lucide-react';
 
@@ -59,7 +58,7 @@ export default async function OrderHistoryPage({
         }
       />
 
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/30 px-3 py-1">
             <History className="h-3.5 w-3.5" />
@@ -68,9 +67,7 @@ export default async function OrderHistoryPage({
           <span>已退貨 {returnedCount} · 已取消 {cancelledCount}</span>
         </div>
 
-        <Card className="p-0">
-          <OrderListTable orders={orders} />
-        </Card>
+        <OrderListTable orders={orders} />
       </div>
     </>
   );

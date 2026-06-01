@@ -327,6 +327,52 @@ export async function createOrder(formData: FormData) {
 
 const VALID_PAYMENT_STATUSES = ['unpaid', 'partial', 'paid', 'cod', 'refunded'] as const;
 
+const VALID_ORDER_STATUSES = [
+  'draft',
+  'confirmed',
+  'packed',
+  'shipped',
+  'delivered',
+  'completed',
+  'cancelled',
+] as const;
+
+export async function updateOrderStatus(formData: FormData) {
+  const orderId = String(formData.get('orderId') ?? '');
+  const next = String(formData.get('status') ?? '');
+  if (!orderId) throw new Error('缺少訂單');
+  if (!(VALID_ORDER_STATUSES as readonly string[]).includes(next)) {
+    throw new Error('訂單狀態錯誤');
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { status: true, shippedAt: true, completedAt: true },
+  });
+  if (!order) throw new Error('訂單不存在');
+
+  const data: { status: string; shippedAt?: Date | null; completedAt?: Date | null } = {
+    status: next,
+  };
+  // 進入「已出貨」(含)之後，若尚未記錄出貨時間則補上
+  if (['shipped', 'delivered', 'completed'].includes(next) && !order.shippedAt) {
+    data.shippedAt = new Date();
+  }
+  // 完成時間：完成才記錄，其餘狀態清空
+  if (next === 'completed') {
+    if (!order.completedAt) data.completedAt = new Date();
+  } else {
+    data.completedAt = null;
+  }
+
+  await prisma.order.update({ where: { id: orderId }, data });
+
+  revalidatePath('/orders');
+  revalidatePath('/orders/history');
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath('/dashboard');
+}
+
 export async function updateOrderPaymentStatus(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
   const next = String(formData.get('paymentStatus') ?? '');

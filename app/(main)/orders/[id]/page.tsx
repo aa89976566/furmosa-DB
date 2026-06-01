@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+import { orderStatusLabel, paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
 import { shippingMethodLabel } from '@/lib/shipping-policy';
 import { OrderAmountSummary } from '@/components/orders/order-amount-summary';
 import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
@@ -38,7 +38,21 @@ import {
   Package,
   ClipboardList,
 } from 'lucide-react';
-import { updateOrderPaymentStatus, updateOrderShippingFeeType } from '../actions';
+import {
+  updateOrderPaymentStatus,
+  updateOrderShippingFeeType,
+  updateOrderStatus,
+} from '../actions';
+
+const ORDER_STATUS_OPTIONS = [
+  'draft',
+  'confirmed',
+  'packed',
+  'shipped',
+  'delivered',
+  'completed',
+  'cancelled',
+] as const;
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +94,34 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               <StatusBadge kind="payment" value={order.paymentStatus} />
               <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
             </DetailBadgeRow>
+
+            <div className="mb-3 rounded-lg border bg-muted/20 p-3">
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">訂單狀態（可調整）</p>
+              <div className="flex flex-wrap gap-1.5">
+                {ORDER_STATUS_OPTIONS.map((s) => (
+                  <form key={s} action={updateOrderStatus}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="status" value={s} />
+                    <button
+                      type="submit"
+                      disabled={order.status === s}
+                      className={toggleButtonClass(
+                        order.status === s,
+                        false,
+                        s === 'cancelled',
+                      )}
+                    >
+                      {orderStatusLabel[s]}
+                    </button>
+                  </form>
+                ))}
+              </div>
+              {order.status === 'cancelled' ? (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  此訂單目前為「已取消」，會收錄在「歷史訂單」。改為其他狀態即可回到訂單列表。
+                </p>
+              ) : null}
+            </div>
 
             <DetailStrip
               columns={1}
@@ -393,13 +435,17 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   );
 }
 
-function toggleButtonClass(selected: boolean, fullWidth = false) {
+function toggleButtonClass(selected: boolean, fullWidth = false, destructive = false) {
   return cn(
     'rounded-md border px-2.5 py-1 text-xs whitespace-nowrap transition disabled:cursor-not-allowed',
     fullWidth && 'w-full text-left',
     selected
-      ? 'border-primary/40 bg-primary/10 font-medium text-primary'
-      : 'border-border bg-background hover:bg-muted',
+      ? destructive
+        ? 'border-destructive/40 bg-destructive/10 font-medium text-destructive'
+        : 'border-primary/40 bg-primary/10 font-medium text-primary'
+      : destructive
+        ? 'border-destructive/30 bg-background text-destructive hover:bg-destructive/10'
+        : 'border-border bg-background hover:bg-muted',
   );
 }
 
