@@ -10,11 +10,12 @@ import { CustomerContactCard } from '@/components/customers/customer-contact-car
 import { CustomerServicesBlock } from '@/components/customers/customer-services-block';
 import { CustomerJarExchangePanel } from '@/components/customers/customer-jar-exchange-panel';
 import { CustomerOrdersPreview } from '@/components/customers/customer-orders-preview';
+import { CustomerDeleteButton } from '@/components/customers/customer-delete-button';
 import { loadCustomerDetail } from '@/lib/customers/load-customer-detail';
 import { parseTags } from '@/lib/parse-tags';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { customerServiceTypeLabel } from '@/lib/jar-exchange/labels';
-import { ArrowLeft, Repeat } from 'lucide-react';
+import { ArrowLeft, Repeat, Pencil } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +39,24 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           </span>
         }
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-start gap-2">
             {customer.phone ? (
               <Button variant="outline" size="sm" asChild>
                 <a href={`tel:${customer.phone}`}>撥打</a>
               </Button>
             ) : null}
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/customers/${customer.id}/edit`}>
+                <Pencil className="mr-1 h-4 w-4" />
+                編輯
+              </Link>
+            </Button>
+            <CustomerDeleteButton
+              id={customer.id}
+              name={customer.name}
+              orderCount={customer._count.orders}
+              subscriptionCount={customer._count.subscriptions}
+            />
             <Button variant="outline" size="sm" asChild>
               <Link href="/customers">
                 <ArrowLeft className="mr-1 h-4 w-4" />

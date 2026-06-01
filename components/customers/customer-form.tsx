@@ -5,21 +5,51 @@ import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save } from 'lucide-react';
-import { createCustomerFromForm } from '@/app/(main)/customers/actions';
-import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
+import { createCustomerFromForm, updateCustomerFromForm } from '@/app/(main)/customers/actions';
+import {
+  PetProfileFieldsBlock,
+  type PetFieldDefaults,
+} from '@/components/customers/pet-profile-fields-block';
 
 type ShippingPref = '' | 'home' | 'convenience';
 
-export function CustomerForm() {
-  const [shipping, setShipping] = useState<ShippingPref>('');
+export type CustomerFormDefaults = {
+  id: string;
+  name: string;
+  type: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  lineUserId: string | null;
+  lineDisplay: string | null;
+  preferredShippingMethod: string | null;
+  preferredCvsBrand: string | null;
+  preferredCvsStoreId: string | null;
+  preferredCvsStoreName: string | null;
+  pet: PetFieldDefaults;
+};
+
+export function CustomerForm({ customer }: { customer?: CustomerFormDefaults }) {
+  const isEdit = Boolean(customer);
+  const initialShipping: ShippingPref =
+    customer?.preferredShippingMethod === 'home'
+      ? 'home'
+      : customer?.preferredShippingMethod === 'convenience'
+        ? 'convenience'
+        : '';
+  const [shipping, setShipping] = useState<ShippingPref>(initialShipping);
 
   return (
     <form
       action={async (formData) => {
         try {
-          await createCustomerFromForm(formData);
+          if (isEdit && customer) {
+            await updateCustomerFromForm(customer.id, formData);
+          } else {
+            await createCustomerFromForm(formData);
+          }
         } catch (e) {
-          alert(e instanceof Error ? e.message : '建立失敗');
+          alert(e instanceof Error ? e.message : isEdit ? '更新失敗' : '建立失敗');
         }
       }}
       className="max-w-2xl space-y-6"
@@ -28,12 +58,12 @@ export function CustomerForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="姓名" required className="sm:col-span-2">
-          <Input name="name" required maxLength={60} placeholder="王小明" />
+          <Input name="name" required maxLength={60} placeholder="王小明" defaultValue={customer?.name ?? ''} />
         </Field>
         <Field label="類型">
           <select
             name="type"
-            defaultValue="individual"
+            defaultValue={customer?.type ?? 'individual'}
             className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
           >
             <option value="individual">個人</option>
@@ -41,10 +71,10 @@ export function CustomerForm() {
           </select>
         </Field>
         <Field label="電話">
-          <Input name="phone" type="tel" maxLength={40} placeholder="0912-345-678" />
+          <Input name="phone" type="tel" maxLength={40} placeholder="0912-345-678" defaultValue={customer?.phone ?? ''} />
         </Field>
         <Field label="Email">
-          <Input name="email" type="text" inputMode="email" maxLength={120} placeholder="選填" />
+          <Input name="email" type="text" inputMode="email" maxLength={120} placeholder="選填" defaultValue={customer?.email ?? ''} />
         </Field>
         <Field label="LINE User ID" className="sm:col-span-2">
           <Input
@@ -52,10 +82,11 @@ export function CustomerForm() {
             maxLength={40}
             placeholder="選填，例：Uxxxxxxxx（Messaging API 的 userId）"
             className="font-mono text-sm"
+            defaultValue={customer?.lineUserId ?? ''}
           />
         </Field>
         <Field label="LINE 顯示名稱" className="sm:col-span-2">
-          <Input name="lineDisplay" maxLength={60} placeholder="選填" />
+          <Input name="lineDisplay" maxLength={60} placeholder="選填" defaultValue={customer?.lineDisplay ?? ''} />
         </Field>
       </div>
 
@@ -85,7 +116,7 @@ export function CustomerForm() {
         </div>
         {shipping === 'home' && (
           <Field label="宅配地址">
-            <Input name="address" maxLength={200} placeholder="之後下單會自動帶入" />
+            <Input name="address" maxLength={200} placeholder="之後下單會自動帶入" defaultValue={customer?.address ?? ''} />
           </Field>
         )}
         {shipping === 'convenience' && (
@@ -93,7 +124,7 @@ export function CustomerForm() {
             <Field label="超商">
               <select
                 name="preferredCvsBrand"
-                defaultValue=""
+                defaultValue={customer?.preferredCvsBrand ?? ''}
                 className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
               >
                 <option value="">請選擇</option>
@@ -103,24 +134,24 @@ export function CustomerForm() {
               </select>
             </Field>
             <Field label="店號">
-              <Input name="preferredCvsStoreId" maxLength={20} />
+              <Input name="preferredCvsStoreId" maxLength={20} defaultValue={customer?.preferredCvsStoreId ?? ''} />
             </Field>
             <Field label="店名">
-              <Input name="preferredCvsStoreName" maxLength={80} />
+              <Input name="preferredCvsStoreName" maxLength={80} defaultValue={customer?.preferredCvsStoreName ?? ''} />
             </Field>
           </div>
         )}
         {shipping === '' && (
           <Field label="聯絡地址（選填）">
-            <Input name="address" maxLength={200} />
+            <Input name="address" maxLength={200} defaultValue={customer?.address ?? ''} />
           </Field>
         )}
       </div>
 
-      <PetProfileFieldsBlock />
+      <PetProfileFieldsBlock defaults={customer?.pet} />
 
       <div className="flex justify-end border-t pt-4">
-        <SubmitButton />
+        <SubmitButton isEdit={isEdit} />
       </div>
     </form>
   );
@@ -148,12 +179,12 @@ function Field({
   );
 }
 
-function SubmitButton() {
+function SubmitButton({ isEdit }: { isEdit: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" disabled={pending}>
       <Save className="mr-1 h-4 w-4" />
-      {pending ? '建立中…' : '建立客戶'}
+      {pending ? (isEdit ? '儲存中…' : '建立中…') : isEdit ? '儲存變更' : '建立客戶'}
     </Button>
   );
 }

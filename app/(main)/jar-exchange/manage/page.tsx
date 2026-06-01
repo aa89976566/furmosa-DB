@@ -5,6 +5,7 @@ import { CodesAdminTools } from '@/components/jar-exchange/codes-admin';
 import { RewardCatalogAdmin } from '@/components/jar-exchange/reward-catalog-admin';
 import { LedgerAdmin } from '@/components/jar-exchange/ledger-admin';
 import { Badge } from '@/components/ui/badge';
+import { JarCodeDeleteButton } from '@/components/jar-exchange/jar-code-delete-button';
 import { formatDateTime } from '@/lib/format';
 import { jarCodeStatusLabel } from '@/lib/jar-exchange/labels';
 
@@ -95,6 +96,7 @@ async function CodesTable({
               <th className="px-4 py-3">狀態</th>
               <th className="px-4 py-3">使用者</th>
               <th className="px-4 py-3">使用時間</th>
+              <th className="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -132,6 +134,9 @@ async function CodesTable({
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {row.redeemedAt ? formatDateTime(row.redeemedAt) : '—'}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <JarCodeDeleteButton id={row.id} code={row.code} used={row.status === 'used'} />
                 </td>
               </tr>
             ))}

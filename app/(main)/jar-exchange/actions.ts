@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   filterValidJarCodes,
@@ -148,6 +149,62 @@ export async function importJarCodes(formData: FormData) {
 
   revalidateJar();
   return { ok: true as const, created, skipped };
+}
+
+/**
+ * 刪除序號（含已返航）。
+ * 若序號已被返航，會一併撤銷該序號帶來的點數流水並重算會員餘額，
+ * 刪除後此序號號碼即可重新產生／重複使用。
+ */
+export async function deleteJarCode(formData: FormData) {
+  const id = String(formData.get('id') ?? '').trim();
+  if (!id) return { ok: false as const, error: '缺少序號 ID' };
+
+  const code = await prisma.jarCode.findUnique({
+    where: { id },
+    select: { status: true, code: true, redeemedByCustomerId: true },
+  });
+  if (!code) return { ok: false as const, error: '找不到序號' };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (code.redeemedByCustomerId) {
+        const deleted = await tx.memberPointsLedger.deleteMany({
+          where: { sourceType: 'jar_code_redeem', sourceRefId: id },
+        });
+        if (deleted.count > 0) {
+          await recalcPointsLedgerBalances(tx, code.redeemedByCustomerId);
+        }
+      }
+      await tx.jarCode.delete({ where: { id } });
+    });
+  } catch (e) {
+    console.error('deleteJarCode', e);
+    return { ok: false as const, error: e instanceof Error ? e.message : '刪除失敗' };
+  }
+
+  revalidateJar();
+  return { ok: true as const };
+}
+
+/** 重算某會員的點數流水餘額（依時間序累加 pointsChange） */
+async function recalcPointsLedgerBalances(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+) {
+  const rows = await tx.memberPointsLedger.findMany({
+    where: { customerId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, pointsChange: true },
+  });
+  let balance = 0;
+  for (const r of rows) {
+    balance += r.pointsChange;
+    await tx.memberPointsLedger.update({
+      where: { id: r.id },
+      data: { balanceAfter: balance },
+    });
+  }
 }
 
 export async function adminRedeemJarCode(customerId: string, code: string) {

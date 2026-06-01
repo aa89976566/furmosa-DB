@@ -4,14 +4,26 @@ import { useId, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { PET_SPECIES_OPTIONS } from '@/lib/customers/pet-fields';
 
+export type PetFieldDefaults = {
+  petSpecies?: string | null;
+  petSpeciesOther?: string | null;
+  petName?: string | null;
+  petAgeYears?: number | null;
+  petBirthday?: string | null;
+};
+
 type Props = {
   /** 用於換罐快速表單等僅顯示必填星號在名字 */
   requirePetWhenAny?: boolean;
+  defaults?: PetFieldDefaults;
 };
 
-export function PetProfileFieldsBlock({ requirePetWhenAny: _requirePetWhenAny }: Props) {
+export function PetProfileFieldsBlock({
+  requirePetWhenAny: _requirePetWhenAny,
+  defaults,
+}: Props) {
   const id = useId();
-  const [species, setSpecies] = useState('');
+  const [species, setSpecies] = useState(defaults?.petSpecies ?? '');
 
   return (
     <div className="space-y-4 rounded-xl border bg-muted/15 p-4">
@@ -39,7 +51,13 @@ export function PetProfileFieldsBlock({ requirePetWhenAny: _requirePetWhenAny }:
           </select>
         </Field>
         <Field label="毛孩名字">
-          <Input id={`${id}-petName`} name="petName" maxLength={80} placeholder="例：橘膩" />
+          <Input
+            id={`${id}-petName`}
+            name="petName"
+            maxLength={80}
+            placeholder="例：橘膩"
+            defaultValue={defaults?.petName ?? ''}
+          />
         </Field>
         <Field label="約幾歲（足歲）">
           <Input
@@ -49,14 +67,20 @@ export function PetProfileFieldsBlock({ requirePetWhenAny: _requirePetWhenAny }:
             min={0}
             max={50}
             placeholder="選填，0–50"
+            defaultValue={defaults?.petAgeYears ?? ''}
           />
         </Field>
         <Field label="生日（選填）">
-          <Input name="petBirthday" type="date" />
+          <Input name="petBirthday" type="date" defaultValue={defaults?.petBirthday ?? ''} />
         </Field>
         {species === 'other' ? (
           <Field label="其他種類" className="sm:col-span-2">
-            <Input name="petSpeciesOther" maxLength={120} placeholder="例：刺蝟、貂" />
+            <Input
+              name="petSpeciesOther"
+              maxLength={120}
+              placeholder="例：刺蝟、貂"
+              defaultValue={defaults?.petSpeciesOther ?? ''}
+            />
           </Field>
         ) : (
           <input type="hidden" name="petSpeciesOther" value="" />
