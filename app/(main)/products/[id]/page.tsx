@@ -21,7 +21,6 @@ import { ProductForm } from './product-form';
 import { updateProduct, deleteProduct } from '../actions';
 import { PriceTierManager } from './price-tier-manager';
 import { VendorInfoCard } from '@/components/vendors/vendor-info-card';
-import { resolveTierCost } from '@/lib/product-price-tier';
 import { summarizeVariations } from '@/lib/product-variations';
 
 export const dynamic = 'force-dynamic';
@@ -50,17 +49,6 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     }),
   ]);
   if (!product) notFound();
-
-  // 修正歷史資料：誤把重量存成規格成本
-  for (const tier of product.priceTiers) {
-    if (tier.cost != null && resolveTierCost(tier.cost, tier.weightGrams) == null) {
-      await prisma.productPriceTier.update({
-        where: { id: tier.id },
-        data: { cost: null },
-      });
-      tier.cost = null;
-    }
-  }
 
   const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
   const variations = product.priceTiers.map((tier) => ({

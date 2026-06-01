@@ -6,13 +6,12 @@ export type TierLike = {
   cost: number | null;
 };
 
-/** 規格成本：排除誤把重量 (g) 存成成本的情況 */
+/** 規格成本：僅排除空值或非數字（不再用「成本=重量」推測誤填，避免誤刪合法成本） */
 export function resolveTierCost(
   cost: number | null | undefined,
-  weightGrams: number | null | undefined,
+  _weightGrams?: number | null | undefined,
 ): number | null {
   if (cost == null || !Number.isFinite(cost)) return null;
-  if (weightGrams != null && weightGrams > 0 && cost === weightGrams) return null;
   return cost;
 }
 

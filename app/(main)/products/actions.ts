@@ -224,14 +224,12 @@ function parseTierFields(formData: FormData) {
   if (mode === 'weight') {
     const weightGrams = toInt(formData.get('weightGrams'));
     if (weightGrams <= 0) throw new Error('重量必須大於 0');
-    const cost = resolveTierCost(rawCost, weightGrams);
-    if (cost == null) throw new Error('成本不可與重量 (g) 相同，請填寫實際進貨成本');
     return {
       weightGrams,
       unit: 'g',
       unitQty: 1,
       price,
-      cost,
+      cost: rawCost,
       notes,
     };
   }
