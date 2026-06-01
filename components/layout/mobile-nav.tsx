@@ -43,7 +43,7 @@ export function MobileNav() {
       <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
       <aside
         className={cn(
-          'absolute left-0 top-0 flex h-full w-72 max-w-[82%] flex-col border-r border-border/70 bg-card shadow-2xl transition-transform duration-200 ease-out',
+          'absolute left-0 top-0 flex h-full w-72 max-w-[82%] flex-col overflow-hidden border-r border-border/70 bg-card shadow-2xl transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -67,7 +67,7 @@ export function MobileNav() {
           </button>
         </div>
 
-        <ScrollArea className="flex-1 px-3 py-4">
+        <ScrollArea className="min-h-0 flex-1 px-3 py-4">
           <div onClick={() => setOpen(false)}>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
               <SidebarNav />

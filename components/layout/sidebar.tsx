@@ -15,7 +15,7 @@ export function Sidebar() {
           <span className="text-[11px] text-muted-foreground">HQ Admin</span>
         </div>
       </div>
-      <ScrollArea className="flex-1 px-3 py-4">
+      <ScrollArea className="min-h-0 flex-1 px-3 py-4">
         <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
           <SidebarNav />
         </Suspense>
