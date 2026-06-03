@@ -1,3 +1,5 @@
+import { prisma } from '@/lib/prisma';
+
 /** Prisma / Supabase pooler 暫時無法連線時重試 */
 export function isPrismaConnectionError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error);
@@ -8,16 +10,31 @@ export function isPrismaConnectionError(error: unknown): boolean {
   return (
     msg.includes("Can't reach database server") ||
     msg.includes('Connection closed') ||
+    msg.includes('Error in PostgreSQL connection') ||
     msg.includes('ECONNREFUSED') ||
     msg.includes('Connection pool timeout') ||
     msg.includes('Timed out fetching a new connection')
   );
 }
 
+async function resetPrismaConnection() {
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // ignore
+  }
+  await new Promise((r) => setTimeout(r, 400));
+  try {
+    await prisma.$connect();
+  } catch {
+    // next query will retry connect
+  }
+}
+
 export async function withDbRetry<T>(
   fn: () => Promise<T>,
-  attempts = 3,
-  delayMs = 600,
+  attempts = 5,
+  delayMs = 800,
 ): Promise<T> {
   let last: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -26,6 +43,7 @@ export async function withDbRetry<T>(
     } catch (error) {
       last = error;
       if (!isPrismaConnectionError(error) || i === attempts - 1) throw error;
+      await resetPrismaConnection();
       await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
     }
   }
