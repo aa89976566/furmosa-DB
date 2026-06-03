@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { SubscriptionShipmentStatusSelect } from '@/components/subscriptions/subscription-shipment-status-select';
 import {
   Table,
   TableBody,
@@ -208,7 +209,10 @@ export default async function SubscriptionDetailPage({ params }: { params: { id:
                     {formatDate(s.scheduledDate)}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge kind="subscriptionShipment" value={s.status} />
+                    <SubscriptionShipmentStatusSelect
+                      subscriptionShipmentId={s.id}
+                      status={s.status}
+                    />
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {s.shippedAt ? formatDateTime(s.shippedAt) : '-'}

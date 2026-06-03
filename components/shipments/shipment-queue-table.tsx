@@ -68,6 +68,15 @@ function shortShipmentNumber(value: string) {
 }
 
 
+function rowLabel(s: ShipmentQueueRow) {
+  return (
+    s.order?.orderNumber ??
+    s.subscriptionShipment?.subscription?.subscriptionNo ??
+    s.subscriptionShipment?.shipmentNo ??
+    s.shipmentNumber
+  );
+}
+
 function ItemBulletList({ items }: { items: string[] }) {
   return (
     <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
@@ -109,7 +118,7 @@ export function ShipmentQueueTable({
     <Table className="table-fixed">
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[4.5rem]">單號</TableHead>
+          <TableHead className="w-[7.5rem]">單號</TableHead>
           <TableHead className="w-[6.5rem]">運輸狀態</TableHead>
           <TableHead className="w-[30%]">寄送地</TableHead>
           <TableHead className="w-[11rem] min-w-[11rem]">電話</TableHead>
@@ -153,15 +162,20 @@ export function ShipmentQueueTable({
                   'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
               )}
               onClick={() => onSelectShipment(s)}
-              title={s.shipmentNumber}
+              title={`${rowLabel(s)} · ${s.shipmentNumber}`}
             >
               <TableCell className="py-3">
                 <span
-                  className="block max-w-[4.5rem] truncate font-mono text-[10px] leading-tight text-muted-foreground"
+                  className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
                   title={s.shipmentNumber}
                 >
-                  {shortShipmentNumber(s.shipmentNumber)}
+                  {rowLabel(s)}
                 </span>
+                {s.order ? (
+                  <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">
+                    {shortShipmentNumber(s.shipmentNumber)}
+                  </span>
+                ) : null}
               </TableCell>
               <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
                 <ShipmentQueueStatusCell

@@ -20,6 +20,7 @@ export const ledgerSourceLabel: Record<string, string> = {
   jar_code_redeem: '序號返航',
   manual_adjustment: '人工調整',
   reward_redemption: '獎勵兌換',
+  grooming_coupon_redemption: '美容折價券兌換',
   campaign_bonus: '活動贈點',
 };
 

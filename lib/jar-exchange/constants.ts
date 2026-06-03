@@ -5,6 +5,7 @@ export const LEDGER_SOURCE_TYPES = [
   'jar_code_redeem',
   'manual_adjustment',
   'reward_redemption',
+  'grooming_coupon_redemption',
   'campaign_bonus',
 ] as const;
 export type LedgerSourceType = (typeof LEDGER_SOURCE_TYPES)[number];

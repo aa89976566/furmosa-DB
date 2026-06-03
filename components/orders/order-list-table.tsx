@@ -19,6 +19,16 @@ import { ChevronRight, Package } from 'lucide-react';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
+function fulfillmentDisplay(order: OrderListRow): string {
+  const shipment = order.shipments[0];
+  if (!shipment) return order.fulfillmentStatus;
+  if (shipment.status === 'packed' || shipment.status === 'pending') return 'pending';
+  if (shipment.status === 'shipped') return 'shipped';
+  if (shipment.status === 'delivered') return 'delivered';
+  if (shipment.status === 'cancelled') return 'returned';
+  return order.fulfillmentStatus;
+}
+
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
   if (orders.length === 0) {
     return (
@@ -93,7 +103,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <StatusBadge kind="fulfillment" value={o.fulfillmentStatus} />
+                      <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
                       {o.shipments[0] ? (
                         <Link
                           href={`/shipments/${o.shipments[0].id}`}
@@ -158,7 +168,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <StatusBadge kind="order" value={o.status} />
         <StatusBadge kind="payment" value={o.paymentStatus} />
-        <StatusBadge kind="fulfillment" value={o.fulfillmentStatus} />
+        <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySessionEdge } from '@/lib/auth-edge';
 
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/store', '/store-redeem'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -10,6 +10,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/line') ||
+    pathname.startsWith('/api/cron') ||
+    pathname.startsWith('/api/coupons') ||
     pathname.startsWith('/liff') ||
     pathname.startsWith('/favicon') ||
     pathname.match(/\.(svg|png|jpg|jpeg|webp|ico|css|js)$/)
@@ -28,7 +30,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (session && isPublic) {
+  if (session && (pathname === '/login' || pathname.startsWith('/login/'))) {
     const url = req.nextUrl.clone();
     url.pathname = '/dashboard';
     url.search = '';

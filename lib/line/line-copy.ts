@@ -3,39 +3,33 @@
 export const LINE_BTN = {
   /** 主選單 */
   register: '幫毛孩開戶',
-  vault: '罐罐存摺',
+  vault: '我的點數',
+  myCoupons: '我的優惠券',
+  redeemGrooming: '兌換美容折250元',
   redeem: '兌換好康',
+  activity: '活動辦法',
+  contact: '聯絡客服',
   /** 註冊流程 */
   confirm: '確認加入',
   cancel: '重新填寫',
   speciesSkip: '先不填毛孩',
   /** 兌換 */
   redeemItem: (n: number) => `換贈品（${n}）`,
+  confirmGroomingRedeem: '確認兌換',
 } as const;
 
 export const LINE_MENU_HINT_REGISTERED =
-  '點「罐罐存摺」看點數與存了幾罐，點「兌換好康」用點數換禮物。';
+  '「我的點數」看餘額；「我的優惠券」查看券；滿 10 點可兌換美容折 250 元。';
 
 export const LINE_MENU_HINT_GUEST =
   '第一次請點「幫毛孩開戶」，在對話裡依序填寫就好。';
 
-/** 換罐計畫開戶店家（LINE 開戶第一題） */
-export const LINE_SIGNUP_STORES = [
-  { code: 'zhuwo_zhonghe', label: '豬窩 中和店' },
-  { code: 'zhuwo_banqiao', label: '豬窩 板橋店' },
-  { code: 'zhuwo_tucheng', label: '豬窩 土城店' },
-  { code: 'niuniu', label: '妞妞寵物美容' },
-  { code: 'pet99', label: '99寵物美容' },
-] as const;
-
-export type SignupStoreCode = (typeof LINE_SIGNUP_STORES)[number]['code'];
-
-export const LINE_SIGNUP_STORE_CODES = LINE_SIGNUP_STORES.map((s) => s.code);
-
-export function resolveSignupStoreLabel(code: string | null | undefined): string | null {
-  if (!code) return null;
-  return LINE_SIGNUP_STORES.find((s) => s.code === code)?.label ?? null;
-}
+export {
+  SIGNUP_STORES as LINE_SIGNUP_STORES,
+  SIGNUP_STORE_IDS as LINE_SIGNUP_STORE_CODES,
+  resolveSignupStoreLabel,
+  type SignupStoreId,
+} from '@/lib/stores/signup-stores';
 
 export const LINE_STORE_PROMPT = '請選擇您的開戶店家：';
 
@@ -44,3 +38,11 @@ export const LINE_REGISTER_INTRO =
 
 export const LINE_PET_AGE_PROMPT =
   '毛孩大概幾歲？傳數字即可（例：3）\n或傳生日（例：2020-05-06）\n不確定可傳「略過」';
+
+export const LINE_COUPON_VERIFY_HINT =
+  '⚠️ 請於結帳前出示此優惠券給店家。\n店家需按下「驗證優惠券」確認後方可折抵。\n優惠券一經核銷即無法再次使用。';
+
+export const LINE_CONTACT_INFO = '如需協助請私訊官方帳號，或至合作店家現場詢問。';
+
+export const LINE_ACTIVITY_INFO =
+  '【換罐存點】空罐序號入帳得點數。\n【美容折價券】累積 10 點可兌換 250 元折價券，限綁定店家使用，有效 30 天。';

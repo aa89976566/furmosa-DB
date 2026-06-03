@@ -18,10 +18,9 @@ import {
   LINE_BTN,
   LINE_PET_AGE_PROMPT,
   LINE_REGISTER_INTRO,
-  LINE_SIGNUP_STORE_CODES,
   resolveSignupStoreLabel,
-  type SignupStoreCode,
 } from '@/lib/line/line-copy';
+import { isSignupStoreId } from '@/lib/stores/signup-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { prisma } from '@/lib/prisma';
@@ -79,7 +78,7 @@ export async function startRegisterFlow(replyToken: string, lineUserId: string) 
   }
 
   await upsertLineChatSession(lineUserId, 'register', 'store', {});
-  await replyLineMessage(replyToken, buildStorePickerMessages());
+  await replyLineMessage(replyToken, await buildStorePickerMessages());
 }
 
 export async function handleRegisterFlowMessage(
@@ -94,7 +93,7 @@ export async function handleRegisterFlowMessage(
   const trimmed = text.trim();
 
   if (session.step === 'store' && !CANCEL_RE.test(trimmed)) {
-    await replyLineMessage(replyToken, buildStorePickerMessages());
+    await replyLineMessage(replyToken, await buildStorePickerMessages());
     return true;
   }
 
@@ -196,8 +195,8 @@ export async function handleRegisterPostback(
 
   if (action === 'store') {
     const code = params.get('c');
-    if (!code || !LINE_SIGNUP_STORE_CODES.includes(code as SignupStoreCode)) {
-      await replyLineMessage(replyToken, buildStorePickerMessages());
+    if (!code || !(await isSignupStoreId(code))) {
+      await replyLineMessage(replyToken, await buildStorePickerMessages());
       return true;
     }
     draft.signupStore = code;

@@ -1,13 +1,18 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { parseOrderFormData } from '@/lib/orders/parse-order-form';
+import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import {
   orderTotalFromAmounts,
   resolveOrderShipping,
   shipmentCarrierFromOrder,
   SHIPPING_FEE_TYPES,
 } from '@/lib/shipping-policy';
-import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
+import {
+  buildShipmentUpdateFromOrderStatus,
+  fulfillmentStatusFromOrderStatus,
+} from '@/lib/shipment-order-sync';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -38,194 +43,32 @@ async function nextShipmentNumber() {
 }
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
-const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
+const VALID_PAYMENT_STATUSES = ['unpaid', 'partial', 'paid', 'cod', 'refunded'] as const;
 
-function toNullableString(v: FormDataEntryValue | null): string | null {
-  if (v == null) return null;
-  const s = String(v).trim();
-  return s.length === 0 ? null : s;
+const VALID_ORDER_STATUSES = [
+  'draft',
+  'confirmed',
+  'packed',
+  'shipped',
+  'delivered',
+  'completed',
+  'cancelled',
+] as const;
+
+function revalidateOrderPaths(orderId: string, merchantId?: string | null, customerId?: string | null) {
+  revalidatePath('/orders');
+  revalidatePath('/orders/history');
+  revalidatePath(`/orders/${orderId}`);
+  revalidatePath(`/orders/${orderId}/edit`);
+  revalidatePath('/shipments');
+  revalidatePath('/shipments/history');
+  revalidatePath('/dashboard');
+  if (merchantId) revalidatePath(`/merchants/${merchantId}`);
+  if (customerId) revalidatePath(`/customers/${customerId}`);
 }
-
-function toNumber(v: FormDataEntryValue | string | null | undefined, fallback = 0): number {
-  if (v == null) return fallback;
-  const n = Number(String(v).trim());
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function toInt(v: FormDataEntryValue | string | null | undefined, fallback = 0): number {
-  if (v == null) return fallback;
-  const n = parseInt(String(v).trim(), 10);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-// 客戶來源 → source 欄位 對應
-const CUSTOMER_SOURCE_MAP: Record<string, string> = {
-  social: 'website', // 社群（IG/FB 等網路通路統一存 'website'）
-  line: 'line',
-  consignment: 'consignment',
-};
 
 export async function createOrder(formData: FormData) {
-  const orderType = String(formData.get('orderType') ?? '');
-  if (!['merchant', 'customer'].includes(orderType)) {
-    throw new Error('請選擇訂單類型');
-  }
-
-  // 共用欄位
-  const discount = toNumber(formData.get('discount'));
-  const note = toNullableString(formData.get('note'));
-  if (discount < 0) throw new Error('折扣不可為負數');
-
-  // 運費類型：free 包郵 / prepaid 已付費 / unpaid 不包郵（買家於此單付運費） / cod 貨到付款（運費隨貨）
-  const shippingFeeTypeRaw = String(formData.get('shippingFeeType') ?? 'unpaid');
-  const shippingFeeType = (VALID_SHIPPING_FEE_TYPES as readonly string[]).includes(
-    shippingFeeTypeRaw,
-  )
-    ? shippingFeeTypeRaw
-    : 'unpaid';
-
-  // 付款狀態（建立時就能設定）
-  const paymentStatusRaw = String(formData.get('paymentStatus') ?? 'unpaid');
-  const paymentStatus = (VALID_PAYMENT_STATUSES_ON_CREATE as readonly string[]).includes(
-    paymentStatusRaw,
-  )
-    ? paymentStatusRaw
-    : 'unpaid';
-
-  const shippingMethodRaw = String(formData.get('shippingMethod') ?? 'home');
-  const shippingMethod = shippingMethodRaw === 'convenience' ? 'convenience' : 'home';
-  let shippingAddress = toNullableString(formData.get('shippingAddress'));
-  let cvsBrand = toNullableString(formData.get('cvsBrand'));
-  let cvsStoreName = toNullableString(formData.get('cvsStoreName'));
-  const recipientName = String(formData.get('recipientName') ?? '').trim();
-  const recipientPhone = toNullableString(formData.get('recipientPhone'));
-
-  if (!recipientName) throw new Error('請填寫收件人姓名');
-
-  if (shippingMethod === 'convenience') {
-    const validBrands = ['711', 'familymart', 'hilife'];
-    if (!cvsBrand || !validBrands.includes(cvsBrand)) {
-      throw new Error('超商取貨請選擇品牌（7-ELEVEN / 全家 / 萊爾富）');
-    }
-    if (!cvsStoreName) throw new Error('請填寫門市名稱');
-  } else {
-    cvsBrand = null;
-    cvsStoreName = null;
-  }
-  const cvsStoreId = null;
-
-  const { shippingFee, companyShippingCost } = resolveOrderShipping({
-    shippingFeeType,
-    shippingMethod,
-    cvsBrand,
-  });
-  const shipmentCarrier = shipmentCarrierFromOrder({ shippingMethod, cvsBrand });
-
-  // 訂單來源 + 客戶/店家
-  let source: string;
-  let customerId: string | null = null;
-  let merchantId: string | null = null;
-
-  if (orderType === 'merchant') {
-    source = 'consignment';
-    merchantId = String(formData.get('merchantId') ?? '').trim();
-    if (!merchantId) throw new Error('請選擇寄賣店家');
-    // 寄賣店訂單可以選填客戶（誰買的）
-    customerId = toNullableString(formData.get('customerId'));
-  } else {
-    const cs = String(formData.get('customerSource') ?? '');
-    if (!CUSTOMER_SOURCE_MAP[cs]) throw new Error('請選擇客戶來源（社群／LINE／寄賣）');
-    source = CUSTOMER_SOURCE_MAP[cs];
-    customerId = String(formData.get('customerId') ?? '').trim();
-    if (!customerId) throw new Error('請選擇客戶');
-    // 客戶若是「透過寄賣店」買的，可選填寄賣店
-    if (cs === 'consignment') {
-      merchantId = toNullableString(formData.get('merchantId'));
-    }
-  }
-
-  const productIds = formData.getAll('productId').map(String);
-  const tierIds = formData.getAll('tierId').map(String);
-  const quantities = formData.getAll('quantity').map(String);
-  const unitPrices = formData.getAll('unitPrice').map(String);
-  const weightGrams = formData.getAll('weightGrams').map(String);
-  const units = formData.getAll('unit').map(String);
-  const lineIsGifts = formData.getAll('lineIsGift').map(String);
-
-  type ParsedLine = {
-    productId: string;
-    tierId: string;
-    quantity: number;
-    unitPrice: number;
-    isGift: boolean;
-    unitCost: number;
-    weightGrams: number | null;
-    unit: string | null;
-  };
-
-  const items: ParsedLine[] = productIds
-    .map((pid, idx) => {
-      const wRaw = (weightGrams[idx] ?? '').trim();
-      const w = wRaw === '' ? null : Number(wRaw);
-      const u = (units[idx] ?? '').trim();
-      const tierId = (tierIds[idx] ?? '').trim();
-      const isGift = (lineIsGifts[idx] ?? '0') === '1';
-      return {
-        productId: pid,
-        tierId,
-        quantity: toInt(quantities[idx]),
-        unitPrice: isGift ? 0 : toNumber(unitPrices[idx]),
-        isGift,
-        unitCost: 0,
-        weightGrams: w != null && Number.isFinite(w) && w > 0 ? Math.round(w) : null,
-        unit: u.length > 0 ? u : null,
-      };
-    })
-    .filter((it) => it.productId && it.quantity > 0);
-
-  if (items.length === 0) {
-    throw new Error('至少要有一筆商品，且數量大於 0');
-  }
-
-  const products = await prisma.product.findMany({
-    where: { id: { in: items.map((i) => i.productId) } },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      unit: true,
-      price: true,
-      cost: true,
-      priceTiers: { select: { id: true, cost: true } },
-    },
-  });
-  const productMap = new Map(products.map((p) => [p.id, p]));
-
-  let giftCost = 0;
-  for (const it of items) {
-    const prod = productMap.get(it.productId);
-    if (!prod) throw new Error('包含不存在的商品');
-    if (it.unitPrice < 0) throw new Error('單價不可為負數');
-    if (it.isGift) {
-      it.unitCost = resolveOrderItemUnitCost(prod, it.tierId || null);
-      giftCost += it.unitCost * it.quantity;
-    }
-  }
-
-  const subtotal = items
-    .filter((it) => !it.isGift)
-    .reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
-  const total = orderTotalFromAmounts(subtotal, discount, shippingFee);
-
-  // 預先撈客戶資料：之後要同步到 Shipment 收件人
-  const customer = customerId
-    ? await prisma.customer.findUnique({
-        where: { id: customerId },
-        select: { name: true, phone: true, address: true },
-      })
-    : null;
-
-  // 用 transaction 確保 Order + OrderItem + Shipment 一起成功
+  const payload = await parseOrderFormData(formData);
   const orderNumber = await nextOrderNumber();
   const shipmentNumber = await nextShipmentNumber();
 
@@ -233,72 +76,57 @@ export async function createOrder(formData: FormData) {
     const order = await tx.order.create({
       data: {
         orderNumber,
-        source,
-        status: 'draft',
-        paymentStatus,
-        shippingFeeType,
+        source: payload.source,
+        status: 'confirmed',
+        paymentStatus: payload.paymentStatus,
+        shippingFeeType: payload.shippingFeeType,
         fulfillmentStatus: 'pending',
-        customerId,
-        merchantId,
-        subtotal,
-        discount,
-        shippingFee,
-        companyShippingCost,
-        giftCost,
-        total,
-        shippingMethod,
-        shippingAddress,
-        cvsBrand,
-        cvsStoreId,
-        cvsStoreName,
-        note,
+        customerId: payload.customerId,
+        merchantId: payload.merchantId,
+        subtotal: payload.subtotal,
+        discount: payload.discount,
+        shippingFee: payload.shippingFee,
+        companyShippingCost: payload.companyShippingCost,
+        giftCost: payload.giftCost,
+        total: payload.total,
+        shippingMethod: payload.shippingMethod,
+        shippingAddress: payload.shippingAddress,
+        cvsBrand: payload.cvsBrand,
+        cvsStoreId: payload.cvsStoreId,
+        cvsStoreName: payload.cvsStoreName,
+        note: payload.note,
         orderedAt: new Date(),
         items: {
-          create: items.map((it) => {
-            const prod = productMap.get(it.productId)!;
-            return {
-              productId: it.productId,
-              productName: prod.name,
-              sku: prod.sku,
-              quantity: it.quantity,
-              unitPrice: it.unitPrice,
-              subtotal: it.unitPrice * it.quantity,
-              isGift: it.isGift,
-              unitCost: it.isGift ? it.unitCost : null,
-              weightGrams: it.weightGrams,
-              unit: it.unit ?? prod.unit,
-            };
-          }),
+          create: payload.items.map((it) => ({
+            productId: it.productId,
+            productName: it.productName,
+            sku: it.sku,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            subtotal: it.lineSubtotal,
+            isGift: it.isGift,
+            unitCost: it.isGift ? it.unitCost : null,
+            weightGrams: it.weightGrams,
+            unit: it.unit,
+          })),
         },
       },
       include: { items: true },
     });
-
-    // 建立出貨單 → 出貨隊列（客戶訂單與寄賣店家訂單皆會建立）
-    const cvsAddress =
-      shippingMethod === 'convenience' && cvsStoreName
-        ? `${cvsBrand?.toUpperCase() ?? ''} ${cvsStoreName}`.trim()
-        : null;
 
     await tx.shipment.create({
       data: {
         shipmentNumber,
         type: 'customer_order',
         status: 'pending',
-        merchantId,
-        customerId,
+        merchantId: payload.merchantId,
+        customerId: payload.customerId,
         orderId: order.id,
-        recipientName,
-        recipientPhone: recipientPhone ?? customer?.phone ?? null,
-        recipientAddress:
-          shippingMethod === 'convenience'
-            ? (shippingAddress ?? cvsAddress)
-            : (shippingAddress ?? customer?.address ?? null),
-        carrier: shipmentCarrier,
-        notes:
-          shippingMethod === 'convenience' && cvsStoreName
-            ? `超商取貨：${cvsBrand?.toUpperCase() ?? ''} ${cvsStoreName}`
-            : null,
+        recipientName: payload.recipientName,
+        recipientPhone: payload.recipientPhone ?? payload.customer?.phone ?? null,
+        recipientAddress: payload.shipmentRecipientAddress,
+        carrier: payload.shipmentCarrier,
+        notes: payload.shipmentNotes,
         items: {
           create: order.items.map((it) => ({
             productId: it.productId,
@@ -315,27 +143,101 @@ export async function createOrder(formData: FormData) {
     return order;
   });
 
-  revalidatePath('/orders');
-  revalidatePath('/shipments');
-  revalidatePath('/dashboard');
-  if (merchantId) revalidatePath(`/merchants/${merchantId}`);
-  if (customerId) revalidatePath(`/customers/${customerId}`);
+  revalidateOrderPaths(created.id, created.merchantId, created.customerId);
   redirect(`/orders/${created.id}`);
 }
 
-// ---------- 訂單詳細頁：快速更新付款 / 運費類型 ----------
+export async function updateOrder(formData: FormData) {
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!orderId) throw new Error('缺少訂單');
 
-const VALID_PAYMENT_STATUSES = ['unpaid', 'partial', 'paid', 'cod', 'refunded'] as const;
+  const existing = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, status: true, subscriptionId: true, merchantId: true, customerId: true },
+  });
+  if (!existing) throw new Error('訂單不存在');
 
-const VALID_ORDER_STATUSES = [
-  'draft',
-  'confirmed',
-  'packed',
-  'shipped',
-  'delivered',
-  'completed',
-  'cancelled',
-] as const;
+  const editable = isOrderEditable(existing);
+  if (!editable.ok) throw new Error(editable.reason);
+
+  const payload = await parseOrderFormData(formData, { extendedPayment: true });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.orderItem.deleteMany({ where: { orderId } });
+
+    const order = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        source: payload.source,
+        paymentStatus: payload.paymentStatus,
+        shippingFeeType: payload.shippingFeeType,
+        customerId: payload.customerId,
+        merchantId: payload.merchantId,
+        subtotal: payload.subtotal,
+        discount: payload.discount,
+        shippingFee: payload.shippingFee,
+        companyShippingCost: payload.companyShippingCost,
+        giftCost: payload.giftCost,
+        total: payload.total,
+        shippingMethod: payload.shippingMethod,
+        shippingAddress: payload.shippingAddress,
+        cvsBrand: payload.cvsBrand,
+        cvsStoreId: payload.cvsStoreId,
+        cvsStoreName: payload.cvsStoreName,
+        note: payload.note,
+        items: {
+          create: payload.items.map((it) => ({
+            productId: it.productId,
+            productName: it.productName,
+            sku: it.sku,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            subtotal: it.lineSubtotal,
+            isGift: it.isGift,
+            unitCost: it.isGift ? it.unitCost : null,
+            weightGrams: it.weightGrams,
+            unit: it.unit,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    const shipments = await tx.shipment.findMany({
+      where: { orderId },
+      select: { id: true },
+    });
+
+    for (const shipment of shipments) {
+      await tx.shipmentItem.deleteMany({ where: { shipmentId: shipment.id } });
+      await tx.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          merchantId: payload.merchantId,
+          customerId: payload.customerId,
+          recipientName: payload.recipientName,
+          recipientPhone: payload.recipientPhone ?? payload.customer?.phone ?? null,
+          recipientAddress: payload.shipmentRecipientAddress,
+          carrier: payload.shipmentCarrier,
+          notes: payload.shipmentNotes,
+          items: {
+            create: order.items.map((it) => ({
+              productId: it.productId,
+              productName: it.productName,
+              sku: it.sku,
+              quantity: it.quantity,
+              weightGrams: it.weightGrams,
+              unit: it.unit,
+            })),
+          },
+        },
+      });
+    }
+  });
+
+  revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
+  redirect(`/orders/${orderId}`);
+}
 
 export async function updateOrderStatus(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
@@ -351,26 +253,42 @@ export async function updateOrderStatus(formData: FormData) {
   });
   if (!order) throw new Error('訂單不存在');
 
-  const data: { status: string; shippedAt?: Date | null; completedAt?: Date | null } = {
+  const data: {
+    status: string;
+    fulfillmentStatus: string;
+    shippedAt?: Date | null;
+    completedAt?: Date | null;
+  } = {
     status: next,
+    fulfillmentStatus: fulfillmentStatusFromOrderStatus(next),
   };
-  // 進入「已出貨」(含)之後，若尚未記錄出貨時間則補上
   if (['shipped', 'delivered', 'completed'].includes(next) && !order.shippedAt) {
     data.shippedAt = new Date();
   }
-  // 完成時間：完成才記錄，其餘狀態清空
   if (next === 'completed') {
     if (!order.completedAt) data.completedAt = new Date();
   } else {
     data.completedAt = null;
   }
 
-  await prisma.order.update({ where: { id: orderId }, data });
+  const shipmentUpdate = buildShipmentUpdateFromOrderStatus(next);
 
-  revalidatePath('/orders');
-  revalidatePath('/orders/history');
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath('/dashboard');
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: orderId }, data });
+
+    if (shipmentUpdate) {
+      await tx.shipment.updateMany({
+        where: {
+          orderId,
+          type: 'customer_order',
+          status: { not: 'cancelled' },
+        },
+        data: shipmentUpdate,
+      });
+    }
+  });
+
+  revalidateOrderPaths(orderId);
 }
 
 export async function updateOrderPaymentStatus(formData: FormData) {
@@ -384,9 +302,7 @@ export async function updateOrderPaymentStatus(formData: FormData) {
     where: { id: orderId },
     data: { paymentStatus: next },
   });
-  revalidatePath('/orders');
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath('/dashboard');
+  revalidateOrderPaths(orderId);
 }
 
 export async function updateOrderShippingFeeType(formData: FormData) {
@@ -434,7 +350,5 @@ export async function updateOrderShippingFeeType(formData: FormData) {
     }),
   ]);
 
-  revalidatePath('/orders');
-  revalidatePath(`/orders/${orderId}`);
-  revalidatePath('/shipments');
+  revalidateOrderPaths(orderId);
 }

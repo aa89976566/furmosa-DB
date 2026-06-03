@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
+import { RestockSubmitButton } from '@/components/merchants/restock-submit-button';
 import { MerchantSelect } from '@/components/merchants/merchant-select';
 import { MerchantRestockLogistics } from '@/components/merchants/merchant-restock-logistics';
 import {
@@ -113,7 +114,7 @@ export default async function MerchantsRestockPage({
                   <Button variant="outline" asChild>
                     <Link href="/merchants">取消</Link>
                   </Button>
-                  <Button type="submit">建立出貨單</Button>
+                  <RestockSubmitButton />
                 </MerchantFormActions>
               </div>
             </MerchantSection>

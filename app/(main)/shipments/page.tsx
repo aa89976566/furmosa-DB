@@ -11,6 +11,11 @@ import {
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
 import { syncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
+import {
+  activeShipmentQueueWhere,
+  dedupeShipmentsByOrder,
+  maintainShipmentQueueIntegrity,
+} from '@/lib/shipment-queue-filters';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -73,26 +78,42 @@ export default async function ShipmentsPage({
   const selectedShipmentId = searchParams?.s;
 
   await syncUpcomingSubscriptionShipments();
+  await maintainShipmentQueueIntegrity();
 
-  const where: Record<string, unknown> = {};
-  if (status && SHIPMENT_STATUSES.includes(status as never)) where.status = status;
+  const baseWhere =
+    status === 'pending'
+      ? {
+          status: { in: ['pending', 'packed'] },
+          OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+        }
+      : status && SHIPMENT_STATUSES.includes(status as never)
+        ? {
+            status,
+            OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+          }
+        : activeShipmentQueueWhere;
+  const where: Record<string, unknown> = { ...baseWhere };
   if (type) where.type = type;
 
-  const [shipments, counts] = await Promise.all([
+  const [rawShipments, counts] = await Promise.all([
     prisma.shipment.findMany({
       where,
       include: shipmentInclude,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 100,
+      take: 200,
     }),
     prisma.shipment.groupBy({
       by: ['status'],
+      where: activeShipmentQueueWhere,
       _count: { _all: true },
     }),
   ]);
 
+  const shipments = dedupeShipmentsByOrder(rawShipments);
+
   const countByStatus = Object.fromEntries(counts.map((c) => [c.status, c._count._all]));
-  const total = counts.reduce((s, c) => s + c._count._all, 0);
+  const pendingCount = (countByStatus.pending ?? 0) + (countByStatus.packed ?? 0);
+  const total = pendingCount + (countByStatus.shipped ?? 0);
   const grouped = !status;
   const panelRefreshKey = shipments
     .map((s) => `${s.id}:${s.status}:${s.updatedAt.toISOString()}`)
@@ -180,17 +201,25 @@ export default async function ShipmentsPage({
             active={!status}
             variant="all"
           />
-          {(['pending', 'shipped', 'delivered'] as const).map((s) => (
+          {(['pending', 'shipped'] as const).map((s) => (
             <FilterChip
               key={s}
               href={`/shipments?status=${s}`}
-              label={shipmentStatusLabel[s]}
-              count={countByStatus[s] ?? 0}
+              label={s === 'pending' ? '待出貨' : shipmentStatusLabel[s]}
+              count={s === 'pending' ? pendingCount : (countByStatus[s] ?? 0)}
               total={total}
-              active={status === s}
-              variant={shipmentStatusVariant[s]}
+              active={status === s || (s === 'pending' && status === 'packed')}
+              variant={shipmentStatusVariant[s === 'pending' ? 'pending' : s]}
             />
           ))}
+          <FilterChip
+            href="/shipments/history"
+            label="已送達"
+            count={countByStatus.delivered ?? 0}
+            total={total + (countByStatus.delivered ?? 0)}
+            active={false}
+            variant="success"
+          />
         </div>
 
         <Suspense

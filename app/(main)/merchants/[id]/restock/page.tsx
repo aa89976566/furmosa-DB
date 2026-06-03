@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
+import { RestockSubmitButton } from '@/components/merchants/restock-submit-button';
 import { ArrowLeft } from 'lucide-react';
 import { restockMerchant } from '../actions';
 import { RestockForm } from './restock-form';
@@ -128,7 +129,7 @@ export default async function MerchantRestockPage({ params }: { params: { id: st
                 <Button variant="outline" asChild>
                   <Link href={`/merchants/${merchant.id}`}>取消</Link>
                 </Button>
-                <Button type="submit">建立出貨單</Button>
+                <RestockSubmitButton />
               </MerchantFormActions>
             </div>
           </MerchantSection>

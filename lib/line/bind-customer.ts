@@ -81,6 +81,9 @@ export async function findCustomerByLineUserId(lineUserId: string) {
       name: true,
       customerId: true,
       lineDisplay: true,
+      signupStore: true,
+      storeId: true,
+      storeName: true,
     },
   });
 }

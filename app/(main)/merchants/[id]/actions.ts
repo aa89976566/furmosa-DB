@@ -10,6 +10,9 @@ import { revalidatePath } from 'next/cache';
 import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
 import {
+  shipmentItemsFingerprint,
+} from '@/lib/shipment-queue-filters';
+import {
   parseMerchantTypesFromForm,
   primaryMerchantType,
 } from '@/lib/merchant-types';
@@ -139,6 +142,29 @@ export async function restockMerchant(formData: FormData) {
 
   const merchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
   if (!merchant) throw new Error('店家不存在');
+
+  const itemsFingerprint = shipmentItemsFingerprint(
+    items.map((it) => ({ productId: it.productId, quantity: it.quantity })),
+  );
+  const recentCutoff = new Date(Date.now() - 10 * 60 * 1000);
+  const recentPending = await prisma.shipment.findMany({
+    where: {
+      merchantId,
+      type: 'merchant_restock',
+      status: { in: ['pending', 'packed'] },
+      createdAt: { gte: recentCutoff },
+    },
+    include: { items: { select: { productId: true, quantity: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+  const duplicate = recentPending.find(
+    (s) => shipmentItemsFingerprint(s.items) === itemsFingerprint,
+  );
+  if (duplicate) {
+    revalidatePath('/shipments');
+    redirect(`/shipments/${duplicate.id}`);
+  }
 
   const pickup711 = resolve711PickupFromForm(formData, carrier);
   const profileName = merchant.contactName ?? merchant.name;

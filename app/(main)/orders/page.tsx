@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { activeOrderWhere, historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
 import { Plus, History } from 'lucide-react';
 
 const ORDER_SOURCES = ['website', 'line', 'consignment', 'manual'] as const;
@@ -18,6 +19,8 @@ export default async function OrdersPage({
 }: {
   searchParams: { source?: string; status?: string; q?: string };
 }) {
+  await maintainShipmentQueueIntegrity();
+
   const where: Record<string, unknown> = { ...activeOrderWhere };
   if (searchParams.source && (ORDER_SOURCES as readonly string[]).includes(searchParams.source)) {
     where.source = searchParams.source;

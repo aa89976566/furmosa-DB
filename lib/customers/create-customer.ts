@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { nextCustomerId } from '@/lib/customers/customer-id';
 import { validatePetFieldsConsistency, type ParsedPetFields } from '@/lib/customers/pet-fields';
+import { storeBindingFromSlug, resolvePartnerStoreBySlug } from '@/lib/stores/partner-stores';
 
 export type CustomerCreateInput = {
   name: string;
@@ -42,10 +43,19 @@ type NormalizedCustomerFields = {
   preferredCvsStoreId: string | null;
   preferredCvsStoreName: string | null;
   signupStore: string | null;
+  storeId: string | null;
+  storeName: string | null;
   pet: ParsedPetFields;
 };
 
-function normalizeCustomerInput(input: CustomerCreateInput): NormalizedCustomerFields {
+async function resolveStoreFields(signupStore: string | null) {
+  if (!signupStore) return { storeId: null, storeName: null };
+  const store = await resolvePartnerStoreBySlug(signupStore);
+  if (store) return { storeId: store.slug, storeName: store.name };
+  return storeBindingFromSlug(signupStore);
+}
+
+async function normalizeCustomerInput(input: CustomerCreateInput): Promise<NormalizedCustomerFields> {
   const name = (input.name ?? '').trim();
   if (!name) throw new Error('客戶姓名為必填');
 
@@ -89,6 +99,9 @@ function normalizeCustomerInput(input: CustomerCreateInput): NormalizedCustomerF
   };
   validatePetFieldsConsistency(pet);
 
+  const signupStore = (input.signupStore ?? '').trim() || null;
+  const { storeId, storeName } = await resolveStoreFields(signupStore);
+
   return {
     name,
     type,
@@ -101,7 +114,9 @@ function normalizeCustomerInput(input: CustomerCreateInput): NormalizedCustomerF
     preferredCvsBrand,
     preferredCvsStoreId,
     preferredCvsStoreName,
-    signupStore: (input.signupStore ?? '').trim() || null,
+    signupStore,
+    storeId,
+    storeName,
     pet,
   };
 }
@@ -111,7 +126,7 @@ export async function updateCustomerRecord(
   input: CustomerCreateInput,
 ): Promise<CreatedCustomerOption> {
   if (!id) throw new Error('缺少客戶 ID');
-  const f = normalizeCustomerInput(input);
+  const f = await normalizeCustomerInput(input);
 
   return prisma.customer.update({
     where: { id },
@@ -128,6 +143,8 @@ export async function updateCustomerRecord(
       preferredCvsStoreId: f.preferredCvsStoreId,
       preferredCvsStoreName: f.preferredCvsStoreName,
       signupStore: f.signupStore,
+      storeId: f.storeId,
+      storeName: f.storeName,
       petSpecies: f.pet.petSpecies,
       petSpeciesOther: f.pet.petSpecies === 'other' ? f.pet.petSpeciesOther : null,
       petName: f.pet.petName,
@@ -151,7 +168,7 @@ export async function updateCustomerRecord(
 export async function createCustomerRecord(
   input: CustomerCreateInput,
 ): Promise<CreatedCustomerOption> {
-  const f = normalizeCustomerInput(input);
+  const f = await normalizeCustomerInput(input);
   const {
     name,
     type,
@@ -182,7 +199,9 @@ export async function createCustomerRecord(
       preferredCvsBrand,
       preferredCvsStoreId,
       preferredCvsStoreName,
-      signupStore: (input.signupStore ?? '').trim() || null,
+      signupStore: f.signupStore,
+      storeId: f.storeId,
+      storeName: f.storeName,
       petSpecies: pet.petSpecies,
       petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
       petName: pet.petName,

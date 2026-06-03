@@ -26,6 +26,7 @@ import { OrderAmountSummary } from '@/components/orders/order-amount-summary';
 import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
+import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 import {
   ArrowLeft,
@@ -37,6 +38,7 @@ import {
   Clock,
   Package,
   ClipboardList,
+  Pencil,
 } from 'lucide-react';
 import {
   updateOrderPaymentStatus,
@@ -68,6 +70,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   });
   if (!order) notFound();
 
+  const editable = isOrderEditable(order);
   const logistics = resolveLogisticsForOrderList(order);
   return (
     <>
@@ -76,12 +79,22 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         title={order.orderNumber}
         description={`下單時間 ${formatDateTime(order.orderedAt)}`}
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/orders">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回列表
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {editable.ok ? (
+              <Button variant="default" size="sm" asChild>
+                <Link href={`/orders/${order.id}/edit`}>
+                  <Pencil className="mr-1 h-4 w-4" />
+                  修改訂單
+                </Link>
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/orders">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回列表
+              </Link>
+            </Button>
+          </div>
         }
       />
 

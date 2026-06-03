@@ -37,7 +37,8 @@ import {
   SHIPPING_FEE_CVS_711,
   SHIPPING_FEE_HOME_BLACK_CAT,
 } from '@/lib/shipping-policy';
-import { createOrder } from '../actions';
+import { createOrder, updateOrder } from '../actions';
+import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
@@ -316,47 +317,56 @@ export function OrderForm({
   merchants,
   customers: initialCustomers,
   products,
+  edit,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
   products: ProductOption[];
+  edit?: OrderEditInitial;
 }) {
-  const [orderType, setOrderType] = useState<OrderType>('customer');
-  const [customerSource, setCustomerSource] = useState<CustomerSource>('social');
-  const [customerId, setCustomerId] = useState<string>('');
-  const [merchantId, setMerchantId] = useState<string>('');
+  const isEdit = Boolean(edit);
+  const [orderType, setOrderType] = useState<OrderType>(edit?.orderType ?? 'customer');
+  const [customerSource, setCustomerSource] = useState<CustomerSource>(
+    edit?.customerSource ?? 'social',
+  );
+  const [customerId, setCustomerId] = useState<string>(edit?.customerId ?? '');
+  const [merchantId, setMerchantId] = useState<string>(edit?.merchantId ?? '');
   const selectedMerchant = useMemo(
     () => merchants.find((m) => m.id === merchantId),
     [merchants, merchantId],
   );
-  const [items, setItems] = useState<LineItem[]>([
-    {
-      key: genKey(),
-      productId: '',
-      tierId: '',
-      quantity: 1,
-      unitPrice: 0,
-      unitCost: 0,
-      isGift: false,
-      retailUnitPrice: 0,
-      weightGrams: null,
-      unit: null,
-    },
-  ]);
-  const [discount, setDiscount] = useState<number>(0);
-  // 運費類型：free 包郵 / prepaid 已付費（不算進此單） / unpaid 不包郵（運費隨此單收）/ cod 貨到付款（運費隨貨）
+  const [items, setItems] = useState<LineItem[]>(
+    edit?.items ?? [
+      {
+        key: genKey(),
+        productId: '',
+        tierId: '',
+        quantity: 1,
+        unitPrice: 0,
+        unitCost: 0,
+        isGift: false,
+        retailUnitPrice: 0,
+        weightGrams: null,
+        unit: null,
+      },
+    ],
+  );
+  const [discount, setDiscount] = useState<number>(edit?.discount ?? 0);
   const [shippingFeeType, setShippingFeeType] = useState<
     'free' | 'prepaid' | 'unpaid' | 'cod'
-  >('unpaid');
-  // 付款狀態（建立時）：unpaid / paid / cod
-  const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'paid' | 'cod'>('unpaid');
-  const [recipientName, setRecipientName] = useState<string>('');
-  const [recipientPhone, setRecipientPhone] = useState<string>('');
-  const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience'>('home');
-  const [cvsBrand, setCvsBrand] = useState<string>('711');
-  const [cvsStoreName, setCvsStoreName] = useState<string>('');
-  const [shippingAddress, setShippingAddress] = useState<string>('');
-  const [note, setNote] = useState<string>('');
+  >(edit?.shippingFeeType ?? 'unpaid');
+  const [paymentStatus, setPaymentStatus] = useState<
+    'unpaid' | 'partial' | 'paid' | 'cod' | 'refunded'
+  >(edit?.paymentStatus ?? 'unpaid');
+  const [recipientName, setRecipientName] = useState<string>(edit?.recipientName ?? '');
+  const [recipientPhone, setRecipientPhone] = useState<string>(edit?.recipientPhone ?? '');
+  const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience'>(
+    edit?.shippingMethod ?? 'home',
+  );
+  const [cvsBrand, setCvsBrand] = useState<string>(edit?.cvsBrand ?? '711');
+  const [cvsStoreName, setCvsStoreName] = useState<string>(edit?.cvsStoreName ?? '');
+  const [shippingAddress, setShippingAddress] = useState<string>(edit?.shippingAddress ?? '');
+  const [note, setNote] = useState<string>(edit?.note ?? '');
 
   // 客戶清單 + inline 新增客戶 state
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
@@ -552,12 +562,12 @@ export function OrderForm({
   }
 
   useEffect(() => {
+    if (isEdit) return;
     if (orderType === 'merchant' && selectedMerchant) {
       applyMerchantShipping(selectedMerchant);
     }
-    // 僅在切換為「寄賣店家訂單」時帶入，避免覆寫使用者已改過的欄位
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderType]);
+  }, [orderType, isEdit]);
 
   function onCustomerChange(id: string) {
     setCustomerId(id);
@@ -630,9 +640,14 @@ export function OrderForm({
           return;
         }
         try {
-          await createOrder(formData);
+          if (isEdit && edit) {
+            formData.set('orderId', edit.orderId);
+            await updateOrder(formData);
+          } else {
+            await createOrder(formData);
+          }
         } catch (e) {
-          alert(e instanceof Error ? e.message : '建立訂單失敗');
+          alert(e instanceof Error ? e.message : isEdit ? '儲存訂單失敗' : '建立訂單失敗');
         }
       }}
       className="space-y-6"
@@ -643,25 +658,33 @@ export function OrderForm({
       <input type="hidden" name="shippingFeeType" value={shippingFeeType} />
       <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
+      {isEdit && edit ? <input type="hidden" name="orderId" value={edit.orderId} /> : null}
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <TypeCard
-            active={orderType === 'customer'}
-            icon={<User className="h-5 w-5" />}
-            title="客戶訂單"
-            desc="一般消費者下單"
-            onClick={() => setOrderType('customer')}
-          />
-          <TypeCard
-            active={orderType === 'merchant'}
-            icon={<Store className="h-5 w-5" />}
-            title="寄賣店家訂單"
-            desc="寄賣店進貨或代收"
-            onClick={() => setOrderType('merchant')}
-          />
-        </div>
+        {isEdit ? (
+          <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            編輯模式無法變更訂單類型（
+            {orderType === 'customer' ? '客戶訂單' : '寄賣店家訂單'}）
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <TypeCard
+              active={orderType === 'customer'}
+              icon={<User className="h-5 w-5" />}
+              title="客戶訂單"
+              desc="一般消費者下單"
+              onClick={() => setOrderType('customer')}
+            />
+            <TypeCard
+              active={orderType === 'merchant'}
+              icon={<Store className="h-5 w-5" />}
+              title="寄賣店家訂單"
+              desc="寄賣店進貨或代收"
+              onClick={() => setOrderType('merchant')}
+            />
+          </div>
+        )}
       </section>
 
       {/* Step 2A: 客戶模式 */}
@@ -681,12 +704,13 @@ export function OrderForm({
                 <button
                   key={cs.value}
                   type="button"
+                  disabled={isEdit}
                   onClick={() => setCustomerSource(cs.value)}
                   className={`rounded-md border px-3 py-1.5 text-sm transition ${
                     customerSource === cs.value
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'hover:bg-muted'
-                  }`}
+                  } ${isEdit ? 'cursor-default opacity-80' : ''}`}
                   title={cs.hint}
                 >
                   {cs.label}
@@ -867,7 +891,7 @@ export function OrderForm({
           </div>
         </FieldInline>
 
-        {/* 付款狀態（建立時） */}
+        {/* 付款狀態 */}
         <FieldInline label="付款狀態">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <PayCard
@@ -892,6 +916,24 @@ export function OrderForm({
               onClick={() => setPaymentStatus('cod')}
             />
           </div>
+          {isEdit ? (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <PayCard
+                active={paymentStatus === 'partial'}
+                icon={<Coins className="h-4 w-4" />}
+                title="部分付款"
+                desc="已收部分款項"
+                onClick={() => setPaymentStatus('partial')}
+              />
+              <PayCard
+                active={paymentStatus === 'refunded'}
+                icon={<X className="h-4 w-4" />}
+                title="已退款"
+                desc="款項已退回"
+                onClick={() => setPaymentStatus('refunded')}
+              />
+            </div>
+          ) : null}
         </FieldInline>
 
         {giftCostTotal > 0 ? (
@@ -1083,14 +1125,25 @@ export function OrderForm({
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
         <div className="mr-auto flex items-center gap-2 text-sm">
-          <Badge variant="secondary">draft</Badge>
-          <span className="text-muted-foreground">
-            {orderType === 'customer'
-              ? '建立後會自動產生一張待出貨單，可於〈出貨隊列〉看到。'
-              : '寄賣店家訂單不會自動產生客戶出貨單。'}
-          </span>
+          {isEdit && edit ? (
+            <>
+              <Badge variant="secondary">{edit.orderNumber}</Badge>
+              <span className="text-muted-foreground">
+                儲存後會同步更新品項、金額與關聯出貨單收件資訊。
+              </span>
+            </>
+          ) : (
+            <>
+              <Badge variant="secondary">draft</Badge>
+              <span className="text-muted-foreground">
+                {orderType === 'customer'
+                  ? '建立後會自動產生一張待出貨單，可於〈出貨隊列〉看到。'
+                  : '寄賣店家訂單不會自動產生客戶出貨單。'}
+              </span>
+            </>
+          )}
         </div>
-        <SaveButton />
+        <SaveButton isEdit={isEdit} />
       </div>
     </form>
   );
@@ -1475,12 +1528,12 @@ function Stat({
   );
 }
 
-function SaveButton() {
+function SaveButton({ isEdit }: { isEdit?: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" size="sm" disabled={pending}>
       <Save className="mr-1 h-4 w-4" />
-      {pending ? '建立中…' : '建立訂單'}
+      {pending ? (isEdit ? '儲存中…' : '建立中…') : isEdit ? '儲存修改' : '建立訂單'}
     </Button>
   );
 }

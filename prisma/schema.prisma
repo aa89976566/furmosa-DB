@@ -91,8 +91,10 @@ model Customer {
   petAgeYears      Int?      @map("pet_age_years")
   petBirthday      DateTime? @map("pet_birthday")
 
-  // 換罐計畫開戶店家（LINE 開戶時選填）
+  // 換罐計畫開戶店家（LINE 開戶時選填，永久綁定）
   signupStore String? @map("signup_store")
+  storeId     String? @map("store_id")
+  storeName   String? @map("store_name")
 
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)
@@ -116,6 +118,7 @@ model Customer {
   pointsLedger        MemberPointsLedger[]
   rewardRedemptions   RewardRedemption[]
   marketingCosts      MarketingCostRecord[]
+  groomingCoupons     GroomingCoupon[]
 
   @@index([hasActiveSubscription])
 }
@@ -267,6 +270,43 @@ model MarketingCostRecord {
   @@index([bookedAt])
   @@index([costCategory])
   @@map("marketing_cost_records")
+}
+
+/// 合作美容院（LINE 開戶 / 優惠券核銷專屬連結）
+model Store {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  secretToken String   @map("secret_token")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("stores")
+}
+
+/// 美容院折價券（10 點兌換 250 元，30 天有效，限綁定店家核銷）
+model GroomingCoupon {
+  id             String    @id @default(cuid())
+  customerId     String    @map("user_id")
+  couponCode     String    @unique @map("coupon_code")
+  storeId        String    @map("store_id")
+  storeName      String    @map("store_name")
+  type           String    @default("grooming_250")
+  discountAmount Float     @default(250) @map("discount_amount")
+  pointsUsed     Int       @map("points_used")
+  status         String    @default("available") // available | redeemed | expired
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime  @map("expires_at")
+  redeemedAt     DateTime? @map("redeemed_at")
+  redeemedStore  String?   @map("redeemed_store")
+  redeemedBy     String?   @map("redeemed_by")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, status])
+  @@index([storeId, status])
+  @@index([status, expiresAt])
+  @@map("coupons")
 }
 
 model Merchant {

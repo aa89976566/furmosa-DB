@@ -4,6 +4,11 @@ import { prisma } from '@/lib/prisma';
 import { has711PickupInfo, is711Carrier, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
+import {
+  buildSubscriptionShipmentUpdate,
+  refreshSubscriptionNextShipmentDate,
+  type SubscriptionShipmentStatus,
+} from '@/lib/subscription-shipment-status';
 import { parsePlanContents, type PlanContentItem } from '@/lib/plan-contents';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -12,7 +17,7 @@ const TRANSITIONS: Record<string, string[]> = {
   pending: ['shipped', 'cancelled'],
   packed: ['shipped', 'pending', 'cancelled'],
   shipped: ['delivered', 'pending'],
-  delivered: [],
+  delivered: ['shipped', 'pending'],
   cancelled: [],
 };
 
@@ -84,17 +89,39 @@ export async function markShipmentStatus(formData: FormData) {
       }
     }
 
-    if (next === 'shipped' && shipment.subscriptionShipmentId) {
-      await tx.subscriptionShipment.update({
+    if (shipment.subscriptionShipmentId) {
+      if (next === 'shipped') {
+        await tx.subscriptionShipment.update({
+          where: { id: shipment.subscriptionShipmentId },
+          data: buildSubscriptionShipmentUpdate('shipped', now),
+        });
+      } else if (next === 'delivered') {
+        await tx.subscriptionShipment.update({
+          where: { id: shipment.subscriptionShipmentId },
+          data: buildSubscriptionShipmentUpdate('delivered', now),
+        });
+      } else if (next === 'pending' || next === 'packed') {
+        await tx.subscriptionShipment.update({
+          where: { id: shipment.subscriptionShipmentId },
+          data: buildSubscriptionShipmentUpdate(
+            next as SubscriptionShipmentStatus,
+            now,
+          ),
+        });
+      } else if (next === 'cancelled') {
+        await tx.subscriptionShipment.update({
+          where: { id: shipment.subscriptionShipmentId },
+          data: buildSubscriptionShipmentUpdate('skipped', now),
+        });
+      }
+
+      const subRow = await tx.subscriptionShipment.findUnique({
         where: { id: shipment.subscriptionShipmentId },
-        data: { status: 'shipped', shippedAt: now, trackingNo: trackingNumber },
+        select: { subscriptionId: true },
       });
-    }
-    if (next === 'delivered' && shipment.subscriptionShipmentId) {
-      await tx.subscriptionShipment.update({
-        where: { id: shipment.subscriptionShipmentId },
-        data: { status: 'delivered', deliveredAt: now },
-      });
+      if (subRow) {
+        await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
+      }
     }
 
     if (next === 'delivered' && shipment.type === 'merchant_restock' && shipment.merchantId) {
@@ -133,11 +160,20 @@ export async function markShipmentStatus(formData: FormData) {
 
   revalidatePath('/shipments');
   revalidatePath('/shipments/history');
+  revalidatePath('/subscriptions/shipments');
+  revalidatePath('/subscriptions');
   revalidatePath('/orders');
   revalidatePath('/orders/history');
   revalidatePath(`/shipments/${shipmentId}`);
   if (shipment.merchantId) revalidatePath(`/merchants/${shipment.merchantId}`);
   if (shipment.orderId) revalidatePath(`/orders/${shipment.orderId}`);
+  if (shipment.subscriptionShipmentId) {
+    const subShip = await prisma.subscriptionShipment.findUnique({
+      where: { id: shipment.subscriptionShipmentId },
+      select: { subscriptionId: true },
+    });
+    if (subShip) revalidatePath(`/subscriptions/${subShip.subscriptionId}`);
+  }
 
   const inline = formData.get('inline') === '1';
   const queueStatus = String(formData.get('queueStatus') ?? '').trim();

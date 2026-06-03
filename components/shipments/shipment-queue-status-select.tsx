@@ -22,8 +22,17 @@ function queueSelectValue(status: string) {
   return 'pending';
 }
 
+const QUEUE_DELIVERED_OPTIONS = [
+  { value: 'delivered', label: QUEUE_DELIVERED_LABEL },
+  { value: 'shipped', label: '已寄出' },
+  { value: 'pending', label: '未寄出' },
+] as const;
+
 function queueOptionsForStatus(status: string) {
-  if (status === 'shipped' || status === 'delivered') {
+  if (status === 'delivered') {
+    return QUEUE_DELIVERED_OPTIONS;
+  }
+  if (status === 'shipped') {
     return QUEUE_IN_TRANSIT_OPTIONS;
   }
   return QUEUE_PENDING_OPTIONS;
@@ -46,8 +55,6 @@ export function ShipmentQueueStatusSelect({
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
   }
 
-  const readOnly = status === 'delivered';
-
   return (
     <form
       ref={formRef}
@@ -55,7 +62,7 @@ export function ShipmentQueueStatusSelect({
       className="min-w-0"
       onClick={(event) => event.stopPropagation()}
       onChange={() => {
-        if (!readOnly) formRef.current?.requestSubmit();
+        formRef.current?.requestSubmit();
       }}
     >
       <input type="hidden" name="shipmentId" value={shipmentId} />
@@ -64,11 +71,9 @@ export function ShipmentQueueStatusSelect({
       <select
         name="next"
         defaultValue={value}
-        disabled={readOnly}
         className={cn(
           'w-full min-w-[5.5rem] max-w-[7rem] rounded-md border bg-background px-1.5 py-1 text-[11px] font-medium',
           'focus:outline-none focus:ring-2 focus:ring-ring',
-          readOnly && 'cursor-default opacity-80',
           value === 'delivered' && 'border-success/40 text-success',
           value === 'shipped' && 'border-info/40 text-info',
         )}

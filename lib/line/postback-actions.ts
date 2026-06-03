@@ -1,22 +1,29 @@
-import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
-import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
-import { formatSavingsStatusMessage } from '@/lib/line/jar-deposit-copy';
+import { GROOMING_COUPON_POINTS } from '@/lib/coupons/constants';
 import {
-  buildRedeemPickerMessages,
-  parseLinePostbackData,
-} from '@/lib/line/flex-menu';
+  listCouponsForCustomer,
+  redeemGroomingCouponForCustomer,
+} from '@/lib/coupons/service';
+import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
+import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
+import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
+import {
+  buildCouponListMessages,
+  buildGroomingRedeemConfirmMessages,
+  formatGroomingRedeemSuccessMessage,
+} from '@/lib/line/coupon-menu';
+import { formatSavingsStatusMessage } from '@/lib/line/jar-deposit-copy';
+import { buildRedeemPickerMessages, parseLinePostbackData } from '@/lib/line/flex-menu';
 import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
-import { LINE_BTN } from '@/lib/line/line-copy';
+import { LINE_ACTIVITY_INFO, LINE_BTN, LINE_CONTACT_INFO } from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
-import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 
 async function loadSnapshot(customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>) {
   const stats = await getJarExchangeStatsForCustomer(customer.id);
@@ -26,6 +33,12 @@ async function loadSnapshot(customer: NonNullable<Awaited<ReturnType<typeof find
     pointsBalance: stats.pointsBalance,
     jarsDeposited: stats.codesRedeemed,
   };
+}
+
+function resolveCustomerStore(customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>) {
+  const storeId = customer.storeId ?? customer.signupStore;
+  const storeName = customer.storeName;
+  return { storeId, storeName };
 }
 
 export async function handleLinePostback(
@@ -45,6 +58,20 @@ export async function handleLinePostback(
     return;
   }
 
+  if (action === 'activity') {
+    await replyLineTextWithMenu(replyToken, lineUserId, LINE_ACTIVITY_INFO, {
+      registered: Boolean(customer),
+    });
+    return;
+  }
+
+  if (action === 'contact') {
+    await replyLineTextWithMenu(replyToken, lineUserId, LINE_CONTACT_INFO, {
+      registered: Boolean(customer),
+    });
+    return;
+  }
+
   if (action === 'vault') {
     if (!customer) {
       await replyLineTextWithMenu(
@@ -60,6 +87,79 @@ export async function handleLinePostback(
       replyToken,
       lineUserId,
       formatSavingsStatusMessage(snapshot),
+      { registered: true },
+    );
+    return;
+  }
+
+  if (action === 'cp_list') {
+    if (!customer) {
+      await replyLineTextWithMenu(
+        replyToken,
+        lineUserId,
+        `還沒開戶，請先點「${LINE_BTN.register}」。`,
+        { registered: false },
+      );
+      return;
+    }
+    const groups = await listCouponsForCustomer(customer.id);
+    await replyLineMessage(replyToken, buildCouponListMessages(groups));
+    return;
+  }
+
+  if (action === 'cp_groom') {
+    if (!customer) {
+      await replyLineTextWithMenu(
+        replyToken,
+        lineUserId,
+        `還沒開戶，請先點「${LINE_BTN.register}」。`,
+        { registered: false },
+      );
+      return;
+    }
+    const { storeId, storeName } = resolveCustomerStore(customer);
+    if (!storeId || !storeName) {
+      await replyLineText(replyToken, '尚未綁定合作美容院，請聯絡客服協助。');
+      return;
+    }
+    const stats = await getJarExchangeStatsForCustomer(customer.id);
+    if (stats.pointsBalance < GROOMING_COUPON_POINTS) {
+      await replyLineText(
+        replyToken,
+        `點數不足，需 ${GROOMING_COUPON_POINTS} 點才能兌換（目前 ${stats.pointsBalance} 點）。`,
+      );
+      return;
+    }
+    await replyLineMessage(
+      replyToken,
+      buildGroomingRedeemConfirmMessages({
+        storeName,
+        pointsBalance: stats.pointsBalance,
+      }),
+    );
+    return;
+  }
+
+  if (action === 'cp_groom_ok') {
+    if (!customer) {
+      await replyLineText(replyToken, `還沒開戶，請先點「${LINE_BTN.register}」。`);
+      return;
+    }
+    const result = await redeemGroomingCouponForCustomer(customer.id);
+    if (!result.ok) {
+      await replyLineText(replyToken, result.error);
+      return;
+    }
+    await replyLineTextWithMenu(
+      replyToken,
+      lineUserId,
+      formatGroomingRedeemSuccessMessage({
+        couponCode: result.coupon.couponCode,
+        storeName: result.coupon.storeName,
+        discountAmount: result.coupon.discountAmount,
+        expiresAt: result.coupon.expiresAt,
+        balanceAfter: result.balanceAfter,
+      }),
       { registered: true },
     );
     return;

@@ -1,9 +1,9 @@
 import { formatRedeemButtonLabel, type LineRewardOption } from '@/lib/line/reward-menu';
+import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import {
   LINE_BTN,
   LINE_MENU_HINT_GUEST,
   LINE_MENU_HINT_REGISTERED,
-  LINE_SIGNUP_STORES,
   LINE_STORE_PROMPT,
 } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
@@ -26,8 +26,24 @@ function pbBtn(label: string, data: string, style: FlexButton['style'] = 'second
   };
 }
 
-/** 匠寵主選單：加入會員、金庫、兌換 */
-export function buildMainMenuBubble(body: string) {
+/** 匠寵主選單 */
+export function buildMainMenuBubble(body: string, opts?: { registered?: boolean }) {
+  const registered = opts?.registered ?? false;
+  const footerButtons: FlexButton[] = registered
+    ? [
+        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
+        pbBtn(LINE_BTN.myCoupons, 'jd=cp_list', 'secondary'),
+        pbBtn(LINE_BTN.redeemGrooming, 'jd=cp_groom', 'primary'),
+        pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
+        pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
+      ]
+    : [
+        pbBtn(LINE_BTN.register, 'jd=reg', 'primary'),
+        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
+        pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
+        pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
+      ];
+
   return {
     type: 'bubble',
     size: 'mega',
@@ -52,7 +68,9 @@ export function buildMainMenuBubble(body: string) {
         },
         {
           type: 'text',
-          text: '存罐：直接傳 8 位空罐序號即可入帳。',
+          text: registered
+            ? '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 250 元。'
+            : '存罐：直接傳 8 位空罐序號即可入帳。',
           size: 'xs',
           color: '#888888',
           wrap: true,
@@ -64,11 +82,7 @@ export function buildMainMenuBubble(body: string) {
       type: 'box',
       layout: 'vertical',
       spacing: 'sm',
-      contents: [
-        pbBtn(LINE_BTN.register, 'jd=reg', 'primary'),
-        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
-        pbBtn(LINE_BTN.redeem, 'jd=redeem', 'secondary'),
-      ],
+      contents: footerButtons,
     },
   };
 }
@@ -79,12 +93,13 @@ export function buildMainMenuMessages(opts?: {
 }): LineReplyMessage[] {
   const defaultBody = opts?.registered ? LINE_MENU_HINT_REGISTERED : LINE_MENU_HINT_GUEST;
   const body = opts?.body ?? defaultBody;
-  return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body) }];
+  return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body, opts) }];
 }
 
-export function buildStorePickerMessages(): LineReplyMessage[] {
-  const storeButtons: FlexButton[] = LINE_SIGNUP_STORES.map((s) =>
-    pbBtn(s.label, `jd=store&c=${s.code}`),
+export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
+  const stores = await listPartnerStoresFromDb();
+  const storeButtons: FlexButton[] = stores.map((s) =>
+    pbBtn(s.name, `jd=store&c=${s.slug}`),
   );
 
   return [
