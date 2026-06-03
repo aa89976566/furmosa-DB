@@ -30,7 +30,7 @@ export const shipmentStatusVariant: Record<
 };
 
 export const shipmentTypeLabel: Record<string, string> = {
-  merchant_restock: '寄賣進貨',
+  merchant_restock: '寄賣',
   customer_order: '客戶訂單',
   subscription: '訂閱出貨',
 };

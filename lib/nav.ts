@@ -43,7 +43,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/vendors', label: '廠商', icon: Building2 },
       { href: '/customers', label: '客戶', icon: Users },
-      { href: '/merchants', label: '寄賣店家', icon: Store },
       { href: '/products', label: '產品', icon: Package },
     ],
   },
@@ -55,6 +54,7 @@ export const navGroups: NavGroup[] = [
       { href: '/shipments', label: '出貨隊列', icon: Truck },
       { href: '/shipments/history', label: '出貨歷史', icon: History },
       { href: '/orders/history', label: '歷史訂單', icon: History },
+      { href: '/merchants', label: '寄賣', icon: Store },
     ],
   },
   {
@@ -79,6 +79,7 @@ export const navGroups: NavGroup[] = [
     tone: 'supply',
     items: [
       { href: '/jar-exchange/members', label: '會員列表', icon: Users },
+      { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
       { href: '/jar-exchange/manage?tab=codes', label: '序號管理', icon: Rocket },
       { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', icon: Rocket },
       { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', icon: Gift },

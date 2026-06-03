@@ -53,3 +53,28 @@ export function parseTaipeiDateRange(from: string, to: string): { start: Date; e
 export function defaultTaipeiMonthRange(reference = new Date()): { start: Date; end: Date } {
   return parseTaipeiMonth(taipeiYearMonth(reference))!;
 }
+
+/** YYYY-MM-DD（台北日曆日） */
+export function taipeiDateInput(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TAIPEI_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/** 本月 1 日～今天（台北），供核銷報表預設期間 */
+export function defaultTaipeiMonthToTodayInputs(reference = new Date()): { from: string; to: string } {
+  const month = taipeiYearMonth(reference);
+  return { from: `${month}-01`, to: taipeiDateInput(reference) };
+}
+
+/** 上個完整月（台北） */
+export function previousTaipeiMonthInputs(reference = new Date()): { from: string; to: string } {
+  const current = taipeiYearMonth(reference);
+  const [y, m] = current.split('-').map(Number);
+  const prevMonth = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+  const range = parseTaipeiMonth(prevMonth)!;
+  return { from: taipeiDateInput(range.start), to: taipeiDateInput(range.end) };
+}

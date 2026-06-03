@@ -272,13 +272,43 @@ export type StoreRedemptionReportRow = {
   storeId: string;
   storeName: string;
   redeemedCount: number;
-  totalDiscount: number;
+  totalPayable: number;
 };
 
-export async function getStoreRedemptionReport(): Promise<StoreRedemptionReportRow[]> {
+export type StoreRedemptionDetailRow = {
+  couponCode: string;
+  storeId: string;
+  storeName: string;
+  redeemedAt: Date;
+  discountAmount: number;
+  redeemedBy: string | null;
+};
+
+export type StoreRedemptionReportFilter = {
+  redeemedFrom?: Date;
+  redeemedTo?: Date;
+  storeId?: string;
+};
+
+function buildRedeemedCouponWhere(filter?: StoreRedemptionReportFilter): Prisma.GroomingCouponWhereInput {
+  const where: Prisma.GroomingCouponWhereInput = { status: 'redeemed' };
+  if (filter?.storeId) {
+    where.storeId = filter.storeId;
+  }
+  if (filter?.redeemedFrom || filter?.redeemedTo) {
+    where.redeemedAt = {};
+    if (filter.redeemedFrom) where.redeemedAt.gte = filter.redeemedFrom;
+    if (filter.redeemedTo) where.redeemedAt.lte = filter.redeemedTo;
+  }
+  return where;
+}
+
+export async function getStoreRedemptionReport(
+  filter?: StoreRedemptionReportFilter,
+): Promise<StoreRedemptionReportRow[]> {
   const grouped = await prisma.groomingCoupon.groupBy({
     by: ['storeId', 'storeName'],
-    where: { status: 'redeemed' },
+    where: buildRedeemedCouponWhere(filter),
     _count: { _all: true },
     _sum: { discountAmount: true },
     orderBy: { storeName: 'asc' },
@@ -288,7 +318,33 @@ export async function getStoreRedemptionReport(): Promise<StoreRedemptionReportR
     storeId: g.storeId,
     storeName: g.storeName,
     redeemedCount: g._count._all,
-    totalDiscount: Number(g._sum.discountAmount ?? 0),
+    totalPayable: Number(g._sum.discountAmount ?? 0),
+  }));
+}
+
+export async function listStoreRedemptionDetails(
+  filter?: StoreRedemptionReportFilter,
+): Promise<StoreRedemptionDetailRow[]> {
+  const rows = await prisma.groomingCoupon.findMany({
+    where: buildRedeemedCouponWhere(filter),
+    select: {
+      couponCode: true,
+      storeId: true,
+      storeName: true,
+      redeemedAt: true,
+      discountAmount: true,
+      redeemedBy: true,
+    },
+    orderBy: [{ redeemedAt: 'desc' }, { couponCode: 'asc' }],
+  });
+
+  return rows.map((row) => ({
+    couponCode: row.couponCode,
+    storeId: row.storeId,
+    storeName: row.storeName,
+    redeemedAt: row.redeemedAt!,
+    discountAmount: Number(row.discountAmount),
+    redeemedBy: row.redeemedBy,
   }));
 }
 

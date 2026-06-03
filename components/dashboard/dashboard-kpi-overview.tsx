@@ -287,7 +287,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
             href="/inventory"
           />
           <MetricKpi
-            title="寄賣店家"
+            title="寄賣"
             value={formatNumber(kpis.merchantsCount)}
             icon={Store}
             accent="info"

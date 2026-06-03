@@ -42,10 +42,12 @@ export function ShipmentQueueStatusSelect({
   shipmentId,
   status,
   queueStatus,
+  queueType,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
+  queueType?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const options = queueOptionsForStatus(status);
@@ -68,6 +70,7 @@ export function ShipmentQueueStatusSelect({
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="inline" value="1" />
       {queueStatus ? <input type="hidden" name="queueStatus" value={queueStatus} /> : null}
+      {queueType ? <input type="hidden" name="queueType" value={queueType} /> : null}
       <select
         name="next"
         defaultValue={value}
@@ -93,16 +96,19 @@ export function ShipmentQueueStatusCell({
   shipmentId,
   status,
   queueStatus,
+  queueType,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
+  queueType?: string;
 }) {
   return (
     <ShipmentQueueStatusSelect
       shipmentId={shipmentId}
       status={status}
       queueStatus={queueStatus}
+      queueType={queueType}
     />
   );
 }

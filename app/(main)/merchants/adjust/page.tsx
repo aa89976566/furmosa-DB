@@ -41,7 +41,7 @@ export default async function MerchantsAdjustPage({
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchants">
               <ArrowLeft className="mr-1 h-4 w-4" />
-              返回寄賣店家
+              返回寄賣
             </Link>
           </Button>
         }

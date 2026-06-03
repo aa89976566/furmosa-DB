@@ -19,6 +19,7 @@ export const SIGNUP_STORE_IDS = [
   'zhuwo_banqiao',
   'zhuwo_tucheng',
   'niuniu',
+  'manlisa',
   'pet99',
 ] as const;
 

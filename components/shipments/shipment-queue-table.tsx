@@ -14,6 +14,8 @@ import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
 import { productLabel } from '@/lib/product-label';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { shipmentTypeLabel } from '@/lib/shipment';
 import { CalendarClock, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
@@ -69,6 +71,9 @@ function shortShipmentNumber(value: string) {
 
 
 function rowLabel(s: ShipmentQueueRow) {
+  if (s.type === 'merchant_restock' && s.merchant?.name) {
+    return s.merchant.name;
+  }
   return (
     s.order?.orderNumber ??
     s.subscriptionShipment?.subscription?.subscriptionNo ??
@@ -94,12 +99,14 @@ export function ShipmentQueueTable({
   onSelectShipment,
   selectedShipmentId,
   queueStatus,
+  queueType,
   variant = 'default',
 }: {
   shipments: ShipmentQueueRow[];
   onSelectShipment: (shipment: ShipmentQueueRow) => void;
   selectedShipmentId?: string | null;
   queueStatus?: string;
+  queueType?: string;
   variant?: 'default' | 'subscription';
 }) {
   if (shipments.length === 0) {
@@ -171,17 +178,21 @@ export function ShipmentQueueTable({
                 >
                   {rowLabel(s)}
                 </span>
-                {s.order ? (
-                  <span className="mt-0.5 block font-mono text-[10px] text-muted-foreground">
+                <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                  <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
+                    {shipmentTypeLabel[s.type] ?? s.type}
+                  </Badge>
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {shortShipmentNumber(s.shipmentNumber)}
                   </span>
-                ) : null}
+                </div>
               </TableCell>
               <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
                 <ShipmentQueueStatusCell
                   shipmentId={s.id}
                   status={s.status}
                   queueStatus={queueStatus}
+                  queueType={queueType}
                 />
               </TableCell>
               <TableCell className="py-3">

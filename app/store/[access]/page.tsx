@@ -1,14 +1,38 @@
-import { redirect } from 'next/navigation';
-import { parseStoreAccessSegment } from '@/lib/stores/redeem-url';
+import { StoreRedeemPageContent } from '@/components/coupons/store-redeem-page-content';
+import { listRedeemStores } from '@/lib/stores/list-redeem-stores';
+import { verifyStoreAccessSegment } from '@/lib/stores/verify-store-access';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
-type Props = { params: Promise<{ access: string }> };
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-/** 舊版專屬連結 → 統一核銷頁並預選店家 */
-export default async function LegacyStoreAccessPage({ params }: Props) {
-  const { access } = await params;
-  const parsed = parseStoreAccessSegment(access);
-  if (parsed?.slug) {
-    redirect(`/store-redeem?store=${encodeURIComponent(parsed.slug)}`);
+type Props = { params: { access: string } };
+
+export default async function StoreAccessRedeemPage({ params }: Props) {
+  const verified = await verifyStoreAccessSegment(params.access);
+  const stores = await listRedeemStores();
+
+  if (!verified) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+        <h2 className="text-lg font-semibold text-navy">無效的店家連結</h2>
+        <p className="text-sm text-muted-foreground">
+          請確認網址是否完整，或使用匠寵提供的最新核銷連結。
+        </p>
+        <Button asChild>
+          <Link href="/store-redeem">前往統一核銷入口</Link>
+        </Button>
+      </div>
+    );
   }
-  redirect('/store-redeem');
+
+  return (
+    <StoreRedeemPageContent
+      stores={stores}
+      defaultStoreSlug={verified.slug}
+      storeLabel={verified.name}
+      lockedStore
+    />
+  );
 }

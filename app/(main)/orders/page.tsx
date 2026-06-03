@@ -8,9 +8,10 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { activeOrderWhere, historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
+import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus, History } from 'lucide-react';
 
-const ORDER_SOURCES = ['website', 'line', 'consignment', 'manual'] as const;
+const ORDER_SOURCES = ORDER_SOURCE_KEYS;
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +23,10 @@ export default async function OrdersPage({
   await maintainShipmentQueueIntegrity();
 
   const where: Record<string, unknown> = { ...activeOrderWhere };
-  if (searchParams.source && (ORDER_SOURCES as readonly string[]).includes(searchParams.source)) {
-    where.source = searchParams.source;
+  const sourceFilter =
+    searchParams.source === 'restock' ? 'consignment' : searchParams.source;
+  if (sourceFilter && (ORDER_SOURCES as readonly string[]).includes(sourceFilter)) {
+    where.source = sourceFilter;
   }
   const activeStatuses = [
     'draft',
@@ -73,20 +76,12 @@ export default async function OrdersPage({
     prisma.order.count({ where: historicalOrderWhere }),
   ]);
 
-  const sourceTabs: { key: string; label: string }[] = [
-    { key: '', label: '全部' },
-    { key: 'website', label: '官網' },
-    { key: 'line', label: 'LINE' },
-    { key: 'consignment', label: '寄賣' },
-    { key: 'manual', label: '手動' },
-  ];
-
   return (
     <>
       <PageHeader
         tone="orders"
         title="訂單 Order Hub"
-        description="進行中訂單；已退貨或已取消請至歷史訂單"
+        description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -123,11 +118,12 @@ export default async function OrdersPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {sourceTabs.map((s) => {
-            const active = (searchParams.source ?? '') === s.key;
+          <span className="text-xs font-medium text-muted-foreground">種類</span>
+          {ORDER_SOURCE_TABS.map((s) => {
+            const active = (searchParams.source ?? '') === s.key || (s.key === 'consignment' && searchParams.source === 'restock');
             const href = s.key ? `/orders?source=${s.key}` : '/orders';
             return (
-              <Button key={s.key} variant={active ? 'default' : 'outline'} size="sm" asChild>
+              <Button key={s.key || 'all'} variant={active ? 'default' : 'outline'} size="sm" asChild>
                 <Link href={href}>{s.label}</Link>
               </Button>
             );

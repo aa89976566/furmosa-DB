@@ -5,7 +5,8 @@ export const FALLBACK_PARTNER_STORES = [
   { slug: 'zhuwo_zhonghe', name: '豬窩 中和店' },
   { slug: 'zhuwo_banqiao', name: '豬窩 板橋店' },
   { slug: 'zhuwo_tucheng', name: '豬窩 土城店' },
-  { slug: 'niuniu', name: '妞妞寵物美容' },
+  { slug: 'niuniu', name: '淡水妞妞' },
+  { slug: 'manlisa', name: '曼利莎寵物美容' },
   { slug: 'pet99', name: '99寵物美容' },
 ] as const;
 

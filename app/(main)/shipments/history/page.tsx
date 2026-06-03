@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
 import { Button } from '@/components/ui/button';
+import {
+  countHistoryShipments,
+  historyShipmentWhere,
+} from '@/lib/order-hub-kinds';
 import { ArrowLeft, History } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +30,7 @@ const shipmentInclude = {
     select: {
       id: true,
       orderNumber: true,
+      source: true,
       shippingMethod: true,
       cvsBrand: true,
       cvsStoreId: true,
@@ -45,28 +50,23 @@ export default async function ShipmentHistoryPage({
 }: {
   searchParams?: { type?: string; s?: string };
 }) {
-  const type = searchParams?.type;
+  const rawType = searchParams?.type;
+  const type =
+    rawType === 'restock' || rawType === 'merchant_restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
 
-  const where: Record<string, unknown> = {
-    status: { in: ['shipped', 'delivered'] },
-  };
-  if (type === 'subscription') where.type = 'subscription';
-  if (type === 'order') where.type = 'customer_order';
+  const where = historyShipmentWhere(type);
 
-  const [shipments, subCount, orderCount] = await Promise.all([
+  const [shipments, subCount, orderCount, consignmentCount] = await Promise.all([
     prisma.shipment.findMany({
       where,
       include: shipmentInclude,
       orderBy: [{ shippedAt: 'desc' }, { updatedAt: 'desc' }],
       take: 200,
     }),
-    prisma.shipment.count({
-      where: { status: { in: ['shipped', 'delivered'] }, type: 'subscription' },
-    }),
-    prisma.shipment.count({
-      where: { status: { in: ['shipped', 'delivered'] }, type: 'customer_order' },
-    }),
+    countHistoryShipments('subscription'),
+    countHistoryShipments('customer_order'),
+    countHistoryShipments('consignment'),
   ]);
 
   const panelRefreshKey = shipments
@@ -74,7 +74,16 @@ export default async function ShipmentHistoryPage({
     .join('|');
 
   const subscriptionRows = shipments.filter((s) => s.type === 'subscription');
-  const orderRows = shipments.filter((s) => s.type === 'customer_order');
+  const orderRows = shipments.filter(
+    (s) =>
+      s.type === 'customer_order' &&
+      (!s.order || s.order.source !== 'consignment'),
+  );
+  const consignmentRows = shipments.filter(
+    (s) =>
+      s.type === 'merchant_restock' ||
+      (s.type === 'customer_order' && s.order?.source === 'consignment'),
+  );
 
   const showAll = !type;
   const sections = [
@@ -82,7 +91,7 @@ export default async function ShipmentHistoryPage({
       ? [
           {
             key: 'subscription-history',
-            title: `訂閱出貨歷史 (${subscriptionRows.length})`,
+            title: `訂閱 (${subscriptionRows.length})`,
             description: '已寄出或已送達的訂閱包',
             tone: 'subscription' as const,
             tableVariant: 'subscription' as const,
@@ -94,11 +103,23 @@ export default async function ShipmentHistoryPage({
       ? [
           {
             key: 'order-history',
-            title: `一般訂單出貨歷史 (${orderRows.length})`,
-            description: '已寄出或已送達的客戶訂單',
+            title: `客戶訂單 (${orderRows.length})`,
+            description: '官網、LINE、手動等非寄賣成交',
             tone: 'logistics' as const,
             tableVariant: 'default' as const,
             shipments: orderRows,
+          },
+        ]
+      : []),
+    ...(showAll || type === 'consignment'
+      ? [
+          {
+            key: 'consignment-history',
+            title: `寄賣 (${consignmentRows.length})`,
+            description: '寄賣店進貨與寄賣成交',
+            tone: 'master' as const,
+            tableVariant: 'default' as const,
+            shipments: consignmentRows,
           },
         ]
       : []),
@@ -109,7 +130,7 @@ export default async function ShipmentHistoryPage({
       <PageHeader
         tone="logistics"
         title="出貨歷史"
-        description="已寄出／已送達的出貨單 — 從出貨隊列標記「已寄出」後會自動移入此處"
+        description="已寄出／已送達 — 「寄賣」含店進貨與寄賣成交"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/shipments">
@@ -121,7 +142,12 @@ export default async function ShipmentHistoryPage({
       />
       <div className="grid gap-6 p-6">
         <div className="flex flex-wrap gap-2">
-          <FilterLink href="/shipments/history" label="全部" count={subCount + orderCount} active={!type} />
+          <FilterLink
+            href="/shipments/history"
+            label="全部"
+            count={subCount + orderCount + consignmentCount}
+            active={!type}
+          />
           <FilterLink
             href="/shipments/history?type=subscription"
             label="訂閱"
@@ -130,9 +156,15 @@ export default async function ShipmentHistoryPage({
           />
           <FilterLink
             href="/shipments/history?type=order"
-            label="一般訂單"
+            label="客戶訂單"
             count={orderCount}
             active={type === 'order'}
+          />
+          <FilterLink
+            href="/shipments/history?type=consignment"
+            label="寄賣"
+            count={consignmentCount}
+            active={type === 'consignment'}
           />
         </div>
 
@@ -152,6 +184,7 @@ export default async function ShipmentHistoryPage({
             <ShipmentQueueWorkspace
               sections={sections}
               statusFilter="shipped"
+              typeFilter={type === 'order' ? 'customer_order' : type}
               panelRefreshKey={panelRefreshKey}
               initialShipmentId={selectedShipmentId}
             />

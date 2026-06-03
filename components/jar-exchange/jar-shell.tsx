@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 
 const TABS: { href: string; label: string; match?: string }[] = [
   { href: '/jar-exchange/members', label: '換罐會員' },
+  { href: '/jar-exchange/stores', label: '合作店家' },
   { href: '/jar-exchange/manage?tab=codes', label: '序號管理', match: 'codes' },
   { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', match: 'ledger' },
   { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', match: 'rewards' },
@@ -44,7 +45,9 @@ export function JarShell({
               const active =
                 t.href.startsWith('/jar-exchange/members')
                   ? pathname.startsWith('/jar-exchange/members')
-                  : pathname.startsWith('/jar-exchange/manage') && tab === t.match;
+                  : t.href.startsWith('/jar-exchange/stores')
+                    ? pathname.startsWith('/jar-exchange/stores')
+                    : pathname.startsWith('/jar-exchange/manage') && tab === t.match;
               return (
                 <Link
                   key={t.href}

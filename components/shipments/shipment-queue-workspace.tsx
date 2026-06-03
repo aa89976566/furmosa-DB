@@ -21,6 +21,9 @@ type QueueSection = {
 };
 
 function getShipmentLabel(shipment: ShipmentQueueRow) {
+  if (shipment.type === 'merchant_restock' && shipment.merchant?.name) {
+    return shipment.merchant.name;
+  }
   return (
     shipment.order?.orderNumber ??
     shipment.subscriptionShipment?.subscription?.subscriptionNo ??
@@ -32,11 +35,13 @@ function getShipmentLabel(shipment: ShipmentQueueRow) {
 export function ShipmentQueueWorkspace({
   sections,
   statusFilter,
+  typeFilter,
   panelRefreshKey,
   initialShipmentId,
 }: {
   sections: QueueSection[];
   statusFilter?: string;
+  typeFilter?: string;
   panelRefreshKey: string;
   initialShipmentId?: string;
 }) {
@@ -108,6 +113,7 @@ export function ShipmentQueueWorkspace({
             onSelectShipment={openShipment}
             selectedShipmentId={selectedShipmentId}
             queueStatus={statusFilter ?? section.key}
+            queueType={typeFilter}
             variant={section.tableVariant ?? 'default'}
           />
         </SectionBlock>

@@ -200,16 +200,25 @@ function CouponDetail({
 export function StoreCouponRedeemForm({
   stores,
   defaultStoreSlug,
+  lockedStoreSlug,
 }: {
   stores: RedeemStoreOption[];
   defaultStoreSlug?: string;
+  /** 專屬連結進入時鎖定店家，隱藏下拉選單 */
+  lockedStoreSlug?: string;
 }) {
-  const [storeId, setStoreId] = useState('');
+  const locked =
+    lockedStoreSlug && stores.some((s) => s.slug === lockedStoreSlug) ? lockedStoreSlug : '';
+  const [storeId, setStoreId] = useState(locked || '');
   const [couponCode, setCouponCode] = useState('');
   const [pending, setPending] = useState(false);
   const [state, setState] = useState<VerifyResult | null>(null);
 
   useEffect(() => {
+    if (locked) {
+      setStoreId(locked);
+      return;
+    }
     const initial =
       defaultStoreSlug && stores.some((s) => s.slug === defaultStoreSlug)
         ? defaultStoreSlug
@@ -219,7 +228,7 @@ export function StoreCouponRedeemForm({
     if (initial && stores.some((s) => s.slug === initial)) {
       setStoreId(initial);
     }
-  }, [defaultStoreSlug, stores]);
+  }, [defaultStoreSlug, locked, stores]);
 
   function onStoreChange(slug: string) {
     setStoreId(slug);
@@ -251,22 +260,33 @@ export function StoreCouponRedeemForm({
       >
         <div>
           <label className="mb-1 block text-sm font-medium">驗證店家</label>
-          <select
-            value={storeId}
-            onChange={(e) => onStoreChange(e.target.value)}
-            required
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="">請選擇您的店家</option>
-            {stores.map((s) => (
-              <option key={s.slug} value={s.slug}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            選擇後會記住，下次開啟自動帶入（僅此裝置）。
-          </p>
+          {locked ? (
+            <>
+              <input type="hidden" name="storeId" value={storeId} />
+              <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm font-medium">
+                {stores.find((s) => s.slug === locked)?.name ?? locked}
+              </div>
+            </>
+          ) : (
+            <select
+              value={storeId}
+              onChange={(e) => onStoreChange(e.target.value)}
+              required
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">請選擇您的店家</option>
+              {stores.map((s) => (
+                <option key={s.slug} value={s.slug}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {!locked ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              選擇後會記住，下次開啟自動帶入（僅此裝置）。
+            </p>
+          ) : null}
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">請輸入優惠碼</label>

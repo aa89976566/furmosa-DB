@@ -69,6 +69,7 @@ const sourceVariant: Record<string, Variant> = {
   consignment: 'warning',
   subscription: 'default',
   manual: 'secondary',
+  restock: 'warning',
 };
 
 const subscriptionStatusVariant: Record<string, Variant> = {

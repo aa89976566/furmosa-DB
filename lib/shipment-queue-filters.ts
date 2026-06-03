@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { ensureOrdersForOrphanRestockShipments, migrateRestockOrdersToConsignment } from '@/lib/merchant-restock-order';
 import { prisma } from '@/lib/prisma';
 
 /** 品項指紋（用於判斷是否為同一批進貨） */
@@ -122,6 +123,8 @@ export async function syncDraftOrdersWithPendingShipments(): Promise<number> {
 
 /** 佇列載入前整理資料 */
 export async function maintainShipmentQueueIntegrity() {
+  await ensureOrdersForOrphanRestockShipments();
+  await migrateRestockOrdersToConsignment();
   await cancelShipmentsForCancelledOrders();
   await consolidateDuplicateOrderShipments();
   await consolidateDuplicateMerchantRestockShipments();

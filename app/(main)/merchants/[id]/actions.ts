@@ -9,9 +9,8 @@ import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock
 import { revalidatePath } from 'next/cache';
 import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
-import {
-  shipmentItemsFingerprint,
-} from '@/lib/shipment-queue-filters';
+import { createRestockOrderWithShipment } from '@/lib/merchant-restock-order';
+import { shipmentItemsFingerprint } from '@/lib/shipment-queue-filters';
 import {
   parseMerchantTypesFromForm,
   primaryMerchantType,
@@ -162,8 +161,10 @@ export async function restockMerchant(formData: FormData) {
     (s) => shipmentItemsFingerprint(s.items) === itemsFingerprint,
   );
   if (duplicate) {
+    revalidatePath('/orders');
     revalidatePath('/shipments');
-    redirect(`/shipments/${duplicate.id}`);
+    if (duplicate.orderId) redirect(`/orders/${duplicate.orderId}`);
+    redirect(`/shipments?s=${duplicate.id}`);
   }
 
   const pickup711 = resolve711PickupFromForm(formData, carrier);
@@ -176,38 +177,23 @@ export async function restockMerchant(formData: FormData) {
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
-  const shipment = await prisma.shipment.create({
-    data: {
-      shipmentNumber: await nextShipmentNumber(),
-      type: 'merchant_restock',
-      status: 'pending',
-      merchantId,
-      recipientName: pickup711?.recipientName ?? profileName,
-      recipientPhone: pickup711?.recipientPhone ?? profilePhone,
-      recipientAddress: pickup711?.recipientAddress ?? profileAddress,
-      carrier,
-      notes: note,
-      items: {
-        create: items.map((it) => {
-          const p = productById.get(it.productId);
-          if (!p) throw new Error('商品不存在');
-          return {
-            productId: it.productId,
-            productName: p.name,
-            sku: p.sku,
-            quantity: it.quantity,
-            weightGrams: it.weightGrams && it.weightGrams > 0 ? it.weightGrams : null,
-            unit: it.unit,
-          };
-        }),
-      },
-    },
+  const { order, shipment } = await createRestockOrderWithShipment({
+    merchantId,
+    items,
+    products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
+    recipientName: pickup711?.recipientName ?? profileName,
+    recipientPhone: pickup711?.recipientPhone ?? profilePhone,
+    recipientAddress: pickup711?.recipientAddress ?? profileAddress,
+    carrier,
+    notes: note,
   });
 
+  revalidatePath('/orders');
+  revalidatePath(`/orders/${order.id}`);
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath('/merchants');
   revalidatePath('/shipments');
-  redirect(`/shipments/${shipment.id}`);
+  redirect(`/shipments?s=${shipment.id}`);
 }
 
 // ============================================================

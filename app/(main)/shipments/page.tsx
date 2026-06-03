@@ -16,6 +16,8 @@ import {
   dedupeShipmentsByOrder,
   maintainShipmentQueueIntegrity,
 } from '@/lib/shipment-queue-filters';
+import { isShipmentKindKey, mergeShipmentWhere, SHIPMENT_KIND_TABS } from '@/lib/order-hub-kinds';
+import type { Prisma } from '@prisma/client';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -39,6 +41,7 @@ const shipmentInclude = {
     select: {
       id: true,
       orderNumber: true,
+      source: true,
       shippingMethod: true,
       cvsBrand: true,
       cvsStoreId: true,
@@ -74,7 +77,9 @@ export default async function ShipmentsPage({
   searchParams?: { status?: string; type?: string; s?: string };
 }) {
   const status = searchParams?.status;
-  const type = searchParams?.type;
+  const rawType = searchParams?.type;
+  const type =
+    rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
 
   await syncUpcomingSubscriptionShipments();
@@ -92,8 +97,10 @@ export default async function ShipmentsPage({
             OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
           }
         : activeShipmentQueueWhere;
-  const where: Record<string, unknown> = { ...baseWhere };
-  if (type) where.type = type;
+
+  const kindFilter = type && isShipmentKindKey(type) ? type : undefined;
+  const where = mergeShipmentWhere(baseWhere as Prisma.ShipmentWhereInput, kindFilter);
+  const countWhere = mergeShipmentWhere(activeShipmentQueueWhere, kindFilter);
 
   const [rawShipments, counts] = await Promise.all([
     prisma.shipment.findMany({
@@ -104,7 +111,7 @@ export default async function ShipmentsPage({
     }),
     prisma.shipment.groupBy({
       by: ['status'],
-      where: activeShipmentQueueWhere,
+      where: countWhere,
       _count: { _all: true },
     }),
   ]);
@@ -174,9 +181,12 @@ export default async function ShipmentsPage({
       <PageHeader
         tone="logistics"
         title="出貨隊列"
-        description="物流工作台 — 點列表任一筆，在下方開啟訂單內容（品項、運輸、物流狀態）"
+        description="統一出貨工作台 — 「寄賣」含店進貨與寄賣成交，與訂單列表來源一致"
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/orders">訂單列表</Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/shipments/history">
                 出貨歷史 ({(countByStatus.shipped ?? 0) + (countByStatus.delivered ?? 0)})
@@ -192,6 +202,25 @@ export default async function ShipmentsPage({
         }
       />
       <div className="grid gap-6 p-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">種類</span>
+          {SHIPMENT_KIND_TABS.map((t) => {
+            const active =
+              (type ?? '') === t.key ||
+              (t.key === 'consignment' &&
+                (rawType === 'restock' || rawType === 'merchant_restock'));
+            const params = new URLSearchParams();
+            if (t.key) params.set('type', t.key);
+            if (status) params.set('status', status);
+            const href = params.toString() ? `/shipments?${params}` : '/shipments';
+            return (
+              <Button key={t.key || 'all'} variant={active ? 'default' : 'outline'} size="sm" asChild>
+                <Link href={href}>{t.label}</Link>
+              </Button>
+            );
+          })}
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <FilterChip
             href="/shipments"
@@ -232,6 +261,7 @@ export default async function ShipmentsPage({
           <ShipmentQueueWorkspace
             sections={workspaceSections}
             statusFilter={status}
+            typeFilter={type}
             panelRefreshKey={panelRefreshKey}
             initialShipmentId={selectedShipmentId}
           />

@@ -76,7 +76,7 @@ export async function markShipmentStatus(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await tx.shipment.update({ where: { id: shipmentId }, data });
 
-    if (shipment.type === 'customer_order' && shipment.orderId) {
+    if (shipment.orderId) {
       const orderUpdate = buildOrderUpdateFromShipmentStatus(next, {
         existingShippedAt: shipment.shippedAt,
         shipmentShippedAt: next === 'shipped' ? now : shipment.shippedAt,
@@ -177,6 +177,7 @@ export async function markShipmentStatus(formData: FormData) {
 
   const inline = formData.get('inline') === '1';
   const queueStatus = String(formData.get('queueStatus') ?? '').trim();
+  const queueType = String(formData.get('queueType') ?? '').trim();
   if (inline) {
     const params = new URLSearchParams();
     if (next === 'shipped') {
@@ -190,6 +191,7 @@ export async function markShipmentStatus(formData: FormData) {
     }
     params.set('s', shipmentId);
     if (queueStatus) params.set('status', queueStatus);
+    if (queueType) params.set('type', queueType);
     redirect(`/shipments?${params.toString()}`);
     return;
   }
