@@ -25,10 +25,9 @@ import { Plus } from 'lucide-react';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [data, todayTasks] = await Promise.all([
-    getDashboardData(),
-    getTodayTasksForDashboard(),
-  ]);
+  // 依序載入，避免 Dashboard 與今日任務同時搶 Supabase pooler 連線
+  const data = await getDashboardData();
+  const todayTasks = await getTodayTasksForDashboard();
 
   return (
     <>

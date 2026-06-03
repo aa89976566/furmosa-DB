@@ -1,24 +1,29 @@
 import { prisma } from '@/lib/prisma';
+import { withDbRetry } from '@/lib/prisma-retry';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
 
 const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual'] as const;
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-/** Supabase pooler connection_limit 較小時，避免一次 Promise.all 搶光連線 */
+/** Supabase pooler 連線數有限；Vercel 上 batchSize=1 最穩 */
 async function runInBatches(
   tasks: (() => Promise<unknown>)[],
-  batchSize = 4,
+  batchSize = 1,
 ): Promise<unknown[]> {
   const results: unknown[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
     const chunk = tasks.slice(i, i + batchSize);
-    results.push(...(await Promise.all(chunk.map((fn) => fn()))));
+    results.push(...(await Promise.all(chunk.map((fn) => withDbRetry(fn)))));
   }
   return results;
 }
 
 export async function getDashboardData() {
+  return withDbRetry(() => loadDashboardData());
+}
+
+async function loadDashboardData() {
   const now = new Date();
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);

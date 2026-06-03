@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { withDbRetry } from '@/lib/prisma-retry';
 
 export type TodayTaskRow = {
   id: string;
@@ -34,21 +35,23 @@ export function endOfToday(): Date {
 
 export async function getTodayTasksForDashboard(): Promise<TodayTaskRow[]> {
   const { start, end } = todayRange();
-  return prisma.task.findMany({
-    where: {
-      OR: [
-        { dueDate: { gte: start, lte: end } },
-        { createdAt: { gte: start, lte: end } },
-      ],
-    },
-    select: {
-      id: true,
-      taskId: true,
-      title: true,
-      status: true,
-      completedAt: true,
-    },
-    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
-    take: 50,
-  });
+  return withDbRetry(() =>
+    prisma.task.findMany({
+      where: {
+        OR: [
+          { dueDate: { gte: start, lte: end } },
+          { createdAt: { gte: start, lte: end } },
+        ],
+      },
+      select: {
+        id: true,
+        taskId: true,
+        title: true,
+        status: true,
+        completedAt: true,
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+      take: 50,
+    }),
+  );
 }
