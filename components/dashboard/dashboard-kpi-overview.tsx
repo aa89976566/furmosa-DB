@@ -11,6 +11,7 @@ import {
   Wallet,
   Sparkles,
   Gift,
+  Recycle,
   type LucideIcon,
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/format';
@@ -30,6 +31,7 @@ export type DashboardKpis = {
   monthGroomingCouponCost: number;
   weekJarPointsEarnedMemberCount: number;
   weekJarPointsRedeemedMemberCount: number;
+  weekJarRedeemCount: number;
 };
 
 const accentStyles = {
@@ -205,9 +207,8 @@ function MetricKpi({
 export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <HeroKpi
-          className="lg:col-span-3"
           title="本月營收"
           value={formatCurrency(kpis.monthRevenue)}
           description="本月有效訂單合計 · 不含已取消"
@@ -216,13 +217,20 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
           href="/orders"
         />
         <HeroKpi
-          className="lg:col-span-2"
           title="今日訂單"
           value={formatNumber(kpis.todayOrderCount)}
           description="今日成立 · 不含已取消"
           icon={ShoppingBag}
           accent="info"
           href="/orders"
+        />
+        <HeroKpi
+          title="本週換罐"
+          value={formatNumber(kpis.weekJarRedeemCount)}
+          description="本週序號返航 · 已兌換罐數（週日起算）"
+          icon={Recycle}
+          accent="primary"
+          href="/jar-exchange/manage?tab=codes"
         />
       </div>
 

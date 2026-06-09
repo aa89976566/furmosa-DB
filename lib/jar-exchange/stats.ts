@@ -1,5 +1,19 @@
 import { prisma } from '@/lib/prisma';
 
+function startOfCalendarWeek(d = new Date()) {
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+function startOfRolling7Days(d = new Date()) {
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 6);
+  return start;
+}
+
 export async function getJarExchangeStatsForCustomer(customerId: string) {
   const [balance, codesUsed, rewardsRedeemed, lastLedger, jarService] = await Promise.all([
     prisma.memberPointsLedger
@@ -39,11 +53,10 @@ export async function getMonthJarExchangeKpis() {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const startOfLast7Days = new Date();
-  startOfLast7Days.setHours(0, 0, 0, 0);
-  startOfLast7Days.setDate(startOfLast7Days.getDate() - 6);
+  const startOfLast7Days = startOfRolling7Days();
+  const startOfWeek = startOfCalendarWeek();
 
-  const [pointsIssued, groomingCost, pointsEarnedMembers, pointsRedeemedMembers] =
+  const [pointsIssued, groomingCost, pointsEarnedMembers, pointsRedeemedMembers, weekJarRedeemCount] =
     await Promise.all([
       prisma.memberPointsLedger.aggregate({
         _sum: { pointsChange: true },
@@ -75,6 +88,12 @@ export async function getMonthJarExchangeKpis() {
           pointsChange: { lt: 0 },
         },
       }),
+      prisma.jarCode.count({
+        where: {
+          status: 'used',
+          redeemedAt: { gte: startOfWeek },
+        },
+      }),
     ]);
 
   return {
@@ -82,5 +101,6 @@ export async function getMonthJarExchangeKpis() {
     monthGroomingCouponCost: Number(groomingCost._sum.amount ?? 0),
     weekJarPointsEarnedMemberCount: pointsEarnedMembers.length,
     weekJarPointsRedeemedMemberCount: pointsRedeemedMembers.length,
+    weekJarRedeemCount,
   };
 }
