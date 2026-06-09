@@ -112,6 +112,13 @@ export function formatShipmentDeliverySummary(
     const store = order.cvsStoreName?.trim() || order.shippingAddress?.trim() || '';
     return store ? `${brand} · ${store}` : brand;
   }
+  if (order?.shippingMethod === 'delivery') {
+    const addr =
+      shipment.recipientAddress?.trim() ||
+      order.shippingAddress?.trim() ||
+      '';
+    return addr || '送貨';
+  }
   const addr = shipment.recipientAddress?.trim();
   if (addr?.startsWith('7-11') || addr?.startsWith('7-ELEVEN')) return addr;
   return addr || '宅配';

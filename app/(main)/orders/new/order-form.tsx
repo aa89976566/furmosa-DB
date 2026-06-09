@@ -360,7 +360,7 @@ export function OrderForm({
   >(edit?.paymentStatus ?? 'unpaid');
   const [recipientName, setRecipientName] = useState<string>(edit?.recipientName ?? '');
   const [recipientPhone, setRecipientPhone] = useState<string>(edit?.recipientPhone ?? '');
-  const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience'>(
+  const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience' | 'delivery'>(
     edit?.shippingMethod ?? 'home',
   );
   const [cvsBrand, setCvsBrand] = useState<string>(edit?.cvsBrand ?? '711');
@@ -1011,7 +1011,7 @@ export function OrderForm({
             <p className="text-[11px] text-muted-foreground">
               選客戶或寄賣店家會自動帶入姓名；可改為實際收件人。
             </p>
-            <div className="inline-flex rounded-md border bg-background p-0.5">
+            <div className="inline-flex flex-wrap gap-1 rounded-md border bg-background p-0.5">
               <button
                 type="button"
                 onClick={() => setShippingMethod('home')}
@@ -1034,30 +1034,23 @@ export function OrderForm({
               >
                 超商 · 7-11（{SHIPPING_FEE_CVS_711} 元）
               </button>
+              <button
+                type="button"
+                onClick={() => setShippingMethod('delivery')}
+                className={`rounded px-3 py-1.5 text-xs ${
+                  shippingMethod === 'delivery'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                送貨
+              </button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              運費依運送方式自動帶入：7-11 {SHIPPING_FEE_CVS_711} 元、黑貓宅配 {SHIPPING_FEE_HOME_BLACK_CAT} 元。
+              運費依運送方式自動帶入：7-11 {SHIPPING_FEE_CVS_711} 元、黑貓宅配 {SHIPPING_FEE_HOME_BLACK_CAT} 元；送貨為公司派人直送，運費 0 元。
             </p>
 
-            {shippingMethod === 'home' ? (
-              <div>
-                <label className="mb-1 block text-[11px] text-muted-foreground">
-                  完整收件地址（宅配）
-                </label>
-                <textarea
-                  name="shippingAddress"
-                  value={shippingAddress}
-                  onChange={(e) => setShippingAddress(e.target.value)}
-                  rows={3}
-                  maxLength={500}
-                  placeholder="例：台北市大安區復興南路一段 100 號 5 樓"
-                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  選客戶會帶入客戶地址；選寄賣店家會帶入店家運送資料，可再修改。
-                </p>
-              </div>
-            ) : (
+            {shippingMethod === 'convenience' ? (
               <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -1106,6 +1099,30 @@ export function OrderForm({
                     選寄賣店家後會自動帶入 7-11 門市與取件資訊。
                   </p>
                 </div>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-[11px] text-muted-foreground">
+                  {shippingMethod === 'delivery' ? '送貨地址' : '完整收件地址（宅配）'}
+                </label>
+                <textarea
+                  name="shippingAddress"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder={
+                    shippingMethod === 'delivery'
+                      ? '例：新北市淡水區…（店家地址）'
+                      : '例：台北市大安區復興南路一段 100 號 5 樓'
+                  }
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {shippingMethod === 'delivery'
+                    ? '選寄賣店家後可帶入店家地址；公司派人直送至此地址。'
+                    : '選客戶會帶入客戶地址；選寄賣店家會帶入店家運送資料，可再修改。'}
+                </p>
               </div>
             )}
           </div>

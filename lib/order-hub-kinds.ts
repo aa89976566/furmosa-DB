@@ -15,9 +15,9 @@ export const ORDER_SOURCE_KEYS = ['website', 'line', 'consignment', 'manual'] as
 /** 出貨隊列種類（consignment 為邏輯分類，含進貨與寄賣成交） */
 export const SHIPMENT_KIND_TABS = [
   { key: '', label: '全部' },
-  { key: 'customer_order', label: '客戶訂單' },
-  { key: 'subscription', label: '訂閱' },
-  { key: 'consignment', label: '寄賣' },
+  { key: 'customer_order', label: '直客訂單', hint: '官網 / LINE / 手動，不含寄賣店成交' },
+  { key: 'subscription', label: '訂閱', hint: '訂閱制定期出貨' },
+  { key: 'consignment', label: '寄賣', hint: '寄賣店進貨與店內成交（如淡水妞妞）' },
 ] as const;
 
 export const SHIPMENT_KIND_KEYS = ['customer_order', 'subscription', 'consignment'] as const;

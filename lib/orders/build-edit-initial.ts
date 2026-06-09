@@ -25,7 +25,7 @@ export type OrderEditInitial = {
   paymentStatus: 'unpaid' | 'partial' | 'paid' | 'cod' | 'refunded';
   recipientName: string;
   recipientPhone: string;
-  shippingMethod: 'home' | 'convenience';
+  shippingMethod: 'home' | 'convenience' | 'delivery';
   cvsBrand: string;
   cvsStoreName: string;
   shippingAddress: string;
@@ -129,7 +129,10 @@ export function buildOrderEditInitial(
     paymentStatus,
     recipientName: shipment?.recipientName ?? '',
     recipientPhone: shipment?.recipientPhone ?? '',
-    shippingMethod: order.shippingMethod === 'convenience' ? 'convenience' : 'home',
+    shippingMethod:
+      order.shippingMethod === 'convenience' || order.shippingMethod === 'delivery'
+        ? order.shippingMethod
+        : 'home',
     cvsBrand: order.cvsBrand ?? '711',
     cvsStoreName: order.cvsStoreName ?? '',
     shippingAddress: order.shippingAddress ?? shipment?.recipientAddress ?? '',

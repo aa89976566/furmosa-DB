@@ -124,7 +124,7 @@ export function ShipmentQueueWorkspace({
           ref={detailRef}
           className="scroll-mt-6 overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-md"
         >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-primary/[0.04] px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-primary/[0.04] px-4 py-3 sm:px-5 sm:py-4">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
                 <ClipboardList className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function ShipmentQueueWorkspace({
               關閉
             </button>
           </div>
-          <div className="p-5">
+          <div className="p-4 sm:p-5">
             <ShipmentOrderPanel
               key={`${selectedShipmentId}-${panelRefreshKey}`}
               shipmentId={selectedShipmentId}

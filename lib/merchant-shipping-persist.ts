@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { CARRIER_711, format711RecipientAddress } from '@/lib/carrier-cvs';
+import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
 
 export type MerchantShippingFields = {
   preferredCarrier: string | null;
@@ -28,6 +29,11 @@ export function parseMerchantShippingFromForm(formData: FormData): MerchantShipp
     pickupStoreName = null;
     if (!address) {
       return { preferredCarrier, pickupStoreName: null, address: null, error: '請填寫黑貓收件地址' };
+    }
+  } else if (preferredCarrier === SHIPPING_CARRIER_DELIVERY) {
+    pickupStoreName = null;
+    if (!address) {
+      return { preferredCarrier, pickupStoreName: null, address: null, error: '請填寫送貨地址' };
     }
   }
 

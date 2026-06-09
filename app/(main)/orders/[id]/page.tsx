@@ -217,27 +217,45 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               {order.shipments.length === 0 ? (
                 <p className="text-xs text-muted-foreground">尚未建立出貨單</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {order.shipments.map((s) => (
-                    <li
-                      key={s.id}
-                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5"
-                    >
+                <>
+                  <ul className="space-y-1.5">
+                    {order.shipments.map((s) => (
+                      <li
+                        key={s.id}
+                        className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5"
+                      >
+                        <Link
+                          href={
+                            order.source === 'consignment'
+                              ? `/shipments?type=consignment&s=${encodeURIComponent(s.id)}`
+                              : `/shipments?s=${encodeURIComponent(s.id)}`
+                          }
+                          className="min-w-0 font-mono text-xs text-info hover:underline"
+                        >
+                          {s.shipmentNumber}
+                        </Link>
+                        <Badge
+                          variant={shipmentStatusVariant[s.status] ?? 'secondary'}
+                          className="shrink-0"
+                        >
+                          {shipmentStatusLabel[s.status] ?? s.status}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                  {order.source === 'consignment' ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      此為寄賣店訂單，請至出貨隊列{' '}
                       <Link
-                        href={`/shipments/${s.id}`}
-                        className="min-w-0 font-mono text-xs text-info hover:underline"
+                        href={`/shipments?type=consignment&s=${encodeURIComponent(order.shipments[0]!.id)}`}
+                        className="text-info hover:underline"
                       >
-                        {s.shipmentNumber}
-                      </Link>
-                      <Badge
-                        variant={shipmentStatusVariant[s.status] ?? 'secondary'}
-                        className="shrink-0"
-                      >
-                        {shipmentStatusLabel[s.status] ?? s.status}
-                      </Badge>
-                    </li>
-                  ))}
-                </ul>
+                        「寄賣」分類
+                      </Link>{' '}
+                      查看（不在「直客訂單」）。
+                    </p>
+                  ) : null}
+                </>
               )}
             </div>
           </HorizontalSectionPane>

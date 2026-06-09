@@ -26,11 +26,11 @@ export type MerchantShippingInput = {
   pickupStoreName: string | null;
 };
 
-type CarrierMode = '' | typeof CARRIER_711 | '黑貓';
+type CarrierMode = '' | typeof CARRIER_711 | '黑貓' | '送貨';
 
 function initialCarrier(value: string | null | undefined): CarrierMode {
   const v = (value ?? '').trim();
-  if (v === CARRIER_711 || v === '黑貓') return v;
+  if (v === CARRIER_711 || v === '黑貓' || v === '送貨') return v;
   return '';
 }
 
@@ -61,6 +61,7 @@ export function MerchantShippingForm({ merchant }: { merchant: MerchantShippingI
               ['', '未設定'],
               [CARRIER_711, '7-11'],
               ['黑貓', '黑貓'],
+              ['送貨', '送貨'],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -154,6 +155,22 @@ export function MerchantShippingForm({ merchant }: { merchant: MerchantShippingI
               rows={3}
               maxLength={300}
               placeholder="例：新北市淡水區復興路 100 號"
+              className="block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </MerchantField>
+        </div>
+      )}
+
+      {carrier === '送貨' && (
+        <div className="space-y-3 rounded-xl border border-dashed border-border/80 bg-muted/30 p-4">
+          <p className="text-sm font-medium text-navy">送貨地址</p>
+          <MerchantField label="店家地址" hint="新增訂單選「送貨」時會自動帶入">
+            <textarea
+              name="address"
+              defaultValue={merchant.address ?? ''}
+              rows={3}
+              maxLength={300}
+              placeholder="例：新北市淡水區…"
               className="block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </MerchantField>

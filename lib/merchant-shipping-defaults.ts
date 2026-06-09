@@ -1,4 +1,5 @@
 import { CARRIER_711, format711RecipientAddress, is711Carrier } from '@/lib/carrier-cvs';
+import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
 
 export type MerchantShippingDefaults = {
   pickupStore: string;
@@ -27,7 +28,7 @@ export function parse711StoreFromAddress(address: string | null | undefined): st
 export type MerchantOrderShippingFields = {
   recipientName: string;
   recipientPhone: string;
-  shippingMethod: 'home' | 'convenience';
+  shippingMethod: 'home' | 'convenience' | 'delivery';
   cvsBrand: string;
   cvsStoreName: string;
   shippingAddress: string;
@@ -41,6 +42,22 @@ export function merchantShippingToOrderFields(
   const carrier = d.defaultCarrier;
   const recipientName = d.pickupName;
   const recipientPhone = d.pickupPhone;
+
+  if (carrier === SHIPPING_CARRIER_DELIVERY) {
+    const deliveryAddr =
+      merchant.address?.trim() ||
+      [merchant.city?.trim(), merchant.name.trim()].filter(Boolean).join(' ') ||
+      d.pickupStore;
+
+    return {
+      recipientName,
+      recipientPhone,
+      shippingMethod: 'delivery',
+      cvsBrand: '711',
+      cvsStoreName: '',
+      shippingAddress: deliveryAddr,
+    };
+  }
 
   if (is711Carrier(carrier)) {
     const storeName =
@@ -149,5 +166,6 @@ export function merchantCarrierLabel(carrier: string | null | undefined): string
   const c = (carrier ?? '').trim();
   if (c === CARRIER_711) return '7-11';
   if (c === '黑貓') return '黑貓';
+  if (c === '送貨') return '送貨';
   return '未設定';
 }

@@ -597,7 +597,7 @@ model Order {
   companyShippingCost   Float @default(0) // 公司負擔的運費成本（包郵時為 711/黑貓 標準運費）
   giftCost              Float @default(0) // 贈品進貨成本合計（不計入買家應付）
   total                 Float
-  shippingMethod    String    @default("home") // home / convenience
+  shippingMethod    String    @default("home") // home / convenience / delivery
   shippingAddress   String? // 宅配：家用地址；超商：可填門市地址
   cvsBrand          String? // 711 / familymart / hilife（僅 shippingMethod=convenience 時使用）
   cvsStoreId        String? // 門市店號

@@ -181,7 +181,7 @@ export default async function ShipmentsPage({
       <PageHeader
         tone="logistics"
         title="出貨隊列"
-        description="統一出貨工作台 — 「寄賣」含店進貨與寄賣成交，與訂單列表來源一致"
+        description="統一出貨工作台 — 寄賣店成交與進貨請看「寄賣」；官網/LINE 請看「直客訂單」"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
@@ -201,9 +201,9 @@ export default async function ShipmentsPage({
           </div>
         }
       />
-      <div className="grid gap-6 p-6">
+      <div className="grid gap-4 p-4 sm:gap-6 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">種類</span>
+          <span className="w-full text-xs font-medium text-muted-foreground sm:w-auto">種類</span>
           {SHIPMENT_KIND_TABS.map((t) => {
             const active =
               (type ?? '') === t.key ||
@@ -221,7 +221,20 @@ export default async function ShipmentsPage({
           })}
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {type === 'customer_order' ? (
+          <div className="rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm text-muted-foreground">
+            <p>
+              「直客訂單」不含寄賣店成交。若剛建立{' '}
+              <strong className="font-medium text-foreground">淡水妞妞</strong> 等寄賣店訂單，請改看{' '}
+              <Link href="/shipments?type=consignment" className="font-medium text-info hover:underline">
+                寄賣
+              </Link>{' '}
+              分類。
+            </p>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
           <FilterChip
             href="/shipments"
             label="全部"

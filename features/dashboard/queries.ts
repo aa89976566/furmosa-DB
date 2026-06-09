@@ -307,6 +307,8 @@ async function loadDashboardData() {
       newCustomersThisMonth,
       monthJarPointsIssued: jarKpis.monthJarPointsIssued,
       monthGroomingCouponCost: jarKpis.monthGroomingCouponCost,
+      weekJarPointsEarnedMemberCount: jarKpis.weekJarPointsEarnedMemberCount,
+      weekJarPointsRedeemedMemberCount: jarKpis.weekJarPointsRedeemedMemberCount,
     },
     revenueTrend,
     sourceData,

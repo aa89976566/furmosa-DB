@@ -10,6 +10,7 @@ import {
   UserPlus,
   Wallet,
   Sparkles,
+  Gift,
   type LucideIcon,
 } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/format';
@@ -27,6 +28,8 @@ export type DashboardKpis = {
   newCustomersThisMonth: number;
   monthJarPointsIssued: number;
   monthGroomingCouponCost: number;
+  weekJarPointsEarnedMemberCount: number;
+  weekJarPointsRedeemedMemberCount: number;
 };
 
 const accentStyles = {
@@ -250,7 +253,23 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
           />
         </KpiGroup>
 
-        <KpiGroup title="換罐會員" description="本月返航與美容券成本">
+        <KpiGroup title="換罐會員" description="近 7 天活躍與本月成本">
+          <MetricKpi
+            title="近 7 天入帳人數"
+            value={formatNumber(kpis.weekJarPointsEarnedMemberCount)}
+            description="有正點數流水的不重複會員（序號返航、人工調整等）"
+            icon={UserPlus}
+            accent="success"
+            href="/jar-exchange/manage?tab=ledger"
+          />
+          <MetricKpi
+            title="近 7 天兌換人數"
+            value={formatNumber(kpis.weekJarPointsRedeemedMemberCount)}
+            description="有扣點流水的不重複會員（獎勵／美容券兌換）"
+            icon={Gift}
+            accent="info"
+            href="/jar-exchange/manage?tab=rewards"
+          />
           <MetricKpi
             title="本月換罐點數發放"
             value={formatNumber(kpis.monthJarPointsIssued)}

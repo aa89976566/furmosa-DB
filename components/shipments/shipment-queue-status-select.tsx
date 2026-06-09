@@ -43,11 +43,13 @@ export function ShipmentQueueStatusSelect({
   status,
   queueStatus,
   queueType,
+  className,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
   queueType?: string;
+  className?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const options = queueOptionsForStatus(status);
@@ -75,10 +77,12 @@ export function ShipmentQueueStatusSelect({
         name="next"
         defaultValue={value}
         className={cn(
-          'w-full min-w-[5.5rem] max-w-[7rem] rounded-md border bg-background px-1.5 py-1 text-[11px] font-medium',
+          'w-full rounded-md border bg-background px-1.5 py-1 text-[11px] font-medium',
           'focus:outline-none focus:ring-2 focus:ring-ring',
+          'min-w-[5.5rem] max-w-[7rem]',
           value === 'delivered' && 'border-success/40 text-success',
           value === 'shipped' && 'border-info/40 text-info',
+          className,
         )}
         aria-label="運輸狀態"
       >
@@ -97,11 +101,13 @@ export function ShipmentQueueStatusCell({
   status,
   queueStatus,
   queueType,
+  className,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
   queueType?: string;
+  className?: string;
 }) {
   return (
     <ShipmentQueueStatusSelect
@@ -109,6 +115,7 @@ export function ShipmentQueueStatusCell({
       status={status}
       queueStatus={queueStatus}
       queueType={queueType}
+      className={className}
     />
   );
 }

@@ -214,7 +214,24 @@ export function ShipmentOrderPanel({
               {planContents.length > 0 ? ` · ${formatPlanContents(planContents)}` : ''}
             </p>
           ) : null}
-          <Table className="mt-4">
+          <ul className="mt-4 space-y-2 md:hidden">
+            {displayItems.map((item) => (
+              <li
+                key={item.key}
+                className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
+              >
+                <p className="font-medium break-words [overflow-wrap:anywhere]">{item.name}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="font-mono">{item.sku}</span>
+                  <span>
+                    數量 <span className="font-semibold text-foreground">{item.quantity}</span>
+                  </span>
+                  <span>單位 {item.unit ?? '-'}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <Table className="mt-4 hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>商品</TableHead>
@@ -266,9 +283,9 @@ export function ShipmentOrderPanel({
 
 function PanelRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-start gap-4 border-b border-border/60 pb-2 last:border-0 last:pb-0">
-      <dt className="w-14 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 flex-1 text-right text-sm font-medium break-words [overflow-wrap:anywhere]">
+    <div className="flex flex-col gap-1 border-b border-border/60 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4">
+      <dt className="shrink-0 text-xs text-muted-foreground sm:w-14">{label}</dt>
+      <dd className="min-w-0 flex-1 text-sm font-medium break-words [overflow-wrap:anywhere] sm:text-right">
         {value}
       </dd>
     </div>

@@ -39,27 +39,48 @@ export async function getMonthJarExchangeKpis() {
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const [pointsIssued, groomingCost] = await Promise.all([
-    prisma.memberPointsLedger.aggregate({
-      _sum: { pointsChange: true },
-      where: {
-        createdAt: { gte: startOfMonth },
-        sourceType: 'jar_code_redeem',
-        pointsChange: { gt: 0 },
-      },
-    }),
-    prisma.marketingCostRecord.aggregate({
-      _sum: { amount: true },
-      where: {
-        bookedAt: { gte: startOfMonth },
-        costCategory: 'jar_return_program',
-        paymentStatus: { not: 'void' },
-      },
-    }),
-  ]);
+  const startOfLast7Days = new Date();
+  startOfLast7Days.setHours(0, 0, 0, 0);
+  startOfLast7Days.setDate(startOfLast7Days.getDate() - 6);
+
+  const [pointsIssued, groomingCost, pointsEarnedMembers, pointsRedeemedMembers] =
+    await Promise.all([
+      prisma.memberPointsLedger.aggregate({
+        _sum: { pointsChange: true },
+        where: {
+          createdAt: { gte: startOfMonth },
+          sourceType: 'jar_code_redeem',
+          pointsChange: { gt: 0 },
+        },
+      }),
+      prisma.marketingCostRecord.aggregate({
+        _sum: { amount: true },
+        where: {
+          bookedAt: { gte: startOfMonth },
+          costCategory: 'jar_return_program',
+          paymentStatus: { not: 'void' },
+        },
+      }),
+      prisma.memberPointsLedger.groupBy({
+        by: ['customerId'],
+        where: {
+          createdAt: { gte: startOfLast7Days },
+          pointsChange: { gt: 0 },
+        },
+      }),
+      prisma.memberPointsLedger.groupBy({
+        by: ['customerId'],
+        where: {
+          createdAt: { gte: startOfLast7Days },
+          pointsChange: { lt: 0 },
+        },
+      }),
+    ]);
 
   return {
     monthJarPointsIssued: Number(pointsIssued._sum.pointsChange ?? 0),
     monthGroomingCouponCost: Number(groomingCost._sum.amount ?? 0),
+    weekJarPointsEarnedMemberCount: pointsEarnedMembers.length,
+    weekJarPointsRedeemedMemberCount: pointsRedeemedMembers.length,
   };
 }

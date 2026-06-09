@@ -106,7 +106,12 @@ export async function parseOrderFormData(
     : 'unpaid';
 
   const shippingMethodRaw = String(formData.get('shippingMethod') ?? 'home');
-  const shippingMethod = shippingMethodRaw === 'convenience' ? 'convenience' : 'home';
+  const shippingMethod =
+    shippingMethodRaw === 'convenience'
+      ? 'convenience'
+      : shippingMethodRaw === 'delivery'
+        ? 'delivery'
+        : 'home';
   let shippingAddress = toNullableString(formData.get('shippingAddress'));
   let cvsBrand = toNullableString(formData.get('cvsBrand'));
   let cvsStoreName = toNullableString(formData.get('cvsStoreName'));

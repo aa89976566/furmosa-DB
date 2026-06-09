@@ -41,6 +41,17 @@ type OrderShipping = {
 };
 
 export function resolveLogisticsFromOrder(order: OrderShipping): LogisticsInfo {
+  if (order.shippingMethod === 'delivery') {
+    return {
+      carrierLabel: '送貨',
+      destination:
+        order.shippingAddress?.trim() ||
+        order.customer?.address?.trim() ||
+        '—',
+      contactName: order.customer?.name?.trim() || '—',
+      phone: order.customer?.phone?.trim() || '—',
+    };
+  }
   if (order.shippingMethod === 'convenience') {
     const brand = order.cvsBrand
       ? (cvsBrandLabel[order.cvsBrand] ?? order.cvsBrand)

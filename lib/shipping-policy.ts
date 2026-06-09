@@ -9,9 +9,11 @@ export const SHIPPING_FEE_HOME_BLACK_CAT = 120;
 export const SHIPPING_FEE_TYPES = ['free', 'prepaid', 'unpaid', 'cod'] as const;
 export type ShippingFeeType = (typeof SHIPPING_FEE_TYPES)[number];
 
-export type ShippingMethod = 'home' | 'convenience';
+export const SHIPPING_CARRIER_DELIVERY = '送貨';
 
-/** 依運送方式取得標準運費：超商（7-11）60、宅配（黑貓）120 */
+export type ShippingMethod = 'home' | 'convenience' | 'delivery';
+
+/** 依運送方式取得標準運費：超商（7-11）60、宅配（黑貓）120、送貨 0 */
 export function standardShippingFee(params: {
   shippingMethod: ShippingMethod | string;
   cvsBrand?: string | null;
@@ -19,16 +21,22 @@ export function standardShippingFee(params: {
   if (params.shippingMethod === 'convenience') {
     return SHIPPING_FEE_CVS_711;
   }
+  if (params.shippingMethod === 'delivery') {
+    return 0;
+  }
   return SHIPPING_FEE_HOME_BLACK_CAT;
 }
 
-/** 出貨單 carrier 欄位：超商 → 7-11、宅配 → 黑貓 */
+/** 出貨單 carrier 欄位：超商 → 7-11、宅配 → 黑貓、送貨 → 送貨 */
 export function shipmentCarrierFromOrder(params: {
   shippingMethod: ShippingMethod | string;
   cvsBrand?: string | null;
 }): string {
   if (params.shippingMethod === 'convenience') {
     return CARRIER_711;
+  }
+  if (params.shippingMethod === 'delivery') {
+    return SHIPPING_CARRIER_DELIVERY;
   }
   return '黑貓';
 }
@@ -37,6 +45,9 @@ export function shippingMethodLabel(params: {
   shippingMethod: ShippingMethod | string;
   cvsBrand?: string | null;
 }): string {
+  if (params.shippingMethod === 'delivery') {
+    return SHIPPING_CARRIER_DELIVERY;
+  }
   if (params.shippingMethod === 'convenience') {
     const brand =
       params.cvsBrand === '711'
