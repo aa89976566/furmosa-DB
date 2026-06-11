@@ -12,6 +12,17 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Furmosa HQ',
   description: 'Furmosa 總部管理後台 — Master Data・Order Hub・Inventory・Settlement・CRM',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Furmosa HQ',
+  },
+  icons: {
+    icon: '/icons/icon.svg',
+    apple: '/icons/icon.svg',
+  },
+  themeColor: '#c2410c',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

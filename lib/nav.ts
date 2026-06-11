@@ -13,7 +13,6 @@ import {
   CalendarClock,
   ListChecks,
   Truck,
-  History,
   BarChart3,
   type LucideIcon,
 } from 'lucide-react';
@@ -52,8 +51,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/orders', label: '訂單列表', icon: ShoppingCart },
       { href: '/shipments', label: '出貨隊列', icon: Truck },
-      { href: '/shipments/history', label: '出貨歷史', icon: History },
-      { href: '/orders/history', label: '歷史訂單', icon: History },
       { href: '/merchants', label: '寄賣', icon: Store },
     ],
   },

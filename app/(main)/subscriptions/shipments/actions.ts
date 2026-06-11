@@ -57,6 +57,6 @@ export async function updateSubscriptionShipmentStatus(formData: FormData) {
   revalidatePath('/subscriptions');
   revalidatePath(`/subscriptions/${row.subscription.id}`);
   revalidatePath('/shipments');
-  revalidatePath('/shipments/history');
+  revalidatePath('/shipments');
   revalidatePath('/dashboard');
 }

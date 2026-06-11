@@ -15,6 +15,7 @@ import {
 } from '@/lib/shipment-order-sync';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { sendNewOrderPush } from '@/lib/web-push';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -57,11 +58,9 @@ const VALID_ORDER_STATUSES = [
 
 function revalidateOrderPaths(orderId: string, merchantId?: string | null, customerId?: string | null) {
   revalidatePath('/orders');
-  revalidatePath('/orders/history');
   revalidatePath(`/orders/${orderId}`);
   revalidatePath(`/orders/${orderId}/edit`);
   revalidatePath('/shipments');
-  revalidatePath('/shipments/history');
   revalidatePath('/dashboard');
   if (merchantId) revalidatePath(`/merchants/${merchantId}`);
   if (customerId) revalidatePath(`/customers/${customerId}`);
@@ -144,6 +143,12 @@ export async function createOrder(formData: FormData) {
   });
 
   revalidateOrderPaths(created.id, created.merchantId, created.customerId);
+  void sendNewOrderPush({
+    id: created.id,
+    orderNumber: created.orderNumber,
+    total: Number(created.total),
+    source: created.source,
+  });
   redirect(`/orders/${created.id}`);
 }
 

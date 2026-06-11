@@ -159,11 +159,9 @@ export async function markShipmentStatus(formData: FormData) {
   });
 
   revalidatePath('/shipments');
-  revalidatePath('/shipments/history');
   revalidatePath('/subscriptions/shipments');
   revalidatePath('/subscriptions');
   revalidatePath('/orders');
-  revalidatePath('/orders/history');
   revalidatePath(`/shipments/${shipmentId}`);
   if (shipment.merchantId) revalidatePath(`/merchants/${shipment.merchantId}`);
   if (shipment.orderId) revalidatePath(`/orders/${shipment.orderId}`);
@@ -182,7 +180,8 @@ export async function markShipmentStatus(formData: FormData) {
     const params = new URLSearchParams();
     if (next === 'shipped') {
       params.set('s', shipmentId);
-      redirect(`/shipments/history?${params.toString()}`);
+      params.set('status', 'shipped');
+      redirect(`/shipments?${params.toString()}`);
       return;
     }
     if (next === 'delivered') {

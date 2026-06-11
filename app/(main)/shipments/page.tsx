@@ -100,7 +100,13 @@ export default async function ShipmentsPage({
 
   const kindFilter = type && isShipmentKindKey(type) ? type : undefined;
   const where = mergeShipmentWhere(baseWhere as Prisma.ShipmentWhereInput, kindFilter);
-  const countWhere = mergeShipmentWhere(activeShipmentQueueWhere, kindFilter);
+  const countWhere = mergeShipmentWhere(
+    {
+      status: { in: ['pending', 'packed', 'shipped', 'delivered'] },
+      OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+    },
+    kindFilter,
+  );
 
   const [rawShipments, counts] = await Promise.all([
     prisma.shipment.findMany({
@@ -120,7 +126,7 @@ export default async function ShipmentsPage({
 
   const countByStatus = Object.fromEntries(counts.map((c) => [c.status, c._count._all]));
   const pendingCount = (countByStatus.pending ?? 0) + (countByStatus.packed ?? 0);
-  const total = pendingCount + (countByStatus.shipped ?? 0);
+  const total = pendingCount + (countByStatus.shipped ?? 0) + (countByStatus.delivered ?? 0);
   const grouped = !status;
   const panelRefreshKey = shipments
     .map((s) => `${s.id}:${s.status}:${s.updatedAt.toISOString()}`)
@@ -158,7 +164,7 @@ export default async function ShipmentsPage({
         {
           key: 'subscription',
           title: `訂閱近期安排 (${subscriptionRows.length})`,
-          description: '僅顯示未寄出；標記「已寄出」後會移至出貨歷史',
+          description: '僅顯示未寄出；標記「已寄出」後會移至「在途」',
           tone: 'subscription' as const,
           tableVariant: 'subscription' as const,
           shipments: subscriptionRows,
@@ -186,11 +192,6 @@ export default async function ShipmentsPage({
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
               <Link href="/orders">訂單列表</Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/shipments/history">
-                出貨歷史 ({(countByStatus.shipped ?? 0) + (countByStatus.delivered ?? 0)})
-              </Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/inventory/transactions">
@@ -243,25 +244,25 @@ export default async function ShipmentsPage({
             active={!status}
             variant="all"
           />
-          {(['pending', 'shipped'] as const).map((s) => (
+          {(['pending', 'shipped', 'delivered'] as const).map((s) => (
             <FilterChip
               key={s}
               href={`/shipments?status=${s}`}
               label={s === 'pending' ? '待出貨' : shipmentStatusLabel[s]}
-              count={s === 'pending' ? pendingCount : (countByStatus[s] ?? 0)}
+              count={
+                s === 'pending'
+                  ? pendingCount
+                  : s === 'delivered'
+                    ? (countByStatus.delivered ?? 0)
+                    : (countByStatus[s] ?? 0)
+              }
               total={total}
-              active={status === s || (s === 'pending' && status === 'packed')}
+              active={
+                status === s || (s === 'pending' && status === 'packed')
+              }
               variant={shipmentStatusVariant[s === 'pending' ? 'pending' : s]}
             />
           ))}
-          <FilterChip
-            href="/shipments/history"
-            label="已送達"
-            count={countByStatus.delivered ?? 0}
-            total={total + (countByStatus.delivered ?? 0)}
-            active={false}
-            variant="success"
-          />
         </div>
 
         <Suspense

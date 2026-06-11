@@ -168,12 +168,12 @@ export async function setProductStatus(formData: FormData) {
   revalidatePath(`/products/${id}`);
 }
 
-export async function deleteProduct(formData: FormData) {
+export async function deleteProduct(formData: FormData): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
   const id = String(formData.get('id') ?? '');
-  if (!id) throw new Error('缺少商品 id');
+  if (!id) return { ok: false, error: '缺少商品 id' };
 
-  // 真正不可刪的，只有「正式訂單／出貨」明細（屬於交易紀錄，需保留）。
-  // 寄賣店庫存／規則／流水、內部庫存異動等，會在刪除時一併清除。
   const [orderItemCount, shipmentItemCount] = await Promise.all([
     prisma.orderItem.count({ where: { productId: id } }),
     prisma.shipmentItem.count({ where: { productId: id } }),
@@ -184,21 +184,25 @@ export async function deleteProduct(formData: FormData) {
   if (shipmentItemCount > 0) blockers.push(`出貨明細 ${shipmentItemCount} 筆`);
 
   if (blockers.length > 0) {
-    throw new Error(
-      `此商品已用於正式交易（${blockers.join('、')}），為保留紀錄無法刪除。建議改將狀態切換為「下架」。`,
-    );
+    return {
+      ok: false,
+      error: `此商品已用於正式交易（${blockers.join('、')}），為保留紀錄無法刪除。建議改將狀態切換為「下架」。`,
+    };
   }
 
-  // 一併清除寄賣（規則 / 店庫存 / 動作流水）、內部庫存（異動 / 結存）與規格後刪除商品
-  await prisma.$transaction([
-    prisma.merchantStockTxn.deleteMany({ where: { productId: id } }),
-    prisma.merchantStock.deleteMany({ where: { productId: id } }),
-    prisma.merchantProductRule.deleteMany({ where: { productId: id } }),
-    prisma.inventoryTransaction.deleteMany({ where: { productId: id } }),
-    prisma.inventoryBalance.deleteMany({ where: { productId: id } }),
-    prisma.productPriceTier.deleteMany({ where: { productId: id } }),
-    prisma.product.delete({ where: { id } }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.merchantStockTxn.deleteMany({ where: { productId: id } }),
+      prisma.merchantStock.deleteMany({ where: { productId: id } }),
+      prisma.merchantProductRule.deleteMany({ where: { productId: id } }),
+      prisma.inventoryTransaction.deleteMany({ where: { productId: id } }),
+      prisma.inventoryBalance.deleteMany({ where: { productId: id } }),
+      prisma.productPriceTier.deleteMany({ where: { productId: id } }),
+      prisma.product.delete({ where: { id } }),
+    ]);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '刪除失敗' };
+  }
 
   revalidatePath('/products');
   revalidatePath('/merchants');

@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { Bell } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { GlobalSearch } from '@/components/layout/global-search';
 import { MobileNav } from '@/components/layout/mobile-nav';
+import { OrderNotificationBell } from '@/components/layout/order-notification-bell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeToggle } from '@/components/shared/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -18,14 +17,7 @@ export async function Topbar() {
       </Suspense>
       <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
         <ThemeToggle />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden rounded-xl sm:inline-flex"
-          aria-label="通知"
-        >
-          <Bell className="h-4 w-4" />
-        </Button>
+        <OrderNotificationBell />
         {user ? (
           <UserMenu name={user.name} email={user.email} role={user.role} />
         ) : (

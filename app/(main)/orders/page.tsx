@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
-import { activeOrderWhere, historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
-import { Plus, History } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
 
@@ -60,7 +60,7 @@ export default async function OrdersPage({
     ];
   }
 
-  const [orders, totals, historyCount] = await Promise.all([
+  const [orders, totals] = await Promise.all([
     prisma.order.findMany({
       where,
       include: ORDER_LIST_INCLUDE,
@@ -73,7 +73,6 @@ export default async function OrdersPage({
       _count: { _all: true },
       where: { ...activeOrderWhere },
     }),
-    prisma.order.count({ where: historicalOrderWhere }),
   ]);
 
   return (
@@ -83,20 +82,12 @@ export default async function OrdersPage({
         title="訂單 Order Hub"
         description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/orders/history">
-                <History className="mr-1 h-4 w-4" />
-                歷史訂單 ({historyCount})
-              </Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/orders/new">
-                <Plus className="mr-1 h-4 w-4" />
-                新增訂單
-              </Link>
-            </Button>
-          </div>
+          <Button size="sm" asChild>
+            <Link href="/orders/new">
+              <Plus className="mr-1 h-4 w-4" />
+              新增訂單
+            </Link>
+          </Button>
         }
       />
 

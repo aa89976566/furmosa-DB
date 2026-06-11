@@ -131,7 +131,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               </div>
               {order.status === 'cancelled' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  此訂單目前為「已取消」，會收錄在「歷史訂單」。改為其他狀態即可回到訂單列表。
+                  此訂單目前為「已取消」，不會出現在訂單列表。改為其他狀態即可回到列表。
                 </p>
               ) : null}
             </div>

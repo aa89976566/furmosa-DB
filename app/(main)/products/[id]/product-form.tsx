@@ -4,7 +4,7 @@ import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
-import { useRef } from 'react';
+import { useState, useTransition } from 'react';
 import { productCategoryLabel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
@@ -44,15 +44,36 @@ export function ProductForm({
   product: ProductInput;
   vendors: VendorOption[];
   saveAction: (formData: FormData) => void | Promise<void>;
-  deleteAction?: (formData: FormData) => void | Promise<void>;
+  deleteAction?: (
+    formData: FormData,
+  ) => Promise<{ ok: true } | { ok: false; error: string }> | void | Promise<void>;
   submitLabel?: string;
   layout?: 'default' | 'studio';
   productType?: 'simple' | 'variable';
 }) {
-  const deleteFormRef = useRef<HTMLFormElement>(null);
   const isEdit = Boolean(product.id);
   const studio = layout === 'studio';
   const variable = productType === 'variable';
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, startDelete] = useTransition();
+
+  function handleDelete() {
+    if (!product.id || !deleteAction) return;
+    if (
+      !confirm(
+        '確定要刪除此商品？\n\n刪除後無法復原，並會一併移除寄賣店庫存／分潤規則與內部庫存紀錄。\n若商品已用於正式訂單或出貨，系統會擋下並提示改為「下架」。',
+      )
+    ) {
+      return;
+    }
+    setDeleteError(null);
+    const fd = new FormData();
+    fd.set('id', product.id);
+    startDelete(async () => {
+      const res = await deleteAction(fd);
+      if (res && !res.ok) setDeleteError(res.error);
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -199,38 +220,30 @@ export function ProductForm({
           </Field>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-t pt-4">
+        <div className="flex flex-col gap-1 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
           {isEdit && deleteAction ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              onClick={() => {
-                if (
-                  confirm(
-                    '確定要刪除此商品？\n\n刪除後無法復原，並會一併移除寄賣店庫存／分潤規則與內部庫存紀錄。\n若商品已用於正式訂單或出貨，系統會擋下並提示改為「下架」。',
-                  )
-                ) {
-                  deleteFormRef.current?.requestSubmit();
-                }
-              }}
-            >
-              <Trash2 className="mr-1 h-4 w-4" />
-              刪除
-            </Button>
+            <div className="flex flex-col items-start gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={deleting}
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="mr-1 h-4 w-4" />
+                {deleting ? '刪除中…' : '刪除'}
+              </Button>
+              {deleteError ? (
+                <span className="max-w-md text-[11px] text-destructive">{deleteError}</span>
+              ) : null}
+            </div>
           ) : (
             <span />
           )}
           <SaveButton label={submitLabel ?? '儲存變更'} />
         </div>
       </form>
-
-      {isEdit && deleteAction && (
-        <form ref={deleteFormRef} action={deleteAction} className="hidden">
-          <input type="hidden" name="id" value={product.id} />
-        </form>
-      )}
     </div>
   );
 }

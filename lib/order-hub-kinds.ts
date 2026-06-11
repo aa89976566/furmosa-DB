@@ -1,5 +1,4 @@
 import type { Prisma } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
 
 /** 訂單列表：依 Order.source 分類 */
 export const ORDER_SOURCE_TABS = [
@@ -54,36 +53,4 @@ export function mergeShipmentWhere(
 ): Prisma.ShipmentWhereInput {
   if (!kind || !isShipmentKindKey(kind)) return base;
   return { AND: [base, shipmentWhereForKind(kind)] };
-}
-
-const historyStatuses: Prisma.ShipmentWhereInput = {
-  status: { in: ['shipped', 'delivered'] },
-};
-
-/** 出貨歷史依種類篩選（與出貨隊列一致） */
-export function historyShipmentWhere(rawType?: string): Prisma.ShipmentWhereInput {
-  const type =
-    rawType === 'restock' || rawType === 'merchant_restock' ? 'consignment' : rawType;
-  if (type === 'subscription') {
-    return { ...historyStatuses, type: 'subscription' };
-  }
-  if (type === 'consignment' && isShipmentKindKey('consignment')) {
-    return { AND: [historyStatuses, consignmentShipmentWhere] };
-  }
-  if (type === 'customer_order' || type === 'order') {
-    return { AND: [historyStatuses, retailCustomerShipmentWhere] };
-  }
-  return historyStatuses;
-}
-
-export async function countHistoryShipments(kind?: ShipmentKindKey): Promise<number> {
-  const where =
-    kind === 'consignment'
-      ? { AND: [historyStatuses, consignmentShipmentWhere] }
-      : kind === 'customer_order'
-        ? { AND: [historyStatuses, retailCustomerShipmentWhere] }
-        : kind === 'subscription'
-          ? { ...historyStatuses, type: 'subscription' as const }
-          : historyStatuses;
-  return prisma.shipment.count({ where });
 }
