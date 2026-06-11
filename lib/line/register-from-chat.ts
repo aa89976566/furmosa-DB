@@ -5,6 +5,7 @@ import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
   clearLineChatSession,
   getLineChatSession,
+  isRegisterSessionExpired,
   parseRegisterDraft,
   upsertLineChatSession,
   type RegisterDraft,
@@ -28,6 +29,21 @@ import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
+
+/** 開戶「選店家」步驟：僅接受取消；其餘文字應離開流程、改走一般訊息處理 */
+export function registerStoreStepAction(text: string): 'cancel' | 'leave' {
+  if (CANCEL_RE.test(text.trim())) return 'cancel';
+  return 'leave';
+}
+
+async function clearExpiredRegisterSession(lineUserId: string) {
+  const session = await getLineChatSession(lineUserId);
+  if (session?.flow === 'register' && isRegisterSessionExpired(session)) {
+    await clearLineChatSession(lineUserId);
+    return true;
+  }
+  return false;
+}
 
 function parsePetAgeOrBirthday(input: string): {
   petAgeYears: number | null;
@@ -86,15 +102,29 @@ export async function handleRegisterFlowMessage(
   lineUserId: string,
   text: string,
 ): Promise<boolean> {
+  if (await clearExpiredRegisterSession(lineUserId)) {
+    return false;
+  }
+
   const session = await getLineChatSession(lineUserId);
   if (!session || session.flow !== 'register') return false;
 
   const draft = parseRegisterDraft(session.payload);
   const trimmed = text.trim();
 
-  if (session.step === 'store' && !CANCEL_RE.test(trimmed)) {
-    await replyLineMessage(replyToken, await buildStorePickerMessages());
-    return true;
+  if (session.step === 'store') {
+    const action = registerStoreStepAction(trimmed);
+    if (action === 'cancel') {
+      await clearLineChatSession(lineUserId);
+      await replyMenuHub(replyToken, lineUserId, {
+        registered: Boolean(await findCustomerByLineUserId(lineUserId)),
+        body: '已取消加入會員。',
+      });
+      return true;
+    }
+    // 店家須用按鈕 postback 選擇；勿對每則文字重送選單泡泡
+    await clearLineChatSession(lineUserId);
+    return false;
   }
 
   if (CANCEL_RE.test(trimmed)) {
@@ -182,7 +212,15 @@ export async function handleRegisterPostback(
     return false;
   }
 
-  const session = await getLineChatSession(lineUserId);
+  if (await clearExpiredRegisterSession(lineUserId)) {
+    if (action === 'store' || action === 'sp') {
+      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);
+      return true;
+    }
+    return false;
+  }
+
+  let session = await getLineChatSession(lineUserId);
   if (!session || session.flow !== 'register') {
     if (action === 'store' || action === 'sp') {
       await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);

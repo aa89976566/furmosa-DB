@@ -13,6 +13,16 @@ export type RegisterDraft = {
 
 export type LineChatFlow = 'register';
 
+/** 未完成開戶流程超過此時間視為過期，不再攔截一般訊息 */
+export const REGISTER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+export function isRegisterSessionExpired(
+  session: { updatedAt: Date },
+  now: Date = new Date(),
+): boolean {
+  return now.getTime() - session.updatedAt.getTime() > REGISTER_SESSION_TTL_MS;
+}
+
 export async function getLineChatSession(lineUserId: string) {
   return prisma.lineChatSession.findUnique({ where: { lineUserId } });
 }
