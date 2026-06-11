@@ -44,7 +44,8 @@ export function formatJarDepositSuccessMessage(s: JarDepositSnapshot): string {
   return lines.join('\n');
 }
 
-export function formatSavingsStatusMessage(s: JarDepositSnapshot): string {
+export function formatSavingsStatusMessage(s: JarDepositSnapshot, opts?: { showJarHint?: boolean }): string {
+  const showJarHint = opts?.showJarHint ?? true;
   const lines = [
     '📒 罐罐存摺',
     '',
@@ -57,7 +58,7 @@ export function formatSavingsStatusMessage(s: JarDepositSnapshot): string {
   const eco = ecoNoteForJarCount(s.jarsDeposited);
   if (eco) {
     lines.push('', eco);
-  } else if (s.jarsDeposited === 0) {
+  } else if (s.jarsDeposited === 0 && showJarHint) {
     lines.push('', '還沒存過罐。傳 8 位序號就能開始記帳 🐾');
   }
 

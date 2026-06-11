@@ -13,4 +13,17 @@ describe('buildMainMenuMessages', () => {
       assert.ok(footer?.contents && footer.contents.length >= 3);
     }
   });
+
+  it('showJarHint=false 時不附存罐說明', () => {
+    const msgs = buildMainMenuMessages({
+      body: '測試',
+      registered: true,
+      showJarHint: false,
+    });
+    if (msgs[0].type === 'flex') {
+      const body = (msgs[0].contents as { body?: { contents?: { text?: string }[] } }).body;
+      const texts = body?.contents?.map((c) => c.text).join('\n') ?? '';
+      assert.doesNotMatch(texts, /8 位空罐序號/);
+    }
+  });
 });

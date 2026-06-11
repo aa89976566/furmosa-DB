@@ -19,6 +19,7 @@ import {
 } from '@/lib/line/register-from-chat';
 import { LINE_ACTIVITY_INFO, LINE_BTN, LINE_CONTACT_INFO } from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
+import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import {
   listActiveRewardsForLine,
@@ -83,11 +84,17 @@ export async function handleLinePostback(
       return;
     }
     const snapshot = await loadSnapshot(customer);
+    const promptFlags = await getOnboardingPromptFlags(lineUserId);
+    const showJarHint = promptFlags.showJar && snapshot.jarsDeposited === 0;
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      formatSavingsStatusMessage(snapshot),
-      { registered: true },
+      formatSavingsStatusMessage(snapshot, { showJarHint }),
+      {
+        registered: true,
+        promptFlags,
+        bodyPromptMarks: showJarHint ? { jar: true } : undefined,
+      },
     );
     return;
   }
@@ -202,8 +209,14 @@ export async function handleLinePostback(
     return;
   }
 
+  const promptFlags = await getOnboardingPromptFlags(lineUserId);
+  const body = promptFlags.showJar
+    ? '可從下方選單操作，或直接傳 8 位空罐序號存罐～'
+    : '可從下方選單操作。';
   await replyMenuHub(replyToken, lineUserId, {
-    body: '可從下方選單操作，或直接傳 8 位空罐序號存罐～',
+    body,
     registered: Boolean(customer),
+    promptFlags,
+    bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
   });
 }

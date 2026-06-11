@@ -26,9 +26,17 @@ function pbBtn(label: string, data: string, style: FlexButton['style'] = 'second
   };
 }
 
+const JAR_FOOTER_REGISTERED =
+  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 250 元。';
+const JAR_FOOTER_GUEST = '存罐：直接傳 8 位空罐序號即可入帳。';
+
 /** 匠寵主選單 */
-export function buildMainMenuBubble(body: string, opts?: { registered?: boolean }) {
+export function buildMainMenuBubble(
+  body: string,
+  opts?: { registered?: boolean; showJarHint?: boolean },
+) {
   const registered = opts?.registered ?? false;
+  const showJarHint = opts?.showJarHint ?? true;
   const footerButtons: FlexButton[] = registered
     ? [
         pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
@@ -66,16 +74,18 @@ export function buildMainMenuBubble(body: string, opts?: { registered?: boolean 
           color: '#555555',
           wrap: true,
         },
-        {
-          type: 'text',
-          text: registered
-            ? '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 250 元。'
-            : '存罐：直接傳 8 位空罐序號即可入帳。',
-          size: 'xs',
-          color: '#888888',
-          wrap: true,
-          margin: 'md',
-        },
+        ...(showJarHint
+          ? [
+              {
+                type: 'text' as const,
+                text: registered ? JAR_FOOTER_REGISTERED : JAR_FOOTER_GUEST,
+                size: 'xs' as const,
+                color: '#888888',
+                wrap: true,
+                margin: 'md' as const,
+              },
+            ]
+          : []),
       ],
     },
     footer: {
@@ -90,10 +100,25 @@ export function buildMainMenuBubble(body: string, opts?: { registered?: boolean 
 export function buildMainMenuMessages(opts?: {
   registered?: boolean;
   body?: string;
+  showJarHint?: boolean;
+  showRegisterHint?: boolean;
 }): LineReplyMessage[] {
-  const defaultBody = opts?.registered ? LINE_MENU_HINT_REGISTERED : LINE_MENU_HINT_GUEST;
+  const registered = opts?.registered ?? false;
+  const showJarHint = opts?.showJarHint ?? true;
+  const showRegisterHint = opts?.showRegisterHint ?? !registered;
+  const defaultBody = registered
+    ? LINE_MENU_HINT_REGISTERED
+    : showRegisterHint
+      ? LINE_MENU_HINT_GUEST
+      : '點下方按鈕即可操作。';
   const body = opts?.body ?? defaultBody;
-  return [{ type: 'flex', altText: '匠寵罐罐存款', contents: buildMainMenuBubble(body, opts) }];
+  return [
+    {
+      type: 'flex',
+      altText: '匠寵罐罐存款',
+      contents: buildMainMenuBubble(body, { registered, showJarHint }),
+    },
+  ];
 }
 
 export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {

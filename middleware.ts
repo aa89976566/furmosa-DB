@@ -14,7 +14,10 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/coupons') ||
     pathname.startsWith('/liff') ||
     pathname.startsWith('/favicon') ||
-    pathname.match(/\.(svg|png|jpg|jpeg|webp|ico|css|js)$/)
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname.startsWith('/icons/') ||
+    pathname.match(/\.(svg|png|jpg|jpeg|webp|ico|css|js|webmanifest)$/)
   ) {
     return NextResponse.next();
   }

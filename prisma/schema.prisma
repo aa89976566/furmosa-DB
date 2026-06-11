@@ -153,9 +153,11 @@ model LineChatSession {
 
 // 記錄每個 LINE 用戶最後一次收到主選單的時間，用來在 24 小時內避免重複洗版選單
 model LineMenuState {
-  lineUserId     String   @id
-  lastMenuSentAt DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lineUserId            String    @id
+  lastMenuSentAt        DateTime  @default(now())
+  lastRegisterPromptAt  DateTime?
+  lastJarPromptAt       DateTime?
+  updatedAt             DateTime  @updatedAt
 }
 
 // =====================================================

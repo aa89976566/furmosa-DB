@@ -1,6 +1,41 @@
 import { buildMainMenuMessages } from '@/lib/line/flex-menu';
 import { shouldSendMenu } from '@/lib/line/menu-throttle';
+import {
+  getOnboardingPromptFlags,
+  mergePromptMarks,
+  recordOnboardingPrompts,
+  type OnboardingPromptFlags,
+  type OnboardingPromptMarks,
+} from '@/lib/line/prompt-throttle';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
+
+type MenuReplyOpts = {
+  registered?: boolean;
+  promptFlags?: OnboardingPromptFlags;
+  /** 內文已顯示的開戶／存罐提示（送出後寫入節流） */
+  bodyPromptMarks?: OnboardingPromptMarks;
+};
+
+function menuPromptMarks(
+  registered: boolean | undefined,
+  flags: OnboardingPromptFlags,
+  menuSent: boolean,
+): OnboardingPromptMarks | undefined {
+  if (!menuSent) return undefined;
+  return {
+    register: !registered && flags.showRegister ? true : undefined,
+    jar: flags.showJar ? true : undefined,
+  };
+}
+
+async function recordReplyPrompts(
+  lineUserId: string,
+  bodyMarks?: OnboardingPromptMarks,
+  menuMarks?: OnboardingPromptMarks,
+) {
+  const merged = mergePromptMarks(bodyMarks, menuMarks);
+  await recordOnboardingPrompts(lineUserId, merged);
+}
 
 /**
  * 回覆「文字 +（視情況）主選單」。
@@ -11,14 +46,30 @@ export async function replyLineTextWithMenu(
   replyToken: string,
   lineUserId: string,
   text: string,
-  opts?: { registered?: boolean; extra?: LineReplyMessage[] },
+  opts?: MenuReplyOpts & { extra?: LineReplyMessage[] },
 ) {
+  const registered = opts?.registered;
+  const flags = opts?.promptFlags ?? (await getOnboardingPromptFlags(lineUserId));
   const messages: LineReplyMessage[] = [{ type: 'text', text }];
   if (opts?.extra?.length) messages.push(...opts.extra);
-  if (await shouldSendMenu(lineUserId)) {
-    messages.push(...buildMainMenuMessages({ registered: opts?.registered }));
+
+  const menuSent = await shouldSendMenu(lineUserId);
+  if (menuSent) {
+    messages.push(
+      ...buildMainMenuMessages({
+        registered,
+        showJarHint: flags.showJar,
+        showRegisterHint: !registered && flags.showRegister,
+      }),
+    );
   }
+
   await replyLineMessage(replyToken, messages);
+  await recordReplyPrompts(
+    lineUserId,
+    opts?.bodyPromptMarks,
+    menuPromptMarks(registered, flags, menuSent),
+  );
 }
 
 /**
@@ -28,14 +79,29 @@ export async function replyLineTextWithMenu(
 export async function replyMenuHub(
   replyToken: string,
   lineUserId: string,
-  opts: { body: string; registered?: boolean },
+  opts: { body: string; registered?: boolean } & MenuReplyOpts,
 ) {
-  if (await shouldSendMenu(lineUserId)) {
+  const registered = opts.registered;
+  const flags = opts.promptFlags ?? (await getOnboardingPromptFlags(lineUserId));
+  const menuSent = await shouldSendMenu(lineUserId);
+
+  if (menuSent) {
     await replyLineMessage(
       replyToken,
-      buildMainMenuMessages({ registered: opts.registered, body: opts.body }),
+      buildMainMenuMessages({
+        registered,
+        body: opts.body,
+        showJarHint: flags.showJar,
+        showRegisterHint: !registered && flags.showRegister,
+      }),
     );
   } else {
     await replyLineMessage(replyToken, [{ type: 'text', text: opts.body }]);
   }
+
+  await recordReplyPrompts(
+    lineUserId,
+    opts.bodyPromptMarks,
+    menuPromptMarks(registered, flags, menuSent),
+  );
 }
