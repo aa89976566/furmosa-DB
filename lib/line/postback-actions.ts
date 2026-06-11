@@ -17,7 +17,12 @@ import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
-import { LINE_ACTIVITY_INFO, LINE_BTN, LINE_CONTACT_INFO } from '@/lib/line/line-copy';
+import {
+  LINE_ACTIVITY_INFO,
+  LINE_BTN,
+  LINE_CONTACT_INFO,
+  LINE_UNBOXING_INFO,
+} from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
@@ -61,6 +66,13 @@ export async function handleLinePostback(
 
   if (action === 'activity') {
     await replyLineTextWithMenu(replyToken, lineUserId, LINE_ACTIVITY_INFO, {
+      registered: Boolean(customer),
+    });
+    return;
+  }
+
+  if (action === 'unbox') {
+    await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
       registered: Boolean(customer),
     });
     return;

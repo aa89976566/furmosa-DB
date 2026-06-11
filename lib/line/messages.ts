@@ -41,6 +41,7 @@ export const LINE_HELP_TEXT = `【匠寵罐罐存款】
 • ${LINE_BTN.register} → 填稱呼、毛孩、年齡或生日
 • ${LINE_BTN.vault} → 看點數與累積罐數
 • ${LINE_BTN.redeem} → 選獎勵兌換
+• ${LINE_BTN.unboxing} → 最後一片研究計畫
 • 存罐 → 直接傳 8 位序號`;
 
 export function lineBindRequiredText() {

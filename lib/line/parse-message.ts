@@ -11,6 +11,7 @@ export type ParsedLineText =
   | { kind: 'status' }
   | { kind: 'rewards_list' }
   | { kind: 'redeem_reward'; target: string }
+  | { kind: 'unboxing' }
   | { kind: 'unknown'; text: string };
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
@@ -24,6 +25,7 @@ const BIND_HELP_RE =
 const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
 const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑定状态|我是誰|我是谁)$/i;
 const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|reward|rewards)$/i;
+const UNBOXING_RE = /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫)$/i;
 
 export function parseLineUserText(raw: string): ParsedLineText {
   const text = raw.trim();
@@ -35,6 +37,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   }
 
   if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
+  if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };
 
   const redeemReward = text.match(REDEEM_REWARD_RE);
   if (redeemReward?.[1]) {

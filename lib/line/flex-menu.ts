@@ -42,12 +42,14 @@ export function buildMainMenuBubble(
         pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
         pbBtn(LINE_BTN.myCoupons, 'jd=cp_list', 'secondary'),
         pbBtn(LINE_BTN.redeemGrooming, 'jd=cp_groom', 'primary'),
+        pbBtn(LINE_BTN.unboxing, 'jd=unbox', 'secondary'),
         pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
         pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
       ]
     : [
         pbBtn(LINE_BTN.register, 'jd=reg', 'primary'),
         pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
+        pbBtn(LINE_BTN.unboxing, 'jd=unbox', 'secondary'),
         pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
         pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
       ];

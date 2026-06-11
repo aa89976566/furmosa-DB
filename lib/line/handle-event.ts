@@ -21,6 +21,7 @@ import {
   getOnboardingPromptFlags,
   shouldReplyToUnknownMessage,
 } from '@/lib/line/prompt-throttle';
+import { LINE_UNBOXING_INFO } from '@/lib/line/line-copy';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
 import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
@@ -123,6 +124,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'help') {
     await replyMenuHub(replyToken, lineUserId, { body: LINE_HELP_TEXT, registered: Boolean(customer) });
+    return;
+  }
+
+  if (parsed.kind === 'unboxing') {
+    await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
+      registered: Boolean(customer),
+    });
     return;
   }
 
