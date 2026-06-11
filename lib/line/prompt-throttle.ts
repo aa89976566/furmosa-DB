@@ -12,6 +12,7 @@ export type OnboardingPromptFlags = {
 export type OnboardingPromptMarks = {
   register?: boolean;
   jar?: boolean;
+  unknown?: boolean;
 };
 
 /**
@@ -34,7 +35,23 @@ export async function getOnboardingPromptFlags(
 }
 
 /**
- * 記錄本次已對用戶顯示的開戶／存罐提示，啟動 24 小時冷卻。
+ * 「看不懂」類自動回覆是否仍應送出（24 小時內已回過則略過、不回覆）。
+ */
+export async function shouldReplyToUnknownMessage(
+  lineUserId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  if (!lineUserId) return true;
+  try {
+    const state = await prisma.lineMenuState.findUnique({ where: { lineUserId } });
+    return !isMenuOnCooldown(state?.lastUnknownReplyAt, now);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * 記錄本次已對用戶顯示的開戶／存罐／看不懂回覆，啟動 24 小時冷卻。
  */
 export async function recordOnboardingPrompts(
   lineUserId: string,
@@ -42,7 +59,7 @@ export async function recordOnboardingPrompts(
   now: Date = new Date(),
 ): Promise<void> {
   if (!lineUserId) return;
-  if (!which.register && !which.jar) return;
+  if (!which.register && !which.jar && !which.unknown) return;
   try {
     await prisma.lineMenuState.upsert({
       where: { lineUserId },
@@ -51,10 +68,12 @@ export async function recordOnboardingPrompts(
         lastMenuSentAt: new Date(0),
         ...(which.register ? { lastRegisterPromptAt: now } : {}),
         ...(which.jar ? { lastJarPromptAt: now } : {}),
+        ...(which.unknown ? { lastUnknownReplyAt: now } : {}),
       },
       update: {
         ...(which.register ? { lastRegisterPromptAt: now } : {}),
         ...(which.jar ? { lastJarPromptAt: now } : {}),
+        ...(which.unknown ? { lastUnknownReplyAt: now } : {}),
       },
     });
   } catch {
@@ -70,5 +89,6 @@ export function mergePromptMarks(
   return {
     register: Boolean(bodyMarks?.register || menuMarks?.register),
     jar: Boolean(bodyMarks?.jar || menuMarks?.jar),
+    unknown: Boolean(bodyMarks?.unknown || menuMarks?.unknown),
   };
 }

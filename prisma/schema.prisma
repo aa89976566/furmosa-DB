@@ -157,6 +157,7 @@ model LineMenuState {
   lastMenuSentAt        DateTime  @default(now())
   lastRegisterPromptAt  DateTime?
   lastJarPromptAt       DateTime?
+  lastUnknownReplyAt    DateTime?
   updatedAt             DateTime  @updatedAt
 }
 

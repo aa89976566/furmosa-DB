@@ -17,7 +17,10 @@ import {
   lineBindRequiredText,
   lineUnknownText,
 } from '@/lib/line/messages';
-import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
+import {
+  getOnboardingPromptFlags,
+  shouldReplyToUnknownMessage,
+} from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
 import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
@@ -276,11 +279,20 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  if (!(await shouldReplyToUnknownMessage(lineUserId))) {
+    return;
+  }
+
   const promptFlags = await getOnboardingPromptFlags(lineUserId);
+  const registered = Boolean(customer);
   await replyMenuHub(replyToken, lineUserId, {
     body: lineUnknownText(promptFlags.showJar),
-    registered: Boolean(customer),
+    registered,
     promptFlags,
-    bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
+    bodyPromptMarks: {
+      unknown: true,
+      jar: promptFlags.showJar || undefined,
+      register: !registered && promptFlags.showRegister ? true : undefined,
+    },
   });
 }

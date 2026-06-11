@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { buildGuestWelcomeText, guestWelcomePromptMarks, lineUnknownText } from '../messages';
-import { isPromptOnCooldown, PROMPT_COOLDOWN_MS } from '../prompt-throttle';
-import { mergePromptMarks } from '../prompt-throttle';
+import {
+  isPromptOnCooldown,
+  mergePromptMarks,
+  PROMPT_COOLDOWN_MS,
+  shouldReplyToUnknownMessage,
+} from '../prompt-throttle';
 
 describe('isPromptOnCooldown', () => {
   const now = new Date('2026-06-01T12:00:00Z');
@@ -59,7 +63,13 @@ describe('mergePromptMarks', () => {
   it('合併內文與選單的提示紀錄', () => {
     assert.deepEqual(
       mergePromptMarks({ jar: true }, { register: true }),
-      { jar: true, register: true },
+      { jar: true, register: true, unknown: false },
     );
+  });
+});
+
+describe('shouldReplyToUnknownMessage', () => {
+  it('無 lineUserId 時允許回覆', async () => {
+    assert.equal(await shouldReplyToUnknownMessage(''), true);
   });
 });
