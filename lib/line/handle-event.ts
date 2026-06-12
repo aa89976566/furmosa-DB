@@ -8,31 +8,30 @@ import {
   formatSavingsStatusMessage,
 } from '@/lib/line/jar-deposit-copy';
 import { buildRedeemPickerMessages } from '@/lib/line/flex-menu';
+import { LINE_UNBOXING_INFO } from '@/lib/line/line-copy';
 import {
   buildGuestWelcomeText,
   guestWelcomePromptMarks,
   LINE_BIND_HELP_TEXT,
   LINE_HELP_TEXT,
-  LINE_WELCOME_TEXT,
   lineBindRequiredText,
-  lineUnknownText,
 } from '@/lib/line/messages';
-import {
-  getOnboardingPromptFlags,
-  shouldReplyToUnknownMessage,
-} from '@/lib/line/prompt-throttle';
-import { LINE_UNBOXING_INFO } from '@/lib/line/line-copy';
+import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
 import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
+import { replyLineMessage, replyLineText } from '@/lib/line/reply';
+import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
+import { checkLineRateLimit } from '@/lib/line/rate-limit';
+import {
+  isPassiveAutoReply,
+  replyTriggerOnce,
+} from '@/lib/line/trigger-throttle';
 import {
   formatRewardMenuText,
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
-import { replyLineMessage, replyLineText } from '@/lib/line/reply';
-import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
-import { checkLineRateLimit } from '@/lib/line/rate-limit';
 
 type LineMessageEvent = {
   type: 'message';
@@ -76,12 +75,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   if (event.type === 'follow' && 'replyToken' in event && event.replyToken) {
     const follow = event as LineFollowEvent;
     if (!follow.source?.userId) return;
-    const promptFlags = await getOnboardingPromptFlags(follow.source.userId);
-    await replyMenuHub(event.replyToken, follow.source.userId, {
-      body: buildGuestWelcomeText(promptFlags),
-      registered: false,
-      promptFlags,
-      bodyPromptMarks: guestWelcomePromptMarks(promptFlags),
+    const lineUserId = follow.source.userId;
+    await replyTriggerOnce(lineUserId, 'welcome', async () => {
+      const promptFlags = await getOnboardingPromptFlags(lineUserId);
+      await replyMenuHub(event.replyToken!, lineUserId, {
+        body: buildGuestWelcomeText(promptFlags),
+        registered: false,
+        promptFlags,
+        bodyPromptMarks: guestWelcomePromptMarks(promptFlags),
+        alwaysReplyBody: false,
+      });
     });
     return;
   }
@@ -122,53 +125,49 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   const parsed = parseLineUserText(msgEvent.message.text);
   const customer = await findCustomerByLineUserId(lineUserId);
 
+  // 被動觸發：不自動回覆
+  if (isPassiveAutoReply(parsed.kind)) {
+    return;
+  }
+
   if (parsed.kind === 'help') {
-    await replyMenuHub(replyToken, lineUserId, { body: LINE_HELP_TEXT, registered: Boolean(customer) });
+    await replyTriggerOnce(lineUserId, 'help', async () => {
+      await replyMenuHub(replyToken, lineUserId, {
+        body: LINE_HELP_TEXT,
+        registered: Boolean(customer),
+        alwaysReplyBody: true,
+      });
+    });
     return;
   }
 
   if (parsed.kind === 'unboxing') {
-    await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
-      registered: Boolean(customer),
+    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+      await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
+        registered: Boolean(customer),
+      });
     });
     return;
   }
 
   if (parsed.kind === 'bind_help') {
-    await replyMenuHub(replyToken, lineUserId, { body: LINE_BIND_HELP_TEXT, registered: false });
-    return;
-  }
-
-  if (parsed.kind === 'greeting') {
-    if (customer) {
-      const snapshot = await loadDepositSnapshot(customer);
-      const promptFlags = await getOnboardingPromptFlags(lineUserId);
-      const jarHint = promptFlags.showJar ? '\n\n有空罐就傳序號存罐～' : '';
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `歡迎回到匠寵罐罐存款 🐾\n\n${formatQuickBalanceMessage(snapshot)}${jarHint}`,
-        {
-          registered: true,
-          promptFlags,
-          bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
-        },
-      );
-      return;
-    }
-    const promptFlags = await getOnboardingPromptFlags(lineUserId);
-    await replyMenuHub(replyToken, lineUserId, {
-      body: buildGuestWelcomeText(promptFlags),
-      registered: false,
-      promptFlags,
-      bodyPromptMarks: guestWelcomePromptMarks(promptFlags),
+    await replyTriggerOnce(lineUserId, 'bind_help', async () => {
+      await replyMenuHub(replyToken, lineUserId, {
+        body: LINE_BIND_HELP_TEXT,
+        registered: false,
+        alwaysReplyBody: true,
+      });
     });
     return;
   }
 
   if (parsed.kind === 'status' || parsed.kind === 'savings') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, {
+        body: lineBindRequiredText(),
+        registered: false,
+        alwaysReplyBody: true,
+      });
       return;
     }
     const snapshot = await loadDepositSnapshot(customer);
@@ -204,7 +203,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'balance') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, {
+        body: lineBindRequiredText(),
+        registered: false,
+        alwaysReplyBody: true,
+      });
       return;
     }
     await replyLineTextWithMenu(
@@ -222,6 +225,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyMenuHub(replyToken, lineUserId, {
         body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「幫毛孩開戶」。`,
         registered: false,
+        alwaysReplyBody: true,
       });
       return;
     }
@@ -232,7 +236,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'redeem_reward') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, {
+        body: lineBindRequiredText(),
+        registered: false,
+        alwaysReplyBody: true,
+      });
       return;
     }
     const rewards = await listActiveRewardsForLine();
@@ -261,7 +269,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'jar_code') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, { body: lineBindRequiredText(), registered: false });
+      await replyMenuHub(replyToken, lineUserId, {
+        body: lineBindRequiredText(),
+        registered: false,
+        alwaysReplyBody: true,
+      });
       return;
     }
 
@@ -287,20 +299,5 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
-  if (!(await shouldReplyToUnknownMessage(lineUserId))) {
-    return;
-  }
-
-  const promptFlags = await getOnboardingPromptFlags(lineUserId);
-  const registered = Boolean(customer);
-  await replyMenuHub(replyToken, lineUserId, {
-    body: lineUnknownText(promptFlags.showJar),
-    registered,
-    promptFlags,
-    bodyPromptMarks: {
-      unknown: true,
-      jar: promptFlags.showJar || undefined,
-      register: !registered && promptFlags.showRegister ? true : undefined,
-    },
-  });
+  // 其餘無法辨識的訊息：不自動回覆
 }

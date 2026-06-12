@@ -14,6 +14,11 @@ type MenuReplyOpts = {
   promptFlags?: OnboardingPromptFlags;
   /** 內文已顯示的開戶／存罐提示（送出後寫入節流） */
   bodyPromptMarks?: OnboardingPromptMarks;
+  /**
+   * 主選單冷卻中是否仍回內文。
+   * 功能型回覆（存罐、開戶提示）設 true；純導覽/歡迎設 false 避免洗版。
+   */
+  alwaysReplyBody?: boolean;
 };
 
 function menuPromptMarks(
@@ -95,8 +100,10 @@ export async function replyMenuHub(
         showRegisterHint: !registered && flags.showRegister,
       }),
     );
-  } else {
+  } else if (opts.alwaysReplyBody !== false) {
     await replyLineMessage(replyToken, [{ type: 'text', text: opts.body }]);
+  } else {
+    return;
   }
 
   await recordReplyPrompts(

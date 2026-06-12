@@ -158,6 +158,7 @@ model LineMenuState {
   lastRegisterPromptAt  DateTime?
   lastJarPromptAt       DateTime?
   lastUnknownReplyAt    DateTime?
+  triggerReplyAt        Json?
   updatedAt             DateTime  @updatedAt
 }
 

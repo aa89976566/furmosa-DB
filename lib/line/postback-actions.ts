@@ -26,6 +26,7 @@ import {
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
+import { replyTriggerOnce } from '@/lib/line/trigger-throttle';
 import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
@@ -65,22 +66,28 @@ export async function handleLinePostback(
   }
 
   if (action === 'activity') {
-    await replyLineTextWithMenu(replyToken, lineUserId, LINE_ACTIVITY_INFO, {
-      registered: Boolean(customer),
+    await replyTriggerOnce(lineUserId, 'activity', async () => {
+      await replyLineTextWithMenu(replyToken, lineUserId, LINE_ACTIVITY_INFO, {
+        registered: Boolean(customer),
+      });
     });
     return;
   }
 
   if (action === 'unbox') {
-    await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
-      registered: Boolean(customer),
+    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+      await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
+        registered: Boolean(customer),
+      });
     });
     return;
   }
 
   if (action === 'contact') {
-    await replyLineTextWithMenu(replyToken, lineUserId, LINE_CONTACT_INFO, {
-      registered: Boolean(customer),
+    await replyTriggerOnce(lineUserId, 'contact', async () => {
+      await replyLineTextWithMenu(replyToken, lineUserId, LINE_CONTACT_INFO, {
+        registered: Boolean(customer),
+      });
     });
     return;
   }
@@ -221,14 +228,17 @@ export async function handleLinePostback(
     return;
   }
 
-  const promptFlags = await getOnboardingPromptFlags(lineUserId);
-  const body = promptFlags.showJar
-    ? '可從下方選單操作，或直接傳 8 位空罐序號存罐～'
-    : '可從下方選單操作。';
-  await replyMenuHub(replyToken, lineUserId, {
-    body,
-    registered: Boolean(customer),
-    promptFlags,
-    bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
+  await replyTriggerOnce(lineUserId, 'menu_fallback', async () => {
+    const promptFlags = await getOnboardingPromptFlags(lineUserId);
+    const body = promptFlags.showJar
+      ? '可從下方選單操作，或直接傳 8 位空罐序號存罐～'
+      : '可從下方選單操作。';
+    await replyMenuHub(replyToken, lineUserId, {
+      body,
+      registered: Boolean(customer),
+      promptFlags,
+      bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
+      alwaysReplyBody: false,
+    });
   });
 }
