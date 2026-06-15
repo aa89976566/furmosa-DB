@@ -29,6 +29,7 @@ type ProductOption = {
   suggestedPrice: number | null;
   commissionMode: string | null;
   commissionValue: number | null;
+  weightLabel?: string | null;
 };
 
 type RowPanel = { productId: string; mode: 'sale' | 'count' };
@@ -106,6 +107,11 @@ export function MerchantAdjustWorkspace({
                           <div className="font-medium">{row.name}</div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
+                            {product?.weightLabel ? (
+                              <span className="text-xs font-medium text-navy/80">
+                                {product.weightLabel}
+                              </span>
+                            ) : null}
                             {row.isConsigned ? (
                               <Badge variant="secondary" className="text-[10px]">
                                 寄賣

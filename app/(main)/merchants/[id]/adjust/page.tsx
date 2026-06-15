@@ -9,6 +9,7 @@ import {
   loadActiveMerchantProductCatalog,
   merchantSuggestedUnitPrice,
 } from '@/lib/merchant-product-catalog';
+import { resolveProductWeightLabel } from '@/lib/product-label';
 import { loadMerchantStockSnapshot } from '@/lib/merchant-operation-options';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,7 @@ export default async function MerchantAdjustPage({
       suggestedPrice: merchantSuggestedUnitPrice(product, rule),
       commissionMode: rule?.commissionMode ?? null,
       commissionValue: rule?.commissionValue ?? null,
+      weightLabel: resolveProductWeightLabel(product.name, product.priceTiers),
     };
   });
 

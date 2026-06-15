@@ -26,3 +26,31 @@ export function parseWeightFromName(name: string): number | null {
   const n = Number(m[1]);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
+
+type WeightTierLike = {
+  weightGrams: number | null;
+  unit: string;
+  unitQty: number;
+};
+
+/** 盤點／庫存表：規格克數摘要（多規格以頓號連接） */
+export function resolveProductWeightLabel(
+  name: string,
+  tiers: WeightTierLike[],
+): string | null {
+  if (tiers.length > 0) {
+    const labels = [
+      ...new Set(
+        tiers
+          .map((tier) => {
+            if (tier.weightGrams && tier.weightGrams > 0) return `${tier.weightGrams}g`;
+            return null;
+          })
+          .filter((label): label is string => Boolean(label)),
+      ),
+    ];
+    if (labels.length > 0) return labels.join('、');
+  }
+  const fromName = parseWeightFromName(name);
+  return fromName ? `${fromName}g` : null;
+}

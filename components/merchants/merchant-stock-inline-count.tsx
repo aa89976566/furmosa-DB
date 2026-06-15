@@ -12,6 +12,7 @@ type ProductOption = {
   name: string;
   sku: string;
   currentStock: number;
+  weightLabel?: string | null;
 };
 
 type CountFormState = { error?: string };
@@ -66,7 +67,9 @@ export function MerchantStockInlineCount({
         <div>
           <p className="text-sm font-medium">{product.name}</p>
           <p className="font-mono text-xs text-muted-foreground">
-            {product.sku} · 系統現存 {product.currentStock}
+            {product.sku}
+            {product.weightLabel ? ` · ${product.weightLabel}` : ''}
+            {' · '}系統現存 {product.currentStock}
           </p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>

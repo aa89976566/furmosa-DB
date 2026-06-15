@@ -3,6 +3,7 @@ import {
   loadActiveMerchantProductCatalog,
   merchantSuggestedUnitPrice,
 } from '@/lib/merchant-product-catalog';
+import { resolveProductWeightLabel } from '@/lib/product-label';
 import {
   resolveMerchantShippingDefaults,
   type MerchantShippingDefaults,
@@ -171,6 +172,7 @@ export async function loadMerchantAdjustProductOptions(merchantId: string) {
       suggestedPrice: merchantSuggestedUnitPrice(product, rule),
       commissionMode: rule?.commissionMode ?? null,
       commissionValue: rule?.commissionValue ?? null,
+      weightLabel: resolveProductWeightLabel(product.name, product.priceTiers),
     };
   });
 }
