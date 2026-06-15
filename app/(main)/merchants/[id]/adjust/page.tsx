@@ -39,6 +39,14 @@ export default async function MerchantAdjustPage({
       commissionMode: rule?.commissionMode ?? null,
       commissionValue: rule?.commissionValue ?? null,
       weightLabel: resolveProductWeightLabel(product.name, product.priceTiers),
+      priceTiers: product.priceTiers.map((tier) => ({
+        id: tier.id,
+        weightGrams: tier.weightGrams,
+        unit: tier.unit,
+        unitQty: tier.unitQty,
+        price: tier.price,
+        notes: tier.notes,
+      })),
     };
   });
 

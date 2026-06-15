@@ -34,7 +34,13 @@ async function migrateProductRefs(fromId: string, toId: string) {
   const stocks = await prisma.merchantStock.findMany({ where: { productId: fromId } });
   for (const s of stocks) {
     const existing = await prisma.merchantStock.findUnique({
-      where: { merchantId_productId: { merchantId: s.merchantId, productId: toId } },
+      where: {
+        merchantId_productId_tierId: {
+          merchantId: s.merchantId,
+          productId: toId,
+          tierId: s.tierId,
+        },
+      },
     });
     if (existing) {
       await prisma.merchantStock.update({

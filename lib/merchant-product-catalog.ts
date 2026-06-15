@@ -36,7 +36,13 @@ export async function loadActiveMerchantProductCatalog(merchantId: string) {
   if (!merchant) return null;
 
   const ruleByProduct = new Map(merchant.productRules.map((rule) => [rule.productId, rule]));
-  const stockByProduct = new Map(merchant.stocks.map((stock) => [stock.productId, stock.quantity]));
+  const stockByProduct = new Map<string, number>();
+  for (const stock of merchant.stocks) {
+    stockByProduct.set(
+      stock.productId,
+      (stockByProduct.get(stock.productId) ?? 0) + stock.quantity,
+    );
+  }
   const consignedProductIds = new Set(merchant.productRules.map((rule) => rule.productId));
 
   const sortedProducts = [...products].sort((a, b) => {

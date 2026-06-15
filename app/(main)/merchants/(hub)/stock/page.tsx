@@ -18,7 +18,10 @@ import {
   parseMerchantStockLedgerSearchParams,
 } from '@/lib/merchant-stock-query';
 import { formatDate } from '@/lib/format';
+import { LEGACY_MERCHANT_STOCK_TIER_ID } from '@/lib/merchant-stock-key';
+import { variationLabel } from '@/lib/product-variations';
 import { PackagePlus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +57,10 @@ export default async function MerchantStockPage({
         ...(merchantId ? { merchantId } : {}),
         quantity: { not: 0 },
       },
-      include: { merchant: true, product: true },
+      include: {
+        merchant: true,
+        product: { include: { priceTiers: { orderBy: { price: 'asc' } } } },
+      },
       orderBy: [{ merchant: { name: 'asc' } }, { product: { name: 'asc' } }],
       take: 500,
     });
@@ -82,6 +88,7 @@ export default async function MerchantStockPage({
                 <TableRow>
                   <TableHead>店家</TableHead>
                   <TableHead>商品</TableHead>
+                  <TableHead>規格</TableHead>
                   <TableHead className="text-right">現有數量</TableHead>
                   <TableHead>最近進貨</TableHead>
                   <TableHead>最近銷售</TableHead>
@@ -89,7 +96,19 @@ export default async function MerchantStockPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stocks.map((s) => (
+                {stocks.map((s) => {
+                  const tier =
+                    s.tierId === LEGACY_MERCHANT_STOCK_TIER_ID
+                      ? null
+                      : s.product.priceTiers.find((t) => t.id === s.tierId);
+                  const tierLabel =
+                    tier != null
+                      ? variationLabel(tier)
+                      : s.tierId === LEGACY_MERCHANT_STOCK_TIER_ID &&
+                          s.product.priceTiers.filter((t) => t.weightGrams).length > 1
+                        ? '未分規格'
+                        : '—';
+                  return (
                   <TableRow key={s.id}>
                     <TableCell>
                       <Link
@@ -105,6 +124,15 @@ export default async function MerchantStockPage({
                       </Link>
                       <div className="font-mono text-xs text-muted-foreground">{s.product.sku}</div>
                     </TableCell>
+                    <TableCell>
+                      {tierLabel !== '—' ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          {tierLabel}
+                        </Badge>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right font-mono text-lg font-semibold tabular-nums">
                       {s.quantity}
                     </TableCell>
@@ -118,7 +146,8 @@ export default async function MerchantStockPage({
                       {formatDate(s.lastCountAt)}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

@@ -46,11 +46,11 @@ export default async function MerchantRulePage({
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) notFound();
 
-  const stock = await prisma.merchantStock.findUnique({
-    where: { merchantId_productId: { merchantId: merchant.id, productId } },
+  const stocks = await prisma.merchantStock.findMany({
+    where: { merchantId: merchant.id, productId },
     select: { quantity: true },
   });
-  const stockQuantity = stock?.quantity ?? 0;
+  const stockQuantity = stocks.reduce((sum, stock) => sum + stock.quantity, 0);
 
   const existingRule = merchant.productRules.find((r) => r.productId === productId);
   const initialPercent = resolveInitialPercent(

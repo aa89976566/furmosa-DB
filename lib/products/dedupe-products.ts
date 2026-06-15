@@ -70,7 +70,13 @@ async function mergeMerchantStocks(
   const fromStocks = await tx.merchantStock.findMany({ where: { productId: fromId } });
   for (const stock of fromStocks) {
     const existing = await tx.merchantStock.findUnique({
-      where: { merchantId_productId: { merchantId: stock.merchantId, productId: toId } },
+      where: {
+        merchantId_productId_tierId: {
+          merchantId: stock.merchantId,
+          productId: toId,
+          tierId: stock.tierId,
+        },
+      },
     });
     if (existing) {
       await tx.merchantStock.update({

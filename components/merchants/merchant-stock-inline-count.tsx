@@ -3,8 +3,15 @@
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { adjustMerchantStock } from '@/app/(main)/merchants/[id]/actions';
+import { MerchantProductTierSelect } from '@/components/merchants/merchant-product-tier-select';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import {
+  hasMultipleTierOptions,
+  pickDefaultTier,
+  type MerchantProductTierOption,
+} from '@/lib/merchant-product-tier';
 import { ScanLine, X } from 'lucide-react';
 
 type ProductOption = {
@@ -13,6 +20,7 @@ type ProductOption = {
   sku: string;
   currentStock: number;
   weightLabel?: string | null;
+  priceTiers?: MerchantProductTierOption[];
 };
 
 type CountFormState = { error?: string };
@@ -45,14 +53,23 @@ function SubmitCountButton() {
 export function MerchantStockInlineCount({
   merchantId,
   product,
+  initialTierId,
+  tierLabel,
   returnTo,
   onCancel,
 }: {
   merchantId: string;
   product: ProductOption;
+  initialTierId?: string;
+  tierLabel?: string | null;
   returnTo?: string;
   onCancel: () => void;
 }) {
+  const tiers = product.priceTiers ?? [];
+  const lockTier = initialTierId !== undefined;
+  const [tierId, setTierId] = useState(
+    () => initialTierId ?? pickDefaultTier(tiers)?.id ?? '',
+  );
   const [newQuantity, setNewQuantity] = useState(product.currentStock);
   const [state, formAction] = useFormState(submitCount, {});
   const countDiff = Number.isFinite(newQuantity) ? newQuantity - product.currentStock : null;
@@ -61,6 +78,7 @@ export function MerchantStockInlineCount({
     <form action={formAction} className="space-y-3 rounded-md border bg-muted/20 p-3">
       <input type="hidden" name="merchantId" value={merchantId} />
       <input type="hidden" name="productId" value={product.id} />
+      {lockTier ? <input type="hidden" name="tierId" value={tierId} /> : null}
       {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
 
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -68,7 +86,16 @@ export function MerchantStockInlineCount({
           <p className="text-sm font-medium">{product.name}</p>
           <p className="font-mono text-xs text-muted-foreground">
             {product.sku}
-            {product.weightLabel ? ` · ${product.weightLabel}` : ''}
+            {tierLabel ? (
+              <>
+                {' · '}
+                <span className="font-semibold text-navy">{tierLabel}</span>
+              </>
+            ) : product.weightLabel ? (
+              ` · ${product.weightLabel}`
+            ) : (
+              ''
+            )}
             {' · '}系統現存 {product.currentStock}
           </p>
         </div>
@@ -79,6 +106,21 @@ export function MerchantStockInlineCount({
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
+        {lockTier && tierLabel ? (
+          <div className="space-y-1">
+            <span className="text-xs font-medium">規格</span>
+            <div>
+              <Badge variant="secondary">{tierLabel}</Badge>
+            </div>
+          </div>
+        ) : hasMultipleTierOptions(tiers) ? (
+          <MerchantProductTierSelect
+            tiers={tiers}
+            tierId={tierId}
+            onTierIdChange={setTierId}
+            idPrefix={`count-${product.id}`}
+          />
+        ) : null}
         <div className="space-y-1">
           <label htmlFor={`count-${product.id}`} className="text-xs font-medium">
             實際盤點數量
@@ -100,7 +142,7 @@ export function MerchantStockInlineCount({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        填現場數到的最終數量。若比系統少，差額會自動記為賣出並納入月結。
+        填此規格現場數到的數量。若比系統少，差額會自動記為賣出並納入月結。
       </p>
 
       {state.error ? <p className="text-xs text-destructive">{state.error}</p> : null}

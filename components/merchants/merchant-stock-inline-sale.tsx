@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { recordMerchantQuickSale } from '@/app/(main)/merchants/[id]/actions';
+import { MerchantProductTierSelect } from '@/components/merchants/merchant-product-tier-select';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { calcQuickSalePreview } from '@/lib/merchant-quick-sale-preview';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import {
+  hasMultipleTierOptions,
+  pickDefaultTier,
+  unitPriceForTierSale,
+  type MerchantProductTierOption,
+} from '@/lib/merchant-product-tier';
 import { ShoppingBag, X } from 'lucide-react';
 
 const fmt = (n: number) =>
@@ -19,6 +27,7 @@ type ProductOption = {
   suggestedPrice: number | null;
   commissionMode: string | null;
   commissionValue: number | null;
+  priceTiers?: MerchantProductTierOption[];
 };
 
 type SaleFormState = { error?: string };
@@ -51,25 +60,52 @@ function SubmitSaleButton() {
 export function MerchantStockInlineSale({
   merchantId,
   product,
+  initialTierId,
+  tierLabel,
   onCancel,
 }: {
   merchantId: string;
   product: ProductOption;
+  initialTierId?: string;
+  tierLabel?: string | null;
   onCancel: () => void;
 }) {
+  const tiers = product.priceTiers ?? [];
+  const lockTier = initialTierId !== undefined;
+  const [tierId, setTierId] = useState(
+    () => initialTierId ?? pickDefaultTier(tiers)?.id ?? '',
+  );
   const [quantity, setQuantity] = useState(1);
   const [state, formAction] = useFormState(submitQuickSale, {});
-  const preview = calcQuickSalePreview(product, quantity);
+  const unitPrice = useMemo(
+    () =>
+      unitPriceForTierSale(tiers, tierId, {
+        suggestedPrice: product.suggestedPrice,
+        hasMerchantRule: product.commissionMode != null,
+      }),
+    [product.commissionMode, product.suggestedPrice, tierId, tiers],
+  );
+  const preview = calcQuickSalePreview(product, quantity, unitPrice);
 
   return (
     <form action={formAction} className="space-y-3 rounded-md border bg-muted/20 p-3">
       <input type="hidden" name="merchantId" value={merchantId} />
       <input type="hidden" name="productId" value={product.id} />
+      {lockTier ? <input type="hidden" name="tierId" value={tierId} /> : null}
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium">{product.name}</p>
-          <p className="font-mono text-xs text-muted-foreground">{product.sku}</p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {product.sku}
+            {tierLabel ? (
+              <>
+                {' · '}
+                <span className="font-semibold text-navy">{tierLabel}</span>
+              </>
+            ) : null}
+            {' · '}可賣 {product.currentStock}
+          </p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           <X className="mr-1 h-3.5 w-3.5" />
@@ -78,6 +114,21 @@ export function MerchantStockInlineSale({
       </div>
 
       <div className="flex flex-wrap items-end gap-2">
+        {lockTier && tierLabel ? (
+          <div className="space-y-1">
+            <span className="text-xs font-medium">規格</span>
+            <div>
+              <Badge variant="secondary">{tierLabel}</Badge>
+            </div>
+          </div>
+        ) : hasMultipleTierOptions(tiers) ? (
+          <MerchantProductTierSelect
+            tiers={tiers}
+            tierId={tierId}
+            onTierIdChange={setTierId}
+            idPrefix={`sale-${product.id}`}
+          />
+        ) : null}
         <div className="space-y-1">
           <label htmlFor={`qty-${product.id}`} className="text-xs font-medium">
             賣出數量

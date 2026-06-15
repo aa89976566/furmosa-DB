@@ -3,6 +3,10 @@
 import { prisma } from '@/lib/prisma';
 import { has711PickupInfo, is711Carrier, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
+import {
+  merchantStockUniqueWhere,
+  resolveTierIdFromWeightGrams,
+} from '@/lib/merchant-stock-key';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
   buildSubscriptionShipmentUpdate,
@@ -125,20 +129,32 @@ export async function markShipmentStatus(formData: FormData) {
     }
 
     if (next === 'delivered' && shipment.type === 'merchant_restock' && shipment.merchantId) {
+      const productIds = [...new Set(shipment.items.map((item) => item.productId))];
+      const products = await tx.product.findMany({
+        where: { id: { in: productIds } },
+        include: { priceTiers: true },
+      });
+      const tiersByProduct = new Map(products.map((product) => [product.id, product.priceTiers]));
+
       const txnNumbers = await reserveStockTxnNumbers(tx, shipment.items.length);
       for (let i = 0; i < shipment.items.length; i++) {
         const item = shipment.items[i];
+        const tierId = resolveTierIdFromWeightGrams(
+          tiersByProduct.get(item.productId) ?? [],
+          item.weightGrams,
+        );
+        const stockWhere = merchantStockUniqueWhere(
+          shipment.merchantId,
+          item.productId,
+          tierId,
+        );
         const stock = await tx.merchantStock.upsert({
-          where: {
-            merchantId_productId: {
-              merchantId: shipment.merchantId,
-              productId: item.productId,
-            },
-          },
+          where: stockWhere,
           update: { quantity: { increment: item.quantity }, lastRestockAt: now },
           create: {
             merchantId: shipment.merchantId,
             productId: item.productId,
+            tierId,
             quantity: item.quantity,
             lastRestockAt: now,
           },

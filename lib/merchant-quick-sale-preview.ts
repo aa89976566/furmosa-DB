@@ -5,9 +5,13 @@ export type QuickSaleProduct = {
   commissionValue: number | null;
 };
 
-export function calcQuickSalePreview(product: QuickSaleProduct, quantity: number) {
+export function calcQuickSalePreview(
+  product: QuickSaleProduct,
+  quantity: number,
+  unitPriceOverride?: number | null,
+) {
   if (quantity <= 0) return null;
-  const unitPrice = product.suggestedPrice ?? 0;
+  const unitPrice = unitPriceOverride ?? product.suggestedPrice ?? 0;
   const perUnit =
     product.commissionMode === 'percent'
       ? (unitPrice * (product.commissionValue ?? 0)) / 100

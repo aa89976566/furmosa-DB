@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import {
+  isMultiWeightProduct,
+  LEGACY_MERCHANT_STOCK_TIER_ID,
+  weightTiersForProduct,
+} from '@/lib/merchant-stock-key';
+import { variationLabel } from '@/lib/product-variations';
+import {
   loadActiveMerchantProductCatalog,
   merchantSuggestedUnitPrice,
 } from '@/lib/merchant-product-catalog';
@@ -103,7 +109,10 @@ export async function loadMerchantRestockProductOptions(merchantId: string) {
 }
 
 export type MerchantStockSnapshotRow = {
+  rowKey: string;
   productId: string;
+  tierId: string;
+  tierLabel: string | null;
   name: string;
   sku: string;
   quantity: number;
@@ -113,7 +122,7 @@ export type MerchantStockSnapshotRow = {
   lastCountAt: Date | null;
 };
 
-/** 清點頁：該店已進貨／現有庫存（有庫存或曾有進貨紀錄） */
+/** 清點頁：該店已進貨／現有庫存（多規格商品拆成各克數一列） */
 export async function loadMerchantStockSnapshot(
   merchantId: string,
 ): Promise<MerchantStockSnapshotRow[] | null> {
@@ -123,7 +132,14 @@ export async function loadMerchantStockSnapshot(
       OR: [{ quantity: { gt: 0 } }, { lastRestockAt: { not: null } }],
     },
     include: {
-      product: { select: { id: true, name: true, sku: true } },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          priceTiers: { orderBy: { price: 'asc' } },
+        },
+      },
     },
     orderBy: [{ quantity: 'desc' }, { product: { name: 'asc' } }],
   });
@@ -143,16 +159,89 @@ export async function loadMerchantStockSnapshot(
   });
   const consigned = new Set(rules.map((r) => r.productId));
 
-  return stocks.map((s) => ({
-    productId: s.product.id,
-    name: s.product.name,
-    sku: s.product.sku,
-    quantity: s.quantity,
-    isConsigned: consigned.has(s.productId),
-    lastRestockAt: s.lastRestockAt,
-    lastSaleAt: s.lastSaleAt,
-    lastCountAt: s.lastCountAt,
-  }));
+  const stocksByProduct = new Map<string, typeof stocks>();
+  for (const stock of stocks) {
+    const list = stocksByProduct.get(stock.productId) ?? [];
+    list.push(stock);
+    stocksByProduct.set(stock.productId, list);
+  }
+
+  const rows: MerchantStockSnapshotRow[] = [];
+
+  for (const [productId, productStocks] of stocksByProduct) {
+    const product = productStocks[0]!.product;
+    const weightTiers = weightTiersForProduct(product.priceTiers);
+    const isConsigned = consigned.has(productId);
+
+    if (isMultiWeightProduct(product.priceTiers)) {
+      const tierStockById = new Map(
+        productStocks
+          .filter((stock) => stock.tierId !== LEGACY_MERCHANT_STOCK_TIER_ID)
+          .map((stock) => [stock.tierId, stock]),
+      );
+      const legacyStock = productStocks.find(
+        (stock) => stock.tierId === LEGACY_MERCHANT_STOCK_TIER_ID,
+      );
+
+      for (const tier of weightTiers) {
+        const tierStock = tierStockById.get(tier.id);
+        rows.push({
+          rowKey: `${productId}:${tier.id}`,
+          productId,
+          tierId: tier.id,
+          tierLabel: variationLabel(tier),
+          name: product.name,
+          sku: product.sku,
+          quantity: tierStock?.quantity ?? 0,
+          isConsigned,
+          lastRestockAt: tierStock?.lastRestockAt ?? legacyStock?.lastRestockAt ?? null,
+          lastSaleAt: tierStock?.lastSaleAt ?? null,
+          lastCountAt: tierStock?.lastCountAt ?? null,
+        });
+      }
+
+      if (legacyStock && legacyStock.quantity > 0) {
+        rows.push({
+          rowKey: `${productId}:legacy`,
+          productId,
+          tierId: LEGACY_MERCHANT_STOCK_TIER_ID,
+          tierLabel: '未分規格',
+          name: product.name,
+          sku: product.sku,
+          quantity: legacyStock.quantity,
+          isConsigned,
+          lastRestockAt: legacyStock.lastRestockAt,
+          lastSaleAt: legacyStock.lastSaleAt,
+          lastCountAt: legacyStock.lastCountAt,
+        });
+      }
+      continue;
+    }
+
+    const stock =
+      productStocks.find((item) => item.tierId === LEGACY_MERCHANT_STOCK_TIER_ID) ??
+      productStocks[0]!;
+    rows.push({
+      rowKey: productId,
+      productId,
+      tierId: stock.tierId,
+      tierLabel: null,
+      name: product.name,
+      sku: product.sku,
+      quantity: stock.quantity,
+      isConsigned,
+      lastRestockAt: stock.lastRestockAt,
+      lastSaleAt: stock.lastSaleAt,
+      lastCountAt: stock.lastCountAt,
+    });
+  }
+
+  return rows.sort(
+    (a, b) =>
+      b.quantity - a.quantity ||
+      a.name.localeCompare(b.name, 'zh-Hant') ||
+      (a.tierLabel ?? '').localeCompare(b.tierLabel ?? '', 'zh-Hant'),
+  );
 }
 
 export async function loadMerchantAdjustProductOptions(merchantId: string) {
@@ -173,6 +262,14 @@ export async function loadMerchantAdjustProductOptions(merchantId: string) {
       commissionMode: rule?.commissionMode ?? null,
       commissionValue: rule?.commissionValue ?? null,
       weightLabel: resolveProductWeightLabel(product.name, product.priceTiers),
+      priceTiers: product.priceTiers.map((tier) => ({
+        id: tier.id,
+        weightGrams: tier.weightGrams,
+        unit: tier.unit,
+        unitQty: tier.unitQty,
+        price: tier.price,
+        notes: tier.notes,
+      })),
     };
   });
 }

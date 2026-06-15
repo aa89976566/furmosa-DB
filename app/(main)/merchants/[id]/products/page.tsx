@@ -17,6 +17,7 @@ import { formatConsignmentCommission } from '@/lib/merchant-commission';
 import { Package, PackagePlus, Pencil, AlertTriangle } from 'lucide-react';
 import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
 import { MerchantStockQuickEdit } from '@/components/merchants/merchant-stock-quick-edit';
+import { isMultiWeightProduct } from '@/lib/merchant-stock-key';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,8 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
   const merchant = await prisma.merchant.findUnique({
     where: { id: params.id },
     include: {
-      productRules: { include: { product: true } },
-      stocks: { include: { product: true } },
+      productRules: { include: { product: { include: { priceTiers: true } } } },
+      stocks: { include: { product: { include: { priceTiers: true } } } },
     },
   });
   if (!merchant) notFound();
@@ -43,23 +44,36 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
     companyRevenuePerUnit: number | null;
     ruleId: string | null;
     lastRestockAt: Date | null;
+    multiWeightTiers: boolean;
   };
   const productRows = new Map<string, Row>();
   for (const stock of merchant.stocks) {
-    productRows.set(stock.productId, {
-      productId: stock.product.productId,
-      productName: stock.product.name,
-      sku: stock.product.sku,
-      productInternalId: stock.productId,
-      quantity: stock.quantity,
-      suggestedPrice: null,
-      commissionMode: null,
-      commissionValue: null,
-      commissionPerUnit: null,
-      companyRevenuePerUnit: null,
-      ruleId: null,
-      lastRestockAt: stock.lastRestockAt,
-    });
+    const existing = productRows.get(stock.productId);
+    if (existing) {
+      existing.quantity += stock.quantity;
+      if (
+        stock.lastRestockAt &&
+        (!existing.lastRestockAt || stock.lastRestockAt > existing.lastRestockAt)
+      ) {
+        existing.lastRestockAt = stock.lastRestockAt;
+      }
+    } else {
+      productRows.set(stock.productId, {
+        productId: stock.product.productId,
+        productName: stock.product.name,
+        sku: stock.product.sku,
+        productInternalId: stock.productId,
+        quantity: stock.quantity,
+        suggestedPrice: null,
+        commissionMode: null,
+        commissionValue: null,
+        commissionPerUnit: null,
+        companyRevenuePerUnit: null,
+        ruleId: null,
+        lastRestockAt: stock.lastRestockAt,
+        multiWeightTiers: isMultiWeightProduct(stock.product.priceTiers),
+      });
+    }
   }
   for (const rule of merchant.productRules) {
     const perUnit =
@@ -74,6 +88,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       existing.commissionPerUnit = perUnit;
       existing.companyRevenuePerUnit = rule.suggestedPrice - perUnit;
       existing.ruleId = rule.id;
+      existing.multiWeightTiers = isMultiWeightProduct(rule.product.priceTiers);
     } else {
       productRows.set(rule.productId, {
         productId: rule.product.productId,
@@ -88,6 +103,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
         companyRevenuePerUnit: rule.suggestedPrice - perUnit,
         ruleId: rule.id,
         lastRestockAt: null,
+        multiWeightTiers: isMultiWeightProduct(rule.product.priceTiers),
       });
     }
   }
@@ -154,14 +170,24 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                     <div className="ml-6 font-mono text-xs text-muted-foreground">{r.sku}</div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end">
-                      <MerchantStockQuickEdit
-                        merchantId={merchant.id}
-                        productId={r.productInternalId}
-                        productName={r.productName}
-                        quantity={r.quantity}
-                        returnTo={`/merchants/${merchant.id}/products`}
-                      />
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-mono font-semibold tabular-nums">{r.quantity}</span>
+                      {r.multiWeightTiers ? (
+                        <Link
+                          href={`/merchants/${merchant.id}/adjust`}
+                          className="text-[10px] font-medium text-primary hover:underline"
+                        >
+                          依規格清點
+                        </Link>
+                      ) : (
+                        <MerchantStockQuickEdit
+                          merchantId={merchant.id}
+                          productId={r.productInternalId}
+                          productName={r.productName}
+                          quantity={r.quantity}
+                          returnTo={`/merchants/${merchant.id}/products`}
+                        />
+                      )}
                     </div>
                     {r.quantity === 0 && r.ruleId && (
                       <div className="text-[10px] text-destructive">缺貨</div>

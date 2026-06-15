@@ -15,6 +15,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { formatCustomerId, maxCustomerIdSeq } from '../lib/customers/customer-id';
+import {
+  merchantStockUniqueWhere,
+  resolveTierIdFromWeightGrams,
+} from '../lib/merchant-stock-key';
 
 // 本機 import 走 DIRECT_URL（5432，不經 PgBouncer），避免 connection_limit=1 把大量 upsert 排隊
 const prisma = new PrismaClient({
@@ -611,8 +615,13 @@ async function importMerchantsAndRules() {
     }
 
     // (b) MerchantStock += qty + MerchantStockTxn
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { priceTiers: true },
+    });
+    const tierId = resolveTierIdFromWeightGrams(product?.priceTiers ?? [], s.weightGrams);
     const stock = await prisma.merchantStock.upsert({
-      where: { merchantId_productId: { merchantId, productId } },
+      where: merchantStockUniqueWhere(merchantId, productId, tierId),
       update: {
         quantity: { increment: s.qty },
         lastRestockAt: ts,
@@ -620,6 +629,7 @@ async function importMerchantsAndRules() {
       create: {
         merchantId,
         productId,
+        tierId,
         quantity: s.qty,
         lastRestockAt: ts,
       },

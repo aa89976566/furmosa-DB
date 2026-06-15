@@ -508,11 +508,12 @@ model ShipmentItem {
   @@index([productId])
 }
 
-// 寄賣店目前持有的庫存（每家店每個商品一筆）
+// 寄賣店目前持有的庫存（每家店 × 商品 × 規格一筆；tierId 空字串為舊版合計）
 model MerchantStock {
   id            String    @id @default(cuid())
   merchantId    String
   productId     String
+  tierId        String    @default("")
   quantity      Int       @default(0)
   lastRestockAt DateTime?
   lastSaleAt    DateTime?
@@ -523,7 +524,7 @@ model MerchantStock {
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([merchantId, productId])
+  @@unique([merchantId, productId, tierId])
   @@index([merchantId])
   @@index([productId])
 }

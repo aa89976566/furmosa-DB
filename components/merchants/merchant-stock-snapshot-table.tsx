@@ -69,13 +69,18 @@ export function MerchantStockSnapshotTable({
               const canSell = row.quantity > 0;
               return (
                 <TableRow
-                  key={row.productId}
+                  key={row.rowKey}
                   className={active ? 'bg-primary/5' : undefined}
                 >
                   <TableCell>
                     <div className="font-medium">{row.name}</div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
+                      {row.tierLabel ? (
+                        <Badge variant="outline" className="text-[10px] font-semibold">
+                          {row.tierLabel}
+                        </Badge>
+                      ) : null}
                       {row.isConsigned ? (
                         <Badge variant="secondary" className="text-[10px]">
                           寄賣

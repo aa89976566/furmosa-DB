@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { formatDate } from '@/lib/format';
 import type { MerchantStockSnapshotRow } from '@/lib/merchant-operation-options';
+import type { MerchantProductTierOption } from '@/lib/merchant-product-tier';
 import { ScanLine, ShoppingBag } from 'lucide-react';
 
 type MerchantOption = { id: string; name: string; merchantId: string };
@@ -30,9 +31,10 @@ type ProductOption = {
   commissionMode: string | null;
   commissionValue: number | null;
   weightLabel?: string | null;
+  priceTiers?: MerchantProductTierOption[];
 };
 
-type RowPanel = { productId: string; mode: 'sale' | 'count' };
+type RowPanel = { rowKey: string; mode: 'sale' | 'count' };
 
 export function MerchantAdjustWorkspace({
   merchants,
@@ -54,9 +56,9 @@ export function MerchantAdjustWorkspace({
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const totalQty = stockRows.reduce((sum, r) => sum + r.quantity, 0);
 
-  const togglePanel = (productId: string, mode: 'sale' | 'count') => {
+  const togglePanel = (rowKey: string, mode: 'sale' | 'count') => {
     setPanel((prev) =>
-      prev?.productId === productId && prev.mode === mode ? null : { productId, mode },
+      prev?.rowKey === rowKey && prev.mode === mode ? null : { rowKey, mode },
     );
   };
 
@@ -81,7 +83,7 @@ export function MerchantAdjustWorkspace({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-navy">目前庫存（進貨後）</p>
             <p className="text-xs text-muted-foreground">
-              共 {stockRows.length} 品項 · 合計 {totalQty} 件
+              共 {stockRows.length} 列 · 合計 {totalQty} 件
             </p>
           </div>
           <div className="overflow-hidden rounded-lg border">
@@ -98,16 +100,20 @@ export function MerchantAdjustWorkspace({
                 {stockRows.map((row) => {
                   const product = productById.get(row.productId);
                   const activePanel =
-                    panel?.productId === row.productId ? panel.mode : null;
+                    panel?.rowKey === row.rowKey ? panel.mode : null;
                   const canSell = row.quantity > 0 && !!product;
                   return (
-                    <Fragment key={row.productId}>
+                    <Fragment key={row.rowKey}>
                       <TableRow className={activePanel ? 'bg-primary/5' : undefined}>
                         <TableCell>
                           <div className="font-medium">{row.name}</div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
-                            {product?.weightLabel ? (
+                            {row.tierLabel ? (
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                {row.tierLabel}
+                              </Badge>
+                            ) : product?.weightLabel ? (
                               <span className="text-xs font-medium text-navy/80">
                                 {product.weightLabel}
                               </span>
@@ -140,7 +146,7 @@ export function MerchantAdjustWorkspace({
                               size="sm"
                               variant={activePanel === 'sale' ? 'default' : 'outline'}
                               disabled={!canSell}
-                              onClick={() => togglePanel(row.productId, 'sale')}
+                              onClick={() => togglePanel(row.rowKey, 'sale')}
                             >
                               <ShoppingBag className="mr-1 h-3.5 w-3.5" />
                               賣出
@@ -150,7 +156,7 @@ export function MerchantAdjustWorkspace({
                               size="sm"
                               variant={activePanel === 'count' ? 'secondary' : 'outline'}
                               disabled={!product}
-                              onClick={() => togglePanel(row.productId, 'count')}
+                              onClick={() => togglePanel(row.rowKey, 'count')}
                             >
                               <ScanLine className="mr-1 h-3.5 w-3.5" />
                               盤點
@@ -163,7 +169,9 @@ export function MerchantAdjustWorkspace({
                           <TableCell colSpan={4} className="bg-primary/5 pt-0">
                             <MerchantStockInlineSale
                               merchantId={selectedMerchantId}
-                              product={product}
+                              product={{ ...product, currentStock: row.quantity }}
+                              initialTierId={row.tierId}
+                              tierLabel={row.tierLabel}
                               onCancel={() => setPanel(null)}
                             />
                           </TableCell>
@@ -174,7 +182,9 @@ export function MerchantAdjustWorkspace({
                           <TableCell colSpan={4} className="bg-primary/5 pt-0">
                             <MerchantStockInlineCount
                               merchantId={selectedMerchantId}
-                              product={product}
+                              product={{ ...product, currentStock: row.quantity }}
+                              initialTierId={row.tierId}
+                              tierLabel={row.tierLabel}
                               returnTo={countReturnTo}
                               onCancel={() => setPanel(null)}
                             />
@@ -188,7 +198,7 @@ export function MerchantAdjustWorkspace({
             </Table>
           </div>
           <p className="text-xs text-muted-foreground">
-            點「賣出」登記銷售；點「盤點」填現場實際數量。兩者都在該列直接操作。
+            多規格商品會拆成各克數一列。點「賣出」或「盤點」只影響該規格的庫存。
           </p>
         </div>
       )}

@@ -4,6 +4,20 @@ import { prisma } from '@/lib/prisma';
 import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { parseMerchantCommissionPercent } from '@/lib/merchant-commission';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
+import {
+  findTier,
+  hasMultipleTierOptions,
+  noteWithSpec,
+  parseTierIdFromForm,
+  tierSpecLabel,
+  unitPriceForTierSale,
+  type MerchantProductTierOption,
+} from '@/lib/merchant-product-tier';
+import {
+  LEGACY_MERCHANT_STOCK_TIER_ID,
+  merchantStockUniqueWhere,
+  resolveTierIdFromWeightGrams,
+} from '@/lib/merchant-stock-key';
 import { saleAmountsForQty } from '@/lib/merchant-settlement-sales';
 import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import { revalidatePath } from 'next/cache';
@@ -27,6 +41,18 @@ function ymd(d = new Date()) {
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
   return trimmed || null;
+}
+
+function stockSpecLabel(
+  tiers: MerchantProductTierOption[],
+  tierId: string,
+  tier: MerchantProductTierOption | null,
+) {
+  if (tier) return tierSpecLabel(tier);
+  if (tierId === LEGACY_MERCHANT_STOCK_TIER_ID && hasMultipleTierOptions(tiers)) {
+    return '未分規格';
+  }
+  return null;
 }
 
 // ============================================================
@@ -218,16 +244,39 @@ export async function adjustMerchantStock(formData: FormData) {
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
   if (!Number.isFinite(newQuantity) || newQuantity < 0) throw new Error('庫存數量不合法');
 
-  const existing = await prisma.merchantStock.findUnique({
-    where: { merchantId_productId: { merchantId, productId } },
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { priceTiers: { orderBy: { price: 'asc' } } },
   });
+  if (!product) throw new Error('商品不存在');
+
+  const tiers: MerchantProductTierOption[] = product.priceTiers.map((tier) => ({
+    id: tier.id,
+    weightGrams: tier.weightGrams,
+    unit: tier.unit,
+    unitQty: tier.unitQty,
+    price: tier.price,
+    notes: tier.notes,
+  }));
+  const tierId = parseTierIdFromForm(formData, tiers);
+  const tier = findTier(tiers, tierId);
+  const specLabel = stockSpecLabel(tiers, tierId, tier);
+
+  const stockWhere = merchantStockUniqueWhere(merchantId, productId, tierId);
+  const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
   const before = existing?.quantity ?? 0;
   const delta = newQuantity - before;
 
   const stock = await prisma.merchantStock.upsert({
-    where: { merchantId_productId: { merchantId, productId } },
+    where: stockWhere,
     update: { quantity: newQuantity, lastCountAt: new Date() },
-    create: { merchantId, productId, quantity: newQuantity, lastCountAt: new Date() },
+    create: {
+      merchantId,
+      productId,
+      tierId,
+      quantity: newQuantity,
+      lastCountAt: new Date(),
+    },
   });
   await prisma.merchantStockTxn.create({
     data: {
@@ -237,22 +286,22 @@ export async function adjustMerchantStock(formData: FormData) {
       type: 'adjust',
       quantity: delta,
       balanceAfter: stock.quantity,
-      note: note ?? `盤點：${before} → ${newQuantity}`,
+      note: note ?? noteWithSpec(specLabel, `盤點：${before} → ${newQuantity}`),
     },
   });
 
   // 盤點後庫存減少 → 同步寫入 sale 流水，月結才能納入（與「賣出」模式一致）
   if (delta < 0) {
     const soldQty = Math.abs(delta);
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { priceTiers: { orderBy: { price: 'asc' } } },
-    });
-    if (!product) throw new Error('商品不存在');
     const rule = await prisma.merchantProductRule.findUnique({
       where: { merchantId_productId: { merchantId, productId } },
     });
-    const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty);
+    const unitPrice = unitPriceForTierSale(tiers, tierId, {
+      suggestedPrice: rule?.suggestedPrice ?? null,
+      hasMerchantRule: !!rule,
+      fallbackPrice: product.price,
+    });
+    const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty, unitPrice);
     await prisma.merchantStockTxn.create({
       data: {
         txnNumber: await nextStockTxnNumber(prisma),
@@ -264,7 +313,9 @@ export async function adjustMerchantStock(formData: FormData) {
         unitPrice: amounts.unitPrice,
         commissionAmount: amounts.commissionAmount,
         companyRevenue: amounts.companyRevenue,
-        note: note ?? `清點賣出（盤點 ${before} → ${newQuantity}）`,
+        note:
+          note ??
+          noteWithSpec(specLabel, `清點賣出（盤點 ${before} → ${newQuantity}）`),
       },
     });
   }
@@ -384,15 +435,23 @@ export async function createMerchantSale(formData: FormData) {
   const saleTxnNumbers = await reserveStockTxnNumbers(prisma, itemRows.length);
   for (let i = 0; i < itemRows.length; i++) {
     const r = itemRows[i];
-    const existing = await prisma.merchantStock.findUnique({
-      where: { merchantId_productId: { merchantId, productId: r.productId } },
-    });
+    const product = productById.get(r.productId);
+    if (!product) continue;
+    const tierId = resolveTierIdFromWeightGrams(product.priceTiers, r.weightGrams);
+    const stockWhere = merchantStockUniqueWhere(merchantId, r.productId, tierId);
+    const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
     const before = existing?.quantity ?? 0;
     const after = before - r.quantity;
     await prisma.merchantStock.upsert({
-      where: { merchantId_productId: { merchantId, productId: r.productId } },
+      where: stockWhere,
       update: { quantity: after, lastSaleAt: new Date() },
-      create: { merchantId, productId: r.productId, quantity: after, lastSaleAt: new Date() },
+      create: {
+        merchantId,
+        productId: r.productId,
+        tierId,
+        quantity: after,
+        lastSaleAt: new Date(),
+      },
     });
     await prisma.merchantStockTxn.create({
       data: {
@@ -437,24 +496,45 @@ export async function recordMerchantQuickSale(formData: FormData) {
   });
   if (!product) throw new Error('商品不存在');
 
+  const tiers: MerchantProductTierOption[] = product.priceTiers.map((tier) => ({
+    id: tier.id,
+    weightGrams: tier.weightGrams,
+    unit: tier.unit,
+    unitQty: tier.unitQty,
+    price: tier.price,
+    notes: tier.notes,
+  }));
+  const tierId = parseTierIdFromForm(formData, tiers);
+  const tier = findTier(tiers, tierId);
+  const specLabel = stockSpecLabel(tiers, tierId, tier);
+
   const rule = await prisma.merchantProductRule.findUnique({
     where: { merchantId_productId: { merchantId, productId } },
   });
-  const unitPrice = merchantSuggestedUnitPrice(product, rule);
+  const unitPrice = unitPriceForTierSale(tiers, tierId, {
+    suggestedPrice: rule?.suggestedPrice ?? null,
+    hasMerchantRule: !!rule,
+    fallbackPrice: product.price,
+  });
   const calc = rule
     ? commissionFor(rule, quantity, unitPrice)
     : { perUnit: 0, commission: 0, gross: unitPrice * quantity, companyRevenue: unitPrice * quantity };
 
-  const existing = await prisma.merchantStock.findUnique({
-    where: { merchantId_productId: { merchantId, productId } },
-  });
+  const stockWhere = merchantStockUniqueWhere(merchantId, productId, tierId);
+  const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
   const before = existing?.quantity ?? 0;
   const after = before - quantity;
 
   await prisma.merchantStock.upsert({
-    where: { merchantId_productId: { merchantId, productId } },
+    where: stockWhere,
     update: { quantity: after, lastSaleAt: new Date() },
-    create: { merchantId, productId, quantity: after, lastSaleAt: new Date() },
+    create: {
+      merchantId,
+      productId,
+      tierId,
+      quantity: after,
+      lastSaleAt: new Date(),
+    },
   });
 
   await prisma.merchantStockTxn.create({
@@ -468,7 +548,7 @@ export async function recordMerchantQuickSale(formData: FormData) {
       unitPrice,
       commissionAmount: calc.commission,
       companyRevenue: calc.companyRevenue,
-      note: note ?? '快速登記銷售',
+      note: note ?? noteWithSpec(specLabel, '快速登記銷售'),
     },
   });
 
