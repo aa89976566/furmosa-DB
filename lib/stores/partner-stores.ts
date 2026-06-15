@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { syncAllJarExchangePartnerStores } from '@/lib/stores/sync-merchant-stores';
 
 /** DB 無資料時的後備清單（與 migration seed 一致） */
 export const FALLBACK_PARTNER_STORES = [
@@ -25,6 +26,7 @@ function toView(row: { id: string; slug: string; name: string }): PartnerStoreVi
 /** 合作店家主檔（stores 表） */
 export async function listPartnerStoresFromDb(): Promise<PartnerStoreView[]> {
   try {
+    await syncAllJarExchangePartnerStores();
     const rows = await prisma.store.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, slug: true, name: true },

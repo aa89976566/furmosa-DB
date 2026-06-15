@@ -16,6 +16,7 @@ import {
 import { isRedirectError } from '@/lib/redirect-error';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
 
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
@@ -73,7 +74,15 @@ export async function createMerchantAction(
       shipping,
     });
 
+    await syncPartnerStoreForJarExchangeMerchant(
+      prisma,
+      { ...merchant, status: 'active' },
+      types,
+    );
+
     revalidatePath('/merchants');
+    revalidatePath('/jar-exchange/stores');
+    revalidatePath('/store-redeem');
     redirect(`/merchants/${merchant.id}`);
   } catch (e) {
     if (isRedirectError(e)) throw e;

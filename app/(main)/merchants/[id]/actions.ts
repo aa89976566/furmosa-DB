@@ -31,6 +31,7 @@ import {
   primaryMerchantType,
 } from '@/lib/merchant-types';
 import { redirect } from 'next/navigation';
+import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -103,9 +104,19 @@ export async function updateMerchantShipping(formData: FormData) {
 
   await persistMerchantTypes(prisma, merchantId, types);
 
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { id: true, merchantId: true, name: true, status: true },
+  });
+  if (merchant) {
+    await syncPartnerStoreForJarExchangeMerchant(prisma, merchant, types);
+  }
+
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/restock`);
   revalidatePath('/merchants/restock');
+  revalidatePath('/jar-exchange/stores');
+  revalidatePath('/store-redeem');
 }
 
 async function nextShipmentNumber() {
