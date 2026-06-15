@@ -50,6 +50,14 @@ export type CreateRestockOrderInput = {
   carrier: string | null;
   notes: string | null;
   shipmentNumber?: string;
+  paymentStatus?: string;
+  shippingFeeType?: string;
+  shippingMethod?: string;
+  shippingFee?: number;
+  companyShippingCost?: number;
+  discount?: number;
+  total?: number;
+  cvsBrand?: string | null;
 };
 
 /** 店家進貨：同時建立 Order（列表）+ Shipment（出貨隊列） */
@@ -67,15 +75,17 @@ export async function createRestockOrderWithShipment(
       orderNumber,
       source: 'consignment',
       status: 'confirmed',
-      paymentStatus: 'paid',
+      paymentStatus: input.paymentStatus ?? 'paid',
+      shippingFeeType: input.shippingFeeType ?? 'unpaid',
       fulfillmentStatus: 'pending',
       merchantId: input.merchantId,
       subtotal: 0,
-      discount: 0,
-      shippingFee: 0,
-      companyShippingCost: 0,
-      total: 0,
-      shippingMethod: 'delivery',
+      discount: input.discount ?? 0,
+      shippingFee: input.shippingFee ?? 0,
+      companyShippingCost: input.companyShippingCost ?? 0,
+      total: input.total ?? input.shippingFee ?? 0,
+      shippingMethod: input.shippingMethod ?? 'delivery',
+      cvsBrand: input.cvsBrand ?? null,
       shippingAddress: input.recipientAddress ?? '',
       note: input.notes ?? '寄賣店進貨補貨',
       orderedAt: new Date(),

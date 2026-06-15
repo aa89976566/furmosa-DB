@@ -16,6 +16,7 @@ export function CarrierSelect({
   name = 'carrier',
   required = false,
   className,
+  onCarrierChange,
 }: {
   defaultValue?: string | null;
   defaultPickupStore?: string | null;
@@ -24,6 +25,7 @@ export function CarrierSelect({
   name?: string;
   required?: boolean;
   className?: string;
+  onCarrierChange?: (carrier: string) => void;
 }) {
   const initial = (defaultValue ?? '').trim();
   const initialMode: Preset | 'other' | '' = (PRESETS as readonly string[]).includes(initial)
@@ -53,6 +55,10 @@ export function CarrierSelect({
 
   const finalValue = mode === 'other' ? otherValue : (mode as string);
   const show711Fields = mode === CARRIER_711;
+
+  useEffect(() => {
+    onCarrierChange?.(finalValue);
+  }, [finalValue, onCarrierChange]);
 
   return (
     <div className={className}>

@@ -7,7 +7,7 @@ import { RestockSubmitButton } from '@/components/merchants/restock-submit-butto
 import { ArrowLeft } from 'lucide-react';
 import { restockMerchant } from '../actions';
 import { RestockForm } from './restock-form';
-import { MerchantRestockLogistics } from '@/components/merchants/merchant-restock-logistics';
+import { MerchantRestockCheckout } from '@/components/merchants/merchant-restock-checkout';
 import {
   MerchantFormActions,
   MerchantNotice,
@@ -95,10 +95,10 @@ export default async function MerchantRestockPage({ params }: { params: { id: st
           {shippingDefaults ? (
             <MerchantSection
               step={2}
-              title="物流與收件"
-              description="預設帶入店家檔案，僅影響本張出貨單。"
+              title="物流、金額與付款"
+              description="與訂單表單相同：運費類型、付款狀態與物流方式。"
             >
-              <MerchantRestockLogistics
+              <MerchantRestockCheckout
                 merchantId={merchant.id}
                 merchantLabel={`${merchant.name}（${merchant.merchantId}）`}
                 defaults={shippingDefaults}

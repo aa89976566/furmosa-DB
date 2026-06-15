@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache';
 import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
 import { createRestockOrderWithShipment } from '@/lib/merchant-restock-order';
+import { parseRestockShippingFromForm } from '@/lib/orders/parse-restock-form';
 import { shipmentItemsFingerprint } from '@/lib/shipment-queue-filters';
 import {
   parseMerchantTypesFromForm,
@@ -168,6 +169,7 @@ export async function restockMerchant(formData: FormData) {
   }
 
   const pickup711 = resolve711PickupFromForm(formData, carrier);
+  const shipping = parseRestockShippingFromForm(formData, carrier);
   const profileName = merchant.contactName ?? merchant.name;
   const profilePhone = merchant.phone;
   const profileAddress = merchant.address;
@@ -186,6 +188,14 @@ export async function restockMerchant(formData: FormData) {
     recipientAddress: pickup711?.recipientAddress ?? profileAddress,
     carrier,
     notes: note,
+    paymentStatus: shipping.paymentStatus,
+    shippingFeeType: shipping.shippingFeeType,
+    shippingMethod: shipping.shippingMethod,
+    shippingFee: shipping.shippingFee,
+    companyShippingCost: shipping.companyShippingCost,
+    discount: shipping.discount,
+    total: shipping.total,
+    cvsBrand: shipping.cvsBrand,
   });
 
   revalidatePath('/orders');

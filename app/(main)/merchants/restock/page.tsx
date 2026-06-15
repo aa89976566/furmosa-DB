@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { RestockSubmitButton } from '@/components/merchants/restock-submit-button';
 import { MerchantSelect } from '@/components/merchants/merchant-select';
-import { MerchantRestockLogistics } from '@/components/merchants/merchant-restock-logistics';
+import { MerchantRestockCheckout } from '@/components/merchants/merchant-restock-checkout';
 import {
   MerchantField,
   MerchantFormActions,
@@ -83,8 +83,12 @@ export default async function MerchantsRestockPage({
             </MerchantSection>
 
             {shippingDefaults && selectedMerchant ? (
-              <MerchantSection step={2} title="物流與收件" description="帶入店家檔案，可為本次出貨調整。">
-                <MerchantRestockLogistics
+              <MerchantSection
+                step={2}
+                title="物流、金額與付款"
+                description="與訂單表單相同：運費類型、付款狀態與物流方式。"
+              >
+                <MerchantRestockCheckout
                   merchantId={selectedMerchantId}
                   merchantLabel={`${selectedMerchant.name}（${selectedMerchant.merchantId}）`}
                   defaults={shippingDefaults}
