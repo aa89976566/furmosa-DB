@@ -21,6 +21,7 @@ type Item = {
   name: string;
   sku: string;
   stock: number;
+  stockByTierId: Record<string, number>;
   isConsigned: boolean;
   defaultUnit: string;
   priceTiers: ProductTierOption[];
@@ -62,6 +63,12 @@ function weightGramsForTier(tier?: ProductTierOption | null) {
   return tier.weightGrams;
 }
 
+function stockForLine(item: Item, line: Line) {
+  if (line.tierId) return item.stockByTierId[line.tierId] ?? 0;
+  if (item.priceTiers.length === 1) return item.stockByTierId[item.priceTiers[0]!.id] ?? item.stock;
+  return item.stockByTierId[''] ?? item.stock;
+}
+
 export function SaleForm({ items }: { items: Item[] }) {
   const itemMap = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const [lines, setLines] = useState<Line[]>([
@@ -83,16 +90,19 @@ export function SaleForm({ items }: { items: Item[] }) {
 
     if (item.priceTiers.length > 0) {
       const tier = item.priceTiers[0];
+      const tierId = tier.id;
+      const tierStock = stockForLine(item, { ...lines[idx], productId, tierId, quantity: 1, unitPrice: 0, weightGrams: '', unit: '包' });
       setLines((ls) =>
         ls.map((line, i) =>
           i === idx
             ? {
                 ...line,
                 productId,
-                tierId: tier.id,
+                tierId,
                 unitPrice: unitPriceForItem(item, tier),
                 weightGrams: weightGramsForTier(tier),
                 unit: tier.unit,
+                quantity: Math.min(line.quantity || 1, Math.max(tierStock, 1)),
               }
             : line,
         ),
@@ -132,6 +142,7 @@ export function SaleForm({ items }: { items: Item[] }) {
               unitPrice: unitPriceForItem(item, tier),
               weightGrams: weightGramsForTier(tier),
               unit: tier.unit,
+              quantity: Math.min(current.quantity, Math.max(stockForLine(item, { ...current, tierId }), 1)),
             }
           : current,
       ),
@@ -183,7 +194,9 @@ export function SaleForm({ items }: { items: Item[] }) {
       {lines.map((line, idx) => {
         const item = itemMap.get(line.productId);
         const hasTiers = (item?.priceTiers.length ?? 0) > 0;
-        const overstock = item && line.quantity > item.stock;
+        const tierStock = item ? stockForLine(item, line) : 0;
+        const overstock = item && line.quantity > tierStock;
+        const selectedTier = item?.priceTiers.find((tier) => tier.id === line.tierId);
         return (
           <div
             key={idx}
@@ -245,6 +258,7 @@ export function SaleForm({ items }: { items: Item[] }) {
               <input type="hidden" name="weightGrams" value={line.weightGrams} />
               {hasTiers ? (
                 <select
+                  name="tierId"
                   value={line.tierId}
                   onChange={(e) => selectTier(idx, e.target.value)}
                   className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -253,6 +267,8 @@ export function SaleForm({ items }: { items: Item[] }) {
                     <option key={tier.id} value={tier.id}>
                       {variationLabel(tier)}
                       {tier.notes ? ` · ${tier.notes}` : ''}
+                      {' — 庫存 '}
+                      {item!.stockByTierId[tier.id] ?? 0}
                     </option>
                   ))}
                 </select>
@@ -292,7 +308,10 @@ export function SaleForm({ items }: { items: Item[] }) {
               />
               {item && (
                 <div className="mt-1 text-right">
-                  <Badge variant={overstock ? 'destructive' : 'secondary'}>庫 {item.stock}</Badge>
+                  <Badge variant={overstock ? 'destructive' : 'secondary'}>
+                    {hasTiers && selectedTier ? `${variationLabel(selectedTier)} ` : ''}
+                    庫 {tierStock}
+                  </Badge>
                 </div>
               )}
             </div>

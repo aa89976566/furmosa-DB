@@ -11,6 +11,11 @@ export function merchantStockUniqueWhere(
   };
 }
 
+/** 前端／目錄用：productId + tierId 對應庫存數量 */
+export function merchantStockTierMapKey(productId: string, tierId: string) {
+  return `${productId}::${tierId}`;
+}
+
 type TierLike = { id: string; weightGrams: number | null; unit: string; unitQty: number };
 
 export function weightTiersForProduct(tiers: TierLike[]) {

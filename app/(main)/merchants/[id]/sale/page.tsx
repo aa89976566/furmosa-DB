@@ -14,6 +14,7 @@ import {
   merchantCommissionPerUnit,
   merchantSuggestedUnitPrice,
 } from '@/lib/merchant-product-catalog';
+import { merchantStockTierMapKey } from '@/lib/merchant-stock-key';
 import { createMerchantSale } from '../actions';
 import { SaleForm } from './sale-form';
 
@@ -23,18 +24,27 @@ export default async function MerchantSalePage({ params }: { params: { id: strin
   const catalog = await loadActiveMerchantProductCatalog(params.id);
   if (!catalog) notFound();
 
-  const { merchant, products, ruleByProduct, stockByProduct, consignedProductIds } = catalog;
+  const { merchant, products, ruleByProduct, stockByProduct, stockByProductTier, consignedProductIds } =
+    catalog;
 
   const items = products.map((product) => {
     const rule = ruleByProduct.get(product.id);
     const suggestedPrice = merchantSuggestedUnitPrice(product, rule);
     const commissionPerUnit = merchantCommissionPerUnit(rule, suggestedPrice);
+    const stockByTierId: Record<string, number> = {};
+    for (const tier of product.priceTiers) {
+      stockByTierId[tier.id] =
+        stockByProductTier.get(merchantStockTierMapKey(product.id, tier.id)) ?? 0;
+    }
+    stockByTierId[''] =
+      stockByProductTier.get(merchantStockTierMapKey(product.id, '')) ?? 0;
 
     return {
       id: product.id,
       name: product.name,
       sku: product.sku,
       stock: stockByProduct.get(product.id) ?? 0,
+      stockByTierId,
       isConsigned: consignedProductIds.has(product.id),
       defaultUnit: product.unit,
       priceTiers: product.priceTiers.map((tier) => ({

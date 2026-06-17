@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { merchantStockTierMapKey } from '@/lib/merchant-stock-key';
 
 type ProductWithTiers = {
   id: string;
@@ -37,10 +38,15 @@ export async function loadActiveMerchantProductCatalog(merchantId: string) {
 
   const ruleByProduct = new Map(merchant.productRules.map((rule) => [rule.productId, rule]));
   const stockByProduct = new Map<string, number>();
+  const stockByProductTier = new Map<string, number>();
   for (const stock of merchant.stocks) {
     stockByProduct.set(
       stock.productId,
       (stockByProduct.get(stock.productId) ?? 0) + stock.quantity,
+    );
+    stockByProductTier.set(
+      merchantStockTierMapKey(stock.productId, stock.tierId),
+      stock.quantity,
     );
   }
   const consignedProductIds = new Set(merchant.productRules.map((rule) => rule.productId));
@@ -56,6 +62,7 @@ export async function loadActiveMerchantProductCatalog(merchantId: string) {
     products: sortedProducts,
     ruleByProduct,
     stockByProduct,
+    stockByProductTier,
     consignedProductIds,
   };
 }

@@ -91,6 +91,7 @@ export function MerchantAdjustWorkspace({
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>商品</TableHead>
+                  <TableHead>規格</TableHead>
                   <TableHead className="text-right">系統庫存</TableHead>
                   <TableHead>最近進貨</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -109,21 +110,23 @@ export function MerchantAdjustWorkspace({
                           <div className="font-medium">{row.name}</div>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
-                            {row.tierLabel ? (
-                              <Badge variant="outline" className="text-[10px] font-semibold">
-                                {row.tierLabel}
-                              </Badge>
-                            ) : product?.weightLabel ? (
-                              <span className="text-xs font-medium text-navy/80">
-                                {product.weightLabel}
-                              </span>
-                            ) : null}
                             {row.isConsigned ? (
                               <Badge variant="secondary" className="text-[10px]">
                                 寄賣
                               </Badge>
                             ) : null}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {row.tierLabel ? (
+                            <Badge variant="outline" className="text-xs font-semibold">
+                              {row.tierLabel}
+                            </Badge>
+                          ) : product?.weightLabel ? (
+                            <span className="text-sm text-navy/80">{product.weightLabel}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <span
@@ -166,7 +169,7 @@ export function MerchantAdjustWorkspace({
                       </TableRow>
                       {activePanel === 'sale' && product ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="bg-primary/5 pt-0">
+                          <TableCell colSpan={5} className="bg-primary/5 pt-0">
                             <MerchantStockInlineSale
                               merchantId={selectedMerchantId}
                               product={{ ...product, currentStock: row.quantity }}
@@ -179,7 +182,7 @@ export function MerchantAdjustWorkspace({
                       ) : null}
                       {activePanel === 'count' && product ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="bg-primary/5 pt-0">
+                          <TableCell colSpan={5} className="bg-primary/5 pt-0">
                             <MerchantStockInlineCount
                               merchantId={selectedMerchantId}
                               product={{ ...product, currentStock: row.quantity }}
