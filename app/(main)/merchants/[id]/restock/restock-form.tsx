@@ -34,7 +34,7 @@ type Line = {
   unit: string;
 };
 
-const UNIT_OPTIONS = ['包', '片', '支', '罐', '盒', '袋', '組', '件'];
+import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 
 function weightFromTier(tier?: ProductTierOption | null) {
   if (!tier?.weightGrams || tier.weightGrams <= 0) return '';
@@ -232,7 +232,7 @@ export function RestockForm({ products }: { products: RestockProductOption[] }) 
                 onChange={(e) => update(idx, { unit: e.target.value })}
                 className="block w-full rounded-md border bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {UNIT_OPTIONS.map((u) => (
+                {ORDER_LINE_UNIT_OPTIONS.map((u) => (
                   <option key={u} value={u}>
                     {u}
                   </option>

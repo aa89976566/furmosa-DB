@@ -21,6 +21,7 @@ import {
   tierCostDisplay,
   tierPricePerGram,
 } from '@/lib/product-price-tier';
+import { TIER_UNIT_PRESETS } from '@/lib/product-units';
 import { createPriceTier, updatePriceTier, deletePriceTier } from '../actions';
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 
@@ -362,14 +363,23 @@ function TierFormRow({
                   />
                 </FieldInline>
                 <FieldInline label="單位" required>
-                  <Input
+                  <select
                     name="unit"
-                    defaultValue={tier && tier.weightGrams == null ? tier.unit : ''}
-                    placeholder="隻 / 片 / 包"
+                    defaultValue={tier && tier.weightGrams == null ? tier.unit : '隻'}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                     required
-                    maxLength={10}
-                    className="w-24"
-                  />
+                  >
+                    {tier &&
+                    tier.weightGrams == null &&
+                    !TIER_UNIT_PRESETS.includes(tier.unit as (typeof TIER_UNIT_PRESETS)[number]) ? (
+                      <option value={tier.unit}>{tier.unit}</option>
+                    ) : null}
+                    {TIER_UNIT_PRESETS.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unit}
+                      </option>
+                    ))}
+                  </select>
                 </FieldInline>
               </>
             )}

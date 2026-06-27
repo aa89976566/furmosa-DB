@@ -9,7 +9,7 @@ import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges'
 import { getMerchantTypes } from '@/lib/merchant-types-persist';
 import { merchantIndustryDisplay } from '@/lib/labels';
 import { MerchantOperationsHub } from './merchant-operations-hub';
-import { MerchantShippingForm } from '@/components/merchants/merchant-shipping-form';
+import { MerchantShippingPanel } from '@/components/merchants/merchant-shipping-panel';
 import {
   MerchantDlRow,
   MerchantSection,
@@ -85,26 +85,6 @@ export default async function MerchantOverviewPage({
         <div className="space-y-4 lg:col-span-2">
           <MerchantSection title="常用操作" description="進貨、銷售、盤點與結算入口">
             <MerchantOperationsHub merchantId={merchant.id} />
-          </MerchantSection>
-
-          <MerchantSection
-            title="運輸與地址"
-            description="進貨建立出貨單時會自動帶入；在此更新店家預設收件資料。"
-          >
-            <MerchantShippingForm
-              merchant={{
-                id: merchant.id,
-                types,
-                industry,
-                contactName: merchant.contactName,
-                phone: merchant.phone,
-                email: merchant.email,
-                city: merchant.city,
-                address: merchant.address,
-                preferredCarrier: merchant.preferredCarrier,
-                pickupStoreName: merchant.pickupStoreName,
-              }}
-            />
           </MerchantSection>
 
           <MerchantSection
@@ -197,6 +177,22 @@ export default async function MerchantOverviewPage({
             <MerchantDlRow label="電話" value={merchant.phone ?? '—'} />
             <MerchantDlRow label="城市" value={merchant.city ?? '—'} />
           </dl>
+
+          <MerchantShippingPanel
+            merchant={{
+              id: merchant.id,
+              types,
+              industry,
+              contactName: merchant.contactName,
+              phone: merchant.phone,
+              email: merchant.email,
+              city: merchant.city,
+              address: merchant.address,
+              preferredCarrier: merchant.preferredCarrier,
+              pickupStoreName: merchant.pickupStoreName,
+            }}
+          />
+
           <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
             寄賣分潤（20%／30%）請至
             <Link

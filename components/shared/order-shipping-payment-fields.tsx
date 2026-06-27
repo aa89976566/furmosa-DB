@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { OrderDiscountField } from '@/components/shared/order-discount-field';
 import { formatCurrency } from '@/lib/format';
 import {
   orderTotalFromAmounts,
@@ -144,11 +144,7 @@ export function OrderShippingPaymentFields({
       <input type="hidden" name="shippingFeeType" value={shippingFeeType} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
       <input type="hidden" name="shippingMethod" value={shippingMethod} />
-      {showDiscount ? (
-        <input type="hidden" name="discount" value={discount} />
-      ) : (
-        <input type="hidden" name="discount" value={0} />
-      )}
+      {!showDiscount ? <input type="hidden" name="discount" value={0} /> : null}
 
       <FieldInline label="運費類型">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -214,12 +210,10 @@ export function OrderShippingPaymentFields({
         ) : null}
         {showDiscount ? (
           <FieldInline label="折扣">
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={discount}
-              onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+            <OrderDiscountField
+              subtotal={subtotal}
+              discount={discount}
+              onDiscountChange={setDiscount}
             />
           </FieldInline>
         ) : null}

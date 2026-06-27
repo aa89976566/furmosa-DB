@@ -42,6 +42,7 @@ import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
+import { OrderDiscountField } from '@/components/shared/order-discount-field';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
 
 export type ProductTierOption = {
@@ -945,13 +946,10 @@ export function OrderForm({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="小計" value={formatCurrency(subtotal)} />
           <FieldInline label="折扣">
-            <Input
-              name="discount"
-              type="number"
-              min={0}
-              step="0.01"
-              value={discount}
-              onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+            <OrderDiscountField
+              subtotal={subtotal}
+              discount={discount}
+              onDiscountChange={setDiscount}
             />
           </FieldInline>
           <FieldInline label="運費試算">

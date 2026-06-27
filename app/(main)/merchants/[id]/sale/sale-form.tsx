@@ -41,7 +41,7 @@ type Line = {
   unit: string;
 };
 
-const UNIT_OPTIONS = ['包', '片', '支', '罐', '盒', '袋', '組', '件'];
+import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 })
@@ -322,7 +322,7 @@ export function SaleForm({ items }: { items: Item[] }) {
                 onChange={(e) => update(idx, { unit: e.target.value })}
                 className="block w-full rounded-md border bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {UNIT_OPTIONS.map((u) => (
+                {ORDER_LINE_UNIT_OPTIONS.map((u) => (
                   <option key={u} value={u}>
                     {u}
                   </option>

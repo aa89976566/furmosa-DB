@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
 import { useState, useTransition } from 'react';
+import { PRODUCT_UNIT_OPTIONS } from '@/lib/product-units';
 import { productCategoryLabel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
@@ -135,12 +136,20 @@ export function ProductForm({
           {!variable ? (
             <>
               <Field label="計價單位" layout={layout}>
-                <Input
+                <select
                   name="unit"
                   defaultValue={product.unit}
-                  maxLength={20}
-                  placeholder="例：件 / 包 / 隻 / 片 / g"
-                />
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {PRODUCT_UNIT_OPTIONS.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                  {!PRODUCT_UNIT_OPTIONS.includes(product.unit as (typeof PRODUCT_UNIT_OPTIONS)[number]) ? (
+                    <option value={product.unit}>{product.unit}</option>
+                  ) : null}
+                </select>
               </Field>
 
               <Field label="基礎售價" required layout={layout}>
