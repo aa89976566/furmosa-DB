@@ -21,7 +21,7 @@ import {
   tierCostDisplay,
   tierPricePerGram,
 } from '@/lib/product-price-tier';
-import { TIER_UNIT_PRESETS } from '@/lib/product-units';
+import { TIER_UNIT_PRESETS, TIER_UNIT_QTY_PRESETS } from '@/lib/product-units';
 import { createPriceTier, updatePriceTier, deletePriceTier } from '../actions';
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 
@@ -95,7 +95,7 @@ export function PriceTierManager({
 
       {tiers.length === 0 && edit.kind !== 'new' ? (
         <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-          尚無規格 — 請新增各重量的售價與成本（例：30g、50g、100g）
+          尚無規格 — 可新增各重量（30g、50g…）或按單位（1 條、5 隻…）的售價與成本
         </div>
       ) : (
         <Table>
@@ -243,14 +243,14 @@ function TierFormRow({
 }) {
   const isEdit = Boolean(tier);
   const initialMode: 'weight' | 'unit' =
-    weightOnly || tier == null
-      ? 'weight'
-      : tier.weightGrams != null
-        ? 'weight'
-        : 'unit';
+    tier == null ? 'weight' : tier.weightGrams != null ? 'weight' : 'unit';
   const [mode, setMode] = useState<'weight' | 'unit'>(initialMode);
   const [presetWeight, setPresetWeight] = useState<number | ''>(
     tier?.weightGrams ?? '',
+  );
+  const [unitQty, setUnitQty] = useState(tier?.weightGrams == null ? (tier?.unitQty ?? 1) : 1);
+  const [unit, setUnit] = useState(
+    tier?.weightGrams == null ? (tier?.unit ?? '條') : '條',
   );
   const tierCostDefault =
     tier != null ? resolveTierCost(tier.cost, tier.weightGrams) : null;
@@ -277,35 +277,33 @@ function TierFormRow({
           <input type="hidden" name="mode" value={mode} />
 
           <div className="flex flex-wrap items-end gap-3">
-            {!weightOnly && (
-              <div>
-                <label className="mb-1 block text-[11px] text-muted-foreground">計價方式</label>
-                <div className="inline-flex rounded-md border bg-background p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setMode('weight')}
-                    className={`rounded px-3 py-1 text-xs ${
-                      mode === 'weight'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    按重量
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('unit')}
-                    className={`rounded px-3 py-1 text-xs ${
-                      mode === 'unit'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    按單位
-                  </button>
-                </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-muted-foreground">計價方式</label>
+              <div className="inline-flex rounded-md border bg-background p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setMode('weight')}
+                  className={`rounded px-3 py-1 text-xs ${
+                    mode === 'weight'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  按重量
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('unit')}
+                  className={`rounded px-3 py-1 text-xs ${
+                    mode === 'unit'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  按單位
+                </button>
               </div>
-            )}
+            </div>
 
             {mode === 'weight' && (
               <>
@@ -350,36 +348,63 @@ function TierFormRow({
 
             {mode === 'unit' && (
               <>
-                <FieldInline label="包裝數量" required>
-                  <Input
-                    name="unitQty"
-                    type="number"
-                    min={1}
-                    step={1}
-                    defaultValue={tier?.unitQty ?? 1}
-                    placeholder="5"
-                    required
-                    className="w-20"
-                  />
-                </FieldInline>
-                <FieldInline label="單位" required>
-                  <select
-                    name="unit"
-                    defaultValue={tier && tier.weightGrams == null ? tier.unit : '隻'}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-                    required
-                  >
-                    {tier &&
-                    tier.weightGrams == null &&
-                    !TIER_UNIT_PRESETS.includes(tier.unit as (typeof TIER_UNIT_PRESETS)[number]) ? (
-                      <option value={tier.unit}>{tier.unit}</option>
-                    ) : null}
-                    {TIER_UNIT_PRESETS.map((unit) => (
-                      <option key={unit} value={unit}>
-                        {unit}
-                      </option>
+                <FieldInline label="規格" required>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUnitQty(1);
+                        setUnit('條');
+                      }}
+                      className={`rounded-md border px-2 py-1 text-xs ${
+                        unitQty === 1 && unit === '條'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      1 條
+                    </button>
+                    {TIER_UNIT_QTY_PRESETS.filter((qty) => qty !== 1).map((qty) => (
+                      <button
+                        key={qty}
+                        type="button"
+                        onClick={() => setUnitQty(qty)}
+                        className={`rounded-md border px-2 py-1 text-xs ${
+                          unitQty === qty
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {qty}
+                      </button>
                     ))}
-                  </select>
+                    <Input
+                      name="unitQty"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={unitQty}
+                      onChange={(e) => setUnitQty(Math.max(1, Number(e.target.value) || 1))}
+                      required
+                      className="w-16"
+                    />
+                    <select
+                      name="unit"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      required
+                    >
+                      {TIER_UNIT_PRESETS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-muted-foreground">
+                      → {unitQty} {unit}
+                    </span>
+                  </div>
                 </FieldInline>
               </>
             )}
