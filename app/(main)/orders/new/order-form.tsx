@@ -43,6 +43,9 @@ import { CustomerSearchSelect } from '@/components/customers/customer-search-sel
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
 import { OrderDiscountField } from '@/components/shared/order-discount-field';
+import { SegmentedControl } from '@/components/ui/segmented-control';
+import { variationLabel } from '@/lib/product-variations';
+import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
 
 export type ProductTierOption = {
@@ -65,8 +68,7 @@ export type ProductOption = {
 };
 
 function tierLabel(t: ProductTierOption): string {
-  if (t.weightGrams) return `${t.weightGrams}g`;
-  return `${t.unitQty} ${t.unit}`;
+  return variationLabel(t);
 }
 export type MerchantOption = {
   id: string;
@@ -209,7 +211,6 @@ function OrderLineItemsTable({
                 <TableCell>
                   <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
-                  <input type="hidden" name="unit" value={it.unit ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
                   {hasTiers ? (
                     <select
@@ -224,10 +225,26 @@ function OrderLineItemsTable({
                         </option>
                       ))}
                     </select>
+                  ) : prod ? (
+                    <select
+                      name="unit"
+                      value={it.unit ?? prod.unit}
+                      onChange={(e) => updateItem(it.key, { unit: e.target.value })}
+                      className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {ORDER_LINE_UNIT_OPTIONS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                      {!ORDER_LINE_UNIT_OPTIONS.includes(
+                        (it.unit ?? prod.unit) as (typeof ORDER_LINE_UNIT_OPTIONS)[number],
+                      ) ? (
+                        <option value={it.unit ?? prod.unit}>{it.unit ?? prod.unit}</option>
+                      ) : null}
+                    </select>
                   ) : (
-                    <span className="text-xs text-muted-foreground">
-                      {prod ? '無規格' : '請先選商品'}
-                    </span>
+                    <span className="text-xs text-muted-foreground">請先選商品</span>
                   )}
                 </TableCell>
                 <TableCell className="align-middle">
@@ -700,24 +717,16 @@ export function OrderForm({
                 （記在訂單上，不是客戶主檔）
               </span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {CUSTOMER_SOURCES.map((cs) => (
-                <button
-                  key={cs.value}
-                  type="button"
-                  disabled={isEdit}
-                  onClick={() => setCustomerSource(cs.value)}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition ${
-                    customerSource === cs.value
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'hover:bg-muted'
-                  } ${isEdit ? 'cursor-default opacity-80' : ''}`}
-                  title={cs.hint}
-                >
-                  {cs.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              value={customerSource}
+              onChange={setCustomerSource}
+              disabled={isEdit}
+              options={CUSTOMER_SOURCES.map((cs) => ({
+                value: cs.value,
+                label: cs.label,
+                title: cs.hint,
+              }))}
+            />
             <p className="mt-1 text-[11px] text-muted-foreground">
               {CUSTOMER_SOURCES.find((s) => s.value === customerSource)?.hint}
             </p>
@@ -1292,29 +1301,25 @@ function NewCustomerPanel({
       {/* 預設運輸偏好 — 之後該客戶下單會自動帶入 */}
       <div className="space-y-2 rounded-md border border-info/30 bg-background/60 p-3">
         <div className="text-[11px] font-medium text-info">預設運輸方式（選填）</div>
-        <div className="inline-flex rounded-md border bg-background p-0.5">
-          <PrefBtn
-            active={value.preferredShippingMethod === ''}
-            onClick={() => onChange({ ...value, preferredShippingMethod: '' })}
-            label="不設定"
-          />
-          <PrefBtn
-            active={value.preferredShippingMethod === 'home'}
-            onClick={() => onChange({ ...value, preferredShippingMethod: 'home' })}
-            label="宅配"
-          />
-          <PrefBtn
-            active={value.preferredShippingMethod === 'convenience'}
-            onClick={() =>
-              onChange({
-                ...value,
-                preferredShippingMethod: 'convenience',
-                address: '',
-              })
+        <SegmentedControl
+          value={value.preferredShippingMethod || 'none'}
+          onChange={(method) => {
+            if (method === 'none') {
+              onChange({ ...value, preferredShippingMethod: '' });
+              return;
             }
-            label="超商取貨"
-          />
-        </div>
+            if (method === 'convenience') {
+              onChange({ ...value, preferredShippingMethod: 'convenience', address: '' });
+              return;
+            }
+            onChange({ ...value, preferredShippingMethod: 'home' });
+          }}
+          options={[
+            { value: 'none', label: '不設定' },
+            { value: 'home', label: '宅配' },
+            { value: 'convenience', label: '超商取貨' },
+          ]}
+        />
         {value.preferredShippingMethod === 'home' && (
           <div className="space-y-2">
             <div>
@@ -1395,30 +1400,6 @@ function ToggleNewCustomerButton({
       <UserPlus className="mr-1 h-4 w-4" />
       新增客戶
     </Button>
-  );
-}
-
-function PrefBtn({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded px-3 py-1 text-xs transition ${
-        active
-          ? 'bg-primary text-primary-foreground'
-          : 'text-muted-foreground hover:bg-muted'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

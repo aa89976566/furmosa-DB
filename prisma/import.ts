@@ -671,7 +671,7 @@ type PriceRow = {
   cost?: number;
   style?: string;
   unit: string; // 克 / 隻 / 片
-  prices: { weightGrams?: number; unitQty?: number; price: number; cost?: number; notes?: string }[];
+  prices: { weightGrams?: number; unitQty?: number; unit?: string; price: number; cost?: number; notes?: string }[];
   isActive?: boolean; // false = 紅色列 (停售)
   notes?: string;
 };
@@ -918,6 +918,7 @@ const PRICE_LIST: PriceRow[] = [
     prices: [
       { weightGrams: 30, price: 174 },
       { weightGrams: 50, price: 255 },
+      { unitQty: 1, unit: '條', price: 58, notes: '單條' },
     ],
   },
   {
@@ -1178,7 +1179,7 @@ async function importPriceList() {
         data: {
           productId: product.id,
           weightGrams: t.weightGrams ?? null,
-          unit: row.unit,
+          unit: t.unit ?? (t.weightGrams != null ? 'g' : row.unit),
           unitQty: t.unitQty ?? 1,
           price: t.price,
           cost: t.cost ?? row.cost ?? null,
