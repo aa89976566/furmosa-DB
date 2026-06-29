@@ -16,6 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { customerTypeLabel } from '@/lib/labels';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { customerSearchWhere, mergeSearchWhere } from '@/lib/site-search';
 import { Plus, Repeat } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -32,18 +33,7 @@ export default async function CustomersPage({
     filter === 'subscription' ? { hasActiveSubscription: true } : {};
 
   if (q) {
-    const contains = { contains: q, mode: 'insensitive' };
-    where.AND = [
-      ...(Array.isArray(where.AND) ? where.AND : []),
-      {
-        OR: [
-          { name: contains },
-          { phone: contains },
-          { email: contains },
-          { customerId: contains },
-        ],
-      },
-    ];
+    Object.assign(where, mergeSearchWhere(where, customerSearchWhere(q)));
   }
 
   const [customers, total, subCount] = await Promise.all([

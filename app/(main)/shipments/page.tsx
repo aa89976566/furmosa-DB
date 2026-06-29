@@ -17,6 +17,7 @@ import {
   maintainShipmentQueueIntegrity,
 } from '@/lib/shipment-queue-filters';
 import { isShipmentKindKey, mergeShipmentWhere, SHIPMENT_KIND_TABS } from '@/lib/order-hub-kinds';
+import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -74,10 +75,11 @@ const QUEUE_SECTIONS = [
 export default async function ShipmentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; type?: string; s?: string };
+  searchParams?: { status?: string; type?: string; s?: string; q?: string };
 }) {
   const status = searchParams?.status;
   const rawType = searchParams?.type;
+  const q = (searchParams?.q ?? '').trim();
   const type =
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
@@ -99,7 +101,10 @@ export default async function ShipmentsPage({
         : activeShipmentQueueWhere;
 
   const kindFilter = type && isShipmentKindKey(type) ? type : undefined;
-  const where = mergeShipmentWhere(baseWhere as Prisma.ShipmentWhereInput, kindFilter);
+  const where = mergeSearchWhere(
+    mergeShipmentWhere(baseWhere as Prisma.ShipmentWhereInput, kindFilter) as Record<string, unknown>,
+    shipmentSearchWhere(q),
+  ) as Prisma.ShipmentWhereInput;
   const countWhere = mergeShipmentWhere(
     {
       status: { in: ['pending', 'packed', 'shipped', 'delivered'] },

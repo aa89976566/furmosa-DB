@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
 import { MerchantsOperationsDashboard } from '@/components/merchants/merchants-operations-dashboard';
 import { MerchantWorkspace } from '@/components/merchants/merchant-ui';
 import { MerchantsPeriodSwitch } from '@/components/merchants/merchants-period-switch';
@@ -8,6 +9,7 @@ import {
   resolveMerchantReportPeriod,
   type MerchantReportPeriod,
 } from '@/lib/merchant-report';
+import { merchantSearchWhere } from '@/lib/site-search';
 import { PackagePlus, Plus, Receipt, ScanLine } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +17,29 @@ export const dynamic = 'force-dynamic';
 export default async function MerchantsOverviewPage({
   searchParams,
 }: {
-  searchParams?: { period?: string };
+  searchParams?: { period?: string; q?: string };
 }) {
   const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
+  const q = (searchParams?.q ?? '').trim();
   const { start: periodStart, end: periodEnd } = resolveMerchantReportPeriod(period);
   const report = await loadMerchantsPortfolioReport(periodStart, periodEnd);
+
+  let filteredReport = report;
+  if (q) {
+    const matches = await prisma.merchant.findMany({
+      where: merchantSearchWhere(q),
+      select: { id: true },
+    });
+    const ids = new Set(matches.map((m) => m.id));
+    filteredReport = {
+      ...report,
+      merchants: report.merchants.filter((m) => ids.has(m.id)),
+      totals: {
+        ...report.totals,
+        merchantCount: report.merchants.filter((m) => ids.has(m.id)).length,
+      },
+    };
+  }
 
   return (
     <MerchantWorkspace>
@@ -50,7 +70,7 @@ export default async function MerchantsOverviewPage({
           </Link>
         </Button>
       </div>
-      <MerchantsOperationsDashboard report={report} />
+      <MerchantsOperationsDashboard report={filteredReport} />
     </MerchantWorkspace>
   );
 }

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { GROOMING_COUPON_DISCOUNT } from '@/lib/coupons/constants';
+import { GROOMING_COUPON_DISCOUNT_LABEL } from '@/lib/coupons/constants';
 import type {
   StoreRedemptionDetailRow,
   StoreRedemptionReportRow,
@@ -141,7 +141,7 @@ export function StoreRedemptionFilterPanel({
         <Badge variant={storeSlug ? 'info' : 'muted'}>
           {storeLabel ? storeLabel : '全部店家'}
         </Badge>
-        <Badge variant="success">每張 {formatCurrency(GROOMING_COUPON_DISCOUNT)}</Badge>
+        <Badge variant="success">依券面金額</Badge>
       </div>
     </SectionCard>
   );
@@ -165,7 +165,7 @@ export function StoreRedemptionKpiStrip({
         value={formatCurrency(totalPayable)}
         description={
           totalCount > 0
-            ? `共 ${formatNumber(totalCount)} 張 · 單價 ${formatCurrency(GROOMING_COUPON_DISCOUNT)}`
+            ? `共 ${formatNumber(totalCount)} 張 · ${GROOMING_COUPON_DISCOUNT_LABEL}`
             : '此期間尚無核銷，無需結帳'
         }
         icon={CircleDollarSign}
@@ -179,9 +179,9 @@ export function StoreRedemptionKpiStrip({
         accent="primary"
       />
       <MetricKpi
-        title="單張應付"
-        value={formatCurrency(GROOMING_COUPON_DISCOUNT)}
-        description="固定結算單價"
+        title="結算方式"
+        value="依券面"
+        description={GROOMING_COUPON_DISCOUNT_LABEL}
         icon={Receipt}
         accent="info"
       />
@@ -242,7 +242,9 @@ export function StoreRedemptionSummaryTable({
                       <div>
                         <p className="font-medium">{row.storeName}</p>
                         <p className="text-xs text-muted-foreground">
-                          每張 {formatCurrency(GROOMING_COUPON_DISCOUNT)}
+                          {row.redeemedCount > 0
+                            ? `均單 ${formatCurrency(row.totalPayable / row.redeemedCount)}`
+                            : '依券面金額'}
                         </p>
                       </div>
                     </div>

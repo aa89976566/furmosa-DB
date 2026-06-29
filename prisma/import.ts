@@ -919,6 +919,7 @@ const PRICE_LIST: PriceRow[] = [
     prices: [
       { weightGrams: 30, price: 174 },
       { weightGrams: 50, price: 255 },
+      { unitQty: 1, unit: '條', price: 58, cost: 11, notes: '單條' },
     ],
   },
   {

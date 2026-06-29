@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '@/lib/format';
+import { mergeSearchWhere, subscriptionSearchWhere } from '@/lib/site-search';
 import { Plus, Repeat, Activity, CircleDollarSign, Truck, PauseCircle } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -36,9 +37,14 @@ const STATUSES = [
 export default async function SubscriptionsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string };
+  searchParams?: { status?: string; q?: string };
 }) {
   const status = searchParams?.status;
+  const q = (searchParams?.q ?? '').trim();
+  const subscriptionWhere: Record<string, unknown> = {
+    ...(status ? { status } : {}),
+    ...(subscriptionSearchWhere(q) ?? {}),
+  };
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -46,7 +52,7 @@ export default async function SubscriptionsPage({
 
   const [subs, statusCounts, activeSubs, dueThisMonth] = await Promise.all([
     prisma.subscription.findMany({
-      where: status ? { status } : {},
+      where: subscriptionWhere,
       include: {
         customer: true,
         plan: true,

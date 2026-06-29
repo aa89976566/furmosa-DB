@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
+import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
 
@@ -45,19 +46,9 @@ export default async function OrdersPage({
     where.status = searchParams.status;
   }
   const q = (searchParams.q ?? '').trim();
-  if (q) {
-    const contains = { contains: q, mode: 'insensitive' };
-    where.AND = [
-      ...(Array.isArray(where.AND) ? where.AND : []),
-      {
-        OR: [
-          { orderNumber: contains },
-          { customer: { name: contains } },
-          { customer: { phone: contains } },
-          { merchant: { name: contains } },
-        ],
-      },
-    ];
+  const searchClause = orderSearchWhere(q);
+  if (searchClause) {
+    Object.assign(where, mergeSearchWhere(where, searchClause));
   }
 
   const [orders, totals] = await Promise.all([

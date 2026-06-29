@@ -3,7 +3,7 @@ import { zhTW } from 'date-fns/locale';
 import type { CouponView } from '@/lib/coupons/service';
 import { formatCouponStatus } from '@/lib/coupons/labels';
 import {
-  GROOMING_COUPON_DISCOUNT,
+  GROOMING_COUPON_DISCOUNT_LABEL,
   GROOMING_COUPON_POINTS,
 } from '@/lib/coupons/constants';
 import { LINE_BTN, LINE_COUPON_VERIFY_HINT } from '@/lib/line/line-copy';
@@ -79,7 +79,7 @@ export function buildCouponListMessages(groups: {
     return [
       {
         type: 'text',
-        text: '目前沒有優惠券。累積 10 點可兌換美容折 250 元，請點「兌換美容折250元」。',
+        text: `目前沒有優惠券。累積 10 點可兌換美容折 ${GROOMING_COUPON_DISCOUNT_LABEL}，請點「${LINE_BTN.redeemGrooming}」。`,
       },
     ];
   }
@@ -110,8 +110,10 @@ export function buildCouponListMessages(groups: {
 }
 
 export function buildGroomingRedeemConfirmMessages(opts: {
+  storeId: string;
   storeName: string;
   pointsBalance: number;
+  discountAmount: number;
 }): LineReplyMessage[] {
   return [
     {
@@ -125,13 +127,13 @@ export function buildGroomingRedeemConfirmMessages(opts: {
           layout: 'vertical',
           spacing: 'md',
           contents: [
-            { type: 'text', text: '兌換美容折 250 元', weight: 'bold', size: 'md' },
+            { type: 'text', text: `兌換美容折 ${opts.discountAmount} 元`, weight: 'bold', size: 'md' },
             {
               type: 'text',
               text: [
                 `消耗點數：${GROOMING_COUPON_POINTS} 點`,
                 `目前餘額：${opts.pointsBalance} 點`,
-                `折抵金額：${GROOMING_COUPON_DISCOUNT} 元`,
+                `折抵金額：${opts.discountAmount} 元`,
                 `適用店家：${opts.storeName}`,
                 '有效期限：兌換後 30 天',
               ].join('\n'),

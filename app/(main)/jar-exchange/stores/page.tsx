@@ -4,7 +4,10 @@ import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges'
 import { Button } from '@/components/ui/button';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
 import { formatCurrency } from '@/lib/format';
-import { GROOMING_COUPON_DISCOUNT } from '@/lib/coupons/constants';
+import {
+  GROOMING_COUPON_DISCOUNT_DEFAULT,
+  GROOMING_COUPON_DISCOUNT_ZHUWO,
+} from '@/lib/coupons/constants';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { cn } from '@/lib/utils';
@@ -22,7 +25,7 @@ export default async function JarExchangeStoresPage() {
     <JarShell
       pathname="/jar-exchange/stores"
       title="合作店家"
-      description={`LINE 開戶、美容折 ${formatCurrency(GROOMING_COUPON_DISCOUNT)} 核銷 · 統一由店員選擇分店後輸入優惠碼`}
+      description={`LINE 開戶、美容折價券核銷（豬窩 ${formatCurrency(GROOMING_COUPON_DISCOUNT_ZHUWO)}、其他店家 ${formatCurrency(GROOMING_COUPON_DISCOUNT_DEFAULT)}）· 統一由店員選擇分店後輸入優惠碼`}
     >
       <div className="space-y-6">
         <JarPanel>

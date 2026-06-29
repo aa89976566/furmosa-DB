@@ -27,7 +27,7 @@ function pbBtn(label: string, data: string, style: FlexButton['style'] = 'second
 }
 
 const JAR_FOOTER_REGISTERED =
-  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 250 元。';
+  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 200 或 250 元（依店家）。';
 const JAR_FOOTER_GUEST = '存罐：直接傳 8 位空罐序號即可入帳。';
 
 /** 匠寵主選單 */

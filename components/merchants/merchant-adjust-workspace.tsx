@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { MerchantSelect } from '@/components/merchants/merchant-select';
 import { MerchantStockInlineCount } from '@/components/merchants/merchant-stock-inline-count';
 import { MerchantStockInlineSale } from '@/components/merchants/merchant-stock-inline-sale';
@@ -20,6 +21,12 @@ import type { MerchantProductTierOption } from '@/lib/merchant-product-tier';
 import { ScanLine, ShoppingBag } from 'lucide-react';
 
 type MerchantOption = { id: string; name: string; merchantId: string };
+
+type UnpostedRestock = {
+  id: string;
+  shipmentNumber: string;
+  status: string;
+};
 
 type ProductOption = {
   id: string;
@@ -41,6 +48,7 @@ export function MerchantAdjustWorkspace({
   selectedMerchantId,
   selectedMerchantLabel,
   stockRows,
+  unpostedRestocks = [],
   products,
   countReturnTo,
 }: {
@@ -48,6 +56,7 @@ export function MerchantAdjustWorkspace({
   selectedMerchantId: string;
   selectedMerchantLabel?: string;
   stockRows: MerchantStockSnapshotRow[];
+  unpostedRestocks?: UnpostedRestock[];
   products: ProductOption[];
   /** 盤點完成後導回此路徑（清點 hub 用） */
   countReturnTo?: string;
@@ -75,8 +84,28 @@ export function MerchantAdjustWorkspace({
       )}
 
       {stockRows.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
-          此店尚無進貨庫存。請先新增進貨後再登記賣出。
+        <div className="space-y-3 rounded-lg border border-dashed bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+          <p>此店尚無進貨庫存。請先新增進貨，並在出貨隊列標記「已寄出」後才會出現在此。</p>
+          {unpostedRestocks.length > 0 ? (
+            <div className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-left text-xs text-foreground">
+              <p className="font-medium text-warning">有 {unpostedRestocks.length} 筆進貨出貨尚未入庫</p>
+              <ul className="mt-1 space-y-1">
+                {unpostedRestocks.map((s) => (
+                  <li key={s.id}>
+                    <Link href={`/shipments?s=${s.id}`} className="text-info hover:underline">
+                      {s.shipmentNumber}
+                    </Link>
+                    <span className="text-muted-foreground"> · {s.status === 'shipped' ? '已寄出' : '已送達'}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <p>
+            <Link href={`/merchants/${selectedMerchantId}/restock`} className="text-info hover:underline">
+              前往進貨入庫
+            </Link>
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

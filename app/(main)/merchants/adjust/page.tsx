@@ -7,6 +7,7 @@ import {
   listMerchantsForSelect,
   loadMerchantAdjustProductOptions,
   loadMerchantStockSnapshot,
+  loadUnpostedMerchantRestocks,
   resolveSelectedMerchantId,
 } from '@/lib/merchant-operation-options';
 import { ArrowLeft } from 'lucide-react';
@@ -21,12 +22,13 @@ export default async function MerchantsAdjustPage({
   const merchants = await listMerchantsForSelect();
   const selectedMerchantId = resolveSelectedMerchantId(merchants, searchParams?.merchantId);
   const selectedMerchant = merchants.find((merchant) => merchant.id === selectedMerchantId);
-  const [productOptions, stockSnapshot] = selectedMerchantId
+  const [productOptions, stockSnapshot, unpostedRestocks] = selectedMerchantId
     ? await Promise.all([
         loadMerchantAdjustProductOptions(selectedMerchantId),
         loadMerchantStockSnapshot(selectedMerchantId),
+        loadUnpostedMerchantRestocks(selectedMerchantId),
       ])
-    : [null, null];
+    : [null, null, []];
 
   const merchantLabel = selectedMerchant
     ? `${selectedMerchant.name}（${selectedMerchant.merchantId}）`
@@ -60,6 +62,7 @@ export default async function MerchantsAdjustPage({
               selectedMerchantId={selectedMerchantId}
               selectedMerchantLabel={merchantLabel}
               stockRows={stockSnapshot ?? []}
+              unpostedRestocks={unpostedRestocks ?? []}
               products={productOptions ?? []}
               countReturnTo={`/merchants/adjust?merchantId=${selectedMerchantId}`}
             />

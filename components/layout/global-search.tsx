@@ -59,7 +59,7 @@ export function GlobalSearch() {
     e.preventDefault();
     const trimmed = value.trim();
     if (!searchable) {
-      if (trimmed) router.push(`/products?q=${encodeURIComponent(trimmed)}`);
+      if (trimmed) router.push(`/orders?q=${encodeURIComponent(trimmed)}`);
       return;
     }
     const params = new URLSearchParams(searchParams.toString());
@@ -77,7 +77,7 @@ export function GlobalSearch() {
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="搜尋訂單、商品、會員…"
+        placeholder="搜尋訂單、電話、收件人、店家、商品…"
         className="h-10 rounded-xl border-border/80 bg-muted/40 pl-9 shadow-none focus-visible:bg-card"
         aria-label="搜尋"
       />

@@ -6,13 +6,12 @@ import {
   StoreRedemptionLinkPanel,
   StoreRedemptionSummaryTable,
 } from '@/components/admin/store-redemption-report-ui';
-import { GROOMING_COUPON_DISCOUNT } from '@/lib/coupons/constants';
+import { GROOMING_COUPON_DISCOUNT_LABEL } from '@/lib/coupons/constants';
 import {
   expireCoupons,
   getStoreRedemptionReport,
   listStoreRedemptionDetails,
 } from '@/lib/coupons/service';
-import { formatCurrency } from '@/lib/format';
 import { parseStoreRedemptionReportParams } from '@/lib/store-redemption-report-query';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 
@@ -42,7 +41,7 @@ export default async function StoreReportPage({
       <PageHeader
         tone="supply"
         title="店家核銷報表"
-        description={`美容院 ${formatCurrency(GROOMING_COUPON_DISCOUNT)} 折價券 · 依店家與期間統計核銷張數，計算應付店家結帳金額`}
+        description={`美容院折價券（${GROOMING_COUPON_DISCOUNT_LABEL}）· 依店家與期間統計核銷張數，計算應付店家結帳金額`}
       />
 
       <div className="space-y-6 p-4 sm:p-6">

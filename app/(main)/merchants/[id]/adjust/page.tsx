@@ -10,7 +10,7 @@ import {
   merchantSuggestedUnitPrice,
 } from '@/lib/merchant-product-catalog';
 import { resolveProductWeightLabel } from '@/lib/product-label';
-import { loadMerchantStockSnapshot } from '@/lib/merchant-operation-options';
+import { loadMerchantStockSnapshot, loadUnpostedMerchantRestocks } from '@/lib/merchant-operation-options';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +19,10 @@ export default async function MerchantAdjustPage({
 }: {
   params: { id: string };
 }) {
-  const [catalog, stockSnapshot] = await Promise.all([
+  const [catalog, stockSnapshot, unpostedRestocks] = await Promise.all([
     loadActiveMerchantProductCatalog(params.id),
     loadMerchantStockSnapshot(params.id),
+    loadUnpostedMerchantRestocks(params.id),
   ]);
   if (!catalog) notFound();
 
@@ -81,6 +82,7 @@ export default async function MerchantAdjustPage({
             selectedMerchantId={merchant.id}
             selectedMerchantLabel={`${merchant.name}（${merchant.merchantId}）`}
             stockRows={stockSnapshot ?? []}
+            unpostedRestocks={unpostedRestocks}
             products={productOptions}
             countReturnTo={`/merchants/${merchant.id}/adjust`}
           />

@@ -244,6 +244,42 @@ export async function loadMerchantStockSnapshot(
   );
 }
 
+/** 已寄出／已送達但尚未寫入店家庫存的進貨出貨單 */
+export async function loadUnpostedMerchantRestocks(merchantId: string) {
+  const shipments = await prisma.shipment.findMany({
+    where: {
+      merchantId,
+      type: 'merchant_restock',
+      status: { in: ['shipped', 'delivered'] },
+    },
+    select: {
+      id: true,
+      shipmentNumber: true,
+      status: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+
+  if (shipments.length === 0) return [];
+
+  const postedNotes = await prisma.merchantStockTxn.findMany({
+    where: {
+      merchantId,
+      type: 'restock',
+      note: { contains: '來自出貨單' },
+    },
+    select: { note: true },
+  });
+  const postedNumbers = new Set(
+    postedNotes
+      .map((row) => row.note?.match(/SHP-\d{6}-\d+/)?.[0])
+      .filter((value): value is string => Boolean(value)),
+  );
+
+  return shipments.filter((s) => !postedNumbers.has(s.shipmentNumber));
+}
+
 export async function loadMerchantAdjustProductOptions(merchantId: string) {
   const catalog = await loadActiveMerchantProductCatalog(merchantId);
   if (!catalog) return null;

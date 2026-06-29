@@ -5,7 +5,7 @@ export const LINE_BTN = {
   register: '幫毛孩開戶',
   vault: '我的點數',
   myCoupons: '我的優惠券',
-  redeemGrooming: '兌換美容折250元',
+  redeemGrooming: '兌換美容折價券',
   redeem: '兌換好康',
   activity: '活動辦法',
   unboxing: '毛孩來開箱',
@@ -20,7 +20,7 @@ export const LINE_BTN = {
 } as const;
 
 export const LINE_MENU_HINT_REGISTERED =
-  '「我的點數」看餘額；「我的優惠券」查看券；滿 10 點可兌換美容折 250 元。';
+  '「我的點數」看餘額；「我的優惠券」查看券；滿 10 點可兌換美容折 200 或 250 元（依店家）。';
 
 export const LINE_MENU_HINT_GUEST =
   '第一次請點「幫毛孩開戶」，在對話裡依序填寫就好。';
@@ -46,7 +46,7 @@ export const LINE_COUPON_VERIFY_HINT =
 export const LINE_CONTACT_INFO = '如需協助請私訊官方帳號，或至合作店家現場詢問。';
 
 export const LINE_ACTIVITY_INFO =
-  '【換罐存點】空罐序號入帳得點數。\n【美容折價券】累積 10 點可兌換 250 元折價券，限綁定店家使用，有效 30 天。';
+  '【換罐存點】空罐序號入帳得點數。\n【美容折價券】累積 10 點可兌換 200 或 250 元折價券（豬窩 250、其他店家 200），限綁定店家使用，有效 30 天。';
 
 export const LINE_UNBOXING_INFO = `嗨～恭喜入選本次【匠寵實驗室｜最後一片研究計畫】研究員 🐶🔬
 

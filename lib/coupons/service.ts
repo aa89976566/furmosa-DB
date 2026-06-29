@@ -3,10 +3,10 @@ import type { GroomingCoupon, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { generateUniqueFurmosaCouponCode, normalizeCouponCode } from '@/lib/coupons/codes';
 import {
-  GROOMING_COUPON_DISCOUNT,
   GROOMING_COUPON_POINTS,
-  GROOMING_COUPON_TYPE,
   GROOMING_COUPON_VALIDITY_DAYS,
+  getGroomingCouponDiscountForStore,
+  getGroomingCouponTypeForDiscount,
   type CouponStatus,
 } from '@/lib/coupons/constants';
 import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points';
@@ -146,6 +146,7 @@ export async function redeemGroomingCouponForCustomer(
 
       const couponCode = await generateUniqueFurmosaCouponCode();
       const expiresAt = addDays(new Date(), GROOMING_COUPON_VALIDITY_DAYS);
+      const discountAmount = getGroomingCouponDiscountForStore(storeId, storeName);
 
       const coupon = await tx.groomingCoupon.create({
         data: {
@@ -153,8 +154,8 @@ export async function redeemGroomingCouponForCustomer(
           couponCode,
           storeId,
           storeName,
-          type: GROOMING_COUPON_TYPE,
-          discountAmount: GROOMING_COUPON_DISCOUNT,
+          type: getGroomingCouponTypeForDiscount(discountAmount),
+          discountAmount,
           pointsUsed: GROOMING_COUPON_POINTS,
           status: 'available',
           expiresAt,

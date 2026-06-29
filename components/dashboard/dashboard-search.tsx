@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { searchDashboard, type DashboardSearchResult } from '@/app/(main)/dashboard/actions';
 import { formatCurrency } from '@/lib/format';
 import { orderStatusLabel } from '@/lib/labels';
-import { Loader2, Package, Search, ShoppingCart, UserRound } from 'lucide-react';
+import { Loader2, Package, Search, ShoppingCart, Store, UserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const empty: DashboardSearchResult = { orders: [], customers: [], products: [] };
+const empty: DashboardSearchResult = { orders: [], customers: [], merchants: [], products: [] };
 
 export function DashboardSearch() {
   const [query, setQuery] = useState('');
@@ -39,6 +39,7 @@ export function DashboardSearch() {
   const hasResults =
     results.orders.length > 0 ||
     results.customers.length > 0 ||
+    results.merchants.length > 0 ||
     results.products.length > 0;
   const showPanel = open && query.trim().length > 0 && (pending || hasResults);
 
@@ -51,7 +52,7 @@ export function DashboardSearch() {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.trim() && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 180)}
-          placeholder="搜尋訂單號、會員姓名、商品名稱或 SKU…"
+          placeholder="搜尋訂單、電話、收件人、店家、商品…"
           className="h-11 rounded-2xl border-border/70 bg-surface-raised pl-10 pr-10 shadow-card"
           autoComplete="off"
         />
@@ -68,7 +69,7 @@ export function DashboardSearch() {
         >
           {!pending && !hasResults ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-              找不到符合的訂單、會員或商品
+              找不到符合的訂單、客戶、店家或商品
             </p>
           ) : null}
 
@@ -82,7 +83,8 @@ export function DashboardSearch() {
                 >
                   <span className="font-mono font-medium text-info">{o.orderNumber}</span>
                   <span className="min-w-0 truncate text-muted-foreground">
-                    {o.customerName ?? '—'} · {orderStatusLabel[o.status] ?? o.status}
+                    {o.merchantName ?? o.customerName ?? o.recipientHint ?? '—'} ·{' '}
+                    {orderStatusLabel[o.status] ?? o.status}
                   </span>
                   <span className="shrink-0 text-xs font-medium">
                     {formatCurrency(o.total)}
@@ -104,6 +106,25 @@ export function DashboardSearch() {
                   <span className="font-mono text-xs text-muted-foreground">
                     {c.customerId}
                     {c.phone ? ` · ${c.phone}` : ''}
+                  </span>
+                </Link>
+              ))}
+            </ResultGroup>
+          ) : null}
+
+          {results.merchants.length > 0 ? (
+            <ResultGroup icon={Store} title="寄賣店家">
+              {results.merchants.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/merchants/${m.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted/60"
+                >
+                  <span className="font-medium">{m.name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {m.merchantId}
+                    {m.contactName ? ` · ${m.contactName}` : ''}
+                    {m.phone ? ` · ${m.phone}` : ''}
                   </span>
                 </Link>
               ))}

@@ -1,4 +1,4 @@
-import { GROOMING_COUPON_POINTS } from '@/lib/coupons/constants';
+import { GROOMING_COUPON_POINTS, getGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
 import {
   listCouponsForCustomer,
   redeemGroomingCouponForCustomer,
@@ -159,8 +159,10 @@ export async function handleLinePostback(
     await replyLineMessage(
       replyToken,
       buildGroomingRedeemConfirmMessages({
+        storeId,
         storeName,
         pointsBalance: stats.pointsBalance,
+        discountAmount: getGroomingCouponDiscountForStore(storeId, storeName),
       }),
     );
     return;

@@ -19,24 +19,9 @@ import { formatCurrency, formatNumber } from '@/lib/format';
 import { formatPriceRange } from '@/lib/product-variations';
 import { Plus, AlertTriangle } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
+import { productSearchWhere } from '@/lib/site-search';
 
 export const dynamic = 'force-dynamic';
-
-function productSearchWhere(q: string): Prisma.ProductWhereInput {
-  const term = q.trim();
-  if (!term) return {};
-  const contains = { contains: term, mode: 'insensitive' as const };
-  return {
-    OR: [
-      { name: contains },
-      { sku: contains },
-      { productId: contains },
-      { sourceSku: contains },
-      { style: contains },
-      { vendor: { name: contains } },
-    ],
-  };
-}
 
 const VALID_STATUSES = ['active', 'inactive', 'draft'] as const;
 
@@ -52,7 +37,7 @@ export default async function ProductsPage({
       : '';
 
   const where: Prisma.ProductWhereInput = {
-    ...productSearchWhere(q),
+    ...(productSearchWhere(q) ?? {}),
     ...(status ? { status } : {}),
   };
 

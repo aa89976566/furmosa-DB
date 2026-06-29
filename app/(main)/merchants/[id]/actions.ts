@@ -150,9 +150,7 @@ function commissionFor(rule: { commissionMode: string; commissionValue: number; 
 }
 
 // ============================================================
-// 1. 進貨：建立「待出貨」運送單（不立即動店家庫存）
-//    流程：pending → shipped → delivered
-//    送達後才實際 +店家庫存（見 markShipmentDelivered）
+// 1. 進貨：建立「待出貨」運送單；標記「已寄出」或「貨物到達」時寫入店家庫存（冪等）
 // ============================================================
 export async function restockMerchant(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
