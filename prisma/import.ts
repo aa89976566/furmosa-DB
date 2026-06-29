@@ -19,6 +19,7 @@ import {
   merchantStockUniqueWhere,
   resolveTierIdFromWeightGrams,
 } from '../lib/merchant-stock-key';
+import { appendFishStripTierIfMissing } from '../lib/fish-freeze-dried';
 
 // 本機 import 走 DIRECT_URL（5432，不經 PgBouncer），避免 connection_limit=1 把大量 upsert 排隊
 const prisma = new PrismaClient({
@@ -918,7 +919,6 @@ const PRICE_LIST: PriceRow[] = [
     prices: [
       { weightGrams: 30, price: 174 },
       { weightGrams: 50, price: 255 },
-      { unitQty: 1, unit: '條', price: 58, notes: '單條' },
     ],
   },
   {
@@ -1117,9 +1117,10 @@ async function importPriceList() {
   let tierCount = 0;
 
   for (const row of PRICE_LIST) {
+    const prices = appendFishStripTierIfMissing(row.name, row.prices);
     const vendorId = row.vendor ? (vendorIdByName.get(row.vendor) ?? null) : null;
-    const minPrice = row.prices.length
-      ? Math.min(...row.prices.map((t) => t.price))
+    const minPrice = prices.length
+      ? Math.min(...prices.map((t) => t.price))
       : 0;
     const category =
       row.category ??
@@ -1174,7 +1175,7 @@ async function importPriceList() {
 
     // 重設 price tiers（先刪再建，方便重跑）
     await prisma.productPriceTier.deleteMany({ where: { productId: product.id } });
-    for (const t of row.prices) {
+    for (const t of prices) {
       await prisma.productPriceTier.create({
         data: {
           productId: product.id,
