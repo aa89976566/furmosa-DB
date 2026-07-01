@@ -9,6 +9,8 @@ export type RegisterDraft = {
   petAgeYears?: number | null;
   petBirthday?: string | null;
   phone?: string | null;
+  /** 各步驟最後一次提示時間（ISO），24 小時內不重複追問 */
+  stepPromptAt?: Partial<Record<string, string>>;
 };
 
 export type LineChatFlow = 'register';

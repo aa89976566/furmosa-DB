@@ -24,6 +24,10 @@ import {
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
+import {
+  isRegisterStepPromptOnCooldown,
+  markRegisterStepPrompt,
+} from '@/lib/line/register-step-throttle';
 import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 
@@ -79,6 +83,20 @@ function petBirthdayToDate(iso: string | null | undefined): Date | null {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   const d = new Date(`${iso}T12:00:00.000Z`);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** 同一步驟 24 小時內只提示一次；冷卻中則靜默不回复 */
+async function replyRegisterStepPromptOnce(
+  replyToken: string,
+  lineUserId: string,
+  step: string,
+  draft: RegisterDraft,
+  message: string,
+): Promise<void> {
+  if (isRegisterStepPromptOnCooldown(draft, step)) return;
+  const updated = markRegisterStepPrompt(draft, step);
+  await upsertLineChatSession(lineUserId, 'register', step, updated);
+  await replyLineText(replyToken, message);
 }
 
 export async function startRegisterFlow(replyToken: string, lineUserId: string) {
@@ -138,7 +156,13 @@ export async function handleRegisterFlowMessage(
 
   if (session.step === 'name') {
     if (!trimmed || trimmed.length > 80) {
-      await replyLineText(replyToken, '請輸入有效的稱呼（1–80 字）。');
+      await replyRegisterStepPromptOnce(
+        replyToken,
+        lineUserId,
+        'name',
+        draft,
+        '請輸入有效的稱呼（1–80 字）。',
+      );
       return true;
     }
     draft.name = trimmed;
@@ -149,11 +173,18 @@ export async function handleRegisterFlowMessage(
 
   if (session.step === 'pet_name') {
     if (SKIP_RE.test(trimmed)) {
-      await replyLineText(replyToken, '已選了毛孩種類，請輸入毛孩名字，或傳「取消」改選種類。');
+      await replyRegisterStepPromptOnce(
+        replyToken,
+        lineUserId,
+        'pet_name',
+        draft,
+        '已選了毛孩種類，請輸入毛孩名字，或傳「取消」改選種類。',
+      );
       return true;
     }
     draft.petName = trimmed.slice(0, 80);
-    await upsertLineChatSession(lineUserId, 'register', 'pet_age', draft);
+    const withPrompt = markRegisterStepPrompt(draft, 'pet_age');
+    await upsertLineChatSession(lineUserId, 'register', 'pet_age', withPrompt);
     await replyLineText(replyToken, LINE_PET_AGE_PROMPT);
     return true;
   }
@@ -161,7 +192,7 @@ export async function handleRegisterFlowMessage(
   if (session.step === 'pet_age') {
     const parsed = parsePetAgeOrBirthday(trimmed);
     if (parsed.error) {
-      await replyLineText(replyToken, parsed.error);
+      await replyRegisterStepPromptOnce(replyToken, lineUserId, 'pet_age', draft, parsed.error);
       return true;
     }
     draft.petAgeYears = parsed.petAgeYears;
@@ -184,7 +215,13 @@ export async function handleRegisterFlowMessage(
     } else {
       const phone = trimmed.replace(/\s/g, '');
       if (!/^09\d{8}$/.test(phone) && !/^\+?\d{8,15}$/.test(phone)) {
-        await replyLineText(replyToken, '手機格式好像不對，請再試一次，或傳「略過」。');
+        await replyRegisterStepPromptOnce(
+          replyToken,
+          lineUserId,
+          'phone',
+          draft,
+          '手機格式好像不對，請再試一次，或傳「略過」。',
+        );
         return true;
       }
       draft.phone = phone;
