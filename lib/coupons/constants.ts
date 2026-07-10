@@ -17,4 +17,7 @@ export {
   getGroomingCouponDiscountForStore,
   getGroomingCouponTypeForDiscount,
   isZhuwoPartnerStore,
+  formatGroomingCouponDiscountAmount,
+  formatGroomingCouponDiscountForStore,
+  formatLineStorePickerLabel,
 } from '@/lib/coupons/store-discount';

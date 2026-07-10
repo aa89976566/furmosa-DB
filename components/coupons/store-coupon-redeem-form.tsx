@@ -12,6 +12,7 @@ const STORE_STORAGE_KEY = 'furmosa-redeem-store-slug';
 export type RedeemStoreOption = {
   slug: string;
   name: string;
+  groomingDiscountAmount: number;
 };
 
 type CouponPayload = {
@@ -210,6 +211,7 @@ export function StoreCouponRedeemForm({
   const locked =
     lockedStoreSlug && stores.some((s) => s.slug === lockedStoreSlug) ? lockedStoreSlug : '';
   const [storeId, setStoreId] = useState(locked || '');
+  const selectedStore = stores.find((s) => s.slug === storeId);
   const [couponCode, setCouponCode] = useState('');
   const [pending, setPending] = useState(false);
   const [state, setState] = useState<VerifyResult | null>(null);
@@ -277,7 +279,7 @@ export function StoreCouponRedeemForm({
               <option value="">請選擇您的店家</option>
               {stores.map((s) => (
                 <option key={s.slug} value={s.slug}>
-                  {s.name}
+                  {s.name}（核銷折 {s.groomingDiscountAmount} 元）
                 </option>
               ))}
             </select>
@@ -285,6 +287,15 @@ export function StoreCouponRedeemForm({
           {!locked ? (
             <p className="mt-1 text-[11px] text-muted-foreground">
               選擇後會記住，下次開啟自動帶入（僅此裝置）。
+              {selectedStore ? (
+                <span className="block mt-1 text-foreground/80">
+                  此店會員兌換美容折價券面額：{selectedStore.groomingDiscountAmount} 元
+                </span>
+              ) : null}
+            </p>
+          ) : selectedStore ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              此店美容折價券面額：{selectedStore.groomingDiscountAmount} 元
             </p>
           ) : null}
         </div>

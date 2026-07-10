@@ -36,7 +36,7 @@ function couponBubble(c: CouponView, title: string) {
           text: [
             `優惠券編號：${c.couponCode}`,
             `折抵金額：${c.discountAmount} 元`,
-            `適用店家：${c.storeName}`,
+            `限用店家：${c.storeName}（不可跨店）`,
             `有效期限：${fmtDate(c.expiresAt)}`,
             `狀態：${statusLine}`,
             redeemedLine,
@@ -133,8 +133,7 @@ export function buildGroomingRedeemConfirmMessages(opts: {
               text: [
                 `消耗點數：${GROOMING_COUPON_POINTS} 點`,
                 `目前餘額：${opts.pointsBalance} 點`,
-                `折抵金額：${opts.discountAmount} 元`,
-                `適用店家：${opts.storeName}`,
+                `折抵金額：${opts.discountAmount} 元（僅限 ${opts.storeName}）`,
                 '有效期限：兌換後 30 天',
               ].join('\n'),
               size: 'xs',

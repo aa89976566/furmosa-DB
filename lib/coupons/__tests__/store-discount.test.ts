@@ -6,6 +6,7 @@ import {
   getGroomingCouponDiscountForStore,
   getGroomingCouponTypeForDiscount,
   isZhuwoPartnerStore,
+  formatLineStorePickerLabel,
 } from '@/lib/coupons/store-discount';
 
 describe('grooming coupon store discount', () => {
@@ -47,9 +48,18 @@ describe('grooming coupon store discount', () => {
       GROOMING_COUPON_DISCOUNT_DEFAULT,
     );
     assert.equal(
+      getGroomingCouponDiscountForStore('mer_0014', '柒沐寵物美容'),
+      GROOMING_COUPON_DISCOUNT_DEFAULT,
+    );
+    assert.equal(
       getGroomingCouponDiscountForStore('pet99', '99寵物美容'),
       GROOMING_COUPON_DISCOUNT_DEFAULT,
     );
+  });
+
+  it('formats line store picker label with amount', () => {
+    assert.equal(formatLineStorePickerLabel('柒沐寵物美容', 'mer_0014'), '柒沐寵物美容（200元）');
+    assert.equal(formatLineStorePickerLabel('豬窩 中和店', 'zhuwo_zhonghe'), '豬窩 中和店（250元）');
   });
 
   it('maps discount amount to coupon type', () => {

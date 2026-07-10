@@ -1,4 +1,5 @@
 import { formatRedeemButtonLabel, type LineRewardOption } from '@/lib/line/reward-menu';
+import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import {
   LINE_BTN,
@@ -27,7 +28,7 @@ function pbBtn(label: string, data: string, style: FlexButton['style'] = 'second
 }
 
 const JAR_FOOTER_REGISTERED =
-  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折 200 或 250 元（依店家）。';
+  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折價券（豬窩 250 元、其他合作店 200 元）。';
 const JAR_FOOTER_GUEST = '存罐：直接傳 8 位空罐序號即可入帳。';
 
 /** 匠寵主選單 */
@@ -126,7 +127,7 @@ export function buildMainMenuMessages(opts?: {
 export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
   const stores = await listPartnerStoresFromDb();
   const storeButtons: FlexButton[] = stores.map((s) =>
-    pbBtn(s.name, `jd=store&c=${s.slug}`),
+    pbBtn(formatLineStorePickerLabel(s.name, s.slug), `jd=store&c=${s.slug}`),
   );
 
   return [

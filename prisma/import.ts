@@ -397,7 +397,7 @@ const CONSIGNMENT_MERCHANTS: Array<{ name: string; aliases?: string[]; city?: st
   { name: '犬派' },
   { name: '星汪樂寵', aliases: ['星樂'] },
   { name: '泡泡堂' },
-  { name: '柒沐' },
+  { name: '柒沐寵物美容', aliases: ['柒沐'] },
 ];
 
 // 不再使用、要從系統刪除的舊店家（早期從週任務地址欄誤建的）

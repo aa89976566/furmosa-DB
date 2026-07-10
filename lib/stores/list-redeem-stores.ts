@@ -3,21 +3,31 @@ import {
   listPartnerStoresFromDb,
   type PartnerStoreView,
 } from '@/lib/stores/partner-stores';
+import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 
 export type RedeemStoreOption = {
   slug: string;
   name: string;
+  groomingDiscountAmount: number;
 };
 
 const DB_TIMEOUT_MS = 2500;
 
 function toOptions(stores: PartnerStoreView[]): RedeemStoreOption[] {
-  return stores.map((s) => ({ slug: s.slug, name: s.name }));
+  return stores.map((s) => ({
+    slug: s.slug,
+    name: s.name,
+    groomingDiscountAmount: s.groomingDiscountAmount,
+  }));
 }
 
 /** 同步後備清單（核銷頁必須能立即渲染，不可等 DB） */
 export function listRedeemStoresSync(): RedeemStoreOption[] {
-  return FALLBACK_PARTNER_STORES.map((s) => ({ slug: s.slug, name: s.name }));
+  return FALLBACK_PARTNER_STORES.map((s) => ({
+    slug: s.slug,
+    name: s.name,
+    groomingDiscountAmount: getGroomingCouponDiscountForStore(s.slug, s.name),
+  }));
 }
 
 /** 優先讀 DB，逾時或失敗時回退內建清單 */

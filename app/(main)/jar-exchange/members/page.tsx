@@ -6,6 +6,7 @@ import { JarMemberRedeemMenu } from '@/components/jar-exchange/jar-member-redeem
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, formatNumber } from '@/lib/format';
+import { formatGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
 import { customerServiceTypeLabel } from '@/lib/jar-exchange/labels';
 import { resolveSignupStoreLabel } from '@/lib/line/line-copy';
 
@@ -95,7 +96,7 @@ export default async function JarExchangeMembersPage({
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="px-4 py-3 font-medium">會員</th>
                 <th className="px-4 py-3 font-medium">聯絡</th>
-                <th className="px-4 py-3 font-medium">開戶店家</th>
+                <th className="px-4 py-3 font-medium">開戶店家 · 折價券</th>
                 <th className="px-4 py-3 font-medium">服務類型</th>
                 <th className="px-4 py-3 font-medium text-right">點數</th>
                 <th className="px-4 py-3 font-medium text-right">已兌序號</th>
@@ -113,7 +114,19 @@ export default async function JarExchangeMembersPage({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{c.phone ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {resolveSignupStoreLabel(c.signupStore) ?? '—'}
+                    {c.signupStore || c.storeId ? (
+                      <div>
+                        <div>{resolveSignupStoreLabel(c.signupStore ?? c.storeId) ?? '—'}</div>
+                        <div className="mt-0.5 text-xs tabular-nums">
+                          {formatGroomingCouponDiscountForStore(
+                            c.storeId ?? c.signupStore ?? '',
+                            c.storeName ?? resolveSignupStoreLabel(c.signupStore ?? c.storeId),
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">

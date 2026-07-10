@@ -21,6 +21,7 @@ import {
   LINE_REGISTER_INTRO,
   resolveSignupStoreLabel,
 } from '@/lib/line/line-copy';
+import { formatGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
@@ -377,7 +378,11 @@ export async function handleRegisterPostback(
 export function formatRegisterSummary(draft: RegisterDraft): string {
   const lines: string[] = [];
   const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
-  if (storeLabel) lines.push(`開戶店家：${storeLabel}`);
+  if (storeLabel) {
+    const storeId = draft.signupStore ?? '';
+    lines.push(`開戶店家：${storeLabel}`);
+    lines.push(`美容折價券：${formatGroomingCouponDiscountForStore(storeId, storeLabel)}`);
+  }
   lines.push(`稱呼：${draft.name ?? '—'}`);
   if (draft.petSpecies) {
     lines.push(

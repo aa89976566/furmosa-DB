@@ -1,15 +1,19 @@
 import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
 import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
 import { formatCurrency } from '@/lib/format';
 import {
   GROOMING_COUPON_DISCOUNT_DEFAULT,
   GROOMING_COUPON_DISCOUNT_ZHUWO,
+  formatGroomingCouponDiscountAmount,
+  getGroomingCouponDiscountForStore,
 } from '@/lib/coupons/constants';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
+import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { cn } from '@/lib/utils';
 import { ExternalLink, Link2, Store } from 'lucide-react';
 
@@ -47,7 +51,12 @@ export default async function JarExchangeStoresPage() {
 
           <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
             {stores.map((store) => (
-              <StoreCard key={store.slug} name={store.name} slug={store.slug} />
+              <StoreCard
+                key={store.slug}
+                name={store.name}
+                slug={store.slug}
+                groomingDiscountAmount={store.groomingDiscountAmount}
+              />
             ))}
           </div>
 
@@ -74,6 +83,7 @@ export default async function JarExchangeStoresPage() {
                   <th className="px-5 py-3 font-medium">編號</th>
                   <th className="px-5 py-3 font-medium">店家名稱</th>
                   <th className="px-5 py-3 font-medium">城市</th>
+                  <th className="px-5 py-3 font-medium">美容折價券</th>
                   <th className="px-5 py-3 font-medium">類型</th>
                   <th className="px-5 py-3 text-right font-medium">操作</th>
                 </tr>
@@ -81,16 +91,24 @@ export default async function JarExchangeStoresPage() {
               <tbody className="divide-y">
                 {merchants.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
+                    <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
                       尚無標記為換罐的店家
                     </td>
                   </tr>
                 ) : (
-                  merchants.map((merchant) => (
+                  merchants.map((merchant) => {
+                    const slug = merchantToStoreSlug(merchant.merchantId);
+                    const discount = getGroomingCouponDiscountForStore(slug, merchant.name);
+                    return (
                     <tr key={merchant.id} className="hover:bg-muted/10">
                       <td className="px-5 py-3 font-mono text-xs">{merchant.merchantId}</td>
                       <td className="px-5 py-3 font-medium">{merchant.name}</td>
                       <td className="px-5 py-3 text-muted-foreground">{merchant.city ?? '—'}</td>
+                      <td className="px-5 py-3">
+                        <Badge variant={discount === GROOMING_COUPON_DISCOUNT_ZHUWO ? 'warning' : 'secondary'}>
+                          {formatGroomingCouponDiscountAmount(discount)}
+                        </Badge>
+                      </td>
                       <td className="px-5 py-3">
                         <MerchantTypeBadges types={merchant.types} />
                       </td>
@@ -100,7 +118,8 @@ export default async function JarExchangeStoresPage() {
                         </Button>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -111,7 +130,15 @@ export default async function JarExchangeStoresPage() {
   );
 }
 
-function StoreCard({ name, slug }: { name: string; slug: string }) {
+function StoreCard({
+  name,
+  slug,
+  groomingDiscountAmount,
+}: {
+  name: string;
+  slug: string;
+  groomingDiscountAmount: number;
+}) {
   const redeemUrl = buildUnifiedStoreRedeemUrl(slug);
   const initial = name.trim().charAt(0) || '店';
 
@@ -128,6 +155,9 @@ function StoreCard({ name, slug }: { name: string; slug: string }) {
         <div className="min-w-0 flex-1">
           <h3 className="font-semibold text-navy">{name}</h3>
           <p className="mt-0.5 font-mono text-xs text-muted-foreground">{slug}</p>
+          <Badge className="mt-2" variant={groomingDiscountAmount === GROOMING_COUPON_DISCOUNT_ZHUWO ? 'warning' : 'secondary'}>
+            美容折 {formatGroomingCouponDiscountAmount(groomingDiscountAmount)}
+          </Badge>
         </div>
         <Store className="h-4 w-4 shrink-0 text-muted-foreground" />
       </div>
