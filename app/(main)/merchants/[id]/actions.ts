@@ -606,7 +606,7 @@ export async function upsertMerchantRule(formData: FormData) {
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
   revalidatePath(`/merchants/${merchantId}/rule`);
-  redirect(`/merchants/${merchantId}/rule?productId=${productId}`);
+  redirect(`/merchants/${merchantId}/products`);
 }
 
 export async function deleteMerchantRule(formData: FormData) {
