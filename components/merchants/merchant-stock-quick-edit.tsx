@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Pencil, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adjustMerchantStock } from '@/app/(main)/merchants/[id]/actions';
 
@@ -11,12 +11,16 @@ export function MerchantStockQuickEdit({
   productName,
   quantity,
   returnTo,
+  tierId,
+  tierLabel,
 }: {
   merchantId: string;
   productId: string;
   productName: string;
   quantity: number;
   returnTo?: string;
+  tierId?: string;
+  tierLabel?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(String(quantity));
@@ -39,11 +43,20 @@ export function MerchantStockQuickEdit({
       setEditing(false);
       return;
     }
+    const label = tierLabel ? `${productName}（${tierLabel}）` : productName;
     if (next < quantity) {
       const diff = quantity - next;
       if (
         !confirm(
-          `「${productName}」庫存將從 ${quantity} 改為 ${next}。\n少的 ${diff} 件會記為賣出並納入月結，確定嗎？`,
+          `「${label}」庫存將從 ${quantity} 改為 ${next}。\n少的 ${diff} 件會記為賣出並納入月結，確定嗎？`,
+        )
+      ) {
+        return;
+      }
+    } else if (next > quantity) {
+      if (
+        !confirm(
+          `「${label}」庫存將從 ${quantity} 改為 ${next}。\n實際送達數量與系統不符時，可直接修正為現場盤點結果。確定嗎？`,
         )
       ) {
         return;
@@ -52,6 +65,7 @@ export function MerchantStockQuickEdit({
     const fd = new FormData();
     fd.set('merchantId', merchantId);
     fd.set('productId', productId);
+    if (tierId) fd.set('tierId', tierId);
     fd.set('newQuantity', String(next));
     if (returnTo) fd.set('returnTo', returnTo);
     fd.set('note', `庫存表盤點：${quantity} → ${next}`);
@@ -62,18 +76,19 @@ export function MerchantStockQuickEdit({
 
   if (!editing) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setValue(String(quantity));
-          setEditing(true);
-        }}
-        className="group inline-flex items-center gap-1"
-        title="點擊修改庫存"
-      >
+      <div className="flex flex-col items-end gap-0.5">
         <span className={numberClass}>{quantity}</span>
-        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
-      </button>
+        <button
+          type="button"
+          onClick={() => {
+            setValue(String(quantity));
+            setEditing(true);
+          }}
+          className="text-[11px] font-medium text-primary hover:underline"
+        >
+          修改／盤點
+        </button>
+      </div>
     );
   }
 

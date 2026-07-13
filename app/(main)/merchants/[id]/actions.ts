@@ -330,6 +330,7 @@ export async function adjustMerchantStock(formData: FormData) {
   }
 
   revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/products`);
   revalidatePath(`/merchants/${merchantId}/adjust`);
   revalidatePath('/merchants/adjust');
   revalidatePath(`/merchants/${merchantId}/settlement`);
