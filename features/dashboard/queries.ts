@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
+import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
 
-const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual'] as const;
+const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual', 'jar_exchange'] as const;
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
@@ -62,7 +63,11 @@ async function loadDashboardData() {
     () =>
       prisma.order.aggregate({
         _sum: { total: true },
-        where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
+        where: {
+          orderedAt: { gte: startOfMonth },
+          status: { not: 'cancelled' },
+          ...revenueEligibleOrderWhere,
+        },
       }),
     () =>
       prisma.product.findMany({
@@ -101,7 +106,11 @@ async function loadDashboardData() {
       }),
     () =>
       prisma.order.findMany({
-        where: { orderedAt: { gte: last30 }, status: { not: 'cancelled' } },
+        where: {
+          orderedAt: { gte: last30 },
+          status: { not: 'cancelled' },
+          ...revenueEligibleOrderWhere,
+        },
         select: { orderedAt: true, total: true, source: true },
       }),
     () =>
@@ -109,7 +118,11 @@ async function loadDashboardData() {
         by: ['source'],
         _sum: { total: true },
         _count: { _all: true },
-        where: { orderedAt: { gte: startOfMonth }, status: { not: 'cancelled' } },
+        where: {
+          orderedAt: { gte: startOfMonth },
+          status: { not: 'cancelled' },
+          ...revenueEligibleOrderWhere,
+        },
       }),
     () =>
       prisma.orderItem.groupBy({
@@ -119,6 +132,7 @@ async function loadDashboardData() {
           order: {
             orderedAt: { gte: last30 },
             status: { not: 'cancelled' },
+            ...revenueEligibleOrderWhere,
           },
         },
         orderBy: { _sum: { subtotal: 'desc' } },
@@ -133,6 +147,7 @@ async function loadDashboardData() {
           merchantId: { not: null },
           orderedAt: { gte: last30 },
           status: { not: 'cancelled' },
+          ...revenueEligibleOrderWhere,
         },
         orderBy: { _sum: { total: 'desc' } },
         take: 5,

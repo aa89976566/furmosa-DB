@@ -13,6 +13,7 @@ export function MerchantStockQuickEdit({
   returnTo,
   tierId,
   tierLabel,
+  align = 'end',
 }: {
   merchantId: string;
   productId: string;
@@ -21,6 +22,7 @@ export function MerchantStockQuickEdit({
   returnTo?: string;
   tierId?: string;
   tierLabel?: string | null;
+  align?: 'start' | 'end';
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(String(quantity));
@@ -74,9 +76,11 @@ export function MerchantStockQuickEdit({
     });
   }
 
+  const alignClass = align === 'start' ? 'items-start' : 'items-end';
+
   if (!editing) {
     return (
-      <div className="flex flex-col items-end gap-0.5">
+      <div className={`flex flex-col gap-0.5 ${alignClass}`}>
         <span className={numberClass}>{quantity}</span>
         <button
           type="button"
@@ -93,7 +97,7 @@ export function MerchantStockQuickEdit({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div className={`flex items-center gap-1 ${align === 'start' ? '' : 'justify-end'}`}>
       <input
         type="number"
         min={0}

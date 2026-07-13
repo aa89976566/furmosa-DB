@@ -16,6 +16,10 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sendNewOrderPush } from '@/lib/web-push';
+import {
+  applyJarExchangeConsignmentPricing,
+  isJarExchangeConsignmentDelivery,
+} from '@/lib/jar-exchange/revenue';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -67,7 +71,15 @@ function revalidateOrderPaths(orderId: string, merchantId?: string | null, custo
 }
 
 export async function createOrder(formData: FormData) {
-  const payload = await parseOrderFormData(formData);
+  const rawPayload = await parseOrderFormData(formData);
+  const payload = applyJarExchangeConsignmentPricing(rawPayload);
+  const isJarRestock = isJarExchangeConsignmentDelivery({
+    orderType: rawPayload.orderType,
+    source: payload.source,
+    merchantId: payload.merchantId,
+    customerId: payload.customerId,
+    items: payload.items,
+  });
   const orderNumber = await nextOrderNumber();
   const shipmentNumber = await nextShipmentNumber();
 
@@ -116,7 +128,7 @@ export async function createOrder(formData: FormData) {
     await tx.shipment.create({
       data: {
         shipmentNumber,
-        type: 'customer_order',
+        type: isJarRestock ? 'merchant_restock' : 'customer_order',
         status: 'pending',
         merchantId: payload.merchantId,
         customerId: payload.customerId,
@@ -165,7 +177,15 @@ export async function updateOrder(formData: FormData) {
   const editable = isOrderEditable(existing);
   if (!editable.ok) throw new Error(editable.reason);
 
-  const payload = await parseOrderFormData(formData, { extendedPayment: true });
+  const rawPayload = await parseOrderFormData(formData, { extendedPayment: true });
+  const payload = applyJarExchangeConsignmentPricing(rawPayload);
+  const isJarRestock = isJarExchangeConsignmentDelivery({
+    orderType: rawPayload.orderType,
+    source: payload.source,
+    merchantId: payload.merchantId,
+    customerId: payload.customerId,
+    items: payload.items,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId } });
@@ -218,6 +238,7 @@ export async function updateOrder(formData: FormData) {
       await tx.shipment.update({
         where: { id: shipment.id },
         data: {
+          type: isJarRestock ? 'merchant_restock' : 'customer_order',
           merchantId: payload.merchantId,
           customerId: payload.customerId,
           recipientName: payload.recipientName,

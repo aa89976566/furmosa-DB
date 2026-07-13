@@ -16,64 +16,9 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { formatConsignmentCommission } from '@/lib/merchant-commission';
 import { Package, PackagePlus, Pencil, AlertTriangle } from 'lucide-react';
 import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
-import {
-  MerchantProductsStockCell,
-  type MerchantProductTierStock,
-} from '@/components/merchants/merchant-products-stock-cell';
-import {
-  isMultiWeightProduct,
-  LEGACY_MERCHANT_STOCK_TIER_ID,
-  weightTiersForProduct,
-} from '@/lib/merchant-stock-key';
-import {
-  pickDefaultTier,
-  tierSpecLabel,
-  type MerchantProductTierOption,
-} from '@/lib/merchant-product-tier';
+import { isMultiWeightProduct } from '@/lib/merchant-stock-key';
 
 export const dynamic = 'force-dynamic';
-
-function toTierOptions(
-  tiers: { id: string; weightGrams: number | null; unit: string; unitQty: number; price: number; notes: string | null }[],
-): MerchantProductTierOption[] {
-  return tiers.map((tier) => ({
-    id: tier.id,
-    weightGrams: tier.weightGrams,
-    unit: tier.unit,
-    unitQty: tier.unitQty,
-    price: tier.price,
-    notes: tier.notes,
-  }));
-}
-
-function buildTierStocks(
-  productInternalId: string,
-  priceTiers: MerchantProductTierOption[],
-  stocks: { productId: string; tierId: string; quantity: number }[],
-  multiWeight: boolean,
-): MerchantProductTierStock[] {
-  const productStocks = stocks.filter((s) => s.productId === productInternalId);
-  if (!multiWeight) {
-    const qty = productStocks.reduce((sum, s) => sum + s.quantity, 0);
-    const defaultTier = pickDefaultTier(priceTiers);
-    return [
-      {
-        tierId: defaultTier?.id ?? LEGACY_MERCHANT_STOCK_TIER_ID,
-        label: tierSpecLabel(defaultTier) ?? '預設',
-        quantity: qty,
-      },
-    ];
-  }
-  return weightTiersForProduct(priceTiers).map((tier) => {
-    const fullTier = priceTiers.find((t) => t.id === tier.id) ?? null;
-    const stock = productStocks.find((s) => s.tierId === tier.id);
-    return {
-      tierId: tier.id,
-      label: tierSpecLabel(fullTier) ?? '規格',
-      quantity: stock?.quantity ?? 0,
-    };
-  });
-}
 
 export default async function MerchantProductsPage({ params }: { params: { id: string } }) {
   const merchant = await prisma.merchant.findUnique({
@@ -99,19 +44,9 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
     ruleId: string | null;
     lastRestockAt: Date | null;
     multiWeightTiers: boolean;
-    priceTiers: MerchantProductTierOption[];
-    tierStocks: MerchantProductTierStock[];
   };
-  const stocks = merchant.stocks.map((s) => ({
-    productId: s.productId,
-    tierId: s.tierId,
-    quantity: s.quantity,
-  }));
-
   const productRows = new Map<string, Row>();
   for (const stock of merchant.stocks) {
-    const tiers = toTierOptions(stock.product.priceTiers);
-    const multiWeight = isMultiWeightProduct(tiers);
     const existing = productRows.get(stock.productId);
     if (existing) {
       existing.quantity += stock.quantity;
@@ -121,7 +56,6 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       ) {
         existing.lastRestockAt = stock.lastRestockAt;
       }
-      existing.tierStocks = buildTierStocks(stock.productId, existing.priceTiers, stocks, existing.multiWeightTiers);
     } else {
       productRows.set(stock.productId, {
         productId: stock.product.productId,
@@ -136,9 +70,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
         companyRevenuePerUnit: null,
         ruleId: null,
         lastRestockAt: stock.lastRestockAt,
-        multiWeightTiers: multiWeight,
-        priceTiers: tiers,
-        tierStocks: buildTierStocks(stock.productId, tiers, stocks, multiWeight),
+        multiWeightTiers: isMultiWeightProduct(stock.product.priceTiers),
       });
     }
   }
@@ -147,8 +79,6 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       rule.commissionMode === 'percent'
         ? (rule.suggestedPrice * rule.commissionValue) / 100
         : rule.commissionValue;
-    const tiers = toTierOptions(rule.product.priceTiers);
-    const multiWeight = isMultiWeightProduct(tiers);
     const existing = productRows.get(rule.productId);
     if (existing) {
       existing.suggestedPrice = rule.suggestedPrice;
@@ -157,9 +87,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       existing.commissionPerUnit = perUnit;
       existing.companyRevenuePerUnit = rule.suggestedPrice - perUnit;
       existing.ruleId = rule.id;
-      existing.multiWeightTiers = multiWeight;
-      existing.priceTiers = tiers;
-      existing.tierStocks = buildTierStocks(rule.productId, tiers, stocks, multiWeight);
+      existing.multiWeightTiers = isMultiWeightProduct(rule.product.priceTiers);
     } else {
       productRows.set(rule.productId, {
         productId: rule.product.productId,
@@ -174,9 +102,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
         companyRevenuePerUnit: rule.suggestedPrice - perUnit,
         ruleId: rule.id,
         lastRestockAt: null,
-        multiWeightTiers: multiWeight,
-        priceTiers: tiers,
-        tierStocks: buildTierStocks(rule.productId, tiers, stocks, multiWeight),
+        multiWeightTiers: isMultiWeightProduct(rule.product.priceTiers),
       });
     }
   }
@@ -188,7 +114,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
     <div className="space-y-6 p-6">
       <SectionCard
         title="寄賣商品 × 庫存 × 分潤"
-        description="可直接在此修改店家庫存或盤點；多規格商品請依規格分別調整。分潤依商品設定為 20% 或 30%。"
+        description="寄賣分潤與庫存修改請點「設定／編輯」進入商品分潤頁。分潤比例僅可選 20% 或 30%。"
         action={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" asChild>
@@ -242,16 +168,13 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                     </Link>
                     <div className="ml-6 font-mono text-xs text-muted-foreground">{r.sku}</div>
                   </TableCell>
-                  <TableCell className="text-right align-top">
-                    <MerchantProductsStockCell
-                      merchantId={merchant.id}
-                      productId={r.productInternalId}
-                      productName={r.productName}
-                      totalQuantity={r.quantity}
-                      tierStocks={r.tierStocks}
-                      multiWeightTiers={r.multiWeightTiers}
-                      returnTo={`/merchants/${merchant.id}/products`}
-                    />
+                  <TableCell className="text-right">
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="font-mono font-semibold tabular-nums">{r.quantity}</span>
+                      {r.multiWeightTiers ? (
+                        <span className="text-[10px] text-muted-foreground">多規格</span>
+                      ) : null}
+                    </div>
                     {r.quantity === 0 && r.ruleId && (
                       <div className="text-[10px] text-destructive">缺貨</div>
                     )}

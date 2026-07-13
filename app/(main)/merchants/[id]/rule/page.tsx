@@ -7,6 +7,11 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { upsertMerchantRule, deleteMerchantRule } from '../actions';
 import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
+import { MerchantProductsStockCell } from '@/components/merchants/merchant-products-stock-cell';
+import {
+  buildMerchantProductTierStocks,
+  toMerchantProductTierOptions,
+} from '@/lib/merchant-product-tier-stocks';
 import {
   MERCHANT_COMMISSION_PERCENTS,
   type MerchantCommissionPercent,
@@ -43,14 +48,23 @@ export default async function MerchantRulePage({
     redirect(`/merchants/${merchant.id}/products`);
   }
 
-  const product = await prisma.product.findUnique({ where: { id: productId } });
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { priceTiers: { orderBy: { price: 'asc' } } },
+  });
   if (!product) notFound();
 
   const stocks = await prisma.merchantStock.findMany({
     where: { merchantId: merchant.id, productId },
-    select: { quantity: true },
+    select: { productId: true, tierId: true, quantity: true },
   });
-  const stockQuantity = stocks.reduce((sum, stock) => sum + stock.quantity, 0);
+  const priceTiers = toMerchantProductTierOptions(product.priceTiers);
+  const { tierStocks, totalQuantity, multiWeightTiers } = buildMerchantProductTierStocks(
+    productId,
+    priceTiers,
+    stocks,
+  );
+  const ruleReturnTo = `/merchants/${merchant.id}/rule?productId=${productId}`;
 
   const existingRule = merchant.productRules.find((r) => r.productId === productId);
   const initialPercent = resolveInitialPercent(
@@ -144,12 +158,31 @@ export default async function MerchantRulePage({
             </div>
           </form>
 
+          <div className="mt-6 space-y-3 border-t pt-4">
+            <div>
+              <h3 className="text-sm font-medium">店家庫存</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                可直接修正現場盤點數量；多規格商品請依規格分別調整。減少庫存會記為賣出並納入月結。
+              </p>
+            </div>
+            <MerchantProductsStockCell
+              merchantId={merchant.id}
+              productId={productId}
+              productName={product.name}
+              totalQuantity={totalQuantity}
+              tierStocks={tierStocks}
+              multiWeightTiers={multiWeightTiers}
+              returnTo={ruleReturnTo}
+              align="start"
+            />
+          </div>
+
           <div className="mt-6 space-y-2 border-t pt-4">
             <MerchantProductDeleteButton
               merchantId={merchant.id}
               productId={productId}
               productName={product.name}
-              quantity={stockQuantity}
+              quantity={totalQuantity}
               label="刪除寄賣商品"
             />
             {existingRule && (
@@ -179,6 +212,7 @@ export default async function MerchantRulePage({
             <Row label="預設定價" value={`NT$${product.price}`} />
             <Row label="此店規則" value={existingRule ? '已設定' : '尚未設定'} />
             <Row label="參考售價" value={`NT$${previewPrice}`} />
+            <Row label="店家庫存" value={totalQuantity} />
           </dl>
         </SectionCard>
       </div>

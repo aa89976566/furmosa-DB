@@ -70,6 +70,7 @@ const sourceVariant: Record<string, Variant> = {
   subscription: 'default',
   manual: 'secondary',
   restock: 'warning',
+  jar_exchange: 'success',
 };
 
 const subscriptionStatusVariant: Record<string, Variant> = {

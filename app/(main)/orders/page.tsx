@@ -10,6 +10,7 @@ import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
+import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
 import { Plus } from 'lucide-react';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
@@ -62,7 +63,7 @@ export default async function OrdersPage({
       by: ['source'],
       _sum: { total: true },
       _count: { _all: true },
-      where: { ...activeOrderWhere },
+      where: { ...activeOrderWhere, ...revenueEligibleOrderWhere },
     }),
   ]);
 

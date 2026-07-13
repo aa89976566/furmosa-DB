@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger } from '@/lib/jar-exchange/points';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
+import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
+import { revalidatePath } from 'next/cache';
 
 export type RedeemJarCodeResult =
   | { ok: true; pointsEarned: number; balanceAfter: number; code: string }
@@ -50,6 +52,8 @@ export async function redeemJarCode(
         note: `序號 ${code}`,
       });
 
+      await recordJarExchangeSaleOnRedeem(customerId, row.id, code, tx);
+
       return {
         pointsEarned: row.pointValue,
         balanceAfter: ledger.balanceAfter,
@@ -57,6 +61,8 @@ export async function redeemJarCode(
       };
     });
 
+    revalidatePath('/dashboard');
+    revalidatePath('/orders');
     return { ok: true, ...result };
   } catch (e) {
     if (e instanceof JarExchangeError) {

@@ -16,6 +16,7 @@ export const orderSourceLabel: Record<string, string> = {
   consignment: '寄賣',
   subscription: '訂閱制',
   manual: '手動',
+  jar_exchange: '換罐返航',
 };
 
 export const paymentStatusLabel: Record<string, string> = {

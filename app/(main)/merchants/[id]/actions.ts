@@ -331,6 +331,7 @@ export async function adjustMerchantStock(formData: FormData) {
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/rule`);
   revalidatePath(`/merchants/${merchantId}/adjust`);
   revalidatePath('/merchants/adjust');
   revalidatePath(`/merchants/${merchantId}/settlement`);
@@ -604,7 +605,8 @@ export async function upsertMerchantRule(formData: FormData) {
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
-  redirect(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/rule`);
+  redirect(`/merchants/${merchantId}/rule?productId=${productId}`);
 }
 
 export async function deleteMerchantRule(formData: FormData) {
@@ -615,6 +617,7 @@ export async function deleteMerchantRule(formData: FormData) {
   await prisma.merchantProductRule.delete({ where: { id: ruleId } });
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/rule`);
   redirect(`/merchants/${merchantId}/products`);
 }
 
