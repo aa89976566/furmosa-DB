@@ -17,6 +17,26 @@ export function parseMerchantCommissionPercent(formData: FormData): MerchantComm
   return raw;
 }
 
+/**
+ * 依品名／分類推斷寄賣分潤：
+ * - 凍乾 → 30%
+ * - 其餘（肉乾、零食等）→ 20%
+ */
+export function suggestMerchantCommissionPercent(product: {
+  name: string;
+  category?: string | null;
+}): MerchantCommissionPercent {
+  const name = product.name.trim();
+  if (name.includes('凍乾') || product.category === 'freeze_dried') {
+    return 30;
+  }
+  return 20;
+}
+
+export function merchantCommissionKindLabel(percent: MerchantCommissionPercent): string {
+  return percent === 30 ? '凍乾' : '肉乾／一般零食';
+}
+
 /** 商品列表顯示用 */
 export function formatConsignmentCommission(
   mode: string | null | undefined,

@@ -3,6 +3,10 @@
 import { prisma } from '@/lib/prisma';
 import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { parseMerchantCommissionPercent } from '@/lib/merchant-commission';
+import {
+  autoFillMerchantCommissionRulesForMerchant,
+  upsertSuggestedMerchantRule,
+} from '@/lib/merchant-auto-commission';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
 import {
   findTier,
@@ -232,6 +236,10 @@ export async function restockMerchant(formData: FormData) {
     total: shipping.total,
     cvsBrand: shipping.cvsBrand,
   });
+
+  for (const product of products) {
+    await upsertSuggestedMerchantRule(prisma, merchantId, product);
+  }
 
   revalidatePath('/orders');
   revalidatePath(`/orders/${order.id}`);
@@ -573,8 +581,21 @@ export async function recordMerchantQuickSale(formData: FormData) {
 }
 
 // ============================================================
-// 4. 編輯抽成規則
+// 4. 分潤規則：手動 upsert ／依品名自動填寫（肉乾 20%、凍乾 30%）
 // ============================================================
+export async function autoFillMerchantCommissionRules(formData: FormData) {
+  const merchantId = String(formData.get('merchantId') ?? '');
+  if (!merchantId) throw new Error('缺少店家');
+
+  await autoFillMerchantCommissionRulesForMerchant(prisma, merchantId);
+
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/rule`);
+  revalidatePath(`/merchants/${merchantId}/adjust`);
+  redirect(`/merchants/${merchantId}/products`);
+}
+
 export async function upsertMerchantRule(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
   const productId = String(formData.get('productId') ?? '');

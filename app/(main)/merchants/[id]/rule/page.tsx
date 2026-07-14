@@ -5,10 +5,12 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { upsertMerchantRule, deleteMerchantRule } from '../actions';
+import { upsertMerchantRule, deleteMerchantRule, autoFillMerchantCommissionRules } from '../actions';
 import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
 import {
   MERCHANT_COMMISSION_PERCENTS,
+  suggestMerchantCommissionPercent,
+  merchantCommissionKindLabel,
   type MerchantCommissionPercent,
 } from '@/lib/merchant-commission';
 
@@ -17,10 +19,11 @@ export const dynamic = 'force-dynamic';
 function resolveInitialPercent(
   mode: string | null | undefined,
   value: number | null | undefined,
+  product: { name: string; category: string },
 ): MerchantCommissionPercent {
   if (mode === 'percent' && value === 20) return 20;
   if (mode === 'percent' && value === 30) return 30;
-  return 30;
+  return suggestMerchantCommissionPercent(product);
 }
 
 export default async function MerchantRulePage({
@@ -56,6 +59,10 @@ export default async function MerchantRulePage({
   const initialPercent = resolveInitialPercent(
     existingRule?.commissionMode,
     existingRule?.commissionValue,
+    product,
+  );
+  const suggestedKind = merchantCommissionKindLabel(
+    suggestMerchantCommissionPercent(product),
   );
   const previewPrice = existingRule?.suggestedPrice ?? product.price;
 
@@ -76,7 +83,7 @@ export default async function MerchantRulePage({
       <div className="grid gap-6 p-6 lg:grid-cols-2">
         <SectionCard
           title="寄賣分潤"
-          description="此店此商品的分潤比例，僅可選 20% 或 30%"
+          description={`此店此商品的分潤比例，僅可選 20% 或 30%（建議：${suggestedKind}）`}
         >
           <form action={upsertMerchantRule} className="space-y-4">
             <input type="hidden" name="merchantId" value={merchant.id} />

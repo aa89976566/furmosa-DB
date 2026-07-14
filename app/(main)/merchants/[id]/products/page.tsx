@@ -14,9 +14,10 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { formatConsignmentCommission } from '@/lib/merchant-commission';
-import { Package, PackagePlus, Pencil, AlertTriangle } from 'lucide-react';
+import { Package, PackagePlus, Pencil, AlertTriangle, Percent } from 'lucide-react';
 import { MerchantProductDeleteButton } from '@/components/merchants/merchant-product-delete-button';
 import { MerchantProductsStockCell } from '@/components/merchants/merchant-products-stock-cell';
+import { autoFillMerchantCommissionRules } from '../actions';
 import { isMultiWeightProduct } from '@/lib/merchant-stock-key';
 import {
   buildMerchantProductTierStocks,
@@ -150,9 +151,16 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
     <div className="space-y-6 p-6">
       <SectionCard
         title="寄賣商品 × 庫存 × 分潤"
-        description="可直接在此修改店家庫存；僅顯示該店有進貨紀錄的規格。分潤依商品設定為 20% 或 30%。"
+        description="可直接在此修改店家庫存；僅顯示該店有進貨紀錄的規格。分潤：肉乾 20%、凍乾 30%。"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <form action={autoFillMerchantCommissionRules}>
+              <input type="hidden" name="merchantId" value={merchant.id} />
+              <Button size="sm" variant="outline" type="submit">
+                <Percent className="mr-1 h-3 w-3" />
+                依品名自動填分潤
+              </Button>
+            </form>
             <Button size="sm" variant="outline" asChild>
               <Link href={`/merchants/${merchant.id}/rule`}>
                 <Pencil className="mr-1 h-3 w-3" />
