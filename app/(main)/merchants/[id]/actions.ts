@@ -2,6 +2,9 @@
 
 import { prisma } from '@/lib/prisma';
 import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
+import {
+  resolveStockMovementReason,
+} from '@/lib/merchant-stock-movement';
 import { parseMerchantCommissionPercent } from '@/lib/merchant-commission';
 import {
   autoFillMerchantCommissionRulesForMerchant,
@@ -250,7 +253,7 @@ export async function restockMerchant(formData: FormData) {
 }
 
 // ============================================================
-// 2. 盤點：直接設定 productId 的庫存 = newQuantity
+// 2. 登記庫存異動：寫庫存快照 + 一筆有原因的流水（僅「現場售出」計分潤）
 // ============================================================
 export async function adjustMerchantStock(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
@@ -283,32 +286,43 @@ export async function adjustMerchantStock(formData: FormData) {
   const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
   const before = existing?.quantity ?? 0;
   const delta = newQuantity - before;
+  if (delta === 0) throw new Error('數量沒有變化');
+
+  const reasonMeta = resolveStockMovementReason(
+    delta,
+    String(formData.get('reason') ?? ''),
+  );
+  if (reasonMeta.value === 'damage' && !note) {
+    throw new Error('盤損／報廢請填寫備註');
+  }
 
   const stock = await prisma.merchantStock.upsert({
     where: stockWhere,
-    update: { quantity: newQuantity, lastCountAt: new Date() },
+    update: {
+      quantity: newQuantity,
+      lastCountAt: new Date(),
+      ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
+      ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
+    },
     create: {
       merchantId,
       productId,
       tierId,
       quantity: newQuantity,
       lastCountAt: new Date(),
-    },
-  });
-  await prisma.merchantStockTxn.create({
-    data: {
-      txnNumber: await nextStockTxnNumber(prisma),
-      merchantId,
-      productId,
-      type: 'adjust',
-      quantity: delta,
-      balanceAfter: stock.quantity,
-      note: note ?? noteWithSpec(specLabel, `盤點：${before} → ${newQuantity}`),
+      ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
+      ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
     },
   });
 
-  // 盤點後庫存減少 → 同步寫入 sale 流水，月結才能納入（與「賣出」模式一致）
-  if (delta < 0) {
+  const baseNote =
+    note ??
+    noteWithSpec(
+      specLabel,
+      `${reasonMeta.label}：${before} → ${newQuantity}`,
+    );
+
+  if (reasonMeta.countsAsSale) {
     const soldQty = Math.abs(delta);
     const rule = await prisma.merchantProductRule.findUnique({
       where: { merchantId_productId: { merchantId, productId } },
@@ -330,9 +344,19 @@ export async function adjustMerchantStock(formData: FormData) {
         unitPrice: amounts.unitPrice,
         commissionAmount: amounts.commissionAmount,
         companyRevenue: amounts.companyRevenue,
-        note:
-          note ??
-          noteWithSpec(specLabel, `清點賣出（盤點 ${before} → ${newQuantity}）`),
+        note: baseNote,
+      },
+    });
+  } else {
+    await prisma.merchantStockTxn.create({
+      data: {
+        txnNumber: await nextStockTxnNumber(prisma),
+        merchantId,
+        productId,
+        type: reasonMeta.txnType,
+        quantity: delta,
+        balanceAfter: stock.quantity,
+        note: baseNote,
       },
     });
   }
@@ -345,6 +369,11 @@ export async function adjustMerchantStock(formData: FormData) {
   revalidatePath(`/merchants/${merchantId}/settlement`);
   revalidatePath('/merchants/settlements');
   revalidatePath('/merchants');
+
+  // 列表快速改庫存：不 redirect，由 client router.refresh() 輕量刷新
+  if (String(formData.get('softRefresh') ?? '') === '1') {
+    return;
+  }
   redirect(returnTo || `/merchants/${merchantId}/products`);
 }
 

@@ -17,14 +17,15 @@ type ProductForRule = {
 };
 
 /**
- * 為店家×商品寫入／更新分潤規則（肉乾 20%、凍乾 30%）。
- * 新建時用建議售價；更新時保留既有建議售價，只校正分潤比例。
+ * 為店家×商品寫入分潤規則（肉乾 20%、凍乾 30%）。
+ * - 預設：僅在規則不存在時建立，不覆蓋既有（含人工調整）
+ * - overwrite: true 時才強制覆寫分潤比例（「依品名自動填分潤」用）
  */
 export async function upsertSuggestedMerchantRule(
   db: Db,
   merchantId: string,
   product: ProductForRule,
-  options?: { forcePercent?: MerchantCommissionPercent },
+  options?: { forcePercent?: MerchantCommissionPercent; overwrite?: boolean },
 ) {
   const percent =
     options?.forcePercent ??
@@ -32,6 +33,11 @@ export async function upsertSuggestedMerchantRule(
   const existing = await db.merchantProductRule.findUnique({
     where: { merchantId_productId: { merchantId, productId: product.id } },
   });
+
+  if (existing && !options?.overwrite) {
+    return existing;
+  }
+
   const suggestedPrice =
     existing?.suggestedPrice ??
     merchantSuggestedUnitPrice(
@@ -50,7 +56,7 @@ export async function upsertSuggestedMerchantRule(
     update: {
       commissionMode: 'percent',
       commissionValue: percent,
-      notes: existing?.notes ?? `自動：${percent === 30 ? '凍乾 30%' : '肉乾 20%'}`,
+      notes: `自動：${percent === 30 ? '凍乾 30%' : '肉乾 20%'}`,
     },
     create: {
       merchantId,
@@ -63,7 +69,7 @@ export async function upsertSuggestedMerchantRule(
   });
 }
 
-/** 針對某店所有有庫存／已有規則的商品，依品名自動填寫分潤 */
+/** 針對某店所有有庫存／已有規則的商品，依品名覆寫分潤 */
 export async function autoFillMerchantCommissionRulesForMerchant(
   db: Db,
   merchantId: string,
@@ -91,7 +97,7 @@ export async function autoFillMerchantCommissionRulesForMerchant(
 
   let updated = 0;
   for (const product of products) {
-    await upsertSuggestedMerchantRule(db, merchantId, product);
+    await upsertSuggestedMerchantRule(db, merchantId, product, { overwrite: true });
     updated += 1;
   }
   return { updated };

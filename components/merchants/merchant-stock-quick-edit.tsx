@@ -2,26 +2,28 @@
 
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { adjustMerchantStock } from '@/app/(main)/merchants/[id]/actions';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 
-type QuickEditState = { error?: string };
+type QuickEditState = { error?: string; ok?: boolean };
 
 async function submitQuickEdit(
   _prev: QuickEditState,
   formData: FormData,
 ): Promise<QuickEditState> {
   try {
+    formData.set('softRefresh', '1');
     await adjustMerchantStock(formData);
+    return { ok: true };
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     return {
       error: error instanceof Error ? error.message : '儲存失敗，請稍後再試',
     };
   }
-  return {};
 }
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
@@ -58,9 +60,20 @@ export function MerchantStockQuickEdit({
   tierLabel?: string | null;
   align?: 'start' | 'end';
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(String(quantity));
-  const [state, formAction] = useFormState(submitQuickEdit, {});
+  const [state, formAction] = useFormState(
+    async (prev: QuickEditState, formData: FormData): Promise<QuickEditState> => {
+      const next = await submitQuickEdit(prev, formData);
+      if (next.ok) {
+        setEditing(false);
+        router.refresh();
+      }
+      return next;
+    },
+    {},
+  );
 
   const numberClass =
     quantity === 0
@@ -135,11 +148,7 @@ export function MerchantStockQuickEdit({
       <input type="hidden" name="tierId" value={tierId} />
       <input type="hidden" name="newQuantity" value={value} />
       {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
-      <input
-        type="hidden"
-        name="note"
-        value={`庫存修改：${quantity} → ${value}`}
-      />
+      <input type="hidden" name="note" value={`庫存修改：${quantity} → ${value}`} />
       <div className={`flex items-center gap-1 ${align === 'start' ? '' : 'justify-end'}`}>
         <input
           type="number"
