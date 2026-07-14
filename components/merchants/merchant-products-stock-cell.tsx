@@ -12,7 +12,6 @@ export function MerchantProductsStockCell({
   productName,
   totalQuantity,
   tierStocks,
-  multiWeightTiers,
   returnTo,
   align = 'end',
 }: {
@@ -21,23 +20,23 @@ export function MerchantProductsStockCell({
   productName: string;
   totalQuantity: number;
   tierStocks: MerchantProductTierStock[];
-  multiWeightTiers: boolean;
   returnTo: string;
   align?: 'start' | 'end';
 }) {
   const alignClass = align === 'start' ? 'items-start' : 'items-end';
+  const rows = tierStocks.length > 0 ? tierStocks : [{ tierId: '', label: '預設', quantity: totalQuantity }];
 
-  if (!multiWeightTiers) {
-    const tier = tierStocks[0];
+  if (rows.length === 1) {
+    const tier = rows[0];
     return (
       <div className={`flex flex-col ${alignClass}`}>
         <MerchantStockQuickEdit
           merchantId={merchantId}
           productId={productId}
           productName={productName}
-          quantity={tier?.quantity ?? totalQuantity}
-          tierId={tier?.tierId}
-          tierLabel={tier?.label}
+          quantity={tier.quantity}
+          tierId={tier.tierId}
+          tierLabel={tier.label}
           returnTo={returnTo}
           align={align}
         />
@@ -50,9 +49,9 @@ export function MerchantProductsStockCell({
       <div className="text-sm text-muted-foreground">
         合計 <span className="font-mono font-semibold text-foreground">{totalQuantity}</span>
       </div>
-      {tierStocks.map((tier) => (
+      {rows.map((tier) => (
         <div
-          key={tier.tierId}
+          key={tier.tierId || 'legacy'}
           className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2"
         >
           <Badge variant="outline" className="text-xs font-medium">

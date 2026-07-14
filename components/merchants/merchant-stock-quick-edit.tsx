@@ -93,7 +93,7 @@ export function MerchantStockQuickEdit({
       }
     } else if (
       !confirm(
-        `「${label}」庫存將從 ${quantity} 改為 ${next}。\n實際送達數量與系統不符時，可直接修正為現場盤點結果。確定嗎？`,
+        `「${label}」庫存將從 ${quantity} 改為 ${next}。\n實際數量與系統不符時，可直接修正為現場數量。確定嗎？`,
       )
     ) {
       return false;
@@ -113,7 +113,7 @@ export function MerchantStockQuickEdit({
           }}
           className="text-[11px] font-medium text-primary hover:underline"
         >
-          修改／盤點
+          修改庫存
         </button>
       </div>
     );
@@ -138,7 +138,7 @@ export function MerchantStockQuickEdit({
       <input
         type="hidden"
         name="note"
-        value={`庫存表盤點：${quantity} → ${value}`}
+        value={`庫存修改：${quantity} → ${value}`}
       />
       <div className={`flex items-center gap-1 ${align === 'start' ? '' : 'justify-end'}`}>
         <input

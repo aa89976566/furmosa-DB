@@ -64,18 +64,14 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
   const productRows = new Map<string, Row>();
   for (const stock of merchant.stocks) {
     const tiers = toMerchantProductTierOptions(stock.product.priceTiers);
-    const multiWeight = isMultiWeightProduct(tiers);
     const existing = productRows.get(stock.productId);
     if (existing) {
-      existing.quantity += stock.quantity;
       if (
         stock.lastRestockAt &&
         (!existing.lastRestockAt || stock.lastRestockAt > existing.lastRestockAt)
       ) {
         existing.lastRestockAt = stock.lastRestockAt;
       }
-      const built = buildMerchantProductTierStocks(stock.productId, existing.priceTiers, stocks);
-      existing.tierStocks = built.tierStocks;
     } else {
       const built = buildMerchantProductTierStocks(stock.productId, tiers, stocks);
       productRows.set(stock.productId, {
@@ -91,11 +87,18 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
         companyRevenuePerUnit: null,
         ruleId: null,
         lastRestockAt: stock.lastRestockAt,
-        multiWeightTiers: multiWeight,
+        multiWeightTiers: isMultiWeightProduct(tiers),
         priceTiers: tiers,
         tierStocks: built.tierStocks,
       });
     }
+  }
+  for (const stock of merchant.stocks) {
+    const existing = productRows.get(stock.productId);
+    if (!existing) continue;
+    const built = buildMerchantProductTierStocks(stock.productId, existing.priceTiers, stocks);
+    existing.quantity = built.totalQuantity;
+    existing.tierStocks = built.tierStocks;
   }
   for (const rule of merchant.productRules) {
     const perUnit =
@@ -115,6 +118,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       existing.ruleId = rule.id;
       existing.multiWeightTiers = multiWeight;
       existing.priceTiers = tiers;
+      existing.quantity = built.totalQuantity;
       existing.tierStocks = built.tierStocks;
     } else {
       productRows.set(rule.productId, {
@@ -146,7 +150,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
     <div className="space-y-6 p-6">
       <SectionCard
         title="寄賣商品 × 庫存 × 分潤"
-        description="可直接在此修改店家庫存或盤點；多規格商品請依規格分別調整。分潤依商品設定為 20% 或 30%。"
+        description="可直接在此修改店家庫存；僅顯示該店有進貨紀錄的規格。分潤依商品設定為 20% 或 30%。"
         action={
           <div className="flex gap-2">
             <Button size="sm" variant="outline" asChild>
@@ -207,7 +211,6 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                       productName={r.productName}
                       totalQuantity={r.quantity}
                       tierStocks={r.tierStocks}
-                      multiWeightTiers={r.multiWeightTiers}
                       returnTo={productsReturnTo}
                     />
                     {r.quantity === 0 && r.ruleId && (
