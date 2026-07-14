@@ -109,7 +109,7 @@ function ymd(d = new Date()) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-async function nextJarSaleOrderNumber(db: typeof prisma = prisma) {
+async function nextJarSaleOrderNumber(db: DbClient = prisma) {
   const prefix = `ORD-${ymd()}-`;
   const last = await db.order.findFirst({
     where: { orderNumber: { startsWith: prefix } },
