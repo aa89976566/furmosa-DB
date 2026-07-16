@@ -223,11 +223,17 @@ export async function loadMerchantStockSnapshot(
     const stock =
       productStocks.find((item) => item.tierId === LEGACY_MERCHANT_STOCK_TIER_ID) ??
       productStocks[0]!;
+    const matchedTier = product.priceTiers.find((tier) => tier.id === stock.tierId) ?? null;
     rows.push({
       rowKey: productId,
       productId,
       tierId: stock.tierId,
-      tierLabel: null,
+      tierLabel:
+        stock.tierId === LEGACY_MERCHANT_STOCK_TIER_ID
+          ? '未分規格'
+          : matchedTier
+            ? variationLabel(matchedTier)
+            : null,
       name: product.name,
       sku: product.sku,
       quantity: stock.quantity,

@@ -53,15 +53,23 @@ export function parseTierIdFromForm(
   formData: FormData,
   tiers: MerchantProductTierOption[],
 ): string {
-  const tierId = String(formData.get('tierId') ?? '').trim();
+  const raw = formData.get('tierId');
+  const tierId = String(raw ?? '').trim();
+
+  if (tierId) {
+    if (!findTier(tiers, tierId)) throw new Error('規格不存在');
+    return tierId;
+  }
+
+  // 未傳或空字串：優先落到真實規格，避免再寫入「未分規格」
   if (hasMultipleTierOptions(tiers)) {
-    if (tierId) {
-      if (!findTier(tiers, tierId)) throw new Error('規格不存在');
-      return tierId;
-    }
+    const withWeight = tiers.filter((t) => t.weightGrams != null && t.weightGrams > 0);
+    if (withWeight.length === 1) return withWeight[0]!.id;
+    // 多規格卻沒帶 tierId：保留 legacy 相容舊表單，但呼叫端應一律送 tierId
     return LEGACY_MERCHANT_STOCK_TIER_ID;
   }
-  return tierId || pickDefaultTier(tiers)?.id || LEGACY_MERCHANT_STOCK_TIER_ID;
+
+  return pickDefaultTier(tiers)?.id || LEGACY_MERCHANT_STOCK_TIER_ID;
 }
 
 export function noteWithSpec(spec: string | null, body: string) {

@@ -113,7 +113,8 @@ export function MerchantStockInlineMovement({
     const fd = new FormData();
     fd.set('merchantId', merchantId);
     fd.set('productId', productId);
-    if (tierId) fd.set('tierId', tierId);
+    // 一律送出規格 id，避免被改寫成未分規格、漏掉克數
+    fd.set('tierId', tierId);
     fd.set('newQuantity', String(next));
     fd.set('reason', activeReason);
     if (note.trim()) fd.set('note', note.trim());
