@@ -26,13 +26,12 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
   if (!data) notFound();
 
   const { merchantId, rows } = data;
-  const productsReturnTo = `/merchants/${merchantId}/products`;
 
   return (
     <div className="space-y-6 p-6">
       <SectionCard
         title="寄賣商品 × 庫存 × 分潤"
-        description="庫存請用「登記異動」登記原因；僅顯示有進貨紀錄的規格。分潤：肉乾／零食 20%、凍乾 30%。"
+        description="點庫存數字就地清點：變少預設記售出，變多預設記補登進貨；可點「不是賣出？」改原因，完成後 5 秒內可撤銷。分潤：肉乾／零食 20%、凍乾 30%。"
         action={
           <div className="flex flex-wrap gap-2">
             <AutoFillCommissionButton merchantId={merchantId} />
@@ -96,7 +95,6 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                         productName={r.productName}
                         totalQuantity={r.quantity}
                         tierStocks={r.tierStocks}
-                        returnTo={productsReturnTo}
                         unitPrice={r.suggestedPrice}
                         commissionPercent={
                           r.commissionMode === 'percent' ? r.commissionValue : null

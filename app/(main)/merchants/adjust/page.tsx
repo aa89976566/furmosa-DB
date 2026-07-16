@@ -38,7 +38,7 @@ export default async function MerchantsAdjustPage({
     <>
       <PageHeader
         title="清點"
-        description="選擇店家，在庫存表點賣出輸入數量；需要時可用盤點校正現場數量"
+        description="選擇店家，點庫存數字輸入現場剩餘數量；變少預設記售出，變多預設記補登進貨"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchants">
@@ -48,12 +48,8 @@ export default async function MerchantsAdjustPage({
           </Button>
         }
       />
-      <div className="grid gap-6 p-6 lg:grid-cols-3">
-        <SectionCard
-          title="登記異動"
-          description="庫存表直接賣出或盤點"
-          className="lg:col-span-2"
-        >
+      <div className="p-6">
+        <SectionCard title="清點庫存" description="就地展開輸入現場數量，完成後 5 秒內可撤銷">
           {merchants.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚無可選店家。</p>
           ) : (
@@ -64,26 +60,8 @@ export default async function MerchantsAdjustPage({
               stockRows={stockSnapshot ?? []}
               unpostedRestocks={unpostedRestocks ?? []}
               products={productOptions ?? []}
-              countReturnTo={`/merchants/adjust?merchantId=${selectedMerchantId}`}
             />
           )}
-        </SectionCard>
-
-        <SectionCard title="提醒" description="兩種模式怎麼用" className="lg:col-span-1">
-          <ul className="space-y-3 text-sm">
-            <li className="rounded-md border-l-4 border-warning bg-warning/5 p-3">
-              <div className="font-semibold">從庫存賣出（建議）</div>
-              <div className="text-xs text-muted-foreground">
-                在庫存表點「賣出」→ 輸入件數 → 看即時結算 → 送出。庫存會自動扣除並納入月結。
-              </div>
-            </li>
-            <li className="rounded-md border-l-4 border-primary bg-primary/5 p-3">
-              <div className="font-semibold">盤點</div>
-              <div className="text-xs text-muted-foreground">
-                在庫存表點「盤點」→ 填現場剩餘數量。若比系統少，差額會當作賣出納入月結。
-              </div>
-            </li>
-          </ul>
         </SectionCard>
       </div>
     </>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { adjustMerchantStock } from '@/app/(main)/merchants/[id]/actions';
+import { adjustMerchantStockForm } from '@/app/(main)/merchants/[id]/actions';
 import { MerchantProductTierSelect } from '@/components/merchants/merchant-product-tier-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ async function submitCount(
   formData: FormData,
 ): Promise<CountFormState> {
   try {
-    await adjustMerchantStock(formData);
+    await adjustMerchantStockForm(formData);
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     return {

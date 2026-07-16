@@ -179,34 +179,55 @@ export function MerchantSettlementSection({
 
       {hasPreviewQuery && preview && preview.lines.length > 0 && (
         <div className="mt-4 space-y-4">
-          {/* KPIs */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Kpi label="銷售筆數" value={`${preview.lines.length}`} suffix="筆" />
-            <Kpi label="賣出件數" value={`${preview.totalQuantity}`} suffix="件" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
-              label="店家收現金"
+              label="毛銷售額（店家收的現金）"
               value={formatCurrency(preview.cashCollected)}
+              hint={`${preview.totalQuantity} 件／${preview.lines.length} 筆`}
               tone="info"
             />
             <Kpi
-              label="店家分潤"
+              label="店家應得分潤"
               value={formatCurrency(preview.commissionAmount)}
-              hint={`抽成率 ${(preview.effectiveCommissionRate * 100).toFixed(1)}%`}
+              hint={`加總後約 ${(preview.effectiveCommissionRate * 100).toFixed(1)}%（肉乾20%／凍乾30%混算）`}
               tone="warning"
             />
-            {rewardPayout > 0 && (
-              <Kpi
-                label="換罐補貼"
-                value={formatCurrency(rewardPayout)}
-                tone="info"
-              />
-            )}
             <Kpi
-              label="店家應返公司"
-              value={formatCurrency(merchantOwesUs)}
-              hint="收現金 − 分潤 − 換罐補貼 − 運費"
-              tone="success"
+              label="換罐補貼＋運費"
+              value={formatCurrency(rewardPayout + shippingFee)}
+              hint={`換罐 ${formatCurrency(rewardPayout)} · 運費 ${formatCurrency(shippingFee)}`}
+              tone="info"
             />
+            <Kpi
+              label="公司應付店家（撥款）"
+              value={formatCurrency(
+                preview.commissionAmount + rewardPayout + shippingFee,
+              )}
+              hint="= 分潤 + 換罐補貼 + 運費"
+              tone="success"
+              emphasize
+            />
+          </div>
+
+          <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">公司應付店家</p>
+              <p className="mt-1 text-2xl font-semibold text-success">
+                {formatCurrency(preview.commissionAmount + rewardPayout + shippingFee)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                結算後公司要撥給店家的分潤與補貼。
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">店家應返還公司</p>
+              <p className="mt-1 text-2xl font-semibold">
+                {formatCurrency(merchantOwesUs)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                店家跟客人收的錢，扣掉自己該留的分潤與補貼後，要匯回公司的金額。
+              </p>
+            </div>
           </div>
 
           {/* 展開明細 */}
@@ -386,12 +407,14 @@ function Kpi({
   suffix,
   hint,
   tone = 'default',
+  emphasize = false,
 }: {
   label: string;
   value: string;
   suffix?: string;
   hint?: string;
   tone?: 'default' | 'success' | 'info' | 'warning';
+  emphasize?: boolean;
 }) {
   const cls =
     tone === 'success'
@@ -402,9 +425,11 @@ function Kpi({
           ? 'border-warning/30 bg-warning/5'
           : '';
   return (
-    <div className={`rounded-lg border p-3 ${cls}`}>
+    <div className={`rounded-lg border p-3 ${cls} ${emphasize ? 'ring-1 ring-success/40' : ''}`}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums">
+      <div
+        className={`mt-1 font-semibold tabular-nums ${emphasize ? 'text-2xl text-success' : 'text-xl'}`}
+      >
         {value}
         {suffix && (
           <span className="ml-1 text-xs font-normal text-muted-foreground">{suffix}</span>

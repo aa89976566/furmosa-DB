@@ -322,6 +322,9 @@ export async function adjustMerchantStock(formData: FormData) {
       `${reasonMeta.label}：${before} → ${newQuantity}`,
     );
 
+  let commissionAmount: number | null = null;
+  let txnId: string;
+
   if (reasonMeta.countsAsSale) {
     const soldQty = Math.abs(delta);
     const rule = await prisma.merchantProductRule.findUnique({
@@ -333,7 +336,8 @@ export async function adjustMerchantStock(formData: FormData) {
       fallbackPrice: product.price,
     });
     const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty, unitPrice);
-    await prisma.merchantStockTxn.create({
+    commissionAmount = amounts.commissionAmount;
+    const txn = await prisma.merchantStockTxn.create({
       data: {
         txnNumber: await nextStockTxnNumber(prisma),
         merchantId,
@@ -347,8 +351,9 @@ export async function adjustMerchantStock(formData: FormData) {
         note: baseNote,
       },
     });
+    txnId = txn.id;
   } else {
-    await prisma.merchantStockTxn.create({
+    const txn = await prisma.merchantStockTxn.create({
       data: {
         txnNumber: await nextStockTxnNumber(prisma),
         merchantId,
@@ -359,6 +364,7 @@ export async function adjustMerchantStock(formData: FormData) {
         note: baseNote,
       },
     });
+    txnId = txn.id;
   }
 
   revalidatePath(`/merchants/${merchantId}`);
@@ -370,11 +376,64 @@ export async function adjustMerchantStock(formData: FormData) {
   revalidatePath('/merchants/settlements');
   revalidatePath('/merchants');
 
-  // 列表快速改庫存：不 redirect，由 client router.refresh() 輕量刷新
+  const summaryParts = [
+    product.name + (specLabel ? `（${specLabel}）` : ''),
+    delta < 0 ? `−${Math.abs(delta)} 件` : `+${delta} 件`,
+    reasonMeta.label,
+  ];
+  if (commissionAmount != null && commissionAmount > 0) {
+    summaryParts.push(`店家分潤 NT$${Math.round(commissionAmount)}`);
+  }
+  const summary = `已記錄：${summaryParts.join('・')}`;
+  const softResult = { ok: true as const, txnId, merchantId, tierId, summary };
+
   if (String(formData.get('softRefresh') ?? '') === '1') {
-    return;
+    return softResult;
   }
   redirect(returnTo || `/merchants/${merchantId}/products`);
+}
+
+/** 表單用：永遠 void（相容 server action form），完成後 redirect */
+export async function adjustMerchantStockForm(formData: FormData): Promise<void> {
+  formData.delete('softRefresh');
+  void (await adjustMerchantStock(formData));
+}
+
+/** 5 秒內撤銷上一筆庫存異動（未結算流水才可） */
+export async function undoMerchantStockMovement(formData: FormData) {
+  const txnId = String(formData.get('txnId') ?? '').trim();
+  const tierIdRaw = String(formData.get('tierId') ?? '');
+  if (!txnId) throw new Error('缺少異動編號');
+
+  const txn = await prisma.merchantStockTxn.findUnique({ where: { id: txnId } });
+  if (!txn) throw new Error('找不到異動紀錄');
+  if (txn.settlementId) throw new Error('此筆已納入結算，無法撤銷');
+
+  const reverseDelta = -txn.quantity;
+  const stockWhere = merchantStockUniqueWhere(txn.merchantId, txn.productId, tierIdRaw);
+  const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
+  const nextQty = Math.max(0, (existing?.quantity ?? 0) + reverseDelta);
+
+  await prisma.merchantStock.upsert({
+    where: stockWhere,
+    update: { quantity: nextQty, lastCountAt: new Date() },
+    create: {
+      merchantId: txn.merchantId,
+      productId: txn.productId,
+      tierId: tierIdRaw,
+      quantity: nextQty,
+      lastCountAt: new Date(),
+    },
+  });
+  await prisma.merchantStockTxn.delete({ where: { id: txnId } });
+
+  revalidatePath(`/merchants/${txn.merchantId}`);
+  revalidatePath(`/merchants/${txn.merchantId}/products`);
+  revalidatePath(`/merchants/${txn.merchantId}/adjust`);
+  revalidatePath('/merchants/adjust');
+  revalidatePath(`/merchants/${txn.merchantId}/settlement`);
+  revalidatePath('/merchants');
+  return { ok: true as const };
 }
 
 // ============================================================

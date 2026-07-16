@@ -83,7 +83,7 @@ export default async function MerchantOverviewPage({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <MerchantSection title="常用操作" description="進貨、銷售、盤點與結算入口">
+          <MerchantSection title="常用操作" description="進貨、清點、銷售與結算入口">
             <MerchantOperationsHub merchantId={merchant.id} />
           </MerchantSection>
 

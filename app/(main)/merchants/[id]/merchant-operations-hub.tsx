@@ -7,14 +7,12 @@ import {
   ShoppingCart,
   Receipt,
   ClipboardList,
-  Boxes,
   Truck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const actions: { href: (id: string) => string; label: string; icon: LucideIcon; primary?: boolean }[] = [
-  { href: (id) => `/merchants/${id}/adjust?mode=sold`, label: '登記賣出', icon: ScanLine, primary: true },
-  { href: (id) => `/merchants/${id}/adjust?mode=count`, label: '盤點剩餘', icon: Boxes, primary: true },
+  { href: (id) => `/merchants/${id}/adjust`, label: '清點庫存', icon: ScanLine, primary: true },
   { href: (id) => `/merchants/${id}/restock`, label: '進貨入庫', icon: PackagePlus },
   { href: (id) => `/merchants/${id}/sale`, label: '建立訂單', icon: ShoppingCart },
   { href: (id) => `/merchants/${id}/rule`, label: '分潤規則', icon: BookOpen },

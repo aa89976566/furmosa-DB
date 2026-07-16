@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import {
-  adjustMerchantStock,
+  adjustMerchantStockForm,
   recordMerchantQuickSale,
 } from '@/app/(main)/merchants/[id]/actions';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ export function AdjustForm({
   });
 
   const product = productId ? productMap.get(productId) : undefined;
-  const action = mode === 'count' ? adjustMerchantStock : recordMerchantQuickSale;
+  const action = mode === 'count' ? adjustMerchantStockForm : recordMerchantQuickSale;
 
   const preview =
     mode === 'sold' && product && value > 0

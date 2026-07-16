@@ -1,12 +1,10 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { MerchantSelect } from '@/components/merchants/merchant-select';
-import { MerchantStockInlineCount } from '@/components/merchants/merchant-stock-inline-count';
-import { MerchantStockInlineSale } from '@/components/merchants/merchant-stock-inline-sale';
+import { MerchantStockInlineMovement } from '@/components/merchants/merchant-stock-inline-movement';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -18,7 +16,6 @@ import {
 import { formatDate } from '@/lib/format';
 import type { MerchantStockSnapshotRow } from '@/lib/merchant-operation-options';
 import type { MerchantProductTierOption } from '@/lib/merchant-product-tier';
-import { ScanLine, ShoppingBag } from 'lucide-react';
 
 type MerchantOption = { id: string; name: string; merchantId: string };
 
@@ -41,8 +38,6 @@ type ProductOption = {
   priceTiers?: MerchantProductTierOption[];
 };
 
-type RowPanel = { rowKey: string; mode: 'sale' | 'count' };
-
 export function MerchantAdjustWorkspace({
   merchants,
   selectedMerchantId,
@@ -50,7 +45,6 @@ export function MerchantAdjustWorkspace({
   stockRows,
   unpostedRestocks = [],
   products,
-  countReturnTo,
 }: {
   merchants: MerchantOption[];
   selectedMerchantId: string;
@@ -58,18 +52,11 @@ export function MerchantAdjustWorkspace({
   stockRows: MerchantStockSnapshotRow[];
   unpostedRestocks?: UnpostedRestock[];
   products: ProductOption[];
-  /** 盤點完成後導回此路徑（清點 hub 用） */
+  /** @deprecated 就地清點不再需導回路徑 */
   countReturnTo?: string;
 }) {
-  const [panel, setPanel] = useState<RowPanel | null>(null);
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const totalQty = stockRows.reduce((sum, r) => sum + r.quantity, 0);
-
-  const togglePanel = (rowKey: string, mode: 'sale' | 'count') => {
-    setPanel((prev) =>
-      prev?.rowKey === rowKey && prev.mode === mode ? null : { rowKey, mode },
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -88,21 +75,29 @@ export function MerchantAdjustWorkspace({
           <p>此店尚無進貨庫存。請先新增進貨，並在出貨隊列標記「已寄出」後才會出現在此。</p>
           {unpostedRestocks.length > 0 ? (
             <div className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-left text-xs text-foreground">
-              <p className="font-medium text-warning">有 {unpostedRestocks.length} 筆進貨出貨尚未入庫</p>
+              <p className="font-medium text-warning">
+                有 {unpostedRestocks.length} 筆進貨出貨尚未入庫
+              </p>
               <ul className="mt-1 space-y-1">
                 {unpostedRestocks.map((s) => (
                   <li key={s.id}>
                     <Link href={`/shipments?s=${s.id}`} className="text-info hover:underline">
                       {s.shipmentNumber}
                     </Link>
-                    <span className="text-muted-foreground"> · {s.status === 'shipped' ? '已寄出' : '已送達'}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      · {s.status === 'shipped' ? '已寄出' : '已送達'}
+                    </span>
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
           <p>
-            <Link href={`/merchants/${selectedMerchantId}/restock`} className="text-info hover:underline">
+            <Link
+              href={`/merchants/${selectedMerchantId}/restock`}
+              className="text-info hover:underline"
+            >
               前往進貨入庫
             </Link>
           </p>
@@ -115,122 +110,118 @@ export function MerchantAdjustWorkspace({
               共 {stockRows.length} 列 · 合計 {totalQty} 件
             </p>
           </div>
-          <div className="overflow-hidden rounded-lg border">
+
+          {/* 手機：卡片列表 */}
+          <div className="space-y-3 md:hidden">
+            {stockRows.map((row) => {
+              const product = productById.get(row.productId);
+              return (
+                <div key={row.rowKey} className="rounded-lg border bg-background p-3">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
+                        {row.tierLabel ? (
+                          <Badge variant="outline" className="text-[10px] font-semibold">
+                            {row.tierLabel}
+                          </Badge>
+                        ) : null}
+                        {row.isConsigned ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            寄賣
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        最近進貨 {formatDate(row.lastRestockAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <MerchantStockInlineMovement
+                    merchantId={selectedMerchantId}
+                    productId={row.productId}
+                    productName={row.name}
+                    tierId={row.tierId}
+                    tierLabel={row.tierLabel}
+                    quantity={row.quantity}
+                    unitPrice={product?.suggestedPrice ?? null}
+                    commissionPercent={
+                      product?.commissionMode === 'percent' ? product.commissionValue : null
+                    }
+                    compact
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 桌面：表格 */}
+          <div className="hidden overflow-hidden rounded-lg border md:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>商品</TableHead>
                   <TableHead>規格</TableHead>
-                  <TableHead className="text-right">系統庫存</TableHead>
                   <TableHead>最近進貨</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead className="text-right">清點</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stockRows.map((row) => {
                   const product = productById.get(row.productId);
-                  const activePanel =
-                    panel?.rowKey === row.rowKey ? panel.mode : null;
-                  const canSell = row.quantity > 0 && !!product;
                   return (
-                    <Fragment key={row.rowKey}>
-                      <TableRow className={activePanel ? 'bg-primary/5' : undefined}>
-                        <TableCell>
-                          <div className="font-medium">{row.name}</div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
-                            {row.isConsigned ? (
-                              <Badge variant="secondary" className="text-[10px]">
-                                寄賣
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {row.tierLabel ? (
-                            <Badge variant="outline" className="text-xs font-semibold">
-                              {row.tierLabel}
+                    <TableRow key={row.rowKey}>
+                      <TableCell>
+                        <div className="font-medium">{row.name}</div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
+                          {row.isConsigned ? (
+                            <Badge variant="secondary" className="text-[10px]">
+                              寄賣
                             </Badge>
-                          ) : product?.weightLabel ? (
-                            <span className="text-sm text-navy/80">{product.weightLabel}</span>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={
-                              row.quantity > 0
-                                ? 'font-mono text-base font-semibold tabular-nums'
-                                : 'font-mono tabular-nums text-muted-foreground'
-                            }
-                          >
-                            {row.quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(row.lastRestockAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap justify-end gap-1.5">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={activePanel === 'sale' ? 'default' : 'outline'}
-                              disabled={!canSell}
-                              onClick={() => togglePanel(row.rowKey, 'sale')}
-                            >
-                              <ShoppingBag className="mr-1 h-3.5 w-3.5" />
-                              賣出
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={activePanel === 'count' ? 'secondary' : 'outline'}
-                              disabled={!product}
-                              onClick={() => togglePanel(row.rowKey, 'count')}
-                            >
-                              <ScanLine className="mr-1 h-3.5 w-3.5" />
-                              盤點
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {activePanel === 'sale' && product ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="bg-primary/5 pt-0">
-                            <MerchantStockInlineSale
-                              merchantId={selectedMerchantId}
-                              product={{ ...product, currentStock: row.quantity }}
-                              initialTierId={row.tierId}
-                              tierLabel={row.tierLabel}
-                              onCancel={() => setPanel(null)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                      {activePanel === 'count' && product ? (
-                        <TableRow>
-                          <TableCell colSpan={5} className="bg-primary/5 pt-0">
-                            <MerchantStockInlineCount
-                              merchantId={selectedMerchantId}
-                              product={{ ...product, currentStock: row.quantity }}
-                              initialTierId={row.tierId}
-                              tierLabel={row.tierLabel}
-                              returnTo={countReturnTo}
-                              onCancel={() => setPanel(null)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </Fragment>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {row.tierLabel ? (
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            {row.tierLabel}
+                          </Badge>
+                        ) : product?.weightLabel ? (
+                          <span className="text-sm text-navy/80">{product.weightLabel}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(row.lastRestockAt)}
+                      </TableCell>
+                      <TableCell className="text-right align-top">
+                        <MerchantStockInlineMovement
+                          merchantId={selectedMerchantId}
+                          productId={row.productId}
+                          productName={row.name}
+                          tierId={row.tierId}
+                          tierLabel={row.tierLabel}
+                          quantity={row.quantity}
+                          unitPrice={product?.suggestedPrice ?? null}
+                          commissionPercent={
+                            product?.commissionMode === 'percent'
+                              ? product.commissionValue
+                              : null
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
               </TableBody>
             </Table>
           </div>
           <p className="text-xs text-muted-foreground">
-            多規格商品會拆成各克數一列。點「賣出」或「盤點」只影響該規格的庫存。
+            點庫存數字清點：變少預設記現場售出，變多預設記補登進貨；完成後 5
+            秒內可撤銷。
           </p>
         </div>
       )}
