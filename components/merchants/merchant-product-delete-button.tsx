@@ -32,8 +32,8 @@ export function MerchantProductDeleteButton({
       onClick={() => {
         const warn =
           quantity > 0
-            ? `「${productName}」此店尚有 ${quantity} 件庫存。確定要從寄賣中移除嗎？（庫存與分潤規則會一併刪除，歷史流水保留）`
-            : `確定要從寄賣中移除「${productName}」嗎？（分潤規則會一併刪除，歷史流水保留）`;
+            ? `「${productName}」此店尚有 ${quantity} 件庫存。確定要從寄賣中移除嗎？（庫存與分潤規則會一併刪除，歷史流水保留於動作流水／訂單）`
+            : `確定將「${productName}」移出寄賣列表嗎？（分潤規則會一併刪除，銷售／進貨紀錄仍保留於動作流水／訂單）`;
         if (!confirm(warn)) return;
         const fd = new FormData();
         fd.set('merchantId', merchantId);

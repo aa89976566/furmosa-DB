@@ -38,7 +38,7 @@ export default async function MerchantsAdjustPage({
     <>
       <PageHeader
         title="清點"
-        description="選擇店家，點庫存數字輸入現場剩餘數量；變少預設記售出，變多預設記補登進貨"
+        description="選擇店家，點庫存數字輸入現場剩餘數量；已無貨品項收在歷史區，可移出列表"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchants">

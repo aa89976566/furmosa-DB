@@ -183,8 +183,10 @@ export async function loadMerchantStockSnapshot(
         (stock) => stock.tierId === LEGACY_MERCHANT_STOCK_TIER_ID,
       );
 
+      // 只列「此店曾有庫存紀錄」的規格，不預先展開未進貨的克數
       for (const tier of weightTiers) {
         const tierStock = tierStockById.get(tier.id);
+        if (!tierStock) continue;
         rows.push({
           rowKey: `${productId}:${tier.id}`,
           productId,
@@ -192,15 +194,15 @@ export async function loadMerchantStockSnapshot(
           tierLabel: variationLabel(tier),
           name: product.name,
           sku: product.sku,
-          quantity: tierStock?.quantity ?? 0,
+          quantity: tierStock.quantity,
           isConsigned,
-          lastRestockAt: tierStock?.lastRestockAt ?? legacyStock?.lastRestockAt ?? null,
-          lastSaleAt: tierStock?.lastSaleAt ?? null,
-          lastCountAt: tierStock?.lastCountAt ?? null,
+          lastRestockAt: tierStock.lastRestockAt ?? legacyStock?.lastRestockAt ?? null,
+          lastSaleAt: tierStock.lastSaleAt,
+          lastCountAt: tierStock.lastCountAt,
         });
       }
 
-      if (legacyStock && legacyStock.quantity > 0) {
+      if (legacyStock) {
         rows.push({
           rowKey: `${productId}:legacy`,
           productId,

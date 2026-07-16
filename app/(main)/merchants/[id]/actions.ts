@@ -754,5 +754,54 @@ export async function removeMerchantProduct(formData: FormData) {
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/adjust`);
+  revalidatePath('/merchants/adjust');
+  revalidatePath(`/merchants/${merchantId}/ledger`);
+  revalidatePath(`/merchants/${merchantId}/sales`);
   redirect(redirectTo || `/merchants/${merchantId}/products`);
+}
+
+/** 移出已無貨規格列：刪庫存列；若該商品已無任何庫存則一併移除分潤規則。流水保留於動作流水／訂單。 */
+export async function removeMerchantStockRow(formData: FormData) {
+  const merchantId = String(formData.get('merchantId') ?? '');
+  const productId = String(formData.get('productId') ?? '');
+  const tierId = String(formData.get('tierId') ?? LEGACY_MERCHANT_STOCK_TIER_ID);
+  const redirectTo = String(formData.get('redirectTo') ?? '').trim();
+  if (!merchantId || !productId) throw new Error('缺少店家或商品');
+
+  const stockWhere = merchantStockUniqueWhere(merchantId, productId, tierId);
+  const stock = await prisma.merchantStock.findUnique({ where: stockWhere });
+  if (!stock) throw new Error('找不到庫存列');
+  if (stock.quantity > 0) {
+    throw new Error('尚有庫存，請先清點至 0 件再移出列表');
+  }
+
+  const unsettledSale = await prisma.merchantStockTxn.findFirst({
+    where: { merchantId, productId, type: 'sale', settlementId: null },
+    select: { id: true },
+  });
+  if (unsettledSale) {
+    throw new Error('此商品仍有未結算的銷售紀錄，請先完成結算後再移出。');
+  }
+
+  await prisma.merchantStock.delete({ where: stockWhere });
+
+  const remaining = await prisma.merchantStock.count({
+    where: { merchantId, productId },
+  });
+  if (remaining === 0) {
+    await prisma.merchantProductRule.deleteMany({ where: { merchantId, productId } });
+  }
+
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/adjust`);
+  revalidatePath('/merchants/adjust');
+  revalidatePath(`/merchants/${merchantId}/ledger`);
+  revalidatePath(`/merchants/${merchantId}/sales`);
+
+  if (String(formData.get('softRefresh') ?? '') === '1') {
+    return { ok: true as const };
+  }
+  redirect(redirectTo || `/merchants/adjust?merchantId=${merchantId}`);
 }
