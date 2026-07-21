@@ -6,6 +6,7 @@ import {
   shipmentCarrierFromOrder,
   SHIPPING_FEE_TYPES,
 } from '@/lib/shipping-policy';
+import { syncConvenienceShippingAddress } from '@/lib/carrier-cvs';
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
@@ -126,6 +127,11 @@ export async function parseOrderFormData(
       throw new Error('超商取貨請選擇品牌（7-ELEVEN / 全家 / 萊爾富）');
     }
     if (!cvsStoreName) throw new Error('請填寫門市名稱');
+    shippingAddress = syncConvenienceShippingAddress({
+      cvsBrand,
+      cvsStoreName,
+      shippingAddress,
+    });
   } else {
     cvsBrand = null;
     cvsStoreName = null;
@@ -240,7 +246,11 @@ export async function parseOrderFormData(
 
   const cvsAddress =
     shippingMethod === 'convenience' && cvsStoreName
-      ? `${cvsBrand?.toUpperCase() ?? ''} ${cvsStoreName}`.trim()
+      ? syncConvenienceShippingAddress({
+          cvsBrand,
+          cvsStoreName,
+          shippingAddress,
+        })
       : null;
 
   const shipmentRecipientAddress =

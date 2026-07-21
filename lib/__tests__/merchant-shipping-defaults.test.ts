@@ -7,6 +7,7 @@ import {
 } from '@/lib/merchant-shipping-defaults';
 import { parseMerchantShippingFromForm } from '@/lib/merchant-shipping-persist';
 import { isSameCvsDestination } from '@/lib/logistics-display';
+import { syncConvenienceShippingAddress } from '@/lib/carrier-cvs';
 
 describe('merchantShippingToOrderFields 7-11', () => {
   it('門市與 shippingAddress 同源，不沿用舊街址', () => {
@@ -79,5 +80,29 @@ describe('isSameCvsDestination', () => {
 describe('parse711StoreFromAddress', () => {
   it('可從顯示地址還原門市名', () => {
     assert.equal(parse711StoreFromAddress('7-11 · 民大門市'), '民大門市');
+  });
+});
+
+describe('syncConvenienceShippingAddress', () => {
+  it('地址與門市不符時改寫為同源格式', () => {
+    assert.equal(
+      syncConvenienceShippingAddress({
+        cvsBrand: '711',
+        cvsStoreName: '民大門市',
+        shippingAddress: '桃園市中壢區舊街址 1 號',
+      }),
+      '7-11 · 民大門市',
+    );
+  });
+
+  it('地址已含門市名則保留', () => {
+    assert.equal(
+      syncConvenienceShippingAddress({
+        cvsBrand: '711',
+        cvsStoreName: '民大門市',
+        shippingAddress: '桃園市中壢區民大門市旁',
+      }),
+      '桃園市中壢區民大門市旁',
+    );
   });
 });
