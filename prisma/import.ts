@@ -731,7 +731,7 @@ async function importMerchantsAndRules() {
   }
 
   console.log(
-    `🏪 寄賣店家 ${CONSIGNMENT_MERCHANTS.length} 家、商品 ${allProductNames.size} 項、規則 ${ruleCount} 筆、出貨/進貨紀錄 ${SHIPMENT_RECORDS.length} 筆（已寫入店家庫存）`,
+    `🏪 寄賣店家 ${CONSIGNMENT_MERCHANTS.length + ZHUWO_CONSIGNMENT_BRANCHES.length} 家（含豬窩 ${ZHUWO_CONSIGNMENT_BRANCHES.length} 分店）、商品 ${allProductNames.size} 項、規則 ${ruleCount} 筆、出貨/進貨紀錄 ${SHIPMENT_RECORDS.length} 筆（已寫入店家庫存）`,
   );
 }
 
