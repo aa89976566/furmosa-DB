@@ -359,6 +359,25 @@ model Merchant {
   stocks       MerchantStock[]
   stockTxns    MerchantStockTxn[]
   shipments    Shipment[]
+  users        MerchantUser[]
+}
+
+/// 店家 POS 登入帳號（一 Merchant 可多筆；Phase 1 營運上先維持一店一 active）
+model MerchantUser {
+  id           String    @id @default(cuid())
+  merchantId   String    @map("merchant_id")
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  displayName  String?   @map("display_name")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@map("merchant_users")
 }
 
 model Warehouse {
