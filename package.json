@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && (prisma migrate resolve --rolled-back 20260721190000_ensure_zhuwo_banqiao || true) && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
