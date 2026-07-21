@@ -25,7 +25,7 @@ import { shippingMethodLabel } from '@/lib/shipping-policy';
 import { OrderAmountSummary } from '@/components/orders/order-amount-summary';
 import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
-import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
+import { isSameCvsDestination, resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 import {
@@ -194,7 +194,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             <LogisticsSummary logistics={logistics} />
             {order.shippingAddress &&
             order.shippingMethod === 'convenience' &&
-            !logistics.destination.includes(order.shippingAddress.trim()) ? (
+            !isSameCvsDestination(
+              logistics.destination,
+              order.cvsStoreName,
+              order.shippingAddress,
+            ) ? (
               <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
                 <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span className="whitespace-pre-line">{order.shippingAddress}</span>

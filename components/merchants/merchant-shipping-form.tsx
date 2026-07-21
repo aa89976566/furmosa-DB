@@ -12,6 +12,7 @@ import { merchantIndustryLabel } from '@/lib/labels';
 import { MerchantTypeFields } from '@/components/merchants/merchant-type-fields';
 import { MerchantField, MerchantFormActions } from '@/components/merchants/merchant-ui';
 import type { MerchantType } from '@/lib/merchant-types';
+import { parse711StoreFromAddress } from '@/lib/merchant-shipping-defaults';
 import { cn } from '@/lib/utils';
 
 export type MerchantShippingInput = {
@@ -33,6 +34,17 @@ function initialCarrier(value: string | null | undefined): CarrierMode {
   const v = (value ?? '').trim();
   if (v === CARRIER_711 || v === '黑貓' || v === '送貨') return v;
   return '';
+}
+
+/** 切到黑貓／送貨時，不要把「7-11 · 門市」當成街址預填 */
+function streetAddressDefault(
+  carrier: CarrierMode,
+  merchant: MerchantShippingInput,
+): string {
+  if (carrier === CARRIER_711) return '';
+  const addr = merchant.address?.trim() || '';
+  if (!addr || parse711StoreFromAddress(addr)) return '';
+  return addr;
 }
 
 export function MerchantShippingForm({
@@ -168,8 +180,9 @@ export function MerchantShippingForm({
       {carrier === '黑貓' && (
         <MerchantField label="黑貓收件地址" hint="進貨時自動帶入">
           <textarea
+            key={`address-blackcat-${merchant.id}`}
             name="address"
-            defaultValue={merchant.address ?? ''}
+            defaultValue={streetAddressDefault('黑貓', merchant)}
             rows={compact ? 2 : 3}
             maxLength={300}
             placeholder="例：新北市淡水區復興路 100 號"
@@ -181,8 +194,9 @@ export function MerchantShippingForm({
       {carrier === '送貨' && (
         <MerchantField label="送貨地址" hint="新增訂單選送貨時自動帶入">
           <textarea
+            key={`address-delivery-${merchant.id}`}
             name="address"
-            defaultValue={merchant.address ?? ''}
+            defaultValue={streetAddressDefault('送貨', merchant)}
             rows={compact ? 2 : 3}
             maxLength={300}
             placeholder="例：新北市淡水區…"
@@ -194,8 +208,9 @@ export function MerchantShippingForm({
       {carrier === '' && (
         <MerchantField label="備用地址（選填）">
           <Input
+            key={`address-none-${merchant.id}`}
             name="address"
-            defaultValue={merchant.address ?? ''}
+            defaultValue={streetAddressDefault('', merchant)}
             maxLength={300}
             placeholder="尚未指定物流時可先填"
             className="h-9"

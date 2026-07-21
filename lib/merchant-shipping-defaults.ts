@@ -65,8 +65,8 @@ export function merchantShippingToOrderFields(
       parse711StoreFromAddress(merchant.address) ||
       d.pickupStore.replace(/^7-11\s*[·•]\s*/i, '').trim() ||
       d.pickupStore;
-    const shippingAddress =
-      merchant.address?.trim() || (storeName ? format711RecipientAddress(storeName) : '');
+    // 與門市名稱同源，避免帶入舊的宅配／送貨街址造成兩邊不一致
+    const shippingAddress = storeName ? format711RecipientAddress(storeName) : '';
 
     return {
       recipientName,
@@ -118,8 +118,14 @@ export function profileDefaults(merchant: MerchantProfile): MerchantShippingDefa
   if (carrier === CARRIER_711) {
     pickupStore =
       merchant.pickupStoreName?.trim() ||
-      merchant.address?.trim() ||
-      [merchant.city?.trim(), merchant.name.trim()].filter(Boolean).join(' · ');
+      parse711StoreFromAddress(merchant.address) ||
+      // 舊資料可能把街址寫在 address；711 時不以街址充當門市名
+      '';
+    if (!pickupStore) {
+      pickupStore = [merchant.city?.trim(), merchant.name.trim()]
+        .filter(Boolean)
+        .join(' · ');
+    }
   } else {
     pickupStore =
       merchant.address?.trim() ||

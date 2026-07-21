@@ -1,4 +1,4 @@
-import { CARRIER_711 } from '@/lib/carrier-cvs';
+import { CARRIER_711, format711RecipientAddress } from '@/lib/carrier-cvs';
 import {
   merchantCarrierLabel,
   profileDefaults,
@@ -23,9 +23,14 @@ export function resolveLogisticsFromMerchant(
 ): LogisticsInfo {
   const d = profileDefaults(merchant);
   const carrier = merchant.preferredCarrier?.trim() || d.defaultCarrier;
+  const storeName = merchant.pickupStoreName?.trim();
+  const destination =
+    carrier === CARRIER_711 && storeName
+      ? format711RecipientAddress(storeName)
+      : d.pickupStore || '—';
   return {
     carrierLabel: merchantCarrierLabel(carrier),
-    destination: d.pickupStore || '—',
+    destination,
     contactName: d.pickupName,
     phone: d.pickupPhone || '—',
   };
@@ -56,10 +61,15 @@ export function resolveLogisticsFromOrder(order: OrderShipping): LogisticsInfo {
     const brand = order.cvsBrand
       ? (cvsBrandLabel[order.cvsBrand] ?? order.cvsBrand)
       : '超商取貨';
-    const store = order.cvsStoreName?.trim() || order.shippingAddress?.trim() || '';
+    const store = order.cvsStoreName?.trim() || '';
+    const addr = order.shippingAddress?.trim() || '';
+    // 有門市名稱時以「品牌 · 門市」為準，不另顯示可能過期的街址
+    const destination = store
+      ? `${brand} · ${store}`
+      : addr || '—';
     return {
       carrierLabel: brand,
-      destination: store || order.shippingAddress?.trim() || '—',
+      destination,
       contactName: order.customer?.name?.trim() || '—',
       phone: order.customer?.phone?.trim() || '—',
     };
@@ -73,6 +83,25 @@ export function resolveLogisticsFromOrder(order: OrderShipping): LogisticsInfo {
     contactName: order.customer?.name?.trim() || '—',
     phone: order.customer?.phone?.trim() || '—',
   };
+}
+
+/** 超商門市與 shippingAddress 是否為同一取件點（避免重複顯示） */
+export function isSameCvsDestination(
+  destination: string,
+  cvsStoreName: string | null | undefined,
+  shippingAddress: string,
+): boolean {
+  const dest = destination.trim();
+  const store = (cvsStoreName ?? '').trim();
+  const addr = shippingAddress.trim();
+  if (!addr) return true;
+  if (dest && (dest.includes(addr) || addr.includes(dest))) return true;
+  if (store && addr.includes(store)) return true;
+  // 「7-11 · 民大門市」與「民大門市」視為相同
+  const stripped = addr.replace(/^7-?\s*ELEVEN\s*[·•]\s*/i, '').replace(/^7-11\s*[·•]\s*/i, '').trim();
+  if (store && stripped === store) return true;
+  if (dest && stripped && (dest.includes(stripped) || stripped.includes(dest))) return true;
+  return false;
 }
 
 type ShipmentLogisticsInput = {

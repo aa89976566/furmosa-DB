@@ -24,7 +24,8 @@ export function parseMerchantShippingFromForm(formData: FormData): MerchantShipp
     if (!pickupStoreName) {
       return { preferredCarrier, pickupStoreName: null, address: null, error: '請填寫 7-11 門市名稱' };
     }
-    address = null;
+    // 寫入與門市同源的顯示地址，供出貨／訂單帶入
+    address = format711RecipientAddress(pickupStoreName);
   } else if (preferredCarrier === '黑貓') {
     pickupStoreName = null;
     if (!address) {

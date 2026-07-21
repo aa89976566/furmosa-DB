@@ -9,6 +9,21 @@ export function format711RecipientAddress(storeName: string): string {
   return `7-11 · ${storeName.trim()}`;
 }
 
+/** 超商取貨：門市名稱與 shippingAddress 同源（避免帶入舊街址） */
+export function syncConvenienceShippingAddress(params: {
+  cvsBrand: string | null;
+  cvsStoreName: string;
+  shippingAddress: string | null;
+}): string {
+  const store = params.cvsStoreName.trim();
+  const addr = params.shippingAddress?.trim() || '';
+  if (addr && addr.includes(store)) return addr;
+  if (params.cvsBrand === '711') return format711RecipientAddress(store);
+  if (params.cvsBrand === 'familymart') return `全家 · ${store}`;
+  if (params.cvsBrand === 'hilife') return `萊爾富 · ${store}`;
+  return `超商 · ${store}`;
+}
+
 export type Pickup711Info = {
   recipientName: string;
   recipientPhone: string;

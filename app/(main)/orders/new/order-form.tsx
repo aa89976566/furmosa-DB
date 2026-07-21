@@ -30,7 +30,11 @@ import {
   X,
 } from 'lucide-react';
 import { customerShippingDefaults } from '@/lib/customer-shipping-defaults';
-import { merchantShippingToOrderFields } from '@/lib/merchant-shipping-defaults';
+import {
+  merchantShippingToOrderFields,
+  parse711StoreFromAddress,
+} from '@/lib/merchant-shipping-defaults';
+import { syncConvenienceShippingAddress } from '@/lib/carrier-cvs';
 import {
   resolveOrderShipping,
   shippingMethodLabel,
@@ -573,6 +577,34 @@ export function OrderForm({
     setShippingAddress(fields.shippingAddress);
   }
 
+  /** 切換運送方式時，依店家檔案帶入對應地址（避免 7-11 門市與送貨街址混用） */
+  function applyShippingMethod(
+    method: 'home' | 'convenience' | 'delivery',
+    m?: MerchantOption | null,
+  ) {
+    setShippingMethod(method);
+    const merchant = m ?? selectedMerchant;
+    if (!merchant) return;
+
+    if (method === 'convenience') {
+      const fields = merchantShippingToOrderFields({
+        ...merchant,
+        preferredCarrier: '7-11',
+      });
+      setCvsBrand(fields.cvsBrand || '711');
+      setCvsStoreName(fields.cvsStoreName);
+      setShippingAddress(fields.shippingAddress);
+      return;
+    }
+
+    setCvsStoreName('');
+    const street =
+      merchant.address?.trim() && !parse711StoreFromAddress(merchant.address)
+        ? merchant.address.trim()
+        : [merchant.city?.trim(), merchant.name.trim()].filter(Boolean).join(' ');
+    setShippingAddress(street);
+  }
+
   function onMerchantChange(id: string) {
     setMerchantId(id);
     const m = merchants.find((x) => x.id === id);
@@ -1021,7 +1053,7 @@ export function OrderForm({
             <div className="inline-flex flex-wrap gap-1 rounded-md border bg-background p-0.5">
               <button
                 type="button"
-                onClick={() => setShippingMethod('home')}
+                onClick={() => applyShippingMethod('home')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'home'
                     ? 'bg-primary text-primary-foreground'
@@ -1032,7 +1064,7 @@ export function OrderForm({
               </button>
               <button
                 type="button"
-                onClick={() => setShippingMethod('convenience')}
+                onClick={() => applyShippingMethod('convenience')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'convenience'
                     ? 'bg-primary text-primary-foreground'
@@ -1043,7 +1075,7 @@ export function OrderForm({
               </button>
               <button
                 type="button"
-                onClick={() => setShippingMethod('delivery')}
+                onClick={() => applyShippingMethod('delivery')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'delivery'
                     ? 'bg-primary text-primary-foreground'
@@ -1082,7 +1114,18 @@ export function OrderForm({
                     <Input
                       name="cvsStoreName"
                       value={cvsStoreName}
-                      onChange={(e) => setCvsStoreName(e.target.value)}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setCvsStoreName(next);
+                        if (!next.trim()) return;
+                        setShippingAddress(
+                          syncConvenienceShippingAddress({
+                            cvsBrand,
+                            cvsStoreName: next,
+                            shippingAddress,
+                          }),
+                        );
+                      }}
                       placeholder="例：復興門市"
                       maxLength={80}
                       required

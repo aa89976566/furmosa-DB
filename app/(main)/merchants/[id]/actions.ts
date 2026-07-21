@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { CARRIER_711, resolve711PickupFromForm } from '@/lib/carrier-cvs';
+import { format711RecipientAddress, is711Carrier, resolve711PickupFromForm } from '@/lib/carrier-cvs';
 import {
   resolveStockMovementReason,
 } from '@/lib/merchant-stock-movement';
@@ -33,10 +33,8 @@ import { persistMerchantTypes } from '@/lib/merchant-types-persist';
 import { createRestockOrderWithShipment } from '@/lib/merchant-restock-order';
 import { parseRestockShippingFromForm } from '@/lib/orders/parse-restock-form';
 import { shipmentItemsFingerprint } from '@/lib/shipment-queue-filters';
-import {
-  parseMerchantTypesFromForm,
-  primaryMerchantType,
-} from '@/lib/merchant-types';
+import { parseMerchantTypesFromForm } from '@/lib/merchant-types';
+import { parseMerchantShippingFromForm } from '@/lib/merchant-shipping-persist';
 import { redirect } from 'next/navigation';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
 
@@ -70,13 +68,13 @@ export async function updateMerchantShipping(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
   if (!merchantId) throw new Error('缺少店家');
 
-  const preferredCarrier = toNullableField(formData.get('preferredCarrier'));
-  let pickupStoreName = toNullableField(formData.get('pickupStoreName'));
+  const shipping = parseMerchantShippingFromForm(formData);
+  if (shipping.error) throw new Error(shipping.error);
+
   const contactName = toNullableField(formData.get('contactName'));
   const phone = toNullableField(formData.get('phone'));
   const email = toNullableField(formData.get('email'));
   const city = toNullableField(formData.get('city'));
-  let address = toNullableField(formData.get('address'));
 
   const industryRaw = String(formData.get('industry') ?? '').trim();
   if (industryRaw && !parseMerchantIndustry(industryRaw)) {
@@ -87,14 +85,6 @@ export async function updateMerchantShipping(formData: FormData) {
   const types = parseMerchantTypesFromForm(formData);
   if (types.length === 0) throw new Error('請至少選擇一種類型');
 
-  if (preferredCarrier === CARRIER_711) {
-    if (!pickupStoreName) throw new Error('請填寫 7-11 門市名稱');
-    address = null;
-  } else if (preferredCarrier === '黑貓') {
-    pickupStoreName = null;
-    if (!address) throw new Error('請填寫黑貓收件地址');
-  }
-
   await prisma.$executeRaw`
     UPDATE "Merchant"
     SET
@@ -103,9 +93,9 @@ export async function updateMerchantShipping(formData: FormData) {
       "phone" = ${phone},
       "email" = ${email},
       "city" = ${city},
-      "preferredCarrier" = ${preferredCarrier},
-      "pickupStoreName" = ${pickupStoreName},
-      "address" = ${address}
+      "preferredCarrier" = ${shipping.preferredCarrier},
+      "pickupStoreName" = ${shipping.pickupStoreName},
+      "address" = ${shipping.address}
     WHERE "id" = ${merchantId}
   `;
 
@@ -214,7 +204,10 @@ export async function restockMerchant(formData: FormData) {
   const shipping = parseRestockShippingFromForm(formData, carrier);
   const profileName = merchant.contactName ?? merchant.name;
   const profilePhone = merchant.phone;
-  const profileAddress = merchant.address;
+  const profileAddress =
+    is711Carrier(carrier) && merchant.pickupStoreName?.trim()
+      ? format711RecipientAddress(merchant.pickupStoreName)
+      : merchant.address;
 
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
