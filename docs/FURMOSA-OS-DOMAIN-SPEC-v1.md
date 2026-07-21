@@ -135,7 +135,7 @@ Actors outside:
 |-----------------|--------------|----------------------|------------------------|
 | **Core Identity** | Customer, Pet, Customer↔Pet, LINE 綁定身份 | Merchant/Branch（開戶店） | `CustomerRegistered`, `PetProfileUpdated` |
 | **Booking** | Appointment, Technician, Schedule/Slot, CustomerRating（店評客） | Customer, Pet, Branch, MerchantUser, Product(Service) | `AppointmentCreated`, `AppointmentConfirmed`, `AppointmentCheckedIn`, `AppointmentCompleted`, `AppointmentNoShow`, `AppointmentCancelled` |
-| **Refill** | RefillOrder, ReturnedJarVerification, NewJarAssignment | Customer, Asset, Branch, Inventory Reservation, Payment | `RefillRequested`, `ReturnedJarVerified`, `ReturnedJarRejected`, `NewJarAssigned`, `RefillCompleted`, `ForgotJarOptionChosen` |
+| **Refill** | RefillOrder, 舊序號回收紀錄, 待登新罐資格 | Customer, JarCode／Serial, Branch, Inventory Reservation, Payment | `RefillRequested`, `ReturnedJarVerified`, `RefillDelivered`, `NewJarSerialRegisteredByCustomer`, `ForgotJarOptionChosen` |
 | **Commerce** | Product（類型）, Payment, （既有 Order 作為銷售憑證過渡） | Customer, Merchant | `PaymentInitiated`, `PaymentCompleted`, `PaymentFailed`, `PaymentRefunded` |
 | **Inventory** | Warehouse stock, Merchant/Branch stock, **InventoryReservation** | Product, Branch, RefillOrder/Appointment | `StockReserved`, `StockReleased`, `StockConsumed`, `RestockRequested`, `RestockApproved` |
 | **Rewards** | Points ledger 語意, Reward catalog, Coupon issuance | Customer, Merchant/Branch | `RewardEarned`, `RewardRedeemed`, `CouponIssued`, `CouponRedeemed`, `CouponExpired` |
