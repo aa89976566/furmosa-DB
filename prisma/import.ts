@@ -20,6 +20,7 @@ import {
   resolveTierIdFromWeightGrams,
 } from '../lib/merchant-stock-key';
 import { appendFishStripTierIfMissing } from '../lib/fish-freeze-dried';
+import { ZHUWO_CONSIGNMENT_BRANCHES } from '../lib/stores/zhuwo-branches';
 
 // 本機 import 走 DIRECT_URL（5432，不經 PgBouncer），避免 connection_limit=1 把大量 upsert 排隊
 const prisma = new PrismaClient({
@@ -476,6 +477,82 @@ async function importMerchantsAndRules() {
     });
     merchantIdByName.set(m.name, merchant.id);
     for (const alias of m.aliases ?? []) merchantIdByName.set(alias, merchant.id);
+  }
+
+  // 1b. 豬窩三間分店（固定 MER-0016／0019／0020；舊名「豬窩」就地改為中和店）
+  const legacyZhuwo = await prisma.merchant.findFirst({
+    where: { name: '豬窩' },
+  });
+  if (legacyZhuwo && legacyZhuwo.merchantId !== 'MER-0016') {
+    const mer0016Taken = await prisma.merchant.findUnique({ where: { merchantId: 'MER-0016' } });
+    if (!mer0016Taken) {
+      await prisma.merchant.update({
+        where: { id: legacyZhuwo.id },
+        data: { merchantId: 'MER-0016', name: '豬窩 中和店', city: '新北' },
+      });
+    } else {
+      await prisma.merchant.update({
+        where: { id: legacyZhuwo.id },
+        data: { name: '豬窩 中和店', city: '新北' },
+      });
+    }
+  } else if (legacyZhuwo) {
+    await prisma.merchant.update({
+      where: { id: legacyZhuwo.id },
+      data: { name: '豬窩 中和店', city: '新北' },
+    });
+  }
+
+  for (const m of ZHUWO_CONSIGNMENT_BRANCHES) {
+    const existingById = await prisma.merchant.findUnique({ where: { merchantId: m.merchantId } });
+    if (existingById) {
+      const canRename =
+        existingById.name === m.name ||
+        existingById.name === '豬窩' ||
+        existingById.name.startsWith('豬窩');
+      if (!canRename) {
+        console.warn(
+          `⚠️  ${m.merchantId} 已是「${existingById.name}」，略過寫入「${m.name}」`,
+        );
+        merchantIdByName.set(existingById.name, existingById.id);
+        continue;
+      }
+      const merchant = await prisma.merchant.update({
+        where: { id: existingById.id },
+        data: {
+          name: m.name,
+          city: m.city,
+          type: 'consignment',
+          types: ['consignment', 'jar_exchange'],
+          status: 'active',
+        },
+      });
+      merchantIdByName.set(m.name, merchant.id);
+      console.log(`🏪 豬窩分店 ${m.name} (${merchant.merchantId})`);
+      continue;
+    }
+
+    const existingByName = await prisma.merchant.findFirst({ where: { name: m.name } });
+    if (existingByName) {
+      merchantIdByName.set(m.name, existingByName.id);
+      console.log(`🏪 豬窩分店已存在 ${m.name} (${existingByName.merchantId})`);
+      continue;
+    }
+
+    const merchant = await prisma.merchant.create({
+      data: {
+        merchantId: m.merchantId,
+        name: m.name,
+        type: 'consignment',
+        types: ['consignment', 'jar_exchange'],
+        city: m.city,
+        commissionRate: 0.3,
+        status: 'active',
+        notes: '[來源] 豬窩分店同步',
+      },
+    });
+    merchantIdByName.set(m.name, merchant.id);
+    console.log(`🏪 豬窩分店 ${m.name} (${merchant.merchantId})`);
   }
 
   // 2. 商品 — 以「名稱」為主鍵（避免重複建 g 版本）；已存在就 update，缺則用下一個閒置 SKU 建

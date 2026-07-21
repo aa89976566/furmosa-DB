@@ -2,9 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 import { syncAllJarExchangePartnerStores } from '@/lib/stores/sync-merchant-stores';
 
-/** DB 無資料時的後備清單（與 migration seed 一致） */
+/** DB 無資料時的後備清單（與 migration／zhuwo-branches 一致；豬窩僅列三間分店） */
 export const FALLBACK_PARTNER_STORES = [
-  { slug: 'mer_0016', name: '豬窩' },
   { slug: 'zhuwo_zhonghe', name: '豬窩 中和店' },
   { slug: 'zhuwo_banqiao', name: '豬窩 板橋店' },
   { slug: 'zhuwo_tucheng', name: '豬窩 土城店' },

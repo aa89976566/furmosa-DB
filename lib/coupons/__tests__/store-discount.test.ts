@@ -21,9 +21,15 @@ describe('grooming coupon store discount', () => {
     assert.equal(isZhuwoPartnerStore('MER_0016'), true);
   });
 
+  it('identifies zhuwo branch merchants by mer_0019 / mer_0020 slug', () => {
+    assert.equal(isZhuwoPartnerStore('mer_0019'), true);
+    assert.equal(isZhuwoPartnerStore('mer_0020'), true);
+  });
+
   it('identifies zhuwo stores by name', () => {
     assert.equal(isZhuwoPartnerStore('unknown_slug', '豬窩 中和店'), true);
     assert.equal(isZhuwoPartnerStore('custom', '豬窩'), true);
+    assert.equal(isZhuwoPartnerStore('custom', '豬窩 板橋店'), true);
   });
 
   it('returns 250 for zhuwo and 200 for other partner stores', () => {
@@ -32,7 +38,11 @@ describe('grooming coupon store discount', () => {
       GROOMING_COUPON_DISCOUNT_ZHUWO,
     );
     assert.equal(
-      getGroomingCouponDiscountForStore('mer_0016', '豬窩'),
+      getGroomingCouponDiscountForStore('zhuwo_banqiao', '豬窩 板橋店'),
+      GROOMING_COUPON_DISCOUNT_ZHUWO,
+    );
+    assert.equal(
+      getGroomingCouponDiscountForStore('mer_0016', '豬窩 中和店'),
       GROOMING_COUPON_DISCOUNT_ZHUWO,
     );
     assert.equal(
