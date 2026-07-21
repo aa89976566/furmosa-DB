@@ -6,7 +6,15 @@ export const GROOMING_COUPON_DISCOUNT_LABEL = '豬窩 250 元、其他合作店 
 
 export function isZhuwoPartnerStore(storeId: string, storeName?: string | null): boolean {
   const id = storeId.trim().toLowerCase();
-  if (id.startsWith('zhuwo_') || id === 'mer_0016') return true;
+  // zhuwo_* 分店；mer_0016 為舊版單一「豬窩」；mer_0019／mer_0020 為寄賣分店編號對應 slug
+  if (
+    id.startsWith('zhuwo_') ||
+    id === 'mer_0016' ||
+    id === 'mer_0019' ||
+    id === 'mer_0020'
+  ) {
+    return true;
+  }
   if (storeName?.includes('豬窩')) return true;
   return false;
 }
