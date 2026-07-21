@@ -560,7 +560,7 @@ async function importMerchantsAndRules() {
       );
     }
 
-    let merchantId = m.merchantId;
+    let merchantId: string = m.merchantId;
     if (existingById) {
       const last = await prisma.merchant.findFirst({
         where: { merchantId: { startsWith: 'MER-' } },
