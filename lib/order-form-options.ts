@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
+import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
 
 export async function loadOrderFormOptions() {
-  return withDbRetry(() =>
-    Promise.all([
+  return withDbRetry(async () => {
+    await ensureZhuwoConsignmentBranches();
+    return Promise.all([
       prisma.merchant.findMany({
         where: { status: 'active' },
         orderBy: { name: 'asc' },
@@ -58,6 +60,6 @@ export async function loadOrderFormOptions() {
           },
         },
       }),
-    ]),
-  );
+    ]);
+  });
 }
