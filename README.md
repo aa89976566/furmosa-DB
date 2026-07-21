@@ -145,6 +145,8 @@ npm run dev
 
 密碼皆為 **`furmosa2026`**
 
+**HQ 後台**（`/login`）
+
 | Email | 角色 |
 |-------|------|
 | `admin@furmosa.com` | 系統管理員 |
@@ -152,7 +154,14 @@ npm run dev
 | `ops@furmosa.com` | 營運 |
 | `wh@furmosa.com` | 倉管 |
 
-> 上線前請務必到 `.env` 修改 `AUTH_SECRET`。
+**店家 POS**（`/pos/login`）
+
+| 帳號 | 說明 |
+|------|------|
+| `admin` | seed／Preview 自動建立的店家帳號 |
+
+> Preview 部署會跑 `merchant:ensure-demo-admin`（建 `MER-DEMO` + POS `admin`）。正式環境預設略過；若要強制執行設 `ENABLE_DEMO_ADMIN=1`。  
+> 上線前請務必到 `.env` 修改 `AUTH_SECRET`，並更換預設密碼。
 
 ### （選用）改用 PostgreSQL
 
