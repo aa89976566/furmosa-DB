@@ -642,6 +642,8 @@ model Order {
   @@index([status])
   @@index([orderedAt])
   @@index([subscriptionId])
+  @@index([merchantId])
+  @@index([customerId])
 }
 
 model OrderItem {
