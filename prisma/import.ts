@@ -504,21 +504,23 @@ async function importMerchantsAndRules() {
   }
 
   for (const m of ZHUWO_CONSIGNMENT_BRANCHES) {
-    const existingById = await prisma.merchant.findUnique({ where: { merchantId: m.merchantId } });
-    if (existingById) {
-      const canRename =
-        existingById.name === m.name ||
-        existingById.name === '豬窩' ||
-        existingById.name.startsWith('豬窩');
-      if (!canRename) {
-        console.warn(
-          `⚠️  ${m.merchantId} 已是「${existingById.name}」，略過寫入「${m.name}」`,
-        );
-        merchantIdByName.set(existingById.name, existingById.id);
-        continue;
-      }
+    const existingByName = await prisma.merchant.findFirst({
+      where:
+        m.name === '豬窩 板橋店'
+          ? {
+              OR: [
+                { name: m.name },
+                { name: '豬窩板橋店' },
+                { name: '豬窩-板橋店' },
+                { AND: [{ name: { contains: '豬窩' } }, { name: { contains: '板橋' } }] },
+              ],
+            }
+          : { name: m.name },
+    });
+
+    if (existingByName) {
       const merchant = await prisma.merchant.update({
-        where: { id: existingById.id },
+        where: { id: existingByName.id },
         data: {
           name: m.name,
           city: m.city,
@@ -532,16 +534,45 @@ async function importMerchantsAndRules() {
       continue;
     }
 
-    const existingByName = await prisma.merchant.findFirst({ where: { name: m.name } });
-    if (existingByName) {
-      merchantIdByName.set(m.name, existingByName.id);
-      console.log(`🏪 豬窩分店已存在 ${m.name} (${existingByName.merchantId})`);
-      continue;
+    const existingById = await prisma.merchant.findUnique({ where: { merchantId: m.merchantId } });
+    if (existingById) {
+      const canRename =
+        existingById.name === m.name ||
+        existingById.name === '豬窩' ||
+        existingById.name.startsWith('豬窩');
+      if (canRename) {
+        const merchant = await prisma.merchant.update({
+          where: { id: existingById.id },
+          data: {
+            name: m.name,
+            city: m.city,
+            type: 'consignment',
+            types: ['consignment', 'jar_exchange'],
+            status: 'active',
+          },
+        });
+        merchantIdByName.set(m.name, merchant.id);
+        console.log(`🏪 豬窩分店 ${m.name} (${merchant.merchantId})`);
+        continue;
+      }
+      console.warn(
+        `⚠️  ${m.merchantId} 已是「${existingById.name}」，改用下一個空號建立「${m.name}」`,
+      );
+    }
+
+    let merchantId = m.merchantId;
+    if (existingById) {
+      const last = await prisma.merchant.findFirst({
+        where: { merchantId: { startsWith: 'MER-' } },
+        orderBy: { merchantId: 'desc' },
+      });
+      const seq = last ? Number(last.merchantId.replace('MER-', '')) + 1 : 1;
+      merchantId = `MER-${String(seq).padStart(4, '0')}`;
     }
 
     const merchant = await prisma.merchant.create({
       data: {
-        merchantId: m.merchantId,
+        merchantId,
         name: m.name,
         type: 'consignment',
         types: ['consignment', 'jar_exchange'],

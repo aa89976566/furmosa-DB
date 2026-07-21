@@ -1,6 +1,7 @@
 /**
  * 豬窩三間分店（寄賣 Merchant ↔ LINE 核銷 Store）
- * 寄賣下拉、import、partner fallback 以此為準。
+ * merchantId 為偏好編號；若正式庫已被占用，migration 會改用下一個空號，
+ * 系統以店名「豬窩 …店」為準同步。
  */
 export const ZHUWO_CONSIGNMENT_BRANCHES = [
   {
@@ -30,3 +31,5 @@ export type ZhuwoBranch = (typeof ZHUWO_CONSIGNMENT_BRANCHES)[number];
 
 /** 舊版單一「豬窩」核銷 slug（已併入中和店） */
 export const ZHUWO_LEGACY_STORE_SLUG = 'mer_0016';
+
+export const ZHUWO_BRANCH_NAMES = ZHUWO_CONSIGNMENT_BRANCHES.map((b) => b.name);
