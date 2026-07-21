@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
@@ -7,10 +8,15 @@ const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-/** Supabase pooler 連線數有限；Vercel 上 batchSize=1 最穩 */
+/**
+ * Phase 0 效能優化：批次大小從 1 提高到 3。
+ * 原本 batchSize=1 是怕 Supabase pooler 被灌爆，但現在整個查詢結果會被
+ * `unstable_cache` 快取（見下方 CACHE_REVALIDATE_SECONDS），同一份資料
+ * 30 秒內只會真正打一次資料庫，因此可以放寬單次查詢的並行度。
+ */
 async function runInBatches(
   tasks: (() => Promise<unknown>)[],
-  batchSize = 1,
+  batchSize = 3,
 ): Promise<unknown[]> {
   const results: unknown[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
@@ -20,8 +26,22 @@ async function runInBatches(
   return results;
 }
 
+/** Dashboard KPI 允許 30 秒的資料延遲，換取大幅減少的資料庫往返次數 */
+const CACHE_REVALIDATE_SECONDS = 30;
+
+/**
+ * 注意：`unstable_cache` 會把回傳值序列化，Date 物件會變成 ISO 字串。
+ * 目前 Dashboard 頁面全部透過 `formatDate`/`formatDateTime`（接受 Date | string）
+ * 顯示日期，所以是安全的；未來若新增直接對日期做運算的欄位，請自行轉字串處理。
+ */
+const getCachedDashboardData = unstable_cache(
+  () => loadDashboardData(),
+  ['dashboard-data-v1'],
+  { revalidate: CACHE_REVALIDATE_SECONDS },
+);
+
 export async function getDashboardData() {
-  return withDbRetry(() => loadDashboardData());
+  return withDbRetry(() => getCachedDashboardData());
 }
 
 async function loadDashboardData() {
@@ -275,10 +295,21 @@ async function loadDashboardData() {
     };
   });
 
-  // 寄賣店銷售排行
-  const merchants = await prisma.merchant.findMany({
-    where: { id: { in: topMerchantsRaw.map((m) => m.merchantId!).filter(Boolean) } },
-  });
+  // 寄賣店銷售排行 + 本月下單會員名單：互不相依，並行查詢並套用重試
+  const [merchants, monthCustomers] = await Promise.all([
+    withDbRetry(() =>
+      prisma.merchant.findMany({
+        where: { id: { in: topMerchantsRaw.map((m) => m.merchantId!).filter(Boolean) } },
+      }),
+    ),
+    withDbRetry(() =>
+      prisma.order.findMany({
+        where: { orderedAt: { gte: startOfMonth }, customerId: { not: null } },
+        select: { customerId: true },
+        distinct: ['customerId'],
+      }),
+    ),
+  ]);
   const merchantMap = new Map(merchants.map((m) => [m.id, m]));
   const topMerchants = topMerchantsRaw.map((row) => {
     const m = merchantMap.get(row.merchantId!);
@@ -290,22 +321,19 @@ async function loadDashboardData() {
     };
   });
 
-  // 本月回購率：本月有下單 且 之前也有過下單 / 本月有下單會員
-  const monthCustomers = await prisma.order.findMany({
-    where: { orderedAt: { gte: startOfMonth }, customerId: { not: null } },
-    select: { customerId: true },
-    distinct: ['customerId'],
-  });
+  // 本月回購率：本月有下單 且 之前也有過下單 / 本月有下單會員（依賴上面 monthCustomers，無法並行）
   const customerIdsThisMonth = monthCustomers.map((c) => c.customerId!).filter(Boolean);
   let repurchaseRate = 0;
   if (customerIdsThisMonth.length) {
-    const repurchased = await prisma.order.groupBy({
-      by: ['customerId'],
-      where: {
-        customerId: { in: customerIdsThisMonth },
-        orderedAt: { lt: startOfMonth },
-      },
-    });
+    const repurchased = await withDbRetry(() =>
+      prisma.order.groupBy({
+        by: ['customerId'],
+        where: {
+          customerId: { in: customerIdsThisMonth },
+          orderedAt: { lt: startOfMonth },
+        },
+      }),
+    );
     repurchaseRate = repurchased.length / customerIdsThisMonth.length;
   }
 

@@ -86,7 +86,7 @@ gh repo create furmosa-hq --private --source=. --push
 
    | Name | Value |
    |---|---|
-   | `DATABASE_URL` | 6543 的 pooled URL，**結尾加** `?pgbouncer=true&connection_limit=10&pool_timeout=20`（dashboard 一次發多個 query，太緊會 timeout） |
+   | `DATABASE_URL` | 6543 的 pooled URL，**結尾加** `?pgbouncer=true&connection_limit=10&pool_timeout=20`（Dashboard 資料已有 30 秒快取，但快取到期那一刻仍會短暫並行發出多個 query，太緊會 timeout） |
    | `DIRECT_URL` | 5432 的 direct URL |
    | `AUTH_SECRET` | 用 `openssl rand -base64 32` 產一條 **新的**（**不要**和本機共用） |
    | `SESSION_HOURS` | `168` |
