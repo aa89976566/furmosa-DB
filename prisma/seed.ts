@@ -186,6 +186,21 @@ async function main() {
   }
   const merchants = await prisma.merchant.findMany();
 
+  // ===== MerchantUser（POS 預設店家 admin；密碼同 HQ：furmosa2026）=====
+  const flagship =
+    merchants.find((m) => m.merchantId === 'MER-0012') ?? merchants[0];
+  if (flagship) {
+    await prisma.merchantUser.create({
+      data: {
+        merchantId: flagship.id,
+        username: 'admin',
+        passwordHash: defaultPasswordHash,
+        displayName: '店家 Admin',
+        isActive: true,
+      },
+    });
+  }
+
   // ===== Warehouses =====
   await prisma.warehouse.createMany({
     data: [

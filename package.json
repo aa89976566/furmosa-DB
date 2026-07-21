@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && prisma migrate deploy && tsx scripts/ensure-demo-admin.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
@@ -20,7 +20,8 @@
     "db:import-prices": "tsx prisma/import.ts --price-only",
     "db:reset": "prisma migrate reset --force",
     "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts",
-    "merchant:create-user": "tsx scripts/create-merchant-user.ts"
+    "merchant:create-user": "tsx scripts/create-merchant-user.ts",
+    "merchant:ensure-demo-admin": "tsx scripts/ensure-demo-admin.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

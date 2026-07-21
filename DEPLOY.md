@@ -55,7 +55,7 @@
    ```
 
 4. 確認沒問題 — `npm run dev` 開到 `http://localhost:3000` 用
-   `admin@furmosa.com / furmosa2026` 登入，看資料是否齊全。
+   `admin@furmosa.com / furmosa2026` 登入 HQ；POS 用 `admin / furmosa2026` 登入 `/pos/login`。
 
 5. **重要**：把 `prisma/migrations/` **加入 git** 並 commit：
 

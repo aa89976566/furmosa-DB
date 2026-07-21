@@ -293,6 +293,16 @@ CustomerRating         店家對顧客的評分
 
 ### 10.5 Seed／建帳用法
 
+**Preview／seed 預設 POS admin（密碼與 HQ 相同：`furmosa2026`）**
+
+| 帳號 | 店家 | 來源 |
+|------|------|------|
+| `admin` | seed → `MER-0012`；Preview build → `MER-DEMO` | `prisma/seed.ts`／`npm run merchant:ensure-demo-admin` |
+
+Preview 部署在 `migrate deploy` 後會自動跑 `ensure-demo-admin`；正式環境預設略過（設 `ENABLE_DEMO_ADMIN=1` 可強制）。
+
+**手動建帳（正式店）：**
+
 ```bash
 MERCHANT_ID=MER-0001 USERNAME=store01 PASSWORD='********' npm run merchant:create-user
 # 可選：DISPLAY_NAME='店名' ALLOW_ADDITIONAL_ACTIVE=1
@@ -300,7 +310,7 @@ MERCHANT_ID=MER-0001 USERNAME=store01 PASSWORD='********' npm run merchant:creat
 
 - 可重複執行：同 username 已存在 → 輸出 `status: exists`（不印密碼）
 - 預設拒絕同一店第二個 active 帳號（除非 `ALLOW_ADDITIONAL_ACTIVE=1`）
-- 真實密碼勿 commit；用環境變數注入
+- 真實店密碼勿 commit；用環境變數注入
 
 ### 10.6 驗證指令結果
 
