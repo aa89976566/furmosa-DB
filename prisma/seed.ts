@@ -49,6 +49,7 @@ async function reset() {
   await prisma.productPriceTier.deleteMany();
   await prisma.product.deleteMany();
   await prisma.warehouse.deleteMany();
+  await prisma.merchantUser.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.vendor.deleteMany();
