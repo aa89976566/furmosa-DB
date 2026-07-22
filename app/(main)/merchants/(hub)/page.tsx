@@ -11,6 +11,7 @@ import {
 } from '@/lib/merchant-report';
 import { merchantSearchWhere } from '@/lib/site-search';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
+import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 import { PackagePlus, Plus, Receipt, ScanLine } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,7 @@ export default async function MerchantsOverviewPage({
   searchParams?: { period?: string; q?: string };
 }) {
   await ensureZhuwoConsignmentBranches();
+  await ensureQimuDeliveryShipping();
   const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
   const q = (searchParams?.q ?? '').trim();
   const { start: periodStart, end: periodEnd } = resolveMerchantReportPeriod(period);

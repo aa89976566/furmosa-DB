@@ -15,9 +15,11 @@ import {
   type MerchantShippingDefaults,
 } from '@/lib/merchant-shipping-defaults';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
+import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 
 export async function listMerchantsForSelect() {
   await ensureZhuwoConsignmentBranches();
+  await ensureQimuDeliveryShipping();
   return prisma.merchant.findMany({
     where: { status: 'active' },
     select: { id: true, name: true, merchantId: true },

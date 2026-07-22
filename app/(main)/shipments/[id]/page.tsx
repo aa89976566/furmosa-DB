@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 import { markShipmentStatus } from '../actions';
 import { CarrierSelect } from '@/components/shared/carrier-select';
 import { parsePlanContents } from '@/lib/plan-contents';
+import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import {
   ArrowLeft,
   Package,
@@ -65,6 +66,13 @@ export default async function ShipmentDetailPage({
   const allowedNext = nextStatuses(shipment.status);
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'cancelled'].includes(shipment.status);
+  const shipCarrierDefaults = resolveShipActionCarrierDefaults({
+    carrier: shipment.carrier,
+    recipientName: shipment.recipientName,
+    recipientPhone: shipment.recipientPhone,
+    recipientAddress: shipment.recipientAddress,
+    merchant: shipment.merchant,
+  });
 
   // 運輸人員需要的收款資訊：是否要當面跟客戶收錢
   const order = shipment.order;
@@ -441,8 +449,11 @@ export default async function ShipmentDetailPage({
                   shipmentId={shipment.id}
                   next={next}
                   currentStatus={shipment.status}
-                  defaultCarrier={shipment.carrier}
+                  defaultCarrier={shipCarrierDefaults.defaultCarrier}
                   defaultTracking={shipment.trackingNumber}
+                  defaultPickupStore={shipCarrierDefaults.pickupStore}
+                  defaultPickupName={shipCarrierDefaults.pickupName}
+                  defaultPickupPhone={shipCarrierDefaults.pickupPhone}
                 />
               ))}
             </div>
@@ -459,12 +470,18 @@ function StatusActionCard({
   currentStatus,
   defaultCarrier,
   defaultTracking,
+  defaultPickupStore,
+  defaultPickupName,
+  defaultPickupPhone,
 }: {
   shipmentId: string;
   next: ShipmentStatus;
   currentStatus: string;
   defaultCarrier: string | null;
   defaultTracking: string | null;
+  defaultPickupStore?: string | null;
+  defaultPickupName?: string | null;
+  defaultPickupPhone?: string | null;
 }) {
   const isShipping = next === 'shipped';
   const isDanger = next === 'cancelled';
@@ -492,7 +509,12 @@ function StatusActionCard({
         <>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">物流商</label>
-            <CarrierSelect defaultValue={defaultCarrier} />
+            <CarrierSelect
+              defaultValue={defaultCarrier}
+              defaultPickupStore={defaultPickupStore}
+              defaultPickupName={defaultPickupName}
+              defaultPickupPhone={defaultPickupPhone}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">追蹤碼</label>

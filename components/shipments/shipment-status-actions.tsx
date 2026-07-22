@@ -16,6 +16,9 @@ export function ShipmentStatusActions({
   allowedNext,
   defaultCarrier,
   defaultTracking,
+  defaultPickupStore,
+  defaultPickupName,
+  defaultPickupPhone,
   inline = false,
   queueStatus,
 }: {
@@ -24,6 +27,9 @@ export function ShipmentStatusActions({
   allowedNext: ShipmentStatus[];
   defaultCarrier: string | null;
   defaultTracking: string | null;
+  defaultPickupStore?: string | null;
+  defaultPickupName?: string | null;
+  defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
 }) {
@@ -43,6 +49,9 @@ export function ShipmentStatusActions({
           currentStatus={currentStatus}
           defaultCarrier={defaultCarrier}
           defaultTracking={defaultTracking}
+          defaultPickupStore={defaultPickupStore}
+          defaultPickupName={defaultPickupName}
+          defaultPickupPhone={defaultPickupPhone}
           inline={inline}
           queueStatus={queueStatus}
         />
@@ -57,6 +66,9 @@ function StatusActionCard({
   currentStatus,
   defaultCarrier,
   defaultTracking,
+  defaultPickupStore,
+  defaultPickupName,
+  defaultPickupPhone,
   inline,
   queueStatus,
 }: {
@@ -65,6 +77,9 @@ function StatusActionCard({
   currentStatus: string;
   defaultCarrier: string | null;
   defaultTracking: string | null;
+  defaultPickupStore?: string | null;
+  defaultPickupName?: string | null;
+  defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
 }) {
@@ -98,7 +113,12 @@ function StatusActionCard({
         <>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">物流商</label>
-            <CarrierSelect defaultValue={defaultCarrier} />
+            <CarrierSelect
+              defaultValue={defaultCarrier}
+              defaultPickupStore={defaultPickupStore}
+              defaultPickupName={defaultPickupName}
+              defaultPickupPhone={defaultPickupPhone}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">追蹤碼</label>
