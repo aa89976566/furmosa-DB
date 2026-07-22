@@ -51,6 +51,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/orders', label: '訂單列表', icon: ShoppingCart },
       { href: '/shipments', label: '出貨隊列', icon: Truck },
+      { href: '/restock-requests', label: '補貨申請', icon: Package },
       { href: '/merchants', label: '寄賣', icon: Store },
     ],
   },

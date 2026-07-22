@@ -39,6 +39,8 @@ async function reset() {
   await prisma.settlement.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.restockRequestItem.deleteMany();
+  await prisma.restockRequest.deleteMany();
   await prisma.shipmentItem.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.merchantStockTxn.deleteMany();
@@ -49,6 +51,7 @@ async function reset() {
   await prisma.productPriceTier.deleteMany();
   await prisma.product.deleteMany();
   await prisma.warehouse.deleteMany();
+  await prisma.merchantSettings.deleteMany();
   await prisma.merchantUser.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.customer.deleteMany();

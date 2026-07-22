@@ -268,7 +268,7 @@ CustomerRating         店家對顧客的評分
 
 ### 10.2 Migration
 
-- `prisma/migrations/20260721190000_merchant_user/migration.sql`
+- `prisma/migrations/20260722100000_merchant_user/migration.sql`（Phase 2 branch 為避開時間戳衝突已重新命名）
 - 新增表 `merchant_users`（additive）
 - FK → `"Merchant"("id")` ON DELETE CASCADE
 - `username` UNIQUE；`merchant_id` 僅 index（一對多，不 unique）
@@ -313,3 +313,47 @@ MERCHANT_ID=MER-0001 USERNAME=store01 PASSWORD='********' npm run merchant:creat
 ### 10.7 明確不做（留待後續 Phase）
 
 Appointment、RefillOrder、ECPay、LINE 新流程、庫存操作、一鍵叫貨實作、HQ 建帳 UI、Event Store。
+
+---
+
+## 11. Phase 2 執行紀錄（一鍵叫貨 RestockRequest）
+
+**狀態：已實作**（2026-07-22）  
+**範圍：** 店家補貨申請 + HQ 審核轉既有 `merchant_restock`；不含預約／ECPay／換罐序號／LINE 新平台。
+
+### 11.1 相對草案的 refinement（產品確認）
+
+| 項 | 決策 |
+|----|------|
+| 換罐商品辨識 | `Product.productCategory = JAR_EXCHANGE`（**不用**品名前綴） |
+| 申請類型 | `requestType`：`SELF_SELECT` / `AUTO_REPLENISH`（不用 mode） |
+| 店家設定 | 新增 `MerchantSettings`（含 `waitingForJarDays` 等） |
+| 核准快照 | `approvedSnapshot` JSON；Shipment 仍為履約真相 |
+| 店家文案 | 「我要自己選」「請幫我配」 |
+| 暫緩項 | NoShow／waiting_for_jar 流程／LIFF／角色／舊兌罐碼 |
+
+### 11.2 Migration
+
+- `20260722100000_merchant_user`（自 Phase 1 併入；避開與 zhuwo migration 時間戳衝突）
+- `20260722110000_restock_request`：`product_category`、`merchant_settings`、`restock_requests`、`restock_request_items`；並一次性將 `name LIKE '換罐%'` 回填為 `JAR_EXCHANGE`
+
+### 11.3 Routes
+
+| 路徑 | 角色 |
+|------|------|
+| `/pos/restock`、`/new`、`/[id]` | 店家 |
+| `/restock-requests`、`/[id]` | HQ |
+
+### 11.4 核准冪等
+
+- `shipmentId` unique + `updateMany` 條件搶鎖（`shipmentId IS NULL`）
+- 同 transaction 呼叫 `createRestockOrderWithShipment`
+- 已轉單再次核准 → 回傳既有 shipment（idempotent）
+
+### 11.5 通知
+
+站內狀態為主；LINE **未做**（TODO）。
+
+### 11.6 不做
+
+Phase 3 銷售盤點、Phase 4 預約、Phase 5 換罐付款／序號。

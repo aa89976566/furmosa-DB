@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
 import { posLogoutAction } from './actions';
@@ -9,11 +10,10 @@ export const metadata = {
 };
 
 const PLACEHOLDERS = [
-  { title: '今日預約', hint: '即將開放' },
-  { title: '待確認', hint: '即將開放' },
-  { title: '待交付換罐', hint: '即將開放' },
-  { title: '庫存提醒', hint: '即將開放' },
-  { title: '一鍵叫貨', hint: '即將開放' },
+  { title: '今日預約', hint: '即將開放', href: null as string | null },
+  { title: '待確認', hint: '即將開放', href: null },
+  { title: '待交付換罐', hint: '即將開放', href: null },
+  { title: '庫存提醒', hint: '即將開放', href: null },
 ] as const;
 
 export default async function PosHomePage() {
@@ -23,7 +23,6 @@ export default async function PosHomePage() {
     select: { id: true, name: true, merchantId: true },
   });
 
-  // Extra isolation: never show another merchant even if session were tampered in DB layer tests
   if (!merchant || merchant.id !== session.merchantId) {
     return (
       <div className="mx-auto max-w-lg px-4 py-10">
@@ -31,6 +30,13 @@ export default async function PosHomePage() {
       </div>
     );
   }
+
+  const openRestocks = await prisma.restockRequest.count({
+    where: {
+      merchantId: session.merchantId,
+      status: { in: ['submitted', 'under_review', 'approved', 'converted_to_shipment'] },
+    },
+  });
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-6">
@@ -59,11 +65,23 @@ export default async function PosHomePage() {
             </CardContent>
           </Card>
         ))}
-      </div>
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">
-        目前僅開放店家登入。預約、換罐與叫貨功能即將開放。
-      </p>
+        <Link href="/pos/restock">
+          <Card className="shadow-card transition hover:border-primary/40">
+            <CardContent className="flex min-h-[72px] items-center justify-between p-4">
+              <div>
+                <p className="font-medium text-foreground">一鍵叫貨</p>
+                <p className="text-sm text-muted-foreground">
+                  {openRestocks > 0
+                    ? `${openRestocks} 筆處理中`
+                    : '送出補貨申請'}
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-primary">前往</span>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
     </div>
   );
 }

@@ -29,10 +29,13 @@ async function main() {
   await prisma.merchantStockTxn.deleteMany();
   await prisma.merchantStock.deleteMany();
   await prisma.merchantProductRule.deleteMany();
+  await prisma.restockRequestItem.deleteMany();
+  await prisma.restockRequest.deleteMany();
   await prisma.shipmentItem.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.productPriceTier.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.merchantSettings.deleteMany();
   await prisma.merchantUser.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.customer.deleteMany();
