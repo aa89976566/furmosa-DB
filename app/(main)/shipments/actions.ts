@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { has711PickupInfo, is711Carrier, resolve711PickupFromForm } from '@/lib/carrier-cvs';
+import { has711PickupInfo, is711Carrier, tryResolve711PickupFromForm } from '@/lib/carrier-cvs';
 import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
@@ -58,7 +58,8 @@ export async function markShipmentStatus(formData: FormData) {
   if (trackingNumber !== null) data.trackingNumber = trackingNumber;
 
   if (is711Carrier(carrier)) {
-    const pickup711 = resolve711PickupFromForm(formData, carrier);
+    // 表單空白時保留出貨單既有取件資訊（避免寄賣店如柒沐按「已寄出」被擋）
+    const pickup711 = tryResolve711PickupFromForm(formData, carrier);
     if (pickup711) {
       data.recipientName = pickup711.recipientName;
       data.recipientPhone = pickup711.recipientPhone;

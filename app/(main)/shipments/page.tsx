@@ -231,7 +231,7 @@ export default async function ShipmentsPage({
           <div className="rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm text-muted-foreground">
             <p>
               「直客訂單」不含寄賣店成交。若剛建立{' '}
-              <strong className="font-medium text-foreground">淡水妞妞</strong> 等寄賣店訂單，請改看{' '}
+              <strong className="font-medium text-foreground">淡水妞妞、柒沐</strong> 等寄賣店訂單，請改看{' '}
               <Link href="/shipments?type=consignment" className="font-medium text-info hover:underline">
                 寄賣
               </Link>{' '}

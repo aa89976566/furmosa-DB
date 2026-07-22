@@ -19,6 +19,7 @@ import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
 import { formatPlanContents } from '@/lib/plan-contents';
 import { productLabel } from '@/lib/product-label';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
+import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import {
   nextStatuses,
   shipmentStatusLabel,
@@ -85,6 +86,13 @@ export function ShipmentOrderPanel({
 
   const allowedNext = nextStatuses(data.status) as ShipmentStatus[];
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
+  const shipCarrierDefaults = resolveShipActionCarrierDefaults({
+    carrier: data.carrier,
+    recipientName: data.recipientName,
+    recipientPhone: data.recipientPhone,
+    recipientAddress: data.recipientAddress,
+    merchant: data.merchant,
+  });
   const logistics = resolveLogisticsFromShipment({
     type: data.type,
     carrier: data.carrier,
@@ -270,8 +278,11 @@ export function ShipmentOrderPanel({
             shipmentId={data.id}
             currentStatus={data.status}
             allowedNext={allowedNext}
-            defaultCarrier={data.carrier}
+            defaultCarrier={shipCarrierDefaults.defaultCarrier}
             defaultTracking={data.trackingNumber}
+            defaultPickupStore={shipCarrierDefaults.pickupStore}
+            defaultPickupName={shipCarrierDefaults.pickupName}
+            defaultPickupPhone={shipCarrierDefaults.pickupPhone}
             inline
             queueStatus={queueStatus}
           />
