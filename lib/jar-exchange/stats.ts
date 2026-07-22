@@ -1,18 +1,9 @@
 import { prisma } from '@/lib/prisma';
-
-function startOfCalendarWeek(d = new Date()) {
-  const start = new Date(d);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - start.getDay());
-  return start;
-}
-
-function startOfRolling7Days(d = new Date()) {
-  const start = new Date(d);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - 6);
-  return start;
-}
+import {
+  defaultTaipeiMonthRange,
+  taipeiStartOfLastNDays,
+  taipeiWeekRangeSunday,
+} from '@/lib/taipei-date';
 
 export async function getJarExchangeStatsForCustomer(customerId: string) {
   const [balance, codesUsed, rewardsRedeemed, lastLedger, jarService] = await Promise.all([
@@ -49,12 +40,9 @@ export async function getJarExchangeStatsForCustomer(customerId: string) {
 }
 
 export async function getMonthJarExchangeKpis() {
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const startOfLast7Days = startOfRolling7Days();
-  const startOfWeek = startOfCalendarWeek();
+  const { start: startOfMonth } = defaultTaipeiMonthRange();
+  const startOfLast7Days = taipeiStartOfLastNDays(7);
+  const { start: startOfWeek } = taipeiWeekRangeSunday();
 
   const [pointsIssued, groomingCost, pointsEarnedMembers, pointsRedeemedMembers, weekJarRedeemCount] =
     await Promise.all([

@@ -78,3 +78,65 @@ export function previousTaipeiMonthInputs(reference = new Date()): { from: strin
   const range = parseTaipeiMonth(prevMonth)!;
   return { from: taipeiDateInput(range.start), to: taipeiDateInput(range.end) };
 }
+
+const WEEKDAY_INDEX: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+/** 台北日曆：星期幾（0=週日） */
+export function taipeiWeekdayIndex(date: Date = new Date()): number {
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: TAIPEI_TZ,
+    weekday: 'short',
+  }).format(date);
+  return WEEKDAY_INDEX[wd] ?? 0;
+}
+
+/** 台北日曆日期加減天數，回傳 YYYY-MM-DD */
+export function addTaipeiCalendarDays(ymd: string, deltaDays: number): string {
+  const base = new Date(`${ymd}T12:00:00+08:00`);
+  base.setTime(base.getTime() + deltaDays * 24 * 60 * 60 * 1000);
+  return taipeiDateInput(base);
+}
+
+/** 台北「今天」00:00～23:59:59.999 */
+export function taipeiTodayRange(reference = new Date()): { start: Date; end: Date } {
+  const day = taipeiDateInput(reference);
+  return {
+    start: new Date(`${day}T00:00:00+08:00`),
+    end: new Date(`${day}T23:59:59.999+08:00`),
+  };
+}
+
+/** 台北本週（週日起算）半開區間 [start, end) */
+export function taipeiWeekRangeSunday(reference = new Date()): { start: Date; end: Date } {
+  const today = taipeiDateInput(reference);
+  const sunday = addTaipeiCalendarDays(today, -taipeiWeekdayIndex(reference));
+  const nextSunday = addTaipeiCalendarDays(sunday, 7);
+  return {
+    start: new Date(`${sunday}T00:00:00+08:00`),
+    end: new Date(`${nextSunday}T00:00:00+08:00`),
+  };
+}
+
+/** 台北近 N 個日曆日（含今天），由舊到新 */
+export function taipeiDateKeysLastNDays(n: number, reference = new Date()): string[] {
+  const today = taipeiDateInput(reference);
+  const keys: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    keys.push(addTaipeiCalendarDays(today, -i));
+  }
+  return keys;
+}
+
+/** 台北近 N 日（含今天）起始時刻 */
+export function taipeiStartOfLastNDays(n: number, reference = new Date()): Date {
+  const keys = taipeiDateKeysLastNDays(n, reference);
+  return new Date(`${keys[0]}T00:00:00+08:00`);
+}
