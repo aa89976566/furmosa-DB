@@ -104,18 +104,18 @@ function HeroKpi({
   const inner = (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card via-card to-muted/20 p-5 shadow-card transition-all',
-        href && 'hover:border-primary/25 hover:shadow-card-hover',
+        'relative overflow-hidden rounded-md border border-border/80 bg-card p-4 shadow-xs transition-linear',
+        href && 'hover:border-primary/30 hover:shadow-sm',
         className,
       )}
     >
-      <div className={cn('absolute inset-y-0 left-0 w-1', styles.bar)} />
-      <div className="flex items-start justify-between gap-4 pl-2">
-        <div className="min-w-0 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <div className={cn('absolute inset-y-0 left-0 w-0.5', styles.bar)} />
+      <div className="flex items-start justify-between gap-4 pl-2.5">
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {title}
           </p>
-          <p className="font-mono text-3xl font-semibold tracking-tight text-navy tabular-nums md:text-4xl">
+          <p className="font-mono text-3xl font-semibold tracking-tight text-navy tabular-nums md:text-[2.1rem]">
             {value}
           </p>
           {description ? (
@@ -124,11 +124,11 @@ function HeroKpi({
         </div>
         <div
           className={cn(
-            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset',
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-md ring-1 ring-inset',
             styles.icon,
           )}
         >
-          <Icon className="h-6 w-6" />
+          <Icon className="h-4 w-4" />
         </div>
       </div>
     </div>
@@ -163,22 +163,22 @@ function MetricKpi({
   const inner = (
     <div
       className={cn(
-        'group relative flex h-full min-h-[5.5rem] flex-col justify-between overflow-hidden rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm transition-all',
-        href && 'hover:border-primary/20 hover:bg-card hover:shadow-card',
+        'group relative flex h-full min-h-[5.25rem] flex-col justify-between overflow-hidden rounded-md border border-border/70 bg-card p-3.5 shadow-xs transition-linear',
+        href && 'hover:border-primary/25 hover:bg-accent/40',
       )}
     >
-      <div className={cn('absolute inset-y-3 left-0 w-0.5 rounded-full opacity-80', styles.bar)} />
+      <div className={cn('absolute inset-y-2.5 left-0 w-0.5 opacity-90', styles.bar)} />
       <div className="flex items-start justify-between gap-2 pl-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
           {title}
         </p>
         <div
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset transition-transform group-hover:scale-105',
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset',
             styles.icon,
           )}
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
       <div className="space-y-0.5 pl-2 pt-2">
@@ -234,7 +234,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
         />
       </div>
 
-      <div className="grid gap-8 rounded-2xl border border-border/50 bg-surface-raised/50 p-5 shadow-card md:p-6 lg:grid-cols-3">
+      <div className="grid gap-8 rounded-md border border-border/70 bg-card p-4 shadow-xs md:p-5 lg:grid-cols-3">
         <KpiGroup title="客戶與會員" description="成長與回購表現">
           <MetricKpi
             title="本月新增客戶"

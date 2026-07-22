@@ -15,7 +15,8 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -66,6 +67,7 @@ const config: Config = {
         navy: 'hsl(var(--navy))',
         coral: 'hsl(var(--coral))',
         canvas: 'hsl(var(--canvas))',
+        sidebar: 'hsl(var(--sidebar))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -75,9 +77,16 @@ const config: Config = {
         '2xl': 'calc(var(--radius) + 8px)',
       },
       boxShadow: {
-        card: '0 1px 2px hsl(215 44% 14% / 0.04), 0 8px 24px hsl(215 44% 14% / 0.06)',
+        xs: '0 1px 2px hsl(222 22% 12% / 0.04)',
+        card: '0 0 0 1px hsl(var(--border) / 0.7), 0 1px 2px hsl(222 22% 12% / 0.03)',
         'card-hover':
-          '0 2px 4px hsl(215 44% 14% / 0.05), 0 12px 32px hsl(215 44% 14% / 0.08)',
+          '0 0 0 1px hsl(var(--border)), 0 4px 16px hsl(222 22% 12% / 0.06)',
+      },
+      transitionTimingFunction: {
+        linearish: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
+      transitionDuration: {
+        linear: '140ms',
       },
       keyframes: {
         'accordion-down': {
@@ -88,10 +97,15 @@ const config: Config = {
           from: { height: 'var(--radix-accordion-content-height)' },
           to: { height: '0' },
         },
+        enter: {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        enter: 'enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
       },
     },
   },

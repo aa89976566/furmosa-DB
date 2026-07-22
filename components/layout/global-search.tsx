@@ -78,7 +78,7 @@ export function GlobalSearch() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="搜尋訂單、電話、收件人、店家、商品…"
-        className="h-10 rounded-xl border-border/80 bg-muted/40 pl-9 shadow-none focus-visible:bg-card"
+        className="h-8 rounded-md border-border/80 bg-muted/30 pl-9 text-sm shadow-none focus-visible:bg-card"
         aria-label="搜尋"
       />
     </form>

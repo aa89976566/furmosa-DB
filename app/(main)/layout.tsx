@@ -4,12 +4,12 @@ import { PwaRegister } from '@/components/layout/pwa-register';
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-canvas">
       <PwaRegister />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex-1 overflow-x-hidden bg-canvas">{children}</main>
+        <main className="animate-enter flex-1 overflow-x-hidden bg-canvas">{children}</main>
       </div>
     </div>
   );

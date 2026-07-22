@@ -90,7 +90,7 @@ export function DashboardTodayTasks({ tasks }: { tasks: TodayTaskRow[] }) {
   }
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-surface-raised p-4 shadow-card">
+    <div className="flex h-full flex-col rounded-md border border-border/70 bg-card p-4 shadow-xs">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
@@ -104,7 +104,7 @@ export function DashboardTodayTasks({ tasks }: { tasks: TodayTaskRow[] }) {
         <Link
           href="/tasks"
           title="開啟完整任務看板（待辦、進行中、已完成等）"
-          className="relative z-20 inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-border/80 bg-background px-3 text-xs font-medium text-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/60"
+          className="relative z-20 inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background px-3 text-xs font-medium text-foreground transition-linear hover:border-primary/40 hover:bg-muted/60"
         >
           任務看板
         </Link>

@@ -139,7 +139,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
   return (
     <Link
       href={`/orders/${o.id}`}
-      className="block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-colors active:bg-muted/40"
+      className="block rounded-md border border-border/70 bg-card p-3.5 shadow-xs transition-linear active:bg-muted/40"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

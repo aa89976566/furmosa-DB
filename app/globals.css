@@ -4,71 +4,84 @@
 
 @layer base {
   :root {
-  /* Monzo-inspired: coral CTA, navy text, soft canvas */
-    --background: 220 20% 97%;
-    --foreground: 215 44% 14%;
+    /*
+      Visual system:
+      - Mixpanel CSS: cool slate canvas, teal analytics accent, crisp surfaces
+      - Linear UX: tighter radius, hairline borders, fast transitions
+      - Polaris: calm admin hierarchy, subdued chrome
+    */
+    --background: 220 16% 97%;
+    --foreground: 222 22% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 215 44% 14%;
+    --card-foreground: 222 22% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 44% 14%;
-    --primary: 6 100% 63%;
+    --popover-foreground: 222 22% 12%;
+    --primary: 173 72% 36%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 93%;
-    --secondary-foreground: 215 44% 14%;
-    --muted: 220 16% 95%;
-    --muted-foreground: 215 12% 46%;
-    --accent: 6 100% 96%;
-    --accent-foreground: 215 44% 14%;
-    --destructive: 4 88% 58%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 18% 20%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 10% 42%;
+    --accent: 173 45% 95%;
+    --accent-foreground: 173 72% 24%;
+    --destructive: 4 78% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 89%;
-    --input: 220 16% 89%;
-    --ring: 6 90% 58%;
-    --radius: 0.875rem;
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 173 72% 36%;
+    --radius: 0.5rem;
 
-    --success: 148 100% 36%;
+    --success: 152 61% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 95% 52%;
-    --warning-foreground: 215 44% 14%;
-    --info: 212 80% 48%;
+    --warning: 38 92% 48%;
+    --warning-foreground: 222 22% 12%;
+    --info: 211 78% 46%;
     --info-foreground: 0 0% 100%;
-    --navy: 215 44% 14%;
-    --coral: 6 100% 63%;
-    --canvas: 220 20% 97%;
+
+    /* Legacy aliases used across the app */
+    --navy: 222 22% 12%;
+    --coral: 173 72% 36%;
+    --canvas: 220 16% 97%;
     --surface-raised: 0 0% 100%;
+
+    --sidebar: 0 0% 100%;
+    --sidebar-border: 220 13% 90%;
+    --ease-out-linear: cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .dark {
-    --background: 215 44% 8%;
-    --foreground: 210 40% 98%;
-    --card: 215 40% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 215 40% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 6 100% 66%;
-    --primary-foreground: 215 44% 10%;
-    --secondary: 215 32% 16%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 32% 16%;
-    --muted-foreground: 215 16% 65%;
-    --accent: 6 55% 18%;
-    --accent-foreground: 6 100% 92%;
-    --destructive: 4 78% 55%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 28% 18%;
-    --input: 215 28% 18%;
-    --ring: 6 90% 62%;
+    --background: 222 20% 8%;
+    --foreground: 210 20% 96%;
+    --card: 222 18% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 18% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 173 65% 42%;
+    --primary-foreground: 222 22% 8%;
+    --secondary: 222 14% 16%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 222 14% 16%;
+    --muted-foreground: 215 12% 64%;
+    --accent: 173 30% 16%;
+    --accent-foreground: 173 55% 78%;
+    --destructive: 4 70% 48%;
+    --destructive-foreground: 210 20% 96%;
+    --border: 222 14% 18%;
+    --input: 222 14% 18%;
+    --ring: 173 65% 42%;
 
-    --success: 148 72% 42%;
-    --success-foreground: 215 44% 10%;
-    --warning: 38 92% 55%;
-    --warning-foreground: 215 44% 10%;
-    --info: 212 75% 58%;
-    --info-foreground: 215 44% 10%;
-    --navy: 210 40% 98%;
-    --coral: 6 100% 66%;
-    --canvas: 215 44% 8%;
-    --surface-raised: 215 40% 11%;
+    --success: 152 55% 42%;
+    --success-foreground: 222 22% 8%;
+    --warning: 38 88% 52%;
+    --warning-foreground: 222 22% 8%;
+    --info: 211 70% 56%;
+    --info-foreground: 222 22% 8%;
+    --navy: 210 20% 96%;
+    --coral: 173 65% 42%;
+    --canvas: 222 20% 8%;
+    --surface-raised: 222 18% 11%;
+    --sidebar: 222 18% 10%;
+    --sidebar-border: 222 14% 16%;
   }
 }
 
@@ -76,9 +89,16 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'ss01' 1, 'cv11' 1, 'rlig' 1, 'calt' 1;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
   }
 }
 
@@ -89,28 +109,53 @@
   .bg-surface-raised {
     background-color: hsl(var(--surface-raised));
   }
+  .bg-sidebar {
+    background-color: hsl(var(--sidebar));
+  }
   .text-navy {
     color: hsl(var(--navy));
   }
   .shadow-card {
     box-shadow:
-      0 1px 2px hsl(215 44% 14% / 0.04),
-      0 8px 24px hsl(215 44% 14% / 0.06);
+      0 0 0 1px hsl(var(--border) / 0.7),
+      0 1px 2px hsl(222 22% 12% / 0.03);
   }
   .shadow-card-hover {
     box-shadow:
-      0 2px 4px hsl(215 44% 14% / 0.05),
-      0 12px 32px hsl(215 44% 14% / 0.08);
+      0 0 0 1px hsl(var(--border)),
+      0 4px 16px hsl(222 22% 12% / 0.06);
+  }
+  .transition-linear {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 140ms;
+    transition-timing-function: var(--ease-out-linear);
+  }
+  .animate-enter {
+    animation: enter 180ms var(--ease-out-linear) both;
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/30 rounded-full;
+  @apply rounded-full bg-muted-foreground/25;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/50;
+  @apply bg-muted-foreground/40;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

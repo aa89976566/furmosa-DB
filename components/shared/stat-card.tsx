@@ -32,10 +32,10 @@ export function StatCard({
   accent = 'primary',
 }: StatCardProps) {
   return (
-    <Card className="transition-shadow hover:shadow-card-hover">
-      <CardContent className="flex items-start justify-between gap-4 p-5">
-        <div className="space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+    <Card className="shadow-xs transition-linear hover:shadow-sm">
+      <CardContent className="flex items-start justify-between gap-4 p-4">
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {title}
           </p>
           <p className="text-2xl font-semibold tracking-tight text-navy">{value}</p>
@@ -56,11 +56,11 @@ export function StatCard({
         {Icon ? (
           <div
             className={cn(
-              'flex h-11 w-11 items-center justify-center rounded-2xl',
+              'flex h-8 w-8 items-center justify-center rounded-md',
               accentClasses[accent],
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4" />
           </div>
         ) : null}
       </CardContent>
