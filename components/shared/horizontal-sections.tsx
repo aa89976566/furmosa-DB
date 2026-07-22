@@ -14,7 +14,7 @@ export function HorizontalSectionBand({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-border/70 bg-card shadow-card',
+        'overflow-hidden rounded-md border border-border/70 bg-card shadow-xs',
         className,
       )}
     >
@@ -55,17 +55,17 @@ export function HorizontalSectionPane({
         {Icon ? (
           <div
             className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
               styles.icon,
             )}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
           </div>
         ) : null}
         <div className="min-w-0 space-y-1">
           <span
             className={cn(
-              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
+              'inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
               styles.chip,
             )}
           >

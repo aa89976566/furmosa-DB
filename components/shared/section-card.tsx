@@ -33,7 +33,7 @@ export function SectionCard({
     <Card
       id={id}
       className={cn(
-        'overflow-hidden shadow-card',
+        'overflow-hidden shadow-xs',
         styles?.card,
         styles?.cardBorder,
         className,
@@ -41,26 +41,26 @@ export function SectionCard({
     >
       <CardHeader
         className={cn(
-          'flex flex-row items-center justify-between space-y-0 border-b pb-4',
-          styles?.header ?? 'border-border/60 bg-muted/20',
+          'flex flex-row items-center justify-between space-y-0 border-b pb-3.5',
+          styles?.header ?? 'border-border/60 bg-muted/30',
         )}
       >
         <div className="flex min-w-0 items-start gap-3">
           {Icon ? (
             <div
               className={cn(
-                'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
                 styles?.icon ?? 'bg-muted text-muted-foreground',
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-3.5 w-3.5" />
             </div>
           ) : null}
           <div className="min-w-0 space-y-1">
             {tone ? (
               <span
                 className={cn(
-                  'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]',
+                  'inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
                   styles?.chip,
                 )}
               >

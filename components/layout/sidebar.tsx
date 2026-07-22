@@ -5,22 +5,24 @@ import { PawPrint } from 'lucide-react';
 
 export function Sidebar() {
   return (
-    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-border/70 bg-card shadow-sm md:flex">
-      <div className="flex h-16 items-center gap-3 border-b border-border/70 px-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-          <PawPrint className="h-5 w-5" />
+    <aside className="hidden h-screen w-[232px] shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-sidebar md:flex">
+      <div className="flex h-14 items-center gap-2.5 border-b border-[hsl(var(--sidebar-border))] px-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <PawPrint className="h-4 w-4" />
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-sm font-semibold tracking-tight text-navy">Furmosa</span>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-[13px] font-semibold tracking-tight text-navy">
+            Furmosa
+          </span>
           <span className="text-[11px] text-muted-foreground">HQ Admin</span>
         </div>
       </div>
-      <ScrollArea className="min-h-0 flex-1 px-3 py-4">
-        <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
+      <ScrollArea className="min-h-0 flex-1 px-2 py-3">
+        <Suspense fallback={<div className="h-40 animate-pulse rounded-md bg-muted/50" />}>
           <SidebarNav />
         </Suspense>
       </ScrollArea>
-      <div className="border-t border-border/70 px-5 py-4 text-[11px] text-muted-foreground">
+      <div className="border-t border-[hsl(var(--sidebar-border))] px-4 py-3 text-[11px] text-muted-foreground">
         <p>v0.1.0 · MVP</p>
         <p>© Furmosa 2026</p>
       </div>

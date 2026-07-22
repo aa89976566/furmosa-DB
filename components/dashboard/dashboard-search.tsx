@@ -53,7 +53,7 @@ export function DashboardSearch() {
           onFocus={() => query.trim() && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 180)}
           placeholder="搜尋訂單、電話、收件人、店家、商品…"
-          className="h-11 rounded-2xl border-border/70 bg-surface-raised pl-10 pr-10 shadow-card"
+          className="h-9 rounded-md border-border/70 bg-card pl-10 pr-10 shadow-xs"
           autoComplete="off"
         />
         {pending ? (
@@ -64,7 +64,7 @@ export function DashboardSearch() {
       {showPanel ? (
         <div
           className={cn(
-            'absolute z-10 mt-2 max-h-[min(24rem,70vh)] w-full overflow-y-auto rounded-2xl border bg-card p-2 shadow-lg',
+            'absolute z-10 mt-1.5 max-h-[min(24rem,70vh)] w-full overflow-y-auto rounded-md border bg-card p-1.5 shadow-lg',
           )}
         >
           {!pending && !hasResults ? (

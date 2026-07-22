@@ -239,7 +239,7 @@ function ShipmentQueueCard({
         }
       }}
       className={cn(
-        'relative w-full cursor-pointer rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-colors',
+        'relative w-full cursor-pointer rounded-md border border-border/70 bg-card p-3.5 text-left shadow-xs transition-linear',
         'active:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'border-primary/30 bg-primary/[0.06] ring-1 ring-primary/20',
       )}

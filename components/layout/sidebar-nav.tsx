@@ -12,20 +12,15 @@ export function SidebarNav() {
   const searchParams = useSearchParams();
 
   return (
-    <nav className="space-y-6">
+    <nav className="space-y-5">
       {navGroups.map((group) => {
         const groupStyles = sectionToneStyles[group.tone];
         return (
           <div key={group.label}>
-            <p
-              className={cn(
-                'mb-2 inline-flex rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]',
-                groupStyles.chip,
-              )}
-            >
+            <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
               {group.label}
             </p>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = isNavItemActive(pathname, searchParams, item.href);
@@ -34,19 +29,19 @@ export function SidebarNav() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all',
+                      'group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-linear',
                       active
-                        ? cn('font-medium text-navy shadow-sm ring-1', groupStyles.sidebarActive)
-                        : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                        ? cn('font-medium ring-1', groupStyles.sidebarActive)
+                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
                     )}
                   >
                     <Icon
                       className={cn(
-                        'h-4 w-4',
-                        active ? groupStyles.eyebrow : 'text-muted-foreground',
+                        'h-3.5 w-3.5 shrink-0 transition-linear',
+                        active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
                       )}
                     />
-                    <span>{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </Link>
                 );
               })}
