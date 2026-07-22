@@ -124,7 +124,11 @@ export async function syncDraftOrdersWithPendingShipments(): Promise<number> {
 
 /** 佇列載入前整理資料 */
 export async function maintainShipmentQueueIntegrity() {
-  await ensureQimuDeliveryShipping();
+  try {
+    await ensureQimuDeliveryShipping();
+  } catch (error) {
+    console.error('[maintainShipmentQueueIntegrity] ensureQimuDeliveryShipping', error);
+  }
   await ensureOrdersForOrphanRestockShipments();
   await migrateRestockOrdersToConsignment();
   await cancelShipmentsForCancelledOrders();

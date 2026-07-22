@@ -75,11 +75,12 @@ const QUEUE_SECTIONS = [
 export default async function ShipmentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; type?: string; s?: string; q?: string };
+  searchParams?: { status?: string; type?: string; s?: string; q?: string; error?: string };
 }) {
   const status = searchParams?.status;
   const rawType = searchParams?.type;
   const q = (searchParams?.q ?? '').trim();
+  const actionError = (searchParams?.error ?? '').trim();
   const type =
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
@@ -237,6 +238,12 @@ export default async function ShipmentsPage({
               </Link>{' '}
               分類。
             </p>
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {actionError}
           </div>
         ) : null}
 

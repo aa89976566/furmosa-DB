@@ -10,8 +10,16 @@ import {
   type SubscriptionShipmentStatus,
 } from '@/lib/subscription-shipment-status';
 import { parsePlanContents, type PlanContentItem } from '@/lib/plan-contents';
+import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
+import {
+  QIMU_DELIVERY_ADDRESS,
+  QIMU_DELIVERY_PHONE,
+  isQimuMerchantName,
+} from '@/lib/stores/ensure-qimu-delivery';
+import { isNextRedirect } from '@/lib/is-next-redirect';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { Prisma } from '@prisma/client';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['shipped', 'cancelled'],
@@ -22,9 +30,29 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function markShipmentStatus(formData: FormData) {
+  try {
+    await markShipmentStatusInner(formData);
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    console.error('[markShipmentStatus]', error);
+    const shipmentId = String(formData.get('shipmentId') ?? '').trim();
+    const inline = formData.get('inline') === '1';
+    const message =
+      error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
+    const params = new URLSearchParams();
+    params.set('error', message.slice(0, 120));
+    if (shipmentId) params.set('s', shipmentId);
+    if (inline) {
+      redirect(`/shipments?${params.toString()}`);
+    }
+    redirect(`/shipments/${shipmentId}?${params.toString()}`);
+  }
+}
+
+async function markShipmentStatusInner(formData: FormData) {
   const shipmentId = String(formData.get('shipmentId') ?? '');
   const next = String(formData.get('next') ?? '');
-  const carrier = String(formData.get('carrier') ?? '').trim() || null;
+  let carrier = String(formData.get('carrier') ?? '').trim() || null;
   const trackingNumber = String(formData.get('trackingNumber') ?? '').trim() || null;
   const note = String(formData.get('note') ?? '').trim() || null;
 
@@ -35,7 +63,20 @@ export async function markShipmentStatus(formData: FormData) {
 
   const shipment = await prisma.shipment.findUnique({
     where: { id: shipmentId },
-    include: { items: true },
+    include: {
+      items: true,
+      merchant: {
+        select: {
+          id: true,
+          name: true,
+          contactName: true,
+          phone: true,
+          address: true,
+          preferredCarrier: true,
+          pickupStoreName: true,
+        },
+      },
+    },
   });
   if (!shipment) throw new Error('出貨單不存在');
 
@@ -45,7 +86,7 @@ export async function markShipmentStatus(formData: FormData) {
   }
 
   const now = new Date();
-  const data: Record<string, unknown> = { status: next };
+  const data: Prisma.ShipmentUpdateInput = { status: next };
   if (next === 'shipped') data.shippedAt = now;
   if (next === 'delivered') data.deliveredAt = now;
   if (next === 'cancelled') data.cancelledAt = now;
@@ -54,26 +95,100 @@ export async function markShipmentStatus(formData: FormData) {
     data.deliveredAt = null;
     data.packedAt = null;
   }
-  if (carrier !== null) data.carrier = carrier;
+
+  // 寄賣進貨：表單未帶物流時，沿用出貨單／店家預設（柒沐等直接送貨）
+  if (shipment.type === 'merchant_restock' && (next === 'shipped' || next === 'delivered')) {
+    const merchant = shipment.merchant;
+    const resolvedCarrier =
+      carrier ||
+      shipment.carrier?.trim() ||
+      merchant?.preferredCarrier?.trim() ||
+      (merchant && isQimuMerchantName(merchant.name) ? SHIPPING_CARRIER_DELIVERY : null);
+
+    if (resolvedCarrier) {
+      carrier = resolvedCarrier;
+      data.carrier = resolvedCarrier;
+    }
+
+    if (carrier === SHIPPING_CARRIER_DELIVERY || isQimuMerchantName(merchant?.name)) {
+      data.carrier = SHIPPING_CARRIER_DELIVERY;
+      carrier = SHIPPING_CARRIER_DELIVERY;
+      const address =
+        shipment.recipientAddress?.trim() ||
+        merchant?.address?.trim() ||
+        (isQimuMerchantName(merchant?.name) ? QIMU_DELIVERY_ADDRESS : '');
+      const name =
+        shipment.recipientName?.trim() ||
+        merchant?.contactName?.trim() ||
+        merchant?.name ||
+        null;
+      const phone =
+        shipment.recipientPhone?.trim() ||
+        merchant?.phone?.trim() ||
+        (isQimuMerchantName(merchant?.name) ? QIMU_DELIVERY_PHONE : null);
+      if (address) data.recipientAddress = address;
+      if (name) data.recipientName = name;
+      if (phone) data.recipientPhone = phone;
+    }
+  } else if (carrier !== null) {
+    data.carrier = carrier;
+  }
+
   if (trackingNumber !== null) data.trackingNumber = trackingNumber;
 
   if (is711Carrier(carrier)) {
-    // 表單空白時保留出貨單既有取件資訊（避免必填門市欄空白把寄賣出貨擋住）
     const pickup711 = tryResolve711PickupFromForm(formData, carrier);
     if (pickup711) {
       data.recipientName = pickup711.recipientName;
       data.recipientPhone = pickup711.recipientPhone;
       data.recipientAddress = pickup711.recipientAddress;
-    } else if (shipment.type === 'merchant_restock' && !has711PickupInfo(shipment)) {
-      throw new Error('物流為 7-11 時請填寫門市、收件人姓名與電話');
+    } else if (
+      shipment.type === 'merchant_restock' &&
+      !has711PickupInfo({ ...shipment, carrier })
+    ) {
+      // 不要讓缺門市把整張出貨炸掉：改回沿用店家／既有收件，或改送貨
+      const merchant = shipment.merchant;
+      if (
+        merchant?.preferredCarrier === SHIPPING_CARRIER_DELIVERY ||
+        isQimuMerchantName(merchant?.name)
+      ) {
+        data.carrier = SHIPPING_CARRIER_DELIVERY;
+        carrier = SHIPPING_CARRIER_DELIVERY;
+        data.recipientAddress =
+          shipment.recipientAddress?.trim() ||
+          merchant?.address?.trim() ||
+          QIMU_DELIVERY_ADDRESS;
+        data.recipientName =
+          shipment.recipientName?.trim() ||
+          merchant?.contactName?.trim() ||
+          merchant?.name ||
+          null;
+        data.recipientPhone =
+          shipment.recipientPhone?.trim() ||
+          merchant?.phone?.trim() ||
+          QIMU_DELIVERY_PHONE;
+      } else if (merchant?.address?.trim()) {
+        data.carrier = merchant.preferredCarrier?.trim() || SHIPPING_CARRIER_DELIVERY;
+        data.recipientAddress = merchant.address.trim();
+        data.recipientName =
+          shipment.recipientName?.trim() ||
+          merchant.contactName?.trim() ||
+          merchant.name;
+        if (merchant.phone?.trim()) {
+          data.recipientPhone = merchant.phone.trim();
+        }
+      }
+      // 仍無資料時：只更新狀態，不覆寫收件欄位、不 throw
     }
   }
+
   if (note !== null) {
     data.notes = shipment.notes
       ? `${shipment.notes}\n[${next}] ${note}`
       : `[${next}] ${note}`;
   }
 
+  // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
   await prisma.$transaction(async (tx) => {
     await tx.shipment.update({ where: { id: shipmentId }, data });
 
@@ -124,27 +239,39 @@ export async function markShipmentStatus(formData: FormData) {
         await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
       }
     }
+  });
 
-    if (
-      (next === 'shipped' || next === 'delivered') &&
-      shipment.type === 'merchant_restock' &&
-      shipment.merchantId
-    ) {
-      await applyMerchantRestockFromShipment(
-        tx,
-        {
-          shipmentNumber: shipment.shipmentNumber,
-          merchantId: shipment.merchantId,
-          items: shipment.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            weightGrams: item.weightGrams,
-          })),
-        },
-        now,
+  if (
+    (next === 'shipped' || next === 'delivered') &&
+    shipment.type === 'merchant_restock' &&
+    shipment.merchantId
+  ) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await applyMerchantRestockFromShipment(
+          tx,
+          {
+            shipmentNumber: shipment.shipmentNumber,
+            merchantId: shipment.merchantId!,
+            items: shipment.items
+              .filter((item) => item.productId && item.quantity > 0)
+              .map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                weightGrams: item.weightGrams,
+              })),
+          },
+          now,
+        );
+      });
+    } catch (inventoryError) {
+      console.error(
+        '[markShipmentStatus] restock inventory failed after status update',
+        shipment.shipmentNumber,
+        inventoryError,
       );
     }
-  });
+  }
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');
