@@ -357,3 +357,26 @@ Appointment、RefillOrder、ECPay、LINE 新流程、庫存操作、一鍵叫貨
 ### 11.6 不做
 
 Phase 3 銷售盤點、Phase 4 預約、Phase 5 換罐付款／序號。
+
+---
+
+## 12. Phase 2.5 — Merchant Experience Design（插入於 Phase 3 之前）
+
+**狀態：文件草案**（2026-07-22）  
+**文件：** `docs/MERCHANT-POS-FLOW.md`
+
+### 為什麼插入
+
+Domain／DB／實作已超前；真正決定成敗的是店員每天會不會打開 POS。  
+**先畫 Task Flow，不開 Phase 3 Schema／盤點模組。**
+
+### 設計目標
+
+- 底部第一版只有：**今天／叫貨／歷史**
+- 常見任務從「今天」起算 ≤ 3 次點擊
+- 收罐：輸入序號 → 確認收到（店員不輸新罐、不加點）
+- Dashboard 是工作佇列（客人／待換罐／缺貨／補貨），不是報表
+
+### DoD
+
+產品確認 Flow 文件後，才依畫面映射實作；**仍不自動開始 Phase 3**。
