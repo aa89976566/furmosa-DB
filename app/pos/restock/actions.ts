@@ -16,6 +16,24 @@ export type PosRestockFormState = {
   error?: string;
 };
 
+/** Map internal errors to shop-floor language. */
+function toMerchantError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : '';
+  if (msg.includes('至少選擇') || msg.includes('數量大於')) {
+    return '請至少選一個商品。數量需要大於 0。';
+  }
+  if (msg.includes('補貨需求') || msg.includes('填寫')) {
+    return '請寫一下你需要什麼，再送出。';
+  }
+  if (msg.includes('換罐計畫')) {
+    return '這項商品目前不能用叫貨申請，請聯繫 Furmosa。';
+  }
+  if (msg.includes('不存在')) {
+    return '有商品找不到了，請重新整理後再試。';
+  }
+  return '送出失敗，請再試一次。';
+}
+
 export async function submitSelfSelectRestockAction(
   _prev: PosRestockFormState,
   formData: FormData,
@@ -43,12 +61,12 @@ export async function submitSelfSelectRestockAction(
     });
     revalidatePath('/pos');
     revalidatePath('/pos/restock');
-    redirect(`/pos/restock/${req.id}`);
+    revalidatePath('/pos/restock/progress');
+    revalidatePath('/pos/records');
+    redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
-    return {
-      error: e instanceof Error ? e.message : '送出失敗，請稍後再試',
-    };
+    return { error: toMerchantError(e) };
   }
 }
 
@@ -68,11 +86,11 @@ export async function submitAutoReplenishRestockAction(
     });
     revalidatePath('/pos');
     revalidatePath('/pos/restock');
-    redirect(`/pos/restock/${req.id}`);
+    revalidatePath('/pos/restock/progress');
+    revalidatePath('/pos/records');
+    redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
-    return {
-      error: e instanceof Error ? e.message : '送出失敗，請稍後再試',
-    };
+    return { error: toMerchantError(e) };
   }
 }

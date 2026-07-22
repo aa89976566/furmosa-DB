@@ -1,20 +1,18 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { isJarExchangeProductCategory } from '@/lib/product-category';
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
-/** 換罐計畫寄賣商品名稱前綴（寄賣到店 ≠ 已售出） */
-export const JAR_EXCHANGE_PRODUCT_PREFIX = '換罐';
-
-export function isJarExchangeProductName(name: string | null | undefined): boolean {
-  if (!name) return false;
-  return name.trim().startsWith(JAR_EXCHANGE_PRODUCT_PREFIX);
-}
-
-export function isJarExchangeProductLine(line: {
+export type JarExchangeLineInput = {
+  productCategory?: string | null;
+  productId?: string | null;
   productName?: string | null;
-}): boolean {
-  return isJarExchangeProductName(line.productName);
+};
+
+/** True when every line is a JAR_EXCHANGE product (by productCategory only). */
+export function isJarExchangeProductLine(line: JarExchangeLineInput): boolean {
+  return isJarExchangeProductCategory(line.productCategory);
 }
 
 /** 寄賣店家補貨（換罐商品到店、無終端客戶）— 不計入營收 */
@@ -23,13 +21,13 @@ export function isJarExchangeConsignmentDelivery(input: {
   source?: string;
   merchantId?: string | null;
   customerId?: string | null;
-  items: { productName: string }[];
+  items: JarExchangeLineInput[];
 }): boolean {
   const isMerchantRestock =
     input.orderType === 'merchant' || (input.source === 'consignment' && !!input.merchantId);
   if (!isMerchantRestock || input.customerId) return false;
   if (input.items.length === 0) return false;
-  return input.items.every((it) => isJarExchangeProductName(it.productName));
+  return input.items.every((it) => isJarExchangeProductLine(it));
 }
 
 /** 換罐寄賣補貨：金額歸零、標註備註（出貨仍照常） */
@@ -39,7 +37,13 @@ export function applyJarExchangeConsignmentPricing<
     source: string;
     merchantId: string | null;
     customerId: string | null;
-    items: { productName: string; unitPrice: number; lineSubtotal: number }[];
+    items: {
+      productCategory?: string | null;
+      productId?: string | null;
+      productName: string;
+      unitPrice: number;
+      lineSubtotal: number;
+    }[];
     subtotal: number;
     discount: number;
     shippingFee: number;
@@ -79,7 +83,23 @@ export function applyJarExchangeConsignmentPricing<
   };
 }
 
-/** 訂單是否應計入營收 KPI（排除換罐寄賣補貨） */
+/** Attach productCategory onto order lines (single source of truth for jar checks). */
+export async function enrichOrderLinesWithProductCategory<
+  T extends { productId: string },
+>(items: T[], db: DbClient = prisma): Promise<(T & { productCategory: string })[]> {
+  if (items.length === 0) return [];
+  const products = await db.product.findMany({
+    where: { id: { in: items.map((i) => i.productId) } },
+    select: { id: true, productCategory: true },
+  });
+  const byId = new Map(products.map((p) => [p.id, p.productCategory]));
+  return items.map((it) => ({
+    ...it,
+    productCategory: byId.get(it.productId) ?? 'STANDARD',
+  }));
+}
+
+/** 訂單是否應計入營收 KPI（排除換罐寄賣補貨）— 依 Product.productCategory */
 export const revenueEligibleOrderWhere: Prisma.OrderWhereInput = {
   NOT: {
     AND: [
@@ -89,7 +109,7 @@ export const revenueEligibleOrderWhere: Prisma.OrderWhereInput = {
       {
         items: {
           every: {
-            productName: { startsWith: JAR_EXCHANGE_PRODUCT_PREFIX },
+            product: { productCategory: 'JAR_EXCHANGE' },
           },
         },
       },
@@ -119,7 +139,7 @@ async function nextJarSaleOrderNumber(db: DbClient = prisma) {
   return `${prefix}${pad(seq, 3)}`;
 }
 
-/** 依序號關聯 SKU 或換罐商品預設售價 */
+/** 依序號關聯 SKU 或換罐商品預設售價（只查 productCategory=JAR_EXCHANGE） */
 export async function resolveJarCodeSaleUnitPrice(
   jarCode: { productSku: string | null },
   db: DbClient = prisma,
@@ -127,7 +147,7 @@ export async function resolveJarCodeSaleUnitPrice(
   if (jarCode.productSku) {
     const product = await db.product.findFirst({
       where: { sku: jarCode.productSku },
-      select: { id: true, name: true, sku: true, price: true },
+      select: { id: true, name: true, sku: true, price: true, productCategory: true },
     });
     if (product) {
       return {
@@ -140,7 +160,7 @@ export async function resolveJarCodeSaleUnitPrice(
   }
 
   const fallback = await db.product.findFirst({
-    where: { name: { startsWith: JAR_EXCHANGE_PRODUCT_PREFIX } },
+    where: { productCategory: 'JAR_EXCHANGE', status: 'active' },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, sku: true, price: true },
   });

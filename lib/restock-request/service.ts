@@ -62,7 +62,7 @@ export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInpu
     .filter((it) => it.productId && it.quantity > 0);
 
   if (cleaned.length === 0) {
-    throw new Error('請至少選擇一個商品，且數量大於 0');
+    throw new Error('請至少選一個商品。數量需要大於 0。');
   }
 
   await assertJarExchangeProducts(cleaned.map((c) => c.productId));

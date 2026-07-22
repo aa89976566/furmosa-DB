@@ -45,6 +45,7 @@ export type ParsedOrderLine = {
   weightGrams: number | null;
   unit: string | null;
   productName: string;
+  productCategory: string;
   sku: string;
   lineSubtotal: number;
 };
@@ -200,6 +201,7 @@ export async function parseOrderFormData(
       unit: true,
       price: true,
       cost: true,
+      productCategory: true,
       priceTiers: { select: { id: true, cost: true } },
     },
   });
@@ -221,6 +223,7 @@ export async function parseOrderFormData(
       ...it,
       unitCost,
       productName: prod.name,
+      productCategory: prod.productCategory,
       sku: prod.sku,
       lineSubtotal: it.unitPrice * it.quantity,
     });

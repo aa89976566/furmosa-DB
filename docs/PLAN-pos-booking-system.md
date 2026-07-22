@@ -380,4 +380,9 @@ Domain／DB／實作已超前；真正決定成敗的是店員每天會不會打
 
 ### 下一步順序
 
-Phase 2 程式驗收 → 本 Flow 定案 → 手機實測叫貨 → 1 店 15 分鐘測試 → 再決定 Phase 3
+Phase 2 程式驗收＋手機 UX 對齊（本輪）→ 1 店 15 分鐘可用性測試 → 再決定 Phase 3
+
+### Phase 2 驗收文件
+
+- `docs/PHASE-2-ACCEPTANCE.md` — branch／migration／部署順序／誠實缺口
+- `docs/MERCHANT-POS-USABILITY-TEST-v1.md` — 合作店 15 分鐘腳本
