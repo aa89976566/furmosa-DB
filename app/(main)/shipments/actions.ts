@@ -58,7 +58,7 @@ export async function markShipmentStatus(formData: FormData) {
   if (trackingNumber !== null) data.trackingNumber = trackingNumber;
 
   if (is711Carrier(carrier)) {
-    // 表單空白時保留出貨單既有取件資訊（避免寄賣店如柒沐按「已寄出」被擋）
+    // 表單空白時保留出貨單既有取件資訊（避免必填門市欄空白把寄賣出貨擋住）
     const pickup711 = tryResolve711PickupFromForm(formData, carrier);
     if (pickup711) {
       data.recipientName = pickup711.recipientName;

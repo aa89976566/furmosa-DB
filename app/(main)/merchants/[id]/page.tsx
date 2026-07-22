@@ -158,9 +158,10 @@ export default async function MerchantOverviewPage({
             />
             {merchant.preferredCarrier === CARRIER_711 ? (
               <MerchantDlRow label="7-11 門市" value={merchant.pickupStoreName ?? '—'} />
-            ) : merchant.preferredCarrier === '黑貓' ? (
+            ) : merchant.preferredCarrier === '黑貓' ||
+              merchant.preferredCarrier === '送貨' ? (
               <MerchantDlRow
-                label="收件地址"
+                label={merchant.preferredCarrier === '送貨' ? '送貨地址' : '收件地址'}
                 value={
                   merchant.address ? (
                     <span className="inline-flex max-w-[12rem] items-start justify-end gap-1 text-right">
