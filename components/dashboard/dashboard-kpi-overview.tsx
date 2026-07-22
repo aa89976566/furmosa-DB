@@ -211,7 +211,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
         <HeroKpi
           title="本月營收"
           value={formatCurrency(kpis.monthRevenue)}
-          description="本月有效訂單合計 · 不含已取消"
+          description="本月有效銷售合計 · 不含取消／草稿／寄賣進貨"
           icon={CircleDollarSign}
           accent="success"
           href="/orders"
@@ -219,7 +219,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
         <HeroKpi
           title="今日訂單"
           value={formatNumber(kpis.todayOrderCount)}
-          description="今日成立 · 不含已取消"
+          description="今日成立銷售單 · 不含取消／草稿／寄賣進貨"
           icon={ShoppingBag}
           accent="info"
           href="/orders"
@@ -227,7 +227,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
         <HeroKpi
           title="本週換罐"
           value={formatNumber(kpis.weekJarRedeemCount)}
-          description="本週序號返航 · 已兌換罐數（週日起算）"
+          description="本週序號返航 · 已兌換罐數（台北週日起算）"
           icon={Recycle}
           accent="primary"
           href="/jar-exchange/manage?tab=codes"
