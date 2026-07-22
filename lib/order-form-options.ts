@@ -1,10 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
+import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 
 export async function loadOrderFormOptions() {
   return withDbRetry(async () => {
     await ensureZhuwoConsignmentBranches();
+    await ensureQimuDeliveryShipping();
     return Promise.all([
       prisma.merchant.findMany({
         where: { status: 'active' },
