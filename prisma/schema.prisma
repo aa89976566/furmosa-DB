@@ -138,6 +138,9 @@ model Customer {
   groomingCoupons     GroomingCoupon[]
 
   @@index([hasActiveSubscription])
+  @@index([lastOrderAt])
+  @@index([name])
+  @@index([phone])
 }
 
 // LINE 官方帳號多步驟對話（加入會員等）暫存
@@ -403,6 +406,9 @@ model Product {
   merchantStocks        MerchantStock[]
   merchantStockTxns     MerchantStockTxn[]
   shipmentItems         ShipmentItem[]
+
+  @@index([status])
+  @@index([name])
 }
 
 // 同一個產品可能依重量分多種售價（30g / 50g / 100g / 150g），
@@ -487,7 +493,10 @@ model Shipment {
   @@index([type])
   @@index([merchantId])
   @@index([customerId])
+  @@index([orderId])
   @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([type, status])
 }
 
 model ShipmentItem {
@@ -556,6 +565,8 @@ model MerchantStockTxn {
   @@index([type])
   @@index([createdAt])
   @@index([settlementId])
+  @@index([type, createdAt])
+  @@index([merchantId, type, createdAt])
 }
 
 // =====================================================
@@ -642,6 +653,10 @@ model Order {
   @@index([status])
   @@index([orderedAt])
   @@index([subscriptionId])
+  @@index([customerId])
+  @@index([merchantId])
+  @@index([status, orderedAt])
+  @@index([source, orderedAt])
 }
 
 model OrderItem {

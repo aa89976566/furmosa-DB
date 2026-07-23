@@ -39,9 +39,30 @@ export default async function MerchantsOverviewPage({
     merchantIds = matches.map((m) => m.id);
   }
 
-  const report = await loadMerchantsPortfolioReport(periodStart, periodEnd, {
-    merchantIds,
-  });
+  const report =
+    q && merchantIds && merchantIds.length === 0
+      ? {
+          periodStart,
+          periodEnd,
+          merchants: [],
+          topProducts: [],
+          totals: {
+            soldQty: 0,
+            grossSales: 0,
+            commissionAmount: 0,
+            companyRevenue: 0,
+            totalStock: 0,
+            restockQty: 0,
+            merchantCount: 0,
+            lowStockSkus: 0,
+            outOfStockSkus: 0,
+            inTransitShipments: 0,
+            openSettlements: 0,
+          },
+        }
+      : await loadMerchantsPortfolioReport(periodStart, periodEnd, {
+          merchantIds,
+        });
 
   return (
     <MerchantWorkspace>

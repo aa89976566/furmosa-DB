@@ -7,6 +7,9 @@ import { redirect } from 'next/navigation';
 
 export type CreateSubscriptionState = { error: string | null };
 
+export { searchCustomersForOrderForm as searchCustomersForSubscription } from '@/lib/order-form-search';
+
+
 function toNullable(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
   return trimmed || null;

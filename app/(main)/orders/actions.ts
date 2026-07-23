@@ -378,3 +378,8 @@ export async function updateOrderShippingFeeType(formData: FormData) {
 
   revalidateOrderPaths(orderId);
 }
+
+export {
+  searchCustomersForOrderForm as searchCustomersForOrder,
+  searchProductsForOrderForm as searchProductsForOrder,
+} from '@/lib/order-form-search';
