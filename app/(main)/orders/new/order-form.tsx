@@ -47,6 +47,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { variationLabel } from '@/lib/product-variations';
 import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
+import { isNextRedirect } from '@/lib/is-next-redirect';
 
 export type ProductTierOption = {
   id: string;
@@ -665,6 +666,8 @@ export function OrderForm({
             await createOrder(formData);
           }
         } catch (e) {
+          // createOrder / updateOrder 成功後會 redirect()；不可當失敗 alert
+          if (isNextRedirect(e)) throw e;
           alert(e instanceof Error ? e.message : isEdit ? '儲存訂單失敗' : '建立訂單失敗');
         }
       }}

@@ -3,10 +3,23 @@ import { withDbRetry } from '@/lib/prisma-retry';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 
+/** 豬窩／柒沐補齊失敗不應擋住新增訂單表單 */
+async function ensureOrderFormSideEffects() {
+  try {
+    await ensureZhuwoConsignmentBranches();
+  } catch (error) {
+    console.error('[loadOrderFormOptions] ensureZhuwoConsignmentBranches', error);
+  }
+  try {
+    await ensureQimuDeliveryShipping();
+  } catch (error) {
+    console.error('[loadOrderFormOptions] ensureQimuDeliveryShipping', error);
+  }
+}
+
 export async function loadOrderFormOptions() {
   return withDbRetry(async () => {
-    await ensureZhuwoConsignmentBranches();
-    await ensureQimuDeliveryShipping();
+    await ensureOrderFormSideEffects();
     return Promise.all([
       prisma.merchant.findMany({
         where: { status: 'active' },
