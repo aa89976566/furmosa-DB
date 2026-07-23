@@ -10,11 +10,9 @@ import {
   shipmentStatusVariant,
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
-import { maybeSyncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
-  maybeMaintainShipmentQueueIntegrity,
 } from '@/lib/shipment-queue-filters';
 import { isShipmentKindKey, mergeShipmentWhere, SHIPMENT_KIND_TABS } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
@@ -113,11 +111,7 @@ export default async function ShipmentsPage({
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
 
-  await Promise.all([
-    maybeSyncUpcomingSubscriptionShipments(),
-    maybeMaintainShipmentQueueIntegrity(),
-  ]);
-
+  // 維護改由 cron；讀頁不 await 寫入，避免每次點選都卡數秒
   const baseWhere =
     status === 'pending'
       ? {

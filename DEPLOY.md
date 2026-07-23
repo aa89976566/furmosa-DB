@@ -19,7 +19,8 @@
    - **Direct connection**（Session mode）→ port `5432` → 這是 `DIRECT_URL`
 
    兩條的 `[YOUR-PASSWORD]` 換成你剛才設的密碼。
-   `DATABASE_URL` 結尾要加 `?pgbouncer=true&connection_limit=1`。
+   `DATABASE_URL` 結尾要加 `?pgbouncer=true&connection_limit=5&pool_timeout=20`。
+   （勿用 `connection_limit=1`：儀表板／列表會並行查詢，太緊會 pool timeout 再重試，點一下可卡約 10 秒。）
 
 ---
 
@@ -30,7 +31,7 @@
 1. 編輯 `.env`（不要 commit！），貼入上面兩條 URL：
 
    ```env
-   DATABASE_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+   DATABASE_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&pool_timeout=20"
    DIRECT_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
    AUTH_SECRET="$(openssl rand -base64 32)"
    ```
@@ -136,7 +137,8 @@ gh repo create furmosa-hq --private --source=. --push
 → `DIRECT_URL` 沒設、或 password 有 `@` `:` 等特殊字元沒 URL-encode。
 
 ### Runtime 偶發 `prepared statement already exists`
-→ `DATABASE_URL` 結尾忘了加 `?pgbouncer=true&connection_limit=1`。
+→ `DATABASE_URL` 結尾忘了加 `?pgbouncer=true&connection_limit=5&pool_timeout=20`。
+  若仍偶發連線 timeout，勿改回 `connection_limit=1`（會讓導航卡約 10 秒）。
 
 ### 改 schema 後 build 報 `column does not exist`
 → Migration 沒生 / 沒 push。本機跑 `prisma migrate dev` 後務必 `git add prisma/migrations`。

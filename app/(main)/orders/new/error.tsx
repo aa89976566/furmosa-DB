@@ -31,8 +31,11 @@ export default function NewOrderError({
             無法連到 Supabase（連線池 6543）。請確認網路正常、Supabase 專案未暫停，並檢查{' '}
             <code className="rounded bg-muted px-1 text-xs">.env</code> 的{' '}
             <code className="rounded bg-muted px-1 text-xs">DATABASE_URL</code>。
-            本機開發建議在網址後加上{' '}
-            <code className="rounded bg-muted px-1 text-xs">connection_limit=1</code>。
+            本機開發建議使用{' '}
+            <code className="rounded bg-muted px-1 text-xs">
+              pgbouncer=true&amp;connection_limit=5&amp;pool_timeout=20
+            </code>
+            （勿用 connection_limit=1，並行查詢會卡住約 10 秒）。
           </>
         ) : (
           error.message

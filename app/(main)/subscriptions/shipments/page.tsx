@@ -14,7 +14,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { parsePlanContents } from '@/lib/subscription';
-import { maybeSyncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
 import { PENDING_SUBSCRIPTION_SHIPMENT_STATUSES } from '@/lib/subscription-shipment-status';
 import { addDays, startOfDay, startOfWeek, format } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
@@ -37,8 +36,6 @@ export default async function SubscriptionShipmentsPage() {
   const todayStart = startOfDay(now);
   const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
   const horizonEnd = addDays(thisWeekStart, 28);
-
-  await maybeSyncUpcomingSubscriptionShipments(28);
 
   const [overdue, thisWeekShipments, allInHorizon] = await Promise.all([
     prisma.subscriptionShipment.findMany({

@@ -68,8 +68,7 @@ if (process.env.NODE_ENV === 'development') {
 
 export const prisma = prismaClient;
 
-if (process.env.NODE_ENV !== 'production') {
-  g.prisma = prisma;
-  g.prismaGeneratedName = generatedName;
-  g.prismaSchemaRev = PRISMA_CLIENT_SCHEMA_REV;
-}
+// Pin singleton in all environments (including Vercel) to avoid multiple pools
+g.prisma = prisma;
+g.prismaGeneratedName = generatedName;
+g.prismaSchemaRev = PRISMA_CLIENT_SCHEMA_REV;

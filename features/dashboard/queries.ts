@@ -19,27 +19,27 @@ const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-/** Supabase pooler 連線有限；並行 4 路在大多數環境可接受，並縮短儀表板等待 */
+/** Supabase pooler 連線有限；並行查詢，不再每筆包 withDbRetry（避免巢狀重試拖到 10s） */
 async function runInBatches(
   tasks: (() => Promise<unknown>)[],
-  batchSize = 4,
+  batchSize = 6,
 ): Promise<unknown[]> {
   const results: unknown[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
     const chunk = tasks.slice(i, i + batchSize);
-    results.push(...(await Promise.all(chunk.map((fn) => withDbRetry(fn)))));
+    results.push(...(await Promise.all(chunk.map((fn) => fn()))));
   }
   return results;
 }
 
 const loadDashboardDataCached = unstable_cache(
-  () => withDbRetry(() => loadDashboardData()),
-  ['dashboard-overview-v1'],
+  () => loadDashboardData(),
+  ['dashboard-overview-v2'],
   { revalidate: 60, tags: ['dashboard'] },
 );
 
 export async function getDashboardData() {
-  return loadDashboardDataCached();
+  return withDbRetry(() => loadDashboardDataCached());
 }
 
 async function loadDashboardData() {
