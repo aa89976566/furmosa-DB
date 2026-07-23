@@ -1,58 +1,57 @@
 # Furmosa Experience Bible v1
 
 > **地位：** UX 憲法（Experience Constitution）— 決定「人每天怎麼過完一天」  
-> **版本：** v1.0-draft  
+> **版本：** v1.1-draft（補 Reality 欄位與刪除紀律）  
 > **日期：** 2026-07-23  
-> **文件族：** `01 Domain Bible` → **`02 Experience Bible（本文件）`** → `03 UI Bible` → `04 Database Bible` → `05 Engineering Bible`  
-> **對齊：** Domain Spec v1.1（換罐四點已凍結）、Merchant POS Flow v1.0-approved  
+> **文件族：** Vision → Domain → **Experience（本文件）** → Reality（循環驗證）→ UI → Database → Engineering  
+> **對齊：** Domain Spec v1.1、Merchant POS Flow v1.0-approved  
 > **硬性禁止：** Prisma、Schema、Migration、Event Store、API、實作細節、技術 enum  
-> **本輪禁止：** 開始 Phase 3、寫 Booking／Jar／LINE 程式、補假資料、新增資料表
+> **本輪禁止：** 開始 Phase 3、寫 Booking／Jar／LINE 程式、再開一本「Reality Bible」、補假資料、新增資料表
 
 ---
 
 ## 0. 為什麼現在寫這份，而不是寫 Code
 
-| 模組 | 成熟度 | 說明 |
-|------|--------|------|
-| Domain | ✅ | 領域邊界與換罐規則已可長期擴充 |
-| Database | ✅ | 可擴充；本文件不碰 |
-| Merchant Auth | ✅ | 登入可用 |
-| Restock（叫貨） | ✅ | 真功能：登入 → 叫貨 → 等公司 |
-| Merchant UX 骨架 | ✅ | 今天／叫貨／紀錄已凍結 |
-| Customer Flow | ⏳ | 未開始 |
-| Booking | ⏳ | 未開始 |
-| Jar Exchange（現場完整鏈） | ⏳ | 規則凍結；體驗未畫完 |
-| LINE 旅程 | ⏳ | 未開始 |
+| 層 | 成熟度 | 說明 |
+|----|--------|------|
+| Business Vision | ██████████ | 方向清楚：Pet Commerce OS |
+| Domain | ██████████ | 規則可長期擴充 |
+| Experience | █████████▌ | 旅程已畫；多數仍是 Hypothesis |
+| Database | ██████████ | 可擴充；本文件不碰 |
+| Engineering | █████████▌ | 可交付；不是瓶頸 |
+| Implementation | ████████▌ | 叫貨真功能在；Booking／Jar 未上 |
+| **Reality** | ░░░░░░░░ | **真正缺口：幾乎還沒人真的這樣用** |
 
-**結論：** 現在不是工程節奏問題，是產品節奏問題。  
-再多一張表，也救不了「第一次打開不知道下一步」。
+**結論：** 缺的不是下一張表，是真實觀察。  
+Experience 之後不是立刻 UI Bible，而是 **Reality 循環**（觀察 → 回寫本文件 → 再決定刪或改）。
 
-### 0.1 產品 Roadmap（重新排序 — 體驗優先）
+### 0.1 產品 Roadmap（體驗＋現實）
 
 ```text
-Merchant Test（叫貨 15 分鐘）
+Merchant Reality（叫貨 15 分鐘）
         ↓
-Booking Experience（本 Bible 凍結顧客／店員預約段）
+回寫本文件（保留／修改／刪除）
         ↓
-Jar Exchange Experience（本 Bible 凍結換罐現場與 LINE 段）
+Booking Experience（仍先假設＋驗證）
+        ↓
+Jar Exchange Reality
         ↓
 POS 完整價值（今天有哪些狗／今天有哪些換罐）
-        ↓
-（之後才談盤點等「後勤 POS」模組）
 ```
 
-**不做：** Phase 3（盤點／銷售）插在 Booking 之前。  
-**原因：** POS 真正存在的目的只有兩件事——今天有哪些狗、今天有哪些換罐。預約與換罐沒上線前，POS 沒有完整存在價值。叫貨已夠用，先驗證合作店願意自己用。
+**不做：** Phase 3 插隊；不做「再開一本 Bible」。
 
 ### 0.2 體驗第一性原理
 
-1. **一天一條路。** 每個角色每天只有一條主路徑，不是選單叢林。  
-2. **一屏一按鈕。** 主動作永遠只有一個；次要動作縮小、推遠。  
-3. **情緒可設計。** 每一步寫明希望對方「感覺什麼」，不只「做什麼」。  
-4. **明顯 > 聰明。** 寧可少功能，不可讓人思考下一步在哪。  
-5. **失敗可恢復。** 每個失敗都有一句人話與一個明確下一步。  
-6. **點擊有預算。** 日常任務從入口到完成 ≤ 3 次點擊（已凍結於 Merchant Flow）。  
-7. **語言是產品。** 禁止工程詞、HQ 內部詞出現在店員／顧客畫面。
+1. **一天一條路。**  
+2. **一屏一按鈕。**  
+3. **情緒可設計。**  
+4. **明顯 > 聰明。**  
+5. **失敗可恢復。**  
+6. **點擊有預算（≤ 3）。**  
+7. **語言是產品。**  
+8. **刪比加重要。** 每個畫面都要能回答：Can this screen disappear?  
+9. **Hypothesis ≠ Truth。** 未標 Validated 的，一律當假設。
 
 ### 0.3 每一步的記錄格式（本文件統一）
 
@@ -69,8 +68,37 @@ POS 完整價值（今天有哪些狗／今天有哪些換罐）
 | **Recovery** | 失敗後怎麼回到正軌 |
 | **Time** | 理想耗時 |
 | **Clicks** | 從進入此步到離開的點擊數 |
+| **Delete Candidate** | 這步／這畫面是否列為刪除候選（Yes／No／Maybe） |
+| **Can this screen disappear?** | 若答案是「可以」，預設傾向刪或併進別屏 |
 
-### 0.4 角色一日情緒弧（總覽）
+### 0.4 每個 Journey 必填的 Reality 區塊
+
+每個角色旅程結尾必須有：
+
+| 欄位 | 說明 |
+|------|------|
+| **Hypothesis** | 我們目前假設他們會怎麼走 |
+| **Validation Method** | 怎麼驗證（例如 15 分鐘店家測試、跟班半天、LINE 完成率） |
+| **Validated?** | Yes／No／Partial |
+| **Decision** | 保留、修改或刪除（可附條件） |
+
+狀態標籤寫法範例：`Hypothesis`｜`Validated · 豬窩 · 2026-08`。
+
+### 0.5 運作循環（Stop adding Bibles）
+
+```text
+Vision → Domain → Experience（Hypothesis）
+                         ↓
+                   Reality（觀察）
+                         ↓
+              回寫 Experience（Decision）
+                         ↓
+              UI → Database → Engineering
+                         ↓
+                   Reality（再驗證）
+```
+
+### 0.6 角色一日情緒弧（總覽）
 
 ```text
 Customer
@@ -381,6 +409,17 @@ HQ
 | 自己登新罐感到開心 | 覺得點數是店家施捨 |
 | 願意下次自己再開 LINE | 寧願傳訊息給店 |
 
+### 1.3 Customer Journey — Reality
+
+| 欄位 | 內容 |
+|------|------|
+| **Hypothesis** | 顧客會：付款 → 讀提醒 → 到店帶空罐 → **自己**在 LINE 登新序號 → 因 +1 點而再來。選店／日期／時間會用按鈕走完，不靠店員代點。 |
+| **Validation Method** | ① 預約上線後追蹤付款完成率；② 交付後 7 日內「新序號登錄率」；③ 若登錄率低，訪談 5 位客「卡在哪／為什麼不登」。 |
+| **Validated?** | **No**（整段 Booking／Jar 顧客鏈尚未上線） |
+| **Decision** | **保留為 Hypothesis。** 若 Reality 顯示 ≥80% 不登新序號 → 點數激勵或入口必須改（或承認點數系統失敗），**先改旅程，不先加表。** 狀態：`Hypothesis · Booking/Jar` |
+
+**高風險假設（必測）：** 「顧客會自己登新罐」。若失敗，整段獎勵情緒弧斷裂。
+
 ---
 
 ## 2. Merchant Journey — 從登入到下班
@@ -559,6 +598,18 @@ HQ
 
 若任何一步需要「想很久」，那一步產品失敗——先改文案與步驟，再談新功能。
 
+### 2.3 Merchant Journey — Reality
+
+| 欄位 | 內容 |
+|------|------|
+| **Hypothesis（理想路徑）** | 登入 → 今天 → 下一位 →（可選開始美容）→ 收空罐 → 確認完成 → 下一位；缺貨時走叫貨；下班看紀錄。 |
+| **Hypothesis（競品現實）** | 一天 12 隻狗的店，**可能從不按**「開始美容／美容完成」；忙碌時甚至跳過「今天」，**登入後直接叫貨**。 |
+| **Validation Method** | ① 叫貨 15 分鐘可用性測試（`MERCHANT-POS-USABILITY-TEST-v1`，當腳本在其他 branch／合併後使用）；② 預約上線後跟班半天，只計「實際點過的按鈕」；③ 看 Tab 點擊比例：今天 vs 叫貨 vs 紀錄。 |
+| **Validated?** | **No**（叫貨可用但合作店實測尚未完成；美容／換罐路徑未上線） |
+| **Decision** | **叫貨路徑：待 Reality 後決定保留強度。** 「開始美容」預設 **Delete Candidate = Yes（方案 B）** 直到觀察證明有人按。若 ≥80% 登入後直奔叫貨 → **今天必須把叫貨入口放到第一屏**，並重新評估「紀錄／叫貨」是否該併進「今天」（甚至底部只留今天）。狀態：`Hypothesis · Merchant day` |
+
+**刪除壓力測試：** 最後有可能只剩「今天」一個 Tab——叫貨與紀錄都嵌進去。未驗證前不刪，但列為認真選項。
+
 ---
 
 ## 3. HQ Journey — 從今天寄貨，到月底結算
@@ -722,6 +773,16 @@ HQ 第一版體驗應接近：
 | 重複核准不出兩張出貨 | 靠人腦記得別連點 |
 | 月底差異可點回原單 | 月底靠試算表對三天 |
 
+### 3.4 HQ Journey — Reality
+
+| 欄位 | 內容 |
+|------|------|
+| **Hypothesis（理想）** | HQ 早上開「今天」→ 即時審叫貨 → 白天持續寄貨 → 處理異常。 |
+| **Hypothesis（競品現實）** | HQ **一天只在晚上批次看**；不需要即時推播轟炸。 |
+| **Validation Method** | ① 跟一位 HQ 真人走完整工作日，記錄打開系統的時段；② 統計叫貨核准時間分佈（上午／下午／晚上）；③ 問：哪些通知會被關掉。 |
+| **Validated?** | **No** |
+| **Decision** | **通知策略保持 Hypothesis。** 若 Reality = 晚上批次 → 弱化即時通知、強化「今晚待辦清單」。不先做複雜通知平台。狀態：`Hypothesis · HQ daily rhythm` |
+
 ---
 
 ## 4. 三端交會點（同一事實，三種感受）
@@ -742,7 +803,32 @@ HQ 第一版體驗應接近：
 
 ---
 
-## 5. 明顯性檢查清單（Obviousness Checklist）
+## 5. Screen Delete Inventory（刪除優先於新增）
+
+> 真正好的產品不是一直加，而是一直刪。  
+> 每個畫面都要能回答：**Can this screen disappear?**
+
+| Screen | 角色 | Delete Candidate | Can this screen disappear? | 併入哪裡（若刪） | Status |
+|--------|------|------------------|----------------------------|------------------|--------|
+| 店家登入 | Merchant | No | No | — | Hypothesis（叫貨前必要） |
+| 今天 | Merchant | No | No（可能變成**唯一** Tab） | — | Hypothesis |
+| 叫貨（獨立 Tab） | Merchant | **Maybe** | **Yes，若觀察證明都從今天進** | 今天的一列／主 CTA | Hypothesis |
+| 申請進度（子頁） | Merchant | Maybe | Yes | 今天「補貨進度」 | Hypothesis |
+| 紀錄 Tab | Merchant | **Maybe** | **Yes，可併進今天底部** | 今天 | Hypothesis |
+| 開始美容／服務中 | Merchant | **Yes** | **Yes（預設刪）** | 無；直接收罐或完成 | Hypothesis · 高刪除優先 |
+| 收空罐 | Merchant | No | No（換罐核心） | — | Hypothesis |
+| 短確認「確認完成」 | Merchant | No | No | — | Hypothesis |
+| LINE 主選單多格 | Customer | Maybe | 部分 Yes | 只留預約／點數／登罐 | Hypothesis |
+| 選服務細項頁 | Customer | **Yes** | **Yes（第一版）** | 「今天要美容嗎？」一問 | Hypothesis |
+| 登錄新罐 | Customer | No | No（點數儀式）；但若沒人用則整段獎勵失敗 | — | Hypothesis · 高風險 |
+| HQ 側欄二十模組 | HQ | **Yes（降權）** | 入口可消失 | 「今天」任務列 | Hypothesis |
+| HQ 即時通知中心 | HQ | **Yes** | Yes，若只晚上批次處理 | 今晚待辦清單 | Hypothesis |
+
+**決策紀律：** Delete Candidate = Yes 且 Reality 支持 → 刪。不要「先做著以後再說」。
+
+---
+
+## 6. 明顯性檢查清單（Obviousness Checklist）
 
 每個新畫面上市前，產品必須能回答：
 
@@ -753,49 +839,72 @@ HQ 第一版體驗應接近：
 5. 有沒有讓人「想一下該點哪裡」？有 → 重做。  
 6. 有沒有工程詞／內部 enum？有 → 刪。  
 7. 點擊是否超過預算？超過 → 合併步驟或改入口。  
-8. 情緒弧是否斷裂（例如付款後焦慮、完成後空洞）？
+8. 情緒弧是否斷裂？  
+9. **Can this screen disappear?** 可以 → 先刪或併，再談美化。  
+10. **這是 Hypothesis 還是 Validated？** 未標明 → 當作 Hypothesis。
 
 ---
 
-## 6. 與其他 Bible 的邊界
+## 7. 與其他層的邊界（循環，不是新書）
 
-| Bible | 回答的問題 | 本文件不回答 |
-|-------|------------|--------------|
-| **01 Domain** | 業務可不可以、規則是什麼 | 按鈕長怎樣 |
-| **02 Experience（本文件）** | 人怎麼過完一天、感受什麼 | 表結構 |
-| **03 UI** | 視覺、字級、元件、動效 | 旅程該不該存在 |
-| **04 Database** | 資料如何長期正確 | 店員情緒 |
-| **05 Engineering** | 怎麼安全交付 | 產品優先序的借口 |
+| 層 | 回答 | 本文件不回答 |
+|----|------|--------------|
+| Vision | 為什麼做 | 按鈕文案 |
+| Domain | 可不可以 | 店員會不會按 |
+| **Experience（本文件）** | 我們假設怎麼過一天 | Schema |
+| **Reality（循環）** | 他們真的怎麼用 | 另開一本 Bible |
+| UI | 長怎樣 | 旅程該不該存在 |
+| Database | 資料如何正確 | 情緒 |
+| Engineering | 怎麼交付 | 用 Code 掩蓋未驗證假設 |
 
-**實作啟動條件（Booking／Jar／LINE）：**  
-本 Experience Bible 對應章節標為 **v1-approved** 後，才開 UI Bible 細稿與工程切片。  
-**未 approved 前：Stop implementation。**
-
----
-
-## 7. 版本與待決策（OPEN）
-
-| ID | 題目 | 建議預設 | 凍結方式 |
-|----|------|----------|----------|
-| E-01 | 美容第一版要細項還是大類 | 大類即可 | 合作店訪談 |
-| E-02 | 「開始美容」按鈕要不要 | 先假設可無（方案 B） | 15 分鐘實測 |
-| E-03 | 顧客「我到了」報到 | 第一版不做 | Booking 上線後再加 |
-| E-04 | 純美容是否線上付 | 店內／另議 | 產品＋財務 |
-| E-05 | HQ「今天」資訊架構 | §3.2 草案 | 跟 HQ 真人走一天 |
-| E-06 | 忘帶罐 A/B 文案最終句 | Domain 已有方向 | 店員語言實測 |
+**實作閘門：** 對應旅程有 Reality Decision（或產品書面接受 Hypothesis 風險）後，才進 UI／Engineering。  
+**未通過前：Stop implementation。不要再開 Reality Bible。**
 
 ---
 
-## 8. 下一里程碑（給人類，不給自動實作）
+## 8. Reality Notes（觀察日誌模板 — 寫在本文件迭代，不另開書）
 
-1. **合作店叫貨 15 分鐘測試**（已有腳本）— 驗證「真功能」是否比 LINE 快。  
-2. **把本文件讀給非工程夥伴聽** — 任一章節聽不懂就改寫。  
-3. **標 v1.0-approved**（產品簽署）後，才允許開始 Booking 體驗細稿／UI Bible。  
-4. **仍然不要 Phase 3。**
+實測後用此格式回寫（範例列僅示意語氣，**非已驗證事實**）：
+
+| ID | 觀察 | 影響的 Journey／Screen | Decision |
+|----|------|------------------------|----------|
+| R-001 | （例）店員登入後從不點「紀錄」 | Merchant · 紀錄 Tab | 若重複出現 → 刪 Tab，併進今天 |
+| R-002 | （例）大家缺貨就叫貨，「今天」沒人看 | Merchant · 今天 | 今天重畫；叫貨進第一屏 |
+| R-003 | （例）美容師從不按「開始美容」 | Merchant · M-04 | 刪按鈕 |
+| R-004 | （例）顧客交付後不登新序號 | Customer · C-13 | 改激勵／入口；或承認點數失敗 |
+| R-005 | （例）HQ 只在晚上批次核准 | HQ · 通知 | 改今晚清單，弱化即時 |
+
+填寫規則：寫行為，不寫喜好；先改 Experience，再碰 UI／DB／Code。
 
 ---
 
-## 9. 一句話憲法
+## 9. 版本與待決策（OPEN）
+
+| ID | 題目 | 建議預設 | Status | 凍結方式 |
+|----|------|----------|--------|----------|
+| E-01 | 美容第一版要細項還是大類 | 大類即可 | Hypothesis | 合作店訪談 |
+| E-02 | 「開始美容」按鈕要不要 | **刪（方案 B）** | Delete Candidate | 跟班觀察 |
+| E-03 | 顧客「我到了」報到 | 不做 | Delete Candidate | — |
+| E-04 | 純美容是否線上付 | 店內／另議 | Hypothesis | 產品＋財務 |
+| E-05 | HQ「今天」資訊架構 | §3 草案 | Hypothesis | 跟 HQ 走一天 |
+| E-06 | 底部是否可只剩「今天」 | 認真選項 | Hypothesis | Tab 點擊 Reality |
+| E-07 | 顧客自登新罐完成率門檻 | 低於 50% 視為點數失敗 | Hypothesis | 上線後 7 日登錄率 |
+
+---
+
+## 10. 下一里程碑（給人類，不給自動實作）
+
+1. **合作店叫貨 Reality** — 15 分鐘；填 §2.3 與 §8。  
+2. **回寫 Decision** — 保留／修改／刪除畫面；不要開新 Bible。  
+3. **Booking／Jar 維持 Hypothesis** — 直到有真實預約與登錄率。  
+4. **仍然不要 Phase 3。**  
+5. **Cursor 停止自行決定下一階段 Code。**
+
+---
+
+## 11. 一句話憲法
 
 > **每天的任務，應該明顯到不需要教學。**  
+> **未經驗證的，都是 Hypothesis。**  
+> **可以消失的畫面，就刪。**  
 > 若不明顯，先改旅程與文案，不要先加資料表。
