@@ -5,10 +5,13 @@ import { isRedirectError } from '@/lib/redirect-error';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+import { searchCustomersForOrderForm } from '@/lib/order-form-search';
+
 export type CreateSubscriptionState = { error: string | null };
 
-export { searchCustomersForOrderForm as searchCustomersForSubscription } from '@/lib/order-form-search';
-
+export async function searchCustomersForSubscription(q: string, take = 40) {
+  return searchCustomersForOrderForm(q, take);
+}
 
 function toNullable(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
