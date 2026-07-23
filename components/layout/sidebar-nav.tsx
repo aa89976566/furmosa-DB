@@ -7,6 +7,16 @@ import { isNavItemActive } from '@/lib/nav-active';
 import { sectionToneStyles } from '@/lib/section-tone';
 import { cn } from '@/lib/utils';
 
+/** 高頻工作台：允許 RSC prefetch，其餘關閉以免拖慢側欄 */
+const HOT_PREFETCH = new Set([
+  '/dashboard',
+  '/orders',
+  '/shipments',
+  '/merchants',
+  '/customers',
+  '/products',
+]);
+
 export function SidebarNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -33,7 +43,7 @@ export function SidebarNav() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    prefetch={false}
+                    prefetch={HOT_PREFETCH.has(item.href)}
                     className={cn(
                       'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all',
                       active

@@ -1,22 +1,53 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
+import { SectionSkeleton } from '@/components/shared/page-skeleton';
 import { OrderListTable } from '@/components/orders/order-list-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
+import { getOrderSourceTotals } from '@/lib/hot-path-reads';
 import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
-import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
 import { Plus } from 'lucide-react';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrdersPage({
+function OrdersTotalsFallback() {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-24 animate-pulse rounded-md bg-muted/40" />
+      ))}
+    </div>
+  );
+}
+
+async function OrdersTotalsSection() {
+  const totals = await getOrderSourceTotals();
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {totals.map((t) => (
+        <Card key={t.source}>
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">
+              <StatusBadge kind="orderSource" value={t.source} />
+            </div>
+            <p className="mt-1 text-xl font-semibold">{formatCurrency(t.total)}</p>
+            <p className="text-xs text-muted-foreground">{t.count} 筆訂單</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+async function OrdersTableSection({
   searchParams,
 }: {
   searchParams: { source?: string; status?: string; q?: string };
@@ -49,21 +80,21 @@ export default async function OrdersPage({
     Object.assign(where, mergeSearchWhere(where, searchClause));
   }
 
-  const [orders, totals] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: ORDER_LIST_INCLUDE,
-      orderBy: { orderedAt: 'desc' },
-      take: 100,
-    }),
-    prisma.order.groupBy({
-      by: ['source'],
-      _sum: { total: true },
-      _count: { _all: true },
-      where: { ...activeOrderWhere, ...revenueEligibleOrderWhere },
-    }),
-  ]);
+  const orders = await prisma.order.findMany({
+    where,
+    include: ORDER_LIST_INCLUDE,
+    orderBy: { orderedAt: 'desc' },
+    take: 100,
+  });
 
+  return <OrderListTable orders={orders} />;
+}
+
+export default function OrdersPage({
+  searchParams,
+}: {
+  searchParams: { source?: string; status?: string; q?: string };
+}) {
   return (
     <>
       <PageHeader
@@ -81,36 +112,35 @@ export default async function OrdersPage({
       />
 
       <div className="space-y-4 p-4 sm:p-6">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {totals.map((t) => (
-            <Card key={t.source}>
-              <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">
-                  <StatusBadge kind="orderSource" value={t.source} />
-                </div>
-                <p className="mt-1 text-xl font-semibold">
-                  {formatCurrency(Number(t._sum.total ?? 0))}
-                </p>
-                <p className="text-xs text-muted-foreground">{t._count._all} 筆訂單</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Suspense fallback={<OrdersTotalsFallback />}>
+          <OrdersTotalsSection />
+        </Suspense>
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">種類</span>
           {ORDER_SOURCE_TABS.map((s) => {
-            const active = (searchParams.source ?? '') === s.key || (s.key === 'consignment' && searchParams.source === 'restock');
+            const active =
+              (searchParams.source ?? '') === s.key ||
+              (s.key === 'consignment' && searchParams.source === 'restock');
             const href = s.key ? `/orders?source=${s.key}` : '/orders';
             return (
-              <Button key={s.key || 'all'} variant={active ? 'default' : 'outline'} size="sm" asChild>
-                <Link href={href}>{s.label}</Link>
+              <Button
+                key={s.key || 'all'}
+                variant={active ? 'default' : 'outline'}
+                size="sm"
+                asChild
+              >
+                <Link href={href} prefetch>
+                  {s.label}
+                </Link>
               </Button>
             );
           })}
         </div>
 
-        <OrderListTable orders={orders} />
+        <Suspense fallback={<SectionSkeleton rows={8} />}>
+          <OrdersTableSection searchParams={searchParams} />
+        </Suspense>
       </div>
     </>
   );

@@ -1,9 +1,11 @@
 import { unstable_cache } from 'next/cache';
 import { Prisma } from '@prisma/client';
+import { CACHE_TAGS } from '@/lib/cache-tags';
 import { getMerchantIndustryMap } from '@/lib/merchant-industry-persist';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
 import { prisma } from '@/lib/prisma';
+import { withRuntimeCache } from '@/lib/runtime-cache';
 import { defaultPeriod } from '@/lib/settlement-calc';
 
 export type MerchantReportPeriod = 'week' | 'month';
@@ -86,17 +88,39 @@ export async function loadMerchantsPortfolioReport(
   options?: { merchantIds?: string[] },
 ): Promise<MerchantsPortfolioReport> {
   const merchantIdsKey = options?.merchantIds?.slice().sort().join(',') ?? 'all';
-  const cached = unstable_cache(
-    () => loadMerchantsPortfolioReportUncached(periodStart, periodEnd, options?.merchantIds),
-    [
-      'merchants-portfolio-v1',
-      periodStart.toISOString(),
-      periodEnd.toISOString(),
-      merchantIdsKey,
-    ],
-    { revalidate: 60, tags: ['merchants-portfolio'] },
+  const cacheKey = [
+    'merchants-portfolio-v1',
+    periodStart.toISOString(),
+    periodEnd.toISOString(),
+    merchantIdsKey,
+  ].join(':');
+
+  return withRuntimeCache(
+    cacheKey,
+    {
+      ttlSeconds: 60,
+      tags: [CACHE_TAGS.merchantsPortfolio],
+      name: 'merchants-portfolio',
+    },
+    () => {
+      const cached = unstable_cache(
+        () =>
+          loadMerchantsPortfolioReportUncached(
+            periodStart,
+            periodEnd,
+            options?.merchantIds,
+          ),
+        [
+          'merchants-portfolio-v1',
+          periodStart.toISOString(),
+          periodEnd.toISOString(),
+          merchantIdsKey,
+        ],
+        { revalidate: 60, tags: [CACHE_TAGS.merchantsPortfolio] },
+      );
+      return cached();
+    },
   );
-  return cached();
 }
 
 async function loadMerchantsPortfolioReportUncached(

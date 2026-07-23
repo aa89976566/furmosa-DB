@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { MerchantsOperationsDashboard } from '@/components/merchants/merchants-operations-dashboard';
 import { MerchantWorkspace } from '@/components/merchants/merchant-ui';
 import { MerchantsPeriodSwitch } from '@/components/merchants/merchants-period-switch';
+import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Button } from '@/components/ui/button';
 import {
   loadMerchantsPortfolioReport,
@@ -14,14 +16,13 @@ import { PackagePlus, Plus, Receipt, ScanLine } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantsOverviewPage({
-  searchParams,
+async function MerchantsReportSection({
+  period,
+  q,
 }: {
-  searchParams?: { period?: string; q?: string };
+  period: MerchantReportPeriod;
+  q: string;
 }) {
-  // 豬窩／柒沐 ensure 改由 cron；讀頁直接載報表
-  const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
-  const q = (searchParams?.q ?? '').trim();
   const { start: periodStart, end: periodEnd } = resolveMerchantReportPeriod(period);
 
   let merchantIds: string[] | undefined;
@@ -58,6 +59,17 @@ export default async function MerchantsOverviewPage({
           merchantIds,
         });
 
+  return <MerchantsOperationsDashboard report={report} />;
+}
+
+export default function MerchantsOverviewPage({
+  searchParams,
+}: {
+  searchParams?: { period?: string; q?: string };
+}) {
+  const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
+  const q = (searchParams?.q ?? '').trim();
+
   return (
     <MerchantWorkspace>
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -87,7 +99,12 @@ export default async function MerchantsOverviewPage({
           </Link>
         </Button>
       </div>
-      <MerchantsOperationsDashboard report={report} />
+      <Suspense
+        key={`${period}|${q}`}
+        fallback={<PageSkeleton variant="cards" className="p-0" />}
+      >
+        <MerchantsReportSection period={period} q={q} />
+      </Suspense>
     </MerchantWorkspace>
   );
 }

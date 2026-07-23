@@ -17,6 +17,8 @@ import {
   isQimuMerchantName,
 } from '@/lib/stores/ensure-qimu-delivery';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
@@ -277,6 +279,7 @@ async function markShipmentStatusInner(formData: FormData) {
   revalidatePath('/subscriptions/shipments');
   revalidatePath('/subscriptions');
   revalidatePath('/orders');
+  revalidatePath('/dashboard');
   revalidatePath(`/shipments/${shipmentId}`);
   if (shipment.merchantId) revalidatePath(`/merchants/${shipment.merchantId}`);
   if (shipment.orderId) revalidatePath(`/orders/${shipment.orderId}`);
@@ -287,6 +290,12 @@ async function markShipmentStatusInner(formData: FormData) {
     });
     if (subShip) revalidatePath(`/subscriptions/${subShip.subscriptionId}`);
   }
+  await bustCacheTags(
+    CACHE_TAGS.dashboard,
+    CACHE_TAGS.shipmentQueueCounts,
+    CACHE_TAGS.orderHubTotals,
+    CACHE_TAGS.merchantsPortfolio,
+  );
 
   const inline = formData.get('inline') === '1';
   const queueStatus = String(formData.get('queueStatus') ?? '').trim();
