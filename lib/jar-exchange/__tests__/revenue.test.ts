@@ -3,12 +3,19 @@ import test from 'node:test';
 import {
   applyJarExchangeConsignmentPricing,
   isJarExchangeConsignmentDelivery,
-  isJarExchangeProductName,
+  isJarExchangeProductLine,
 } from '@/lib/jar-exchange/revenue';
 
-test('isJarExchangeProductName', () => {
-  assert.equal(isJarExchangeProductName('換罐-牛肉凍乾'), true);
-  assert.equal(isJarExchangeProductName('牛肉凍乾'), false);
+test('isJarExchangeProductLine uses productCategory only', () => {
+  assert.equal(
+    isJarExchangeProductLine({ productCategory: 'JAR_EXCHANGE', productName: '牛肉凍乾' }),
+    true,
+  );
+  assert.equal(
+    isJarExchangeProductLine({ productCategory: 'STANDARD', productName: '換罐-牛肉凍乾' }),
+    false,
+  );
+  assert.equal(isJarExchangeProductLine({ productName: '換罐-牛肉凍乾' }), false);
 });
 
 test('isJarExchangeConsignmentDelivery', () => {
@@ -17,7 +24,7 @@ test('isJarExchangeConsignmentDelivery', () => {
       orderType: 'merchant',
       merchantId: 'm1',
       customerId: null,
-      items: [{ productName: '換罐-牛肉凍乾' }],
+      items: [{ productCategory: 'JAR_EXCHANGE', productName: '換罐-牛肉凍乾' }],
     }),
     true,
   );
@@ -26,7 +33,7 @@ test('isJarExchangeConsignmentDelivery', () => {
       orderType: 'merchant',
       merchantId: 'm1',
       customerId: 'c1',
-      items: [{ productName: '換罐-牛肉凍乾' }],
+      items: [{ productCategory: 'JAR_EXCHANGE', productName: '換罐-牛肉凍乾' }],
     }),
     false,
   );
@@ -35,7 +42,16 @@ test('isJarExchangeConsignmentDelivery', () => {
       orderType: 'merchant',
       merchantId: 'm1',
       customerId: null,
-      items: [{ productName: '一般商品' }],
+      items: [{ productCategory: 'STANDARD', productName: '一般商品' }],
+    }),
+    false,
+  );
+  assert.equal(
+    isJarExchangeConsignmentDelivery({
+      orderType: 'merchant',
+      merchantId: 'm1',
+      customerId: null,
+      items: [{ productName: '換罐-牛肉凍乾' }],
     }),
     false,
   );
@@ -48,7 +64,12 @@ test('applyJarExchangeConsignmentPricing zeros amounts', () => {
     merchantId: 'm1',
     customerId: null,
     items: [
-      { productName: '換罐-牛肉凍乾', unitPrice: 99, lineSubtotal: 198 },
+      {
+        productCategory: 'JAR_EXCHANGE',
+        productName: '換罐-牛肉凍乾',
+        unitPrice: 99,
+        lineSubtotal: 198,
+      },
     ],
     subtotal: 198,
     discount: 0,
