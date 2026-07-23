@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Command,
@@ -13,7 +13,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/format';
-import { Check, ChevronsUpDown, X } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, X } from 'lucide-react';
 
 export type ProductSearchOption = {
   id: string;
@@ -35,6 +35,7 @@ export function ProductSearchSelect({
   products,
   value,
   onChange,
+  onSearch,
   name = 'productId',
   required = false,
   placeholder = '選擇或搜尋商品…',
@@ -44,6 +45,8 @@ export function ProductSearchSelect({
   products: ProductSearchOption[];
   value: string;
   onChange: (productId: string) => void;
+  /** 提供時改為遠端 typeahead；products 仍用於已選項與種子 */
+  onSearch?: (query: string) => Promise<ProductSearchOption[]>;
   name?: string;
   required?: boolean;
   placeholder?: string;
@@ -51,15 +54,35 @@ export function ProductSearchSelect({
   inputClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [remote, setRemote] = useState<ProductSearchOption[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const selected = useMemo(
-    () => products.find((p) => p.id === value),
-    [products, value],
+    () =>
+      products.find((p) => p.id === value) ??
+      remote?.find((p) => p.id === value),
+    [products, remote, value],
   );
+
+  useEffect(() => {
+    if (!onSearch || !open) return;
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      void onSearch(query)
+        .then((rows) => setRemote(rows))
+        .catch(() => setRemote([]))
+        .finally(() => setSearching(false));
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [query, open, onSearch]);
+
+  const list = onSearch ? (remote ?? products) : products;
 
   function pick(id: string) {
     onChange(id);
     setOpen(false);
+    setQuery('');
   }
 
   function clear(e: React.MouseEvent) {
@@ -114,33 +137,50 @@ export function ProductSearchSelect({
         className="w-[var(--radix-popover-trigger-width)] p-0"
         align="start"
       >
-        <Command>
-          <CommandInput placeholder="搜尋商品名稱或 SKU…" />
+        <Command shouldFilter={!onSearch}>
+          <CommandInput
+            placeholder="搜尋商品名稱或 SKU…"
+            value={onSearch ? query : undefined}
+            onValueChange={onSearch ? setQuery : undefined}
+          />
           <CommandList>
-            <CommandEmpty>找不到符合的商品</CommandEmpty>
-            <CommandGroup>
-              {products.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={productSearchValue(p)}
-                  onSelect={() => pick(p.id)}
-                  className="flex-col items-start gap-0.5 py-2"
-                >
-                  <div className="flex w-full items-center gap-2">
-                    <Check
-                      className={cn(
-                        'h-4 w-4 shrink-0',
-                        value === p.id ? 'opacity-100' : 'opacity-0',
-                      )}
-                    />
-                    <span className="truncate font-medium">{p.name}</span>
-                  </div>
-                  <div className="pl-6 font-mono text-[11px] text-muted-foreground">
-                    {p.sku} · {formatCurrency(p.price)} / {p.unit}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {searching ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                搜尋中…
+              </div>
+            ) : (
+              <>
+                <CommandEmpty>
+                  {onSearch && !query.trim()
+                    ? '輸入關鍵字搜尋商品'
+                    : '找不到符合的商品'}
+                </CommandEmpty>
+                <CommandGroup>
+                  {list.map((p) => (
+                    <CommandItem
+                      key={p.id}
+                      value={productSearchValue(p)}
+                      onSelect={() => pick(p.id)}
+                      className="flex-col items-start gap-0.5 py-2"
+                    >
+                      <div className="flex w-full items-center gap-2">
+                        <Check
+                          className={cn(
+                            'h-4 w-4 shrink-0',
+                            value === p.id ? 'opacity-100' : 'opacity-0',
+                          )}
+                        />
+                        <span className="truncate font-medium">{p.name}</span>
+                      </div>
+                      <div className="pl-6 font-mono text-[11px] text-muted-foreground">
+                        {p.sku} · {formatCurrency(p.price)} / {p.unit}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

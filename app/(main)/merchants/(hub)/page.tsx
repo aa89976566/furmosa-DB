@@ -10,8 +10,6 @@ import {
   type MerchantReportPeriod,
 } from '@/lib/merchant-report';
 import { merchantSearchWhere } from '@/lib/site-search';
-import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
-import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 import { PackagePlus, Plus, Receipt, ScanLine } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -21,29 +19,44 @@ export default async function MerchantsOverviewPage({
 }: {
   searchParams?: { period?: string; q?: string };
 }) {
-  await ensureZhuwoConsignmentBranches();
-  await ensureQimuDeliveryShipping();
+  // 豬窩／柒沐 ensure 改由 cron；讀頁直接載報表
   const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
   const q = (searchParams?.q ?? '').trim();
   const { start: periodStart, end: periodEnd } = resolveMerchantReportPeriod(period);
-  const report = await loadMerchantsPortfolioReport(periodStart, periodEnd);
 
-  let filteredReport = report;
+  let merchantIds: string[] | undefined;
   if (q) {
     const matches = await prisma.merchant.findMany({
       where: merchantSearchWhere(q),
       select: { id: true },
     });
-    const ids = new Set(matches.map((m) => m.id));
-    filteredReport = {
-      ...report,
-      merchants: report.merchants.filter((m) => ids.has(m.id)),
-      totals: {
-        ...report.totals,
-        merchantCount: report.merchants.filter((m) => ids.has(m.id)).length,
-      },
-    };
+    merchantIds = matches.map((m) => m.id);
   }
+
+  const report =
+    q && merchantIds && merchantIds.length === 0
+      ? {
+          periodStart,
+          periodEnd,
+          merchants: [],
+          topProducts: [],
+          totals: {
+            soldQty: 0,
+            grossSales: 0,
+            commissionAmount: 0,
+            companyRevenue: 0,
+            totalStock: 0,
+            restockQty: 0,
+            merchantCount: 0,
+            lowStockSkus: 0,
+            outOfStockSkus: 0,
+            inTransitShipments: 0,
+            openSettlements: 0,
+          },
+        }
+      : await loadMerchantsPortfolioReport(periodStart, periodEnd, {
+          merchantIds,
+        });
 
   return (
     <MerchantWorkspace>
@@ -74,7 +87,7 @@ export default async function MerchantsOverviewPage({
           </Link>
         </Button>
       </div>
-      <MerchantsOperationsDashboard report={filteredReport} />
+      <MerchantsOperationsDashboard report={report} />
     </MerchantWorkspace>
   );
 }

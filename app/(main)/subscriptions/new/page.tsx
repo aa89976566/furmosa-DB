@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 export default async function NewSubscriptionPage() {
   const [customers, plans] = await Promise.all([
     prisma.customer.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: [{ hasActiveSubscription: 'desc' }, { lastOrderAt: 'desc' }, { name: 'asc' }],
       select: {
         id: true,
         name: true,
@@ -22,7 +22,7 @@ export default async function NewSubscriptionPage() {
         preferredCvsBrand: true,
         preferredCvsStoreName: true,
       },
-      take: 500,
+      take: 40,
     }),
     prisma.subscriptionPlan.findMany({
       where: { isActive: true },

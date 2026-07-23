@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { subscriptionPaymentTypeLabel } from '@/lib/labels';
 import { customerShippingDefaults } from '@/lib/customer-shipping-defaults';
 import {
   createSubscriptionAction,
+  searchCustomersForSubscription,
   type CreateSubscriptionState,
 } from '@/app/(main)/subscriptions/create-subscription-action';
 import {
@@ -17,6 +18,7 @@ import {
   MerchantFormActions,
   MerchantSection,
 } from '@/components/merchants/merchant-ui';
+import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 
 export type SubscriptionCreateCustomerOption = {
   id: string;
@@ -46,14 +48,15 @@ const todayStr = () => {
 };
 
 export function SubscriptionCreateForm({
-  customers,
+  customers: initialCustomers,
   plans,
 }: {
   customers: SubscriptionCreateCustomerOption[];
   plans: SubscriptionCreatePlanOption[];
 }) {
   const [state, formAction] = useFormState(createSubscriptionAction, initialState);
-  const [customerId, setCustomerId] = useState(customers[0]?.id ?? '');
+  const [customers, setCustomers] = useState(initialCustomers);
+  const [customerId, setCustomerId] = useState(initialCustomers[0]?.id ?? '');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'halfyear'>('monthly');
   const [unlimitedEnd, setUnlimitedEnd] = useState(true);
   const [paymentType, setPaymentType] = useState<'full' | 'monthly' | 'other'>('monthly');
@@ -79,6 +82,27 @@ export function SubscriptionCreateForm({
     setShippingAddress(shippingDefaults.shippingAddress);
   }, [shippingDefaults]);
 
+  const handleSearchCustomers = useCallback(async (query: string) => {
+    const rows = await searchCustomersForSubscription(query);
+    setCustomers((prev) => {
+      const map = new Map(prev.map((c) => [c.id, c]));
+      for (const row of rows) {
+        map.set(row.id, {
+          id: row.id,
+          name: row.name,
+          customerId: row.customerId,
+          phone: row.phone,
+          address: row.address,
+          preferredShippingMethod: row.preferredShippingMethod,
+          preferredCvsBrand: row.preferredCvsBrand,
+          preferredCvsStoreName: row.preferredCvsStoreName,
+        });
+      }
+      return [...map.values()];
+    });
+    return rows;
+  }, []);
+
   return (
     <form action={formAction} className="space-y-4">
       {state.error ? (
@@ -94,20 +118,14 @@ export function SubscriptionCreateForm({
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <MerchantField label="客戶" required className="sm:col-span-2">
-            <select
-              name="customerId"
-              required
+            <CustomerSearchSelect
+              customers={customers}
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              className="flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-            >
-              <option value="">請選擇客戶</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}（{c.customerId}）
-                </option>
-              ))}
-            </select>
+              onChange={setCustomerId}
+              onSearch={handleSearchCustomers}
+              required
+              placeholder="搜尋姓名、編號或電話…"
+            />
           </MerchantField>
 
           <MerchantField label="訂閱方案" required className="sm:col-span-2">

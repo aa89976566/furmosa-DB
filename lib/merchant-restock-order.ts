@@ -140,7 +140,7 @@ export async function createRestockOrderWithShipment(
   return { order, shipment };
 }
 
-/** 舊進貨單尚未掛 Order 時補建（載入隊列時可重跑） */
+/** 舊進貨單尚未掛 Order 時補建（cron／節流維護可重跑） */
 export async function ensureOrdersForOrphanRestockShipments(): Promise<number> {
   const orphans = await prisma.shipment.findMany({
     where: {
@@ -156,13 +156,25 @@ export async function ensureOrdersForOrphanRestockShipments(): Promise<number> {
     take: 100,
   });
 
+  if (orphans.length === 0) return 0;
+
+  const prefix = `ORD-${ymd()}-`;
+  const last = await prisma.order.findFirst({
+    where: { orderNumber: { startsWith: prefix } },
+    orderBy: { orderNumber: 'desc' },
+    select: { orderNumber: true },
+  });
+  let seq = last ? Number(last.orderNumber.slice(prefix.length)) + 1 : 1;
+
   let linked = 0;
   for (const s of orphans) {
     if (!s.merchantId) continue;
+    const orderNumber = `${prefix}${pad(seq, 3)}`;
+    seq += 1;
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
-          orderNumber: await nextRestockOrderNumber(),
+          orderNumber,
           source: 'consignment',
           status: 'confirmed',
           paymentStatus: 'paid',

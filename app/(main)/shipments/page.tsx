@@ -10,11 +10,9 @@ import {
   shipmentStatusVariant,
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
-import { syncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
-  maintainShipmentQueueIntegrity,
 } from '@/lib/shipment-queue-filters';
 import { isShipmentKindKey, mergeShipmentWhere, SHIPMENT_KIND_TABS } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
@@ -37,7 +35,15 @@ const merchantLogisticsSelect = {
 
 const shipmentInclude = {
   merchant: { select: merchantLogisticsSelect },
-  customer: true,
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      customerId: true,
+      phone: true,
+      address: true,
+    },
+  },
   order: {
     select: {
       id: true,
@@ -49,10 +55,30 @@ const shipmentInclude = {
       cvsStoreName: true,
     },
   },
-  items: true,
+  items: {
+    select: {
+      id: true,
+      productId: true,
+      productName: true,
+      sku: true,
+      quantity: true,
+      weightGrams: true,
+      unit: true,
+    },
+  },
   subscriptionShipment: {
-    include: {
-      subscription: { include: { plan: true } },
+    select: {
+      id: true,
+      shipmentNo: true,
+      scheduledDate: true,
+      status: true,
+      subscription: {
+        select: {
+          id: true,
+          subscriptionNo: true,
+          plan: { select: { id: true, name: true, contents: true } },
+        },
+      },
     },
   },
 } as const;
@@ -85,9 +111,7 @@ export default async function ShipmentsPage({
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const selectedShipmentId = searchParams?.s;
 
-  await syncUpcomingSubscriptionShipments();
-  await maintainShipmentQueueIntegrity();
-
+  // 維護改由 cron；讀頁不 await 寫入，避免每次點選都卡數秒
   const baseWhere =
     status === 'pending'
       ? {
@@ -119,7 +143,7 @@ export default async function ShipmentsPage({
       where,
       include: shipmentInclude,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 200,
+      take: 120,
     }),
     prisma.shipment.groupBy({
       by: ['status'],

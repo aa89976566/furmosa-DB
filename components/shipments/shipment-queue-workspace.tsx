@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ShipmentQueueTable,
   type ShipmentQueueRow,
@@ -45,7 +45,6 @@ export function ShipmentQueueWorkspace({
   panelRefreshKey: string;
   initialShipmentId?: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const detailRef = useRef<HTMLDivElement>(null);
@@ -81,23 +80,23 @@ export function ShipmentQueueWorkspace({
   const openShipment = useCallback(
     (shipment: ShipmentQueueRow) => {
       setSelectedShipmentId(shipment.id);
-      router.replace(buildQueueUrl(shipment.id), { scroll: false });
+      // 只改 URL，不觸發整頁 RSC 重抓 200 筆出貨佇列
+      window.history.replaceState(null, '', buildQueueUrl(shipment.id));
       window.requestAnimationFrame(() => {
         detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     },
-    [buildQueueUrl, router],
+    [buildQueueUrl],
   );
 
   const closeDetail = useCallback(() => {
     setSelectedShipmentId(null);
-    router.replace(buildQueueUrl(null), { scroll: false });
-  }, [buildQueueUrl, router]);
+    window.history.replaceState(null, '', buildQueueUrl(null));
+  }, [buildQueueUrl]);
 
   useEffect(() => {
-    const shipmentId = searchParams.get('s');
-    setSelectedShipmentId(shipmentId);
-  }, [searchParams]);
+    setSelectedShipmentId(initialShipmentId ?? searchParams.get('s'));
+  }, [initialShipmentId, searchParams]);
 
   return (
     <div className="space-y-6">

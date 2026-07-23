@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/expire-coupons",
       "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/maintain-shipments",
+      "schedule": "0 17 * * *"
     }
   ]
 }

@@ -37,7 +37,7 @@ import {
   SHIPPING_FEE_CVS_711,
   SHIPPING_FEE_HOME_BLACK_CAT,
 } from '@/lib/shipping-policy';
-import { createOrder, updateOrder } from '../actions';
+import { createOrder, updateOrder, searchCustomersForOrder, searchProductsForOrder } from '../actions';
 import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
@@ -127,6 +127,7 @@ function OrderLineItemsTable({
   items,
   products,
   productMap,
+  onSearchProducts,
   onSelectProduct,
   onSelectTier,
   onToggleGift,
@@ -139,6 +140,7 @@ function OrderLineItemsTable({
   items: LineItem[];
   products: ProductOption[];
   productMap: Map<string, ProductOption>;
+  onSearchProducts?: (query: string) => Promise<ProductOption[]>;
   onSelectProduct: (key: string, productId: string) => void;
   onSelectTier: (key: string, productId: string, tierId: string) => void;
   onToggleGift: (key: string, isGift: boolean) => void;
@@ -199,6 +201,7 @@ function OrderLineItemsTable({
                     products={products}
                     value={it.productId}
                     onChange={(productId) => onSelectProduct(it.key, productId)}
+                    onSearch={onSearchProducts}
                     required={rowRequired}
                   />
                   {prod ? (
@@ -386,8 +389,9 @@ export function OrderForm({
   const [shippingAddress, setShippingAddress] = useState<string>(edit?.shippingAddress ?? '');
   const [note, setNote] = useState<string>(edit?.note ?? '');
 
-  // 客戶清單 + inline 新增客戶 state
+  // 客戶／商品清單（種子 + typeahead 合併）
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
+  const [productCatalog, setProductCatalog] = useState<ProductOption[]>(products);
   const [showNewCustomer, setShowNewCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
@@ -404,7 +408,38 @@ export function OrderForm({
   });
   const [creatingCustomer, startCreateCustomer] = useTransition();
 
-  const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const productMap = useMemo(
+    () => new Map(productCatalog.map((p) => [p.id, p])),
+    [productCatalog],
+  );
+
+  const mergeCustomers = (rows: CustomerOption[]) => {
+    setCustomers((prev) => {
+      const map = new Map(prev.map((c) => [c.id, c]));
+      for (const row of rows) map.set(row.id, row);
+      return [...map.values()];
+    });
+  };
+
+  const mergeProducts = (rows: ProductOption[]) => {
+    setProductCatalog((prev) => {
+      const map = new Map(prev.map((p) => [p.id, p]));
+      for (const row of rows) map.set(row.id, row);
+      return [...map.values()];
+    });
+  };
+
+  const handleSearchCustomers = async (query: string) => {
+    const rows = await searchCustomersForOrder(query);
+    mergeCustomers(rows);
+    return rows;
+  };
+
+  const handleSearchProducts = async (query: string) => {
+    const rows = await searchProductsForOrder(query);
+    mergeProducts(rows);
+    return rows;
+  };
 
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
@@ -760,12 +795,13 @@ export function OrderForm({
                 customers={customers}
                 value={customerId}
                 onChange={onCustomerChange}
+                onSearch={handleSearchCustomers}
                 required
               />
             )}
-            {!showNewCustomer && customers.length === 0 && (
-              <p className="mt-1 text-xs text-warning">
-                目前沒有任何客戶。點上方「新增客戶」即可建立。
+            {!showNewCustomer && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                輸入姓名／編號／電話搜尋客戶，或點「新增客戶」。
               </p>
             )}
           </div>
@@ -844,6 +880,7 @@ export function OrderForm({
                 customers={customers}
                 value={customerId}
                 onChange={onCustomerChange}
+                onSearch={handleSearchCustomers}
                 allowEmpty
                 emptyLabel="— 不指定 —"
                 placeholder="搜尋買家（選填）…"
@@ -858,8 +895,9 @@ export function OrderForm({
         title="③ 商品明細"
         hint="勾選「贈品」的品項不計入買家應付，進貨成本計入公司開銷。"
         items={items}
-        products={products}
+        products={productCatalog}
         productMap={productMap}
+        onSearchProducts={handleSearchProducts}
         onSelectProduct={onSelectProduct}
         onSelectTier={onSelectTier}
         onToggleGift={onToggleGift}

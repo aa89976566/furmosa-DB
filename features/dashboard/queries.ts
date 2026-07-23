@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
@@ -18,21 +19,27 @@ const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-/** Supabase pooler 連線數有限；Vercel 上 batchSize=1 最穩 */
+/** Supabase pooler 連線有限；並行查詢，不再每筆包 withDbRetry（避免巢狀重試拖到 10s） */
 async function runInBatches(
   tasks: (() => Promise<unknown>)[],
-  batchSize = 1,
+  batchSize = 6,
 ): Promise<unknown[]> {
   const results: unknown[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
     const chunk = tasks.slice(i, i + batchSize);
-    results.push(...(await Promise.all(chunk.map((fn) => withDbRetry(fn)))));
+    results.push(...(await Promise.all(chunk.map((fn) => fn()))));
   }
   return results;
 }
 
+const loadDashboardDataCached = unstable_cache(
+  () => loadDashboardData(),
+  ['dashboard-overview-v2'],
+  { revalidate: 60, tags: ['dashboard'] },
+);
+
 export async function getDashboardData() {
-  return withDbRetry(() => loadDashboardData());
+  return withDbRetry(() => loadDashboardDataCached());
 }
 
 async function loadDashboardData() {
@@ -280,10 +287,25 @@ async function loadDashboardData() {
     };
   });
 
-  // 寄賣店銷售排行
-  const merchants = await prisma.merchant.findMany({
-    where: { id: { in: topMerchantsRaw.map((m) => m.merchantId!).filter(Boolean) } },
-  });
+  // 寄賣店銷售排行 + 本月回購基數並行
+  const merchantIds = topMerchantsRaw
+    .map((m) => m.merchantId)
+    .filter((id): id is string => Boolean(id));
+
+  const [merchants, monthCustomers] = await Promise.all([
+    merchantIds.length
+      ? prisma.merchant.findMany({ where: { id: { in: merchantIds } } })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.merchant.findMany>>),
+    prisma.order.findMany({
+      where: {
+        orderedAt: { gte: startOfMonth },
+        customerId: { not: null },
+        ...dashboardSalesOrderWhere,
+      },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    }),
+  ]);
   const merchantMap = new Map(merchants.map((m) => [m.id, m]));
   const topMerchants = topMerchantsRaw.map((row) => {
     const m = merchantMap.get(row.merchantId!);
@@ -296,15 +318,6 @@ async function loadDashboardData() {
   });
 
   // 本月回購率：本月有銷售下單 且 之前也有過銷售下單 / 本月有下單會員
-  const monthCustomers = await prisma.order.findMany({
-    where: {
-      orderedAt: { gte: startOfMonth },
-      customerId: { not: null },
-      ...dashboardSalesOrderWhere,
-    },
-    select: { customerId: true },
-    distinct: ['customerId'],
-  });
   const customerIdsThisMonth = monthCustomers.map((c) => c.customerId!).filter(Boolean);
   let repurchaseRate = 0;
   if (customerIdsThisMonth.length) {

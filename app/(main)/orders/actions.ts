@@ -20,6 +20,10 @@ import {
   applyJarExchangeConsignmentPricing,
   isJarExchangeConsignmentDelivery,
 } from '@/lib/jar-exchange/revenue';
+import {
+  searchCustomersForOrderForm,
+  searchProductsForOrderForm,
+} from '@/lib/order-form-search';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -377,4 +381,12 @@ export async function updateOrderShippingFeeType(formData: FormData) {
   ]);
 
   revalidateOrderPaths(orderId);
+}
+
+export async function searchCustomersForOrder(q: string, take = 40) {
+  return searchCustomersForOrderForm(q, take);
+}
+
+export async function searchProductsForOrder(q: string, take = 40) {
+  return searchProductsForOrderForm(q, take);
 }

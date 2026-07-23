@@ -44,12 +44,21 @@ export default async function ProductsPage({
   const [products, totalAll, activeCount] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: {
-        vendor: true,
+      select: {
+        id: true,
+        productId: true,
+        name: true,
+        sku: true,
+        category: true,
+        status: true,
+        price: true,
+        reorderPoint: true,
+        vendor: { select: { id: true, name: true } },
         priceTiers: { select: { price: true } },
         inventoryBalances: { select: { quantity: true } },
       },
       orderBy: { productId: 'asc' },
+      take: 200,
     }),
     prisma.product.count(),
     prisma.product.count({ where: { status: 'active' } }),
