@@ -36,6 +36,7 @@ model User {
   assignedTasks       Task[]                 @relation("AssignedTasks")
   pointsLedgerCreated MemberPointsLedger[]   @relation("PointsLedgerCreatedBy")
   pushSubscriptions   UserPushSubscription[]
+  restockApprovals    RestockRequest[]       @relation("RestockApprovedBy")
 }
 
 model UserPushSubscription {
@@ -362,6 +363,44 @@ model Merchant {
   stocks       MerchantStock[]
   stockTxns    MerchantStockTxn[]
   shipments    Shipment[]
+  users        MerchantUser[]
+  settings     MerchantSettings?
+  restockRequests RestockRequest[]
+}
+
+/// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
+model MerchantSettings {
+  id                      String   @id @default(cuid())
+  merchantId              String   @unique @map("merchant_id")
+  waitingForJarDays       Int      @default(14) @map("waiting_for_jar_days")
+  appointmentEnabled      Boolean  @default(false) @map("appointment_enabled")
+  lineNotificationEnabled Boolean  @default(true) @map("line_notification_enabled")
+  allowAutoApproveRestock Boolean  @default(false) @map("allow_auto_approve_restock")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("merchant_settings")
+}
+
+/// 店家 POS 登入帳號（一 Merchant 可多筆；Phase 1 營運上先維持一店一 active）
+model MerchantUser {
+  id           String    @id @default(cuid())
+  merchantId   String    @map("merchant_id")
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  displayName  String?   @map("display_name")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  merchant        Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  restockRequests RestockRequest[]
+
+  @@index([merchantId])
+  @@map("merchant_users")
 }
 
 model Warehouse {
@@ -384,6 +423,8 @@ model Product {
   sourceSku    String? // 使用者單價表的 SKU（DK-01 / FD-04 / PF-02 ...）
   name         String
   category     String   @default("other") // staple_food / treats / health / freeze_dried / toys / accessories / other
+  /// 平台商品類型（非零食子類）：STANDARD / JAR_EXCHANGE / SERVICE / VOUCHER / DONATION
+  productCategory String @default("STANDARD") @map("product_category")
   style        String? // 款式（凍肉 / 蔬果 ...）
   description  String?
   imageUrl     String?
@@ -406,7 +447,9 @@ model Product {
   merchantStocks        MerchantStock[]
   merchantStockTxns     MerchantStockTxn[]
   shipmentItems         ShipmentItem[]
+  restockRequestItems   RestockRequestItem[]
 
+  @@index([productCategory])
   @@index([status])
   @@index([name])
 }
@@ -488,6 +531,7 @@ model Shipment {
   order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
   subscriptionShipment SubscriptionShipment? @relation(fields: [subscriptionShipmentId], references: [id], onDelete: SetNull)
   items                ShipmentItem[]
+  restockRequest       RestockRequest?
 
   @@index([status])
   @@index([type])
@@ -497,6 +541,55 @@ model Shipment {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([type, status])
+}
+
+/// POS 一鍵叫貨申請（核准後轉既有 merchant_restock Shipment）
+model RestockRequest {
+  id                        String    @id @default(cuid())
+  merchantId                String    @map("merchant_id")
+  requestedByMerchantUserId String    @map("requested_by_merchant_user_id")
+  /// SELF_SELECT | AUTO_REPLENISH
+  requestType               String    @map("request_type")
+  /// draft | submitted | under_review | approved | rejected | converted_to_shipment | cancelled
+  status                    String    @default("submitted")
+  merchantNote              String?   @map("merchant_note")
+  hqNote                    String?   @map("hq_note")
+  expectedArrivalDate       DateTime? @map("expected_arrival_date")
+  /// 核准當下品項快照（UI 顯示用；Shipment 仍為履約真相）
+  approvedSnapshot          Json?     @map("approved_snapshot")
+  approvedByUserId          String?   @map("approved_by_user_id")
+  approvedAt                DateTime? @map("approved_at")
+  rejectedAt                DateTime? @map("rejected_at")
+  shipmentId                String?   @unique @map("shipment_id")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
+
+  merchant    Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  requestedBy MerchantUser @relation(fields: [requestedByMerchantUserId], references: [id], onDelete: Restrict)
+  approvedBy  User?        @relation("RestockApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  shipment    Shipment?    @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  items       RestockRequestItem[]
+
+  @@index([merchantId, status])
+  @@index([status, createdAt])
+  @@map("restock_requests")
+}
+
+model RestockRequestItem {
+  id                String   @id @default(cuid())
+  restockRequestId  String   @map("restock_request_id")
+  productId         String   @map("product_id")
+  requestedQuantity Int?     @map("requested_quantity")
+  approvedQuantity  Int?     @map("approved_quantity")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  restockRequest RestockRequest @relation(fields: [restockRequestId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([restockRequestId])
+  @@index([productId])
+  @@map("restock_request_items")
 }
 
 model ShipmentItem {
