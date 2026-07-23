@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
-import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
+import { getJarOpsDashboardSummary } from '@/lib/jar-exchange/ops';
 import {
   dashboardSalesOrderWhere,
   revenueEligibleOrderWhere,
@@ -165,7 +165,7 @@ async function loadDashboardData() {
         orderBy: { dueDate: 'asc' },
         take: 6,
       }),
-    () => getMonthJarExchangeKpis(),
+    () => getJarOpsDashboardSummary(),
   ])) as [
     number,
     { _sum: { total: number | null } },
@@ -216,7 +216,7 @@ async function loadDashboardData() {
         }>
       >
     >,
-    Awaited<ReturnType<typeof getMonthJarExchangeKpis>>,
+    Awaited<ReturnType<typeof getJarOpsDashboardSummary>>,
   ];
 
   // 庫存總值 + 低庫存（與下方表格一致：僅主倉 WH-MAIN）
@@ -335,6 +335,9 @@ async function loadDashboardData() {
       weekJarPointsEarnedMemberCount: jarKpis.weekJarPointsEarnedMemberCount,
       weekJarPointsRedeemedMemberCount: jarKpis.weekJarPointsRedeemedMemberCount,
       weekJarRedeemCount: jarKpis.weekJarRedeemCount,
+      jarLowStockCellCount: jarKpis.lowStockCellCount,
+      jarOutOfStockCellCount: jarKpis.outOfStockCellCount,
+      jarInTransitRestockCount: jarKpis.inTransitRestockCount,
     },
     revenueTrend,
     sourceData,
