@@ -25,7 +25,7 @@ export async function loadOrderFormOptions() {
         },
       }),
       prisma.customer.findMany({
-        orderBy: [{ hasActiveSubscription: 'desc' }, { name: 'asc' }],
+        orderBy: [{ hasActiveSubscription: 'desc' }, { lastOrderAt: 'desc' }, { name: 'asc' }],
         select: {
           id: true,
           name: true,
@@ -37,7 +37,7 @@ export async function loadOrderFormOptions() {
           preferredCvsStoreId: true,
           preferredCvsStoreName: true,
         },
-        take: 500,
+        take: 80,
       }),
       prisma.product.findMany({
         where: { status: 'active' },
@@ -62,6 +62,7 @@ export async function loadOrderFormOptions() {
             },
           },
         },
+        take: 300,
       }),
     ]);
   });

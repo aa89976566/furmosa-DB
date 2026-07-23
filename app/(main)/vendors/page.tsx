@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { VendorListWorkspace } from '@/components/vendors/vendor-list-workspace';
 import { Building2, Plus } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function VendorsPage({
   searchParams,

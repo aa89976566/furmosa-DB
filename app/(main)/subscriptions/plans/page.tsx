@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { parsePlanContents, parsePlanBonus, parseShipDays } from '@/lib/subscription';
 import { PlanEditCard } from '@/components/subscriptions/plan-edit-card';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function SubscriptionPlansPage() {
   const plans = await prisma.subscriptionPlan.findMany({

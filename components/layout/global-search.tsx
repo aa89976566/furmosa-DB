@@ -15,6 +15,10 @@ const SEARCHABLE_PREFIXES = [
   '/subscriptions',
 ];
 
+/**
+ * 全站搜尋：輸入時只更新本地 state，按 Enter 才 router.replace。
+ * 避免每個字元觸發整頁 RSC 重跑（訂單／出貨／寄賣等重查詢）。
+ */
 export function GlobalSearch() {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,30 +38,7 @@ export function GlobalSearch() {
     return pathname === prefix || pathname.startsWith(`${prefix}/`);
   });
 
-  useEffect(() => {
-    if (!searchable) return;
-
-    const timer = window.setTimeout(() => {
-      const trimmed = value.trim();
-      const params = new URLSearchParams(searchParams.toString());
-      if (trimmed) params.set('q', trimmed);
-      else params.delete('q');
-      const query = params.toString();
-      const next = query ? `${pathname}?${query}` : pathname;
-      const current = searchParams.toString()
-        ? `${pathname}?${searchParams.toString()}`
-        : pathname;
-      if (next !== current) {
-        router.replace(next, { scroll: false });
-      }
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [value, searchable, pathname, router, searchParams]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = value.trim();
+  const navigateWithQuery = (trimmed: string) => {
     if (!searchable) {
       if (trimmed) router.push(`/orders?q=${encodeURIComponent(trimmed)}`);
       return;
@@ -66,7 +47,18 @@ export function GlobalSearch() {
     if (trimmed) params.set('q', trimmed);
     else params.delete('q');
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    const next = query ? `${pathname}?${query}` : pathname;
+    const current = searchParams.toString()
+      ? `${pathname}?${searchParams.toString()}`
+      : pathname;
+    if (next !== current) {
+      router.replace(next, { scroll: false });
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    navigateWithQuery(value.trim());
   };
 
   return (
@@ -77,8 +69,8 @@ export function GlobalSearch() {
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="搜尋訂單、電話、收件人、店家、商品…"
-        className="h-10 rounded-xl border-border/80 bg-muted/40 pl-9 shadow-none focus-visible:bg-card"
+        placeholder="搜尋後按 Enter（訂單、電話、店家、商品…）"
+        className="h-9 rounded-md border-border/80 bg-muted/30 pl-9 text-sm shadow-none focus-visible:bg-card"
         aria-label="搜尋"
       />
     </form>

@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { getMerchantIndustryMap } from '@/lib/merchant-industry-persist';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
@@ -81,24 +82,62 @@ export type MerchantsPortfolioReport = {
 export async function loadMerchantsPortfolioReport(
   periodStart: Date,
   periodEnd: Date,
+  options?: { merchantIds?: string[] },
 ): Promise<MerchantsPortfolioReport> {
+  const merchantIdsKey = options?.merchantIds?.slice().sort().join(',') ?? 'all';
+  const cached = unstable_cache(
+    () => loadMerchantsPortfolioReportUncached(periodStart, periodEnd, options?.merchantIds),
+    [
+      'merchants-portfolio-v1',
+      periodStart.toISOString(),
+      periodEnd.toISOString(),
+      merchantIdsKey,
+    ],
+    { revalidate: 60, tags: ['merchants-portfolio'] },
+  );
+  return cached();
+}
+
+async function loadMerchantsPortfolioReportUncached(
+  periodStart: Date,
+  periodEnd: Date,
+  merchantIds?: string[],
+): Promise<MerchantsPortfolioReport> {
+  const merchantWhere = merchantIds?.length ? { id: { in: merchantIds } } : undefined;
+
   const [merchants, stocks, saleTxns, restockTxns, inTransitShipments, openSettlements] =
     await Promise.all([
       prisma.merchant.findMany({
-        include: {
+        where: merchantWhere,
+        select: {
+          id: true,
+          merchantId: true,
+          name: true,
+          type: true,
+          city: true,
+          phone: true,
+          commissionRate: true,
           _count: { select: { orders: true, settlements: true } },
         },
         orderBy: { merchantId: 'asc' },
       }),
       prisma.merchantStock.findMany({
+        where: merchantIds?.length ? { merchantId: { in: merchantIds } } : undefined,
         select: { merchantId: true, quantity: true },
       }),
       prisma.merchantStockTxn.findMany({
         where: {
           type: 'sale',
           createdAt: { gte: periodStart, lte: periodEnd },
+          ...(merchantIds?.length ? { merchantId: { in: merchantIds } } : {}),
         },
-        include: {
+        select: {
+          merchantId: true,
+          productId: true,
+          quantity: true,
+          unitPrice: true,
+          commissionAmount: true,
+          companyRevenue: true,
           product: { select: { id: true, productId: true, name: true, sku: true } },
         },
       }),
@@ -106,6 +145,7 @@ export async function loadMerchantsPortfolioReport(
         where: {
           type: 'restock',
           createdAt: { gte: periodStart, lte: periodEnd },
+          ...(merchantIds?.length ? { merchantId: { in: merchantIds } } : {}),
         },
         select: { merchantId: true, quantity: true },
       }),

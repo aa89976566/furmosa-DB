@@ -149,7 +149,7 @@ export default async function ShipmentsPage({
       where,
       include: shipmentInclude,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 200,
+      take: 120,
     }),
     prisma.shipment.groupBy({
       by: ['status'],

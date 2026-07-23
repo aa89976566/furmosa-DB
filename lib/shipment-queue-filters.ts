@@ -138,13 +138,24 @@ export async function maintainShipmentQueueIntegrity() {
   await syncDraftOrdersWithPendingShipments();
 }
 
-const MAINTAIN_JOB_KEY = 'maintainShipmentQueueIntegrity';
+/** 讀頁輕量整理：只做 updateMany 類修正，不做孤兒補單等重寫入 */
+export async function maintainShipmentQueueIntegrityLight() {
+  await cancelShipmentsForCancelledOrders();
+  await consolidateDuplicateOrderShipments();
+  await syncDraftOrdersWithPendingShipments();
+}
 
-/** 讀頁用：同一實例 TTL 內最多跑一次，避免訂單／出貨列表每次都寫庫 */
+const MAINTAIN_JOB_KEY = 'maintainShipmentQueueIntegrityLight';
+
+/** 讀頁用：同一實例 TTL 內最多跑一次輕量整理 */
 export async function maybeMaintainShipmentQueueIntegrity(
   ttlMs = DEFAULT_JOB_TTL_MS,
 ): Promise<boolean> {
-  const outcome = await runThrottled(MAINTAIN_JOB_KEY, () => maintainShipmentQueueIntegrity(), ttlMs);
+  const outcome = await runThrottled(
+    MAINTAIN_JOB_KEY,
+    () => maintainShipmentQueueIntegrityLight(),
+    ttlMs,
+  );
   return outcome.ran;
 }
 
