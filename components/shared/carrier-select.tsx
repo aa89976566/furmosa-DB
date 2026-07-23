@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
+import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
 
-const PRESETS = [CARRIER_711, '黑貓'] as const;
+const PRESETS = [CARRIER_711, '黑貓', SHIPPING_CARRIER_DELIVERY] as const;
 type Preset = (typeof PRESETS)[number];
 
-// 物流選擇器：7-11 / 黑貓 / 其他（其他時跳出文字欄位手動填）
+// 物流選擇器：7-11 / 黑貓 / 送貨 / 其他（其他時跳出文字欄位手動填）
 // 選 7-11 時顯示收件人姓名、電話（必填），表單送出 name="carrier"
 export function CarrierSelect({
   defaultValue,

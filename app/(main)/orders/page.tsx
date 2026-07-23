@@ -7,7 +7,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
@@ -22,8 +21,6 @@ export default async function OrdersPage({
 }: {
   searchParams: { source?: string; status?: string; q?: string };
 }) {
-  await maintainShipmentQueueIntegrity();
-
   const where: Record<string, unknown> = { ...activeOrderWhere };
   const sourceFilter =
     searchParams.source === 'restock' ? 'consignment' : searchParams.source;

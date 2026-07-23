@@ -1,42 +1,53 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
-import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
+import {
+  dashboardSalesOrderWhere,
+  revenueEligibleOrderWhere,
+} from '@/lib/jar-exchange/revenue';
+import {
+  defaultTaipeiMonthRange,
+  taipeiDateInput,
+  taipeiDateKeysLastNDays,
+  taipeiStartOfLastNDays,
+  taipeiTodayRange,
+  taipeiWeekRangeSunday,
+} from '@/lib/taipei-date';
 
 const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual', 'jar_exchange'] as const;
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
 
-/** Supabase pooler 連線數有限；Vercel 上 batchSize=1 最穩 */
+/** Supabase pooler 連線有限；並行查詢，不再每筆包 withDbRetry（避免巢狀重試拖到 10s） */
 async function runInBatches(
   tasks: (() => Promise<unknown>)[],
-  batchSize = 1,
+  batchSize = 6,
 ): Promise<unknown[]> {
   const results: unknown[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
     const chunk = tasks.slice(i, i + batchSize);
-    results.push(...(await Promise.all(chunk.map((fn) => withDbRetry(fn)))));
+    results.push(...(await Promise.all(chunk.map((fn) => fn()))));
   }
   return results;
 }
 
+const loadDashboardDataCached = unstable_cache(
+  () => loadDashboardData(),
+  ['dashboard-overview-v2'],
+  { revalidate: 60, tags: ['dashboard'] },
+);
+
 export async function getDashboardData() {
-  return withDbRetry(() => loadDashboardData());
+  return withDbRetry(() => loadDashboardDataCached());
 }
 
 async function loadDashboardData() {
-  const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last30 = new Date(now);
-  last30.setDate(last30.getDate() - 29);
-
-  const startOfWeek = new Date(now);
-  startOfWeek.setHours(0, 0, 0, 0);
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 7);
+  const { start: startOfDay, end: endOfDay } = taipeiTodayRange();
+  const { start: startOfMonth } = defaultTaipeiMonthRange();
+  const { start: startOfWeek, end: endOfWeek } = taipeiWeekRangeSunday();
+  const last30Keys = taipeiDateKeysLastNDays(30);
+  const last30 = taipeiStartOfLastNDays(30);
 
   const [
     todayOrderCount,
@@ -58,14 +69,16 @@ async function loadDashboardData() {
     // 順序必須與上方解構變數一致
     () =>
       prisma.order.count({
-        where: { orderedAt: { gte: startOfDay }, status: { not: 'cancelled' } },
+        where: {
+          orderedAt: { gte: startOfDay, lte: endOfDay },
+          ...dashboardSalesOrderWhere,
+        },
       }),
     () =>
       prisma.order.aggregate({
         _sum: { total: true },
         where: {
           orderedAt: { gte: startOfMonth },
-          status: { not: 'cancelled' },
           ...revenueEligibleOrderWhere,
         },
       }),
@@ -108,7 +121,6 @@ async function loadDashboardData() {
       prisma.order.findMany({
         where: {
           orderedAt: { gte: last30 },
-          status: { not: 'cancelled' },
           ...revenueEligibleOrderWhere,
         },
         select: { orderedAt: true, total: true, source: true },
@@ -120,7 +132,6 @@ async function loadDashboardData() {
         _count: { _all: true },
         where: {
           orderedAt: { gte: startOfMonth },
-          status: { not: 'cancelled' },
           ...revenueEligibleOrderWhere,
         },
       }),
@@ -131,7 +142,6 @@ async function loadDashboardData() {
         where: {
           order: {
             orderedAt: { gte: last30 },
-            status: { not: 'cancelled' },
             ...revenueEligibleOrderWhere,
           },
         },
@@ -146,7 +156,6 @@ async function loadDashboardData() {
         where: {
           merchantId: { not: null },
           orderedAt: { gte: last30 },
-          status: { not: 'cancelled' },
           ...revenueEligibleOrderWhere,
         },
         orderBy: { _sum: { total: 'desc' } },
@@ -217,36 +226,39 @@ async function loadDashboardData() {
     Awaited<ReturnType<typeof getMonthJarExchangeKpis>>,
   ];
 
-  // 庫存總值 + 低庫存
+  // 庫存總值 + 低庫存（與下方表格一致：僅主倉 WH-MAIN）
   const productMap = new Map(products.map((p) => [p.id, p]));
   let inventoryValue = 0;
-  const productTotals = new Map<string, number>();
+  const mainWarehouseTotals = new Map<string, number>();
   for (const b of lowStockBalances) {
     const unitCost = Number(
       b.product?.cost ?? productMap.get(b.productId)?.cost ?? 0,
     );
     inventoryValue += b.quantity * unitCost;
-    productTotals.set(b.productId, (productTotals.get(b.productId) ?? 0) + b.quantity);
+    if (b.warehouse?.code === 'WH-MAIN') {
+      mainWarehouseTotals.set(
+        b.productId,
+        (mainWarehouseTotals.get(b.productId) ?? 0) + b.quantity,
+      );
+    }
   }
   const lowStockProducts = products
     .map((p) => ({
       ...p,
-      onHand: productTotals.get(p.id) ?? 0,
+      onHand: mainWarehouseTotals.get(p.id) ?? 0,
     }))
     .filter((p) => p.onHand <= p.reorderPoint)
     .sort((a, b) => a.onHand - b.onHand)
     .slice(0, 8);
 
-  // 30 天營收趨勢
+  // 30 天營收趨勢（台北日曆日）
   const dayMap = new Map<string, number>();
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(last30);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
+  for (const key of last30Keys) {
     dayMap.set(key, 0);
   }
   for (const o of last30Orders) {
-    const key = o.orderedAt.toISOString().slice(0, 10);
+    const key = taipeiDateInput(o.orderedAt);
+    if (!dayMap.has(key)) continue;
     dayMap.set(key, (dayMap.get(key) ?? 0) + Number(o.total));
   }
   const revenueTrend = Array.from(dayMap.entries()).map(([date, total]) => ({
@@ -275,10 +287,25 @@ async function loadDashboardData() {
     };
   });
 
-  // 寄賣店銷售排行
-  const merchants = await prisma.merchant.findMany({
-    where: { id: { in: topMerchantsRaw.map((m) => m.merchantId!).filter(Boolean) } },
-  });
+  // 寄賣店銷售排行 + 本月回購基數並行
+  const merchantIds = topMerchantsRaw
+    .map((m) => m.merchantId)
+    .filter((id): id is string => Boolean(id));
+
+  const [merchants, monthCustomers] = await Promise.all([
+    merchantIds.length
+      ? prisma.merchant.findMany({ where: { id: { in: merchantIds } } })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.merchant.findMany>>),
+    prisma.order.findMany({
+      where: {
+        orderedAt: { gte: startOfMonth },
+        customerId: { not: null },
+        ...dashboardSalesOrderWhere,
+      },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    }),
+  ]);
   const merchantMap = new Map(merchants.map((m) => [m.id, m]));
   const topMerchants = topMerchantsRaw.map((row) => {
     const m = merchantMap.get(row.merchantId!);
@@ -290,12 +317,7 @@ async function loadDashboardData() {
     };
   });
 
-  // 本月回購率：本月有下單 且 之前也有過下單 / 本月有下單會員
-  const monthCustomers = await prisma.order.findMany({
-    where: { orderedAt: { gte: startOfMonth }, customerId: { not: null } },
-    select: { customerId: true },
-    distinct: ['customerId'],
-  });
+  // 本月回購率：本月有銷售下單 且 之前也有過銷售下單 / 本月有下單會員
   const customerIdsThisMonth = monthCustomers.map((c) => c.customerId!).filter(Boolean);
   let repurchaseRate = 0;
   if (customerIdsThisMonth.length) {
@@ -304,6 +326,7 @@ async function loadDashboardData() {
       where: {
         customerId: { in: customerIdsThisMonth },
         orderedAt: { lt: startOfMonth },
+        ...dashboardSalesOrderWhere,
       },
     });
     repurchaseRate = repurchased.length / customerIdsThisMonth.length;

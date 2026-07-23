@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 
 export type CustomerSearchOption = {
   id: string;
@@ -30,6 +30,7 @@ export function CustomerSearchSelect({
   customers,
   value,
   onChange,
+  onSearch,
   name = 'customerId',
   required = false,
   allowEmpty = false,
@@ -40,6 +41,8 @@ export function CustomerSearchSelect({
   customers: CustomerSearchOption[];
   value: string;
   onChange: (customerId: string) => void;
+  /** 提供時改為遠端 typeahead；customers 仍用於已選項顯示與種子清單 */
+  onSearch?: (query: string) => Promise<CustomerSearchOption[]>;
   name?: string;
   required?: boolean;
   /** 是否允許不選（寄賣店訂單的選填客戶） */
@@ -53,16 +56,15 @@ export function CustomerSearchSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [remote, setRemote] = useState<CustomerSearchOption[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const selected = useMemo(
-    () => customers.find((c) => c.id === value),
-    [customers, value],
+    () =>
+      customers.find((c) => c.id === value) ??
+      remote?.find((c) => c.id === value),
+    [customers, remote, value],
   );
-
-  const filtered = useMemo(() => {
-    const list = customers.filter((c) => matchCustomer(c, query));
-    return list.slice(0, 80);
-  }, [customers, query]);
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +74,26 @@ export function CustomerSearchSelect({
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  useEffect(() => {
+    if (!onSearch || !open) return;
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      void onSearch(query)
+        .then((rows) => setRemote(rows))
+        .catch(() => setRemote([]))
+        .finally(() => setSearching(false));
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [query, open, onSearch]);
+
+  const filtered = useMemo(() => {
+    if (onSearch) {
+      const list = remote ?? customers;
+      return list.slice(0, 80);
+    }
+    return customers.filter((c) => matchCustomer(c, query)).slice(0, 80);
+  }, [customers, query, onSearch, remote]);
 
   const displayValue = open ? query : selected ? customerLabel(selected) : '';
 
@@ -144,9 +166,16 @@ export function CustomerSearchSelect({
               </button>
             </li>
           )}
-          {filtered.length === 0 ? (
+          {searching ? (
+            <li className="flex items-center justify-center gap-2 px-3 py-3 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              搜尋中…
+            </li>
+          ) : filtered.length === 0 ? (
             <li className="px-3 py-3 text-center text-xs text-muted-foreground">
-              找不到符合的客戶
+              {onSearch && !query.trim()
+                ? '輸入關鍵字搜尋客戶'
+                : '找不到符合的客戶'}
             </li>
           ) : (
             filtered.map((c) => (
@@ -173,7 +202,6 @@ export function CustomerSearchSelect({
           )}
         </ul>
       )}
-
     </div>
   );
 }

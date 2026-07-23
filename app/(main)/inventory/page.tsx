@@ -16,13 +16,25 @@ import { formatCurrency, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
 import { AlertTriangle, ArrowUpRight } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 30;
 
 export default async function InventoryPage() {
   const products = await prisma.product.findMany({
-    include: {
+    select: {
+      id: true,
+      productId: true,
+      name: true,
+      sku: true,
+      category: true,
+      reorderPoint: true,
+      cost: true,
       vendor: { select: { name: true, id: true } },
-      inventoryBalances: { include: { warehouse: true } },
+      inventoryBalances: {
+        select: {
+          quantity: true,
+          warehouse: { select: { code: true } },
+        },
+      },
     },
     orderBy: { productId: 'asc' },
   });

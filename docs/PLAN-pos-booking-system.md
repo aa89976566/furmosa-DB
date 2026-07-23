@@ -335,7 +335,7 @@ Appointment、RefillOrder、ECPay、LINE 新流程、庫存操作、一鍵叫貨
 ### 11.2 Migration
 
 - `20260722100000_merchant_user`（自 Phase 1 併入；避開與 zhuwo migration 時間戳衝突）
-- `20260722110000_restock_request`：`product_category`、`merchant_settings`、`restock_requests`、`restock_request_items`；並一次性將 `name LIKE '換罐%'` 回填為 `JAR_EXCHANGE`
+- `20260723130000_restock_request`：`product_category`、`merchant_settings`、`restock_requests`、`restock_request_items`；並一次性將 `name LIKE '換罐%'` 回填為 `JAR_EXCHANGE`
 
 ### 11.3 Routes
 

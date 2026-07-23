@@ -15,7 +15,24 @@ export type Pickup711Info = {
   recipientAddress: string;
 };
 
-/** 從進貨／出貨表單讀取 7-11 門市與取件人；非 7-11 時回傳 null */
+/** 從表單讀取 7-11 取件資訊；非 7-11 或缺欄位時回傳 null（不丟錯） */
+export function tryResolve711PickupFromForm(
+  formData: FormData,
+  carrier: string | null,
+): Pickup711Info | null {
+  if (!is711Carrier(carrier)) return null;
+  const storeName = String(formData.get('pickupStore') ?? '').trim();
+  const recipientName = String(formData.get('pickupName') ?? '').trim();
+  const recipientPhone = String(formData.get('pickupPhone') ?? '').trim();
+  if (!storeName || !recipientName || !recipientPhone) return null;
+  return {
+    recipientName,
+    recipientPhone,
+    recipientAddress: format711RecipientAddress(storeName),
+  };
+}
+
+/** 從進貨／出貨表單讀取 7-11 門市與取件人；非 7-11 時回傳 null；缺欄位時丟錯 */
 export function resolve711PickupFromForm(
   formData: FormData,
   carrier: string | null,

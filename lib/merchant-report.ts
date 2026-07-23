@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache';
+import { Prisma } from '@prisma/client';
 import { getMerchantIndustryMap } from '@/lib/merchant-industry-persist';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
@@ -81,41 +83,112 @@ export type MerchantsPortfolioReport = {
 export async function loadMerchantsPortfolioReport(
   periodStart: Date,
   periodEnd: Date,
+  options?: { merchantIds?: string[] },
 ): Promise<MerchantsPortfolioReport> {
-  const [merchants, stocks, saleTxns, restockTxns, inTransitShipments, openSettlements] =
-    await Promise.all([
-      prisma.merchant.findMany({
-        include: {
-          _count: { select: { orders: true, settlements: true } },
-        },
-        orderBy: { merchantId: 'asc' },
-      }),
-      prisma.merchantStock.findMany({
-        select: { merchantId: true, quantity: true },
-      }),
-      prisma.merchantStockTxn.findMany({
-        where: {
-          type: 'sale',
-          createdAt: { gte: periodStart, lte: periodEnd },
-        },
-        include: {
-          product: { select: { id: true, productId: true, name: true, sku: true } },
-        },
-      }),
-      prisma.merchantStockTxn.findMany({
-        where: {
-          type: 'restock',
-          createdAt: { gte: periodStart, lte: periodEnd },
-        },
-        select: { merchantId: true, quantity: true },
-      }),
-      prisma.shipment.count({
-        where: { status: { in: ['pending', 'packed', 'shipped'] } },
-      }),
-      prisma.settlement.count({
-        where: { status: { in: ['draft', 'reviewing'] } },
-      }),
-    ]);
+  const merchantIdsKey = options?.merchantIds?.slice().sort().join(',') ?? 'all';
+  const cached = unstable_cache(
+    () => loadMerchantsPortfolioReportUncached(periodStart, periodEnd, options?.merchantIds),
+    [
+      'merchants-portfolio-v1',
+      periodStart.toISOString(),
+      periodEnd.toISOString(),
+      merchantIdsKey,
+    ],
+    { revalidate: 60, tags: ['merchants-portfolio'] },
+  );
+  return cached();
+}
+
+async function loadMerchantsPortfolioReportUncached(
+  periodStart: Date,
+  periodEnd: Date,
+  merchantIds?: string[],
+): Promise<MerchantsPortfolioReport> {
+  const merchantWhere = merchantIds?.length ? { id: { in: merchantIds } } : undefined;
+  const merchantIdFilter =
+    merchantIds && merchantIds.length > 0
+      ? Prisma.sql`AND "merchantId" IN (${Prisma.join(merchantIds)})`
+      : Prisma.empty;
+
+  const [
+    merchants,
+    stocks,
+    saleAgg,
+    topProductAgg,
+    restockAgg,
+    inTransitShipments,
+    openSettlements,
+  ] = await Promise.all([
+    prisma.merchant.findMany({
+      where: merchantWhere,
+      select: {
+        id: true,
+        merchantId: true,
+        name: true,
+        type: true,
+        city: true,
+        phone: true,
+        commissionRate: true,
+        _count: { select: { orders: true, settlements: true } },
+      },
+      orderBy: { merchantId: 'asc' },
+    }),
+    prisma.merchantStock.findMany({
+      where: merchantIds?.length ? { merchantId: { in: merchantIds } } : undefined,
+      select: { merchantId: true, quantity: true },
+    }),
+    prisma.$queryRaw<
+      {
+        merchantId: string;
+        soldQty: number;
+        grossSales: number;
+        commission: number;
+        companyRevenue: number;
+      }[]
+    >`
+      SELECT
+        "merchantId",
+        SUM(ABS("quantity"))::float AS "soldQty",
+        SUM(ABS("quantity") * COALESCE("unitPrice", 0))::float AS "grossSales",
+        SUM(COALESCE("commissionAmount", 0))::float AS "commission",
+        SUM(COALESCE("companyRevenue", 0))::float AS "companyRevenue"
+      FROM "MerchantStockTxn"
+      WHERE "type" = 'sale'
+        AND "createdAt" >= ${periodStart}
+        AND "createdAt" <= ${periodEnd}
+        ${merchantIdFilter}
+      GROUP BY "merchantId"
+    `,
+    prisma.$queryRaw<{ productId: string; quantity: number; grossSales: number }[]>`
+      SELECT
+        "productId",
+        SUM(ABS("quantity"))::float AS "quantity",
+        SUM(ABS("quantity") * COALESCE("unitPrice", 0))::float AS "grossSales"
+      FROM "MerchantStockTxn"
+      WHERE "type" = 'sale'
+        AND "createdAt" >= ${periodStart}
+        AND "createdAt" <= ${periodEnd}
+        ${merchantIdFilter}
+      GROUP BY "productId"
+      ORDER BY SUM(ABS("quantity")) DESC
+      LIMIT 8
+    `,
+    prisma.merchantStockTxn.groupBy({
+      by: ['merchantId'],
+      where: {
+        type: 'restock',
+        createdAt: { gte: periodStart, lte: periodEnd },
+        ...(merchantIds?.length ? { merchantId: { in: merchantIds } } : {}),
+      },
+      _sum: { quantity: true },
+    }),
+    prisma.shipment.count({
+      where: { status: { in: ['pending', 'packed', 'shipped'] } },
+    }),
+    prisma.settlement.count({
+      where: { status: { in: ['draft', 'reviewing'] } },
+    }),
+  ]);
 
   const stockByMerchant = new Map<string, { total: number; low: number; out: number }>();
   for (const stock of stocks) {
@@ -126,62 +199,52 @@ export async function loadMerchantsPortfolioReport(
     stockByMerchant.set(stock.merchantId, row);
   }
 
-  const salesByMerchant = new Map<
-    string,
-    { soldQty: number; grossSales: number; commission: number; companyRevenue: number }
-  >();
-  const topProducts = new Map<string, MerchantPortfolioTopProduct>();
+  const salesByMerchant = new Map(
+    saleAgg.map((row) => [
+      row.merchantId,
+      {
+        soldQty: Number(row.soldQty ?? 0),
+        grossSales: Number(row.grossSales ?? 0),
+        commission: Number(row.commission ?? 0),
+        companyRevenue: Number(row.companyRevenue ?? 0),
+      },
+    ]),
+  );
 
-  for (const txn of saleTxns) {
-    const qty = Math.abs(txn.quantity);
-    const unitPrice = txn.unitPrice ?? 0;
-    const lineGross = qty * unitPrice;
+  const restockByMerchant = new Map(
+    restockAgg.map((row) => [row.merchantId, row._sum.quantity ?? 0]),
+  );
 
-    const merchantSales = salesByMerchant.get(txn.merchantId) ?? {
-      soldQty: 0,
-      grossSales: 0,
-      commission: 0,
-      companyRevenue: 0,
+  const topProductIds = topProductAgg.map((row) => row.productId);
+  const topProductMeta = topProductIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: topProductIds } },
+        select: { id: true, productId: true, name: true, sku: true },
+      })
+    : [];
+  const topProductMetaMap = new Map(topProductMeta.map((p) => [p.id, p]));
+  const topProducts: MerchantPortfolioTopProduct[] = topProductAgg.map((row) => {
+    const meta = topProductMetaMap.get(row.productId);
+    return {
+      productInternalId: row.productId,
+      productId: meta?.productId ?? '',
+      productName: meta?.name ?? '未知商品',
+      sku: meta?.sku ?? '',
+      quantity: Number(row.quantity ?? 0),
+      grossSales: Number(row.grossSales ?? 0),
     };
-    merchantSales.soldQty += qty;
-    merchantSales.grossSales += lineGross;
-    merchantSales.commission += txn.commissionAmount ?? 0;
-    merchantSales.companyRevenue += txn.companyRevenue ?? 0;
-    salesByMerchant.set(txn.merchantId, merchantSales);
+  });
 
-    const productRow = topProducts.get(txn.productId);
-    if (productRow) {
-      productRow.quantity += qty;
-      productRow.grossSales += lineGross;
-      continue;
-    }
-
-    topProducts.set(txn.productId, {
-      productInternalId: txn.productId,
-      productId: txn.product.productId,
-      productName: txn.product.name,
-      sku: txn.product.sku,
-      quantity: qty,
-      grossSales: lineGross,
-    });
-  }
-
-  const restockByMerchant = new Map<string, number>();
-  for (const txn of restockTxns) {
-    restockByMerchant.set(
-      txn.merchantId,
-      (restockByMerchant.get(txn.merchantId) ?? 0) + txn.quantity,
-    );
-  }
-
-  const industryByMerchant = await getMerchantIndustryMap(
-    prisma,
-    merchants.map((m) => m.id),
-  );
-  const typesByMerchant = await getMerchantTypesMap(
-    prisma,
-    merchants.map((m) => ({ id: m.id, type: m.type })),
-  );
+  const [industryByMerchant, typesByMerchant] = await Promise.all([
+    getMerchantIndustryMap(
+      prisma,
+      merchants.map((m) => m.id),
+    ),
+    getMerchantTypesMap(
+      prisma,
+      merchants.map((m) => ({ id: m.id, type: m.type })),
+    ),
+  ]);
 
   const merchantRows: MerchantPortfolioRow[] = merchants.map((merchant) => {
     const stock = stockByMerchant.get(merchant.id) ?? { total: 0, low: 0, out: 0 };
@@ -247,6 +310,6 @@ export async function loadMerchantsPortfolioReport(
     periodEnd,
     totals,
     merchants: merchantRows,
-    topProducts: [...topProducts.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 8),
+    topProducts,
   };
 }

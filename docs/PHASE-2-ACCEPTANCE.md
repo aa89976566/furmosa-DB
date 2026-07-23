@@ -12,7 +12,7 @@
 | 層級 | Branch | 內容 |
 |------|--------|------|
 | Phase 1 | `cursor/phase1-merchant-user-24aa` | `MerchantUser`、POS login、migration `20260722100000_merchant_user` |
-| Phase 2 | `cursor/phase2-restock-request-24aa` | RestockRequest、ProductCategory、MerchantSettings、migration `20260722110000_restock_request`（已 merge Phase 1） |
+| Phase 2 | `cursor/phase2-restock-request-24aa` | RestockRequest、ProductCategory、MerchantSettings、migration `20260723130000_restock_request`（已 merge Phase 1） |
 | Flow 文件 | `cursor/phase2-5-merchant-pos-flow-24aa` | Merchant POS Flow v1.0-approved |
 | 本輪 QA | `cursor/phase2-merchant-qa-24aa` | 疊在 Phase 2＋Flow 文件之上：UI 對齊、去掉名稱前綴雙重真相、可用性測試文件 |
 
@@ -31,7 +31,7 @@
 
 ## 2. Migration 安全檢查
 
-### `20260722110000_restock_request`
+### `20260723130000_restock_request`
 
 - `product_category` 預設 `STANDARD`（additive）  
 - **一次性回填：** 僅 `name LIKE '換罐%'` → `JAR_EXCHANGE`；其餘維持 `STANDARD`  

@@ -1,12 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getMerchantIndustry } from '@/lib/merchant-industry-persist';
 import { prisma } from '@/lib/prisma';
+import { getMerchantShell } from '@/lib/merchants/load-merchant-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
 import { MerchantTypeBadges } from '@/components/merchants/merchant-type-badges';
-import { getMerchantTypes } from '@/lib/merchant-types-persist';
 import { merchantIndustryDisplay } from '@/lib/labels';
 import { MerchantOperationsHub } from './merchant-operations-hub';
 import { MerchantShippingPanel } from '@/components/merchants/merchant-shipping-panel';
@@ -42,24 +41,25 @@ export default async function MerchantOverviewPage({
 }: {
   params: { id: string };
 }) {
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: params.id },
-    include: {
-      productRules: { select: { id: true } },
-      stocks: { select: { quantity: true, productId: true } },
-      stockTxns: {
-        include: { product: true },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
+  const [merchant, shell] = await Promise.all([
+    prisma.merchant.findUnique({
+      where: { id: params.id },
+      include: {
+        productRules: { select: { id: true } },
+        stocks: { select: { quantity: true, productId: true } },
+        stockTxns: {
+          include: { product: true },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
       },
-    },
-  });
+    }),
+    getMerchantShell(params.id),
+  ]);
   if (!merchant) notFound();
 
-  const [industry, types] = await Promise.all([
-    getMerchantIndustry(prisma, merchant.id),
-    getMerchantTypes(prisma, merchant.id, merchant.type),
-  ]);
+  const industry = shell.industry;
+  const types = shell.types;
 
   const productCount = new Set([
     ...merchant.stocks.map((s) => s.productId),
@@ -158,9 +158,10 @@ export default async function MerchantOverviewPage({
             />
             {merchant.preferredCarrier === CARRIER_711 ? (
               <MerchantDlRow label="7-11 門市" value={merchant.pickupStoreName ?? '—'} />
-            ) : merchant.preferredCarrier === '黑貓' ? (
+            ) : merchant.preferredCarrier === '黑貓' ||
+              merchant.preferredCarrier === '送貨' ? (
               <MerchantDlRow
-                label="收件地址"
+                label={merchant.preferredCarrier === '送貨' ? '送貨地址' : '收件地址'}
                 value={
                   merchant.address ? (
                     <span className="inline-flex max-w-[12rem] items-start justify-end gap-1 text-right">

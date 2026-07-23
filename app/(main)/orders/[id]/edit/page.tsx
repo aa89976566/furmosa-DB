@@ -46,7 +46,11 @@ export default async function EditOrderPage({ params }: { params: { id: string }
     );
   }
 
-  const [merchants, customers, products] = await loadOrderFormOptions();
+  const productIds = [...new Set(order.items.map((item) => item.productId))];
+  const [merchants, customers, products] = await loadOrderFormOptions({
+    customerIds: order.customerId ? [order.customerId] : [],
+    productIds,
+  });
   const edit = buildOrderEditInitial(order, order.shipments[0], products);
 
   return (

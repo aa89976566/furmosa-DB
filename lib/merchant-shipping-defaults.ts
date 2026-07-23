@@ -169,3 +169,43 @@ export function merchantCarrierLabel(carrier: string | null | undefined): string
   if (c === '送貨') return '送貨';
   return '未設定';
 }
+
+export type ShipActionCarrierDefaults = {
+  defaultCarrier: string | null;
+  pickupStore: string;
+  pickupName: string;
+  pickupPhone: string;
+};
+
+/**
+ * 標記「已寄出」時的物流預設：優先出貨單收件資料，不足再補店家檔案。
+ * - 7-11：帶入門市／取件人，避免必填欄空白導致按了沒反應
+ * - 送貨／黑貓：帶入店家地址與聯絡人
+ */
+export function resolveShipActionCarrierDefaults(input: {
+  carrier?: string | null;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  recipientAddress?: string | null;
+  merchant?: MerchantProfile | null;
+}): ShipActionCarrierDefaults {
+  const merchantDefaults = input.merchant ? profileDefaults(input.merchant) : null;
+  const defaultCarrier =
+    input.carrier?.trim() || merchantDefaults?.defaultCarrier || null;
+
+  const pickupStore =
+    parse711StoreFromAddress(input.recipientAddress) ||
+    input.merchant?.pickupStoreName?.trim() ||
+    (!is711Carrier(defaultCarrier)
+      ? input.recipientAddress?.trim() || merchantDefaults?.pickupStore || ''
+      : merchantDefaults?.pickupStore || '') ||
+    '';
+
+  const pickupName =
+    input.recipientName?.trim() || merchantDefaults?.pickupName || '';
+
+  const pickupPhone =
+    input.recipientPhone?.trim() || merchantDefaults?.pickupPhone || '';
+
+  return { defaultCarrier, pickupStore, pickupName, pickupPhone };
+}

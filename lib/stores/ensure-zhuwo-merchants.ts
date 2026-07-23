@@ -80,22 +80,50 @@ export async function ensureZhuwoConsignmentBranches(
         continue;
       }
 
-      const updated = await db.merchant.update({
-        where: { id: existing.id },
-        data: {
-          name: branch.name,
-          city: existing.city?.trim() ? existing.city : branch.city,
-          type: 'consignment',
-          types: ['consignment', 'jar_exchange'],
-          status: 'active',
-        },
-      });
+      const needsUpdate =
+        existing.name !== branch.name ||
+        !(existing.city ?? '').trim() ||
+        existing.type !== 'consignment' ||
+        existing.status !== 'active';
+
+      let merchantRow = existing;
+      if (needsUpdate) {
+        merchantRow = await db.merchant.update({
+          where: { id: existing.id },
+          data: {
+            name: branch.name,
+            city: existing.city?.trim() ? existing.city : branch.city,
+            type: 'consignment',
+            types: ['consignment', 'jar_exchange'],
+            status: 'active',
+          },
+        });
+      } else {
+        // Still ensure types include jar_exchange when missing
+        const types = Array.isArray(existing.types) ? existing.types : [];
+        if (!types.includes('jar_exchange') || !types.includes('consignment')) {
+          merchantRow = await db.merchant.update({
+            where: { id: existing.id },
+            data: { types: ['consignment', 'jar_exchange'] },
+          });
+        }
+      }
+
       await syncPartnerStoreForJarExchangeMerchant(
         db,
-        { id: updated.id, merchantId: updated.merchantId, name: updated.name, status: 'active' },
+        {
+          id: merchantRow.id,
+          merchantId: merchantRow.merchantId,
+          name: merchantRow.name,
+          status: merchantRow.status,
+        },
         ['consignment', 'jar_exchange'],
       );
-      results.push({ name: updated.name, merchantId: updated.merchantId, created: false });
+      results.push({
+        name: merchantRow.name,
+        merchantId: merchantRow.merchantId,
+        created: false,
+      });
       continue;
     }
 

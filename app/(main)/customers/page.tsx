@@ -39,16 +39,30 @@ export default async function CustomersPage({
   const [customers, total, subCount] = await Promise.all([
     prisma.customer.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        customerId: true,
+        name: true,
+        phone: true,
+        type: true,
+        lineUserId: true,
+        lineDisplay: true,
+        totalSpent: true,
+        lastOrderAt: true,
+        hasActiveSubscription: true,
         _count: { select: { orders: true, subscriptions: true } },
         subscriptions: {
           where: { status: 'active' },
-          include: { plan: true },
+          select: {
+            id: true,
+            plan: { select: { name: true } },
+          },
           take: 1,
           orderBy: { startDate: 'desc' },
         },
       },
       orderBy: [{ lastOrderAt: 'desc' }, { customerId: 'asc' }],
+      take: 150,
     }),
     prisma.customer.count(),
     prisma.customer.count({ where: { hasActiveSubscription: true } }),

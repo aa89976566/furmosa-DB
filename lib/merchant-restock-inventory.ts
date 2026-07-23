@@ -46,16 +46,23 @@ export async function applyMerchantRestockFromShipment(
     return false;
   }
 
-  const productIds = [...new Set(shipment.items.map((item) => item.productId))];
+  const productIds = [...new Set(shipment.items.map((item) => item.productId).filter(Boolean))];
+  if (productIds.length === 0) return false;
+
   const products = await tx.product.findMany({
     where: { id: { in: productIds } },
     include: { priceTiers: true },
   });
   const tiersByProduct = new Map(products.map((product) => [product.id, product.priceTiers]));
+  const existingProductIds = new Set(products.map((product) => product.id));
+  const items = shipment.items.filter(
+    (item) => item.productId && item.quantity > 0 && existingProductIds.has(item.productId),
+  );
+  if (items.length === 0) return false;
 
-  const txnNumbers = await reserveStockTxnNumbers(tx, shipment.items.length);
-  for (let i = 0; i < shipment.items.length; i++) {
-    const item = shipment.items[i];
+  const txnNumbers = await reserveStockTxnNumbers(tx, items.length);
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     const tierId = resolveTierIdFromWeightGrams(
       tiersByProduct.get(item.productId) ?? [],
       item.weightGrams,

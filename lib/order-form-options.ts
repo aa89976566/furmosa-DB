@@ -1,11 +1,35 @@
 import { prisma } from '@/lib/prisma';
-import { withDbRetry } from '@/lib/prisma-retry';
-import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
+import {
+  getCustomersByIdsForOrderForm,
+  getProductsByIdsForOrderForm,
+  searchCustomersForOrderForm,
+  searchProductsForOrderForm,
+  type OrderFormCustomerHit,
+  type OrderFormProductHit,
+} from '@/lib/order-form-search';
 
-export async function loadOrderFormOptions() {
-  return withDbRetry(async () => {
-    await ensureZhuwoConsignmentBranches();
-    return Promise.all([
+export type OrderFormMerchantOption = {
+  id: string;
+  name: string;
+  merchantId: string;
+  contactName: string | null;
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  preferredCarrier: string | null;
+  pickupStoreName: string | null;
+};
+
+/**
+ * 訂單表單初始資料：店家 + 少量客戶／商品種子。
+ * ensure 已移出讀路徑（改 cron）；typeahead 負責其餘搜尋。
+ */
+export async function loadOrderFormOptions(seed?: {
+  customerIds?: string[];
+  productIds?: string[];
+}): Promise<[OrderFormMerchantOption[], OrderFormCustomerHit[], OrderFormProductHit[]]> {
+  const [merchants, seedCustomers, seedProducts, extraCustomers, extraProducts] =
+    await Promise.all([
       prisma.merchant.findMany({
         where: { status: 'active' },
         orderBy: { name: 'asc' },
@@ -21,45 +45,20 @@ export async function loadOrderFormOptions() {
           pickupStoreName: true,
         },
       }),
-      prisma.customer.findMany({
-        orderBy: [{ hasActiveSubscription: 'desc' }, { name: 'asc' }],
-        select: {
-          id: true,
-          name: true,
-          customerId: true,
-          phone: true,
-          address: true,
-          preferredShippingMethod: true,
-          preferredCvsBrand: true,
-          preferredCvsStoreId: true,
-          preferredCvsStoreName: true,
-        },
-        take: 500,
-      }),
-      prisma.product.findMany({
-        where: { status: 'active' },
-        orderBy: { name: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          sku: true,
-          price: true,
-          cost: true,
-          unit: true,
-          priceTiers: {
-            orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
-            select: {
-              id: true,
-              weightGrams: true,
-              unit: true,
-              unitQty: true,
-              price: true,
-              cost: true,
-              notes: true,
-            },
-          },
-        },
-      }),
+      searchCustomersForOrderForm('', 24),
+      searchProductsForOrderForm('', 40),
+      getCustomersByIdsForOrderForm(seed?.customerIds ?? []),
+      getProductsByIdsForOrderForm(seed?.productIds ?? []),
     ]);
-  });
+
+  const customersById = new Map<string, OrderFormCustomerHit>();
+  for (const c of [...extraCustomers, ...seedCustomers]) {
+    customersById.set(c.id, c);
+  }
+  const productsById = new Map<string, OrderFormProductHit>();
+  for (const p of [...extraProducts, ...seedProducts]) {
+    productsById.set(p.id, p);
+  }
+
+  return [merchants, [...customersById.values()], [...productsById.values()]];
 }

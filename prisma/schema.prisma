@@ -139,6 +139,9 @@ model Customer {
   groomingCoupons     GroomingCoupon[]
 
   @@index([hasActiveSubscription])
+  @@index([lastOrderAt])
+  @@index([name])
+  @@index([phone])
 }
 
 // LINE 官方帳號多步驟對話（加入會員等）暫存
@@ -344,7 +347,7 @@ model Merchant {
   address        String? // 黑貓／宅配收件地址
   city           String?
   // 進貨預設運輸（建立出貨單時自動帶入）
-  preferredCarrier String? // 7-11 / 黑貓
+  preferredCarrier String? // 7-11 / 黑貓 / 送貨
   pickupStoreName  String? // 7-11 取件門市名稱
   commissionRate Float    @default(0.30) // fallback；個別商品仍以 MerchantProductRule 為準
   notes          String?
@@ -447,6 +450,8 @@ model Product {
   restockRequestItems   RestockRequestItem[]
 
   @@index([productCategory])
+  @@index([status])
+  @@index([name])
 }
 
 // 同一個產品可能依重量分多種售價（30g / 50g / 100g / 150g），
@@ -532,7 +537,10 @@ model Shipment {
   @@index([type])
   @@index([merchantId])
   @@index([customerId])
+  @@index([orderId])
   @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([type, status])
 }
 
 /// POS 一鍵叫貨申請（核准後轉既有 merchant_restock Shipment）
@@ -650,6 +658,8 @@ model MerchantStockTxn {
   @@index([type])
   @@index([createdAt])
   @@index([settlementId])
+  @@index([type, createdAt])
+  @@index([merchantId, type, createdAt])
 }
 
 // =====================================================
@@ -736,6 +746,10 @@ model Order {
   @@index([status])
   @@index([orderedAt])
   @@index([subscriptionId])
+  @@index([customerId])
+  @@index([merchantId])
+  @@index([status, orderedAt])
+  @@index([source, orderedAt])
 }
 
 model OrderItem {

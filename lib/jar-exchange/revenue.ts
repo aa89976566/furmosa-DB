@@ -99,22 +99,22 @@ export async function enrichOrderLinesWithProductCategory<
   }));
 }
 
-/** 訂單是否應計入營收 KPI（排除換罐寄賣補貨）— 依 Product.productCategory */
+/** 寄賣店家進貨／補貨單（無終端客戶）— 不是對外銷售 */
+export const merchantRestockOrderWhere: Prisma.OrderWhereInput = {
+  source: 'consignment',
+  merchantId: { not: null },
+  customerId: null,
+};
+
+/** 訂單是否應計入營收 KPI（排除寄賣進貨／補貨，含運費） */
 export const revenueEligibleOrderWhere: Prisma.OrderWhereInput = {
-  NOT: {
-    AND: [
-      { source: 'consignment' },
-      { merchantId: { not: null } },
-      { customerId: null },
-      {
-        items: {
-          every: {
-            product: { productCategory: 'JAR_EXCHANGE' },
-          },
-        },
-      },
-    ],
-  },
+  status: { notIn: ['cancelled', 'draft'] },
+  NOT: merchantRestockOrderWhere,
+};
+
+/** 今日訂單等「成交筆數」：有效銷售單，不含草稿／取消／寄賣進貨 */
+export const dashboardSalesOrderWhere: Prisma.OrderWhereInput = {
+  ...revenueEligibleOrderWhere,
 };
 
 export function mergeRevenueEligibleWhere(
