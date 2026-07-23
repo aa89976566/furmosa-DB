@@ -14,6 +14,7 @@ import {
   ListChecks,
   Truck,
   BarChart3,
+  Activity,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionTone } from '@/lib/section-tone';
@@ -75,6 +76,7 @@ export const navGroups: NavGroup[] = [
     label: '換罐會員',
     tone: 'supply',
     items: [
+      { href: '/jar-exchange/ops', label: '營運台', icon: Activity },
       { href: '/jar-exchange/members', label: '會員列表', icon: Users },
       { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
       { href: '/jar-exchange/manage?tab=codes', label: '序號管理', icon: Rocket },
