@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { ensureOrdersForOrphanRestockShipments, migrateRestockOrdersToConsignment } from '@/lib/merchant-restock-order';
 import { prisma } from '@/lib/prisma';
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
+import { DEFAULT_JOB_TTL_MS, runThrottled } from '@/lib/job-throttle';
 
 /** 品項指紋（用於判斷是否為同一批進貨） */
 export function shipmentItemsFingerprint(
@@ -122,7 +123,7 @@ export async function syncDraftOrdersWithPendingShipments(): Promise<number> {
   return result.count;
 }
 
-/** 佇列載入前整理資料 */
+/** 佇列載入前整理資料（完整執行；給 cron／強制維護用） */
 export async function maintainShipmentQueueIntegrity() {
   try {
     await ensureQimuDeliveryShipping();
@@ -135,6 +136,16 @@ export async function maintainShipmentQueueIntegrity() {
   await consolidateDuplicateOrderShipments();
   await consolidateDuplicateMerchantRestockShipments();
   await syncDraftOrdersWithPendingShipments();
+}
+
+const MAINTAIN_JOB_KEY = 'maintainShipmentQueueIntegrity';
+
+/** 讀頁用：同一實例 TTL 內最多跑一次，避免訂單／出貨列表每次都寫庫 */
+export async function maybeMaintainShipmentQueueIntegrity(
+  ttlMs = DEFAULT_JOB_TTL_MS,
+): Promise<boolean> {
+  const outcome = await runThrottled(MAINTAIN_JOB_KEY, () => maintainShipmentQueueIntegrity(), ttlMs);
+  return outcome.ran;
 }
 
 /** 列表去重：訂單出貨依 orderId；店家進貨依 merchantId + 品項指紋 */

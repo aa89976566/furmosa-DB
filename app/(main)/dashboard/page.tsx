@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import nextDynamic from 'next/dynamic';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionBlock } from '@/components/shared/section-block';
 import { DashboardKpiOverview } from '@/components/dashboard/dashboard-kpi-overview';
@@ -16,18 +17,36 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { getDashboardData } from '@/features/dashboard/queries';
-import { RevenueTrendChart, SourcePieChart, TopProductsChart } from '@/features/dashboard/charts';
 import { DashboardSearch } from '@/components/dashboard/dashboard-search';
 import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
 import { getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
 import { Plus } from 'lucide-react';
 
+const chartFallback = (
+  <div className="h-56 animate-pulse rounded-md bg-muted/40" aria-hidden />
+);
+
+const RevenueTrendChart = nextDynamic(
+  () =>
+    import('@/features/dashboard/charts').then((m) => m.RevenueTrendChart),
+  { loading: () => chartFallback },
+);
+const SourcePieChart = nextDynamic(
+  () => import('@/features/dashboard/charts').then((m) => m.SourcePieChart),
+  { loading: () => chartFallback },
+);
+const TopProductsChart = nextDynamic(
+  () => import('@/features/dashboard/charts').then((m) => m.TopProductsChart),
+  { loading: () => chartFallback },
+);
+
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  // 依序載入，避免 Dashboard 與今日任務同時搶 Supabase pooler 連線
-  const data = await getDashboardData();
-  const todayTasks = await getTodayTasksForDashboard();
+  const [data, todayTasks] = await Promise.all([
+    getDashboardData(),
+    getTodayTasksForDashboard(),
+  ]);
 
   return (
     <>

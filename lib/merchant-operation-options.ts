@@ -16,10 +16,15 @@ import {
 } from '@/lib/merchant-shipping-defaults';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
+import { runThrottled } from '@/lib/job-throttle';
+
+async function maybeEnsureStoreDefaults() {
+  await runThrottled('ensureZhuwoConsignmentBranches', () => ensureZhuwoConsignmentBranches());
+  await runThrottled('ensureQimuDeliveryShipping', () => ensureQimuDeliveryShipping());
+}
 
 export async function listMerchantsForSelect() {
-  await ensureZhuwoConsignmentBranches();
-  await ensureQimuDeliveryShipping();
+  await maybeEnsureStoreDefaults();
   return prisma.merchant.findMany({
     where: { status: 'active' },
     select: { id: true, name: true, merchantId: true },

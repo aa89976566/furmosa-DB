@@ -95,18 +95,19 @@ export async function ensureQimuDeliveryShipping(
     },
   });
 
-  let shipmentTouched = false;
+  const defaultName =
+    (merchant.contactName ?? '').trim() || merchant.name;
+  const defaultPhone =
+    (merchant.phone ?? '').trim() || QIMU_DELIVERY_PHONE;
+
+  const shipmentIdsToFix: string[] = [];
+  const orderIdsToFix: string[] = [];
+
   for (const shipment of pendingShipments) {
     const nextAddress =
       (shipment.recipientAddress ?? '').trim() || QIMU_DELIVERY_ADDRESS;
-    const nextName =
-      (shipment.recipientName ?? '').trim() ||
-      (merchant.contactName ?? '').trim() ||
-      merchant.name;
-    const nextPhone =
-      (shipment.recipientPhone ?? '').trim() ||
-      (merchant.phone ?? '').trim() ||
-      QIMU_DELIVERY_PHONE;
+    const nextName = (shipment.recipientName ?? '').trim() || defaultName;
+    const nextPhone = (shipment.recipientPhone ?? '').trim() || defaultPhone;
     const needsShipmentUpdate =
       shipment.carrier !== SHIPPING_CARRIER_DELIVERY ||
       (shipment.recipientAddress ?? '').trim() !== nextAddress ||
@@ -114,27 +115,34 @@ export async function ensureQimuDeliveryShipping(
       (shipment.recipientPhone ?? '').trim() !== nextPhone;
 
     if (!needsShipmentUpdate) continue;
+    shipmentIdsToFix.push(shipment.id);
+    if (shipment.orderId) orderIdsToFix.push(shipment.orderId);
+  }
+
+  let shipmentTouched = false;
+  if (shipmentIdsToFix.length > 0) {
     shipmentTouched = true;
-    await db.shipment.update({
-      where: { id: shipment.id },
+    // Most Qimu pending rows share the same delivery defaults; batch update.
+    await db.shipment.updateMany({
+      where: { id: { in: shipmentIdsToFix } },
       data: {
         carrier: SHIPPING_CARRIER_DELIVERY,
-        recipientAddress: nextAddress,
-        recipientName: nextName,
-        recipientPhone: nextPhone,
+        recipientAddress: QIMU_DELIVERY_ADDRESS,
+        recipientName: defaultName,
+        recipientPhone: defaultPhone,
       },
     });
+  }
 
-    if (shipment.orderId) {
-      await db.order.update({
-        where: { id: shipment.orderId },
-        data: {
-          shippingMethod: 'delivery',
-          shippingAddress: nextAddress,
-          cvsStoreName: null,
-        },
-      });
-    }
+  if (orderIdsToFix.length > 0) {
+    await db.order.updateMany({
+      where: { id: { in: orderIdsToFix } },
+      data: {
+        shippingMethod: 'delivery',
+        shippingAddress: QIMU_DELIVERY_ADDRESS,
+        cvsStoreName: null,
+      },
+    });
   }
 
   return {
