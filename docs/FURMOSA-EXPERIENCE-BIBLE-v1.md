@@ -892,13 +892,51 @@ HQ 第一版體驗應接近：
 
 ---
 
-## 10. 下一里程碑（給人類，不給自動實作）
+## 10. Roadmap Stages（凍結）
 
-1. **合作店叫貨 Reality** — 15 分鐘；填 §2.3 與 §8。  
-2. **回寫 Decision** — 保留／修改／刪除畫面；不要開新 Bible。  
-3. **Booking／Jar 維持 Hypothesis** — 直到有真實預約與登錄率。  
-4. **仍然不要 Phase 3。**  
-5. **Cursor 停止自行決定下一階段 Code。**
+### Stage 1 — 完成 ✅
+
+Vision · Domain · Database · Merchant Flow · Experience（本文件）  
+Phase 1 MerchantUser + Phase 2 叫貨已 merge 進 `main`（PR #17）。
+
+### Stage 2 — 現在 ⭐（只做 Reality，不寫新功能）
+
+```text
+現有文件／已上線叫貨
+        ↓
+豬窩（或一間合作美容店）· 手機 · 15–30 分鐘
+        ↓
+觀察（不教學）
+        ↓
+寫進本文件 §8 Reality Notes + §2.3 Decision
+        ↓
+（通過才）開始 Booking 一整段
+```
+
+**禁止路線 A：** Experience v1.2 → UI Bible → Reality Bible → …（文件驅動）  
+**唯一路線 B：** 真實店 → Observation → Decision → 再 Coding。
+
+**Cursor 停在這裡。** 下一動是人帶 iPhone 去店裡，不是再開 Agent 寫 Booking。
+
+### Stage 2 現場五測（必做）
+
+| Test | 觀察什麼 | 記什麼 |
+|------|----------|--------|
+| T1 登入 | 花多久？卡在哪？ | 秒數／卡住欄位 |
+| T2 叫貨 | 「自己選」還是「請幫我配」？ | 路徑＋完成否 |
+| T3 今天 | 有看「今天」還是登入直奔叫貨？ | 第一個點的 Tab |
+| T4 紀錄 | 有點「紀錄」嗎？ | 有／無 |
+| T5 搜尋 | 一直在找搜尋嗎？ | 有／無 |
+
+腳本詳見：`docs/MERCHANT-POS-USABILITY-TEST-v1.md`
+
+### 開始 Booking 的閘門（三件事都要）
+
+1. **Merchant Reality** — 叫貨幾乎不用教；今天／叫貨／紀錄無大困惑；文案無需大改。  
+2. **Customer 假設仍待測** — 尤其「會不會登新序號」（上線後才能量化；Booking 一次做完整鏈）。  
+3. **HQ 節奏** — 是否整天盯補貨，決定通知要不要即時（可與 Merchant 測試並行訪談）。
+
+Booking 一旦開做：**預約→付款→提醒→店家收罐→交商品→LINE 新序號→點數** 一次做完，不要每天加一點。
 
 ---
 
@@ -907,4 +945,4 @@ HQ 第一版體驗應接近：
 > **每天的任務，應該明顯到不需要教學。**  
 > **未經驗證的，都是 Hypothesis。**  
 > **可以消失的畫面，就刪。**  
-> 若不明顯，先改旅程與文案，不要先加資料表。
+> **現在缺的不是 AI，是 Reality。**

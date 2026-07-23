@@ -1,74 +1,39 @@
 # Furmosa Document Bibles
 
-Furmosa OS 用分層文件避免 Code 與體驗互相搶方向盤。  
-**現在不要再新增一本 Bible。** 缺的是 Reality（真實觀察），用循環補上，不是再開文件。
+**現在不要再開書、不要寫 Booking。** Stage 2 = 真實店實測。
 
-## 文件層（命名目標）
+## Stages
 
-| # | Bible | 回答 | 現況 |
-|---|--------|------|------|
-| 01 | Vision Bible | 為什麼做 | ⏳ 尚未獨立成檔（願景散見 Domain／本循環） |
-| 02 | Domain Bible | 世界是什麼、規則可不可以 | ✅ 成熟（feature branch） |
-| 03 | Experience Bible | 使用者旅程與情緒 | ⏳ `FURMOSA-EXPERIENCE-BIBLE-v1.md` |
-| 04 | Reality | 真實世界怎麼用（**循環步驟，不是新書**） | ⏳ 合作店實測／觀察筆記 |
-| 05 | UI Bible | 畫面與元件 | ⏳ 未開始 |
-| 06 | Database Bible | Schema 如何長期正確 | ✅ 可擴充 |
-| 07 | Engineering Bible | 怎麼安全交付 | ⏳ 分散於 DEPLOY／PR |
+| Stage | 內容 | 狀態 |
+|-------|------|------|
+| **1** | Vision · Domain · Database · Merchant Flow · Experience；Phase 1+2 on `main` | ✅ |
+| **2** | 豬窩手機 15–30 分鐘 → Observation → Decision 寫回 Experience | ⭐ 現在 |
+| **3** | Booking 完整鏈（通過 Stage 2 閘門後才開） | ⏳ |
 
-## 運作循環（比再開一本更重要）
+## 文件層（有需要再補齊，不優先）
+
+| # | 層 | 現況 |
+|---|-----|------|
+| 01 | Vision | 散見 Domain／Experience |
+| 02 | Domain | `FURMOSA-OS-DOMAIN-SPEC-v1.md` |
+| 03 | Experience | `FURMOSA-EXPERIENCE-BIBLE-v1.md` |
+| 04 | Reality | **循環**：寫進 Experience §8，不另開 Bible |
+| 05 | UI | 未開始（Stage 2 後） |
+| 06 | Database | Schema／migrations |
+| 07 | Engineering | DEPLOY／PR |
+
+## 循環
 
 ```text
-Vision
-  ↓
-Domain
-  ↓
 Experience（Hypothesis）
-  ↓
-Reality（合作店／HQ／顧客實測）
-  ↓
-回寫 Experience（保留／修改／刪除）
-  ↓
-UI
-  ↓
-Database（僅在 Reality 證明需要時）
-  ↓
-Engineering
-  ↓
-Reality（再次驗證）
+  → Reality（豬窩實測）
+  → Decision 回寫 Experience
+  →（通過）Booking 一次做完
+  → Reality 再驗證
 ```
 
-**規則：** 實測結果回饋 Experience，**不**直接改資料表或程式當第一反應。
+## 實測入口
 
-## 狀態標籤（所有決策必標）
-
-| 標籤 | 意義 |
-|------|------|
-| **Hypothesis** | 我們認為會這樣用；尚未被真實行為證明 |
-| **Validated** | 已在真實場景觀察（註明店／日期） |
-| **Delete Candidate** | 可消失；優先刪而非加 |
-
-## 實作閘門
-
-```text
-Experience 章節標 Validated（或明確接受風險的 Hypothesis）
-        ↓
-UI 細稿
-        ↓
-Engineering 切片
-        ↓
-Code
-        ↓
-再進 Reality
-```
-
-**現在禁止：** 未經驗證就開 Phase 3／Booking／Jar／LINE 大實作；禁止為了猜而加表。
-
-## 產品 Roadmap（體驗＋現實）
-
-```text
-Merchant Reality（叫貨 15 分鐘）
-  → 回寫 Experience
-  → Booking（仍先畫旅程＋驗證）
-  → Jar Exchange Reality
-  → POS 完整價值
-```
+- 腳本：`docs/MERCHANT-POS-USABILITY-TEST-v1.md`
+- 回寫：`docs/FURMOSA-EXPERIENCE-BIBLE-v1.md` §8、§2.3
+- Production：merge 後等 Vercel；POS `/pos/login`
