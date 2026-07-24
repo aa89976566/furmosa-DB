@@ -31,7 +31,7 @@ const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|�
 const UNBOXING_RE =
   /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|清蛙誰在怕)$/i;
 const HUB_JAR_RE = /^(?:♻️\s*)?換罐計畫$/;
-const HUB_CHAOS_RE = /^(?:(?:🔥|🎉)\s*)?一起搞事$/;
+const HUB_CHAOS_RE = /^(?:(?:🔥|🎉)\s*)?一起搞事$/; // Rich Menu 用 🔥；舊 🎉 仍相容
 const HUB_WILD_RE = /^(?:🌿\s*)?野放中$/;
 
 export function parseLineUserText(raw: string): ParsedLineText {

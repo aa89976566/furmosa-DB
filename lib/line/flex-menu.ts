@@ -32,7 +32,7 @@ export function buildMainMenuBubble(
   _opts?: { registered?: boolean; showJarHint?: boolean },
 ) {
   const msgs = buildThreeWorldsMenuMessages({ body });
-  const flex = msgs[0];
+  const flex = msgs.find((m) => m.type === 'flex');
   if (flex?.type === 'flex') return flex.contents;
   return {
     type: 'bubble',

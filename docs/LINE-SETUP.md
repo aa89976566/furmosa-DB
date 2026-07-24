@@ -2,14 +2,20 @@
 
 ## 資訊架構（一定要對）
 
-底部 **Rich Menu 只能有三格**，不是六宮格功能列。
+底部 **Rich Menu 是三張直向大卡**，不是六宮格 icon 功能列。
 
 ```
-┌──────────────┬──────────────┬──────────────┐
-│ ♻️ 換罐計畫    │ 🎉 一起搞事   │ 🌿 野放中     │
-└──────────────┴──────────────┴──────────────┘
-         ↓ Flex              ↓ Flex         ↓ Flex
+┌──────────────────────────────┐
+│ ♻️ 換罐計畫 · 一罐一罐累積。   │
+├──────────────────────────────┤
+│ 🔥 一起搞事 · 最近又有新鮮事。 │
+├──────────────────────────────┤
+│ 🌿 野放中 · 看看匠寵跑去哪。   │
+└──────────────────────────────┘
+         ↓ 各開卡片式 Flex carousel
 ```
+
+視覺語言：白底留白、手繪插畫 hero、整卡可點（一個 CTA），不用灰底按鈕列。
 
 | 世界 | 只放什麼 | 禁止出現 |
 |------|----------|----------|
@@ -21,15 +27,16 @@
 
 ### 部署三格 Rich Menu
 
-圖檔：`public/line/rich-menu-three-worlds.png`（2500×843）
+圖檔：`public/line/rich-menu-three-worlds.png`（2500×1686，三列大卡）  
+卡片插畫：`public/line/cards/*.png`（可用 `python3 scripts/generate-line-art.py` 重畫）
 
 ```bash
 LINE_CHANNEL_ACCESS_TOKEN=你的token npx tsx scripts/deploy-line-rich-menu.ts
 ```
 
-三格動作皆為傳訊息：`換罐計畫`／`一起搞事`／`野放中` → webhook 回對應 Flex。
+三列動作皆為傳訊息：`換罐計畫`／`一起搞事`／`野放中` → webhook 回卡片 carousel。
 
-也可在 LINE Official Account Manager 手動改成三格，動作同上。
+請設定 `NEXT_PUBLIC_APP_URL`（正式網域），Flex 才能載入卡片插畫。
 
 ---
 

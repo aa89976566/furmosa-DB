@@ -30,6 +30,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('♻️ 換罐計畫').kind, 'hub_jar');
     assert.equal(parseLineUserText('一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('🎉 一起搞事').kind, 'hub_chaos');
+    assert.equal(parseLineUserText('🔥 一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('野放中').kind, 'hub_wild');
   });
 

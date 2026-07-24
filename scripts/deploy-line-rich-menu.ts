@@ -1,11 +1,11 @@
 /**
- * 部署「三世界」Rich Menu（覆蓋舊六宮格）。
+ * 部署「三張大卡」Rich Menu（覆蓋舊六宮格 icon 選單）。
  *
- * 用法（需 Messaging API token）：
+ * 用法：
  *   LINE_CHANNEL_ACCESS_TOKEN=xxx npx tsx scripts/deploy-line-rich-menu.ts
  *
- * 三格皆傳訊息觸發 Flex：
- *   換罐計畫 / 一起搞事 / 野放中
+ * 圖檔：public/line/rich-menu-three-worlds.png（2500×1686，直向三列大卡）
+ * 三列皆傳訊息 → webhook 回卡片式 Flex carousel。
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -23,22 +23,35 @@ const headers = {
 };
 
 async function main() {
+  // 先列出舊選單，部署後可手動刪（避免額度佔用）
+  const listRes = await fetch(`${API}/richmenu/list`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
+  if (listRes.ok) {
+    const list = (await listRes.json()) as { richmenus?: { richMenuId: string; name: string }[] };
+    console.log(
+      'existing rich menus:',
+      (list.richmenus ?? []).map((m) => `${m.name} (${m.richMenuId})`).join(', ') || '(none)',
+    );
+  }
+
+  const rowH = 562;
   const body = {
-    size: { width: 2500, height: 843 },
+    size: { width: 2500, height: 1686 },
     selected: true,
-    name: 'furmosa-three-worlds',
+    name: 'furmosa-three-world-cards',
     chatBarText: '選單',
     areas: [
       {
-        bounds: { x: 0, y: 0, width: 833, height: 843 },
+        bounds: { x: 0, y: 0, width: 2500, height: rowH },
         action: { type: 'message', text: '換罐計畫' },
       },
       {
-        bounds: { x: 833, y: 0, width: 834, height: 843 },
+        bounds: { x: 0, y: rowH, width: 2500, height: rowH },
         action: { type: 'message', text: '一起搞事' },
       },
       {
-        bounds: { x: 1667, y: 0, width: 833, height: 843 },
+        bounds: { x: 0, y: rowH * 2, width: 2500, height: 1686 - rowH * 2 },
         action: { type: 'message', text: '野放中' },
       },
     ],
@@ -74,7 +87,7 @@ async function main() {
     console.error('上傳圖片失敗', uploadRes.status, await uploadRes.text());
     process.exit(1);
   }
-  console.log('image uploaded');
+  console.log('image uploaded', imagePath, png.length, 'bytes');
 
   const defRes = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
     method: 'POST',
@@ -85,7 +98,7 @@ async function main() {
     process.exit(1);
   }
   console.log('set as default for all users');
-  console.log('Done. Users may need to reopen the chat to see the new menu.');
+  console.log('Done. Reopen the chat to see three large cards (not six icons).');
 }
 
 main().catch((e) => {
