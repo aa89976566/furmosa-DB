@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma';
 export type RegisterDraft = {
   signupStore?: string | null;
   name?: string;
+  phone?: string | null;
   petSpecies?: string | null;
   petSpeciesOther?: string | null;
   petName?: string | null;
+  petBreed?: string | null;
   petAgeYears?: number | null;
   petBirthday?: string | null;
-  phone?: string | null;
   /** 各步驟最後一次提示時間（ISO），24 小時內不重複追問 */
   stepPromptAt?: Partial<Record<string, string>>;
 };

@@ -84,6 +84,7 @@ export async function findCustomerByLineUserId(lineUserId: string) {
       signupStore: true,
       storeId: true,
       storeName: true,
+      petName: true,
     },
   });
 }

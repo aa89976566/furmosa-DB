@@ -4,6 +4,8 @@ import {
   ecoNoteForJarCount,
   formatJarDepositSuccessMessage,
   formatSavingsStatusMessage,
+  formatVaultStatusMessage,
+  rewardProgress,
 } from '../jar-deposit-copy';
 import { formatRedeemButtonLabel } from '../reward-menu';
 import { parseLineUserText } from '../parse-message';
@@ -22,14 +24,20 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('綁定 0912345678').kind, 'bind');
   });
 
-  it('recognizes plan B phrases', () => {
+  it('recognizes three world hubs', () => {
+    assert.equal(parseLineUserText('換罐計畫').kind, 'hub_jar');
+    assert.equal(parseLineUserText('♻️ 換罐計畫').kind, 'hub_jar');
+    assert.equal(parseLineUserText('一起搞事').kind, 'hub_chaos');
+    assert.equal(parseLineUserText('野放中').kind, 'hub_wild');
+  });
+
+  it('recognizes vault and legacy phrases', () => {
     assert.equal(parseLineUserText('開戶存罐罐').kind, 'bind_help');
     assert.equal(parseLineUserText('存罐攻略').kind, 'help');
     assert.equal(parseLineUserText('小金庫').kind, 'savings');
-    assert.equal(parseLineUserText('會員資料').kind, 'savings');
-    assert.equal(parseLineUserText('罐罐存摺').kind, 'savings');
+    assert.equal(parseLineUserText('毛孩罐庫').kind, 'savings');
     assert.equal(parseLineUserText('兌換好康').kind, 'rewards_list');
-    assert.equal(parseLineUserText('毛孩來開箱').kind, 'unboxing');
+    assert.equal(parseLineUserText('嗷嗚計畫').kind, 'unboxing');
   });
 
   it('recognizes jar codes', () => {
@@ -62,6 +70,16 @@ describe('jar deposit copy', () => {
     assert.match(msg, /累積 2 罐/);
   });
 
+  it('formats vault for zero jars', () => {
+    const msg = formatVaultStatusMessage({
+      customerName: '王小明',
+      customerCode: 'furmosa-0001',
+      pointsBalance: 0,
+      jarsDeposited: 0,
+    });
+    assert.match(msg, /還沒存過罐/);
+  });
+
   it('formats savings status for zero jars', () => {
     const msg = formatSavingsStatusMessage({
       customerName: '王小明',
@@ -70,6 +88,11 @@ describe('jar deposit copy', () => {
       jarsDeposited: 0,
     });
     assert.match(msg, /還沒存過罐/);
+  });
+
+  it('tracks reward progress to 10', () => {
+    assert.equal(rewardProgress(3).needMore, 7);
+    assert.equal(rewardProgress(10).needMore, 0);
   });
 
   it('escalates eco notes by jar count', () => {

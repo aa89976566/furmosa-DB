@@ -16,6 +16,11 @@
 | `LINE_LIFF_ID_REGISTER` | 加入會員頁 LIFF ID |
 | `LINE_LIFF_ID_PROFILE` | 會員資料與存罐紀錄 LIFF ID |
 | `LINE_LIFF_ID_REWARDS` | 兌換獎勵 LIFF ID |
+| `LINE_BRAND_WEBSITE_URL` | 野放中 → 官網（預設 `https://furmosa.pet`） |
+| `LINE_BRAND_INSTAGRAM_URL` | 野放中 → IG |
+| `LINE_BRAND_THREADS_URL` | 野放中 → Threads |
+| `LINE_BRAND_FACEBOOK_URL` | 野放中 → Facebook |
+| `LINE_BRAND_NEWS_URL` | 野放中 → 最新消息 |
 
 ## Webhook URL
 
@@ -37,9 +42,31 @@ GET /api/line/webhook
 
 回傳 `"configured": true` 表示 runtime 已讀到 Channel secret / token（改 env 後需 Redeploy）。
 
-## LIFF 建立步驟（LINE Developers）
+## 資訊架構（三世界）
 
-建議建立 **3 個 LIFF**（Compact 或 Full 皆可），Endpoint URL 指到正式網域：
+底部 **Rich Menu 只放三格**（圖文選單在 LINE Official Account Manager 設定）：
+
+| 格 | 顯示文字 | 建議動作 | Bot 行為 |
+|----|----------|----------|----------|
+| 1 | ♻️ 換罐計畫 | 傳訊息 `換罐計畫` | 開 Flex：什麼是換罐／幫毛孩開戶／輸入序號／毛孩罐庫 |
+| 2 | 🔥 一起搞事 | 傳訊息 `一起搞事` | 開 Flex：嗷嗚、清蛙、本月限定…（可無限加項目） |
+| 3 | 🌿 野放中 | 傳訊息 `野放中` | 開 Flex：官網／IG／Threads／FB／最新消息 |
+
+也可改成 postback（Messaging API Rich Menu），data 用：
+
+- `jd=hub_jar`
+- `jd=hub_chaos`
+- `jd=hub_wild`
+
+### 換罐計畫開戶順序（對話內）
+
+暱稱 → 手機 → 美容合作店 → 毛孩名 → 種類 → 品種 → 生日（選填）→ 確認
+
+未開戶傳 8 碼序號會擋下，並顯示「立即開戶」。
+
+新活動只加 `lib/line/brand-worlds.ts` 的 `CHAOS_ITEMS`／`CHAOS_COPY`，不必改 Rich Menu 三格。
+
+## LIFF（備援）
 
 | 用途 | Endpoint URL |
 |------|----------------|
@@ -47,41 +74,7 @@ GET /api/line/webhook
 | 會員資料與存罐紀錄 | `https://你的網域/liff/profile` |
 | 兌換獎勵 | `https://你的網域/liff/rewards` |
 
-Scope：`profile`（需取得 ID Token）。  
-將各 LIFF 的 App ID 填入對應的 `LINE_LIFF_ID_*` 環境變數。
-
-## 對話框內按鈕（Flex + 多步驟對話，已內建）
-
-主選單固定三顆按鈕（**不跳轉 LIFF**）：
-
-| 按鈕 | 行為 |
-|------|------|
-| **加入會員** | 在對話裡依序：輸入稱呼 → 點選毛孩種類 → 名字／手機 → 確認送出 → 寫入 DB |
-| **金庫** | 回覆點數與累積罐數 |
-| **兌換** | 氣泡內列出獎勵，點「兌換 1」等按鈕 |
-
-LINE **無法**在氣泡內嵌 HTML 輸入框；「填表單」= 對話引導 + 氣泡內**選項按鈕** + 打字輸入。  
-LIFF 頁面仍保留作備援（選用 env）。
-
-資料庫需有 `LineChatSession` 表（migration `20260530120000_line_chat_session`）。
-
-## Rich Menu（選用，非必要）
-
-| 按鈕文字 | 動作 | 目標 |
-|----------|------|------|
-| 加入會員（註冊） | URI | `https://liff.line.me/{LINE_LIFF_ID_REGISTER}` |
-| 會員資料與存罐紀錄 | URI | `https://liff.line.me/{LINE_LIFF_ID_PROFILE}` |
-| 兌換獎勵 | URI | `https://liff.line.me/{LINE_LIFF_ID_REWARDS}` |
-
-文字備援（使用者仍可打字）：
-
-| 訊息 | 行為 |
-|------|------|
-| `如何綁定` / `開戶存罐罐` | 引導開戶（LIFF 為主） |
-| 8 位數字 | 存罐入帳 |
-| `會員資料` / `點數` | 罐罐點數 + 累積罐數 |
-| `獎勵` / `兌換 1` | 獎勵清單 / 兌換 |
-| `存罐攻略` / `說明` | 完整說明 |
+Scope：`profile`（需取得 ID Token）。
 
 ## API（LIFF 後端）
 
@@ -95,19 +88,17 @@ LIFF 頁面仍保留作備援（選用 env）。
 
 **LINE Login 頻道** Channel ID：`2009953429`
 
-| 用途 | LIFF ID | Rich Menu URI |
-|------|---------|---------------|
-| 加入會員 | `2009953429-1mrFjT2V` | https://liff.line.me/2009953429-1mrFjT2V |
-| 會員資料與存罐紀錄 | `2009953429-xnxlaC87` | https://liff.line.me/2009953429-xnxlaC87 |
-| 兌換獎勵 | `2009953429-8UJ2ZY5L` | https://liff.line.me/2009953429-8UJ2ZY5L |
+| 用途 | LIFF ID |
+|------|---------|
+| 加入會員 | `2009953429-1mrFjT2V` |
+| 會員資料與存罐紀錄 | `2009953429-xnxlaC87` |
+| 兌換獎勵 | `2009953429-8UJ2ZY5L` |
 
-Endpoint（建 LIFF 時填）：
+Endpoint：
 
 - `https://furmosa-db.vercel.app/liff/register`
 - `https://furmosa-db.vercel.app/liff/profile`
 - `https://furmosa-db.vercel.app/liff/rewards`
-
-Vercel 請設定上表四個變數（`LINE_CHANNEL_ID` + 三個 `LINE_LIFF_ID_*`），**Messaging API** 的 `LINE_CHANNEL_SECRET` / `LINE_CHANNEL_ACCESS_TOKEN` 維持匠寵 Bot 那組。改 env 後 **Redeploy**。
 
 ## 安全提醒
 
