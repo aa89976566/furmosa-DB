@@ -6,24 +6,18 @@ import {
   decidePosAccess,
   verifyMerchantSessionEdge,
 } from '@/lib/merchant-auth/edge';
-import { CDN_PUBLIC_HTML, CDN_PUBLIC_HTML_LONG } from '@/lib/cdn-headers';
-
-/** 純公開路徑：不讀 cookie，讓後續靜態／ISR HTML 可被 CDN 命中 */
-const ANONYMOUS_PUBLIC_PREFIXES = [
-  '/store-redeem',
-  '/store',
-  '/liff',
-  '/manifest.webmanifest',
-  '/sw.js',
-  '/icons/',
-];
+import {
+  isAnonymousPublicPath,
+  isHqLoginPath,
+  isPosLoginPath,
+  publicHtmlCacheControl,
+  shouldBypassAuthForPublicShell,
+} from '@/lib/cdn-route-policy';
 
 const HQ_PUBLIC_PATHS = ['/login', '/store', '/store-redeem'];
 
-function withPublicHtmlCache(
-  res: NextResponse,
-  control: string = CDN_PUBLIC_HTML,
-): NextResponse {
+function withPublicHtmlCache(res: NextResponse, pathname: string): NextResponse {
+  const control = publicHtmlCacheControl(pathname);
   res.headers.set('Cache-Control', control);
   // Vercel CDN 優先讀取此標頭（與瀏覽器 Cache-Control 分離）
   res.headers.set('CDN-Cache-Control', control);
@@ -31,11 +25,9 @@ function withPublicHtmlCache(
   return res;
 }
 
-function isAnonymousPublicPath(pathname: string): boolean {
-  return ANONYMOUS_PUBLIC_PREFIXES.some((p) => {
-    if (p.endsWith('/')) return pathname.startsWith(p);
-    return pathname === p || pathname.startsWith(`${p}/`);
-  });
+function privateNoStore(res: NextResponse): NextResponse {
+  res.headers.set('Cache-Control', 'private, no-store');
+  return res;
 }
 
 export async function middleware(req: NextRequest) {
@@ -53,22 +45,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 匿名公開頁：完全不碰 session cookie → 邊緣可直接走 CDN HTML HIT
-  if (isAnonymousPublicPath(pathname)) {
-    const longLived =
-      pathname === '/manifest.webmanifest' ||
-      pathname === '/sw.js' ||
-      pathname.startsWith('/icons/');
-    return withPublicHtmlCache(
-      NextResponse.next(),
-      longLived ? CDN_PUBLIC_HTML_LONG : CDN_PUBLIC_HTML,
-    );
+  const hqCookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const merchantCookie = req.cookies.get(MERCHANT_SESSION_COOKIE_NAME)?.value;
+
+  // 匿名／無 cookie 的登入殼：不驗證 JWT → 靜態／ISR HTML 可被 CDN HIT
+  const shellMode = shouldBypassAuthForPublicShell({
+    pathname,
+    hasHqCookie: Boolean(hqCookie),
+    hasMerchantCookie: Boolean(merchantCookie),
+  });
+  if (shellMode === 'public-cdn') {
+    return withPublicHtmlCache(NextResponse.next(), pathname);
   }
 
-  // ----- POS: merchant session only (HQ cookie never elevates) -----
+  // ----- POS -----
   if (pathname === '/pos' || pathname.startsWith('/pos/')) {
-    const merchantToken = req.cookies.get(MERCHANT_SESSION_COOKIE_NAME)?.value;
-    const merchantSession = await verifyMerchantSessionEdge(merchantToken);
+    const merchantSession = await verifyMerchantSessionEdge(merchantCookie);
     const decision = decidePosAccess({
       pathname,
       hasMerchantSession: Boolean(merchantSession),
@@ -79,24 +71,18 @@ export async function middleware(req: NextRequest) {
       url.pathname = decision.pathname;
       url.search = '';
       if (decision.next) url.searchParams.set('next', decision.next);
-      const redirect = NextResponse.redirect(url);
-      redirect.headers.set('Cache-Control', 'private, no-store');
-      return redirect;
+      return privateNoStore(NextResponse.redirect(url));
     }
 
-    // POS 登入頁本身可短快取（未登入流量）
-    if (pathname === '/pos/login' || pathname.startsWith('/pos/login/')) {
-      return withPublicHtmlCache(NextResponse.next());
+    if (isPosLoginPath(pathname)) {
+      return withPublicHtmlCache(NextResponse.next(), pathname);
     }
 
-    const res = NextResponse.next();
-    res.headers.set('Cache-Control', 'private, no-store');
-    return res;
+    return privateNoStore(NextResponse.next());
   }
 
   // ----- HQ admin -----
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = await verifySessionEdge(token);
+  const session = await verifySessionEdge(hqCookie);
   const isPublic = HQ_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
   const decision = decideHqAccess({
     pathname,
@@ -109,19 +95,14 @@ export async function middleware(req: NextRequest) {
     url.pathname = decision.pathname;
     url.search = '';
     if (decision.next) url.searchParams.set('next', decision.next);
-    const redirect = NextResponse.redirect(url);
-    redirect.headers.set('Cache-Control', 'private, no-store');
-    return redirect;
+    return privateNoStore(NextResponse.redirect(url));
   }
 
-  // /login：未登入才會走到這裡 → 允許 CDN 短快取登入殼層
-  if (pathname === '/login' || pathname.startsWith('/login/')) {
-    return withPublicHtmlCache(NextResponse.next(), CDN_PUBLIC_HTML_LONG);
+  if (isHqLoginPath(pathname) || isAnonymousPublicPath(pathname)) {
+    return withPublicHtmlCache(NextResponse.next(), pathname);
   }
 
-  const res = NextResponse.next();
-  res.headers.set('Cache-Control', 'private, no-store');
-  return res;
+  return privateNoStore(NextResponse.next());
 }
 
 export const config = {
