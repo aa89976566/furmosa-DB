@@ -5,7 +5,8 @@ export type TodayTaskRow = {
   taskId: string;
   title: string;
   status: string;
-  completedAt: Date | null;
+  /** ISO string — 給 Client Component，避免 Date／Prisma 序列化問題 */
+  completedAt: string | null;
 };
 
 const TAIPEI_TZ = 'Asia/Taipei';
@@ -34,7 +35,7 @@ export function endOfToday(): Date {
 
 export async function getTodayTasksForDashboard(): Promise<TodayTaskRow[]> {
   const { start, end } = todayRange();
-  return prisma.task.findMany({
+  const rows = await prisma.task.findMany({
     where: {
       OR: [
         { dueDate: { gte: start, lte: end } },
@@ -51,4 +52,11 @@ export async function getTodayTasksForDashboard(): Promise<TodayTaskRow[]> {
     orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
     take: 50,
   });
+  return rows.map((row) => ({
+    id: row.id,
+    taskId: row.taskId,
+    title: row.title,
+    status: row.status,
+    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+  }));
 }

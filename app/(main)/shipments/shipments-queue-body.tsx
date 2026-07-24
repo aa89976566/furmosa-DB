@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
+import type { ShipmentQueueRow } from '@/components/shipments/shipment-queue-table';
 import {
   isPreShipStatus,
   shipmentStatusLabel,
@@ -206,6 +207,70 @@ function FilterChip({
   );
 }
 
+function toQueueRow(
+  s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
+): ShipmentQueueRow {
+  return {
+    id: s.id,
+    shipmentNumber: s.shipmentNumber,
+    type: s.type,
+    status: s.status,
+    createdAt: s.createdAt.toISOString(),
+    carrier: s.carrier,
+    trackingNumber: s.trackingNumber,
+    recipientName: s.recipientName,
+    recipientPhone: s.recipientPhone,
+    recipientAddress: s.recipientAddress,
+    merchant: s.merchant
+      ? {
+          id: s.merchant.id,
+          name: s.merchant.name,
+          contactName: s.merchant.contactName,
+          phone: s.merchant.phone,
+          address: s.merchant.address,
+          city: s.merchant.city,
+          preferredCarrier: s.merchant.preferredCarrier,
+          pickupStoreName: s.merchant.pickupStoreName,
+        }
+      : null,
+    customer: s.customer ? { id: s.customer.id, name: s.customer.name } : null,
+    order: s.order
+      ? {
+          id: s.order.id,
+          orderNumber: s.order.orderNumber,
+          shippingMethod: s.order.shippingMethod,
+          cvsBrand: s.order.cvsBrand,
+          cvsStoreId: s.order.cvsStoreId,
+          cvsStoreName: s.order.cvsStoreName,
+        }
+      : null,
+    items: s.items.map((item) => ({
+      productName: item.productName,
+      weightGrams: item.weightGrams,
+      quantity: item.quantity,
+    })),
+    subscriptionShipment: s.subscriptionShipment
+      ? {
+          shipmentNo: s.subscriptionShipment.shipmentNo,
+          scheduledDate: s.subscriptionShipment.scheduledDate
+            ? s.subscriptionShipment.scheduledDate.toISOString()
+            : null,
+          subscription: s.subscriptionShipment.subscription
+            ? {
+                subscriptionNo: s.subscriptionShipment.subscription.subscriptionNo,
+                plan: s.subscriptionShipment.subscription.plan
+                  ? {
+                      name: s.subscriptionShipment.subscription.plan.name,
+                      contents: s.subscriptionShipment.subscription.plan.contents,
+                    }
+                  : null,
+              }
+            : null,
+        }
+      : null,
+  };
+}
+
 export async function ShipmentsQueueBody({
   searchParams,
 }: {
@@ -261,17 +326,25 @@ export async function ShipmentsQueueBody({
   const { byStatus: countByStatus, pendingCount, total } = counts;
   const grouped = !status;
   const panelRefreshKey = shipments
-    .map((s) => `${s.id}:${s.status}:${s.updatedAt.toISOString()}`)
+    .map((s) => {
+      const updated =
+        s.updatedAt instanceof Date
+          ? s.updatedAt.toISOString()
+          : new Date(s.updatedAt as string | number).toISOString();
+      return `${s.id}:${s.status}:${updated}`;
+    })
     .join('|');
 
-  const subscriptionRows = shipments
+  const queueRows = shipments.map(toQueueRow);
+
+  const subscriptionRows = queueRows
     .filter((s) => s.type === 'subscription' && (s.status === 'pending' || s.status === 'packed'))
     .sort((a, b) => {
       const aDate = new Date(a.subscriptionShipment?.scheduledDate ?? a.createdAt).getTime();
       const bDate = new Date(b.subscriptionShipment?.scheduledDate ?? b.createdAt).getTime();
       return aDate - bDate;
     });
-  const operationalRows = shipments.filter((s) => s.type !== 'subscription');
+  const operationalRows = queueRows.filter((s) => s.type !== 'subscription');
 
   const operationalSections = QUEUE_SECTIONS.map((section) => {
     const rows = operationalRows.filter((s) =>
@@ -307,11 +380,11 @@ export async function ShipmentsQueueBody({
     : [
         {
           key: status!,
-          title: `${shipmentStatusLabel[status!]} (${shipments.length})`,
+          title: `${shipmentStatusLabel[status!]} (${queueRows.length})`,
           description: '點列表任一筆，在下方開啟訂單內容；運輸狀態可直接在列表修改',
           tone: 'logistics' as const,
           tableVariant: 'default' as const,
-          shipments,
+          shipments: queueRows,
         },
       ];
 
