@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProductsListFilters } from '@/components/products/products-list-filters';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import {
 import { productCategoryLabel } from '@/lib/labels';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { formatPriceRange } from '@/lib/product-variations';
+import { getProductsCatalog } from '@/lib/hot-path-reads';
 import { Plus, AlertTriangle } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { productSearchWhere } from '@/lib/site-search';
@@ -41,28 +41,8 @@ export default async function ProductsPage({
     ...(status ? { status } : {}),
   };
 
-  const [products, totalAll, activeCount] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      select: {
-        id: true,
-        productId: true,
-        name: true,
-        sku: true,
-        category: true,
-        status: true,
-        price: true,
-        reorderPoint: true,
-        vendor: { select: { id: true, name: true } },
-        priceTiers: { select: { price: true } },
-        inventoryBalances: { select: { quantity: true } },
-      },
-      orderBy: { productId: 'asc' },
-      take: 200,
-    }),
-    prisma.product.count(),
-    prisma.product.count({ where: { status: 'active' } }),
-  ]);
+  const cacheKey = `q=${q}|status=${status}`;
+  const { products, totalAll, activeCount } = await getProductsCatalog(where, cacheKey);
 
   return (
     <>
@@ -146,7 +126,7 @@ export default async function ProductsPage({
                     <TableCell className="text-right">{formatNumber(p.priceTiers.length)}</TableCell>
                     <TableCell className="text-right">
                       {p.priceTiers.length > 0
-                        ? formatPriceRange(p.priceTiers.map((tier) => tier.price))
+                        ? formatPriceRange(p.priceTiers.map((tier) => Number(tier.price)))
                         : formatCurrency(Number(p.price))}
                     </TableCell>
                     <TableCell className="text-right">

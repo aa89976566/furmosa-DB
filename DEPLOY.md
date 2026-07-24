@@ -105,6 +105,10 @@ gh repo create furmosa-hq --private --source=. --push
 
 5. 完成後得到 `https://furmosa-hq.vercel.app`，用一樣的帳號登入。
 
+6. **驗證 CDN 加速**（可選）：無痕開 `/login`、`/store-redeem` 兩次，
+   Network → 文件請求 → `x-vercel-cache` 第二次應為 `HIT`。
+   細節見 `docs/CDN-EDGE-SPEED.md`。
+
 ---
 
 ## Step 5 — 第一次上線後的安全清單（5 分）

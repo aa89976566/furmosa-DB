@@ -1,11 +1,11 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/shared/empty-state';
 import { VendorListWorkspace } from '@/components/vendors/vendor-list-workspace';
+import { getVendorsList } from '@/lib/hot-path-reads';
 import { Building2, Plus } from 'lucide-react';
 
 export const revalidate = 60;
@@ -15,21 +15,7 @@ export default async function VendorsPage({
 }: {
   searchParams?: { v?: string };
 }) {
-  const vendors = await prisma.vendor.findMany({
-    include: { _count: { select: { products: true } } },
-    orderBy: { vendorId: 'asc' },
-  });
-
-  const rows = vendors.map((vendor) => ({
-    id: vendor.id,
-    vendorId: vendor.vendorId,
-    name: vendor.name,
-    contactName: vendor.contactName,
-    phone: vendor.phone,
-    paymentTerms: vendor.paymentTerms,
-    productCount: vendor._count.products,
-    status: vendor.status,
-  }));
+  const rows = await getVendorsList();
 
   return (
     <>
@@ -47,7 +33,7 @@ export default async function VendorsPage({
       />
       <div className="p-6">
         <Card className="p-0">
-          {vendors.length === 0 ? (
+          {rows.length === 0 ? (
             <div className="p-6">
               <EmptyState
                 icon={<Building2 className="h-5 w-5" />}

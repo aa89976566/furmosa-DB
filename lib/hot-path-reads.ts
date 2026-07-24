@@ -81,3 +81,113 @@ export async function getShipmentQueueCounts(
       )(),
   );
 }
+
+export type ProductCatalogRow = {
+  id: string;
+  productId: string;
+  name: string;
+  sku: string;
+  category: string;
+  status: string;
+  price: Prisma.Decimal | number;
+  reorderPoint: number;
+  vendor: { id: string; name: string } | null;
+  priceTiers: { price: Prisma.Decimal | number }[];
+  inventoryBalances: { quantity: number }[];
+};
+
+export type ProductsCatalogResult = {
+  products: ProductCatalogRow[];
+  totalAll: number;
+  activeCount: number;
+};
+
+/** 產品列表（含篩選 key）— 減少 Origin 往返，接近 CDN HIT 的體感 */
+export async function getProductsCatalog(
+  where: Prisma.ProductWhereInput,
+  cacheKey: string,
+): Promise<ProductsCatalogResult> {
+  const key = `products-catalog-v1:${cacheKey}`;
+  return withRuntimeCache(
+    key,
+    {
+      ttlSeconds: 45,
+      tags: [CACHE_TAGS.productsCatalog],
+      name: 'products-catalog',
+    },
+    () =>
+      unstable_cache(
+        async () => {
+          const [products, totalAll, activeCount] = await Promise.all([
+            prisma.product.findMany({
+              where,
+              select: {
+                id: true,
+                productId: true,
+                name: true,
+                sku: true,
+                category: true,
+                status: true,
+                price: true,
+                reorderPoint: true,
+                vendor: { select: { id: true, name: true } },
+                priceTiers: { select: { price: true } },
+                inventoryBalances: { select: { quantity: true } },
+              },
+              orderBy: { productId: 'asc' },
+              take: 200,
+            }),
+            prisma.product.count(),
+            prisma.product.count({ where: { status: 'active' } }),
+          ]);
+          return { products, totalAll, activeCount };
+        },
+        ['products-catalog-v1', cacheKey],
+        { revalidate: 45, tags: [CACHE_TAGS.productsCatalog] },
+      )(),
+  );
+}
+
+export type VendorListRow = {
+  id: string;
+  vendorId: string;
+  name: string;
+  contactName: string | null;
+  phone: string | null;
+  paymentTerms: string | null;
+  productCount: number;
+  status: string;
+};
+
+/** 廠商列表 — 短 TTL 熱快取 */
+export async function getVendorsList(): Promise<VendorListRow[]> {
+  return withRuntimeCache(
+    'vendors-list-v1',
+    {
+      ttlSeconds: 60,
+      tags: [CACHE_TAGS.vendorsList],
+      name: 'vendors-list',
+    },
+    () =>
+      unstable_cache(
+        async () => {
+          const vendors = await prisma.vendor.findMany({
+            include: { _count: { select: { products: true } } },
+            orderBy: { vendorId: 'asc' },
+          });
+          return vendors.map((vendor) => ({
+            id: vendor.id,
+            vendorId: vendor.vendorId,
+            name: vendor.name,
+            contactName: vendor.contactName,
+            phone: vendor.phone,
+            paymentTerms: vendor.paymentTerms,
+            productCount: vendor._count.products,
+            status: vendor.status,
+          }));
+        },
+        ['vendors-list-v1'],
+        { revalidate: 60, tags: [CACHE_TAGS.vendorsList] },
+      )(),
+  );
+}

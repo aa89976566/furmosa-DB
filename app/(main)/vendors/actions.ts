@@ -1,10 +1,16 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
+
+async function bustVendorCaches() {
+  await bustCacheTags(CACHE_TAGS.vendorsList, CACHE_TAGS.productsCatalog);
+}
 
 async function nextVendorId() {
   const last = await prisma.vendor.findFirst({
@@ -44,6 +50,7 @@ export async function createVendor(formData: FormData) {
 
   revalidatePath('/vendors');
   revalidatePath('/products');
+  await bustVendorCaches();
   redirect(`/vendors/${created.id}`);
 }
 
@@ -71,6 +78,7 @@ export async function updateVendor(formData: FormData) {
   revalidatePath('/vendors');
   revalidatePath(`/vendors/${id}`);
   revalidatePath('/products');
+  await bustVendorCaches();
 }
 
 function parseCategory(v: FormDataEntryValue | null): string {
@@ -147,6 +155,7 @@ export async function createVendorProduct(formData: FormData) {
   revalidatePath('/products');
   revalidatePath('/vendors');
   revalidatePath(`/vendors/${vendorId}`);
+  await bustVendorCaches();
 }
 
 /** 將既有商品綁定到此廠商 */
@@ -164,6 +173,7 @@ export async function linkProductToVendor(formData: FormData) {
   revalidatePath(`/products/${productId}`);
   revalidatePath('/vendors');
   revalidatePath(`/vendors/${vendorId}`);
+  await bustVendorCaches();
 }
 
 /** 解除商品與廠商的綁定 */
@@ -181,6 +191,7 @@ export async function unlinkProductFromVendor(formData: FormData) {
   revalidatePath(`/products/${productId}`);
   revalidatePath('/vendors');
   if (vendorId) revalidatePath(`/vendors/${vendorId}`);
+  await bustVendorCaches();
 }
 
 export async function setVendorStatus(formData: FormData) {
@@ -192,6 +203,7 @@ export async function setVendorStatus(formData: FormData) {
   await prisma.vendor.update({ where: { id }, data: { status } });
   revalidatePath('/vendors');
   revalidatePath(`/vendors/${id}`);
+  await bustVendorCaches();
 }
 
 export async function deleteVendor(formData: FormData) {
@@ -205,6 +217,7 @@ export async function deleteVendor(formData: FormData) {
 
   await prisma.vendor.delete({ where: { id } });
   revalidatePath('/vendors');
+  await bustVendorCaches();
   redirect('/vendors');
 }
 

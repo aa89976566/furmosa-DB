@@ -1,16 +1,14 @@
 import { StoreRedeemPageContent } from '@/components/coupons/store-redeem-page-content';
 import { listRedeemStores } from '@/lib/stores/list-redeem-stores';
 
-export const dynamic = 'force-dynamic';
+/**
+ * ISR：店家清單可快取 → HTML 可被 Vercel CDN HIT
+ * ?store= 改由客戶端讀取，避免 searchParams 強迫整頁 dynamic
+ */
+export const revalidate = 60;
 export const runtime = 'nodejs';
 
-type Props = { searchParams?: { store?: string } };
-
-export default async function StoreRedeemPage({ searchParams }: Props) {
+export default async function StoreRedeemPage() {
   const stores = await listRedeemStores();
-  const defaultStoreSlug = searchParams?.store?.trim();
-
-  return (
-    <StoreRedeemPageContent stores={stores} defaultStoreSlug={defaultStoreSlug} />
-  );
+  return <StoreRedeemPageContent stores={stores} />;
 }
