@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { orderStatusLabel, paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+import { shippingFeeTypeLabel } from '@/lib/labels';
 import { shippingMethodLabel } from '@/lib/shipping-policy';
 import { OrderAmountSummary } from '@/components/orders/order-amount-summary';
 import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
@@ -41,20 +41,10 @@ import {
   Pencil,
 } from 'lucide-react';
 import {
-  updateOrderPaymentStatus,
-  updateOrderShippingFeeType,
-  updateOrderStatus,
-} from '../actions';
-
-const ORDER_STATUS_OPTIONS = [
-  'draft',
-  'confirmed',
-  'packed',
-  'shipped',
-  'delivered',
-  'completed',
-  'cancelled',
-] as const;
+  OrderPaymentStatusToggles,
+  OrderStatusToggles,
+} from '@/components/orders/order-status-toggles';
+import { updateOrderShippingFeeType } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,25 +100,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">訂單狀態（可調整）</p>
-              <div className="flex flex-wrap gap-1.5">
-                {ORDER_STATUS_OPTIONS.map((s) => (
-                  <form key={s} action={updateOrderStatus}>
-                    <input type="hidden" name="orderId" value={order.id} />
-                    <input type="hidden" name="status" value={s} />
-                    <button
-                      type="submit"
-                      disabled={order.status === s}
-                      className={toggleButtonClass(
-                        order.status === s,
-                        false,
-                        s === 'cancelled',
-                      )}
-                    >
-                      {orderStatusLabel[s]}
-                    </button>
-                  </form>
-                ))}
-              </div>
+              <OrderStatusToggles orderId={order.id} status={order.status} />
               {order.status === 'cancelled' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   此訂單目前為「已取消」，不會出現在訂單列表。改為其他狀態即可回到列表。
@@ -269,21 +241,10 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             <div className="space-y-3">
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">付款狀態</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(['unpaid', 'partial', 'paid', 'cod', 'refunded'] as const).map((s) => (
-                    <form key={s} action={updateOrderPaymentStatus}>
-                      <input type="hidden" name="orderId" value={order.id} />
-                      <input type="hidden" name="paymentStatus" value={s} />
-                      <button
-                        type="submit"
-                        disabled={order.paymentStatus === s}
-                        className={toggleButtonClass(order.paymentStatus === s, false)}
-                      >
-                        {paymentStatusLabel[s]}
-                      </button>
-                    </form>
-                  ))}
-                </div>
+                <OrderPaymentStatusToggles
+                  orderId={order.id}
+                  paymentStatus={order.paymentStatus}
+                />
               </div>
 
               <div>

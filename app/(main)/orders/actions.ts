@@ -24,6 +24,8 @@ import {
   searchCustomersForOrderForm,
   searchProductsForOrderForm,
 } from '@/lib/order-form-search';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -64,7 +66,11 @@ const VALID_ORDER_STATUSES = [
   'cancelled',
 ] as const;
 
-function revalidateOrderPaths(orderId: string, merchantId?: string | null, customerId?: string | null) {
+async function revalidateOrderPaths(
+  orderId: string,
+  merchantId?: string | null,
+  customerId?: string | null,
+) {
   revalidatePath('/orders');
   revalidatePath(`/orders/${orderId}`);
   revalidatePath(`/orders/${orderId}/edit`);
@@ -72,6 +78,12 @@ function revalidateOrderPaths(orderId: string, merchantId?: string | null, custo
   revalidatePath('/dashboard');
   if (merchantId) revalidatePath(`/merchants/${merchantId}`);
   if (customerId) revalidatePath(`/customers/${customerId}`);
+  await bustCacheTags(
+    CACHE_TAGS.dashboard,
+    CACHE_TAGS.orderHubTotals,
+    CACHE_TAGS.shipmentQueueCounts,
+    CACHE_TAGS.merchantsPortfolio,
+  );
 }
 
 export async function createOrder(formData: FormData) {
@@ -158,7 +170,7 @@ export async function createOrder(formData: FormData) {
     return order;
   });
 
-  revalidateOrderPaths(created.id, created.merchantId, created.customerId);
+  await revalidateOrderPaths(created.id, created.merchantId, created.customerId);
   void sendNewOrderPush({
     id: created.id,
     orderNumber: created.orderNumber,
@@ -265,7 +277,7 @@ export async function updateOrder(formData: FormData) {
     }
   });
 
-  revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
+  await revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
   redirect(`/orders/${orderId}`);
 }
 
@@ -318,7 +330,7 @@ export async function updateOrderStatus(formData: FormData) {
     }
   });
 
-  revalidateOrderPaths(orderId);
+  await revalidateOrderPaths(orderId);
 }
 
 export async function updateOrderPaymentStatus(formData: FormData) {
@@ -332,7 +344,7 @@ export async function updateOrderPaymentStatus(formData: FormData) {
     where: { id: orderId },
     data: { paymentStatus: next },
   });
-  revalidateOrderPaths(orderId);
+  await revalidateOrderPaths(orderId);
 }
 
 export async function updateOrderShippingFeeType(formData: FormData) {
@@ -380,7 +392,7 @@ export async function updateOrderShippingFeeType(formData: FormData) {
     }),
   ]);
 
-  revalidateOrderPaths(orderId);
+  await revalidateOrderPaths(orderId);
 }
 
 export async function searchCustomersForOrder(q: string, take = 40) {

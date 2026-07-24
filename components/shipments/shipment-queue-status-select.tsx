@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { markShipmentStatus } from '@/app/(main)/shipments/actions';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +53,13 @@ export function ShipmentQueueStatusSelect({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const options = queueOptionsForStatus(status);
-  const value = queueSelectValue(status);
+  const serverValue = queueSelectValue(status);
+  const [displayValue, setDisplayValue] = useState(serverValue);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setDisplayValue(serverValue);
+  }, [serverValue]);
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -65,9 +71,6 @@ export function ShipmentQueueStatusSelect({
       action={markShipmentStatus}
       className="min-w-0"
       onClick={(event) => event.stopPropagation()}
-      onChange={() => {
-        formRef.current?.requestSubmit();
-      }}
     >
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="inline" value="1" />
@@ -75,16 +78,26 @@ export function ShipmentQueueStatusSelect({
       {queueType ? <input type="hidden" name="queueType" value={queueType} /> : null}
       <select
         name="next"
-        defaultValue={value}
+        value={displayValue}
+        disabled={isPending}
+        onChange={(event) => {
+          const next = event.target.value;
+          setDisplayValue(next);
+          startTransition(() => {
+            formRef.current?.requestSubmit();
+          });
+        }}
         className={cn(
           'w-full rounded-md border bg-background px-1.5 py-1 text-[11px] font-medium',
           'focus:outline-none focus:ring-2 focus:ring-ring',
           'min-w-[5.5rem] max-w-[7rem]',
-          value === 'delivered' && 'border-success/40 text-success',
-          value === 'shipped' && 'border-info/40 text-info',
+          isPending && 'opacity-70',
+          displayValue === 'delivered' && 'border-success/40 text-success',
+          displayValue === 'shipped' && 'border-info/40 text-info',
           className,
         )}
         aria-label="運輸狀態"
+        aria-busy={isPending}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

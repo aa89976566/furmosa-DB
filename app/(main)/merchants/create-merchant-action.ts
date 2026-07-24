@@ -14,6 +14,8 @@ import {
   primaryMerchantType,
 } from '@/lib/merchant-types';
 import { isRedirectError } from '@/lib/redirect-error';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
@@ -83,6 +85,7 @@ export async function createMerchantAction(
     revalidatePath('/merchants');
     revalidatePath('/jar-exchange/stores');
     revalidatePath('/store-redeem');
+    await bustCacheTags(CACHE_TAGS.merchantsPortfolio, CACHE_TAGS.dashboard);
     redirect(`/merchants/${merchant.id}`);
   } catch (e) {
     if (isRedirectError(e)) throw e;

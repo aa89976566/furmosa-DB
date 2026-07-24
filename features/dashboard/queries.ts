@@ -1,6 +1,8 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { withRuntimeCache } from '@/lib/runtime-cache';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
 import {
   dashboardSalesOrderWhere,
@@ -35,11 +37,15 @@ async function runInBatches(
 const loadDashboardDataCached = unstable_cache(
   () => loadDashboardData(),
   ['dashboard-overview-v2'],
-  { revalidate: 60, tags: ['dashboard'] },
+  { revalidate: 60, tags: [CACHE_TAGS.dashboard] },
 );
 
 export async function getDashboardData() {
-  return withDbRetry(() => loadDashboardDataCached());
+  return withRuntimeCache(
+    'dashboard-overview-v2',
+    { ttlSeconds: 60, tags: [CACHE_TAGS.dashboard], name: 'dashboard-overview' },
+    () => withDbRetry(() => loadDashboardDataCached()),
+  );
 }
 
 async function loadDashboardData() {
