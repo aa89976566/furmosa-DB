@@ -1,39 +1,35 @@
 # Furmosa Document Bibles
 
-**現在不要再開書、不要寫 Booking。** Stage 2 = 真實店實測。
+**現在：** Booking MVP **規劃**（`BOOKING-MVP-PLAN.md`）。未 frozen 前不寫 Booking 程式。
 
 ## Stages
 
 | Stage | 內容 | 狀態 |
 |-------|------|------|
-| **1** | Vision · Domain · Database · Merchant Flow · Experience；Phase 1+2 on `main` | ✅ |
-| **2** | 豬窩手機 15–30 分鐘 → Observation → Decision 寫回 Experience | ⭐ 現在 |
-| **3** | Booking 完整鏈（通過 Stage 2 閘門後才開） | ⏳ |
+| **1** | Vision · Domain · Database · Merchant Flow · Experience；Phase 1+2 | ✅ |
+| **2** | Reality Gate（機制）· Merchant 可測叫貨 | ✅ 機制完成 |
+| **3** | **Booking MVP Plan → frozen → 實作** | ⭐ 現在（先 Plan） |
+| **4** | Customer Reality → Jar Exchange | ⏳ |
+| **5** | 完整流程 Reality | ⏳ |
 
-## 文件層（有需要再補齊，不優先）
+## Booking MVP 三決策（建議已採納）
 
-| # | 層 | 現況 |
-|---|-----|------|
-| 01 | Vision | 散見 Domain／Experience |
-| 02 | Domain | `FURMOSA-OS-DOMAIN-SPEC-v1.md` |
-| 03 | Experience | `FURMOSA-EXPERIENCE-BIBLE-v1.md` |
-| 04 | Reality | **循環**：寫進 Experience §8，不另開 Bible |
-| 05 | UI | 未開始（Stage 2 後） |
-| 06 | Database | Schema／migrations |
-| 07 | Engineering | DEPLOY／PR |
+1. **共用班表**（不做美容師個別班）  
+2. **店家確認後才成立**  
+3. **店家／HQ 可手動超約；顧客看不到已滿時段**
+
+詳見：`docs/BOOKING-MVP-PLAN.md`
 
 ## 循環
 
 ```text
-Experience（Hypothesis）
-  → Reality（豬窩實測）
-  → Decision 回寫 Experience
-  →（通過）Booking 一次做完
-  → Reality 再驗證
+Experience / Domain（已有）
+  → Booking MVP Plan（本輪）
+  → frozen
+  → 實作 B1–B5
+  → Customer Reality
+  → 回寫 Decision
+  → Jar Exchange Epic
 ```
 
-## 實測入口
-
-- 腳本：`docs/MERCHANT-POS-USABILITY-TEST-v1.md`
-- 回寫：`docs/FURMOSA-EXPERIENCE-BIBLE-v1.md` §8、§2.3
-- Production：merge 後等 Vercel；POS `/pos/login`
+**禁止：** 再開 UI／Reality Bible；禁止 Booking 與 Jar 一次做完。
