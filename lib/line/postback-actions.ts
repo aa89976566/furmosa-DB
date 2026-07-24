@@ -7,10 +7,12 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
+  BRAND_STORY,
   CHAOS_COPY,
   JAR_ENTER_BLOCKED_GUEST,
-  JAR_ENTER_HINT_REGISTERED,
-  JAR_EXPLAIN_TEXT,
+  JAR_EXPLAIN_FAQ,
+  JAR_EXPLAIN_FLOW,
+  JAR_EXPLAIN_INTRO,
 } from '@/lib/line/brand-worlds';
 import {
   buildCouponListMessages,
@@ -18,6 +20,7 @@ import {
   formatGroomingRedeemSuccessMessage,
 } from '@/lib/line/coupon-menu';
 import {
+  formatHistoryStatusMessage,
   formatVaultStatusMessage,
   rewardProgress,
 } from '@/lib/line/jar-deposit-copy';
@@ -26,6 +29,8 @@ import {
   parseLinePostbackData,
 } from '@/lib/line/flex-menu';
 import {
+  buildEnterCodePromptMessages,
+  buildJarExplainMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
@@ -41,20 +46,24 @@ import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
+import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
+import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import { prisma } from '@/lib/prisma';
 
 async function loadVaultSnapshot(
   customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>,
 ) {
-  const [stats, recent] = await Promise.all([
+  const [stats, recent, coupons] = await Promise.all([
     getJarExchangeStatsForCustomer(customer.id),
     prisma.jarCode.findMany({
       where: { redeemedByCustomerId: customer.id, status: 'used' },
       orderBy: { redeemedAt: 'desc' },
-      take: 5,
+      take: 10,
       select: { code: true },
     }),
+    listCouponsForCustomer(customer.id),
   ]);
+  const { needMore } = rewardProgress(stats.pointsBalance);
   return {
     customerName: customer.name,
     customerCode: customer.customerId,
@@ -62,7 +71,21 @@ async function loadVaultSnapshot(
     jarsDeposited: stats.codesRedeemed,
     recentCodes: recent.map((r) => r.code),
     petName: customer.petName ?? null,
+    canRedeemGrooming: needMore === 0 && stats.pointsBalance > 0,
+    availableCouponCount: coupons.available.length,
   };
+}
+
+async function replyPartnerStores(replyToken: string) {
+  const stores = await listPartnerStoresFromDb();
+  const lines = [
+    '【合作店家】',
+    '',
+    ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
+    '',
+    '開戶時選一間；折價券綁那間用。',
+  ];
+  await replyLineText(replyToken, lines.join('\n'));
 }
 
 function resolveCustomerStore(
@@ -84,8 +107,12 @@ async function replyChaosItem(
     await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
     return;
   }
+  // 活動文案不附換罐選單，避免制度混進來
   await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-    await replyLineTextWithMenu(replyToken, lineUserId, text, { registered });
+    await replyLineMessage(replyToken, [
+      { type: 'text', text },
+      ...buildWorldHubMessages('chaos', { registered }),
+    ]);
   });
 }
 
@@ -116,14 +143,33 @@ export async function handleLinePostback(
   }
 
   if (action === 'jar_explain') {
-    await replyTriggerOnce(lineUserId, 'activity', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, JAR_EXPLAIN_TEXT, { registered });
-    });
+    await replyLineMessage(replyToken, buildJarExplainMessages());
+    return;
+  }
+  if (action === 'jar_explain_intro') {
+    await replyLineText(replyToken, JAR_EXPLAIN_INTRO);
+    return;
+  }
+  if (action === 'jar_explain_flow') {
+    await replyLineText(replyToken, JAR_EXPLAIN_FLOW);
+    return;
+  }
+  if (action === 'jar_faq') {
+    await replyLineText(replyToken, JAR_EXPLAIN_FAQ);
+    return;
+  }
+  if (action === 'jar_stores' || action === 'wild_stores') {
+    await replyPartnerStores(replyToken);
+    return;
+  }
+  if (action === 'wild_story') {
+    await replyLineText(replyToken, BRAND_STORY);
     return;
   }
 
   if (action === 'jar_reg' || action === 'reg') {
-    await startRegisterFlow(replyToken, lineUserId);
+    const resumeAfter = params.get('next') === 'enter' ? 'enter_code' : null;
+    await startRegisterFlow(replyToken, lineUserId, { resumeAfter });
     return;
   }
 
@@ -132,7 +178,7 @@ export async function handleLinePostback(
       await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
       return;
     }
-    await replyLineText(replyToken, JAR_ENTER_HINT_REGISTERED);
+    await replyLineMessage(replyToken, buildEnterCodePromptMessages());
     return;
   }
 
@@ -142,9 +188,17 @@ export async function handleLinePostback(
       return;
     }
     const snapshot = await loadVaultSnapshot(customer);
-    await replyLineTextWithMenu(replyToken, lineUserId, formatVaultStatusMessage(snapshot), {
-      registered: true,
-    });
+    await replyLineText(replyToken, formatVaultStatusMessage(snapshot));
+    return;
+  }
+
+  if (action === 'jar_history') {
+    if (!customer) {
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
+      return;
+    }
+    const snapshot = await loadVaultSnapshot(customer);
+    await replyLineText(replyToken, formatHistoryStatusMessage(snapshot));
     return;
   }
 
@@ -153,13 +207,9 @@ export async function handleLinePostback(
     return;
   }
 
-  // 舊鍵相容
-  if (action === 'activity') {
+  // 舊鍵 → 導到正確世界（不混制度／活動）
+  if (action === 'activity' || action === 'unbox') {
     await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
-    return;
-  }
-  if (action === 'unbox') {
-    await replyChaosItem(replyToken, lineUserId, 'chaos_aowu', registered);
     return;
   }
   if (action === 'contact') {
@@ -256,18 +306,16 @@ export async function handleLinePostback(
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineTextWithMenu(
+    await replyLineText(
       replyToken,
-      lineUserId,
       `換到了：${reward.rewardName}\n花 ${result.pointsSpent} 點，剩 ${result.balanceAfter}\n券碼：${result.couponCode}`,
-      { registered: true },
     );
     return;
   }
 
   await replyTriggerOnce(lineUserId, 'menu_fallback', async () => {
     await replyMenuHub(replyToken, lineUserId, {
-      body: '三個入口：換罐計畫／一起搞事／野放中。',
+      body: '首頁只有三個世界：換罐計畫／一起搞事／野放中。',
       registered,
       alwaysReplyBody: false,
     });

@@ -15,7 +15,7 @@ import {
   buildRegisterConfirmMessages,
   buildStorePickerMessages,
 } from '@/lib/line/flex-menu';
-import { buildWorldHubMessages } from '@/lib/line/flex-hubs';
+import { buildEnterCodePromptMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';
 import {
   LINE_BTN,
   LINE_PET_BIRTHDAY_PROMPT,
@@ -35,6 +35,8 @@ import {
 } from '@/lib/line/register-step-throttle';
 import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
+import type { RegisterResumeAfter } from '@/lib/line/chat-session';
+import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
 
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
@@ -91,12 +93,23 @@ async function replyRegisterStepPromptOnce(
 }
 
 /**
- * 新開戶順序：
- * 暱稱 → 手機 → 合作店 → 毛孩名 → 種類 → 品種 → 生日(選填) → 確認
+ * 開戶：主人（暱稱／手機／店）→ 毛孩 → 完成
+ * resumeAfter=enter_code：完成後自動回到「輸入序號」提示，不必再按一次。
  */
-export async function startRegisterFlow(replyToken: string, lineUserId: string) {
+export async function startRegisterFlow(
+  replyToken: string,
+  lineUserId: string,
+  opts?: { resumeAfter?: RegisterResumeAfter | null },
+) {
   const existing = await findCustomerByLineUserId(lineUserId);
   if (existing) {
+    if (opts?.resumeAfter === 'enter_code') {
+      await replyLineMessage(replyToken, [
+        { type: 'text', text: `你已經開過戶了（${existing.name}）。` },
+        ...buildEnterCodePromptMessages(),
+      ]);
+      return;
+    }
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
@@ -106,8 +119,15 @@ export async function startRegisterFlow(replyToken: string, lineUserId: string) 
     return;
   }
 
-  await upsertLineChatSession(lineUserId, 'register', 'name', {});
-  await replyLineText(replyToken, LINE_REGISTER_INTRO);
+  await upsertLineChatSession(lineUserId, 'register', 'name', {
+    resumeAfter: opts?.resumeAfter ?? null,
+  });
+  await replyLineText(
+    replyToken,
+    opts?.resumeAfter === 'enter_code'
+      ? `${LINE_REGISTER_INTRO}\n\n（開完會自動帶你回輸入序號）`
+      : LINE_REGISTER_INTRO,
+  );
 }
 
 export async function handleRegisterFlowMessage(
@@ -328,6 +348,7 @@ export async function handleRegisterPostback(
         petBirthday: petBirthdayToDate(draft.petBirthday),
       });
       await ensureJarExchangeService(prisma, created.id);
+      const resumeAfter = draft.resumeAfter;
       await clearLineChatSession(lineUserId);
 
       const petLabel = resolvePetSpeciesLabel(
@@ -338,14 +359,22 @@ export async function handleRegisterPostback(
       const bdayPart = draft.petBirthday ? ` · 生日 ${draft.petBirthday}` : '';
       const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
       const storeLine = storeLabel ? `\n合作店：${storeLabel}` : '';
+      const doneText = `開戶完成！${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
 
-      await replyLineMessage(replyToken, [
-        {
-          type: 'text',
-          text: `開戶完成！${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}\n\n罐底 8 碼直接傳上來，就會進毛孩罐庫。`,
-        },
-        ...buildWorldHubMessages('jar', { registered: true }),
-      ]);
+      if (resumeAfter === 'enter_code') {
+        await replyLineMessage(replyToken, [
+          { type: 'text', text: `${doneText}\n\n接下來——` },
+          { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
+        ]);
+      } else {
+        await replyLineMessage(replyToken, [
+          {
+            type: 'text',
+            text: `${doneText}\n\n罐底 8 碼直接傳上來，就會進毛孩罐庫。`,
+          },
+          ...buildWorldHubMessages('jar', { registered: true }),
+        ]);
+      }
     } catch (e) {
       await replyLineText(
         replyToken,

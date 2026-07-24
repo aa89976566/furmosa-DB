@@ -2,6 +2,8 @@ import { FURMOSA_BRAND_LINKS } from '@/lib/line/brand-links';
 import {
   CHAOS_INTRO,
   CHAOS_ITEMS,
+  JAR_ENTER_BLOCKED_GUEST,
+  JAR_ENTER_HINT_REGISTERED,
   WORLD_HUB_EMOJI,
   WORLD_HUB_LABELS,
   WILD_INTRO,
@@ -46,14 +48,13 @@ function uriBtn(label: string, uri: string, style: FlexButton['style'] = 'second
 
 function itemButtons(items: WorldMenuItem[], primaryId?: string): FlexButton[] {
   return items.map((item) => {
-    const style: FlexButton['style'] =
-      item.id === primaryId ? 'primary' : item.uri ? 'secondary' : 'secondary';
+    const style: FlexButton['style'] = item.id === primaryId ? 'primary' : 'secondary';
     if (item.uri) return uriBtn(item.label, item.uri, style);
     return pbBtn(item.label, `jd=${item.id}`, style);
   });
 }
 
-function hubBubble(opts: {
+export function hubBubble(opts: {
   title: string;
   body: string;
   buttons: FlexButton[];
@@ -73,7 +74,6 @@ function hubBubble(opts: {
         type: 'box',
         layout: 'vertical',
         spacing: 'md',
-        cornerRadius: '20px',
         contents: [
           {
             type: 'text',
@@ -102,15 +102,11 @@ function hubBubble(opts: {
   };
 }
 
-/** Rich Menu 三入口總覽（聊天內備援；底部 Rich Menu 才是主航） */
+/** 聊天內備援：仍只給三世界，絕不回到六宮格功能列 */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
-  const body = opts?.body ?? '三個入口，各搞各的。點一個進去逛。';
+  const body = opts?.body ?? '首頁只有三個世界。點一個進去。';
   const buttons: FlexButton[] = [
-    pbBtn(
-      `${WORLD_HUB_EMOJI.jar} ${WORLD_HUB_LABELS.jar}`,
-      'jd=hub_jar',
-      'primary',
-    ),
+    pbBtn(`${WORLD_HUB_EMOJI.jar} ${WORLD_HUB_LABELS.jar}`, 'jd=hub_jar', 'primary'),
     pbBtn(`${WORLD_HUB_EMOJI.chaos} ${WORLD_HUB_LABELS.chaos}`, 'jd=hub_chaos', 'secondary'),
     pbBtn(`${WORLD_HUB_EMOJI.wild} ${WORLD_HUB_LABELS.wild}`, 'jd=hub_wild', 'secondary'),
   ];
@@ -119,7 +115,7 @@ export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineRepl
       title: '匠寵',
       body,
       buttons,
-      altText: '匠寵選單',
+      altText: '匠寵三世界',
     }),
   ];
 }
@@ -133,17 +129,12 @@ export function buildWorldHubMessages(
   const title = `${emoji} ${WORLD_HUB_LABELS[hub]}`;
 
   if (hub === 'jar') {
-    const items = buildJarHubItems(registered);
-    const primary = registered ? 'jar_enter' : 'jar_reg';
+    const hubCfg = buildJarHubItems(registered);
     return [
       hubBubble({
         title,
-        body:
-          opts?.body ??
-          (registered
-            ? '開戶完成。存罐、看罐庫，都在這裡。'
-            : '先開戶，才能開始累積罐罐。'),
-        buttons: itemButtons(items, primary),
+        body: opts?.body ?? hubCfg.body,
+        buttons: itemButtons(hubCfg.items, hubCfg.primaryId),
         altText: WORLD_HUB_LABELS.jar,
       }),
     ];
@@ -166,6 +157,8 @@ export function buildWorldHubMessages(
     { id: 'wild_threads', label: 'Threads', uri: FURMOSA_BRAND_LINKS.threads() },
     { id: 'wild_fb', label: 'Facebook', uri: FURMOSA_BRAND_LINKS.facebook() },
     { id: 'wild_news', label: '最新消息', uri: FURMOSA_BRAND_LINKS.news() },
+    { id: 'wild_stores', label: '合作店家' },
+    { id: 'wild_story', label: '品牌故事' },
   ];
 
   return [
@@ -178,21 +171,50 @@ export function buildWorldHubMessages(
   ];
 }
 
-const JAR_GATE_DEFAULT = '先幫毛孩開戶，就可以開始累積罐罐囉。';
-
-/** 未開戶擋序號：引導開戶 */
-export function buildRegisterGateMessages(text: string = JAR_GATE_DEFAULT): LineReplyMessage[] {
+/**
+ * 未開戶擋序號：只有「立即開戶」一顆鈕。
+ * next=enter → 開戶完成後自動回到輸入序號提示。
+ */
+export function buildRegisterGateMessages(
+  text: string = JAR_ENTER_BLOCKED_GUEST,
+): LineReplyMessage[] {
   return [
     hubBubble({
       title: '先開個戶',
       body: text,
-      buttons: [pbBtn(LINE_BTN.registerNow, 'jd=jar_reg', 'primary')],
+      buttons: [pbBtn(LINE_BTN.registerNow, 'jd=jar_reg&next=enter', 'primary')],
       altText: '先幫毛孩開戶',
     }),
   ];
 }
 
-/** 存罐成功慶祝卡（LINE 無法播動畫，用大字＋圓角卡代替） */
+/** 什麼是換罐：介紹＋流程＋導去店家／FAQ（兩次點擊內） */
+export function buildJarExplainMessages(): LineReplyMessage[] {
+  return [
+    hubBubble({
+      title: '什麼是換罐',
+      body: '空罐記一筆，毛孩多一點福利。下面分開看。',
+      buttons: [
+        pbBtn('介紹', 'jd=jar_explain_intro', 'primary'),
+        pbBtn('流程', 'jd=jar_explain_flow', 'secondary'),
+        pbBtn('合作店家', 'jd=jar_stores', 'secondary'),
+        pbBtn('常見問題', 'jd=jar_faq', 'secondary'),
+      ],
+      altText: '什麼是換罐',
+    }),
+  ];
+}
+
+export function buildEnterCodePromptMessages(): LineReplyMessage[] {
+  return [
+    {
+      type: 'text',
+      text: JAR_ENTER_HINT_REGISTERED,
+    },
+  ];
+}
+
+/** 存罐成功慶祝卡 */
 export function buildJarSuccessFlex(opts: {
   code: string;
   pointsEarned: number;
@@ -256,7 +278,7 @@ export function buildJarSuccessFlex(opts: {
         spacing: 'sm',
         contents: [
           pbBtn('毛孩罐庫', 'jd=jar_vault', 'secondary'),
-          pbBtn(`${WORLD_HUB_EMOJI.jar} ${WORLD_HUB_LABELS.jar}`, 'jd=hub_jar', 'link'),
+          pbBtn('換罐紀錄', 'jd=jar_history', 'link'),
         ],
       },
     },

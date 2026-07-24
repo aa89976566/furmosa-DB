@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ecoNoteForJarCount,
   formatJarDepositSuccessMessage,
+  formatHistoryStatusMessage,
   formatSavingsStatusMessage,
   formatVaultStatusMessage,
   rewardProgress,
@@ -28,6 +29,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('換罐計畫').kind, 'hub_jar');
     assert.equal(parseLineUserText('♻️ 換罐計畫').kind, 'hub_jar');
     assert.equal(parseLineUserText('一起搞事').kind, 'hub_chaos');
+    assert.equal(parseLineUserText('🎉 一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('野放中').kind, 'hub_wild');
   });
 
@@ -78,6 +80,19 @@ describe('jar deposit copy', () => {
       jarsDeposited: 0,
     });
     assert.match(msg, /還沒存過罐/);
+    assert.match(msg, /目前點數/);
+  });
+
+  it('formats history with serials', () => {
+    const msg = formatHistoryStatusMessage({
+      customerName: '王小明',
+      customerCode: 'furmosa-0001',
+      pointsBalance: 5,
+      jarsDeposited: 2,
+      recentCodes: ['35085664', '35085665'],
+    });
+    assert.match(msg, /換罐紀錄/);
+    assert.match(msg, /35085664/);
   });
 
   it('formats savings status for zero jars', () => {
