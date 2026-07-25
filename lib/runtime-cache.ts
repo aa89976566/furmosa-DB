@@ -1,6 +1,7 @@
 import { getCache } from '@vercel/functions';
 import { revalidateTag } from 'next/cache';
 import type { CacheTag } from '@/lib/cache-tags';
+import { toCacheJSON } from '@/lib/cache-serialize';
 
 type MemoryEntry = { value: unknown; expiresAt: number };
 
@@ -17,6 +18,7 @@ function tryGetCache() {
 /**
  * 區域 Runtime Cache（Vercel）＋本機記憶體後備。
  * 與 unstable_cache 疊加：跨 instance 熱讀可少打 DB。
+ * 寫入前一律 toCacheJSON，避免 Decimal／Date 讓 SSR／RSC 失敗。
  */
 export async function withRuntimeCache<T>(
   key: string,
@@ -41,7 +43,7 @@ export async function withRuntimeCache<T>(
     }
   }
 
-  const value = await loader();
+  const value = toCacheJSON(await loader());
 
   if (cache) {
     try {

@@ -89,10 +89,10 @@ export type ProductCatalogRow = {
   sku: string;
   category: string;
   status: string;
-  price: Prisma.Decimal | number;
+  price: number;
   reorderPoint: number;
   vendor: { id: string; name: string } | null;
-  priceTiers: { price: Prisma.Decimal | number }[];
+  priceTiers: { price: number }[];
   inventoryBalances: { quantity: number }[];
 };
 
@@ -140,7 +140,17 @@ export async function getProductsCatalog(
             prisma.product.count(),
             prisma.product.count({ where: { status: 'active' } }),
           ]);
-          return { products, totalAll, activeCount };
+          return {
+            products: products.map((p) => ({
+              ...p,
+              price: Number(p.price),
+              priceTiers: p.priceTiers.map((tier) => ({
+                price: Number(tier.price),
+              })),
+            })),
+            totalAll,
+            activeCount,
+          };
         },
         ['products-catalog-v1', cacheKey],
         { revalidate: 45, tags: [CACHE_TAGS.productsCatalog] },

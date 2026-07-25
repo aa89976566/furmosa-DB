@@ -2,7 +2,13 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { zhTW } from 'date-fns/locale';
 
 export function formatCurrency(value: number | string | null | undefined, currency = 'TWD') {
-  const n = typeof value === 'string' ? Number(value) : value ?? 0;
+  let n: number;
+  if (typeof value === 'string') n = Number(value);
+  else if (value == null) n = 0;
+  else if (typeof value === 'object' && typeof (value as { toNumber?: unknown }).toNumber === 'function') {
+    n = Number((value as { toNumber: () => number }).toNumber());
+  } else n = Number(value);
+  if (!Number.isFinite(n)) n = 0;
   return new Intl.NumberFormat('zh-TW', {
     style: 'currency',
     currency,
@@ -11,7 +17,13 @@ export function formatCurrency(value: number | string | null | undefined, curren
 }
 
 export function formatNumber(value: number | string | null | undefined) {
-  const n = typeof value === 'string' ? Number(value) : value ?? 0;
+  let n: number;
+  if (typeof value === 'string') n = Number(value);
+  else if (value == null) n = 0;
+  else if (typeof value === 'object' && typeof (value as { toNumber?: unknown }).toNumber === 'function') {
+    n = Number((value as { toNumber: () => number }).toNumber());
+  } else n = Number(value);
+  if (!Number.isFinite(n)) n = 0;
   return new Intl.NumberFormat('zh-TW').format(n);
 }
 
