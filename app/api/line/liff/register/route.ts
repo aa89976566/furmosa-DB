@@ -12,6 +12,7 @@ type Body = {
   petSpecies?: string;
   petSpeciesOther?: string | null;
   petName?: string;
+  petBreed?: string | null;
   petAgeYears?: number | string | null;
   petBirthday?: string | null;
 };
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       petSpecies,
       petSpeciesOther: petSpecies === 'other' ? (body.petSpeciesOther?.trim() || null) : null,
       petName: (body.petName ?? '').trim() || null,
+      petBreed: (body.petBreed ?? '').trim().slice(0, 80) || null,
       petAgeYears,
       petBirthday,
     });
