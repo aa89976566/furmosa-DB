@@ -15,7 +15,7 @@ export type OrderSourceTotal = {
 /** 訂單 Hub 來源合計 — 短 TTL 熱快取 */
 export async function getOrderSourceTotals(): Promise<OrderSourceTotal[]> {
   return withRuntimeCache(
-    'order-hub-totals-v1',
+    'order-hub-totals-v2',
     {
       ttlSeconds: 30,
       tags: [CACHE_TAGS.orderHubTotals],
@@ -36,7 +36,7 @@ export async function getOrderSourceTotals(): Promise<OrderSourceTotal[]> {
             count: t._count._all,
           }));
         },
-        ['order-hub-totals-v1'],
+        ['order-hub-totals-v2'],
         { revalidate: 30, tags: [CACHE_TAGS.orderHubTotals] },
       )(),
   );
@@ -52,7 +52,7 @@ export type ShipmentQueueCounts = {
 export async function getShipmentQueueCounts(
   countWhere: Prisma.ShipmentWhereInput,
 ): Promise<ShipmentQueueCounts> {
-  const key = `shipment-queue-counts-v1:${JSON.stringify(countWhere)}`;
+  const key = `shipment-queue-counts-v2:${JSON.stringify(countWhere)}`;
   return withRuntimeCache(
     key,
     {
@@ -76,7 +76,7 @@ export async function getShipmentQueueCounts(
             pendingCount + (byStatus.shipped ?? 0) + (byStatus.delivered ?? 0);
           return { byStatus, pendingCount, total };
         },
-        ['shipment-queue-counts-v1', JSON.stringify(countWhere)],
+        ['shipment-queue-counts-v2', JSON.stringify(countWhere)],
         { revalidate: 20, tags: [CACHE_TAGS.shipmentQueueCounts] },
       )(),
   );
@@ -107,7 +107,7 @@ export async function getProductsCatalog(
   where: Prisma.ProductWhereInput,
   cacheKey: string,
 ): Promise<ProductsCatalogResult> {
-  const key = `products-catalog-v1:${cacheKey}`;
+  const key = `products-catalog-v2:${cacheKey}`;
   return withRuntimeCache(
     key,
     {
@@ -152,7 +152,7 @@ export async function getProductsCatalog(
             activeCount,
           };
         },
-        ['products-catalog-v1', cacheKey],
+        ['products-catalog-v2', cacheKey],
         { revalidate: 45, tags: [CACHE_TAGS.productsCatalog] },
       )(),
   );
@@ -172,7 +172,7 @@ export type VendorListRow = {
 /** 廠商列表 — 短 TTL 熱快取 */
 export async function getVendorsList(): Promise<VendorListRow[]> {
   return withRuntimeCache(
-    'vendors-list-v1',
+    'vendors-list-v2',
     {
       ttlSeconds: 60,
       tags: [CACHE_TAGS.vendorsList],
@@ -196,7 +196,7 @@ export async function getVendorsList(): Promise<VendorListRow[]> {
             status: vendor.status,
           }));
         },
-        ['vendors-list-v1'],
+        ['vendors-list-v2'],
         { revalidate: 60, tags: [CACHE_TAGS.vendorsList] },
       )(),
   );

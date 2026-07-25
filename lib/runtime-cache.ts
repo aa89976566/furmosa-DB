@@ -1,4 +1,3 @@
-import { getCache } from '@vercel/functions';
 import { revalidateTag } from 'next/cache';
 import type { CacheTag } from '@/lib/cache-tags';
 import { toCacheJSON } from '@/lib/cache-serialize';
@@ -7,8 +6,9 @@ type MemoryEntry = { value: unknown; expiresAt: number };
 
 const memoryStore = new Map<string, MemoryEntry>();
 
-function tryGetCache() {
+async function tryGetCache() {
   try {
+    const { getCache } = await import('@vercel/functions');
     return getCache({ namespace: 'furmosa-hq' });
   } catch {
     return null;
@@ -17,15 +17,15 @@ function tryGetCache() {
 
 /**
  * 區域 Runtime Cache（Vercel）＋本機記憶體後備。
- * 與 unstable_cache 疊加：跨 instance 熱讀可少打 DB。
- * 寫入前一律 toCacheJSON，避免 Decimal／Date 讓 SSR／RSC 失敗。
+ * 只應用於「已是純 JSON」的熱讀（合計、計數、目錄）；勿快取 Prisma 實體圖。
+ * 寫入前一律 toCacheJSON（正確處理 Decimal／Date／BigInt）。
  */
 export async function withRuntimeCache<T>(
   key: string,
   options: { ttlSeconds: number; tags: CacheTag[]; name?: string },
   loader: () => Promise<T>,
 ): Promise<T> {
-  const cache = tryGetCache();
+  const cache = await tryGetCache();
 
   if (cache) {
     try {
@@ -43,11 +43,17 @@ export async function withRuntimeCache<T>(
     }
   }
 
-  const value = toCacheJSON(await loader());
+  const raw = await loader();
+  let plain: T;
+  try {
+    plain = toCacheJSON(raw);
+  } catch {
+    return raw;
+  }
 
   if (cache) {
     try {
-      await cache.set(key, value, {
+      await cache.set(key, plain, {
         ttl: options.ttlSeconds,
         tags: options.tags,
         name: options.name ?? key,
@@ -57,21 +63,25 @@ export async function withRuntimeCache<T>(
     }
   } else {
     memoryStore.set(key, {
-      value,
+      value: plain,
       expiresAt: Date.now() + options.ttlSeconds * 1000,
     });
   }
 
-  return value;
+  return plain;
 }
 
 /** 同時失效 Next Data Cache tag 與 Runtime Cache tag */
 export async function bustCacheTags(...tags: CacheTag[]) {
   for (const tag of tags) {
-    revalidateTag(tag);
+    try {
+      revalidateTag(tag);
+    } catch {
+      // ignore
+    }
   }
 
-  const cache = tryGetCache();
+  const cache = await tryGetCache();
   if (cache) {
     try {
       await cache.expireTag(tags);

@@ -54,7 +54,7 @@ export function DashboardTodayTasks({ tasks }: { tasks: TodayTaskRow[] }) {
           ? {
               ...t,
               status: checked ? 'done' : 'todo',
-              completedAt: checked ? new Date() : null,
+              completedAt: checked ? new Date().toISOString() : null,
             }
           : t,
       ),

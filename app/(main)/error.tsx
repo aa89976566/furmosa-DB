@@ -41,9 +41,7 @@ export default function MainError({
             秒後重新整理。
           </>
         ) : isOpaqueRsc ? (
-          <>
-            伺服器渲染時發生錯誤。請再試一次；若持續出現，把下方錯誤代碼告訴工程師。
-          </>
+          <>伺服器渲染時發生錯誤。請再試一次；若持續出現，把下方錯誤代碼告訴工程師。</>
         ) : (
           error.message
         )}
