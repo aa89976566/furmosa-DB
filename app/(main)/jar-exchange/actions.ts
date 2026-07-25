@@ -31,6 +31,7 @@ function revalidateJar() {
 export async function generateJarCodesBatch(
   count = DEFAULT_BATCH_SIZE,
   batchNo?: string,
+  productId?: string | null,
 ): Promise<
   | { ok: true; count: number; batchNo: string; codes: string[] }
   | { ok: false; error: string }
@@ -38,6 +39,19 @@ export async function generateJarCodesBatch(
   try {
     const n = Math.min(Math.max(Math.floor(count), 1), 500);
     const batch = batchNo?.trim() || newJarBatchNo();
+
+    let product: { id: string; sku: string; jarDefault?: number } | null = null;
+    const pid = productId?.trim() || null;
+    if (pid) {
+      const row = await prisma.product.findFirst({
+        where: { id: pid, status: 'active', productCategory: 'JAR_EXCHANGE' },
+        select: { id: true, sku: true },
+      });
+      if (!row) return { ok: false, error: '請選擇換罐商品（productCategory=JAR_EXCHANGE）' };
+      product = row;
+    } else {
+      return { ok: false, error: '請先選擇要綁定的換罐商品，再生成序號' };
+    }
 
     const seen = new Set<string>();
     let created = 0;
@@ -65,6 +79,8 @@ export async function generateJarCodesBatch(
         data: toInsert.map((code) => ({
           code,
           batchNo: batch,
+          productId: product!.id,
+          productSku: product!.sku,
           pointValue: 1,
           status: 'unused',
         })),
@@ -103,18 +119,41 @@ export async function generateJarCodesBatch(
 export async function createManualJarCode(formData: FormData) {
   const code = normalizeJarCode(String(formData.get('code') ?? ''));
   const batchNo = String(formData.get('batchNo') ?? '').trim() || null;
-  const productSku = String(formData.get('productSku') ?? '').trim() || null;
+  const productId = String(formData.get('productId') ?? '').trim() || null;
+  const productSkuRaw = String(formData.get('productSku') ?? '').trim() || null;
   const pointValue = parseInt(String(formData.get('pointValue') ?? '1'), 10) || 1;
 
   if (!isValidJarCodeFormat(code)) {
     return { ok: false as const, error: '序號須為 8 位數字' };
   }
 
+  const product = productId
+    ? await prisma.product.findFirst({
+        where: { id: productId, status: 'active', productCategory: 'JAR_EXCHANGE' },
+        select: { id: true, sku: true },
+      })
+    : productSkuRaw
+      ? await prisma.product.findFirst({
+          where: { sku: productSkuRaw, status: 'active', productCategory: 'JAR_EXCHANGE' },
+          select: { id: true, sku: true },
+        })
+      : null;
+  if (!product) {
+    return { ok: false as const, error: '請選擇有效的換罐商品' };
+  }
+
   const exists = await prisma.jarCode.findUnique({ where: { code } });
   if (exists) return { ok: false as const, error: '序號已存在' };
 
   await prisma.jarCode.create({
-    data: { code, batchNo, productSku, pointValue, status: 'unused' },
+    data: {
+      code,
+      batchNo,
+      productId: product.id,
+      productSku: product.sku,
+      pointValue,
+      status: 'unused',
+    },
   });
   revalidateJar();
   return { ok: true as const };
@@ -123,12 +162,21 @@ export async function createManualJarCode(formData: FormData) {
 export async function importJarCodes(formData: FormData) {
   const raw = String(formData.get('codes') ?? '');
   const batchNo = String(formData.get('batchNo') ?? '').trim() || `IMPORT-${Date.now()}`;
+  const productId = String(formData.get('productId') ?? '').trim() || null;
   const lines = raw
     .split(/[\n,;]+/)
     .map((l) => normalizeJarCode(l))
     .filter(Boolean);
 
   if (!lines.length) return { ok: false as const, error: '請貼上序號' };
+
+  const product = productId
+    ? await prisma.product.findFirst({
+        where: { id: productId, status: 'active', productCategory: 'JAR_EXCHANGE' },
+        select: { id: true, sku: true },
+      })
+    : null;
+  if (!product) return { ok: false as const, error: '請選擇有效的換罐商品' };
 
   let created = 0;
   let skipped = 0;
@@ -139,7 +187,14 @@ export async function importJarCodes(formData: FormData) {
     }
     try {
       await prisma.jarCode.create({
-        data: { code, batchNo, pointValue: 1, status: 'unused' },
+        data: {
+          code,
+          batchNo,
+          productId: product.id,
+          productSku: product.sku,
+          pointValue: 1,
+          status: 'unused',
+        },
       });
       created++;
     } catch {

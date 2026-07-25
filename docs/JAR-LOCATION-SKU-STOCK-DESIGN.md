@@ -158,27 +158,23 @@ assertJarExchangeLocation(merchant): void
 
 ## 4. Program SKU（換罐商品主檔）
 
-### 4.1 決策
+### 4.1 決策（已落地於現有欄位）
 
-在 `Product` 上新增硬標記，**廢除「名稱前綴 = 業務規則」作為唯一依據**（前綴可留作顯示慣例）。
-
-```prisma
-model Product {
-  // ...existing...
-  /// 是否為換罐計畫商品（寄賣到店、序號綁定、返航扣庫）
-  isJarExchange Boolean @default(false) @map("is_jar_exchange")
-  /// 返航預設點數（序號未覆寫時使用）
-  jarDefaultPointValue Int @default(1) @map("jar_default_point_value")
-}
-```
-
-營運台／一鍵補貨／營收過濾改查：
+**不另加 `isJarExchange` boolean。** 系統已有：
 
 ```ts
-where: { status: 'active', isJarExchange: true }
+Product.productCategory === 'JAR_EXCHANGE'
 ```
 
-名稱前綴「換罐」改為 **UI 建議／匯入檢查**，不再是唯一真相。
+（見 `lib/product-category.ts`、migration `20260723130000_restock_request`）
+
+營運台／一鍵補貨／序號產生／營收過濾一律查：
+
+```ts
+where: { status: 'active', productCategory: 'JAR_EXCHANGE' }
+```
+
+名稱前綴「換罐」僅為歷史回填／顯示慣例，**不再是唯一真相**。
 
 ### 4.2 JarCode 契約
 
@@ -208,16 +204,16 @@ model JarCode {
 
 | 動作 | 規則 |
 |------|------|
-| 批量產生序號 | 必須選 `Product`（`isJarExchange=true`） |
+| 批量產生序號 | 必須選 `Product`（`productCategory=JAR_EXCHANGE`） |
 | 手動建序號 | 同上；禁止自由文字 SKU 不驗證 |
 | 既有 `productSku` 為空的碼 | 遷移期標 `needs_sku`；返航前必須補齊或走「指定預設商品」管理動作 |
 | 返航定價 | 只看 `productId`（及可選 tier），禁止再 fallback「第一個換罐*」 |
 
 ### 4.3 過渡期相容
 
-1. Migration 新增 `isJarExchange`；`name LIKE '換罐%'` 的 active 商品設為 `true`。  
+1. `productCategory=JAR_EXCHANGE` 已由既有 migration 回填（名稱曾以「換罐」開頭者）。  
 2. `JarCode.productId` 先可空 → 資料修完後改 NOT NULL。  
-3. 程式雙讀：優先 `isJarExchange`，無標記時短暫相容前綴（加 deprecation log）。
+3. 新產生／匯入序號必須綁定 JAR_EXCHANGE 商品。
 
 ---
 
@@ -308,7 +304,7 @@ redeemJarCode(customer, code):
 
 | 項目 | 規則 |
 |------|------|
-| 可補商品 | `Product.isJarExchange=true` |
+| 可補商品 | `Product.productCategory=JAR_EXCHANGE` |
 | 建議量 | `qty <= lowThreshold(3)` → 補到 `target(6)`（可後改設定表） |
 | 規格 | 單規格自動帶；**多規格必須選 tier**，禁止 `weightGrams=null` 瞎猜 |
 | 地址 | `address` 或 7-11 取件資料缺一不可 → 拒絕一鍵，導手動進貨 |
@@ -358,11 +354,11 @@ Dashboard **只導航三條線**，細節進專頁：
 |------|---------------------|--------|
 | 今日要做 | 出貨隊列、今日任務、總倉低庫存 | `/shipments`、`/tasks` |
 | 錢從哪來 | 營收合格訂單、來源、寄賣排行 | `/orders` |
-| 換罐怎麼了 | Location 店庫（isJarExchange）、在途補貨、本週存罐數、核銷數、負庫存警示 | `/jar-exchange/ops` |
+| 換罐怎麼了 | Location 店庫（JAR_EXCHANGE）、在途補貨、本週存罐數、核銷數、負庫存警示 | `/jar-exchange/ops` |
 
 營運台數字定義：
 
-- **在店庫存** = `MerchantStock` where product.isJarExchange  
+- **在店庫存** = `MerchantStock` where product.productCategory=JAR_EXCHANGE  
 - **本週存罐** = count `MerchantStockTxn.eventType=jar_redeem`（或 JarCode.redeemedAt）同週  
 - **低庫存／缺貨警示** = location × jar SKU，qty≤3；**負庫存另標紅**  
 - **在途** = jar location 的 `merchant_restock` in pending/packed/shipped  
@@ -373,20 +369,20 @@ Dashboard **只導航三條線**，細節進專頁：
 
 ## 8. 實作里程碑（建議順序）
 
-### Milestone A — Schema 與回填（無行為變更）
+### Milestone A — Schema 與回填
 
-- [ ] `Product.isJarExchange` + backfill  
-- [ ] `MerchantRedeemProfile` + 從 `stores` backfill  
-- [ ] `Customer.signupLocationId` + backfill  
-- [ ] `JarCode.productId` 可空欄位 + 盡力 backfill  
-- [ ] `MerchantStockTxn.eventType` / `sourceSystem` / `idempotencyKey`
+- [x] Program SKU：沿用 `Product.productCategory = JAR_EXCHANGE`（不必新欄位）  
+- [x] `MerchantRedeemProfile` + sync／backfill  
+- [x] `Customer.signupLocationId` + backfill script  
+- [x] `JarCode.productId` 可空欄位 + 盡力 backfill  
+- [x] `MerchantStockTxn.eventType` / `sourceSystem` / `idempotencyKey`
 
 ### Milestone B — 寫入路徑改契約
 
 - [ ] 序號產生強制選換罐商品  
 - [ ] 開戶寫 `signupLocationId`  
 - [ ] 核銷改走 RedeemProfile  
-- [ ] 營運台改查 `isJarExchange`
+- [ ] 營運台改查 `productCategory=JAR_EXCHANGE`
 
 ### Milestone C — 存罐扣庫閉環
 
@@ -456,7 +452,7 @@ ALTER TABLE "MerchantStockTxn" ADD COLUMN "idempotency_key" TEXT UNIQUE;
 
 - [ ] 每個 `jar_exchange` Merchant 恰有 1 筆 active RedeemProfile  
 - [ ] 新開戶 Customer 必有 `signupLocationId`  
-- [ ] 新產生 JarCode 必有 `productId` 且商品 `isJarExchange=true`
+- [ ] 新產生 JarCode 必有 `productId` 且商品 `productCategory=JAR_EXCHANGE`
 
 ### 庫存與開戶
 
@@ -495,7 +491,7 @@ ALTER TABLE "MerchantStockTxn" ADD COLUMN "idempotency_key" TEXT UNIQUE;
 本設計把系統提升的地基收成三件事：
 
 1. **Location** = Merchant + RedeemProfile（消滅 Store／開戶字串雙軌）  
-2. **Program SKU** = `Product.isJarExchange` + 序號必綁商品  
+2. **Program SKU** = `Product.productCategory=JAR_EXCHANGE` + 序號必綁商品  
 3. **Stock Event** = 統一寫入 `MerchantStockTxn`（存罐／售出／POS 同一條路）  
 
 再加上已拍板的體驗規則：**先開戶才能存罐累點；庫存不足不擋客人，但一定警示後台。**

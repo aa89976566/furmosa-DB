@@ -139,11 +139,25 @@ async function nextJarSaleOrderNumber(db: DbClient = prisma) {
   return `${prefix}${pad(seq, 3)}`;
 }
 
-/** 依序號關聯 SKU 或換罐商品預設售價（只查 productCategory=JAR_EXCHANGE） */
+/** 依序號關聯商品或換罐商品預設售價（只查 productCategory=JAR_EXCHANGE） */
 export async function resolveJarCodeSaleUnitPrice(
-  jarCode: { productSku: string | null },
+  jarCode: { productId?: string | null; productSku: string | null },
   db: DbClient = prisma,
 ): Promise<{ unitPrice: number; productId: string | null; productName: string; sku: string }> {
+  if (jarCode.productId) {
+    const product = await db.product.findUnique({
+      where: { id: jarCode.productId },
+      select: { id: true, name: true, sku: true, price: true },
+    });
+    if (product) {
+      return {
+        unitPrice: Number(product.price),
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+      };
+    }
+  }
   if (jarCode.productSku) {
     const product = await db.product.findFirst({
       where: { sku: jarCode.productSku },
@@ -181,7 +195,7 @@ export async function resolveJarCodeSaleUnitPrice(
   };
 }
 
-/** 客人輸入序號返航 → 記一筆換罐銷售收入（source=jar_exchange） */
+/** 客人存罐序號入點 → 記一筆換罐銷售收入（source=jar_exchange） */
 export async function recordJarExchangeSaleOnRedeem(
   customerId: string,
   jarCodeId: string,
@@ -190,7 +204,13 @@ export async function recordJarExchangeSaleOnRedeem(
 ) {
   const jarCode = await db.jarCode.findUnique({
     where: { id: jarCodeId },
-    select: { id: true, code: true, productSku: true },
+    select: {
+      id: true,
+      code: true,
+      productSku: true,
+      productId: true,
+      redeemedLocationId: true,
+    },
   });
   if (!jarCode) return null;
 
@@ -206,8 +226,17 @@ export async function recordJarExchangeSaleOnRedeem(
   const orderNumber = await nextJarSaleOrderNumber(db);
   const customer = await db.customer.findUnique({
     where: { id: customerId },
-    select: { signupStore: true, storeId: true },
+    select: {
+      signupStore: true,
+      storeId: true,
+      signupLocationId: true,
+      storeName: true,
+    },
   });
+  const merchantId =
+    jarCode.redeemedLocationId ?? customer?.signupLocationId ?? null;
+  const storeLabel =
+    customer?.storeName ?? customer?.signupStore ?? customer?.storeId ?? '會員';
 
   return db.order.create({
     data: {
@@ -218,14 +247,14 @@ export async function recordJarExchangeSaleOnRedeem(
       shippingFeeType: 'free',
       fulfillmentStatus: 'delivered',
       customerId,
-      merchantId: null,
+      merchantId,
       subtotal: priceInfo.unitPrice,
       discount: 0,
       shippingFee: 0,
       companyShippingCost: 0,
       total: priceInfo.unitPrice,
       shippingMethod: 'delivery',
-      note: `換罐序號 ${code} 返航入帳（${customer?.signupStore ?? customer?.storeId ?? '會員'}）`,
+      note: `換罐序號 ${code} 存罐入帳（${storeLabel}）`,
       orderedAt: new Date(),
       completedAt: new Date(),
       items: {

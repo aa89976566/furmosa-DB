@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
 import { nextCustomerId } from '@/lib/customers/customer-id';
 import { validatePetFieldsConsistency, type ParsedPetFields } from '@/lib/customers/pet-fields';
+import { resolveMerchantIdByRedeemSlug } from '@/lib/jar-exchange/location';
 import { storeBindingFromSlug, resolvePartnerStoreBySlug } from '@/lib/stores/partner-stores';
+import { syncAllJarExchangePartnerStores } from '@/lib/stores/sync-merchant-stores';
 
 export type CustomerCreateInput = {
   name: string;
@@ -45,14 +47,27 @@ type NormalizedCustomerFields = {
   signupStore: string | null;
   storeId: string | null;
   storeName: string | null;
+  signupLocationId: string | null;
   pet: ParsedPetFields;
 };
 
 async function resolveStoreFields(signupStore: string | null) {
-  if (!signupStore) return { storeId: null, storeName: null };
+  if (!signupStore) {
+    return { storeId: null, storeName: null, signupLocationId: null };
+  }
+  try {
+    await syncAllJarExchangePartnerStores();
+  } catch {
+    // 連線失敗仍嘗試解析
+  }
   const store = await resolvePartnerStoreBySlug(signupStore);
-  if (store) return { storeId: store.slug, storeName: store.name };
-  return storeBindingFromSlug(signupStore);
+  const binding = store
+    ? { storeId: store.slug, storeName: store.name }
+    : storeBindingFromSlug(signupStore);
+  const signupLocationId = await resolveMerchantIdByRedeemSlug(
+    binding.storeId ?? signupStore,
+  );
+  return { ...binding, signupLocationId };
 }
 
 async function normalizeCustomerInput(input: CustomerCreateInput): Promise<NormalizedCustomerFields> {
@@ -100,7 +115,7 @@ async function normalizeCustomerInput(input: CustomerCreateInput): Promise<Norma
   validatePetFieldsConsistency(pet);
 
   const signupStore = (input.signupStore ?? '').trim() || null;
-  const { storeId, storeName } = await resolveStoreFields(signupStore);
+  const { storeId, storeName, signupLocationId } = await resolveStoreFields(signupStore);
 
   return {
     name,
@@ -117,6 +132,7 @@ async function normalizeCustomerInput(input: CustomerCreateInput): Promise<Norma
     signupStore,
     storeId,
     storeName,
+    signupLocationId,
     pet,
   };
 }
@@ -145,6 +161,7 @@ export async function updateCustomerRecord(
       signupStore: f.signupStore,
       storeId: f.storeId,
       storeName: f.storeName,
+      signupLocationId: f.signupLocationId,
       petSpecies: f.pet.petSpecies,
       petSpeciesOther: f.pet.petSpecies === 'other' ? f.pet.petSpeciesOther : null,
       petName: f.pet.petName,
@@ -202,6 +219,7 @@ export async function createCustomerRecord(
       signupStore: f.signupStore,
       storeId: f.storeId,
       storeName: f.storeName,
+      signupLocationId: f.signupLocationId,
       petSpecies: pet.petSpecies,
       petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
       petName: pet.petName,
