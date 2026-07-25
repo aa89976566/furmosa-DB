@@ -1,4 +1,3 @@
-import { getCache } from '@vercel/functions';
 import { revalidateTag } from 'next/cache';
 import type { CacheTag } from '@/lib/cache-tags';
 
@@ -6,8 +5,18 @@ type MemoryEntry = { value: unknown; expiresAt: number };
 
 const memoryStore = new Map<string, MemoryEntry>();
 
-function tryGetCache() {
+/** 僅允許 JSON 可往返的純資料進入 Runtime Cache（避免 Date／Decimal／BigInt 搞壞 RSC） */
+function toPlainJson<T>(value: T): T | null {
   try {
+    return JSON.parse(JSON.stringify(value)) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function tryGetCache() {
+  try {
+    const { getCache } = await import('@vercel/functions');
     return getCache({ namespace: 'furmosa-hq' });
   } catch {
     return null;
@@ -16,14 +25,14 @@ function tryGetCache() {
 
 /**
  * 區域 Runtime Cache（Vercel）＋本機記憶體後備。
- * 與 unstable_cache 疊加：跨 instance 熱讀可少打 DB。
+ * 只應用於「已是純 JSON」的熱讀（合計、計數）；勿快取 Prisma 實體圖。
  */
 export async function withRuntimeCache<T>(
   key: string,
   options: { ttlSeconds: number; tags: CacheTag[]; name?: string },
   loader: () => Promise<T>,
 ): Promise<T> {
-  const cache = tryGetCache();
+  const cache = await tryGetCache();
 
   if (cache) {
     try {
@@ -42,10 +51,14 @@ export async function withRuntimeCache<T>(
   }
 
   const value = await loader();
+  const plain = toPlainJson(value);
+  if (plain === null) {
+    return value;
+  }
 
   if (cache) {
     try {
-      await cache.set(key, value, {
+      await cache.set(key, plain, {
         ttl: options.ttlSeconds,
         tags: options.tags,
         name: options.name ?? key,
@@ -55,21 +68,26 @@ export async function withRuntimeCache<T>(
     }
   } else {
     memoryStore.set(key, {
-      value,
+      value: plain,
       expiresAt: Date.now() + options.ttlSeconds * 1000,
     });
   }
 
-  return value;
+  // 回傳 plain，確保同一請求內後續也不帶 class instance
+  return plain;
 }
 
 /** 同時失效 Next Data Cache tag 與 Runtime Cache tag */
 export async function bustCacheTags(...tags: CacheTag[]) {
   for (const tag of tags) {
-    revalidateTag(tag);
+    try {
+      revalidateTag(tag);
+    } catch {
+      // ignore
+    }
   }
 
-  const cache = tryGetCache();
+  const cache = await tryGetCache();
   if (cache) {
     try {
       await cache.expireTag(tags);

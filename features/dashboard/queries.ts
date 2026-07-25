@@ -2,7 +2,6 @@ import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { CACHE_TAGS } from '@/lib/cache-tags';
-import { withRuntimeCache } from '@/lib/runtime-cache';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
 import {
   dashboardSalesOrderWhere,
@@ -41,11 +40,8 @@ const loadDashboardDataCached = unstable_cache(
 );
 
 export async function getDashboardData() {
-  return withRuntimeCache(
-    'dashboard-overview-v2',
-    { ttlSeconds: 60, tags: [CACHE_TAGS.dashboard], name: 'dashboard-overview' },
-    () => withDbRetry(() => loadDashboardDataCached()),
-  );
+  // 勿再包 Runtime Cache：回傳含 Prisma 關聯／Date，跨序列化會讓 RSC 爆掉
+  return withDbRetry(() => loadDashboardDataCached());
 }
 
 async function loadDashboardData() {
@@ -338,6 +334,55 @@ async function loadDashboardData() {
     repurchaseRate = repurchased.length / customerIdsThisMonth.length;
   }
 
+  // 轉成純 JSON（Date→ISO、Decimal→number），避免 Data Cache／RSC 序列化炸掉
+  const lowStockPlain = lowStockBalances
+    .filter(
+      (b) =>
+        b.product != null &&
+        b.warehouse?.code === 'WH-MAIN' &&
+        b.quantity <= b.product.reorderPoint,
+    )
+    .sort((a, b) => a.quantity - b.quantity)
+    .slice(0, 8)
+    .map((b) => ({
+      id: b.id,
+      quantity: b.quantity,
+      product: b.product
+        ? {
+            name: b.product.name,
+            productId: b.product.productId,
+            sku: b.product.sku,
+            reorderPoint: b.product.reorderPoint,
+          }
+        : null,
+    }));
+
+  const pendingTasksPlain = pendingTasks.map((t) => ({
+    id: t.id,
+    taskId: t.taskId,
+    title: t.title,
+    priority: t.priority,
+    status: t.status,
+    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+    assignee: t.assignee ? { name: t.assignee.name } : null,
+  }));
+
+  const weekShipmentsPlain = weekShipments.map((sh) => ({
+    id: sh.id,
+    status: sh.status,
+    scheduledDate: sh.scheduledDate.toISOString(),
+    subscription: {
+      recipientPhone: sh.subscription.recipientPhone,
+      shippingAddress: sh.subscription.shippingAddress,
+      customer: {
+        id: sh.subscription.customer.id,
+        name: sh.subscription.customer.name,
+        customerId: sh.subscription.customer.customerId,
+      },
+      plan: { name: sh.subscription.plan.name },
+    },
+  }));
+
   return {
     kpis: {
       todayOrderCount,
@@ -359,16 +404,8 @@ async function loadDashboardData() {
     sourceData,
     topProducts,
     topMerchants,
-    lowStockBalances: lowStockBalances
-      .filter(
-        (b) =>
-          b.product != null &&
-          b.warehouse?.code === 'WH-MAIN' &&
-          b.quantity <= b.product.reorderPoint,
-      )
-      .sort((a, b) => a.quantity - b.quantity)
-      .slice(0, 8),
-    pendingTasks,
-    weekShipments,
+    lowStockBalances: lowStockPlain,
+    pendingTasks: pendingTasksPlain,
+    weekShipments: weekShipmentsPlain,
   };
 }

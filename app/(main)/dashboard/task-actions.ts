@@ -43,7 +43,13 @@ export async function createTodayTask(title: string): Promise<TodayTaskRow> {
 
   revalidatePath('/dashboard');
   revalidatePath('/tasks');
-  return created;
+  return {
+    id: created.id,
+    taskId: created.taskId,
+    title: created.title,
+    status: created.status,
+    completedAt: created.completedAt ? created.completedAt.toISOString() : null,
+  };
 }
 
 export async function toggleTodayTask(taskId: string, done: boolean) {

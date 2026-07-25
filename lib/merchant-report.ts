@@ -5,7 +5,6 @@ import { getMerchantIndustryMap } from '@/lib/merchant-industry-persist';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
 import { prisma } from '@/lib/prisma';
-import { withRuntimeCache } from '@/lib/runtime-cache';
 import { defaultPeriod } from '@/lib/settlement-calc';
 
 export type MerchantReportPeriod = 'week' | 'month';
@@ -88,39 +87,29 @@ export async function loadMerchantsPortfolioReport(
   options?: { merchantIds?: string[] },
 ): Promise<MerchantsPortfolioReport> {
   const merchantIdsKey = options?.merchantIds?.slice().sort().join(',') ?? 'all';
-  const cacheKey = [
-    'merchants-portfolio-v1',
-    periodStart.toISOString(),
-    periodEnd.toISOString(),
-    merchantIdsKey,
-  ].join(':');
-
-  return withRuntimeCache(
-    cacheKey,
-    {
-      ttlSeconds: 60,
-      tags: [CACHE_TAGS.merchantsPortfolio],
-      name: 'merchants-portfolio',
-    },
-    () => {
-      const cached = unstable_cache(
-        () =>
-          loadMerchantsPortfolioReportUncached(
-            periodStart,
-            periodEnd,
-            options?.merchantIds,
-          ),
-        [
-          'merchants-portfolio-v1',
-          periodStart.toISOString(),
-          periodEnd.toISOString(),
-          merchantIdsKey,
-        ],
-        { revalidate: 60, tags: [CACHE_TAGS.merchantsPortfolio] },
-      );
-      return cached();
-    },
+  // 僅用 Next Data Cache；Runtime Cache 不適合帶 Date 的報表物件
+  const cached = unstable_cache(
+    () =>
+      loadMerchantsPortfolioReportUncached(
+        periodStart,
+        periodEnd,
+        options?.merchantIds,
+      ),
+    [
+      'merchants-portfolio-v1',
+      periodStart.toISOString(),
+      periodEnd.toISOString(),
+      merchantIdsKey,
+    ],
+    { revalidate: 60, tags: [CACHE_TAGS.merchantsPortfolio] },
   );
+  const report = await cached();
+  // Data Cache 可能把 Date 還原成字串；統一成可 formatDate 的值
+  return {
+    ...report,
+    periodStart: new Date(report.periodStart),
+    periodEnd: new Date(report.periodEnd),
+  };
 }
 
 async function loadMerchantsPortfolioReportUncached(
