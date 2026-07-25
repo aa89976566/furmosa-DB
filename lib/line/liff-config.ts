@@ -32,6 +32,11 @@ export function getLiffId(page: LiffPage): string {
   return id;
 }
 
+/** 公開預約等可選場景：未設定時回傳 null，不強制 LIFF */
+export function getLiffIdIfConfigured(page: LiffPage): string | null {
+  return getLiffIdOptional(page) ?? null;
+}
+
 export function getLiffUrl(page: LiffPage): string {
   return `https://liff.line.me/${getLiffId(page)}`;
 }

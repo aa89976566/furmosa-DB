@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/maintain-shipments",
-      "schedule": "0 17 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }

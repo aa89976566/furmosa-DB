@@ -12,19 +12,28 @@ export default async function PublicBookDonePage({
   params: { merchantKey: string };
   searchParams?: { id?: string };
 }) {
+  const merchant = await prisma.merchant.findFirst({
+    where: {
+      status: 'active',
+      OR: [{ id: params.merchantKey }, { merchantId: params.merchantKey }],
+    },
+    select: { id: true },
+  });
+
   const id = searchParams?.id;
-  const row = id
-    ? await prisma.appointment.findFirst({
-        where: { id },
-        include: { merchant: { select: { name: true } } },
-      })
-    : null;
+  const row =
+    id && merchant
+      ? await prisma.appointment.findFirst({
+          where: { id, merchantId: merchant.id },
+          include: { merchant: { select: { name: true } } },
+        })
+      : null;
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-lg px-4 py-10">
       <h1 className="text-2xl font-semibold text-navy">預約已送出</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        請等待店家確認。確認後會再通知你（LINE 通知下一輪才會接上）。
+        請等待店家確認。若已連接 LINE 或電話已是會員，你會收到「已收到申請」與確認／行前提醒。
       </p>
       {row ? (
         <div className="mt-6 space-y-2 rounded-xl border p-4 text-sm">
