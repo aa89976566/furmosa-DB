@@ -8,10 +8,10 @@
  * 熱區依 rich-menu-comic-2x2.meta.json 的 content box（contain 留邊後的實際圖面）。
  *
  * 熱區：
- *   左上 一起野放 → 一起搞事／新鮮事
- *   右上 預約美容 → 美容導引
- *   左下 換罐計畫 → 換罐制度
- *   右下 回家 → 官網／社群／故事
+ *   左上 一起野放 → 社區／UGC／活動
+ *   右上 預約美容 → 好玩的還沒好
+ *   左下 換罐計劃 → 開戶／序號／會員
+ *   右下 回家 → furmosa.com＋@furmosa_food
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

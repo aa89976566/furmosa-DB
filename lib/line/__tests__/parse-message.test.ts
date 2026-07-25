@@ -49,6 +49,8 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('毛孩罐庫').kind, 'savings');
     assert.equal(parseLineUserText('兌換好康').kind, 'rewards_list');
     assert.equal(parseLineUserText('嗷嗚計畫').kind, 'unboxing');
+    assert.equal(parseLineUserText('嗷嗚計劃').kind, 'unboxing');
+    assert.equal(parseLineUserText('開箱任務').kind, 'unboxing');
   });
 
   it('recognizes jar codes', () => {

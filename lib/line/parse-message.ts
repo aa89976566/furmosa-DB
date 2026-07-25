@@ -27,15 +27,16 @@ const SAVINGS_RE =
   /^(?:小金庫|金庫|罐罐存摺|我的存罐本|小銀行|罐罐|存罐記錄|我的罐罐|罐罐存款|會員資料與存罐紀錄|會員資料|存罐紀錄|毛孩罐庫|罐庫)$/i;
 const HELP_RE = /^(?:說明|帮助|help|\?|？|指令|使用方法|存罐攻略|攻略)$/i;
 const BIND_HELP_RE =
-  /^(?:如何綁定|怎么绑定|怎麼綁定|如何绑定|綁定方式|绑定方式|怎麼綁|如何綁|我要綁定|開戶存罐罐|開戶|先認個人|幫毛孩開戶|加入會員|立即開戶)$/i;
+  /^(?:如何綁定|怎么绑定|怎麼綁定|如何绑定|綁定方式|绑定方式|怎麼綁|如何綁|我要綁定|開戶存罐罐|開戶|先認個人|幫毛孩開戶|加入會員|立即開戶|立刻開戶)$/i;
 const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
 const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑定状态|我是誰|我是谁)$/i;
 const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|reward|rewards)$/i;
 const UNBOXING_RE =
-  /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|清蛙誰在怕)$/i;
-const HUB_JAR_RE = /^(?:♻️\s*)?(?:換罐計畫|換罐計劃)$/;
-const HUB_CHAOS_RE = /^(?:(?:🔥|🎉)\s*)?一起搞事$/; // Rich Menu 用 🔥；舊 🎉 仍相容
-const HUB_WILD_RE = /^(?:🌿\s*)?野放中$/;
+  /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|嗷嗚計劃|清蛙誰在怕|開箱任務)$/i;
+const HUB_JAR_RE = /^(?:(?:♻️|🫙)\s*)?(?:換罐計畫|換罐計劃)$/;
+/** 一起搞事＝舊名；一起野放走 comic_roam，也相容當 hub */
+const HUB_CHAOS_RE = /^(?:(?:🔥|🎉|🐾)\s*)?(?:一起搞事|一起野放)$/;
+const HUB_WILD_RE = /^(?:(?:🌿|🏠)\s*)?(?:野放中|回家)$/;
 /** 四格漫畫 Rich Menu */
 const COMIC_ROAM_RE = /^(?:一起野放|野放一下)$/;
 const COMIC_GROOMING_RE = /^(?:預約美容|漂亮一下)$/;
@@ -50,12 +51,13 @@ export function parseLineUserText(raw: string): ParsedLineText {
     return { kind: 'bind', identifier: bind[1].trim() };
   }
 
-  if (HUB_JAR_RE.test(text)) return { kind: 'hub_jar' };
-  if (HUB_CHAOS_RE.test(text)) return { kind: 'hub_chaos' };
-  if (HUB_WILD_RE.test(text)) return { kind: 'hub_wild' };
+  // 四格漫畫優先（與舊三世界別名重疊時走漫畫引導文案）
   if (COMIC_ROAM_RE.test(text)) return { kind: 'comic_roam' };
   if (COMIC_GROOMING_RE.test(text)) return { kind: 'comic_grooming' };
   if (COMIC_HOME_RE.test(text)) return { kind: 'comic_home' };
+  if (HUB_JAR_RE.test(text)) return { kind: 'hub_jar' };
+  if (HUB_CHAOS_RE.test(text)) return { kind: 'hub_chaos' };
+  if (HUB_WILD_RE.test(text)) return { kind: 'hub_wild' };
 
   if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
   if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };

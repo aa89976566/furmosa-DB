@@ -31,15 +31,15 @@ describe('isPromptOnCooldown', () => {
 describe('buildGuestWelcomeText', () => {
   it('兩種提示都可顯示時含開戶與存罐文案', () => {
     const text = buildGuestWelcomeText({ showRegister: true, showJar: true });
-    assert.match(text, /罐底 8 碼|毛孩罐庫/);
-    assert.match(text, /幫毛孩開戶/);
+    assert.match(text, /罐底 8 碼|毛孩名下/);
+    assert.match(text, /開戶/);
   });
 
   it('冷卻中省略已提示過的段落', () => {
     const text = buildGuestWelcomeText({ showRegister: false, showJar: false });
     assert.doesNotMatch(text, /罐底 8 碼/);
-    assert.doesNotMatch(text, /幫毛孩開戶/);
-    assert.match(text, /三個入口/);
+    assert.doesNotMatch(text, /→「開戶」/);
+    assert.match(text, /四格/);
   });
 });
 

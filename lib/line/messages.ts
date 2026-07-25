@@ -3,26 +3,27 @@ import type { OnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 
 export const LINE_WELCOME_TEXT = `歡迎來到匠寵 🐾
 
-這裡比較像一本小手帳，不太像客服機器人。
+這裡比較像一本小漫畫，不太像客服機器人。
 
-三個入口：
-♻️ 換罐計畫
-🔥 一起搞事
-🌿 野放中
+跟著傑克走一天：
+🐾 一起野放
+✂️ 預約美容
+🫙 換罐計劃
+🏠 回家
 
-第一次先去「換罐計畫」幫毛孩開戶。`;
+第一次先去「換罐計劃」開戶。`;
 
 /** 依節流狀態組裝訪客歡迎詞 */
 export function buildGuestWelcomeText(flags: OnboardingPromptFlags): string {
   const lines = ['歡迎來到匠寵 🐾', ''];
   if (flags.showJar) {
-    lines.push('空罐罐底 8 碼傳上來，會進毛孩罐庫。');
+    lines.push('空罐罐底 8 碼傳上來，會進毛孩名下。');
   }
   if (flags.showRegister) {
     lines.push(`第一次先點「${LINE_BTN.hubJar}」→「${LINE_BTN.register}」。`);
   }
   if (!flags.showJar && !flags.showRegister) {
-    lines.push('下面三個入口，想逛哪個點哪個。');
+    lines.push('下面四格，想晃哪格點哪格。');
   }
   return lines.join('\n');
 }
@@ -44,9 +45,10 @@ export const LINE_BIND_HELP_TEXT = `開戶 = 把這個 LINE 跟毛孩檔案對�
 
 export const LINE_HELP_TEXT = `【匠寵怎麼玩】
 
-• ${LINE_BTN.hubJar} → 換罐、開戶、序號、罐庫
-• ${LINE_BTN.hubChaos} → 正在搞的事（嗷嗚、清蛙…）
-• ${LINE_BTN.hubWild} → 官網與社群
+• ${LINE_BTN.hubJar} → 開戶、序號、會員、換罐
+• ${LINE_BTN.hubChaos} → 嗷嗚、活動、開箱、合作、優惠
+• 預約美容 → 還沒放好水（好玩版敬請期待）
+• ${LINE_BTN.hubWild} → furmosa.com 與 @furmosa_food
 • 存罐 → 直接傳 8 位序號（要先開戶）`;
 
 export function lineBindRequiredText() {
@@ -55,9 +57,9 @@ export function lineBindRequiredText() {
 
 export function lineUnknownText(showJarHint = true) {
   if (!showJarHint) {
-    return '這句我們沒接住～\n點下面入口再試一次。';
+    return '這句我們沒接住～\n點下面那格再試一次。';
   }
-  return `這句我們沒接住～\n點入口，或傳 8 位序號存罐。`;
+  return `這句我們沒接住～\n點一格入口，或傳 8 位序號存罐。`;
 }
 
 export { LINE_MENU_HINT_GUEST };

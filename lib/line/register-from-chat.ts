@@ -149,7 +149,7 @@ export async function handleRegisterFlowMessage(
     await clearLineChatSession(lineUserId);
     await replyMenuHub(replyToken, lineUserId, {
       registered: Boolean(await findCustomerByLineUserId(lineUserId)),
-      body: '好，開戶先暫停。想開再點「幫毛孩開戶」。',
+      body: '好，開戶先暫停。想開再點「開戶」。',
     });
     return true;
   }

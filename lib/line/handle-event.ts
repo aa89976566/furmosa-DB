@@ -165,7 +165,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
   if (parsed.kind === 'comic_grooming') {
-    await replyLineMessage(replyToken, await buildComicGroomingMessages());
+    await replyLineMessage(replyToken, buildComicGroomingMessages());
     return;
   }
   if (parsed.kind === 'comic_home') {

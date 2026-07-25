@@ -4,16 +4,21 @@ import {
   CHAOS_ITEMS,
   JAR_ENTER_BLOCKED_GUEST,
   JAR_ENTER_HINT_REGISTERED,
+  WILD_INTRO,
   WORLD_HUB_EMOJI,
   WORLD_HUB_LABELS,
   WORLD_HUB_TAGLINE,
-  WILD_INTRO,
+  buildHomeItems,
   buildJarHubItems,
-  buildWildItems,
   type WorldHubId,
   type WorldMenuItem,
 } from '@/lib/line/brand-worlds';
-import { BRAND_SURFACE, WORLD_THEME, type WorldTheme } from '@/lib/line/card-theme';
+import {
+  BRAND_SURFACE,
+  GROOMING_THEME,
+  WORLD_THEME,
+  type WorldTheme,
+} from '@/lib/line/card-theme';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
@@ -37,8 +42,8 @@ type CardAction =
   | { type: 'message'; text: string };
 
 /**
- * 單張可點卡片（整卡一個 CTA，非灰底按鈕列）
- * 視覺：白底、留白、手繪 hero、圓角。
+ * 單張可點卡片（整卡一個 CTA）
+ * 漫畫分頁感：白底、大插畫、圓角、大量留白。無漸層、無灰底按鈕列。
  */
 export function buildActionCard(opts: {
   theme: WorldTheme;
@@ -73,19 +78,20 @@ export function buildActionCard(opts: {
       type: 'image',
       url: cardHeroUrl(opts.heroKey),
       size: 'full',
-      aspectRatio: '20:10',
+      aspectRatio: '3:2',
       aspectMode: 'cover',
     },
     body: {
       type: 'box',
       layout: 'vertical',
-      spacing: 'md',
-      paddingAll: '20px',
+      spacing: 'lg',
+      paddingAll: '22px',
+      paddingTop: '18px',
       backgroundColor: theme.card,
       contents: [
         {
           type: 'text',
-          text: `${opts.mark}  ${opts.title}`,
+          text: opts.title,
           weight: 'bold',
           size: 'xl',
           color: theme.ink,
@@ -97,15 +103,16 @@ export function buildActionCard(opts: {
           size: 'sm',
           color: theme.muted,
           wrap: true,
+          margin: 'sm',
         },
         {
           type: 'box',
           layout: 'horizontal',
-          margin: 'lg',
+          margin: 'xl',
           contents: [
             {
               type: 'text',
-              text: opts.ctaLabel ?? '打開',
+              text: `${opts.mark}  ${opts.ctaLabel ?? '跟去'}`,
               size: 'sm',
               color: theme.accent,
               weight: 'bold',
@@ -114,9 +121,10 @@ export function buildActionCard(opts: {
             {
               type: 'text',
               text: '→',
-              size: 'lg',
+              size: 'xl',
               color: theme.accent,
               align: 'end',
+              weight: 'bold',
             },
           ],
         },
@@ -139,11 +147,12 @@ function carouselFlex(altText: string, bubbles: Record<string, unknown>[]): Line
 function itemToCard(
   item: WorldMenuItem,
   theme: WorldTheme,
-  opts?: { primaryId?: string; ctaLabel?: string },
+  opts?: { primaryId?: string; ctaLabel?: string; primaryCta?: string },
 ): Record<string, unknown> {
   const action: CardAction = item.uri
     ? { type: 'uri', uri: item.uri }
     : { type: 'postback', data: `jd=${item.id}`, displayText: item.label };
+  const isPrimary = opts?.primaryId === item.id;
   return buildActionCard({
     theme,
     mark: item.mark,
@@ -151,18 +160,20 @@ function itemToCard(
     subtitle: item.subtitle,
     heroKey: item.heroKey,
     action,
-    ctaLabel: opts?.primaryId === item.id ? '開始' : opts?.ctaLabel ?? '打開',
-    emphasized: opts?.primaryId === item.id,
+    ctaLabel: isPrimary
+      ? (opts?.primaryCta ?? '衝')
+      : (opts?.ctaLabel ?? '跟去'),
+    emphasized: isPrimary,
   });
 }
 
-/** 聊天內備援：三張世界大卡 carousel */
+/** 聊天內備援：跟著傑克走一天（四格入口的文字備援） */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
-  const intro = opts?.body ?? '三個入口。點一張卡進去。';
-  const worlds: Array<{ id: WorldHubId; heroKey: string }> = [
-    { id: 'jar', heroKey: 'world-jar' },
-    { id: 'chaos', heroKey: 'world-chaos' },
-    { id: 'wild', heroKey: 'world-wild' },
+  const intro = opts?.body ?? '跟著傑克走。點一張卡繼續。';
+  const worlds: Array<{ id: WorldHubId; heroKey: string; cta: string }> = [
+    { id: 'chaos', heroKey: 'world-chaos', cta: '野放' },
+    { id: 'jar', heroKey: 'world-jar', cta: '開罐' },
+    { id: 'wild', heroKey: 'world-wild', cta: '進門' },
   ];
   const bubbles = worlds.map((w) =>
     buildActionCard({
@@ -172,10 +183,56 @@ export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineRepl
       subtitle: WORLD_HUB_TAGLINE[w.id],
       heroKey: w.heroKey,
       action: { type: 'postback', data: `jd=hub_${w.id}`, displayText: WORLD_HUB_LABELS[w.id] },
-      ctaLabel: '進入',
+      ctaLabel: w.cta,
     }),
   );
-  return [{ type: 'text', text: intro }, carouselFlex('匠寵三世界', bubbles)];
+  return [{ type: 'text', text: intro }, carouselFlex('跟著傑克走', bubbles)];
+}
+
+/** 回家：官網＋IG */
+export function buildHomeHubMessages(opts?: { body?: string }): LineReplyMessage[] {
+  const links = FURMOSA_BRAND_LINKS;
+  const theme = WORLD_THEME.wild;
+  const items = buildHomeItems().map((item) => {
+    if (item.id === 'wild_web') return { ...item, uri: links.website() };
+    if (item.id === 'wild_ig') return { ...item, uri: links.instagram() };
+    return item;
+  });
+  const bubbles = items.map((item) =>
+    itemToCard(item, theme, {
+      ctaLabel: item.id === 'wild_web' ? '進門' : '去晃晃',
+      primaryId: 'wild_web',
+      primaryCta: '進門',
+    }),
+  );
+  return [
+    {
+      type: 'text',
+      text: opts?.body ?? `回家了 🏠\n${WILD_INTRO}`,
+    },
+    carouselFlex(WORLD_HUB_LABELS.wild, bubbles),
+  ];
+}
+
+/** 預約美容：好玩的還沒好 */
+export function buildGroomingSoonMessages(line: string): LineReplyMessage[] {
+  const theme = GROOMING_THEME;
+  const card = buildActionCard({
+    theme,
+    mark: '🫧',
+    title: '預約美容',
+    subtitle: `${line} 線上預約還在路上——先別急著脫毛。`,
+    heroKey: 'grooming-soon',
+    action: { type: 'message', text: '換罐計劃' },
+    ctaLabel: '先去換罐晃晃',
+  });
+  return [
+    {
+      type: 'text',
+      text: `預約美容 ✂️\n${line}\n\n線上預約還沒放好水。先去換罐計劃晃晃，或回家看故事。`,
+    },
+    carouselFlex('預約美容', [card]),
+  ];
 }
 
 export function buildWorldHubMessages(
@@ -189,7 +246,11 @@ export function buildWorldHubMessages(
   if (hub === 'jar') {
     const hubCfg = buildJarHubItems(registered);
     const bubbles = hubCfg.items.map((item) =>
-      itemToCard(item, theme, { primaryId: hubCfg.primaryId }),
+      itemToCard(item, theme, {
+        primaryId: hubCfg.primaryId,
+        primaryCta: registered ? '丟序號' : '開戶',
+        ctaLabel: '打開',
+      }),
     );
     return [
       { type: 'text', text: opts?.body ?? `${title}\n${hubCfg.body}` },
@@ -198,27 +259,18 @@ export function buildWorldHubMessages(
   }
 
   if (hub === 'chaos') {
-    const bubbles = CHAOS_ITEMS.map((item) => itemToCard(item, theme, { ctaLabel: '看這張' }));
+    const bubbles = CHAOS_ITEMS.map((item) =>
+      itemToCard(item, theme, { ctaLabel: '跟去看看' }),
+    );
     return [
       { type: 'text', text: opts?.body ?? `${title}\n${CHAOS_INTRO}` },
       carouselFlex(WORLD_HUB_LABELS.chaos, bubbles),
     ];
   }
 
-  const links = FURMOSA_BRAND_LINKS;
-  const wild = buildWildItems().map((item) => {
-    if (item.id === 'wild_web') return { ...item, uri: links.website() };
-    if (item.id === 'wild_ig') return { ...item, uri: links.instagram() };
-    if (item.id === 'wild_threads') return { ...item, uri: links.threads() };
-    if (item.id === 'wild_fb') return { ...item, uri: links.facebook() };
-    if (item.id === 'wild_news') return { ...item, uri: links.news() };
-    return item;
+  return buildHomeHubMessages({
+    body: opts?.body ?? `${title}\n${WILD_INTRO}`,
   });
-  const bubbles = wild.map((item) => itemToCard(item, theme, { ctaLabel: '前往' }));
-  return [
-    { type: 'text', text: opts?.body ?? `${title}\n${WILD_INTRO}` },
-    carouselFlex(WORLD_HUB_LABELS.wild, bubbles),
-  ];
 }
 
 /** 未開戶擋序號：單一大卡＋唯一 CTA */
@@ -229,7 +281,7 @@ export function buildRegisterGateMessages(
   const card = buildActionCard({
     theme,
     mark: '🐾',
-    title: '先幫毛孩開戶',
+    title: '先開戶',
     subtitle: text.replace(/\n/g, ' '),
     heroKey: 'gate',
     action: {
@@ -240,7 +292,7 @@ export function buildRegisterGateMessages(
     ctaLabel: LINE_BTN.registerNow,
     emphasized: true,
   });
-  return [carouselFlex('先幫毛孩開戶', [card])];
+  return [carouselFlex('先開戶', [card])];
 }
 
 /** 什麼是換罐：四張說明卡 */
@@ -278,8 +330,8 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
   ];
   const bubbles = sections.map((item) => itemToCard(item, theme, { ctaLabel: '閱讀' }));
   return [
-    { type: 'text', text: '♻️ 什麼是換罐\n挑一張卡看。' },
-    carouselFlex('什麼是換罐', bubbles),
+    { type: 'text', text: '🫙 換罐說明\n瓶子才是主角。挑一張看。' },
+    carouselFlex('換罐說明', bubbles),
   ];
 }
 
@@ -291,7 +343,7 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
     title: '輸入序號',
     subtitle: JAR_ENTER_HINT_REGISTERED.replace(/\n/g, ' '),
     heroKey: 'jar-enter',
-    action: { type: 'message', text: '毛孩罐庫' },
+    action: { type: 'message', text: '我的會員' },
     ctaLabel: '傳 8 碼即可',
   });
   return [
@@ -378,12 +430,12 @@ export function buildJarSuccessFlex(opts: {
             action: {
               type: 'postback',
               data: 'jd=jar_vault',
-              displayText: '毛孩罐庫',
+              displayText: '我的會員',
             },
             contents: [
               {
                 type: 'text',
-                text: '🦴 毛孩罐庫',
+                text: '🪪 我的會員',
                 weight: 'bold',
                 color: theme.accent,
                 size: 'md',

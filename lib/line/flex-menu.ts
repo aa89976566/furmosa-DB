@@ -53,10 +53,10 @@ export function buildMainMenuMessages(opts?: {
   const registered = opts?.registered ?? false;
   const showRegisterHint = opts?.showRegisterHint ?? !registered;
   const defaultBody = registered
-    ? '三個入口在下面。換罐、搞事、野放，各走各的。'
+    ? '四格在下面。野放、美容、換罐、回家——跟著傑克走。'
     : showRegisterHint
-      ? '第一次先點「換罐計畫」幫毛孩開戶。沒開戶不能存罐。'
-      : '點下面三個入口即可。';
+      ? '第一次先點「換罐計劃」開戶。沒戶頭，罐進不來。'
+      : '點下面那格即可。';
   return buildThreeWorldsMenuMessages({ body: opts?.body ?? defaultBody });
 }
 

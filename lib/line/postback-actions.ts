@@ -30,6 +30,7 @@ import {
 } from '@/lib/line/flex-menu';
 import {
   buildEnterCodePromptMessages,
+  buildHomeHubMessages,
   buildJarExplainMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
@@ -79,7 +80,7 @@ async function loadVaultSnapshot(
 async function replyPartnerStores(replyToken: string) {
   const stores = await listPartnerStoresFromDb();
   const lines = [
-    '【合作店家】',
+    '【合作美容店】',
     '',
     ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
     '',
@@ -137,8 +138,8 @@ export async function handleLinePostback(
     await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
     return;
   }
-  if (action === 'hub_wild') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('wild', { registered }));
+  if (action === 'hub_wild' || action === 'hub_home') {
+    await replyLineMessage(replyToken, buildHomeHubMessages());
     return;
   }
 
@@ -182,7 +183,7 @@ export async function handleLinePostback(
     return;
   }
 
-  if (action === 'jar_vault' || action === 'vault') {
+  if (action === 'jar_vault' || action === 'vault' || action === 'jar_member') {
     if (!customer) {
       await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
       return;
@@ -315,7 +316,7 @@ export async function handleLinePostback(
 
   await replyTriggerOnce(lineUserId, 'menu_fallback', async () => {
     await replyMenuHub(replyToken, lineUserId, {
-      body: '首頁只有三個世界：換罐計畫／一起搞事／野放中。',
+      body: '跟著傑克走：一起野放／預約美容／換罐計劃／回家。',
       registered,
       alwaysReplyBody: false,
     });

@@ -1,19 +1,21 @@
 /**
- * 四格漫畫 Rich Menu 按鈕邏輯
+ * 四格漫畫 Rich Menu——跟著一隻 Jack Russell 過一天。
  *
  * ┌────────────┬────────────┐
  * │ 一起野放    │ 預約美容    │
  * │ 今天發生…  │ 漂亮一下    │
  * ├────────────┼────────────┤
- * │ 換罐計畫    │ 回家        │
+ * │ 換罐計劃    │ 回家        │
  * │ 空罐別忘記  │ 還有很多故事│
  * └────────────┴────────────┘
  */
 
-import { FURMOSA_BRAND_LINKS } from '@/lib/line/brand-links';
-import { buildWorldHubMessages } from '@/lib/line/flex-hubs';
-import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
-import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
+import { pickGroomingSoonLine } from '@/lib/line/brand-worlds';
+import {
+  buildGroomingSoonMessages,
+  buildHomeHubMessages,
+  buildWorldHubMessages,
+} from '@/lib/line/flex-hubs';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 export type ComicMenuKind = 'roam' | 'grooming' | 'jar' | 'home';
@@ -27,54 +29,25 @@ export function parseComicMenuText(text: string): ComicMenuKind | null {
   return null;
 }
 
-/** 一起野放 → 新鮮事／活動（一起搞事世界） */
+/** 一起野放 → 社區／UGC／活動 */
 export function buildComicRoamMessages(registered: boolean): LineReplyMessage[] {
-  return [
-    {
-      type: 'text',
-      text: '一起野放 🐾\n今天又有什麼事在發生？從下面挑一張看。',
-    },
-    ...buildWorldHubMessages('chaos', { registered }),
-  ];
+  return buildWorldHubMessages('chaos', {
+    registered,
+    body: '一起野放 🐾\n傑克往外衝了。外面比較好玩——挑一張跟去。',
+  });
 }
 
-/** 預約美容 → 合作店導引（線上預約尚未全開） */
-export async function buildComicGroomingMessages(): Promise<LineReplyMessage[]> {
-  const stores = await listPartnerStoresFromDb();
-  const storeLines = stores
-    .slice(0, 8)
-    .map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`)
-    .join('\n');
-
-  return [
-    {
-      type: 'text',
-      text: [
-        '預約美容 ✂️',
-        '漂亮一下，先找常去的合作店。',
-        '',
-        '線上預約還在鋪路中；現在可直接聯繫店家，或先完成換罐開戶綁店。',
-        '',
-        '合作店家：',
-        storeLines || '（稍後再看野放中 → 合作店家）',
-      ].join('\n'),
-    },
-  ];
+/** 預約美容 → 好玩的「還沒好」（不是建設中） */
+export function buildComicGroomingMessages(): LineReplyMessage[] {
+  return buildGroomingSoonMessages(pickGroomingSoonLine());
 }
 
-/** 換罐計畫 → 制度世界 */
+/** 換罐計劃 → 瓶子是主角 */
 export function buildComicJarMessages(registered: boolean): LineReplyMessage[] {
   return buildWorldHubMessages('jar', { registered });
 }
 
-/** 回家 → 官網／社群／故事（野放中） */
-export function buildComicHomeMessages(registered: boolean): LineReplyMessage[] {
-  const web = FURMOSA_BRAND_LINKS.website();
-  return [
-    {
-      type: 'text',
-      text: `回家了 🏠\n還有很多故事。官網也在這：${web}`,
-    },
-    ...buildWorldHubMessages('wild', { registered }),
-  ];
+/** 回家 → furmosa.com + IG，像回家不是點首頁 */
+export function buildComicHomeMessages(_registered: boolean): LineReplyMessage[] {
+  return buildHomeHubMessages();
 }
