@@ -277,8 +277,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
 
-    const result = await redeemJarCode(customer.id, parsed.code);
+    const result = await redeemJarCode(customer.id, parsed.code, { sourceSystem: 'line' });
     if (!result.ok) {
+      if (result.status === 403) {
+        await replyMenuHub(replyToken, lineUserId, {
+          body: result.error,
+          registered: Boolean(customer),
+          alwaysReplyBody: true,
+        });
+        return;
+      }
       await replyLineText(replyToken, result.error);
       return;
     }

@@ -7,7 +7,7 @@ import {
   readDashboardKpiSnapshot,
   writeDashboardKpiSnapshot,
 } from '@/lib/dashboard-kpi-snapshot';
-import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
+import { getJarOpsDashboardSummary } from '@/lib/jar-exchange/ops';
 import {
   dashboardSalesOrderWhere,
   revenueEligibleOrderWhere,
@@ -40,9 +40,28 @@ async function runInBatches(
 
 const loadDashboardDataCached = unstable_cache(
   () => loadDashboardData(),
-  ['dashboard-overview-v3'],
+  ['dashboard-overview-v4-jar-ops'],
   { revalidate: 60, tags: [CACHE_TAGS.dashboard] },
 );
+
+function normalizeDashboardKpis(data: DashboardData): DashboardData {
+  const k = data.kpis as DashboardData['kpis'] & {
+    jarLowStockCellCount?: number;
+    jarOutOfStockCellCount?: number;
+    jarNegativeStockCellCount?: number;
+    jarInTransitRestockCount?: number;
+  };
+  return {
+    ...data,
+    kpis: {
+      ...k,
+      jarLowStockCellCount: k.jarLowStockCellCount ?? 0,
+      jarOutOfStockCellCount: k.jarOutOfStockCellCount ?? 0,
+      jarNegativeStockCellCount: k.jarNegativeStockCellCount ?? 0,
+      jarInTransitRestockCount: k.jarInTransitRestockCount ?? 0,
+    },
+  };
+}
 
 /** cron／手動：重算並寫入預聚合快照 */
 export async function refreshDashboardKpiSnapshot(): Promise<DashboardData> {
@@ -57,13 +76,13 @@ export async function getDashboardData(): Promise<DashboardData> {
   return withDbRetry(async () => {
     const snap = await readDashboardKpiSnapshot();
     if (snap && isDashboardKpiFresh(snap.computedAt)) {
-      return snap.payload as DashboardData;
+      return normalizeDashboardKpis(snap.payload as DashboardData);
     }
 
     const data = await loadDashboardDataCached();
     // 背景寫入快照，不擋回應
     void writeDashboardKpiSnapshot(data);
-    return data;
+    return normalizeDashboardKpis(data);
   });
 }
 
@@ -197,7 +216,7 @@ async function loadDashboardData() {
         orderBy: { dueDate: 'asc' },
         take: 6,
       }),
-    () => getMonthJarExchangeKpis(),
+    () => getJarOpsDashboardSummary(),
   ])) as [
     number,
     { _sum: { total: number | null } },
@@ -248,7 +267,7 @@ async function loadDashboardData() {
         }>
       >
     >,
-    Awaited<ReturnType<typeof getMonthJarExchangeKpis>>,
+    Awaited<ReturnType<typeof getJarOpsDashboardSummary>>,
   ];
 
   // 庫存總值 + 低庫存（與下方表格一致：僅主倉 WH-MAIN）
@@ -422,6 +441,10 @@ async function loadDashboardData() {
       weekJarPointsEarnedMemberCount: jarKpis.weekJarPointsEarnedMemberCount,
       weekJarPointsRedeemedMemberCount: jarKpis.weekJarPointsRedeemedMemberCount,
       weekJarRedeemCount: jarKpis.weekJarRedeemCount,
+      jarLowStockCellCount: jarKpis.lowStockCellCount,
+      jarOutOfStockCellCount: jarKpis.outOfStockCellCount,
+      jarNegativeStockCellCount: jarKpis.negativeStockCellCount,
+      jarInTransitRestockCount: jarKpis.inTransitRestockCount,
     },
     revenueTrend,
     sourceData,

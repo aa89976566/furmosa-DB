@@ -14,6 +14,8 @@ import {
   importJarCodes,
 } from '@/app/(main)/jar-exchange/actions';
 
+export type JarProductOption = { id: string; name: string; sku: string };
+
 function triggerPdfDownload(batch: string, limit = DEFAULT_BATCH_SIZE) {
   const url = jarCodesPdfDownloadUrl(batch, 'unused', { limit });
   const a = document.createElement('a');
@@ -25,13 +27,14 @@ function triggerPdfDownload(batch: string, limit = DEFAULT_BATCH_SIZE) {
   a.remove();
 }
 
-export function CodesAdminTools() {
+export function CodesAdminTools({ products }: { products: JarProductOption[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastBatchNo, setLastBatchNo] = useState<string | null>(null);
   const [printBatch, setPrintBatch] = useState('');
+  const [productId, setProductId] = useState(products[0]?.id ?? '');
 
   const afterSuccess = (text: string) => {
     setError(null);
@@ -44,15 +47,38 @@ export function CodesAdminTools() {
   return (
     <div className="space-y-4 border-b border-border/60 p-4">
       <div className="flex flex-wrap items-end gap-3">
+        <label className="block text-xs text-muted-foreground">
+          綁定換罐商品
+          <select
+            className="mt-1 block min-w-[16rem] rounded-xl border border-input bg-card px-3 py-2 text-sm"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            disabled={products.length === 0}
+          >
+            {products.length === 0 ? (
+              <option value="">尚無 JAR_EXCHANGE 商品</option>
+            ) : (
+              products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}（{p.sku}）
+                </option>
+              ))
+            )}
+          </select>
+        </label>
         <Button
           type="button"
-          disabled={pending}
+          disabled={pending || !productId}
           onClick={() => {
             setMsg(null);
             setError(null);
             startTransition(async () => {
               try {
-                const res = await generateJarCodesBatch(DEFAULT_BATCH_SIZE);
+                const res = await generateJarCodesBatch(
+                  DEFAULT_BATCH_SIZE,
+                  undefined,
+                  productId,
+                );
                 if (res.ok) {
                   setLastBatchNo(res.batchNo);
                   setPrintBatch(res.batchNo);
@@ -78,66 +104,41 @@ export function CodesAdminTools() {
 
         {activeBatch ? (
           <>
+            <Input
+              value={printBatch || lastBatchNo || ''}
+              onChange={(e) => setPrintBatch(e.target.value)}
+              placeholder="批次編號"
+              className="w-48"
+            />
             <Button
               type="button"
               variant="outline"
-              onClick={() => triggerPdfDownload(activeBatch, DEFAULT_BATCH_SIZE)}
+              size="sm"
+              asChild
             >
-              下載 A4 PDF
-            </Button>
-            <Button type="button" variant="ghost" size="sm" asChild>
-              <Link
-                href={`/jar-exchange/codes?batch=${encodeURIComponent(activeBatch)}&status=unused`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                預覽列印頁
-              </Link>
+              <a href={jarCodesPdfDownloadUrl(activeBatch, 'unused', { limit: DEFAULT_BATCH_SIZE })}>
+                下載 PDF
+              </a>
             </Button>
           </>
         ) : null}
-
-        {msg ? <span className="text-sm text-success">{msg}</span> : null}
-        {error ? <span className="text-sm text-destructive">{error}</span> : null}
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-border/70 bg-muted/20 p-3">
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">依批次匯出 PDF</p>
-          <Input
-            value={printBatch}
-            onChange={(e) => setPrintBatch(e.target.value)}
-            placeholder="BATCH-20260524"
-            className="h-8 w-48 font-mono text-xs"
-          />
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          disabled={!printBatch.trim()}
-          onClick={() => {
-            if (printBatch.trim()) triggerPdfDownload(printBatch.trim());
-          }}
-        >
-          下載 PDF
-        </Button>
-        <Button type="button" size="sm" variant="outline" asChild disabled={!printBatch.trim()}>
-          <Link
-            href={
-              printBatch.trim()
-                ? `/jar-exchange/codes?batch=${encodeURIComponent(printBatch.trim())}&status=unused`
-                : '#'
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            預覽列印頁
+      {products.length === 0 ? (
+        <p className="text-xs text-destructive">
+          請先在產品將換罐 SKU 的類型設為「換罐」（JAR_EXCHANGE），才能產生序號。{' '}
+          <Link href="/products" className="underline">
+            前往產品
           </Link>
-        </Button>
-        <p className="w-full text-[11px] text-muted-foreground">
-          序號僅限 {JAR_CODE_LENGTH} 位純數字。每張 A4 固定 {DEFAULT_BATCH_SIZE} 格（5×14）。
-          PDF 預設只匯出該批次最早 {DEFAULT_BATCH_SIZE} 筆；若舊批次有 90 筆是因先前多寫入，請用新批次或刪除多餘序號。
+        </p>
+      ) : null}
+
+      {msg ? <p className="text-xs text-muted-foreground">{msg}</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+
+      <div>
+        <p className="text-[11px] text-muted-foreground">
+          PDF 預設只匯出該批次最早 {DEFAULT_BATCH_SIZE} 筆；序號必須綁定換罐商品。
         </p>
       </div>
 
@@ -149,8 +150,10 @@ export function CodesAdminTools() {
             onSubmit={(e) => {
               e.preventDefault();
               setError(null);
+              const fd = new FormData(e.currentTarget);
+              if (productId) fd.set('productId', productId);
               startTransition(async () => {
-                const res = await createManualJarCode(new FormData(e.currentTarget));
+                const res = await createManualJarCode(fd);
                 if (res.ok) afterSuccess('已新增序號');
                 else {
                   setError(res.error ?? '失敗');
@@ -169,8 +172,8 @@ export function CodesAdminTools() {
               required
             />
             <Input name="batchNo" placeholder="批次編號（選填）" />
-            <Input name="productSku" placeholder="產品 SKU（選填）" />
-            <Button type="submit" size="sm" variant="outline" disabled={pending}>
+            <input type="hidden" name="productId" value={productId} />
+            <Button type="submit" size="sm" variant="outline" disabled={pending || !productId}>
               新增
             </Button>
           </form>
@@ -181,6 +184,7 @@ export function CodesAdminTools() {
               setError(null);
               startTransition(async () => {
                 const fd = new FormData(e.currentTarget);
+                if (productId) fd.set('productId', productId);
                 const res = await importJarCodes(fd);
                 if (res.ok) {
                   const b = String(fd.get('batchNo') ?? '').trim();
@@ -193,7 +197,7 @@ export function CodesAdminTools() {
               });
             }}
           >
-            <p className="text-xs text-muted-foreground">每行一組數字序號</p>
+            <p className="text-xs text-muted-foreground">每行一組數字序號（套用上方選的商品）</p>
             <textarea
               name="codes"
               rows={4}
@@ -201,7 +205,8 @@ export function CodesAdminTools() {
               placeholder="12345678"
             />
             <Input name="batchNo" placeholder="批次編號" />
-            <Button type="submit" size="sm" variant="outline" disabled={pending}>
+            <input type="hidden" name="productId" value={productId} />
+            <Button type="submit" size="sm" variant="outline" disabled={pending || !productId}>
               匯入
             </Button>
           </form>

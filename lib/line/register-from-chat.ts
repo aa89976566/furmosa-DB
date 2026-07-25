@@ -322,13 +322,21 @@ export async function handleRegisterPostback(
       await clearLineChatSession(lineUserId);
       return true;
     }
+    if (!draft.signupStore) {
+      await replyLineText(
+        replyToken,
+        '請先選擇開戶合作店家，才能完成開戶並存罐累點。請重新點「幫毛孩開戶」。',
+      );
+      await clearLineChatSession(lineUserId);
+      return true;
+    }
 
     try {
       const created = await createCustomerRecord({
         name: draft.name,
         phone: draft.phone ?? null,
         lineUserId,
-        signupStore: draft.signupStore ?? null,
+        signupStore: draft.signupStore,
         petSpecies: draft.petSpecies ?? null,
         petSpeciesOther: draft.petSpeciesOther ?? null,
         petName: draft.petName ?? null,

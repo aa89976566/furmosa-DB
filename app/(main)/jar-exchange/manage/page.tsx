@@ -37,14 +37,33 @@ export default async function JarExchangeManagePage({
       description="序號、點數流水與美容券獎勵目錄"
     >
       {tab === 'codes' ? (
-        <>
-          <CodesAdminTools />
-          <CodesTable q={q} page={page} pageSize={pageSize} />
-        </>
+        <CodesTab q={q} page={page} pageSize={pageSize} />
       ) : null}
       {tab === 'ledger' ? <LedgerAdmin member={member} /> : null}
       {tab === 'rewards' ? <RewardCatalogAdmin /> : null}
     </JarShell>
+  );
+}
+
+async function CodesTab({
+  q,
+  page,
+  pageSize,
+}: {
+  q: string;
+  page: number;
+  pageSize: number;
+}) {
+  const products = await prisma.product.findMany({
+    where: { status: 'active', productCategory: 'JAR_EXCHANGE' },
+    select: { id: true, name: true, sku: true },
+    orderBy: { name: 'asc' },
+  });
+  return (
+    <>
+      <CodesAdminTools products={products} />
+      <CodesTable q={q} page={page} pageSize={pageSize} />
+    </>
   );
 }
 

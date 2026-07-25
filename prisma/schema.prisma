@@ -113,6 +113,8 @@ model Customer {
   signupStore String? @map("signup_store")
   storeId     String? @map("store_id")
   storeName   String? @map("store_name")
+  /// 開戶合作店 Location（Merchant.id）；存罐累點必填
+  signupLocationId String? @map("signup_location_id")
 
   appointments Appointment[]
 
@@ -139,11 +141,13 @@ model Customer {
   rewardRedemptions   RewardRedemption[]
   marketingCosts      MarketingCostRecord[]
   groomingCoupons     GroomingCoupon[]
+  signupLocation      Merchant?              @relation("CustomerSignupLocation", fields: [signupLocationId], references: [id], onDelete: SetNull)
 
   @@index([hasActiveSubscription])
   @@index([lastOrderAt])
   @@index([name])
   @@index([phone])
+  @@index([signupLocationId])
 }
 
 // LINE 官方帳號多步驟對話（加入會員等）暫存
@@ -195,18 +199,26 @@ model JarCode {
   id                   String    @id @default(cuid())
   code                 String    @unique
   batchNo              String?   @map("batch_no")
+  productId            String?   @map("product_id")
   productSku           String?   @map("product_sku")
+  tierId               String?   @map("tier_id")
   pointValue           Int       @default(1) @map("point_value")
   status               String    @default("unused") // unused | used | expired
   redeemedByCustomerId String?   @map("redeemed_by_customer_id")
   redeemedAt           DateTime? @map("redeemed_at")
+  /// 存罐當下扣庫存的開戶店（快照）
+  redeemedLocationId   String?   @map("redeemed_location_id")
   createdAt            DateTime  @default(now()) @map("created_at")
 
-  redeemedByCustomer Customer? @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+  product              Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  redeemedByCustomer   Customer? @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+  redeemedLocation     Merchant? @relation("JarCodeRedeemedLocation", fields: [redeemedLocationId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([batchNo])
   @@index([redeemedByCustomerId])
+  @@index([productId])
+  @@index([redeemedLocationId])
   @@map("jar_codes")
 }
 
@@ -300,6 +312,7 @@ model MarketingCostRecord {
 }
 
 /// 合作美容院（LINE 開戶 / 優惠券核銷專屬連結）
+/// @deprecated 新寫入請用 MerchantRedeemProfile；本表過渡期 dual-write／讀取相容
 model Store {
   id          String   @id @default(cuid())
   name        String
@@ -309,6 +322,23 @@ model Store {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("stores")
+}
+
+/// 核銷／開戶投影（Location = Merchant；本表承接原 Store 職責）
+model MerchantRedeemProfile {
+  id                     String   @id @default(cuid())
+  merchantId             String   @unique @map("merchant_id")
+  slug                   String   @unique
+  secretToken            String   @map("secret_token")
+  groomingDiscountAmount Float?   @map("grooming_discount_amount")
+  active                 Boolean  @default(true)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([active])
+  @@map("merchant_redeem_profiles")
 }
 
 /// 美容院折價券（10 點兌換 250 元，30 天有效，限綁定店家核銷）
@@ -362,13 +392,16 @@ model Merchant {
   productRules           MerchantProductRule[]
   partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
   partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
-  stocks       MerchantStock[]
-  stockTxns    MerchantStockTxn[]
-  shipments    Shipment[]
-  users        MerchantUser[]
-  settings     MerchantSettings?
-  restockRequests RestockRequest[]
-  appointments Appointment[]
+  stocks               MerchantStock[]
+  stockTxns            MerchantStockTxn[]
+  shipments            Shipment[]
+  users                MerchantUser[]
+  settings             MerchantSettings?
+  restockRequests      RestockRequest[]
+  appointments         Appointment[]
+  redeemProfile        MerchantRedeemProfile?
+  signupCustomers      Customer[]              @relation("CustomerSignupLocation")
+  jarCodesRedeemedHere JarCode[]               @relation("JarCodeRedeemedLocation")
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
@@ -505,6 +538,7 @@ model Product {
   shipmentItems         ShipmentItem[]
   restockRequestItems   RestockRequestItem[]
   appointments          Appointment[]
+  jarCodes              JarCode[]
 
   @@index([productCategory])
   @@index([status])
@@ -688,14 +722,14 @@ model MerchantStock {
   @@index([productId])
 }
 
-// 寄賣動作流水帳：進貨 / 銷售 / 盤點 / 退回
+// 寄賣動作流水帳：進貨 / 銷售 / 盤點 / 退回 / 存罐扣庫
 model MerchantStockTxn {
   id               String   @id @default(cuid())
   txnNumber        String   @unique // MTXN-202605-0001
   merchantId       String
   productId        String
-  type             String // restock / sale / adjust / return
-  quantity         Int // 進貨正、銷售/退回負；adjust 為 「異動量」（balanceAfter - 之前）
+  type             String // restock / sale / adjust / return / jar_redeem
+  quantity         Int // 進貨正、銷售/退回/存罐負；adjust 為 「異動量」（balanceAfter - 之前）
   balanceAfter     Int // 異動後該店該商品庫存
   unitPrice        Float? // 銷售時的售價
   commissionAmount Float? // 銷售時店家抽成總額
@@ -703,6 +737,12 @@ model MerchantStockTxn {
   orderId          String? // 對應的訂單
   settlementId     String? // 已被某筆結算 lock；結算時填入，避免重複結清
   note             String?
+  /// 業務事件：restock_received | store_sale | jar_redeem | adjust_count | return_to_hq | pos_sale
+  eventType        String?  @map("event_type")
+  /// 來源：hq | line | store_portal | pos | cron
+  sourceSystem     String   @default("hq") @map("source_system")
+  /// 冪等鍵（同一外部事件只入帳一次）
+  idempotencyKey   String?  @unique @map("idempotency_key")
   createdAt        DateTime @default(now())
 
   merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
@@ -717,6 +757,7 @@ model MerchantStockTxn {
   @@index([settlementId])
   @@index([type, createdAt])
   @@index([merchantId, type, createdAt])
+  @@index([eventType, createdAt])
 }
 
 // =====================================================
