@@ -9,8 +9,6 @@ import {
   Store,
   UserPlus,
   Wallet,
-  Sparkles,
-  Gift,
   Recycle,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,6 +30,10 @@ export type DashboardKpis = {
   weekJarPointsEarnedMemberCount: number;
   weekJarPointsRedeemedMemberCount: number;
   weekJarRedeemCount: number;
+  jarLowStockCellCount: number;
+  jarOutOfStockCellCount: number;
+  jarNegativeStockCellCount: number;
+  jarInTransitRestockCount: number;
 };
 
 const accentStyles = {
@@ -225,12 +227,12 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
           href="/orders"
         />
         <HeroKpi
-          title="本週換罐"
+          title="本週存罐"
           value={formatNumber(kpis.weekJarRedeemCount)}
-          description="本週序號返航 · 已兌換罐數（台北週日起算）"
+          description="本週序號入點罐數 · 點進營運台看庫存與補貨"
           icon={Recycle}
           accent="primary"
-          href="/jar-exchange/manage?tab=codes"
+          href="/jar-exchange/ops"
         />
       </div>
 
@@ -261,38 +263,42 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
           />
         </KpiGroup>
 
-        <KpiGroup title="換罐會員" description="近 7 天活躍與本月成本">
+        <KpiGroup title="換罐計畫" description="營運狀態 · 點進營運台補貨">
+          <MetricKpi
+            title="店家低庫存"
+            value={formatNumber(kpis.jarLowStockCellCount)}
+            description={`缺貨 ${formatNumber(kpis.jarOutOfStockCellCount)} · 負庫存 ${formatNumber(kpis.jarNegativeStockCellCount)}`}
+            icon={AlertTriangle}
+            accent={
+              kpis.jarNegativeStockCellCount > 0 || kpis.jarOutOfStockCellCount > 0
+                ? 'destructive'
+                : 'warning'
+            }
+            href="/jar-exchange/ops"
+          />
+          <MetricKpi
+            title="在途補貨"
+            value={formatNumber(kpis.jarInTransitRestockCount)}
+            description="換罐店家待出貨／運送中"
+            icon={PackageSearch}
+            accent="info"
+            href="/jar-exchange/ops"
+          />
           <MetricKpi
             title="近 7 天入帳人數"
             value={formatNumber(kpis.weekJarPointsEarnedMemberCount)}
-            description="有正點數流水的不重複會員（序號返航、人工調整等）"
+            description="有正點數流水的不重複會員"
             icon={UserPlus}
             accent="success"
             href="/jar-exchange/manage?tab=ledger"
           />
           <MetricKpi
-            title="近 7 天兌換人數"
-            value={formatNumber(kpis.weekJarPointsRedeemedMemberCount)}
-            description="有扣點流水的不重複會員（獎勵／美容券兌換）"
-            icon={Gift}
-            accent="info"
-            href="/jar-exchange/manage?tab=rewards"
-          />
-          <MetricKpi
-            title="本月換罐點數發放"
-            value={formatNumber(kpis.monthJarPointsIssued)}
-            description="序號返航入帳點數合計"
-            icon={Sparkles}
-            accent="info"
-            href="/jar-exchange/manage?tab=ledger"
-          />
-          <MetricKpi
             title="本月美容券成本"
             value={formatCurrency(kpis.monthGroomingCouponCost)}
-            description="行銷成本 · 非銷售收入"
+            description={`點數發放 ${formatNumber(kpis.monthJarPointsIssued)} · 行銷成本`}
             icon={Wallet}
             accent="warning"
-            href="/jar-exchange/manage?tab=rewards"
+            href="/jar-exchange/ops"
           />
         </KpiGroup>
 

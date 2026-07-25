@@ -392,25 +392,16 @@ model Merchant {
   productRules           MerchantProductRule[]
   partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
   partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
-<<<<<<< HEAD
-  stocks       MerchantStock[]
-  stockTxns    MerchantStockTxn[]
-  shipments    Shipment[]
-  users        MerchantUser[]
-  settings     MerchantSettings?
-  restockRequests RestockRequest[]
-  appointments Appointment[]
-=======
-  stocks              MerchantStock[]
-  stockTxns           MerchantStockTxn[]
-  shipments           Shipment[]
-  users               MerchantUser[]
-  settings            MerchantSettings?
-  restockRequests     RestockRequest[]
-  redeemProfile       MerchantRedeemProfile?
-  signupCustomers     Customer[]             @relation("CustomerSignupLocation")
-  jarCodesRedeemedHere JarCode[]             @relation("JarCodeRedeemedLocation")
->>>>>>> 2eacb63 (feat: 落地開戶 Location、序號綁商品與存罐扣庫)
+  stocks               MerchantStock[]
+  stockTxns            MerchantStockTxn[]
+  shipments            Shipment[]
+  users                MerchantUser[]
+  settings             MerchantSettings?
+  restockRequests      RestockRequest[]
+  appointments         Appointment[]
+  redeemProfile        MerchantRedeemProfile?
+  signupCustomers      Customer[]              @relation("CustomerSignupLocation")
+  jarCodesRedeemedHere JarCode[]               @relation("JarCodeRedeemedLocation")
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
@@ -546,11 +537,8 @@ model Product {
   merchantStockTxns     MerchantStockTxn[]
   shipmentItems         ShipmentItem[]
   restockRequestItems   RestockRequestItem[]
-<<<<<<< HEAD
   appointments          Appointment[]
-=======
   jarCodes              JarCode[]
->>>>>>> 2eacb63 (feat: 落地開戶 Location、序號綁商品與存罐扣庫)
 
   @@index([productCategory])
   @@index([status])
