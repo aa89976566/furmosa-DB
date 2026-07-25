@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
   await maintainShipmentQueueIntegrity();
 
-  // Booking Round 2：T−1d／T−2h 提醒（Hobby 僅兩條 cron，掛在 hourly maintain）
+  // Booking Round 2：T−1d（日曆明天）＋掃一次 T−2h；Hobby 不可 hourly cron
   const bookingReminders = await processAppointmentReminders().catch((error) => {
     console.error('[cron/maintain-shipments] bookingReminders', error);
     return { error: String(error) };

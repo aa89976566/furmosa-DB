@@ -1,4 +1,5 @@
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import { addTaipeiCalendarDays, taipeiDateInput } from '@/lib/taipei-date';
 
 export type BookingNotifyContext = {
   merchantName: string;
@@ -90,12 +91,15 @@ export function copyCustomerRescheduled(ctx: BookingNotifyContext): string {
   ].join('\n');
 }
 
-/** Hourly cron 視窗：T−1d ≈ 22h～26h；T−2h ≈ 90～150 分 */
+/**
+ * T−1d：台北日曆「明天」有預約（配合 Hobby 每日 cron，不用 hourly）。
+ */
 export function isInReminder1dWindow(startsAt: Date, now: Date): boolean {
-  const ms = startsAt.getTime() - now.getTime();
-  return ms >= 22 * 60 * 60 * 1000 && ms <= 26 * 60 * 60 * 1000;
+  const tomorrow = addTaipeiCalendarDays(taipeiDateInput(now), 1);
+  return taipeiDateInput(startsAt) === tomorrow;
 }
 
+/** T−2h：90～150 分鐘視窗（靠 POS 節流掃描補齊；每日 cron 亦會掃一次） */
 export function isInReminder2hWindow(startsAt: Date, now: Date): boolean {
   const ms = startsAt.getTime() - now.getTime();
   return ms >= 90 * 60 * 1000 && ms <= 150 * 60 * 1000;

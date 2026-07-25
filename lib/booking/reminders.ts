@@ -6,6 +6,7 @@ import {
   isInReminder1dWindow,
   isInReminder2hWindow,
 } from '@/lib/booking/notify-copy';
+import { addTaipeiCalendarDays, taipeiDateInput } from '@/lib/taipei-date';
 
 export type ReminderRunResult = {
   checked: number;
@@ -17,7 +18,8 @@ export type ReminderRunResult = {
 
 /**
  * 掃描已確認預約，送出 T−1d／T−2h 提醒（冪等）。
- * 供 hourly cron 呼叫；無 LINE 收件人亦標記已處理。
+ * - 每日 cron：主要負責「明天」1d
+ * - POS 節流掃描：補 T−2h（Hobby 不可 hourly cron）
  */
 export async function processAppointmentReminders(
   now: Date = new Date(),
@@ -30,9 +32,10 @@ export async function processAppointmentReminders(
     errors: 0,
   };
 
-  // 最遠看 T−26h；最近看即將開始（2h 窗下限 90m，仍載入到 +26h）
-  const from = new Date(now.getTime() + 60 * 60 * 1000);
-  const to = new Date(now.getTime() + 26 * 60 * 60 * 1000);
+  const today = taipeiDateInput(now);
+  const dayAfterTomorrow = addTaipeiCalendarDays(today, 2);
+  const from = now;
+  const to = new Date(`${dayAfterTomorrow}T23:59:59.999+08:00`);
 
   const rows = await prisma.appointment.findMany({
     where: {

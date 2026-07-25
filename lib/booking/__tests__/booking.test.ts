@@ -104,9 +104,10 @@ describe('booking LINE notify copy / reminder windows', () => {
     assert.match(copyReminder1d(ctx), /明天有預約/);
     assert.match(copyReminder2h(ctx), /兩小時後有預約/);
 
-    const now = new Date(startsAt.getTime() - 24 * 60 * 60 * 1000);
-    assert.equal(isInReminder1dWindow(startsAt, now), true);
-    assert.equal(isInReminder2hWindow(startsAt, now), false);
+    // 1d = 台北日曆「明天」；2h = 90～150 分鐘視窗
+    const dayBefore = new Date(2026, 6, 27, 12, 0, 0, 0);
+    assert.equal(isInReminder1dWindow(startsAt, dayBefore), true);
+    assert.equal(isInReminder2hWindow(startsAt, dayBefore), false);
     const near = new Date(startsAt.getTime() - 2 * 60 * 60 * 1000);
     assert.equal(isInReminder2hWindow(startsAt, near), true);
     assert.equal(isInReminder1dWindow(startsAt, near), false);

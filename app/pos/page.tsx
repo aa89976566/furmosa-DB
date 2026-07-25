@@ -14,6 +14,8 @@ import {
   formatLocalDate,
   formatLocalTime,
 } from '@/lib/booking/availability';
+import { processAppointmentReminders } from '@/lib/booking/reminders';
+import { runThrottled } from '@/lib/job-throttle';
 
 export const metadata = {
   title: '今天 · Furmosa 店家',
@@ -21,6 +23,12 @@ export const metadata = {
 
 export default async function PosHomePage() {
   const session = await requireMerchantSession();
+  // Hobby 無 hourly cron：店家開「今天」時節流掃 T−2h 提醒
+  void runThrottled(
+    'booking-reminders',
+    () => processAppointmentReminders(),
+    15 * 60 * 1000,
+  ).catch((e) => console.error('[pos] booking-reminders', e));
   const merchant = await prisma.merchant.findFirst({
     where: { id: session.merchantId },
     select: { id: true, name: true, merchantId: true },

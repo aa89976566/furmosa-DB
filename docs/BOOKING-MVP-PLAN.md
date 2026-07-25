@@ -79,7 +79,7 @@ The merchant assigns staff internally.
 - 冪等欄位：`lineNotify*At`／`lineReminder*At`  
 - 顧客收件：`Customer.lineUserId`（公開頁可選 LIFF 綁定，或電話已是會員）  
 - 店家收件：`MerchantSettings.bookingNotifyLineUserId`  
-- 提醒掛在 hourly `/api/cron/maintain-shipments`（Hobby 兩條 cron 上限）  
+- 提醒：每日 `/api/cron/maintain-shipments` 送 T−1d（台北日曆明天）；T−2h 靠 POS「今天」15 分鐘節流掃描補齊（**Hobby 禁止 hourly cron**）  
 - **不做** Round 3（付款／換罐／帶空罐提醒條件）
 
 ---
