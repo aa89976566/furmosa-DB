@@ -28,6 +28,7 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
     petSpecies: input.petSpecies,
     petSpeciesOther: input.petSpeciesOther,
     petName: input.petName,
+    petBreed: input.petBreed ?? null,
     petAgeYears: input.petAgeYears,
     petBirthday: input.petBirthday,
   };
@@ -56,6 +57,7 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
           petSpecies: pet.petSpecies,
           petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
           petName: pet.petName,
+          petBreed: pet.petBreed,
           petAgeYears: pet.petAgeYears,
           petBirthday: pet.petBirthday,
         },

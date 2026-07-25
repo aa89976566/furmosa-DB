@@ -1,12 +1,8 @@
 import { formatRedeemButtonLabel, type LineRewardOption } from '@/lib/line/reward-menu';
 import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
-import {
-  LINE_BTN,
-  LINE_MENU_HINT_GUEST,
-  LINE_MENU_HINT_REGISTERED,
-  LINE_STORE_PROMPT,
-} from '@/lib/line/line-copy';
+import { buildThreeWorldsMenuMessages } from '@/lib/line/flex-hubs';
+import { LINE_BTN, LINE_STORE_PROMPT } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 type FlexButton = {
@@ -27,75 +23,23 @@ function pbBtn(label: string, data: string, style: FlexButton['style'] = 'second
   };
 }
 
-const JAR_FOOTER_REGISTERED =
-  '存罐：直接傳 8 位空罐序號即可入帳。滿 10 點可兌換美容折價券（豬窩 250 元、其他合作店 200 元）。';
-const JAR_FOOTER_GUEST = '存罐：直接傳 8 位空罐序號即可入帳。';
-
-/** 匠寵主選單 */
+/**
+ * 聊天內備援主選單＝三世界入口。
+ * 底部 Rich Menu 才是主航；此處避免再塞舊「會員中心」式按鈕。
+ */
 export function buildMainMenuBubble(
   body: string,
-  opts?: { registered?: boolean; showJarHint?: boolean },
+  _opts?: { registered?: boolean; showJarHint?: boolean },
 ) {
-  const registered = opts?.registered ?? false;
-  const showJarHint = opts?.showJarHint ?? true;
-  const footerButtons: FlexButton[] = registered
-    ? [
-        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
-        pbBtn(LINE_BTN.myCoupons, 'jd=cp_list', 'secondary'),
-        pbBtn(LINE_BTN.redeemGrooming, 'jd=cp_groom', 'primary'),
-        pbBtn(LINE_BTN.unboxing, 'jd=unbox', 'secondary'),
-        pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
-        pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
-      ]
-    : [
-        pbBtn(LINE_BTN.register, 'jd=reg', 'primary'),
-        pbBtn(LINE_BTN.vault, 'jd=vault', 'secondary'),
-        pbBtn(LINE_BTN.unboxing, 'jd=unbox', 'secondary'),
-        pbBtn(LINE_BTN.activity, 'jd=activity', 'link'),
-        pbBtn(LINE_BTN.contact, 'jd=contact', 'link'),
-      ];
-
+  const msgs = buildThreeWorldsMenuMessages({ body });
+  const flex = msgs.find((m) => m.type === 'flex');
+  if (flex?.type === 'flex') return flex.contents;
   return {
     type: 'bubble',
-    size: 'mega',
     body: {
       type: 'box',
       layout: 'vertical',
-      spacing: 'md',
-      contents: [
-        {
-          type: 'text',
-          text: '匠寵罐罐存款',
-          weight: 'bold',
-          size: 'lg',
-          color: '#1a1a1a',
-        },
-        {
-          type: 'text',
-          text: body,
-          size: 'sm',
-          color: '#555555',
-          wrap: true,
-        },
-        ...(showJarHint
-          ? [
-              {
-                type: 'text' as const,
-                text: registered ? JAR_FOOTER_REGISTERED : JAR_FOOTER_GUEST,
-                size: 'xs' as const,
-                color: '#888888',
-                wrap: true,
-                margin: 'md' as const,
-              },
-            ]
-          : []),
-      ],
-    },
-    footer: {
-      type: 'box',
-      layout: 'vertical',
-      spacing: 'sm',
-      contents: footerButtons,
+      contents: [{ type: 'text', text: body, wrap: true }],
     },
   };
 }
@@ -107,21 +51,13 @@ export function buildMainMenuMessages(opts?: {
   showRegisterHint?: boolean;
 }): LineReplyMessage[] {
   const registered = opts?.registered ?? false;
-  const showJarHint = opts?.showJarHint ?? true;
   const showRegisterHint = opts?.showRegisterHint ?? !registered;
   const defaultBody = registered
-    ? LINE_MENU_HINT_REGISTERED
+    ? '四格在下面。野放、美容、換罐、回家——跟著傑克走。'
     : showRegisterHint
-      ? LINE_MENU_HINT_GUEST
-      : '點下方按鈕即可操作。';
-  const body = opts?.body ?? defaultBody;
-  return [
-    {
-      type: 'flex',
-      altText: '匠寵罐罐存款',
-      contents: buildMainMenuBubble(body, { registered, showJarHint }),
-    },
-  ];
+      ? '第一次先點「換罐計劃」開戶。沒戶頭，罐進不來。'
+      : '點下面那格即可。';
+  return buildThreeWorldsMenuMessages({ body: opts?.body ?? defaultBody });
 }
 
 export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
@@ -133,10 +69,13 @@ export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
   return [
     {
       type: 'flex',
-      altText: '選擇開戶店家',
+      altText: '選擇美容合作店',
       contents: {
         type: 'bubble',
         size: 'mega',
+        styles: {
+          body: { backgroundColor: '#FFF8F1' },
+        },
         body: {
           type: 'box',
           layout: 'vertical',
@@ -144,15 +83,16 @@ export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
           contents: [
             {
               type: 'text',
-              text: '選擇開戶店家',
+              text: '選合作店',
               weight: 'bold',
               size: 'md',
+              color: '#1F1A14',
             },
             {
               type: 'text',
               text: LINE_STORE_PROMPT,
               size: 'xs',
-              color: '#888888',
+              color: '#5C5346',
               wrap: true,
             },
             {
@@ -178,7 +118,6 @@ export function buildSpeciesPickerMessages(): LineReplyMessage[] {
     pbBtn('鳥／爬蟲', 'jd=sp&c=bird_reptile'),
     pbBtn('水族', 'jd=sp&c=fish'),
     pbBtn('其他', 'jd=sp&c=other'),
-    pbBtn(LINE_BTN.speciesSkip, 'jd=sp&c=none', 'link'),
   ];
 
   return [
@@ -188,6 +127,9 @@ export function buildSpeciesPickerMessages(): LineReplyMessage[] {
       contents: {
         type: 'bubble',
         size: 'mega',
+        styles: {
+          body: { backgroundColor: '#FFF8F1' },
+        },
         body: {
           type: 'box',
           layout: 'vertical',
@@ -201,7 +143,7 @@ export function buildSpeciesPickerMessages(): LineReplyMessage[] {
             },
             {
               type: 'text',
-              text: '請點選一項（在對話框內操作，無需跳轉）',
+              text: '點一個就好，不用跳轉。',
               size: 'xs',
               color: '#888888',
               wrap: true,
@@ -224,10 +166,13 @@ export function buildRegisterConfirmMessages(summary: string): LineReplyMessage[
   return [
     {
       type: 'flex',
-      altText: '確認會員資料',
+      altText: '確認開戶資料',
       contents: {
         type: 'bubble',
         size: 'mega',
+        styles: {
+          body: { backgroundColor: '#FFF8F1' },
+        },
         body: {
           type: 'box',
           layout: 'vertical',
@@ -235,7 +180,7 @@ export function buildRegisterConfirmMessages(summary: string): LineReplyMessage[
           contents: [
             {
               type: 'text',
-              text: '確認資料',
+              text: '這樣對嗎？',
               weight: 'bold',
               size: 'lg',
             },
@@ -269,7 +214,7 @@ export function buildRedeemPickerMessages(
     return [
       {
         type: 'text',
-        text: '目前沒有可兌換的獎勵，請稍後再試。',
+        text: '現在沒有可換的東西，晚點再來晃。',
       },
     ];
   }
@@ -299,7 +244,7 @@ export function buildRedeemPickerMessages(
             },
             {
               type: 'text',
-              text: `目前罐罐點數：${balance} 點`,
+              text: `目前罐庫點數：${balance}`,
               size: 'sm',
               wrap: true,
             },
@@ -319,3 +264,5 @@ export function buildRedeemPickerMessages(
 export function parseLinePostbackData(data: string): URLSearchParams {
   return new URLSearchParams(data);
 }
+
+export { buildThreeWorldsMenuMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';

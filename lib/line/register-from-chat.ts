@@ -15,10 +15,14 @@ import {
   buildRegisterConfirmMessages,
   buildStorePickerMessages,
 } from '@/lib/line/flex-menu';
+import { buildEnterCodePromptMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';
 import {
   LINE_BTN,
-  LINE_PET_AGE_PROMPT,
+  LINE_PET_BIRTHDAY_PROMPT,
+  LINE_PET_BREED_PROMPT,
+  LINE_PET_NAME_PROMPT,
   LINE_REGISTER_INTRO,
+  LINE_REGISTER_PHONE_PROMPT,
   resolveSignupStoreLabel,
 } from '@/lib/line/line-copy';
 import { formatGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
@@ -31,6 +35,8 @@ import {
 } from '@/lib/line/register-step-throttle';
 import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
+import type { RegisterResumeAfter } from '@/lib/line/chat-session';
+import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
 
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
@@ -50,40 +56,26 @@ async function clearExpiredRegisterSession(lineUserId: string) {
   return false;
 }
 
-function parsePetAgeOrBirthday(input: string): {
-  petAgeYears: number | null;
-  petBirthday: string | null;
-  error?: string;
-} {
-  const t = input.trim();
-  if (SKIP_RE.test(t)) {
-    return { petAgeYears: null, petBirthday: null };
-  }
-
-  const ageMatch = t.match(/^(\d{1,2})\s*歲?$/);
-  if (ageMatch) {
-    const n = parseInt(ageMatch[1], 10);
-    if (n >= 0 && n <= 30) return { petAgeYears: n, petBirthday: null };
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    const d = new Date(`${t}T12:00:00.000Z`);
-    if (!Number.isNaN(d.getTime())) {
-      return { petAgeYears: null, petBirthday: t };
-    }
-  }
-
-  return {
-    petAgeYears: null,
-    petBirthday: null,
-    error: '請傳 0–30 的歲數（例：3）、生日（2020-05-06）或「略過」',
-  };
-}
-
 function petBirthdayToDate(iso: string | null | undefined): Date | null {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   const d = new Date(`${iso}T12:00:00.000Z`);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseBirthdayOptional(input: string): {
+  petBirthday: string | null;
+  error?: string;
+} {
+  const t = input.trim();
+  if (SKIP_RE.test(t)) return { petBirthday: null };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const d = new Date(`${t}T12:00:00.000Z`);
+    if (!Number.isNaN(d.getTime())) return { petBirthday: t };
+  }
+  return {
+    petBirthday: null,
+    error: '請傳生日（2020-05-06）或「略過」',
+  };
 }
 
 /** 同一步驟 24 小時內只提示一次；冷卻中則靜默不回复 */
@@ -100,20 +92,42 @@ async function replyRegisterStepPromptOnce(
   await replyLineText(replyToken, message);
 }
 
-export async function startRegisterFlow(replyToken: string, lineUserId: string) {
+/**
+ * 開戶：主人（暱稱／手機／店）→ 毛孩 → 完成
+ * resumeAfter=enter_code：完成後自動回到「輸入序號」提示，不必再按一次。
+ */
+export async function startRegisterFlow(
+  replyToken: string,
+  lineUserId: string,
+  opts?: { resumeAfter?: RegisterResumeAfter | null },
+) {
   const existing = await findCustomerByLineUserId(lineUserId);
   if (existing) {
+    if (opts?.resumeAfter === 'enter_code') {
+      await replyLineMessage(replyToken, [
+        { type: 'text', text: `你已經開過戶了（${existing.name}）。` },
+        ...buildEnterCodePromptMessages(),
+      ]);
+      return;
+    }
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `您已是會員（${existing.name}）！\n傳 8 位序號即可存罐，或點「${LINE_BTN.vault}」查紀錄。`,
+      `你已經開過戶了（${existing.name}）。\n罐底 8 碼直接傳上來，或去「毛孩罐庫」看紀錄。`,
       { registered: true },
     );
     return;
   }
 
-  await upsertLineChatSession(lineUserId, 'register', 'store', {});
-  await replyLineMessage(replyToken, await buildStorePickerMessages());
+  await upsertLineChatSession(lineUserId, 'register', 'name', {
+    resumeAfter: opts?.resumeAfter ?? null,
+  });
+  await replyLineText(
+    replyToken,
+    opts?.resumeAfter === 'enter_code'
+      ? `${LINE_REGISTER_INTRO}\n\n（開完會自動帶你回輸入序號）`
+      : LINE_REGISTER_INTRO,
+  );
 }
 
 export async function handleRegisterFlowMessage(
@@ -131,28 +145,27 @@ export async function handleRegisterFlowMessage(
   const draft = parseRegisterDraft(session.payload);
   const trimmed = text.trim();
 
+  if (CANCEL_RE.test(trimmed)) {
+    await clearLineChatSession(lineUserId);
+    await replyMenuHub(replyToken, lineUserId, {
+      registered: Boolean(await findCustomerByLineUserId(lineUserId)),
+      body: '好，開戶先暫停。想開再點「開戶」。',
+    });
+    return true;
+  }
+
   if (session.step === 'store') {
     const action = registerStoreStepAction(trimmed);
     if (action === 'cancel') {
       await clearLineChatSession(lineUserId);
       await replyMenuHub(replyToken, lineUserId, {
-        registered: Boolean(await findCustomerByLineUserId(lineUserId)),
-        body: '已取消加入會員。',
+        registered: false,
+        body: '好，開戶先暫停。',
       });
       return true;
     }
-    // 店家須用按鈕 postback 選擇；勿對每則文字重送選單泡泡
     await clearLineChatSession(lineUserId);
     return false;
-  }
-
-  if (CANCEL_RE.test(trimmed)) {
-    await clearLineChatSession(lineUserId);
-    await replyMenuHub(replyToken, lineUserId, {
-      registered: Boolean(await findCustomerByLineUserId(lineUserId)),
-      body: '已取消加入會員。',
-    });
-    return true;
   }
 
   if (session.step === 'name') {
@@ -162,71 +175,77 @@ export async function handleRegisterFlowMessage(
         lineUserId,
         'name',
         draft,
-        '請輸入有效的稱呼（1–80 字）。',
+        '暱稱請填 1–80 字。',
       );
       return true;
     }
     draft.name = trimmed;
-    await upsertLineChatSession(lineUserId, 'register', 'species', draft);
-    await replyLineMessage(replyToken, buildSpeciesPickerMessages());
+    await upsertLineChatSession(lineUserId, 'register', 'phone', draft);
+    await replyLineText(replyToken, LINE_REGISTER_PHONE_PROMPT);
+    return true;
+  }
+
+  if (session.step === 'phone') {
+    const phone = trimmed.replace(/\s/g, '');
+    if (!/^09\d{8}$/.test(phone) && !/^\+?\d{8,15}$/.test(phone)) {
+      await replyRegisterStepPromptOnce(
+        replyToken,
+        lineUserId,
+        'phone',
+        draft,
+        '手機格式好像不對，再試一次（例：0912345678）。',
+      );
+      return true;
+    }
+    draft.phone = phone;
+    await upsertLineChatSession(lineUserId, 'register', 'store', draft);
+    await replyLineMessage(replyToken, await buildStorePickerMessages());
     return true;
   }
 
   if (session.step === 'pet_name') {
-    if (SKIP_RE.test(trimmed)) {
+    if (!trimmed || SKIP_RE.test(trimmed)) {
       await replyRegisterStepPromptOnce(
         replyToken,
         lineUserId,
         'pet_name',
         draft,
-        '已選了毛孩種類，請輸入毛孩名字，或傳「取消」改選種類。',
+        '毛孩名字要填一下，不然罐庫不知道記誰的。',
       );
       return true;
     }
     draft.petName = trimmed.slice(0, 80);
-    const withPrompt = markRegisterStepPrompt(draft, 'pet_age');
-    await upsertLineChatSession(lineUserId, 'register', 'pet_age', withPrompt);
-    await replyLineText(replyToken, LINE_PET_AGE_PROMPT);
-    return true;
-  }
-
-  if (session.step === 'pet_age') {
-    const parsed = parsePetAgeOrBirthday(trimmed);
-    if (parsed.error) {
-      await replyRegisterStepPromptOnce(replyToken, lineUserId, 'pet_age', draft, parsed.error);
-      return true;
-    }
-    draft.petAgeYears = parsed.petAgeYears;
-    draft.petBirthday = parsed.petBirthday;
-    await upsertLineChatSession(lineUserId, 'register', 'phone', draft);
-    await replyLineText(replyToken, '手機號碼？（選填，傳「略過」可跳過）');
+    await upsertLineChatSession(lineUserId, 'register', 'species', draft);
+    await replyLineMessage(replyToken, buildSpeciesPickerMessages());
     return true;
   }
 
   if (session.step === 'pet_other') {
     draft.petSpeciesOther = trimmed.slice(0, 120);
-    await upsertLineChatSession(lineUserId, 'register', 'pet_name', draft);
-    await replyLineText(replyToken, '請輸入毛孩名字：');
+    await upsertLineChatSession(lineUserId, 'register', 'breed', draft);
+    await replyLineText(replyToken, LINE_PET_BREED_PROMPT);
     return true;
   }
 
-  if (session.step === 'phone') {
+  if (session.step === 'breed') {
     if (SKIP_RE.test(trimmed)) {
-      draft.phone = null;
+      draft.petBreed = null;
     } else {
-      const phone = trimmed.replace(/\s/g, '');
-      if (!/^09\d{8}$/.test(phone) && !/^\+?\d{8,15}$/.test(phone)) {
-        await replyRegisterStepPromptOnce(
-          replyToken,
-          lineUserId,
-          'phone',
-          draft,
-          '手機格式好像不對，請再試一次，或傳「略過」。',
-        );
-        return true;
-      }
-      draft.phone = phone;
+      draft.petBreed = trimmed.slice(0, 80);
     }
+    const withPrompt = markRegisterStepPrompt(draft, 'birthday');
+    await upsertLineChatSession(lineUserId, 'register', 'birthday', withPrompt);
+    await replyLineText(replyToken, LINE_PET_BIRTHDAY_PROMPT);
+    return true;
+  }
+
+  if (session.step === 'birthday') {
+    const parsed = parseBirthdayOptional(trimmed);
+    if (parsed.error) {
+      await replyRegisterStepPromptOnce(replyToken, lineUserId, 'birthday', draft, parsed.error);
+      return true;
+    }
+    draft.petBirthday = parsed.petBirthday;
     await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
     await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
     return true;
@@ -252,16 +271,16 @@ export async function handleRegisterPostback(
 
   if (await clearExpiredRegisterSession(lineUserId)) {
     if (action === 'store' || action === 'sp') {
-      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);
+      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」重新開始。`);
       return true;
     }
     return false;
   }
 
-  let session = await getLineChatSession(lineUserId);
+  const session = await getLineChatSession(lineUserId);
   if (!session || session.flow !== 'register') {
     if (action === 'store' || action === 'sp') {
-      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」開始填寫。`);
+      await replyLineText(replyToken, `請先點「${LINE_BTN.register}」重新開始。`);
       return true;
     }
     return false;
@@ -276,8 +295,8 @@ export async function handleRegisterPostback(
       return true;
     }
     draft.signupStore = code;
-    await upsertLineChatSession(lineUserId, 'register', 'name', draft);
-    await replyLineText(replyToken, LINE_REGISTER_INTRO);
+    await upsertLineChatSession(lineUserId, 'register', 'pet_name', draft);
+    await replyLineText(replyToken, LINE_PET_NAME_PROMPT);
     return true;
   }
 
@@ -285,21 +304,13 @@ export async function handleRegisterPostback(
     await clearLineChatSession(lineUserId);
     await replyMenuHub(replyToken, lineUserId, {
       registered: false,
-      body: `已取消，需要時再點「${LINE_BTN.register}」。`,
+      body: `好，先不算。要開再點「${LINE_BTN.register}」。`,
     });
     return true;
   }
 
   if (action === 'sp') {
     const code = params.get('c');
-    if (code === 'none') {
-      draft.petSpecies = null;
-      draft.petSpeciesOther = null;
-      draft.petName = null;
-      await upsertLineChatSession(lineUserId, 'register', 'phone', draft);
-      await replyLineText(replyToken, '手機號碼？（選填，傳「略過」可跳過）');
-      return true;
-    }
     if (!code || !PET_SPECIES_CODES.includes(code as PetSpeciesCode)) {
       await replyLineText(replyToken, '請點選下方毛孩種類按鈕。');
       return true;
@@ -308,16 +319,16 @@ export async function handleRegisterPostback(
     draft.petSpeciesOther = null;
     if (code === 'other') {
       await upsertLineChatSession(lineUserId, 'register', 'pet_other', draft);
-      await replyLineText(replyToken, '請輸入其他種類（例：刺蝟）：');
+      await replyLineText(replyToken, '其他種類是？（例：刺蝟）');
       return true;
     }
-    await upsertLineChatSession(lineUserId, 'register', 'pet_name', draft);
-    await replyLineText(replyToken, '請輸入毛孩名字：');
+    await upsertLineChatSession(lineUserId, 'register', 'breed', draft);
+    await replyLineText(replyToken, LINE_PET_BREED_PROMPT);
     return true;
   }
 
   if (action === 'reg_ok') {
-    if (session.step !== 'confirm' || !draft.name) {
+    if (session.step !== 'confirm' || !draft.name || !draft.phone || !draft.petName || !draft.petSpecies) {
       await replyLineText(replyToken, `資料不完整，請重新點「${LINE_BTN.register}」。`);
       await clearLineChatSession(lineUserId);
       return true;
@@ -326,47 +337,48 @@ export async function handleRegisterPostback(
     try {
       const created = await createCustomerRecord({
         name: draft.name,
-        phone: draft.phone ?? null,
+        phone: draft.phone,
         lineUserId,
         signupStore: draft.signupStore ?? null,
-        petSpecies: draft.petSpecies ?? null,
+        petSpecies: draft.petSpecies,
         petSpeciesOther: draft.petSpeciesOther ?? null,
-        petName: draft.petName ?? null,
+        petName: draft.petName,
+        petBreed: draft.petBreed ?? null,
         petAgeYears: draft.petAgeYears ?? null,
         petBirthday: petBirthdayToDate(draft.petBirthday),
       });
       await ensureJarExchangeService(prisma, created.id);
+      const resumeAfter = draft.resumeAfter;
       await clearLineChatSession(lineUserId);
 
       const petLabel = resolvePetSpeciesLabel(
         draft.petSpecies ?? null,
         draft.petSpeciesOther ?? null,
       );
-      const agePart =
-        draft.petBirthday != null
-          ? ` · 生日 ${draft.petBirthday}`
-          : draft.petAgeYears != null
-            ? ` · 約 ${draft.petAgeYears} 歲`
-            : '';
-      const petLine =
-        draft.petName && petLabel
-          ? `\n毛孩：${petLabel} · ${draft.petName}${agePart}`
-          : draft.petName
-            ? `\n毛孩：${draft.petName}${agePart}`
-            : '';
+      const breedPart = draft.petBreed ? ` · ${draft.petBreed}` : '';
+      const bdayPart = draft.petBirthday ? ` · 生日 ${draft.petBirthday}` : '';
       const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
-      const storeLine = storeLabel ? `\n開戶店家：${storeLabel}` : '';
+      const storeLine = storeLabel ? `\n合作店：${storeLabel}` : '';
+      const doneText = `開戶完成！${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
 
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `✅ 加入完成！${draft.name}${storeLine}${petLine}\n\n之後直接傳 8 位空罐序號就會入帳。`,
-        { registered: true },
-      );
+      if (resumeAfter === 'enter_code') {
+        await replyLineMessage(replyToken, [
+          { type: 'text', text: `${doneText}\n\n接下來——` },
+          { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
+        ]);
+      } else {
+        await replyLineMessage(replyToken, [
+          {
+            type: 'text',
+            text: `${doneText}\n\n罐底 8 碼直接傳上來，就會進毛孩罐庫。`,
+          },
+          ...buildWorldHubMessages('jar', { registered: true }),
+        ]);
+      }
     } catch (e) {
       await replyLineText(
         replyToken,
-        e instanceof Error ? e.message : '註冊失敗，請稍後再試或聯絡客服。',
+        e instanceof Error ? e.message : '開戶失敗，晚點再試或直接跟我們說。',
       );
     }
     return true;
@@ -377,24 +389,21 @@ export async function handleRegisterPostback(
 
 export function formatRegisterSummary(draft: RegisterDraft): string {
   const lines: string[] = [];
+  lines.push(`稱呼：${draft.name ?? '—'}`);
+  lines.push(`手機：${draft.phone ?? '—'}`);
   const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
   if (storeLabel) {
     const storeId = draft.signupStore ?? '';
-    lines.push(`開戶店家：${storeLabel}`);
-    lines.push(`美容折價券：${formatGroomingCouponDiscountForStore(storeId, storeLabel)}`);
+    lines.push(`合作店：${storeLabel}`);
+    lines.push(`折價面額：${formatGroomingCouponDiscountForStore(storeId, storeLabel)}`);
   }
-  lines.push(`稱呼：${draft.name ?? '—'}`);
-  if (draft.petSpecies) {
+  if (draft.petName) {
     lines.push(
-      `毛孩：${resolvePetSpeciesLabel(draft.petSpecies, draft.petSpeciesOther ?? null) ?? draft.petSpecies}`,
+      `毛孩：${resolvePetSpeciesLabel(draft.petSpecies ?? null, draft.petSpeciesOther ?? null) ?? '—'} · ${draft.petName}`,
     );
-    if (draft.petName) lines.push(`名字：${draft.petName}`);
+    if (draft.petBreed) lines.push(`品種：${draft.petBreed}`);
     if (draft.petBirthday) lines.push(`生日：${draft.petBirthday}`);
-    else if (draft.petAgeYears != null) lines.push(`約幾歲：${draft.petAgeYears} 歲`);
-    else if (draft.petName || draft.petSpecies) lines.push('年齡／生日：（未填）');
-  } else {
-    lines.push('毛孩：（未填）');
+    else lines.push('生日：（略過）');
   }
-  lines.push(`手機：${draft.phone ?? '（未填）'}`);
   return lines.join('\n');
 }

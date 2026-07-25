@@ -7,45 +7,114 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
+  BRAND_STORY,
+  CHAOS_COPY,
+  JAR_ENTER_BLOCKED_GUEST,
+  JAR_EXPLAIN_FAQ,
+  JAR_EXPLAIN_FLOW,
+  JAR_EXPLAIN_INTRO,
+} from '@/lib/line/brand-worlds';
+import {
   buildCouponListMessages,
   buildGroomingRedeemConfirmMessages,
   formatGroomingRedeemSuccessMessage,
 } from '@/lib/line/coupon-menu';
-import { formatSavingsStatusMessage } from '@/lib/line/jar-deposit-copy';
-import { buildRedeemPickerMessages, parseLinePostbackData } from '@/lib/line/flex-menu';
+import {
+  formatHistoryStatusMessage,
+  formatVaultStatusMessage,
+  rewardProgress,
+} from '@/lib/line/jar-deposit-copy';
+import {
+  buildRedeemPickerMessages,
+  parseLinePostbackData,
+} from '@/lib/line/flex-menu';
+import {
+  buildEnterCodePromptMessages,
+  buildHomeHubMessages,
+  buildJarExplainMessages,
+  buildRegisterGateMessages,
+  buildWorldHubMessages,
+} from '@/lib/line/flex-hubs';
 import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
-import {
-  LINE_ACTIVITY_INFO,
-  LINE_BTN,
-  LINE_CONTACT_INFO,
-  LINE_UNBOXING_INFO,
-} from '@/lib/line/line-copy';
+import { LINE_BTN } from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
-import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { replyTriggerOnce } from '@/lib/line/trigger-throttle';
 import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
+import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
+import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
+import { prisma } from '@/lib/prisma';
 
-async function loadSnapshot(customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>) {
-  const stats = await getJarExchangeStatsForCustomer(customer.id);
+async function loadVaultSnapshot(
+  customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>,
+) {
+  const [stats, recent, coupons] = await Promise.all([
+    getJarExchangeStatsForCustomer(customer.id),
+    prisma.jarCode.findMany({
+      where: { redeemedByCustomerId: customer.id, status: 'used' },
+      orderBy: { redeemedAt: 'desc' },
+      take: 10,
+      select: { code: true },
+    }),
+    listCouponsForCustomer(customer.id),
+  ]);
+  const { needMore } = rewardProgress(stats.pointsBalance);
   return {
     customerName: customer.name,
     customerCode: customer.customerId,
     pointsBalance: stats.pointsBalance,
     jarsDeposited: stats.codesRedeemed,
+    recentCodes: recent.map((r) => r.code),
+    petName: customer.petName ?? null,
+    canRedeemGrooming: needMore === 0 && stats.pointsBalance > 0,
+    availableCouponCount: coupons.available.length,
   };
 }
 
-function resolveCustomerStore(customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>) {
+async function replyPartnerStores(replyToken: string) {
+  const stores = await listPartnerStoresFromDb();
+  const lines = [
+    '【合作美容店】',
+    '',
+    ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
+    '',
+    '開戶時選一間；折價券綁那間用。',
+  ];
+  await replyLineText(replyToken, lines.join('\n'));
+}
+
+function resolveCustomerStore(
+  customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>,
+) {
   const storeId = customer.storeId ?? customer.signupStore;
   const storeName = customer.storeName;
   return { storeId, storeName };
+}
+
+async function replyChaosItem(
+  replyToken: string,
+  lineUserId: string,
+  itemId: string,
+  registered: boolean,
+) {
+  const text = CHAOS_COPY[itemId];
+  if (!text) {
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+    return;
+  }
+  // 活動文案不附換罐選單，避免制度混進來
+  await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+    await replyLineMessage(replyToken, [
+      { type: 'text', text },
+      ...buildWorldHubMessages('chaos', { registered }),
+    ]);
+  });
 }
 
 export async function handleLinePostback(
@@ -59,73 +128,99 @@ export async function handleLinePostback(
   if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
 
   const customer = await findCustomerByLineUserId(lineUserId);
+  const registered = Boolean(customer);
 
-  if (action === 'reg') {
-    await startRegisterFlow(replyToken, lineUserId);
+  if (action === 'hub_jar') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('jar', { registered }));
+    return;
+  }
+  if (action === 'hub_chaos') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+    return;
+  }
+  if (action === 'hub_wild' || action === 'hub_home') {
+    await replyLineMessage(replyToken, buildHomeHubMessages());
     return;
   }
 
-  if (action === 'activity') {
-    await replyTriggerOnce(lineUserId, 'activity', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, LINE_ACTIVITY_INFO, {
-        registered: Boolean(customer),
-      });
-    });
+  if (action === 'jar_explain') {
+    await replyLineMessage(replyToken, buildJarExplainMessages());
+    return;
+  }
+  if (action === 'jar_explain_intro') {
+    await replyLineText(replyToken, JAR_EXPLAIN_INTRO);
+    return;
+  }
+  if (action === 'jar_explain_flow') {
+    await replyLineText(replyToken, JAR_EXPLAIN_FLOW);
+    return;
+  }
+  if (action === 'jar_faq') {
+    await replyLineText(replyToken, JAR_EXPLAIN_FAQ);
+    return;
+  }
+  if (action === 'jar_stores' || action === 'wild_stores') {
+    await replyPartnerStores(replyToken);
+    return;
+  }
+  if (action === 'wild_story') {
+    await replyLineText(replyToken, BRAND_STORY);
     return;
   }
 
-  if (action === 'unbox') {
-    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
-        registered: Boolean(customer),
-      });
-    });
+  if (action === 'jar_reg' || action === 'reg') {
+    const resumeAfter = params.get('next') === 'enter' ? 'enter_code' : null;
+    await startRegisterFlow(replyToken, lineUserId, { resumeAfter });
     return;
   }
 
-  if (action === 'contact') {
-    await replyTriggerOnce(lineUserId, 'contact', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, LINE_CONTACT_INFO, {
-        registered: Boolean(customer),
-      });
-    });
-    return;
-  }
-
-  if (action === 'vault') {
+  if (action === 'jar_enter') {
     if (!customer) {
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        { registered: false },
-      );
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
       return;
     }
-    const snapshot = await loadSnapshot(customer);
-    const promptFlags = await getOnboardingPromptFlags(lineUserId);
-    const showJarHint = promptFlags.showJar && snapshot.jarsDeposited === 0;
-    await replyLineTextWithMenu(
-      replyToken,
-      lineUserId,
-      formatSavingsStatusMessage(snapshot, { showJarHint }),
-      {
-        registered: true,
-        promptFlags,
-        bodyPromptMarks: showJarHint ? { jar: true } : undefined,
-      },
-    );
+    await replyLineMessage(replyToken, buildEnterCodePromptMessages());
+    return;
+  }
+
+  if (action === 'jar_vault' || action === 'vault' || action === 'jar_member') {
+    if (!customer) {
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
+      return;
+    }
+    const snapshot = await loadVaultSnapshot(customer);
+    await replyLineText(replyToken, formatVaultStatusMessage(snapshot));
+    return;
+  }
+
+  if (action === 'jar_history') {
+    if (!customer) {
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
+      return;
+    }
+    const snapshot = await loadVaultSnapshot(customer);
+    await replyLineText(replyToken, formatHistoryStatusMessage(snapshot));
+    return;
+  }
+
+  if (action?.startsWith('chaos_')) {
+    await replyChaosItem(replyToken, lineUserId, action, registered);
+    return;
+  }
+
+  // 舊鍵 → 導到正確世界（不混制度／活動）
+  if (action === 'activity' || action === 'unbox') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+    return;
+  }
+  if (action === 'contact') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('wild', { registered }));
     return;
   }
 
   if (action === 'cp_list') {
     if (!customer) {
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        { registered: false },
-      );
+      await replyLineMessage(replyToken, buildRegisterGateMessages());
       return;
     }
     const groups = await listCouponsForCustomer(customer.id);
@@ -135,24 +230,20 @@ export async function handleLinePostback(
 
   if (action === 'cp_groom') {
     if (!customer) {
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        { registered: false },
-      );
+      await replyLineMessage(replyToken, buildRegisterGateMessages());
       return;
     }
     const { storeId, storeName } = resolveCustomerStore(customer);
     if (!storeId || !storeName) {
-      await replyLineText(replyToken, '尚未綁定合作美容院，請聯絡客服協助。');
+      await replyLineText(replyToken, '還沒綁合作店，跟我們說一聲幫你補。');
       return;
     }
     const stats = await getJarExchangeStatsForCustomer(customer.id);
     if (stats.pointsBalance < GROOMING_COUPON_POINTS) {
+      const { progressLine } = rewardProgress(stats.pointsBalance);
       await replyLineText(
         replyToken,
-        `點數不足，需 ${GROOMING_COUPON_POINTS} 點才能兌換（目前 ${stats.pointsBalance} 點）。`,
+        `還差一點。需 ${GROOMING_COUPON_POINTS} 點（目前 ${stats.pointsBalance}）。\n${progressLine}`,
       );
       return;
     }
@@ -170,7 +261,7 @@ export async function handleLinePostback(
 
   if (action === 'cp_groom_ok') {
     if (!customer) {
-      await replyLineText(replyToken, `還沒開戶，請先點「${LINE_BTN.register}」。`);
+      await replyLineText(replyToken, JAR_ENTER_BLOCKED_GUEST);
       return;
     }
     const result = await redeemGroomingCouponForCustomer(customer.id);
@@ -195,12 +286,7 @@ export async function handleLinePostback(
 
   if (action === 'redeem') {
     if (!customer) {
-      await replyLineTextWithMenu(
-        replyToken,
-        lineUserId,
-        `還沒開戶，請先點「${LINE_BTN.register}」。`,
-        { registered: false },
-      );
+      await replyLineMessage(replyToken, buildRegisterGateMessages());
       return;
     }
     const rewards = await listActiveRewardsForLine();
@@ -213,7 +299,7 @@ export async function handleLinePostback(
     const rewards = await listActiveRewardsForLine();
     const reward = await resolveRewardFromLineInput(params.get('i') ?? '', rewards);
     if (!reward) {
-      await replyLineText(replyToken, `找不到此獎勵，請再點「${LINE_BTN.redeem}」重試。`);
+      await replyLineText(replyToken, `找不到這個，再點「${LINE_BTN.redeem}」試試。`);
       return;
     }
     const result = await redeemRewardForCustomer(customer.id, reward.id);
@@ -221,25 +307,17 @@ export async function handleLinePostback(
       await replyLineText(replyToken, result.error);
       return;
     }
-    await replyLineTextWithMenu(
+    await replyLineText(
       replyToken,
-      lineUserId,
-      `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}\n請妥善保存，至合作店家使用。`,
-      { registered: true },
+      `換到了：${reward.rewardName}\n花 ${result.pointsSpent} 點，剩 ${result.balanceAfter}\n券碼：${result.couponCode}`,
     );
     return;
   }
 
   await replyTriggerOnce(lineUserId, 'menu_fallback', async () => {
-    const promptFlags = await getOnboardingPromptFlags(lineUserId);
-    const body = promptFlags.showJar
-      ? '可從下方選單操作，或直接傳 8 位空罐序號存罐～'
-      : '可從下方選單操作。';
     await replyMenuHub(replyToken, lineUserId, {
-      body,
-      registered: Boolean(customer),
-      promptFlags,
-      bodyPromptMarks: promptFlags.showJar ? { jar: true } : undefined,
+      body: '跟著傑克走：一起野放／預約美容／換罐計劃／回家。',
+      registered,
       alwaysReplyBody: false,
     });
   });
