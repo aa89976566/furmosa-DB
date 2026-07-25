@@ -125,6 +125,13 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     heroKey: 'chaos-aowu',
   },
   {
+    id: 'chaos_frog',
+    mark: '🐸',
+    label: '青蛙誰在怕',
+    subtitle: '誰在怕？先別回答。',
+    heroKey: 'chaos-frog',
+  },
+  {
     id: 'chaos_events',
     mark: '🎪',
     label: '活動',
@@ -200,13 +207,20 @@ IG 記得標 @furmosa_food`,
 
 安靜也是一種誠實。`,
 
-  // 舊鍵相容（舊活動卡／舊文案入口）
-  chaos_frog: `【清蛙誰在怕】
+  chaos_frog: `【青蛙誰在怕】
 
-青蛙凍乾實測場——算開箱任務的遠房親戚。
+青蛙：誰在怕？
 
-回：我要參加清蛙
-或改去「開箱任務」看最新玩法。`,
+傑克在追。青蛙在逃。
+有人已經先尖叫了。
+
+青蛙凍乾實測場——
+毛孩敢不敢碰、碰了什麼表情，拍下來。
+
+想參加就回：我要參加青蛙
+（舊口令「我要參加清蛙」也認）
+
+IG 標 @furmosa_food`,
 
   chaos_guide: `【拍攝指南】
 

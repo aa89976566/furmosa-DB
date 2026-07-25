@@ -98,16 +98,18 @@ describe('換罐計劃六卡', () => {
 });
 
 describe('一起野放', () => {
-  it('社區／UGC／活動五卡', () => {
+  it('社區／UGC／活動卡含青蛙封面', () => {
     const flex = flexFrom(buildWorldHubMessages('chaos'));
     assert.equal(flex.contents.type, 'carousel');
     const raw = JSON.stringify(flex.contents);
     assert.match(raw, /嗷嗚計劃/);
+    assert.match(raw, /青蛙誰在怕/);
+    assert.match(raw, /chaos-frog/);
     assert.match(raw, /活動/);
     assert.match(raw, /開箱任務/);
     assert.match(raw, /限定合作/);
     assert.match(raw, /優惠企劃/);
-    assert.doesNotMatch(raw, /清蛙誰在怕|拍攝指南|完成拿100/);
+    assert.doesNotMatch(raw, /拍攝指南|完成拿100/);
   });
 
   it('漫畫入口文案帶傑克', () => {
