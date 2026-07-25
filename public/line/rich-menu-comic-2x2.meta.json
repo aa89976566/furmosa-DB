@@ -6,12 +6,12 @@
   },
   "content": {
     "x": 0,
-    "y": 9,
+    "y": 0,
     "width": 2500,
-    "height": 1667
+    "height": 1686
   },
   "method": "contain-letterbox-white",
   "jpegQuality": 90,
-  "jpegBytes": 622692,
+  "jpegBytes": 462564,
   "note": "Artwork unchanged; only scaled and padded. Tap areas use content box (+ side gutters)."
 }
