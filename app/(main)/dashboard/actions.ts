@@ -7,6 +7,12 @@ import {
   orderSearchWhere,
   productSearchWhere,
 } from '@/lib/site-search';
+import {
+  loadCustomerSearchInsights,
+  loadMerchantSearchInsights,
+  type CustomerSearchInsight,
+  type MerchantSearchInsight,
+} from '@/lib/search/entity-insights';
 
 export type DashboardSearchResult = {
   orders: Array<{
@@ -23,6 +29,7 @@ export type DashboardSearchResult = {
     name: string;
     customerId: string;
     phone: string | null;
+    insight: CustomerSearchInsight;
   }>;
   merchants: Array<{
     id: string;
@@ -30,6 +37,7 @@ export type DashboardSearchResult = {
     merchantId: string;
     contactName: string | null;
     phone: string | null;
+    insight: MerchantSearchInsight;
   }>;
   products: Array<{
     id: string;
@@ -38,6 +46,26 @@ export type DashboardSearchResult = {
     productId: string;
   }>;
 };
+
+const emptyInsightMerchant = (): MerchantSearchInsight => ({
+  stockUnits: 0,
+  lowStockSkus: 0,
+  outOfStockSkus: 0,
+  lastRestockAt: null,
+  restockTxnCount90d: 0,
+  jarStockUnits: 0,
+  jarLowStockSkus: 0,
+  jarOutOfStockSkus: 0,
+});
+
+const emptyInsightCustomer = (): CustomerSearchInsight => ({
+  orderCount: 0,
+  lastOrderAt: null,
+  topProducts: [],
+  jarPointsBalance: 0,
+  jarCodesRedeemed: 0,
+  lastJarRedeemAt: null,
+});
 
 export async function searchDashboard(query: string): Promise<DashboardSearchResult> {
   const q = query.trim();
@@ -91,6 +119,11 @@ export async function searchDashboard(query: string): Promise<DashboardSearchRes
       }),
     ]);
 
+    const [merchantInsights, customerInsights] = await Promise.all([
+      loadMerchantSearchInsights(merchants.map((m) => m.id)),
+      loadCustomerSearchInsights(customers.map((c) => c.id)),
+    ]);
+
     return {
       orders: orders.map((o) => {
         const shipment = o.shipments[0];
@@ -108,8 +141,14 @@ export async function searchDashboard(query: string): Promise<DashboardSearchRes
           recipientHint,
         };
       }),
-      customers,
-      merchants,
+      customers: customers.map((c) => ({
+        ...c,
+        insight: customerInsights.get(c.id) ?? emptyInsightCustomer(),
+      })),
+      merchants: merchants.map((m) => ({
+        ...m,
+        insight: merchantInsights.get(m.id) ?? emptyInsightMerchant(),
+      })),
       products,
     };
   } catch (e) {
