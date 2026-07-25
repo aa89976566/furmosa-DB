@@ -4,6 +4,9 @@ export const CACHE_TAGS = {
   merchantsPortfolio: 'merchants-portfolio',
   orderHubTotals: 'order-hub-totals',
   shipmentQueueCounts: 'shipment-queue-counts',
+  productsCatalog: 'products-catalog',
+  vendorsList: 'vendors-list',
+  redeemStores: 'redeem-stores',
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];

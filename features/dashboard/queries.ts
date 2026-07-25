@@ -35,7 +35,7 @@ async function runInBatches(
 
 const loadDashboardDataCached = unstable_cache(
   () => loadDashboardData(),
-  ['dashboard-overview-v2'],
+  ['dashboard-overview-v3'],
   { revalidate: 60, tags: [CACHE_TAGS.dashboard] },
 );
 

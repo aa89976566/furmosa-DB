@@ -1,18 +1,10 @@
 import { revalidateTag } from 'next/cache';
 import type { CacheTag } from '@/lib/cache-tags';
+import { toCacheJSON } from '@/lib/cache-serialize';
 
 type MemoryEntry = { value: unknown; expiresAt: number };
 
 const memoryStore = new Map<string, MemoryEntry>();
-
-/** 僅允許 JSON 可往返的純資料進入 Runtime Cache（避免 Date／Decimal／BigInt 搞壞 RSC） */
-function toPlainJson<T>(value: T): T | null {
-  try {
-    return JSON.parse(JSON.stringify(value)) as T;
-  } catch {
-    return null;
-  }
-}
 
 async function tryGetCache() {
   try {
@@ -25,7 +17,8 @@ async function tryGetCache() {
 
 /**
  * 區域 Runtime Cache（Vercel）＋本機記憶體後備。
- * 只應用於「已是純 JSON」的熱讀（合計、計數）；勿快取 Prisma 實體圖。
+ * 只應用於「已是純 JSON」的熱讀（合計、計數、目錄）；勿快取 Prisma 實體圖。
+ * 寫入前一律 toCacheJSON（正確處理 Decimal／Date／BigInt）。
  */
 export async function withRuntimeCache<T>(
   key: string,
@@ -50,10 +43,12 @@ export async function withRuntimeCache<T>(
     }
   }
 
-  const value = await loader();
-  const plain = toPlainJson(value);
-  if (plain === null) {
-    return value;
+  const raw = await loader();
+  let plain: T;
+  try {
+    plain = toCacheJSON(raw);
+  } catch {
+    return raw;
   }
 
   if (cache) {
@@ -73,7 +68,6 @@ export async function withRuntimeCache<T>(
     });
   }
 
-  // 回傳 plain，確保同一請求內後續也不帶 class instance
   return plain;
 }
 

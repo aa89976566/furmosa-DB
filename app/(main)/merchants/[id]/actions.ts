@@ -27,6 +27,8 @@ import {
 } from '@/lib/merchant-stock-key';
 import { saleAmountsForQty } from '@/lib/merchant-settlement-sales';
 import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
@@ -124,6 +126,7 @@ export async function updateMerchantShipping(formData: FormData) {
   revalidatePath('/merchants/restock');
   revalidatePath('/jar-exchange/stores');
   revalidatePath('/store-redeem');
+  await bustCacheTags(CACHE_TAGS.redeemStores);
 }
 
 async function nextShipmentNumber() {

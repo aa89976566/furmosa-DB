@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { StoreCouponRedeemForm } from '@/components/coupons/store-coupon-redeem-form';
 import type { RedeemStoreOption } from '@/lib/stores/list-redeem-stores';
 
@@ -30,11 +31,17 @@ export function StoreRedeemPageContent({
           無法載入合作店家清單，請稍後再試或聯絡匠寵客服。
         </div>
       ) : (
-        <StoreCouponRedeemForm
-          stores={stores}
-          defaultStoreSlug={defaultStoreSlug}
-          lockedStoreSlug={lockedStore ? defaultStoreSlug : undefined}
-        />
+        <Suspense
+          fallback={
+            <div className="h-40 animate-pulse rounded-2xl border border-border/70 bg-muted/40" />
+          }
+        >
+          <StoreCouponRedeemForm
+            stores={stores}
+            defaultStoreSlug={defaultStoreSlug}
+            lockedStoreSlug={lockedStore ? defaultStoreSlug : undefined}
+          />
+        </Suspense>
       )}
     </div>
   );

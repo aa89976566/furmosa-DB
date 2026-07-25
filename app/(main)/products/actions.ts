@@ -7,10 +7,16 @@ import {
   isWeightTier,
   resolveTierCost,
 } from '@/lib/product-price-tier';
+import { CACHE_TAGS } from '@/lib/cache-tags';
+import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
+
+async function bustProductCaches() {
+  await bustCacheTags(CACHE_TAGS.productsCatalog, CACHE_TAGS.vendorsList);
+}
 
 const VALID_CATEGORIES = [
   'staple_food',
@@ -103,6 +109,7 @@ export async function createProduct(formData: FormData) {
   revalidatePath('/products');
   revalidatePath('/vendors');
   if (vendorId) revalidatePath(`/vendors/${vendorId}`);
+  await bustProductCaches();
   redirect(`/products/${created.id}`);
 }
 
@@ -157,6 +164,7 @@ export async function updateProduct(formData: FormData) {
   revalidatePath('/vendors');
   if (existing.vendorId) revalidatePath(`/vendors/${existing.vendorId}`);
   if (newVendorId) revalidatePath(`/vendors/${newVendorId}`);
+  await bustProductCaches();
 }
 
 export async function setProductStatus(formData: FormData) {
@@ -166,6 +174,7 @@ export async function setProductStatus(formData: FormData) {
   await prisma.product.update({ where: { id }, data: { status } });
   revalidatePath('/products');
   revalidatePath(`/products/${id}`);
+  await bustProductCaches();
 }
 
 export async function deleteProduct(formData: FormData): Promise<
@@ -206,6 +215,7 @@ export async function deleteProduct(formData: FormData): Promise<
 
   revalidatePath('/products');
   revalidatePath('/merchants');
+  await bustProductCaches();
   redirect('/products');
 }
 
@@ -321,6 +331,7 @@ export async function createPriceTier(formData: FormData) {
 
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);
+  await bustProductCaches();
 }
 
 export async function updatePriceTier(formData: FormData) {
@@ -346,6 +357,7 @@ export async function updatePriceTier(formData: FormData) {
 
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);
+  await bustProductCaches();
 }
 
 export async function deletePriceTier(formData: FormData) {
@@ -361,4 +373,5 @@ export async function deletePriceTier(formData: FormData) {
 
   revalidatePath('/products');
   if (productId) revalidatePath(`/products/${productId}`);
+  await bustProductCaches();
 }

@@ -85,7 +85,11 @@ export async function createMerchantAction(
     revalidatePath('/merchants');
     revalidatePath('/jar-exchange/stores');
     revalidatePath('/store-redeem');
-    await bustCacheTags(CACHE_TAGS.merchantsPortfolio, CACHE_TAGS.dashboard);
+    await bustCacheTags(
+      CACHE_TAGS.merchantsPortfolio,
+      CACHE_TAGS.dashboard,
+      CACHE_TAGS.redeemStores,
+    );
     redirect(`/merchants/${merchant.id}`);
   } catch (e) {
     if (isRedirectError(e)) throw e;

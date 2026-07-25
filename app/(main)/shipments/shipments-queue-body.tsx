@@ -207,6 +207,13 @@ function FilterChip({
   );
 }
 
+function toIso(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function toQueueRow(
   s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
 ): ShipmentQueueRow {
@@ -215,7 +222,7 @@ function toQueueRow(
     shipmentNumber: s.shipmentNumber,
     type: s.type,
     status: s.status,
-    createdAt: s.createdAt.toISOString(),
+    createdAt: toIso(s.createdAt) ?? new Date(0).toISOString(),
     carrier: s.carrier,
     trackingNumber: s.trackingNumber,
     recipientName: s.recipientName,
@@ -252,9 +259,7 @@ function toQueueRow(
     subscriptionShipment: s.subscriptionShipment
       ? {
           shipmentNo: s.subscriptionShipment.shipmentNo,
-          scheduledDate: s.subscriptionShipment.scheduledDate
-            ? s.subscriptionShipment.scheduledDate.toISOString()
-            : null,
+          scheduledDate: toIso(s.subscriptionShipment.scheduledDate),
           subscription: s.subscriptionShipment.subscription
             ? {
                 subscriptionNo: s.subscriptionShipment.subscription.subscriptionNo,
@@ -326,13 +331,7 @@ export async function ShipmentsQueueBody({
   const { byStatus: countByStatus, pendingCount, total } = counts;
   const grouped = !status;
   const panelRefreshKey = shipments
-    .map((s) => {
-      const updated =
-        s.updatedAt instanceof Date
-          ? s.updatedAt.toISOString()
-          : new Date(s.updatedAt as string | number).toISOString();
-      return `${s.id}:${s.status}:${updated}`;
-    })
+    .map((s) => `${s.id}:${s.status}:${toIso(s.updatedAt) ?? ''}`)
     .join('|');
 
   const queueRows = shipments.map(toQueueRow);

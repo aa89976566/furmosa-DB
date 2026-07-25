@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { LoginForm } from './login-form';
 import { PawPrint } from 'lucide-react';
 
@@ -5,11 +6,11 @@ export const metadata = {
   title: '登入 · Furmosa HQ',
 };
 
-export default function LoginPage({
-  searchParams,
-}: {
-  searchParams: { next?: string };
-}) {
+/** 靜態殼層 → Vercel CDN 可 HIT（對齊最快網站的可快取 HTML） */
+export const dynamic = 'force-static';
+export const revalidate = 3600;
+
+export default function LoginPage() {
   return (
     <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[1.05fr_0.95fr]">
       <div className="relative hidden overflow-hidden bg-navy px-10 py-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -44,7 +45,9 @@ export default function LoginPage({
               <p className="text-sm text-muted-foreground">總部管理系統</p>
             </div>
           </div>
-          <LoginForm next={searchParams.next} />
+          <Suspense fallback={<LoginFormSkeleton />}>
+            <LoginForm />
+          </Suspense>
           <div className="rounded-2xl border border-border/70 bg-card p-4 text-xs text-muted-foreground shadow-card">
             <p className="mb-1 font-medium text-foreground">測試帳號（密碼皆為 furmosa2026）</p>
             <ul className="space-y-0.5 font-mono">
@@ -55,6 +58,18 @@ export default function LoginPage({
             </ul>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function LoginFormSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/70 bg-card p-6 shadow-card">
+      <div className="space-y-4">
+        <div className="h-9 animate-pulse rounded-md bg-muted" />
+        <div className="h-9 animate-pulse rounded-md bg-muted" />
+        <div className="h-10 animate-pulse rounded-md bg-muted" />
       </div>
     </div>
   );

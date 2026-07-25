@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,14 +9,17 @@ import { posLoginAction, type PosLoginState } from './actions';
 
 const initialState: PosLoginState = {};
 
-export function PosLoginForm({ next }: { next?: string }) {
+/** next 由客戶端讀取，讓登入頁 HTML 可靜態產生並被 CDN 快取 */
+export function PosLoginForm() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next') ?? '';
   const [state, formAction] = useFormState(posLoginAction, initialState);
 
   return (
     <Card>
       <CardContent className="p-6">
         <form action={formAction} className="space-y-4">
-          <input type="hidden" name="next" value={next ?? ''} />
+          <input type="hidden" name="next" value={next} />
           <div className="space-y-1.5">
             <label htmlFor="username" className="text-sm font-medium">
               帳號

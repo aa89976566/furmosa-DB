@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { formatCouponStatus } from '@/lib/coupons/labels';
 import type { CouponStatus } from '@/lib/coupons/constants';
 
 const STORE_STORAGE_KEY = 'furmosa-redeem-store-slug';
+
 
 export type RedeemStoreOption = {
   slug: string;
@@ -208,6 +210,9 @@ export function StoreCouponRedeemForm({
   /** 專屬連結進入時鎖定店家，隱藏下拉選單 */
   lockedStoreSlug?: string;
 }) {
+  const searchParams = useSearchParams();
+  const storeFromQuery = searchParams.get('store')?.trim() || undefined;
+  const preferredSlug = defaultStoreSlug || storeFromQuery;
   const locked =
     lockedStoreSlug && stores.some((s) => s.slug === lockedStoreSlug) ? lockedStoreSlug : '';
   const [storeId, setStoreId] = useState(locked || '');
@@ -222,15 +227,15 @@ export function StoreCouponRedeemForm({
       return;
     }
     const initial =
-      defaultStoreSlug && stores.some((s) => s.slug === defaultStoreSlug)
-        ? defaultStoreSlug
+      preferredSlug && stores.some((s) => s.slug === preferredSlug)
+        ? preferredSlug
         : typeof window !== 'undefined'
           ? localStorage.getItem(STORE_STORAGE_KEY)
           : null;
     if (initial && stores.some((s) => s.slug === initial)) {
       setStoreId(initial);
     }
-  }, [defaultStoreSlug, locked, stores]);
+  }, [preferredSlug, locked, stores]);
 
   function onStoreChange(slug: string) {
     setStoreId(slug);
