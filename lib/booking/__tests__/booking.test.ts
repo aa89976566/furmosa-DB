@@ -78,3 +78,38 @@ describe('capacity race rule', () => {
     assert.equal(slots.find((s) => s.startsAt.getTime() === nine.getTime())?.isFull, true);
   });
 });
+
+describe('booking LINE notify copy / reminder windows', () => {
+  it('builds customer received / merchant new / confirmed copy', async () => {
+    const {
+      copyCustomerReceived,
+      copyMerchantNewRequest,
+      copyCustomerConfirmed,
+      copyReminder1d,
+      copyReminder2h,
+      isInReminder1dWindow,
+      isInReminder2hWindow,
+    } = await import('@/lib/booking/notify-copy');
+    const startsAt = new Date(2026, 6, 28, 10, 0, 0, 0);
+    const ctx = {
+      merchantName: '測試店',
+      serviceName: '美容',
+      startsAt,
+      petName: '豆豆',
+      customerName: '小明',
+    };
+    assert.match(copyCustomerReceived(ctx), /已收到你的預約申請/);
+    assert.match(copyMerchantNewRequest(ctx), /有新的預約申請/);
+    assert.match(copyCustomerConfirmed(ctx), /預約已確認/);
+    assert.match(copyReminder1d(ctx), /明天有預約/);
+    assert.match(copyReminder2h(ctx), /兩小時後有預約/);
+
+    // 1d = 台北日曆「明天」；2h = 90～150 分鐘視窗
+    const dayBefore = new Date(2026, 6, 27, 12, 0, 0, 0);
+    assert.equal(isInReminder1dWindow(startsAt, dayBefore), true);
+    assert.equal(isInReminder2hWindow(startsAt, dayBefore), false);
+    const near = new Date(startsAt.getTime() - 2 * 60 * 60 * 1000);
+    assert.equal(isInReminder2hWindow(startsAt, near), true);
+    assert.equal(isInReminder1dWindow(startsAt, near), false);
+  });
+});

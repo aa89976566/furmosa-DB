@@ -3,8 +3,8 @@
 > **地位：** Booking Epic — **v1.0-frozen（Approved 2026-07-25）**  
 > **原則：** 延伸現有平台，不平行重建  
 > **明確不做（整段 MVP）：** 美容師個別班表、顧客端超約、付款、換罐、空罐、點數、CRM、AI  
-> **Round 1（本輪 Code）：** Merchant + Availability + Appointment（**不含 LINE**）  
-> **Round 2：** LINE 確認／提醒  
+> **Round 1：** Merchant + Availability + Appointment（**不含 LINE**）✅ merged  
+> **Round 2（本輪 Code）：** LINE 確認／提醒  
 > **Round 3：** Refill／Payment／Jar  
 
 ---
@@ -57,9 +57,30 @@ The merchant assigns staff internally.
 
 | Round | 範圍 | 狀態 |
 |-------|------|------|
-| **1** | Availability 規則、Slot 計算、Appointment CRUD、顧客送出、POS 確認／改期／手動超約 | ⭐ Code |
-| **2** | LINE 確認／改期通知／提醒 | ⏳ |
+| **1** | Availability 規則、Slot 計算、Appointment CRUD、顧客送出、POS 確認／改期／手動超約 | ✅ |
+| **2** | LINE 確認／改期通知／提醒（T−1d／T−2h） | ⭐ Code |
 | **3** | Refill／Payment／Jar Exchange | ⏳ |
+
+---
+
+## Round 2 完成定義
+
+通知鏈（不改狀態機）：
+
+```text
+顧客送出 → 顧客「已收到申請」→ 店家「有新預約」
+→ 店家確認 → 顧客「預約已確認」
+→ 預約前一天提醒 → 預約前兩小時提醒
+```
+
+實作要點：
+
+- `lib/line/push.ts` Push API；失敗不回滾 Appointment  
+- 冪等欄位：`lineNotify*At`／`lineReminder*At`  
+- 顧客收件：`Customer.lineUserId`（公開頁可選 LIFF 綁定，或電話已是會員）  
+- 店家收件：`MerchantSettings.bookingNotifyLineUserId`  
+- 提醒：每日 `/api/cron/maintain-shipments` 送 T−1d（台北日曆明天）；T−2h 靠 POS「今天」15 分鐘節流掃描補齊（**Hobby 禁止 hourly cron**）  
+- **不做** Round 3（付款／換罐／帶空罐提醒條件）
 
 ---
 

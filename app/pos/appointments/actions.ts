@@ -127,6 +127,7 @@ export async function saveBookingScheduleAction(
       capacityPerSlot: Number(formData.get('capacityPerSlot') ?? 1),
       weekdays: String(formData.get('weekdays') ?? '1,2,3,4,5,6'),
       appointmentEnabled: true,
+      bookingNotifyLineUserId: String(formData.get('bookingNotifyLineUserId') ?? ''),
     });
     revalidatePath('/pos/appointments');
     revalidatePath('/pos/appointments/schedule');

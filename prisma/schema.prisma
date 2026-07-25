@@ -388,6 +388,8 @@ model MerchantSettings {
   bookingCapacityPerSlot  Int      @default(1) @map("booking_capacity_per_slot")
   /// 可預約星期：0=日 … 6=六，逗號分隔
   bookingWeekdays         String   @default("1,2,3,4,5,6") @map("booking_weekdays")
+  /// 店家接收「有新預約」的 LINE User ID（U 開頭）；空則不推播店家
+  bookingNotifyLineUserId String?  @map("booking_notify_line_user_id")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -418,6 +420,12 @@ model Appointment {
   isOverbooked       Boolean   @default(false) @map("is_overbooked")
   confirmedAt        DateTime? @map("confirmed_at")
   cancelledAt        DateTime? @map("cancelled_at")
+  /// LINE 通知冪等：已處理（成功或略過無收件人）後寫入，避免 cron／重試重送
+  lineNotifyReceivedAt    DateTime? @map("line_notify_received_at")
+  lineNotifyMerchantNewAt DateTime? @map("line_notify_merchant_new_at")
+  lineNotifyConfirmedAt   DateTime? @map("line_notify_confirmed_at")
+  lineReminder1dAt        DateTime? @map("line_reminder_1d_at")
+  lineReminder2hAt        DateTime? @map("line_reminder_2h_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
@@ -428,6 +436,7 @@ model Appointment {
   @@index([merchantId, startsAt])
   @@index([merchantId, status])
   @@index([customerId, createdAt])
+  @@index([status, startsAt])
   @@map("appointments")
 }
 

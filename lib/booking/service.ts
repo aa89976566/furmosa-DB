@@ -13,6 +13,13 @@ import {
   type SlotCandidate,
 } from '@/lib/booking/availability';
 import { ensureMerchantSettings } from '@/lib/restock-request/service';
+import {
+  fireAndForget,
+  notifyAppointmentConfirmed,
+  notifyAppointmentRequested,
+  notifyAppointmentRescheduled,
+} from '@/lib/booking/notify';
+import { bindCustomerLineUserId } from '@/lib/line/bind-customer';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -82,6 +89,8 @@ export async function findOrCreateCustomerByPhone(input: {
   name: string;
   phone: string;
   petName?: string | null;
+  /** 可選：公開預約經 LIFF 驗證後綁定，供 Round 2 通知 */
+  lineUserId?: string | null;
 }) {
   const phone = input.phone.trim();
   const digits = normalizePhone(phone);
@@ -99,24 +108,31 @@ export async function findOrCreateCustomerByPhone(input: {
     orderBy: { createdAt: 'asc' },
   });
   if (existing) {
+    let row = existing;
     if (input.petName?.trim() && !existing.petName) {
-      return prisma.customer.update({
+      row = await prisma.customer.update({
         where: { id: existing.id },
         data: { petName: input.petName.trim() },
       });
     }
-    return existing;
+    if (input.lineUserId?.trim() && !row.lineUserId) {
+      await bindCustomerLineUserId(row.id, input.lineUserId.trim());
+      return prisma.customer.findUniqueOrThrow({ where: { id: row.id } });
+    }
+    return row;
   }
 
-  return prisma.customer.create({
+  const created = await prisma.customer.create({
     data: {
       customerId: await nextCustomerId(),
       name: input.name.trim(),
       phone: digits,
       petName: input.petName?.trim() || null,
       type: 'individual',
+      lineUserId: input.lineUserId?.trim() || null,
     },
   });
+  return created;
 }
 
 async function resolveSlotInTx(
@@ -171,6 +187,7 @@ export async function submitCustomerBooking(input: {
   customerNote?: string | null;
   serviceProductId?: string | null;
   serviceName?: string | null;
+  lineUserId?: string | null;
 }) {
   const merchant = await prisma.merchant.findFirst({
     where: { id: input.merchantId, status: 'active' },
@@ -200,10 +217,11 @@ export async function submitCustomerBooking(input: {
     name: input.customerName,
     phone: input.customerPhone,
     petName: input.petName,
+    lineUserId: input.lineUserId,
   });
 
   // Serializable tx: capacity check + create must not race into double-book
-  return prisma.$transaction(
+  const created = await prisma.$transaction(
     async (tx) => {
       const slot = await resolveSlotInTx(tx, {
         merchantId: input.merchantId,
@@ -228,6 +246,9 @@ export async function submitCustomerBooking(input: {
     },
     { isolationLevel: 'Serializable' },
   );
+
+  fireAndForget(() => notifyAppointmentRequested(created.id));
+  return created;
 }
 
 export async function createMerchantAppointment(input: {
@@ -304,9 +325,12 @@ export async function confirmAppointment(input: {
   });
   if (!row) throw new Error('找不到這張預約');
   if (row.status === 'cancelled') throw new Error('這張預約已取消');
-  if (row.status === 'confirmed') return row;
+  if (row.status === 'confirmed') {
+    fireAndForget(() => notifyAppointmentConfirmed(row.id));
+    return row;
+  }
 
-  return prisma.appointment.update({
+  const updated = await prisma.appointment.update({
     where: { id: row.id },
     data: {
       status: 'confirmed',
@@ -315,6 +339,8 @@ export async function confirmAppointment(input: {
       proposedEndsAt: null,
     },
   });
+  fireAndForget(() => notifyAppointmentConfirmed(updated.id));
+  return updated;
 }
 
 export async function proposeAndApplyReschedule(input: {
@@ -354,7 +380,7 @@ export async function proposeAndApplyReschedule(input: {
   // Merchant may apply even if full (authority)
   const isOverbooked = match.isFull;
 
-  return prisma.appointment.update({
+  const updated = await prisma.appointment.update({
     where: { id: row.id },
     data: {
       startsAt: match.startsAt,
@@ -366,6 +392,8 @@ export async function proposeAndApplyReschedule(input: {
       isOverbooked: row.isOverbooked || isOverbooked,
     },
   });
+  fireAndForget(() => notifyAppointmentRescheduled(updated.id));
+  return updated;
 }
 
 export async function cancelAppointment(input: {
@@ -392,8 +420,13 @@ export async function updateMerchantBookingSchedule(input: {
   capacityPerSlot: number;
   weekdays: string;
   appointmentEnabled?: boolean;
+  bookingNotifyLineUserId?: string | null;
 }) {
   await ensureMerchantSettings(input.merchantId);
+  const notifyId = input.bookingNotifyLineUserId?.trim() || null;
+  if (notifyId && !notifyId.startsWith('U')) {
+    throw new Error('LINE 通知對象請填 U 開頭的 User ID');
+  }
   return prisma.merchantSettings.update({
     where: { merchantId: input.merchantId },
     data: {
@@ -403,6 +436,9 @@ export async function updateMerchantBookingSchedule(input: {
       bookingCapacityPerSlot: input.capacityPerSlot,
       bookingWeekdays: input.weekdays,
       appointmentEnabled: input.appointmentEnabled ?? true,
+      ...(input.bookingNotifyLineUserId !== undefined
+        ? { bookingNotifyLineUserId: notifyId }
+        : {}),
     },
   });
 }

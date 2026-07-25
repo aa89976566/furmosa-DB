@@ -5,6 +5,7 @@ import { syncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-s
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 import { clearJobThrottle } from '@/lib/job-throttle';
+import { processAppointmentReminders } from '@/lib/booking/reminders';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -50,12 +51,19 @@ export async function GET(req: Request) {
     };
   }
 
+  // Booking Round 2：T−1d（日曆明天）＋掃一次 T−2h；Hobby 不可 hourly cron
+  const bookingReminders = await processAppointmentReminders().catch((error) => {
+    console.error('[cron/maintain-shipments] bookingReminders', error);
+    return { error: String(error) };
+  });
+
   return NextResponse.json({
     ok: true,
     subscriptionSync,
     zhuwoCreated: zhuwo.filter((r) => r.created).length,
     qimu,
     dashboardKpi,
+    bookingReminders,
   });
 }
 

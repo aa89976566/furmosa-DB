@@ -9,6 +9,7 @@ import {
   listServiceProductsForBooking,
   listSlotsForDay,
 } from '@/lib/booking/service';
+import { getLiffIdIfConfigured } from '@/lib/line/liff-config';
 import { PublicBookForm } from './book-form';
 
 export const metadata = { title: '預約美容 · Furmosa' };
@@ -43,6 +44,7 @@ export default async function PublicBookPage({
       })
     : [];
   const services = await listServiceProductsForBooking();
+  const liffId = getLiffIdIfConfigured('profile');
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-lg bg-canvas px-4 py-8 text-foreground">
@@ -68,6 +70,7 @@ export default async function PublicBookPage({
             id: s.id ?? '',
             name: s.name,
           }))}
+          liffId={liffId}
         />
       )}
     </div>

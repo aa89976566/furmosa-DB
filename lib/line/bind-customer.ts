@@ -73,6 +73,31 @@ export async function bindLineUserToCustomer(
   };
 }
 
+/** 依既有客戶主鍵綁定 LINE（公開預約／LIFF）；同一 LINE 只綁一人 */
+export async function bindCustomerLineUserId(
+  customerId: string,
+  lineUserId: string,
+  lineDisplayHint?: string | null,
+) {
+  const uid = lineUserId.trim();
+  if (!uid.startsWith('U')) {
+    throw new Error('LINE User ID 格式不正確');
+  }
+  const display =
+    lineDisplayHint?.trim() || (await fetchLineUserDisplayName(uid)) || null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.updateMany({
+      where: { lineUserId: uid, id: { not: customerId } },
+      data: { lineUserId: null, lineDisplay: null },
+    });
+    await tx.customer.update({
+      where: { id: customerId },
+      data: { lineUserId: uid, lineDisplay: display },
+    });
+  });
+}
+
 export async function findCustomerByLineUserId(lineUserId: string) {
   return prisma.customer.findFirst({
     where: { lineUserId },

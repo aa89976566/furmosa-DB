@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 import { submitCustomerBooking } from '@/lib/booking/service';
+import { verifyLineIdToken } from '@/lib/line/verify-id-token';
 
 export type PublicBookState = { error?: string };
 
@@ -16,6 +17,18 @@ export async function publicBookAction(
     if (Number.isNaN(startsAt.getTime())) {
       return { error: '請選擇時間。' };
     }
+
+    let lineUserId: string | null = null;
+    const idToken = String(formData.get('lineIdToken') ?? '').trim();
+    if (idToken) {
+      try {
+        const payload = await verifyLineIdToken(idToken);
+        lineUserId = payload.sub;
+      } catch {
+        return { error: 'LINE 登入已失效，請重新開啟頁面後再送出。' };
+      }
+    }
+
     const row = await submitCustomerBooking({
       merchantId,
       startsAt,
@@ -25,6 +38,7 @@ export async function publicBookAction(
       customerNote: String(formData.get('customerNote') ?? '') || null,
       serviceProductId: String(formData.get('serviceProductId') ?? '') || null,
       serviceName: String(formData.get('serviceName') ?? '') || null,
+      lineUserId,
     });
     redirect(`/book/${merchantId}/done?id=${row.id}`);
   } catch (e) {

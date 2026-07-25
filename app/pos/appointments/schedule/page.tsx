@@ -30,6 +30,7 @@ export default async function PosBookingSchedulePage() {
           slotMinutes={settings.bookingSlotMinutes}
           capacityPerSlot={settings.bookingCapacityPerSlot}
           weekdays={settings.bookingWeekdays}
+          bookingNotifyLineUserId={settings.bookingNotifyLineUserId ?? ''}
         />
       </div>
     </PosShell>

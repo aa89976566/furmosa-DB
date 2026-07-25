@@ -6,8 +6,8 @@
 |-------|------|------|
 | 1 | Vision · Domain · Experience · Merchant Auth／Restock／Flow | ✅ |
 | 2 | Reality Gate | ✅ |
-| **3** | **Booking MVP Round 1**（Availability + Appointment，無 LINE） | ⭐ |
-| 4 | LINE 確認／提醒 | ⏳ |
+| 3 | Booking MVP Round 1（Availability + Appointment） | ✅ |
+| **4** | **Booking Round 2：LINE 確認／提醒** | ⭐ |
 | 5 | Refill／Payment／Jar | ⏳ |
 
 ## Booking Constitution
