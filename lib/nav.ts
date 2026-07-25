@@ -73,9 +73,10 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '換罐會員',
+    label: '換罐計畫',
     tone: 'supply',
     items: [
+      { href: '/jar-exchange/ops', label: '營運台', icon: BarChart3 },
       { href: '/jar-exchange/members', label: '會員列表', icon: Users },
       { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
       { href: '/jar-exchange/manage?tab=codes', label: '序號管理', icon: Rocket },

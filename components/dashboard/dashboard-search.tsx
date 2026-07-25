@@ -126,6 +126,17 @@ export function DashboardSearch() {
                         ? ` · 常買 ${top.productName}（${formatNumber(top.quantity)}）`
                         : ''}
                     </p>
+                    {c.insight.jarCodesRedeemed > 0 || c.insight.jarPointsBalance > 0 ? (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground/90">
+                        換罐點數 {formatNumber(c.insight.jarPointsBalance)}
+                        {c.insight.jarCodesRedeemed > 0
+                          ? ` · 已兌序號 ${formatNumber(c.insight.jarCodesRedeemed)}`
+                          : ''}
+                        {c.insight.lastJarRedeemAt
+                          ? ` · 最近 ${formatDate(c.insight.lastJarRedeemAt)}`
+                          : ''}
+                      </p>
+                    ) : null}
                     {c.insight.topProducts.length > 1 ? (
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground/90">
                         還買過：
@@ -140,6 +151,7 @@ export function DashboardSearch() {
                       <QuickLink href={`/orders?q=${encodeURIComponent(c.customerId)}`}>
                         訂單
                       </QuickLink>
+                      <QuickLink href="/jar-exchange/members">換罐會員</QuickLink>
                     </div>
                   </div>
                 );
@@ -181,12 +193,25 @@ export function DashboardSearch() {
                         ? ` · 90 天 ${formatNumber(i.restockTxnCount90d)} 次`
                         : ''}
                     </p>
+                    {i.jarStockUnits > 0 ||
+                    i.jarLowStockSkus > 0 ||
+                    i.jarOutOfStockSkus > 0 ? (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground/90">
+                        換罐在庫 {formatNumber(i.jarStockUnits)}
+                        {i.jarOutOfStockSkus > 0
+                          ? ` · ${i.jarOutOfStockSkus} 缺貨`
+                          : i.jarLowStockSkus > 0
+                            ? ` · ${i.jarLowStockSkus} 偏低`
+                            : ' · 換罐庫存正常'}
+                      </p>
+                    ) : null}
                     <div className="mt-1.5 flex flex-wrap gap-2 text-[11px]">
                       <QuickLink href={`/merchants/${m.id}/products`}>庫存</QuickLink>
                       <QuickLink href={`/merchants/${m.id}/ledger?type=restock`}>
                         叫貨歷史
                       </QuickLink>
                       <QuickLink href={`/merchants/${m.id}/restock`}>叫貨</QuickLink>
+                      <QuickLink href="/jar-exchange/ops">換罐營運</QuickLink>
                       <QuickLink href={`/orders?q=${encodeURIComponent(m.merchantId)}`}>
                         訂單
                       </QuickLink>

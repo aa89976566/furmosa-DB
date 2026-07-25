@@ -7,6 +7,10 @@ export type MerchantSearchInsight = {
   outOfStockSkus: number;
   lastRestockAt: string | null;
   restockTxnCount90d: number;
+  /** 換罐計畫 SKU（productCategory = JAR_EXCHANGE）在店庫存 */
+  jarStockUnits: number;
+  jarLowStockSkus: number;
+  jarOutOfStockSkus: number;
 };
 
 export type CustomerTopProduct = {
@@ -20,6 +24,11 @@ export type CustomerSearchInsight = {
   orderCount: number;
   lastOrderAt: string | null;
   topProducts: CustomerTopProduct[];
+  /** 換罐點數餘額（帳本最新 balanceAfter） */
+  jarPointsBalance: number;
+  /** 已兌換序號數 */
+  jarCodesRedeemed: number;
+  lastJarRedeemAt: string | null;
 };
 
 const MS_90D = 90 * 24 * 60 * 60 * 1000;
@@ -33,13 +42,24 @@ export async function loadMerchantSearchInsights(
 
   const since = new Date(Date.now() - MS_90D);
 
-  const [stocks, restockGroups, lastRestocks] = await Promise.all([
+  const [stocks, jarStocks, restockGroups, lastRestocks] = await Promise.all([
     prisma.merchantStock.findMany({
       where: { merchantId: { in: merchantIds } },
       select: {
         merchantId: true,
         quantity: true,
         lastRestockAt: true,
+        product: { select: { reorderPoint: true } },
+      },
+    }),
+    prisma.merchantStock.findMany({
+      where: {
+        merchantId: { in: merchantIds },
+        product: { productCategory: 'JAR_EXCHANGE' },
+      },
+      select: {
+        merchantId: true,
+        quantity: true,
         product: { select: { reorderPoint: true } },
       },
     }),
@@ -69,6 +89,9 @@ export async function loadMerchantSearchInsights(
       outOfStockSkus: 0,
       lastRestockAt: null,
       restockTxnCount90d: 0,
+      jarStockUnits: 0,
+      jarLowStockSkus: 0,
+      jarOutOfStockSkus: 0,
     });
   }
 
@@ -78,6 +101,14 @@ export async function loadMerchantSearchInsights(
     insight.stockUnits += row.quantity;
     if (row.quantity <= 0) insight.outOfStockSkus += 1;
     else if (row.quantity <= (row.product?.reorderPoint ?? 0)) insight.lowStockSkus += 1;
+  }
+
+  for (const row of jarStocks) {
+    const insight = map.get(row.merchantId);
+    if (!insight) continue;
+    insight.jarStockUnits += row.quantity;
+    if (row.quantity <= 0) insight.jarOutOfStockSkus += 1;
+    else if (row.quantity <= (row.product?.reorderPoint ?? 0)) insight.jarLowStockSkus += 1;
   }
 
   for (const g of restockGroups) {
@@ -112,10 +143,17 @@ export async function loadCustomerSearchInsights(
   const since = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
 
   for (const id of customerIds) {
-    map.set(id, { orderCount: 0, lastOrderAt: null, topProducts: [] });
+    map.set(id, {
+      orderCount: 0,
+      lastOrderAt: null,
+      topProducts: [],
+      jarPointsBalance: 0,
+      jarCodesRedeemed: 0,
+      lastJarRedeemAt: null,
+    });
   }
 
-  const [orderStats, items] = await Promise.all([
+  const [orderStats, items, latestLedgers, jarCodeStats] = await Promise.all([
     prisma.order.groupBy({
       by: ['customerId'],
       where: {
@@ -141,6 +179,21 @@ export async function loadCustomerSearchInsights(
         order: { select: { customerId: true, id: true } },
       },
       take: 2000,
+    }),
+    prisma.memberPointsLedger.findMany({
+      where: { customerId: { in: customerIds } },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['customerId'],
+      select: { customerId: true, balanceAfter: true },
+    }),
+    prisma.jarCode.groupBy({
+      by: ['redeemedByCustomerId'],
+      where: {
+        redeemedByCustomerId: { in: customerIds },
+        status: 'used',
+      },
+      _count: { _all: true },
+      _max: { redeemedAt: true },
     }),
   ]);
 
@@ -195,6 +248,19 @@ export async function loadCustomerSearchInsights(
         quantity: a.quantity,
         orderCount: a.orderIds.size,
       }));
+  }
+
+  for (const row of latestLedgers) {
+    const insight = map.get(row.customerId);
+    if (insight) insight.jarPointsBalance = row.balanceAfter;
+  }
+
+  for (const g of jarCodeStats) {
+    if (!g.redeemedByCustomerId) continue;
+    const insight = map.get(g.redeemedByCustomerId);
+    if (!insight) continue;
+    insight.jarCodesRedeemed = g._count._all;
+    insight.lastJarRedeemAt = g._max.redeemedAt ? g._max.redeemedAt.toISOString() : null;
   }
 
   return map;

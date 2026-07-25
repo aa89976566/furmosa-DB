@@ -1,9 +1,9 @@
 # Entity Search Insight v1 — 搜尋即決策
 
 > **地位：** HQ 營運搜尋體驗規格（非 Bible）  
-> **版本：** v1.0  
+> **版本：** v1.1  
 > **日期：** 2026-07-25  
-> **對齊：** Experience「HQ 打開就知道今天寄什麼／審叫貨快」；現況 `DashboardSearch` + 店家／客戶詳情頁
+> **對齊：** Experience「HQ 打開就知道今天寄什麼／審叫貨快」；`docs/JAR-EXCHANGE-SYSTEM-v1.md`；現況 `DashboardSearch` + 店家／客戶詳情頁
 
 ---
 
@@ -38,18 +38,21 @@
 ### 店家結果摘要
 - 在庫件數、缺貨／偏低 SKU 數  
 - 最近叫貨日、90 天叫貨次數  
-- 快捷：`庫存` · `叫貨歷史` · `叫貨` · `訂單`
+- **換罐**在庫／偏低／缺貨（`JAR_EXCHANGE`）  
+- 快捷：`庫存` · `叫貨歷史` · `叫貨` · `換罐營運` · `訂單`
 
 ### 客人結果摘要
 - 有效訂單數、最近下單日  
 - 近 180 天常買 Top 3（數量）  
-- 快捷：`總覽` · `訂單`
+- **換罐**點數餘額、已兌序號數、最近兌點日  
+- 快捷：`總覽` · `訂單` · `換罐會員`
 
 ### 不做（v1）
 - 全站 Command-K palette  
 - 搜尋面板內嵌完整庫存表  
 - AI 推薦補貨  
-- GlobalSearch 即時洞察（下一階段再對齊 DashboardSearch）
+- GlobalSearch 即時洞察（下一階段再對齊 DashboardSearch）  
+- Booking／Refill 狀態（屬 Stage 3）
 
 ---
 
@@ -68,4 +71,5 @@
 1. Topbar `GlobalSearch` 改用同一套洞察結果面板。  
 2. 鍵盤選取結果（↑↓ Enter）。  
 3. 客人詳情頁加「常買商品」區塊（與搜尋同一 helper）。  
-4. 店家結果加「待審叫貨」紅點（RestockRequest）。
+4. 店家結果加「待審叫貨」紅點（RestockRequest）。  
+5. 僅對 `jar_exchange` 類型店家才顯示換罐列（減少噪音）。

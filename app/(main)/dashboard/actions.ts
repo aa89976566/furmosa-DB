@@ -53,12 +53,18 @@ const emptyInsightMerchant = (): MerchantSearchInsight => ({
   outOfStockSkus: 0,
   lastRestockAt: null,
   restockTxnCount90d: 0,
+  jarStockUnits: 0,
+  jarLowStockSkus: 0,
+  jarOutOfStockSkus: 0,
 });
 
 const emptyInsightCustomer = (): CustomerSearchInsight => ({
   orderCount: 0,
   lastOrderAt: null,
   topProducts: [],
+  jarPointsBalance: 0,
+  jarCodesRedeemed: 0,
+  lastJarRedeemAt: null,
 });
 
 export async function searchDashboard(query: string): Promise<DashboardSearchResult> {
