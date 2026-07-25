@@ -15,6 +15,7 @@ import { productLabel } from '@/lib/product-label';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
@@ -323,23 +324,27 @@ export function ShipmentQueueTable({
 
   return (
     <>
-      <div className="space-y-3 md:hidden">
-        {views.map((view) => (
-          <ShipmentQueueCard
-            key={view.shipment.id}
-            view={view}
-            variant={variant}
-            selected={selectedShipmentId === view.shipment.id}
-            queueStatus={queueStatus}
-            queueType={queueType}
-            onSelect={() => onSelectShipment(view.shipment)}
-          />
-        ))}
+      <div className="md:hidden">
+        <VirtualCardList
+          items={views}
+          estimateSize={156}
+          getKey={(view) => view.shipment.id}
+          renderItem={(view) => (
+            <ShipmentQueueCard
+              view={view}
+              variant={variant}
+              selected={selectedShipmentId === view.shipment.id}
+              queueStatus={queueStatus}
+              queueType={queueType}
+              onSelect={() => onSelectShipment(view.shipment)}
+            />
+          )}
+        />
       </div>
 
-      <div className="hidden overflow-hidden rounded-xl border border-border/70 md:block">
+      <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-[7.5rem]">單號</TableHead>
               <TableHead className="w-[6.5rem]">運輸狀態</TableHead>

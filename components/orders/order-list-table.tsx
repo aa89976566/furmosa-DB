@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import {
   Table,
@@ -10,6 +12,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
+import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { shipmentStatusLabel } from '@/lib/shipment';
@@ -40,14 +43,17 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
 
   return (
     <>
-      {/* 手機：卡片式呈現，免左右滑動 */}
-      <div className="space-y-3 md:hidden">
-        {orders.map((o) => (
-          <OrderCard key={o.id} order={o} />
-        ))}
+      {/* 手機：虛擬化卡片，免左右滑動 */}
+      <div className="md:hidden">
+        <VirtualCardList
+          items={orders}
+          estimateSize={168}
+          getKey={(o) => o.id}
+          renderItem={(o) => <OrderCard order={o} />}
+        />
       </div>
 
-      {/* 桌機：完整表格 */}
+      {/* 桌機：完整表格（已分頁，列數有限） */}
       <Card className="hidden p-0 md:block">
         <Table>
           <TableHeader>
