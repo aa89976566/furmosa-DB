@@ -3,12 +3,19 @@ import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { SectionSkeleton } from '@/components/shared/page-skeleton';
+import { ListPagination } from '@/components/shared/list-pagination';
 import { OrderListTable } from '@/components/orders/order-list-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { getOrderSourceTotals } from '@/lib/hot-path-reads';
+import {
+  hrefWithPage,
+  ORDER_PAGE_SIZE,
+  parsePage,
+  totalPages,
+} from '@/lib/list-pagination';
 import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
@@ -50,7 +57,7 @@ async function OrdersTotalsSection() {
 async function OrdersTableSection({
   searchParams,
 }: {
-  searchParams: { source?: string; status?: string; q?: string };
+  searchParams: { source?: string; status?: string; q?: string; page?: string };
 }) {
   const where: Record<string, unknown> = { ...activeOrderWhere };
   const sourceFilter =
@@ -80,20 +87,67 @@ async function OrdersTableSection({
     Object.assign(where, mergeSearchWhere(where, searchClause));
   }
 
-  const orders = await prisma.order.findMany({
-    where,
-    include: ORDER_LIST_INCLUDE,
-    orderBy: { orderedAt: 'desc' },
-    take: 100,
-  });
+  const page = parsePage(searchParams.page);
+  const pageSize = ORDER_PAGE_SIZE;
 
-  return <OrderListTable orders={orders} />;
+  const [orders, totalCount] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: ORDER_LIST_INCLUDE,
+      orderBy: { orderedAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.order.count({ where }),
+  ]);
+
+  const pages = totalPages(totalCount, pageSize);
+  const safePage = Math.min(page, pages);
+  const filterState = {
+    source: searchParams.source,
+    status: searchParams.status,
+    q: searchParams.q,
+  };
+
+  return (
+    <div className="space-y-3">
+      <ListPagination
+        page={safePage}
+        totalPages={pages}
+        totalCount={totalCount}
+        pageSize={pageSize}
+        prevHref={
+          safePage > 1 ? hrefWithPage('/orders', filterState, safePage - 1) : null
+        }
+        nextHref={
+          safePage < pages ? hrefWithPage('/orders', filterState, safePage + 1) : null
+        }
+        label="筆訂單"
+      />
+      <OrderListTable orders={orders} />
+      {pages > 1 ? (
+        <ListPagination
+          page={safePage}
+          totalPages={pages}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          prevHref={
+            safePage > 1 ? hrefWithPage('/orders', filterState, safePage - 1) : null
+          }
+          nextHref={
+            safePage < pages ? hrefWithPage('/orders', filterState, safePage + 1) : null
+          }
+          label="筆訂單"
+        />
+      ) : null}
+    </div>
+  );
 }
 
 export default function OrdersPage({
   searchParams,
 }: {
-  searchParams: { source?: string; status?: string; q?: string };
+  searchParams: { source?: string; status?: string; q?: string; page?: string };
 }) {
   return (
     <>
@@ -138,7 +192,10 @@ export default function OrdersPage({
           })}
         </div>
 
-        <Suspense fallback={<SectionSkeleton rows={8} />}>
+        <Suspense
+          key={`${searchParams.source ?? ''}|${searchParams.status ?? ''}|${searchParams.q ?? ''}|${searchParams.page ?? '1'}`}
+          fallback={<SectionSkeleton rows={8} />}
+        >
           <OrdersTableSection searchParams={searchParams} />
         </Suspense>
       </div>

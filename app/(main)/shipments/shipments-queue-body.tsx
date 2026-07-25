@@ -13,6 +13,7 @@ import {
   dedupeShipmentsByOrder,
 } from '@/lib/shipment-queue-filters';
 import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
+import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
 import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
@@ -317,7 +318,7 @@ export async function ShipmentsQueueBody({
       where,
       include: shipmentInclude,
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 120,
+      take: SHIPMENT_QUEUE_TAKE,
     }),
     getShipmentQueueCounts(countWhere),
   ]);
@@ -388,6 +389,8 @@ export async function ShipmentsQueueBody({
         },
       ];
 
+  const truncated = rawShipments.length >= SHIPMENT_QUEUE_TAKE;
+
   return (
     <>
       <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
@@ -417,6 +420,12 @@ export async function ShipmentsQueueBody({
           />
         ))}
       </div>
+
+      {truncated ? (
+        <p className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          佇列僅載入最近 {SHIPMENT_QUEUE_TAKE} 筆以加速畫面。請用上方狀態／種類篩選查看其餘出貨單。
+        </p>
+      ) : null}
 
       <ShipmentQueueWorkspace
         sections={workspaceSections}
