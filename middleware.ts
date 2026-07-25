@@ -7,7 +7,7 @@ import {
   verifyMerchantSessionEdge,
 } from '@/lib/merchant-auth/edge';
 
-const PUBLIC_PATHS = ['/login', '/store', '/store-redeem'];
+const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -19,6 +19,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/cron') ||
     pathname.startsWith('/api/coupons') ||
     pathname.startsWith('/liff') ||
+    pathname.startsWith('/book') ||
     pathname.startsWith('/favicon') ||
     pathname === '/manifest.webmanifest' ||
     pathname === '/sw.js' ||

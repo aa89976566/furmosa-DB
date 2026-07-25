@@ -114,6 +114,8 @@ model Customer {
   storeId     String? @map("store_id")
   storeName   String? @map("store_name")
 
+  appointments Appointment[]
+
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)
 
@@ -366,6 +368,7 @@ model Merchant {
   users        MerchantUser[]
   settings     MerchantSettings?
   restockRequests RestockRequest[]
+  appointments Appointment[]
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
@@ -376,12 +379,56 @@ model MerchantSettings {
   appointmentEnabled      Boolean  @default(false) @map("appointment_enabled")
   lineNotificationEnabled Boolean  @default(true) @map("line_notification_enabled")
   allowAutoApproveRestock Boolean  @default(false) @map("allow_auto_approve_restock")
+  /// 共用班表：每天開始（HH:mm，店家本地語意；存字串）
+  bookingOpenTime         String   @default("09:00") @map("booking_open_time")
+  bookingCloseTime        String   @default("18:00") @map("booking_close_time")
+  /// 每格分鐘數
+  bookingSlotMinutes      Int      @default(60) @map("booking_slot_minutes")
+  /// 顧客端每格可視為「滿」的預約數（requested+confirmed+reschedule_proposed）
+  bookingCapacityPerSlot  Int      @default(1) @map("booking_capacity_per_slot")
+  /// 可預約星期：0=日 … 6=六，逗號分隔
+  bookingWeekdays         String   @default("1,2,3,4,5,6") @map("booking_weekdays")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("merchant_settings")
+}
+
+/// Booking MVP：顧客預約店（Merchant），不是預約某位美容師
+model Appointment {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  customerId         String    @map("customer_id")
+  serviceProductId   String?   @map("service_product_id")
+  serviceName        String    @map("service_name")
+  petName            String?   @map("pet_name")
+  startsAt           DateTime  @map("starts_at")
+  endsAt             DateTime  @map("ends_at")
+  /// requested | confirmed | reschedule_proposed | cancelled
+  status             String    @default("requested")
+  customerNote       String?   @map("customer_note")
+  merchantNote       String?   @map("merchant_note")
+  proposedStartsAt   DateTime? @map("proposed_starts_at")
+  proposedEndsAt     DateTime? @map("proposed_ends_at")
+  /// customer | merchant | hq
+  createdBy          String    @map("created_by")
+  /// 店家／HQ 手動寫入已滿時段時為 true（顧客端永不因此看到該格）
+  isOverbooked       Boolean   @default(false) @map("is_overbooked")
+  confirmedAt        DateTime? @map("confirmed_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  serviceProduct Product? @relation(fields: [serviceProductId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, startsAt])
+  @@index([merchantId, status])
+  @@index([customerId, createdAt])
+  @@map("appointments")
 }
 
 /// 店家 POS 登入帳號（一 Merchant 可多筆；Phase 1 營運上先維持一店一 active）
@@ -448,6 +495,7 @@ model Product {
   merchantStockTxns     MerchantStockTxn[]
   shipmentItems         ShipmentItem[]
   restockRequestItems   RestockRequestItem[]
+  appointments          Appointment[]
 
   @@index([productCategory])
   @@index([status])
