@@ -58,3 +58,23 @@ describe('booking labels', () => {
     assert.equal(appointmentStatusLabelForCustomer('requested'), '等待店家確認');
   });
 });
+
+describe('capacity race rule', () => {
+  it('customer path treats occupied >= capacity as full', () => {
+    const day = new Date(2026, 6, 27, 0, 0, 0, 0);
+    const schedule = {
+      openTime: '09:00',
+      closeTime: '11:00',
+      slotMinutes: 60,
+      capacityPerSlot: 1,
+      weekdays: [1],
+    };
+    const nine = new Date(2026, 6, 27, 9, 0, 0, 0);
+    const occ = new Map([[nine.getTime(), 1]]);
+    const slots = buildDaySlots(day, schedule, occ);
+    const customerSlots = slots.filter((s) => !s.isFull);
+    assert.equal(customerSlots.some((s) => s.startsAt.getTime() === nine.getTime()), false);
+    // merchant may still see the full slot for overbook
+    assert.equal(slots.find((s) => s.startsAt.getTime() === nine.getTime())?.isFull, true);
+  });
+});

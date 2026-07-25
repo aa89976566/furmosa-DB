@@ -74,7 +74,10 @@ export function AppointmentActions({
         {cancelState.error ? (
           <p className="mb-2 text-sm text-destructive">{cancelState.error}</p>
         ) : null}
-        <Submit label="取消預約" variant="ghost" />
+        <Submit
+          label={status === 'requested' ? '拒絕預約' : '取消預約'}
+          variant="ghost"
+        />
       </form>
     </div>
   );

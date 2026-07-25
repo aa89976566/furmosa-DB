@@ -119,17 +119,39 @@ export async function findOrCreateCustomerByPhone(input: {
   });
 }
 
-async function assertSlotBookable(input: {
-  merchantId: string;
-  startsAt: Date;
-  allowOverbook: boolean;
-}) {
+async function resolveSlotInTx(
+  tx: Prisma.TransactionClient,
+  input: {
+    merchantId: string;
+    startsAt: Date;
+    allowOverbook: boolean;
+    ignoreAppointmentId?: string;
+  },
+) {
+  const { schedule } = await getBookingSchedule(input.merchantId, tx);
   const dateStr = formatLocalDate(input.startsAt);
-  const slots = await listSlotsForDay({
-    merchantId: input.merchantId,
-    dateStr,
-    audience: 'merchant',
+  const day = parseLocalDate(dateStr);
+  if (!day) throw new Error('日期格式不正確');
+  const dayEnd = new Date(day);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const rows = await tx.appointment.findMany({
+    where: {
+      merchantId: input.merchantId,
+      status: { in: [...APPOINTMENT_OCCUPYING_STATUSES] },
+      startsAt: { gte: day, lt: dayEnd },
+      ...(input.ignoreAppointmentId
+        ? { NOT: { id: input.ignoreAppointmentId } }
+        : {}),
+    },
+    select: { startsAt: true },
   });
+  const map = new Map<number, number>();
+  for (const r of rows) {
+    const k = r.startsAt.getTime();
+    map.set(k, (map.get(k) ?? 0) + 1);
+  }
+  const slots = buildDaySlots(day, schedule, map);
   const match = slots.find((s) => s.startsAt.getTime() === input.startsAt.getTime());
   if (!match) {
     throw new Error('這個時間不在店家可預約時段內');
@@ -161,12 +183,6 @@ export async function submitCustomerBooking(input: {
     throw new Error('這間店還沒開放線上預約');
   }
 
-  const slot = await assertSlotBookable({
-    merchantId: input.merchantId,
-    startsAt: input.startsAt,
-    allowOverbook: false,
-  });
-
   let serviceName = input.serviceName?.trim() || '';
   let serviceProductId = input.serviceProductId || null;
   if (serviceProductId) {
@@ -186,21 +202,32 @@ export async function submitCustomerBooking(input: {
     petName: input.petName,
   });
 
-  return prisma.appointment.create({
-    data: {
-      merchantId: input.merchantId,
-      customerId: customer.id,
-      serviceProductId,
-      serviceName,
-      petName: input.petName?.trim() || customer.petName,
-      startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
-      status: 'requested',
-      customerNote: input.customerNote?.trim() || null,
-      createdBy: 'customer' satisfies AppointmentCreatedBy,
-      isOverbooked: false,
+  // Serializable tx: capacity check + create must not race into double-book
+  return prisma.$transaction(
+    async (tx) => {
+      const slot = await resolveSlotInTx(tx, {
+        merchantId: input.merchantId,
+        startsAt: input.startsAt,
+        allowOverbook: false,
+      });
+      return tx.appointment.create({
+        data: {
+          merchantId: input.merchantId,
+          customerId: customer.id,
+          serviceProductId,
+          serviceName,
+          petName: input.petName?.trim() || customer.petName,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          status: 'requested',
+          customerNote: input.customerNote?.trim() || null,
+          createdBy: 'customer' satisfies AppointmentCreatedBy,
+          isOverbooked: false,
+        },
+      });
     },
-  });
+    { isolationLevel: 'Serializable' },
+  );
 }
 
 export async function createMerchantAppointment(input: {
@@ -218,11 +245,6 @@ export async function createMerchantAppointment(input: {
   createdBy?: Extract<AppointmentCreatedBy, 'merchant' | 'hq'>;
 }) {
   const allowOverbook = input.allowOverbook !== false;
-  const slot = await assertSlotBookable({
-    merchantId: input.merchantId,
-    startsAt: input.startsAt,
-    allowOverbook,
-  });
 
   let serviceName = input.serviceName?.trim() || '美容';
   let serviceProductId = input.serviceProductId || null;
@@ -243,25 +265,34 @@ export async function createMerchantAppointment(input: {
     petName: input.petName,
   });
 
-  const isOverbooked = slot.isFull && allowOverbook;
-
-  return prisma.appointment.create({
-    data: {
-      merchantId: input.merchantId,
-      customerId: customer.id,
-      serviceProductId,
-      serviceName,
-      petName: input.petName?.trim() || customer.petName,
-      startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
-      status: 'confirmed',
-      customerNote: input.customerNote?.trim() || null,
-      merchantNote: input.merchantNote?.trim() || null,
-      createdBy: input.createdBy ?? 'merchant',
-      isOverbooked,
-      confirmedAt: new Date(),
+  return prisma.$transaction(
+    async (tx) => {
+      const slot = await resolveSlotInTx(tx, {
+        merchantId: input.merchantId,
+        startsAt: input.startsAt,
+        allowOverbook,
+      });
+      const isOverbooked = slot.isFull && allowOverbook;
+      return tx.appointment.create({
+        data: {
+          merchantId: input.merchantId,
+          customerId: customer.id,
+          serviceProductId,
+          serviceName,
+          petName: input.petName?.trim() || customer.petName,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          status: 'confirmed',
+          customerNote: input.customerNote?.trim() || null,
+          merchantNote: input.merchantNote?.trim() || null,
+          createdBy: input.createdBy ?? 'merchant',
+          isOverbooked,
+          confirmedAt: new Date(),
+        },
+      });
     },
-  });
+    { isolationLevel: 'Serializable' },
+  );
 }
 
 export async function confirmAppointment(input: {
