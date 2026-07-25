@@ -6,11 +6,25 @@
 
 ---
 
+## 用語對照（台灣現場）
+
+| 文件／程式內部 | 現場說法 | 意思 |
+|----------------|----------|------|
+| 存罐／序號入點（舊稱「返航」） | **存罐**、掃序號入點 | 客人傳空罐 8 碼序號，換點數 |
+| 開戶 | **幫毛孩開戶** | LINE 完成註冊，並選定合作店 |
+| 開戶店／signupLocation | **開戶合作店** | 開戶時綁定的那一家店（之後扣庫存、核銷都認這家） |
+| jar_redeem 事件 | 存罐扣庫 | 存罐成功後，從開戶店在店庫存扣 1 |
+
+> 文件其餘段落若仍出現「返航」，一律等同「存罐／序號入點」。
+
+---
+
 ## 0. 一句話憲法
 
 1. **一間實體店只有一個 Location 真相**（寄賣、開戶、核銷、未來 POS 都掛這裡）。  
 2. **換罐商品靠硬標記，不靠名稱前綴「換罐」**。  
-3. **每一筆真實事件只寫一條庫存流水**；Dashboard／一鍵補貨只能讀這些流水的結果，不能另造算法當帳本。
+3. **每一筆真實事件只寫一條庫存流水**；Dashboard／一鍵補貨只能讀這些流水的結果，不能另造算法當帳本。  
+4. **沒開戶就不能累點**：未完成開戶（含未綁開戶合作店）傳序號 → **不給點、不消耗序號**，引導去開戶。
 
 ---
 
@@ -22,8 +36,9 @@
 |------|----------------|
 | 客人開戶綁的是哪一店？ | Location FK，可對到寄賣庫存與核銷 |
 | 這組序號對應哪個商品？ | 必填 Product（SKU） |
-| 返航時扣誰的庫存？ | 預設扣開戶 Location 的在店庫存 |
-| 補貨／售出／返航／盤點怎麼入帳？ | 統一 `StockEvent` 語意（可先映射到現有 `MerchantStockTxn`） |
+| 存罐時扣誰的庫存？ | 扣開戶合作店的在店庫存 |
+| 沒開戶就傳序號？ | **不累點、序號維持未使用**，引導開戶 |
+| 補貨／售出／存罐／盤點怎麼入帳？ | 統一 `StockEvent` 語意（可先映射到現有 `MerchantStockTxn`） |
 | 未來 POS 怎麼接？ | 只吃「事件」，不直接改餘額 |
 
 ### 非目標（本階段不做）
@@ -45,6 +60,7 @@
 | `JarCode.productSku` 可空；批量產生不寫 SKU | 返航定價／扣庫存猜商品 |
 | 換罐商品靠 `name.startsWith('換罐')` | 主檔一改規則全壞 |
 | `redeemJarCode` 不扣 `MerchantStock`，Order.`merchantId=null` | 營運台水位會漂 |
+| 舊資料可能有會員卻沒綁開戶店 | 若不擋，無法決定扣哪家店的貨 |
 | 一鍵補貨 `weightGrams=null` 可能落入錯誤 tier | 多規格商品帳面假缺／假多 |
 
 ---
@@ -242,37 +258,49 @@ model MerchantStockTxn {
 }
 ```
 
-### 5.3 返航扣庫（P1 核心規則）
+### 5.3 存罐扣庫（P1 核心規則）— 已拍板
+
+**開戶門檻（產品決策）：**
+
+| 狀況 | 系統行為 |
+|------|----------|
+| LINE 尚未開戶（查無會員） | **不累點**；序號不消耗；回覆引導「請先幫毛孩開戶」 |
+| 已有會員但沒綁開戶合作店（`signupLocationId` 空） | **不累點**；序號不消耗；引導補完開戶／選店 |
+| 已開戶且有開戶店 | 才進入存罐入點＋扣庫存 |
+
+> 重點：沒開好戶就傳序號，**點數一個都不會加**，也**不要先把序號標成已使用**（避免客人開完戶卻序號蒸發）。
 
 ```
 redeemJarCode(customer, code):
-  1. claim JarCode (unused → used)  // 既有原子更新
-  2. location = customer.signupLocationId
-       若空 → 不扣庫存，記 points + 標例外（ops 警示「無開戶店」）
-  3. product = jarCode.productId（必填）
-  4. tierId = jarCode.tierId ?? LEGACY
-  5. 寫 MerchantStockTxn:
+  0. 若無 customer → 拒絕，引導開戶（LINE 既有）
+  0b. location = customer.signupLocationId
+       若空 → 拒絕入點（不 claim 序號），回覆引導完成開戶／選店
+  1. claim JarCode (unused → used)  // 原子更新
+  2. product = jarCode.productId（必填）
+  3. tierId = jarCode.tierId ?? LEGACY
+  4. 寫 MerchantStockTxn:
        eventType=jar_redeem
        sourceSystem=line|hq
        idempotencyKey=`jar_redeem:${jarCode.id}`
        quantity=-1（或依包裝規則）
-  6. 更新 MerchantStock.quantity（不允許靜默變負？見下方策略）
-  7. 記點數 +（可選）jar_exchange Order，Order.merchantId=location.id
+  5. 更新 MerchantStock.quantity
+       若結果 < 0 → 仍成功入點，但寫警示（營運台可見）
+  6. 記點數 +（可選）jar_exchange Order，Order.merchantId=location.id
 ```
 
-**庫存不足策略（凍結選項，預設 A）：**
+**店家庫存不足（已拍板）：**
 
-| 選項 | 行為 | 適用 |
-|------|------|------|
-| **A（建議）** | 允許負庫存 + ops 警示 | 先求帳本連續，暴露盤點問題 |
-| B | 拒絕返航 | 體驗差，LINE 客訴高 |
-| C | 返航成功但不扣庫，另開例外佇列 | 帳本又漂，不建議 |
+| 決策 | 行為 |
+|------|------|
+| 存罐／給點 | **照常成功**（客人體驗不卡） |
+| 庫存 | 允許變負數 |
+| 後台 | **一定要警示**（哪一店、哪一品、目前數量），催盤點或補貨 |
 
 ### 5.4 冪等
 
 所有外部可重送事件必須帶 `idempotencyKey`：
 
-- 返航：`jar_redeem:{jarCodeId}`  
+- 存罐：`jar_redeem:{jarCodeId}`  
 - POS：`pos_sale:{posTxnId}`  
 - 出貨入庫：既有 delivered 入庫邏輯需確認只跑一次（維持現狀並補測試）
 
@@ -330,13 +358,13 @@ Dashboard **只導航三條線**，細節進專頁：
 |------|---------------------|--------|
 | 今日要做 | 出貨隊列、今日任務、總倉低庫存 | `/shipments`、`/tasks` |
 | 錢從哪來 | 營收合格訂單、來源、寄賣排行 | `/orders` |
-| 換罐怎麼了 | Location 店庫（isJarExchange）、在途 restock、本週 `jar_redeem` 事件、核銷數 | `/jar-exchange/ops` |
+| 換罐怎麼了 | Location 店庫（isJarExchange）、在途補貨、本週存罐數、核銷數、負庫存警示 | `/jar-exchange/ops` |
 
 營運台數字定義：
 
 - **在店庫存** = `MerchantStock` where product.isJarExchange  
-- **本週返航** = count `MerchantStockTxn.eventType=jar_redeem`（或 JarCode.redeemedAt）同週  
-- **低庫存格** = location × jar SKU，qty≤3  
+- **本週存罐** = count `MerchantStockTxn.eventType=jar_redeem`（或 JarCode.redeemedAt）同週  
+- **低庫存／缺貨警示** = location × jar SKU，qty≤3；**負庫存另標紅**  
 - **在途** = jar location 的 `merchant_restock` in pending/packed/shipped  
 
 禁止再用「點數流水人數」冒充店營運健康度（可保留為次級指標）。
@@ -360,12 +388,13 @@ Dashboard **只導航三條線**，細節進專頁：
 - [ ] 核銷改走 RedeemProfile  
 - [ ] 營運台改查 `isJarExchange`
 
-### Milestone C — 返航扣庫閉環
+### Milestone C — 存罐扣庫閉環
 
+- [ ] 未開戶／未綁開戶店：拒絕入點、不消耗序號、引導開戶  
 - [ ] `redeemJarCode` 寫 `jar_redeem` txn + 扣庫  
 - [ ] Order.merchantId = location  
 - [ ] 負庫存警示上營運台  
-- [ ] 單元／整合測試：冪等、無開戶店、無 SKU
+- [ ] 單元／整合測試：冪等、未開戶、未綁店、無 SKU、負庫存仍入點
 
 ### Milestone D — 補貨與 Dashboard 硬化
 
@@ -429,10 +458,12 @@ ALTER TABLE "MerchantStockTxn" ADD COLUMN "idempotency_key" TEXT UNIQUE;
 - [ ] 新開戶 Customer 必有 `signupLocationId`  
 - [ ] 新產生 JarCode 必有 `productId` 且商品 `isJarExchange=true`
 
-### 庫存
+### 庫存與開戶
 
-- [ ] 同序號重送返航不會雙扣（idempotency）  
-- [ ] 返航後該 Location 該 SKU 庫存 −1（或規定量）  
+- [ ] 未開戶／未綁開戶店傳序號：0 點、序號仍 unused、有引導文案  
+- [ ] 同序號重送存罐不會雙扣（idempotency）  
+- [ ] 存罐後該開戶店該 SKU 庫存 −1（或規定量）  
+- [ ] 庫存不足時仍入點，營運台出現警示  
 - [ ] 營運台數字 = 上述流水聚合，無第二套算法
 
 ### 補貨
@@ -447,15 +478,15 @@ ALTER TABLE "MerchantStockTxn" ADD COLUMN "idempotency_key" TEXT UNIQUE;
 
 ---
 
-## 11. 未決事項（需產品拍板）
+## 11. 產品決策狀態
 
-| # | 問題 | 建議預設 |
-|---|------|----------|
-| 1 | 返航庫存不足？ | 允許負庫存 + 警示（策略 A） |
-| 2 | 無開戶店的舊會員返航？ | 入點成功、不扣庫、進例外清單 |
-| 3 | 一罐對應多規格時預設哪檔？ | 序號產生時必選；舊碼人工補 |
-| 4 | `stores` 表廢除時程？ | Milestone B 後 dual-write 一週，再只讀 |
-| 5 | `jar_redeem` 是否計入寄賣銷售結算？ | **否**（與現場 `store_sale` 分開；返航已有 jar_exchange 營收／行銷成本語意） |
+| # | 問題 | 決策 |
+|---|------|------|
+| 1 | 店家庫存不夠，客人還能存罐嗎？ | **可以入點**；庫存可變負；**後台一定警示** |
+| 2 | 沒開戶（或沒綁開戶合作店）傳序號？ | **不能累點**；序號不消耗；**引導開戶／選店** |
+| 3 | 一罐對應多規格時預設哪檔？ | 序號產生時必選；舊碼人工補（仍待執行細節） |
+| 4 | `stores` 表廢除時程？ | Milestone B 後 dual-write 一週，再只讀（仍待執行） |
+| 5 | 存罐扣庫是否算進寄賣月結銷售？ | **否**（與店內現場售出分開；存罐另有換罐營收／行銷成本語意） |
 
 ---
 
@@ -465,6 +496,8 @@ ALTER TABLE "MerchantStockTxn" ADD COLUMN "idempotency_key" TEXT UNIQUE;
 
 1. **Location** = Merchant + RedeemProfile（消滅 Store／開戶字串雙軌）  
 2. **Program SKU** = `Product.isJarExchange` + 序號必綁商品  
-3. **Stock Event** = 統一寫入 `MerchantStockTxn`（返航／售出／POS 同一條路）  
+3. **Stock Event** = 統一寫入 `MerchantStockTxn`（存罐／售出／POS 同一條路）  
+
+再加上已拍板的體驗規則：**先開戶才能存罐累點；庫存不足不擋客人，但一定警示後台。**
 
 做完 A→C，營運台與 Dashboard 才有資格被稱為「可日結的換罐營運」；POS 只是事件投稿者，不是另一套庫存真相。
