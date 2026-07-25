@@ -70,17 +70,23 @@ async function main() {
   const richMenuId = createJson.richMenuId;
   console.log('created', richMenuId);
 
-  const imagePath = resolve('public/line/rich-menu-three-worlds.png');
-  const png = readFileSync(imagePath);
+  // JPEG 較易壓在 LINE 1MB 限制內（換罐計畫大圖用照片時尤其需要）
+  const jpgPath = resolve('public/line/rich-menu-three-worlds.jpg');
+  const pngPath = resolve('public/line/rich-menu-three-worlds.png');
+  const { existsSync } = await import('node:fs');
+  const imagePath = existsSync(jpgPath) ? jpgPath : pngPath;
+  const bytes = readFileSync(imagePath);
+  const contentType = imagePath.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+  console.log('uploading', imagePath, bytes.length, 'bytes');
   const uploadRes = await fetch(
     `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
     {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': 'image/png',
+        'Content-Type': contentType,
       },
-      body: png,
+      body: bytes,
     },
   );
   if (!uploadRes.ok) {
@@ -91,7 +97,10 @@ async function main() {
 
   const defRes = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}` },
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      'Content-Length': '0',
+    },
   });
   if (!defRes.ok) {
     console.error('設為預設失敗', defRes.status, await defRes.text());
