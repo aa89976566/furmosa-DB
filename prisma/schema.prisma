@@ -968,3 +968,17 @@ model Task {
   @@index([type])
   @@index([dueDate])
 }
+
+// =====================================================
+// Dashboard KPI 預聚合（cron／讀頁共用）
+// =====================================================
+
+model DashboardKpiSnapshot {
+  id         String   @id @default("default")
+  payload    Json
+  computedAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([computedAt])
+}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { refreshDashboardKpiSnapshot } from '@/features/dashboard/queries';
 import { maintainShipmentQueueIntegrity } from '@/lib/shipment-queue-filters';
 import { syncUpcomingSubscriptionShipments } from '@/lib/subscription-shipment-sync';
 import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-merchants';
@@ -38,18 +39,36 @@ export async function GET(req: Request) {
 
   await maintainShipmentQueueIntegrity();
 
+<<<<<<< HEAD
   // Booking Round 2：T−1d（日曆明天）＋掃一次 T−2h；Hobby 不可 hourly cron
   const bookingReminders = await processAppointmentReminders().catch((error) => {
     console.error('[cron/maintain-shipments] bookingReminders', error);
     return { error: String(error) };
   });
+=======
+  let dashboardKpi: { ok: true; computedAt: string } | { ok: false; error: string };
+  try {
+    await refreshDashboardKpiSnapshot();
+    dashboardKpi = { ok: true, computedAt: new Date().toISOString() };
+  } catch (error) {
+    console.error('[cron/maintain-shipments] dashboard kpi', error);
+    dashboardKpi = {
+      ok: false,
+      error: error instanceof Error ? error.message : 'kpi refresh failed',
+    };
+  }
+>>>>>>> origin/main
 
   return NextResponse.json({
     ok: true,
     subscriptionSync,
     zhuwoCreated: zhuwo.filter((r) => r.created).length,
     qimu,
+<<<<<<< HEAD
     bookingReminders,
+=======
+    dashboardKpi,
+>>>>>>> origin/main
   });
 }
 

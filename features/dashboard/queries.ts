@@ -2,6 +2,11 @@ import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { withDbRetry } from '@/lib/prisma-retry';
 import { CACHE_TAGS } from '@/lib/cache-tags';
+import {
+  isDashboardKpiFresh,
+  readDashboardKpiSnapshot,
+  writeDashboardKpiSnapshot,
+} from '@/lib/dashboard-kpi-snapshot';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
 import {
   dashboardSalesOrderWhere,
@@ -18,7 +23,7 @@ import {
 
 const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual', 'jar_exchange'] as const;
 
-export type DashboardData = Awaited<ReturnType<typeof getDashboardData>>;
+export type DashboardData = Awaited<ReturnType<typeof loadDashboardData>>;
 
 /** Supabase pooler 連線有限；並行查詢，不再每筆包 withDbRetry（避免巢狀重試拖到 10s） */
 async function runInBatches(
@@ -35,13 +40,31 @@ async function runInBatches(
 
 const loadDashboardDataCached = unstable_cache(
   () => loadDashboardData(),
-  ['dashboard-overview-v2'],
+  ['dashboard-overview-v3'],
   { revalidate: 60, tags: [CACHE_TAGS.dashboard] },
 );
 
-export async function getDashboardData() {
-  // 勿再包 Runtime Cache：回傳含 Prisma 關聯／Date，跨序列化會讓 RSC 爆掉
-  return withDbRetry(() => loadDashboardDataCached());
+/** cron／手動：重算並寫入預聚合快照 */
+export async function refreshDashboardKpiSnapshot(): Promise<DashboardData> {
+  const data = await withDbRetry(() => loadDashboardData());
+  await writeDashboardKpiSnapshot(data);
+  const { bustCacheTags } = await import('@/lib/runtime-cache');
+  await bustCacheTags(CACHE_TAGS.dashboard);
+  return data;
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  return withDbRetry(async () => {
+    const snap = await readDashboardKpiSnapshot();
+    if (snap && isDashboardKpiFresh(snap.computedAt)) {
+      return snap.payload as DashboardData;
+    }
+
+    const data = await loadDashboardDataCached();
+    // 背景寫入快照，不擋回應
+    void writeDashboardKpiSnapshot(data);
+    return data;
+  });
 }
 
 async function loadDashboardData() {
