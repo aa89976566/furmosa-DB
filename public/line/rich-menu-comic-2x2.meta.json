@@ -1,0 +1,17 @@
+{
+  "source": "public/line/comic-menu-2x2-source.png",
+  "canvas": {
+    "width": 2500,
+    "height": 1686
+  },
+  "content": {
+    "x": 407,
+    "y": 0,
+    "width": 1686,
+    "height": 1686
+  },
+  "method": "contain-letterbox-white",
+  "jpegQuality": 90,
+  "jpegBytes": 574233,
+  "note": "Artwork unchanged; only scaled and padded. Tap areas use content box (+ side gutters)."
+}

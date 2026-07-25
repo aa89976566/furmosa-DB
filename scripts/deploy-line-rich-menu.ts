@@ -5,6 +5,7 @@
  *   LINE_CHANNEL_ACCESS_TOKEN=xxx npx tsx scripts/deploy-line-rich-menu.ts
  *
  * 圖檔優先：public/line/rich-menu-comic-2x2.jpg
+ * 熱區依 rich-menu-comic-2x2.meta.json 的 content box（contain 留邊後的實際圖面）。
  *
  * 熱區：
  *   左上 一起野放 → 一起搞事／新鮮事
@@ -27,43 +28,88 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
+const CANVAS_W = 2500;
+const CANVAS_H = 1686;
+
+type ContentBox = { x: number; y: number; width: number; height: number };
+
+function loadContentBox(): ContentBox {
+  const metaPath = resolve('public/line/rich-menu-comic-2x2.meta.json');
+  if (existsSync(metaPath)) {
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as {
+      content?: ContentBox;
+    };
+    if (
+      meta.content &&
+      Number.isFinite(meta.content.x) &&
+      Number.isFinite(meta.content.y) &&
+      Number.isFinite(meta.content.width) &&
+      Number.isFinite(meta.content.height)
+    ) {
+      return meta.content;
+    }
+  }
+  // 後備：整張等分（舊 cover 圖）
+  return { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H };
+}
+
+/** 左格含左側白邊、右格含右側白邊，避免點到留邊沒反應。 */
+function buildAreas(content: ContentBox) {
+  const midX = content.x + Math.floor(content.width / 2);
+  const midY = content.y + Math.floor(content.height / 2);
+  const leftW = midX;
+  const rightW = CANVAS_W - midX;
+  const topH = midY;
+  const bottomH = CANVAS_H - midY;
+
+  return [
+    {
+      bounds: { x: 0, y: 0, width: leftW, height: topH },
+      action: { type: 'message' as const, text: '一起野放' },
+    },
+    {
+      bounds: { x: midX, y: 0, width: rightW, height: topH },
+      action: { type: 'message' as const, text: '預約美容' },
+    },
+    {
+      bounds: { x: 0, y: midY, width: leftW, height: bottomH },
+      action: { type: 'message' as const, text: '換罐計畫' },
+    },
+    {
+      bounds: { x: midX, y: midY, width: rightW, height: bottomH },
+      action: { type: 'message' as const, text: '回家' },
+    },
+  ];
+}
+
 async function main() {
   const listRes = await fetch(`${API}/richmenu/list`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  let existing: { richMenuId: string; name: string }[] = [];
   if (listRes.ok) {
     const list = (await listRes.json()) as { richmenus?: { richMenuId: string; name: string }[] };
+    existing = list.richmenus ?? [];
     console.log(
       'existing rich menus:',
-      (list.richmenus ?? []).map((m) => `${m.name} (${m.richMenuId})`).join(', ') || '(none)',
+      existing.map((m) => `${m.name} (${m.richMenuId})`).join(', ') || '(none)',
     );
   }
 
-  const halfW = 1250;
-  const halfH = 843;
+  const content = loadContentBox();
+  const areas = buildAreas(content);
+  console.log('content box', content);
+  console.log(
+    'areas',
+    areas.map((a) => `${a.action.text} ${JSON.stringify(a.bounds)}`).join(' | '),
+  );
+
   const body = {
-    size: { width: 2500, height: 1686 },
+    size: { width: CANVAS_W, height: CANVAS_H },
     selected: true,
     name: 'furmosa-comic-2x2',
     chatBarText: '選單',
-    areas: [
-      {
-        bounds: { x: 0, y: 0, width: halfW, height: halfH },
-        action: { type: 'message', text: '一起野放' },
-      },
-      {
-        bounds: { x: halfW, y: 0, width: halfW, height: halfH },
-        action: { type: 'message', text: '預約美容' },
-      },
-      {
-        bounds: { x: 0, y: halfH, width: halfW, height: 1686 - halfH },
-        action: { type: 'message', text: '換罐計畫' },
-      },
-      {
-        bounds: { x: halfW, y: halfH, width: halfW, height: 1686 - halfH },
-        action: { type: 'message', text: '回家' },
-      },
-    ],
+    areas,
   };
 
   const createRes = await fetch(`${API}/richmenu`, {
@@ -91,9 +137,8 @@ async function main() {
     process.exit(1);
   }
   const bytes = readFileSync(imagePath);
-  const contentType = imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg')
-    ? 'image/jpeg'
-    : 'image/png';
+  const contentType =
+    imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
   console.log('uploading', imagePath, bytes.length, 'bytes');
 
   const uploadRes = await fetch(
@@ -125,7 +170,19 @@ async function main() {
     process.exit(1);
   }
   console.log('set as default for all users');
-  console.log('Done. Reopen chat → 2×2 comic menu.');
+
+  // 清掉同名舊選單，避免 OA 裡堆太多
+  for (const m of existing) {
+    if (m.name === 'furmosa-comic-2x2' && m.richMenuId !== richMenuId) {
+      const del = await fetch(`${API}/richmenu/${m.richMenuId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      console.log('deleted old', m.richMenuId, del.status);
+    }
+  }
+
+  console.log('Done. Reopen chat → 2×2 comic menu (text fully visible).');
 }
 
 main().catch((e) => {
