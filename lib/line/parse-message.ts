@@ -15,6 +15,9 @@ export type ParsedLineText =
   | { kind: 'hub_jar' }
   | { kind: 'hub_chaos' }
   | { kind: 'hub_wild' }
+  | { kind: 'comic_roam' }
+  | { kind: 'comic_grooming' }
+  | { kind: 'comic_home' }
   | { kind: 'unknown'; text: string };
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
@@ -30,9 +33,13 @@ const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑�
 const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|reward|rewards)$/i;
 const UNBOXING_RE =
   /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|清蛙誰在怕)$/i;
-const HUB_JAR_RE = /^(?:♻️\s*)?換罐計畫$/;
+const HUB_JAR_RE = /^(?:♻️\s*)?(?:換罐計畫|換罐計劃)$/;
 const HUB_CHAOS_RE = /^(?:(?:🔥|🎉)\s*)?一起搞事$/; // Rich Menu 用 🔥；舊 🎉 仍相容
 const HUB_WILD_RE = /^(?:🌿\s*)?野放中$/;
+/** 四格漫畫 Rich Menu */
+const COMIC_ROAM_RE = /^(?:一起野放|野放一下)$/;
+const COMIC_GROOMING_RE = /^(?:預約美容|漂亮一下)$/;
+const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
 
 export function parseLineUserText(raw: string): ParsedLineText {
   const text = raw.trim();
@@ -46,6 +53,9 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (HUB_JAR_RE.test(text)) return { kind: 'hub_jar' };
   if (HUB_CHAOS_RE.test(text)) return { kind: 'hub_chaos' };
   if (HUB_WILD_RE.test(text)) return { kind: 'hub_wild' };
+  if (COMIC_ROAM_RE.test(text)) return { kind: 'comic_roam' };
+  if (COMIC_GROOMING_RE.test(text)) return { kind: 'comic_grooming' };
+  if (COMIC_HOME_RE.test(text)) return { kind: 'comic_home' };
 
   if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
   if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };

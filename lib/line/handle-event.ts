@@ -14,6 +14,12 @@ import {
 } from '@/lib/line/jar-deposit-copy';
 import { buildRedeemPickerMessages } from '@/lib/line/flex-menu';
 import {
+  buildComicGroomingMessages,
+  buildComicHomeMessages,
+  buildComicJarMessages,
+  buildComicRoamMessages,
+} from '@/lib/line/comic-menu';
+import {
   buildJarSuccessFlex,
   buildRegisterGateMessages,
   buildWorldHubMessages,
@@ -151,7 +157,19 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'hub_jar') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('jar', { registered }));
+    await replyLineMessage(replyToken, buildComicJarMessages(registered));
+    return;
+  }
+  if (parsed.kind === 'comic_roam') {
+    await replyLineMessage(replyToken, buildComicRoamMessages(registered));
+    return;
+  }
+  if (parsed.kind === 'comic_grooming') {
+    await replyLineMessage(replyToken, await buildComicGroomingMessages());
+    return;
+  }
+  if (parsed.kind === 'comic_home') {
+    await replyLineMessage(replyToken, buildComicHomeMessages(registered));
     return;
   }
   if (parsed.kind === 'hub_chaos') {

@@ -1,13 +1,18 @@
 /**
- * 部署「三張大卡」Rich Menu（覆蓋舊六宮格 icon 選單）。
+ * 部署四格漫畫 Rich Menu（2×2）。
  *
  * 用法：
  *   LINE_CHANNEL_ACCESS_TOKEN=xxx npx tsx scripts/deploy-line-rich-menu.ts
  *
- * 圖檔：public/line/rich-menu-three-worlds.png（2500×1686，直向三列大卡）
- * 三列皆傳訊息 → webhook 回卡片式 Flex carousel。
+ * 圖檔優先：public/line/rich-menu-comic-2x2.jpg
+ *
+ * 熱區：
+ *   左上 一起野放 → 一起搞事／新鮮事
+ *   右上 預約美容 → 美容導引
+ *   左下 換罐計畫 → 換罐制度
+ *   右下 回家 → 官網／社群／故事
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim();
@@ -23,7 +28,6 @@ const headers = {
 };
 
 async function main() {
-  // 先列出舊選單，部署後可手動刪（避免額度佔用）
   const listRes = await fetch(`${API}/richmenu/list`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
@@ -35,24 +39,29 @@ async function main() {
     );
   }
 
-  const rowH = 562;
+  const halfW = 1250;
+  const halfH = 843;
   const body = {
     size: { width: 2500, height: 1686 },
     selected: true,
-    name: 'furmosa-three-world-cards',
+    name: 'furmosa-comic-2x2',
     chatBarText: '選單',
     areas: [
       {
-        bounds: { x: 0, y: 0, width: 2500, height: rowH },
+        bounds: { x: 0, y: 0, width: halfW, height: halfH },
+        action: { type: 'message', text: '一起野放' },
+      },
+      {
+        bounds: { x: halfW, y: 0, width: halfW, height: halfH },
+        action: { type: 'message', text: '預約美容' },
+      },
+      {
+        bounds: { x: 0, y: halfH, width: halfW, height: 1686 - halfH },
         action: { type: 'message', text: '換罐計畫' },
       },
       {
-        bounds: { x: 0, y: rowH, width: 2500, height: rowH },
-        action: { type: 'message', text: '一起搞事' },
-      },
-      {
-        bounds: { x: 0, y: rowH * 2, width: 2500, height: 1686 - rowH * 2 },
-        action: { type: 'message', text: '野放中' },
+        bounds: { x: halfW, y: halfH, width: halfW, height: 1686 - halfH },
+        action: { type: 'message', text: '回家' },
       },
     ],
   };
@@ -70,14 +79,23 @@ async function main() {
   const richMenuId = createJson.richMenuId;
   console.log('created', richMenuId);
 
-  // JPEG 較易壓在 LINE 1MB 限制內（換罐計畫大圖用照片時尤其需要）
-  const jpgPath = resolve('public/line/rich-menu-three-worlds.jpg');
-  const pngPath = resolve('public/line/rich-menu-three-worlds.png');
-  const { existsSync } = await import('node:fs');
-  const imagePath = existsSync(jpgPath) ? jpgPath : pngPath;
+  const candidates = [
+    resolve('public/line/rich-menu-comic-2x2.jpg'),
+    resolve('public/line/rich-menu-comic-2x2.png'),
+    resolve('public/line/rich-menu-three-worlds.jpg'),
+    resolve('public/line/rich-menu-three-worlds.png'),
+  ];
+  const imagePath = candidates.find((p) => existsSync(p));
+  if (!imagePath) {
+    console.error('找不到 Rich Menu 圖檔');
+    process.exit(1);
+  }
   const bytes = readFileSync(imagePath);
-  const contentType = imagePath.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+  const contentType = imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg')
+    ? 'image/jpeg'
+    : 'image/png';
   console.log('uploading', imagePath, bytes.length, 'bytes');
+
   const uploadRes = await fetch(
     `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
     {
@@ -93,7 +111,7 @@ async function main() {
     console.error('上傳圖片失敗', uploadRes.status, await uploadRes.text());
     process.exit(1);
   }
-  console.log('image uploaded', imagePath, png.length, 'bytes');
+  console.log('image uploaded');
 
   const defRes = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
     method: 'POST',
@@ -107,7 +125,7 @@ async function main() {
     process.exit(1);
   }
   console.log('set as default for all users');
-  console.log('Done. Reopen the chat to see three large cards (not six icons).');
+  console.log('Done. Reopen chat → 2×2 comic menu.');
 }
 
 main().catch((e) => {

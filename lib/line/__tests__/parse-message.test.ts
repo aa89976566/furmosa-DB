@@ -27,11 +27,19 @@ describe('parseLineUserText', () => {
 
   it('recognizes three world hubs', () => {
     assert.equal(parseLineUserText('換罐計畫').kind, 'hub_jar');
+    assert.equal(parseLineUserText('換罐計劃').kind, 'hub_jar');
     assert.equal(parseLineUserText('♻️ 換罐計畫').kind, 'hub_jar');
     assert.equal(parseLineUserText('一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('🎉 一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('🔥 一起搞事').kind, 'hub_chaos');
     assert.equal(parseLineUserText('野放中').kind, 'hub_wild');
+  });
+
+  it('recognizes four-panel comic rich menu labels', () => {
+    assert.equal(parseLineUserText('一起野放').kind, 'comic_roam');
+    assert.equal(parseLineUserText('預約美容').kind, 'comic_grooming');
+    assert.equal(parseLineUserText('漂亮一下').kind, 'comic_grooming');
+    assert.equal(parseLineUserText('回家').kind, 'comic_home');
   });
 
   it('recognizes vault and legacy phrases', () => {
