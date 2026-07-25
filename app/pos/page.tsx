@@ -9,6 +9,11 @@ import {
   restockRequestTypeLabel,
   restockStatusLabelForMerchant,
 } from '@/lib/restock-request/constants';
+import { countPendingAppointments } from '@/lib/booking/service';
+import {
+  formatLocalDate,
+  formatLocalTime,
+} from '@/lib/booking/availability';
 
 export const metadata = {
   title: '今天 · Furmosa 店家',
@@ -31,21 +36,36 @@ export default async function PosHomePage() {
     );
   }
 
-  const openRestocks = await prisma.restockRequest.findMany({
-    where: {
-      merchantId: session.merchantId,
-      status: { in: ['submitted', 'under_review', 'approved', 'converted_to_shipment'] },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-    select: {
-      id: true,
-      requestType: true,
-      status: true,
-      expectedArrivalDate: true,
-      createdAt: true,
-    },
-  });
+  const [pendingAppointments, nextAppointment, openRestocks] = await Promise.all([
+    countPendingAppointments(session.merchantId),
+    prisma.appointment.findFirst({
+      where: {
+        merchantId: session.merchantId,
+        status: { in: ['confirmed', 'requested'] },
+        startsAt: { gte: new Date() },
+      },
+      orderBy: { startsAt: 'asc' },
+      include: { customer: { select: { name: true } } },
+    }),
+    prisma.restockRequest.findMany({
+      where: {
+        merchantId: session.merchantId,
+        status: { in: ['submitted', 'under_review', 'approved', 'converted_to_shipment'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        requestType: true,
+        status: true,
+        expectedArrivalDate: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  const hasSomething =
+    pendingAppointments > 0 || nextAppointment || openRestocks.length > 0;
 
   return (
     <PosShell>
@@ -64,19 +84,58 @@ export default async function PosHomePage() {
         </header>
 
         <div className="grid gap-3">
-          {openRestocks.length === 0 ? (
+          {!hasSomething ? (
             <Card className="shadow-card">
               <CardContent className="space-y-3 p-5">
                 <p className="font-medium text-foreground">今天都處理好了。</p>
                 <p className="text-sm text-muted-foreground">
-                  預約、換罐與庫存提醒還在準備中，目前可先用叫貨。
+                  需要時可看預約或叫貨。換罐提醒仍在準備中。
                 </p>
                 <Button asChild className="min-h-[44px] w-full">
-                  <Link href="/pos/restock">需要補貨嗎？</Link>
+                  <Link href="/pos/appointments">看預約</Link>
                 </Button>
               </CardContent>
             </Card>
-          ) : (
+          ) : null}
+
+          {pendingAppointments > 0 ? (
+            <Link href="/pos/appointments">
+              <Card className="shadow-card transition hover:border-primary/40">
+                <CardContent className="flex min-h-[72px] items-center justify-between p-4">
+                  <div>
+                    <p className="font-medium">待確認預約</p>
+                    <p className="text-sm text-muted-foreground">客人在等你回覆</p>
+                  </div>
+                  <span className="text-lg font-semibold text-primary">
+                    {pendingAppointments}
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+          ) : null}
+
+          {nextAppointment ? (
+            <Link href={`/pos/appointments/${nextAppointment.id}`}>
+              <Card className="shadow-card transition hover:border-primary/40">
+                <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">下一位</p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {nextAppointment.customer.name}
+                      {nextAppointment.petName
+                        ? ` · ${nextAppointment.petName}`
+                        : ''}{' '}
+                      · {formatLocalDate(nextAppointment.startsAt)}{' '}
+                      {formatLocalTime(nextAppointment.startsAt)}
+                    </p>
+                  </div>
+                  <span className="text-sm text-primary">查看</span>
+                </CardContent>
+              </Card>
+            </Link>
+          ) : null}
+
+          {openRestocks.length > 0 ? (
             <section className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-medium text-foreground">補貨進度</h2>
@@ -106,13 +165,13 @@ export default async function PosHomePage() {
                 </Link>
               ))}
             </section>
-          )}
+          ) : null}
 
           <Card className="border-dashed">
             <CardContent className="space-y-1 p-4">
               <p className="text-sm font-medium text-muted-foreground">準備中</p>
               <p className="text-xs text-muted-foreground">
-                下一位客人、待換罐、缺貨提醒 — 等後端就緒後才會顯示真實資料，不會先放假數字。
+                待換罐、缺貨提醒 — 等後端就緒後才顯示真實資料。
               </p>
             </CardContent>
           </Card>
