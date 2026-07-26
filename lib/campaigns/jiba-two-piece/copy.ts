@@ -1,4 +1,8 @@
-import { JIBA_SHIPPING_FEE } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  JIBA_BANK_TRANSFER,
+  JIBA_SHIPPING_FEE,
+  JIBA_SUPERVISOR_NAME,
+} from '@/lib/campaigns/jiba-two-piece/constants';
 
 export const JIBA_INTRO = `雞霸兩片，交給你家那隻。
 
@@ -63,17 +67,38 @@ export const JIBA_LICENSE_DECLINE = `沒關係，回憶留在你家就好。
 
 export const JIBA_SUBMITTED = `收到了。
 
-現在不是出貨，是先送去給主管看一眼。
-她會核對你剛剛留下的資料與 LINE 對話。
+現在先送給${JIBA_SUPERVISOR_NAME}看一眼。
+小幫手會核對你剛剛留下的資料與 LINE 對話。
 
-審核完成後，我們再把 NT$${JIBA_SHIPPING_FEE} 運費付款連結丟給你。
+確認完成後，會問你要不要現在轉帳運費 NT$${JIBA_SHIPPING_FEE}。
 
 先別封鎖我們。`;
 
-export const JIBA_APPROVED = `玉珊看過了。
+export const JIBA_APPROVED = `${JIBA_SUPERVISOR_NAME}看過了。
 你家那隻正式錄取。
 
-補上 NT$${JIBA_SHIPPING_FEE} 運費，我們就把雞霸送出去。`;
+這單 7-11 運費 NT$${JIBA_SHIPPING_FEE}。
+要現在轉帳嗎？`;
+
+export const JIBA_BANK_INFO = `好，轉帳資訊在這：
+
+銀行：${JIBA_BANK_TRANSFER.bankName}（${JIBA_BANK_TRANSFER.bankCode}）
+帳號：${JIBA_BANK_TRANSFER.account}
+金額：NT$${JIBA_SHIPPING_FEE}
+
+轉完可以回「我已轉帳」，
+或直接「找${JIBA_SUPERVISOR_NAME}」。`;
+
+export const JIBA_PAY_LATER = `好，不急。
+想付的時候回「現在付款」，
+或「找${JIBA_SUPERVISOR_NAME}」。`;
+
+export const JIBA_TRANSFER_NOTED = `收到。
+${JIBA_SUPERVISOR_NAME}會對帳。
+對上了會再跟你說，雞霸再出發。`;
+
+export const JIBA_FIND_HELPER = `好，幫你呼叫${JIBA_SUPERVISOR_NAME}。
+資料先留著，小幫手會來看。`;
 
 export const JIBA_PAID = `錢到了。雞霸準備離家。
 
@@ -83,6 +108,9 @@ export const JIBA_REJECTED = `這次名額先滿了。
 
 不是你家那隻不夠會吃，是雞霸不夠多。
 下一輪再叫你。`;
+
+export const JIBA_PENDING_HINT = `還在等${JIBA_SUPERVISOR_NAME}瞄一眼。
+通過後會問你要不要轉帳運費。`;
 
 export function jibaConfirmSummary(d: {
   recipientName: string;

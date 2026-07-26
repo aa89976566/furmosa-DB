@@ -37,7 +37,7 @@ export default async function JibaReviewListPage() {
     <>
       <PageHeader
         title="雞霸兩片開箱審核"
-        description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 審核通過後才發運費連結；付款後才入出貨隊列。`}
+        description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 壽司匠審核通過後請顧客轉帳運費；確認入帳後才入出貨隊列。`}
       />
       <div className="space-y-6 p-6">
         <Card>

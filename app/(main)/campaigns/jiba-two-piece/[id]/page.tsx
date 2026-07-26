@@ -6,9 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
-import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  APP_STATUS,
+  JIBA_BANK_TRANSFER,
+  JIBA_SHIPPING_FEE,
+  JIBA_SUPERVISOR_NAME,
+} from '@/lib/campaigns/jiba-two-piece/constants';
 import {
   approveJibaApplicationAction,
+  markJibaTransferPaidAction,
   rejectJibaApplicationAction,
   returnJibaApplicationAction,
 } from '../actions';
@@ -164,7 +170,9 @@ export default async function JibaReviewDetailPage({
           {canReview ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">審核操作（玉珊）</CardTitle>
+                <CardTitle className="text-base">
+                  審核操作（{JIBA_SUPERVISOR_NAME}）
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <form action={approveJibaApplicationAction} className="space-y-2">
@@ -177,8 +185,11 @@ export default async function JibaReviewDetailPage({
                     placeholder="內部備註"
                   />
                   <Button type="submit" className="w-full">
-                    通過並發送付款
+                    通過並詢問轉帳
                   </Button>
+                  <p className="text-xs text-muted-foreground">
+                    通過後顧客可選「現在付款」看轉帳資訊，或「找{JIBA_SUPERVISOR_NAME}」。
+                  </p>
                 </form>
 
                 <form action={returnJibaApplicationAction} className="space-y-2 border-t pt-4">
@@ -242,10 +253,28 @@ export default async function JibaReviewDetailPage({
             </Card>
           ) : (
             <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                目前狀態 <Badge variant="muted">{app.status}</Badge>，不可再審核。
-                {app.reviewNote ? (
-                  <p className="mt-2">上次備註：{app.reviewNote}</p>
+              <CardContent className="space-y-4 p-4 text-sm text-muted-foreground">
+                <p>
+                  目前狀態 <Badge variant="muted">{app.status}</Badge>
+                  {app.status === APP_STATUS.PENDING_REVIEW
+                    ? ''
+                    : '，不可再審核通過。'}
+                </p>
+                {app.reviewNote ? <p>上次備註：{app.reviewNote}</p> : null}
+                {app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT ? (
+                  <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-foreground">
+                    <p className="font-medium">等待轉帳入帳</p>
+                    <p className="text-xs text-muted-foreground">
+                      {JIBA_BANK_TRANSFER.bankName}（{JIBA_BANK_TRANSFER.bankCode}）{' '}
+                      {JIBA_BANK_TRANSFER.account} · NT${JIBA_SHIPPING_FEE}
+                    </p>
+                    <form action={markJibaTransferPaidAction}>
+                      <input type="hidden" name="applicationId" value={app.id} />
+                      <Button type="submit" className="w-full">
+                        確認已入帳並排入出貨
+                      </Button>
+                    </form>
+                  </div>
                 ) : null}
               </CardContent>
             </Card>
