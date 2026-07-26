@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { isRegisterSessionExpired, REGISTER_SESSION_TTL_MS } from '../chat-session';
-import { registerStoreStepAction } from '../register-from-chat';
+import {
+  isRegisterNavLeaveText,
+  registerStoreStepAction,
+} from '../register-from-chat';
 
 describe('registerStoreStepAction', () => {
   it('取消時結束開戶流程', () => {
@@ -15,6 +18,22 @@ describe('registerStoreStepAction', () => {
     assert.equal(registerStoreStepAction('35085664'), 'leave');
     assert.equal(registerStoreStepAction('毛孩來開箱'), 'leave');
     assert.equal(registerStoreStepAction(''), 'leave');
+  });
+});
+
+describe('isRegisterNavLeaveText', () => {
+  it('四格選單入口應離開開戶（含回家）', () => {
+    assert.equal(isRegisterNavLeaveText('回家'), true);
+    assert.equal(isRegisterNavLeaveText('還有很多故事'), true);
+    assert.equal(isRegisterNavLeaveText('一起野放'), true);
+    assert.equal(isRegisterNavLeaveText('預約美容'), true);
+    assert.equal(isRegisterNavLeaveText('換罐計劃'), true);
+  });
+
+  it('一般開戶輸入不應被當成導覽離開', () => {
+    assert.equal(isRegisterNavLeaveText('王小姐'), false);
+    assert.equal(isRegisterNavLeaveText('0912345678'), false);
+    assert.equal(isRegisterNavLeaveText('你好'), false);
   });
 });
 

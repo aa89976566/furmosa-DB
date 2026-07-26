@@ -41,6 +41,17 @@ import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
 
+/**
+ * Rich Menu／世界入口：開戶進行中若點這些，應離開開戶、改走對應入口。
+ * （否則「回家」會被手機步驟當成無效號碼，重送「手機號碼？」）
+ */
+const REGISTER_NAV_LEAVE_RE =
+  /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|回家|還有很多故事|野放中)$/;
+
+export function isRegisterNavLeaveText(text: string): boolean {
+  return REGISTER_NAV_LEAVE_RE.test(text.trim());
+}
+
 /** 開戶「選店家」步驟：僅接受取消；其餘文字應離開流程、改走一般訊息處理 */
 export function registerStoreStepAction(text: string): 'cancel' | 'leave' {
   if (CANCEL_RE.test(text.trim())) return 'cancel';
@@ -152,6 +163,12 @@ export async function handleRegisterFlowMessage(
       body: '好，開戶先暫停。想開再點「開戶」。',
     });
     return true;
+  }
+
+  // 四格選單／世界入口優先：清掉開戶暫存，交回一般訊息處理
+  if (isRegisterNavLeaveText(trimmed)) {
+    await clearLineChatSession(lineUserId);
+    return false;
   }
 
   if (session.step === 'store') {
