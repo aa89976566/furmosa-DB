@@ -1,12 +1,11 @@
 // Edge-compatible merchant session verify (middleware only)
 import { jwtVerify } from 'jose';
+import { getAuthSecretKey } from '@/lib/auth-secret';
 
 export const MERCHANT_SESSION_COOKIE_NAME = 'furmosa_merchant_session';
 const MERCHANT_SESSION_TYPE = 'merchant';
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? 'dev-secret-only-please-change-me-in-production-32chars-min',
-);
+const SECRET = getAuthSecretKey();
 
 export type MerchantEdgeSession = {
   merchantUserId: string;
