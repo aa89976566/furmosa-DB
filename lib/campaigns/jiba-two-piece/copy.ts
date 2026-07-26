@@ -4,113 +4,115 @@ import {
   JIBA_SUPERVISOR_NAME,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 
-export const JIBA_INTRO = `雞霸兩片，交給你家那隻。
+export const JIBA_INTRO = `嗨，毛爸媽～這裡有兩片雞霸，想請你家毛孩幫忙開箱。
 
-拍一支 Reels：
-毛孩拿著雞霸自拍，或直接拍牠開吃。
+只要拍一支 Instagram Reels：
+毛孩拿著雞霸自拍，或直接拍牠開吃的樣子都好。
 
-發布時標記 @furmosa_food，投稿內容可能經匠寵轉發、剪輯或用於官方網站、Instagram、LINE 與活動宣傳。
+發布時記得標記 @furmosa_food。
+投稿內容可能會由匠寵轉發、剪輯，或用在官方網站、Instagram、LINE 與活動宣傳喔。
 
-雞霸由我們準備，7-11 運費 NT$${JIBA_SHIPPING_FEE} 自付。
+雞霸我們準備好，7-11 運費 NT$${JIBA_SHIPPING_FEE} 請毛爸媽自行負擔。
 
-要讓牠上工嗎？`;
+要一起讓毛孩來試試嗎？`;
 
-export const JIBA_RULES = `規則沒有很多，毛孩可能也懶得看：
+export const JIBA_RULES = `規則很簡單，我們慢慢說：
 
-① 收到雞霸兩片
+① 會收到雞霸兩片
 ② 拍毛孩拿雞霸自拍，或拍牠開吃
 ③ 發布 Instagram Reels
 ④ 標記 @furmosa_food
 ⑤ 投稿內容可能經匠寵轉發、剪輯或用於活動分享
 
-運費 NT$${JIBA_SHIPPING_FEE}，自行負擔。
+運費 NT$${JIBA_SHIPPING_FEE}，請自行負擔喔。
 
-看完還敢參加嗎？`;
+看完了，還想參加嗎？`;
 
-export const JIBA_START_WORK = `好，工作來了。
+export const JIBA_START_WORK = `好喔，那我們開始幫毛孩安排雞霸～
 
-我們先把雞霸送到你指定的 7-11。
-一次問一題，不用一次交代人生。`;
+會先寄到你指定的 7-11。
+一次問一小題就好，不急，慢慢填。`;
 
-export const JIBA_ASK_NAME = `第一題。
+export const JIBA_ASK_NAME = `先從第一題開始喔。
 收件人姓名是？`;
 
-export const JIBA_ASK_PHONE = `再來，收件手機號碼？
-7-11 找不到人時，至少還找得到電話。`;
+export const JIBA_ASK_PHONE = `再來請留下收件手機號碼～
+這樣取貨有狀況時，才聯絡得到你。`;
 
-export const JIBA_PHONE_ERROR = `這支號碼看起來少了一點什麼。
-請輸入 09 開頭、共 10 碼的手機號碼。`;
+export const JIBA_PHONE_ERROR = `這支號碼好像少了一點點耶。
+請輸入 09 開頭、共 10 碼的手機號碼，謝謝你。`;
 
-export const JIBA_ASK_STORE = `最後一個地點問題。
-選一間你真的會去領的 7-11。
+export const JIBA_ASK_STORE = `最後一個地址小問題～
+請選一間你方便去領的 7-11。
 
-請輸入「門市名稱＋縣市區域」。
+直接輸入「門市名稱＋縣市區域」就可以。
 例如：板橋新埔門市。`;
 
-export const JIBA_ASK_IG = `雞霸找得到你了。
-你的 Instagram 帳號是？
-請輸入 @ 開頭的帳號。`;
+export const JIBA_ASK_IG = `門市找到了，謝謝你～
+接著請問你的 Instagram 帳號是？
+請輸入 @ 開頭的帳號喔。`;
 
-export const JIBA_ASK_PET = `那位準備上工的，叫什麼名字？
-（可傳「略過」）`;
+export const JIBA_ASK_PET = `那位要幫忙開箱的毛孩，叫什麼名字呀？
+（也可以傳「略過」）`;
 
-export const JIBA_LICENSE = `投稿前還有一件正經事。
+export const JIBA_LICENSE = `投稿前，跟你確認一件事喔。
 
 參加活動代表你同意：匠寵可以在官方網站、Instagram、LINE 與活動宣傳中，轉發、編輯或使用這次投稿的照片與影片。
 
-著作權仍屬於原創作者，我們只取得本次品牌宣傳所需的使用授權。
+著作權還是屬於原創作者，我們只取得這次品牌宣傳需要的使用授權。
 
-可以嗎？`;
+可以請你幫忙同意嗎？`;
 
-export const JIBA_LICENSE_DECLINE = `沒關係，回憶留在你家就好。
-這次申請先不送出。`;
+export const JIBA_LICENSE_DECLINE = `沒關係，尊重你的決定～
+這次申請我們先不送出，照片就好好留在家裡。`;
 
-export const JIBA_SUBMITTED = `收到了。
+export const JIBA_SUBMITTED = `收到囉，謝謝你～
 
-現在先送給${JIBA_SUPERVISOR_NAME}看一眼。
-小幫手會核對你剛剛留下的資料與 LINE 對話。
+接下來會先請${JIBA_SUPERVISOR_NAME}幫你看一下資料，
+也會核對你剛剛留下的內容與 LINE 對話。
 
-確認完成後，會問你要不要現在轉帳運費 NT$${JIBA_SHIPPING_FEE}。
+確認完成後，再問你要不要現在轉帳運費 NT$${JIBA_SHIPPING_FEE}。
 
-先別封鎖我們。`;
+我們會再跟你聯絡，請稍等一下喔。`;
 
-export const JIBA_APPROVED = `${JIBA_SUPERVISOR_NAME}看過了。
-你家那隻正式錄取。
+export const JIBA_APPROVED = `${JIBA_SUPERVISOR_NAME}看過了，資料沒問題～
+你家毛孩正式參加開箱囉！
 
-這單 7-11 運費 NT$${JIBA_SHIPPING_FEE}。
+這單 7-11 運費是 NT$${JIBA_SHIPPING_FEE}。
 要現在轉帳嗎？`;
 
-export const JIBA_BANK_INFO = `好，轉帳資訊在這：
+export const JIBA_BANK_INFO = `好的，轉帳資訊在這裡：
 
 銀行：${JIBA_BANK_TRANSFER.bankName}（${JIBA_BANK_TRANSFER.bankCode}）
 帳號：${JIBA_BANK_TRANSFER.account}
 金額：NT$${JIBA_SHIPPING_FEE}
 
 轉完可以回「我已轉帳」，
-或直接「找${JIBA_SUPERVISOR_NAME}」。`;
+或直接說「找${JIBA_SUPERVISOR_NAME}」，我們都會再幫你看。`;
 
-export const JIBA_PAY_LATER = `好，不急。
+export const JIBA_PAY_LATER = `好喔，不急～
 想付的時候回「現在付款」，
-或「找${JIBA_SUPERVISOR_NAME}」。`;
+或「找${JIBA_SUPERVISOR_NAME}」都可以。`;
 
-export const JIBA_TRANSFER_NOTED = `收到。
-${JIBA_SUPERVISOR_NAME}會對帳。
-對上了會再跟你說，雞霸再出發。`;
+export const JIBA_TRANSFER_NOTED = `收到了，謝謝你～
+${JIBA_SUPERVISOR_NAME}會幫忙對帳。
+對上了再跟你說，雞霸就可以出發囉。`;
 
-export const JIBA_FIND_HELPER = `好，幫你呼叫${JIBA_SUPERVISOR_NAME}。
-資料先留著，小幫手會來看。`;
+export const JIBA_FIND_HELPER = `好的，幫你請${JIBA_SUPERVISOR_NAME}來看。
+資料先幫你留著，小幫手會盡快回覆你喔。`;
 
-export const JIBA_PAID = `錢到了。雞霸準備離家。
+export const JIBA_PAID = `運費確認到了，謝謝你～
+雞霸準備幫你家毛孩寄出。
 
-出貨後會再通知你，接下來請跟毛孩討論一下鏡位。`;
+出貨後會再通知你；到時候記得幫毛孩挑個好角度拍照喔。`;
 
-export const JIBA_REJECTED = `這次名額先滿了。
+export const JIBA_REJECTED = `不好意思，這次名額先額滿了。
 
-不是你家那隻不夠會吃，是雞霸不夠多。
-下一輪再叫你。`;
+不是毛孩不夠可愛，是雞霸數量有限。
+下一輪有機會，我們再找你喔。`;
 
-export const JIBA_PENDING_HINT = `還在等${JIBA_SUPERVISOR_NAME}瞄一眼。
-通過後會問你要不要轉帳運費。`;
+export const JIBA_PENDING_HINT = `還在等${JIBA_SUPERVISOR_NAME}幫你看資料喔。
+通過後會再問你要不要轉帳運費。`;
 
 export function jibaConfirmSummary(d: {
   recipientName: string;
@@ -120,7 +122,8 @@ export function jibaConfirmSummary(d: {
   petName?: string | null;
 }): string {
   const phone = d.recipientPhone.replace(/(\d{4})(\d{3})(\d{3})/, '$1-$2-$3');
-  return `最後看一眼。錯了現在講，寄出去就只能追車。
+  return `麻煩最後再幫我們確認一次～
+有錯現在改就好，寄出後就比較麻煩了。
 
 活動：雞霸兩片開箱
 商品：雞霸 × 2
@@ -137,8 +140,8 @@ Instagram：${d.instagramHandle}
 }
 
 export function jibaReturnFieldCopy(fieldLabel: string): string {
-  return `有一格資料想再確認。
+  return `有一格資料想再跟你確認一下喔。
 
 ${fieldLabel}
-再填一次，我們就繼續。`;
+再填一次，我們就繼續幫你處理。`;
 }

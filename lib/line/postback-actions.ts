@@ -85,7 +85,7 @@ async function replyPartnerStores(replyToken: string) {
     '',
     ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
     '',
-    '開戶時選一間；折價券綁那間用。',
+    '開戶時選一間常去的店，之後折價券就會綁那間用喔。',
   ];
   await replyLineText(replyToken, lines.join('\n'));
 }

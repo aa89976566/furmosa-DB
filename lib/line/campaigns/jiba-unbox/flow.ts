@@ -109,8 +109,8 @@ function jibaRulesChoiceMenu(): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: '開箱規則',
     theme: WORLD_THEME.chaos,
-    title: '看完了？',
-    subtitle: '點下面按鈕繼續。',
+    title: '看完規則了嗎？',
+    subtitle: '想繼續的話，點下面按鈕就可以喔。',
     items: [
       {
         label: '這個我可以！',
@@ -198,15 +198,15 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_CONTENT_LICENSE:
       return JIBA_LICENSE;
     case FLOW_STATE.SHOW_ORDER_CONFIRMATION:
-      return '資料還在確認頁。要送出就回「資料正確，送出」。';
+      return '資料還在確認頁喔。確認沒問題就回「資料正確，送出」。';
     case FLOW_STATE.PENDING_REVIEW:
-      return '還在等主管瞄一眼。通過後會丟運費連結給你。';
+      return '還在請小幫手幫你看資料，通過後會再跟你說運費怎麼付喔。';
     case FLOW_STATE.AWAITING_SHIPPING_PAYMENT:
-      return '運費連結還在等你。付完雞霸才出發。';
+      return '運費還在等你確認喔。付完之後，雞霸就可以出發了。';
     case FLOW_STATE.READY_TO_SHIP:
       return JIBA_PAID;
     default:
-      return `接著上次。傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」。`;
+      return `我們接著上次繼續～傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」都可以。`;
   }
 }
 
@@ -227,7 +227,7 @@ export async function startJibaUnboxIntro(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: `你還有一筆進行中的開箱申請。\n接著上次：`,
+          text: `你還有一筆進行中的開箱申請喔。\n我們接著上次繼續：`,
         },
         { type: 'text', text: prompt },
       ]);
@@ -245,7 +245,7 @@ export async function startJibaUnboxIntro(
       previewImageUrl: cover,
     },
     { type: 'text', text: JIBA_INTRO },
-    jibaIntroChoiceMenu('開箱任務', '點下面按鈕，由上往下選。'),
+    jibaIntroChoiceMenu('開箱任務', '想繼續的話，點下面按鈕就可以喔。'),
   ]);
 
   try {
@@ -293,9 +293,9 @@ async function beginEnrollment(
 
     if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
       const prompt = promptForState(state);
-      await logBot(sid, `接著上次。\n${prompt}`);
+      await logBot(sid, `我們接著上次繼續。\n${prompt}`);
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '你上次還沒填完，接著來。' },
+        { type: 'text', text: '你上次還沒填完喔，我們接著繼續～' },
         { type: 'text', text: prompt },
       ]);
       return;
@@ -322,7 +322,7 @@ async function beginEnrollment(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: '開箱系統剛剛打了個嗝。再點一次「開箱任務」，或稍後再試。',
+          text: '不好意思，開箱系統剛剛有點狀況。再點一次「開箱任務」，或稍後再試一次喔。',
         },
       ]);
     }
@@ -390,7 +390,7 @@ export async function handleJibaUnboxMessage(
           await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
           await logBot(
             app.conversationSession.id,
-            '好，這次先收工。想參加再說一聲「開箱任務」。',
+            '好喔，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。',
           );
         }
         await prisma.statusAuditLog.create({
@@ -409,7 +409,7 @@ export async function handleJibaUnboxMessage(
     }
     await clearLineChatSession(lineUserId);
     await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: '好，這次先收工。想參加再說一聲「開箱任務」。' },
+      { type: 'text', text: '好喔，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。' },
     ]);
     return true;
   }
@@ -436,7 +436,7 @@ export async function handleJibaUnboxMessage(
     const app = await safeFindActiveJibaApplication(lineUserId);
     if (!app) {
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '目前沒有進行中的開箱申請。' },
+        { type: 'text', text: '目前沒有進行中的開箱申請喔。想參加的話，跟我們說「開箱任務」就可以。' },
       ]);
       return true;
     }
@@ -475,7 +475,7 @@ export async function handleJibaUnboxMessage(
     if (isDeclineIntent(trimmed)) {
       await clearLineChatSession(lineUserId);
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '好，雞霸先回冰箱。下次想上工再叫我們。' },
+        { type: 'text', text: '好喔，雞霸先幫你放冰箱。下次想參加再開箱任務找我們就好。' },
       ]);
       return true;
     }
@@ -485,7 +485,7 @@ export async function handleJibaUnboxMessage(
     }
     if (chat.step === FLOW_STATE.CAMPAIGN_INTRO || chat.step === FLOW_STATE.SHOW_RULES) {
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '這題請用下面按鈕回。要上工、看規則，或這次先不要。' },
+        { type: 'text', text: '這題請用下面按鈕回覆喔。可以參加、先看規則，或這次先不要。' },
         chat.step === FLOW_STATE.SHOW_RULES
           ? jibaRulesChoiceMenu()
           : jibaIntroChoiceMenu('開箱任務', '點下面按鈕，由上往下選。'),
@@ -556,7 +556,7 @@ export async function handleJibaUnboxMessage(
       const name = validRecipientName(trimmed);
       if (!name) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '姓名請用 2～20 個字，別只打數字。再試一次？' },
+          { type: 'text', text: '姓名請用 2～20 個字喔，不要只打數字。再試一次好嗎？' },
         ]);
         return true;
       }
@@ -596,7 +596,7 @@ export async function handleJibaUnboxMessage(
       }
       if (trimmed.length < 2) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '門市名稱再寫清楚一點，例如：板橋新埔門市。' },
+          { type: 'text', text: '門市名稱可以再寫清楚一點嗎？例如：板橋新埔門市。' },
         ]);
         return true;
       }
@@ -685,7 +685,7 @@ export async function handleJibaUnboxMessage(
       const ig = normalizeInstagramHandle(trimmed);
       if (!ig) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '請輸入 @ 開頭的 Instagram 帳號。' },
+          { type: 'text', text: '請輸入 @ 開頭的 Instagram 帳號喔。' },
         ]);
         return true;
       }
@@ -788,7 +788,7 @@ export async function handleJibaUnboxMessage(
         await replyJiba(replyToken, lineUserId, [
           {
             type: 'text',
-            text: '好，先停在這。資料留著。要送出再說「資料正確，送出」。',
+            text: '好喔，先幫你停在這裡，資料都留著。想送出時再說「資料正確，送出」就可以。',
           },
         ]);
         return true;
@@ -835,7 +835,7 @@ export async function handleJibaUnboxMessage(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: `這步有點卡住。傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」。`,
+          text: `這步好像有點卡住了，不好意思。你可以傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」，我們再幫你看。`,
         },
       ]);
       return true;

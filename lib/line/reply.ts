@@ -134,7 +134,7 @@ export async function replyLineFallback(replyToken: string | undefined, text?: s
   try {
     await replyLineText(
       replyToken,
-      text ?? '剛才打了個嗝，沒回成功。再點一次選單看看。',
+      text ?? '剛剛好像沒回成功，不好意思。再點一次選單試試看喔。',
     );
   } catch (err) {
     console.error('[line/reply] fallback also failed', err);

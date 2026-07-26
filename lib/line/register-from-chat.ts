@@ -124,7 +124,7 @@ export async function startRegisterFlow(
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `你已經開過戶了（${existing.name}）。\n罐底 8 碼直接傳上來，或去「毛孩罐庫」看紀錄。`,
+      `你已經幫毛孩開過戶囉（${existing.name}）。\n罐底 8 碼直接傳上來，或去「毛孩罐庫」看紀錄都可以喔。`,
       { registered: true },
     );
     return;
@@ -160,7 +160,7 @@ export async function handleRegisterFlowMessage(
     await clearLineChatSession(lineUserId);
     await replyMenuHub(replyToken, lineUserId, {
       registered: Boolean(await findCustomerByLineUserId(lineUserId)),
-      body: '好，開戶先暫停。想開再點「開戶」。',
+      body: '好喔，開戶先幫你暫停。想繼續再開時，再點「開戶」就好。',
     });
     return true;
   }
@@ -227,7 +227,7 @@ export async function handleRegisterFlowMessage(
         lineUserId,
         'pet_name',
         draft,
-        '毛孩名字要填一下，不然罐庫不知道記誰的。',
+        '毛孩名字可以先填一下嗎？這樣罐庫才知道要記在誰名下喔。',
       );
       return true;
     }
@@ -376,18 +376,18 @@ export async function handleRegisterPostback(
       const bdayPart = draft.petBirthday ? ` · 生日 ${draft.petBirthday}` : '';
       const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
       const storeLine = storeLabel ? `\n合作店：${storeLabel}` : '';
-      const doneText = `開戶完成！${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
+      const doneText = `開戶完成囉，謝謝你～${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
 
       if (resumeAfter === 'enter_code') {
         await replyLineMessage(replyToken, [
-          { type: 'text', text: `${doneText}\n\n接下來——` },
+          { type: 'text', text: `${doneText}\n\n接下來可以這樣做～` },
           { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
         ]);
       } else {
         await replyLineMessage(replyToken, [
           {
             type: 'text',
-            text: `${doneText}\n\n罐底 8 碼直接傳上來，就會進毛孩罐庫。`,
+            text: `${doneText}\n\n之後罐底 8 碼傳上來，就會進毛孩罐庫喔。`,
           },
           ...buildWorldHubMessages('jar', { registered: true }),
         ]);
@@ -395,7 +395,7 @@ export async function handleRegisterPostback(
     } catch (e) {
       await replyLineText(
         replyToken,
-        e instanceof Error ? e.message : '開戶失敗，晚點再試或直接跟我們說。',
+        e instanceof Error ? e.message : '開戶好像沒成功，晚點再試一次，或直接跟我們說喔。',
       );
     }
     return true;

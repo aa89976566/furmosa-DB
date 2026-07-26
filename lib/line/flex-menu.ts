@@ -53,10 +53,10 @@ export function buildMainMenuMessages(opts?: {
   const registered = opts?.registered ?? false;
   const showRegisterHint = opts?.showRegisterHint ?? !registered;
   const defaultBody = registered
-    ? '四格在下面。野放、美容、換罐、回家——想晃哪格點哪格。'
+    ? '下面有四格：野放、美容、換罐、回家。想去哪裡點哪裡就好～'
     : showRegisterHint
-      ? '第一次先點「換罐計劃」開戶。沒戶頭，罐進不來。'
-      : '點下面那格即可。';
+      ? '第一次來的話，先點「換罐計劃」幫毛孩開戶，之後會更順喔。'
+      : '點下面按鈕就可以繼續囉。';
   return buildThreeWorldsMenuMessages({ body: opts?.body ?? defaultBody });
 }
 

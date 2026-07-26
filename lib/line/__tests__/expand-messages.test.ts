@@ -8,15 +8,15 @@ describe('expandLineMessages', () => {
     const out = expandLineMessages([
       {
         type: 'text',
-        text: '好，工作來了。\n\n我們先把雞霸送到你指定的 7-11。\n一次問一題，不用一次交代人生。',
+        text: '好喔，那我們開始幫毛孩安排雞霸～\n\n會先寄到你指定的 7-11。\n一次問一小題就好，不急，慢慢填。',
       },
-      { type: 'text', text: '第一題。\n收件人姓名是？' },
+      { type: 'text', text: '先從第一題開始喔。\n收件人姓名是？' },
     ]);
     assert.deepEqual(out, [
-      { type: 'text', text: '好，工作來了。' },
-      { type: 'text', text: '我們先把雞霸送到你指定的 7-11。' },
-      { type: 'text', text: '一次問一題，不用一次交代人生。' },
-      { type: 'text', text: '第一題。' },
+      { type: 'text', text: '好喔，那我們開始幫毛孩安排雞霸～' },
+      { type: 'text', text: '會先寄到你指定的 7-11。' },
+      { type: 'text', text: '一次問一小題就好，不急，慢慢填。' },
+      { type: 'text', text: '先從第一題開始喔。' },
       { type: 'text', text: '收件人姓名是？' },
     ]);
   });

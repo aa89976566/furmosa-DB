@@ -24,10 +24,10 @@ export const LINE_BTN = {
 } as const;
 
 export const LINE_MENU_HINT_REGISTERED =
-  '換罐計劃存罐；一起野放看外頭在搞什麼；回家晃官網跟 IG。';
+  '換罐計劃可以存罐；一起野放看看有什麼新鮮事；回家能逛官網跟 IG 喔。';
 
 export const LINE_MENU_HINT_GUEST =
-  '第一次先點「換罐計劃」→「開戶」。沒戶頭，罐進不來。';
+  '第一次來的話，先點「換罐計劃」→「開戶」，幫毛孩開好戶再玩會更順喔。';
 
 export {
   SIGNUP_STORES as LINE_SIGNUP_STORES,
@@ -37,29 +37,30 @@ export {
 } from '@/lib/stores/signup-stores';
 
 export const LINE_STORE_PROMPT =
-  '選一間常去的合作美容店。之後折價券綁這間用（豬窩 250、其他店 200）。';
+  '請選一間常去的合作美容店喔。之後折價券會綁這間用（豬窩 250、其他店 200）。';
 
 export const LINE_REGISTER_INTRO =
-  '【開戶】先暱稱一下你自己（例：王小姐）\n\n傳「取消」可結束。';
+  '【開戶】先跟我們說一下你的暱稱～（例：王小姐）\n\n如果想先暫停，傳「取消」就可以。';
 
 export const LINE_REGISTER_PHONE_PROMPT =
-  '手機號碼？（例：0912345678）\n這支用來對資料，請填真的。';
+  '手機號碼可以留給我們嗎？（例：0912345678）\n這支用來核對資料，請填平常有在用的號碼喔。';
 
-export const LINE_PET_NAME_PROMPT = '毛孩叫什麼名字？';
+export const LINE_PET_NAME_PROMPT = '毛孩叫什麼名字呀？';
 
 export const LINE_PET_BREED_PROMPT =
-  '品種？（例：柯基、米克斯）\n不確定可傳「略過」';
+  '品種是？（例：柯基、米克斯）\n不確定的話可以傳「略過」';
 
 export const LINE_PET_BIRTHDAY_PROMPT =
-  '生日？（例：2020-05-06）\n選填，可傳「略過」';
+  '生日是哪一天呢？（例：2020-05-06）\n選填，也可以傳「略過」';
 
 export const LINE_PET_AGE_PROMPT =
-  '毛孩大概幾歲？傳數字即可（例：3）\n或傳生日（例：2020-05-06）\n不確定可傳「略過」';
+  '毛孩大概幾歲呀？傳數字就好（例：3）\n或直接傳生日（例：2020-05-06）\n不確定可以傳「略過」';
 
 export const LINE_COUPON_VERIFY_HINT =
-  '⚠️ 結帳前把券給店家看。\n店家按「驗證優惠券」後才能折。\n核銷過就不能再用。';
+  '⚠️ 結帳前記得把券給店家看喔。\n店家按「驗證優惠券」後才能折抵。\n核銷過就不能再用了。';
 
-export const LINE_CONTACT_INFO = '有事直接在這串對話講，或去合作店現場問。';
+export const LINE_CONTACT_INFO =
+  '有任何問題直接在這串對話跟我們說，或去合作店現場問都可以喔。';
 
 /** @deprecated */
 export const LINE_ACTIVITY_INFO =
