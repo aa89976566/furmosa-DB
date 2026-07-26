@@ -19,7 +19,7 @@
     "db:import": "tsx prisma/import.ts",
     "db:import-prices": "tsx prisma/import.ts --price-only",
     "db:reset": "prisma migrate reset --force",
-    "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/restock-request/__tests__/*.test.ts lib/booking/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts",
+    "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/restock-request/__tests__/*.test.ts lib/booking/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts lib/campaigns/jiba-two-piece/__tests__/*.test.ts",
     "merchant:create-user": "tsx scripts/create-merchant-user.ts"
   },
   "prisma": {

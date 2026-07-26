@@ -10,6 +10,9 @@ import {
   buildButtonMenuFlex,
   buildHomeHubMessages,
   buildGroomingSoonMessages,
+  buildFrogProjectMessages,
+  buildEventsCenterMessages,
+  buildJarExplainTopicMessages,
   GROOMING_SOON_COPY,
 } from '../flex-hubs';
 import { WORLD_THEME } from '../card-theme';
@@ -118,15 +121,17 @@ describe('換罐計劃選單', () => {
 });
 
 describe('一起野放', () => {
-  it('社區／UGC／活動為垂直按鈕', () => {
+  it('三鍵：嗷嗚計劃／活動中心／開箱任務', () => {
     const flex = flexFrom(buildWorldHubMessages('chaos'));
     assert.equal(flex.contents.type, 'bubble');
     const raw = JSON.stringify(flex.contents);
     assert.match(raw, /嗷嗚計劃/);
-    assert.match(raw, /青蛙誰在怕/);
-    assert.match(raw, /活動/);
+    assert.match(raw, /活動中心/);
     assert.match(raw, /開箱任務/);
     assert.match(raw, /"type":"button"/);
+    assert.equal(countButtons(flex), 3);
+    assert.doesNotMatch(raw, /"label":"青蛙誰在怕"/);
+    assert.doesNotMatch(raw, /"label":"活動"/);
     assert.doesNotMatch(raw, /限定合作|優惠企劃|carousel/);
     assert.doesNotMatch(raw, /拍攝指南|完成拿100/);
   });
@@ -136,6 +141,30 @@ describe('一起野放', () => {
     const text = msgs.find((m) => m.type === 'text') as { text: string };
     assert.match(text.text, /傑克|外面/);
     assert.match(text.text, /按鈕/);
+  });
+
+  it('嗷嗚計劃：輪播 cover＋對話氣泡', () => {
+    const msgs = buildFrogProjectMessages({ registered: false, includeHub: false });
+    assert.equal(msgs[0]?.type, 'image');
+    const img = msgs[0] as { originalContentUrl: string };
+    assert.match(img.originalContentUrl, /chaos-frog\.png/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 2);
+    assert.match(texts.map((t) => t.text).join('\n'), /青蛙誰在怕/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
+  });
+
+  it('活動中心：輪播 cover＋沒梗了對話', () => {
+    const msgs = buildEventsCenterMessages({ registered: false, includeHub: false });
+    assert.equal(msgs[0]?.type, 'image');
+    const img = msgs[0] as { originalContentUrl: string };
+    assert.match(img.originalContentUrl, /chaos-events\.png|poster\.jpg/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 1);
+    assert.match(texts.map((t) => t.text).join('\n'), /沒梗了/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
   });
 });
 
@@ -205,5 +234,17 @@ describe('換罐說明', () => {
     assert.match(raw, /合作店家|合作美容/);
     assert.match(raw, /常見問題/);
     assert.doesNotMatch(raw, /carousel/);
+  });
+
+  it('點介紹：cover＋對話氣泡', () => {
+    const msgs = buildJarExplainTopicMessages('intro');
+    assert.equal(msgs[0]?.type, 'image');
+    const img = msgs[0] as { originalContentUrl: string };
+    assert.match(img.originalContentUrl, /jar-explain\.png/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 2);
+    assert.match(texts.map((t) => t.text).join('\n'), /空罐|8 碼|瓶子/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
   });
 });

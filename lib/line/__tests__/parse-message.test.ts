@@ -50,7 +50,10 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('兌換好康').kind, 'rewards_list');
     assert.equal(parseLineUserText('嗷嗚計畫').kind, 'unboxing');
     assert.equal(parseLineUserText('嗷嗚計劃').kind, 'unboxing');
+    assert.equal(parseLineUserText('青蛙誰在怕').kind, 'unboxing');
     assert.equal(parseLineUserText('開箱任務').kind, 'unboxing');
+    assert.equal(parseLineUserText('活動中心').kind, 'events_center');
+    assert.equal(parseLineUserText('沒梗了').kind, 'events_center');
   });
 
   it('recognizes jar codes', () => {

@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { GROOMING_COUPON_POINTS, getGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
 import {
   listCouponsForCustomer,
@@ -10,12 +8,9 @@ import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
   BRAND_STORY,
-  CHAOS_COPY,
   JAR_ENTER_BLOCKED_GUEST,
-  JAR_EXPLAIN_FAQ,
-  JAR_EXPLAIN_FLOW,
-  JAR_EXPLAIN_INTRO,
 } from '@/lib/line/brand-worlds';
+import { startJibaUnboxIntro } from '@/lib/line/campaigns/jiba-unbox/flow';
 import {
   buildCouponListMessages,
   buildGroomingRedeemConfirmMessages,
@@ -32,25 +27,19 @@ import {
 } from '@/lib/line/flex-menu';
 import {
   buildEnterCodePromptMessages,
+  buildEventsCenterMessages,
+  buildFrogProjectMessages,
   buildHomeHubMessages,
   buildJarExplainMessages,
+  buildJarExplainTopicMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
-  lineAssetUrl,
 } from '@/lib/line/flex-hubs';
-import type { LineReplyMessage } from '@/lib/line/reply';
-
-function eventsPosterUrl(): string | null {
-  const rel = 'public/line/events/poster.jpg';
-  const abs = join(process.cwd(), rel);
-  if (!existsSync(abs)) return null;
-  return lineAssetUrl('/line/events/poster.jpg');
-}
+import { LINE_BTN } from '@/lib/line/line-copy';
 import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
-import { LINE_BTN } from '@/lib/line/line-copy';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { replyTriggerOnce } from '@/lib/line/trigger-throttle';
@@ -114,29 +103,35 @@ async function replyChaosItem(
   itemId: string,
   registered: boolean,
 ) {
-  const text = CHAOS_COPY[itemId];
-  if (!text) {
-    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+  // 開箱任務：完整雞霸開箱對話（封面圖＋選項＋狀態機）
+  if (itemId === 'chaos_unbox') {
+    await startJibaUnboxIntro(replyToken, lineUserId);
     return;
   }
-  // 活動文案不附換罐選單，避免制度混進來
-  await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-    const messages: LineReplyMessage[] = [];
-    // 活動：有海報就先丟圖，再丟爛點子文案
-    if (itemId === 'chaos_events') {
-      const poster = eventsPosterUrl();
-      if (poster) {
-        messages.push({
-          type: 'image',
-          originalContentUrl: poster,
-          previewImageUrl: poster,
-        });
-      }
-    }
-    messages.push({ type: 'text', text });
-    messages.push(...buildWorldHubMessages('chaos', { registered }));
-    await replyLineMessage(replyToken, messages);
-  });
+
+  // 嗷嗚計劃／舊青蛙鍵 → 青蛙誰在怕（獨立專案）
+  if (itemId === 'chaos_aowu' || itemId === 'chaos_frog') {
+    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+      await replyLineMessage(
+        replyToken,
+        buildFrogProjectMessages({ registered }),
+      );
+    });
+    return;
+  }
+
+  // 活動中心 → 沒梗了
+  if (itemId === 'chaos_events') {
+    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+      await replyLineMessage(
+        replyToken,
+        buildEventsCenterMessages({ registered }),
+      );
+    });
+    return;
+  }
+
+  await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
 }
 
 export async function handleLinePostback(
@@ -170,15 +165,15 @@ export async function handleLinePostback(
     return;
   }
   if (action === 'jar_explain_intro') {
-    await replyLineText(replyToken, JAR_EXPLAIN_INTRO);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('intro'));
     return;
   }
   if (action === 'jar_explain_flow') {
-    await replyLineText(replyToken, JAR_EXPLAIN_FLOW);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('flow'));
     return;
   }
   if (action === 'jar_faq') {
-    await replyLineText(replyToken, JAR_EXPLAIN_FAQ);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
     return;
   }
   if (action === 'jar_stores' || action === 'wild_stores') {

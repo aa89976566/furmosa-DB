@@ -1,13 +1,24 @@
 import { getLineChannelAccessToken } from '@/lib/line/config';
 
-export type LineReplyMessage =
+export type LineQuickReplyItem = {
+  type: 'action';
+  action:
+    | { type: 'message'; label: string; text: string }
+    | { type: 'uri'; label: string; uri: string }
+    | { type: 'postback'; label: string; data: string; displayText?: string };
+};
+
+export type LineReplyMessage = (
   | { type: 'text'; text: string }
   | { type: 'flex'; altText: string; contents: Record<string, unknown> }
   | {
       type: 'image';
       originalContentUrl: string;
       previewImageUrl: string;
-    };
+    }
+) & {
+  quickReply?: { items: LineQuickReplyItem[] };
+};
 
 export async function replyLineMessage(replyToken: string, messages: LineReplyMessage[]) {
   const token = getLineChannelAccessToken();

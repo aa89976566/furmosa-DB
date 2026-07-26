@@ -49,47 +49,29 @@ export const CHAOS_INTRO = '傑克往外衝了。外面比較好玩——點下�
 export const WILD_INTRO = `到了。
 狗屋在裡面，院子也還亮著。`;
 
-export const JAR_EXPLAIN_INTRO = `【換罐說明】
+/** 換罐說明：點按鈕後的對話氣泡 */
+export const JAR_EXPLAIN_DIALOGUE = {
+  intro: [
+    '空罐不是垃圾啦。',
+    '吃完把罐底那串 8 碼丟上來，點數進毛孩名下。',
+    '滿 10 點換美容折價——豬窩 250，其他合作店 200。瓶子才是主角。',
+  ],
+  flow: [
+    '怎麼玩很短：先開戶、吃完零食、傳 8 碼、點數進會員、滿點去綁定店折。',
+    '沒開戶不能存罐。先認人，再記帳。',
+  ],
+  faq: [
+    '常被問的幾題——',
+    '一定要開戶嗎？要，沒戶頭序號進不來。一個 LINE 目前一戶一檔。',
+    '換店？開戶店就是折價店，要改跟我們說。序號打錯再傳對的；用過的不能重複。點數本身不過期，折價券兌換後有 30 天使用期。',
+  ],
+} as const;
 
-空罐不是垃圾。
-吃完，罐底 8 碼丟給我們，點數進毛孩名下。
+export const JAR_EXPLAIN_INTRO = JAR_EXPLAIN_DIALOGUE.intro.join('\n\n');
+export const JAR_EXPLAIN_FLOW = JAR_EXPLAIN_DIALOGUE.flow.join('\n\n');
+export const JAR_EXPLAIN_FAQ = JAR_EXPLAIN_DIALOGUE.faq.join('\n\n');
 
-滿 10 點換美容折價：
-豬窩 250／其他合作店 200。
-
-這是會員制度，不是抽獎活動。
-瓶子才是主角。`;
-
-export const JAR_EXPLAIN_FLOW = `【怎麼玩】
-
-① 開戶（綁一間合作美容店）
-② 吃完零食
-③ 傳罐底 8 碼
-④ 點數進「我的會員」
-⑤ 滿點換折價，到綁定店用
-
-沒開戶不能存罐。先認人，再記帳。`;
-
-export const JAR_EXPLAIN_FAQ = `【常見問題】
-
-Q：一定要開戶嗎？
-A：要。沒戶頭，序號進不來。
-
-Q：一個 LINE 能綁幾隻毛孩？
-A：目前一戶一檔；多毛孩先跟我們說。
-
-Q：換了店怎麼辦？
-A：開戶店永久綁定折價使用店。要改請跟我們說。
-
-Q：序號打錯？
-A：再傳一次對的 8 碼；用過的不能重複。
-
-Q：點數會過期嗎？
-A：點數本身不過期；折價券兌換後有使用期限（30 天）。`;
-
-export const BRAND_STORY = `【回家路上的故事】
-
-匠寵 Furmosa。
+export const BRAND_STORY = `匠寵 Furmosa。
 零食要手作質感，空罐也要有去處。
 
 我們不愛講很公司的話。
@@ -116,27 +98,25 @@ export function pickGroomingSoonLine(seed?: number): string {
   return GROOMING_SOON_LINES[i]!;
 }
 
-/** 一起野放：社區／UGC／活動 */
+/**
+ * 一起野放：三鍵
+ * - 嗷嗚計劃 → 青蛙誰在怕（獨立專案；網址後補）
+ * - 活動中心 → 沒梗了
+ * - 開箱任務 → 雞霸開箱對話流程
+ */
 export const CHAOS_ITEMS: WorldMenuItem[] = [
   {
     id: 'chaos_aowu',
-    mark: '📣',
-    label: '嗷嗚計劃',
-    subtitle: '真實吃貨現場。不當演員。',
-    heroKey: 'chaos-aowu',
-  },
-  {
-    id: 'chaos_frog',
     mark: '🐸',
-    label: '青蛙誰在怕',
-    subtitle: '誰在怕？先別回答。',
+    label: '嗷嗚計劃',
+    subtitle: '進青蛙誰在怕。誰在怕？先別回答。',
     heroKey: 'chaos-frog',
   },
   {
     id: 'chaos_events',
     mark: '🎪',
-    label: '活動',
-    subtitle: '給個爛點子，說不定很好玩。',
+    label: '活動中心',
+    subtitle: '沒梗了——給個爛點子也好玩。',
     heroKey: 'chaos-events',
   },
   {
@@ -148,81 +128,35 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
   },
 ];
 
-export const CHAOS_COPY: Record<string, string> = {
-  chaos_aowu: `【嗷嗚計劃】
-
-拍真實吃貨現場，不當演員。
-
-拆箱、聞味道、正在啃——
-這些臉比長文有用。
-
-想參加就回：我要參加嗷嗚
-並留下收件資料。
-
-IG 記得標 @furmosa_food`,
-
-  chaos_events: `【活動】
-
-給個爛點子，
-說不定很好玩。`,
-
-  chaos_unbox: `【開箱任務】
-
-任務很單純：
-
-• 開箱瞬間
-• 聞到味道的臉
-• 正在吃
-• 產品＋毛孩合照
-
-拍完標 @furmosa_food
-講一句真心話就好。`,
-
-  chaos_frog: `【青蛙誰在怕】
-
-青蛙：誰在怕？
-
-傑克在追。青蛙在逃。
-有人已經先尖叫了。
-
-青蛙凍乾實測場——
-毛孩敢不敢碰、碰了什麼表情，拍下來。
-
-想參加就回：我要參加青蛙
-（舊口令「我要參加清蛙」也認）
-
-IG 標 @furmosa_food`,
-
-  chaos_guide: `【拍攝指南】
-
-請拍這些就好（3–5 張或短影片）：
-
-• 開箱瞬間
-• 聞到味道的臉
-• 正在吃的畫面
-• 產品＋毛孩合照
-
-IG 標：@furmosa_food
-
-現在主要入口在「開箱任務」。`,
-
-  chaos_reward: `【完成拿 100 元】
-
-依開箱／嗷嗚交件並標註，
-審核通過後發給下次購物金 NT$100。
-
-不是抽獎。做完、合格，再領。`,
-
-  chaos_month: `【本月限定】
-
-改掛在「活動」。
-這個月有什麼，去一起野放看。`,
-
-  chaos_bundle: `【限定組合】
-
-改掛在「活動」。
-有開才掛。`,
+/**
+ * 一起野放：點按鈕後的對話氣泡（店員口吻，短句連發）。
+ * 封面圖另送；這裡只放文字。
+ */
+export const CHAOS_DIALOGUE: Record<string, string[]> = {
+  chaos_aowu: [
+    '這格寫嗷嗚，開門其實是「青蛙誰在怕」。',
+    '傑克在追，青蛙在逃——有人已經先叫了。毛孩敢不敢碰青蛙凍乾、碰了什麼臉，拍下來就好。',
+    '專案頁好了會直接帶你過去。IG 記得標 @furmosa_food。',
+  ],
+  chaos_frog: [
+    '這格寫嗷嗚，開門其實是「青蛙誰在怕」。',
+    '傑克在追，青蛙在逃——有人已經先叫了。毛孩敢不敢碰青蛙凍乾、碰了什麼臉，拍下來就好。',
+    '專案頁好了會直接帶你過去。IG 記得標 @furmosa_food。',
+  ],
+  chaos_events: [
+    '活動區來了，牌子有點直——叫「沒梗了」。海報在上面，先瞄一眼。',
+    '有爛點子也行，說不定很好玩。',
+  ],
+  chaos_unbox: [
+    '開箱任務很單純啦。拆、聞、吃、拍——尤其是正在啃的那張臉。',
+    '拍完標 @furmosa_food，講一句真心話就好。',
+  ],
 };
+
+/** @deprecated 舊單塊文案；新路徑用 CHAOS_DIALOGUE */
+export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
+  Object.entries(CHAOS_DIALOGUE).map(([id, lines]) => [id, lines.join('\n\n')]),
+);
 
 /**
  * 換罐計劃：依是否已綁 LINE／開戶變形。
