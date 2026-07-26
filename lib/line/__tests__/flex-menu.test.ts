@@ -12,6 +12,7 @@ import {
   buildGroomingSoonMessages,
   buildFrogProjectMessages,
   buildEventsCenterMessages,
+  buildJarExplainTopicMessages,
   GROOMING_SOON_COPY,
 } from '../flex-hubs';
 import { WORLD_THEME } from '../card-theme';
@@ -142,20 +143,28 @@ describe('一起野放', () => {
     assert.match(text.text, /按鈕/);
   });
 
-  it('嗷嗚計劃回青蛙封面與文案', () => {
+  it('嗷嗚計劃：輪播 cover＋對話氣泡', () => {
     const msgs = buildFrogProjectMessages({ registered: false, includeHub: false });
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
     assert.match(img.originalContentUrl, /chaos-frog\.png/);
-    const text = msgs.find((m) => m.type === 'text') as { text: string };
-    assert.match(text.text, /青蛙誰在怕/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 2);
+    assert.match(texts.map((t) => t.text).join('\n'), /青蛙誰在怕/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
   });
 
-  it('活動中心回沒梗了文案與海報', () => {
+  it('活動中心：輪播 cover＋沒梗了對話', () => {
     const msgs = buildEventsCenterMessages({ registered: false, includeHub: false });
     assert.equal(msgs[0]?.type, 'image');
-    const text = msgs.find((m) => m.type === 'text') as { text: string };
-    assert.match(text.text, /沒梗了/);
+    const img = msgs[0] as { originalContentUrl: string };
+    assert.match(img.originalContentUrl, /chaos-events\.png|poster\.jpg/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 1);
+    assert.match(texts.map((t) => t.text).join('\n'), /沒梗了/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
   });
 });
 
@@ -219,5 +228,17 @@ describe('換罐說明', () => {
     assert.match(raw, /合作店家|合作美容/);
     assert.match(raw, /常見問題/);
     assert.doesNotMatch(raw, /carousel/);
+  });
+
+  it('點介紹：cover＋對話氣泡', () => {
+    const msgs = buildJarExplainTopicMessages('intro');
+    assert.equal(msgs[0]?.type, 'image');
+    const img = msgs[0] as { originalContentUrl: string };
+    assert.match(img.originalContentUrl, /jar-explain\.png/);
+    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
+    assert.ok(texts.length >= 2);
+    assert.match(texts.map((t) => t.text).join('\n'), /空罐|8 碼|瓶子/);
+    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    assert.ok(msgs.length <= 5);
   });
 });

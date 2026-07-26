@@ -2,11 +2,12 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { FURMOSA_BRAND_LINKS } from '@/lib/line/brand-links';
 import {
-  CHAOS_COPY,
+  CHAOS_DIALOGUE,
   CHAOS_INTRO,
   CHAOS_ITEMS,
   JAR_ENTER_BLOCKED_GUEST,
   JAR_ENTER_HINT_REGISTERED,
+  JAR_EXPLAIN_DIALOGUE,
   WILD_INTRO,
   WORLD_HUB_EMOJI,
   WORLD_HUB_LABELS,
@@ -35,41 +36,65 @@ export function lineAssetUrl(path: string): string {
   return `${base.replace(/\/$/, '')}${clean}`;
 }
 
-function cardHeroUrl(heroKey: string): string {
+export function cardHeroUrl(heroKey: string): string {
   return lineAssetUrl(`/line/cards/${heroKey}.png`);
 }
 
-/** 活動中心／沒梗了海報（檔案存在才回傳） */
+/** 活動中心／沒梗了：優先輪播 cover，其次活動海報 */
+export function eventsCoverUrl(): string {
+  const card = join(process.cwd(), 'public/line/cards/chaos-events.png');
+  if (existsSync(card)) return cardHeroUrl('chaos-events');
+  const poster = join(process.cwd(), 'public/line/events/poster.jpg');
+  if (existsSync(poster)) return lineAssetUrl('/line/events/poster.jpg');
+  return cardHeroUrl('chaos-events');
+}
+
+/** @deprecated 改用 eventsCoverUrl */
 export function eventsPosterUrl(): string | null {
   const abs = join(process.cwd(), 'public/line/events/poster.jpg');
   if (!existsSync(abs)) return null;
   return lineAssetUrl('/line/events/poster.jpg');
 }
 
-/** 嗷嗚計劃 → 青蛙誰在怕：封面圖＋文案（有網址再附進入按鈕） */
+/** 點按鈕後：舊輪播 cover → 圖片，再接對話氣泡（LINE 單次回覆最多 5 則） */
+export function buildCoverDialogueMessages(opts: {
+  coverUrl: string;
+  lines: string[];
+  trailing?: LineReplyMessage[];
+}): LineReplyMessage[] {
+  const texts = opts.lines
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((text): LineReplyMessage => ({ type: 'text', text }));
+  const trailing = opts.trailing ?? [];
+  // image + ≤3 text + trailing，總數壓在 5
+  const room = Math.max(0, 4 - texts.length);
+  return [
+    {
+      type: 'image',
+      originalContentUrl: opts.coverUrl,
+      previewImageUrl: opts.coverUrl,
+    },
+    ...texts,
+    ...trailing.slice(0, room),
+  ];
+}
+
+/** 嗷嗚計劃 → 青蛙誰在怕：輪播 cover＋對話（有網址再附進入按鈕） */
 export function buildFrogProjectMessages(opts?: {
   registered?: boolean;
   includeHub?: boolean;
 }): LineReplyMessage[] {
-  const registered = opts?.registered ?? false;
-  const includeHub = opts?.includeHub ?? true;
-  const cover = cardHeroUrl('chaos-frog');
   const frogUrl = FURMOSA_BRAND_LINKS.frogProject();
-  const messages: LineReplyMessage[] = [
-    {
-      type: 'image',
-      originalContentUrl: cover,
-      previewImageUrl: cover,
-    },
-    { type: 'text', text: CHAOS_COPY.chaos_frog },
-  ];
+  const trailing: LineReplyMessage[] = [];
   if (frogUrl) {
-    messages.push(
+    trailing.push(
       buildButtonMenuFlex({
         altText: '青蛙誰在怕',
         theme: WORLD_THEME.chaos,
         title: '青蛙誰在怕',
-        subtitle: '獨立專案，點進去看。',
+        subtitle: '專案在外面，點進去看。',
         items: [
           {
             label: '進入青蛙誰在怕',
@@ -80,32 +105,32 @@ export function buildFrogProjectMessages(opts?: {
       }),
     );
   }
-  if (includeHub) {
-    messages.push(...buildWorldHubMessages('chaos', { registered }));
-  }
-  return messages;
+  return buildCoverDialogueMessages({
+    coverUrl: cardHeroUrl('chaos-frog'),
+    lines: CHAOS_DIALOGUE.chaos_frog,
+    trailing,
+  });
 }
 
-/** 活動中心 → 沒梗了：海報／封面＋文案 */
+/** 活動中心 → 沒梗了：輪播 cover＋對話 */
 export function buildEventsCenterMessages(opts?: {
   registered?: boolean;
   includeHub?: boolean;
 }): LineReplyMessage[] {
-  const registered = opts?.registered ?? false;
-  const includeHub = opts?.includeHub ?? true;
-  const cover = eventsPosterUrl() ?? cardHeroUrl('chaos-events');
-  const messages: LineReplyMessage[] = [
-    {
-      type: 'image',
-      originalContentUrl: cover,
-      previewImageUrl: cover,
-    },
-    { type: 'text', text: CHAOS_COPY.chaos_events },
-  ];
-  if (includeHub) {
-    messages.push(...buildWorldHubMessages('chaos', { registered }));
-  }
-  return messages;
+  return buildCoverDialogueMessages({
+    coverUrl: eventsCoverUrl(),
+    lines: CHAOS_DIALOGUE.chaos_events,
+  });
+}
+
+/** 換罐說明子項：cover＋對話 */
+export function buildJarExplainTopicMessages(
+  topic: 'intro' | 'flow' | 'faq',
+): LineReplyMessage[] {
+  return buildCoverDialogueMessages({
+    coverUrl: cardHeroUrl('jar-explain'),
+    lines: [...JAR_EXPLAIN_DIALOGUE[topic]],
+  });
 }
 
 type CardAction =
@@ -492,12 +517,12 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
     },
   ];
   return [
-    { type: 'text', text: '🫙 換罐說明\n瓶子才是主角。點一個看。' },
+    { type: 'text', text: '換罐怎麼玩？下面幾格，點了會再跟你聊。' },
     menuFromItems({
       altText: '換罐說明',
       theme,
       title: '換罐說明',
-      subtitle: '由上往下點。',
+      subtitle: '點下面按鈕，由上往下選。',
       items: sections,
     }),
   ];

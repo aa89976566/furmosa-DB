@@ -23,11 +23,11 @@
 
 ### ① 一起野放
 
-外面比較好玩。三個按鈕：
+外面比較好玩。選單是垂直按鈕；**點按鈕後**才丟舊輪播 cover 圖，再以短對話氣泡說明（不塞公告標題）。
 
-- **嗷嗚計劃** → 進入「青蛙誰在怕」（封面 `chaos-frog.png`；獨立專案網址設 `LINE_FROG_PROJECT_URL`）
-- **活動中心** → 「沒梗了」活動區（海報 `events/poster.jpg`）
-- **開箱任務** → 雞霸兩片開箱對話（封面 `events/jiba-unbox-cover.png`＋垂直選項）
+- **嗷嗚計劃** → 圖 `chaos-frog.png`＋對話 →「青蛙誰在怕」（網址設 `LINE_FROG_PROJECT_URL`）
+- **活動中心** → 圖 `chaos-events.png`＋對話 →「沒梗了」
+- **開箱任務** → 圖 `events/jiba-unbox-cover.png`＋對話選項 → 雞霸開箱狀態機
 
 ### ② 預約美容
 

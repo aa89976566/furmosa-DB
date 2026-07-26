@@ -9,9 +9,6 @@ import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
   BRAND_STORY,
   JAR_ENTER_BLOCKED_GUEST,
-  JAR_EXPLAIN_FAQ,
-  JAR_EXPLAIN_FLOW,
-  JAR_EXPLAIN_INTRO,
 } from '@/lib/line/brand-worlds';
 import { startJibaUnboxIntro } from '@/lib/line/campaigns/jiba-unbox/flow';
 import {
@@ -34,6 +31,7 @@ import {
   buildFrogProjectMessages,
   buildHomeHubMessages,
   buildJarExplainMessages,
+  buildJarExplainTopicMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
@@ -167,15 +165,15 @@ export async function handleLinePostback(
     return;
   }
   if (action === 'jar_explain_intro') {
-    await replyLineText(replyToken, JAR_EXPLAIN_INTRO);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('intro'));
     return;
   }
   if (action === 'jar_explain_flow') {
-    await replyLineText(replyToken, JAR_EXPLAIN_FLOW);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('flow'));
     return;
   }
   if (action === 'jar_faq') {
-    await replyLineText(replyToken, JAR_EXPLAIN_FAQ);
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
     return;
   }
   if (action === 'jar_stores' || action === 'wild_stores') {
