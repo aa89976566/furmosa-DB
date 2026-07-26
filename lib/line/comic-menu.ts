@@ -33,7 +33,7 @@ export function parseComicMenuText(text: string): ComicMenuKind | null {
 export function buildComicRoamMessages(registered: boolean): LineReplyMessage[] {
   return buildWorldHubMessages('chaos', {
     registered,
-    body: '一起野放 🐾\n傑克往外衝了。外面比較好玩——挑一張跟去。',
+    body: '一起野放 🐾\n傑克往外衝了。外面比較好玩——點下面按鈕跟去。',
   });
 }
 

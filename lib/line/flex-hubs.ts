@@ -41,9 +41,109 @@ type CardAction =
   | { type: 'uri'; uri: string }
   | { type: 'message'; text: string };
 
+type MenuButtonItem = {
+  label: string;
+  mark?: string;
+  action: CardAction;
+  style?: 'primary' | 'secondary' | 'link';
+};
+
+function toLineAction(action: CardAction, label: string) {
+  const safeLabel = label.slice(0, 20);
+  if (action.type === 'postback') {
+    return {
+      type: 'postback' as const,
+      label: safeLabel,
+      data: action.data,
+      displayText: action.displayText ?? label,
+    };
+  }
+  if (action.type === 'uri') {
+    return { type: 'uri' as const, label: safeLabel, uri: action.uri };
+  }
+  return { type: 'message' as const, label: safeLabel, text: action.text };
+}
+
 /**
- * 單張可點卡片（整卡一個 CTA）
- * 漫畫分頁感：白底、大插畫、圓角、大量留白。無漸層、無灰底按鈕列。
+ * 垂直按鈕選單（取代 carousel）
+ * 選項由上往下排在同一則對話氣泡內，不用左右滑。
+ */
+export function buildButtonMenuFlex(opts: {
+  altText: string;
+  theme: WorldTheme;
+  title?: string;
+  subtitle?: string;
+  items: MenuButtonItem[];
+}): LineReplyMessage {
+  const buttons = opts.items.slice(0, 13).map((item) => {
+    const label = item.mark ? `${item.mark} ${item.label}` : item.label;
+    return {
+      type: 'button',
+      style: item.style ?? 'secondary',
+      height: 'sm',
+      color: item.style === 'primary' ? opts.theme.accent : undefined,
+      action: toLineAction(item.action, label),
+    };
+  });
+
+  const bodyContents: Record<string, unknown>[] = [];
+  if (opts.title) {
+    bodyContents.push({
+      type: 'text',
+      text: opts.title,
+      weight: 'bold',
+      size: 'lg',
+      color: opts.theme.ink,
+      wrap: true,
+    });
+  }
+  if (opts.subtitle) {
+    bodyContents.push({
+      type: 'text',
+      text: opts.subtitle,
+      size: 'sm',
+      color: opts.theme.muted,
+      wrap: true,
+      margin: opts.title ? 'sm' : undefined,
+    });
+  }
+
+  return {
+    type: 'flex',
+    altText: opts.altText,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      styles: {
+        body: { backgroundColor: opts.theme.card },
+        footer: { backgroundColor: opts.theme.soft },
+      },
+      ...(bodyContents.length
+        ? {
+            body: {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'sm',
+              paddingAll: '18px',
+              backgroundColor: opts.theme.card,
+              contents: bodyContents,
+            },
+          }
+        : {}),
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: '12px',
+        backgroundColor: opts.theme.soft,
+        contents: buttons,
+      },
+    },
+  };
+}
+
+/**
+ * @deprecated 輪播大卡已改按鈕選單；保留給少數測試／相容路徑
  */
 export function buildActionCard(opts: {
   theme: WorldTheme;
@@ -105,88 +205,71 @@ export function buildActionCard(opts: {
           wrap: true,
           margin: 'sm',
         },
-        {
-          type: 'box',
-          layout: 'horizontal',
-          margin: 'xl',
-          contents: [
-            {
-              type: 'text',
-              text: `${opts.mark}  ${opts.ctaLabel ?? '跟去'}`,
-              size: 'sm',
-              color: theme.accent,
-              weight: 'bold',
-              flex: 0,
-            },
-            {
-              type: 'text',
-              text: '→',
-              size: 'xl',
-              color: theme.accent,
-              align: 'end',
-              weight: 'bold',
-            },
-          ],
-        },
       ],
     },
   };
 }
 
-function carouselFlex(altText: string, bubbles: Record<string, unknown>[]): LineReplyMessage {
-  return {
-    type: 'flex',
-    altText,
-    contents: {
-      type: 'carousel',
-      contents: bubbles.slice(0, 12),
-    },
-  };
-}
-
-function itemToCard(
+function itemToButton(
   item: WorldMenuItem,
-  theme: WorldTheme,
-  opts?: { primaryId?: string; ctaLabel?: string; primaryCta?: string },
-): Record<string, unknown> {
+  opts?: { primaryId?: string },
+): MenuButtonItem {
   const action: CardAction = item.uri
     ? { type: 'uri', uri: item.uri }
     : { type: 'postback', data: `jd=${item.id}`, displayText: item.label };
   const isPrimary = opts?.primaryId === item.id;
-  return buildActionCard({
-    theme,
+  return {
+    label: item.label,
     mark: item.mark,
-    title: item.label,
-    subtitle: item.subtitle,
-    heroKey: item.heroKey,
     action,
-    ctaLabel: isPrimary
-      ? (opts?.primaryCta ?? '衝')
-      : (opts?.ctaLabel ?? '跟去'),
-    emphasized: isPrimary,
+    style: isPrimary ? 'primary' : 'secondary',
+  };
+}
+
+function menuFromItems(opts: {
+  altText: string;
+  theme: WorldTheme;
+  title?: string;
+  subtitle?: string;
+  items: WorldMenuItem[];
+  primaryId?: string;
+}): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: opts.altText,
+    theme: opts.theme,
+    title: opts.title,
+    subtitle: opts.subtitle,
+    items: opts.items.map((item) => itemToButton(item, { primaryId: opts.primaryId })),
   });
 }
 
-/** 聊天內備援：跟著傑克走一天（四格入口的文字備援） */
+/** 聊天內備援：跟著傑克走一天 */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
-  const intro = opts?.body ?? '跟著傑克走。點一張卡繼續。';
-  const worlds: Array<{ id: WorldHubId; heroKey: string; cta: string }> = [
-    { id: 'chaos', heroKey: 'world-chaos', cta: '野放' },
-    { id: 'jar', heroKey: 'world-jar', cta: '開罐' },
-    { id: 'wild', heroKey: 'world-wild', cta: '進門' },
+  const intro = opts?.body ?? '跟著傑克走。點一個繼續。';
+  const worlds: Array<{ id: WorldHubId; mark: string; label: string }> = [
+    { id: 'chaos', mark: WORLD_HUB_EMOJI.chaos, label: WORLD_HUB_LABELS.chaos },
+    { id: 'jar', mark: WORLD_HUB_EMOJI.jar, label: WORLD_HUB_LABELS.jar },
+    { id: 'wild', mark: WORLD_HUB_EMOJI.wild, label: WORLD_HUB_LABELS.wild },
   ];
-  const bubbles = worlds.map((w) =>
-    buildActionCard({
-      theme: WORLD_THEME[w.id],
-      mark: WORLD_HUB_EMOJI[w.id],
-      title: WORLD_HUB_LABELS[w.id],
-      subtitle: WORLD_HUB_TAGLINE[w.id],
-      heroKey: w.heroKey,
-      action: { type: 'postback', data: `jd=hub_${w.id}`, displayText: WORLD_HUB_LABELS[w.id] },
-      ctaLabel: w.cta,
+  return [
+    { type: 'text', text: intro },
+    buildButtonMenuFlex({
+      altText: '跟著傑克走',
+      theme: WORLD_THEME.chaos,
+      title: '跟著傑克走',
+      subtitle: '由上往下點，不用左右滑。',
+      items: worlds.map((w) => ({
+        label: w.label,
+        mark: w.mark,
+        action: {
+          type: 'postback',
+          data: `jd=hub_${w.id}`,
+          displayText: WORLD_HUB_LABELS[w.id],
+        },
+        style: 'secondary' as const,
+      })),
     }),
-  );
-  return [{ type: 'text', text: intro }, carouselFlex('跟著傑克走', bubbles)];
+  ];
 }
 
 /** 回家：官網＋IG */
@@ -198,40 +281,50 @@ export function buildHomeHubMessages(opts?: { body?: string }): LineReplyMessage
     if (item.id === 'wild_ig') return { ...item, uri: links.instagram() };
     return item;
   });
-  const bubbles = items.map((item) =>
-    itemToCard(item, theme, {
-      ctaLabel: item.id === 'wild_web' ? '進門' : '去晃晃',
-      primaryId: 'wild_web',
-      primaryCta: '進門',
-    }),
-  );
   return [
     {
       type: 'text',
       text: opts?.body ?? `回家了 🏠\n${WILD_INTRO}`,
     },
-    carouselFlex(WORLD_HUB_LABELS.wild, bubbles),
+    menuFromItems({
+      altText: WORLD_HUB_LABELS.wild,
+      theme,
+      title: WORLD_HUB_LABELS.wild,
+      subtitle: WORLD_HUB_TAGLINE.wild,
+      items,
+      primaryId: 'wild_web',
+    }),
   ];
 }
 
 /** 預約美容：好玩的還沒好 */
 export function buildGroomingSoonMessages(line: string): LineReplyMessage[] {
   const theme = GROOMING_THEME;
-  const card = buildActionCard({
-    theme,
-    mark: '🫧',
-    title: '預約美容',
-    subtitle: `${line} 線上預約還在路上——先別急著脫毛。`,
-    heroKey: 'grooming-soon',
-    action: { type: 'message', text: '換罐計劃' },
-    ctaLabel: '先去換罐晃晃',
-  });
   return [
     {
       type: 'text',
       text: `預約美容 ✂️\n${line}\n\n線上預約還沒放好水。先去換罐計劃晃晃，或回家看故事。`,
     },
-    carouselFlex('預約美容', [card]),
+    buildButtonMenuFlex({
+      altText: '預約美容',
+      theme,
+      title: '預約美容',
+      subtitle: `${line} 線上預約還在路上——先別急著脫毛。`,
+      items: [
+        {
+          label: '先去換罐晃晃',
+          mark: '🫧',
+          action: { type: 'message', text: '換罐計劃' },
+          style: 'primary',
+        },
+        {
+          label: '回家',
+          mark: '🏠',
+          action: { type: 'message', text: '回家' },
+          style: 'secondary',
+        },
+      ],
+    }),
   ];
 }
 
@@ -245,26 +338,29 @@ export function buildWorldHubMessages(
 
   if (hub === 'jar') {
     const hubCfg = buildJarHubItems(registered);
-    const bubbles = hubCfg.items.map((item) =>
-      itemToCard(item, theme, {
-        primaryId: hubCfg.primaryId,
-        primaryCta: registered ? '丟序號' : '開戶',
-        ctaLabel: '打開',
-      }),
-    );
     return [
       { type: 'text', text: opts?.body ?? `${title}\n${hubCfg.body}` },
-      carouselFlex(WORLD_HUB_LABELS.jar, bubbles),
+      menuFromItems({
+        altText: WORLD_HUB_LABELS.jar,
+        theme,
+        title: WORLD_HUB_LABELS.jar,
+        subtitle: '點下面按鈕，由上往下選。',
+        items: hubCfg.items,
+        primaryId: hubCfg.primaryId,
+      }),
     ];
   }
 
   if (hub === 'chaos') {
-    const bubbles = CHAOS_ITEMS.map((item) =>
-      itemToCard(item, theme, { ctaLabel: '跟去看看' }),
-    );
     return [
       { type: 'text', text: opts?.body ?? `${title}\n${CHAOS_INTRO}` },
-      carouselFlex(WORLD_HUB_LABELS.chaos, bubbles),
+      menuFromItems({
+        altText: WORLD_HUB_LABELS.chaos,
+        theme,
+        title: WORLD_HUB_LABELS.chaos,
+        subtitle: '點下面按鈕，由上往下選。',
+        items: CHAOS_ITEMS,
+      }),
     ];
   }
 
@@ -273,29 +369,34 @@ export function buildWorldHubMessages(
   });
 }
 
-/** 未開戶擋序號：單一大卡＋唯一 CTA */
+/** 未開戶擋序號：垂直按鈕 */
 export function buildRegisterGateMessages(
   text: string = JAR_ENTER_BLOCKED_GUEST,
 ): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
-  const card = buildActionCard({
-    theme,
-    mark: '🐾',
-    title: '先開戶',
-    subtitle: text.replace(/\n/g, ' '),
-    heroKey: 'gate',
-    action: {
-      type: 'postback',
-      data: 'jd=jar_reg&next=enter',
-      displayText: LINE_BTN.registerNow,
-    },
-    ctaLabel: LINE_BTN.registerNow,
-    emphasized: true,
-  });
-  return [carouselFlex('先開戶', [card])];
+  return [
+    buildButtonMenuFlex({
+      altText: '先開戶',
+      theme,
+      title: '先開戶',
+      subtitle: text.replace(/\n/g, ' '),
+      items: [
+        {
+          label: LINE_BTN.registerNow,
+          mark: '🐾',
+          action: {
+            type: 'postback',
+            data: 'jd=jar_reg&next=enter',
+            displayText: LINE_BTN.registerNow,
+          },
+          style: 'primary',
+        },
+      ],
+    }),
+  ];
 }
 
-/** 什麼是換罐：四張說明卡 */
+/** 什麼是換罐：垂直按鈕說明 */
 export function buildJarExplainMessages(): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
   const sections: WorldMenuItem[] = [
@@ -328,27 +429,36 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
       heroKey: 'jar-faq',
     },
   ];
-  const bubbles = sections.map((item) => itemToCard(item, theme, { ctaLabel: '閱讀' }));
   return [
-    { type: 'text', text: '🫙 換罐說明\n瓶子才是主角。挑一張看。' },
-    carouselFlex('換罐說明', bubbles),
+    { type: 'text', text: '🫙 換罐說明\n瓶子才是主角。點一個看。' },
+    menuFromItems({
+      altText: '換罐說明',
+      theme,
+      title: '換罐說明',
+      subtitle: '由上往下點。',
+      items: sections,
+    }),
   ];
 }
 
 export function buildEnterCodePromptMessages(): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
-  const card = buildActionCard({
-    theme,
-    mark: '🔢',
-    title: '輸入序號',
-    subtitle: JAR_ENTER_HINT_REGISTERED.replace(/\n/g, ' '),
-    heroKey: 'jar-enter',
-    action: { type: 'message', text: '我的會員' },
-    ctaLabel: '傳 8 碼即可',
-  });
   return [
     { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
-    carouselFlex('輸入序號', [card]),
+    buildButtonMenuFlex({
+      altText: '輸入序號',
+      theme,
+      title: '輸入序號',
+      subtitle: '罐底 8 碼，直接打在對話框就好。',
+      items: [
+        {
+          label: '我的會員',
+          mark: '🔢',
+          action: { type: 'message', text: '我的會員' },
+          style: 'secondary',
+        },
+      ],
+    }),
   ];
 }
 
@@ -368,13 +478,6 @@ export function buildJarSuccessFlex(opts: {
       type: 'bubble',
       size: 'mega',
       styles: { body: { backgroundColor: theme.card } },
-      hero: {
-        type: 'image',
-        url: cardHeroUrl('jar-vault'),
-        size: 'full',
-        aspectRatio: '20:10',
-        aspectMode: 'cover',
-      },
       body: {
         type: 'box',
         layout: 'vertical',
@@ -425,23 +528,16 @@ export function buildJarSuccessFlex(opts: {
         backgroundColor: theme.soft,
         contents: [
           {
-            type: 'box',
-            layout: 'horizontal',
+            type: 'button',
+            style: 'primary',
+            height: 'sm',
+            color: theme.accent,
             action: {
               type: 'postback',
+              label: '🪪 我的會員',
               data: 'jd=jar_vault',
               displayText: '我的會員',
             },
-            contents: [
-              {
-                type: 'text',
-                text: '🪪 我的會員',
-                weight: 'bold',
-                color: theme.accent,
-                size: 'md',
-              },
-              { type: 'text', text: '→', align: 'end', color: theme.accent },
-            ],
           },
         ],
       },
