@@ -53,7 +53,11 @@ import {
   validRecipientName,
   validRecipientPhone,
 } from '@/lib/campaigns/jiba-two-piece/validation';
-import { lineAssetUrl } from '@/lib/line/flex-hubs';
+import { WORLD_THEME } from '@/lib/line/card-theme';
+import {
+  buildButtonMenuFlex,
+  lineAssetUrl,
+} from '@/lib/line/flex-hubs';
 import {
   clearLineChatSession,
   upsertLineChatSession,
@@ -61,6 +65,55 @@ import {
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
 import { prisma } from '@/lib/prisma';
+
+function jibaUnboxCoverUrl(): string {
+  return lineAssetUrl('/line/events/jiba-unbox-cover.png');
+}
+
+/** 開箱入口／規則頁：封面圖後的垂直選項（每步保留設計好的選擇內容） */
+function jibaIntroChoiceMenu(title: string, subtitle: string): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: title,
+    theme: WORLD_THEME.chaos,
+    title,
+    subtitle,
+    items: [
+      {
+        label: '我要參加',
+        action: { type: 'message', text: '我要參加' },
+        style: 'primary',
+      },
+      {
+        label: '先看看規則',
+        action: { type: 'message', text: '先看看規則' },
+      },
+      {
+        label: '這次先不要',
+        action: { type: 'message', text: '這次先不要' },
+      },
+    ],
+  });
+}
+
+function jibaRulesChoiceMenu(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: '開箱規則',
+    theme: WORLD_THEME.chaos,
+    title: '看完了？',
+    subtitle: '點下面按鈕繼續。',
+    items: [
+      {
+        label: '敢，來吧',
+        action: { type: 'message', text: '敢，來吧' },
+        style: 'primary',
+      },
+      {
+        label: '我再想一下',
+        action: { type: 'message', text: '我再想一下' },
+      },
+    ],
+  });
+}
 
 function textWithQr(
   text: string,
@@ -170,18 +223,15 @@ export async function startJibaUnboxIntro(
     return;
   }
 
-  const cover = lineAssetUrl('/line/events/jiba-unbox-cover.png');
+  const cover = jibaUnboxCoverUrl();
   await replyLineMessage(replyToken, [
     {
       type: 'image',
       originalContentUrl: cover,
       previewImageUrl: cover,
     },
-    textWithQr(JIBA_INTRO, [
-      { label: '我要參加', text: '我要參加' },
-      { label: '先看看規則', text: '先看看規則' },
-      { label: '這次先不要', text: '這次先不要' },
-    ]),
+    { type: 'text', text: JIBA_INTRO },
+    jibaIntroChoiceMenu('開箱任務', '點下面按鈕，由上往下選。'),
   ]);
 
   await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
@@ -330,11 +380,15 @@ export async function handleJibaUnboxMessage(
       await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.SHOW_RULES, {
         phase: 'rules',
       });
+      const cover = jibaUnboxCoverUrl();
       await replyLineMessage(replyToken, [
-        textWithQr(JIBA_RULES, [
-          { label: '敢，來吧', text: '敢，來吧' },
-          { label: '我再想一下', text: '我再想一下' },
-        ]),
+        {
+          type: 'image',
+          originalContentUrl: cover,
+          previewImageUrl: cover,
+        },
+        { type: 'text', text: JIBA_RULES },
+        jibaRulesChoiceMenu(),
       ]);
       return true;
     }
@@ -351,11 +405,10 @@ export async function handleJibaUnboxMessage(
     }
     if (chat.step === FLOW_STATE.CAMPAIGN_INTRO || chat.step === FLOW_STATE.SHOW_RULES) {
       await replyLineMessage(replyToken, [
-        textWithQr('這題請用下面按鈕回。要上工、看規則，或這次先不要。', [
-          { label: '我要參加', text: '我要參加' },
-          { label: '先看看規則', text: '先看看規則' },
-          { label: '這次先不要', text: '這次先不要' },
-        ]),
+        { type: 'text', text: '這題請用下面按鈕回。要上工、看規則，或這次先不要。' },
+        chat.step === FLOW_STATE.SHOW_RULES
+          ? jibaRulesChoiceMenu()
+          : jibaIntroChoiceMenu('開箱任務', '點下面按鈕，由上往下選。'),
       ]);
       return true;
     }

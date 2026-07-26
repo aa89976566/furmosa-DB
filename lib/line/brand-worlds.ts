@@ -115,27 +115,25 @@ export function pickGroomingSoonLine(seed?: number): string {
   return GROOMING_SOON_LINES[i]!;
 }
 
-/** 一起野放：社區／UGC／活動 */
+/**
+ * 一起野放：三鍵
+ * - 嗷嗚計劃 → 青蛙誰在怕（獨立專案；網址後補）
+ * - 活動中心 → 沒梗了
+ * - 開箱任務 → 雞霸開箱對話流程
+ */
 export const CHAOS_ITEMS: WorldMenuItem[] = [
   {
     id: 'chaos_aowu',
-    mark: '📣',
-    label: '嗷嗚計劃',
-    subtitle: '真實吃貨現場。不當演員。',
-    heroKey: 'chaos-aowu',
-  },
-  {
-    id: 'chaos_frog',
     mark: '🐸',
-    label: '青蛙誰在怕',
-    subtitle: '誰在怕？先別回答。',
+    label: '嗷嗚計劃',
+    subtitle: '進青蛙誰在怕。誰在怕？先別回答。',
     heroKey: 'chaos-frog',
   },
   {
     id: 'chaos_events',
     mark: '🎪',
-    label: '活動',
-    subtitle: '給個爛點子，說不定很好玩。',
+    label: '活動中心',
+    subtitle: '沒梗了——給個爛點子也好玩。',
     heroKey: 'chaos-events',
   },
   {
@@ -148,19 +146,23 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
 ];
 
 export const CHAOS_COPY: Record<string, string> = {
-  chaos_aowu: `【嗷嗚計劃】
+  /** 嗷嗚計劃按鈕進入青蛙專案（文案同 frog） */
+  chaos_aowu: `【青蛙誰在怕】
 
-拍真實吃貨現場，不當演員。
+青蛙：誰在怕？
 
-拆箱、聞味道、正在啃——
-這些臉比長文有用。
+傑克在追。青蛙在逃。
+有人已經先尖叫了。
 
-想參加就回：我要參加嗷嗚
-並留下收件資料。
+青蛙凍乾實測場——
+毛孩敢不敢碰、碰了什麼表情，拍下來。
 
-IG 記得標 @furmosa_food`,
+專案頁準備好後，會直接帶你過去。
+IG 標 @furmosa_food`,
 
-  chaos_events: `【活動】
+  chaos_events: `【沒梗了】
+
+活動區在這。
 
 給個爛點子，
 說不定很好玩。`,
@@ -187,9 +189,7 @@ IG 記得標 @furmosa_food`,
 青蛙凍乾實測場——
 毛孩敢不敢碰、碰了什麼表情，拍下來。
 
-想參加就回：我要參加青蛙
-（舊口令「我要參加清蛙」也認）
-
+專案頁準備好後，會直接帶你過去。
 IG 標 @furmosa_food`,
 
   chaos_guide: `【拍攝指南】

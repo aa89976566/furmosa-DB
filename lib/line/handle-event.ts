@@ -2,10 +2,7 @@ import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
-import {
-  JAR_ENTER_BLOCKED_GUEST,
-  CHAOS_COPY,
-} from '@/lib/line/brand-worlds';
+import { JAR_ENTER_BLOCKED_GUEST } from '@/lib/line/brand-worlds';
 import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
@@ -20,6 +17,8 @@ import {
   buildComicRoamMessages,
 } from '@/lib/line/comic-menu';
 import {
+  buildEventsCenterMessages,
+  buildFrogProjectMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
   buildWorldHubMessages,
@@ -211,19 +210,29 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  if (parsed.kind === 'events_center') {
+    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
+      await replyLineMessage(
+        replyToken,
+        buildEventsCenterMessages({ registered }),
+      );
+    });
+    return;
+  }
+
   if (parsed.kind === 'unboxing') {
     const t = msgEvent.message.text;
-    // 「開箱任務」走完整對話狀態機（非靜態文案）
+    // 「開箱任務」走完整對話狀態機（封面圖＋選項＋狀態機）
     if (t.includes('開箱')) {
       await startJibaUnboxIntro(replyToken, lineUserId);
       return;
     }
-    const text =
-      t.includes('清蛙') || t.includes('青蛙')
-        ? CHAOS_COPY.chaos_frog
-        : CHAOS_COPY.chaos_aowu;
+    // 嗷嗚計劃／青蛙誰在怕 → 青蛙專案（封面圖＋文案；網址後補）
     await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, text, { registered });
+      await replyLineMessage(
+        replyToken,
+        buildFrogProjectMessages({ registered }),
+      );
     });
     return;
   }

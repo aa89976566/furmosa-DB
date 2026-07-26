@@ -12,6 +12,7 @@ export type ParsedLineText =
   | { kind: 'rewards_list' }
   | { kind: 'redeem_reward'; target: string }
   | { kind: 'unboxing' }
+  | { kind: 'events_center' }
   | { kind: 'hub_jar' }
   | { kind: 'hub_chaos' }
   | { kind: 'hub_wild' }
@@ -33,6 +34,8 @@ const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑�
 const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|reward|rewards)$/i;
 const UNBOXING_RE =
   /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|嗷嗚計劃|清蛙誰在怕|青蛙誰在怕|青蛙：誰在怕？|開箱任務)$/i;
+/** 活動中心／沒梗了（不是嗷嗚計劃） */
+const EVENTS_CENTER_RE = /^(?:活動中心|沒梗了)$/i;
 const HUB_JAR_RE = /^(?:(?:♻️|🫙)\s*)?(?:換罐計畫|換罐計劃)$/;
 /** 一起搞事＝舊名；一起野放走 comic_roam，也相容當 hub */
 const HUB_CHAOS_RE = /^(?:(?:🔥|🎉|🐾)\s*)?(?:一起搞事|一起野放)$/;
@@ -60,6 +63,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (HUB_WILD_RE.test(text)) return { kind: 'hub_wild' };
 
   if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
+  if (EVENTS_CENTER_RE.test(text)) return { kind: 'events_center' };
   if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };
 
   const redeemReward = text.match(REDEEM_REWARD_RE);

@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { FURMOSA_BRAND_LINKS } from '@/lib/line/brand-links';
 import {
+  CHAOS_COPY,
   CHAOS_INTRO,
   CHAOS_ITEMS,
   JAR_ENTER_BLOCKED_GUEST,
@@ -34,6 +37,75 @@ export function lineAssetUrl(path: string): string {
 
 function cardHeroUrl(heroKey: string): string {
   return lineAssetUrl(`/line/cards/${heroKey}.png`);
+}
+
+/** 活動中心／沒梗了海報（檔案存在才回傳） */
+export function eventsPosterUrl(): string | null {
+  const abs = join(process.cwd(), 'public/line/events/poster.jpg');
+  if (!existsSync(abs)) return null;
+  return lineAssetUrl('/line/events/poster.jpg');
+}
+
+/** 嗷嗚計劃 → 青蛙誰在怕：封面圖＋文案（有網址再附進入按鈕） */
+export function buildFrogProjectMessages(opts?: {
+  registered?: boolean;
+  includeHub?: boolean;
+}): LineReplyMessage[] {
+  const registered = opts?.registered ?? false;
+  const includeHub = opts?.includeHub ?? true;
+  const cover = cardHeroUrl('chaos-frog');
+  const frogUrl = FURMOSA_BRAND_LINKS.frogProject();
+  const messages: LineReplyMessage[] = [
+    {
+      type: 'image',
+      originalContentUrl: cover,
+      previewImageUrl: cover,
+    },
+    { type: 'text', text: CHAOS_COPY.chaos_frog },
+  ];
+  if (frogUrl) {
+    messages.push(
+      buildButtonMenuFlex({
+        altText: '青蛙誰在怕',
+        theme: WORLD_THEME.chaos,
+        title: '青蛙誰在怕',
+        subtitle: '獨立專案，點進去看。',
+        items: [
+          {
+            label: '進入青蛙誰在怕',
+            action: { type: 'uri', uri: frogUrl },
+            style: 'primary',
+          },
+        ],
+      }),
+    );
+  }
+  if (includeHub) {
+    messages.push(...buildWorldHubMessages('chaos', { registered }));
+  }
+  return messages;
+}
+
+/** 活動中心 → 沒梗了：海報／封面＋文案 */
+export function buildEventsCenterMessages(opts?: {
+  registered?: boolean;
+  includeHub?: boolean;
+}): LineReplyMessage[] {
+  const registered = opts?.registered ?? false;
+  const includeHub = opts?.includeHub ?? true;
+  const cover = eventsPosterUrl() ?? cardHeroUrl('chaos-events');
+  const messages: LineReplyMessage[] = [
+    {
+      type: 'image',
+      originalContentUrl: cover,
+      previewImageUrl: cover,
+    },
+    { type: 'text', text: CHAOS_COPY.chaos_events },
+  ];
+  if (includeHub) {
+    messages.push(...buildWorldHubMessages('chaos', { registered }));
+  }
+  return messages;
 }
 
 type CardAction =
