@@ -67,6 +67,15 @@ import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
 import { prisma } from '@/lib/prisma';
 
+/** 開箱流程回覆：拆泡後若超過 5 則，其餘 push 接續 */
+async function replyJiba(
+  replyToken: string,
+  lineUserId: string,
+  messages: LineReplyMessage[],
+) {
+  await replyLineMessage(replyToken, messages, { lineUserId });
+}
+
 function jibaUnboxCoverUrl(): string {
   return lineAssetUrl('/line/events/jiba-unbox-cover.png');
 }
@@ -215,7 +224,7 @@ export async function startJibaUnboxIntro(
         phase: 'resume',
       });
       const prompt = promptForState(state);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
           text: `你還有一筆進行中的開箱申請。\n接著上次：`,
@@ -229,7 +238,7 @@ export async function startJibaUnboxIntro(
   }
 
   const cover = jibaUnboxCoverUrl();
-  await replyLineMessage(replyToken, [
+  await replyJiba(replyToken, lineUserId, [
     {
       type: 'image',
       originalContentUrl: cover,
@@ -285,7 +294,7 @@ async function beginEnrollment(
     if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
       const prompt = promptForState(state);
       await logBot(sid, `接著上次。\n${prompt}`);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '你上次還沒填完，接著來。' },
         { type: 'text', text: prompt },
       ]);
@@ -294,7 +303,7 @@ async function beginEnrollment(
 
     await logBot(sid, JIBA_START_WORK);
     await logBot(sid, JIBA_ASK_NAME);
-    await replyLineMessage(replyToken, [
+    await replyJiba(replyToken, lineUserId, [
       { type: 'text', text: JIBA_START_WORK },
       { type: 'text', text: JIBA_ASK_NAME },
     ]);
@@ -310,7 +319,7 @@ async function beginEnrollment(
       await run();
     } catch (retryErr) {
       console.error('[jiba-unbox] beginEnrollment retry failed', retryErr);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
           text: '開箱系統剛剛打了個嗝。再點一次「開箱任務」，或稍後再試。',
@@ -399,7 +408,7 @@ export async function handleJibaUnboxMessage(
       }
     }
     await clearLineChatSession(lineUserId);
-    await replyLineMessage(replyToken, [
+    await replyJiba(replyToken, lineUserId, [
       { type: 'text', text: '好，這次先收工。想參加再說一聲「開箱任務」。' },
     ]);
     return true;
@@ -419,14 +428,14 @@ export async function handleJibaUnboxMessage(
         console.error('[jiba-unbox] find helper log failed', err);
       }
     }
-    await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_FIND_HELPER }]);
+    await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_FIND_HELPER }]);
     return true;
   }
 
   if (/^查看目前資料$/.test(trimmed)) {
     const app = await safeFindActiveJibaApplication(lineUserId);
     if (!app) {
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '目前沒有進行中的開箱申請。' },
       ]);
       return true;
@@ -438,7 +447,7 @@ export async function handleJibaUnboxMessage(
       instagramHandle: app.instagramHandle || '（未填）',
       petName: app.petName,
     });
-    await replyLineMessage(replyToken, [{ type: 'text', text: summary }]);
+    await replyJiba(replyToken, lineUserId, [{ type: 'text', text: summary }]);
     return true;
   }
 
@@ -452,7 +461,7 @@ export async function handleJibaUnboxMessage(
         phase: 'rules',
       });
       const cover = jibaUnboxCoverUrl();
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         {
           type: 'image',
           originalContentUrl: cover,
@@ -465,7 +474,7 @@ export async function handleJibaUnboxMessage(
     }
     if (isDeclineIntent(trimmed)) {
       await clearLineChatSession(lineUserId);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '好，雞霸先回冰箱。下次想上工再叫我們。' },
       ]);
       return true;
@@ -475,7 +484,7 @@ export async function handleJibaUnboxMessage(
       return true;
     }
     if (chat.step === FLOW_STATE.CAMPAIGN_INTRO || chat.step === FLOW_STATE.SHOW_RULES) {
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '這題請用下面按鈕回。要上工、看規則，或這次先不要。' },
         chat.step === FLOW_STATE.SHOW_RULES
           ? jibaRulesChoiceMenu()
@@ -504,27 +513,27 @@ export async function handleJibaUnboxMessage(
   await logCustomer(sid, trimmed, lineMessageId);
 
   if (state === FLOW_STATE.PENDING_REVIEW) {
-    await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_PENDING_HINT }]);
+    await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_PENDING_HINT }]);
     return true;
   }
   if (state === FLOW_STATE.AWAITING_SHIPPING_PAYMENT) {
     if (/^(?:現在付款|我要轉帳|轉帳資訊)$/.test(trimmed)) {
       await logBot(sid, JIBA_BANK_INFO);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_BANK_INFO, bankInfoQuickReplies()),
       ]);
       return true;
     }
     if (/^(?:稍後再說|等等再付|先不用)$/.test(trimmed)) {
       await logBot(sid, JIBA_PAY_LATER);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_PAY_LATER, payAskQuickReplies()),
       ]);
       return true;
     }
     if (/^我已轉帳$/.test(trimmed)) {
       await logBot(sid, JIBA_TRANSFER_NOTED);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_TRANSFER_NOTED, [
           { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
           { label: '再看轉帳資訊', text: '現在付款' },
@@ -532,13 +541,13 @@ export async function handleJibaUnboxMessage(
       ]);
       return true;
     }
-    await replyLineMessage(replyToken, [
+    await replyJiba(replyToken, lineUserId, [
       textWithQr(JIBA_APPROVED, payAskQuickReplies()),
     ]);
     return true;
   }
   if (state === FLOW_STATE.READY_TO_SHIP) {
-    await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_PAID }]);
+    await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_PAID }]);
     return true;
   }
 
@@ -546,7 +555,7 @@ export async function handleJibaUnboxMessage(
     case FLOW_STATE.ASK_RECIPIENT_NAME: {
       const name = validRecipientName(trimmed);
       if (!name) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '姓名請用 2～20 個字，別只打數字。再試一次？' },
         ]);
         return true;
@@ -556,19 +565,19 @@ export async function handleJibaUnboxMessage(
         recipientName: name,
       });
       await logBot(sid, JIBA_ASK_PHONE);
-      await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_ASK_PHONE }]);
+      await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_PHONE }]);
       return true;
     }
     case FLOW_STATE.ASK_RECIPIENT_PHONE: {
       const phone = validRecipientPhone(trimmed);
       if (!phone) {
-        await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_PHONE_ERROR }]);
+        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_PHONE_ERROR }]);
         return true;
       }
       await syncApplicationFields(app.id, { recipientPhone: phone });
       await setConversationState(sid, FLOW_STATE.ASK_STORE, { recipientPhone: phone });
       await logBot(sid, JIBA_ASK_STORE);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_ASK_STORE, [
           { label: '手動輸入門市', text: '手動輸入門市' },
         ]),
@@ -577,7 +586,7 @@ export async function handleJibaUnboxMessage(
     }
     case FLOW_STATE.ASK_STORE: {
       if (/^手動輸入門市$/.test(trimmed)) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           {
             type: 'text',
             text: '請輸入「門市名稱＋縣市區域」。\n例如：板橋新埔門市。',
@@ -586,7 +595,7 @@ export async function handleJibaUnboxMessage(
         return true;
       }
       if (trimmed.length < 2) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '門市名稱再寫清楚一點，例如：板橋新埔門市。' },
         ]);
         return true;
@@ -604,7 +613,7 @@ export async function handleJibaUnboxMessage(
         text: `選門市${i + 1}`,
       }));
       qrItems.push({ label: '重選', text: '重選門市' });
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(
           `找到這些候選。選一間你真的會去的：\n\n${lines}\n\n回「選門市1」或點下面按鈕。\n自由文字不會直接寫進訂單。`,
           qrItems,
@@ -615,7 +624,7 @@ export async function handleJibaUnboxMessage(
     case FLOW_STATE.CONFIRM_STORE: {
       if (/^重選門市$/.test(trimmed)) {
         await setConversationState(sid, FLOW_STATE.ASK_STORE);
-        await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_ASK_STORE }]);
+        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_STORE }]);
         return true;
       }
       const sess = await prisma.conversationSession.findUniqueOrThrow({ where: { id: sid } });
@@ -647,7 +656,7 @@ export async function handleJibaUnboxMessage(
       }
 
       if (!picked) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           textWithQr('請從候選裡選一間，或回「重選門市」。', [
             ...candidates.slice(0, 4).map((c, i) => ({
               label: `${i + 1}.${c.storeName}`.slice(0, 20),
@@ -669,13 +678,13 @@ export async function handleJibaUnboxMessage(
         storeId: picked.storeId,
       });
       await logBot(sid, JIBA_ASK_IG);
-      await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_ASK_IG }]);
+      await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_IG }]);
       return true;
     }
     case FLOW_STATE.ASK_INSTAGRAM: {
       const ig = normalizeInstagramHandle(trimmed);
       if (!ig) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '請輸入 @ 開頭的 Instagram 帳號。' },
         ]);
         return true;
@@ -683,7 +692,7 @@ export async function handleJibaUnboxMessage(
       await syncApplicationFields(app.id, { instagramHandle: ig });
       await setConversationState(sid, FLOW_STATE.ASK_PET_NAME, { instagramHandle: ig });
       await logBot(sid, JIBA_ASK_PET);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_ASK_PET, [{ label: '略過', text: '略過' }]),
       ]);
       return true;
@@ -693,7 +702,7 @@ export async function handleJibaUnboxMessage(
       await syncApplicationFields(app.id, { petName: pet });
       await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE, { petName: pet });
       await logBot(sid, JIBA_LICENSE);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_LICENSE, [
           { label: '我同意', text: '我同意' },
           { label: '我想再看一次', text: '我想再看一次' },
@@ -704,7 +713,7 @@ export async function handleJibaUnboxMessage(
     }
     case FLOW_STATE.ASK_CONTENT_LICENSE: {
       if (/^我想再看一次$/.test(trimmed)) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           textWithQr(JIBA_LICENSE, [
             { label: '我同意', text: '我同意' },
             { label: '我想再看一次', text: '我想再看一次' },
@@ -731,11 +740,11 @@ export async function handleJibaUnboxMessage(
         await setConversationState(sid, FLOW_STATE.CANCELLED);
         await clearLineChatSession(lineUserId);
         await logBot(sid, JIBA_LICENSE_DECLINE);
-        await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_LICENSE_DECLINE }]);
+        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_LICENSE_DECLINE }]);
         return true;
       }
       if (!/^我同意$/.test(trimmed)) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           textWithQr('這格要明示同意或不同意。', [
             { label: '我同意', text: '我同意' },
             { label: '不同意', text: '不同意' },
@@ -764,7 +773,7 @@ export async function handleJibaUnboxMessage(
         petName: fresh.petName,
       });
       await logBot(sid, summary);
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         textWithQr(summary, [
           { label: '資料正確，送出', text: '資料正確，送出' },
           { label: '修改收件資料', text: '修改收件資料' },
@@ -776,7 +785,7 @@ export async function handleJibaUnboxMessage(
     }
     case FLOW_STATE.SHOW_ORDER_CONFIRMATION: {
       if (/^先不要送出$/.test(trimmed)) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           {
             type: 'text',
             text: '好，先停在這。資料留著。要送出再說「資料正確，送出」。',
@@ -786,16 +795,16 @@ export async function handleJibaUnboxMessage(
       }
       if (/^修改收件資料$/.test(trimmed)) {
         await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_NAME);
-        await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_ASK_NAME }]);
+        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_NAME }]);
         return true;
       }
       if (/^修改門市$/.test(trimmed)) {
         await setConversationState(sid, FLOW_STATE.ASK_STORE);
-        await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_ASK_STORE }]);
+        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_STORE }]);
         return true;
       }
       if (!/^資料正確，送出$/.test(trimmed)) {
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           textWithQr('請確認：資料正確送出，或修改某一格。', [
             { label: '資料正確，送出', text: '資料正確，送出' },
             { label: '修改收件資料', text: '修改收件資料' },
@@ -806,7 +815,7 @@ export async function handleJibaUnboxMessage(
       }
       if (!app.licenseAccepted) {
         await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE);
-        await replyLineMessage(replyToken, [
+        await replyJiba(replyToken, lineUserId, [
           textWithQr('送出前還差授權同意。', [
             { label: '我同意', text: '我同意' },
             { label: '不同意', text: '不同意' },
@@ -819,11 +828,11 @@ export async function handleJibaUnboxMessage(
         applicationId: app.id,
       });
       await logBot(sid, JIBA_SUBMITTED);
-      await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_SUBMITTED }]);
+      await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_SUBMITTED }]);
       return true;
     }
     default:
-      await replyLineMessage(replyToken, [
+      await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
           text: `這步有點卡住。傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」。`,

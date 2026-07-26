@@ -1,4 +1,6 @@
+import { expandLineMessages } from '@/lib/line/expand-messages';
 import { getLineChannelAccessToken } from '@/lib/line/config';
+import { pushLineMessages } from '@/lib/line/push';
 
 export type LineQuickReplyItem = {
   type: 'action';
@@ -18,6 +20,11 @@ export type LineReplyMessage = (
     }
 ) & {
   quickReply?: { items: LineQuickReplyItem[] };
+};
+
+export type ReplyLineOptions = {
+  /** 拆泡後超過 5 則時，其餘以 Push 接續（需 userId） */
+  lineUserId?: string;
 };
 
 async function postReply(replyToken: string, messages: LineReplyMessage[]) {
@@ -40,11 +47,48 @@ function stripImages(messages: LineReplyMessage[]): LineReplyMessage[] {
   return messages.filter((m) => m.type !== 'image');
 }
 
+async function pushOverflow(lineUserId: string, messages: LineReplyMessage[]) {
+  for (let i = 0; i < messages.length; i += 5) {
+    const chunk = messages.slice(i, i + 5);
+    const result = await pushLineMessages(lineUserId, chunk, { expand: false });
+    if (!result.ok && !result.skipped) {
+      console.error('[line/reply] overflow push failed', result.error);
+    }
+  }
+}
+
 /**
- * 回覆使用者。若含圖片被 LINE 拒收，自動降級為純文字／Flex，避免整段靜默。
+ * 準備送出的訊息：文字依換行拆泡。
+ * 超過 5 則且有 lineUserId → 前回覆 5 則、其餘 push；
+ * 無 userId 時若拆泡會爆量，則退回未拆結構以免截掉 Flex。
  */
-export async function replyLineMessage(replyToken: string, messages: LineReplyMessage[]) {
-  const batch = messages.slice(0, 5);
+export function prepareReplyMessages(
+  messages: LineReplyMessage[],
+  opts?: ReplyLineOptions,
+): { reply: LineReplyMessage[]; overflow: LineReplyMessage[] } {
+  const expanded = expandLineMessages(messages);
+  if (expanded.length <= 5) {
+    return { reply: expanded, overflow: [] };
+  }
+  if (opts?.lineUserId) {
+    return { reply: expanded.slice(0, 5), overflow: expanded.slice(5) };
+  }
+  if (messages.length <= 5) {
+    return { reply: messages, overflow: [] };
+  }
+  return { reply: expanded.slice(0, 5), overflow: [] };
+}
+
+/**
+ * 回覆使用者。文字含換行會拆成多則氣泡。
+ * 若含圖片被 LINE 拒收，自動降級為純文字／Flex，避免整段靜默。
+ */
+export async function replyLineMessage(
+  replyToken: string,
+  messages: LineReplyMessage[],
+  opts?: ReplyLineOptions,
+) {
+  const { reply: batch, overflow } = prepareReplyMessages(messages, opts);
   if (batch.length === 0) return;
   try {
     await postReply(replyToken, batch);
@@ -57,14 +101,21 @@ export async function replyLineMessage(replyToken: string, messages: LineReplyMe
       await postReply(replyToken, [
         { type: 'text', text: '圖剛卡住了，內容在下面——再點一次也可以。' },
       ]);
-      return;
+    } else {
+      await postReply(replyToken, fallback);
     }
-    await postReply(replyToken, fallback);
+  }
+  if (overflow.length > 0 && opts?.lineUserId) {
+    await pushOverflow(opts.lineUserId, overflow);
   }
 }
 
-export async function replyLineText(replyToken: string, text: string) {
-  await replyLineMessage(replyToken, [{ type: 'text', text }]);
+export async function replyLineText(
+  replyToken: string,
+  text: string,
+  opts?: ReplyLineOptions,
+) {
+  await replyLineMessage(replyToken, [{ type: 'text', text }], opts);
 }
 
 /** 同一 replyToken 僅能回覆一次，文字 + 其他訊息請合併 */
@@ -72,8 +123,9 @@ export async function replyLineTextPlus(
   replyToken: string,
   text: string,
   more: LineReplyMessage[],
+  opts?: ReplyLineOptions,
 ) {
-  await replyLineMessage(replyToken, [{ type: 'text', text }, ...more]);
+  await replyLineMessage(replyToken, [{ type: 'text', text }, ...more], opts);
 }
 
 /** webhook 兜底：任何未接住的錯誤都盡力回一句，避免使用者無反應 */
