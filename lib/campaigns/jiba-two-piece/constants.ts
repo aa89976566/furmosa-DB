@@ -2,6 +2,16 @@ export const JIBA_CAMPAIGN_SLUG = 'jiba-two-piece';
 export const JIBA_LICENSE_VERSION = 'ugc-v1';
 export const JIBA_SHIPPING_FEE = 60;
 
+/** 小幫手／審核者顯示名 */
+export const JIBA_SUPERVISOR_NAME = '壽司匠';
+
+/** 運費轉帳（無線上金流） */
+export const JIBA_BANK_TRANSFER = {
+  bankName: '中國信託',
+  bankCode: '822',
+  account: '226540037896',
+} as const;
+
 export const APP_STATUS = {
   COLLECTING_INFO: 'COLLECTING_INFO',
   PENDING_REVIEW: 'PENDING_REVIEW',

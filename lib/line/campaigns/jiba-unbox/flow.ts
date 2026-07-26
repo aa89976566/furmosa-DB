@@ -3,8 +3,10 @@
  * DB（campaign_applications + conversation_sessions）為唯一真相來源。
  */
 import {
+  APP_STATUS,
   FLOW_STATE,
   JIBA_LICENSE_VERSION,
+  JIBA_SUPERVISOR_NAME,
   type FlowState,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
@@ -14,15 +16,20 @@ import {
   JIBA_ASK_PET,
   JIBA_ASK_PHONE,
   JIBA_ASK_STORE,
+  JIBA_BANK_INFO,
+  JIBA_FIND_HELPER,
   JIBA_INTRO,
   JIBA_LICENSE,
   JIBA_LICENSE_DECLINE,
   JIBA_PAID,
+  JIBA_PAY_LATER,
+  JIBA_PENDING_HINT,
   JIBA_PHONE_ERROR,
   JIBA_REJECTED,
   JIBA_RULES,
   JIBA_START_WORK,
   JIBA_SUBMITTED,
+  JIBA_TRANSFER_NOTED,
   jibaConfirmSummary,
   jibaReturnFieldCopy,
 } from '@/lib/campaigns/jiba-two-piece/copy';
@@ -32,14 +39,12 @@ import {
   createJibaEnrollment,
   findActiveJibaApplication,
   markShippingPaid,
-  paymentUrlForToken,
   rejectApplication,
   returnForEdit,
   setConversationState,
   submitForReview,
   syncApplicationFields,
 } from '@/lib/campaigns/jiba-two-piece/service';
-import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
 import { searchStoreCandidates } from '@/lib/campaigns/jiba-two-piece/store-search';
 import {
   isDeclineIntent,
@@ -77,46 +82,23 @@ function textWithQr(
   return msg;
 }
 
-function paymentFlex(url: string): LineReplyMessage {
-  return {
-    type: 'flex',
-    altText: '支付 NT$60 運費',
-    contents: {
-      type: 'bubble',
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'text',
-            text: '支付 NT$60 運費',
-            weight: 'bold',
-            size: 'lg',
-          },
-          {
-            type: 'text',
-            text: '付完雞霸才出發。',
-            size: 'sm',
-            color: '#666666',
-            margin: 'md',
-            wrap: true,
-          },
-        ],
-      },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            action: { type: 'uri', label: '支付 NT$60 運費', uri: url },
-            color: '#1F5C45',
-          },
-        ],
-      },
-    },
-  };
+function payAskQuickReplies() {
+  return [
+    { label: '現在付款', text: '現在付款' },
+    { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
+    { label: '稍後再說', text: '稍後再說' },
+  ];
+}
+
+function bankInfoQuickReplies() {
+  return [
+    { label: '我已轉帳', text: '我已轉帳' },
+    { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
+  ];
+}
+
+function isFindHelper(text: string): boolean {
+  return /^(?:找壽司匠|找真人|找小幫手)$/.test(text.trim());
 }
 
 async function logBot(sessionId: string, text: string, extra?: Record<string, unknown>) {
@@ -161,7 +143,7 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.READY_TO_SHIP:
       return JIBA_PAID;
     default:
-      return '接著上次。傳「查看目前資料」或「找真人」。';
+      return `接著上次。傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」。`;
   }
 }
 
@@ -306,7 +288,7 @@ export async function handleJibaUnboxMessage(
     return true;
   }
 
-  if (/^找真人$/.test(trimmed)) {
+  if (isFindHelper(trimmed)) {
     const app = await findActiveJibaApplication(lineUserId);
     if (app?.conversationSession) {
       await prisma.conversationSession.update({
@@ -314,11 +296,9 @@ export async function handleJibaUnboxMessage(
         data: { operatorTakeover: true },
       });
       await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
-      await logBot(app.conversationSession.id, '好，幫你掛號。資料先留著，真人會來看。');
+      await logBot(app.conversationSession.id, JIBA_FIND_HELPER);
     }
-    await replyLineMessage(replyToken, [
-      { type: 'text', text: '好，幫你掛號。資料先留著，真人會來看。' },
-    ]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_FIND_HELPER }]);
     return true;
   }
 
@@ -400,23 +380,37 @@ export async function handleJibaUnboxMessage(
   await logCustomer(sid, trimmed, lineMessageId);
 
   if (state === FLOW_STATE.PENDING_REVIEW) {
-    await replyLineMessage(replyToken, [
-      { type: 'text', text: '還在等主管瞄一眼。通過後會丟運費連結給你。' },
-    ]);
+    await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_PENDING_HINT }]);
     return true;
   }
   if (state === FLOW_STATE.AWAITING_SHIPPING_PAYMENT) {
-    const url = app.paymentToken ? paymentUrlForToken(app.paymentToken) : null;
-    if (url) {
+    if (/^(?:現在付款|我要轉帳|轉帳資訊)$/.test(trimmed)) {
+      await logBot(sid, JIBA_BANK_INFO);
       await replyLineMessage(replyToken, [
-        { type: 'text', text: '運費連結還在。付完雞霸才出發。' },
-        paymentFlex(url),
+        textWithQr(JIBA_BANK_INFO, bankInfoQuickReplies()),
       ]);
-    } else {
-      await replyLineMessage(replyToken, [
-        { type: 'text', text: '付款連結準備中，稍等一下或傳「找真人」。' },
-      ]);
+      return true;
     }
+    if (/^(?:稍後再說|等等再付|先不用)$/.test(trimmed)) {
+      await logBot(sid, JIBA_PAY_LATER);
+      await replyLineMessage(replyToken, [
+        textWithQr(JIBA_PAY_LATER, payAskQuickReplies()),
+      ]);
+      return true;
+    }
+    if (/^我已轉帳$/.test(trimmed)) {
+      await logBot(sid, JIBA_TRANSFER_NOTED);
+      await replyLineMessage(replyToken, [
+        textWithQr(JIBA_TRANSFER_NOTED, [
+          { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
+          { label: '再看轉帳資訊', text: '現在付款' },
+        ]),
+      ]);
+      return true;
+    }
+    await replyLineMessage(replyToken, [
+      textWithQr(JIBA_APPROVED, payAskQuickReplies()),
+    ]);
     return true;
   }
   if (state === FLOW_STATE.READY_TO_SHIP) {
@@ -708,24 +702,31 @@ export async function handleJibaUnboxMessage(
       await replyLineMessage(replyToken, [
         {
           type: 'text',
-          text: '這步有點卡住。傳「查看目前資料」或「找真人」。',
+          text: `這步有點卡住。傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」。`,
         },
       ]);
       return true;
   }
 }
 
-/** 主管通過後推播付款 */
+/** 壽司匠通過後：詢問是否轉帳（無線上金流） */
 export async function notifyJibaApproved(applicationId: string, note?: string) {
-  const app = await approveAndCreatePayment({ applicationId, note });
-  const url = paymentUrlForToken(app.paymentToken!);
+  const app = await approveAndCreatePayment({
+    applicationId,
+    note,
+    reviewerName: JIBA_SUPERVISOR_NAME,
+  });
   const session = await prisma.conversationSession.findUnique({
     where: { campaignApplicationId: applicationId },
   });
-  if (session) await logBot(session.id, JIBA_APPROVED, { paymentUrl: url });
+  if (session) {
+    await logBot(session.id, JIBA_APPROVED, { paymentMethod: 'bank_transfer' });
+  }
+  await upsertLineChatSession(app.lineUserId, 'jiba_unbox', FLOW_STATE.AWAITING_SHIPPING_PAYMENT, {
+    applicationId,
+  });
   await pushLineMessages(app.lineUserId, [
-    { type: 'text', text: JIBA_APPROVED },
-    paymentFlex(url),
+    textWithQr(JIBA_APPROVED, payAskQuickReplies()),
   ]);
   return app;
 }

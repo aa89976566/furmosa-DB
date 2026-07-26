@@ -6,6 +6,7 @@ import {
   JIBA_CAMPAIGN_SLUG,
   JIBA_LICENSE_VERSION,
   JIBA_SHIPPING_FEE,
+  JIBA_SUPERVISOR_NAME,
   type FlowState,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { recordStatusTransition } from '@/lib/campaigns/jiba-two-piece/audit';
@@ -301,7 +302,7 @@ export async function approveAndCreatePayment(opts: {
       // 審核通過後立刻進入等運費；application 以 AWAITING 為可操作狀態
       status: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
       shippingQueueStatus: 'NOT_READY',
-      reviewedBy: opts.reviewerName ?? '玉珊',
+      reviewedBy: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       reviewedAt: new Date(),
       reviewNote: opts.note ?? null,
       paymentToken: token,
@@ -318,7 +319,7 @@ export async function approveAndCreatePayment(opts: {
     data: {
       applicationId: opts.applicationId,
       orderId: app.orderId,
-      reviewerName: opts.reviewerName ?? '玉珊',
+      reviewerName: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       decision: 'APPROVED',
       note: opts.note ?? null,
     },
@@ -335,7 +336,7 @@ export async function approveAndCreatePayment(opts: {
     previousStatus: prev,
     newStatus: APP_STATUS.APPROVED,
     actorType: 'supervisor',
-    actorId: opts.reviewerName ?? '玉珊',
+    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
     applicationId: opts.applicationId,
   });
   await recordStatusTransition({
@@ -344,9 +345,9 @@ export async function approveAndCreatePayment(opts: {
     previousStatus: APP_STATUS.APPROVED,
     newStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
     actorType: 'supervisor',
-    actorId: opts.reviewerName ?? '玉珊',
+    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
     applicationId: opts.applicationId,
-    metadata: { paymentTokenIssued: true },
+    metadata: { paymentMethod: 'bank_transfer' },
   });
   return updated;
 }
@@ -470,7 +471,7 @@ export async function rejectApplication(opts: {
     data: {
       status: APP_STATUS.REJECTED,
       shippingQueueStatus: 'NOT_READY',
-      reviewedBy: opts.reviewerName ?? '玉珊',
+      reviewedBy: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       reviewedAt: new Date(),
       reviewNote: opts.note,
     },
@@ -485,7 +486,7 @@ export async function rejectApplication(opts: {
     data: {
       applicationId: opts.applicationId,
       orderId: app.orderId,
-      reviewerName: opts.reviewerName ?? '玉珊',
+      reviewerName: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       decision: 'REJECTED',
       reasonCode: opts.reasonCode ?? null,
       note: opts.note,
@@ -503,7 +504,7 @@ export async function rejectApplication(opts: {
     previousStatus: prev,
     newStatus: APP_STATUS.REJECTED,
     actorType: 'supervisor',
-    actorId: opts.reviewerName ?? '玉珊',
+    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
     applicationId: opts.applicationId,
     metadata: { reasonCode: opts.reasonCode, note: opts.note },
   });
@@ -537,7 +538,7 @@ export async function returnForEdit(opts: {
     data: {
       status: APP_STATUS.COLLECTING_INFO,
       returnFields: JSON.stringify(opts.fields),
-      reviewedBy: opts.reviewerName ?? '玉珊',
+      reviewedBy: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       reviewedAt: new Date(),
       reviewNote: opts.note ?? null,
     },
@@ -549,7 +550,7 @@ export async function returnForEdit(opts: {
     data: {
       applicationId: opts.applicationId,
       orderId: app.orderId,
-      reviewerName: opts.reviewerName ?? '玉珊',
+      reviewerName: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
       decision: 'RETURNED',
       reasonCode: opts.reasonCode ?? first,
       note: opts.note ?? null,
@@ -561,7 +562,7 @@ export async function returnForEdit(opts: {
     previousStatus: prev,
     newStatus: APP_STATUS.COLLECTING_INFO,
     actorType: 'supervisor',
-    actorId: opts.reviewerName ?? '玉珊',
+    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
     applicationId: opts.applicationId,
     metadata: { returnFields: opts.fields },
   });

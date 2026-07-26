@@ -1,11 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { JIBA_PAID } from '@/lib/campaigns/jiba-two-piece/copy';
+import { markShippingPaid } from '@/lib/campaigns/jiba-two-piece/service';
 import {
   notifyJibaApproved,
   notifyJibaRejected,
   notifyJibaReturn,
 } from '@/lib/line/campaigns/jiba-unbox/flow';
+import { pushLineMessages } from '@/lib/line/push';
 
 function revalidateReview(id?: string) {
   revalidatePath('/campaigns/jiba-two-piece');
@@ -17,6 +20,15 @@ export async function approveJibaApplicationAction(formData: FormData) {
   const note = String(formData.get('note') ?? '').trim() || undefined;
   if (!id) throw new Error('缺少申請 ID');
   await notifyJibaApproved(id, note);
+  revalidateReview(id);
+}
+
+/** 壽司匠確認轉帳入帳後標記已付並排入出貨 */
+export async function markJibaTransferPaidAction(formData: FormData) {
+  const id = String(formData.get('applicationId') ?? '').trim();
+  if (!id) throw new Error('缺少申請 ID');
+  const app = await markShippingPaid(id, 'supervisor');
+  await pushLineMessages(app.lineUserId, [{ type: 'text', text: JIBA_PAID }]);
   revalidateReview(id);
 }
 

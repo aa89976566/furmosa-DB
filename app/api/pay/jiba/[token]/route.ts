@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
-import { completeJibaPayment } from '@/lib/line/campaigns/jiba-unbox/flow';
 
 export const runtime = 'nodejs';
 
-/** 運費付款完成（冪等）。後續可改接綠界 webhook，仍呼叫同一 completeJibaPayment。 */
-export async function POST(
-  _req: Request,
-  { params }: { params: { token: string } },
-) {
-  try {
-    const result = await completeJibaPayment(params.token);
-    if (!result.ok) {
-      return NextResponse.json({ ok: false, error: result.error }, { status: 404 });
-    }
-    return NextResponse.json({ ok: true, alreadyPaid: result.alreadyPaid ?? false });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : '付款處理失敗';
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
-  }
+/**
+ * 開箱運費改為銀行轉帳，不再提供線上自助標記付款。
+ * 入帳請由壽司匠在後台「確認已入帳並排入出貨」。
+ */
+export async function POST() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: '請使用銀行轉帳，並回 LINE 告知壽司匠。',
+    },
+    { status: 405 },
+  );
 }
