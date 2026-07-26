@@ -36,3 +36,4 @@
 | `docs/TEST_STRATEGY.md` | 測試現況與缺口 |
 | `docs/ENVIRONMENT.md` | 環境變數（僅名稱） |
 | `docs/CLAUDE_REVIEW_PLAN.md` | 分階段檢視計畫 |
+| `docs/PHASE-0-BASELINE.md` | Phase 0 健康檢查報告 |
