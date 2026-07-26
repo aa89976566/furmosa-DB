@@ -140,10 +140,11 @@ describe('一起野放', () => {
 });
 
 describe('回家', () => {
-  it('只有官網與 IG', () => {
+  it('按鈕為開飯去與去厝邊', () => {
     const raw = JSON.stringify(flexFrom(buildHomeHubMessages()));
-    assert.match(raw, /furmosa\.com|回家/);
-    assert.match(raw, /Instagram|furmosa_food/);
+    assert.match(raw, /開飯去（官網）/);
+    assert.match(raw, /去厝邊（IG）/);
+    assert.match(raw, /"type":"button"/);
     assert.doesNotMatch(raw, /Threads|Facebook|合作店家|品牌故事|carousel/);
   });
 
