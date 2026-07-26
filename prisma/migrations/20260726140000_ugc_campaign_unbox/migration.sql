@@ -119,25 +119,40 @@ CREATE TABLE IF NOT EXISTS "status_audit_logs" (
 CREATE INDEX IF NOT EXISTS "status_audit_logs_entity_type_entity_id_idx" ON "status_audit_logs"("entity_type", "entity_id");
 CREATE INDEX IF NOT EXISTS "status_audit_logs_application_id_idx" ON "status_audit_logs"("application_id");
 
-ALTER TABLE "campaign_applications"
-  ADD CONSTRAINT "campaign_applications_campaign_id_fkey"
-  FOREIGN KEY ("campaign_id") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "campaign_applications"
+    ADD CONSTRAINT "campaign_applications_campaign_id_fkey"
+    FOREIGN KEY ("campaign_id") REFERENCES "campaigns"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "conversation_sessions"
-  ADD CONSTRAINT "conversation_sessions_campaign_application_id_fkey"
-  FOREIGN KEY ("campaign_application_id") REFERENCES "campaign_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "conversation_sessions"
+    ADD CONSTRAINT "conversation_sessions_campaign_application_id_fkey"
+    FOREIGN KEY ("campaign_application_id") REFERENCES "campaign_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "conversation_messages"
-  ADD CONSTRAINT "conversation_messages_session_id_fkey"
-  FOREIGN KEY ("session_id") REFERENCES "conversation_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "conversation_messages"
+    ADD CONSTRAINT "conversation_messages_session_id_fkey"
+    FOREIGN KEY ("session_id") REFERENCES "conversation_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "order_reviews"
-  ADD CONSTRAINT "order_reviews_application_id_fkey"
-  FOREIGN KEY ("application_id") REFERENCES "campaign_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "order_reviews"
+    ADD CONSTRAINT "order_reviews_application_id_fkey"
+    FOREIGN KEY ("application_id") REFERENCES "campaign_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "status_audit_logs"
-  ADD CONSTRAINT "status_audit_logs_application_id_fkey"
-  FOREIGN KEY ("application_id") REFERENCES "campaign_applications"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "status_audit_logs"
+    ADD CONSTRAINT "status_audit_logs_application_id_fkey"
+    FOREIGN KEY ("application_id") REFERENCES "campaign_applications"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Seed 雞霸兩片開箱活動
 INSERT INTO "campaigns" ("id", "slug", "name", "status", "cover_image_url", "product_name", "product_quantity", "product_unit_price", "shipping_fee", "license_version", "created_at", "updated_at")
