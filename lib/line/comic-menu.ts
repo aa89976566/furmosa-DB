@@ -10,7 +10,6 @@
  * └────────────┴────────────┘
  */
 
-import { pickGroomingSoonLine } from '@/lib/line/brand-worlds';
 import {
   buildGroomingSoonMessages,
   buildHomeHubMessages,
@@ -37,9 +36,9 @@ export function buildComicRoamMessages(registered: boolean): LineReplyMessage[] 
   });
 }
 
-/** 預約美容 → 好玩的「還沒好」（不是建設中） */
+/** 預約美容 → 封面＋短文（很快就能約） */
 export function buildComicGroomingMessages(): LineReplyMessage[] {
-  return buildGroomingSoonMessages(pickGroomingSoonLine());
+  return buildGroomingSoonMessages();
 }
 
 /** 換罐計劃 → 瓶子是主角 */

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { GROOMING_SOON_LINES, buildJarHubItems } from '../brand-worlds';
+import { buildJarHubItems } from '../brand-worlds';
 import { buildMainMenuMessages } from '../flex-menu';
 import {
   buildWorldHubMessages,
@@ -10,6 +10,7 @@ import {
   buildButtonMenuFlex,
   buildHomeHubMessages,
   buildGroomingSoonMessages,
+  GROOMING_SOON_COPY,
 } from '../flex-hubs';
 import { WORLD_THEME } from '../card-theme';
 import {
@@ -153,19 +154,24 @@ describe('回家', () => {
 });
 
 describe('預約美容 coming soon', () => {
-  it('好玩文案，不是建設中', () => {
-    const msgs = buildGroomingSoonMessages(GROOMING_SOON_LINES[0]!);
-    const raw = JSON.stringify(msgs);
-    assert.match(raw, /洗澡水還沒放滿|預約美容/);
-    assert.doesNotMatch(raw, /建設中|敬請期待|carousel/);
-    assert.ok(flexFrom(msgs));
+  it('封面圖＋吹毛文案，不是建設中', () => {
+    const msgs = buildGroomingSoonMessages();
+    const img = msgs.find((m) => m.type === 'image') as {
+      type: 'image';
+      originalContentUrl: string;
+    };
+    const text = msgs.find((m) => m.type === 'text') as { type: 'text'; text: string };
+    assert.ok(img?.originalContentUrl.includes('/line/grooming/soon-cover.jpg'));
+    assert.equal(text.text, GROOMING_SOON_COPY);
+    assert.match(text.text, /吹毛/);
+    assert.doesNotMatch(JSON.stringify(msgs), /建設中|敬請期待|carousel|先去換罐/);
   });
 
-  it('漫畫入口回 playful placeholder', () => {
+  it('漫畫入口回封面＋文案', () => {
     const msgs = buildComicGroomingMessages();
     const raw = JSON.stringify(msgs);
     assert.doesNotMatch(raw, /建設中/);
-    assert.match(raw, /預約美容/);
+    assert.match(raw, /吹毛|soon-cover/);
   });
 });
 
