@@ -103,6 +103,7 @@ async function replyChaosItem(
   itemId: string,
   registered: boolean,
 ) {
+  // 使用者主動點按鈕：一定要回，不可被 24h 節流靜默吃掉
   // 開箱任務：完整雞霸開箱對話（封面圖＋選項＋狀態機）
   if (itemId === 'chaos_unbox') {
     await startJibaUnboxIntro(replyToken, lineUserId);
@@ -111,23 +112,13 @@ async function replyChaosItem(
 
   // 嗷嗚計劃／舊青蛙鍵 → 青蛙誰在怕（獨立專案）
   if (itemId === 'chaos_aowu' || itemId === 'chaos_frog') {
-    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineMessage(
-        replyToken,
-        buildFrogProjectMessages({ registered }),
-      );
-    });
+    await replyLineMessage(replyToken, buildFrogProjectMessages({ registered }));
     return;
   }
 
   // 活動中心 → 沒梗了
   if (itemId === 'chaos_events') {
-    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineMessage(
-        replyToken,
-        buildEventsCenterMessages({ registered }),
-      );
-    });
+    await replyLineMessage(replyToken, buildEventsCenterMessages({ registered }));
     return;
   }
 

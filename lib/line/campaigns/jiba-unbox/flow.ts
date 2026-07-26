@@ -200,27 +200,31 @@ function promptForState(state: FlowState): string {
   }
 }
 
-/** 入口：開箱任務 cover + intro */
+/** 入口：開箱任務 cover + intro（campaign 表未就緒時仍要能開場對話） */
 export async function startJibaUnboxIntro(
   replyToken: string,
   lineUserId: string,
 ): Promise<void> {
-  const active = await findActiveJibaApplication(lineUserId);
-  if (active?.conversationSession) {
-    const state = active.conversationSession.currentState as FlowState;
-    await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
-      applicationId: active.id,
-      phase: 'resume',
-    });
-    const prompt = promptForState(state);
-    await replyLineMessage(replyToken, [
-      {
-        type: 'text',
-        text: `你還有一筆進行中的開箱申請。\n接著上次：`,
-      },
-      { type: 'text', text: prompt },
-    ]);
-    return;
+  try {
+    const active = await findActiveJibaApplication(lineUserId);
+    if (active?.conversationSession) {
+      const state = active.conversationSession.currentState as FlowState;
+      await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+        applicationId: active.id,
+        phase: 'resume',
+      });
+      const prompt = promptForState(state);
+      await replyLineMessage(replyToken, [
+        {
+          type: 'text',
+          text: `你還有一筆進行中的開箱申請。\n接著上次：`,
+        },
+        { type: 'text', text: prompt },
+      ]);
+      return;
+    }
+  } catch (err) {
+    console.error('[jiba-unbox] findActiveJibaApplication failed', err);
   }
 
   const cover = jibaUnboxCoverUrl();
@@ -234,16 +238,30 @@ export async function startJibaUnboxIntro(
     jibaIntroChoiceMenu('開箱任務', '點下面按鈕，由上往下選。'),
   ]);
 
-  await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
-    phase: 'intro',
-  });
+  try {
+    await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
+      phase: 'intro',
+    });
+  } catch (err) {
+    console.error('[jiba-unbox] upsertLineChatSession failed', err);
+  }
 }
 
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
-  const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
-  if (chat?.flow === 'jiba_unbox') return true;
-  const app = await findActiveJibaApplication(lineUserId);
-  return Boolean(app?.conversationSession);
+  try {
+    const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
+    if (chat?.flow === 'jiba_unbox') return true;
+  } catch (err) {
+    console.error('[jiba-unbox] lineChatSession lookup failed', err);
+    return false;
+  }
+  try {
+    const app = await findActiveJibaApplication(lineUserId);
+    return Boolean(app?.conversationSession);
+  } catch (err) {
+    console.error('[jiba-unbox] campaign lookup failed', err);
+    return false;
+  }
 }
 
 async function beginEnrollment(
@@ -252,32 +270,42 @@ async function beginEnrollment(
   trimmed: string,
   lineMessageId?: string,
 ) {
-  const existing = await findActiveJibaApplication(lineUserId);
-  const app = existing ?? (await createJibaEnrollment({ lineUserId }));
-  const sid = app.conversationSession!.id;
-  const state = app.conversationSession!.currentState as FlowState;
+  try {
+    const existing = await findActiveJibaApplication(lineUserId);
+    const app = existing ?? (await createJibaEnrollment({ lineUserId }));
+    const sid = app.conversationSession!.id;
+    const state = app.conversationSession!.currentState as FlowState;
 
-  await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
-    applicationId: app.id,
-  });
-  await logCustomer(sid, trimmed, lineMessageId);
+    await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+      applicationId: app.id,
+    });
+    await logCustomer(sid, trimmed, lineMessageId);
 
-  if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
-    const prompt = promptForState(state);
-    await logBot(sid, `接著上次。\n${prompt}`);
+    if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
+      const prompt = promptForState(state);
+      await logBot(sid, `接著上次。\n${prompt}`);
+      await replyLineMessage(replyToken, [
+        { type: 'text', text: '你上次還沒填完，接著來。' },
+        { type: 'text', text: prompt },
+      ]);
+      return;
+    }
+
+    await logBot(sid, JIBA_START_WORK);
+    await logBot(sid, JIBA_ASK_NAME);
     await replyLineMessage(replyToken, [
-      { type: 'text', text: '你上次還沒填完，接著來。' },
-      { type: 'text', text: prompt },
+      { type: 'text', text: JIBA_START_WORK },
+      { type: 'text', text: JIBA_ASK_NAME },
     ]);
-    return;
+  } catch (err) {
+    console.error('[jiba-unbox] beginEnrollment failed', err);
+    await replyLineMessage(replyToken, [
+      {
+        type: 'text',
+        text: '開箱系統剛剛打了個嗝。再點一次「開箱任務」，或稍後再試。',
+      },
+    ]);
   }
-
-  await logBot(sid, JIBA_START_WORK);
-  await logBot(sid, JIBA_ASK_NAME);
-  await replyLineMessage(replyToken, [
-    { type: 'text', text: JIBA_START_WORK },
-    { type: 'text', text: JIBA_ASK_NAME },
-  ]);
 }
 
 function parseCollected(json: string): Record<string, unknown> {

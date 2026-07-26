@@ -149,17 +149,22 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
-  if (await isJibaUnboxSessionActive(lineUserId)) {
-    if (
-      await handleJibaUnboxMessage(
-        replyToken,
-        lineUserId,
-        msgEvent.message.text,
-        msgEvent.message.id,
-      )
-    ) {
-      return;
+  // campaign 表未就緒時不得讓整段 webhook 掛掉
+  try {
+    if (await isJibaUnboxSessionActive(lineUserId)) {
+      if (
+        await handleJibaUnboxMessage(
+          replyToken,
+          lineUserId,
+          msgEvent.message.text,
+          msgEvent.message.id,
+        )
+      ) {
+        return;
+      }
     }
+  } catch (err) {
+    console.error('[line] jiba session gate failed', err);
   }
 
   if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
@@ -211,12 +216,8 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'events_center') {
-    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineMessage(
-        replyToken,
-        buildEventsCenterMessages({ registered }),
-      );
-    });
+    // 主動入口：不節流
+    await replyLineMessage(replyToken, buildEventsCenterMessages({ registered }));
     return;
   }
 
@@ -228,12 +229,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
     // 嗷嗚計劃／青蛙誰在怕 → 青蛙專案（封面圖＋文案；網址後補）
-    await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineMessage(
-        replyToken,
-        buildFrogProjectMessages({ registered }),
-      );
-    });
+    await replyLineMessage(replyToken, buildFrogProjectMessages({ registered }));
     return;
   }
 
