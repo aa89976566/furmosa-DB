@@ -145,20 +145,6 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     subtitle: '拆、聞、吃、拍。就這樣。',
     heroKey: 'chaos-unbox',
   },
-  {
-    id: 'chaos_collab',
-    mark: '🤝',
-    label: '限定合作',
-    subtitle: '跟誰勾肩搭背中。',
-    heroKey: 'chaos-collab',
-  },
-  {
-    id: 'chaos_promo',
-    mark: '🎟️',
-    label: '優惠企劃',
-    subtitle: '有好康才掛這裡。沒有就安靜。',
-    heroKey: 'chaos-promo',
-  },
 ];
 
 export const CHAOS_COPY: Record<string, string> = {
@@ -190,20 +176,6 @@ IG 記得標 @furmosa_food`,
 
 拍完標 @furmosa_food
 講一句真心話就好。`,
-
-  chaos_collab: `【限定合作】
-
-偶爾跟店家、品牌勾肩搭背。
-有開才掛；沒開就不硬凹。
-
-想先知道風聲——回家看 IG。`,
-
-  chaos_promo: `【優惠企劃】
-
-有好康才寫在這。
-沒有的時候，這張卡會很安靜。
-
-安靜也是一種誠實。`,
 
   chaos_frog: `【青蛙誰在怕】
 
@@ -242,12 +214,12 @@ IG 標：@furmosa_food
 
   chaos_month: `【本月限定】
 
-改掛在「活動」與「限定合作」。
+改掛在「活動」。
 這個月有什麼，去一起野放看。`,
 
   chaos_bundle: `【限定組合】
 
-改掛在「優惠企劃」與「限定合作」。
+改掛在「活動」。
 有開才掛。`,
 };
 

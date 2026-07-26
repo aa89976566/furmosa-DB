@@ -108,8 +108,7 @@ describe('一起野放', () => {
     assert.match(raw, /活動/);
     assert.match(raw, /爛點子|很好玩/);
     assert.match(raw, /開箱任務/);
-    assert.match(raw, /限定合作/);
-    assert.match(raw, /優惠企劃/);
+    assert.doesNotMatch(raw, /限定合作|優惠企劃/);
     assert.doesNotMatch(raw, /拍攝指南|完成拿100/);
   });
 
