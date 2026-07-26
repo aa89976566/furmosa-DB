@@ -193,9 +193,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'unboxing') {
-    const text = msgEvent.message.text.includes('清蛙')
-      ? CHAOS_COPY.chaos_frog
-      : CHAOS_COPY.chaos_aowu;
+    const t = msgEvent.message.text;
+    const text =
+      t.includes('清蛙') || t.includes('青蛙')
+        ? CHAOS_COPY.chaos_frog
+        : t.includes('開箱')
+          ? CHAOS_COPY.chaos_unbox
+          : CHAOS_COPY.chaos_aowu;
     await replyTriggerOnce(lineUserId, 'unboxing', async () => {
       await replyLineTextWithMenu(replyToken, lineUserId, text, { registered });
     });
