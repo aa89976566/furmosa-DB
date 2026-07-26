@@ -53,8 +53,10 @@ Coming soon——禁止「建設中」。用好玩的占位，例如：
 
 不是首頁，是家。
 
-- https://www.furmosa.com  
-- Instagram @furmosa_food  
+文案：到了。狗屋在裡面，院子也還亮著。
+
+- 🏠 進狗屋（官網）→ https://www.furmosa.com  
+- 🌿 去院子（Instagram）→ @furmosa_food  
 
 ### 部署 Rich Menu
 

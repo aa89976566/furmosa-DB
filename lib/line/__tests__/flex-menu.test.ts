@@ -140,12 +140,18 @@ describe('一起野放', () => {
 });
 
 describe('回家', () => {
-  it('按鈕為開飯去與去厝邊', () => {
-    const raw = JSON.stringify(flexFrom(buildHomeHubMessages()));
-    assert.match(raw, /開飯去（官網）/);
-    assert.match(raw, /去厝邊（IG）/);
+  it('文案與按鈕為狗屋／院子', () => {
+    const msgs = buildHomeHubMessages();
+    const text = msgs.find((m) => m.type === 'text') as { text: string };
+    assert.match(text.text, /到了/);
+    assert.match(text.text, /狗屋在裡面/);
+    assert.match(text.text, /院子也還亮著/);
+    const raw = JSON.stringify(flexFrom(msgs));
+    assert.match(raw, /進狗屋（官網）/);
+    assert.match(raw, /去院子（Instagram）/);
     assert.match(raw, /"type":"button"/);
     assert.doesNotMatch(raw, /Threads|Facebook|合作店家|品牌故事|carousel/);
+    assert.doesNotMatch(raw, /開飯去|去厝邊/);
   });
 
   it('漫畫回家入口', () => {

@@ -283,7 +283,7 @@ export function buildHomeHubMessages(opts?: { body?: string }): LineReplyMessage
   return [
     {
       type: 'text',
-      text: opts?.body ?? `回家了 🏠\n${WILD_INTRO}`,
+      text: opts?.body ?? WILD_INTRO,
     },
     menuFromItems({
       altText: WORLD_HUB_LABELS.wild,
@@ -356,7 +356,7 @@ export function buildWorldHubMessages(
   }
 
   return buildHomeHubMessages({
-    body: opts?.body ?? `${title}\n${WILD_INTRO}`,
+    body: opts?.body ?? WILD_INTRO,
   });
 }
 
