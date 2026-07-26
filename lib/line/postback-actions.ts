@@ -306,7 +306,7 @@ export async function handleLinePostback(
     return;
   }
 
-  if (action === 'redeem') {
+  if (action === 'redeem' || action === 'jar_rewards') {
     if (!customer) {
       await replyLineMessage(replyToken, buildRegisterGateMessages());
       return;
