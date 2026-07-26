@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { GROOMING_COUPON_POINTS, getGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
 import {
   listCouponsForCustomer,
@@ -34,7 +36,16 @@ import {
   buildJarExplainMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
+  lineAssetUrl,
 } from '@/lib/line/flex-hubs';
+import type { LineReplyMessage } from '@/lib/line/reply';
+
+function eventsPosterUrl(): string | null {
+  const rel = 'public/line/events/poster.jpg';
+  const abs = join(process.cwd(), rel);
+  if (!existsSync(abs)) return null;
+  return lineAssetUrl('/line/events/poster.jpg');
+}
 import {
   handleRegisterPostback,
   startRegisterFlow,
@@ -110,10 +121,21 @@ async function replyChaosItem(
   }
   // 活動文案不附換罐選單，避免制度混進來
   await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-    await replyLineMessage(replyToken, [
-      { type: 'text', text },
-      ...buildWorldHubMessages('chaos', { registered }),
-    ]);
+    const messages: LineReplyMessage[] = [];
+    // 活動：有海報就先丟圖，再丟爛點子文案
+    if (itemId === 'chaos_events') {
+      const poster = eventsPosterUrl();
+      if (poster) {
+        messages.push({
+          type: 'image',
+          originalContentUrl: poster,
+          previewImageUrl: poster,
+        });
+      }
+    }
+    messages.push({ type: 'text', text });
+    messages.push(...buildWorldHubMessages('chaos', { registered }));
+    await replyLineMessage(replyToken, messages);
   });
 }
 

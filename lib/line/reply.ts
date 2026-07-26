@@ -2,7 +2,12 @@ import { getLineChannelAccessToken } from '@/lib/line/config';
 
 export type LineReplyMessage =
   | { type: 'text'; text: string }
-  | { type: 'flex'; altText: string; contents: Record<string, unknown> };
+  | { type: 'flex'; altText: string; contents: Record<string, unknown> }
+  | {
+      type: 'image';
+      originalContentUrl: string;
+      previewImageUrl: string;
+    };
 
 export async function replyLineMessage(replyToken: string, messages: LineReplyMessage[]) {
   const token = getLineChannelAccessToken();

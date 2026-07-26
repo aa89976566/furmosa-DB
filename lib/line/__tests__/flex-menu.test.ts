@@ -106,6 +106,7 @@ describe('一起野放', () => {
     assert.match(raw, /青蛙誰在怕/);
     assert.match(raw, /chaos-frog/);
     assert.match(raw, /活動/);
+    assert.match(raw, /爛點子|很好玩/);
     assert.match(raw, /開箱任務/);
     assert.match(raw, /限定合作/);
     assert.match(raw, /優惠企劃/);
