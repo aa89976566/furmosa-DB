@@ -344,7 +344,7 @@ export async function handleLinePostback(
 
   await replyTriggerOnce(lineUserId, 'menu_fallback', async () => {
     await replyMenuHub(replyToken, lineUserId, {
-      body: '跟著傑克走：一起野放／預約美容／換罐計劃／回家。',
+      body: '下面四格：一起野放／預約美容／換罐計劃／回家。',
       registered,
       alwaysReplyBody: false,
     });

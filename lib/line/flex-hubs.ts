@@ -348,9 +348,9 @@ function menuFromItems(opts: {
   });
 }
 
-/** 聊天內備援：跟著傑克走一天 */
+/** 聊天內備援：四格入口 */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
-  const intro = opts?.body ?? '跟著傑克走。點一個繼續。';
+  const intro = opts?.body ?? '下面四格，想晃哪格點哪格。';
   const worlds: Array<{ id: WorldHubId; label: string }> = [
     { id: 'chaos', label: WORLD_HUB_LABELS.chaos },
     { id: 'jar', label: WORLD_HUB_LABELS.jar },
@@ -359,9 +359,9 @@ export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineRepl
   return [
     { type: 'text', text: intro },
     buildButtonMenuFlex({
-      altText: '跟著傑克走',
+      altText: '匠寵入口',
       theme: WORLD_THEME.chaos,
-      title: '跟著傑克走',
+      title: '匠寵',
       subtitle: '由上往下點，不用左右滑。',
       items: worlds.map((w) => ({
         label: w.label,
@@ -448,7 +448,7 @@ export function buildWorldHubMessages(
   }
 
   if (hub === 'chaos') {
-    // 一起野放：只回按鈕卡，不另發「傑克往外衝了…」開場文
+    // 一起野放：只回按鈕卡，不另發開場長文
     const messages: LineReplyMessage[] = [];
     if (opts?.body) {
       messages.push({ type: 'text', text: opts.body });

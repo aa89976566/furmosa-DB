@@ -138,24 +138,26 @@ describe('一起野放', () => {
     assert.doesNotMatch(raw, /拍攝指南|完成拿100/);
   });
 
-  it('漫畫入口只回選單卡，不發傑克開場文', () => {
+  it('漫畫入口只回選單卡，不發開場長文', () => {
     const msgs = buildComicRoamMessages(false);
     assert.equal(msgs.some((m) => m.type === 'text'), false);
     const flex = flexFrom(msgs);
     const raw = JSON.stringify(flex.contents);
     assert.match(raw, /探索新鮮事/);
-    assert.doesNotMatch(raw, /傑克往外衝了/);
+    assert.doesNotMatch(JSON.stringify(msgs), /傑克/);
   });
 
-  it('嗷嗚計劃：輪播 cover＋對話氣泡', () => {
+  it('嗷嗚計劃：輪播 cover＋對話氣泡（無傑克）', () => {
     const msgs = buildFrogProjectMessages({ registered: false, includeHub: false });
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
     assert.match(img.originalContentUrl, /chaos-frog\.png/);
     const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
     assert.ok(texts.length >= 2);
-    assert.match(texts.map((t) => t.text).join('\n'), /青蛙誰在怕/);
-    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    const joined = texts.map((t) => t.text).join('\n');
+    assert.match(joined, /青蛙誰在怕/);
+    assert.match(joined, /青蛙凍乾/);
+    assert.doesNotMatch(joined, /傑克|【/);
     assert.ok(msgs.length <= 5);
   });
 
