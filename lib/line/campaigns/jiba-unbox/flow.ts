@@ -18,19 +18,25 @@ import {
   JIBA_ASK_STORE,
   JIBA_BANK_INFO,
   JIBA_FIND_HELPER,
+  JIBA_IG_ERROR,
   JIBA_INTRO,
   JIBA_LICENSE,
   JIBA_LICENSE_DECLINE,
+  JIBA_NAME_ERROR,
+  JIBA_NAME_RETRY,
   JIBA_PAID,
   JIBA_PAY_LATER,
   JIBA_PENDING_HINT,
+  JIBA_PET_ERROR,
   JIBA_PHONE_ERROR,
   JIBA_REJECTED,
   JIBA_RULES,
   JIBA_START_WORK,
+  JIBA_STORE_ERROR,
   JIBA_SUBMITTED,
   JIBA_TRANSFER_NOTED,
   jibaConfirmSummary,
+  jibaFieldRetryEscalation,
   jibaReturnFieldCopy,
 } from '@/lib/campaigns/jiba-two-piece/copy';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
@@ -48,9 +54,11 @@ import {
 } from '@/lib/campaigns/jiba-two-piece/service';
 import { searchStoreCandidates } from '@/lib/campaigns/jiba-two-piece/store-search';
 import {
+  FIELD_MAX_RETRIES,
   isDeclineIntent,
   isJoinIntent,
   normalizeInstagramHandle,
+  validPetNameOrSkip,
   validRecipientName,
   validRecipientPhone,
 } from '@/lib/campaigns/jiba-two-piece/validation';
@@ -337,6 +345,50 @@ function parseCollected(json: string): Record<string, unknown> {
   }
 }
 
+type FieldKey = 'name' | 'phone' | 'store' | 'ig' | 'pet';
+
+function retryKey(field: FieldKey) {
+  return `retries_${field}`;
+}
+
+/** 欄位驗證失敗：累計重試、溫柔重問；超過上限給找小幫手出口 */
+async function replyInvalidField(opts: {
+  replyToken: string;
+  lineUserId: string;
+  sessionId: string;
+  state: FlowState;
+  field: FieldKey;
+  errorText: string;
+  retryPrompt: string;
+}) {
+  const sess = await prisma.conversationSession.findUnique({
+    where: { id: opts.sessionId },
+  });
+  const data = parseCollected(sess?.collectedDataJson ?? '{}');
+  const key = retryKey(opts.field);
+  const retries = Number(data[key] ?? 0) + 1;
+  await setConversationState(opts.sessionId, opts.state, { [key]: retries });
+
+  const helperQr = [
+    { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
+  ];
+
+  if (retries >= FIELD_MAX_RETRIES) {
+    await logBot(opts.sessionId, jibaFieldRetryEscalation(JIBA_SUPERVISOR_NAME));
+    await replyJiba(opts.replyToken, opts.lineUserId, [
+      { type: 'text', text: opts.errorText },
+      textWithQr(jibaFieldRetryEscalation(JIBA_SUPERVISOR_NAME), helperQr),
+    ]);
+    return;
+  }
+
+  await logBot(opts.sessionId, `${opts.errorText}\n${opts.retryPrompt}`);
+  await replyJiba(opts.replyToken, opts.lineUserId, [
+    { type: 'text', text: opts.errorText },
+    { type: 'text', text: opts.retryPrompt },
+  ]);
+}
+
 /** 開箱進行中若點其他入口，應離開開箱、交回一般訊息處理 */
 const LEAVE_UNBOX_RE =
   /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|回家|還有很多故事|野放中|嗷嗚計劃|嗷嗚計畫|活動中心|沒梗了|青蛙誰在怕|清蛙誰在怕|開箱任務|毛孩來開箱)$/;
@@ -555,14 +607,21 @@ export async function handleJibaUnboxMessage(
     case FLOW_STATE.ASK_RECIPIENT_NAME: {
       const name = validRecipientName(trimmed);
       if (!name) {
-        await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '姓名請用 2～20 個字喔，不要只打數字。再試一次好嗎？' },
-        ]);
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'name',
+          errorText: JIBA_NAME_ERROR,
+          retryPrompt: JIBA_NAME_RETRY,
+        });
         return true;
       }
       await syncApplicationFields(app.id, { recipientName: name });
       await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_PHONE, {
         recipientName: name,
+        retries_name: 0,
       });
       await logBot(sid, JIBA_ASK_PHONE);
       await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_PHONE }]);
@@ -571,11 +630,22 @@ export async function handleJibaUnboxMessage(
     case FLOW_STATE.ASK_RECIPIENT_PHONE: {
       const phone = validRecipientPhone(trimmed);
       if (!phone) {
-        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_PHONE_ERROR }]);
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'phone',
+          errorText: JIBA_PHONE_ERROR,
+          retryPrompt: '再傳一次手機號碼好嗎？例如：0912345678',
+        });
         return true;
       }
       await syncApplicationFields(app.id, { recipientPhone: phone });
-      await setConversationState(sid, FLOW_STATE.ASK_STORE, { recipientPhone: phone });
+      await setConversationState(sid, FLOW_STATE.ASK_STORE, {
+        recipientPhone: phone,
+        retries_phone: 0,
+      });
       await logBot(sid, JIBA_ASK_STORE);
       await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_ASK_STORE, [
@@ -594,16 +664,23 @@ export async function handleJibaUnboxMessage(
         ]);
         return true;
       }
-      if (trimmed.length < 2) {
-        await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '門市名稱可以再寫清楚一點嗎？例如：板橋新埔門市。' },
-        ]);
+      if (trimmed.length < 2 || isJoinIntent(trimmed) || isDeclineIntent(trimmed)) {
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'store',
+          errorText: JIBA_STORE_ERROR,
+          retryPrompt: JIBA_ASK_STORE,
+        });
         return true;
       }
       const candidates = searchStoreCandidates(trimmed);
       await setConversationState(sid, FLOW_STATE.CONFIRM_STORE, {
         storeCandidates: candidates,
         pendingStoreQuery: trimmed,
+        retries_store: 0,
       });
       const lines = candidates
         .map((c, i) => `${i + 1}. ${c.storeName}${c.storeId ? `（${c.storeId}）` : ''}`)
@@ -615,7 +692,7 @@ export async function handleJibaUnboxMessage(
       qrItems.push({ label: '重選', text: '重選門市' });
       await replyJiba(replyToken, lineUserId, [
         textWithQr(
-          `找到這些候選。選一間你真的會去的：\n\n${lines}\n\n回「選門市1」或點下面按鈕。\n自由文字不會直接寫進訂單。`,
+          `找到這些候選門市，請選一間你方便去領的：\n\n${lines}\n\n回「選門市1」或點下面按鈕就可以喔。\n自由輸入不會直接寫進訂單，確認後才算數。`,
           qrItems,
         ),
       ]);
@@ -684,13 +761,22 @@ export async function handleJibaUnboxMessage(
     case FLOW_STATE.ASK_INSTAGRAM: {
       const ig = normalizeInstagramHandle(trimmed);
       if (!ig) {
-        await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '請輸入 @ 開頭的 Instagram 帳號喔。' },
-        ]);
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'ig',
+          errorText: JIBA_IG_ERROR,
+          retryPrompt: '再傳一次 @ 開頭的帳號好嗎？',
+        });
         return true;
       }
       await syncApplicationFields(app.id, { instagramHandle: ig });
-      await setConversationState(sid, FLOW_STATE.ASK_PET_NAME, { instagramHandle: ig });
+      await setConversationState(sid, FLOW_STATE.ASK_PET_NAME, {
+        instagramHandle: ig,
+        retries_ig: 0,
+      });
       await logBot(sid, JIBA_ASK_PET);
       await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_ASK_PET, [{ label: '略過', text: '略過' }]),
@@ -698,9 +784,25 @@ export async function handleJibaUnboxMessage(
       return true;
     }
     case FLOW_STATE.ASK_PET_NAME: {
-      const pet = /^(略過|跳过|skip|不填)$/i.test(trimmed) ? null : trimmed.slice(0, 40);
+      const petResult = validPetNameOrSkip(trimmed);
+      if (petResult === null) {
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'pet',
+          errorText: JIBA_PET_ERROR,
+          retryPrompt: JIBA_ASK_PET,
+        });
+        return true;
+      }
+      const pet = petResult === 'skip' ? null : petResult;
       await syncApplicationFields(app.id, { petName: pet });
-      await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE, { petName: pet });
+      await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE, {
+        petName: pet,
+        retries_pet: 0,
+      });
       await logBot(sid, JIBA_LICENSE);
       await replyJiba(replyToken, lineUserId, [
         textWithQr(JIBA_LICENSE, [

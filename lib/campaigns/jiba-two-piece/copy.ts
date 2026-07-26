@@ -36,11 +36,19 @@ export const JIBA_START_WORK = `好喔，那我們開始幫毛孩安排雞霸～
 export const JIBA_ASK_NAME = `先從第一題開始喔。
 收件人姓名是？`;
 
+/** 姓名欄位驗證失敗：具體說明 + 範例（slot re-prompt） */
+export const JIBA_NAME_ERROR = `這看起來不像收件人姓名耶～
+請填真實姓名，例如：王小明`;
+
+export const JIBA_NAME_RETRY = `再幫我們填一次收件人姓名好嗎？
+例如：王小明、陳美玲`;
+
 export const JIBA_ASK_PHONE = `再來請留下收件手機號碼～
 這樣取貨有狀況時，才聯絡得到你。`;
 
 export const JIBA_PHONE_ERROR = `這支號碼好像少了一點點耶。
-請輸入 09 開頭、共 10 碼的手機號碼，謝謝你。`;
+請輸入 09 開頭、共 10 碼的手機號碼，謝謝你。
+例如：0912345678`;
 
 export const JIBA_ASK_STORE = `最後一個地址小問題～
 請選一間你方便去領的 7-11。
@@ -48,12 +56,26 @@ export const JIBA_ASK_STORE = `最後一個地址小問題～
 直接輸入「門市名稱＋縣市區域」就可以。
 例如：板橋新埔門市。`;
 
+export const JIBA_STORE_ERROR = `門市名稱可以再寫清楚一點嗎？
+例如：板橋新埔門市、台北市大安區某某門市`;
+
 export const JIBA_ASK_IG = `門市找到了，謝謝你～
 接著請問你的 Instagram 帳號是？
 請輸入 @ 開頭的帳號喔。`;
 
+export const JIBA_IG_ERROR = `Instagram 帳號要請用 @ 開頭喔。
+例如：@furmosa_food`;
+
 export const JIBA_ASK_PET = `那位要幫忙開箱的毛孩，叫什麼名字呀？
 （也可以傳「略過」）`;
+
+export const JIBA_PET_ERROR = `毛孩名字再跟我們說一次好嗎？
+也可以傳「略過」先跳過這題喔。`;
+
+export function jibaFieldRetryEscalation(helperName: string): string {
+  return `這題卡住沒關係～
+你可以再試一次，或直接說「找${helperName}」，我們請小幫手幫你填。`;
+}
 
 export const JIBA_LICENSE = `投稿前，跟你確認一件事喔。
 

@@ -1,9 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  checkRecipientName,
   isDeclineIntent,
   isJoinIntent,
   normalizeInstagramHandle,
+  validPetNameOrSkip,
   validRecipientName,
   validRecipientPhone,
 } from '../validation';
@@ -17,17 +19,38 @@ describe('jiba validation', () => {
     assert.equal(validRecipientPhone('0812345678'), null);
   });
 
-  it('validates recipient name', () => {
+  it('validates recipient name and rejects menu intents', () => {
     assert.equal(validRecipientName('王小明'), '王小明');
+    assert.equal(validRecipientName('陳美玲'), '陳美玲');
     assert.equal(validRecipientName('1'), null);
     assert.equal(validRecipientName('12345'), null);
     assert.equal(validRecipientName('好'), null);
+    // 選單／參加意圖不可當姓名（先前會把「我要參加」寫進收件人）
+    assert.equal(validRecipientName('我要參加'), null);
+    assert.equal(validRecipientName('這個我可以！'), null);
+    assert.equal(validRecipientName('可以'), null);
+    assert.equal(validRecipientName('開箱任務'), null);
+    assert.equal(validRecipientName('先看看規則'), null);
+    assert.equal(validRecipientName('@furmosa'), null);
+    assert.equal(validRecipientName('0912345678'), null);
+    assert.equal(checkRecipientName('我要參加').ok, false);
+    if (!checkRecipientName('我要參加').ok) {
+      assert.equal(checkRecipientName('我要參加').reason, 'command');
+    }
   });
 
   it('normalizes instagram handle', () => {
     assert.equal(normalizeInstagramHandle('@Furmosa_Food'), '@Furmosa_Food');
     assert.equal(normalizeInstagramHandle('furmosa'), null);
     assert.equal(normalizeInstagramHandle('＠pet.dog'), '@pet.dog');
+    assert.equal(normalizeInstagramHandle('我要參加'), null);
+  });
+
+  it('validates pet name or skip', () => {
+    assert.equal(validPetNameOrSkip('略過'), 'skip');
+    assert.equal(validPetNameOrSkip('麻吉'), '麻吉');
+    assert.equal(validPetNameOrSkip('我要參加'), null);
+    assert.equal(validPetNameOrSkip(''), null);
   });
 
   it('matches join intents without random chat', () => {
@@ -51,7 +74,6 @@ describe('store search', () => {
     const hits = searchStoreCandidates('板橋新埔');
     assert.ok(hits.length >= 1);
     assert.ok(hits.some((h) => h.storeName.includes('板橋') || h.storeName.includes('新埔')));
-    // 自由文字候選 storeId 應為空，需確認才入訂單
     const free = hits.find((h) => h.storeName.includes('板橋新埔') && !h.storeId);
     assert.ok(free || hits.some((h) => h.storeId));
   });
@@ -63,7 +85,6 @@ describe('status machine constants', () => {
     assert.equal(APP_STATUS.AWAITING_SHIPPING_PAYMENT, 'AWAITING_SHIPPING_PAYMENT');
     assert.equal(APP_STATUS.READY_TO_SHIP, 'READY_TO_SHIP');
     assert.equal(FLOW_STATE.PENDING_REVIEW, 'PENDING_REVIEW');
-    // 送審後不是 READY；付款前不是 QUEUED（由 service 保證）
     assert.notEqual(APP_STATUS.PENDING_REVIEW, APP_STATUS.READY_TO_SHIP);
   });
 });
