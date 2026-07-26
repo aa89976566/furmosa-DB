@@ -983,3 +983,142 @@ model DashboardKpiSnapshot {
 
   @@index([computedAt])
 }
+
+// =====================================================
+// UGC 活動（雞霸兩片開箱等）— LINE 對話為介面，DB 為真相
+// =====================================================
+
+model Campaign {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  name             String
+  status           String    @default("active") // draft / active / paused / ended
+  coverImageUrl    String?   @map("cover_image_url")
+  productName      String    @default("雞霸") @map("product_name")
+  productQuantity  Int       @default(2) @map("product_quantity")
+  productUnitPrice Float     @default(0) @map("product_unit_price")
+  shippingFee      Float     @default(60) @map("shipping_fee")
+  licenseVersion   String    @default("ugc-v1") @map("license_version")
+  startsAt         DateTime? @map("starts_at")
+  endsAt           DateTime? @map("ends_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  applications CampaignApplication[]
+
+  @@map("campaigns")
+}
+
+model CampaignApplication {
+  id                    String    @id @default(cuid())
+  campaignId            String    @map("campaign_id")
+  customerId            String?   @map("customer_id")
+  lineUserId            String    @map("line_user_id")
+  lineDisplayName       String?   @map("line_display_name")
+  orderId               String?   @unique @map("order_id")
+  instagramHandle       String?   @map("instagram_handle")
+  petName               String?   @map("pet_name")
+  recipientName         String?   @map("recipient_name")
+  recipientPhone        String?   @map("recipient_phone")
+  storeId               String?   @map("store_id")
+  storeName             String?   @map("store_name")
+  storeAddress          String?   @map("store_address")
+  status                String    @default("COLLECTING_INFO")
+  // COLLECTING_INFO / PENDING_REVIEW / APPROVED / AWAITING_SHIPPING_PAYMENT /
+  // READY_TO_SHIP / REJECTED / CANCELLED_BY_USER / CANCELLED
+  shippingQueueStatus   String    @default("NOT_READY") @map("shipping_queue_status")
+  // NOT_READY / QUEUED
+  licenseAccepted       Boolean   @default(false) @map("license_accepted")
+  licenseVersion        String?   @map("license_version")
+  licenseAcceptedAt     DateTime? @map("license_accepted_at")
+  licenseSourceMsgId    String?   @map("license_source_message_id")
+  reviewedBy            String?   @map("reviewed_by")
+  reviewedAt            DateTime? @map("reviewed_at")
+  reviewNote            String?   @map("review_note")
+  returnFields          String?   @map("return_fields") // JSON string array
+  paymentToken          String?   @unique @map("payment_token")
+  paymentStatus         String    @default("unpaid") @map("payment_status")
+  // unpaid / paid / failed
+  paidAt                DateTime? @map("paid_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  campaign            Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  conversationSession ConversationSession?
+  reviews             OrderReview[]
+  auditLogs           StatusAuditLog[]
+
+  @@index([campaignId, status])
+  @@index([lineUserId, status])
+  @@index([orderId])
+  @@map("campaign_applications")
+}
+
+model ConversationSession {
+  id                    String    @id @default(cuid())
+  lineUserId            String    @map("line_user_id")
+  campaignApplicationId String    @unique @map("campaign_application_id")
+  currentState          String    @map("current_state")
+  collectedDataJson     String    @default("{}") @map("collected_data_json")
+  operatorTakeover      Boolean   @default(false) @map("operator_takeover")
+  startedAt             DateTime  @default(now()) @map("started_at")
+  completedAt           DateTime? @map("completed_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  application CampaignApplication   @relation(fields: [campaignApplicationId], references: [id], onDelete: Cascade)
+  messages    ConversationMessage[]
+
+  @@index([lineUserId, currentState])
+  @@map("conversation_sessions")
+}
+
+model ConversationMessage {
+  id            String   @id @default(cuid())
+  sessionId     String   @map("session_id")
+  lineMessageId String?  @map("line_message_id")
+  senderType    String   @map("sender_type") // customer / bot / system / supervisor
+  messageType   String   @default("text") @map("message_type")
+  contentJson   String   @map("content_json")
+  sentAt        DateTime @default(now()) @map("sent_at")
+
+  session ConversationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sentAt])
+  @@map("conversation_messages")
+}
+
+model OrderReview {
+  id            String   @id @default(cuid())
+  applicationId String   @map("application_id")
+  orderId       String?  @map("order_id")
+  reviewerId    String?  @map("reviewer_id")
+  reviewerName  String?  @map("reviewer_name")
+  decision      String // APPROVED / RETURNED / REJECTED
+  reasonCode    String?  @map("reason_code")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  application CampaignApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("order_reviews")
+}
+
+model StatusAuditLog {
+  id             String   @id @default(cuid())
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id")
+  previousStatus String?  @map("previous_status")
+  newStatus      String   @map("new_status")
+  actorType      String   @map("actor_type") // customer / bot / supervisor / system / payment
+  actorId        String?  @map("actor_id")
+  metadataJson   String?  @map("metadata_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  applicationId  String?  @map("application_id")
+
+  application CampaignApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([applicationId])
+  @@map("status_audit_logs")
+}

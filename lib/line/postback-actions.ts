@@ -39,6 +39,7 @@ import {
   lineAssetUrl,
 } from '@/lib/line/flex-hubs';
 import type { LineReplyMessage } from '@/lib/line/reply';
+import { startJibaUnboxIntro } from '@/lib/line/campaigns/jiba-unbox/flow';
 
 function eventsPosterUrl(): string | null {
   const rel = 'public/line/events/poster.jpg';
@@ -114,6 +115,11 @@ async function replyChaosItem(
   itemId: string,
   registered: boolean,
 ) {
+  if (itemId === 'chaos_unbox') {
+    await startJibaUnboxIntro(replyToken, lineUserId);
+    return;
+  }
+
   const text = CHAOS_COPY[itemId];
   if (!text) {
     await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));

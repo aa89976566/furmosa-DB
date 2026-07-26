@@ -14,6 +14,7 @@ import {
   ListChecks,
   Truck,
   BarChart3,
+  PackageOpen,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionTone } from '@/lib/section-tone';
@@ -87,6 +88,13 @@ export const navGroups: NavGroup[] = [
   {
     label: '營運任務',
     tone: 'operations',
-    items: [{ href: '/tasks', label: '任務看板', icon: CheckSquare }],
+    items: [
+      { href: '/tasks', label: '任務看板', icon: CheckSquare },
+      {
+        href: '/campaigns/jiba-two-piece',
+        label: '雞霸開箱審核',
+        icon: PackageOpen,
+      },
+    ],
   },
 ];

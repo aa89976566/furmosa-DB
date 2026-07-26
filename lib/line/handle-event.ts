@@ -35,6 +35,11 @@ import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
 import { handleRegisterFlowMessage, startRegisterFlow } from '@/lib/line/register-from-chat';
+import {
+  handleJibaUnboxMessage,
+  isJibaUnboxSessionActive,
+  startJibaUnboxIntro,
+} from '@/lib/line/campaigns/jiba-unbox/flow';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
@@ -144,6 +149,20 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
+  if (await isJibaUnboxSessionActive(lineUserId)) {
+    if (
+      await handleJibaUnboxMessage(
+        replyToken,
+        lineUserId,
+        msgEvent.message.text,
+        msgEvent.message.id,
+      )
+    ) {
+      return;
+    }
+  }
+
   if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
     return;
   }
@@ -194,12 +213,15 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'unboxing') {
     const t = msgEvent.message.text;
+    // 「開箱任務」走完整對話狀態機（非靜態文案）
+    if (t.includes('開箱')) {
+      await startJibaUnboxIntro(replyToken, lineUserId);
+      return;
+    }
     const text =
       t.includes('清蛙') || t.includes('青蛙')
         ? CHAOS_COPY.chaos_frog
-        : t.includes('開箱')
-          ? CHAOS_COPY.chaos_unbox
-          : CHAOS_COPY.chaos_aowu;
+        : CHAOS_COPY.chaos_aowu;
     await replyTriggerOnce(lineUserId, 'unboxing', async () => {
       await replyLineTextWithMenu(replyToken, lineUserId, text, { registered });
     });

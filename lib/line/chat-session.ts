@@ -18,7 +18,14 @@ export type RegisterDraft = {
   stepPromptAt?: Partial<Record<string, string>>;
 };
 
-export type LineChatFlow = 'register';
+export type JibaUnboxDraft = {
+  phase?: string;
+  applicationId?: string;
+};
+
+export type LineChatFlow = 'register' | 'jiba_unbox';
+
+export type LineChatPayload = RegisterDraft | JibaUnboxDraft;
 
 /** 未完成開戶流程超過此時間視為過期，不再攔截一般訊息 */
 export const REGISTER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -38,7 +45,7 @@ export async function upsertLineChatSession(
   lineUserId: string,
   flow: LineChatFlow,
   step: string,
-  payload: RegisterDraft,
+  payload: LineChatPayload,
 ) {
   return prisma.lineChatSession.upsert({
     where: { lineUserId },
