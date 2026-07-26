@@ -296,32 +296,26 @@ export function buildHomeHubMessages(opts?: { body?: string }): LineReplyMessage
   ];
 }
 
-/** 預約美容：好玩的還沒好 */
-export function buildGroomingSoonMessages(line: string): LineReplyMessage[] {
-  const theme = GROOMING_THEME;
+/** 預約美容：coming soon（封面＋短文，不塞按鈕選單） */
+export const GROOMING_SOON_COPY = `系統還在吹毛。
+很快就能直接在這裡約。`;
+
+export function groomingSoonCoverUrl(): string {
+  return lineAssetUrl('/line/grooming/soon-cover.jpg');
+}
+
+export function buildGroomingSoonMessages(_line?: string): LineReplyMessage[] {
+  const cover = groomingSoonCoverUrl();
   return [
     {
-      type: 'text',
-      text: `預約美容 ✂️\n${line}\n\n線上預約還沒放好水。先去換罐計劃晃晃，或回家看故事。`,
+      type: 'image',
+      originalContentUrl: cover,
+      previewImageUrl: cover,
     },
-    buildButtonMenuFlex({
-      altText: '預約美容',
-      theme,
-      title: '預約美容',
-      subtitle: `${line} 線上預約還在路上——先別急著脫毛。`,
-      items: [
-        {
-          label: '先去換罐晃晃',
-          action: { type: 'message', text: '換罐計劃' },
-          style: 'primary',
-        },
-        {
-          label: '回家',
-          action: { type: 'message', text: '回家' },
-          style: 'secondary',
-        },
-      ],
-    }),
+    {
+      type: 'text',
+      text: GROOMING_SOON_COPY,
+    },
   ];
 }
 
