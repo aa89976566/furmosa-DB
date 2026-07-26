@@ -2,13 +2,12 @@ import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getAuthSecretKey } from '@/lib/auth-secret';
 
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? 'dev-secret-only-please-change-me-in-production-32chars-min',
-);
+const SECRET = getAuthSecretKey();
 
 const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168');
 

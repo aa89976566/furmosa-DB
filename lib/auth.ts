@@ -2,11 +2,10 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
+import { getAuthSecretKey } from '@/lib/auth-secret';
 
 const SESSION_COOKIE = 'furmosa_session';
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? 'dev-secret-only-please-change-me-in-production-32chars-min',
-);
+const SECRET = getAuthSecretKey();
 const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168'); // 預設 7 天
 
 export type SessionPayload = {

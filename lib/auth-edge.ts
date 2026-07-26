@@ -1,9 +1,8 @@
 // Edge-compatible auth helpers (for middleware) - 不可使用 Node API / Prisma
 import { jwtVerify } from 'jose';
+import { getAuthSecretKey } from '@/lib/auth-secret';
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET ?? 'dev-secret-only-please-change-me-in-production-32chars-min',
-);
+const SECRET = getAuthSecretKey();
 
 export const SESSION_COOKIE_NAME = 'furmosa_session';
 
