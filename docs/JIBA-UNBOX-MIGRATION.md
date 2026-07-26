@@ -14,7 +14,7 @@
 | `campaign_applications` | 申請＋收件／IG／授權／審核／運費 token／`shipping_queue_status` |
 | `conversation_sessions` | 對話狀態機（唯一真相） |
 | `conversation_messages` | 完整時間軸 |
-| `order_reviews` | 玉珊審核決策 |
+| `order_reviews` | 壽司匠審核決策 |
 | `status_audit_logs` | 狀態轉換稽核 |
 
 Seed：`camp_jiba_two_piece` / `jiba-two-piece`。
