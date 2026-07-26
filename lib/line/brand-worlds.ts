@@ -135,7 +135,7 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     id: 'chaos_events',
     mark: '🎪',
     label: '活動',
-    subtitle: '最近又在搞什麼。',
+    subtitle: '給個爛點子，說不定很好玩。',
     heroKey: 'chaos-events',
   },
   {
@@ -176,10 +176,8 @@ IG 記得標 @furmosa_food`,
 
   chaos_events: `【活動】
 
-外面正在發生的事，都會釘在這。
-
-有檔就吵；沒檔就安靜。
-我們不假裝每天都有煙火。`,
+給個爛點子，
+說不定很好玩。`,
 
   chaos_unbox: `【開箱任務】
 
