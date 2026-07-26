@@ -128,6 +128,7 @@ describe('一起野放', () => {
     assert.match(raw, /嗷嗚計劃/);
     assert.match(raw, /活動中心/);
     assert.match(raw, /開箱任務/);
+    assert.match(raw, /探索新鮮事/);
     assert.match(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.equal(countButtons(flex), 3);
@@ -137,11 +138,13 @@ describe('一起野放', () => {
     assert.doesNotMatch(raw, /拍攝指南|完成拿100/);
   });
 
-  it('漫畫入口文案帶傑克與按鈕提示', () => {
+  it('漫畫入口只回選單卡，不發傑克開場文', () => {
     const msgs = buildComicRoamMessages(false);
-    const text = msgs.find((m) => m.type === 'text') as { text: string };
-    assert.match(text.text, /傑克|外面/);
-    assert.match(text.text, /按鈕/);
+    assert.equal(msgs.some((m) => m.type === 'text'), false);
+    const flex = flexFrom(msgs);
+    const raw = JSON.stringify(flex.contents);
+    assert.match(raw, /探索新鮮事/);
+    assert.doesNotMatch(raw, /傑克往外衝了/);
   });
 
   it('嗷嗚計劃：輪播 cover＋對話氣泡', () => {

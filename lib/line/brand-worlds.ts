@@ -37,7 +37,7 @@ export const WORLD_HUB_EMOJI: Record<WorldHubId, string> = {
 
 export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
   jar: '瓶子才是主角。',
-  chaos: '外面比較好玩。',
+  chaos: '探索新鮮事',
   wild: '狗屋在裡面，院子也還亮著。',
 };
 
@@ -47,8 +47,8 @@ export const JAR_ENTER_HINT_REGISTERED =
 export const JAR_ENTER_BLOCKED_GUEST = `先開戶。
 沒戶頭，罐進不來。`;
 
-/** 一起野放：外頭正在發生的事 */
-export const CHAOS_INTRO = '傑克往外衝了。外面比較好玩——點下面按鈕跟去。';
+/** 一起野放：選單副標（不再另發開場長文） */
+export const CHAOS_INTRO = '探索新鮮事';
 
 /** 回家：不是官網首頁，是家 */
 export const WILD_INTRO = `到了。

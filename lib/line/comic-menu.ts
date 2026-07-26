@@ -28,12 +28,9 @@ export function parseComicMenuText(text: string): ComicMenuKind | null {
   return null;
 }
 
-/** 一起野放 → 社區／UGC／活動 */
+/** 一起野放 → 只回選單卡（副標：探索新鮮事） */
 export function buildComicRoamMessages(registered: boolean): LineReplyMessage[] {
-  return buildWorldHubMessages('chaos', {
-    registered,
-    body: '一起野放 🐾\n傑克往外衝了。外面比較好玩——點下面按鈕跟去。',
-  });
+  return buildWorldHubMessages('chaos', { registered });
 }
 
 /** 預約美容 → 封面＋短文（很快就能約） */

@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { FURMOSA_BRAND_LINKS } from '@/lib/line/brand-links';
 import {
   CHAOS_DIALOGUE,
-  CHAOS_INTRO,
   CHAOS_ITEMS,
   JAR_ENTER_BLOCKED_GUEST,
   JAR_ENTER_HINT_REGISTERED,
@@ -449,16 +448,21 @@ export function buildWorldHubMessages(
   }
 
   if (hub === 'chaos') {
-    return [
-      { type: 'text', text: opts?.body ?? `${title}\n${CHAOS_INTRO}` },
+    // 一起野放：只回按鈕卡，不另發「傑克往外衝了…」開場文
+    const messages: LineReplyMessage[] = [];
+    if (opts?.body) {
+      messages.push({ type: 'text', text: opts.body });
+    }
+    messages.push(
       menuFromItems({
         altText: WORLD_HUB_LABELS.chaos,
         theme,
         title: WORLD_HUB_LABELS.chaos,
-        subtitle: '點下面按鈕，由上往下選。',
+        subtitle: WORLD_HUB_TAGLINE.chaos,
         items: CHAOS_ITEMS,
       }),
-    ];
+    );
+    return messages;
   }
 
   return buildHomeHubMessages({
