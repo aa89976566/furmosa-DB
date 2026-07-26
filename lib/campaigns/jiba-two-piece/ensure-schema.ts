@@ -1,12 +1,33 @@
+import { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 
 /**
  * 生產環境 build 對 `prisma migrate deploy` 採 soft-fail，
- * 開箱活動表可能尚未建立。報名前以 idempotent DDL 補齊。
+ * 開箱活動表可能尚未建立。報名／HQ 審核前以 idempotent DDL 補齊。
  *
- * 逐條執行，避免 Neon／Prisma 連線不支援 multi-statement。
+ * - 先探測表是否已存在，已就緒則只補 seed
+ * - DDL 優先走 DIRECT_URL（避開 pooler 對 DO $$／DDL 的限制）
+ * - 逐條執行；外鍵失敗只警告，不拖垮讀取路徑
  */
-const ENSURE_STATEMENTS = [
+
+const SEED_CAMPAIGN_SQL = `INSERT INTO "campaigns" ("id", "slug", "name", "status", "cover_image_url", "product_name", "product_quantity", "product_unit_price", "shipping_fee", "license_version", "created_at", "updated_at")
+VALUES (
+  'camp_jiba_two_piece',
+  'jiba-two-piece',
+  '雞霸兩片開箱',
+  'active',
+  '/line/events/jiba-unbox-cover.png',
+  '雞霸',
+  2,
+  0,
+  60,
+  'ugc-v1',
+  CURRENT_TIMESTAMP,
+  CURRENT_TIMESTAMP
+) ON CONFLICT ("slug") DO NOTHING`;
+
+const DDL_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS "campaigns" (
     "id" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -114,6 +135,9 @@ const ENSURE_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS "status_audit_logs_entity_type_entity_id_idx" ON "status_audit_logs"("entity_type", "entity_id")`,
   `CREATE INDEX IF NOT EXISTS "status_audit_logs_application_id_idx" ON "status_audit_logs"("application_id")`,
+];
+
+const FK_STATEMENTS = [
   `DO $$ BEGIN
   ALTER TABLE "campaign_applications"
     ADD CONSTRAINT "campaign_applications_campaign_id_fkey"
@@ -144,30 +168,79 @@ END $$`,
     FOREIGN KEY ("application_id") REFERENCES "campaign_applications"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$`,
-  `INSERT INTO "campaigns" ("id", "slug", "name", "status", "cover_image_url", "product_name", "product_quantity", "product_unit_price", "shipping_fee", "license_version", "created_at", "updated_at")
-VALUES (
-  'camp_jiba_two_piece',
-  'jiba-two-piece',
-  '雞霸兩片開箱',
-  'active',
-  '/line/events/jiba-unbox-cover.png',
-  '雞霸',
-  2,
-  0,
-  60,
-  'ugc-v1',
-  CURRENT_TIMESTAMP,
-  CURRENT_TIMESTAMP
-) ON CONFLICT ("slug") DO NOTHING`,
 ];
 
 let schemaReady: Promise<void> | null = null;
 
-async function runEnsureSchema() {
-  for (const sql of ENSURE_STATEMENTS) {
-    await prisma.$executeRawUnsafe(sql);
+function isSoftDdlError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    /duplicate_/i.test(msg) ||
+    /already exists/i.test(msg) ||
+    /prepared statement/i.test(msg) ||
+    /cannot insert multiple commands/i.test(msg)
+  );
+}
+
+async function withDdlClient<T>(fn: (db: PrismaClient) => Promise<T>): Promise<T> {
+  const direct = process.env.DIRECT_URL?.trim();
+  const pooled = process.env.DATABASE_URL?.trim();
+  // DIRECT_URL 專供 migrate／DDL；與 runtime pooler 不同時才另開 client
+  if (direct && pooled && direct !== pooled) {
+    const db = new PrismaClient({
+      datasources: { db: { url: direct } },
+      log: ['error'],
+    });
+    try {
+      return await fn(db);
+    } finally {
+      await db.$disconnect().catch(() => undefined);
+    }
   }
-  console.info('[jiba-two-piece] campaign schema ensured');
+  return fn(prisma);
+}
+
+async function campaignsTableReady(db: PrismaClient): Promise<boolean> {
+  try {
+    await db.$queryRawUnsafe(`SELECT 1 FROM "campaigns" LIMIT 1`);
+    return true;
+  } catch (err) {
+    if (isMissingCampaignTableError(err)) return false;
+    // 連線類錯誤往外拋，讓呼叫端決定重試／錯誤頁
+    throw err;
+  }
+}
+
+async function execSql(db: PrismaClient, sql: string, soft: boolean) {
+  try {
+    await db.$executeRawUnsafe(sql);
+  } catch (err) {
+    if (soft || isSoftDdlError(err)) {
+      console.warn('[jiba-two-piece] DDL statement skipped', {
+        soft,
+        message: err instanceof Error ? err.message : String(err),
+        preview: sql.slice(0, 80).replace(/\s+/g, ' '),
+      });
+      return;
+    }
+    throw err;
+  }
+}
+
+async function runEnsureSchema() {
+  await withDdlClient(async (db) => {
+    const ready = await campaignsTableReady(db);
+    if (!ready) {
+      for (const sql of DDL_STATEMENTS) {
+        await execSql(db, sql, false);
+      }
+      for (const sql of FK_STATEMENTS) {
+        await execSql(db, sql, true);
+      }
+    }
+    await execSql(db, SEED_CAMPAIGN_SQL, true);
+    console.info('[jiba-two-piece] campaign schema ensured', { created: !ready });
+  });
 }
 
 export async function ensureJibaCampaignSchema(): Promise<void> {
