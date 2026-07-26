@@ -84,29 +84,69 @@ export function buildCouponListMessages(groups: {
     ];
   }
 
-  const bubbles = all.slice(0, 10).map(({ c, title }) => couponBubble(c, title));
-  if (all.length > 10) {
-    bubbles.push({
-      type: 'bubble',
-      size: 'kilo',
-      body: {
+  // 垂直堆疊（不用 carousel 左右滑）
+  const rows = all.slice(0, 8).flatMap(({ c, title }, idx) => {
+    const bubble = couponBubble(c, title);
+    const body = bubble.body as { contents: unknown[] };
+    const block = {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'sm',
+      margin: idx === 0 ? undefined : 'lg',
+      contents: body.contents,
+    };
+    if (idx === 0) return [block];
+    return [
+      { type: 'separator', margin: 'lg', color: '#E5E5E5' },
+      block,
+    ];
+  });
+  if (all.length > 8) {
+    rows.push(
+      { type: 'separator', margin: 'lg', color: '#E5E5E5' },
+      {
         type: 'box',
         layout: 'vertical',
         spacing: 'sm',
+        margin: 'lg',
         contents: [
           {
             type: 'text',
-            text: `另有 ${all.length - 10} 張優惠券未顯示，請至後台或聯絡客服查詢。`,
+            text: `另有 ${all.length - 8} 張優惠券未顯示，請至後台或聯絡客服查詢。`,
             size: 'xs',
             wrap: true,
             color: '#666666',
           },
         ],
       },
-    });
+    );
   }
 
-  return [{ type: 'flex', altText: '我的優惠券', contents: { type: 'carousel', contents: bubbles } }];
+  return [
+    {
+      type: 'flex',
+      altText: '我的優惠券',
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'text',
+              text: '我的優惠券',
+              weight: 'bold',
+              size: 'md',
+              color: '#1a1a1a',
+            },
+            ...rows,
+          ],
+        },
+      },
+    },
+  ];
 }
 
 export function buildGroomingRedeemConfirmMessages(opts: {

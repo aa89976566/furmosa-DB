@@ -43,7 +43,7 @@ export const JAR_ENTER_BLOCKED_GUEST = `先開戶。
 沒戶頭，罐進不來。`;
 
 /** 一起野放：外頭正在發生的事 */
-export const CHAOS_INTRO = '傑克往外衝了。外面比較好玩——挑一張跟去。';
+export const CHAOS_INTRO = '傑克往外衝了。外面比較好玩——點下面按鈕跟去。';
 
 /** 回家：不是官網首頁，是家 */
 export const WILD_INTRO = '門開著。鞋子可以脫了。還想晃就接著晃。';
