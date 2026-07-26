@@ -103,8 +103,8 @@ function jibaRulesChoiceMenu(): LineReplyMessage {
     subtitle: '點下面按鈕繼續。',
     items: [
       {
-        label: '敢，來吧',
-        action: { type: 'message', text: '敢，來吧' },
+        label: '這個我可以！',
+        action: { type: 'message', text: '這個我可以！' },
         style: 'primary',
       },
       {
@@ -458,7 +458,7 @@ export async function handleJibaUnboxMessage(
       ]);
       return true;
     }
-    if (isJoinIntent(trimmed) || /^敢，來吧$/.test(trimmed)) {
+    if (isJoinIntent(trimmed) || /^這個我可以！$/.test(trimmed) || /^敢，來吧$/.test(trimmed)) {
       await beginEnrollment(replyToken, lineUserId, trimmed, lineMessageId);
       return true;
     }

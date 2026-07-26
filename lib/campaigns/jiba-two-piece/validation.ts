@@ -22,7 +22,7 @@ export function validRecipientPhone(raw: string): string | null {
 }
 
 export function isJoinIntent(text: string): boolean {
-  return /^(?:我要參加|要|可以|好|來吧|我想參加|怎麼參加|算我一個|敢|敢，來吧|\+1|yes)$/i.test(
+  return /^(?:我要參加|要|可以|好|來吧|我想參加|怎麼參加|算我一個|敢|敢，來吧|這個我可以！|\+1|yes)$/i.test(
     text.trim(),
   );
 }

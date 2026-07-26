@@ -33,6 +33,7 @@ describe('jiba validation', () => {
   it('matches join intents without random chat', () => {
     assert.equal(isJoinIntent('我要參加'), true);
     assert.equal(isJoinIntent('敢'), true);
+    assert.equal(isJoinIntent('這個我可以！'), true);
     assert.equal(isJoinIntent('+1'), true);
     assert.equal(isJoinIntent('今天天氣不錯'), false);
     assert.equal(isJoinIntent('收件人王小明'), false);

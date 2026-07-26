@@ -54,6 +54,6 @@ export const ACTIVE_APP_STATUSES = [
 
 /** 正面參加意圖 */
 export const JOIN_INTENT_RE =
-  /^(?:我要參加|要|可以|好|來吧|我想參加|怎麼參加|算我一個|敢|敢，來吧|\+1|yes)$/i;
+  /^(?:我要參加|要|可以|好|來吧|我想參加|怎麼參加|算我一個|敢|敢，來吧|這個我可以！|\+1|yes)$/i;
 
 export const DECLINE_RE = /^(?:這次先不要|不要|先不要|我再想一下|先不要送出)$/i;
