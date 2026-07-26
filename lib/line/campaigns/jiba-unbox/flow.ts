@@ -33,6 +33,7 @@ import {
   jibaConfirmSummary,
   jibaReturnFieldCopy,
 } from '@/lib/campaigns/jiba-two-piece/copy';
+import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
 import {
   appendConversationMessage,
   approveAndCreatePayment,
@@ -270,7 +271,7 @@ async function beginEnrollment(
   trimmed: string,
   lineMessageId?: string,
 ) {
-  try {
+  const run = async () => {
     const existing = await findActiveJibaApplication(lineUserId);
     const app = existing ?? (await createJibaEnrollment({ lineUserId }));
     const sid = app.conversationSession!.id;
@@ -297,14 +298,25 @@ async function beginEnrollment(
       { type: 'text', text: JIBA_START_WORK },
       { type: 'text', text: JIBA_ASK_NAME },
     ]);
+  };
+
+  try {
+    await ensureJibaCampaignSchema();
+    await run();
   } catch (err) {
-    console.error('[jiba-unbox] beginEnrollment failed', err);
-    await replyLineMessage(replyToken, [
-      {
-        type: 'text',
-        text: '開箱系統剛剛打了個嗝。再點一次「開箱任務」，或稍後再試。',
-      },
-    ]);
+    console.error('[jiba-unbox] beginEnrollment failed, retrying after schema ensure', err);
+    try {
+      await ensureJibaCampaignSchema();
+      await run();
+    } catch (retryErr) {
+      console.error('[jiba-unbox] beginEnrollment retry failed', retryErr);
+      await replyLineMessage(replyToken, [
+        {
+          type: 'text',
+          text: '開箱系統剛剛打了個嗝。再點一次「開箱任務」，或稍後再試。',
+        },
+      ]);
+    }
   }
 }
 

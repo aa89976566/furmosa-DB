@@ -10,6 +10,7 @@ import {
   type FlowState,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { recordStatusTransition } from '@/lib/campaigns/jiba-two-piece/audit';
+import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { lineAssetUrl } from '@/lib/line/flex-hubs';
 import { prisma } from '@/lib/prisma';
@@ -33,6 +34,7 @@ async function nextCampaignOrderNumber() {
 }
 
 export async function ensureJibaCampaign() {
+  await ensureJibaCampaignSchema();
   const cover = lineAssetUrl('/line/events/jiba-unbox-cover.png');
   return prisma.campaign.upsert({
     where: { slug: JIBA_CAMPAIGN_SLUG },
