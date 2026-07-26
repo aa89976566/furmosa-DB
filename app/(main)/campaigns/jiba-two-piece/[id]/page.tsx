@@ -12,6 +12,7 @@ import {
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
 } from '@/lib/campaigns/jiba-two-piece/constants';
+import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import {
   approveJibaApplicationAction,
   markJibaTransferPaidAction,
@@ -35,19 +36,25 @@ export default async function JibaReviewDetailPage({
 }: {
   params: { id: string };
 }) {
-  const app = await prisma.campaignApplication.findUnique({
-    where: { id: params.id },
-    include: {
-      campaign: true,
-      conversationSession: {
-        include: {
-          messages: { orderBy: { sentAt: 'asc' } },
+  const app = await prisma.campaignApplication
+    .findUnique({
+      where: { id: params.id },
+      include: {
+        campaign: true,
+        conversationSession: {
+          include: {
+            messages: { orderBy: { sentAt: 'asc' } },
+          },
         },
+        reviews: { orderBy: { createdAt: 'desc' } },
+        auditLogs: { orderBy: { createdAt: 'desc' }, take: 30 },
       },
-      reviews: { orderBy: { createdAt: 'desc' } },
-      auditLogs: { orderBy: { createdAt: 'desc' }, take: 30 },
-    },
-  });
+    })
+    .catch((err: unknown) => {
+      console.error('[jiba-review-detail]', err);
+      if (isMissingCampaignTableError(err)) notFound();
+      throw err;
+    });
   if (!app) notFound();
 
   const order = app.orderId

@@ -11,6 +11,7 @@ import {
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { recordStatusTransition } from '@/lib/campaigns/jiba-two-piece/audit';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
+import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { lineAssetUrl } from '@/lib/line/flex-hubs';
 import { prisma } from '@/lib/prisma';
@@ -33,8 +34,7 @@ async function nextCampaignOrderNumber() {
   return `${prefix}${String(seq).padStart(3, '0')}`;
 }
 
-export async function ensureJibaCampaign() {
-  await ensureJibaCampaignSchema();
+async function upsertJibaCampaign() {
   const cover = lineAssetUrl('/line/events/jiba-unbox-cover.png');
   return prisma.campaign.upsert({
     where: { slug: JIBA_CAMPAIGN_SLUG },
@@ -56,6 +56,20 @@ export async function ensureJibaCampaign() {
       shippingFee: JIBA_SHIPPING_FEE,
     },
   });
+}
+
+/**
+ * 確保雞霸開箱活動列存在。
+ * 表缺失時先跑 idempotent DDL（migrate soft-fail 補償），再重試 upsert。
+ */
+export async function ensureJibaCampaign() {
+  try {
+    return await upsertJibaCampaign();
+  } catch (err) {
+    if (!isMissingCampaignTableError(err)) throw err;
+    await ensureJibaCampaignSchema();
+    return upsertJibaCampaign();
+  }
 }
 
 export async function findActiveJibaApplication(lineUserId: string) {
