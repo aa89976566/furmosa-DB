@@ -76,7 +76,8 @@ export function buildButtonMenuFlex(opts: {
   items: MenuButtonItem[];
 }): LineReplyMessage {
   const buttons = opts.items.slice(0, 13).map((item) => {
-    const label = item.mark ? `${item.mark} ${item.label}` : item.label;
+    // 按鈕只留文字，不加 emoji icon
+    const label = item.label.trim();
     return {
       type: 'button',
       style: item.style ?? 'secondary',
@@ -220,7 +221,6 @@ function itemToButton(
   const isPrimary = opts?.primaryId === item.id;
   return {
     label: item.label,
-    mark: item.mark,
     action,
     style: isPrimary ? 'primary' : 'secondary',
   };
@@ -246,10 +246,10 @@ function menuFromItems(opts: {
 /** 聊天內備援：跟著傑克走一天 */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
   const intro = opts?.body ?? '跟著傑克走。點一個繼續。';
-  const worlds: Array<{ id: WorldHubId; mark: string; label: string }> = [
-    { id: 'chaos', mark: WORLD_HUB_EMOJI.chaos, label: WORLD_HUB_LABELS.chaos },
-    { id: 'jar', mark: WORLD_HUB_EMOJI.jar, label: WORLD_HUB_LABELS.jar },
-    { id: 'wild', mark: WORLD_HUB_EMOJI.wild, label: WORLD_HUB_LABELS.wild },
+  const worlds: Array<{ id: WorldHubId; label: string }> = [
+    { id: 'chaos', label: WORLD_HUB_LABELS.chaos },
+    { id: 'jar', label: WORLD_HUB_LABELS.jar },
+    { id: 'wild', label: WORLD_HUB_LABELS.wild },
   ];
   return [
     { type: 'text', text: intro },
@@ -260,7 +260,6 @@ export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineRepl
       subtitle: '由上往下點，不用左右滑。',
       items: worlds.map((w) => ({
         label: w.label,
-        mark: w.mark,
         action: {
           type: 'postback',
           data: `jd=hub_${w.id}`,
@@ -313,13 +312,11 @@ export function buildGroomingSoonMessages(line: string): LineReplyMessage[] {
       items: [
         {
           label: '先去換罐晃晃',
-          mark: '🫧',
           action: { type: 'message', text: '換罐計劃' },
           style: 'primary',
         },
         {
           label: '回家',
-          mark: '🏠',
           action: { type: 'message', text: '回家' },
           style: 'secondary',
         },
@@ -383,7 +380,6 @@ export function buildRegisterGateMessages(
       items: [
         {
           label: LINE_BTN.registerNow,
-          mark: '🐾',
           action: {
             type: 'postback',
             data: 'jd=jar_reg&next=enter',
@@ -453,7 +449,6 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
       items: [
         {
           label: '我的會員',
-          mark: '🔢',
           action: { type: 'message', text: '我的會員' },
           style: 'secondary',
         },

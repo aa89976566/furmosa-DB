@@ -224,71 +224,78 @@ IG 標：@furmosa_food
 };
 
 /**
- * 換罐計劃：瓶子是主角。
- * 六張卡固定出現；未開戶點序號／會員會被擋去開戶。
+ * 換罐計劃：依是否已綁 LINE／開戶變形。
+ * - 未開戶：介紹、開戶、配合店家
+ * - 已開戶：不再出現開戶；介紹、配合店家、兌換序號、兌換好禮
  */
 export function buildJarHubItems(registered: boolean): {
   items: WorldMenuItem[];
   primaryId: string;
   body: string;
 } {
-  const items: WorldMenuItem[] = [
-    {
-      id: 'jar_reg',
-      mark: '🐾',
-      label: '開戶',
-      subtitle: '先認人。沒戶頭，罐進不來。',
-      heroKey: 'jar-reg',
-    },
-    {
-      id: 'jar_vault',
-      mark: '🪪',
-      label: '我的會員',
-      subtitle: '點數、毛孩、綁哪間店。',
-      heroKey: 'jar-vault',
-    },
-    {
-      id: 'jar_enter',
-      mark: '🔢',
-      label: '輸入序號',
-      subtitle: '罐底 8 碼，丟上來就好。',
-      heroKey: 'jar-enter',
-    },
-    {
-      id: 'jar_history',
-      mark: '🧾',
-      label: '我的換罐紀錄',
-      subtitle: '哪幾罐進來過，都在這。',
-      heroKey: 'jar-history',
-    },
-    {
-      id: 'jar_stores',
-      mark: '✂️',
-      label: '合作美容店',
-      subtitle: '折價綁哪間，先看清楚。',
-      heroKey: 'jar-stores',
-    },
-    {
-      id: 'jar_explain',
-      mark: '🫙',
-      label: '換罐說明',
-      subtitle: '制度怎麼玩。瓶子才是主角。',
-      heroKey: 'jar-explain',
-    },
-  ];
-
   if (registered) {
     return {
       primaryId: 'jar_enter',
-      body: '瓶子來了？丟序號。今天也記一罐。',
-      items,
+      body: '瓶子來了就丟序號。想換好康，下面也有。',
+      items: [
+        {
+          id: 'jar_explain',
+          mark: '',
+          label: '換罐計劃是什麼',
+          subtitle: '制度怎麼玩。瓶子才是主角。',
+          heroKey: 'jar-explain',
+        },
+        {
+          id: 'jar_stores',
+          mark: '',
+          label: '配合店家',
+          subtitle: '折價綁哪間，先看清楚。',
+          heroKey: 'jar-stores',
+        },
+        {
+          id: 'jar_enter',
+          mark: '',
+          label: '兌換序號',
+          subtitle: '罐底 8 碼，丟上來就好。',
+          heroKey: 'jar-enter',
+        },
+        {
+          id: 'redeem',
+          mark: '',
+          label: '兌換好禮',
+          subtitle: '點數換成實際好康。',
+          heroKey: 'jar-vault',
+        },
+      ],
     };
   }
 
   return {
     primaryId: 'jar_reg',
-    body: '第一次？先開戶。瓶子會等你。',
-    items,
+    body: '第一次？先搞懂換罐，再幫毛孩開戶。',
+    items: [
+      {
+        id: 'jar_explain',
+        mark: '',
+        label: '換罐計劃是什麼',
+        subtitle: '制度怎麼玩。瓶子才是主角。',
+        heroKey: 'jar-explain',
+      },
+      {
+        id: 'jar_reg',
+        mark: '',
+        label: '開戶',
+        subtitle: '先認人。沒戶頭，罐進不來。',
+        heroKey: 'jar-reg',
+      },
+      {
+        id: 'jar_stores',
+        mark: '',
+        label: '配合店家',
+        subtitle: '折價綁哪間，先看清楚。',
+        heroKey: 'jar-stores',
+      },
+    ],
   };
 }
 
