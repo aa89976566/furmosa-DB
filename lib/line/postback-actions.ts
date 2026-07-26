@@ -113,8 +113,16 @@ async function replyChaosItem(
   // 活動文案不附換罐選單，避免制度混進來
   await replyTriggerOnce(lineUserId, 'unboxing', async () => {
     const messages: LineReplyMessage[] = [];
-    // 活動：先丟海報，再丟爛點子文案
-    if (itemId === 'chaos_events') {
+    // 活動：海報上線後先丟圖（public/line/events/poster.jpg），再丟爛點子文案
+    if (itemId === 'chaos_events' && process.env.LINE_EVENTS_POSTER_READY === '1') {
+      const poster = lineAssetUrl('/line/events/poster.jpg');
+      messages.push({
+        type: 'image',
+        originalContentUrl: poster,
+        previewImageUrl: poster,
+      });
+    } else if (itemId === 'chaos_events') {
+      // 預設：用卡片 hero 當海報（同檔更新後即生效）
       const poster = lineAssetUrl('/line/cards/chaos-events.png');
       messages.push({
         type: 'image',
