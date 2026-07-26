@@ -1,22 +1,29 @@
 import { LINE_BTN, LINE_MENU_HINT_GUEST } from '@/lib/line/line-copy';
 import type { OnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 
-export const LINE_WELCOME_TEXT = `歡迎來到匠寵罐罐存款 🐾
+export const LINE_WELCOME_TEXT = `歡迎來到匠寵 🐾
 
-把空罐序號傳上來，幫毛孩記帳、累積罐罐點數。
-第一次請點下方「${LINE_BTN.register}」，在對話裡依序填寫即可。`;
+這裡比較像一本小漫畫，不太像客服機器人。
 
-/** 依節流狀態組裝訪客歡迎詞（開戶／存罐提示各最多 24 小時一次） */
+跟著傑克走一天：
+🐾 一起野放
+✂️ 預約美容
+🫙 換罐計劃
+🏠 回家
+
+第一次先去「換罐計劃」開戶。`;
+
+/** 依節流狀態組裝訪客歡迎詞 */
 export function buildGuestWelcomeText(flags: OnboardingPromptFlags): string {
-  const lines = ['歡迎來到匠寵罐罐存款 🐾', ''];
+  const lines = ['歡迎來到匠寵 🐾', ''];
   if (flags.showJar) {
-    lines.push('把空罐序號傳上來，幫毛孩記帳、累積罐罐點數。');
+    lines.push('空罐罐底 8 碼傳上來，會進毛孩名下。');
   }
   if (flags.showRegister) {
-    lines.push(`第一次請點下方「${LINE_BTN.register}」，在對話裡依序填寫即可。`);
+    lines.push(`第一次先點「${LINE_BTN.hubJar}」→「${LINE_BTN.register}」。`);
   }
   if (!flags.showJar && !flags.showRegister) {
-    lines.push('點下方按鈕即可操作。');
+    lines.push('下面四格，想晃哪格點哪格。');
   }
   return lines.join('\n');
 }
@@ -32,27 +39,27 @@ export function guestWelcomePromptMarks(flags: OnboardingPromptFlags): {
 }
 
 export const LINE_BIND_HELP_TEXT = `開戶 = 把這個 LINE 跟毛孩檔案對起來。
-請點「${LINE_BTN.register}」，依對話提示填寫。
+請點「${LINE_BTN.register}」，依提示填就好。
 
 備援：可傳 綁定 0912345678`;
 
-export const LINE_HELP_TEXT = `【匠寵罐罐存款】
+export const LINE_HELP_TEXT = `【匠寵怎麼玩】
 
-• ${LINE_BTN.register} → 填稱呼、毛孩、年齡或生日
-• ${LINE_BTN.vault} → 看點數與累積罐數
-• ${LINE_BTN.redeem} → 選獎勵兌換
-• ${LINE_BTN.unboxing} → 最後一片研究計畫
-• 存罐 → 直接傳 8 位序號`;
+• ${LINE_BTN.hubJar} → 開戶、序號、會員、換罐
+• ${LINE_BTN.hubChaos} → 嗷嗚、活動、開箱、合作、優惠
+• 預約美容 → 還沒放好水（好玩版敬請期待）
+• ${LINE_BTN.hubWild} → furmosa.com 與 @furmosa_food
+• 存罐 → 直接傳 8 位序號（要先開戶）`;
 
 export function lineBindRequiredText() {
-  return `序號收到了，但還不知道是哪位毛孩的罐罐 🤔\n請先點「${LINE_BTN.register}」完成開戶。`;
+  return `序號收到了，可是還不知道是哪位毛孩的罐 🤔\n先點「${LINE_BTN.register}」開個戶。`;
 }
 
 export function lineUnknownText(showJarHint = true) {
   if (!showJarHint) {
-    return '小管家沒看懂這句～\n請點下方按鈕。';
+    return '這句我們沒接住～\n點下面那格再試一次。';
   }
-  return `小管家沒看懂這句～\n請點下方按鈕，或傳 8 位序號存罐。`;
+  return `這句我們沒接住～\n點一格入口，或傳 8 位序號存罐。`;
 }
 
 export { LINE_MENU_HINT_GUEST };

@@ -29,6 +29,7 @@ export type ParsedPetFields = {
   petSpecies: string | null;
   petSpeciesOther: string | null;
   petName: string | null;
+  petBreed: string | null;
   petAgeYears: number | null;
   petBirthday: Date | null;
 };
@@ -41,6 +42,7 @@ export function parsePetFieldsFromFormData(formData: FormData): ParsedPetFields 
   const petSpeciesOther = String(formData.get('petSpeciesOther') ?? '').trim() || null;
 
   const petName = String(formData.get('petName') ?? '').trim() || null;
+  const petBreed = String(formData.get('petBreed') ?? '').trim() || null;
 
   const ageRaw = String(formData.get('petAgeYears') ?? '').trim();
   let petAgeYears: number | null = null;
@@ -60,6 +62,7 @@ export function parsePetFieldsFromFormData(formData: FormData): ParsedPetFields 
     petSpecies,
     petSpeciesOther: petSpecies === 'other' ? petSpeciesOther : null,
     petName,
+    petBreed,
     petAgeYears,
     petBirthday,
   };
@@ -69,6 +72,7 @@ export function validatePetFieldsConsistency(p: ParsedPetFields): void {
   const hasPet =
     p.petName ||
     p.petSpecies ||
+    p.petBreed ||
     (p.petSpeciesOther && p.petSpecies === 'other') ||
     p.petAgeYears !== null ||
     p.petBirthday !== null;

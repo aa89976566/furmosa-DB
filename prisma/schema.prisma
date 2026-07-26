@@ -106,6 +106,7 @@ model Customer {
   petSpecies       String?   @map("pet_species") // dog / cat / rabbit / … / other
   petSpeciesOther  String?   @map("pet_species_other")
   petName          String?   @map("pet_name")
+  petBreed         String?   @map("pet_breed")
   petAgeYears      Int?      @map("pet_age_years")
   petBirthday      DateTime? @map("pet_birthday")
 

@@ -94,6 +94,7 @@ async function normalizeCustomerInput(input: CustomerCreateInput): Promise<Norma
     petSpecies: input.petSpecies ?? null,
     petSpeciesOther: input.petSpeciesOther ?? null,
     petName: input.petName ?? null,
+    petBreed: input.petBreed ?? null,
     petAgeYears: input.petAgeYears ?? null,
     petBirthday: input.petBirthday ?? null,
   };
@@ -148,6 +149,7 @@ export async function updateCustomerRecord(
       petSpecies: f.pet.petSpecies,
       petSpeciesOther: f.pet.petSpecies === 'other' ? f.pet.petSpeciesOther : null,
       petName: f.pet.petName,
+      petBreed: f.pet.petBreed,
       petAgeYears: f.pet.petAgeYears,
       petBirthday: f.pet.petBirthday,
     },
@@ -205,6 +207,7 @@ export async function createCustomerRecord(
       petSpecies: pet.petSpecies,
       petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
       petName: pet.petName,
+      petBreed: pet.petBreed,
       petAgeYears: pet.petAgeYears,
       petBirthday: pet.petBirthday,
     },

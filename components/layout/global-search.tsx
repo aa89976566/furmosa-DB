@@ -4,61 +4,38 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-
-const SEARCHABLE_PREFIXES = [
-  '/products',
-  '/orders',
-  '/customers',
-  '/merchants',
-  '/vendors',
-  '/shipments',
-  '/subscriptions',
-];
+import {
+  isGlobalSearchListPath,
+  resolveGlobalSearchHref,
+} from '@/lib/global-search-nav';
 
 /**
- * 全站搜尋：輸入時只更新本地 state，按 Enter 才 router.replace。
- * 避免每個字元觸發整頁 RSC 重跑（訂單／出貨／寄賣等重查詢）。
+ * 全站搜尋：輸入時只更新本地 state，按 Enter 或點右側按鈕才導航。
+ * 子頁（如新增訂單）會導回對應列表並帶 ?q=，避免掛在無篩選頁上看起來「沒反應」。
  */
 export function GlobalSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const jarExchange = pathname.startsWith('/jar-exchange');
-  const qFromUrl = jarExchange ? '' : (searchParams.get('q') ?? '');
+  const onList = isGlobalSearchListPath(pathname);
+  const qFromUrl = onList ? (searchParams.get('q') ?? '') : '';
   const [value, setValue] = useState(qFromUrl);
 
   useEffect(() => {
-    if (!jarExchange) setValue(qFromUrl);
-    else setValue('');
-  }, [qFromUrl, jarExchange]);
+    setValue(qFromUrl);
+  }, [qFromUrl, pathname]);
 
-  const searchable = SEARCHABLE_PREFIXES.some((prefix) => {
-    // 廠商詳情頁不掛 q，避免以為有篩選；搜尋改導向產品列表
-    if (prefix === '/vendors') return pathname === '/vendors';
-    return pathname === prefix || pathname.startsWith(`${prefix}/`);
-  });
-
-  const navigateWithQuery = (trimmed: string) => {
-    if (!searchable) {
-      if (trimmed) router.push(`/orders?q=${encodeURIComponent(trimmed)}`);
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    if (trimmed) params.set('q', trimmed);
-    else params.delete('q');
-    const query = params.toString();
-    const next = query ? `${pathname}?${query}` : pathname;
-    const current = searchParams.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
-    if (next !== current) {
-      router.replace(next, { scroll: false });
-    }
+  const navigateWithQuery = (raw: string) => {
+    const next = resolveGlobalSearchHref(pathname, searchParams.toString(), raw);
+    if (!next) return;
+    // 離開目前子頁時用 push，方便返回；列表就地篩選用 replace
+    if (onList) router.replace(next, { scroll: false });
+    else router.push(next);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigateWithQuery(value.trim());
+    navigateWithQuery(value);
   };
 
   return (
@@ -69,10 +46,21 @@ export function GlobalSearch() {
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="搜尋後按 Enter（訂單、電話、店家、商品…）"
-        className="h-9 rounded-md border-border/80 bg-muted/30 pl-9 text-sm shadow-none focus-visible:bg-card"
+        placeholder="搜尋訂單、電話、店家、商品…"
+        className="h-9 rounded-md border-border/80 bg-muted/30 pl-9 pr-10 text-sm shadow-none focus-visible:bg-card"
         aria-label="搜尋"
+        enterKeyHint="search"
+        autoComplete="off"
+        inputMode="search"
       />
+      <button
+        type="submit"
+        className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="執行搜尋"
+        title="搜尋"
+      >
+        <Search className="h-4 w-4" />
+      </button>
     </form>
   );
 }

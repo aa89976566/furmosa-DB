@@ -1,14 +1,19 @@
 import { prisma } from '@/lib/prisma';
 
+export type RegisterResumeAfter = 'enter_code';
+
 export type RegisterDraft = {
   signupStore?: string | null;
   name?: string;
+  phone?: string | null;
   petSpecies?: string | null;
   petSpeciesOther?: string | null;
   petName?: string | null;
+  petBreed?: string | null;
   petAgeYears?: number | null;
   petBirthday?: string | null;
-  phone?: string | null;
+  /** 開戶完成後自動接回的下一步（例：從輸入序號閘道進來） */
+  resumeAfter?: RegisterResumeAfter | null;
   /** 各步驟最後一次提示時間（ISO），24 小時內不重複追問 */
   stepPromptAt?: Partial<Record<string, string>>;
 };

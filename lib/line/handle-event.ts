@@ -3,12 +3,27 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import {
+  JAR_ENTER_BLOCKED_GUEST,
+  CHAOS_COPY,
+} from '@/lib/line/brand-worlds';
+import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
-  formatSavingsStatusMessage,
+  formatVaultStatusMessage,
+  rewardProgress,
 } from '@/lib/line/jar-deposit-copy';
 import { buildRedeemPickerMessages } from '@/lib/line/flex-menu';
-import { LINE_UNBOXING_INFO } from '@/lib/line/line-copy';
+import {
+  buildComicGroomingMessages,
+  buildComicHomeMessages,
+  buildComicJarMessages,
+  buildComicRoamMessages,
+} from '@/lib/line/comic-menu';
+import {
+  buildJarSuccessFlex,
+  buildRegisterGateMessages,
+  buildWorldHubMessages,
+} from '@/lib/line/flex-hubs';
 import {
   buildGuestWelcomeText,
   guestWelcomePromptMarks,
@@ -19,7 +34,7 @@ import {
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
-import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
+import { handleRegisterFlowMessage, startRegisterFlow } from '@/lib/line/register-from-chat';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
@@ -32,6 +47,7 @@ import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
+import { prisma } from '@/lib/prisma';
 
 type LineMessageEvent = {
   type: 'message';
@@ -61,13 +77,23 @@ export type LineWebhookEvent =
 
 type BoundCustomer = NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>;
 
-async function loadDepositSnapshot(customer: BoundCustomer) {
-  const stats = await getJarExchangeStatsForCustomer(customer.id);
+async function loadVaultSnapshot(customer: BoundCustomer) {
+  const [stats, recent] = await Promise.all([
+    getJarExchangeStatsForCustomer(customer.id),
+    prisma.jarCode.findMany({
+      where: { redeemedByCustomerId: customer.id, status: 'used' },
+      orderBy: { redeemedAt: 'desc' },
+      take: 5,
+      select: { code: true },
+    }),
+  ]);
   return {
     customerName: customer.name,
     customerCode: customer.customerId,
     pointsBalance: stats.pointsBalance,
     jarsDeposited: stats.codesRedeemed,
+    recentCodes: recent.map((r) => r.code),
+    petName: customer.petName ?? null,
   };
 }
 
@@ -96,7 +122,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
     const rl = checkLineRateLimit(`line:user:${lineUserId}`, { limit: 30, windowMs: 60_000 });
     if (!rl.ok) {
-      await replyLineText(pb.replyToken, '操作過於頻繁，請稍後再試');
+      await replyLineText(pb.replyToken, '操作有點密，晚點再試。');
       return;
     }
 
@@ -114,7 +140,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   const rl = checkLineRateLimit(`line:user:${lineUserId}`, { limit: 30, windowMs: 60_000 });
   if (!rl.ok) {
-    await replyLineText(replyToken, '操作過於頻繁，請稍後再試');
+    await replyLineText(replyToken, '操作有點密，晚點再試。');
     return;
   }
 
@@ -124,9 +150,34 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   const parsed = parseLineUserText(msgEvent.message.text);
   const customer = await findCustomerByLineUserId(lineUserId);
+  const registered = Boolean(customer);
 
-  // 被動觸發：不自動回覆
   if (isPassiveAutoReply(parsed.kind)) {
+    return;
+  }
+
+  if (parsed.kind === 'hub_jar') {
+    await replyLineMessage(replyToken, buildComicJarMessages(registered));
+    return;
+  }
+  if (parsed.kind === 'comic_roam') {
+    await replyLineMessage(replyToken, buildComicRoamMessages(registered));
+    return;
+  }
+  if (parsed.kind === 'comic_grooming') {
+    await replyLineMessage(replyToken, buildComicGroomingMessages());
+    return;
+  }
+  if (parsed.kind === 'comic_home') {
+    await replyLineMessage(replyToken, buildComicHomeMessages(registered));
+    return;
+  }
+  if (parsed.kind === 'hub_chaos') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+    return;
+  }
+  if (parsed.kind === 'hub_wild') {
+    await replyLineMessage(replyToken, buildWorldHubMessages('wild', { registered }));
     return;
   }
 
@@ -134,7 +185,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyTriggerOnce(lineUserId, 'help', async () => {
       await replyMenuHub(replyToken, lineUserId, {
         body: LINE_HELP_TEXT,
-        registered: Boolean(customer),
+        registered,
         alwaysReplyBody: true,
       });
     });
@@ -142,47 +193,33 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'unboxing') {
+    const t = msgEvent.message.text;
+    const text =
+      t.includes('清蛙') || t.includes('青蛙')
+        ? CHAOS_COPY.chaos_frog
+        : t.includes('開箱')
+          ? CHAOS_COPY.chaos_unbox
+          : CHAOS_COPY.chaos_aowu;
     await replyTriggerOnce(lineUserId, 'unboxing', async () => {
-      await replyLineTextWithMenu(replyToken, lineUserId, LINE_UNBOXING_INFO, {
-        registered: Boolean(customer),
-      });
+      await replyLineTextWithMenu(replyToken, lineUserId, text, { registered });
     });
     return;
   }
 
   if (parsed.kind === 'bind_help') {
-    await replyTriggerOnce(lineUserId, 'bind_help', async () => {
-      await replyMenuHub(replyToken, lineUserId, {
-        body: LINE_BIND_HELP_TEXT,
-        registered: false,
-        alwaysReplyBody: true,
-      });
-    });
+    await startRegisterFlow(replyToken, lineUserId);
     return;
   }
 
   if (parsed.kind === 'status' || parsed.kind === 'savings') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, {
-        body: lineBindRequiredText(),
-        registered: false,
-        alwaysReplyBody: true,
-      });
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
       return;
     }
-    const snapshot = await loadDepositSnapshot(customer);
-    const promptFlags = await getOnboardingPromptFlags(lineUserId);
-    const showJarHint = promptFlags.showJar && snapshot.jarsDeposited === 0;
-    await replyLineTextWithMenu(
-      replyToken,
-      lineUserId,
-      formatSavingsStatusMessage(snapshot, { showJarHint }),
-      {
-        registered: true,
-        promptFlags,
-        bodyPromptMarks: showJarHint ? { jar: true } : undefined,
-      },
-    );
+    const snapshot = await loadVaultSnapshot(customer);
+    await replyLineTextWithMenu(replyToken, lineUserId, formatVaultStatusMessage(snapshot), {
+      registered: true,
+    });
     return;
   }
 
@@ -195,7 +232,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `✅ 開戶成功！\n${result.customerName}\n\n傳 8 位序號存罐，或點下方按鈕。`,
+      `開戶對上了！\n${result.customerName}\n\n罐底 8 碼直接傳上來。`,
       { registered: true },
     );
     return;
@@ -203,17 +240,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'balance') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, {
-        body: lineBindRequiredText(),
-        registered: false,
-        alwaysReplyBody: true,
-      });
+      await replyLineMessage(replyToken, buildRegisterGateMessages(lineBindRequiredText()));
       return;
     }
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      formatQuickBalanceMessage(await loadDepositSnapshot(customer)),
+      formatQuickBalanceMessage(await loadVaultSnapshot(customer)),
       { registered: true },
     );
     return;
@@ -223,7 +256,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     const rewards = await listActiveRewardsForLine();
     if (!customer) {
       await replyMenuHub(replyToken, lineUserId, {
-        body: `${formatRewardMenuText(rewards)}\n\n⚠️ 請先點「幫毛孩開戶」。`,
+        body: `${formatRewardMenuText(rewards)}\n\n⚠️ 先開戶才能換。`,
         registered: false,
         alwaysReplyBody: true,
       });
@@ -236,20 +269,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'redeem_reward') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, {
-        body: lineBindRequiredText(),
-        registered: false,
-        alwaysReplyBody: true,
-      });
+      await replyLineMessage(replyToken, buildRegisterGateMessages(lineBindRequiredText()));
       return;
     }
     const rewards = await listActiveRewardsForLine();
     const reward = await resolveRewardFromLineInput(parsed.target, rewards);
     if (!reward) {
-      const snapshot = await loadDepositSnapshot(customer);
+      const snapshot = await loadVaultSnapshot(customer);
       await replyLineText(
         replyToken,
-        `找不到獎勵「${parsed.target}」。\n\n${formatRewardMenuText(rewards, snapshot.pointsBalance)}`,
+        `找不到「${parsed.target}」。\n\n${formatRewardMenuText(rewards, snapshot.pointsBalance)}`,
       );
       return;
     }
@@ -261,7 +290,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `🎁 兌換成功\n${reward.rewardName}\n消耗 ${result.pointsSpent} 點，餘額 ${result.balanceAfter} 點\n\n優惠券碼：${result.couponCode}`,
+      `換到了：${reward.rewardName}\n花 ${result.pointsSpent} 點，剩 ${result.balanceAfter}\n券碼：${result.couponCode}`,
       { registered: true },
     );
     return;
@@ -269,11 +298,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   if (parsed.kind === 'jar_code') {
     if (!customer) {
-      await replyMenuHub(replyToken, lineUserId, {
-        body: lineBindRequiredText(),
-        registered: false,
-        alwaysReplyBody: true,
-      });
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
       return;
     }
 
@@ -282,22 +307,26 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    const stats = await getJarExchangeStatsForCustomer(customer.id);
-    await replyLineTextWithMenu(
-      replyToken,
-      lineUserId,
-      formatJarDepositSuccessMessage({
-        customerName: customer.name,
-        customerCode: customer.customerId,
-        pointsBalance: result.balanceAfter,
-        jarsDeposited: stats.codesRedeemed,
-        pointsEarnedThisTime: result.pointsEarned,
+    const snapshot = await loadVaultSnapshot(customer);
+    const { progressLine } = rewardProgress(result.balanceAfter);
+    await replyLineMessage(replyToken, [
+      {
+        type: 'text',
+        text: formatJarDepositSuccessMessage({
+          ...snapshot,
+          pointsBalance: result.balanceAfter,
+          pointsEarnedThisTime: result.pointsEarned,
+          code: result.code,
+        }),
+      },
+      buildJarSuccessFlex({
         code: result.code,
+        pointsEarned: result.pointsEarned,
+        pointsBalance: result.balanceAfter,
+        jarsDeposited: snapshot.jarsDeposited,
+        progressLine,
       }),
-      { registered: true },
-    );
+    ]);
     return;
   }
-
-  // 其餘無法辨識的訊息：不自動回覆
 }
