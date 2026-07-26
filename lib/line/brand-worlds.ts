@@ -304,16 +304,16 @@ export function buildHomeItems(): WorldMenuItem[] {
   return [
     {
       id: 'wild_web',
-      mark: '🏠',
-      label: '回家',
+      mark: '',
+      label: '開飯去（官網）',
       subtitle: 'furmosa.com——門開著。',
       heroKey: 'wild-web',
       uri: undefined,
     },
     {
       id: 'wild_ig',
-      mark: '📷',
-      label: 'Instagram',
+      mark: '',
+      label: '去厝邊（IG）',
       subtitle: '@furmosa_food 日常出沒。',
       heroKey: 'wild-ig',
     },
