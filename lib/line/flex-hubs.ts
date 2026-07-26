@@ -26,12 +26,19 @@ import {
 import { LINE_BTN } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
-/** Flex 卡片圖：部署後的公開網址 */
+/**
+ * Flex／LINE 圖片用的公開網址。
+ * 避免用短期 Preview deployment host（LINE 抓圖會失敗 → 整段 reply 被拒 → 使用者無反應）。
+ */
 export function lineAssetUrl(path: string): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
+  const looksEphemeral =
+    /vercel\.app$/i.test(configured) &&
+    !/^https:\/\/furmosa-db\.vercel\.app\/?$/i.test(configured);
   const base =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-    'https://furmosa-db.vercel.app';
+    configured && !looksEphemeral
+      ? configured
+      : 'https://furmosa-db.vercel.app';
   const clean = path.startsWith('/') ? path : `/${path}`;
   return `${base.replace(/\/$/, '')}${clean}`;
 }
@@ -314,7 +321,9 @@ function itemToButton(
 ): MenuButtonItem {
   const action: CardAction = item.uri
     ? { type: 'uri', uri: item.uri }
-    : { type: 'postback', data: `jd=${item.id}`, displayText: item.label };
+    : item.message
+      ? { type: 'message', text: item.message }
+      : { type: 'postback', data: `jd=${item.id}`, displayText: item.label };
   const isPrimary = opts?.primaryId === item.id;
   return {
     label: item.label,

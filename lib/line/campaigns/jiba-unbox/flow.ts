@@ -316,6 +316,19 @@ function parseCollected(json: string): Record<string, unknown> {
   }
 }
 
+/** 開箱進行中若點其他入口，應離開開箱、交回一般訊息處理 */
+const LEAVE_UNBOX_RE =
+  /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|回家|還有很多故事|野放中|嗷嗚計劃|嗷嗚計畫|活動中心|沒梗了|青蛙誰在怕|清蛙誰在怕|開箱任務|毛孩來開箱)$/;
+
+async function safeFindActiveJibaApplication(lineUserId: string) {
+  try {
+    return await findActiveJibaApplication(lineUserId);
+  } catch (err) {
+    console.error('[jiba-unbox] findActiveJibaApplication failed', err);
+    return null;
+  }
+}
+
 /** 處理開箱流程中的文字／Quick Reply */
 export async function handleJibaUnboxMessage(
   replyToken: string,
@@ -326,38 +339,52 @@ export async function handleJibaUnboxMessage(
   const trimmed = text.trim();
   if (!trimmed) return false;
 
+  // 點了別的世界／一起野放子鍵 → 離開開箱，讓外層路由接手
+  if (LEAVE_UNBOX_RE.test(trimmed)) {
+    try {
+      await clearLineChatSession(lineUserId);
+    } catch (err) {
+      console.error('[jiba-unbox] clear session on leave failed', err);
+    }
+    return false;
+  }
+
   if (/^(取消|重來)$/.test(trimmed)) {
-    const app = await findActiveJibaApplication(lineUserId);
+    const app = await safeFindActiveJibaApplication(lineUserId);
     if (app) {
-      const prev = app.status;
-      await prisma.campaignApplication.update({
-        where: { id: app.id },
-        data: { status: APP_STATUS.CANCELLED_BY_USER, shippingQueueStatus: 'NOT_READY' },
-      });
-      if (app.orderId) {
-        await prisma.order.update({
-          where: { id: app.orderId },
-          data: { status: 'cancelled' },
+      try {
+        const prev = app.status;
+        await prisma.campaignApplication.update({
+          where: { id: app.id },
+          data: { status: APP_STATUS.CANCELLED_BY_USER, shippingQueueStatus: 'NOT_READY' },
         });
+        if (app.orderId) {
+          await prisma.order.update({
+            where: { id: app.orderId },
+            data: { status: 'cancelled' },
+          });
+        }
+        if (app.conversationSession) {
+          await setConversationState(app.conversationSession.id, FLOW_STATE.CANCELLED);
+          await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
+          await logBot(
+            app.conversationSession.id,
+            '好，這次先收工。想參加再說一聲「開箱任務」。',
+          );
+        }
+        await prisma.statusAuditLog.create({
+          data: {
+            entityType: 'campaign_application',
+            entityId: app.id,
+            previousStatus: prev,
+            newStatus: APP_STATUS.CANCELLED_BY_USER,
+            actorType: 'customer',
+            applicationId: app.id,
+          },
+        });
+      } catch (err) {
+        console.error('[jiba-unbox] cancel cleanup failed', err);
       }
-      if (app.conversationSession) {
-        await setConversationState(app.conversationSession.id, FLOW_STATE.CANCELLED);
-        await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
-        await logBot(
-          app.conversationSession.id,
-          '好，這次先收工。想參加再說一聲「開箱任務」。',
-        );
-      }
-      await prisma.statusAuditLog.create({
-        data: {
-          entityType: 'campaign_application',
-          entityId: app.id,
-          previousStatus: prev,
-          newStatus: APP_STATUS.CANCELLED_BY_USER,
-          actorType: 'customer',
-          applicationId: app.id,
-        },
-      });
     }
     await clearLineChatSession(lineUserId);
     await replyLineMessage(replyToken, [
@@ -367,21 +394,25 @@ export async function handleJibaUnboxMessage(
   }
 
   if (isFindHelper(trimmed)) {
-    const app = await findActiveJibaApplication(lineUserId);
+    const app = await safeFindActiveJibaApplication(lineUserId);
     if (app?.conversationSession) {
-      await prisma.conversationSession.update({
-        where: { id: app.conversationSession.id },
-        data: { operatorTakeover: true },
-      });
-      await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
-      await logBot(app.conversationSession.id, JIBA_FIND_HELPER);
+      try {
+        await prisma.conversationSession.update({
+          where: { id: app.conversationSession.id },
+          data: { operatorTakeover: true },
+        });
+        await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
+        await logBot(app.conversationSession.id, JIBA_FIND_HELPER);
+      } catch (err) {
+        console.error('[jiba-unbox] find helper log failed', err);
+      }
     }
     await replyLineMessage(replyToken, [{ type: 'text', text: JIBA_FIND_HELPER }]);
     return true;
   }
 
   if (/^查看目前資料$/.test(trimmed)) {
-    const app = await findActiveJibaApplication(lineUserId);
+    const app = await safeFindActiveJibaApplication(lineUserId);
     if (!app) {
       await replyLineMessage(replyToken, [
         { type: 'text', text: '目前沒有進行中的開箱申請。' },
@@ -400,7 +431,7 @@ export async function handleJibaUnboxMessage(
   }
 
   const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
-  let app = await findActiveJibaApplication(lineUserId);
+  let app = await safeFindActiveJibaApplication(lineUserId);
 
   // Intro / rules（尚未建立申請）
   if (!app && chat?.flow === 'jiba_unbox') {

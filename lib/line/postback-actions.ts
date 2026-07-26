@@ -40,6 +40,7 @@ import {
   handleRegisterPostback,
   startRegisterFlow,
 } from '@/lib/line/register-from-chat';
+import { clearLineChatSession, getLineChatSession } from '@/lib/line/chat-session';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { replyTriggerOnce } from '@/lib/line/trigger-throttle';
@@ -97,6 +98,17 @@ function resolveCustomerStore(
   return { storeId, storeName };
 }
 
+async function leaveJibaIfNeeded(lineUserId: string) {
+  try {
+    const chat = await getLineChatSession(lineUserId);
+    if (chat?.flow === 'jiba_unbox') {
+      await clearLineChatSession(lineUserId);
+    }
+  } catch (err) {
+    console.error('[line] clear jiba session failed', err);
+  }
+}
+
 async function replyChaosItem(
   replyToken: string,
   lineUserId: string,
@@ -109,6 +121,9 @@ async function replyChaosItem(
     await startJibaUnboxIntro(replyToken, lineUserId);
     return;
   }
+
+  // 離開開箱暫存，避免卡在狀態機裡
+  await leaveJibaIfNeeded(lineUserId);
 
   // 嗷嗚計劃／舊青蛙鍵 → 青蛙誰在怕（獨立專案）
   if (itemId === 'chaos_aowu' || itemId === 'chaos_frog') {
@@ -135,7 +150,12 @@ export async function handleLinePostback(
 
   if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
 
-  const customer = await findCustomerByLineUserId(lineUserId);
+  let customer: Awaited<ReturnType<typeof findCustomerByLineUserId>> = null;
+  try {
+    customer = await findCustomerByLineUserId(lineUserId);
+  } catch (err) {
+    console.error('[line] findCustomerByLineUserId failed', err);
+  }
   const registered = Boolean(customer);
 
   if (action === 'hub_jar') {

@@ -121,7 +121,7 @@ describe('換罐計劃選單', () => {
 });
 
 describe('一起野放', () => {
-  it('三鍵：嗷嗚計劃／活動中心／開箱任務', () => {
+  it('三鍵：嗷嗚計劃／活動中心／開箱任務（message 按鈕）', () => {
     const flex = flexFrom(buildWorldHubMessages('chaos'));
     assert.equal(flex.contents.type, 'bubble');
     const raw = JSON.stringify(flex.contents);
@@ -129,6 +129,7 @@ describe('一起野放', () => {
     assert.match(raw, /活動中心/);
     assert.match(raw, /開箱任務/);
     assert.match(raw, /"type":"button"/);
+    assert.match(raw, /"type":"message"/);
     assert.equal(countButtons(flex), 3);
     assert.doesNotMatch(raw, /"label":"青蛙誰在怕"/);
     assert.doesNotMatch(raw, /"label":"活動"/);

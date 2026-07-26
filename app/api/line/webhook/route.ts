@@ -5,6 +5,7 @@ import {
   isLineWebhookConfigured,
 } from '@/lib/line/config';
 import { handleLineWebhookEvent, type LineWebhookEvent } from '@/lib/line/handle-event';
+import { replyLineFallback } from '@/lib/line/reply';
 import { verifyLineSignature } from '@/lib/line/verify-signature';
 
 export const runtime = 'nodejs';
@@ -45,6 +46,12 @@ export async function POST(req: Request) {
       await handleLineWebhookEvent(event);
     } catch (e) {
       console.error('[line/webhook] event error', e);
+      // 不可靜默：replyToken 還在就一定回一句
+      const replyToken =
+        'replyToken' in event && typeof event.replyToken === 'string'
+          ? event.replyToken
+          : undefined;
+      await replyLineFallback(replyToken);
     }
   }
 

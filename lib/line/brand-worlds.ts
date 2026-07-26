@@ -16,6 +16,11 @@ export type WorldMenuItem = {
   /** public/line/cards/{heroKey}.png */
   heroKey: string;
   uri?: string;
+  /**
+   * 若設定：按鈕改送文字訊息（走 parseLineUserText），
+   * 比 postback 更不容易因中間層例外而靜默。
+   */
+  message?: string;
 };
 
 export const WORLD_HUB_LABELS: Record<WorldHubId, string> = {
@@ -111,6 +116,7 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     label: '嗷嗚計劃',
     subtitle: '進青蛙誰在怕。誰在怕？先別回答。',
     heroKey: 'chaos-frog',
+    message: '嗷嗚計劃',
   },
   {
     id: 'chaos_events',
@@ -118,6 +124,7 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     label: '活動中心',
     subtitle: '沒梗了——給個爛點子也好玩。',
     heroKey: 'chaos-events',
+    message: '活動中心',
   },
   {
     id: 'chaos_unbox',
@@ -125,6 +132,7 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     label: '開箱任務',
     subtitle: '拆、聞、吃、拍。就這樣。',
     heroKey: 'chaos-unbox',
+    message: '開箱任務',
   },
 ];
 
