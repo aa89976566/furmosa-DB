@@ -33,7 +33,7 @@ export const WORLD_HUB_EMOJI: Record<WorldHubId, string> = {
 export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
   jar: '瓶子才是主角。',
   chaos: '外面比較好玩。',
-  wild: '門開著，故事還在。',
+  wild: '狗屋在裡面，院子也還亮著。',
 };
 
 export const JAR_ENTER_HINT_REGISTERED =
@@ -46,7 +46,8 @@ export const JAR_ENTER_BLOCKED_GUEST = `先開戶。
 export const CHAOS_INTRO = '傑克往外衝了。外面比較好玩——點下面按鈕跟去。';
 
 /** 回家：不是官網首頁，是家 */
-export const WILD_INTRO = '門開著。鞋子可以脫了。還想晃就接著晃。';
+export const WILD_INTRO = `到了。
+狗屋在裡面，院子也還亮著。`;
 
 export const JAR_EXPLAIN_INTRO = `【換罐說明】
 
@@ -304,17 +305,17 @@ export function buildHomeItems(): WorldMenuItem[] {
   return [
     {
       id: 'wild_web',
-      mark: '',
-      label: '開飯去（官網）',
-      subtitle: 'furmosa.com——門開著。',
+      mark: '🏠',
+      label: '🏠 進狗屋（官網）',
+      subtitle: 'furmosa.com——狗屋在裡面。',
       heroKey: 'wild-web',
       uri: undefined,
     },
     {
       id: 'wild_ig',
-      mark: '',
-      label: '去厝邊（IG）',
-      subtitle: '@furmosa_food 日常出沒。',
+      mark: '🌿',
+      label: '🌿 去院子（Instagram）',
+      subtitle: '@furmosa_food 院子還亮著。',
       heroKey: 'wild-ig',
     },
   ];
