@@ -3,6 +3,7 @@
  * DB（campaign_applications + conversation_sessions）為唯一真相來源。
  */
 import {
+  ACTIVE_APP_STATUSES,
   APP_STATUS,
   FLOW_STATE,
   JIBA_LICENSE_VERSION,
@@ -40,6 +41,7 @@ import {
   jibaReturnFieldCopy,
 } from '@/lib/campaigns/jiba-two-piece/copy';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
+import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import {
   appendConversationMessage,
   approveAndCreatePayment,
@@ -73,6 +75,7 @@ import {
 } from '@/lib/line/chat-session';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
+import { runAfterReply } from '@/lib/line/defer';
 import { prisma } from '@/lib/prisma';
 
 /** 開箱流程回覆：拆泡後若超過 5 則，其餘 push 接續 */
@@ -256,13 +259,11 @@ export async function startJibaUnboxIntro(
     jibaIntroChoiceMenu('開箱任務', '想繼續的話，點下面按鈕就可以喔。'),
   ]);
 
-  try {
-    await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
+  runAfterReply(
+    upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
       phase: 'intro',
-    });
-  } catch (err) {
-    console.error('[jiba-unbox] upsertLineChatSession failed', err);
-  }
+    }).catch((err) => console.error('[jiba-unbox] upsertLineChatSession failed', err)),
+  );
 }
 
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
@@ -273,10 +274,19 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
     console.error('[jiba-unbox] lineChatSession lookup failed', err);
     return false;
   }
+  // 熱路徑不再每次 upsert 活動列；僅用 lineUserId 查進行中申請
   try {
-    const app = await findActiveJibaApplication(lineUserId);
+    const app = await prisma.campaignApplication.findFirst({
+      where: {
+        lineUserId,
+        status: { in: [...ACTIVE_APP_STATUSES] },
+      },
+      select: { id: true, conversationSession: { select: { id: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
     return Boolean(app?.conversationSession);
   } catch (err) {
+    if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);
     return false;
   }
@@ -294,30 +304,43 @@ async function beginEnrollment(
     const sid = app.conversationSession!.id;
     const state = app.conversationSession!.currentState as FlowState;
 
-    await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
-      applicationId: app.id,
-    });
-    await logCustomer(sid, trimmed, lineMessageId);
-
+    // 先回使用者，對話紀錄／session 背景寫（縮短體感等待）
     if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
       const prompt = promptForState(state);
-      await logBot(sid, `我們接著上次繼續。\n${prompt}`);
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '你上次還沒填完喔，我們接著繼續～' },
         { type: 'text', text: prompt },
       ]);
+      runAfterReply(
+        (async () => {
+          await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+            applicationId: app.id,
+          });
+          await logCustomer(sid, trimmed, lineMessageId);
+          await logBot(sid, `我們接著上次繼續。\n${prompt}`);
+        })(),
+      );
       return;
     }
 
-    await logBot(sid, JIBA_START_WORK);
-    await logBot(sid, JIBA_ASK_NAME);
     await replyJiba(replyToken, lineUserId, [
       { type: 'text', text: JIBA_START_WORK },
       { type: 'text', text: JIBA_ASK_NAME },
     ]);
+    runAfterReply(
+      (async () => {
+        await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+          applicationId: app.id,
+        });
+        await logCustomer(sid, trimmed, lineMessageId);
+        await logBot(sid, JIBA_START_WORK);
+        await logBot(sid, JIBA_ASK_NAME);
+      })(),
+    );
   };
 
   try {
+    // schema 已就緒時為記憶體快取，幾乎零成本
     await ensureJibaCampaignSchema();
     await run();
   } catch (err) {

@@ -58,17 +58,25 @@ async function upsertJibaCampaign() {
   });
 }
 
+/** 同一 isolate 內快取活動列，避免每次 lookup 都 upsert */
+let cachedCampaign:
+  | Awaited<ReturnType<typeof upsertJibaCampaign>>
+  | null = null;
+
 /**
  * 確保雞霸開箱活動列存在。
  * 表缺失時先跑 idempotent DDL（migrate soft-fail 補償），再重試 upsert。
  */
 export async function ensureJibaCampaign() {
+  if (cachedCampaign) return cachedCampaign;
   try {
-    return await upsertJibaCampaign();
+    cachedCampaign = await upsertJibaCampaign();
+    return cachedCampaign;
   } catch (err) {
     if (!isMissingCampaignTableError(err)) throw err;
     await ensureJibaCampaignSchema();
-    return upsertJibaCampaign();
+    cachedCampaign = await upsertJibaCampaign();
+    return cachedCampaign;
   }
 }
 
@@ -90,11 +98,22 @@ export async function createJibaEnrollment(opts: {
   lineDisplayName?: string | null;
 }) {
   const campaign = await ensureJibaCampaign();
-  const existing = await findActiveJibaApplication(opts.lineUserId);
+  // 直接查，避免再走一輪 ensure＋findActive
+  const existing = await prisma.campaignApplication.findFirst({
+    where: {
+      campaignId: campaign.id,
+      lineUserId: opts.lineUserId,
+      status: { in: [...ACTIVE_APP_STATUSES] },
+    },
+    include: { conversationSession: true, campaign: true },
+    orderBy: { createdAt: 'desc' },
+  });
   if (existing) return existing;
 
-  const customer = await findCustomerByLineUserId(opts.lineUserId);
-  const orderNumber = await nextCampaignOrderNumber();
+  const [customer, orderNumber] = await Promise.all([
+    findCustomerByLineUserId(opts.lineUserId),
+    nextCampaignOrderNumber(),
+  ]);
   const order = await prisma.order.create({
     data: {
       orderNumber,
@@ -129,7 +148,7 @@ export async function createJibaEnrollment(opts: {
     },
   });
 
-  const session = await prisma.conversationSession.create({
+  await prisma.conversationSession.create({
     data: {
       lineUserId: opts.lineUserId,
       campaignApplicationId: application.id,
@@ -138,22 +157,25 @@ export async function createJibaEnrollment(opts: {
     },
   });
 
-  await recordStatusTransition({
-    entityType: 'campaign_application',
-    entityId: application.id,
-    previousStatus: null,
-    newStatus: APP_STATUS.COLLECTING_INFO,
-    actorType: 'bot',
-    applicationId: application.id,
-  });
-  await recordStatusTransition({
-    entityType: 'order',
-    entityId: order.id,
-    previousStatus: null,
-    newStatus: 'draft',
-    actorType: 'bot',
-    applicationId: application.id,
-  });
+  // 稽核 log 不擋回覆；背景寫入
+  void Promise.all([
+    recordStatusTransition({
+      entityType: 'campaign_application',
+      entityId: application.id,
+      previousStatus: null,
+      newStatus: APP_STATUS.COLLECTING_INFO,
+      actorType: 'bot',
+      applicationId: application.id,
+    }),
+    recordStatusTransition({
+      entityType: 'order',
+      entityId: order.id,
+      previousStatus: null,
+      newStatus: 'draft',
+      actorType: 'bot',
+      applicationId: application.id,
+    }),
+  ]).catch((err) => console.error('[jiba] audit log failed', err));
 
   return prisma.campaignApplication.findUniqueOrThrow({
     where: { id: application.id },

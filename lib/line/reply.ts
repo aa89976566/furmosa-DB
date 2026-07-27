@@ -1,5 +1,6 @@
 import { expandLineMessages } from '@/lib/line/expand-messages';
 import { getLineChannelAccessToken } from '@/lib/line/config';
+import { runAfterReply } from '@/lib/line/defer';
 import { pushLineMessages } from '@/lib/line/push';
 
 export type LineQuickReplyItem = {
@@ -25,6 +26,8 @@ export type LineReplyMessage = (
 export type ReplyLineOptions = {
   /** 拆泡後超過 5 則時，其餘以 Push 接續（需 userId） */
   lineUserId?: string;
+  /** 溢位 Push 改背景執行，讓 Reply 更快回到使用者（預設 true） */
+  deferOverflow?: boolean;
 };
 
 async function postReply(replyToken: string, messages: LineReplyMessage[]) {
@@ -59,8 +62,7 @@ async function pushOverflow(lineUserId: string, messages: LineReplyMessage[]) {
 
 /**
  * 準備送出的訊息：文字依換行拆泡。
- * 超過 5 則且有 lineUserId → 前回覆 5 則、其餘 push；
- * 無 userId 時若拆泡會爆量，則退回未拆結構以免截掉 Flex。
+ * 超過 5 則時：優先把 Flex 按鈕留在 Reply，其餘文字／圖進 overflow Push。
  */
 export function prepareReplyMessages(
   messages: LineReplyMessage[],
@@ -70,18 +72,39 @@ export function prepareReplyMessages(
   if (expanded.length <= 5) {
     return { reply: expanded, overflow: [] };
   }
-  if (opts?.lineUserId) {
-    return { reply: expanded.slice(0, 5), overflow: expanded.slice(5) };
-  }
-  if (messages.length <= 5) {
+  if (!opts?.lineUserId && messages.length <= 5) {
     return { reply: messages, overflow: [] };
   }
-  return { reply: expanded.slice(0, 5), overflow: [] };
+
+  const images = expanded.filter((m) => m.type === 'image');
+  const flexes = expanded.filter((m) => m.type === 'flex');
+  const texts = expanded.filter((m) => m.type === 'text');
+
+  const reply: LineReplyMessage[] = [];
+  // 封面圖可進 Reply；但一定要留給 Flex 至少 1 格，避免按鈕被擠到 Push
+  const reserveFlex = Math.min(flexes.length, 1);
+  for (const img of images) {
+    if (reply.length >= 5 - reserveFlex) break;
+    reply.push(img);
+  }
+  const textBudget = Math.max(0, 5 - reply.length - flexes.length);
+  reply.push(...texts.slice(0, textBudget));
+  for (const flex of flexes) {
+    if (reply.length >= 5) break;
+    reply.push(flex);
+  }
+
+  const replySet = new Set(reply);
+  const overflow = expanded.filter((m) => !replySet.has(m));
+  if (!opts?.lineUserId) {
+    return { reply: reply.slice(0, 5), overflow: [] };
+  }
+  return { reply, overflow };
 }
 
 /**
  * 回覆使用者。文字含換行會拆成多則氣泡。
- * 若含圖片被 LINE 拒收，自動降級為純文字／Flex，避免整段靜默。
+ * 溢位訊息預設背景 Push，縮短使用者等到第一則回覆的時間。
  */
 export async function replyLineMessage(
   replyToken: string,
@@ -106,7 +129,12 @@ export async function replyLineMessage(
     }
   }
   if (overflow.length > 0 && opts?.lineUserId) {
-    await pushOverflow(opts.lineUserId, overflow);
+    const pushTask = pushOverflow(opts.lineUserId, overflow);
+    if (opts.deferOverflow === false) {
+      await pushTask;
+    } else {
+      runAfterReply(pushTask);
+    }
   }
 }
 

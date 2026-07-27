@@ -4,12 +4,24 @@ import {
   getLineWebhookEnvChecks,
   isLineWebhookConfigured,
 } from '@/lib/line/config';
+import { runAfterReply } from '@/lib/line/defer';
 import { handleLineWebhookEvent, type LineWebhookEvent } from '@/lib/line/handle-event';
+import { showLineLoadingAnimation } from '@/lib/line/loading';
 import { replyLineFallback } from '@/lib/line/reply';
 import { verifyLineSignature } from '@/lib/line/verify-signature';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+/** 開箱報名等路徑含多段 DB；給足時間避免中途被殺 */
+export const maxDuration = 30;
+
+function eventUserId(event: LineWebhookEvent): string | undefined {
+  if (!('source' in event) || !event.source || typeof event.source !== 'object') {
+    return undefined;
+  }
+  const uid = (event.source as { userId?: string }).userId;
+  return typeof uid === 'string' ? uid : undefined;
+}
 
 export async function POST(req: Request) {
   if (!isLineWebhookConfigured()) {
@@ -41,12 +53,19 @@ export async function POST(req: Request) {
   }
 
   const events = payload.events ?? [];
+
+  // 感知速度：先顯示 Loading，再做業務（不 await）
+  for (const event of events) {
+    if (event.type !== 'message' && event.type !== 'postback') continue;
+    const uid = eventUserId(event);
+    if (uid) void showLineLoadingAnimation(uid, 20);
+  }
+
   for (const event of events) {
     try {
       await handleLineWebhookEvent(event);
     } catch (e) {
       console.error('[line/webhook] event error', e);
-      // 不可靜默：replyToken 還在就一定回一句
       const replyToken =
         'replyToken' in event && typeof event.replyToken === 'string'
           ? event.replyToken
@@ -59,10 +78,13 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  // 輕量暖機：uptime／排程 ping 可打此端點，減少冷啟動
+  runAfterReply(Promise.resolve());
   return NextResponse.json({
     ok: true,
     message: '匠寵 LINE Webhook（請在 LINE Developers 使用 POST）',
     configured: isLineWebhookConfigured(),
     checks: getLineWebhookEnvChecks(),
+    warm: true,
   });
 }
