@@ -1,8 +1,8 @@
 export const GROOMING_COUPON_DISCOUNT_ZHUWO = 250;
 export const GROOMING_COUPON_DISCOUNT_DEFAULT = 200;
 
-/** 折價券面額說明（未指定店家時） */
-export const GROOMING_COUPON_DISCOUNT_LABEL = '豬窩 250 元、其他合作店 200 元';
+/** 折價券面額說明（未指定店家時；實際金額視合作門市） */
+export const GROOMING_COUPON_DISCOUNT_LABEL = '約 200～250 元（視合作門市）';
 
 export function isZhuwoPartnerStore(storeId: string, storeName?: string | null): boolean {
   const id = storeId.trim().toLowerCase();

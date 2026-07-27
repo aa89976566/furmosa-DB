@@ -250,11 +250,14 @@ describe('換罐說明', () => {
     const msgs = buildJarExplainTopicMessages('intro');
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /jar-milo-selfie-v3\.jpg/);
+    assert.match(img.originalContentUrl, /jar-milo-drive-v4\.jpg/);
     const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
     assert.ok(texts.length >= 2);
-    assert.match(texts.map((t) => t.text).join('\n'), /空罐|8 碼|瓶子/);
-    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    const joined = texts.map((t) => t.text).join('\n');
+    assert.match(joined, /空罐|8 碼|毛孩/);
+    assert.match(joined, /200～250|200-250/);
+    assert.doesNotMatch(joined, /豬窩/);
+    assert.doesNotMatch(joined, /【/);
     assert.ok(msgs.length <= 5);
   });
 });
