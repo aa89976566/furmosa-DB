@@ -5,7 +5,14 @@ import { getAuthSecretKey } from '@/lib/auth-secret';
 export const MERCHANT_SESSION_COOKIE_NAME = 'furmosa_merchant_session';
 const MERCHANT_SESSION_TYPE = 'merchant';
 
-const SECRET = getAuthSecretKey();
+function secretKey(): Uint8Array | null {
+  try {
+    return getAuthSecretKey();
+  } catch (err) {
+    console.error('[merchant-auth/edge] AUTH_SECRET unavailable', err);
+    return null;
+  }
+}
 
 export type MerchantEdgeSession = {
   merchantUserId: string;
@@ -21,8 +28,10 @@ export async function verifyMerchantSessionEdge(
   now: Date = new Date(),
 ): Promise<MerchantEdgeSession | null> {
   if (!token) return null;
+  const key = secretKey();
+  if (!key) return null;
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, key);
     if (payload.type !== MERCHANT_SESSION_TYPE) return null;
     if (!payload.merchantUserId || !payload.merchantId || !payload.username) return null;
 

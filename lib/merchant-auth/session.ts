@@ -7,9 +7,11 @@ import { getAuthSecretKey } from '@/lib/auth-secret';
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
 
-const SECRET = getAuthSecretKey();
-
 const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168');
+
+function secretKey() {
+  return getAuthSecretKey();
+}
 
 export type MerchantSessionPayload = {
   merchantUserId: string;
@@ -77,7 +79,7 @@ export async function signMerchantSession(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(payload.issuedAt)
     .setExpirationTime(payload.expiresAt)
-    .sign(SECRET);
+    .sign(secretKey());
 
   return { token, payload };
 }
@@ -88,7 +90,7 @@ export async function readMerchantSession(
 ): Promise<MerchantSessionPayload | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, secretKey());
     if (payload.type !== MERCHANT_SESSION_TYPE) return null;
     if (!payload.merchantUserId || !payload.merchantId || !payload.username) return null;
 
