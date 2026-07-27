@@ -261,4 +261,20 @@ describe('換罐說明', () => {
     assert.doesNotMatch(joined, /【/);
     assert.ok(msgs.length <= 5);
   });
+
+  it('點流程：無圖八幕故事卡', () => {
+    const msgs = buildJarExplainTopicMessages('flow');
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const raw = JSON.stringify(msgs);
+    assert.doesNotMatch(raw, /"type":"image"/);
+    assert.match(raw, /換罐循環故事/);
+    assert.match(raw, /第一次買一罐/);
+    assert.match(raw, /NT\$129/);
+    assert.match(raw, /NT\$99/);
+    assert.match(raw, /瓶底 8 碼|8 碼/);
+    assert.match(raw, /集滿 10 點/);
+    assert.match(raw, /一直循環/);
+    assert.doesNotMatch(raw, /玩法很簡單/);
+  });
 });

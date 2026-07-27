@@ -61,9 +61,10 @@ export const JAR_EXPLAIN_DIALOGUE = {
     '罐底那串 8 碼傳上來，點數就會進你家毛孩名下。',
     '存滿 10 點就能換美容折價，金額依你開戶綁定的合作門市喔。',
   ],
+  /** @deprecated 流程改走 JAR_FLOW_STORY_STEPS（無圖故事卡） */
   flow: [
-    '玩法很簡單：先開戶、吃完零食、傳 8 碼、點數進會員，滿點再去綁定店折價。',
-    '還沒開戶的話，先幫毛孩開戶，之後序號才能順利入帳喔。',
+    '換罐是一段小小的循環故事，從第一罐開始。',
+    '細節請看下面的流程卡喔。',
   ],
   faq: [
     '毛爸媽常問這幾題～',
@@ -72,8 +73,53 @@ export const JAR_EXPLAIN_DIALOGUE = {
   ],
 } as const;
 
+/**
+ * 換罐流程：專業故事結構（八幕）
+ * 無封面圖；給 Flex 故事卡使用。
+ */
+export const JAR_FLOW_STORY = {
+  title: '換罐循環故事',
+  subtitle: '從第一罐開始，一路變成日常。',
+  steps: [
+    {
+      act: '1. 第一次買一罐',
+      beat: '先買第一罐（NT$129），故事就從這裡開場。',
+    },
+    {
+      act: '2. 加入會員',
+      beat: '掃 QR Code 加 LINE，幫毛孩開一個會員。',
+    },
+    {
+      act: '3. 輸入瓶底序號',
+      beat: '把瓶底 8 碼數字傳上來，這罐就會記在你家毛孩名下。',
+    },
+    {
+      act: '4. 毛孩去美容',
+      beat: '到合作美容店洗澡或美容時，記得把空罐一起帶去。',
+    },
+    {
+      act: '5. 線上付款',
+      beat: '美容店確認預約後，LINE 會收到 NT$99 的付款連結。',
+    },
+    {
+      act: '6. 到店換新罐',
+      beat: '店家收回空罐、核對瓶底序號，你就能直接拿一罐新的回家。',
+    },
+    {
+      act: '7. 一直循環',
+      beat: '之後每次帶空罐，都能用 NT$99 換新罐，不用一直買 NT$129。',
+    },
+    {
+      act: '8. 還有集點',
+      beat: '每換一次集 1 點；集滿 10 點，可折抵合作美容店（金額依你綁定的門市）。',
+    },
+  ],
+} as const;
+
 export const JAR_EXPLAIN_INTRO = JAR_EXPLAIN_DIALOGUE.intro.join('\n\n');
-export const JAR_EXPLAIN_FLOW = JAR_EXPLAIN_DIALOGUE.flow.join('\n\n');
+export const JAR_EXPLAIN_FLOW = JAR_FLOW_STORY.steps
+  .map((s) => `${s.act}\n${s.beat}`)
+  .join('\n\n');
 export const JAR_EXPLAIN_FAQ = JAR_EXPLAIN_DIALOGUE.faq.join('\n\n');
 
 export const BRAND_STORY = `匠寵 Furmosa。

@@ -7,6 +7,7 @@ import {
   JAR_ENTER_BLOCKED_GUEST,
   JAR_ENTER_HINT_REGISTERED,
   JAR_EXPLAIN_DIALOGUE,
+  JAR_FLOW_STORY,
   WILD_INTRO,
   WORLD_HUB_EMOJI,
   WORLD_HUB_LABELS,
@@ -129,12 +130,88 @@ export function buildEventsCenterMessages(opts?: {
   });
 }
 
-/** 換罐說明子項：cover＋對話 */
+/** 換罐流程：無圖故事卡（八幕循環） */
+export function buildJarFlowStoryMessages(): LineReplyMessage[] {
+  const theme = WORLD_THEME.jar;
+  const stepBoxes = JAR_FLOW_STORY.steps.map((step, idx) => ({
+    type: 'box',
+    layout: 'vertical',
+    spacing: 'xs',
+    margin: idx === 0 ? 'lg' : 'md',
+    contents: [
+      {
+        type: 'text',
+        text: step.act,
+        weight: 'bold',
+        size: 'sm',
+        color: theme.accent,
+        wrap: true,
+      },
+      {
+        type: 'text',
+        text: step.beat,
+        size: 'sm',
+        color: theme.ink,
+        wrap: true,
+      },
+    ],
+  }));
+
+  return [
+    {
+      type: 'flex',
+      altText: `${JAR_FLOW_STORY.title}：${JAR_FLOW_STORY.subtitle}`,
+      contents: {
+        type: 'bubble',
+        size: 'mega',
+        styles: {
+          body: { backgroundColor: theme.card },
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '18px',
+          backgroundColor: theme.card,
+          contents: [
+            {
+              type: 'text',
+              text: JAR_FLOW_STORY.title,
+              weight: 'bold',
+              size: 'lg',
+              color: theme.ink,
+              wrap: true,
+            },
+            {
+              type: 'text',
+              text: JAR_FLOW_STORY.subtitle,
+              size: 'sm',
+              color: theme.muted,
+              wrap: true,
+              margin: 'sm',
+            },
+            {
+              type: 'separator',
+              margin: 'md',
+              color: theme.rule,
+            },
+            ...stepBoxes,
+          ],
+        },
+      },
+    },
+  ];
+}
+
+/** 換罐說明子項：介紹／FAQ 用 cover＋對話；流程改無圖故事卡 */
 export function buildJarExplainTopicMessages(
   topic: 'intro' | 'flow' | 'faq',
 ): LineReplyMessage[] {
+  if (topic === 'flow') {
+    return buildJarFlowStoryMessages();
+  }
   return buildCoverDialogueMessages({
-    // Drive 原圖 Milo 換罐海報（v4；新檔名避開 LINE 快取）
+    // Drive 原圖換罐海報（介紹／FAQ）
     coverUrl: lineAssetUrl('/line/cards/jar-milo-drive-v4.jpg'),
     lines: [...JAR_EXPLAIN_DIALOGUE[topic]],
   });
