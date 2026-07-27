@@ -134,7 +134,8 @@ export function buildJarExplainTopicMessages(
   topic: 'intro' | 'flow' | 'faq',
 ): LineReplyMessage[] {
   return buildCoverDialogueMessages({
-    coverUrl: cardHeroUrl('jar-explain'),
+    // Milo 換罐海報（直式 jpg，比 png 更快）
+    coverUrl: lineAssetUrl('/line/cards/jar-explain.jpg'),
     lines: [...JAR_EXPLAIN_DIALOGUE[topic]],
   });
 }
