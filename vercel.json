@@ -1,5 +1,4 @@
 {
-{
   "crons": [
     {
       "path": "/api/cron/expire-coupons",
