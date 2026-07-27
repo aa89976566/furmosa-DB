@@ -83,7 +83,7 @@ export const JAR_FLOW_STORY = {
   steps: [
     {
       act: '1. 第一次買一罐',
-      beat: '先買第一罐（NT$129），故事就從這裡開場。',
+      beat: '先買第一罐（NT$129）。',
     },
     {
       act: '2. 加入會員',
@@ -91,7 +91,7 @@ export const JAR_FLOW_STORY = {
     },
     {
       act: '3. 輸入瓶底序號',
-      beat: '把瓶底 8 碼數字傳上來，這罐就會記在你家毛孩名下。',
+      beat: '把瓶底 8 碼數字輸入，這樣就會記錄這罐是您的。',
     },
     {
       act: '4. 毛孩去美容',
@@ -103,19 +103,18 @@ export const JAR_FLOW_STORY = {
     },
     {
       act: '6. 到店換新罐',
-      beat: '店家收回空罐、核對瓶底序號，你就能直接拿一罐新的回家。',
+      beat: '店家收回空罐、核對瓶底序號，直接拿一罐新的回家。',
     },
     {
       act: '7. 一直循環',
-      beat: '之後每次帶空罐，都能用 NT$99 換新罐，不用一直買 NT$129。',
+      beat: '每次帶空罐，就能用 NT$99 換一罐新的，不用一直買 NT$129。',
     },
     {
       act: '8. 還有集點',
-      beat: '每換一次集 1 點；集滿 10 點，可折抵合作美容店（金額依你綁定的門市）。',
+      beat: '每換一次就集 1 點；集滿 10 點，可折抵合作美容店 NT$200。',
     },
   ],
 } as const;
-
 export const JAR_EXPLAIN_INTRO = JAR_EXPLAIN_DIALOGUE.intro.join('\n\n');
 export const JAR_EXPLAIN_FLOW = JAR_FLOW_STORY.steps
   .map((s) => `${s.act}\n${s.beat}`)

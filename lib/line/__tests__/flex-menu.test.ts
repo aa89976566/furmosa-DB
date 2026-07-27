@@ -274,7 +274,9 @@ describe('換罐說明', () => {
     assert.match(raw, /NT\$99/);
     assert.match(raw, /瓶底 8 碼|8 碼/);
     assert.match(raw, /集滿 10 點/);
+    assert.match(raw, /NT\$200/);
     assert.match(raw, /一直循環/);
     assert.doesNotMatch(raw, /玩法很簡單/);
+    assert.doesNotMatch(raw, /"type":"image"/);
   });
 });

@@ -19,6 +19,7 @@ import {
 import {
   buildEventsCenterMessages,
   buildFrogProjectMessages,
+  buildJarExplainTopicMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
   buildWorldHubMessages,
@@ -178,6 +179,24 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   const registered = Boolean(customer);
 
   if (isPassiveAutoReply(parsed.kind)) {
+    return;
+  }
+
+  if (parsed.kind === 'jar_explain_intro') {
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('intro'));
+    return;
+  }
+  if (parsed.kind === 'jar_explain_flow') {
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('flow'));
+    return;
+  }
+  if (parsed.kind === 'jar_explain_faq') {
+    await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
+    return;
+  }
+  if (parsed.kind === 'jar_stores') {
+    // 與 postback jd=jar_stores 同一套清單（不列折價金額）
+    await handleLinePostback(replyToken, lineUserId, 'jd=jar_stores');
     return;
   }
 

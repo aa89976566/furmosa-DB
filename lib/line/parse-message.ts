@@ -19,6 +19,10 @@ export type ParsedLineText =
   | { kind: 'comic_roam' }
   | { kind: 'comic_grooming' }
   | { kind: 'comic_home' }
+  | { kind: 'jar_explain_intro' }
+  | { kind: 'jar_explain_flow' }
+  | { kind: 'jar_explain_faq' }
+  | { kind: 'jar_stores' }
   | { kind: 'unknown'; text: string };
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
@@ -44,6 +48,11 @@ const HUB_WILD_RE = /^(?:(?:🌿|🏠)\s*)?(?:野放中|回家)$/;
 const COMIC_ROAM_RE = /^(?:一起野放|野放一下)$/;
 const COMIC_GROOMING_RE = /^(?:預約美容|漂亮一下)$/;
 const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
+/** 換罐說明子選單（按鈕 displayText／使用者直接打字） */
+const JAR_EXPLAIN_INTRO_RE = /^介紹$/;
+const JAR_EXPLAIN_FLOW_RE = /^流程$/;
+const JAR_EXPLAIN_FAQ_RE = /^常見問題$/;
+const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
 
 export function parseLineUserText(raw: string): ParsedLineText {
   const text = raw.trim();
@@ -70,6 +79,11 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (redeemReward?.[1]) {
     return { kind: 'redeem_reward', target: redeemReward[1].trim() };
   }
+
+  if (JAR_EXPLAIN_INTRO_RE.test(text)) return { kind: 'jar_explain_intro' };
+  if (JAR_EXPLAIN_FLOW_RE.test(text)) return { kind: 'jar_explain_flow' };
+  if (JAR_EXPLAIN_FAQ_RE.test(text)) return { kind: 'jar_explain_faq' };
+  if (JAR_STORES_RE.test(text)) return { kind: 'jar_stores' };
 
   if (BIND_HELP_RE.test(text)) return { kind: 'bind_help' };
   if (SAVINGS_RE.test(text)) return { kind: 'savings' };
