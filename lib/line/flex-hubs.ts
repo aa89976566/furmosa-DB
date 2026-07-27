@@ -134,8 +134,8 @@ export function buildJarExplainTopicMessages(
   topic: 'intro' | 'flow' | 'faq',
 ): LineReplyMessage[] {
   return buildCoverDialogueMessages({
-    // Milo「洗澡，都有一罐」直式海報（新檔名避開 LINE／CDN 快取舊粉紅橫圖）
-    coverUrl: lineAssetUrl('/line/cards/jar-milo-bath.jpg'),
+    // Milo「洗澡，都有一罐」直式海報（v3 新檔名強制避開 LINE 對舊粉紅橫圖的快取）
+    coverUrl: lineAssetUrl('/line/cards/jar-milo-selfie-v3.jpg'),
     lines: [...JAR_EXPLAIN_DIALOGUE[topic]],
   });
 }

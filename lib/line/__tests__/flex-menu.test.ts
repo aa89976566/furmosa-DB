@@ -246,7 +246,7 @@ describe('換罐說明', () => {
     const msgs = buildJarExplainTopicMessages('intro');
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /jar-milo-bath\.jpg/);
+    assert.match(img.originalContentUrl, /jar-milo-selfie-v3\.jpg/);
     const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
     assert.ok(texts.length >= 2);
     assert.match(texts.map((t) => t.text).join('\n'), /空罐|8 碼|瓶子/);
