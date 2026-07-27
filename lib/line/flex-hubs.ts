@@ -530,8 +530,8 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
       heroKey: 'jar-faq',
     },
   ];
+  // 入口已是「換罐計劃是什麼」，不再重複開場白，直接給說明選單
   return [
-    { type: 'text', text: '換罐怎麼玩？下面幾格，點了會再跟你聊。' },
     menuFromItems({
       altText: '換罐說明',
       theme,

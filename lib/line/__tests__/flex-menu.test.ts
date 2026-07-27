@@ -232,7 +232,10 @@ describe('未開戶擋序號', () => {
 
 describe('換罐說明', () => {
   it('四個說明按鈕', () => {
-    const flex = flexFrom(buildJarExplainMessages());
+    const msgs = buildJarExplainMessages();
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const flex = flexFrom(msgs);
     assert.equal(countButtons(flex), 4);
     const raw = JSON.stringify(flex);
     assert.match(raw, /介紹/);
@@ -240,6 +243,7 @@ describe('換罐說明', () => {
     assert.match(raw, /合作店家|合作美容/);
     assert.match(raw, /常見問題/);
     assert.doesNotMatch(raw, /carousel/);
+    assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
 
   it('點介紹：cover＋對話氣泡', () => {
