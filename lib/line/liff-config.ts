@@ -1,6 +1,6 @@
 /** LIFF App ID（LINE Developers → LIFF） */
 
-export type LiffPage = 'register' | 'profile' | 'rewards';
+export type LiffPage = 'register' | 'profile' | 'rewards' | 'refill';
 
 function readEnv(name: string): string | undefined {
   const v = process.env[name]?.trim();
@@ -19,6 +19,7 @@ function getLiffIdOptional(page: LiffPage): string | undefined {
     register: readEnv('LINE_LIFF_ID_REGISTER'),
     profile: readEnv('LINE_LIFF_ID_PROFILE'),
     rewards: readEnv('LINE_LIFF_ID_REWARDS'),
+    refill: readEnv('LINE_LIFF_ID_REFILL'),
   }[page];
   const fallback = readEnv('LINE_LIFF_ID');
   return specific ?? fallback;
