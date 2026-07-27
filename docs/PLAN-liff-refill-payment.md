@@ -384,6 +384,8 @@ Webhook URL（正式）：`https://<domain>/api/payments/ecpay/callback`
 | 階段 | 狀態 |
 |------|------|
 | 架構掃描與本計畫 | ✅ |
-| Phase A Schema／Domain | ✅ migration + constants/transitions/eligibility/copy |
-| Phase B 綠界 MAC 基礎 | ✅ CheckMacValue；訂單 API／callback 待續 |
-| Phase B–E 其餘 | 待續 |
+| Phase A Schema／Domain | ✅ |
+| Phase B 訂單 API＋綠界 callback | ✅ |
+| Phase C `/liff/refill` | ✅ 初版 |
+| Phase D POS 待換罐／忘帶空罐 | ✅ 初版 |
+| Phase E 完整 20 測項／上線清單 | 進行中（純邏輯測已補；DB 整合測待環境） |

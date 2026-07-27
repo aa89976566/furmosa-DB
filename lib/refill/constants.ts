@@ -68,14 +68,15 @@ export function amountsForOrderType(orderType: RefillOrderType): {
   };
 }
 
-export function amountsAfterExtraTopup(baseExchange = REFILL_PRICES.exchange): {
+export function amountsAfterExtraTopup(baseExchange: number = REFILL_PRICES.exchange): {
   baseAmount: number;
   extraAmount: number;
   totalAmount: number;
 } {
+  const base = baseExchange > 0 ? baseExchange : REFILL_PRICES.exchange;
   return {
-    baseAmount: baseExchange,
+    baseAmount: base,
     extraAmount: REFILL_PRICES.extraTopup,
-    totalAmount: baseExchange + REFILL_PRICES.extraTopup,
+    totalAmount: base + REFILL_PRICES.extraTopup,
   };
 }

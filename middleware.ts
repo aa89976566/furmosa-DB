@@ -31,10 +31,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ----- POS: merchant session only (HQ cookie never elevates) -----
-  if (pathname === '/pos' || pathname.startsWith('/pos/')) {
+  // ----- POS + merchant APIs: merchant session only (HQ cookie never elevates) -----
+  if (
+    pathname === '/pos' ||
+    pathname.startsWith('/pos/') ||
+    pathname.startsWith('/api/merchant/')
+  ) {
     const merchantToken = req.cookies.get(MERCHANT_SESSION_COOKIE_NAME)?.value;
     const merchantSession = await verifyMerchantSessionEdge(merchantToken);
+
+    if (pathname.startsWith('/api/merchant/')) {
+      if (!merchantSession) {
+        return NextResponse.json({ error: '請先登入店家帳號' }, { status: 401 });
+      }
+      return NextResponse.next();
+    }
+
     const decision = decidePosAccess({
       pathname,
       hasMerchantSession: Boolean(merchantSession),

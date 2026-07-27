@@ -111,9 +111,10 @@ export default async function PosHomePage() {
     createdAt: Date;
   }[] = [];
   let homeQueryWarning: string | null = null;
+  let pendingRefills = 0;
 
   try {
-    const [pending, next, restocks] = await Promise.all([
+    const [pending, next, restocks, refillCount] = await Promise.all([
       countPendingAppointments(session.merchantId),
       prisma.appointment.findFirst({
         where: {
@@ -141,10 +142,25 @@ export default async function PosHomePage() {
           createdAt: true,
         },
       }),
+      prisma.refillOrder
+        .count({
+          where: {
+            merchantId: session.merchantId,
+            status: {
+              in: [
+                'paid_waiting_return',
+                'old_container_verified',
+                'awaiting_extra_payment',
+              ],
+            },
+          },
+        })
+        .catch(() => 0),
     ]);
     pendingAppointments = pending;
     nextAppointment = next;
     openRestocks = restocks;
+    pendingRefills = refillCount;
   } catch (err) {
     console.error('[pos] home queries', err);
     homeQueryWarning = isMissingRelationError(err)
@@ -153,7 +169,10 @@ export default async function PosHomePage() {
   }
 
   const hasSomething =
-    pendingAppointments > 0 || Boolean(nextAppointment) || openRestocks.length > 0;
+    pendingAppointments > 0 ||
+    Boolean(nextAppointment) ||
+    openRestocks.length > 0 ||
+    pendingRefills > 0;
 
   return (
     <PosShell>
@@ -185,7 +204,7 @@ export default async function PosHomePage() {
               <CardContent className="space-y-3 p-5">
                 <p className="font-medium text-foreground">今天都處理好了。</p>
                 <p className="text-sm text-muted-foreground">
-                  需要時可看預約或叫貨。換罐提醒仍在準備中。
+                  需要時可看預約、換罐或叫貨。
                 </p>
                 <Button asChild className="min-h-[44px] w-full">
                   <Link href="/pos/appointments">看預約</Link>
@@ -198,6 +217,20 @@ export default async function PosHomePage() {
             <Button asChild className="min-h-[44px] w-full">
               <Link href="/pos/restock">前往叫貨</Link>
             </Button>
+          ) : null}
+
+          {pendingRefills > 0 ? (
+            <Link href="/pos/refill">
+              <Card className="shadow-card transition hover:border-primary/40">
+                <CardContent className="flex min-h-[72px] items-center justify-between p-4">
+                  <div>
+                    <p className="font-medium">待換罐</p>
+                    <p className="text-sm text-muted-foreground">已付款、等待收空罐或交付</p>
+                  </div>
+                  <span className="text-lg font-semibold text-primary">{pendingRefills}</span>
+                </CardContent>
+              </Card>
+            </Link>
           ) : null}
 
           {pendingAppointments > 0 ? (
@@ -269,14 +302,16 @@ export default async function PosHomePage() {
             </section>
           ) : null}
 
-          <Card className="border-dashed">
-            <CardContent className="space-y-1 p-4">
-              <p className="text-sm font-medium text-muted-foreground">準備中</p>
-              <p className="text-xs text-muted-foreground">
-                待換罐、缺貨提醒 — 等後端就緒後才顯示真實資料。
-              </p>
-            </CardContent>
-          </Card>
+          {pendingRefills === 0 ? (
+            <Link href="/pos/refill">
+              <Card className="border-dashed">
+                <CardContent className="space-y-1 p-4">
+                  <p className="text-sm font-medium text-muted-foreground">待換罐</p>
+                  <p className="text-xs text-muted-foreground">目前沒有待處理換罐，點此查看紀錄。</p>
+                </CardContent>
+              </Card>
+            </Link>
+          ) : null}
         </div>
       </div>
     </PosShell>

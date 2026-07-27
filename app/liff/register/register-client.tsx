@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
@@ -18,6 +19,8 @@ export function LiffRegisterClient({ liffId }: Props) {
 }
 
 function RegisterForm({ idToken }: { idToken: string }) {
+  const searchParams = useSearchParams();
+  const returnPath = searchParams.get('return');
   const [status, setStatus] = useState<{ type: 'idle' | 'loading' | 'ok' | 'err'; text?: string }>({
     type: 'idle',
   });
@@ -47,6 +50,10 @@ function RegisterForm({ idToken }: { idToken: string }) {
       });
       const data = (await res.json()) as { message?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? '註冊失敗');
+      if (returnPath && returnPath.startsWith('/liff/')) {
+        window.location.href = returnPath;
+        return;
+      }
       setStatus({ type: 'ok', text: data.message ?? '完成！' });
     } catch (err) {
       setStatus({

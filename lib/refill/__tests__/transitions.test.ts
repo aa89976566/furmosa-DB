@@ -31,8 +31,9 @@ describe('refill transitions', () => {
     assert.throws(() => assertTransition('completed', 'cancelled'));
   });
 
-  it('rejects skipping payment', () => {
-    assert.equal(canTransition('draft', 'paid_waiting_return'), false);
+  it('rejects skipping to completed from draft', () => {
+    // webhook 競態可 draft→paid；不可直接 completed
+    assert.equal(canTransition('draft', 'paid_waiting_return'), true);
     assert.equal(canTransition('draft', 'completed'), false);
   });
 });

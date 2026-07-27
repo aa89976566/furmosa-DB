@@ -5,14 +5,14 @@ import type { RefillOrderStatus } from '@/lib/refill/constants';
  * 首罐／補差額交付可從 paid_waiting_return 直接 completed（不經舊罐驗證）。
  */
 const ALLOWED: Record<RefillOrderStatus, readonly RefillOrderStatus[]> = {
-  draft: ['payment_pending', 'cancelled', 'expired'],
+  draft: ['payment_pending', 'paid_waiting_return', 'cancelled', 'expired'],
   payment_pending: [
     'paid_waiting_return',
     'payment_failed',
     'cancelled',
     'expired',
   ],
-  payment_failed: ['payment_pending', 'cancelled', 'expired'],
+  payment_failed: ['payment_pending', 'paid_waiting_return', 'cancelled', 'expired'],
   paid_waiting_return: [
     'old_container_verified',
     'awaiting_extra_payment',
