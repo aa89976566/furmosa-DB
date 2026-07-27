@@ -255,8 +255,9 @@ describe('換罐說明', () => {
     assert.ok(texts.length >= 2);
     const joined = texts.map((t) => t.text).join('\n');
     assert.match(joined, /空罐|8 碼|毛孩/);
-    assert.match(joined, /200～250|200-250/);
+    assert.match(joined, /門市|綁定/);
     assert.doesNotMatch(joined, /豬窩/);
+    assert.doesNotMatch(joined, /200～250|200-250/);
     assert.doesNotMatch(joined, /【/);
     assert.ok(msgs.length <= 5);
   });

@@ -7,6 +7,7 @@ import {
   getGroomingCouponTypeForDiscount,
   isZhuwoPartnerStore,
   formatLineStorePickerLabel,
+  buildPostBindPointsHint,
 } from '@/lib/coupons/store-discount';
 
 describe('grooming coupon store discount', () => {
@@ -67,9 +68,27 @@ describe('grooming coupon store discount', () => {
     );
   });
 
-  it('formats line store picker label with amount', () => {
-    assert.equal(formatLineStorePickerLabel('柒沐寵物美容', 'mer_0014'), '柒沐寵物美容（200元）');
-    assert.equal(formatLineStorePickerLabel('豬窩 中和店', 'zhuwo_zhonghe'), '豬窩 中和店（250元）');
+  it('formats line store picker label without amount', () => {
+    assert.equal(formatLineStorePickerLabel('柒沐寵物美容', 'mer_0014'), '柒沐寵物美容');
+    assert.equal(formatLineStorePickerLabel('豬窩 中和店', 'zhuwo_zhonghe'), '豬窩 中和店');
+  });
+
+  it('builds post-bind points hint with store-detected discount', () => {
+    const zhuwo = buildPostBindPointsHint({
+      storeId: 'zhuwo_zhonghe',
+      storeName: '豬窩 中和店',
+    });
+    assert.match(zhuwo, /8 碼/);
+    assert.match(zhuwo, /豬窩 中和店/);
+    assert.match(zhuwo, /250 元/);
+    assert.match(zhuwo, /累積點數/);
+
+    const other = buildPostBindPointsHint({
+      storeId: 'mer_0014',
+      storeName: '柒沐寵物美容',
+    });
+    assert.match(other, /柒沐寵物美容/);
+    assert.match(other, /200 元/);
   });
 
   it('maps discount amount to coupon type', () => {

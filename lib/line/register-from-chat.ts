@@ -25,7 +25,11 @@ import {
   LINE_REGISTER_PHONE_PROMPT,
   resolveSignupStoreLabel,
 } from '@/lib/line/line-copy';
-import { formatGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
+import {
+  buildPostBindPointsHint,
+  formatGroomingCouponDiscountForStore,
+  GROOMING_COUPON_POINTS,
+} from '@/lib/coupons/constants';
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
@@ -377,17 +381,26 @@ export async function handleRegisterPostback(
       const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
       const storeLine = storeLabel ? `\n合作店：${storeLabel}` : '';
       const doneText = `開戶完成囉，謝謝你～${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
+      const storeId = draft.signupStore ?? '';
+      const nextHint =
+        storeId && storeLabel
+          ? buildPostBindPointsHint({
+              storeId,
+              storeName: storeLabel,
+              pointsToRedeem: GROOMING_COUPON_POINTS,
+            })
+          : JAR_ENTER_HINT_REGISTERED;
 
       if (resumeAfter === 'enter_code') {
         await replyLineMessage(replyToken, [
           { type: 'text', text: `${doneText}\n\n接下來可以這樣做～` },
-          { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
+          { type: 'text', text: nextHint },
         ]);
       } else {
         await replyLineMessage(replyToken, [
           {
             type: 'text',
-            text: `${doneText}\n\n之後罐底 8 碼傳上來，就會進毛孩罐庫喔。`,
+            text: `${doneText}\n\n${nextHint}`,
           },
           ...buildWorldHubMessages('jar', { registered: true }),
         ]);
@@ -412,7 +425,9 @@ export function formatRegisterSummary(draft: RegisterDraft): string {
   if (storeLabel) {
     const storeId = draft.signupStore ?? '';
     lines.push(`合作店：${storeLabel}`);
-    lines.push(`折價面額：${formatGroomingCouponDiscountForStore(storeId, storeLabel)}`);
+    if (storeId) {
+      lines.push(`可折美容：${formatGroomingCouponDiscountForStore(storeId, storeLabel)}`);
+    }
   }
   if (draft.petName) {
     lines.push(

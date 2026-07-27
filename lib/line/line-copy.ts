@@ -37,7 +37,7 @@ export {
 } from '@/lib/stores/signup-stores';
 
 export const LINE_STORE_PROMPT =
-  '請選一間常去的合作美容店喔。之後折價券會綁這間用（約 200～250 元，看門市）。';
+  '請選一間常去的合作美容店喔。之後折價券會綁這間；可折金額依門市，綁定後會跟你說。';
 
 export const LINE_REGISTER_INTRO =
   '【開戶】先跟我們說一下你的暱稱～（例：王小姐）\n\n如果想先暫停，傳「取消」就可以。';
@@ -64,7 +64,7 @@ export const LINE_CONTACT_INFO =
 
 /** @deprecated */
 export const LINE_ACTIVITY_INFO =
-  '空罐序號入帳得點數。滿 10 點可換美容折價約 200～250 元，實際看合作門市。';
+  '空罐序號入帳得點數。滿 10 點可換美容折價，金額依你綁定的合作門市。';
 
 /** @deprecated */
 export const LINE_UNBOXING_INFO = `【嗷嗚計劃】

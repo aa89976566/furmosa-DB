@@ -75,6 +75,8 @@ async function loadVaultSnapshot(
     petName: customer.petName ?? null,
     canRedeemGrooming: needMore === 0 && stats.pointsBalance > 0,
     availableCouponCount: coupons.available.length,
+    storeId: customer.storeId ?? customer.signupStore ?? null,
+    storeName: customer.storeName ?? null,
   };
 }
 
@@ -86,6 +88,7 @@ async function replyPartnerStores(replyToken: string) {
     ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
     '',
     '開戶時選一間常去的店，之後折價券就會綁那間用喔。',
+    '可折金額依門市而定，綁定後系統會跟你說～',
   ];
   await replyLineText(replyToken, lines.join('\n'));
 }

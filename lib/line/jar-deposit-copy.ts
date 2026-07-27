@@ -1,6 +1,9 @@
 /** 毛孩罐庫／換罐紀錄文案 */
 
-import { GROOMING_COUPON_POINTS } from '@/lib/coupons/constants';
+import {
+  GROOMING_COUPON_POINTS,
+  getGroomingCouponDiscountForStore,
+} from '@/lib/coupons/constants';
 
 export type JarDepositSnapshot = {
   customerName: string;
@@ -14,9 +17,23 @@ export type JarDepositSnapshot = {
   /** 可兌換：點數是否夠換美容折價 */
   canRedeemGrooming?: boolean;
   availableCouponCount?: number;
+  /** 綁定門市（系統偵測折價面額用） */
+  storeId?: string | null;
+  storeName?: string | null;
 };
 
-export function rewardProgress(pointsBalance: number): {
+function storeDiscountLine(s: Pick<JarDepositSnapshot, 'storeId' | 'storeName'>): string | null {
+  const storeId = s.storeId?.trim();
+  if (!storeId) return null;
+  const amount = getGroomingCouponDiscountForStore(storeId, s.storeName);
+  const store = s.storeName?.trim() || '你綁定的合作門市';
+  return `「${store}」可折 ${amount} 元`;
+}
+
+export function rewardProgress(
+  pointsBalance: number,
+  store?: Pick<JarDepositSnapshot, 'storeId' | 'storeName'>,
+): {
   towardNext: number;
   needMore: number;
   milestone: number;
@@ -25,10 +42,15 @@ export function rewardProgress(pointsBalance: number): {
   const milestone = GROOMING_COUPON_POINTS;
   const towardNext = pointsBalance % milestone;
   const needMore = towardNext === 0 && pointsBalance > 0 ? 0 : milestone - towardNext;
+  const discount = store ? storeDiscountLine(store) : null;
   const progressLine =
     needMore === 0 && pointsBalance > 0
-      ? `已滿 ${milestone} 點，可換美容折價。`
-      : `離下一張美容折價還差 ${needMore} 點（${towardNext}/${milestone}）`;
+      ? discount
+        ? `已滿 ${milestone} 點，可換美容折價——${discount}。`
+        : `已滿 ${milestone} 點，可換美容折價。`
+      : discount
+        ? `離下一張美容折價還差 ${needMore} 點（${towardNext}/${milestone}）· ${discount}`
+        : `離下一張美容折價還差 ${needMore} 點（${towardNext}/${milestone}）`;
   return { towardNext, needMore, milestone, progressLine };
 }
 
@@ -42,7 +64,7 @@ export function ecoNoteForJarCount(totalJars: number): string | null {
 }
 
 export function formatJarDepositSuccessMessage(s: JarDepositSnapshot): string {
-  const { progressLine } = rewardProgress(s.pointsBalance);
+  const { progressLine } = rewardProgress(s.pointsBalance, s);
   const lines = [
     '罐進去了 ✨',
     s.code ? `序號 ${s.code} → +${s.pointsEarnedThisTime ?? 0}` : null,
@@ -60,11 +82,14 @@ export function formatJarDepositSuccessMessage(s: JarDepositSnapshot): string {
 
 /** 毛孩罐庫：目前點數／累積／可兌換／進度（不含完整歷史清單） */
 export function formatVaultStatusMessage(s: JarDepositSnapshot): string {
-  const { towardNext, milestone, progressLine, needMore } = rewardProgress(s.pointsBalance);
+  const { towardNext, milestone, progressLine, needMore } = rewardProgress(s.pointsBalance, s);
   const who = s.petName ? `${s.petName} 的罐庫` : '毛孩罐庫';
+  const discount = storeDiscountLine(s);
   const redeemable =
     s.canRedeemGrooming || (needMore === 0 && s.pointsBalance > 0)
-      ? '可兌換：美容折價（滿 10 點）'
+      ? discount
+        ? `可兌換：美容折價（滿 10 點）· ${discount}`
+        : '可兌換：美容折價（滿 10 點）'
       : `可兌換：還差 ${needMore} 點`;
   const couponLine =
     typeof s.availableCouponCount === 'number'
@@ -128,7 +153,7 @@ export function formatSavingsStatusMessage(
   opts?: { showJarHint?: boolean },
 ): string {
   if (opts?.showJarHint === false && s.jarsDeposited === 0) {
-    const { progressLine } = rewardProgress(s.pointsBalance);
+    const { progressLine } = rewardProgress(s.pointsBalance, s);
     return [
       '📒 毛孩罐庫',
       '',
@@ -143,6 +168,6 @@ export function formatSavingsStatusMessage(
 }
 
 export function formatQuickBalanceMessage(s: JarDepositSnapshot): string {
-  const { progressLine } = rewardProgress(s.pointsBalance);
+  const { progressLine } = rewardProgress(s.pointsBalance, s);
   return `${s.customerName}\n罐庫 ${s.pointsBalance} 點 · 已換 ${s.jarsDeposited} 罐\n${progressLine}`;
 }

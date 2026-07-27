@@ -79,7 +79,7 @@ export function buildCouponListMessages(groups: {
     return [
       {
         type: 'text',
-        text: `目前沒有優惠券。累積 10 點可兌換美容折 ${GROOMING_COUPON_DISCOUNT_LABEL}，請點「${LINE_BTN.redeemGrooming}」。`,
+        text: `目前沒有優惠券。累積 10 點可兌換美容折價（${GROOMING_COUPON_DISCOUNT_LABEL}），請點「${LINE_BTN.redeemGrooming}」。`,
       },
     ];
   }

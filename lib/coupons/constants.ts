@@ -20,4 +20,5 @@ export {
   formatGroomingCouponDiscountAmount,
   formatGroomingCouponDiscountForStore,
   formatLineStorePickerLabel,
+  buildPostBindPointsHint,
 } from '@/lib/coupons/store-discount';

@@ -98,6 +98,8 @@ async function loadVaultSnapshot(customer: BoundCustomer) {
     jarsDeposited: stats.codesRedeemed,
     recentCodes: recent.map((r) => r.code),
     petName: customer.petName ?? null,
+    storeId: customer.storeId ?? customer.signupStore ?? null,
+    storeName: customer.storeName ?? null,
   };
 }
 

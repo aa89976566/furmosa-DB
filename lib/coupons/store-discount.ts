@@ -1,8 +1,8 @@
 export const GROOMING_COUPON_DISCOUNT_ZHUWO = 250;
 export const GROOMING_COUPON_DISCOUNT_DEFAULT = 200;
 
-/** 折價券面額說明（未指定店家時；實際金額視合作門市） */
-export const GROOMING_COUPON_DISCOUNT_LABEL = '約 200～250 元（視合作門市）';
+/** 未綁定店家時的籠統說明（清單不列金額；綁定後由系統偵測對應面額） */
+export const GROOMING_COUPON_DISCOUNT_LABEL = '依你綁定的合作門市';
 
 export function isZhuwoPartnerStore(storeId: string, storeName?: string | null): boolean {
   const id = storeId.trim().toLowerCase();
@@ -36,7 +36,7 @@ export function formatGroomingCouponDiscountAmount(amount: number): string {
   return `${amount} 元`;
 }
 
-/** 單一店家的折價說明，例：豬窩 中和店 · 250 元 */
+/** 單一店家的折價說明，例：豬窩 中和店 · 250 元（綁定後／確認用） */
 export function formatGroomingCouponDiscountForStore(
   storeId: string,
   storeName?: string | null,
@@ -46,8 +46,25 @@ export function formatGroomingCouponDiscountForStore(
   return `${label} · ${formatGroomingCouponDiscountAmount(amount)}`;
 }
 
-/** LINE 開戶選單按鈕文案，例：柒沐寵物美容（200元） */
-export function formatLineStorePickerLabel(name: string, slug: string): string {
-  const amount = getGroomingCouponDiscountForStore(slug, name);
-  return `${name}（${amount}元）`;
+/**
+ * LINE 店家清單／選店按鈕：只顯示店名，不露出折價金額。
+ * 金額改在開戶綁定後，依系統偵測門市再通知。
+ */
+export function formatLineStorePickerLabel(name: string, _slug?: string): string {
+  return name.trim();
+}
+
+/** 開戶綁定後：提醒傳序號累點，並告知該門市可折金額 */
+export function buildPostBindPointsHint(opts: {
+  storeId: string;
+  storeName?: string | null;
+  pointsToRedeem?: number;
+}): string {
+  const points = opts.pointsToRedeem ?? 10;
+  const amount = getGroomingCouponDiscountForStore(opts.storeId, opts.storeName);
+  const store = opts.storeName?.trim() || '你綁定的合作門市';
+  return [
+    `罐底那串 8 碼傳上來，就能幫毛孩累積點數喔～`,
+    `存滿 ${points} 點，在「${store}」洗澡美容可折 ${amount} 元（依你綁定的門市）。`,
+  ].join('\n');
 }
