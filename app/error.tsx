@@ -36,8 +36,18 @@ export default function RootError({
               npx prisma migrate deploy && npx prisma generate && rm -rf .next && npm run dev
             </code>
           </>
+        ) : isDb ? (
+          <>暫時無法連上資料庫。請按「再試一次」，或稍後再整理。</>
         ) : (
-          error.message
+          <>
+            伺服器渲染時發生錯誤。請再試一次；若持續出現，把下方錯誤代碼告訴工程師。
+            {error.digest ? (
+              <>
+                <br />
+                <span className="font-mono text-xs">digest: {error.digest}</span>
+              </>
+            ) : null}
+          </>
         )}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -45,6 +55,9 @@ export default function RootError({
           再試一次
         </Button>
         <Button variant="outline" asChild>
+          <Link href="/pos/login">店家登入</Link>
+        </Button>
+        <Button variant="ghost" asChild>
           <Link href="/dashboard">返回 Dashboard</Link>
         </Button>
       </div>

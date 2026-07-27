@@ -96,10 +96,15 @@ async function ensurePosAdmin(
   });
 
   if (existing) {
+    // Preview／demo：同步密碼與啟用狀態，避免舊帳密對不上文件
+    await prisma.merchantUser.update({
+      where: { id: existing.id },
+      data: { passwordHash, isActive: true },
+    });
     return {
-      status: 'exists' as const,
+      status: 'updated' as const,
       username: existing.username,
-      isActive: existing.isActive,
+      isActive: true,
       merchantId: existing.merchant.merchantId,
       merchantName: existing.merchant.name,
     };

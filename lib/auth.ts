@@ -5,8 +5,11 @@ import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
 
 const SESSION_COOKIE = 'furmosa_session';
-const SECRET = getAuthSecretKey();
 const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168'); // 預設 7 天
+
+function secretKey() {
+  return getAuthSecretKey();
+}
 
 export type SessionPayload = {
   userId: string;
@@ -28,13 +31,13 @@ export async function signSession(payload: SessionPayload) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_HOURS}h`)
-    .sign(SECRET);
+    .sign(secretKey());
 }
 
 export async function readSession(token?: string): Promise<SessionPayload | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, secretKey());
     return {
       userId: String(payload.userId),
       email: String(payload.email),
