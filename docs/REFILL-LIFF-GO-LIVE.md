@@ -1,5 +1,30 @@
 # 換罐 LIFF 付款 — 上線檢查清單
 
+## 測試資料一鍵灌入
+
+先確認已 `prisma migrate deploy`（含 `20260728010000_refill_payment`），再執行：
+
+```bash
+# 使用 .env 的 DATABASE_URL／DIRECT_URL
+npm run refill:seed-test
+```
+
+會建立：
+
+| 項目 | 內容 |
+|------|------|
+| 測試店 | `MER-REFILL` 匠寵換罐測試店 |
+| POS | `refilltest` / `furmosa2026` |
+| 對照店 | `MER-OTHER`（測跨店不可交付）`othertest` / `furmosa2026` |
+| 會員 A | Milo，issued 罐 `88001101`／`88001102` → NT$99 |
+| 會員 B | 小花，無空罐 → NT$129 |
+| 新罐庫存序號 | `88002201`–`88002204` |
+| POS 待換罐 | 一筆 Milo 已付款待收空罐訂單 |
+
+腳本可重跑（冪等）。
+
+---
+
 ## 環境變數
 
 | 變數 | 說明 |
