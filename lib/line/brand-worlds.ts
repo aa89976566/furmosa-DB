@@ -36,7 +36,7 @@ export const WORLD_HUB_EMOJI: Record<WorldHubId, string> = {
 };
 
 export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
-  jar: '空罐也能幫毛孩累積好康。',
+  jar: '吃完別丟。空罐還有下一場。',
   chaos: '跟毛孩一起探索新鮮事',
   wild: '狗屋在裡面，院子也還亮著喔。',
 };
@@ -212,12 +212,13 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃：一層選單，不再套「換罐計劃是什麼 → 說明子選單」。
- * - 未開戶：介紹／流程／開戶／配合店家／常見問題
- * - 已開戶：介紹／流程／配合店家／兌換序號／兌換好禮／常見問題
+ * 換罐計劃：一層選單。
+ * 按鈕語氣：Liquid Death 直球 × 台灣毛爸媽口吻；顏色一律不 highlight。
+ * 最底固定「輸入序號」。
  */
 export function buildJarHubItems(registered: boolean): {
   items: WorldMenuItem[];
+  /** 換罐選單不 highlight，固定空字串 */
   primaryId: string;
   body: string;
 } {
@@ -225,7 +226,7 @@ export function buildJarHubItems(registered: boolean): {
     {
       id: 'jar_explain_intro',
       mark: '',
-      label: '介紹',
+      label: '這計劃到底幹嘛',
       subtitle: '空罐為什麼值得記一筆。',
       heroKey: 'jar-explain',
       message: '介紹',
@@ -233,8 +234,8 @@ export function buildJarHubItems(registered: boolean): {
     {
       id: 'jar_explain_flow',
       mark: '',
-      label: '流程',
-      subtitle: '從開戶到集點，八小步。',
+      label: '怎麼換，講直的',
+      subtitle: '從開戶到集點，給你講直的。',
       heroKey: 'jar-enter',
       message: '流程',
     },
@@ -242,63 +243,65 @@ export function buildJarHubItems(registered: boolean): {
   const faqItem: WorldMenuItem = {
     id: 'jar_faq',
     mark: '',
-    label: '常見問題',
-    subtitle: '卡關時翻這頁。',
+    label: '先別急著問客服',
+    subtitle: '常見雷點先翻這頁。',
     heroKey: 'jar-faq',
     message: '常見問題',
   };
   const storesItem: WorldMenuItem = {
     id: 'jar_stores',
     mark: '',
-    label: '配合店家',
-    subtitle: '折價會綁哪一間，先確認一下。',
+    label: '哪間店能換',
+    subtitle: '折價綁哪一間，先看清楚。',
     heroKey: 'jar-stores',
     message: '配合店家',
+  };
+  const enterCodeItem: WorldMenuItem = {
+    id: 'jar_enter',
+    mark: '',
+    label: '輸入序號',
+    subtitle: '罐底 8 碼，丟上來就好。',
+    heroKey: 'jar-enter',
+    message: '輸入序號',
   };
 
   if (registered) {
     return {
-      primaryId: 'jar_enter',
+      primaryId: '',
       body: '',
       items: [
         ...explainItems,
         storesItem,
         {
-          id: 'jar_enter',
-          mark: '',
-          label: '兌換序號',
-          subtitle: '罐底 8 碼，傳上來就好。',
-          heroKey: 'jar-enter',
-          message: '兌換序號',
-        },
-        {
           id: 'redeem',
           mark: '',
-          label: '兌換好禮',
-          subtitle: '點數可以換成實際好康。',
+          label: '點數換好康',
+          subtitle: '集到的點，拿去換實際好康。',
           heroKey: 'jar-vault',
           message: '兌換好禮',
         },
         faqItem,
+        enterCodeItem,
       ],
     };
   }
 
   return {
-    primaryId: 'jar_reg',
+    primaryId: '',
     body: '',
     items: [
       ...explainItems,
       {
         id: 'jar_reg',
         mark: '',
-        label: '開戶',
-        subtitle: '先幫毛孩開戶，之後序號才能入帳。',
+        label: '幫毛孩開戶',
+        subtitle: '沒開戶，序號進不了帳。',
         heroKey: 'jar-reg',
         message: '立即開戶',
       },
       storesItem,
       faqItem,
+      enterCodeItem,
     ],
   };
 }

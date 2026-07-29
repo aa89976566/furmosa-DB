@@ -77,7 +77,7 @@ describe('垂直按鈕選單', () => {
 });
 
 describe('換罐計劃選單', () => {
-  it('未開戶：介紹／流程／開戶／配合店家／常見問題（一層）', () => {
+  it('未開戶：同色按鈕＋最底輸入序號', () => {
     const hub = buildJarHubItems(false);
     const ids = hub.items.map((i) => i.id);
     assert.deepEqual(ids, [
@@ -86,60 +86,65 @@ describe('換罐計劃選單', () => {
       'jar_reg',
       'jar_stores',
       'jar_faq',
+      'jar_enter',
     ]);
-    assert.equal(hub.primaryId, 'jar_reg');
-    assert.match(hub.items.find((i) => i.id === 'jar_reg')!.label, /開戶/);
-    assert.match(hub.items.find((i) => i.id === 'jar_explain_intro')!.label, /介紹/);
-    assert.match(hub.items.find((i) => i.id === 'jar_stores')!.label, /配合店家/);
+    assert.equal(hub.primaryId, '');
+    assert.equal(hub.items.at(-1)?.label, '輸入序號');
+    assert.match(hub.items.find((i) => i.id === 'jar_reg')!.label, /幫毛孩開戶/);
+    assert.match(hub.items.find((i) => i.id === 'jar_explain_intro')!.label, /這計劃到底幹嘛/);
+    assert.match(hub.items.find((i) => i.id === 'jar_stores')!.label, /哪間店能換/);
     assert.ok(!ids.includes('jar_explain'));
   });
 
-  it('已開戶：無開戶，有介紹／流程／店家／序號／好禮／FAQ', () => {
+  it('已開戶：無開戶按鈕，最底仍是輸入序號', () => {
     const hub = buildJarHubItems(true);
     const ids = hub.items.map((i) => i.id);
     assert.deepEqual(ids, [
       'jar_explain_intro',
       'jar_explain_flow',
       'jar_stores',
-      'jar_enter',
       'redeem',
       'jar_faq',
+      'jar_enter',
     ]);
-    assert.equal(hub.primaryId, 'jar_enter');
+    assert.equal(hub.primaryId, '');
     assert.ok(!ids.includes('jar_reg'));
-    assert.match(hub.items.find((i) => i.id === 'jar_enter')!.label, /兌換序號/);
-    assert.match(hub.items.find((i) => i.id === 'redeem')!.label, /兌換好禮/);
+    assert.equal(hub.items.at(-1)?.label, '輸入序號');
+    assert.match(hub.items.find((i) => i.id === 'redeem')!.label, /點數換好康/);
   });
 
-  it('只回選單卡、無開場文、副標為 tagline', () => {
+  it('只回選單卡、按鈕同色、無 primary highlight', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
     assert.equal(guest.length, 1);
     assert.equal(guest[0]?.type, 'flex');
     const flex = flexFrom(guest);
     assert.equal(flex.contents.type, 'bubble');
-    assert.equal(countButtons(flex), 5);
+    assert.equal(countButtons(flex), 6);
     const raw = JSON.stringify(flex.contents);
-    assert.match(raw, /開戶/);
-    assert.match(raw, /介紹/);
-    assert.match(raw, /流程/);
-    assert.match(raw, /常見問題/);
-    assert.match(raw, /空罐也能幫毛孩累積好康/);
+    assert.match(raw, /幫毛孩開戶/);
+    assert.match(raw, /這計劃到底幹嘛/);
+    assert.match(raw, /怎麼換，講直的/);
+    assert.match(raw, /先別急著問客服/);
+    assert.match(raw, /輸入序號/);
+    assert.match(raw, /吃完別丟/);
+    assert.doesNotMatch(raw, /"style":"primary"/);
     assert.doesNotMatch(raw, /點下面按鈕/);
     assert.doesNotMatch(raw, /換罐計劃是什麼/);
     assert.match(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
-    assert.doesNotMatch(raw, /"label":"[🐾🪪🔢🧾✂️🥫]/);
 
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
     assert.equal(countButtons(memberFlex), 6);
     const memberRaw = JSON.stringify(memberFlex.contents);
-    assert.match(memberRaw, /兌換序號/);
-    assert.match(memberRaw, /兌換好禮/);
+    assert.match(memberRaw, /輸入序號/);
+    assert.match(memberRaw, /點數換好康/);
     assert.match(memberRaw, /"type":"message"/);
+    assert.doesNotMatch(memberRaw, /"style":"primary"/);
     assert.doesNotMatch(memberRaw, /"label":"開戶"/);
+    assert.doesNotMatch(memberRaw, /"label":"幫毛孩開戶"/);
   });
 });
 

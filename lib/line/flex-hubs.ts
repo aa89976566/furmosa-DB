@@ -523,7 +523,7 @@ export function buildWorldHubMessages(
         title: WORLD_HUB_LABELS.jar,
         subtitle: WORLD_HUB_TAGLINE.jar,
         items: hubCfg.items,
-        primaryId: hubCfg.primaryId,
+        // 換罐選單按鈕同色，不 highlight
       }),
     );
     return messages;
