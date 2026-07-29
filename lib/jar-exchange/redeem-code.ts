@@ -61,8 +61,12 @@ export async function redeemJarCode(
       };
     });
 
-    revalidatePath('/dashboard');
-    revalidatePath('/orders');
+    try {
+      revalidatePath('/dashboard');
+      revalidatePath('/orders');
+    } catch {
+      // 單元測試／非 request 脈絡沒有 static generation store
+    }
     return { ok: true, ...result };
   } catch (e) {
     if (e instanceof JarExchangeError) {

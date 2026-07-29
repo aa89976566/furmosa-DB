@@ -101,10 +101,17 @@ export default async function PosHomePage() {
               <Card className="shadow-card">
                 <CardContent className="space-y-3 p-5">
                   <p className="font-medium text-foreground">今天都處理好了。</p>
-                  <p className="text-sm text-muted-foreground">需要補貨嗎？</p>
-                  <Button asChild className="min-h-[44px] w-full">
-                    <Link href="/pos/restock">去叫貨</Link>
-                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    需要時可看換罐或叫貨。
+                  </p>
+                  <div className="grid gap-2">
+                    <Button asChild className="min-h-[44px] w-full">
+                      <Link href="/pos/refill">看換罐</Link>
+                    </Button>
+                    <Button asChild variant="outline" className="min-h-[44px] w-full">
+                      <Link href="/pos/restock">去叫貨</Link>
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : null}

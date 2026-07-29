@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { getLiffId, isLiffConfigured } from '@/lib/line/liff-config';
 import { LiffRegisterClient } from './register-client';
 
@@ -9,7 +10,11 @@ export default function LiffRegisterPage() {
   }
 
   const liffId = getLiffId('register');
-  return <LiffRegisterClient liffId={liffId} />;
+  return (
+    <Suspense fallback={<p className="p-6 text-sm text-muted-foreground">載入中…</p>}>
+      <LiffRegisterClient liffId={liffId} />
+    </Suspense>
+  );
 }
 
 function LiffSetupMissing({ page }: { page: string }) {

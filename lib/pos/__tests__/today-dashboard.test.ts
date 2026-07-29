@@ -11,15 +11,16 @@ describe('buildTodayTaskRows (F-03)', () => {
     const rows = buildTodayTaskRows({
       pendingConfirmCount: 0,
       nextGuest: null,
+      pendingRefillCount: 0,
       lowStock: null,
       openRestockCount: 0,
       firstOpenRestockId: null,
     });
     assert.equal(rows.length, 0);
-    assert.ok(!rows.some((r) => (r as { kind: string }).kind === 'refill'));
+    assert.ok(!rows.some((r) => r.kind === 'pending_refill'));
   });
 
-  it('orders pending → next → low stock → restock', () => {
+  it('orders pending → next → refill → low stock → restock', () => {
     const rows = buildTodayTaskRows({
       pendingConfirmCount: 2,
       nextGuest: {
@@ -29,21 +30,30 @@ describe('buildTodayTaskRows (F-03)', () => {
         startsAt: new Date(2026, 6, 27, 13, 30),
         status: 'confirmed',
       },
+      pendingRefillCount: 3,
       lowStock: [{ productName: '雞肉', quantity: 2 }],
       openRestockCount: 1,
       firstOpenRestockId: 'r1',
     });
     assert.deepEqual(
       rows.map((r) => r.kind),
-      ['pending_confirm', 'next_guest', 'low_stock', 'restock_progress'],
+      [
+        'pending_confirm',
+        'next_guest',
+        'pending_refill',
+        'low_stock',
+        'restock_progress',
+      ],
     );
-    assert.equal(rows[3]?.href, '/pos/restock/r1');
+    assert.equal(rows[2]?.href, '/pos/refill');
+    assert.equal(rows[4]?.href, '/pos/restock/r1');
   });
 
   it('hides low stock when inventory is unreliable (null)', () => {
     const rows = buildTodayTaskRows({
       pendingConfirmCount: 0,
       nextGuest: null,
+      pendingRefillCount: 0,
       lowStock: null,
       openRestockCount: 1,
       firstOpenRestockId: 'r1',
@@ -56,6 +66,7 @@ describe('buildTodayTaskRows (F-03)', () => {
     const rows = buildTodayTaskRows({
       pendingConfirmCount: 0,
       nextGuest: null,
+      pendingRefillCount: 0,
       lowStock: [],
       openRestockCount: 0,
       firstOpenRestockId: null,

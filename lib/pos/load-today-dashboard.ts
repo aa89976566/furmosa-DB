@@ -52,12 +52,13 @@ function coerceDate(value: Date | string | number | null | undefined): Date | nu
  * - 不依賴 `@/lib/booking/service`（避免拖進通知／叫貨整條模組圖）
  * - appointment 只 select 需要欄位（避開 migrate soft-fail 缺的 line_* 欄）
  * - 各查詢獨立 settled：單一表失敗不拖垮整頁
+ * - 待換罐計數失敗時視為 0（表尚未就緒也不炸）
  */
 export async function loadTodayDashboard(
   merchantId: string,
 ): Promise<LoadedTodayDashboard> {
   try {
-    const [pendingResult, nextResult, restockResult, stockResult] =
+    const [pendingResult, nextResult, restockResult, stockResult, refillResult] =
       await Promise.allSettled([
         prisma.appointment.count({
           where: { merchantId, status: 'requested' },
@@ -94,15 +95,31 @@ export async function loadTodayDashboard(
           },
           take: 500,
         }),
+        prisma.refillOrder.count({
+          where: {
+            merchantId,
+            status: {
+              in: [
+                'paid_waiting_return',
+                'old_container_verified',
+                'awaiting_extra_payment',
+              ],
+            },
+          },
+        }),
       ]);
 
-    const failures = [pendingResult, nextResult, restockResult, stockResult].filter(
-      (r) => r.status === 'rejected',
-    );
+    const failures = [
+      pendingResult,
+      nextResult,
+      restockResult,
+      stockResult,
+    ].filter((r) => r.status === 'rejected');
     const pendingConfirmCount = settledValue(pendingResult, 'pending') ?? 0;
     const nextAppt = settledValue(nextResult, 'next');
     const openRestocks = settledValue(restockResult, 'restock') ?? [];
     const stockRows = settledValue(stockResult, 'stock');
+    const pendingRefillCount = settledValue(refillResult, 'refill') ?? 0;
 
     let lowStock: TodayDashboardInput['lowStock'] = null;
     if (stockRows && isInventoryReliable(stockRows.length)) {
@@ -134,6 +151,7 @@ export async function loadTodayDashboard(
               status: nextAppt.status,
             }
           : null,
+      pendingRefillCount,
       lowStock,
       openRestockCount: openRestocks.length,
       firstOpenRestockId: openRestocks[0]?.id ?? null,

@@ -8,7 +8,7 @@
 | 2 | Reality Gate | ✅ |
 | 3 | Booking MVP Round 1（Availability + Appointment） | ✅ |
 | **4** | **Booking Round 2：LINE 確認／提醒** | ⭐ |
-| 5 | Refill／Payment／Jar | ⏳ |
+| 5 | Refill／Payment／Jar | 🚧 進行中（見 `docs/PLAN-liff-refill-payment.md`） |
 
 ## Booking Constitution
 

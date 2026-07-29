@@ -116,6 +116,7 @@ model Customer {
   storeName   String? @map("store_name")
 
   appointments Appointment[]
+  refillOrders RefillOrder[]
 
   // 訂閱會員 flag（為了好查；真正資料看 subscriptions 關聯）
   hasActiveSubscription Boolean @default(false)
@@ -145,6 +146,7 @@ model Customer {
   @@index([lastOrderAt])
   @@index([name])
   @@index([phone])
+  @@index([lineUserId])
 }
 
 // LINE 官方帳號多步驟對話（加入會員等）暫存
@@ -192,29 +194,46 @@ model CustomerService {
   @@map("customer_services")
 }
 
+/// 瓶底 8 碼序號。
+/// status 雙軌：
+/// - unused → used：既有 LINE 兑碼入點（保留，不可破壞）
+/// - unused → issued → returned：換罐交付生命週期（NT$99 資格看 issued）
+/// - expired：作廢
 model JarCode {
   id                   String    @id @default(cuid())
   code                 String    @unique
   batchNo              String?   @map("batch_no")
   productSku           String?   @map("product_sku")
   pointValue           Int       @default(1) @map("point_value")
-  status               String    @default("unused") // unused | used | expired
+  /// unused | issued | returned | used | expired
+  status               String    @default("unused")
   redeemedByCustomerId String?   @map("redeemed_by_customer_id")
   redeemedAt           DateTime? @map("redeemed_at")
+  issuedAt             DateTime? @map("issued_at")
+  returnedAt           DateTime? @map("returned_at")
+  issuedMerchantId     String?   @map("issued_merchant_id")
+  returnedMerchantId   String?   @map("returned_merchant_id")
+  /// 進行中／已占用此舊罐的換罐訂單
+  lockedByRefillOrderId String?  @map("locked_by_refill_order_id")
   createdAt            DateTime  @default(now()) @map("created_at")
 
-  redeemedByCustomer Customer? @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+  redeemedByCustomer Customer?    @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+  issuedMerchant     Merchant?    @relation("JarCodesIssuedAt", fields: [issuedMerchantId], references: [id], onDelete: SetNull)
+  returnedMerchant   Merchant?    @relation("JarCodesReturnedAt", fields: [returnedMerchantId], references: [id], onDelete: SetNull)
+  lockedByRefillOrder RefillOrder? @relation("JarCodeLockedByRefill", fields: [lockedByRefillOrderId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([batchNo])
   @@index([redeemedByCustomerId])
+  @@index([lockedByRefillOrderId])
   @@map("jar_codes")
 }
 
 model MemberPointsLedger {
   id              String   @id @default(cuid())
   customerId      String   @map("customer_id")
-  sourceType      String   @map("source_type") // jar_code_redeem | manual_adjustment | reward_redemption | campaign_bonus
+  /// jar_code_redeem | manual_adjustment | reward_redemption | grooming_coupon_redemption | campaign_bonus | refill_completed
+  sourceType      String   @map("source_type")
   sourceRefId     String?  @map("source_ref_id")
   pointsChange    Int      @map("points_change")
   balanceAfter    Int      @map("balance_after")
@@ -227,7 +246,103 @@ model MemberPointsLedger {
 
   @@index([customerId, createdAt])
   @@index([sourceType])
+  @@index([sourceType, sourceRefId])
   @@map("member_points_ledger")
+}
+
+// =====================================================
+// 換罐訂單／綠界付款（Stage 5 LIFF refill）
+// =====================================================
+
+/// 換罐／首罐訂單（綁定預約店家；美容費不在此收取）
+model RefillOrder {
+  id                     String    @id @default(cuid())
+  customerId             String    @map("customer_id")
+  appointmentId          String    @map("appointment_id")
+  merchantId             String    @map("merchant_id")
+  petName                String?   @map("pet_name")
+  productId              String?   @map("product_id")
+  /// first | exchange
+  orderType              String    @map("order_type")
+  baseAmount             Int       @map("base_amount")
+  extraAmount            Int       @default(0) @map("extra_amount")
+  totalAmount            Int       @map("total_amount")
+  /// draft | payment_pending | paid_waiting_return | old_container_verified | completed | payment_failed | cancelled | expired | awaiting_extra_payment
+  status                 String
+  /// exchange | first（補差額後改 first，可不驗舊罐）
+  deliveryMode           String    @default("exchange") @map("delivery_mode")
+  oldContainerSerial     String?   @map("old_container_serial")
+  newContainerSerial     String?   @map("new_container_serial")
+  missingContainerNote   String?   @map("missing_container_note")
+  paidAt                 DateTime? @map("paid_at")
+  oldContainerReturnedAt DateTime? @map("old_container_returned_at")
+  completedAt            DateTime? @map("completed_at")
+  /// 加點完成時間；與 ledger sourceRefId 雙重冪等
+  pointsAwardedAt        DateTime? @map("points_awarded_at")
+  idempotencyKey         String?   @unique @map("idempotency_key")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  appointment Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  merchant    Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  product     Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payments    PaymentOrder[]
+  auditLogs   RefillAuditLog[]
+  lockedJarCodes JarCode[]   @relation("JarCodeLockedByRefill")
+
+  @@index([customerId, status])
+  @@index([merchantId, status])
+  @@index([appointmentId])
+  @@index([status, createdAt])
+  @@map("refill_orders")
+}
+
+model PaymentOrder {
+  id              String    @id @default(cuid())
+  refillOrderId   String    @map("refill_order_id")
+  /// refill | extra_topup
+  purpose         String
+  provider        String    @default("ecpay")
+  merchantTradeNo String    @unique @map("merchant_trade_no")
+  amount          Int
+  /// pending | paid | failed
+  status          String    @default("pending")
+  providerTradeNo String?   @map("provider_trade_no")
+  paidAt          DateTime? @map("paid_at")
+  callbackPayload Json?     @map("callback_payload")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  refillOrder RefillOrder      @relation(fields: [refillOrderId], references: [id], onDelete: Cascade)
+  auditLogs   RefillAuditLog[]
+
+  @@index([refillOrderId, purpose])
+  @@index([status])
+  @@map("payment_orders")
+}
+
+model RefillAuditLog {
+  id             String   @id @default(cuid())
+  refillOrderId  String?  @map("refill_order_id")
+  paymentOrderId String?  @map("payment_order_id")
+  action         String
+  /// customer | merchant | system | ecpay
+  actorType      String   @map("actor_type")
+  actorId        String?  @map("actor_id")
+  merchantId     String?  @map("merchant_id")
+  serial         String?
+  success        Boolean  @default(true)
+  detail         Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  refillOrder  RefillOrder?  @relation(fields: [refillOrderId], references: [id], onDelete: SetNull)
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+
+  @@index([refillOrderId, createdAt])
+  @@index([paymentOrderId])
+  @@index([action, createdAt])
+  @@map("refill_audit_logs")
 }
 
 model RewardCatalog {
@@ -372,6 +487,9 @@ model Merchant {
   settings     MerchantSettings?
   restockRequests RestockRequest[]
   appointments Appointment[]
+  refillOrders RefillOrder[]
+  jarCodesIssued   JarCode[] @relation("JarCodesIssuedAt")
+  jarCodesReturned JarCode[] @relation("JarCodesReturnedAt")
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
@@ -435,6 +553,7 @@ model Appointment {
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
   serviceProduct Product? @relation(fields: [serviceProductId], references: [id], onDelete: SetNull)
+  refillOrders RefillOrder[]
 
   @@index([merchantId, startsAt])
   @@index([merchantId, status])
@@ -508,6 +627,7 @@ model Product {
   shipmentItems         ShipmentItem[]
   restockRequestItems   RestockRequestItem[]
   appointments          Appointment[]
+  refillOrders          RefillOrder[]
 
   @@index([productCategory])
   @@index([status])

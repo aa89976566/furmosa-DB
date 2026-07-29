@@ -10,11 +10,14 @@
  * └────────────┴────────────┘
  */
 
+import { WORLD_THEME } from '@/lib/line/card-theme';
 import {
+  buildButtonMenuFlex,
   buildGroomingSoonMessages,
   buildHomeHubMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 export type ComicMenuKind = 'roam' | 'grooming' | 'jar' | 'home';
@@ -38,9 +41,30 @@ export function buildComicGroomingMessages(): LineReplyMessage[] {
   return buildGroomingSoonMessages();
 }
 
-/** 換罐計劃 → 瓶子是主角 */
+/** 換罐計劃 → 瓶子是主角；已開戶且設定 LIFF 時附加「我要換罐」 */
 export function buildComicJarMessages(registered: boolean): LineReplyMessage[] {
-  return buildWorldHubMessages('jar', { registered });
+  const msgs = buildWorldHubMessages('jar', { registered });
+  if (registered) {
+    const url = getLiffUrlIfConfigured('refill');
+    if (url) {
+      msgs.push(
+        buildButtonMenuFlex({
+          altText: '我要換罐',
+          theme: WORLD_THEME.jar,
+          title: '我要換罐',
+          subtitle: '預約確認後，可直接線上付換罐款給匠寵。',
+          items: [
+            {
+              label: '我要換罐',
+              action: { type: 'uri', uri: url },
+              style: 'primary',
+            },
+          ],
+        }),
+      );
+    }
+  }
+  return msgs;
 }
 
 /** 回家 → furmosa.com + IG，像回家不是點首頁 */
