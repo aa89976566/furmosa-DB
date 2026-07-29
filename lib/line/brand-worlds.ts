@@ -232,6 +232,7 @@ export function buildJarHubItems(registered: boolean): {
           label: '換罐計劃是什麼',
           subtitle: '怎麼玩、怎麼累積，先看這篇。',
           heroKey: 'jar-explain',
+          message: '換罐計劃是什麼',
         },
         {
           id: 'jar_stores',
@@ -239,6 +240,7 @@ export function buildJarHubItems(registered: boolean): {
           label: '配合店家',
           subtitle: '折價會綁哪一間，先確認一下。',
           heroKey: 'jar-stores',
+          message: '配合店家',
         },
         {
           id: 'jar_enter',
@@ -246,6 +248,7 @@ export function buildJarHubItems(registered: boolean): {
           label: '兌換序號',
           subtitle: '罐底 8 碼，傳上來就好。',
           heroKey: 'jar-enter',
+          message: '兌換序號',
         },
         {
           id: 'redeem',
@@ -253,6 +256,7 @@ export function buildJarHubItems(registered: boolean): {
           label: '兌換好禮',
           subtitle: '點數可以換成實際好康。',
           heroKey: 'jar-vault',
+          message: '兌換好禮',
         },
       ],
     };
@@ -268,6 +272,7 @@ export function buildJarHubItems(registered: boolean): {
         label: '換罐計劃是什麼',
         subtitle: '怎麼玩、怎麼累積，先看這篇。',
         heroKey: 'jar-explain',
+        message: '換罐計劃是什麼',
       },
       {
         id: 'jar_reg',
@@ -275,6 +280,7 @@ export function buildJarHubItems(registered: boolean): {
         label: '開戶',
         subtitle: '先幫毛孩開戶，之後序號才能入帳。',
         heroKey: 'jar-reg',
+        message: '立即開戶',
       },
       {
         id: 'jar_stores',
@@ -282,6 +288,7 @@ export function buildJarHubItems(registered: boolean): {
         label: '配合店家',
         subtitle: '折價會綁哪一間，先確認一下。',
         heroKey: 'jar-stores',
+        message: '配合店家',
       },
     ],
   };

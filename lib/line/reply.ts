@@ -59,6 +59,27 @@ function stripImages(messages: LineReplyMessage[]): LineReplyMessage[] {
   return messages.filter((m) => m.type !== 'image');
 }
 
+/** 再退一步：純文字；連文字都沒有就回固定短句 */
+async function postReplyLastResort(
+  replyToken: string,
+  batch: LineReplyMessage[],
+  originalErr: unknown,
+) {
+  const texts = batch.filter((m) => m.type === 'text');
+  try {
+    if (texts.length > 0) {
+      await postReply(replyToken, texts.slice(0, 5));
+      return;
+    }
+    await postReply(replyToken, [
+      { type: 'text', text: '這邊剛卡一下，再點一次選單喔。' },
+    ]);
+  } catch (err2) {
+    console.error('[line/reply] last-resort text also failed', err2);
+    throw originalErr;
+  }
+}
+
 async function pushOverflow(lineUserId: string, messages: LineReplyMessage[]) {
   for (let i = 0; i < messages.length; i += 5) {
     const chunk = messages.slice(i, i + 5);
@@ -148,21 +169,13 @@ export async function replyLineMessage(
       try {
         await postReply(replyToken, batch);
       } catch (err2) {
-        const texts = batch.filter((m) => m.type === 'text');
-        if (texts.length === 0) throw err2;
         console.error('[line/reply] retry failed, text-only fallback', err2);
-        await postReply(replyToken, texts.slice(0, 5));
+        await postReplyLastResort(replyToken, batch, err2);
       }
     } else {
       // Flex／其他錯誤：盡量保住文字，避免整段掉進「沒回成功」
-      const texts = batch.filter((m) => m.type === 'text');
-      if (texts.length === 0) throw err;
       console.error('[line/reply] reply failed, text-only fallback', err);
-      try {
-        await postReply(replyToken, texts.slice(0, 5));
-      } catch {
-        throw err;
-      }
+      await postReplyLastResort(replyToken, batch, err);
     }
   }
   if (overflow.length > 0 && opts?.lineUserId) {
