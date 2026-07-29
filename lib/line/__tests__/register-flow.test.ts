@@ -30,6 +30,13 @@ describe('isRegisterNavLeaveText', () => {
     assert.equal(isRegisterNavLeaveText('換罐計劃'), true);
   });
 
+  it('換罐選單捷徑應離開開戶（含介紹）', () => {
+    assert.equal(isRegisterNavLeaveText('介紹'), true);
+    assert.equal(isRegisterNavLeaveText('Q&A'), true);
+    assert.equal(isRegisterNavLeaveText('兌換優惠券'), true);
+    assert.equal(isRegisterNavLeaveText('輸入序號'), true);
+  });
+
   it('一般開戶輸入不應被當成導覽離開', () => {
     assert.equal(isRegisterNavLeaveText('王小姐'), false);
     assert.equal(isRegisterNavLeaveText('0912345678'), false);
