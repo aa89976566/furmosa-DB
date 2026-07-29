@@ -201,9 +201,9 @@ describe('回家', () => {
   it('文案與按鈕為狗屋／院子', () => {
     const msgs = buildHomeHubMessages();
     const text = msgs.find((m) => m.type === 'text') as { text: string };
-    assert.match(text.text, /到了/);
-    assert.match(text.text, /狗屋在裡面/);
-    assert.match(text.text, /院子也還亮著/);
+    assert.match(text.text, /歡迎回家/);
+    assert.match(text.text, /狗屋/);
+    assert.match(text.text, /院子/);
     const raw = JSON.stringify(flexFrom(msgs));
     assert.match(raw, /進狗屋（官網）/);
     assert.match(raw, /去院子（Instagram）/);

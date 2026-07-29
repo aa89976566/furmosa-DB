@@ -40,10 +40,18 @@ export default async function PosHomePage() {
 
     let merchant: { id: string; name: string; merchantId: string } | null = null;
     try {
-      merchant = await prisma.merchant.findFirst({
-        where: { id: session.merchantId },
-        select: { id: true, name: true, merchantId: true },
-      });
+      merchant = await Promise.race([
+        prisma.merchant.findFirst({
+          where: { id: session.merchantId },
+          select: { id: true, name: true, merchantId: true },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('[pos] merchant lookup timed out')),
+            8_000,
+          ),
+        ),
+      ]);
     } catch (err) {
       console.error('[pos] merchant lookup', err);
       return (
