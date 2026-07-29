@@ -70,6 +70,22 @@ export async function ensureRefillPlanSeeded(): Promise<void> {
       update: {},
     });
 
+    // Ship new default hero without overwriting custom URLs.
+    const existing = await prisma.refillPlanSettings.findUnique({
+      where: { id: 'default' },
+      select: { heroImageUrl: true },
+    });
+    const currentHero = (existing?.heroImageUrl ?? '').trim();
+    const isLegacyDefault =
+      !currentHero ||
+      currentHero.includes('/images/refill-plan/refill-flavours.jpg');
+    if (isLegacyDefault && currentHero !== REFILL_PLAN_RULES.heroImagePath) {
+      await prisma.refillPlanSettings.update({
+        where: { id: 'default' },
+        data: { heroImageUrl: REFILL_PLAN_RULES.heroImagePath },
+      });
+    }
+
     for (const f of DEFAULT_REFILL_FLAVOURS) {
       await prisma.refillFlavour.upsert({
         where: { code: f.code },

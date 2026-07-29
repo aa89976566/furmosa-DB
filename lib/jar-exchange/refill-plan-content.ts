@@ -18,7 +18,7 @@ export const REFILL_PLAN_RULES = {
   pointsForDiscount: 10,
   /** 預設折抵；實際綁定店可能為豬窩 250，顯示時再依店家覆寫 */
   discountAmountDefault: 200,
-  heroImagePath: '/images/refill-plan/refill-flavours.jpg',
+  heroImagePath: '/images/refill-plan/refill-flavours-v2.jpg',
   heroAlt: '匠寵換罐計劃七種零食口味',
 } as const;
 
