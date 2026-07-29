@@ -37,6 +37,55 @@ const INTRO_THEME = {
   border: '#2E231D',
 } as const;
 
+/** 乳牛斑對話框底圖（絕對定位鋪底；LINE box 不支援 background-image） */
+const COW_PRINT_BG_PATH = '/images/refill-plan/cow-print-bg.jpg';
+
+type FlexComponent = Record<string, unknown>;
+
+/**
+ * 把內容包在乳牛斑背景上。
+ * LINE 限制：區塊第一個子元件不能是 absolute，所以先放 filler。
+ */
+function withCowPrintBackground(
+  innerContents: FlexComponent[],
+  opts?: { paddingAll?: string; spacing?: string },
+): FlexComponent {
+  return {
+    type: 'box',
+    layout: 'vertical',
+    paddingAll: '0px',
+    backgroundColor: INTRO_THEME.bg,
+    contents: [
+      {
+        type: 'box',
+        layout: 'vertical',
+        contents: [
+          { type: 'filler' },
+          {
+            type: 'image',
+            url: publicAssetUrl(COW_PRINT_BG_PATH),
+            size: 'full',
+            aspectMode: 'cover',
+            aspectRatio: '4:7',
+            position: 'absolute',
+            offsetTop: '0px',
+            offsetBottom: '0px',
+            offsetStart: '0px',
+            offsetEnd: '0px',
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: opts?.spacing ?? 'md',
+            paddingAll: opts?.paddingAll ?? '18px',
+            contents: innerContents,
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function text(
   content: string,
   opts?: {
@@ -156,115 +205,103 @@ function buildIntroFlexContents(opts: {
         text: '立即開戶',
       };
 
+  const bodyContents: FlexComponent[] = [
+    text(REFILL_INTRO_COPY.flexTitle, {
+      size: 'xs',
+      color: INTRO_THEME.accent,
+      weight: 'bold',
+    }),
+    text(REFILL_INTRO_COPY.headline, {
+      size: 'xl',
+      weight: 'bold',
+      margin: 'sm',
+    }),
+    text(bodyText, { size: 'sm', color: INTRO_THEME.ink, margin: 'md' }),
+    {
+      type: 'box',
+      layout: 'horizontal',
+      spacing: 'sm',
+      margin: 'lg',
+      contents: REFILL_INTRO_COPY.tags.map((t) => tagChip(t)),
+    },
+    separator('lg'),
+    {
+      type: 'box',
+      layout: 'horizontal',
+      spacing: 'md',
+      margin: 'lg',
+      contents: [
+        priceCell('第一罐', settings.firstJarPrice),
+        priceCell('帶空罐換新罐', settings.exchangePrice),
+      ],
+    },
+    separator('lg'),
+    text('怎麼參加', {
+      size: 'md',
+      weight: 'bold',
+      margin: 'md',
+    }),
+    ...REFILL_INTRO_STEPS.map((s) => stepRow(s)),
+    separator('lg'),
+    text(REFILL_INTRO_COPY.flavourSectionTitle, {
+      size: 'md',
+      weight: 'bold',
+      margin: 'md',
+    }),
+    text(REFILL_INTRO_COPY.flavourSectionLead.join('\n'), {
+      size: 'xs',
+      color: INTRO_THEME.muted,
+      margin: 'sm',
+    }),
+    text(flavourLines.join('\n') || '本期口味準備中', {
+      size: 'sm',
+      margin: 'md',
+    }),
+    text(REFILL_PLAN_RULES.stockDisclaimer, {
+      size: 'xxs',
+      color: INTRO_THEME.muted,
+      margin: 'sm',
+    }),
+    // CTA 併入 body，讓乳牛斑背景連到對話框底部（避免 footer 色塊斷開）
+    separator('lg'),
+    {
+      type: 'button',
+      style: 'primary',
+      height: 'md',
+      color: INTRO_THEME.cta,
+      margin: 'md',
+      action: startAction,
+    },
+    {
+      type: 'button',
+      style: 'secondary',
+      height: 'md',
+      color: INTRO_THEME.cream,
+      action: {
+        type: 'message',
+        label: REFILL_INTRO_COPY.ctaFlavours,
+        text: '看本期口味',
+      },
+    },
+    {
+      type: 'button',
+      style: 'link',
+      height: 'sm',
+      action: {
+        type: 'message',
+        label: REFILL_INTRO_COPY.ctaStores,
+        text: '配合店家',
+      },
+    },
+  ];
+
   return {
-    type: 'bubble' as const,
-    size: 'mega' as const,
+    type: 'bubble',
+    size: 'mega',
     styles: {
       body: { backgroundColor: INTRO_THEME.bg },
-      footer: { backgroundColor: INTRO_THEME.bg },
     },
-    body: {
-      type: 'box' as const,
-      layout: 'vertical' as const,
-      spacing: 'md',
-      paddingAll: '18px',
-      backgroundColor: INTRO_THEME.bg,
-      contents: [
-        text(REFILL_INTRO_COPY.flexTitle, {
-          size: 'xs',
-          color: INTRO_THEME.accent,
-          weight: 'bold',
-        }),
-        text(REFILL_INTRO_COPY.headline, {
-          size: 'xl',
-          weight: 'bold',
-          margin: 'sm',
-        }),
-        text(bodyText, { size: 'sm', color: INTRO_THEME.ink, margin: 'md' }),
-        {
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          spacing: 'sm',
-          margin: 'lg',
-          contents: REFILL_INTRO_COPY.tags.map((t) => tagChip(t)),
-        },
-        separator('lg'),
-        {
-          type: 'box' as const,
-          layout: 'horizontal' as const,
-          spacing: 'md',
-          margin: 'lg',
-          contents: [
-            priceCell('第一罐', settings.firstJarPrice),
-            priceCell('帶空罐換新罐', settings.exchangePrice),
-          ],
-        },
-        separator('lg'),
-        text('怎麼參加', {
-          size: 'md',
-          weight: 'bold',
-          margin: 'md',
-        }),
-        ...REFILL_INTRO_STEPS.map((s) => stepRow(s)),
-        separator('lg'),
-        text(REFILL_INTRO_COPY.flavourSectionTitle, {
-          size: 'md',
-          weight: 'bold',
-          margin: 'md',
-        }),
-        text(REFILL_INTRO_COPY.flavourSectionLead.join('\n'), {
-          size: 'xs',
-          color: INTRO_THEME.muted,
-          margin: 'sm',
-        }),
-        text(flavourLines.join('\n') || '本期口味準備中', {
-          size: 'sm',
-          margin: 'md',
-        }),
-        text(REFILL_PLAN_RULES.stockDisclaimer, {
-          size: 'xxs',
-          color: INTRO_THEME.muted,
-          margin: 'sm',
-        }),
-      ],
-    },
-    footer: {
-      type: 'box' as const,
-      layout: 'vertical' as const,
-      spacing: 'sm',
-      paddingAll: '14px',
-      backgroundColor: INTRO_THEME.bg,
-      contents: [
-        {
-          type: 'button' as const,
-          style: 'primary' as const,
-          height: 'md' as const,
-          color: INTRO_THEME.cta,
-          action: startAction,
-        },
-        {
-          type: 'button' as const,
-          style: 'secondary' as const,
-          height: 'md' as const,
-          color: INTRO_THEME.cream,
-          action: {
-            type: 'message' as const,
-            label: REFILL_INTRO_COPY.ctaFlavours,
-            text: '看本期口味',
-          },
-        },
-        {
-          type: 'button' as const,
-          style: 'link' as const,
-          height: 'sm' as const,
-          action: {
-            type: 'message' as const,
-            label: REFILL_INTRO_COPY.ctaStores,
-            text: '配合店家',
-          },
-        },
-      ],
-    },
+    body: withCowPrintBackground(bodyContents),
   };
 }
 

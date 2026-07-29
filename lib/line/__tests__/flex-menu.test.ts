@@ -284,6 +284,8 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 2);
     assert.equal(msgs[1]?.type, 'flex');
     const raw = JSON.stringify(msgs[1]);
+    assert.match(raw, /cow-print-bg\.jpg/);
+    assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /吃完，不用說再見/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
