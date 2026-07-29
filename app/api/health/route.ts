@@ -14,16 +14,17 @@ function summarizeError(err: unknown): { code: string; kind: string } {
   const name = err instanceof Error ? err.name : typeof err;
   const msg = err instanceof Error ? err.message : String(err);
   let kind = 'unknown';
-  if (/P1001|Can't reach database|ECONNREFUSED|P1000|P1002|ENOTFOUND|ETIMEDOUT/i.test(`${code} ${msg}`)) {
+  // auth 必須先於 pool：錯誤訊息常含 pooler 主機名，否則會誤判成 pool_timeout
+  if (/P1010|denied|authentication failed|password authentication|Tenant or user not found/i.test(`${code} ${msg}`)) {
+    kind = 'auth_failed';
+  } else if (/P1001|Can't reach database|ECONNREFUSED|P1000|P1002|ENOTFOUND|ETIMEDOUT/i.test(`${code} ${msg}`)) {
     kind = 'unreachable';
   } else if (/P1017|closed the connection|Connection terminated/i.test(`${code} ${msg}`)) {
     kind = 'connection_closed';
-  } else if (/pool|Timed out fetching/i.test(msg)) {
+  } else if (/Timed out fetching a new connection from the connection pool|connection pool/i.test(msg)) {
     kind = 'pool_timeout';
   } else if (/P2021|P2022|does not exist/i.test(`${code} ${msg}`)) {
     kind = 'missing_schema';
-  } else if (/P1010|denied|authentication|password|Tenant or user not found/i.test(msg)) {
-    kind = 'auth_failed';
   } else if (/PrismaClientInitializationError/i.test(name)) {
     kind = 'init_error';
   }
@@ -40,12 +41,28 @@ function urlShape(url: string | undefined): string {
   try {
     const u = new URL(url);
     const port = u.port || (u.protocol === 'postgresql:' ? '5432' : '');
-    const host = u.hostname.replace(/^[a-z0-9]+\./i, '*.'); // 遮罩 project ref 前綴可選
+    const host = u.hostname;
     const pooled = /pgbouncer=true/i.test(url) || port === '6543';
-    return `${pooled ? 'pooler' : 'direct'}://${host}:${port || '?'}`;
+    const user = u.username;
+    // pooler 必須是 postgres.<projectRef>；純 postgres 通常會 auth 失敗
+    let userShape = 'missing_user';
+    if (/^postgres\.[a-z0-9]+$/i.test(user)) userShape = 'postgres.projectref';
+    else if (user === 'postgres') userShape = 'postgres';
+    else if (user) userShape = 'other';
+    return `${pooled ? 'pooler' : 'session'}://${userShape}@${host}:${port || '?'}`;
   } catch {
     return 'invalid';
   }
+}
+
+function hintForAuthFailure(details: Record<string, unknown>): string {
+  return (
+    'Vercel Production 的 DATABASE_URL／DIRECT_URL 密碼或帳號與 Supabase 不符。' +
+    '請到 Vercel → furmosa-db → Settings → Environment Variables，' +
+    '用 Supabase Connection pooling（Transaction :6543）更新 DATABASE_URL，' +
+    'Session mode :5432 更新 DIRECT_URL；帳號須為 postgres.<projectRef>。' +
+    `目前形態：DATABASE_URL=${details.databaseUrl} DIRECT_URL=${details.directUrl}`
+  );
 }
 
 async function probeUrl(label: string, url: string | undefined) {
@@ -109,8 +126,24 @@ export async function GET() {
     checks.database === 'ok' &&
     checks.merchantUsers === 'ok';
 
+  const authFailed =
+    (typeof details.database === 'object' &&
+      details.database &&
+      'kind' in details.database &&
+      String((details.database as { kind: string }).kind).startsWith('auth_failed')) ||
+    pooled.error?.kind.startsWith('auth_failed') ||
+    direct.error?.kind.startsWith('auth_failed');
+
   return NextResponse.json(
-    { ok, checks, details, at: new Date().toISOString() },
+    {
+      ok,
+      checks,
+      details,
+      ...(authFailed
+        ? { fixHint: hintForAuthFailure(details) }
+        : {}),
+      at: new Date().toISOString(),
+    },
     { status: ok ? 200 : 503 },
   );
 }
