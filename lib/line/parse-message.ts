@@ -22,6 +22,8 @@ export type ParsedLineText =
   | { kind: 'jar_explain_intro' }
   | { kind: 'jar_explain_flow' }
   | { kind: 'jar_explain_faq' }
+  | { kind: 'jar_explain' }
+  | { kind: 'jar_enter' }
   | { kind: 'jar_stores' }
   | { kind: 'unknown'; text: string };
 
@@ -35,7 +37,7 @@ const BIND_HELP_RE =
   /^(?:如何綁定|怎么绑定|怎麼綁定|如何绑定|綁定方式|绑定方式|怎麼綁|如何綁|我要綁定|開戶存罐罐|開戶|先認個人|幫毛孩開戶|加入會員|立即開戶|立刻開戶)$/i;
 const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
 const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑定状态|我是誰|我是谁)$/i;
-const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|reward|rewards)$/i;
+const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|兌換好禮|reward|rewards)$/i;
 const UNBOXING_RE =
   /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|嗷嗚計劃|清蛙誰在怕|青蛙誰在怕|青蛙：誰在怕？|開箱任務)$/i;
 /** 活動中心／沒梗了（不是嗷嗚計劃） */
@@ -49,13 +51,20 @@ const COMIC_ROAM_RE = /^(?:一起野放|野放一下)$/;
 const COMIC_GROOMING_RE = /^(?:預約美容|漂亮一下)$/;
 const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
 /** 換罐說明子選單（按鈕 displayText／使用者直接打字） */
+const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
 const JAR_EXPLAIN_INTRO_RE = /^介紹$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
 const JAR_EXPLAIN_FAQ_RE = /^常見問題$/;
+const JAR_ENTER_RE = /^兌換序號$/;
 const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
 
+/** 去掉零寬字元，避免 Rich Menu 帶入後對不到捷徑 */
+function normalizeLineUserText(raw: string): string {
+  return raw.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+}
+
 export function parseLineUserText(raw: string): ParsedLineText {
-  const text = raw.trim();
+  const text = normalizeLineUserText(raw);
   if (!text) return { kind: 'unknown', text: '' };
 
   const bind = text.match(BIND_RE);
@@ -75,15 +84,18 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (EVENTS_CENTER_RE.test(text)) return { kind: 'events_center' };
   if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };
 
-  const redeemReward = text.match(REDEEM_REWARD_RE);
-  if (redeemReward?.[1]) {
-    return { kind: 'redeem_reward', target: redeemReward[1].trim() };
-  }
-
+  // 精確換罐捷徑要先於「兌換 xxx」模糊規則
+  if (JAR_EXPLAIN_MENU_RE.test(text)) return { kind: 'jar_explain' };
+  if (JAR_ENTER_RE.test(text)) return { kind: 'jar_enter' };
   if (JAR_EXPLAIN_INTRO_RE.test(text)) return { kind: 'jar_explain_intro' };
   if (JAR_EXPLAIN_FLOW_RE.test(text)) return { kind: 'jar_explain_flow' };
   if (JAR_EXPLAIN_FAQ_RE.test(text)) return { kind: 'jar_explain_faq' };
   if (JAR_STORES_RE.test(text)) return { kind: 'jar_stores' };
+
+  const redeemReward = text.match(REDEEM_REWARD_RE);
+  if (redeemReward?.[1]) {
+    return { kind: 'redeem_reward', target: redeemReward[1].trim() };
+  }
 
   if (BIND_HELP_RE.test(text)) return { kind: 'bind_help' };
   if (SAVINGS_RE.test(text)) return { kind: 'savings' };

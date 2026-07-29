@@ -57,10 +57,15 @@ describe('parseLineUserText', () => {
   });
 
   it('recognizes jar explain submenu labels', () => {
+    assert.equal(parseLineUserText('換罐計劃是什麼').kind, 'jar_explain');
     assert.equal(parseLineUserText('介紹').kind, 'jar_explain_intro');
     assert.equal(parseLineUserText('流程').kind, 'jar_explain_flow');
     assert.equal(parseLineUserText('常見問題').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('合作店家').kind, 'jar_stores');
+    assert.equal(parseLineUserText('配合店家').kind, 'jar_stores');
+    assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
+    assert.equal(parseLineUserText('兌換好禮').kind, 'rewards_list');
+    assert.equal(parseLineUserText('換罐計劃\u200b').kind, 'hub_jar');
   });
 
   it('recognizes jar codes', () => {

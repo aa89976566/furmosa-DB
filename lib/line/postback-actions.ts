@@ -162,15 +162,19 @@ export async function handleLinePostback(
   const registered = Boolean(customer);
 
   if (action === 'hub_jar') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('jar', { registered }));
+    await replyLineMessage(replyToken, buildWorldHubMessages('jar', { registered }), {
+      lineUserId,
+    });
     return;
   }
   if (action === 'hub_chaos') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }), {
+      lineUserId,
+    });
     return;
   }
   if (action === 'hub_wild' || action === 'hub_home') {
-    await replyLineMessage(replyToken, buildHomeHubMessages());
+    await replyLineMessage(replyToken, buildHomeHubMessages(), { lineUserId });
     return;
   }
 

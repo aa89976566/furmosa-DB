@@ -9,7 +9,6 @@ import {
   JAR_EXPLAIN_DIALOGUE,
   JAR_FLOW_STORY,
   WILD_INTRO,
-  WORLD_HUB_EMOJI,
   WORLD_HUB_LABELS,
   WORLD_HUB_TAGLINE,
   buildHomeItems,
@@ -508,21 +507,25 @@ export function buildWorldHubMessages(
 ): LineReplyMessage[] {
   const registered = opts?.registered ?? false;
   const theme = WORLD_THEME[hub];
-  const title = `${WORLD_HUB_EMOJI[hub]} ${WORLD_HUB_LABELS[hub]}`;
 
   if (hub === 'jar') {
+    // 與一起野放相同：只回選單卡，不另發開場文（避免跟按鈕重複）
     const hubCfg = buildJarHubItems(registered);
-    return [
-      { type: 'text', text: opts?.body ?? `${title}\n${hubCfg.body}` },
+    const messages: LineReplyMessage[] = [];
+    if (opts?.body) {
+      messages.push({ type: 'text', text: opts.body });
+    }
+    messages.push(
       menuFromItems({
         altText: WORLD_HUB_LABELS.jar,
         theme,
         title: WORLD_HUB_LABELS.jar,
-        subtitle: '點下面按鈕，由上往下選。',
+        subtitle: WORLD_HUB_TAGLINE.jar,
         items: hubCfg.items,
         primaryId: hubCfg.primaryId,
       }),
-    ];
+    );
+    return messages;
   }
 
   if (hub === 'chaos') {
@@ -574,46 +577,42 @@ export function buildRegisterGateMessages(
   ];
 }
 
-/** 什麼是換罐：垂直按鈕說明 */
+/** 什麼是換罐：相容舊入口；店家已在主選單，這裡不再重複 */
 export function buildJarExplainMessages(): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
   const sections: WorldMenuItem[] = [
     {
       id: 'jar_explain_intro',
-      mark: '♻️',
+      mark: '',
       label: '介紹',
       subtitle: '空罐為什麼值得記一筆。',
       heroKey: 'jar-explain',
+      message: '介紹',
     },
     {
       id: 'jar_explain_flow',
-      mark: '🔁',
+      mark: '',
       label: '流程',
-      subtitle: '開戶 → 傳碼 → 進罐庫。',
+      subtitle: '從開戶到集點，八小步。',
       heroKey: 'jar-enter',
-    },
-    {
-      id: 'jar_stores',
-      mark: '🏪',
-      label: '合作店家',
-      subtitle: '折價綁哪間店。',
-      heroKey: 'jar-stores',
+      message: '流程',
     },
     {
       id: 'jar_faq',
-      mark: '❓',
+      mark: '',
       label: '常見問題',
       subtitle: '卡關時翻這頁。',
       heroKey: 'jar-faq',
+      message: '常見問題',
     },
   ];
-  // 入口已是「換罐計劃是什麼」，不再重複開場白，直接給說明選單
+  // 打字「換罐計劃是什麼」仍可進說明；不再重複店家與「點下面按鈕」
   return [
     menuFromItems({
       altText: '換罐說明',
       theme,
       title: '換罐說明',
-      subtitle: '點下面按鈕，由上往下選。',
+      subtitle: '想先看哪一段？',
       items: sections,
     }),
   ];

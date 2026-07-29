@@ -16,7 +16,8 @@ import { formatCurrency, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
 import { AlertTriangle, ArrowUpRight } from 'lucide-react';
 
-export const revalidate = 30;
+/** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
+export const dynamic = 'force-dynamic';
 
 export default async function InventoryPage() {
   const products = await prisma.product.findMany({

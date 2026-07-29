@@ -46,8 +46,38 @@ async function postReply(replyToken: string, messages: LineReplyMessage[]) {
   }
 }
 
+function isTransientLineReplyError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /LINE Reply API 失敗 \((429|5\d\d)\)/.test(msg);
+}
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
 function stripImages(messages: LineReplyMessage[]): LineReplyMessage[] {
   return messages.filter((m) => m.type !== 'image');
+}
+
+/** 再退一步：純文字；連文字都沒有就回固定短句 */
+async function postReplyLastResort(
+  replyToken: string,
+  batch: LineReplyMessage[],
+  originalErr: unknown,
+) {
+  const texts = batch.filter((m) => m.type === 'text');
+  try {
+    if (texts.length > 0) {
+      await postReply(replyToken, texts.slice(0, 5));
+      return;
+    }
+    await postReply(replyToken, [
+      { type: 'text', text: '這邊剛卡一下，再點一次選單喔。' },
+    ]);
+  } catch (err2) {
+    console.error('[line/reply] last-resort text also failed', err2);
+    throw originalErr;
+  }
 }
 
 async function pushOverflow(lineUserId: string, messages: LineReplyMessage[]) {
@@ -117,15 +147,35 @@ export async function replyLineMessage(
     await postReply(replyToken, batch);
   } catch (err) {
     const hasImage = batch.some((m) => m.type === 'image');
-    if (!hasImage) throw err;
-    console.error('[line/reply] image reply failed, falling back to text', err);
-    const fallback = stripImages(batch);
-    if (fallback.length === 0) {
-      await postReply(replyToken, [
-        { type: 'text', text: '圖剛卡住了，內容在下面——再點一次也可以。' },
-      ]);
+    if (hasImage) {
+      console.error('[line/reply] image reply failed, falling back to text', err);
+      const fallback = stripImages(batch);
+      if (fallback.length === 0) {
+        await postReply(replyToken, [
+          { type: 'text', text: '圖剛卡住了，內容在下面——再點一次也可以。' },
+        ]);
+      } else {
+        try {
+          await postReply(replyToken, fallback);
+        } catch (err2) {
+          console.error('[line/reply] text-after-image also failed', err2);
+          throw err;
+        }
+      }
+    } else if (isTransientLineReplyError(err)) {
+      // LINE 短暫 429／5xx：重試一次，再不行改送純文字
+      console.warn('[line/reply] transient failure, retry once', err);
+      await sleep(350);
+      try {
+        await postReply(replyToken, batch);
+      } catch (err2) {
+        console.error('[line/reply] retry failed, text-only fallback', err2);
+        await postReplyLastResort(replyToken, batch, err2);
+      }
     } else {
-      await postReply(replyToken, fallback);
+      // Flex／其他錯誤：盡量保住文字，避免整段掉進「沒回成功」
+      console.error('[line/reply] reply failed, text-only fallback', err);
+      await postReplyLastResort(replyToken, batch, err);
     }
   }
   if (overflow.length > 0 && opts?.lineUserId) {

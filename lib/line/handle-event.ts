@@ -3,6 +3,8 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { JAR_ENTER_BLOCKED_GUEST } from '@/lib/line/brand-worlds';
+import { clearLineChatSession } from '@/lib/line/chat-session';
+import { runAfterReply } from '@/lib/line/defer';
 import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
@@ -19,10 +21,10 @@ import {
 import {
   buildEventsCenterMessages,
   buildFrogProjectMessages,
+  buildJarExplainMessages,
   buildJarExplainTopicMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
-  buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
 import {
   buildGuestWelcomeText,
@@ -53,6 +55,15 @@ import {
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
 import { prisma } from '@/lib/prisma';
+
+const RICH_MENU_HUB_KINDS = new Set([
+  'hub_jar',
+  'comic_roam',
+  'comic_grooming',
+  'comic_home',
+  'hub_chaos',
+  'hub_wild',
+]);
 
 type LineMessageEvent = {
   type: 'message';
@@ -151,6 +162,57 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  const parsed = parseLineUserText(msgEvent.message.text);
+
+  // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，避免 DB 例外整段掉進兜底句
+  if (RICH_MENU_HUB_KINDS.has(parsed.kind)) {
+    runAfterReply(
+      clearLineChatSession(lineUserId).catch((err) => {
+        console.error('[line] clear session on rich-menu failed', err);
+      }),
+    );
+
+    let registered = false;
+    try {
+      registered = Boolean(await findCustomerByLineUserId(lineUserId));
+    } catch (err) {
+      console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
+    }
+
+    try {
+      if (parsed.kind === 'hub_jar') {
+        await replyLineMessage(replyToken, buildComicJarMessages(registered), {
+          lineUserId,
+        });
+      } else if (parsed.kind === 'comic_roam' || parsed.kind === 'hub_chaos') {
+        await replyLineMessage(replyToken, buildComicRoamMessages(registered), {
+          lineUserId,
+        });
+      } else if (parsed.kind === 'comic_grooming') {
+        await replyLineMessage(replyToken, buildComicGroomingMessages(), {
+          lineUserId,
+        });
+      } else if (parsed.kind === 'comic_home' || parsed.kind === 'hub_wild') {
+        await replyLineMessage(replyToken, buildComicHomeMessages(registered), {
+          lineUserId,
+        });
+      }
+    } catch (err) {
+      console.error('[line] rich-menu hub reply failed', parsed.kind, err);
+      const safeText =
+        parsed.kind === 'hub_jar'
+          ? '換罐計劃在這裡～回「換罐計劃是什麼」或「開戶」也可以繼續喔。'
+          : '選單剛卡一下，再點一次，或直接打字跟我說要什麼。';
+      try {
+        await replyLineText(replyToken, safeText);
+      } catch (err2) {
+        console.error('[line] rich-menu text fallback failed', err2);
+        throw err;
+      }
+    }
+    return;
+  }
+
   // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
   // campaign 表未就緒時不得讓整段 webhook 掛掉
   try {
@@ -170,12 +232,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     console.error('[line] jiba session gate failed', err);
   }
 
-  if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
-    return;
+  try {
+    if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
+      return;
+    }
+  } catch (err) {
+    console.error('[line] register flow gate failed', err);
   }
 
-  const parsed = parseLineUserText(msgEvent.message.text);
-  const customer = await findCustomerByLineUserId(lineUserId);
+  // DB 短暫異常時仍要能回功能訊息，不可整段掉進兜底句
+  let customer: BoundCustomer | null = null;
+  try {
+    customer = await findCustomerByLineUserId(lineUserId);
+  } catch (err) {
+    console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
+  }
   const registered = Boolean(customer);
 
   if (isPassiveAutoReply(parsed.kind)) {
@@ -194,34 +265,17 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
     return;
   }
+  if (parsed.kind === 'jar_explain') {
+    await replyLineMessage(replyToken, buildJarExplainMessages());
+    return;
+  }
+  if (parsed.kind === 'jar_enter') {
+    await handleLinePostback(replyToken, lineUserId, 'jd=jar_enter');
+    return;
+  }
   if (parsed.kind === 'jar_stores') {
     // 與 postback jd=jar_stores 同一套清單（不列折價金額）
     await handleLinePostback(replyToken, lineUserId, 'jd=jar_stores');
-    return;
-  }
-
-  if (parsed.kind === 'hub_jar') {
-    await replyLineMessage(replyToken, buildComicJarMessages(registered));
-    return;
-  }
-  if (parsed.kind === 'comic_roam') {
-    await replyLineMessage(replyToken, buildComicRoamMessages(registered));
-    return;
-  }
-  if (parsed.kind === 'comic_grooming') {
-    await replyLineMessage(replyToken, buildComicGroomingMessages());
-    return;
-  }
-  if (parsed.kind === 'comic_home') {
-    await replyLineMessage(replyToken, buildComicHomeMessages(registered));
-    return;
-  }
-  if (parsed.kind === 'hub_chaos') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }));
-    return;
-  }
-  if (parsed.kind === 'hub_wild') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('wild', { registered }));
     return;
   }
 
