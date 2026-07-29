@@ -25,6 +25,7 @@ export type ParsedLineText =
   | { kind: 'jar_explain' }
   | { kind: 'jar_enter' }
   | { kind: 'jar_stores' }
+  | { kind: 'redeem_coupon' }
   | { kind: 'refill_flavours' }
   | { kind: 'unknown'; text: string };
 
@@ -55,8 +56,10 @@ const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
 const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
 const JAR_EXPLAIN_INTRO_RE = /^介紹$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
-const JAR_EXPLAIN_FAQ_RE = /^常見問題$/;
+const JAR_EXPLAIN_FAQ_RE = /^(?:常見問題|Q&A|QA)$/i;
 const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
+/** 須先於「兌換 xxx」模糊規則，避免被拆成 redeem_reward */
+const REDEEM_COUPON_RE = /^(?:兌換優惠券|兌換美容折價券)$/;
 const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
 
@@ -89,6 +92,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   // 精確換罐捷徑要先於「兌換 xxx」模糊規則
   if (JAR_EXPLAIN_MENU_RE.test(text)) return { kind: 'jar_explain' };
   if (JAR_ENTER_RE.test(text)) return { kind: 'jar_enter' };
+  if (REDEEM_COUPON_RE.test(text)) return { kind: 'redeem_coupon' };
   if (JAR_EXPLAIN_INTRO_RE.test(text)) return { kind: 'jar_explain_intro' };
   if (JAR_EXPLAIN_FLOW_RE.test(text)) return { kind: 'jar_explain_flow' };
   if (JAR_EXPLAIN_FAQ_RE.test(text)) return { kind: 'jar_explain_faq' };

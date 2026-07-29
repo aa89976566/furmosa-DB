@@ -559,9 +559,9 @@ export function buildRegisterGateMessages(
   const theme = WORLD_THEME.jar;
   return [
     buildButtonMenuFlex({
-      altText: '先開戶',
+      altText: '先幫毛孩開戶',
       theme,
-      title: '先開戶',
+      title: '先幫毛孩開戶',
       subtitle: text.replace(/\n/g, ' '),
       items: [
         {

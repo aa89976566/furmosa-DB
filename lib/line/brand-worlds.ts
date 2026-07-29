@@ -36,7 +36,7 @@ export const WORLD_HUB_EMOJI: Record<WorldHubId, string> = {
 };
 
 export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
-  jar: '吃完別丟。空罐還有下一場。',
+  jar: '空罐別急著丟，回來還能換新口味喔。',
   chaos: '跟毛孩一起探索新鮮事',
   wild: '狗屋在裡面，院子也還亮著喔。',
 };
@@ -44,8 +44,8 @@ export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
 export const JAR_ENTER_HINT_REGISTERED =
   '罐底那串 8 碼傳上來就好～\n我們會幫你記進毛孩名下喔。';
 
-export const JAR_ENTER_BLOCKED_GUEST = `先幫毛孩開個戶喔～
-開好戶之後，空罐序號才能入帳。`;
+export const JAR_ENTER_BLOCKED_GUEST = `麻煩先幫毛孩開個戶喔～
+開好戶，罐底序號才能幫你記進去。`;
 
 /** 一起野放：選單副標（不再另發開場長文） */
 export const CHAOS_INTRO = '跟毛孩一起探索新鮮事';
@@ -212,96 +212,60 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃：一層選單。
- * 按鈕語氣：Liquid Death 直球 × 台灣毛爸媽口吻；顏色一律不 highlight。
+ * 換罐計劃：固定五鍵選單（開戶／未開戶同一組）。
+ * 語氣：客氣、專業、自然，台灣毛爸媽語境；顏色一律不 highlight。
  * 最底固定「輸入序號」。
  */
-export function buildJarHubItems(registered: boolean): {
+export function buildJarHubItems(_registered: boolean): {
   items: WorldMenuItem[];
   /** 換罐選單不 highlight，固定空字串 */
   primaryId: string;
   body: string;
 } {
-  const explainItems: WorldMenuItem[] = [
-    {
-      id: 'jar_explain_intro',
-      mark: '',
-      label: '這計劃到底幹嘛',
-      subtitle: '空罐為什麼值得記一筆。',
-      heroKey: 'jar-explain',
-      message: '介紹',
-    },
-    {
-      id: 'jar_explain_flow',
-      mark: '',
-      label: '怎麼換，講直的',
-      subtitle: '從開戶到集點，給你講直的。',
-      heroKey: 'jar-enter',
-      message: '流程',
-    },
-  ];
-  const faqItem: WorldMenuItem = {
-    id: 'jar_faq',
-    mark: '',
-    label: '先別急著問客服',
-    subtitle: '常見雷點先翻這頁。',
-    heroKey: 'jar-faq',
-    message: '常見問題',
-  };
-  const storesItem: WorldMenuItem = {
-    id: 'jar_stores',
-    mark: '',
-    label: '哪間店能換',
-    subtitle: '折價綁哪一間，先看清楚。',
-    heroKey: 'jar-stores',
-    message: '配合店家',
-  };
-  const enterCodeItem: WorldMenuItem = {
-    id: 'jar_enter',
-    mark: '',
-    label: '輸入序號',
-    subtitle: '罐底 8 碼，丟上來就好。',
-    heroKey: 'jar-enter',
-    message: '輸入序號',
-  };
-
-  if (registered) {
-    return {
-      primaryId: '',
-      body: '',
-      items: [
-        ...explainItems,
-        storesItem,
-        {
-          id: 'redeem',
-          mark: '',
-          label: '點數換好康',
-          subtitle: '集到的點，拿去換實際好康。',
-          heroKey: 'jar-vault',
-          message: '兌換好禮',
-        },
-        faqItem,
-        enterCodeItem,
-      ],
-    };
-  }
-
   return {
     primaryId: '',
     body: '',
     items: [
-      ...explainItems,
+      {
+        id: 'jar_explain_intro',
+        mark: '',
+        label: '介紹',
+        subtitle: '計劃怎麼運作，先看這頁。',
+        heroKey: 'jar-explain',
+        message: '介紹',
+      },
       {
         id: 'jar_reg',
         mark: '',
         label: '幫毛孩開戶',
-        subtitle: '沒開戶，序號進不了帳。',
+        subtitle: '開好戶，序號才進得了帳。',
         heroKey: 'jar-reg',
-        message: '立即開戶',
+        message: '幫毛孩開戶',
       },
-      storesItem,
-      faqItem,
-      enterCodeItem,
+      {
+        id: 'jar_faq',
+        mark: '',
+        label: 'Q&A',
+        subtitle: '常見問題整理在這裡。',
+        heroKey: 'jar-faq',
+        message: 'Q&A',
+      },
+      {
+        id: 'redeem_coupon',
+        mark: '',
+        label: '兌換優惠券',
+        subtitle: '點數換美容折價券。',
+        heroKey: 'jar-vault',
+        message: '兌換優惠券',
+      },
+      {
+        id: 'jar_enter',
+        mark: '',
+        label: '輸入序號',
+        subtitle: '罐底 8 碼傳上來就好。',
+        heroKey: 'jar-enter',
+        message: '輸入序號',
+      },
     ],
   };
 }
