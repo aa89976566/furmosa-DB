@@ -106,6 +106,7 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /開戶/);
     assert.match(raw, /換罐計劃是什麼/);
     assert.match(raw, /"type":"button"/);
+    assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
     // 按鈕 label 不帶常見 emoji 前綴
     assert.doesNotMatch(raw, /"label":"[🐾🪪🔢🧾✂️🥫]/);
@@ -116,6 +117,7 @@ describe('換罐計劃選單', () => {
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /兌換序號/);
     assert.match(memberRaw, /兌換好禮/);
+    assert.match(memberRaw, /"type":"message"/);
     assert.doesNotMatch(memberRaw, /"label":"開戶"/);
   });
 });
