@@ -293,6 +293,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await handleLinePostback(replyToken, lineUserId, 'jd=jar_enter');
     return;
   }
+  if (parsed.kind === 'redeem_coupon') {
+    // 與 postback jd=cp_groom 同一套美容折價券兌換
+    await handleLinePostback(replyToken, lineUserId, 'jd=cp_groom');
+    return;
+  }
   if (parsed.kind === 'jar_stores') {
     // 與 postback jd=jar_stores 同一套清單（不列折價金額）
     await handleLinePostback(replyToken, lineUserId, 'jd=jar_stores');

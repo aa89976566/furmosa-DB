@@ -120,7 +120,10 @@ export async function startRegisterFlow(
   if (existing) {
     if (opts?.resumeAfter === 'enter_code') {
       await replyLineMessage(replyToken, [
-        { type: 'text', text: `你已經開過戶了（${existing.name}）。` },
+        {
+          type: 'text',
+          text: `這隻毛孩已經開過戶囉（${existing.name}），直接輸入序號就可以了。`,
+        },
         ...buildEnterCodePromptMessages(),
       ]);
       return;
@@ -128,7 +131,7 @@ export async function startRegisterFlow(
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `你已經幫毛孩開過戶囉（${existing.name}）。\n罐底 8 碼直接傳上來，或去「毛孩罐庫」看紀錄都可以喔。`,
+      `這隻毛孩已經開過戶囉（${existing.name}）。\n罐底 8 碼直接傳上來，或到「毛孩罐庫」看紀錄都可以喔。`,
       { registered: true },
     );
     return;
