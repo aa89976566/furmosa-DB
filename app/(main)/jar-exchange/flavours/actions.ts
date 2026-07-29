@@ -9,7 +9,7 @@ function revalidateRefill() {
   revalidatePath('/jar-exchange/manage');
 }
 
-export async function upsertRefillFlavourAction(formData: FormData) {
+export async function upsertRefillFlavourAction(formData: FormData): Promise<void> {
   await ensureRefillPlanSeeded();
   const id = String(formData.get('id') ?? '').trim();
   const code = String(formData.get('code') ?? '').trim();
@@ -22,7 +22,7 @@ export async function upsertRefillFlavourAction(formData: FormData) {
   const availableUntilRaw = String(formData.get('availableUntil') ?? '').trim();
 
   if (!code || !name || !Number.isFinite(weightGrams) || weightGrams <= 0) {
-    return { ok: false as const, error: '請填口味代碼、名稱與克數' };
+    return;
   }
 
   const data = {
@@ -46,10 +46,9 @@ export async function upsertRefillFlavourAction(formData: FormData) {
     });
   }
   revalidateRefill();
-  return { ok: true as const };
 }
 
-export async function setRefillStockAction(formData: FormData) {
+export async function setRefillStockAction(formData: FormData): Promise<void> {
   await ensureRefillPlanSeeded();
   const storeId = String(formData.get('storeId') ?? '').trim();
   const flavourId = String(formData.get('flavourId') ?? '').trim();
@@ -59,7 +58,7 @@ export async function setRefillStockAction(formData: FormData) {
   const note = String(formData.get('note') ?? '').trim() || null;
 
   if (!storeId || !flavourId) {
-    return { ok: false as const, error: '缺少店家或口味' };
+    return;
   }
 
   const existing = await prisma.merchantRefillStock.findUnique({
@@ -86,10 +85,9 @@ export async function setRefillStockAction(formData: FormData) {
   });
 
   revalidateRefill();
-  return { ok: true as const };
 }
 
-export async function updateRefillPlanSettingsAction(formData: FormData) {
+export async function updateRefillPlanSettingsAction(formData: FormData): Promise<void> {
   await ensureRefillPlanSeeded();
   const heroImageUrl = String(formData.get('heroImageUrl') ?? '').trim() || null;
   const firstJarPrice = Number(formData.get('firstJarPrice') ?? 129);
@@ -115,11 +113,10 @@ export async function updateRefillPlanSettingsAction(formData: FormData) {
     },
   });
   revalidateRefill();
-  return { ok: true as const };
 }
 
 /** 複製本期：把所有店庫存以目前數量再寫一筆 period_copy 紀錄（便於每兩週調整） */
-export async function copyRefillPeriodAction() {
+export async function copyRefillPeriodAction(): Promise<void> {
   await ensureRefillPlanSeeded();
   const stocks = await prisma.merchantRefillStock.findMany();
   const now = new Date();
@@ -140,5 +137,4 @@ export async function copyRefillPeriodAction() {
     });
   }
   revalidateRefill();
-  return { ok: true as const, count: stocks.length };
 }
