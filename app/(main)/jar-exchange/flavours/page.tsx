@@ -47,7 +47,7 @@ export default async function RefillFlavoursAdminPage() {
                 <input
                   name="heroImageUrl"
                   defaultValue={
-                    settings?.heroImageUrl ?? '/images/refill-plan/refill-flavours.jpg'
+                    settings?.heroImageUrl ?? '/images/refill-plan/refill-flavours-v2.jpg'
                   }
                   className="mt-1 w-full rounded border px-2 py-1.5"
                 />

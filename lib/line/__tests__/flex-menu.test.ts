@@ -280,7 +280,7 @@ describe('換罐說明', () => {
     const msgs = await buildJarExplainTopicMessages('intro');
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /refill-flavours\.jpg/);
+    assert.match(img.originalContentUrl, /refill-flavours-v2\.jpg/);
     assert.equal(msgs.length, 2);
     assert.equal(msgs[1]?.type, 'flex');
     const raw = JSON.stringify(msgs[1]);
