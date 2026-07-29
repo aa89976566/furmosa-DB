@@ -56,7 +56,7 @@ const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
 const JAR_EXPLAIN_INTRO_RE = /^介紹$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
 const JAR_EXPLAIN_FAQ_RE = /^常見問題$/;
-const JAR_ENTER_RE = /^兌換序號$/;
+const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
 const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
 
