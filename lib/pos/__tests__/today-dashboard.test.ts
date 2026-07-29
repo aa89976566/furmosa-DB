@@ -85,6 +85,16 @@ describe('formatGuestSubtitle', () => {
     });
     assert.equal(s, '豆豆 · 09:05 · 待確認');
   });
+
+  it('tolerates invalid date without throwing', () => {
+    const s = formatGuestSubtitle({
+      petName: null,
+      customerName: '王小明',
+      startsAt: 'not-a-date',
+      status: 'confirmed',
+    });
+    assert.equal(s, '王小明 · --:--');
+  });
 });
 
 describe('isInventoryReliable', () => {

@@ -48,7 +48,7 @@ export type TodayDashboardInput = {
     id: string;
     petName: string | null;
     customerName: string;
-    startsAt: Date;
+    startsAt: Date | string | number;
     status: string;
   } | null;
   /** 已付款待收空罐／待交付 */
@@ -63,12 +63,18 @@ export type TodayDashboardInput = {
 export function formatGuestSubtitle(input: {
   petName: string | null;
   customerName: string;
-  startsAt: Date;
+  startsAt: Date | string | number;
   status: string;
 }): string {
   const who = input.petName?.trim() || input.customerName.trim() || '客人';
-  const hh = String(input.startsAt.getHours()).padStart(2, '0');
-  const mm = String(input.startsAt.getMinutes()).padStart(2, '0');
+  const at =
+    input.startsAt instanceof Date ? input.startsAt : new Date(input.startsAt);
+  const hh = Number.isNaN(at.getTime())
+    ? '--'
+    : String(at.getHours()).padStart(2, '0');
+  const mm = Number.isNaN(at.getTime())
+    ? '--'
+    : String(at.getMinutes()).padStart(2, '0');
   const statusHint =
     input.status === 'requested'
       ? '待確認'

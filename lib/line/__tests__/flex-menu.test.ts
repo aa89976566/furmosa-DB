@@ -271,24 +271,25 @@ describe('換罐說明', () => {
     assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
 
-  it('點介紹：cover＋對話氣泡', () => {
-    const msgs = buildJarExplainTopicMessages('intro');
+  it('點介紹：主視覺＋制度 Flex（不再三則泡泡）', async () => {
+    const msgs = await buildJarExplainTopicMessages('intro');
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /jar-milo-drive-v4\.jpg/);
-    const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
-    assert.ok(texts.length >= 2);
-    const joined = texts.map((t) => t.text).join('\n');
-    assert.match(joined, /空罐|8 碼|毛孩/);
-    assert.match(joined, /門市|綁定/);
-    assert.doesNotMatch(joined, /豬窩/);
-    assert.doesNotMatch(joined, /200～250|200-250/);
-    assert.doesNotMatch(joined, /【/);
-    assert.ok(msgs.length <= 5);
+    assert.match(img.originalContentUrl, /refill-flavours\.jpg/);
+    assert.equal(msgs.length, 2);
+    assert.equal(msgs[1]?.type, 'flex');
+    const raw = JSON.stringify(msgs[1]);
+    assert.match(raw, /吃完，不用說再見/);
+    assert.match(raw, /NT\$129/);
+    assert.match(raw, /NT\$99/);
+    assert.match(raw, /開始換罐/);
+    assert.match(raw, /看本期口味/);
+    assert.doesNotMatch(raw, /零食罐吃完先別丟/);
+    assert.doesNotMatch(JSON.stringify(msgs), /罐底那串 8 碼傳上來/);
   });
 
-  it('點流程：無圖八幕故事卡', () => {
-    const msgs = buildJarExplainTopicMessages('flow');
+  it('點流程：無圖八幕故事卡', async () => {
+    const msgs = await buildJarExplainTopicMessages('flow');
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
     const raw = JSON.stringify(msgs);
@@ -303,5 +304,16 @@ describe('換罐說明', () => {
     assert.match(raw, /一直循環/);
     assert.doesNotMatch(raw, /玩法很簡單/);
     assert.doesNotMatch(raw, /"type":"image"/);
+  });
+
+  it('點 FAQ：單一 Flex 含正式規則', async () => {
+    const msgs = await buildJarExplainTopicMessages('faq');
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const raw = JSON.stringify(msgs[0]);
+    assert.match(raw, /第一罐多少錢/);
+    assert.match(raw, /NT\$129/);
+    assert.match(raw, /NT\$99/);
+    assert.match(raw, /空罐/);
   });
 });

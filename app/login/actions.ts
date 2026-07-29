@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { loginWithPassword } from '@/lib/auth';
+import { isNextRedirect } from '@/lib/is-next-redirect';
+import { loginFailureMessage } from '@/lib/auth-errors';
 
 const schema = z.object({
   email: z.string().email('請輸入有效的 Email'),
@@ -19,21 +21,33 @@ export async function loginAction(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const parsed = schema.safeParse({
-    email: formData.get('email'),
-    password: formData.get('password'),
-    next: formData.get('next'),
-  });
-  if (!parsed.success) {
+  try {
+    const parsed = schema.safeParse({
+      email: formData.get('email'),
+      password: formData.get('password'),
+      next: formData.get('next'),
+    });
+    if (!parsed.success) {
+      return {
+        error: parsed.error.issues[0]?.message ?? '輸入有誤',
+        values: { email: String(formData.get('email') ?? '') },
+      };
+    }
+    const result = await loginWithPassword(parsed.data.email, parsed.data.password);
+    if (!result.ok) {
+      return { error: result.error, values: { email: parsed.data.email } };
+    }
+    const next =
+      parsed.data.next && parsed.data.next.startsWith('/')
+        ? parsed.data.next
+        : '/dashboard';
+    redirect(next);
+  } catch (err) {
+    if (isNextRedirect(err)) throw err;
+    console.error('[hq/login]', err);
     return {
-      error: parsed.error.issues[0]?.message ?? '輸入有誤',
+      error: loginFailureMessage(err),
       values: { email: String(formData.get('email') ?? '') },
     };
   }
-  const result = await loginWithPassword(parsed.data.email, parsed.data.password);
-  if (!result.ok) {
-    return { error: result.error, values: { email: parsed.data.email } };
-  }
-  const next = parsed.data.next && parsed.data.next.startsWith('/') ? parsed.data.next : '/dashboard';
-  redirect(next);
 }

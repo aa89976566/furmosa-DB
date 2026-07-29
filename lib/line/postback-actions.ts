@@ -30,7 +30,6 @@ import {
   buildEventsCenterMessages,
   buildFrogProjectMessages,
   buildHomeHubMessages,
-  buildJarExplainMessages,
   buildJarExplainTopicMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
@@ -179,19 +178,30 @@ export async function handleLinePostback(
   }
 
   if (action === 'jar_explain') {
-    await replyLineMessage(replyToken, buildJarExplainMessages());
+    const { buildJarIntroMessages } = await import('@/lib/line/refill-intro-flex');
+    await replyLineMessage(replyToken, await buildJarIntroMessages({ registered }), {
+      lineUserId,
+    });
     return;
   }
   if (action === 'jar_explain_intro') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('intro'));
+    await replyLineMessage(
+      replyToken,
+      await buildJarExplainTopicMessages('intro', { registered }),
+      { lineUserId },
+    );
     return;
   }
   if (action === 'jar_explain_flow') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('flow'));
+    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('flow'), {
+      lineUserId,
+    });
     return;
   }
   if (action === 'jar_faq') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
+    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('faq'), {
+      lineUserId,
+    });
     return;
   }
   if (action === 'jar_stores' || action === 'wild_stores') {

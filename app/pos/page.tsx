@@ -1,87 +1,74 @@
 import Link from 'next/link';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
+import { isNextRedirect } from '@/lib/is-next-redirect';
 import { posLogoutAction } from './actions';
 import { PosShell } from '@/components/pos/pos-shell';
 import { TodayTaskRowLink } from '@/components/pos/today-task-row';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { loadTodayDashboard } from '@/lib/pos/load-today-dashboard';
-import { processAppointmentReminders } from '@/lib/booking/reminders';
-import { runThrottled } from '@/lib/job-throttle';
 
 export const metadata = {
   title: '今天 · Furmosa 店家',
 };
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-/** 背景掃提醒：絕不阻斷／拖垮首頁 SSR */
-function kickBookingRemindersInBackground() {
-  try {
-    void Promise.resolve()
-      .then(() =>
-        runThrottled(
-          'booking-reminders',
-          () => processAppointmentReminders(),
-          15 * 60 * 1000,
-        ),
-      )
-      .catch((e) => console.error('[pos] booking-reminders', e));
-  } catch (e) {
-    console.error('[pos] booking-reminders schedule', e);
-  }
+function PosHomeFallback({
+  message,
+  showRetryHint = true,
+}: {
+  message: string;
+  showRetryHint?: boolean;
+}) {
+  return (
+    <PosShell>
+      <div className="space-y-4 px-4 py-10">
+        <h1 className="text-lg font-semibold text-navy">今天暫時無法載入</h1>
+        <p className="text-sm text-muted-foreground">
+          {message}
+          {showRetryHint ? ' 請稍後再試，或先前往叫貨。' : null}
+        </p>
+        <div className="flex flex-col gap-2">
+          <Button asChild className="min-h-[44px] w-full">
+            <Link href="/pos/restock">前往叫貨</Link>
+          </Button>
+          <form action={posLogoutAction}>
+            <Button type="submit" variant="outline" className="min-h-[44px] w-full">
+              登出並重試
+            </Button>
+          </form>
+        </div>
+      </div>
+    </PosShell>
+  );
 }
 
 export default async function PosHomePage() {
   try {
     const session = await requireMerchantSession();
-    kickBookingRemindersInBackground();
 
     let merchant: { id: string; name: string; merchantId: string } | null = null;
     try {
-      merchant = await Promise.race([
-        prisma.merchant.findFirst({
-          where: { id: session.merchantId },
-          select: { id: true, name: true, merchantId: true },
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('[pos] merchant lookup timed out')),
-            8_000,
-          ),
-        ),
-      ]);
+      merchant = await prisma.merchant.findFirst({
+        where: { id: session.merchantId },
+        select: { id: true, name: true, merchantId: true },
+      });
     } catch (err) {
       console.error('[pos] merchant lookup', err);
       return (
-        <PosShell>
-          <div className="space-y-4 px-4 py-10">
-            <p className="text-sm text-destructive">
-              資料暫時載不進來，請稍後再試。
-            </p>
-            <form action={posLogoutAction}>
-              <Button type="submit" variant="outline" className="min-h-[44px]">
-                登出並重試
-              </Button>
-            </form>
-          </div>
-        </PosShell>
+        <PosHomeFallback message="資料暫時載不進來。" />
       );
     }
 
     if (!merchant || merchant.id !== session.merchantId) {
       return (
-        <PosShell>
-          <div className="px-4 py-10">
-            <p className="text-sm text-destructive">找不到店家資料，請重新登入。</p>
-            <form action={posLogoutAction} className="mt-4">
-              <Button type="submit" variant="outline" className="min-h-[44px]">
-                登出
-              </Button>
-            </form>
-          </div>
-        </PosShell>
+        <PosHomeFallback
+          message="找不到店家資料，請重新登入。"
+          showRetryHint={false}
+        />
       );
     }
 
@@ -115,7 +102,7 @@ export default async function PosHomePage() {
                 <CardContent className="space-y-3 p-5">
                   <p className="font-medium text-foreground">今天都處理好了。</p>
                   <p className="text-sm text-muted-foreground">
-                    需要時可看預約、換罐或叫貨。
+                    需要時可看換罐或叫貨。
                   </p>
                   <div className="grid gap-2">
                     <Button asChild className="min-h-[44px] w-full">
@@ -143,27 +130,10 @@ export default async function PosHomePage() {
       </PosShell>
     );
   } catch (err) {
-    // redirect() 必須再拋出
-    if (
-      err &&
-      typeof err === 'object' &&
-      'digest' in err &&
-      String((err as { digest?: string }).digest).startsWith('NEXT_REDIRECT')
-    ) {
-      throw err;
-    }
-    console.error('[pos] home fatal', err);
+    if (isNextRedirect(err)) throw err;
+    console.error('[pos] home render', err);
     return (
-      <PosShell>
-        <div className="space-y-4 px-4 py-10">
-          <p className="text-sm text-destructive">店家首頁暫時無法載入，請再試一次。</p>
-          <form action={posLogoutAction}>
-            <Button type="submit" variant="outline" className="min-h-[44px]">
-              登出並重試
-            </Button>
-          </form>
-        </div>
-      </PosShell>
+      <PosHomeFallback message="伺服器渲染時發生錯誤。" />
     );
   }
 }
