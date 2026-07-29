@@ -8,7 +8,8 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { VendorListWorkspace } from '@/components/vendors/vendor-list-workspace';
 import { Building2, Plus } from 'lucide-react';
 
-export const revalidate = 60;
+/** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
+export const dynamic = 'force-dynamic';
 
 export default async function VendorsPage({
   searchParams,

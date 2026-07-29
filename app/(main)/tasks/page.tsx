@@ -10,7 +10,8 @@ import { formatDate } from '@/lib/format';
 import { Plus, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export const revalidate = 30;
+/** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
+export const dynamic = 'force-dynamic';
 
 type TaskStatus = 'todo' | 'in_progress' | 'blocked' | 'done';
 

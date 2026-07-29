@@ -3,7 +3,8 @@ import { PageHeader } from '@/components/shared/page-header';
 import { parsePlanContents, parsePlanBonus, parseShipDays } from '@/lib/subscription';
 import { PlanEditCard } from '@/components/subscriptions/plan-edit-card';
 
-export const revalidate = 60;
+/** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
+export const dynamic = 'force-dynamic';
 
 export default async function SubscriptionPlansPage() {
   const plans = await prisma.subscriptionPlan.findMany({

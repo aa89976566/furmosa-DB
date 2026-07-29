@@ -477,6 +477,22 @@ async function main() {
       },
     });
 
+    // 可選：灌入時綁定 LINE，方便直接開 LIFF
+    const lineA = process.env.LINE_USER_ID_A?.trim();
+    const lineB = process.env.LINE_USER_ID_B?.trim();
+    if (lineA?.startsWith('U')) {
+      await prisma.customer.update({
+        where: { id: customerA.id },
+        data: { lineUserId: lineA, lineDisplay: 'Milo測試LINE' },
+      });
+    }
+    if (lineB?.startsWith('U')) {
+      await prisma.customer.update({
+        where: { id: customerB.id },
+        data: { lineUserId: lineB, lineDisplay: '小花測試LINE' },
+      });
+    }
+
     const apptA = await ensureAppointment(prisma, {
       merchantId: merchant.id,
       customerId: customerA.id,

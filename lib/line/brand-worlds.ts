@@ -83,7 +83,7 @@ export const JAR_FLOW_STORY = {
   steps: [
     {
       act: '1. 第一次買一罐',
-      beat: '先買第一罐（NT$129），故事就從這裡開場。',
+      beat: '先買第一罐（NT$129）。',
     },
     {
       act: '2. 加入會員',
@@ -91,7 +91,7 @@ export const JAR_FLOW_STORY = {
     },
     {
       act: '3. 輸入瓶底序號',
-      beat: '把瓶底 8 碼數字傳上來，這罐就會記在你家毛孩名下。',
+      beat: '把瓶底 8 碼數字輸入，這樣就會記錄這罐是您的。',
     },
     {
       act: '4. 毛孩去美容',
@@ -103,19 +103,18 @@ export const JAR_FLOW_STORY = {
     },
     {
       act: '6. 到店換新罐',
-      beat: '店家收回空罐、核對瓶底序號，你就能直接拿一罐新的回家。',
+      beat: '店家收回空罐、核對瓶底序號，直接拿一罐新的回家。',
     },
     {
       act: '7. 一直循環',
-      beat: '之後每次帶空罐，都能用 NT$99 換新罐，不用一直買 NT$129。',
+      beat: '每次帶空罐，就能用 NT$99 換一罐新的，不用一直買 NT$129。',
     },
     {
       act: '8. 還有集點',
-      beat: '每換一次集 1 點；集滿 10 點，可折抵合作美容店（金額依你綁定的門市）。',
+      beat: '每換一次就集 1 點；集滿 10 點，可折抵合作美容店 NT$200。',
     },
   ],
 } as const;
-
 export const JAR_EXPLAIN_INTRO = JAR_EXPLAIN_DIALOGUE.intro.join('\n\n');
 export const JAR_EXPLAIN_FLOW = JAR_FLOW_STORY.steps
   .map((s) => `${s.act}\n${s.beat}`)
@@ -213,40 +212,64 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃：依是否已綁 LINE／開戶變形。
- * - 未開戶：介紹、開戶、配合店家
- * - 已開戶：不再出現開戶；介紹、配合店家、兌換序號、兌換好禮
+ * 換罐計劃：一層選單，不再套「換罐計劃是什麼 → 說明子選單」。
+ * - 未開戶：介紹／流程／開戶／配合店家／常見問題
+ * - 已開戶：介紹／流程／配合店家／兌換序號／兌換好禮／常見問題
  */
 export function buildJarHubItems(registered: boolean): {
   items: WorldMenuItem[];
   primaryId: string;
   body: string;
 } {
+  const explainItems: WorldMenuItem[] = [
+    {
+      id: 'jar_explain_intro',
+      mark: '',
+      label: '介紹',
+      subtitle: '空罐為什麼值得記一筆。',
+      heroKey: 'jar-explain',
+      message: '介紹',
+    },
+    {
+      id: 'jar_explain_flow',
+      mark: '',
+      label: '流程',
+      subtitle: '從開戶到集點，八小步。',
+      heroKey: 'jar-enter',
+      message: '流程',
+    },
+  ];
+  const faqItem: WorldMenuItem = {
+    id: 'jar_faq',
+    mark: '',
+    label: '常見問題',
+    subtitle: '卡關時翻這頁。',
+    heroKey: 'jar-faq',
+    message: '常見問題',
+  };
+  const storesItem: WorldMenuItem = {
+    id: 'jar_stores',
+    mark: '',
+    label: '配合店家',
+    subtitle: '折價會綁哪一間，先確認一下。',
+    heroKey: 'jar-stores',
+    message: '配合店家',
+  };
+
   if (registered) {
     return {
       primaryId: 'jar_enter',
-      body: '有空罐序號就可以傳上來～想換好康，下面也有入口喔。',
+      body: '',
       items: [
-        {
-          id: 'jar_explain',
-          mark: '',
-          label: '換罐計劃是什麼',
-          subtitle: '怎麼玩、怎麼累積，先看這篇。',
-          heroKey: 'jar-explain',
-        },
-        {
-          id: 'jar_stores',
-          mark: '',
-          label: '配合店家',
-          subtitle: '折價會綁哪一間，先確認一下。',
-          heroKey: 'jar-stores',
-        },
+        ...explainItems,
+        storesItem,
         {
           id: 'jar_enter',
           mark: '',
           label: '兌換序號',
           subtitle: '罐底 8 碼，傳上來就好。',
           heroKey: 'jar-enter',
+          message: '兌換序號',
         },
         {
           id: 'redeem',
@@ -254,36 +277,28 @@ export function buildJarHubItems(registered: boolean): {
           label: '兌換好禮',
           subtitle: '點數可以換成實際好康。',
           heroKey: 'jar-vault',
+          message: '兌換好禮',
         },
+        faqItem,
       ],
     };
   }
 
   return {
     primaryId: 'jar_reg',
-    body: '第一次來沒關係～先了解換罐，再幫毛孩開戶就好。',
+    body: '',
     items: [
-      {
-        id: 'jar_explain',
-        mark: '',
-        label: '換罐計劃是什麼',
-        subtitle: '怎麼玩、怎麼累積，先看這篇。',
-        heroKey: 'jar-explain',
-      },
+      ...explainItems,
       {
         id: 'jar_reg',
         mark: '',
         label: '開戶',
         subtitle: '先幫毛孩開戶，之後序號才能入帳。',
         heroKey: 'jar-reg',
+        message: '立即開戶',
       },
-      {
-        id: 'jar_stores',
-        mark: '',
-        label: '配合店家',
-        subtitle: '折價會綁哪一間，先確認一下。',
-        heroKey: 'jar-stores',
-      },
+      storesItem,
+      faqItem,
     ],
   };
 }
