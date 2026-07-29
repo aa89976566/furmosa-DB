@@ -31,8 +31,15 @@ DATABASE_URL=postgresql://postgres.ukjjopridghvwzobrsus:[PASSWORD]@aws-1-ap-nort
 DIRECT_URL=postgresql://postgres.ukjjopridghvwzobrsus:[PASSWORD]@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
 ```
 
-## 驗收
+## 用 token 一鍵同步（可選）
 
-1. `/api/health` → `ok: true`
-2. `/pos/login` 用 `niuniu` / `furmosa2026`（或 `refilltest`）可登入
-3. `/pos` 顯示「今天」，不再出現 digest 錯誤頁
+若已有 Vercel token：
+
+```bash
+export VERCEL_TOKEN=...   # https://vercel.com/account/tokens
+export VERCEL_PROJECT_ID=prj_eDlebDCQOJp9wl65O5zpASoLj1f9
+# DATABASE_URL / DIRECT_URL 使用目前可用的連線
+bash scripts/sync-vercel-db-env.sh
+```
+
+然後開 `https://furmosa-db.vercel.app/api/health` 確認 `ok: true`。
