@@ -22,6 +22,18 @@
 - 缺貨：僅當本店有 `MerchantStock` 列且 `quantity <= reorderPoint`
 - **待換罐：不顯示**（無 Refill POS 交付後端）
 
+## SSR 穩定性（digest 2843362055 / 2843362866）
+
+實際爆點常是 **`/pos/login` server action**（錯誤邊界卻顯示「店家頁面載入失敗」）：
+登入拋錯時被 `app/pos/error.tsx` 接住，文案誤導成「今天頁」壞掉。
+
+修復：
+- 登入 action／`loginMerchantWithPassword` 全面 catch → 表單錯誤訊息，不進 digest
+- `AUTH_SECRET` 改動態 `process.env[name]` 讀取，避免 build 內嵌成 undefined
+- `/pos` 今天頁：不觸發 reminders、窄 select、allSettled、外層降級 UI
+- `app/pos/login/error.tsx` 獨立文案；`GET /api/health` 診斷 auth／DB／merchant_users
+- 提醒掃描改由 `/api/cron/maintain-shipments`
+
 ## 明確不做
 
 - HQ／主系統 Dashboard 視覺重做（另 PR）

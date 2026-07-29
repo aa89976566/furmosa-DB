@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { loginMerchantWithPassword } from '@/lib/merchant-auth';
+import { isNextRedirect } from '@/lib/is-next-redirect';
+import { loginFailureMessage } from '@/lib/auth-errors';
 
 const schema = z.object({
   username: z.string().trim().min(1, '請輸入帳號'),
@@ -19,34 +21,43 @@ export async function posLoginAction(
   _prev: PosLoginState,
   formData: FormData,
 ): Promise<PosLoginState> {
-  const parsed = schema.safeParse({
-    username: formData.get('username'),
-    password: formData.get('password'),
-    next: formData.get('next'),
-  });
-  if (!parsed.success) {
+  try {
+    const parsed = schema.safeParse({
+      username: formData.get('username'),
+      password: formData.get('password'),
+      next: formData.get('next'),
+    });
+    if (!parsed.success) {
+      return {
+        error: parsed.error.issues[0]?.message ?? '輸入有誤',
+        values: { username: String(formData.get('username') ?? '') },
+      };
+    }
+
+    const result = await loginMerchantWithPassword(
+      parsed.data.username,
+      parsed.data.password,
+    );
+    if (!result.ok) {
+      return {
+        error: result.error,
+        values: { username: parsed.data.username },
+      };
+    }
+
+    const next =
+      parsed.data.next &&
+      parsed.data.next.startsWith('/pos') &&
+      !parsed.data.next.startsWith('/pos/login')
+        ? parsed.data.next
+        : '/pos';
+    redirect(next);
+  } catch (err) {
+    if (isNextRedirect(err)) throw err;
+    console.error('[pos/login]', err);
     return {
-      error: parsed.error.issues[0]?.message ?? '輸入有誤',
+      error: loginFailureMessage(err),
       values: { username: String(formData.get('username') ?? '') },
     };
   }
-
-  const result = await loginMerchantWithPassword(
-    parsed.data.username,
-    parsed.data.password,
-  );
-  if (!result.ok) {
-    return {
-      error: result.error,
-      values: { username: parsed.data.username },
-    };
-  }
-
-  const next =
-    parsed.data.next &&
-    parsed.data.next.startsWith('/pos') &&
-    !parsed.data.next.startsWith('/pos/login')
-      ? parsed.data.next
-      : '/pos';
-  redirect(next);
 }

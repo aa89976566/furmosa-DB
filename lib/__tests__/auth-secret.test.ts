@@ -36,4 +36,11 @@ describe('auth-secret (Phase 1 C1)', () => {
     assert.ok(secret.length >= 32);
     assert.match(secret, /dev-secret/);
   });
+
+  it('reports configuration without exposing secret', async () => {
+    const { isAuthSecretConfigured } = await import('@/lib/auth-secret');
+    assert.equal(isAuthSecretConfigured({ AUTH_SECRET: 'x'.repeat(40) }), true);
+    assert.equal(isAuthSecretConfigured({ AUTH_SECRET: '   ' }), false);
+    assert.equal(isAuthSecretConfigured({}), false);
+  });
 });

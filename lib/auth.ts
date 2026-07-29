@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
+import { isDbUnreachableError, loginFailureMessage } from '@/lib/auth-errors';
 
 const SESSION_COOKIE = 'furmosa_session';
 const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168'); // 預設 7 天
@@ -68,20 +69,9 @@ export async function getCurrentUser(): Promise<SessionPayload | null> {
   return readSession(token);
 }
 
-function isDbUnreachableError(e: unknown): boolean {
-  const msg = e instanceof Error ? e.message : String(e);
-  return (
-    msg.includes("Can't reach database server") ||
-    msg.includes('P1001') ||
-    msg.includes('ECONNREFUSED') ||
-    msg.includes('localhost:5432')
-  );
-}
-
 function maskDbUrl(url: string): string {
   if (!url) return '(未設定)';
   if (url.startsWith('file:')) return url;
-  // 隱藏帳密
   return url.replace(/\/\/[^@]*@/, '//***:***@');
 }
 
@@ -107,12 +97,15 @@ export async function loginWithPassword(email: string, password: string) {
       const advice = isPg
         ? '目前 dev server 啟動時讀到的是 PostgreSQL，但本機沒有在 5432 執行資料庫。請改成 SQLite：把 .env 設成 `DATABASE_URL="file:./dev.db"`，殺掉所有舊的 `next dev` 程序，再重新 `npm run dev`。'
         : 'dev server 連不到資料庫。常見原因：你開了多個 `next dev` 視窗，舊的那個讀到的是舊的 .env。請執行 `lsof -nP -iTCP:3000-3010 -sTCP:LISTEN` 找出全部 node 程序、`kill <pid>` 殺掉，再執行一次 `npm run db:setup` 與 `npm run dev`。';
+      if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+        return { ok: false as const, error: loginFailureMessage(e) };
+      }
       return {
         ok: false as const,
         error: `${advice}\n（dev server 啟動時抓到的 DATABASE_URL：${masked}）`,
       };
     }
-    throw e;
+    return { ok: false as const, error: loginFailureMessage(e) };
   }
 }
 
