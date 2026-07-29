@@ -21,11 +21,14 @@ import {
 import {
   buildEventsCenterMessages,
   buildFrogProjectMessages,
-  buildJarExplainMessages,
   buildJarExplainTopicMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
 } from '@/lib/line/flex-hubs';
+import {
+  buildJarIntroMessages,
+  buildRefillFlavoursListMessages,
+} from '@/lib/line/refill-intro-flex';
 import {
   buildGuestWelcomeText,
   guestWelcomePromptMarks,
@@ -254,19 +257,36 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'jar_explain_intro') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('intro'));
+    await replyLineMessage(
+      replyToken,
+      await buildJarExplainTopicMessages('intro', { registered }),
+      { lineUserId },
+    );
     return;
   }
   if (parsed.kind === 'jar_explain_flow') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('flow'));
+    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('flow'), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'jar_explain_faq') {
-    await replyLineMessage(replyToken, buildJarExplainTopicMessages('faq'));
+    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('faq'), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'jar_explain') {
-    await replyLineMessage(replyToken, buildJarExplainMessages());
+    // 相容舊入口：直接進正式介紹（主視覺＋制度 Flex）
+    await replyLineMessage(replyToken, await buildJarIntroMessages({ registered }), {
+      lineUserId,
+    });
+    return;
+  }
+  if (parsed.kind === 'refill_flavours') {
+    await replyLineMessage(replyToken, await buildRefillFlavoursListMessages(), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'jar_enter') {
