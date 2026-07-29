@@ -3,6 +3,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { hashPassword, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
+import { loginFailureMessage } from '@/lib/auth-errors';
 
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
@@ -176,20 +177,29 @@ export async function authenticateMerchantCredentials(
 }
 
 export async function loginMerchantWithPassword(username: string, password: string) {
-  const result = await authenticateMerchantCredentials(username, password);
-  if (!result.ok) return result;
+  try {
+    const result = await authenticateMerchantCredentials(username, password);
+    if (!result.ok) return result;
 
-  const { token, payload } = await signMerchantSession({
-    merchantUserId: result.user.id,
-    merchantId: result.user.merchantId,
-    username: result.user.username,
-  });
-  await setMerchantSessionCookie(token);
-  await prisma.merchantUser.update({
-    where: { id: result.user.id },
-    data: { lastLoginAt: new Date() },
-  });
-  return { ok: true as const, session: payload };
+    const { token, payload } = await signMerchantSession({
+      merchantUserId: result.user.id,
+      merchantId: result.user.merchantId,
+      username: result.user.username,
+    });
+    await setMerchantSessionCookie(token);
+    try {
+      await prisma.merchantUser.update({
+        where: { id: result.user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    } catch (err) {
+      // 登入成功不因 lastLoginAt 寫入失敗而整頁崩潰
+      console.error('[merchant-auth] lastLoginAt', err);
+    }
+    return { ok: true as const, session: payload };
+  } catch (err) {
+    return { ok: false as const, error: loginFailureMessage(err) };
+  }
 }
 
 export { hashPassword, verifyPassword };
