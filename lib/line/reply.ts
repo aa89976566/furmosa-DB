@@ -46,6 +46,15 @@ async function postReply(replyToken: string, messages: LineReplyMessage[]) {
   }
 }
 
+function isTransientLineReplyError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /LINE Reply API 失敗 \((429|5\d\d)\)/.test(msg);
+}
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
 function stripImages(messages: LineReplyMessage[]): LineReplyMessage[] {
   return messages.filter((m) => m.type !== 'image');
 }
@@ -117,15 +126,43 @@ export async function replyLineMessage(
     await postReply(replyToken, batch);
   } catch (err) {
     const hasImage = batch.some((m) => m.type === 'image');
-    if (!hasImage) throw err;
-    console.error('[line/reply] image reply failed, falling back to text', err);
-    const fallback = stripImages(batch);
-    if (fallback.length === 0) {
-      await postReply(replyToken, [
-        { type: 'text', text: '圖剛卡住了，內容在下面——再點一次也可以。' },
-      ]);
+    if (hasImage) {
+      console.error('[line/reply] image reply failed, falling back to text', err);
+      const fallback = stripImages(batch);
+      if (fallback.length === 0) {
+        await postReply(replyToken, [
+          { type: 'text', text: '圖剛卡住了，內容在下面——再點一次也可以。' },
+        ]);
+      } else {
+        try {
+          await postReply(replyToken, fallback);
+        } catch (err2) {
+          console.error('[line/reply] text-after-image also failed', err2);
+          throw err;
+        }
+      }
+    } else if (isTransientLineReplyError(err)) {
+      // LINE 短暫 429／5xx：重試一次，再不行改送純文字
+      console.warn('[line/reply] transient failure, retry once', err);
+      await sleep(350);
+      try {
+        await postReply(replyToken, batch);
+      } catch (err2) {
+        const texts = batch.filter((m) => m.type === 'text');
+        if (texts.length === 0) throw err2;
+        console.error('[line/reply] retry failed, text-only fallback', err2);
+        await postReply(replyToken, texts.slice(0, 5));
+      }
     } else {
-      await postReply(replyToken, fallback);
+      // Flex／其他錯誤：盡量保住文字，避免整段掉進「沒回成功」
+      const texts = batch.filter((m) => m.type === 'text');
+      if (texts.length === 0) throw err;
+      console.error('[line/reply] reply failed, text-only fallback', err);
+      try {
+        await postReply(replyToken, texts.slice(0, 5));
+      } catch {
+        throw err;
+      }
     }
   }
   if (overflow.length > 0 && opts?.lineUserId) {

@@ -175,7 +175,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   const parsed = parseLineUserText(msgEvent.message.text);
-  const customer = await findCustomerByLineUserId(lineUserId);
+  // DB 短暫異常時仍要能回 Rich Menu，不可整段掉進兜底句
+  let customer: BoundCustomer | null = null;
+  try {
+    customer = await findCustomerByLineUserId(lineUserId);
+  } catch (err) {
+    console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
+  }
   const registered = Boolean(customer);
 
   if (isPassiveAutoReply(parsed.kind)) {
@@ -201,19 +207,25 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'hub_jar') {
-    await replyLineMessage(replyToken, buildComicJarMessages(registered));
+    await replyLineMessage(replyToken, buildComicJarMessages(registered), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'comic_roam') {
-    await replyLineMessage(replyToken, buildComicRoamMessages(registered));
+    await replyLineMessage(replyToken, buildComicRoamMessages(registered), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'comic_grooming') {
-    await replyLineMessage(replyToken, buildComicGroomingMessages());
+    await replyLineMessage(replyToken, buildComicGroomingMessages(), { lineUserId });
     return;
   }
   if (parsed.kind === 'comic_home') {
-    await replyLineMessage(replyToken, buildComicHomeMessages(registered));
+    await replyLineMessage(replyToken, buildComicHomeMessages(registered), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'hub_chaos') {
