@@ -212,36 +212,57 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃：依是否已綁 LINE／開戶變形。
- * - 未開戶：介紹、開戶、配合店家
- * - 已開戶：不再出現開戶；介紹、配合店家、兌換序號、兌換好禮
+ * 換罐計劃：一層選單，不再套「換罐計劃是什麼 → 說明子選單」。
+ * - 未開戶：介紹／流程／開戶／配合店家／常見問題
+ * - 已開戶：介紹／流程／配合店家／兌換序號／兌換好禮／常見問題
  */
 export function buildJarHubItems(registered: boolean): {
   items: WorldMenuItem[];
   primaryId: string;
   body: string;
 } {
+  const explainItems: WorldMenuItem[] = [
+    {
+      id: 'jar_explain_intro',
+      mark: '',
+      label: '介紹',
+      subtitle: '空罐為什麼值得記一筆。',
+      heroKey: 'jar-explain',
+      message: '介紹',
+    },
+    {
+      id: 'jar_explain_flow',
+      mark: '',
+      label: '流程',
+      subtitle: '從開戶到集點，八小步。',
+      heroKey: 'jar-enter',
+      message: '流程',
+    },
+  ];
+  const faqItem: WorldMenuItem = {
+    id: 'jar_faq',
+    mark: '',
+    label: '常見問題',
+    subtitle: '卡關時翻這頁。',
+    heroKey: 'jar-faq',
+    message: '常見問題',
+  };
+  const storesItem: WorldMenuItem = {
+    id: 'jar_stores',
+    mark: '',
+    label: '配合店家',
+    subtitle: '折價會綁哪一間，先確認一下。',
+    heroKey: 'jar-stores',
+    message: '配合店家',
+  };
+
   if (registered) {
     return {
       primaryId: 'jar_enter',
-      body: '有空罐序號就可以傳上來～想換好康，下面也有入口喔。',
+      body: '',
       items: [
-        {
-          id: 'jar_explain',
-          mark: '',
-          label: '換罐計劃是什麼',
-          subtitle: '怎麼玩、怎麼累積，先看這篇。',
-          heroKey: 'jar-explain',
-          message: '換罐計劃是什麼',
-        },
-        {
-          id: 'jar_stores',
-          mark: '',
-          label: '配合店家',
-          subtitle: '折價會綁哪一間，先確認一下。',
-          heroKey: 'jar-stores',
-          message: '配合店家',
-        },
+        ...explainItems,
+        storesItem,
         {
           id: 'jar_enter',
           mark: '',
@@ -258,22 +279,16 @@ export function buildJarHubItems(registered: boolean): {
           heroKey: 'jar-vault',
           message: '兌換好禮',
         },
+        faqItem,
       ],
     };
   }
 
   return {
     primaryId: 'jar_reg',
-    body: '第一次來沒關係～先了解換罐，再幫毛孩開戶就好。',
+    body: '',
     items: [
-      {
-        id: 'jar_explain',
-        mark: '',
-        label: '換罐計劃是什麼',
-        subtitle: '怎麼玩、怎麼累積，先看這篇。',
-        heroKey: 'jar-explain',
-        message: '換罐計劃是什麼',
-      },
+      ...explainItems,
       {
         id: 'jar_reg',
         mark: '',
@@ -282,14 +297,8 @@ export function buildJarHubItems(registered: boolean): {
         heroKey: 'jar-reg',
         message: '立即開戶',
       },
-      {
-        id: 'jar_stores',
-        mark: '',
-        label: '配合店家',
-        subtitle: '折價會綁哪一間，先確認一下。',
-        heroKey: 'jar-stores',
-        message: '配合店家',
-      },
+      storesItem,
+      faqItem,
     ],
   };
 }

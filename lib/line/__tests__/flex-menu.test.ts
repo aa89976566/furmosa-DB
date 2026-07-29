@@ -77,43 +77,64 @@ describe('垂直按鈕選單', () => {
 });
 
 describe('換罐計劃選單', () => {
-  it('未開戶：介紹、開戶、配合店家', () => {
+  it('未開戶：介紹／流程／開戶／配合店家／常見問題（一層）', () => {
     const hub = buildJarHubItems(false);
     const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, ['jar_explain', 'jar_reg', 'jar_stores']);
+    assert.deepEqual(ids, [
+      'jar_explain_intro',
+      'jar_explain_flow',
+      'jar_reg',
+      'jar_stores',
+      'jar_faq',
+    ]);
     assert.equal(hub.primaryId, 'jar_reg');
     assert.match(hub.items.find((i) => i.id === 'jar_reg')!.label, /開戶/);
-    assert.match(hub.items.find((i) => i.id === 'jar_explain')!.label, /換罐計劃是什麼/);
+    assert.match(hub.items.find((i) => i.id === 'jar_explain_intro')!.label, /介紹/);
     assert.match(hub.items.find((i) => i.id === 'jar_stores')!.label, /配合店家/);
+    assert.ok(!ids.includes('jar_explain'));
   });
 
-  it('已開戶：無開戶，有介紹／店家／序號／好禮', () => {
+  it('已開戶：無開戶，有介紹／流程／店家／序號／好禮／FAQ', () => {
     const hub = buildJarHubItems(true);
     const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, ['jar_explain', 'jar_stores', 'jar_enter', 'redeem']);
+    assert.deepEqual(ids, [
+      'jar_explain_intro',
+      'jar_explain_flow',
+      'jar_stores',
+      'jar_enter',
+      'redeem',
+      'jar_faq',
+    ]);
     assert.equal(hub.primaryId, 'jar_enter');
     assert.ok(!ids.includes('jar_reg'));
     assert.match(hub.items.find((i) => i.id === 'jar_enter')!.label, /兌換序號/);
     assert.match(hub.items.find((i) => i.id === 'redeem')!.label, /兌換好禮/);
   });
 
-  it('Flex 垂直按鈕且無 emoji icon', () => {
+  it('只回選單卡、無開場文、副標為 tagline', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
+    assert.equal(guest.length, 1);
+    assert.equal(guest[0]?.type, 'flex');
     const flex = flexFrom(guest);
     assert.equal(flex.contents.type, 'bubble');
-    assert.equal(countButtons(flex), 3);
+    assert.equal(countButtons(flex), 5);
     const raw = JSON.stringify(flex.contents);
     assert.match(raw, /開戶/);
-    assert.match(raw, /換罐計劃是什麼/);
+    assert.match(raw, /介紹/);
+    assert.match(raw, /流程/);
+    assert.match(raw, /常見問題/);
+    assert.match(raw, /空罐也能幫毛孩累積好康/);
+    assert.doesNotMatch(raw, /點下面按鈕/);
+    assert.doesNotMatch(raw, /換罐計劃是什麼/);
     assert.match(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
-    // 按鈕 label 不帶常見 emoji 前綴
     assert.doesNotMatch(raw, /"label":"[🐾🪪🔢🧾✂️🥫]/);
 
     const member = buildWorldHubMessages('jar', { registered: true });
+    assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), 4);
+    assert.equal(countButtons(memberFlex), 6);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /兌換序號/);
     assert.match(memberRaw, /兌換好禮/);
@@ -233,17 +254,19 @@ describe('未開戶擋序號', () => {
 });
 
 describe('換罐說明', () => {
-  it('四個說明按鈕', () => {
+  it('三個說明按鈕（店家改在主選單，不重複）', () => {
     const msgs = buildJarExplainMessages();
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
     const flex = flexFrom(msgs);
-    assert.equal(countButtons(flex), 4);
+    assert.equal(countButtons(flex), 3);
     const raw = JSON.stringify(flex);
     assert.match(raw, /介紹/);
     assert.match(raw, /流程/);
-    assert.match(raw, /合作店家|合作美容/);
     assert.match(raw, /常見問題/);
+    assert.match(raw, /想先看哪一段/);
+    assert.doesNotMatch(raw, /合作店家|配合店家/);
+    assert.doesNotMatch(raw, /點下面按鈕/);
     assert.doesNotMatch(raw, /carousel/);
     assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
