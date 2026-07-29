@@ -46,15 +46,10 @@ const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
 
 /**
- * Rich Menu／世界入口：開戶進行中若點這些，應離開開戶、改走對應入口。
- * （否則「回家」會被手機步驟當成無效號碼，重送「手機號碼？」）
+ * Rich Menu／換罐選單入口：開戶進行中若點這些，應離開開戶、改走對應入口。
+ * （否則「介紹」會被步驟吃掉；「回家」會被當成無效號碼）
  */
-const REGISTER_NAV_LEAVE_RE =
-  /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|回家|還有很多故事|野放中)$/;
-
-export function isRegisterNavLeaveText(text: string): boolean {
-  return REGISTER_NAV_LEAVE_RE.test(text.trim());
-}
+export { isRegisterNavLeaveText } from '@/lib/line/session-leave';
 
 /** 開戶「選店家」步驟：僅接受取消；其餘文字應離開流程、改走一般訊息處理 */
 export function registerStoreStepAction(text: string): 'cancel' | 'leave' {

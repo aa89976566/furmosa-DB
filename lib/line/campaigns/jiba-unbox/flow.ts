@@ -76,6 +76,7 @@ import {
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
 import { runAfterReply } from '@/lib/line/defer';
+import { isUnboxLeaveText } from '@/lib/line/session-leave';
 import { prisma } from '@/lib/prisma';
 
 /** 開箱流程回覆：拆泡後若超過 5 則，其餘 push 接續 */
@@ -412,10 +413,6 @@ async function replyInvalidField(opts: {
   ]);
 }
 
-/** 開箱進行中若點其他入口，應離開開箱、交回一般訊息處理 */
-const LEAVE_UNBOX_RE =
-  /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|回家|還有很多故事|野放中|嗷嗚計劃|嗷嗚計畫|活動中心|沒梗了|青蛙誰在怕|清蛙誰在怕|開箱任務|毛孩來開箱)$/;
-
 async function safeFindActiveJibaApplication(lineUserId: string) {
   try {
     return await findActiveJibaApplication(lineUserId);
@@ -435,8 +432,9 @@ export async function handleJibaUnboxMessage(
   const trimmed = text.trim();
   if (!trimmed) return false;
 
-  // 點了別的世界／一起野放子鍵 → 離開開箱，讓外層路由接手
-  if (LEAVE_UNBOX_RE.test(trimmed)) {
+  // 點了別的世界／換罐選單（含「介紹」）→ 離開開箱，讓外層路由接手
+  // 避免 ASK_STORE 把「介紹」當成門市關鍵字
+  if (isUnboxLeaveText(trimmed)) {
     try {
       await clearLineChatSession(lineUserId);
     } catch (err) {

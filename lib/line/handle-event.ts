@@ -58,6 +58,7 @@ import {
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
 import { prisma } from '@/lib/prisma';
+import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -216,31 +217,42 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
-  // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
-  // campaign 表未就緒時不得讓整段 webhook 掛掉
-  try {
-    if (await isJibaUnboxSessionActive(lineUserId)) {
-      if (
-        await handleJibaUnboxMessage(
-          replyToken,
-          lineUserId,
-          msgEvent.message.text,
-          msgEvent.message.id,
-        )
-      ) {
+  // 換罐選單捷徑（介紹／Q&A／開戶…）：略過開箱／開戶 session
+  // 否則開箱「選門市」會把「介紹」當成店名候選
+  const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
+  if (bypassSession) {
+    runAfterReply(
+      clearLineChatSession(lineUserId).catch((err) => {
+        console.error('[line] clear session on jar shortcut failed', err);
+      }),
+    );
+  } else {
+    // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
+    // campaign 表未就緒時不得讓整段 webhook 掛掉
+    try {
+      if (await isJibaUnboxSessionActive(lineUserId)) {
+        if (
+          await handleJibaUnboxMessage(
+            replyToken,
+            lineUserId,
+            msgEvent.message.text,
+            msgEvent.message.id,
+          )
+        ) {
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[line] jiba session gate failed', err);
+    }
+
+    try {
+      if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
         return;
       }
+    } catch (err) {
+      console.error('[line] register flow gate failed', err);
     }
-  } catch (err) {
-    console.error('[line] jiba session gate failed', err);
-  }
-
-  try {
-    if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
-      return;
-    }
-  } catch (err) {
-    console.error('[line] register flow gate failed', err);
   }
 
   // DB 短暫異常時仍要能回功能訊息，不可整段掉進兜底句
