@@ -309,6 +309,8 @@ model Store {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  refillStocks MerchantRefillStock[]
+
   @@map("stores")
 }
 
@@ -1121,4 +1123,85 @@ model StatusAuditLog {
   @@index([entityType, entityId])
   @@index([applicationId])
   @@map("status_audit_logs")
+}
+
+// =====================================================
+// 換罐計劃：口味主檔／合作店庫存（LINE 介紹與後台）
+// =====================================================
+
+/// 換罐口味（本期可選品項；UI 不寫死）
+model RefillFlavour {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  name           String
+  weightGrams    Int       @map("weight_grams")
+  imageUrl       String?   @map("image_url")
+  isActive       Boolean   @default(true) @map("is_active")
+  availableFrom  DateTime? @map("available_from")
+  availableUntil DateTime? @map("available_until")
+  sortOrder      Int       @default(0) @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  stocks    MerchantRefillStock[]
+  stockTxns RefillStockTxn[]
+
+  @@index([isActive, sortOrder])
+  @@map("refill_flavours")
+}
+
+/// 合作店口味庫存（實際可選依店家當期庫存）
+model MerchantRefillStock {
+  id              String   @id @default(cuid())
+  storeId         String   @map("store_id")
+  flavourId       String   @map("flavour_id")
+  quantity        Int      @default(0)
+  isAvailable     Boolean  @default(true) @map("is_available")
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  store   Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  flavour RefillFlavour @relation(fields: [flavourId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, flavourId])
+  @@index([flavourId])
+  @@index([storeId, isAvailable])
+  @@map("merchant_refill_stocks")
+}
+
+/// 庫存異動紀錄
+model RefillStockTxn {
+  id              String   @id @default(cuid())
+  storeId         String   @map("store_id")
+  flavourId       String   @map("flavour_id")
+  changeQty       Int      @map("change_qty")
+  quantityAfter   Int      @map("quantity_after")
+  reason          String // adjust | period_copy | out_of_stock | restock | seed
+  note            String?
+  createdByUserId String?  @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  flavour RefillFlavour @relation(fields: [flavourId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@index([flavourId, createdAt])
+  @@map("refill_stock_txns")
+}
+
+/// 換罐計劃全域設定（主視覺、價格重點）
+model RefillPlanSettings {
+  id                 String   @id @default("default")
+  heroImageUrl       String?  @map("hero_image_url")
+  firstJarPrice      Int      @default(129) @map("first_jar_price")
+  exchangePrice      Int      @default(99) @map("exchange_price")
+  pointsPerJar       Int      @default(1) @map("points_per_jar")
+  pointsForDiscount  Int      @default(10) @map("points_for_discount")
+  discountAmount     Int      @default(200) @map("discount_amount")
+  flavourUpdateNote  String   @default("每兩週更新") @map("flavour_update_note")
+  periodStartedAt    DateTime? @map("period_started_at")
+  periodEndedAt      DateTime? @map("period_ended_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("refill_plan_settings")
 }

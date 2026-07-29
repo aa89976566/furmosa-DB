@@ -6,7 +6,6 @@ import {
   CHAOS_ITEMS,
   JAR_ENTER_BLOCKED_GUEST,
   JAR_ENTER_HINT_REGISTERED,
-  JAR_EXPLAIN_DIALOGUE,
   JAR_FLOW_STORY,
   WILD_INTRO,
   WORLD_HUB_LABELS,
@@ -202,18 +201,20 @@ export function buildJarFlowStoryMessages(): LineReplyMessage[] {
   ];
 }
 
-/** 換罐說明子項：介紹／FAQ 用 cover＋對話；流程改無圖故事卡 */
-export function buildJarExplainTopicMessages(
+/** 換罐說明子項：介紹＝主視覺＋完整 Flex；流程＝故事卡；FAQ＝規則 Q&A */
+export async function buildJarExplainTopicMessages(
   topic: 'intro' | 'flow' | 'faq',
-): LineReplyMessage[] {
+  opts?: { registered?: boolean },
+): Promise<LineReplyMessage[]> {
   if (topic === 'flow') {
     return buildJarFlowStoryMessages();
   }
-  return buildCoverDialogueMessages({
-    // Drive 原圖換罐海報（介紹／FAQ）
-    coverUrl: lineAssetUrl('/line/cards/jar-milo-drive-v4.jpg'),
-    lines: [...JAR_EXPLAIN_DIALOGUE[topic]],
-  });
+  if (topic === 'faq') {
+    const { buildJarFaqFlexMessages } = await import('@/lib/line/refill-intro-flex');
+    return buildJarFaqFlexMessages();
+  }
+  const { buildJarIntroMessages } = await import('@/lib/line/refill-intro-flex');
+  return buildJarIntroMessages({ registered: opts?.registered });
 }
 
 type CardAction =

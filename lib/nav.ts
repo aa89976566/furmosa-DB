@@ -79,6 +79,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/jar-exchange/members', label: '會員列表', icon: Users },
       { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
+      { href: '/jar-exchange/flavours', label: '口味與庫存', icon: Package },
       { href: '/jar-exchange/manage?tab=codes', label: '序號管理', icon: Rocket },
       { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', icon: Rocket },
       { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', icon: Gift },

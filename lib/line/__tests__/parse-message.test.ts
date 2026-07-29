@@ -66,6 +66,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
     assert.equal(parseLineUserText('兌換好禮').kind, 'rewards_list');
     assert.equal(parseLineUserText('換罐計劃\u200b').kind, 'hub_jar');
+    assert.equal(parseLineUserText('看本期口味').kind, 'refill_flavours');
   });
 
   it('recognizes jar codes', () => {
