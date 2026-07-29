@@ -22,6 +22,12 @@
 - 缺貨：僅當本店有 `MerchantStock` 列且 `quantity <= reorderPoint`
 - **待換罐：不顯示**（無 Refill POS 交付後端）
 
+## SSR 穩定性（digest 2843362055）
+
+- `/pos` 不在 render path 觸發 booking reminders（改由 `/api/cron/maintain-shipments`）
+- `loadTodayDashboard` 不 import `@/lib/booking/service`；appointment 只 `select` 需要欄位（避開缺的 `line_*`）
+- 各查詢 `Promise.allSettled`；頁面外層 try/catch 降級 UI，避免整頁 digest
+
 ## 明確不做
 
 - HQ／主系統 Dashboard 視覺重做（另 PR）

@@ -1,5 +1,4 @@
 import { prisma } from '@/lib/prisma';
-import { countPendingAppointments } from '@/lib/booking/service';
 import {
   buildTodayTaskRows,
   isInventoryReliable,
@@ -25,19 +24,44 @@ function isMissingRelationError(error: unknown): boolean {
     if (code === 'P2021' || code === 'P2022' || code === 'P2010') return true;
   }
   const msg = error instanceof Error ? error.message : String(error);
-  return /does not exist/i.test(msg);
+  return (
+    /does not exist/i.test(msg) ||
+    /relation .+ does not exist/i.test(msg) ||
+    /column .+ does not exist/i.test(msg) ||
+    /Inconsistent query result/i.test(msg)
+  );
+}
+
+function settledValue<T>(result: PromiseSettledResult<T>, label: string): T | null {
+  if (result.status === 'fulfilled') return result.value;
+  console.error(`[pos] loadTodayDashboard:${label}`, result.reason);
+  return null;
+}
+
+function coerceDate(value: Date | string | number | null | undefined): Date | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /**
- * 載入本店「今天」列資料。查詢失敗時回傳空列＋警告，不丟 SSR。
+ * 載入本店「今天」列資料。
+ * - 不依賴 `@/lib/booking/service`（避免拖進通知／叫貨整條模組圖）
+ * - appointment 只 select 需要欄位（避開 migrate soft-fail 缺的 line_* 欄）
+ * - 各查詢獨立 settled：單一表失敗不拖垮整頁
  */
 export async function loadTodayDashboard(
   merchantId: string,
 ): Promise<LoadedTodayDashboard> {
   try {
-    const [pendingConfirmCount, nextAppt, openRestocks, stockRows] =
-      await Promise.all([
-        countPendingAppointments(merchantId),
+    const [pendingResult, nextResult, restockResult, stockResult] =
+      await Promise.allSettled([
+        prisma.appointment.count({
+          where: { merchantId, status: 'requested' },
+        }),
         prisma.appointment.findFirst({
           where: {
             merchantId,
@@ -45,7 +69,13 @@ export async function loadTodayDashboard(
             startsAt: { gte: new Date() },
           },
           orderBy: { startsAt: 'asc' },
-          include: { customer: { select: { name: true } } },
+          select: {
+            id: true,
+            petName: true,
+            startsAt: true,
+            status: true,
+            customer: { select: { name: true } },
+          },
         }),
         prisma.restockRequest.findMany({
           where: {
@@ -66,39 +96,57 @@ export async function loadTodayDashboard(
         }),
       ]);
 
+    const failures = [pendingResult, nextResult, restockResult, stockResult].filter(
+      (r) => r.status === 'rejected',
+    );
+    const pendingConfirmCount = settledValue(pendingResult, 'pending') ?? 0;
+    const nextAppt = settledValue(nextResult, 'next');
+    const openRestocks = settledValue(restockResult, 'restock') ?? [];
+    const stockRows = settledValue(stockResult, 'stock');
+
     let lowStock: TodayDashboardInput['lowStock'] = null;
-    if (isInventoryReliable(stockRows.length)) {
+    if (stockRows && isInventoryReliable(stockRows.length)) {
       lowStock = stockRows
         .filter(
           (s) =>
+            s.product != null &&
             s.product.status === 'active' &&
-            s.quantity <= Math.max(0, s.product.reorderPoint),
+            s.quantity <= Math.max(0, s.product.reorderPoint ?? 0),
         )
         .map((s) => ({
-          productName: s.product.name,
+          productName: s.product!.name,
           quantity: s.quantity,
         }))
         .sort((a, b) => a.quantity - b.quantity)
         .slice(0, 10);
     }
 
+    const startsAt = nextAppt ? coerceDate(nextAppt.startsAt) : null;
     const input: TodayDashboardInput = {
       pendingConfirmCount,
-      nextGuest: nextAppt
-        ? {
-            id: nextAppt.id,
-            petName: nextAppt.petName,
-            customerName: nextAppt.customer?.name ?? '顧客',
-            startsAt: nextAppt.startsAt,
-            status: nextAppt.status,
-          }
-        : null,
+      nextGuest:
+        nextAppt && startsAt
+          ? {
+              id: nextAppt.id,
+              petName: nextAppt.petName,
+              customerName: nextAppt.customer?.name ?? '顧客',
+              startsAt,
+              status: nextAppt.status,
+            }
+          : null,
       lowStock,
       openRestockCount: openRestocks.length,
       firstOpenRestockId: openRestocks[0]?.id ?? null,
     };
 
-    return { rows: buildTodayTaskRows(input), warning: null };
+    const warning =
+      failures.length === 0
+        ? null
+        : failures.some((f) => isMissingRelationError(f.reason))
+          ? '部分資料表尚未就緒。今天仍可從下方叫貨。'
+          : '部分今日資料暫時讀取失敗，可先從下方叫貨或稍後再試。';
+
+    return { rows: buildTodayTaskRows(input), warning };
   } catch (err) {
     console.error('[pos] loadTodayDashboard', err);
     return {
