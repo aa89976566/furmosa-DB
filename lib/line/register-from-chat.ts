@@ -41,15 +41,12 @@ import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 import type { RegisterResumeAfter } from '@/lib/line/chat-session';
 import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
+import { isRegisterNavLeaveText } from '@/lib/line/session-leave';
+
+export { isRegisterNavLeaveText };
 
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
-
-/**
- * Rich Menu／換罐選單入口：開戶進行中若點這些，應離開開戶、改走對應入口。
- * （否則「介紹」會被步驟吃掉；「回家」會被當成無效號碼）
- */
-export { isRegisterNavLeaveText } from '@/lib/line/session-leave';
 
 /** 開戶「選店家」步驟：僅接受取消；其餘文字應離開流程、改走一般訊息處理 */
 export function registerStoreStepAction(text: string): 'cancel' | 'leave' {
