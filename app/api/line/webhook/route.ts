@@ -78,8 +78,17 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  // 輕量暖機：uptime／排程 ping 可打此端點，減少冷啟動
-  runAfterReply(Promise.resolve());
+  // 暖機：連一次 DB，減少下一則 webhook 冷啟動＋連線池開銷
+  runAfterReply(
+    (async () => {
+      try {
+        const { prisma } = await import('@/lib/prisma');
+        await prisma.$queryRaw`SELECT 1`;
+      } catch (err) {
+        console.error('[line/webhook] warm db failed', err);
+      }
+    })(),
+  );
   return NextResponse.json({
     ok: true,
     message: '匠寵 LINE Webhook（請在 LINE Developers 使用 POST）',

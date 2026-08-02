@@ -17,6 +17,7 @@ import {
   buildComicHomeMessages,
   buildComicJarMessages,
   buildComicRoamMessages,
+  buildJarLiffCtaMessages,
 } from '@/lib/line/comic-menu';
 import {
   buildEventsCenterMessages,
@@ -25,6 +26,10 @@ import {
   buildJarSuccessFlex,
   buildRegisterGateMessages,
 } from '@/lib/line/flex-hubs';
+import {
+  getRefillPlanSettings,
+  listActiveRefillFlavours,
+} from '@/lib/jar-exchange/refill-flavours';
 import {
   buildJarIntroMessages,
   buildRefillFlavoursListMessages,
@@ -45,6 +50,7 @@ import {
   isJibaUnboxSessionActive,
   startJibaUnboxIntro,
 } from '@/lib/line/campaigns/jiba-unbox/flow';
+import { pushLineMessages } from '@/lib/line/push';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
@@ -168,7 +174,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   const parsed = parseLineUserText(msgEvent.message.text);
 
-  // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，避免 DB 例外整段掉進兜底句
+  // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，且先回選單（零 DB）再背景補卡
   if (RICH_MENU_HUB_KINDS.has(parsed.kind)) {
     runAfterReply(
       clearLineChatSession(lineUserId).catch((err) => {
@@ -176,20 +182,27 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       }),
     );
 
-    let registered = false;
-    try {
-      registered = Boolean(await findCustomerByLineUserId(lineUserId));
-    } catch (err) {
-      console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
-    }
-
     try {
       if (parsed.kind === 'hub_jar') {
-        await replyLineMessage(replyToken, buildComicJarMessages(registered), {
+        await replyLineMessage(replyToken, buildComicJarMessages(), {
           lineUserId,
         });
+        // 已開戶才需要的 LIFF 卡：Reply 後再查會員並 Push，不拖慢主選單
+        runAfterReply(
+          (async () => {
+            try {
+              const customer = await findCustomerByLineUserId(lineUserId);
+              if (!customer) return;
+              const extra = buildJarLiffCtaMessages();
+              if (extra.length === 0) return;
+              await pushLineMessages(lineUserId, extra);
+            } catch (err) {
+              console.error('[line] deferred jar LIFF cta failed', err);
+            }
+          })(),
+        );
       } else if (parsed.kind === 'comic_roam' || parsed.kind === 'hub_chaos') {
-        await replyLineMessage(replyToken, buildComicRoamMessages(registered), {
+        await replyLineMessage(replyToken, buildComicRoamMessages(), {
           lineUserId,
         });
       } else if (parsed.kind === 'comic_grooming') {
@@ -197,7 +210,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
           lineUserId,
         });
       } else if (parsed.kind === 'comic_home' || parsed.kind === 'hub_wild') {
-        await replyLineMessage(replyToken, buildComicHomeMessages(registered), {
+        await replyLineMessage(replyToken, buildComicHomeMessages(), {
           lineUserId,
         });
       }
@@ -255,6 +268,59 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     }
   }
 
+  if (isPassiveAutoReply(parsed.kind)) {
+    return;
+  }
+
+  // 介紹／FAQ／口味：先回內容（讀取有短 TTL 快取、不再 seed），會員查詢並行
+  if (
+    parsed.kind === 'jar_explain_intro' ||
+    parsed.kind === 'jar_explain' ||
+    parsed.kind === 'jar_explain_flow' ||
+    parsed.kind === 'jar_explain_faq' ||
+    parsed.kind === 'refill_flavours'
+  ) {
+    try {
+      if (parsed.kind === 'jar_explain_flow') {
+        await replyLineMessage(replyToken, await buildJarExplainTopicMessages('flow'), {
+          lineUserId,
+        });
+        return;
+      }
+      if (parsed.kind === 'jar_explain_faq') {
+        await replyLineMessage(replyToken, await buildJarExplainTopicMessages('faq'), {
+          lineUserId,
+        });
+        return;
+      }
+      if (parsed.kind === 'refill_flavours') {
+        await replyLineMessage(replyToken, await buildRefillFlavoursListMessages(), {
+          lineUserId,
+        });
+        return;
+      }
+
+      // 會員查詢與口味／設定讀取並行（讀取有 60s 快取、不再 seed）
+      const [customer] = await Promise.all([
+        findCustomerByLineUserId(lineUserId).catch((err) => {
+          console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
+          return null;
+        }),
+        getRefillPlanSettings(),
+        listActiveRefillFlavours(),
+      ]);
+      await replyLineMessage(
+        replyToken,
+        await buildJarIntroMessages({ registered: Boolean(customer) }),
+        { lineUserId },
+      );
+      return;
+    } catch (err) {
+      console.error('[line] jar explain fast path failed', parsed.kind, err);
+      throw err;
+    }
+  }
+
   // DB 短暫異常時仍要能回功能訊息，不可整段掉進兜底句
   let customer: BoundCustomer | null = null;
   try {
@@ -263,44 +329,6 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
   }
   const registered = Boolean(customer);
-
-  if (isPassiveAutoReply(parsed.kind)) {
-    return;
-  }
-
-  if (parsed.kind === 'jar_explain_intro') {
-    await replyLineMessage(
-      replyToken,
-      await buildJarExplainTopicMessages('intro', { registered }),
-      { lineUserId },
-    );
-    return;
-  }
-  if (parsed.kind === 'jar_explain_flow') {
-    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('flow'), {
-      lineUserId,
-    });
-    return;
-  }
-  if (parsed.kind === 'jar_explain_faq') {
-    await replyLineMessage(replyToken, await buildJarExplainTopicMessages('faq'), {
-      lineUserId,
-    });
-    return;
-  }
-  if (parsed.kind === 'jar_explain') {
-    // 相容舊入口：直接進正式介紹（主視覺＋制度 Flex）
-    await replyLineMessage(replyToken, await buildJarIntroMessages({ registered }), {
-      lineUserId,
-    });
-    return;
-  }
-  if (parsed.kind === 'refill_flavours') {
-    await replyLineMessage(replyToken, await buildRefillFlavoursListMessages(), {
-      lineUserId,
-    });
-    return;
-  }
   if (parsed.kind === 'jar_enter') {
     await handleLinePostback(replyToken, lineUserId, 'jd=jar_enter');
     return;

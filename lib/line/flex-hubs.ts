@@ -209,6 +209,7 @@ export async function buildJarExplainTopicMessages(
   if (topic === 'flow') {
     return buildJarFlowStoryMessages();
   }
+  // 動態 import 避免 flex-hubs ↔ refill-intro 循環；熱路徑由 handle-event 直接 import
   if (topic === 'faq') {
     const { buildJarFaqFlexMessages } = await import('@/lib/line/refill-intro-flex');
     return buildJarFaqFlexMessages();

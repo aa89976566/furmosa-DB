@@ -32,8 +32,8 @@ export function parseComicMenuText(text: string): ComicMenuKind | null {
 }
 
 /** 一起野放 → 只回選單卡（副標：探索新鮮事） */
-export function buildComicRoamMessages(registered: boolean): LineReplyMessage[] {
-  return buildWorldHubMessages('chaos', { registered });
+export function buildComicRoamMessages(_registered = false): LineReplyMessage[] {
+  return buildWorldHubMessages('chaos');
 }
 
 /** 預約美容 → 封面＋短文（很快就能約） */
@@ -41,33 +41,33 @@ export function buildComicGroomingMessages(): LineReplyMessage[] {
   return buildGroomingSoonMessages();
 }
 
-/** 換罐計劃 → 瓶子是主角；已開戶且設定 LIFF 時附加「我要換罐」 */
-export function buildComicJarMessages(registered: boolean): LineReplyMessage[] {
-  const msgs = buildWorldHubMessages('jar', { registered });
-  if (registered) {
-    const url = getLiffUrlIfConfigured('refill');
-    if (url) {
-      msgs.push(
-        buildButtonMenuFlex({
-          altText: '我要換罐',
-          theme: WORLD_THEME.jar,
-          title: '我要換罐',
-          subtitle: '預約確認後，可直接線上付換罐款給匠寵。',
-          items: [
-            {
-              label: '我要換罐',
-              action: { type: 'uri', uri: url },
-              style: 'primary',
-            },
-          ],
-        }),
-      );
-    }
-  }
-  return msgs;
+/** 換罐計劃主選單（五鍵；不依開戶狀態，熱路徑可零 DB） */
+export function buildComicJarMessages(_registered = false): LineReplyMessage[] {
+  return buildWorldHubMessages('jar');
+}
+
+/** 已開戶附加卡：Reply 後再 Push，不阻塞主選單 */
+export function buildJarLiffCtaMessages(): LineReplyMessage[] {
+  const url = getLiffUrlIfConfigured('refill');
+  if (!url) return [];
+  return [
+    buildButtonMenuFlex({
+      altText: '我要換罐',
+      theme: WORLD_THEME.jar,
+      title: '我要換罐',
+      subtitle: '預約確認後，可直接線上付換罐款給匠寵。',
+      items: [
+        {
+          label: '我要換罐',
+          action: { type: 'uri', uri: url },
+          style: 'primary',
+        },
+      ],
+    }),
+  ];
 }
 
 /** 回家 → furmosa.com + IG，像回家不是點首頁 */
-export function buildComicHomeMessages(_registered: boolean): LineReplyMessage[] {
+export function buildComicHomeMessages(_registered = false): LineReplyMessage[] {
   return buildHomeHubMessages();
 }
