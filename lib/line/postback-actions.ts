@@ -152,22 +152,13 @@ export async function handleLinePostback(
 
   if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
 
-  let customer: Awaited<ReturnType<typeof findCustomerByLineUserId>> = null;
-  try {
-    customer = await findCustomerByLineUserId(lineUserId);
-  } catch (err) {
-    console.error('[line] findCustomerByLineUserId failed', err);
-  }
-  const registered = Boolean(customer);
-
+  // Hub 選單不依開戶狀態：先回再不查會員，縮短感知延遲
   if (action === 'hub_jar') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('jar', { registered }), {
-      lineUserId,
-    });
+    await replyLineMessage(replyToken, buildWorldHubMessages('jar'), { lineUserId });
     return;
   }
   if (action === 'hub_chaos') {
-    await replyLineMessage(replyToken, buildWorldHubMessages('chaos', { registered }), {
+    await replyLineMessage(replyToken, buildWorldHubMessages('chaos'), {
       lineUserId,
     });
     return;
@@ -177,14 +168,15 @@ export async function handleLinePostback(
     return;
   }
 
-  if (action === 'jar_explain') {
-    const { buildJarIntroMessages } = await import('@/lib/line/refill-intro-flex');
-    await replyLineMessage(replyToken, await buildJarIntroMessages({ registered }), {
-      lineUserId,
-    });
-    return;
+  let customer: Awaited<ReturnType<typeof findCustomerByLineUserId>> = null;
+  try {
+    customer = await findCustomerByLineUserId(lineUserId);
+  } catch (err) {
+    console.error('[line] findCustomerByLineUserId failed', err);
   }
-  if (action === 'jar_explain_intro') {
+  const registered = Boolean(customer);
+
+  if (action === 'jar_explain' || action === 'jar_explain_intro') {
     await replyLineMessage(
       replyToken,
       await buildJarExplainTopicMessages('intro', { registered }),

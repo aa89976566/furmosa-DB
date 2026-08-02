@@ -30,8 +30,33 @@ export type RefillPlanSettingsView = {
   periodEndedAt: Date | null;
 };
 
+/** LINE 熱路徑短 TTL：避免每次介紹都打一串 upsert */
+const READ_CACHE_TTL_MS = 60_000;
+
+let settingsCache: { value: RefillPlanSettingsView; expiresAt: number } | null = null;
+let flavoursCache: { value: RefillFlavourView[]; expiresAt: number } | null = null;
+
+export function invalidateRefillPlanCache(): void {
+  settingsCache = null;
+  flavoursCache = null;
+}
+
+function fallbackSettings(): RefillPlanSettingsView {
+  return {
+    heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
+    firstJarPrice: REFILL_PLAN_RULES.firstJarPrice,
+    exchangePrice: REFILL_PLAN_RULES.exchangePrice,
+    pointsPerJar: REFILL_PLAN_RULES.pointsPerJar,
+    pointsForDiscount: REFILL_PLAN_RULES.pointsForDiscount,
+    discountAmount: REFILL_PLAN_RULES.discountAmountDefault,
+    flavourUpdateNote: REFILL_PLAN_RULES.flavourUpdateCadence,
+    periodStartedAt: null,
+    periodEndedAt: null,
+  };
+}
+
 function fallbackFlavours(): RefillFlavourView[] {
-  return DEFAULT_REFILL_FLAVOURS.map((f, i) => ({
+  return DEFAULT_REFILL_FLAVOURS.map((f) => ({
     id: `fallback-${f.code}`,
     code: f.code,
     name: f.name,
@@ -51,7 +76,10 @@ function isWithinPeriod(now: Date, from: Date | null, until: Date | null): boole
   return true;
 }
 
-/** 確保設定列與七種口味存在（migrate 未跑時仍可顯示） */
+/**
+ * 確保設定列與七種口味存在。
+ * 僅給後台／migrate 補洞用；LINE 讀取路徑不要呼叫（會拖慢回覆）。
+ */
 export async function ensureRefillPlanSeeded(): Promise<void> {
   try {
     await prisma.refillPlanSettings.upsert({
@@ -104,52 +132,38 @@ export async function ensureRefillPlanSeeded(): Promise<void> {
         },
       });
     }
+    invalidateRefillPlanCache();
   } catch (err) {
     console.error('[refill-plan] ensure seed failed', err);
   }
 }
 
 export async function getRefillPlanSettings(): Promise<RefillPlanSettingsView> {
+  const now = Date.now();
+  if (settingsCache && settingsCache.expiresAt > now) {
+    return settingsCache.value;
+  }
+
   try {
-    await ensureRefillPlanSeeded();
     const row = await prisma.refillPlanSettings.findUnique({ where: { id: 'default' } });
-    if (!row) {
-      return {
-        heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
-        firstJarPrice: REFILL_PLAN_RULES.firstJarPrice,
-        exchangePrice: REFILL_PLAN_RULES.exchangePrice,
-        pointsPerJar: REFILL_PLAN_RULES.pointsPerJar,
-        pointsForDiscount: REFILL_PLAN_RULES.pointsForDiscount,
-        discountAmount: REFILL_PLAN_RULES.discountAmountDefault,
-        flavourUpdateNote: REFILL_PLAN_RULES.flavourUpdateCadence,
-        periodStartedAt: null,
-        periodEndedAt: null,
-      };
-    }
-    return {
-      heroImageUrl: row.heroImageUrl || REFILL_PLAN_RULES.heroImagePath,
-      firstJarPrice: row.firstJarPrice,
-      exchangePrice: row.exchangePrice,
-      pointsPerJar: row.pointsPerJar,
-      pointsForDiscount: row.pointsForDiscount,
-      discountAmount: row.discountAmount,
-      flavourUpdateNote: row.flavourUpdateNote,
-      periodStartedAt: row.periodStartedAt,
-      periodEndedAt: row.periodEndedAt,
-    };
+    const value: RefillPlanSettingsView = row
+      ? {
+          heroImageUrl: row.heroImageUrl || REFILL_PLAN_RULES.heroImagePath,
+          firstJarPrice: row.firstJarPrice,
+          exchangePrice: row.exchangePrice,
+          pointsPerJar: row.pointsPerJar,
+          pointsForDiscount: row.pointsForDiscount,
+          discountAmount: row.discountAmount,
+          flavourUpdateNote: row.flavourUpdateNote,
+          periodStartedAt: row.periodStartedAt,
+          periodEndedAt: row.periodEndedAt,
+        }
+      : fallbackSettings();
+    settingsCache = { value, expiresAt: now + READ_CACHE_TTL_MS };
+    return value;
   } catch (err) {
     console.error('[refill-plan] get settings failed', err);
-    return {
-      heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
-      firstJarPrice: REFILL_PLAN_RULES.firstJarPrice,
-      exchangePrice: REFILL_PLAN_RULES.exchangePrice,
-      pointsPerJar: REFILL_PLAN_RULES.pointsPerJar,
-      pointsForDiscount: REFILL_PLAN_RULES.pointsForDiscount,
-      discountAmount: REFILL_PLAN_RULES.discountAmountDefault,
-      flavourUpdateNote: REFILL_PLAN_RULES.flavourUpdateCadence,
-      periodStartedAt: null,
-      periodEndedAt: null,
-    };
+    return fallbackSettings();
   }
 }
 
@@ -157,8 +171,12 @@ export async function getRefillPlanSettings(): Promise<RefillPlanSettingsView> {
 export async function listActiveRefillFlavours(
   now: Date = new Date(),
 ): Promise<RefillFlavourView[]> {
+  const ts = Date.now();
+  if (flavoursCache && flavoursCache.expiresAt > ts) {
+    return flavoursCache.value;
+  }
+
   try {
-    await ensureRefillPlanSeeded();
     const rows = await prisma.refillFlavour.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: 'asc' },
@@ -177,7 +195,9 @@ export async function listActiveRefillFlavours(
         sortOrder: r.sortOrder,
         label: formatFlavourLabel(r.name, r.weightGrams),
       }));
-    return filtered.length > 0 ? filtered : fallbackFlavours();
+    const value = filtered.length > 0 ? filtered : fallbackFlavours();
+    flavoursCache = { value, expiresAt: ts + READ_CACHE_TTL_MS };
+    return value;
   } catch (err) {
     console.error('[refill-plan] list flavours failed', err);
     return fallbackFlavours();
@@ -190,7 +210,6 @@ export async function listStoreAvailableFlavours(
   now: Date = new Date(),
 ): Promise<RefillFlavourView[]> {
   try {
-    await ensureRefillPlanSeeded();
     const stocks = await prisma.merchantRefillStock.findMany({
       where: {
         storeId,

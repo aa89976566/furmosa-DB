@@ -2,9 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { ensureRefillPlanSeeded } from '@/lib/jar-exchange/refill-flavours';
+import {
+  ensureRefillPlanSeeded,
+  invalidateRefillPlanCache,
+} from '@/lib/jar-exchange/refill-flavours';
 
 function revalidateRefill() {
+  invalidateRefillPlanCache();
   revalidatePath('/jar-exchange/flavours');
   revalidatePath('/jar-exchange/manage');
 }
