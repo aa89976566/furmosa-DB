@@ -10,6 +10,10 @@ export function isNavItemActive(
 
   const qIdx = href.indexOf('?');
   const path = qIdx >= 0 ? href.slice(0, qIdx) : href;
+  // 換罐計劃總覽：只匹配精確路徑，避免吃掉 /jar-exchange/members 等子頁
+  if (path === '/jar-exchange') {
+    return pathname === '/jar-exchange';
+  }
   if (pathname !== path && !pathname.startsWith(`${path}/`)) return false;
   if (qIdx < 0) return true;
 
