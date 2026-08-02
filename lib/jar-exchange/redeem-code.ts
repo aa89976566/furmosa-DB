@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger } from '@/lib/jar-exchange/points';
+import { revalidateJarExchangeHq } from '@/lib/jar-exchange/revalidate';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
 import { revalidatePath } from 'next/cache';
@@ -62,7 +63,7 @@ export async function redeemJarCode(
     });
 
     try {
-      revalidatePath('/dashboard');
+      revalidateJarExchangeHq();
       revalidatePath('/orders');
     } catch {
       // 單元測試／非 request 脈絡沒有 static generation store

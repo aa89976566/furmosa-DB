@@ -13,6 +13,7 @@ import {
 import { appendPointsLedger } from '@/lib/jar-exchange/points';
 import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
+import { revalidateJarExchangeHq } from '@/lib/jar-exchange/revalidate';
 import { ensureJarExchangeService, syncCustomerServices } from '@/lib/jar-exchange/services';
 import { DEFAULT_BATCH_SIZE } from '@/lib/jar-exchange/print-labels';
 import {
@@ -22,10 +23,7 @@ import {
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 
 function revalidateJar() {
-  revalidatePath('/jar-exchange/members');
-  revalidatePath('/jar-exchange/manage');
-  revalidatePath('/customers');
-  revalidatePath('/dashboard');
+  revalidateJarExchangeHq();
 }
 
 export async function generateJarCodesBatch(

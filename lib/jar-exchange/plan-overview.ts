@@ -1,7 +1,13 @@
+import { resolvePetSpeciesLabel } from '@/lib/customers/pet-fields';
 import { getMonthJarExchangeKpis } from '@/lib/jar-exchange/stats';
+import { resolveSignupStoreLabel } from '@/lib/line/line-copy';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import { prisma } from '@/lib/prisma';
-import { taipeiStartOfLastNDays, taipeiWeekRangeSunday } from '@/lib/taipei-date';
+import {
+  taipeiStartOfLastNDays,
+  taipeiTodayRange,
+  taipeiWeekRangeSunday,
+} from '@/lib/taipei-date';
 
 const OPEN_REFILL_STATUSES = [
   'payment_pending',
@@ -22,6 +28,18 @@ export type PosConnectionRow = {
   openRefillCount: number;
 };
 
+export type RecentJarSignup = {
+  id: string;
+  customerCode: string;
+  name: string;
+  phone: string | null;
+  lineDisplay: string | null;
+  hasLine: boolean;
+  petLabel: string | null;
+  storeLabel: string | null;
+  startedAt: Date;
+};
+
 export type JarPlanOverview = {
   kpis: Awaited<ReturnType<typeof getMonthJarExchangeKpis>>;
   refill: {
@@ -40,11 +58,15 @@ export type JarPlanOverview = {
     posActiveIn7dCount: number;
     neverLoggedInCount: number;
   };
+  /** 台北日曆「今天」經 LINE／系統開通換罐的會員 */
+  todaySignups: RecentJarSignup[];
+  todaySignupCount: number;
 };
 
 export async function loadJarPlanOverview(): Promise<JarPlanOverview> {
   const { start: startOfWeek } = taipeiWeekRangeSunday();
   const startOfLast7Days = taipeiStartOfLastNDays(7);
+  const { start: startOfToday } = taipeiTodayRange();
 
   const [
     kpis,
@@ -53,6 +75,8 @@ export async function loadJarPlanOverview(): Promise<JarPlanOverview> {
     completedThisWeek,
     completedLast7Days,
     merchants,
+    todaySignupRows,
+    todaySignupCount,
   ] = await Promise.all([
     getMonthJarExchangeKpis(),
     prisma.refillOrder.groupBy({
@@ -93,6 +117,41 @@ export async function loadJarPlanOverview(): Promise<JarPlanOverview> {
         },
       },
       orderBy: { name: 'asc' },
+    }),
+    prisma.customerService.findMany({
+      where: {
+        serviceType: 'jar_exchange',
+        serviceStatus: 'active',
+        startedAt: { gte: startOfToday },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 12,
+      select: {
+        startedAt: true,
+        customer: {
+          select: {
+            id: true,
+            customerId: true,
+            name: true,
+            phone: true,
+            lineUserId: true,
+            lineDisplay: true,
+            petName: true,
+            petSpecies: true,
+            petSpeciesOther: true,
+            signupStore: true,
+            storeId: true,
+            storeName: true,
+          },
+        },
+      },
+    }),
+    prisma.customerService.count({
+      where: {
+        serviceType: 'jar_exchange',
+        serviceStatus: 'active',
+        startedAt: { gte: startOfToday },
+      },
     }),
   ]);
 
@@ -172,6 +231,29 @@ export async function loadJarPlanOverview(): Promise<JarPlanOverview> {
   const verified = countByStatus.old_container_verified ?? 0;
   const awaitingExtra = countByStatus.awaiting_extra_payment ?? 0;
 
+  const todaySignups: RecentJarSignup[] = todaySignupRows.map((row) => {
+    const c = row.customer;
+    const petSpecies = resolvePetSpeciesLabel(c.petSpecies, c.petSpeciesOther);
+    const petLabel =
+      c.petName || petSpecies
+        ? [petSpecies, c.petName].filter(Boolean).join(' · ')
+        : null;
+    return {
+      id: c.id,
+      customerCode: c.customerId,
+      name: c.name,
+      phone: c.phone,
+      lineDisplay: c.lineDisplay,
+      hasLine: Boolean(c.lineUserId),
+      petLabel,
+      storeLabel:
+        c.storeName ??
+        resolveSignupStoreLabel(c.signupStore ?? c.storeId) ??
+        null,
+      startedAt: row.startedAt,
+    };
+  });
+
   return {
     kpis,
     refill: {
@@ -190,5 +272,7 @@ export async function loadJarPlanOverview(): Promise<JarPlanOverview> {
       posActiveIn7dCount,
       neverLoggedInCount,
     },
+    todaySignups,
+    todaySignupCount,
   };
 }

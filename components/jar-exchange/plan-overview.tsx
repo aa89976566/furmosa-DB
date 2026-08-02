@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import type { JarPlanOverview } from '@/lib/jar-exchange/plan-overview';
-import { formatCurrency, formatNumber, formatRelative } from '@/lib/format';
+import { formatCurrency, formatDateTime, formatNumber, formatRelative } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { JarPanel } from '@/components/jar-exchange/jar-shell';
+import { JarSignupLiveRefresh } from '@/components/jar-exchange/jar-signup-live-refresh';
 import { cn } from '@/lib/utils';
 import {
   Activity,
   BarChart3,
   Link2,
+  MessageCircle,
   Package,
   Store,
   Users,
@@ -69,6 +71,72 @@ function connectionTone(row: JarPlanOverview['posConnections'][number]) {
   if (days <= 7) return { label: '近 7 日有登入', variant: 'success' as const };
   if (days <= 30) return { label: '本月有登入', variant: 'info' as const };
   return { label: '久未登入', variant: 'warning' as const };
+}
+
+export function JarPlanTodaySignupsSection({ data }: { data: JarPlanOverview }) {
+  const { todaySignups, todaySignupCount } = data;
+  return (
+    <JarPanel>
+      <div className="flex flex-col gap-3 border-b border-border/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-navy">
+            <MessageCircle className="h-4 w-4 text-primary" />
+            今日 LINE 開戶
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            聊天／LIFF 開戶完成後會寫入同一資料庫；今日已開通{' '}
+            {formatNumber(todaySignupCount)} 位
+          </p>
+        </div>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/jar-exchange/members">全部會員</Link>
+        </Button>
+      </div>
+
+      <div className="border-b border-border/50 px-5 py-3">
+        <JarSignupLiveRefresh />
+      </div>
+
+      {todaySignups.length === 0 ? (
+        <p className="px-5 py-8 text-sm text-muted-foreground">
+          今天還沒有新開戶。客人在 LINE 點「幫毛孩開戶」完成後，會出現在這裡。
+        </p>
+      ) : (
+        <ul className="divide-y divide-border/50">
+          {todaySignups.map((row) => (
+            <li key={row.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3.5">
+              <div className="min-w-0">
+                <Link
+                  href={`/customers/${row.id}`}
+                  className="font-semibold text-navy hover:underline"
+                >
+                  {row.name}
+                </Link>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="font-mono">{row.customerCode}</span>
+                  {row.hasLine ? (
+                    <Badge variant="info" className="h-4 px-1.5 text-[9px]">
+                      LINE{row.lineDisplay ? ` · ${row.lineDisplay}` : ''}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[9px]">
+                      無 LINE
+                    </Badge>
+                  )}
+                  {row.petLabel ? <span>{row.petLabel}</span> : null}
+                  {row.storeLabel ? <span>· {row.storeLabel}</span> : null}
+                </div>
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <div>{formatRelative(row.startedAt)}</div>
+                <div className="tabular-nums">{formatDateTime(row.startedAt)}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </JarPanel>
+  );
 }
 
 export function JarPlanReportSection({ data }: { data: JarPlanOverview }) {
