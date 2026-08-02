@@ -246,6 +246,75 @@ function toLineAction(action: CardAction, label: string) {
   return { type: 'message' as const, label: safeLabel, text: action.text };
 }
 
+/** 換罐選單／介紹共用乳牛斑底圖 */
+const JAR_COW_PRINT_BG = '/images/refill-plan/cow-print-bg-v2.jpg';
+
+function withCowPrintShell(
+  theme: WorldTheme,
+  bodyContents: Record<string, unknown>[],
+  footerContents: Record<string, unknown>[],
+): Record<string, unknown> {
+  const bg = lineAssetUrl(JAR_COW_PRINT_BG);
+  const cream = theme.card || '#F8F3EA';
+  return {
+    type: 'bubble',
+    size: 'mega',
+    styles: {
+      body: { backgroundColor: cream },
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      paddingAll: '0px',
+      backgroundColor: cream,
+      contents: [
+        {
+          type: 'box',
+          layout: 'vertical',
+          position: 'relative',
+          contents: [
+            {
+              type: 'box',
+              layout: 'vertical',
+              width: '1px',
+              height: '1px',
+              contents: [{ type: 'filler' }],
+            },
+            {
+              type: 'image',
+              url: bg,
+              size: 'full',
+              aspectMode: 'cover',
+              position: 'absolute',
+              gravity: 'center',
+              offsetTop: '0px',
+              offsetBottom: '0px',
+              offsetStart: '0px',
+              offsetEnd: '0px',
+            },
+            {
+              type: 'box',
+              layout: 'vertical',
+              spacing: 'sm',
+              paddingAll: '18px',
+              contents: [
+                ...bodyContents,
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  spacing: 'sm',
+                  margin: 'lg',
+                  contents: footerContents,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
 /**
  * 垂直按鈕選單（取代 carousel）
  * 選項由上往下排在同一則對話氣泡內，不用左右滑。
@@ -256,6 +325,8 @@ export function buildButtonMenuFlex(opts: {
   title?: string;
   subtitle?: string;
   items: MenuButtonItem[];
+  /** 換罐計劃：整卡鋪乳牛斑 */
+  cowPrint?: boolean;
 }): LineReplyMessage {
   const buttons = opts.items.slice(0, 13).map((item) => {
     // 按鈕只留文字，不加 emoji icon
@@ -289,6 +360,14 @@ export function buildButtonMenuFlex(opts: {
       wrap: true,
       margin: opts.title ? 'sm' : undefined,
     });
+  }
+
+  if (opts.cowPrint) {
+    return {
+      type: 'flex',
+      altText: opts.altText,
+      contents: withCowPrintShell(opts.theme, bodyContents, buttons),
+    };
   }
 
   return {
@@ -417,6 +496,7 @@ function menuFromItems(opts: {
   subtitle?: string;
   items: WorldMenuItem[];
   primaryId?: string;
+  cowPrint?: boolean;
 }): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: opts.altText,
@@ -424,6 +504,7 @@ function menuFromItems(opts: {
     title: opts.title,
     subtitle: opts.subtitle,
     items: opts.items.map((item) => itemToButton(item, { primaryId: opts.primaryId })),
+    cowPrint: opts.cowPrint,
   });
 }
 
@@ -524,7 +605,8 @@ export function buildWorldHubMessages(
         title: WORLD_HUB_LABELS.jar,
         subtitle: WORLD_HUB_TAGLINE.jar,
         items: hubCfg.items,
-        // 換罐選單按鈕同色，不 highlight
+        // 換罐選單按鈕同色，不 highlight；整卡乳牛斑
+        cowPrint: true,
       }),
     );
     return messages;
