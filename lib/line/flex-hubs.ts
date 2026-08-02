@@ -593,7 +593,7 @@ export function buildWorldHubMessages(
   const theme = WORLD_THEME[hub];
 
   if (hub === 'jar') {
-    // 與一起野放相同：只回選單卡；LIFF 就緒時最上鍵「我要換罐」
+    // 與一起野放相同：只回選單卡；LIFF 就緒時第三鍵「線上預購換罐」
     const hubCfg = buildJarHubItems(registered, {
       refillLiffUrl: getLiffUrlIfConfigured('refill'),
     });
@@ -671,10 +671,10 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
     {
       id: 'jar_explain_intro',
       mark: '',
-      label: '介紹',
-      subtitle: '空罐為什麼值得記一筆。',
+      label: '什麼是換罐計劃？',
+      subtitle: '空罐怎麼變成下一罐，先看這頁。',
       heroKey: 'jar-explain',
-      message: '介紹',
+      message: '什麼是換罐計劃？',
     },
     {
       id: 'jar_explain_flow',
@@ -687,10 +687,10 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
     {
       id: 'jar_faq',
       mark: '',
-      label: '常見問題',
-      subtitle: '卡關時翻這頁。',
+      label: '毛爸媽常問',
+      subtitle: '卡關時翻這頁就好。',
       heroKey: 'jar-faq',
-      message: '常見問題',
+      message: '毛爸媽常問',
     },
   ];
   // 打字「換罐計劃是什麼」仍可進說明；不再重複店家與「點下面按鈕」

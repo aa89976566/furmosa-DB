@@ -54,12 +54,13 @@ const COMIC_GROOMING_RE = /^(?:預約美容|漂亮一下)$/;
 const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
 /** 換罐說明子選單（按鈕 displayText／使用者直接打字） */
 const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
-const JAR_EXPLAIN_INTRO_RE = /^介紹$/;
+const JAR_EXPLAIN_INTRO_RE = /^(?:什麼是換罐計劃？|什麼是換罐計劃|介紹)$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
-const JAR_EXPLAIN_FAQ_RE = /^(?:常見問題|Q&A|QA)$/i;
+const JAR_EXPLAIN_FAQ_RE = /^(?:毛爸媽常問|常見問題|Q&A|QA)$/i;
 const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
 /** 須先於「兌換 xxx」模糊規則，避免被拆成 redeem_reward */
-const REDEEM_COUPON_RE = /^(?:兌換優惠券|兌換美容折價券)$/;
+const REDEEM_COUPON_RE =
+  /^(?:點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券)$/;
 const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
 

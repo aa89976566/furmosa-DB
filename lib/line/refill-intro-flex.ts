@@ -458,8 +458,8 @@ export function buildJarFaqFlexMessages(): LineReplyMessage[] {
               color: INTRO_THEME.cta,
               action: {
                 type: 'message',
-                label: '介紹',
-                text: '介紹',
+                label: '什麼是換罐計劃？',
+                text: '什麼是換罐計劃？',
               },
             },
             {

@@ -31,9 +31,10 @@ describe('isRegisterNavLeaveText', () => {
   });
 
   it('換罐選單捷徑應離開開戶（含介紹）', () => {
+    assert.equal(isRegisterNavLeaveText('什麼是換罐計劃？'), true);
     assert.equal(isRegisterNavLeaveText('介紹'), true);
-    assert.equal(isRegisterNavLeaveText('Q&A'), true);
-    assert.equal(isRegisterNavLeaveText('兌換優惠券'), true);
+    assert.equal(isRegisterNavLeaveText('毛爸媽常問'), true);
+    assert.equal(isRegisterNavLeaveText('點數換折價'), true);
     assert.equal(isRegisterNavLeaveText('輸入序號'), true);
   });
 

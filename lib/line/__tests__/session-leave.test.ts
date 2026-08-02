@@ -9,14 +9,18 @@ import {
 } from '../session-leave';
 
 describe('session-leave', () => {
-  it('換罐選單「介紹」應讓開箱／開戶讓路', () => {
+  it('換罐選單捷徑應讓開箱／開戶讓路', () => {
+    assert.equal(isJarMenuLeaveText('什麼是換罐計劃？'), true);
     assert.equal(isJarMenuLeaveText('介紹'), true);
     assert.equal(isUnboxLeaveText('介紹'), true);
     assert.equal(isRegisterNavLeaveText('介紹'), true);
+    assert.equal(isJarMenuLeaveText('毛爸媽常問'), true);
     assert.equal(isJarMenuLeaveText('Q&A'), true);
+    assert.equal(isJarMenuLeaveText('點數換折價'), true);
     assert.equal(isJarMenuLeaveText('兌換優惠券'), true);
     assert.equal(isJarMenuLeaveText('幫毛孩開戶'), true);
     assert.equal(isJarMenuLeaveText('輸入序號'), true);
+    assert.equal(isJarMenuLeaveText('線上預購換罐'), true);
   });
 
   it('一般門市關鍵字不應被當成導覽離開', () => {
