@@ -182,7 +182,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
     try {
       if (parsed.kind === 'hub_jar') {
-        // 「我要換罐」已併進選單最上鍵（有 LINE_LIFF_ID_REFILL 時），不再依賴背景 Push
+        // 「線上預購換罐」已併進選單（有 LINE_LIFF_ID_REFILL 時），不再依賴背景 Push
         await replyLineMessage(replyToken, buildComicJarMessages(), {
           lineUserId,
         });

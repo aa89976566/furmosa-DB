@@ -52,13 +52,13 @@ export function buildJarLiffCtaMessages(): LineReplyMessage[] {
   if (!url) return [];
   return [
     buildButtonMenuFlex({
-      altText: '我要換罐',
+      altText: '線上預購換罐',
       theme: WORLD_THEME.jar,
-      title: '我要換罐',
-      subtitle: '預約確認後，可直接線上付換罐款給匠寵。',
+      title: '線上預購換罐',
+      subtitle: '預約確認後，在這裡付換罐款、預購下一罐零食。',
       items: [
         {
-          label: '我要換罐',
+          label: '線上預購換罐',
           action: { type: 'uri', uri: url },
           style: 'primary',
         },

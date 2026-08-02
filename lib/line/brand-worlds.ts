@@ -36,7 +36,7 @@ export const WORLD_HUB_EMOJI: Record<WorldHubId, string> = {
 };
 
 export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
-  jar: '空罐別急著丟，回來還能換新口味喔。',
+  jar: '空罐先別丟，下一罐可以更划算喔。',
   chaos: '跟毛孩一起探索新鮮事',
   wild: '狗屋在裡面，院子也還亮著喔。',
 };
@@ -212,9 +212,8 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃選單。
- * 有設定 LIFF 時，最上方固定「我要換罐」（直連付款頁，不依開戶狀態才顯示）。
- * 其餘五鍵開戶／未開戶同一組；最底固定「輸入序號」。
+ * 換罐計劃選單（台灣 20–40 毛爸媽口吻）。
+ * 順序：什麼是換罐計劃？→ 開戶 →（有 LIFF）線上預購換罐 → 輸入序號（highlight）→ 點數換折價 → 毛爸媽常問
  */
 export function buildJarHubItems(
   _registered: boolean,
@@ -228,60 +227,63 @@ export function buildJarHubItems(
     {
       id: 'jar_explain_intro',
       mark: '',
-      label: '介紹',
-      subtitle: '計劃怎麼運作，先看這頁。',
+      label: '什麼是換罐計劃？',
+      subtitle: '空罐怎麼變成下一罐，先看這頁就懂。',
       heroKey: 'jar-explain',
-      message: '介紹',
+      message: '什麼是換罐計劃？',
     },
     {
       id: 'jar_reg',
       mark: '',
       label: '幫毛孩開戶',
-      subtitle: '開好戶，序號才進得了帳。',
+      subtitle: '開好戶，罐底序號才能進你家毛孩名下。',
       heroKey: 'jar-reg',
       message: '幫毛孩開戶',
-    },
-    {
-      id: 'jar_faq',
-      mark: '',
-      label: 'Q&A',
-      subtitle: '常見問題整理在這裡。',
-      heroKey: 'jar-faq',
-      message: 'Q&A',
-    },
-    {
-      id: 'redeem_coupon',
-      mark: '',
-      label: '兌換優惠券',
-      subtitle: '點數換美容折價券。',
-      heroKey: 'jar-vault',
-      message: '兌換優惠券',
-    },
-    {
-      id: 'jar_enter',
-      mark: '',
-      label: '輸入序號',
-      subtitle: '罐底 8 碼傳上來就好。',
-      heroKey: 'jar-enter',
-      message: '輸入序號',
     },
   ];
 
   const refillUrl = opts?.refillLiffUrl?.trim();
   if (refillUrl) {
-    items.unshift({
+    items.push({
       id: 'jar_refill_pay',
       mark: '',
-      label: '我要換罐',
-      subtitle: '預約確認後，可線上付換罐款。',
+      label: '線上預購換罐',
+      subtitle: '預約確認後，在這裡付換罐款、預購下一罐。',
       heroKey: 'jar-explain',
       uri: refillUrl,
     });
   }
 
+  items.push(
+    {
+      id: 'jar_enter',
+      mark: '',
+      label: '輸入序號',
+      subtitle: '罐底那串 8 碼傳上來，就記進去囉。',
+      heroKey: 'jar-enter',
+      message: '輸入序號',
+    },
+    {
+      id: 'redeem_coupon',
+      mark: '',
+      label: '點數換折價',
+      subtitle: '存滿點數，換成合作店美容折價券。',
+      heroKey: 'jar-vault',
+      message: '點數換折價',
+    },
+    {
+      id: 'jar_faq',
+      mark: '',
+      label: '毛爸媽常問',
+      subtitle: '開戶、序號、折價這些一次看完。',
+      heroKey: 'jar-faq',
+      message: '毛爸媽常問',
+    },
+  );
+
   return {
-    // 有付款入口時微突出；其餘鍵同色
-    primaryId: refillUrl ? 'jar_refill_pay' : '',
+    // 輸入序號固定主色 highlight
+    primaryId: 'jar_enter',
     body: '',
     items,
   };

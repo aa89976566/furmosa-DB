@@ -58,8 +58,10 @@ describe('parseLineUserText', () => {
 
   it('recognizes jar explain submenu labels', () => {
     assert.equal(parseLineUserText('換罐計劃是什麼').kind, 'jar_explain');
+    assert.equal(parseLineUserText('什麼是換罐計劃？').kind, 'jar_explain_intro');
     assert.equal(parseLineUserText('介紹').kind, 'jar_explain_intro');
     assert.equal(parseLineUserText('流程').kind, 'jar_explain_flow');
+    assert.equal(parseLineUserText('毛爸媽常問').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('常見問題').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('Q&A').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('q&a').kind, 'jar_explain_faq');
@@ -67,6 +69,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('配合店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
     assert.equal(parseLineUserText('輸入序號').kind, 'jar_enter');
+    assert.equal(parseLineUserText('點數換折價').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換優惠券').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換美容折價券').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換好禮').kind, 'rewards_list');
