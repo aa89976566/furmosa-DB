@@ -63,6 +63,26 @@ export async function upsertLineChatSession(
   });
 }
 
+/**
+ * 開箱背景寫入用：若使用者已在開戶流程，禁止覆寫 lineChatSession。
+ * （避免 runAfterReply 的延遲 upsert 把 register 洗成 jiba_unbox）
+ */
+export async function upsertJibaLineChatSessionIfIdle(
+  lineUserId: string,
+  step: string,
+  payload: JibaUnboxDraft,
+) {
+  const current = await prisma.lineChatSession.findUnique({
+    where: { lineUserId },
+    select: { flow: true },
+  });
+  if (current?.flow === 'register') {
+    console.warn('[line] skip jiba session upsert; register in progress', lineUserId);
+    return null;
+  }
+  return upsertLineChatSession(lineUserId, 'jiba_unbox', step, payload);
+}
+
 export async function clearLineChatSession(lineUserId: string) {
   await prisma.lineChatSession.deleteMany({ where: { lineUserId } });
 }

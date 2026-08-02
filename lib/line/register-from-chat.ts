@@ -49,10 +49,10 @@ export { isRegisterNavLeaveText };
 const SKIP_RE = /^(略過|跳过|skip|不填|沒有|没有|不知道)$/i;
 const CANCEL_RE = /^(取消|cancel|退出)$/i;
 
-/** 開戶「選店家」步驟：僅接受取消；其餘文字應離開流程、改走一般訊息處理 */
-export function registerStoreStepAction(text: string): 'cancel' | 'leave' {
+/** 開戶「選店家」步驟：取消結束；其餘文字重送合作店按鈕（不可清 session 以免被開箱搶） */
+export function registerStoreStepAction(text: string): 'cancel' | 'reprompt' {
   if (CANCEL_RE.test(text.trim())) return 'cancel';
-  return 'leave';
+  return 'reprompt';
 }
 
 async function clearExpiredRegisterSession(lineUserId: string) {
@@ -177,8 +177,7 @@ export async function handleRegisterFlowMessage(
   }
 
   if (session.step === 'store') {
-    const action = registerStoreStepAction(trimmed);
-    if (action === 'cancel') {
+    if (registerStoreStepAction(trimmed) === 'cancel') {
       await clearLineChatSession(lineUserId);
       await replyMenuHub(replyToken, lineUserId, {
         registered: false,
@@ -186,8 +185,12 @@ export async function handleRegisterFlowMessage(
       });
       return true;
     }
-    await clearLineChatSession(lineUserId);
-    return false;
+    // 合作店請點按鈕；保留開戶 session，避免清掉後被開箱對話搶走
+    await replyLineMessage(replyToken, [
+      { type: 'text', text: '請點下面的合作店按鈕選一間喔～（打字選店這步還沒開放）' },
+      ...(await buildStorePickerMessages()),
+    ]);
+    return true;
   }
 
   if (session.step === 'name') {

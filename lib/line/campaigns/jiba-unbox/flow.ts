@@ -71,7 +71,7 @@ import {
 } from '@/lib/line/flex-hubs';
 import {
   clearLineChatSession,
-  upsertLineChatSession,
+  upsertJibaLineChatSessionIfIdle,
 } from '@/lib/line/chat-session';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
@@ -231,7 +231,8 @@ export async function startJibaUnboxIntro(
     const active = await findActiveJibaApplication(lineUserId);
     if (active?.conversationSession) {
       const state = active.conversationSession.currentState as FlowState;
-      await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+      await clearJibaPausedForRegister(active.conversationSession.id);
+      await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
         applicationId: active.id,
         phase: 'resume',
       });
@@ -261,33 +262,63 @@ export async function startJibaUnboxIntro(
   ]);
 
   runAfterReply(
-    upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.CAMPAIGN_INTRO, {
+    upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.CAMPAIGN_INTRO, {
       phase: 'intro',
     }).catch((err) => console.error('[jiba-unbox] upsertLineChatSession failed', err)),
   );
 }
 
+function isPausedForRegister(collectedDataJson: string | null | undefined): boolean {
+  try {
+    const data = JSON.parse(collectedDataJson || '{}') as { pausedForRegister?: unknown };
+    return data.pausedForRegister === true;
+  } catch {
+    return false;
+  }
+}
+
+async function findActiveJibaConversationPauseFlag(lineUserId: string): Promise<{
+  hasSession: boolean;
+  pausedForRegister: boolean;
+}> {
+  const app = await prisma.campaignApplication.findFirst({
+    where: {
+      lineUserId,
+      status: { in: [...ACTIVE_APP_STATUSES] },
+    },
+    select: {
+      id: true,
+      conversationSession: { select: { id: true, collectedDataJson: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!app?.conversationSession) return { hasSession: false, pausedForRegister: false };
+  return {
+    hasSession: true,
+    pausedForRegister: isPausedForRegister(app.conversationSession.collectedDataJson),
+  };
+}
+
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
+  let chatFlow: string | null = null;
   try {
     const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
-    // 開戶進行中：開箱不得搶暱稱／手機等輸入（即使 campaign session 仍在）
-    if (chat?.flow === 'register') return false;
-    if (chat?.flow === 'jiba_unbox') return true;
+    chatFlow = chat?.flow ?? null;
+    // 開戶進行中：開箱不得搶暱稱／手機／選店等輸入（即使 campaign session 仍在）
+    if (chatFlow === 'register') return false;
   } catch (err) {
     console.error('[jiba-unbox] lineChatSession lookup failed', err);
     return false;
   }
   // 熱路徑不再每次 upsert 活動列；僅用 lineUserId 查進行中申請
   try {
-    const app = await prisma.campaignApplication.findFirst({
-      where: {
-        lineUserId,
-        status: { in: [...ACTIVE_APP_STATUSES] },
-      },
-      select: { id: true, conversationSession: { select: { id: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    return Boolean(app?.conversationSession);
+    const { hasSession, pausedForRegister } =
+      await findActiveJibaConversationPauseFlag(lineUserId);
+    // 開戶期間暫停開箱：選完合作店後也不准搶回對話
+    if (pausedForRegister) return false;
+    // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中
+    if (chatFlow === 'jiba_unbox') return true;
+    return hasSession;
   } catch (err) {
     if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);
@@ -295,23 +326,35 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
   }
 }
 
-/** 開戶等流程接手時：清掉錯誤的門市候選，回到「請輸入門市」 */
+/** 開戶接手：暫停開箱對話，並清掉錯誤的 7-11 門市候選 */
 export async function pauseJibaUnboxStoreConfirm(lineUserId: string): Promise<void> {
   try {
     const app = await findActiveJibaApplication(lineUserId);
     const sess = app?.conversationSession;
     if (!sess) return;
-    if (sess.currentState !== FLOW_STATE.CONFIRM_STORE && sess.currentState !== FLOW_STATE.ASK_STORE) {
-      return;
-    }
-    await setConversationState(sess.id, FLOW_STATE.ASK_STORE, {
+    const patch: Record<string, unknown> = {
+      pausedForRegister: true,
       storeCandidates: [],
       pendingStoreQuery: null,
-    });
+    };
+    const nextState =
+      sess.currentState === FLOW_STATE.CONFIRM_STORE
+        ? FLOW_STATE.ASK_STORE
+        : (sess.currentState as FlowState);
+    await setConversationState(sess.id, nextState, patch);
   } catch (err) {
     if (isMissingCampaignTableError(err)) return;
-    console.error('[jiba-unbox] pause store confirm failed', err);
+    console.error('[jiba-unbox] pause for register failed', err);
   }
+}
+
+/** 使用者主動回開箱任務時，解除開戶暫停 */
+async function clearJibaPausedForRegister(sessionId: string): Promise<void> {
+  const sess = await prisma.conversationSession.findUnique({ where: { id: sessionId } });
+  if (!sess) return;
+  await setConversationState(sess.id, sess.currentState as FlowState, {
+    pausedForRegister: false,
+  });
 }
 
 async function beginEnrollment(
@@ -325,6 +368,7 @@ async function beginEnrollment(
     const app = existing ?? (await createJibaEnrollment({ lineUserId }));
     const sid = app.conversationSession!.id;
     const state = app.conversationSession!.currentState as FlowState;
+    await clearJibaPausedForRegister(sid);
 
     // 先回使用者，對話紀錄／session 背景寫（縮短體感等待）
     if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
@@ -335,7 +379,7 @@ async function beginEnrollment(
       ]);
       runAfterReply(
         (async () => {
-          await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+          await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
             applicationId: app.id,
           });
           await logCustomer(sid, trimmed, lineMessageId);
@@ -351,7 +395,7 @@ async function beginEnrollment(
     ]);
     runAfterReply(
       (async () => {
-        await upsertLineChatSession(lineUserId, 'jiba_unbox', state, {
+        await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
           applicationId: app.id,
         });
         await logCustomer(sid, trimmed, lineMessageId);
@@ -552,7 +596,7 @@ export async function handleJibaUnboxMessage(
   // Intro / rules（尚未建立申請）
   if (!app && chat?.flow === 'jiba_unbox') {
     if (/^先看看規則$/.test(trimmed)) {
-      await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.SHOW_RULES, {
+      await upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.SHOW_RULES, {
         phase: 'rules',
       });
       const cover = jibaUnboxCoverUrl();
@@ -981,7 +1025,7 @@ export async function handleJibaUnboxMessage(
         return true;
       }
       await submitForReview(app.id);
-      await upsertLineChatSession(lineUserId, 'jiba_unbox', FLOW_STATE.PENDING_REVIEW, {
+      await upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.PENDING_REVIEW, {
         applicationId: app.id,
       });
       await logBot(sid, JIBA_SUBMITTED);
@@ -1012,7 +1056,7 @@ export async function notifyJibaApproved(applicationId: string, note?: string) {
   if (session) {
     await logBot(session.id, JIBA_APPROVED, { paymentMethod: 'bank_transfer' });
   }
-  await upsertLineChatSession(app.lineUserId, 'jiba_unbox', FLOW_STATE.AWAITING_SHIPPING_PAYMENT, {
+  await upsertJibaLineChatSessionIfIdle(app.lineUserId, FLOW_STATE.AWAITING_SHIPPING_PAYMENT, {
     applicationId,
   });
   await pushLineMessages(app.lineUserId, [
@@ -1058,7 +1102,7 @@ export async function notifyJibaReturn(
   const app = await prisma.campaignApplication.findUniqueOrThrow({
     where: { id: applicationId },
   });
-  await upsertLineChatSession(app.lineUserId, 'jiba_unbox', nextState, {
+  await upsertJibaLineChatSessionIfIdle(app.lineUserId, nextState, {
     applicationId,
   });
   const copy = jibaReturnFieldCopy(labels[field] ?? field);
