@@ -37,14 +37,15 @@ const INTRO_THEME = {
   border: '#2E231D',
 } as const;
 
-/** 乳牛斑對話框底圖（絕對定位鋪底；LINE box 不支援 background-image） */
-const COW_PRINT_BG_PATH = '/images/refill-plan/cow-print-bg.jpg';
+/** 乳牛斑對話框底圖 v2（對比加強；LINE box 不支援 background-image） */
+const COW_PRINT_BG_PATH = '/images/refill-plan/cow-print-bg-v2.jpg';
 
 type FlexComponent = Record<string, unknown>;
 
 /**
  * 把內容包在乳牛斑背景上。
  * LINE 限制：區塊第一個子元件不能是 absolute，所以先放 filler。
+ * absolute image 不設 aspectRatio，才能撐滿父層高度。
  */
 function withCowPrintBackground(
   innerContents: FlexComponent[],
@@ -59,15 +60,23 @@ function withCowPrintBackground(
       {
         type: 'box',
         layout: 'vertical',
+        position: 'relative',
         contents: [
-          { type: 'filler' },
+          // 撐開高度的透明錨點（第一個子元件不可 absolute）
+          {
+            type: 'box',
+            layout: 'vertical',
+            width: '1px',
+            height: '1px',
+            contents: [{ type: 'filler' }],
+          },
           {
             type: 'image',
             url: publicAssetUrl(COW_PRINT_BG_PATH),
             size: 'full',
             aspectMode: 'cover',
-            aspectRatio: '4:7',
             position: 'absolute',
+            gravity: 'center',
             offsetTop: '0px',
             offsetBottom: '0px',
             offsetStart: '0px',

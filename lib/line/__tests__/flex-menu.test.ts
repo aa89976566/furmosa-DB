@@ -123,6 +123,7 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /兌換優惠券/);
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐別急著丟/);
+    assert.match(raw, /cow-print-bg-v2\.jpg/);
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);
@@ -283,7 +284,7 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 2);
     assert.equal(msgs[1]?.type, 'flex');
     const raw = JSON.stringify(msgs[1]);
-    assert.match(raw, /cow-print-bg\.jpg/);
+    assert.match(raw, /cow-print-bg-v2\.jpg/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /吃完，不用說再見/);
     assert.match(raw, /NT\$129/);
