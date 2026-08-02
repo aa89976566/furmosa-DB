@@ -38,11 +38,13 @@ describe('isRegisterNavLeaveText', () => {
   });
 
   it('一般開戶輸入不應被當成導覽離開', () => {
+    assert.equal(isRegisterNavLeaveText('小美'), false);
     assert.equal(isRegisterNavLeaveText('王小姐'), false);
     assert.equal(isRegisterNavLeaveText('0912345678'), false);
     assert.equal(isRegisterNavLeaveText('你好'), false);
   });
 });
+
 
 describe('isRegisterSessionExpired', () => {
   const now = new Date('2026-06-11T12:00:00Z');

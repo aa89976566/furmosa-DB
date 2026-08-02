@@ -234,14 +234,25 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   // 否則開箱「選門市」會把「介紹」當成店名候選
   const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
   if (bypassSession) {
-    runAfterReply(
-      clearLineChatSession(lineUserId).catch((err) => {
-        console.error('[line] clear session on jar shortcut failed', err);
-      }),
-    );
+    // bind_help（立即開戶）會建立 register session，不可先 clear 掉
+    if (parsed.kind !== 'bind_help') {
+      runAfterReply(
+        clearLineChatSession(lineUserId).catch((err) => {
+          console.error('[line] clear session on jar shortcut failed', err);
+        }),
+      );
+    }
   } else {
-    // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
-    // campaign 表未就緒時不得讓整段 webhook 掛掉
+    // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
+    try {
+      if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
+        return;
+      }
+    } catch (err) {
+      console.error('[line] register flow gate failed', err);
+    }
+
+    // 開箱對話以 DB session 為準；campaign 表未就緒時不得讓整段 webhook 掛掉
     try {
       if (await isJibaUnboxSessionActive(lineUserId)) {
         if (
@@ -257,14 +268,6 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       }
     } catch (err) {
       console.error('[line] jiba session gate failed', err);
-    }
-
-    try {
-      if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
-        return;
-      }
-    } catch (err) {
-      console.error('[line] register flow gate failed', err);
     }
   }
 

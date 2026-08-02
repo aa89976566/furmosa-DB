@@ -40,7 +40,7 @@ export const LINE_STORE_PROMPT =
   '請選一間常去的合作美容店喔。之後折價券會綁這間；可折金額依門市，綁定後會跟你說。';
 
 export const LINE_REGISTER_INTRO =
-  '【開戶】先跟我們說一下你的暱稱～（例：王小姐）\n\n如果想先暫停，傳「取消」就可以。';
+  '【開戶】先跟我們說一下你的暱稱～（例：小美）\n\n如果想先暫停，傳「取消」就可以。';
 
 export const LINE_REGISTER_PHONE_PROMPT =
   '手機號碼可以留給我們嗎？（例：0912345678）\n這支用來核對資料，請填平常有在用的號碼喔。';
