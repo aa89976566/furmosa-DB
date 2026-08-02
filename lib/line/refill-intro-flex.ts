@@ -37,17 +37,17 @@ const INTRO_THEME = {
   border: '#2E231D',
 } as const;
 
-/** 乳牛斑對話框底圖 v2（對比加強；LINE box 不支援 background-image） */
-const COW_PRINT_BG_PATH = '/images/refill-plan/cow-print-bg-v2.jpg';
+/** 狗狗邊框對話框底圖（LINE box 不支援 background-image） */
+const DOG_FRAME_BG_PATH = '/images/refill-plan/dog-frame-bg-tall.jpg';
 
 type FlexComponent = Record<string, unknown>;
 
 /**
- * 把內容包在乳牛斑背景上。
+ * 把內容包在狗狗邊框背景上。
  * LINE 限制：區塊第一個子元件不能是 absolute，所以先放 filler。
  * absolute image 不設 aspectRatio，才能撐滿父層高度。
  */
-function withCowPrintBackground(
+function withDogFrameBackground(
   innerContents: FlexComponent[],
   opts?: { paddingAll?: string; spacing?: string },
 ): FlexComponent {
@@ -72,7 +72,7 @@ function withCowPrintBackground(
           },
           {
             type: 'image',
-            url: publicAssetUrl(COW_PRINT_BG_PATH),
+            url: publicAssetUrl(DOG_FRAME_BG_PATH),
             size: 'full',
             aspectMode: 'cover',
             position: 'absolute',
@@ -310,7 +310,7 @@ function buildIntroFlexContents(opts: {
     styles: {
       body: { backgroundColor: INTRO_THEME.bg },
     },
-    body: withCowPrintBackground(bodyContents),
+    body: withDogFrameBackground(bodyContents),
   };
 }
 
