@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
 import { prisma } from '@/lib/prisma';
+import { isInternalMerchantId } from '@/lib/stores/partner-store-visibility';
 
 /** 寄賣店家編號 → 核銷 slug（MER-0001 → mer_0001） */
 export function merchantToStoreSlug(merchantId: string): string {
@@ -90,6 +91,8 @@ export async function syncAllJarExchangePartnerStores(
 
   let synced = 0;
   for (const merchant of merchants) {
+    // 測試／對照店不同步進顧客可見的 stores 主檔
+    if (isInternalMerchantId(merchant.merchantId)) continue;
     const types = typesMap.get(merchant.id) ?? ['consignment'];
     if (!types.includes('jar_exchange')) continue;
     await syncPartnerStoreForJarExchangeMerchant(db, merchant, types);

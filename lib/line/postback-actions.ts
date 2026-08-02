@@ -47,8 +47,8 @@ import {
   listActiveRewardsForLine,
   resolveRewardFromLineInput,
 } from '@/lib/line/reward-menu';
+import { buildPartnerStoresMessages } from '@/lib/line/partner-stores-flex';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
-import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import { prisma } from '@/lib/prisma';
 
 async function loadVaultSnapshot(
@@ -81,15 +81,7 @@ async function loadVaultSnapshot(
 
 async function replyPartnerStores(replyToken: string) {
   const stores = await listPartnerStoresFromDb();
-  const lines = [
-    '【合作美容店】',
-    '',
-    ...stores.map((s) => `· ${formatLineStorePickerLabel(s.name, s.slug)}`),
-    '',
-    '開戶時選一間常去的店，之後折價券就會綁那間用喔。',
-    '可折金額依門市而定，綁定後系統會跟你說～',
-  ];
-  await replyLineText(replyToken, lines.join('\n'));
+  await replyLineMessage(replyToken, buildPartnerStoresMessages(stores));
 }
 
 function resolveCustomerStore(

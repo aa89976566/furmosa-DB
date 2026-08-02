@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
+import { isCustomerFacingPartnerStore } from '@/lib/stores/partner-store-visibility';
 import { syncAllJarExchangePartnerStores } from '@/lib/stores/sync-merchant-stores';
 
 /** DB 無資料時的後備清單（與 migration／zhuwo-branches 一致；豬窩僅列三間分店） */
@@ -33,24 +34,40 @@ function toView(row: { id: string; slug: string; name: string }): PartnerStoreVi
   };
 }
 
+export type ListPartnerStoresOpts = {
+  /** 後台／對帳可設 true；LINE／開戶預設 false（隱藏測試對照店） */
+  includeInternal?: boolean;
+};
+
 /** 合作店家主檔（stores 表） */
-export async function listPartnerStoresFromDb(): Promise<PartnerStoreView[]> {
+export async function listPartnerStoresFromDb(
+  opts?: ListPartnerStoresOpts,
+): Promise<PartnerStoreView[]> {
+  const includeInternal = opts?.includeInternal === true;
   try {
     await syncAllJarExchangePartnerStores();
     const rows = await prisma.store.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, slug: true, name: true },
     });
-    if (rows.length > 0) return rows.map(toView);
+    if (rows.length > 0) {
+      const views = rows.map(toView);
+      return includeInternal
+        ? views
+        : views.filter((s) => isCustomerFacingPartnerStore(s));
+    }
   } catch {
     // 連線失敗時使用後備
   }
-  return FALLBACK_PARTNER_STORES.map((s) => ({
+  const fallback = FALLBACK_PARTNER_STORES.map((s) => ({
     id: `fallback_${s.slug}`,
     slug: s.slug,
     name: s.name,
     groomingDiscountAmount: getGroomingCouponDiscountForStore(s.slug, s.name),
   }));
+  return includeInternal
+    ? fallback
+    : fallback.filter((s) => isCustomerFacingPartnerStore(s));
 }
 
 export async function resolvePartnerStoreBySlug(
