@@ -246,16 +246,16 @@ function toLineAction(action: CardAction, label: string) {
   return { type: 'message' as const, label: safeLabel, text: action.text };
 }
 
-/** 換罐選單／介紹共用乳牛斑底圖 */
-const JAR_COW_PRINT_BG = '/images/refill-plan/cow-print-bg-v2.jpg';
+/** 換罐選單／介紹共用：狗狗邊框底圖 */
+const JAR_DOG_FRAME_BG = '/images/refill-plan/dog-frame-bg-tall.jpg';
 
-function withCowPrintShell(
+function withDogFrameShell(
   theme: WorldTheme,
   bodyContents: Record<string, unknown>[],
   footerContents: Record<string, unknown>[],
 ): Record<string, unknown> {
-  const bg = lineAssetUrl(JAR_COW_PRINT_BG);
-  const cream = theme.card || '#F8F3EA';
+  const bg = lineAssetUrl(JAR_DOG_FRAME_BG);
+  const cream = '#F8F3EA';
   return {
     type: 'bubble',
     size: 'mega',
@@ -325,8 +325,8 @@ export function buildButtonMenuFlex(opts: {
   title?: string;
   subtitle?: string;
   items: MenuButtonItem[];
-  /** 換罐計劃：整卡鋪乳牛斑 */
-  cowPrint?: boolean;
+  /** 換罐計劃：整卡鋪狗狗邊框背景 */
+  dogFrame?: boolean;
 }): LineReplyMessage {
   const buttons = opts.items.slice(0, 13).map((item) => {
     // 按鈕只留文字，不加 emoji icon
@@ -362,11 +362,11 @@ export function buildButtonMenuFlex(opts: {
     });
   }
 
-  if (opts.cowPrint) {
+  if (opts.dogFrame) {
     return {
       type: 'flex',
       altText: opts.altText,
-      contents: withCowPrintShell(opts.theme, bodyContents, buttons),
+      contents: withDogFrameShell(opts.theme, bodyContents, buttons),
     };
   }
 
@@ -496,7 +496,7 @@ function menuFromItems(opts: {
   subtitle?: string;
   items: WorldMenuItem[];
   primaryId?: string;
-  cowPrint?: boolean;
+  dogFrame?: boolean;
 }): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: opts.altText,
@@ -504,7 +504,7 @@ function menuFromItems(opts: {
     title: opts.title,
     subtitle: opts.subtitle,
     items: opts.items.map((item) => itemToButton(item, { primaryId: opts.primaryId })),
-    cowPrint: opts.cowPrint,
+    dogFrame: opts.dogFrame,
   });
 }
 
@@ -605,8 +605,8 @@ export function buildWorldHubMessages(
         title: WORLD_HUB_LABELS.jar,
         subtitle: WORLD_HUB_TAGLINE.jar,
         items: hubCfg.items,
-        // 換罐選單按鈕同色，不 highlight；整卡乳牛斑
-        cowPrint: true,
+        // 換罐選單按鈕同色，不 highlight；整卡狗狗邊框
+        dogFrame: true,
       }),
     );
     return messages;
