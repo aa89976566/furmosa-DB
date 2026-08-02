@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ShipmentQueuePrimaryAction } from '@/components/shipments/shipment-queue-primary-action';
 import { formatDate, formatRelative } from '@/lib/format';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
 import { productLabel } from '@/lib/product-label';
@@ -15,11 +16,7 @@ import { parsePlanContents } from '@/lib/plan-contents';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
-import {
-  shipmentStatusLabel,
-  shipmentStatusVariant,
-  shipmentTypeLabel,
-} from '@/lib/shipment';
+import { shipmentTypeLabel } from '@/lib/shipment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
@@ -214,26 +211,19 @@ function EmptyQueueState() {
   );
 }
 
-function QueueStatusBadge({ status }: { status: string }) {
-  return (
-    <Badge
-      variant={shipmentStatusVariant[status] ?? 'secondary'}
-      className="h-5 px-1.5 text-[10px] font-medium"
-    >
-      {shipmentStatusLabel[status] ?? status}
-    </Badge>
-  );
-}
-
 function ShipmentQueueCard({
   view,
   variant,
   selected,
+  queueStatus,
+  queueType,
   onSelect,
 }: {
   view: QueueRowView;
   variant: 'default' | 'subscription';
   selected: boolean;
+  queueStatus?: string;
+  queueType?: string;
   onSelect: () => void;
 }) {
   const { shipment, label, shortNumber, logistics } = view;
@@ -269,11 +259,20 @@ function ShipmentQueueCard({
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
-            <QueueStatusBadge status={shipment.status} />
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{shortNumber}</p>
         </div>
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
+      </div>
+
+      <div className="mt-3">
+        <ShipmentQueuePrimaryAction
+          shipmentId={shipment.id}
+          status={shipment.status}
+          queueStatus={queueStatus}
+          queueType={queueType}
+          layout="stack"
+        />
       </div>
 
       <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
@@ -303,11 +302,15 @@ export function ShipmentQueueTable({
   shipments,
   onSelectShipment,
   selectedShipmentId,
+  queueStatus,
+  queueType,
   variant = 'default',
 }: {
   shipments: ShipmentQueueRow[];
   onSelectShipment: (shipment: ShipmentQueueRow) => void;
   selectedShipmentId?: string | null;
+  queueStatus?: string;
+  queueType?: string;
   variant?: 'default' | 'subscription';
 }) {
   if (shipments.length === 0) {
@@ -321,13 +324,15 @@ export function ShipmentQueueTable({
       <div className="md:hidden">
         <VirtualCardList
           items={views}
-          estimateSize={132}
+          estimateSize={168}
           getKey={(view) => view.shipment.id}
           renderItem={(view) => (
             <ShipmentQueueCard
               view={view}
               variant={variant}
               selected={selectedShipmentId === view.shipment.id}
+              queueStatus={queueStatus}
+              queueType={queueType}
               onSelect={() => onSelectShipment(view.shipment)}
             />
           )}
@@ -339,7 +344,7 @@ export function ShipmentQueueTable({
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-[7.5rem]">單號</TableHead>
-              <TableHead className="w-[5.5rem]">狀態</TableHead>
+              <TableHead className="w-[9.5rem]">狀態 · 動作</TableHead>
               <TableHead className="min-w-[12rem]">寄送地</TableHead>
               <TableHead className="w-[9rem]">電話</TableHead>
               <TableHead>商品 · 件數</TableHead>
@@ -376,7 +381,13 @@ export function ShipmentQueueTable({
                     </div>
                   </TableCell>
                   <TableCell className="py-3">
-                    <QueueStatusBadge status={shipment.status} />
+                    <ShipmentQueuePrimaryAction
+                      shipmentId={shipment.id}
+                      status={shipment.status}
+                      queueStatus={queueStatus}
+                      queueType={queueType}
+                      layout="stack"
+                    />
                   </TableCell>
                   <TableCell className="py-3">
                     <LogisticsBlock view={view} variant={variant} />

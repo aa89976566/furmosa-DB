@@ -160,10 +160,10 @@ export function ShipmentOrderPanel({
         ) : null}
       </div>
 
-      <section className="rounded-lg border border-primary/20 bg-primary/[0.03] p-4">
-        <h3 className="text-sm font-semibold">更新物流狀態</h3>
+      <section className="rounded-lg border bg-card p-4">
+        <h3 className="text-sm font-semibold">物流狀態與其他操作</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          列表只顯示狀態；請在此標記下一步。寄出時可填物流商與追蹤碼。
+          掃單請用列表主按鈕。此區可填物流商／追蹤碼，或取消、退回。
         </p>
         <div className="mt-4">
           <ShipmentStatusActions

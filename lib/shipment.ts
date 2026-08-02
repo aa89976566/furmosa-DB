@@ -55,6 +55,13 @@ export function nextStatuses(current: string): ShipmentStatus[] {
   }
 }
 
+/** 佇列掃單用的唯一主動作（不含取消／退回） */
+export function primaryNextStatus(current: string): ShipmentStatus | null {
+  if (current === 'pending' || current === 'packed') return 'shipped';
+  if (current === 'shipped') return 'delivered';
+  return null;
+}
+
 export function nextActionLabel(next: ShipmentStatus): string {
   switch (next) {
     case 'shipped':
@@ -67,6 +74,18 @@ export function nextActionLabel(next: ShipmentStatus): string {
       return '取消這張單';
     default:
       return next;
+  }
+}
+
+/** 佇列按鈕短標（空間緊） */
+export function queuePrimaryActionLabel(next: ShipmentStatus): string {
+  switch (next) {
+    case 'shipped':
+      return '標記已寄出';
+    case 'delivered':
+      return '貨物到達';
+    default:
+      return nextActionLabel(next);
   }
 }
 
