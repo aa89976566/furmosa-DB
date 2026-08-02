@@ -299,7 +299,7 @@ function buildIntroFlexContents(opts: {
       action: {
         type: 'message',
         label: REFILL_INTRO_COPY.ctaStores,
-        text: '配合店家',
+        text: '查看合作店',
       },
     },
   ];
@@ -387,7 +387,7 @@ export async function buildRefillFlavoursListMessages(): Promise<LineReplyMessag
               action: {
                 type: 'message',
                 label: REFILL_INTRO_COPY.ctaStores,
-                text: '配合店家',
+                text: '查看合作店',
               },
             },
           ],
@@ -469,7 +469,7 @@ export function buildJarFaqFlexMessages(): LineReplyMessage[] {
               action: {
                 type: 'message',
                 label: REFILL_INTRO_COPY.ctaStores,
-                text: '配合店家',
+                text: '查看合作店',
               },
             },
           ],

@@ -61,7 +61,7 @@ const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
 /** 須先於「兌換 xxx」模糊規則，避免被拆成 redeem_reward */
 const REDEEM_COUPON_RE =
   /^(?:點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券)$/;
-const JAR_STORES_RE = /^(?:合作店家|合作美容店|配合店家)$/;
+const JAR_STORES_RE = /^(?:查看合作店|合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
 
 /** 去掉零寬字元，避免 Rich Menu 帶入後對不到捷徑 */

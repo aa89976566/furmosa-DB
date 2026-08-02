@@ -65,6 +65,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('常見問題').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('Q&A').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('q&a').kind, 'jar_explain_faq');
+    assert.equal(parseLineUserText('查看合作店').kind, 'jar_stores');
     assert.equal(parseLineUserText('合作店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('配合店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
