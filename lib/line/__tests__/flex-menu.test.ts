@@ -35,8 +35,22 @@ function flexFrom(msgs: { type: string }[]) {
 }
 
 function countButtons(flex: ReturnType<typeof flexFrom>): number {
-  const footer = flex.contents.footer?.contents ?? [];
-  return footer.filter((x) => (x as { type?: string }).type === 'button').length;
+  let n = 0;
+  const walk = (node: unknown) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const x of node) walk(x);
+      return;
+    }
+    const o = node as { type?: string; contents?: unknown };
+    if (o.type === 'button') n += 1;
+    if (o.contents) walk(o.contents);
+    for (const v of Object.values(o)) {
+      if (v && typeof v === 'object' && v !== o.contents) walk(v);
+    }
+  };
+  walk(flex.contents);
+  return n;
 }
 
 describe('buildMainMenuMessages', () => {
@@ -109,14 +123,30 @@ describe('換罐計劃選單', () => {
     assert.equal(hub.items.at(-1)?.label, '輸入序號');
   });
 
+  it('有 LIFF URL 時最上鍵為我要換罐', () => {
+    const hub = buildJarHubItems(true, {
+      refillLiffUrl: 'https://liff.line.me/2009953429-1hqRSGV8',
+    });
+    assert.equal(hub.items[0]?.id, 'jar_refill_pay');
+    assert.equal(hub.items[0]?.label, '我要換罐');
+    assert.equal(hub.items[0]?.uri, 'https://liff.line.me/2009953429-1hqRSGV8');
+    assert.equal(hub.primaryId, 'jar_refill_pay');
+    assert.deepEqual(
+      hub.items.slice(1).map((i) => i.id),
+      fiveIds,
+    );
+  });
+
   it('只回選單卡、按鈕同色、無 primary highlight', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
     assert.equal(guest.length, 1);
     assert.equal(guest[0]?.type, 'flex');
     const flex = flexFrom(guest);
     assert.equal(flex.contents.type, 'bubble');
-    assert.equal(countButtons(flex), 5);
+    // 測試環境通常未設 LINE_LIFF_ID_REFILL → 五鍵；有設則六鍵含「我要換罐」
     const raw = JSON.stringify(flex.contents);
+    const hasRefillEnv = Boolean(process.env.LINE_LIFF_ID_REFILL?.trim());
+    assert.equal(countButtons(flex), hasRefillEnv ? 6 : 5);
     assert.match(raw, /"label":"介紹"/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /Q&A/);
@@ -127,7 +157,12 @@ describe('換罐計劃選單', () => {
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);
-    assert.doesNotMatch(raw, /"style":"primary"/);
+    if (!hasRefillEnv) {
+      assert.doesNotMatch(raw, /"style":"primary"/);
+    } else {
+      assert.match(raw, /我要換罐/);
+      assert.match(raw, /liff\.line\.me/);
+    }
     assert.doesNotMatch(raw, /點下面按鈕/);
     assert.doesNotMatch(raw, /換罐計劃是什麼/);
     assert.match(raw, /"type":"button"/);
@@ -137,13 +172,15 @@ describe('換罐計劃選單', () => {
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), 5);
+    assert.equal(countButtons(memberFlex), hasRefillEnv ? 6 : 5);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /輸入序號/);
     assert.match(memberRaw, /兌換優惠券/);
     assert.match(memberRaw, /幫毛孩開戶/);
     assert.match(memberRaw, /"type":"message"/);
-    assert.doesNotMatch(memberRaw, /"style":"primary"/);
+    if (!hasRefillEnv) {
+      assert.doesNotMatch(memberRaw, /"style":"primary"/);
+    }
     assert.doesNotMatch(memberRaw, /點數換好康/);
   });
 });

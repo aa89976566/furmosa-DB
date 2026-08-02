@@ -21,6 +21,7 @@ import {
   WORLD_THEME,
   type WorldTheme,
 } from '@/lib/line/card-theme';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
@@ -592,8 +593,10 @@ export function buildWorldHubMessages(
   const theme = WORLD_THEME[hub];
 
   if (hub === 'jar') {
-    // 與一起野放相同：只回選單卡，不另發開場文（避免跟按鈕重複）
-    const hubCfg = buildJarHubItems(registered);
+    // 與一起野放相同：只回選單卡；LIFF 就緒時最上鍵「我要換罐」
+    const hubCfg = buildJarHubItems(registered, {
+      refillLiffUrl: getLiffUrlIfConfigured('refill'),
+    });
     const messages: LineReplyMessage[] = [];
     if (opts?.body) {
       messages.push({ type: 'text', text: opts.body });
@@ -605,7 +608,7 @@ export function buildWorldHubMessages(
         title: WORLD_HUB_LABELS.jar,
         subtitle: WORLD_HUB_TAGLINE.jar,
         items: hubCfg.items,
-        // 換罐選單按鈕同色，不 highlight；整卡狗狗邊框
+        primaryId: hubCfg.primaryId || undefined,
         dogFrame: true,
       }),
     );

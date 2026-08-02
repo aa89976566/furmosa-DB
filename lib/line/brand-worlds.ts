@@ -212,61 +212,78 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃：固定五鍵選單（開戶／未開戶同一組）。
- * 語氣：客氣、專業、自然，台灣毛爸媽語境；顏色一律不 highlight。
- * 最底固定「輸入序號」。
+ * 換罐計劃選單。
+ * 有設定 LIFF 時，最上方固定「我要換罐」（直連付款頁，不依開戶狀態才顯示）。
+ * 其餘五鍵開戶／未開戶同一組；最底固定「輸入序號」。
  */
-export function buildJarHubItems(_registered: boolean): {
+export function buildJarHubItems(
+  _registered: boolean,
+  opts?: { refillLiffUrl?: string | null },
+): {
   items: WorldMenuItem[];
-  /** 換罐選單不 highlight，固定空字串 */
   primaryId: string;
   body: string;
 } {
+  const items: WorldMenuItem[] = [
+    {
+      id: 'jar_explain_intro',
+      mark: '',
+      label: '介紹',
+      subtitle: '計劃怎麼運作，先看這頁。',
+      heroKey: 'jar-explain',
+      message: '介紹',
+    },
+    {
+      id: 'jar_reg',
+      mark: '',
+      label: '幫毛孩開戶',
+      subtitle: '開好戶，序號才進得了帳。',
+      heroKey: 'jar-reg',
+      message: '幫毛孩開戶',
+    },
+    {
+      id: 'jar_faq',
+      mark: '',
+      label: 'Q&A',
+      subtitle: '常見問題整理在這裡。',
+      heroKey: 'jar-faq',
+      message: 'Q&A',
+    },
+    {
+      id: 'redeem_coupon',
+      mark: '',
+      label: '兌換優惠券',
+      subtitle: '點數換美容折價券。',
+      heroKey: 'jar-vault',
+      message: '兌換優惠券',
+    },
+    {
+      id: 'jar_enter',
+      mark: '',
+      label: '輸入序號',
+      subtitle: '罐底 8 碼傳上來就好。',
+      heroKey: 'jar-enter',
+      message: '輸入序號',
+    },
+  ];
+
+  const refillUrl = opts?.refillLiffUrl?.trim();
+  if (refillUrl) {
+    items.unshift({
+      id: 'jar_refill_pay',
+      mark: '',
+      label: '我要換罐',
+      subtitle: '預約確認後，可線上付換罐款。',
+      heroKey: 'jar-explain',
+      uri: refillUrl,
+    });
+  }
+
   return {
-    primaryId: '',
+    // 有付款入口時微突出；其餘鍵同色
+    primaryId: refillUrl ? 'jar_refill_pay' : '',
     body: '',
-    items: [
-      {
-        id: 'jar_explain_intro',
-        mark: '',
-        label: '介紹',
-        subtitle: '計劃怎麼運作，先看這頁。',
-        heroKey: 'jar-explain',
-        message: '介紹',
-      },
-      {
-        id: 'jar_reg',
-        mark: '',
-        label: '幫毛孩開戶',
-        subtitle: '開好戶，序號才進得了帳。',
-        heroKey: 'jar-reg',
-        message: '幫毛孩開戶',
-      },
-      {
-        id: 'jar_faq',
-        mark: '',
-        label: 'Q&A',
-        subtitle: '常見問題整理在這裡。',
-        heroKey: 'jar-faq',
-        message: 'Q&A',
-      },
-      {
-        id: 'redeem_coupon',
-        mark: '',
-        label: '兌換優惠券',
-        subtitle: '點數換美容折價券。',
-        heroKey: 'jar-vault',
-        message: '兌換優惠券',
-      },
-      {
-        id: 'jar_enter',
-        mark: '',
-        label: '輸入序號',
-        subtitle: '罐底 8 碼傳上來就好。',
-        heroKey: 'jar-enter',
-        message: '輸入序號',
-      },
-    ],
+    items,
   };
 }
 

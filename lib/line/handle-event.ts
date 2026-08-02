@@ -17,7 +17,6 @@ import {
   buildComicHomeMessages,
   buildComicJarMessages,
   buildComicRoamMessages,
-  buildJarLiffCtaMessages,
 } from '@/lib/line/comic-menu';
 import {
   buildEventsCenterMessages,
@@ -50,7 +49,6 @@ import {
   isJibaUnboxSessionActive,
   startJibaUnboxIntro,
 } from '@/lib/line/campaigns/jiba-unbox/flow';
-import { pushLineMessages } from '@/lib/line/push';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
 import { checkLineRateLimit } from '@/lib/line/rate-limit';
@@ -184,23 +182,10 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
     try {
       if (parsed.kind === 'hub_jar') {
+        // 「我要換罐」已併進選單最上鍵（有 LINE_LIFF_ID_REFILL 時），不再依賴背景 Push
         await replyLineMessage(replyToken, buildComicJarMessages(), {
           lineUserId,
         });
-        // 已開戶才需要的 LIFF 卡：Reply 後再查會員並 Push，不拖慢主選單
-        runAfterReply(
-          (async () => {
-            try {
-              const customer = await findCustomerByLineUserId(lineUserId);
-              if (!customer) return;
-              const extra = buildJarLiffCtaMessages();
-              if (extra.length === 0) return;
-              await pushLineMessages(lineUserId, extra);
-            } catch (err) {
-              console.error('[line] deferred jar LIFF cta failed', err);
-            }
-          })(),
-        );
       } else if (parsed.kind === 'comic_roam' || parsed.kind === 'hub_chaos') {
         await replyLineMessage(replyToken, buildComicRoamMessages(), {
           lineUserId,
