@@ -49,5 +49,6 @@ export const SESSION_BYPASS_KINDS = new Set([
   'jar_stores',
   'redeem_coupon',
   'refill_flavours',
+  'bind_help', // 立即開戶：略過開箱選門市；勿在外層 clear（由 startRegisterFlow 寫入）
   'rewards_list',
 ]);

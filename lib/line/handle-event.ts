@@ -234,11 +234,14 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   // 否則開箱「選門市」會把「介紹」當成店名候選
   const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
   if (bypassSession) {
-    runAfterReply(
-      clearLineChatSession(lineUserId).catch((err) => {
-        console.error('[line] clear session on jar shortcut failed', err);
-      }),
-    );
+    // bind_help（立即開戶）會建立 register session，不可先 clear 掉
+    if (parsed.kind !== 'bind_help') {
+      runAfterReply(
+        clearLineChatSession(lineUserId).catch((err) => {
+          console.error('[line] clear session on jar shortcut failed', err);
+        }),
+      );
+    }
   } else {
     // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
     try {
