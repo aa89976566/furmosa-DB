@@ -35,13 +35,11 @@ function getShipmentLabel(shipment: ShipmentQueueRow) {
 export function ShipmentQueueWorkspace({
   sections,
   statusFilter,
-  typeFilter,
   panelRefreshKey,
   initialShipmentId,
 }: {
   sections: QueueSection[];
   statusFilter?: string;
-  typeFilter?: string;
   panelRefreshKey: string;
   initialShipmentId?: string;
 }) {
@@ -111,8 +109,6 @@ export function ShipmentQueueWorkspace({
             shipments={section.shipments}
             onSelectShipment={openShipment}
             selectedShipmentId={selectedShipmentId}
-            queueStatus={statusFilter ?? section.key}
-            queueType={typeFilter}
             variant={section.tableVariant ?? 'default'}
           />
         </SectionBlock>
@@ -136,7 +132,7 @@ export function ShipmentQueueWorkspace({
                   {selectedShipment ? getShipmentLabel(selectedShipment) : selectedShipmentId}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
+                  狀態只在此區更新：標記已寄出／貨物到達（會同步訂單）。
                 </p>
               </div>
             </div>
@@ -164,7 +160,7 @@ export function ShipmentQueueWorkspace({
           </span>
           <p className="text-sm font-medium text-foreground">尚未選取出貨單</p>
           <p className="max-w-md text-xs text-muted-foreground">
-            點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
+            點上方卡片或整列，在此開啟詳情並更新物流狀態。
           </p>
         </div>
       )}

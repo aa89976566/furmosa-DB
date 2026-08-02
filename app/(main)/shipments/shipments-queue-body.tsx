@@ -84,13 +84,13 @@ const QUEUE_SECTIONS = [
   {
     status: 'pending',
     title: '待出貨',
-    description: '點列表在下方開啟訂單內容，下拉可標記已寄出',
+    description: '點卡片／整列開啟下方詳情，再標記已寄出',
     tone: 'operations' as const,
   },
   {
     status: 'shipped',
     title: '在途',
-    description: '已寄出 — 下拉選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
+    description: '已寄出 — 點開詳情標記「貨物到達」，訂單出貨狀態會同步',
     tone: 'logistics' as const,
   },
 ];
@@ -382,7 +382,7 @@ export async function ShipmentsQueueBody({
         {
           key: status!,
           title: `${shipmentStatusLabel[status!]} (${queueRows.length})`,
-          description: '點列表任一筆，在下方開啟訂單內容；運輸狀態可直接在列表修改',
+          description: '點列表任一筆開啟下方詳情，再更新物流狀態',
           tone: 'logistics' as const,
           tableVariant: 'default' as const,
           shipments: queueRows,
@@ -430,7 +430,6 @@ export async function ShipmentsQueueBody({
       <ShipmentQueueWorkspace
         sections={workspaceSections}
         statusFilter={status}
-        typeFilter={type}
         panelRefreshKey={panelRefreshKey}
         initialShipmentId={selectedShipmentId}
       />
