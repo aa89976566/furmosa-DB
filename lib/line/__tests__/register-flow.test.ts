@@ -13,11 +13,11 @@ describe('registerStoreStepAction', () => {
     assert.equal(registerStoreStepAction('cancel'), 'cancel');
   });
 
-  it('一般文字不應重送選店家泡泡', () => {
-    assert.equal(registerStoreStepAction('你好'), 'leave');
-    assert.equal(registerStoreStepAction('35085664'), 'leave');
-    assert.equal(registerStoreStepAction('毛孩來開箱'), 'leave');
-    assert.equal(registerStoreStepAction(''), 'leave');
+  it('一般文字應重送選店按鈕（不可清掉開戶 session）', () => {
+    assert.equal(registerStoreStepAction('你好'), 'reprompt');
+    assert.equal(registerStoreStepAction('35085664'), 'reprompt');
+    assert.equal(registerStoreStepAction('毛孩來開箱'), 'reprompt');
+    assert.equal(registerStoreStepAction(''), 'reprompt');
   });
 });
 
