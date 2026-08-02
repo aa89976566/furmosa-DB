@@ -2,6 +2,7 @@
  * 7-11 門市候選搜尋（無電子地圖時的後備）。
  * 不把自由文字直接當正式門市；需顧客明確確認候選。
  */
+import { isUnboxLeaveText } from '@/lib/line/session-leave';
 
 export type StoreCandidate = {
   storeId: string;
@@ -22,8 +23,11 @@ const SEED_STORES: StoreCandidate[] = [
 ];
 
 export function searchStoreCandidates(query: string, limit = 5): StoreCandidate[] {
-  const q = query.trim().replace(/\s+/g, '');
+  const raw = query.trim();
+  const q = raw.replace(/\s+/g, '');
   if (q.length < 2) return [];
+  // 選單捷徑（介紹／開戶…）不可變成「1.介紹」候選按鈕
+  if (isUnboxLeaveText(raw)) return [];
 
   const scored = SEED_STORES.map((s) => {
     const hay = `${s.storeName}${s.storeAddress}${s.storeId}`.replace(/\s+/g, '');
@@ -44,11 +48,11 @@ export function searchStoreCandidates(query: string, limit = 5): StoreCandidate[
 
   const hits = scored.slice(0, limit).map((x) => x.s);
 
-  // 永遠附上「顧客輸入」作為待確認候選（storeId 空字串代表未驗證店號）
+  // 附上「顧客輸入」作為待確認候選（storeId 空字串代表未驗證店號）
   const freeText: StoreCandidate = {
     storeId: '',
-    storeName: query.trim(),
-    storeAddress: query.trim(),
+    storeName: raw,
+    storeAddress: raw,
   };
   const names = new Set(hits.map((h) => h.storeName));
   if (!names.has(freeText.storeName)) {

@@ -41,6 +41,7 @@ import { prisma } from '@/lib/prisma';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 import type { RegisterResumeAfter } from '@/lib/line/chat-session';
 import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
+import { pauseJibaUnboxStoreConfirm } from '@/lib/line/campaigns/jiba-unbox/flow';
 import { isRegisterNavLeaveText } from '@/lib/line/session-leave';
 
 export { isRegisterNavLeaveText };
@@ -128,6 +129,11 @@ export async function startRegisterFlow(
     );
     return;
   }
+
+  // 開戶接手：清掉開箱錯誤門市候選，避免暱稱被當成「選門市」
+  await pauseJibaUnboxStoreConfirm(lineUserId).catch((err) => {
+    console.error('[line] pause jiba on register start failed', err);
+  });
 
   await upsertLineChatSession(lineUserId, 'register', 'name', {
     resumeAfter: opts?.resumeAfter ?? null,

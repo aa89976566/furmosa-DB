@@ -270,6 +270,8 @@ export async function startJibaUnboxIntro(
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
   try {
     const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
+    // 開戶進行中：開箱不得搶暱稱／手機等輸入（即使 campaign session 仍在）
+    if (chat?.flow === 'register') return false;
     if (chat?.flow === 'jiba_unbox') return true;
   } catch (err) {
     console.error('[jiba-unbox] lineChatSession lookup failed', err);
@@ -290,6 +292,25 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
     if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);
     return false;
+  }
+}
+
+/** 開戶等流程接手時：清掉錯誤的門市候選，回到「請輸入門市」 */
+export async function pauseJibaUnboxStoreConfirm(lineUserId: string): Promise<void> {
+  try {
+    const app = await findActiveJibaApplication(lineUserId);
+    const sess = app?.conversationSession;
+    if (!sess) return;
+    if (sess.currentState !== FLOW_STATE.CONFIRM_STORE && sess.currentState !== FLOW_STATE.ASK_STORE) {
+      return;
+    }
+    await setConversationState(sess.id, FLOW_STATE.ASK_STORE, {
+      storeCandidates: [],
+      pendingStoreQuery: null,
+    });
+  } catch (err) {
+    if (isMissingCampaignTableError(err)) return;
+    console.error('[jiba-unbox] pause store confirm failed', err);
   }
 }
 
@@ -432,14 +453,15 @@ export async function handleJibaUnboxMessage(
   const trimmed = text.trim();
   if (!trimmed) return false;
 
-  // 點了別的世界／換罐選單（含「介紹」）→ 離開開箱，讓外層路由接手
-  // 避免 ASK_STORE 把「介紹」當成門市關鍵字
+  // 點了別的世界／換罐選單（含「介紹」／「立即開戶」）→ 離開開箱，讓外層路由接手
+  // 避免 ASK_STORE／CONFIRM_STORE 把選單文案當成門市候選
   if (isUnboxLeaveText(trimmed)) {
     try {
       await clearLineChatSession(lineUserId);
     } catch (err) {
       console.error('[jiba-unbox] clear session on leave failed', err);
     }
+    await pauseJibaUnboxStoreConfirm(lineUserId);
     return false;
   }
 
@@ -698,6 +720,18 @@ export async function handleJibaUnboxMessage(
         return true;
       }
       const candidates = searchStoreCandidates(trimmed);
+      if (candidates.length === 0) {
+        await replyInvalidField({
+          replyToken,
+          lineUserId,
+          sessionId: sid,
+          state,
+          field: 'store',
+          errorText: JIBA_STORE_ERROR,
+          retryPrompt: JIBA_ASK_STORE,
+        });
+        return true;
+      }
       await setConversationState(sid, FLOW_STATE.CONFIRM_STORE, {
         storeCandidates: candidates,
         pendingStoreQuery: trimmed,

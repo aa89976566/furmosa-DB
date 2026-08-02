@@ -22,8 +22,14 @@ describe('session-leave', () => {
   it('一般門市關鍵字不應被當成導覽離開', () => {
     assert.equal(isJarMenuLeaveText('板橋新埔'), false);
     assert.equal(isUnboxLeaveText('板橋新埔門市'), false);
-    assert.equal(isRegisterNavLeaveText('王小姐'), false);
+    assert.equal(isRegisterNavLeaveText('小美'), false);
   });
+
+  it('立即開戶應讓開箱讓路（交給開戶流程）', () => {
+    assert.equal(isUnboxLeaveText('立即開戶'), true);
+    assert.equal(isJarMenuLeaveText('立即開戶'), true);
+  });
+
 
   it('SESSION_BYPASS_KINDS 含介紹', () => {
     assert.ok(SESSION_BYPASS_KINDS.has('jar_explain_intro'));

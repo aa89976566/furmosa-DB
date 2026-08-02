@@ -49,6 +49,5 @@ export const SESSION_BYPASS_KINDS = new Set([
   'jar_stores',
   'redeem_coupon',
   'refill_flavours',
-  'bind_help',
   'rewards_list',
 ]);

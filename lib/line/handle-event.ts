@@ -240,8 +240,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       }),
     );
   } else {
-    // 開箱對話以 DB session 為準；優先於開戶流程，避免狀態被洗掉
-    // campaign 表未就緒時不得讓整段 webhook 掛掉
+    // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
+    try {
+      if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
+        return;
+      }
+    } catch (err) {
+      console.error('[line] register flow gate failed', err);
+    }
+
+    // 開箱對話以 DB session 為準；campaign 表未就緒時不得讓整段 webhook 掛掉
     try {
       if (await isJibaUnboxSessionActive(lineUserId)) {
         if (
@@ -257,14 +265,6 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       }
     } catch (err) {
       console.error('[line] jiba session gate failed', err);
-    }
-
-    try {
-      if (await handleRegisterFlowMessage(replyToken, lineUserId, msgEvent.message.text)) {
-        return;
-      }
-    } catch (err) {
-      console.error('[line] register flow gate failed', err);
     }
   }
 
