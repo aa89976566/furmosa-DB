@@ -2,6 +2,7 @@ import Link from 'next/link';
 import nextDynamic from 'next/dynamic';
 import { DashboardKpiOverview } from '@/components/dashboard/dashboard-kpi-overview';
 import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
+import { HqTodayOps } from '@/components/dashboard/hq-today-ops';
 import { SectionBlock } from '@/components/shared/section-block';
 import { SectionCard } from '@/components/shared/section-card';
 import { SectionSkeleton } from '@/components/shared/page-skeleton';
@@ -18,6 +19,7 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { getDashboardData } from '@/features/dashboard/queries';
+import { getHqTodayOps } from '@/features/dashboard/today-ops';
 import { getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
 
 const chartFallback = (
@@ -42,6 +44,10 @@ export function DashboardTasksFallback() {
   return <SectionSkeleton rows={5} />;
 }
 
+export function DashboardOpsFallback() {
+  return <SectionSkeleton rows={6} />;
+}
+
 export function DashboardBodyFallback() {
   return (
     <div className="space-y-8">
@@ -54,6 +60,11 @@ export function DashboardBodyFallback() {
       <div className="h-56 animate-pulse rounded-md bg-muted/40" />
     </div>
   );
+}
+
+export async function DashboardOpsSection() {
+  const ops = await getHqTodayOps();
+  return <HqTodayOps rows={ops.rows} warnings={ops.warnings} />;
 }
 
 export async function DashboardTasksSection() {
@@ -73,8 +84,8 @@ export async function DashboardBodySection() {
     <>
       <SectionBlock
         tone="overview"
-        title="營運概覽"
-        description="主指標優先、分組掃讀 — 參考 SaaS 儀表板資訊層級（5–8 項核心 KPI）"
+        title="進階總覽（KPI）"
+        description="營收與會員指標；日常先處理上方「今天要做的事」"
       >
         <DashboardKpiOverview kpis={data.kpis} />
       </SectionBlock>
