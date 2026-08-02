@@ -347,7 +347,7 @@ export function ShipmentQueueTable({
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-[7.5rem]">單號</TableHead>
-              <TableHead className="w-[6.5rem]">運輸狀態</TableHead>
+              <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
               <TableHead className="min-w-[12rem]">寄送地</TableHead>
               <TableHead className="w-[9rem]">電話</TableHead>
               <TableHead>商品 · 件數</TableHead>
