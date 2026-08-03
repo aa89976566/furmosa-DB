@@ -20,10 +20,10 @@ import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel } from '@/lib/labels';
 
 const sourceColors: Record<string, string> = {
-  website: '#F00007',
-  line: '#307531',
-  consignment: '#FFC700',
-  manual: '#84898e',
+  website: '#C62C60',
+  line: '#2F1B41',
+  consignment: '#FA8617',
+  manual: '#F9C823',
 };
 
 export function RevenueTrendChart({
@@ -36,8 +36,8 @@ export function RevenueTrendChart({
       <AreaChart data={data} margin={{ top: 5, right: 12, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="hsl(var(--info))" stopOpacity={0.4} />
-            <stop offset="100%" stopColor="hsl(var(--info))" stopOpacity={0} />
+            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
@@ -65,7 +65,7 @@ export function RevenueTrendChart({
         <Area
           type="monotone"
           dataKey="total"
-          stroke="hsl(var(--info))"
+          stroke="hsl(var(--primary))"
           strokeWidth={2}
           fill="url(#revGrad)"
         />

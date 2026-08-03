@@ -1,8 +1,7 @@
 import type { WorldHubId } from '@/lib/line/brand-worlds';
 
 /**
- * 漫畫分頁色票：白底、墨線、大量留白。
- * 禁止漸層、禁止企業儀表板灰。
+ * 漫畫分頁色票：對齊系統紫墨／洋紅／橙／金黃。
  */
 
 export type WorldTheme = {
@@ -16,51 +15,51 @@ export type WorldTheme = {
 };
 
 export const WORLD_THEME: Record<WorldHubId, WorldTheme> = {
-  /** 換罐：玻璃綠，瓶子感 */
+  /** 換罐：品牌洋紅 */
   jar: {
-    accent: '#1F5C45',
-    soft: '#EEF6F1',
+    accent: '#C62C60',
+    soft: '#F9EEF2',
     card: '#FFFFFF',
-    ink: '#14241C',
-    muted: '#5A6B62',
-    hero: '#D9EDE3',
-    rule: '#C5DDD0',
+    ink: '#2F1B41',
+    muted: '#6B5B7A',
+    hero: '#F3D5E0',
+    rule: '#E8C5D2',
   },
-  /** 野放：暖橘墨，外面 comparably rebellious */
+  /** 野放：活力橙 */
   chaos: {
-    accent: '#B84A1F',
-    soft: '#FFF6EE',
+    accent: '#FA8617',
+    soft: '#FFF4E8',
     card: '#FFFFFF',
-    ink: '#2A1810',
-    muted: '#7A5744',
-    hero: '#F7E0C8',
-    rule: '#E8C9A8',
+    ink: '#2F1B41',
+    muted: '#8A6A4A',
+    hero: '#FDE0B8',
+    rule: '#F0C890',
   },
-  /** 回家：沉穩草木，像玄關燈 */
+  /** 回家：紫墨沉穩 */
   wild: {
-    accent: '#2F4A34',
-    soft: '#F1F5F0',
+    accent: '#2F1B41',
+    soft: '#F3EFF7',
     card: '#FFFFFF',
-    ink: '#152018',
-    muted: '#5C6A5E',
-    hero: '#DCE8DC',
-    rule: '#C2D0C2',
+    ink: '#2F1B41',
+    muted: '#6B5B7A',
+    hero: '#DDD4E8',
+    rule: '#C8BDD6',
   },
 };
 
-/** 預約美容（coming soon）單獨色——浴室泡沫感 */
+/** 預約美容：金黃亮點 */
 export const GROOMING_THEME: WorldTheme = {
-  accent: '#3D5A80',
-  soft: '#F0F4F8',
+  accent: '#F9C823',
+  soft: '#FFF8E6',
   card: '#FFFFFF',
-  ink: '#1B2838',
-  muted: '#5C6B7A',
-  hero: '#D9E4F0',
-  rule: '#C5D2E0',
+  ink: '#2F1B41',
+  muted: '#7A6A4A',
+  hero: '#FBE9A8',
+  rule: '#EFD889',
 };
 
 export const BRAND_SURFACE = {
-  page: '#FAFAF8',
-  ink: '#1A1A1A',
-  muted: '#666666',
+  page: '#F6F4F8',
+  ink: '#2F1B41',
+  muted: '#6B5B7A',
 } as const;

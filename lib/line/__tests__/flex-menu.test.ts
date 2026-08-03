@@ -161,7 +161,7 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐先別丟/);
     assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /#F8F3EA8C/);
+    assert.match(raw, /#F6F4F88C/);
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);

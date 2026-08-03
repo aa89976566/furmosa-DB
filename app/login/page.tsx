@@ -27,7 +27,7 @@ export default function LoginPage({
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Operations</p>
           <h1 className="text-4xl font-semibold tracking-tight">清楚掌握訂單、庫存與出貨狀態</h1>
           <p className="text-sm leading-relaxed text-white/72">
-            以清楚分色與卡片式資訊層級，讓營運、財務與物流在同一套後台快速協作。
+            以紫墨側欄與洋紅主色串起訂單、庫存與出貨，讓營運、財務與物流在同一套後台快速協作。
           </p>
         </div>
         <p className="relative text-xs text-white/50">© Furmosa 2026</p>

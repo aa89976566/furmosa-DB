@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     icon: '/icons/icon.svg',
     apple: '/icons/icon.svg',
   },
-  themeColor: '#F00007',
+  themeColor: '#2F1B41',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

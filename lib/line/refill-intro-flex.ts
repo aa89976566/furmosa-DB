@@ -30,15 +30,15 @@ function publicAssetUrl(path: string): string {
   return `${base.replace(/\/$/, '')}${clean}`;
 }
 
-/** 介紹 Flex 品牌色（對齊官網／規格） */
+/** 介紹 Flex 品牌色（紫墨／洋紅／橙） */
 const INTRO_THEME = {
-  bg: '#F8F3EA',
-  ink: '#2E231D',
-  muted: '#6B5E52',
-  cta: '#C46A2F',
-  accent: '#71836B',
-  cream: '#FFFCF7',
-  border: '#2E231D',
+  bg: '#F6F4F8',
+  ink: '#2F1B41',
+  muted: '#6B5B7A',
+  cta: '#C62C60',
+  accent: '#FA8617',
+  cream: '#FFFBFE',
+  border: '#2F1B41',
 } as const;
 
 type FlexComponent = Record<string, unknown>;
@@ -68,7 +68,7 @@ function text(
 }
 
 function separator(margin = 'md') {
-  return { type: 'separator' as const, margin, color: '#E5DCCE' };
+  return { type: 'separator' as const, margin, color: '#E5D9EC' };
 }
 
 function priceCell(label: string, price: number) {

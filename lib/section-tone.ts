@@ -25,7 +25,7 @@ type SectionToneStyle = {
   sidebarActive: string;
 };
 
-/** 全站統一成 www.furmosa.com 色相（紅／黃／綠），不再用彩虹分區 */
+/** 全站統一成紫墨／洋紅／橙／金黃色票 */
 const BRAND: SectionToneStyle = {
   label: 'Furmosa',
   chip: 'bg-primary/10 text-primary',
@@ -35,8 +35,8 @@ const BRAND: SectionToneStyle = {
   icon: 'bg-primary/10 text-primary',
   marker: 'bg-primary',
   eyebrow: 'text-sage',
-  sidebar: 'text-muted-foreground',
-  sidebarActive: 'bg-primary/10 text-ink ring-primary/15',
+  sidebar: 'text-white/65',
+  sidebarActive: 'bg-white/12 text-white',
 };
 
 export const sectionToneStyles: Record<SectionTone, SectionToneStyle> = {

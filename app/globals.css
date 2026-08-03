@@ -5,83 +5,82 @@
 @layer base {
   :root {
     /*
-      匠寵 Furmosa — 對齊 www.furmosa.com
-      紅 #F00007｜黃 #FFC700｜綠 #307531｜紙白／頁灰 #f3f3f3｜正文綠灰 #465447
+      Furmosa 工作台 — 使用者指定色票
+      紫墨 #2F1B41｜洋紅 #C62C60｜活力橙 #FA8617｜金黃 #F9C823
     */
-    --background: 0 0% 95%; /* #f3f3f3 */
-    --foreground: 0 0% 8%;
+    --background: 270 20% 97%;
+    --foreground: 272 41% 18%; /* #2F1B41 */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 272 41% 18%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 358 100% 47%; /* #F00007 */
+    --popover-foreground: 272 41% 18%;
+    --primary: 340 64% 47%; /* #C62C60 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 93%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 43 55% 94%; /* soft cream wash ~#fbf3df family */
-    --muted-foreground: 210 5% 45%; /* ~#84898e */
-    --accent: 100 25% 91%; /* ~#e5eee0 */
-    --accent-foreground: 121 42% 28%;
-    --destructive: 358 100% 47%;
+    --secondary: 270 18% 94%;
+    --secondary-foreground: 272 41% 18%;
+    --muted: 270 16% 94%;
+    --muted-foreground: 270 12% 42%;
+    --accent: 46 95% 92%; /* soft yellow wash */
+    --accent-foreground: 272 41% 18%;
+    --destructive: 340 64% 42%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
-    --ring: 358 100% 47%;
+    --border: 270 12% 88%;
+    --input: 270 12% 88%;
+    --ring: 340 64% 47%;
     --radius: 0.75rem;
 
-    --success: 121 42% 32%; /* #307531 */
+    --success: 272 35% 32%;
     --success-foreground: 0 0% 100%;
-    --warning: 47 100% 50%; /* #FFC700 */
-    --warning-foreground: 0 0% 8%;
-    --info: 124 9% 30%; /* #465447 */
-    --info-foreground: 0 0% 100%;
+    --warning: 29 96% 54%; /* #FA8617 */
+    --warning-foreground: 0 0% 100%;
+    --info: 46 95% 56%; /* #F9C823 */
+    --info-foreground: 272 41% 18%;
 
-    /* aliases used across the app */
-    --navy: 0 0% 8%;
-    --coral: 358 100% 47%; /* legacy name → brand red */
-    --canvas: 0 0% 95%;
+    --navy: 272 41% 18%;
+    --coral: 340 64% 47%;
+    --canvas: 270 20% 97%;
     --surface-raised: 0 0% 100%;
-    --sage: 95 32% 48%; /* #92b874 family, readable on light */
-    --ink: 0 0% 8%;
-    --brand-yellow: 47 100% 50%;
-    --brand-cream: 43 78% 93%; /* #fbf3df */
+    --sage: 270 14% 45%;
+    --ink: 272 41% 18%;
+    --brand-orange: 29 96% 54%;
+    --brand-yellow: 46 95% 56%;
   }
 
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 0 0% 96%;
-    --card: 0 0% 11%;
-    --card-foreground: 0 0% 96%;
-    --popover: 0 0% 11%;
-    --popover-foreground: 0 0% 96%;
-    --primary: 358 100% 55%;
+    --background: 272 35% 10%;
+    --foreground: 270 20% 96%;
+    --card: 272 30% 13%;
+    --card-foreground: 270 20% 96%;
+    --popover: 272 30% 13%;
+    --popover-foreground: 270 20% 96%;
+    --primary: 340 70% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 16%;
-    --secondary-foreground: 0 0% 96%;
-    --muted: 0 0% 16%;
-    --muted-foreground: 210 5% 62%;
-    --accent: 121 20% 16%;
-    --accent-foreground: 95 32% 70%;
-    --destructive: 358 90% 55%;
+    --secondary: 272 22% 18%;
+    --secondary-foreground: 270 20% 96%;
+    --muted: 272 22% 18%;
+    --muted-foreground: 270 12% 65%;
+    --accent: 29 50% 20%;
+    --accent-foreground: 46 95% 70%;
+    --destructive: 340 70% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 358 100% 55%;
+    --border: 272 18% 22%;
+    --input: 272 18% 22%;
+    --ring: 340 70% 58%;
 
-    --success: 121 40% 45%;
+    --success: 272 30% 55%;
     --success-foreground: 0 0% 100%;
-    --warning: 47 100% 50%;
-    --warning-foreground: 0 0% 8%;
-    --info: 124 8% 70%;
-    --info-foreground: 0 0% 8%;
-    --navy: 0 0% 96%;
-    --coral: 358 100% 55%;
-    --canvas: 0 0% 8%;
-    --surface-raised: 0 0% 11%;
-    --sage: 95 28% 58%;
-    --ink: 0 0% 96%;
-    --brand-yellow: 47 100% 50%;
-    --brand-cream: 43 30% 16%;
+    --warning: 29 96% 56%;
+    --warning-foreground: 0 0% 100%;
+    --info: 46 95% 56%;
+    --info-foreground: 272 41% 14%;
+    --navy: 270 20% 96%;
+    --coral: 340 70% 58%;
+    --canvas: 272 35% 10%;
+    --surface-raised: 272 30% 13%;
+    --sage: 270 14% 65%;
+    --ink: 270 20% 96%;
+    --brand-orange: 29 96% 56%;
+    --brand-yellow: 46 95% 56%;
   }
 }
 
@@ -122,19 +121,19 @@
   .pos-atmosphere {
     background-color: hsl(var(--canvas));
     background-image:
-      radial-gradient(ellipse 120% 80% at 10% -20%, hsl(358 100% 47% / 0.06), transparent 55%),
-      radial-gradient(ellipse 90% 60% at 100% 0%, hsl(47 100% 50% / 0.1), transparent 50%),
-      radial-gradient(ellipse 70% 50% at 80% 100%, hsl(121 42% 32% / 0.05), transparent 55%);
+      radial-gradient(ellipse 120% 80% at 10% -20%, hsl(340 64% 47% / 0.08), transparent 55%),
+      radial-gradient(ellipse 90% 60% at 100% 0%, hsl(46 95% 56% / 0.14), transparent 50%),
+      radial-gradient(ellipse 70% 50% at 80% 100%, hsl(29 96% 54% / 0.08), transparent 55%);
   }
   .shadow-card {
     box-shadow:
-      0 1px 2px hsl(0 0% 0% / 0.04),
-      0 8px 24px hsl(0 0% 0% / 0.05);
+      0 1px 2px hsl(272 41% 18% / 0.05),
+      0 8px 24px hsl(272 41% 18% / 0.06);
   }
   .shadow-card-hover {
     box-shadow:
-      0 2px 4px hsl(0 0% 0% / 0.05),
-      0 12px 28px hsl(0 0% 0% / 0.07);
+      0 2px 4px hsl(272 41% 18% / 0.06),
+      0 12px 28px hsl(272 41% 18% / 0.08);
   }
 }
 
