@@ -1,34 +1,62 @@
 import {
   JIBA_BANK_TRANSFER,
+  JIBA_FREE_SHIP,
+  JIBA_PRODUCTS,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 
-export const JIBA_INTRO = `嗨，毛爸媽～這裡有兩片雞霸，想請你家毛孩幫忙開箱。
+export const JIBA_INTRO = `汪！開箱任務來報到～
 
-只要拍一支 Instagram Reels：
-毛孩拿著雞霸自拍，或直接拍牠開吃的樣子都好。
+想請你家毛孩幫忙拍一支開箱小影片。
+可以選：
+・壕大大雞霸兩片
+・青蛙凍乾一隻
 
-發布時記得標記 @furmosa_food。
-投稿內容可能會由匠寵轉發、剪輯，或用在官方網站、Instagram、LINE 與活動宣傳喔。
-
-雞霸我們準備好，7-11 運費 NT$${JIBA_SHIPPING_FEE} 請毛爸媽自行負擔。
+拍完發 Instagram Reels，記得標 @furmosa_food。
+零食我們準備好；7-11 運費 NT$${JIBA_SHIPPING_FEE} 請毛爸媽幫忙喔。
 
 要一起讓毛孩來試試嗎？`;
 
 export const JIBA_RULES = `規則很簡單，我們慢慢說：
 
-① 會收到雞霸兩片
-② 拍毛孩拿雞霸自拍，或拍牠開吃
-③ 發布 Instagram Reels
-④ 標記 @furmosa_food
-⑤ 投稿內容可能經匠寵轉發、剪輯或用於活動分享
+① 選一種開箱零食（雞霸兩片或青蛙一隻）
+② 拍毛孩開箱／開吃的樣子
+③ 發 Instagram Reels，標 @furmosa_food
+④ 投稿內容可能經匠寵轉發、剪輯或用於活動分享
 
 運費 NT$${JIBA_SHIPPING_FEE}，請自行負擔喔。
 
 看完了，還想參加嗎？`;
 
-export const JIBA_START_WORK = `好喔，那我們開始幫毛孩安排雞霸～
+export const JIBA_ASK_PRODUCT = `汪！先選毛孩這次要開哪一包～`;
+
+export const JIBA_PRODUCT_PICKED = {
+  jiba: `好喔，這次開「壕大大雞霸兩片」～`,
+  frog: `好喔，這次開「青蛙凍乾一隻」～`,
+} as const;
+
+/** 選完商品後：投稿事項＋限時加購免運（bark） */
+export function jibaBriefAndUpsell(productKey: JibaProductKey): string {
+  const p = JIBA_PRODUCTS[productKey];
+  return `投稿這樣就好，不複雜：
+
+① 收到 ${p.orderLabel} 後，拍毛孩開箱或開吃
+② 發一支 Instagram Reels
+③ 標記 @furmosa_food
+④ 影片可能被匠寵轉發／剪輯，用在官網、IG、LINE 或活動宣傳
+
+另外跟你說一聲限時優惠喔～
+若想順便加購零食：
+・滿 NT$${JIBA_FREE_SHIP.cvs711} → 7-11 店到店免運
+・滿 NT$${JIBA_FREE_SHIP.blackCat} → 黑貓宅配免運
+
+加購不是必填，之後有興趣再跟${JIBA_SUPERVISOR_NAME}說就好。
+先把開箱資料填完，零食才寄得出發喔。`;
+}
+
+export const JIBA_START_WORK = `好喔，那我們開始幫毛孩填收件資料～
 
 會先寄到你指定的 7-11。
 一次問一小題就好，不急，慢慢填。`;
@@ -50,14 +78,18 @@ export const JIBA_PHONE_ERROR = `這支號碼好像少了一點點耶。
 請輸入 09 開頭、共 10 碼的手機號碼，謝謝你。
 例如：0912345678`;
 
-export const JIBA_ASK_STORE = `最後一個地址小問題～
-請選一間你方便去領的 7-11。
+export const JIBA_ASK_STORE = `汪！接下來選一間你方便領貨的 7-11～
 
-直接輸入「門市名稱＋縣市區域」就可以。
-例如：板橋新埔門市。`;
+怎麼找最快：
+① 直接打「區域＋店名」，例如：板橋新埔、淡水老街
+② 或先去 7-11 門市查詢看店名，再回來貼給我們
 
-export const JIBA_STORE_ERROR = `門市名稱可以再寫清楚一點嗎？
-例如：板橋新埔門市、台北市大安區某某門市`;
+輸入後會給你候選清單，點按鈕確認才算數喔。`;
+
+export const JIBA_STORE_ERROR = `這串比較不像 7-11 門市名稱耶～
+再試試「區域＋店名」，例如：板橋新埔門市、台北車站門市。
+
+（換罐計劃的「介紹」按鈕是另一回事，選門市時請直接打店名喔。）`;
 
 export const JIBA_ASK_IG = `門市找到了，謝謝你～
 接著請問你的 Instagram 帳號是？
@@ -77,11 +109,17 @@ export function jibaFieldRetryEscalation(helperName: string): string {
 你可以再試一次，或直接說「找${helperName}」，我們請小幫手幫你填。`;
 }
 
+/** 授權同意：短問句（按鈕版 Flex 會帶完整說明，避免拆成多則文字泡泡） */
+export const JIBA_LICENSE_ASK = `投稿前，可以請你按下面按鈕同意授權嗎？`;
+
+export const JIBA_LICENSE_BODY = `參加活動代表你同意：匠寵可以在官方網站、Instagram、LINE 與活動宣傳中，轉發、編輯或使用這次投稿的照片與影片。
+
+著作權還是屬於原創作者，我們只取得這次品牌宣傳需要的使用授權。`;
+
+/** @deprecated 舊長文；改走 Flex 按鈕版 */
 export const JIBA_LICENSE = `投稿前，跟你確認一件事喔。
 
-參加活動代表你同意：匠寵可以在官方網站、Instagram、LINE 與活動宣傳中，轉發、編輯或使用這次投稿的照片與影片。
-
-著作權還是屬於原創作者，我們只取得這次品牌宣傳需要的使用授權。
+${JIBA_LICENSE_BODY}
 
 可以請你幫忙同意嗎？`;
 
@@ -118,19 +156,19 @@ export const JIBA_PAY_LATER = `好喔，不急～
 
 export const JIBA_TRANSFER_NOTED = `收到了，謝謝你～
 ${JIBA_SUPERVISOR_NAME}會幫忙對帳。
-對上了再跟你說，雞霸就可以出發囉。`;
+對上了再跟你說，零食就可以出發囉。`;
 
 export const JIBA_FIND_HELPER = `好的，幫你請${JIBA_SUPERVISOR_NAME}來看。
 資料先幫你留著，小幫手會盡快回覆你喔。`;
 
 export const JIBA_PAID = `運費確認到了，謝謝你～
-雞霸準備幫你家毛孩寄出。
+零食準備幫你家毛孩寄出。
 
 出貨後會再通知你；到時候記得幫毛孩挑個好角度拍照喔。`;
 
 export const JIBA_REJECTED = `不好意思，這次名額先額滿了。
 
-不是毛孩不夠可愛，是雞霸數量有限。
+不是毛孩不夠可愛，是零食數量有限。
 下一輪有機會，我們再找你喔。`;
 
 export const JIBA_PENDING_HINT = `還在等${JIBA_SUPERVISOR_NAME}幫你看資料喔。
@@ -142,13 +180,15 @@ export function jibaConfirmSummary(d: {
   storeName: string;
   instagramHandle: string;
   petName?: string | null;
+  productLabel?: string;
 }): string {
   const phone = d.recipientPhone.replace(/(\d{4})(\d{3})(\d{3})/, '$1-$2-$3');
+  const product = d.productLabel ?? '壕大大雞霸 × 2';
   return `麻煩最後再幫我們確認一次～
 有錯現在改就好，寄出後就比較麻煩了。
 
-活動：雞霸兩片開箱
-商品：雞霸 × 2
+活動：毛孩開箱
+商品：${product}
 商品金額：NT$0
 7-11 運費：NT$${JIBA_SHIPPING_FEE}
 

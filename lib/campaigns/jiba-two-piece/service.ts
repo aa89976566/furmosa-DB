@@ -152,7 +152,7 @@ export async function createJibaEnrollment(opts: {
     data: {
       lineUserId: opts.lineUserId,
       campaignApplicationId: application.id,
-      currentState: FLOW_STATE.ASK_RECIPIENT_NAME,
+      currentState: FLOW_STATE.ASK_PRODUCT,
       collectedDataJson: '{}',
     },
   });

@@ -21,21 +21,22 @@ describe('expandLineMessages', () => {
     ]);
   });
 
-  it('keeps quickReply on the last bubble of that text', () => {
+  it('keeps quickReply message unsplit (按鈕跟文案同一則)', () => {
+    const qr = {
+      items: [{ type: 'action', action: { type: 'message', label: '我同意', text: '我同意' } }],
+    };
     const out = expandLineMessages([
       {
         type: 'text',
-        text: '第一行\n第二行',
-        quickReply: {
-          items: [{ type: 'action', action: { type: 'message', label: '好', text: '好' } }],
-        },
+        text: '投稿前，可以請你按下面按鈕同意授權嗎？\n\n參加活動代表你同意……',
+        quickReply: qr,
       },
     ]);
-    assert.equal(out.length, 2);
-    assert.deepEqual(out[0], { type: 'text', text: '第一行' });
-    const last = out[1] as Extract<LineReplyMessage, { type: 'text' }>;
-    assert.equal(last.text, '第二行');
-    assert.equal(last.quickReply?.items.length, 1);
+    assert.equal(out.length, 1);
+    const only = out[0] as Extract<LineReplyMessage, { type: 'text' }>;
+    assert.match(only.text, /投稿前/);
+    assert.match(only.text, /參加活動代表你同意/);
+    assert.equal(only.quickReply?.items.length, 1);
   });
 
   it('leaves flex/image untouched', () => {

@@ -13,12 +13,18 @@ type ExpandableMessage =
 
 /**
  * 文字訊息依換行拆成多則氣泡（空行略過）。
+ * 有 quickReply 的文字不拆：按鈕必須跟同一則文案，避免「同意」被拆成多泡後才出現按鈕。
  * quickReply 掛在「該則原文」拆完後的最後一泡。
  */
 export function expandLineMessages<T extends ExpandableMessage>(messages: T[]): T[] {
   const out: T[] = [];
   for (const msg of messages) {
     if (msg.type !== 'text') {
+      out.push(msg);
+      continue;
+    }
+    // 有按鈕的訊息整則保留，不拆行
+    if (msg.quickReply) {
       out.push(msg);
       continue;
     }
