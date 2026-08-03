@@ -7,7 +7,6 @@ import {
 } from '@/lib/restock-request/constants';
 import { PosShell } from '@/components/pos/pos-shell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = { title: '紀錄 · Furmosa 店家' };
 
@@ -40,45 +39,49 @@ export default async function PosRecordsPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold text-navy">紀錄</h1>
-        <p className="mb-5 text-sm text-muted-foreground">今天的叫貨紀錄</p>
+      <div className="px-5 pb-4 pt-8">
+        <header className="mb-8">
+          <p className="font-display text-[11px] font-semibold uppercase tracking-[0.18em] text-sage">
+            Furmosa
+          </p>
+          <h1 className="mt-1 font-display text-2xl font-semibold text-ink">紀錄</h1>
+          <p className="mt-1 text-sm text-muted-foreground">今天的叫貨</p>
+        </header>
 
         {rows.length === 0 ? (
-          <Card>
-            <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-              <p>今天還沒有叫貨紀錄。</p>
-              <p>美容與換罐紀錄會在對應功能上線後再顯示，不會先放假資料。</p>
-              <Button asChild variant="outline" className="min-h-[44px] w-full">
-                <Link href="/pos/restock">去叫貨</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <section className="space-y-5 py-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              今天還沒有叫貨。
+            </p>
+            <Button asChild className="min-h-[48px] w-full text-base">
+              <Link href="/pos/restock">去叫貨</Link>
+            </Button>
+          </section>
         ) : (
-          <div className="grid gap-3">
+          <div className="divide-y divide-border/70">
             {rows.map((r) => (
-              <Link key={r.id} href={`/pos/restock/${r.id}`}>
-                <Card className="shadow-card transition hover:border-primary/30">
-                  <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {restockRequestTypeLabel(r.requestType)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.createdAt.toLocaleTimeString('zh-TW', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        {r.expectedArrivalDate
-                          ? ` · 預計到貨 ${r.expectedArrivalDate.toLocaleDateString('zh-TW')}`
-                          : ''}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                      {restockStatusLabelForMerchant(r.status)}
-                    </span>
-                  </CardContent>
-                </Card>
+              <Link
+                key={r.id}
+                href={`/pos/restock/${r.id}`}
+                className="flex min-h-[64px] items-center justify-between gap-3 py-4 first:pt-1"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink">
+                    {restockRequestTypeLabel(r.requestType)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {r.createdAt.toLocaleTimeString('zh-TW', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {r.expectedArrivalDate
+                      ? ` · 預計 ${r.expectedArrivalDate.toLocaleDateString('zh-TW')}`
+                      : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-medium text-sage">
+                  {restockStatusLabelForMerchant(r.status)}
+                </span>
               </Link>
             ))}
           </div>
