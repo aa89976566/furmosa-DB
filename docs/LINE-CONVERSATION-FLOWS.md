@@ -79,17 +79,20 @@ Postback：`lib/line/postback-actions.ts`
 | 狀態 | 問什麼 | 成功下一狀態 | 備註 |
 |------|--------|--------------|------|
 | CAMPAIGN_INTRO / SHOW_RULES | 參加／看規則／不要 | 報名或結束 | |
+| ASK_PRODUCT | 選雞霸兩片／青蛙凍乾 | SHOW_BRIEF | 按鈕選擇 |
+| SHOW_BRIEF | 投稿事項＋399/886 免運加購說明 | ASK_RECIPIENT_NAME | 「好，開始填資料」 |
 | ASK_RECIPIENT_NAME | 收件人姓名 | ASK_RECIPIENT_PHONE | 開箱文，非開戶暱稱 |
 | ASK_RECIPIENT_PHONE | 收件手機 | ASK_STORE | |
-| ASK_STORE | 輸入 7-11 門市關鍵字 | CONFIRM_STORE | 候選按鈕 `選門市1…` |
+| ASK_STORE | 輸入 7-11 關鍵字／門市查詢 | CONFIRM_STORE | 候選 Flex 按鈕；選門市時「介紹」不當離開 |
 | CONFIRM_STORE | 選候選／重選門市 | ASK_INSTAGRAM | |
 | ASK_INSTAGRAM | `@` 帳號 | ASK_PET_NAME | |
-| ASK_PET_NAME | 開箱毛孩名（可略過） | ASK_CONTENT_LICENSE | 文案含「開箱的毛孩」 |
-| ASK_CONTENT_LICENSE | 同意／不同意 | SHOW_ORDER_CONFIRMATION | |
+| ASK_PET_NAME | 開箱毛孩名（可略過） | ASK_CONTENT_LICENSE | |
+| ASK_CONTENT_LICENSE | 同意／不同意（單一 Flex 按鈕卡） | SHOW_ORDER_CONFIRMATION | 接受「同意」／「我同意」 |
 | SHOW_ORDER_CONFIRMATION | 確認送出 | PENDING_REVIEW | 之後審核／匯款指引 |
 
 傳「取消」「重來」可結束申請。  
-換罐選單捷徑（介紹／開戶…）會讓開箱讓路。
+點「開箱任務」若有舊申請：問「接著上次／重新開始」，避免開戶後誤續開箱。  
+換罐選單捷徑在**非選門市**時會讓開箱讓路；選門市時「介紹」會當雜訊重問門市。
 
 ---
 

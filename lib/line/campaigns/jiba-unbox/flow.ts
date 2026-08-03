@@ -7,8 +7,10 @@ import {
   APP_STATUS,
   FLOW_STATE,
   JIBA_LICENSE_VERSION,
+  JIBA_PRODUCTS,
   JIBA_SUPERVISOR_NAME,
   type FlowState,
+  type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
   JIBA_APPROVED,
@@ -16,12 +18,14 @@ import {
   JIBA_ASK_NAME,
   JIBA_ASK_PET,
   JIBA_ASK_PHONE,
+  JIBA_ASK_PRODUCT,
   JIBA_ASK_STORE,
   JIBA_BANK_INFO,
   JIBA_FIND_HELPER,
   JIBA_IG_ERROR,
   JIBA_INTRO,
-  JIBA_LICENSE,
+  JIBA_LICENSE_ASK,
+  JIBA_LICENSE_BODY,
   JIBA_LICENSE_DECLINE,
   JIBA_NAME_ERROR,
   JIBA_NAME_RETRY,
@@ -30,12 +34,14 @@ import {
   JIBA_PENDING_HINT,
   JIBA_PET_ERROR,
   JIBA_PHONE_ERROR,
+  JIBA_PRODUCT_PICKED,
   JIBA_REJECTED,
   JIBA_RULES,
   JIBA_START_WORK,
   JIBA_STORE_ERROR,
   JIBA_SUBMITTED,
   JIBA_TRANSFER_NOTED,
+  jibaBriefAndUpsell,
   jibaConfirmSummary,
   jibaFieldRetryEscalation,
   jibaReturnFieldCopy,
@@ -54,7 +60,11 @@ import {
   submitForReview,
   syncApplicationFields,
 } from '@/lib/campaigns/jiba-two-piece/service';
-import { searchStoreCandidates } from '@/lib/campaigns/jiba-two-piece/store-search';
+import {
+  SEVEN_ELEVEN_STORE_FINDER_URL,
+  isStoreLeaveNoise,
+  searchStoreCandidates,
+} from '@/lib/campaigns/jiba-two-piece/store-search';
 import {
   FIELD_MAX_RETRIES,
   isDeclineIntent,
@@ -76,7 +86,11 @@ import {
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
 import { pushLineMessages } from '@/lib/line/push';
 import { runAfterReply } from '@/lib/line/defer';
-import { isUnboxLeaveText } from '@/lib/line/session-leave';
+import {
+  isJarMenuLeaveText,
+  isUnboxLeaveText,
+  isWorldNavLeaveText,
+} from '@/lib/line/session-leave';
 import { prisma } from '@/lib/prisma';
 
 /** 開箱流程回覆：拆泡後若超過 5 則，其餘 push 接續 */
@@ -135,6 +149,118 @@ function jibaRulesChoiceMenu(): LineReplyMessage {
       },
     ],
   });
+}
+
+function jibaProductChoiceMenu(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: '選開箱商品',
+    theme: WORLD_THEME.chaos,
+    title: '選開箱商品',
+    subtitle: JIBA_ASK_PRODUCT,
+    items: [
+      {
+        label: JIBA_PRODUCTS.jiba.label,
+        action: { type: 'message', text: '選雞霸兩片' },
+        style: 'primary',
+      },
+      {
+        label: JIBA_PRODUCTS.frog.label,
+        action: { type: 'message', text: '選青蛙凍乾' },
+        style: 'secondary',
+      },
+    ],
+  });
+}
+
+function jibaResumeChoiceMenu(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: '繼續開箱？',
+    theme: WORLD_THEME.chaos,
+    title: '發現未完成的開箱申請',
+    subtitle: '若你剛做完毛孩開戶，多半是舊的開箱進度。要接著填，還是重新開始？',
+    items: [
+      {
+        label: '接著上次',
+        action: { type: 'message', text: '接著上次開箱' },
+        style: 'primary',
+      },
+      {
+        label: '重新開始',
+        action: { type: 'message', text: '重新開始開箱' },
+        style: 'secondary',
+      },
+    ],
+  });
+}
+
+/** 授權同意：單一 Flex（按鈕在同一張卡，不再拆成多則文字泡泡） */
+function jibaLicenseFlex(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: '投稿授權同意',
+    theme: WORLD_THEME.chaos,
+    title: JIBA_LICENSE_ASK,
+    subtitle: JIBA_LICENSE_BODY,
+    items: [
+      {
+        label: '我同意',
+        action: { type: 'message', text: '我同意' },
+        style: 'primary',
+      },
+      {
+        label: '不同意',
+        action: { type: 'message', text: '不同意' },
+        style: 'secondary',
+      },
+    ],
+  });
+}
+
+function jibaStoreCandidatesFlex(
+  candidates: { storeId: string; storeName: string; storeAddress: string }[],
+): LineReplyMessage {
+  const lines = candidates
+    .map((c, i) => `${i + 1}. ${c.storeName}${c.storeId ? `（${c.storeId}）` : ''}`)
+    .join('\n');
+  return buildButtonMenuFlex({
+    altText: '選擇 7-11 門市',
+    theme: WORLD_THEME.chaos,
+    title: '找到這些 7-11',
+    subtitle: `${lines}\n\n點下面按鈕確認；不對就重選或改關鍵字。`,
+    items: [
+      ...candidates.slice(0, 4).map((c, i) => ({
+        label: `${i + 1}.${c.storeName}`.slice(0, 20),
+        action: { type: 'message' as const, text: `選門市${i + 1}` },
+        style: (i === 0 ? 'primary' : 'secondary') as 'primary' | 'secondary',
+      })),
+      {
+        label: '重選門市',
+        action: { type: 'message' as const, text: '重選門市' },
+        style: 'link' as const,
+      },
+      {
+        label: '查 7-11 店名',
+        action: { type: 'uri' as const, uri: SEVEN_ELEVEN_STORE_FINDER_URL },
+        style: 'link' as const,
+      },
+    ],
+  });
+}
+
+function parseProductKey(text: string): JibaProductKey | null {
+  const t = text.trim();
+  if (/^(?:選雞霸兩片|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) return 'jiba';
+  if (/^(?:選青蛙凍乾|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
+  return null;
+}
+
+function productLabelFromCollected(data: Record<string, unknown>): string {
+  const key = data.productKey as JibaProductKey | undefined;
+  if (key && JIBA_PRODUCTS[key]) return JIBA_PRODUCTS[key].orderLabel;
+  return JIBA_PRODUCTS.jiba.orderLabel;
+}
+
+function isLicenseAccept(text: string): boolean {
+  return /^(?:我同意|同意)$/i.test(text.trim());
 }
 
 function textWithQr(
@@ -196,6 +322,10 @@ async function logCustomer(sessionId: string, text: string, lineMessageId?: stri
 
 function promptForState(state: FlowState): string {
   switch (state) {
+    case FLOW_STATE.ASK_PRODUCT:
+      return JIBA_ASK_PRODUCT;
+    case FLOW_STATE.SHOW_BRIEF:
+      return '投稿事項跟免運說明剛說過喔。準備好就回「好，開始填資料」。';
     case FLOW_STATE.ASK_RECIPIENT_NAME:
       return JIBA_ASK_NAME;
     case FLOW_STATE.ASK_RECIPIENT_PHONE:
@@ -208,13 +338,13 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_PET_NAME:
       return JIBA_ASK_PET;
     case FLOW_STATE.ASK_CONTENT_LICENSE:
-      return JIBA_LICENSE;
+      return JIBA_LICENSE_ASK;
     case FLOW_STATE.SHOW_ORDER_CONFIRMATION:
       return '資料還在確認頁喔。確認沒問題就回「資料正確，送出」。';
     case FLOW_STATE.PENDING_REVIEW:
       return '還在請小幫手幫你看資料，通過後會再跟你說運費怎麼付喔。';
     case FLOW_STATE.AWAITING_SHIPPING_PAYMENT:
-      return '運費還在等你確認喔。付完之後，雞霸就可以出發了。';
+      return '運費還在等你確認喔。付完之後，零食就可以出發了。';
     case FLOW_STATE.READY_TO_SHIP:
       return JIBA_PAID;
     default:
@@ -222,7 +352,43 @@ function promptForState(state: FlowState): string {
   }
 }
 
-/** 入口：開箱任務 cover + intro（campaign 表未就緒時仍要能開場對話） */
+async function cancelActiveJibaApplication(
+  lineUserId: string,
+  reason: string,
+): Promise<void> {
+  const app = await safeFindActiveJibaApplication(lineUserId);
+  if (!app) return;
+  const prev = app.status;
+  await prisma.campaignApplication.update({
+    where: { id: app.id },
+    data: { status: APP_STATUS.CANCELLED_BY_USER, shippingQueueStatus: 'NOT_READY' },
+  });
+  if (app.orderId) {
+    await prisma.order.update({
+      where: { id: app.orderId },
+      data: { status: 'cancelled' },
+    });
+  }
+  if (app.conversationSession) {
+    await setConversationState(app.conversationSession.id, FLOW_STATE.CANCELLED, {
+      cancelReason: reason,
+    });
+  }
+  await prisma.statusAuditLog
+    .create({
+      data: {
+        entityType: 'campaign_application',
+        entityId: app.id,
+        previousStatus: prev,
+        newStatus: APP_STATUS.CANCELLED_BY_USER,
+        actorType: 'customer',
+        applicationId: app.id,
+      },
+    })
+    .catch(() => {});
+}
+
+/** 入口：開箱任務 cover + intro（有舊申請時改問要不要續辦） */
 export async function startJibaUnboxIntro(
   replyToken: string,
   lineUserId: string,
@@ -230,19 +396,17 @@ export async function startJibaUnboxIntro(
   try {
     const active = await findActiveJibaApplication(lineUserId);
     if (active?.conversationSession) {
-      const state = active.conversationSession.currentState as FlowState;
       await clearJibaPausedForRegister(active.conversationSession.id);
-      await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
+      await upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.CAMPAIGN_INTRO, {
         applicationId: active.id,
-        phase: 'resume',
+        phase: 'resume_choice',
       });
-      const prompt = promptForState(state);
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: `你還有一筆進行中的開箱申請喔。\n我們接著上次繼續：`,
+          text: '汪！看到一筆還沒填完的開箱申請～\n若你剛剛是在幫毛孩開戶，那多半不是這次要續辦的喔。',
         },
-        { type: 'text', text: prompt },
+        jibaResumeChoiceMenu(),
       ]);
       return;
     }
@@ -371,11 +535,12 @@ async function beginEnrollment(
     await clearJibaPausedForRegister(sid);
 
     // 先回使用者，對話紀錄／session 背景寫（縮短體感等待）
-    if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME) {
+    if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME && state !== FLOW_STATE.ASK_PRODUCT) {
       const prompt = promptForState(state);
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '你上次還沒填完喔，我們接著繼續～' },
         { type: 'text', text: prompt },
+        ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [jibaLicenseFlex()] : []),
       ]);
       runAfterReply(
         (async () => {
@@ -389,18 +554,18 @@ async function beginEnrollment(
       return;
     }
 
+    await setConversationState(sid, FLOW_STATE.ASK_PRODUCT);
     await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: JIBA_START_WORK },
-      { type: 'text', text: JIBA_ASK_NAME },
+      { type: 'text', text: '汪！報名成功，先選毛孩這次要開哪一包～' },
+      jibaProductChoiceMenu(),
     ]);
     runAfterReply(
       (async () => {
-        await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
+        await upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.ASK_PRODUCT, {
           applicationId: app.id,
         });
         await logCustomer(sid, trimmed, lineMessageId);
-        await logBot(sid, JIBA_START_WORK);
-        await logBot(sid, JIBA_ASK_NAME);
+        await logBot(sid, JIBA_ASK_PRODUCT);
       })(),
     );
   };
@@ -497,9 +662,13 @@ export async function handleJibaUnboxMessage(
   const trimmed = text.trim();
   if (!trimmed) return false;
 
-  // 點了別的世界／換罐選單（含「介紹」／「立即開戶」）→ 離開開箱，讓外層路由接手
-  // 避免 ASK_STORE／CONFIRM_STORE 把選單文案當成門市候選
-  if (isUnboxLeaveText(trimmed)) {
+  // 點了世界導覽／取消類 → 離開開箱
+  // 選 7-11 門市時，「介紹」等換罐捷徑不可跳出（否則會誤顯示換罐介紹 Flex）
+  const appForLeave = await safeFindActiveJibaApplication(lineUserId);
+  const earlyState = (appForLeave?.conversationSession?.currentState as FlowState | undefined) ?? null;
+  const inStorePick =
+    earlyState === FLOW_STATE.ASK_STORE || earlyState === FLOW_STATE.CONFIRM_STORE;
+  if (isWorldNavLeaveText(trimmed)) {
     try {
       await clearLineChatSession(lineUserId);
     } catch (err) {
@@ -507,6 +676,67 @@ export async function handleJibaUnboxMessage(
     }
     await pauseJibaUnboxStoreConfirm(lineUserId);
     return false;
+  }
+  if (isUnboxLeaveText(trimmed)) {
+    if (inStorePick && isJarMenuLeaveText(trimmed)) {
+      // fall through：當門市雜訊處理
+    } else {
+      try {
+        await clearLineChatSession(lineUserId);
+      } catch (err) {
+        console.error('[jiba-unbox] clear session on leave failed', err);
+      }
+      await pauseJibaUnboxStoreConfirm(lineUserId);
+      return false;
+    }
+  }
+
+  // 續辦選擇（入口卡）
+  if (/^接著上次開箱$/.test(trimmed)) {
+    const app = await safeFindActiveJibaApplication(lineUserId);
+    if (!app?.conversationSession) {
+      await startJibaUnboxIntro(replyToken, lineUserId);
+      return true;
+    }
+    const state = app.conversationSession.currentState as FlowState;
+    await clearJibaPausedForRegister(app.conversationSession.id);
+    await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
+      applicationId: app.id,
+      phase: 'resume',
+    });
+    const prompt = promptForState(state);
+    await replyJiba(replyToken, lineUserId, [
+      { type: 'text', text: '好喔，我們接著上次繼續～' },
+      { type: 'text', text: prompt },
+      ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [jibaLicenseFlex()] : []),
+      ...(state === FLOW_STATE.ASK_PRODUCT ? [jibaProductChoiceMenu()] : []),
+    ]);
+    return true;
+  }
+  if (/^重新開始開箱$/.test(trimmed)) {
+    try {
+      await cancelActiveJibaApplication(lineUserId, 'restart');
+    } catch (err) {
+      console.error('[jiba-unbox] restart cancel failed', err);
+    }
+    await clearLineChatSession(lineUserId);
+    const cover = jibaUnboxCoverUrl();
+    await replyJiba(replyToken, lineUserId, [
+      {
+        type: 'image',
+        originalContentUrl: cover,
+        previewImageUrl: cover,
+      },
+      { type: 'text', text: '好喔，舊的先幫你收起來，我們重新來～' },
+      { type: 'text', text: JIBA_INTRO },
+      jibaIntroChoiceMenu('開箱任務', '想繼續的話，點下面按鈕就可以喔。'),
+    ]);
+    runAfterReply(
+      upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.CAMPAIGN_INTRO, {
+        phase: 'intro',
+      }).catch((err) => console.error('[jiba-unbox] upsert after restart failed', err)),
+    );
+    return true;
   }
 
   if (/^(取消|重來)$/.test(trimmed)) {
@@ -691,6 +921,72 @@ export async function handleJibaUnboxMessage(
   }
 
   switch (state) {
+    case FLOW_STATE.ASK_PRODUCT: {
+      const productKey = parseProductKey(trimmed);
+      if (!productKey) {
+        await replyJiba(replyToken, lineUserId, [
+          { type: 'text', text: '請點下面按鈕選一種喔～' },
+          jibaProductChoiceMenu(),
+        ]);
+        return true;
+      }
+      const brief = jibaBriefAndUpsell(productKey);
+      await setConversationState(sid, FLOW_STATE.SHOW_BRIEF, {
+        productKey,
+        productLabel: JIBA_PRODUCTS[productKey].orderLabel,
+      });
+      await logBot(sid, brief);
+      await replyJiba(replyToken, lineUserId, [
+        { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
+        { type: 'text', text: brief },
+        buildButtonMenuFlex({
+          altText: '開始填資料',
+          theme: WORLD_THEME.chaos,
+          title: '看完了嗎？',
+          subtitle: '準備好就開始填收件資料，零食才寄得出發喔。',
+          items: [
+            {
+              label: '好，開始填資料',
+              action: { type: 'message', text: '好，開始填資料' },
+              style: 'primary',
+            },
+          ],
+        }),
+      ]);
+      return true;
+    }
+    case FLOW_STATE.SHOW_BRIEF: {
+      if (!/^(?:好，開始填資料|開始填資料|繼續|好)$/i.test(trimmed)) {
+        const sess = await prisma.conversationSession.findUnique({ where: { id: sid } });
+        const data = parseCollected(sess?.collectedDataJson ?? '{}');
+        const key = (data.productKey as JibaProductKey | undefined) ?? 'jiba';
+        await replyJiba(replyToken, lineUserId, [
+          { type: 'text', text: jibaBriefAndUpsell(key) },
+          buildButtonMenuFlex({
+            altText: '開始填資料',
+            theme: WORLD_THEME.chaos,
+            title: '看完了嗎？',
+            subtitle: '點下面就可以繼續喔。',
+            items: [
+              {
+                label: '好，開始填資料',
+                action: { type: 'message', text: '好，開始填資料' },
+                style: 'primary',
+              },
+            ],
+          }),
+        ]);
+        return true;
+      }
+      await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_NAME);
+      await logBot(sid, JIBA_START_WORK);
+      await logBot(sid, JIBA_ASK_NAME);
+      await replyJiba(replyToken, lineUserId, [
+        { type: 'text', text: JIBA_START_WORK },
+        { type: 'text', text: JIBA_ASK_NAME },
+      ]);
+      return true;
+    }
     case FLOW_STATE.ASK_RECIPIENT_NAME: {
       const name = validRecipientName(trimmed);
       if (!name) {
@@ -746,12 +1042,30 @@ export async function handleJibaUnboxMessage(
         await replyJiba(replyToken, lineUserId, [
           {
             type: 'text',
-            text: '請輸入「門市名稱＋縣市區域」。\n例如：板橋新埔門市。',
+            text: '請輸入「區域＋店名」。\n例如：板橋新埔、淡水老街。',
           },
+          buildButtonMenuFlex({
+            altText: '查 7-11 店名',
+            theme: WORLD_THEME.chaos,
+            title: '先查店名也可以',
+            subtitle: '去 7-11 門市查詢看店名，再回來貼給我們。',
+            items: [
+              {
+                label: '打開 7-11 門市查詢',
+                action: { type: 'uri', uri: SEVEN_ELEVEN_STORE_FINDER_URL },
+                style: 'primary',
+              },
+            ],
+          }),
         ]);
         return true;
       }
-      if (trimmed.length < 2 || isJoinIntent(trimmed) || isDeclineIntent(trimmed)) {
+      if (
+        trimmed.length < 2 ||
+        isJoinIntent(trimmed) ||
+        isDeclineIntent(trimmed) ||
+        isStoreLeaveNoise(trimmed)
+      ) {
         await replyInvalidField({
           replyToken,
           lineUserId,
@@ -781,26 +1095,33 @@ export async function handleJibaUnboxMessage(
         pendingStoreQuery: trimmed,
         retries_store: 0,
       });
-      const lines = candidates
-        .map((c, i) => `${i + 1}. ${c.storeName}${c.storeId ? `（${c.storeId}）` : ''}`)
-        .join('\n');
-      const qrItems = candidates.slice(0, 4).map((c, i) => ({
-        label: `${i + 1}.${c.storeName}`.slice(0, 20),
-        text: `選門市${i + 1}`,
-      }));
-      qrItems.push({ label: '重選', text: '重選門市' });
-      await replyJiba(replyToken, lineUserId, [
-        textWithQr(
-          `找到這些候選門市，請選一間你方便去領的：\n\n${lines}\n\n回「選門市1」或點下面按鈕就可以喔。\n自由輸入不會直接寫進訂單，確認後才算數。`,
-          qrItems,
-        ),
-      ]);
+      await replyJiba(replyToken, lineUserId, [jibaStoreCandidatesFlex(candidates)]);
       return true;
     }
     case FLOW_STATE.CONFIRM_STORE: {
       if (/^重選門市$/.test(trimmed)) {
         await setConversationState(sid, FLOW_STATE.ASK_STORE);
-        await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_STORE }]);
+        await replyJiba(replyToken, lineUserId, [
+          { type: 'text', text: JIBA_ASK_STORE },
+          buildButtonMenuFlex({
+            altText: '查 7-11 店名',
+            theme: WORLD_THEME.chaos,
+            title: '選 7-11 門市',
+            subtitle: '輸入區域＋店名，或先打開門市查詢。',
+            items: [
+              {
+                label: '打開 7-11 門市查詢',
+                action: { type: 'uri', uri: SEVEN_ELEVEN_STORE_FINDER_URL },
+                style: 'secondary',
+              },
+              {
+                label: '手動輸入門市',
+                action: { type: 'message', text: '手動輸入門市' },
+                style: 'primary',
+              },
+            ],
+          }),
+        ]);
         return true;
       }
       const sess = await prisma.conversationSession.findUniqueOrThrow({ where: { id: sid } });
@@ -833,13 +1154,8 @@ export async function handleJibaUnboxMessage(
 
       if (!picked) {
         await replyJiba(replyToken, lineUserId, [
-          textWithQr('請從候選裡選一間，或回「重選門市」。', [
-            ...candidates.slice(0, 4).map((c, i) => ({
-              label: `${i + 1}.${c.storeName}`.slice(0, 20),
-              text: `選門市${i + 1}`,
-            })),
-            { label: '重選', text: '重選門市' },
-          ]),
+          { type: 'text', text: '請從候選裡選一間，或回「重選門市」。' },
+          jibaStoreCandidatesFlex(candidates.length ? candidates : [{ storeId: '', storeName: '重選門市', storeAddress: '' }]),
         ]);
         return true;
       }
@@ -856,8 +1172,7 @@ export async function handleJibaUnboxMessage(
       await logBot(sid, JIBA_ASK_IG);
       await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_IG }]);
       return true;
-    }
-    case FLOW_STATE.ASK_INSTAGRAM: {
+    }    case FLOW_STATE.ASK_INSTAGRAM: {
       const ig = normalizeInstagramHandle(trimmed);
       if (!ig) {
         await replyInvalidField({
@@ -902,25 +1217,13 @@ export async function handleJibaUnboxMessage(
         petName: pet,
         retries_pet: 0,
       });
-      await logBot(sid, JIBA_LICENSE);
-      await replyJiba(replyToken, lineUserId, [
-        textWithQr(JIBA_LICENSE, [
-          { label: '我同意', text: '我同意' },
-          { label: '我想再看一次', text: '我想再看一次' },
-          { label: '不同意', text: '不同意' },
-        ]),
-      ]);
+      await logBot(sid, JIBA_LICENSE_ASK);
+      await replyJiba(replyToken, lineUserId, [jibaLicenseFlex()]);
       return true;
     }
     case FLOW_STATE.ASK_CONTENT_LICENSE: {
       if (/^我想再看一次$/.test(trimmed)) {
-        await replyJiba(replyToken, lineUserId, [
-          textWithQr(JIBA_LICENSE, [
-            { label: '我同意', text: '我同意' },
-            { label: '我想再看一次', text: '我想再看一次' },
-            { label: '不同意', text: '不同意' },
-          ]),
-        ]);
+        await replyJiba(replyToken, lineUserId, [jibaLicenseFlex()]);
         return true;
       }
       if (/^不同意$/.test(trimmed)) {
@@ -944,12 +1247,10 @@ export async function handleJibaUnboxMessage(
         await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_LICENSE_DECLINE }]);
         return true;
       }
-      if (!/^我同意$/.test(trimmed)) {
+      if (!isLicenseAccept(trimmed)) {
         await replyJiba(replyToken, lineUserId, [
-          textWithQr('這格要明示同意或不同意。', [
-            { label: '我同意', text: '我同意' },
-            { label: '不同意', text: '不同意' },
-          ]),
+          { type: 'text', text: '這格要請你點下面按鈕明示同意或不同意喔。' },
+          jibaLicenseFlex(),
         ]);
         return true;
       }
@@ -965,6 +1266,8 @@ export async function handleJibaUnboxMessage(
       const fresh = await prisma.campaignApplication.findUniqueOrThrow({
         where: { id: app.id },
       });
+      const sessFresh = await prisma.conversationSession.findUnique({ where: { id: sid } });
+      const collectedFresh = parseCollected(sessFresh?.collectedDataJson ?? '{}');
       await setConversationState(sid, FLOW_STATE.SHOW_ORDER_CONFIRMATION);
       const summary = jibaConfirmSummary({
         recipientName: fresh.recipientName || '',
@@ -972,6 +1275,7 @@ export async function handleJibaUnboxMessage(
         storeName: fresh.storeName || '',
         instagramHandle: fresh.instagramHandle || '',
         petName: fresh.petName,
+        productLabel: productLabelFromCollected(collectedFresh),
       });
       await logBot(sid, summary);
       await replyJiba(replyToken, lineUserId, [
@@ -1017,10 +1321,8 @@ export async function handleJibaUnboxMessage(
       if (!app.licenseAccepted) {
         await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE);
         await replyJiba(replyToken, lineUserId, [
-          textWithQr('送出前還差授權同意。', [
-            { label: '我同意', text: '我同意' },
-            { label: '不同意', text: '不同意' },
-          ]),
+          { type: 'text', text: '送出前還差授權同意喔。' },
+          jibaLicenseFlex(),
         ]);
         return true;
       }

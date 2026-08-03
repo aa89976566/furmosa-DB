@@ -28,6 +28,10 @@ export type AppStatus = (typeof APP_STATUS)[keyof typeof APP_STATUS];
 export const FLOW_STATE = {
   CAMPAIGN_INTRO: 'CAMPAIGN_INTRO',
   SHOW_RULES: 'SHOW_RULES',
+  /** 選開箱商品：雞霸兩片／青蛙凍乾一隻 */
+  ASK_PRODUCT: 'ASK_PRODUCT',
+  /** 選完商品：投稿事項＋加購免運說明 */
+  SHOW_BRIEF: 'SHOW_BRIEF',
   ASK_RECIPIENT_NAME: 'ASK_RECIPIENT_NAME',
   ASK_RECIPIENT_PHONE: 'ASK_RECIPIENT_PHONE',
   ASK_STORE: 'ASK_STORE',
@@ -44,6 +48,34 @@ export const FLOW_STATE = {
 } as const;
 
 export type FlowState = (typeof FLOW_STATE)[keyof typeof FLOW_STATE];
+
+/** 開箱可選商品（存 collectedDataJson.productKey） */
+export const JIBA_PRODUCTS = {
+  jiba: {
+    key: 'jiba',
+    label: '壕大大雞霸兩片',
+    shortLabel: '壕大大雞霸',
+    quantity: 2,
+    unit: '片',
+    orderLabel: '壕大大雞霸 × 2',
+  },
+  frog: {
+    key: 'frog',
+    label: '青蛙凍乾一隻',
+    shortLabel: '青蛙凍乾',
+    quantity: 1,
+    unit: '隻',
+    orderLabel: '青蛙凍乾 × 1',
+  },
+} as const;
+
+export type JibaProductKey = keyof typeof JIBA_PRODUCTS;
+
+/** 限時加購免運門檻（說明用） */
+export const JIBA_FREE_SHIP = {
+  cvs711: 399,
+  blackCat: 886,
+} as const;
 
 export const ACTIVE_APP_STATUSES = [
   APP_STATUS.COLLECTING_INFO,
