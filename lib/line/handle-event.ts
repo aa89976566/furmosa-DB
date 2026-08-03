@@ -22,6 +22,7 @@ import {
   buildEventsCenterMessages,
   buildFrogProjectMessages,
   buildJarExplainTopicMessages,
+  buildJarStartMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
 } from '@/lib/line/flex-hubs';
@@ -33,6 +34,7 @@ import {
   buildJarIntroMessages,
   buildRefillFlavoursListMessages,
 } from '@/lib/line/refill-intro-flex';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import {
   buildGuestWelcomeText,
   guestWelcomePromptMarks,
@@ -317,6 +319,18 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
   }
   const registered = Boolean(customer);
+  if (parsed.kind === 'jar_start') {
+    await replyLineMessage(
+      replyToken,
+      buildJarStartMessages({
+        registered,
+        customerName: customer?.name ?? null,
+        refillLiffUrl: getLiffUrlIfConfigured('refill'),
+      }),
+      { lineUserId },
+    );
+    return;
+  }
   if (parsed.kind === 'jar_enter') {
     await handleLinePostback(replyToken, lineUserId, 'jd=jar_enter');
     return;

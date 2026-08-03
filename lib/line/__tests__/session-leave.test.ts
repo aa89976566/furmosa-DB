@@ -21,6 +21,7 @@ describe('session-leave', () => {
     assert.equal(isJarMenuLeaveText('幫毛孩開戶'), true);
     assert.equal(isJarMenuLeaveText('輸入序號'), true);
     assert.equal(isJarMenuLeaveText('線上預購換罐'), true);
+    assert.equal(isJarMenuLeaveText('開始換罐'), true);
   });
 
   it('一般門市關鍵字不應被當成導覽離開', () => {
@@ -39,5 +40,6 @@ describe('session-leave', () => {
     assert.ok(SESSION_BYPASS_KINDS.has('jar_explain_intro'));
     assert.ok(SESSION_BYPASS_KINDS.has('jar_explain_faq'));
     assert.ok(SESSION_BYPASS_KINDS.has('redeem_coupon'));
+    assert.ok(SESSION_BYPASS_KINDS.has('jar_start'));
   });
 });

@@ -13,6 +13,7 @@ import {
   buildFrogProjectMessages,
   buildEventsCenterMessages,
   buildJarExplainTopicMessages,
+  buildJarStartMessages,
   GROOMING_SOON_COPY,
 } from '../flex-hubs';
 import { WORLD_THEME } from '../card-theme';
@@ -330,9 +331,40 @@ describe('換罐說明', () => {
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
     assert.match(raw, /開始換罐/);
+    assert.match(raw, /"text":"開始換罐"/);
+    assert.doesNotMatch(raw, /"text":"立即開戶"/);
+    assert.doesNotMatch(raw, /"text":"兌換序號"/);
     assert.match(raw, /看本期口味/);
     assert.doesNotMatch(raw, /零食罐吃完先別丟/);
     assert.doesNotMatch(JSON.stringify(msgs), /罐底那串 8 碼傳上來/);
+  });
+
+  it('開始換罐：已開戶回下一步卡，不含開戶文案', () => {
+    const msgs = buildJarStartMessages({
+      registered: true,
+      customerName: '豆豆',
+      refillLiffUrl: 'https://liff.line.me/example',
+    });
+    assert.equal(msgs.length, 1);
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /開始換罐/);
+    assert.match(raw, /豆豆 已開戶/);
+    assert.match(raw, /輸入序號/);
+    assert.match(raw, /我要換罐/);
+    assert.match(raw, /我的會員/);
+    assert.doesNotMatch(raw, /幫毛孩開戶/);
+    assert.doesNotMatch(raw, /立即開戶/);
+    assert.doesNotMatch(raw, /先幫毛孩開好戶/);
+  });
+
+  it('開始換罐：未開戶只引導開戶，不假裝已可輸入序號', () => {
+    const msgs = buildJarStartMessages({ registered: false });
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /開始換罐/);
+    assert.match(raw, /幫毛孩開戶/);
+    assert.match(raw, /jar_reg&next=enter/);
+    assert.doesNotMatch(raw, /輸入序號/);
+    assert.doesNotMatch(raw, /已開戶/);
   });
 
   it('點流程：無圖八幕故事卡', async () => {

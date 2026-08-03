@@ -24,6 +24,7 @@ export type ParsedLineText =
   | { kind: 'jar_explain_faq' }
   | { kind: 'jar_explain' }
   | { kind: 'jar_enter' }
+  | { kind: 'jar_start' }
   | { kind: 'jar_stores' }
   | { kind: 'redeem_coupon' }
   | { kind: 'refill_flavours' }
@@ -58,6 +59,8 @@ const JAR_EXPLAIN_INTRO_RE = /^(?:什麼是換罐計劃？|什麼是換罐計劃
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
 const JAR_EXPLAIN_FAQ_RE = /^(?:毛爸媽常問|常見問題|Q&A|QA)$/i;
 const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
+/** 介紹卡主 CTA：點擊後依當下開戶狀態分流 */
+const JAR_START_RE = /^開始換罐$/;
 /** 須先於「兌換 xxx」模糊規則，避免被拆成 redeem_reward */
 const REDEEM_COUPON_RE =
   /^(?:點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券)$/;
@@ -92,6 +95,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
 
   // 精確換罐捷徑要先於「兌換 xxx」模糊規則
   if (JAR_EXPLAIN_MENU_RE.test(text)) return { kind: 'jar_explain' };
+  if (JAR_START_RE.test(text)) return { kind: 'jar_start' };
   if (JAR_ENTER_RE.test(text)) return { kind: 'jar_enter' };
   if (REDEEM_COUPON_RE.test(text)) return { kind: 'redeem_coupon' };
   if (JAR_EXPLAIN_INTRO_RE.test(text)) return { kind: 'jar_explain_intro' };

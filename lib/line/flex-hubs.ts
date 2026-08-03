@@ -651,6 +651,94 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
   ];
 }
 
+/**
+ * 「開始換罐」點擊後的分流卡（依當下開戶狀態，不當場寫死進介紹 Flex）。
+ * - 已開戶：下一步選單（輸入序號／線上預購／會員）
+ * - 未開戶：先開戶，完成後可接回序號
+ */
+export function buildJarStartMessages(opts: {
+  registered: boolean;
+  customerName?: string | null;
+  refillLiffUrl?: string | null;
+}): LineReplyMessage[] {
+  const theme = WORLD_THEME.jar;
+
+  if (!opts.registered) {
+    return [
+      buildButtonMenuFlex({
+        altText: '開始換罐・先開戶',
+        theme,
+        title: '開始換罐',
+        subtitle: '先幫毛孩開好戶，罐底序號才能記進名下。',
+        dogFrame: true,
+        items: [
+          {
+            label: '幫毛孩開戶',
+            action: {
+              type: 'postback',
+              data: 'jd=jar_reg&next=enter',
+              displayText: '幫毛孩開戶',
+            },
+            style: 'primary',
+          },
+          {
+            label: '什麼是換罐計劃？',
+            action: { type: 'message', text: '什麼是換罐計劃？' },
+            style: 'secondary',
+          },
+          {
+            label: '查看合作店',
+            action: { type: 'message', text: '查看合作店' },
+            style: 'link',
+          },
+        ],
+      }),
+    ];
+  }
+
+  const name = opts.customerName?.trim();
+  const items: MenuButtonItem[] = [
+    {
+      label: '輸入序號',
+      action: { type: 'message', text: '輸入序號' },
+      style: 'primary',
+    },
+  ];
+  const refillUrl = opts.refillLiffUrl?.trim();
+  if (refillUrl) {
+    items.push({
+      label: '我要換罐',
+      action: { type: 'uri', uri: refillUrl },
+      style: 'secondary',
+    });
+  }
+  items.push(
+    {
+      label: '我的會員',
+      action: { type: 'message', text: '我的會員' },
+      style: 'secondary',
+    },
+    {
+      label: '看本期口味',
+      action: { type: 'message', text: '看本期口味' },
+      style: 'link',
+    },
+  );
+
+  return [
+    buildButtonMenuFlex({
+      altText: '開始換罐',
+      theme,
+      title: '開始換罐',
+      subtitle: name
+        ? `${name} 已開戶，選下一步就好。`
+        : '已開戶，選下一步就好。',
+      dogFrame: true,
+      items,
+    }),
+  ];
+}
+
 /** 存罐成功慶祝卡 */
 export function buildJarSuccessFlex(opts: {
   code: string;
