@@ -55,8 +55,11 @@ export const inventoryTxnTypeLabel: Record<string, string> = {
 export const merchantStockTxnTypeLabel: Record<string, string> = {
   restock: '進貨',
   sale: '銷售',
-  adjust: '盤點',
+  adjust: '盤點／調整',
   return: '退回',
+  refill_reservation: '換罐預留',
+  refill_delivery: '換罐交付',
+  refill_release: '換罐釋放',
 };
 
 export const settlementStatusLabel: Record<string, string> = {

@@ -819,7 +819,7 @@ model MerchantStockTxn {
   txnNumber        String   @unique // MTXN-202605-0001
   merchantId       String
   productId        String
-  type             String // restock / sale / adjust / return
+  type             String // restock / sale / adjust / return / refill_reservation / refill_delivery / refill_release
   quantity         Int // 進貨正、銷售/退回負；adjust 為 「異動量」（balanceAfter - 之前）
   balanceAfter     Int // 異動後該店該商品庫存
   unitPrice        Float? // 銷售時的售價

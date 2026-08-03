@@ -338,7 +338,7 @@ export async function assignNewAndComplete(input: {
       }
     }
 
-    // 扣店家換罐庫存（adjust，不進寄賣分潤）
+    // 扣店家換罐庫存（refill_delivery；不進寄賣分潤）
     if (productId) {
       await applyRefillDeliveryStockDeduct({
         tx,

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
+import { isRefillInventoryNote } from '@/lib/jar-exchange/refill-inventory';
 
 type ProductForPricing = {
   price: number;
@@ -48,7 +49,26 @@ export function saleAmountsForQty(
   };
 }
 
-/** 月結納入：sale 流水 + 尚未配對 sale 的盤點減量（adjust 負數） */
+/** 是否應納入寄賣月結（單元可測） */
+export function shouldIncludeInSettlementSale(txn: {
+  type: string;
+  quantity: number;
+  note?: string | null;
+}): boolean {
+  if (isRefillInventoryNote(txn.note)) return false;
+  if (
+    txn.type === 'refill_reservation' ||
+    txn.type === 'refill_delivery' ||
+    txn.type === 'refill_release'
+  ) {
+    return false;
+  }
+  if (txn.type === 'sale') return true;
+  if (txn.type === 'adjust' && txn.quantity < 0) return true;
+  return false;
+}
+
+/** 月結納入：sale + 未配對的盤點減量；排除換罐 refill_*／note 前綴 */
 export async function fetchSettlementSaleTxns({
   merchantId,
   periodStart,
@@ -66,6 +86,11 @@ export async function fetchSettlementSaleTxns({
       createdAt: { gte: periodStart, lte: periodEnd },
       ...settlementFilter,
       OR: [{ type: 'sale' }, { type: 'adjust', quantity: { lt: 0 } }],
+      NOT: {
+        type: {
+          in: ['refill_reservation', 'refill_delivery', 'refill_release'],
+        },
+      },
     },
     include: {
       product: {
@@ -90,6 +115,7 @@ export async function fetchSettlementSaleTxns({
 
   const lines: typeof txns = [];
   for (const t of txns) {
+    if (!shouldIncludeInSettlementSale(t)) continue;
     if (t.type === 'sale') {
       lines.push(t);
       continue;
