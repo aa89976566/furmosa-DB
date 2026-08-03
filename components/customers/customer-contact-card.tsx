@@ -24,6 +24,7 @@ export function CustomerContactCard({
     petSpecies: string | null;
     petSpeciesOther: string | null;
     petName: string | null;
+    petBreed: string | null;
     petAgeYears: number | null;
     petBirthday: Date | null;
     preferredShippingMethod: string | null;
@@ -91,19 +92,28 @@ export function CustomerContactCard({
           label={<span className="inline-flex items-center gap-1"><PawPrint className="h-3 w-3" />毛孩</span>}
           className="sm:col-span-2"
         >
-          {customer.petName || petSpeciesLabel || customer.petAgeYears !== null || customer.petBirthday ? (
+          {customer.petName || petSpeciesLabel || customer.petBreed || customer.petAgeYears !== null || customer.petBirthday ? (
             <div className="space-y-1">
               <p className="font-medium">
                 {customer.petName ?? '未填名字'}
                 {petSpeciesLabel ? <span className="ml-2 text-xs text-muted-foreground">({petSpeciesLabel})</span> : null}
               </p>
               <p className="text-xs text-muted-foreground">
-                {customer.petAgeYears !== null ? `年齡：約 ${customer.petAgeYears} 歲` : '年齡未填'}
+                {customer.petBreed ? `品種：${customer.petBreed}` : '品種未填'}
+                {customer.petAgeYears !== null ? ` · 年齡：約 ${customer.petAgeYears} 歲` : ' · 年齡未填'}
                 {customer.petBirthday ? ` · 生日 ${formatDate(customer.petBirthday)}` : ''}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                目前系統每位會員支援一筆毛孩資料
               </p>
             </div>
           ) : (
-            <span className="text-muted-foreground">未填寫</span>
+            <div className="space-y-1">
+              <span className="text-muted-foreground">未填寫</span>
+              <p className="text-[11px] text-muted-foreground">
+                目前系統每位會員支援一筆毛孩資料
+              </p>
+            </div>
           )}
         </InfoField>
         <InfoField label="類型">

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { JarPanel } from '@/components/jar-exchange/jar-shell';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +20,7 @@ export async function LedgerAdmin({ member }: { member?: string }) {
           },
         }
       : undefined,
-    include: { customer: { select: { name: true, customerId: true } } },
+    include: { customer: { select: { id: true, name: true, customerId: true } } },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
@@ -62,10 +63,26 @@ export async function LedgerAdmin({ member }: { member?: string }) {
                 <tr key={e.id}>
                   <td className="px-4 py-3 text-muted-foreground">{formatDateTime(e.createdAt)}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{e.customer.name}</div>
-                    <div className="font-mono text-[10px] text-muted-foreground">
-                      {e.customer.customerId}
-                    </div>
+                    {e.customer?.id ? (
+                      <Link
+                        href={`/customers/${e.customer.id}`}
+                        className="group block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                      >
+                        <div className="font-medium text-navy group-hover:underline">
+                          {e.customer.name}
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {e.customer.customerId}
+                        </div>
+                      </Link>
+                    ) : (
+                      <>
+                        <div className="font-medium">{e.customer?.name ?? '—'}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {e.customer?.customerId ?? '—'}
+                        </div>
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="outline">{ledgerSourceLabel[e.sourceType] ?? e.sourceType}</Badge>
