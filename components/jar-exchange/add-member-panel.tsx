@@ -144,13 +144,13 @@ export function JarExchangeAddMemberPanel() {
     <details className="mb-4 rounded-2xl border border-border/60 bg-card shadow-card open:shadow-md">
       <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
         <span className="text-primary">＋</span> 新增換罐會員
-        <span className="ml-2 text-xs font-normal text-muted-foreground">
+        <span className="mt-0.5 block text-xs font-normal text-muted-foreground sm:ml-2 sm:mt-0 sm:inline">
           可選現有客戶或建立新客戶
         </span>
       </summary>
 
       <div className="space-y-4 border-t border-border/60 px-4 pb-4 pt-3">
-        <div className="inline-flex rounded-lg border bg-muted/30 p-0.5">
+        <div className="flex w-full max-w-full gap-0.5 overflow-x-auto rounded-lg border bg-muted/30 p-0.5 sm:inline-flex sm:w-auto sm:overflow-visible">
           {(
             [
               ['existing', '加入現有客戶'],
@@ -165,7 +165,7 @@ export function JarExchangeAddMemberPanel() {
                 setMsg(null);
                 setError(null);
               }}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:flex-none ${
                 mode === key
                   ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
