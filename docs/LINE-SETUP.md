@@ -26,7 +26,7 @@
 外面比較好玩。選單是垂直按鈕；**點按鈕後**才丟舊輪播 cover 圖，再以短對話氣泡說明（不塞公告標題）。
 
 - **嗷嗚計劃** → 圖 `chaos-frog.png`＋對話 →「青蛙誰在怕」（網址設 `LINE_FROG_PROJECT_URL`）
-- **活動中心** → 圖 `chaos-events.png`＋對話 →「沒梗了」
+- **活動中心** → 圖 `chaos-events.png`＋對話 → 邀請毛爸媽丟下一檔想法（bark 口吻）
 - **開箱任務** → 圖 `events/jiba-unbox-cover.png`＋對話選項 → 雞霸開箱狀態機
 
 ### ② 預約美容

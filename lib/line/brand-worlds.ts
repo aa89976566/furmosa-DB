@@ -150,7 +150,7 @@ export function pickGroomingSoonLine(seed?: number): string {
 /**
  * 一起野放：三鍵
  * - 嗷嗚計劃 → 青蛙誰在怕（獨立專案；網址後補）
- * - 活動中心 → 沒梗了
+ * - 活動中心 → 邀請毛爸媽丟想法（bark 口吻）
  * - 開箱任務 → 雞霸開箱對話流程
  */
 export const CHAOS_ITEMS: WorldMenuItem[] = [
@@ -166,7 +166,7 @@ export const CHAOS_ITEMS: WorldMenuItem[] = [
     id: 'chaos_events',
     mark: '🎪',
     label: '活動中心',
-    subtitle: '最新活動都在這裡，歡迎逛逛。',
+    subtitle: '下一檔想聽你家毛孩的意見。',
     heroKey: 'chaos-events',
     message: '活動中心',
   },
@@ -196,9 +196,11 @@ export const CHAOS_DIALOGUE: Record<string, string[]> = {
     '這是青蛙凍乾小實測：看毛孩敢不敢碰、碰了什麼表情，拍下來就很好玩。',
     '專案頁準備好會直接帶你過去。拍完記得在 IG 標 @furmosa_food 喔。',
   ],
+  /** 活動中心：邀請丟想法（bark 口吻；勿再用對內 prompt 暱稱當對外名稱） */
   chaos_events: [
-    '歡迎來到活動中心～這裡也叫「沒梗了」，海報在上面，先看一下就好。',
-    '有有趣點子也歡迎跟我們說，說不定下一檔就是你家毛孩。',
+    '汪！活動中心報到～',
+    '我們很想聽：毛孩最近在瘋什麼？你想跟我們一起玩什麼、試什麼？',
+    '直接回這串丟想法就好，不用寫很長。下一檔，搞不好就是你家那句喔。',
   ],
   chaos_unbox: [
     '開箱任務很簡單喔：拆開、聞聞、讓毛孩吃吃，再拍下正在啃的可愛臉。',

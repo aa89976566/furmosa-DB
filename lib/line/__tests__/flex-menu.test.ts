@@ -230,15 +230,19 @@ describe('一起野放', () => {
     assert.ok(msgs.length <= 5);
   });
 
-  it('活動中心：輪播 cover＋沒梗了對話', () => {
+  it('活動中心：輪播 cover＋邀請丟想法（bark）', () => {
     const msgs = buildEventsCenterMessages({ registered: false, includeHub: false });
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
     assert.match(img.originalContentUrl, /chaos-events\.png|poster\.jpg/);
     const texts = msgs.filter((m) => m.type === 'text') as { text: string }[];
     assert.ok(texts.length >= 1);
-    assert.match(texts.map((t) => t.text).join('\n'), /沒梗了/);
-    assert.doesNotMatch(texts.map((t) => t.text).join('\n'), /【/);
+    const joined = texts.map((t) => t.text).join('\n');
+    assert.match(joined, /汪！活動中心報到/);
+    assert.match(joined, /丟想法/);
+    assert.match(joined, /下一檔/);
+    assert.doesNotMatch(joined, /沒梗了/);
+    assert.doesNotMatch(joined, /【/);
     assert.ok(msgs.length <= 5);
   });
 });

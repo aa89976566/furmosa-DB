@@ -127,7 +127,7 @@ async function replyChaosItem(
     return;
   }
 
-  // 活動中心 → 沒梗了
+  // 活動中心 → 邀請丟想法
   if (itemId === 'chaos_events') {
     await replyLineMessage(replyToken, buildEventsCenterMessages({ registered }));
     return;
