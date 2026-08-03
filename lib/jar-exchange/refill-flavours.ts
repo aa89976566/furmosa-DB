@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/prisma';
+import { syncJarExchangeCatalogue } from '@/lib/jar-exchange/catalogue-sync';
 import {
   DEFAULT_REFILL_FLAVOURS,
   REFILL_PLAN_RULES,
   formatFlavourLabel,
 } from '@/lib/jar-exchange/refill-plan-content';
+import { resolveMerchantForStore } from '@/lib/stores/store-merchant-link';
+import { LEGACY_MERCHANT_STOCK_TIER_ID } from '@/lib/merchant-stock-key';
 
 export type RefillFlavourView = {
   id: string;
@@ -132,6 +135,9 @@ export async function ensureRefillPlanSeeded(): Promise<void> {
         },
       });
     }
+
+    // 口味目錄 → Product 主檔（叫貨／出貨用同一套 SKU）
+    await syncJarExchangeCatalogue();
     invalidateRefillPlanCache();
   } catch (err) {
     console.error('[refill-plan] ensure seed failed', err);
@@ -204,12 +210,57 @@ export async function listActiveRefillFlavours(
   }
 }
 
-/** 某合作店可選口味：active + quantity>0 + isAvailable */
+/** 某合作店可選口味：優先 MerchantStock（對應寄賣店）；fallback 舊 MerchantRefillStock */
 export async function listStoreAvailableFlavours(
   storeId: string,
   now: Date = new Date(),
 ): Promise<RefillFlavourView[]> {
   try {
+    const merchant = await resolveMerchantForStore(storeId);
+    if (merchant) {
+      const stocks = await prisma.merchantStock.findMany({
+        where: {
+          merchantId: merchant.id,
+          quantity: { gt: 0 },
+          tierId: LEGACY_MERCHANT_STOCK_TIER_ID,
+          product: {
+            status: 'active',
+            productCategory: 'JAR_EXCHANGE',
+            refillFlavours: { some: { isActive: true } },
+          },
+        },
+        include: {
+          product: {
+            include: {
+              refillFlavours: {
+                where: { isActive: true },
+                orderBy: { sortOrder: 'asc' },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+      const fromStock = stocks
+        .map((s) => s.product.refillFlavours[0])
+        .filter((f): f is NonNullable<typeof f> => Boolean(f))
+        .filter((f) => isWithinPeriod(now, f.availableFrom, f.availableUntil))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((f) => ({
+          id: f.id,
+          code: f.code,
+          name: f.name,
+          weightGrams: f.weightGrams,
+          imageUrl: f.imageUrl,
+          isActive: f.isActive,
+          availableFrom: f.availableFrom,
+          availableUntil: f.availableUntil,
+          sortOrder: f.sortOrder,
+          label: formatFlavourLabel(f.name, f.weightGrams),
+        }));
+      if (fromStock.length > 0) return fromStock;
+    }
+
     const stocks = await prisma.merchantRefillStock.findMany({
       where: {
         storeId,

@@ -6,11 +6,24 @@ import {
   ensureRefillPlanSeeded,
   invalidateRefillPlanCache,
 } from '@/lib/jar-exchange/refill-flavours';
+import {
+  ensureJarProductForFlavour,
+  linkProductToFlavour,
+} from '@/lib/jar-exchange/catalogue-sync';
+import {
+  refillAdminSyncNote,
+  syncMerchantStockAbsolute,
+} from '@/lib/jar-exchange/refill-inventory';
+import { resolveMerchantForStore } from '@/lib/stores/store-merchant-link';
 
 function revalidateRefill() {
   invalidateRefillPlanCache();
   revalidatePath('/jar-exchange/flavours');
   revalidatePath('/jar-exchange/manage');
+  revalidatePath('/pos/restock');
+  revalidatePath('/pos/refill');
+  revalidatePath('/products');
+  revalidatePath('/restock-requests');
 }
 
 export async function upsertRefillFlavourAction(formData: FormData): Promise<void> {
@@ -24,6 +37,7 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
   const imageUrl = String(formData.get('imageUrl') ?? '').trim() || null;
   const availableFromRaw = String(formData.get('availableFrom') ?? '').trim();
   const availableUntilRaw = String(formData.get('availableUntil') ?? '').trim();
+  const productIdRaw = String(formData.get('productId') ?? '').trim();
 
   if (!code || !name || !Number.isFinite(weightGrams) || weightGrams <= 0) {
     return;
@@ -40,15 +54,30 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
     availableUntil: availableUntilRaw ? new Date(availableUntilRaw) : null,
   };
 
+  let flavourId = id;
   if (id) {
     await prisma.refillFlavour.update({ where: { id }, data });
   } else {
-    await prisma.refillFlavour.upsert({
+    const row = await prisma.refillFlavour.upsert({
       where: { code },
       create: data,
       update: data,
     });
+    flavourId = row.id;
   }
+
+  if (productIdRaw) {
+    await linkProductToFlavour({ productId: productIdRaw, flavourId });
+  } else {
+    await ensureJarProductForFlavour({
+      id: flavourId,
+      code,
+      name,
+      weightGrams,
+      sortOrder: data.sortOrder,
+    });
+  }
+
   revalidateRefill();
 }
 
@@ -65,27 +94,60 @@ export async function setRefillStockAction(formData: FormData): Promise<void> {
     return;
   }
 
-  const existing = await prisma.merchantRefillStock.findUnique({
-    where: { storeId_flavourId: { storeId, flavourId } },
+  const flavour = await prisma.refillFlavour.findUnique({
+    where: { id: flavourId },
+    select: { id: true, productId: true, code: true, name: true, weightGrams: true },
   });
-  const prevQty = existing?.quantity ?? 0;
-  const changeQty = quantity - prevQty;
+  if (!flavour) return;
 
-  const row = await prisma.merchantRefillStock.upsert({
-    where: { storeId_flavourId: { storeId, flavourId } },
-    create: { storeId, flavourId, quantity, isAvailable },
-    update: { quantity, isAvailable },
-  });
+  let productId = flavour.productId;
+  if (!productId) {
+    const ensured = await ensureJarProductForFlavour({
+      id: flavour.id,
+      code: flavour.code,
+      name: flavour.name,
+      weightGrams: flavour.weightGrams,
+    });
+    productId = ensured.productId;
+  }
 
-  await prisma.refillStockTxn.create({
-    data: {
-      storeId,
-      flavourId,
-      changeQty,
-      quantityAfter: row.quantity,
-      reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
-      note,
-    },
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.merchantRefillStock.findUnique({
+      where: { storeId_flavourId: { storeId, flavourId } },
+    });
+    const prevQty = existing?.quantity ?? 0;
+    const changeQty = quantity - prevQty;
+
+    const row = await tx.merchantRefillStock.upsert({
+      where: { storeId_flavourId: { storeId, flavourId } },
+      create: { storeId, flavourId, quantity, isAvailable },
+      update: { quantity, isAvailable },
+    });
+
+    await tx.refillStockTxn.create({
+      data: {
+        storeId,
+        flavourId,
+        changeQty,
+        quantityAfter: row.quantity,
+        reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
+        note,
+      },
+    });
+
+    // 雙寫：口味庫存 → MerchantStock（可對應時）
+    const merchant = await resolveMerchantForStore(storeId, tx);
+    if (merchant && productId) {
+      await syncMerchantStockAbsolute({
+        tx,
+        merchantId: merchant.id,
+        productId,
+        quantity: isAvailable ? quantity : 0,
+        note: note
+          ? `${refillAdminSyncNote(storeId)} ${note}`
+          : refillAdminSyncNote(storeId),
+      });
+    }
   });
 
   revalidateRefill();
@@ -140,5 +202,11 @@ export async function copyRefillPeriodAction(): Promise<void> {
       },
     });
   }
+  revalidateRefill();
+}
+
+/** 一鍵把尚未連結的口味對齊成商品主檔 */
+export async function syncJarCatalogueAction(): Promise<void> {
+  await ensureRefillPlanSeeded();
   revalidateRefill();
 }

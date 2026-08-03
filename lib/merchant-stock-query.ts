@@ -1,8 +1,19 @@
 import type { Prisma } from '@prisma/client';
 import { parseTaipeiMonth } from '@/lib/taipei-date';
 
-export const MERCHANT_STOCK_TXN_TYPES = ['restock', 'sale', 'adjust', 'return'] as const;
+export const MERCHANT_STOCK_TXN_TYPES = [
+  'restock',
+  'sale',
+  'adjust',
+  'return',
+  'refill_reservation',
+  'refill_delivery',
+  'refill_release',
+] as const;
 export type MerchantStockTxnType = (typeof MERCHANT_STOCK_TXN_TYPES)[number];
+
+/** 寄賣月結納入的類型（不含換罐 refill_*） */
+export const MERCHANT_SETTLEMENT_SALE_TXN_TYPES = ['sale', 'adjust'] as const;
 
 export type MerchantStockLedgerFilters = {
   merchantId?: string;

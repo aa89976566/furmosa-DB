@@ -55,8 +55,11 @@ export const inventoryTxnTypeLabel: Record<string, string> = {
 export const merchantStockTxnTypeLabel: Record<string, string> = {
   restock: '進貨',
   sale: '銷售',
-  adjust: '盤點',
+  adjust: '盤點／調整',
   return: '退回',
+  refill_reservation: '換罐預留',
+  refill_delivery: '換罐交付',
+  refill_release: '換罐釋放',
 };
 
 export const settlementStatusLabel: Record<string, string> = {
@@ -90,6 +93,7 @@ export const taskPriorityLabel: Record<string, string> = {
   urgent: '緊急',
 };
 
+/** 零食子類（Product.category） */
 export const productCategoryLabel: Record<string, string> = {
   staple_food: '主食',
   treats: '零食',
@@ -98,6 +102,15 @@ export const productCategoryLabel: Record<string, string> = {
   toys: '玩具',
   accessories: '配件',
   other: '其他',
+};
+
+/** 平台商品類型（Product.productCategory）— 叫貨／營收／換罐用 */
+export const platformProductCategoryLabel: Record<string, string> = {
+  STANDARD: '一般商品',
+  JAR_EXCHANGE: '換罐計畫',
+  SERVICE: '服務',
+  VOUCHER: '票券',
+  DONATION: '捐贈',
 };
 
 export {

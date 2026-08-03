@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points';
+import { applyRefillDeliveryStockDeduct } from '@/lib/jar-exchange/refill-inventory';
 import { assertTransition } from '@/lib/refill/transitions';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
@@ -11,6 +12,50 @@ import {
 } from '@/lib/refill/constants';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { initiateRefillPayment } from '@/lib/refill/payment';
+import { LEGACY_MERCHANT_STOCK_TIER_ID } from '@/lib/merchant-stock-key';
+
+/** 店家可交付的換罐口味（JAR_EXCHANGE + 庫存） */
+export async function listMerchantJarProductsForDelivery(merchantId: string) {
+  const products = await prisma.product.findMany({
+    where: {
+      status: 'active',
+      productCategory: 'JAR_EXCHANGE',
+      refillFlavours: { some: { isActive: true } },
+    },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      unit: true,
+      refillFlavours: {
+        where: { isActive: true },
+        select: { sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+        take: 1,
+      },
+      merchantStocks: {
+        where: { merchantId, tierId: LEGACY_MERCHANT_STOCK_TIER_ID },
+        select: { quantity: true },
+        take: 1,
+      },
+    },
+  });
+
+  return products
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      unit: p.unit,
+      stockQty: p.merchantStocks[0]?.quantity ?? 0,
+      sortOrder: p.refillFlavours[0]?.sortOrder ?? Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) =>
+      a.sortOrder !== b.sortOrder
+        ? a.sortOrder - b.sortOrder
+        : a.name.localeCompare(b.name, 'zh-Hant'),
+    );
+}
 
 export async function listMerchantRefillOrders(merchantId: string) {
   const rows = await prisma.refillOrder.findMany({
@@ -31,6 +76,7 @@ export async function listMerchantRefillOrders(merchantId: string) {
         where: { status: 'paid' },
         select: { amount: true, purpose: true },
       },
+      product: { select: { name: true } },
     },
   });
 
@@ -49,8 +95,10 @@ export async function listMerchantRefillOrders(merchantId: string) {
     oldContainerSerial: o.oldContainerSerial,
     newContainerSerial: o.newContainerSerial,
     missingContainerNote: o.missingContainerNote,
+    productId: o.productId,
     productLabel:
-      o.deliveryMode === 'first' || o.orderType === 'first' ? '首罐' : '雞肉換罐',
+      o.product?.name ??
+      (o.deliveryMode === 'first' || o.orderType === 'first' ? '首罐' : '換罐'),
   }));
 }
 
@@ -151,6 +199,8 @@ export async function assignNewAndComplete(input: {
   newSerialRaw: string;
   /** exchange 路徑若尚未 verify，可一次帶舊罐 */
   oldSerialRaw?: string | null;
+  /** 交付的換罐商品（JAR_EXCHANGE）；有口味目錄時必填 */
+  productId?: string | null;
 }) {
   const newSerial = normalizeJarCode(input.newSerialRaw);
   if (!isValidJarCodeFormat(newSerial)) {
@@ -184,6 +234,21 @@ export async function assignNewAndComplete(input: {
     });
     if (!paidPayment) {
       throw new RefillError('尚未付款，不能交付。', 'UNPAID', 409);
+    }
+  }
+
+  const jarProducts = await listMerchantJarProductsForDelivery(input.merchantId);
+  const productId = (input.productId || order.productId || '').trim() || null;
+  if (jarProducts.length > 0 && !productId) {
+    throw new RefillError('請選擇交付的口味。', 'PRODUCT_REQUIRED', 400);
+  }
+  if (productId && !jarProducts.some((p) => p.id === productId)) {
+    const product = await prisma.product.findFirst({
+      where: { id: productId, productCategory: 'JAR_EXCHANGE', status: 'active' },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new RefillError('選擇的口味無效。', 'INVALID_PRODUCT', 400);
     }
   }
 
@@ -273,12 +338,24 @@ export async function assignNewAndComplete(input: {
       }
     }
 
+    // 扣店家換罐庫存（refill_delivery；不進寄賣分潤）
+    if (productId) {
+      await applyRefillDeliveryStockDeduct({
+        tx,
+        merchantId: input.merchantId,
+        productId,
+        orderId: fresh.id,
+        qty: 1,
+      });
+    }
+
     await tx.refillOrder.update({
       where: { id: fresh.id },
       data: {
         status: 'completed',
         newContainerSerial: newSerial,
         completedAt: now,
+        productId: productId ?? fresh.productId,
         oldContainerReturnedAt: !isFirstPath ? now : fresh.oldContainerReturnedAt,
         pointsAwardedAt: pointsAwarded || fresh.pointsAwardedAt ? now : fresh.pointsAwardedAt,
       },
@@ -295,6 +372,7 @@ export async function assignNewAndComplete(input: {
         oldSerial: fresh.oldContainerSerial,
         pointsAwarded,
         deliveryMode: fresh.deliveryMode,
+        productId,
       },
     });
   });

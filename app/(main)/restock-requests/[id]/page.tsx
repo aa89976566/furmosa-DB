@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { listJarExchangeProductsForRestock } from '@/lib/restock-request/service';
+import { ensureRefillPlanSeeded } from '@/lib/jar-exchange/refill-flavours';
 import {
   restockRequestTypeLabel,
   restockStatusLabelForHq,
@@ -15,6 +16,8 @@ export default async function HqRestockRequestDetailPage({
 }: {
   params: { id: string };
 }) {
+  await ensureRefillPlanSeeded();
+
   const req = await prisma.restockRequest.findUnique({
     where: { id: params.id },
     include: {

@@ -5,6 +5,7 @@ import { assertTransition } from '@/lib/refill/transitions';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { amountsAfterExtraTopup, type RefillOrderStatus } from '@/lib/refill/constants';
 import { notifyRefillPaid } from '@/lib/refill/notify';
+import { tryReserveRefillStock } from '@/lib/jar-exchange/refill-inventory';
 
 export type EcpayCallbackParams = Record<string, string>;
 
@@ -192,6 +193,45 @@ export async function handleEcpayCallback(
         providerTradeNo: params.TradeNo,
       },
     });
+
+    // 軟預留：僅當訂單已綁 productId；不足不擋付款
+    if (refill.productId) {
+      try {
+        const reserve = await tryReserveRefillStock({
+          tx,
+          merchantId: refill.merchantId,
+          productId: refill.productId,
+          orderId: refill.id,
+          qty: 1,
+        });
+        if (!reserve.reserved) {
+          await writeRefillAudit(tx, {
+            refillOrderId: refill.id,
+            paymentOrderId: payment.id,
+            action: 'refill_reservation_shortfall',
+            actorType: 'system',
+            merchantId: refill.merchantId,
+            success: false,
+            detail: {
+              productId: refill.productId,
+              balanceAfter: reserve.balanceAfter,
+              reason: reserve.reason,
+            },
+          });
+        }
+      } catch (e) {
+        console.error('[ecpay.callback] soft reserve failed', e);
+        await writeRefillAudit(tx, {
+          refillOrderId: refill.id,
+          paymentOrderId: payment.id,
+          action: 'refill_reservation_error',
+          actorType: 'system',
+          merchantId: refill.merchantId,
+          success: false,
+          detail: { error: e instanceof Error ? e.message : String(e) },
+        }).catch(() => undefined);
+      }
+    }
   });
 
   // LINE notify outside txn

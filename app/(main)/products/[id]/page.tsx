@@ -15,7 +15,10 @@ import {
 } from '@/components/ui/table';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDateTime, formatNumber } from '@/lib/format';
-import { productCategoryLabel } from '@/lib/labels';
+import {
+  platformProductCategoryLabel,
+  productCategoryLabel,
+} from '@/lib/labels';
 import { ArrowLeft, Boxes, Layers } from 'lucide-react';
 import { ProductForm } from './product-form';
 import { updateProduct, deleteProduct } from '../actions';
@@ -75,6 +78,10 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             <span>·</span>
             <span className="font-mono text-xs">{product.sku}</span>
             <Badge variant="secondary">{productCategoryLabel[product.category]}</Badge>
+            <Badge variant="outline">
+              {platformProductCategoryLabel[product.productCategory] ??
+                product.productCategory}
+            </Badge>
             <Badge variant="info">可變商品</Badge>
             <Badge variant={product.status === 'active' ? 'success' : 'muted'}>{statusLabel}</Badge>
           </span>
@@ -123,6 +130,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               sku: product.sku,
               name: product.name,
               category: product.category,
+              productCategory: product.productCategory,
               style: product.style,
               unit: product.unit,
               price: Number(product.price),
