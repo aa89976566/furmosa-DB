@@ -31,9 +31,11 @@ import {
   buildFrogProjectMessages,
   buildHomeHubMessages,
   buildJarExplainTopicMessages,
+  buildJarStartMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import {
   handleRegisterPostback,
@@ -200,6 +202,18 @@ export async function handleLinePostback(
   if (action === 'jar_reg' || action === 'reg') {
     const resumeAfter = params.get('next') === 'enter' ? 'enter_code' : null;
     await startRegisterFlow(replyToken, lineUserId, { resumeAfter });
+    return;
+  }
+
+  if (action === 'jar_start') {
+    await replyLineMessage(
+      replyToken,
+      buildJarStartMessages({
+        registered,
+        customerName: customer?.name ?? null,
+        refillLiffUrl: getLiffUrlIfConfigured('refill'),
+      }),
+    );
     return;
   }
 

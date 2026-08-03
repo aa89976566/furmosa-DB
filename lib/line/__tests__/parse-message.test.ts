@@ -70,6 +70,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('配合店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
     assert.equal(parseLineUserText('輸入序號').kind, 'jar_enter');
+    assert.equal(parseLineUserText('開始換罐').kind, 'jar_start');
     assert.equal(parseLineUserText('點數換折價').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換優惠券').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換美容折價券').kind, 'redeem_coupon');

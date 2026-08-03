@@ -146,22 +146,18 @@ function stepRow(step: { no: string; title: string; body: string }) {
 function buildIntroFlexContents(opts: {
   settings: RefillPlanSettingsView;
   flavours: RefillFlavourView[];
-  registered: boolean;
+  /** @deprecated CTA 一律送「開始換罐」，由伺服器依當下開戶狀態分流 */
+  registered?: boolean;
 }) {
-  const { settings, flavours, registered } = opts;
+  const { settings, flavours } = opts;
   const bodyText = REFILL_INTRO_COPY.bodyLines.join('\n');
   const flavourLines = flavours.map((f) => `・${f.label}`);
-  const startAction = registered
-    ? {
-        type: 'message' as const,
-        label: REFILL_INTRO_COPY.ctaStart,
-        text: '兌換序號',
-      }
-    : {
-        type: 'message' as const,
-        label: REFILL_INTRO_COPY.ctaStart,
-        text: '立即開戶',
-      };
+  // 不在產生 Flex 時寫死開戶／序號：避免已開戶者仍收到「立即開戶」
+  const startAction = {
+    type: 'message' as const,
+    label: REFILL_INTRO_COPY.ctaStart,
+    text: '開始換罐',
+  };
 
   const bodyContents: FlexComponent[] = [
     text(REFILL_INTRO_COPY.flexTitle, {

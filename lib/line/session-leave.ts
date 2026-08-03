@@ -9,7 +9,7 @@ export const WORLD_NAV_LEAVE_RE =
 
 /** 換罐計劃選單與說明捷徑 */
 export const JAR_MENU_LEAVE_RE =
-  /^(?:什麼是換罐計劃？|什麼是換罐計劃|介紹|流程|毛爸媽常問|常見問題|Q&A|QA|幫毛孩開戶|立即開戶|開戶|輸入序號|兌換序號|點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券|看本期口味|本期口味|查看合作店|合作店家|配合店家|兌換好禮|兌換好康|換罐計劃是什麼|線上預購換罐|我要換罐)$/i;
+  /^(?:什麼是換罐計劃？|什麼是換罐計劃|介紹|流程|毛爸媽常問|常見問題|Q&A|QA|幫毛孩開戶|立即開戶|開戶|開始換罐|輸入序號|兌換序號|點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券|看本期口味|本期口味|查看合作店|合作店家|配合店家|兌換好禮|兌換好康|換罐計劃是什麼|線上預購換罐|我要換罐)$/i;
 
 /** 一起野放子入口（開箱進行中點了別的活動） */
 export const CHAOS_NAV_LEAVE_RE =
@@ -46,6 +46,7 @@ export const SESSION_BYPASS_KINDS = new Set([
   'jar_explain_faq',
   'jar_explain',
   'jar_enter',
+  'jar_start',
   'jar_stores',
   'redeem_coupon',
   'refill_flavours',

@@ -15,7 +15,8 @@ import {
   buildRegisterConfirmMessages,
   buildStorePickerMessages,
 } from '@/lib/line/flex-menu';
-import { buildEnterCodePromptMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';
+import { buildEnterCodePromptMessages, buildJarStartMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import {
   LINE_BTN,
   LINE_PET_BIRTHDAY_PROMPT,
@@ -32,7 +33,7 @@ import {
 } from '@/lib/coupons/constants';
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
-import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
+import { replyMenuHub } from '@/lib/line/reply-menu';
 import {
   isRegisterStepPromptOnCooldown,
   markRegisterStepPrompt,
@@ -121,11 +122,14 @@ export async function startRegisterFlow(
       ]);
       return;
     }
-    await replyLineTextWithMenu(
+    // 舊介紹卡「立即開戶」／重複開戶：改回「開始換罐」下一步卡，不重跑開戶文案
+    await replyLineMessage(
       replyToken,
-      lineUserId,
-      `這隻毛孩已經開過戶囉（${existing.name}）。\n罐底 8 碼直接傳上來，或到「毛孩罐庫」看紀錄都可以喔。`,
-      { registered: true },
+      buildJarStartMessages({
+        registered: true,
+        customerName: existing.name,
+        refillLiffUrl: getLiffUrlIfConfigured('refill'),
+      }),
     );
     return;
   }
