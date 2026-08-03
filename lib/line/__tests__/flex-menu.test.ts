@@ -159,7 +159,7 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /點數換折價/);
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐先別丟/);
-    assert.match(raw, /dog-frame-bg-tall\.jpg/);
+    assert.match(raw, /dialogue-bg-nose-v2\.jpg/);
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);
@@ -323,7 +323,7 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 2);
     assert.equal(msgs[1]?.type, 'flex');
     const raw = JSON.stringify(msgs[1]);
-    assert.match(raw, /dog-frame-bg-tall\.jpg/);
+    assert.match(raw, /dialogue-bg-nose-v2\.jpg/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /吃完，不用說再見/);
     assert.match(raw, /NT\$129/);
@@ -339,7 +339,9 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
     const raw = JSON.stringify(msgs);
-    assert.doesNotMatch(raw, /"type":"image"/);
+    assert.ok(msgs.every((m) => m.type !== 'image'));
+    assert.match(raw, /dialogue-bg-nose-v2\.jpg/);
+    assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /換罐循環故事/);
     assert.match(raw, /第一次買一罐/);
     assert.match(raw, /NT\$129/);
@@ -349,7 +351,6 @@ describe('換罐說明', () => {
     assert.match(raw, /NT\$200/);
     assert.match(raw, /一直循環/);
     assert.doesNotMatch(raw, /玩法很簡單/);
-    assert.doesNotMatch(raw, /"type":"image"/);
   });
 
   it('點 FAQ：單一 Flex 含正式規則', async () => {
@@ -357,6 +358,7 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
     const raw = JSON.stringify(msgs[0]);
+    assert.match(raw, /dialogue-bg-nose-v2\.jpg/);
     assert.match(raw, /第一罐多少錢/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);

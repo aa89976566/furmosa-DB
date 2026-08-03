@@ -10,6 +10,10 @@ import {
   type RefillFlavourView,
   type RefillPlanSettingsView,
 } from '@/lib/jar-exchange/refill-flavours';
+import {
+  buildJarDialogueBubble,
+  withJarDialogueBackground,
+} from '@/lib/line/jar-dialogue-shell';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 /** 與 flex-hubs.lineAssetUrl 相同策略，避免循環依賴 */
@@ -37,63 +41,8 @@ const INTRO_THEME = {
   border: '#2E231D',
 } as const;
 
-/** 狗狗邊框對話框底圖（LINE box 不支援 background-image） */
-const DOG_FRAME_BG_PATH = '/images/refill-plan/dog-frame-bg-tall.jpg';
-
 type FlexComponent = Record<string, unknown>;
 
-/**
- * 把內容包在狗狗邊框背景上。
- * LINE 限制：區塊第一個子元件不能是 absolute，所以先放 filler。
- * absolute image 不設 aspectRatio，才能撐滿父層高度。
- */
-function withDogFrameBackground(
-  innerContents: FlexComponent[],
-  opts?: { paddingAll?: string; spacing?: string },
-): FlexComponent {
-  return {
-    type: 'box',
-    layout: 'vertical',
-    paddingAll: '0px',
-    backgroundColor: INTRO_THEME.bg,
-    contents: [
-      {
-        type: 'box',
-        layout: 'vertical',
-        position: 'relative',
-        contents: [
-          // 撐開高度的透明錨點（第一個子元件不可 absolute）
-          {
-            type: 'box',
-            layout: 'vertical',
-            width: '1px',
-            height: '1px',
-            contents: [{ type: 'filler' }],
-          },
-          {
-            type: 'image',
-            url: publicAssetUrl(DOG_FRAME_BG_PATH),
-            size: 'full',
-            aspectMode: 'cover',
-            position: 'absolute',
-            gravity: 'center',
-            offsetTop: '0px',
-            offsetBottom: '0px',
-            offsetStart: '0px',
-            offsetEnd: '0px',
-          },
-          {
-            type: 'box',
-            layout: 'vertical',
-            spacing: opts?.spacing ?? 'md',
-            paddingAll: opts?.paddingAll ?? '18px',
-            contents: innerContents,
-          },
-        ],
-      },
-    ],
-  };
-}
 
 function text(
   content: string,
@@ -310,7 +259,7 @@ function buildIntroFlexContents(opts: {
     styles: {
       body: { backgroundColor: INTRO_THEME.bg },
     },
-    body: withDogFrameBackground(bodyContents),
+    body: withJarDialogueBackground(bodyContents),
   };
 }
 
@@ -359,40 +308,24 @@ export async function buildRefillFlavoursListMessages(): Promise<LineReplyMessag
     {
       type: 'flex',
       altText: '本期換罐口味',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: { body: { backgroundColor: INTRO_THEME.bg } },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          paddingAll: '18px',
-          backgroundColor: INTRO_THEME.bg,
-          contents: [
-            text('本期口味', { size: 'lg', weight: 'bold' }),
-            text(lines.join('\n'), { size: 'sm', margin: 'md' }),
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          paddingAll: '12px',
-          backgroundColor: INTRO_THEME.bg,
-          contents: [
-            {
-              type: 'button',
-              style: 'link',
-              height: 'sm',
-              action: {
-                type: 'message',
-                label: REFILL_INTRO_COPY.ctaStores,
-                text: '查看合作店',
-              },
+      contents: buildJarDialogueBubble({
+        bodyContents: [
+          text('本期口味', { size: 'lg', weight: 'bold' }),
+          text(lines.join('\n'), { size: 'sm', margin: 'md' }),
+        ],
+        footerContents: [
+          {
+            type: 'button',
+            style: 'link',
+            height: 'sm',
+            action: {
+              type: 'message',
+              label: REFILL_INTRO_COPY.ctaStores,
+              text: '查看合作店',
             },
-          ],
-        },
-      },
+          },
+        ],
+      }),
     },
   ];
 }
@@ -421,60 +354,40 @@ export function buildJarFaqFlexMessages(): LineReplyMessage[] {
     {
       type: 'flex',
       altText: '換罐計劃常見問題',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: {
-          body: { backgroundColor: INTRO_THEME.bg },
-          footer: { backgroundColor: INTRO_THEME.bg },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          paddingAll: '18px',
-          backgroundColor: INTRO_THEME.bg,
-          contents: [
-            text('常見問題', { size: 'lg', weight: 'bold' }),
-            text('換罐價格、空罐規則、序號集點一次看完。', {
-              size: 'xs',
-              color: INTRO_THEME.muted,
-              margin: 'sm',
-            }),
-            ...qaBlocks,
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          paddingAll: '12px',
-          backgroundColor: INTRO_THEME.bg,
-          contents: [
-            {
-              type: 'button',
-              style: 'primary',
-              height: 'md',
-              color: INTRO_THEME.cta,
-              action: {
-                type: 'message',
-                label: '什麼是換罐計劃？',
-                text: '什麼是換罐計劃？',
-              },
+      contents: buildJarDialogueBubble({
+        bodyContents: [
+          text('常見問題', { size: 'lg', weight: 'bold' }),
+          text('換罐價格、空罐規則、序號集點一次看完。', {
+            size: 'xs',
+            color: INTRO_THEME.muted,
+            margin: 'sm',
+          }),
+          ...qaBlocks,
+        ],
+        footerContents: [
+          {
+            type: 'button',
+            style: 'primary',
+            height: 'md',
+            color: INTRO_THEME.cta,
+            action: {
+              type: 'message',
+              label: '什麼是換罐計劃？',
+              text: '什麼是換罐計劃？',
             },
-            {
-              type: 'button',
-              style: 'link',
-              height: 'sm',
-              action: {
-                type: 'message',
-                label: REFILL_INTRO_COPY.ctaStores,
-                text: '查看合作店',
-              },
+          },
+          {
+            type: 'button',
+            style: 'link',
+            height: 'sm',
+            action: {
+              type: 'message',
+              label: REFILL_INTRO_COPY.ctaStores,
+              text: '查看合作店',
             },
-          ],
-        },
-      },
+          },
+        ],
+      }),
     },
   ];
 }
