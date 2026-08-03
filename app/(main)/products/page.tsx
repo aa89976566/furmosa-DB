@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { productCategoryLabel } from '@/lib/labels';
+import { productCategoryLabel, platformProductCategoryLabel } from '@/lib/labels';
 import { formatCurrency, formatNumber } from '@/lib/format';
 import { formatPriceRange } from '@/lib/product-variations';
 import { Plus, AlertTriangle } from 'lucide-react';
@@ -50,6 +50,7 @@ export default async function ProductsPage({
         name: true,
         sku: true,
         category: true,
+        productCategory: true,
         status: true,
         price: true,
         reorderPoint: true,
@@ -127,9 +128,17 @@ export default async function ProductsPage({
                       <div className="text-xs text-muted-foreground">{p.sku}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
-                        {productCategoryLabel[p.category] ?? p.category}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary">
+                          {productCategoryLabel[p.category] ?? p.category}
+                        </Badge>
+                        {p.productCategory !== 'STANDARD' ? (
+                          <Badge variant="outline">
+                            {platformProductCategoryLabel[p.productCategory] ??
+                              p.productCategory}
+                          </Badge>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {p.vendor ? (

@@ -23,7 +23,8 @@ export type SubmitAutoReplenishInput = {
 };
 
 export async function listJarExchangeProductsForRestock() {
-  return prisma.product.findMany({
+  // 優先依本期口味排序；無連結的 JAR_EXCHANGE 商品排在後面
+  const products = await prisma.product.findMany({
     where: {
       status: 'active',
       productCategory: 'JAR_EXCHANGE',
@@ -33,9 +34,29 @@ export async function listJarExchangeProductsForRestock() {
       name: true,
       sku: true,
       unit: true,
+      refillFlavours: {
+        where: { isActive: true },
+        select: { sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+        take: 1,
+      },
     },
-    orderBy: { name: 'asc' },
   });
+
+  return products
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      unit: p.unit,
+      sortOrder: p.refillFlavours[0]?.sortOrder ?? Number.MAX_SAFE_INTEGER,
+    }))
+    .sort((a, b) =>
+      a.sortOrder !== b.sortOrder
+        ? a.sortOrder - b.sortOrder
+        : a.name.localeCompare(b.name, 'zh-Hant'),
+    )
+    .map(({ id, name, sku, unit }) => ({ id, name, sku, unit }));
 }
 
 export async function assertJarExchangeProducts(productIds: string[]) {

@@ -6,11 +6,18 @@ import {
   ensureRefillPlanSeeded,
   invalidateRefillPlanCache,
 } from '@/lib/jar-exchange/refill-flavours';
+import {
+  ensureJarProductForFlavour,
+  linkProductToFlavour,
+} from '@/lib/jar-exchange/catalogue-sync';
 
 function revalidateRefill() {
   invalidateRefillPlanCache();
   revalidatePath('/jar-exchange/flavours');
   revalidatePath('/jar-exchange/manage');
+  revalidatePath('/pos/restock');
+  revalidatePath('/products');
+  revalidatePath('/restock-requests');
 }
 
 export async function upsertRefillFlavourAction(formData: FormData): Promise<void> {
@@ -24,6 +31,7 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
   const imageUrl = String(formData.get('imageUrl') ?? '').trim() || null;
   const availableFromRaw = String(formData.get('availableFrom') ?? '').trim();
   const availableUntilRaw = String(formData.get('availableUntil') ?? '').trim();
+  const productIdRaw = String(formData.get('productId') ?? '').trim();
 
   if (!code || !name || !Number.isFinite(weightGrams) || weightGrams <= 0) {
     return;
@@ -40,15 +48,31 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
     availableUntil: availableUntilRaw ? new Date(availableUntilRaw) : null,
   };
 
+  let flavourId = id;
   if (id) {
     await prisma.refillFlavour.update({ where: { id }, data });
   } else {
-    await prisma.refillFlavour.upsert({
+    const row = await prisma.refillFlavour.upsert({
       where: { code },
       create: data,
       update: data,
     });
+    flavourId = row.id;
   }
+
+  if (productIdRaw) {
+    await linkProductToFlavour({ productId: productIdRaw, flavourId });
+  } else {
+    // 未指定商品時自動建立／對應 JAR_EXCHANGE 主檔
+    await ensureJarProductForFlavour({
+      id: flavourId,
+      code,
+      name,
+      weightGrams,
+      sortOrder: data.sortOrder,
+    });
+  }
+
   revalidateRefill();
 }
 
@@ -140,5 +164,11 @@ export async function copyRefillPeriodAction(): Promise<void> {
       },
     });
   }
+  revalidateRefill();
+}
+
+/** 一鍵把尚未連結的口味對齊成商品主檔 */
+export async function syncJarCatalogueAction(): Promise<void> {
+  await ensureRefillPlanSeeded();
   revalidateRefill();
 }

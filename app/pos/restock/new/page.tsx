@@ -4,6 +4,7 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { NewRestockForm } from './new-restock-form';
 import { listJarExchangeProductsForRestock } from '@/lib/restock-request/service';
 import { getAuthenticatedMerchantId } from '@/lib/merchant-auth';
+import { ensureRefillPlanSeeded } from '@/lib/jar-exchange/refill-flavours';
 import { prisma } from '@/lib/prisma';
 import { PosShell } from '@/components/pos/pos-shell';
 
@@ -12,6 +13,9 @@ export const metadata = { title: '新增叫貨 · Furmosa 店家' };
 export default async function PosRestockNewPage() {
   await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
+
+  // 確保 LINE 口味已對齊成 JAR_EXCHANGE 商品主檔，POS「自己選」才有品項
+  await ensureRefillPlanSeeded();
 
   const products = await listJarExchangeProductsForRestock();
   const stocks = await prisma.merchantStock.findMany({

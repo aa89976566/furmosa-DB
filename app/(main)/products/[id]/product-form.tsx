@@ -6,8 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { PRODUCT_UNIT_OPTIONS } from '@/lib/product-units';
-import { productCategoryLabel } from '@/lib/labels';
+import {
+  platformProductCategoryLabel,
+  productCategoryLabel,
+} from '@/lib/labels';
 import { cn } from '@/lib/utils';
+import { PRODUCT_CATEGORIES } from '@/lib/product-category';
 
 type ProductInput = {
   id?: string;
@@ -15,6 +19,7 @@ type ProductInput = {
   sku?: string;
   name: string;
   category: string;
+  productCategory?: string;
   style: string | null;
   unit: string;
   price: number;
@@ -110,7 +115,7 @@ export function ProductForm({
             <Input name="name" defaultValue={product.name} required maxLength={120} />
           </Field>
 
-          <Field label="分類" layout={layout}>
+          <Field label="零食分類" layout={layout}>
             <select
               name="category"
               defaultValue={product.category}
@@ -122,6 +127,23 @@ export function ProductForm({
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="平台類型" layout={layout}>
+            <select
+              name="productCategory"
+              defaultValue={product.productCategory ?? 'STANDARD'}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {PRODUCT_CATEGORIES.map((value) => (
+                <option key={value} value={value}>
+                  {platformProductCategoryLabel[value] ?? value}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              選「換罐計畫」後，店家 POS 叫貨「自己選」才會出現此商品。
+            </p>
           </Field>
 
           <Field label="款式" layout={layout}>

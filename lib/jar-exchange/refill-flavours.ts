@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { syncJarExchangeCatalogue } from '@/lib/jar-exchange/catalogue-sync';
 import {
   DEFAULT_REFILL_FLAVOURS,
   REFILL_PLAN_RULES,
@@ -132,6 +133,9 @@ export async function ensureRefillPlanSeeded(): Promise<void> {
         },
       });
     }
+
+    // 口味目錄 → Product 主檔（叫貨／出貨用同一套 SKU）
+    await syncJarExchangeCatalogue();
     invalidateRefillPlanCache();
   } catch (err) {
     console.error('[refill-plan] ensure seed failed', err);

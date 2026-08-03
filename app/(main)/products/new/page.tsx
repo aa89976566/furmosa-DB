@@ -42,6 +42,7 @@ export default async function NewProductPage({
             product={{
               name: '',
               category: 'other',
+              productCategory: 'STANDARD',
               style: null,
               unit: '件',
               price: 0,

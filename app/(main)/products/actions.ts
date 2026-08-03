@@ -7,6 +7,7 @@ import {
   isWeightTier,
   resolveTierCost,
 } from '@/lib/product-price-tier';
+import { isProductCategory } from '@/lib/product-category';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -61,6 +62,11 @@ function parseCategory(v: FormDataEntryValue | null): string {
   return (VALID_CATEGORIES as readonly string[]).includes(s) ? s : 'other';
 }
 
+function parseProductCategory(v: FormDataEntryValue | null): string {
+  const s = String(v ?? 'STANDARD').trim();
+  return isProductCategory(s) ? s : 'STANDARD';
+}
+
 function parseStatus(v: FormDataEntryValue | null): string {
   const s = String(v ?? 'active');
   return (VALID_STATUSES as readonly string[]).includes(s) ? s : 'active';
@@ -89,6 +95,7 @@ export async function createProduct(formData: FormData) {
       sku,
       name,
       category: parseCategory(formData.get('category')),
+      productCategory: parseProductCategory(formData.get('productCategory')),
       style: toNullableString(formData.get('style')),
       unit: String(formData.get('unit') ?? '件').trim() || '件',
       price,
@@ -102,6 +109,8 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath('/products');
   revalidatePath('/vendors');
+  revalidatePath('/pos/restock');
+  revalidatePath('/jar-exchange/flavours');
   if (vendorId) revalidatePath(`/vendors/${vendorId}`);
   redirect(`/products/${created.id}`);
 }
@@ -141,6 +150,7 @@ export async function updateProduct(formData: FormData) {
     data: {
       name,
       category: parseCategory(formData.get('category')),
+      productCategory: parseProductCategory(formData.get('productCategory')),
       style: toNullableString(formData.get('style')),
       unit,
       price,
@@ -155,6 +165,8 @@ export async function updateProduct(formData: FormData) {
   revalidatePath('/products');
   revalidatePath(`/products/${id}`);
   revalidatePath('/vendors');
+  revalidatePath('/pos/restock');
+  revalidatePath('/jar-exchange/flavours');
   if (existing.vendorId) revalidatePath(`/vendors/${existing.vendorId}`);
   if (newVendorId) revalidatePath(`/vendors/${newVendorId}`);
 }

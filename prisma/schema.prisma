@@ -628,6 +628,8 @@ model Product {
   restockRequestItems   RestockRequestItem[]
   appointments          Appointment[]
   refillOrders          RefillOrder[]
+  /// 換罐本期目錄（LINE 口味）指向此商品主檔
+  refillFlavours        RefillFlavour[]
 
   @@index([productCategory])
   @@index([status])
@@ -1249,7 +1251,7 @@ model StatusAuditLog {
 // 換罐計劃：口味主檔／合作店庫存（LINE 介紹與後台）
 // =====================================================
 
-/// 換罐口味（本期可選品項；UI 不寫死）
+/// 換罐口味（本期可選品項／assortment overlay；可賣身份掛 Product）
 model RefillFlavour {
   id             String    @id @default(cuid())
   code           String    @unique
@@ -1260,9 +1262,12 @@ model RefillFlavour {
   availableFrom  DateTime? @map("available_from")
   availableUntil DateTime? @map("available_until")
   sortOrder      Int       @default(0) @map("sort_order")
+  /// 對應商品主檔（JAR_EXCHANGE）；叫貨／出貨／庫存以此為準
+  productId      String?   @unique @map("product_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  product   Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
   stocks    MerchantRefillStock[]
   stockTxns RefillStockTxn[]
 

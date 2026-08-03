@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { JarShell, JarPanel } from '@/components/jar-exchange/jar-shell';
 import { ensureRefillPlanSeeded } from '@/lib/jar-exchange/refill-flavours';
@@ -6,6 +7,7 @@ import { formatDateTime } from '@/lib/format';
 import {
   copyRefillPeriodAction,
   setRefillStockAction,
+  syncJarCatalogueAction,
   updateRefillPlanSettingsAction,
   upsertRefillFlavourAction,
 } from './actions';
@@ -14,9 +16,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function RefillFlavoursAdminPage() {
   await ensureRefillPlanSeeded();
-  const [settings, flavours, stores, stocks, txns] = await Promise.all([
+  const [settings, flavours, stores, stocks, txns, jarProducts] = await Promise.all([
     prisma.refillPlanSettings.findUnique({ where: { id: 'default' } }),
-    prisma.refillFlavour.findMany({ orderBy: { sortOrder: 'asc' } }),
+    prisma.refillFlavour.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        product: { select: { id: true, name: true, sku: true, productId: true } },
+      },
+    }),
     prisma.store.findMany({ orderBy: { name: 'asc' } }),
     prisma.merchantRefillStock.findMany({
       include: { store: true, flavour: true },
@@ -27,13 +34,20 @@ export default async function RefillFlavoursAdminPage() {
       orderBy: { createdAt: 'desc' },
       include: { flavour: true },
     }),
+    prisma.product.findMany({
+      where: { productCategory: 'JAR_EXCHANGE', status: 'active' },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, sku: true, productId: true },
+    }),
   ]);
+
+  const unlinked = flavours.filter((f) => !f.productId).length;
 
   return (
     <JarShell
       pathname="/jar-exchange/flavours"
       title="換罐口味與庫存"
-      description="管理本期口味、合作店庫存與主視覺；LINE「介紹」會讀這裡的資料。"
+      description="口味＝本期目錄（LINE）；商品主檔＝叫貨／出貨身份。兩者必須對應同一套 SKU。"
     >
       <div className="space-y-6">
         <JarPanel>
@@ -91,11 +105,18 @@ export default async function RefillFlavoursAdminPage() {
                 >
                   開始新一期（複製庫存紀錄）
                 </button>
+                <button
+                  formAction={syncJarCatalogueAction}
+                  className="rounded border border-[#71836B] bg-[#FFFCF7] px-3 py-1.5 text-sm"
+                >
+                  同步口味 → 商品主檔
+                </button>
               </div>
             </form>
             {settings?.updatedAt ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 最後更新：{formatDateTime(settings.updatedAt)}
+                {unlinked > 0 ? ` · 尚有 ${unlinked} 個口味未連結商品` : ' · 口味皆已連結商品'}
               </p>
             ) : null}
           </div>
@@ -103,7 +124,10 @@ export default async function RefillFlavoursAdminPage() {
 
         <JarPanel>
           <div className="border-b border-border/60 px-5 py-4">
-            <h2 className="text-base font-semibold text-navy">口味主檔</h2>
+            <h2 className="text-base font-semibold text-navy">口味主檔（本期目錄）</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              對應的商品會標成「換罐計畫」，店家 POS 叫貨「自己選」會列出這些 SKU。
+            </p>
           </div>
           <div className="px-5 py-4">
             <div className="mb-4 overflow-x-auto">
@@ -113,6 +137,7 @@ export default async function RefillFlavoursAdminPage() {
                     <th className="py-2">代碼</th>
                     <th>名稱</th>
                     <th>克數</th>
+                    <th>商品主檔</th>
                     <th>排序</th>
                     <th>啟用</th>
                     <th>期間</th>
@@ -124,6 +149,21 @@ export default async function RefillFlavoursAdminPage() {
                       <td className="py-2 font-mono text-xs">{f.code}</td>
                       <td>{formatFlavourLabel(f.name, f.weightGrams)}</td>
                       <td>{f.weightGrams}g</td>
+                      <td className="text-xs">
+                        {f.product ? (
+                          <Link
+                            href={`/products/${f.product.id}`}
+                            className="text-info hover:underline"
+                          >
+                            <span className="font-mono">{f.product.sku}</span>
+                            <span className="mt-0.5 block text-muted-foreground">
+                              {f.product.name}
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-destructive">未連結</span>
+                        )}
+                      </td>
                       <td>{f.sortOrder}</td>
                       <td>{f.isActive ? '是' : '停用'}</td>
                       <td className="text-xs text-muted-foreground">
@@ -169,6 +209,14 @@ export default async function RefillFlavoursAdminPage() {
                 placeholder="圖片 URL（選填）"
                 className="rounded border px-2 py-1.5"
               />
+              <select name="productId" className="rounded border px-2 py-1.5" defaultValue="">
+                <option value="">自動建立／對應商品主檔</option>
+                {jarProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}（{p.sku}）
+                  </option>
+                ))}
+              </select>
               <label className="flex items-center gap-2 text-sm">
                 <input name="isActive" type="checkbox" defaultChecked />
                 啟用
