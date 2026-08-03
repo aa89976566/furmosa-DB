@@ -31,6 +31,7 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/** 高頻在上、訂閱置底（倒數第一） */
 export const navGroups: NavGroup[] = [
   {
     label: '總覽',
@@ -54,15 +55,6 @@ export const navGroups: NavGroup[] = [
       { href: '/shipments', label: '出貨隊列', icon: Truck },
       { href: '/restock-requests', label: '補貨申請', icon: Package },
       { href: '/merchants', label: '寄賣', icon: Store },
-    ],
-  },
-  {
-    label: '訂閱',
-    tone: 'subscription',
-    items: [
-      { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
-      { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
-      { href: '/subscriptions/plans', label: '訂閱方案', icon: ListChecks },
     ],
   },
   {
@@ -96,6 +88,15 @@ export const navGroups: NavGroup[] = [
         label: '雞霸開箱',
         icon: PackageOpen,
       },
+    ],
+  },
+  {
+    label: '訂閱',
+    tone: 'subscription',
+    items: [
+      { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
+      { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
+      { href: '/subscriptions/plans', label: '訂閱方案', icon: ListChecks },
     ],
   },
 ];

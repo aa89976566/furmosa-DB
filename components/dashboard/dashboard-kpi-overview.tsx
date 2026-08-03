@@ -1,19 +1,4 @@
 import Link from 'next/link';
-import {
-  AlertTriangle,
-  CalendarRange,
-  CircleDollarSign,
-  PackageSearch,
-  Repeat,
-  ShoppingBag,
-  Store,
-  UserPlus,
-  Wallet,
-  Sparkles,
-  Gift,
-  Recycle,
-  type LucideIcon,
-} from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -34,305 +19,176 @@ export type DashboardKpis = {
   weekJarRedeemCount: number;
 };
 
-const accentStyles = {
-  primary: {
-    bar: 'bg-primary',
-    icon: 'bg-primary/10 text-primary ring-primary/20',
-  },
-  success: {
-    bar: 'bg-success',
-    icon: 'bg-success/10 text-success ring-success/20',
-  },
-  warning: {
-    bar: 'bg-warning',
-    icon: 'bg-warning/10 text-warning ring-warning/20',
-  },
-  info: {
-    bar: 'bg-info',
-    icon: 'bg-info/10 text-info ring-info/20',
-  },
-  destructive: {
-    bar: 'bg-destructive',
-    icon: 'bg-destructive/10 text-destructive ring-destructive/20',
-  },
-} as const;
-
-type Accent = keyof typeof accentStyles;
-
-function KpiGroup({
-  title,
-  description,
-  children,
+function HeroStat({
+  label,
+  value,
+  href,
 }: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
+  label: string;
+  value: string;
+  href?: string;
 }) {
-  return (
-    <div className="space-y-3">
-      <div className="border-b border-border/60 pb-2">
-        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          {title}
-        </h3>
-        {description ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground/90">{description}</p>
-        ) : null}
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>
+  const body = (
+    <div className="space-y-1">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums md:text-4xl">
+        {value}
+      </p>
     </div>
+  );
+  if (!href) return body;
+  return (
+    <Link
+      href={href}
+      className="block rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {body}
+    </Link>
   );
 }
 
-function HeroKpi({
-  title,
+function StatRow({
+  label,
   value,
-  description,
-  icon: Icon,
-  accent,
   href,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const row = (
+    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-3 last:border-b-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="shrink-0 font-medium tabular-nums text-ink">{value}</span>
+    </div>
+  );
+  if (!href) return row;
+  return (
+    <Link href={href} className="block transition-opacity hover:opacity-80">
+      {row}
+    </Link>
+  );
+}
+
+function StatColumn({
+  title,
+  children,
   className,
 }: {
   title: string;
-  value: string;
-  description?: string;
-  icon: LucideIcon;
-  accent: Accent;
-  href?: string;
+  children: React.ReactNode;
   className?: string;
 }) {
-  const styles = accentStyles[accent];
-  const inner = (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card via-card to-muted/20 p-5 shadow-card transition-all',
-        href && 'hover:border-primary/25 hover:shadow-card-hover',
-        className,
-      )}
-    >
-      <div className={cn('absolute inset-y-0 left-0 w-1', styles.bar)} />
-      <div className="flex items-start justify-between gap-4 pl-2">
-        <div className="min-w-0 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {title}
-          </p>
-          <p className="font-mono text-3xl font-semibold tracking-tight text-navy tabular-nums md:text-4xl">
-            {value}
-          </p>
-          {description ? (
-            <p className="text-xs leading-relaxed text-muted-foreground">{description}</p>
-          ) : null}
-        </div>
-        <div
-          className={cn(
-            'flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ring-inset',
-            styles.icon,
-          )}
-        >
-          <Icon className="h-6 w-6" />
-        </div>
-      </div>
-    </div>
+  return (
+    <section className={cn('min-w-0', className)}>
+      <h3 className="mb-1 text-sm font-semibold text-ink">{title}</h3>
+      <div>{children}</div>
+    </section>
   );
-
-  if (href) {
-    return (
-      <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
 }
 
-function MetricKpi({
-  title,
-  value,
-  description,
-  icon: Icon,
-  accent,
-  href,
-}: {
-  title: string;
-  value: string | number;
-  description?: string;
-  icon: LucideIcon;
-  accent: Accent;
-  href?: string;
-}) {
-  const styles = accentStyles[accent];
-  const inner = (
-    <div
-      className={cn(
-        'group relative flex h-full min-h-[5.5rem] flex-col justify-between overflow-hidden rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm transition-all',
-        href && 'hover:border-primary/20 hover:bg-card hover:shadow-card',
-      )}
-    >
-      <div className={cn('absolute inset-y-3 left-0 w-0.5 rounded-full opacity-80', styles.bar)} />
-      <div className="flex items-start justify-between gap-2 pl-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          {title}
-        </p>
-        <div
-          className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset transition-transform group-hover:scale-105',
-            styles.icon,
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-      <div className="space-y-0.5 pl-2 pt-2">
-        <p className="font-mono text-xl font-semibold tracking-tight text-navy tabular-nums">
-          {value}
-        </p>
-        {description ? (
-          <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-
-  if (href) {
-    return (
-      <Link href={href} className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {inner}
-      </Link>
-    );
-  }
-  return inner;
-}
-
+/**
+ * 營運概覽：數字優先、單色、分組掃讀。
+ * 訂閱放最底一欄，避免搶主指標注意力。
+ */
 export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <HeroKpi
-          title="本月營收"
+    <div className="space-y-10">
+      {/* 核心三數：全寬橫排，無彩條／無圖示噪音 */}
+      <div className="grid gap-8 border-b border-border/60 pb-8 sm:grid-cols-3">
+        <HeroStat
+          label="本月營收"
           value={formatCurrency(kpis.monthRevenue)}
-          description="本月有效銷售合計 · 不含取消／草稿／寄賣進貨"
-          icon={CircleDollarSign}
-          accent="success"
           href="/orders"
         />
-        <HeroKpi
-          title="今日訂單"
+        <HeroStat
+          label="今日訂單"
           value={formatNumber(kpis.todayOrderCount)}
-          description="今日成立銷售單 · 不含取消／草稿／寄賣進貨"
-          icon={ShoppingBag}
-          accent="info"
           href="/orders"
         />
-        <HeroKpi
-          title="本週換罐"
+        <HeroStat
+          label="本週換罐"
           value={formatNumber(kpis.weekJarRedeemCount)}
-          description="本週序號返航 · 已兌換罐數（台北週日起算）"
-          icon={Recycle}
-          accent="primary"
           href="/jar-exchange/manage?tab=codes"
         />
       </div>
 
-      <div className="grid gap-8 rounded-2xl border border-border/50 bg-surface-raised/50 p-5 shadow-card md:p-6 lg:grid-cols-3">
-        <KpiGroup title="客戶與會員" description="成長與回購表現">
-          <MetricKpi
-            title="本月新增客戶"
+      {/* 次級指標：兩欄清單，訂閱獨立在底 */}
+      <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
+        <StatColumn title="客戶">
+          <StatRow
+            label="本月新增"
             value={formatNumber(kpis.newCustomersThisMonth)}
-            description="本月建立的客戶主檔"
-            icon={UserPlus}
-            accent="success"
             href="/customers"
           />
-          <MetricKpi
-            title="本月回購率"
-            value={formatPercent(kpis.repurchaseRate)}
-            description="本月下單客戶中曾有訂單占比"
-            icon={CalendarRange}
-            accent="info"
-          />
-          <MetricKpi
-            title="訂閱中合約"
-            value={formatNumber(kpis.activeSubscriptionsCount)}
-            description="status = active"
-            icon={Repeat}
-            accent="info"
-            href="/subscriptions"
-          />
-        </KpiGroup>
+          <StatRow label="本月回購率" value={formatPercent(kpis.repurchaseRate)} />
+        </StatColumn>
 
-        <KpiGroup title="換罐會員" description="近 7 天活躍與本月成本">
-          <MetricKpi
-            title="近 7 天入帳人數"
+        <StatColumn title="換罐">
+          <StatRow
+            label="近 7 天入帳人數"
             value={formatNumber(kpis.weekJarPointsEarnedMemberCount)}
-            description="有正點數流水的不重複會員（序號返航、人工調整等）"
-            icon={UserPlus}
-            accent="success"
             href="/jar-exchange/manage?tab=ledger"
           />
-          <MetricKpi
-            title="近 7 天兌換人數"
+          <StatRow
+            label="近 7 天兌換人數"
             value={formatNumber(kpis.weekJarPointsRedeemedMemberCount)}
-            description="有扣點流水的不重複會員（獎勵／美容券兌換）"
-            icon={Gift}
-            accent="info"
             href="/jar-exchange/manage?tab=rewards"
           />
-          <MetricKpi
-            title="本月換罐點數發放"
+          <StatRow
+            label="本月點數發放"
             value={formatNumber(kpis.monthJarPointsIssued)}
-            description="序號返航入帳點數合計"
-            icon={Sparkles}
-            accent="info"
             href="/jar-exchange/manage?tab=ledger"
           />
-          <MetricKpi
-            title="本月美容券成本"
+          <StatRow
+            label="本月美容券成本"
             value={formatCurrency(kpis.monthGroomingCouponCost)}
-            description="行銷成本 · 非銷售收入"
-            icon={Wallet}
-            accent="warning"
             href="/jar-exchange/manage?tab=rewards"
           />
-        </KpiGroup>
+        </StatColumn>
 
-        <KpiGroup title="庫存與通路" description="倉儲與寄賣網絡">
-          <MetricKpi
-            title="庫存總值"
+        <StatColumn title="庫存與結算">
+          <StatRow
+            label="庫存總值"
             value={formatCurrency(kpis.inventoryValue)}
-            description="成本 × 全倉庫在庫"
-            icon={PackageSearch}
-            accent="primary"
             href="/inventory"
           />
-          <MetricKpi
-            title="低庫存品項"
+          <StatRow
+            label="低庫存品項"
             value={formatNumber(kpis.lowStockCount)}
-            description="已達或低於補貨點"
-            icon={AlertTriangle}
-            accent="warning"
             href="/inventory"
           />
-          <MetricKpi
-            title="寄賣"
+          <StatRow
+            label="寄賣店數"
             value={formatNumber(kpis.merchantsCount)}
-            icon={Store}
-            accent="info"
             href="/merchants"
           />
-        </KpiGroup>
-
-        <KpiGroup title="財務結算" description="待處理款項">
-          <MetricKpi
-            title="待結算金額"
+          <StatRow
+            label="待結算金額"
             value={formatCurrency(kpis.pendingSettlementAmount)}
-            description="draft · reviewing · approved"
-            icon={Wallet}
-            accent="warning"
             href="/merchants/settlements"
           />
-        </KpiGroup>
+        </StatColumn>
       </div>
+
+      {/* 訂閱：倒數第一（頁面指標區最底） */}
+      <section className="border-t border-border/60 pt-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">訂閱</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">較低頻，置於概覽底部</p>
+          </div>
+          <Link
+            href="/subscriptions"
+            className="font-display text-3xl font-semibold tabular-nums text-ink transition-opacity hover:opacity-80"
+          >
+            {formatNumber(kpis.activeSubscriptionsCount)}
+            <span className="ml-2 text-sm font-sans font-normal text-muted-foreground">
+              合約約
+            </span>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

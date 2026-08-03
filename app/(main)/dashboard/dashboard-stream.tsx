@@ -71,11 +71,7 @@ export async function DashboardBodySection() {
 
   return (
     <>
-      <SectionBlock
-        tone="overview"
-        title="營運概覽"
-        description="主指標優先、分組掃讀 — 參考 SaaS 儀表板資訊層級（5–8 項核心 KPI）"
-      >
+      <SectionBlock tone="overview" title="數字" description="先看三個主指標，其餘分組掃讀">
         <DashboardKpiOverview kpis={data.kpis} />
       </SectionBlock>
 

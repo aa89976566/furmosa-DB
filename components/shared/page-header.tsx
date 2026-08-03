@@ -13,26 +13,22 @@ export function PageHeader({ title, description, actions, tone }: PageHeaderProp
   const styles = tone ? sectionToneStyles[tone] : null;
 
   return (
-    <div
-      className={cn(
-        'border-b border-border/70 bg-card/80 px-4 py-5 backdrop-blur-sm sm:px-6 sm:py-6 md:py-7',
-        tone && 'border-l-4',
-        tone && styles?.cardBorder,
-      )}
-    >
+    <div className="border-b border-border/60 bg-card/60 px-4 py-5 sm:px-6 sm:py-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <p
             className={cn(
-              'text-[11px] font-semibold uppercase tracking-[0.14em]',
-              styles?.eyebrow ?? 'text-primary',
+              'font-display text-[11px] font-semibold uppercase tracking-[0.16em]',
+              styles?.eyebrow ?? 'text-sage',
             )}
           >
-            {styles?.label ?? 'Furmosa HQ'}
+            {styles?.label ?? 'Furmosa'}
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-navy md:text-3xl">{title}</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink md:text-3xl">
+            {title}
+          </h1>
           {description ? (
-            <div className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{description}</div>
+            <div className="max-w-2xl text-sm text-muted-foreground">{description}</div>
           ) : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
