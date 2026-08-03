@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import {
   DashboardBodyFallback,
   DashboardBodySection,
+  DashboardHeroFallback,
+  DashboardHeroSection,
   DashboardTasksFallback,
   DashboardTasksSection,
 } from './dashboard-stream';
@@ -31,14 +33,22 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="space-y-10 p-6">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="min-w-0">
-            <DashboardSearch />
+      <div className="space-y-6 p-4 sm:p-6">
+        {/* Bento：左工作區白卡／右黑 KPI；手機先 KPI 再工作區 */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.65fr] lg:gap-5">
+          <div className="order-2 min-w-0 space-y-4 lg:order-1">
+            <div className="bento-card p-4 sm:p-5">
+              <DashboardSearch />
+            </div>
+            <div className="bento-card p-4 sm:p-5">
+              <Suspense fallback={<DashboardTasksFallback />}>
+                <DashboardTasksSection />
+              </Suspense>
+            </div>
           </div>
-          <div className="min-w-0">
-            <Suspense fallback={<DashboardTasksFallback />}>
-              <DashboardTasksSection />
+          <div className="order-1 min-w-0 lg:order-2">
+            <Suspense fallback={<DashboardHeroFallback />}>
+              <DashboardHeroSection />
             </Suspense>
           </div>
         </div>

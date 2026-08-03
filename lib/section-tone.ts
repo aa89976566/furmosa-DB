@@ -25,18 +25,18 @@ type SectionToneStyle = {
   sidebarActive: string;
 };
 
-/** 全站統一成紫墨／洋紅／橙／金黃色票 */
+/** 全站統一黑白 Bento，不再用彩虹／彩色分區 */
 const BRAND: SectionToneStyle = {
   label: 'Furmosa',
-  chip: 'bg-primary/10 text-primary',
-  header: 'border-border/60 bg-secondary/40',
+  chip: 'bg-muted text-ink',
+  header: 'border-border/60 bg-card',
   card: 'bg-card',
-  cardBorder: 'border-border/70',
-  icon: 'bg-primary/10 text-primary',
-  marker: 'bg-primary',
-  eyebrow: 'text-sage',
-  sidebar: 'text-white/65',
-  sidebarActive: 'bg-white/12 text-white',
+  cardBorder: 'border-border/80',
+  icon: 'bg-muted text-ink',
+  marker: 'bg-ink',
+  eyebrow: 'text-muted-foreground',
+  sidebar: 'text-muted-foreground',
+  sidebarActive: 'bg-ink text-white',
 };
 
 export const sectionToneStyles: Record<SectionTone, SectionToneStyle> = {

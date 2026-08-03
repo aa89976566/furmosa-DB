@@ -1,9 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Furmosa">
-  <rect width="512" height="512" rx="112" fill="#2F1B41"/>
+  <rect width="512" height="512" rx="112" fill="#111111"/>
   <path
-    fill="#F9C823"
+    fill="#FFFFFF"
     d="M256 404c-5.9 0-11.3-3-14.9-7.9L94.4 178.3c-5.8-7.9-.2-19.7 9.6-19.7h304c9.8 0 15.4 11.8 9.6 19.7L270.9 396.1c-3.6 4.9-9 7.9-14.9 7.9z"
   />
-  <circle cx="168" cy="300" r="28" fill="#C62C60"/>
-  <circle cx="344" cy="300" r="28" fill="#FA8617"/>
 </svg>

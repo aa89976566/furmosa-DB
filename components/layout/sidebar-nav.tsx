@@ -24,7 +24,7 @@ export function SidebarNav() {
     <nav className="space-y-7">
       {navGroups.map((group) => (
         <div key={group.label}>
-          <p className="mb-2 px-3 text-[11px] font-medium tracking-wide text-white/40">
+          <p className="mb-2 px-3 text-[11px] font-medium tracking-wide text-muted-foreground">
             {group.label}
           </p>
           <div className="space-y-0.5">
@@ -37,16 +37,16 @@ export function SidebarNav() {
                   href={item.href}
                   prefetch={HOT_PREFETCH.has(item.href)}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                    'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors',
                     active
-                      ? 'bg-white/12 font-medium text-white'
-                      : 'text-white/65 hover:bg-white/8 hover:text-white',
+                      ? 'bg-ink font-medium text-white'
+                      : 'text-muted-foreground hover:bg-muted hover:text-ink',
                   )}
                 >
                   <Icon
                     className={cn(
                       'h-4 w-4 shrink-0',
-                      active ? 'text-yellow' : 'text-white/45',
+                      active ? 'text-white' : 'text-muted-foreground',
                     )}
                   />
                   <span>{item.label}</span>

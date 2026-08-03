@@ -12,7 +12,7 @@ export default function PosLoginPage({
   return (
     <div className="pos-atmosphere mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
       <div className="mb-8 space-y-3">
-        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-sage">
+        <p className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Furmosa
         </p>
         <h1 className="font-display text-3xl font-semibold leading-tight text-ink">

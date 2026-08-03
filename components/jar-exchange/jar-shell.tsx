@@ -26,8 +26,8 @@ export function JarShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-white">
-      <header className="border-b border-border/60 bg-card/80">
+    <div className="min-h-full bg-canvas">
+      <header className="border-b border-border/60 bg-card">
         <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             換罐會員
@@ -78,7 +78,7 @@ export function JarShell({
 
 export function JarPanel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn('rounded-2xl border border-border/60 bg-card shadow-card', className)}>
+    <section className={cn('bento-card', className)}>
       {children}
     </section>
   );

@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import nextDynamic from 'next/dynamic';
-import { DashboardKpiOverview } from '@/components/dashboard/dashboard-kpi-overview';
+import {
+  DashboardHeroKpis,
+  DashboardKpiOverview,
+} from '@/components/dashboard/dashboard-kpi-overview';
 import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
 import { SectionBlock } from '@/components/shared/section-block';
 import { SectionCard } from '@/components/shared/section-card';
@@ -66,13 +69,30 @@ export async function DashboardTasksSection() {
   );
 }
 
+export function DashboardHeroFallback() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="h-28 animate-pulse rounded-2xl bg-ink/80" />
+      ))}
+    </div>
+  );
+}
+
+export async function DashboardHeroSection() {
+  const data = await getDashboardData();
+  return <DashboardHeroKpis kpis={data.kpis} />;
+}
+
 export async function DashboardBodySection() {
   const data = await getDashboardData();
 
   return (
     <>
-      <SectionBlock tone="overview" title="數字" description="先看三個主指標，其餘分組掃讀">
-        <DashboardKpiOverview kpis={data.kpis} />
+      <SectionBlock tone="overview" title="營運細節" description="分組掃讀次級指標">
+        <div className="bento-card p-5 sm:p-6">
+          <DashboardKpiOverview kpis={data.kpis} />
+        </div>
       </SectionBlock>
 
       <SectionBlock tone="orders" title="訂單與營收" description="趨勢、來源與熱銷表現">

@@ -19,29 +19,29 @@ export type DashboardKpis = {
   weekJarRedeemCount: number;
 };
 
-function HeroStat({
+function DarkKpi({
   label,
   value,
   href,
+  hint,
 }: {
   label: string;
   value: string;
   href?: string;
+  hint?: string;
 }) {
   const body = (
-    <div className="space-y-1">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums md:text-4xl">
+    <div className="bento-kpi space-y-3 transition-opacity hover:opacity-90">
+      <p className="text-xs font-medium uppercase tracking-[0.12em] text-white/55">{label}</p>
+      <p className="font-display text-3xl font-semibold tracking-tight tabular-nums text-white md:text-4xl">
         {value}
       </p>
+      {hint ? <p className="text-xs text-white/45">{hint}</p> : null}
     </div>
   );
   if (!href) return body;
   return (
-    <Link
-      href={href}
-      className="block rounded-xl outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <Link href={href} className="block outline-none focus-visible:ring-2 focus-visible:ring-ring">
       {body}
     </Link>
   );
@@ -57,7 +57,7 @@ function StatRow({
   href?: string;
 }) {
   const row = (
-    <div className="flex items-baseline justify-between gap-4 border-b border-border/50 py-3 last:border-b-0">
+    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 py-3 last:border-b-0">
       <span className="text-sm text-muted-foreground">{label}</span>
       <span className="shrink-0 font-medium tabular-nums text-ink">{value}</span>
     </div>
@@ -87,34 +87,37 @@ function StatColumn({
   );
 }
 
+/** 右側／頂部黑底 KPI 直排（Bento 強調區） */
+export function DashboardHeroKpis({ kpis }: { kpis: DashboardKpis }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+      <DarkKpi
+        label="本月營收"
+        value={formatCurrency(kpis.monthRevenue)}
+        href="/orders"
+        hint="不含已取消"
+      />
+      <DarkKpi
+        label="今日訂單"
+        value={formatNumber(kpis.todayOrderCount)}
+        href="/orders"
+      />
+      <DarkKpi
+        label="本週換罐"
+        value={formatNumber(kpis.weekJarRedeemCount)}
+        href="/jar-exchange/manage?tab=codes"
+      />
+    </div>
+  );
+}
+
 /**
- * 營運概覽：數字優先、單色、分組掃讀。
- * 訂閱放最底一欄，避免搶主指標注意力。
+ * 營運概覽次級數字：白卡內清單，訂閱置底。
  */
 export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
   return (
-    <div className="space-y-10">
-      {/* 核心三數：全寬橫排，無彩條／無圖示噪音 */}
-      <div className="grid gap-8 border-b border-border/60 pb-8 sm:grid-cols-3">
-        <HeroStat
-          label="本月營收"
-          value={formatCurrency(kpis.monthRevenue)}
-          href="/orders"
-        />
-        <HeroStat
-          label="今日訂單"
-          value={formatNumber(kpis.todayOrderCount)}
-          href="/orders"
-        />
-        <HeroStat
-          label="本週換罐"
-          value={formatNumber(kpis.weekJarRedeemCount)}
-          href="/jar-exchange/manage?tab=codes"
-        />
-      </div>
-
-      {/* 次級指標：兩欄清單，訂閱獨立在底 */}
-      <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-8">
+      <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
         <StatColumn title="客戶">
           <StatRow
             label="本月新增"
@@ -171,8 +174,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
         </StatColumn>
       </div>
 
-      {/* 訂閱：倒數第一（頁面指標區最底） */}
-      <section className="border-t border-border/60 pt-8">
+      <section className="border-t border-border/60 pt-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-ink">訂閱</h3>
@@ -184,7 +186,7 @@ export function DashboardKpiOverview({ kpis }: { kpis: DashboardKpis }) {
           >
             {formatNumber(kpis.activeSubscriptionsCount)}
             <span className="ml-2 text-sm font-sans font-normal text-muted-foreground">
-              合約約
+              活躍約
             </span>
           </Link>
         </div>
