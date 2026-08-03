@@ -25,7 +25,7 @@ type SectionToneStyle = {
   sidebarActive: string;
 };
 
-/** 全站統一成匠寵色相，不再用彩虹分區 */
+/** 全站統一成 www.furmosa.com 色相（紅／黃／綠），不再用彩虹分區 */
 const BRAND: SectionToneStyle = {
   label: 'Furmosa',
   chip: 'bg-primary/10 text-primary',

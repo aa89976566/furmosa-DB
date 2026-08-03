@@ -20,10 +20,10 @@ import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel } from '@/lib/labels';
 
 const sourceColors: Record<string, string> = {
-  website: '#3b82f6',
-  line: '#10b981',
-  consignment: '#f59e0b',
-  manual: '#94a3b8',
+  website: '#F00007',
+  line: '#307531',
+  consignment: '#FFC700',
+  manual: '#84898e',
 };
 
 export function RevenueTrendChart({

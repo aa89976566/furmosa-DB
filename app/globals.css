@@ -4,77 +4,84 @@
 
 @layer base {
   :root {
-    /* 匠寵 Furmosa — 與 LINE 換罐品牌同一套色相，職員端偏安靜工作台 */
-    --background: 36 28% 96%;
-    --foreground: 20 23% 15%;
-    --card: 40 100% 99%;
-    --card-foreground: 20 23% 15%;
-    --popover: 40 100% 99%;
-    --popover-foreground: 20 23% 15%;
-    --primary: 24 61% 48%;
-    --primary-foreground: 40 100% 99%;
-    --secondary: 36 18% 92%;
-    --secondary-foreground: 20 23% 15%;
-    --muted: 36 16% 93%;
-    --muted-foreground: 25 13% 40%;
-    --accent: 105 12% 92%;
-    --accent-foreground: 20 23% 15%;
-    --destructive: 4 72% 48%;
-    --destructive-foreground: 40 100% 99%;
-    --border: 30 14% 86%;
-    --input: 30 14% 86%;
-    --ring: 24 61% 48%;
+    /*
+      匠寵 Furmosa — 對齊 www.furmosa.com
+      紅 #F00007｜黃 #FFC700｜綠 #307531｜紙白／頁灰 #f3f3f3｜正文綠灰 #465447
+    */
+    --background: 0 0% 95%; /* #f3f3f3 */
+    --foreground: 0 0% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+    --primary: 358 100% 47%; /* #F00007 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 8%;
+    --muted: 43 55% 94%; /* soft cream wash ~#fbf3df family */
+    --muted-foreground: 210 5% 45%; /* ~#84898e */
+    --accent: 100 25% 91%; /* ~#e5eee0 */
+    --accent-foreground: 121 42% 28%;
+    --destructive: 358 100% 47%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 358 100% 47%;
     --radius: 0.75rem;
 
-    --success: 105 18% 38%;
-    --success-foreground: 40 100% 99%;
-    --warning: 32 85% 46%;
-    --warning-foreground: 20 23% 15%;
-    --info: 200 35% 40%;
-    --info-foreground: 40 100% 99%;
+    --success: 121 42% 32%; /* #307531 */
+    --success-foreground: 0 0% 100%;
+    --warning: 47 100% 50%; /* #FFC700 */
+    --warning-foreground: 0 0% 8%;
+    --info: 124 9% 30%; /* #465447 */
+    --info-foreground: 0 0% 100%;
 
     /* aliases used across the app */
-    --navy: 20 23% 15%;
-    --coral: 24 61% 48%;
-    --canvas: 36 28% 96%;
-    --surface-raised: 40 100% 99%;
-    --sage: 105 10% 47%;
-    --ink: 20 23% 15%;
+    --navy: 0 0% 8%;
+    --coral: 358 100% 47%; /* legacy name → brand red */
+    --canvas: 0 0% 95%;
+    --surface-raised: 0 0% 100%;
+    --sage: 95 32% 48%; /* #92b874 family, readable on light */
+    --ink: 0 0% 8%;
+    --brand-yellow: 47 100% 50%;
+    --brand-cream: 43 78% 93%; /* #fbf3df */
   }
 
   .dark {
-    --background: 20 18% 10%;
-    --foreground: 36 30% 94%;
-    --card: 20 16% 13%;
-    --card-foreground: 36 30% 94%;
-    --popover: 20 16% 13%;
-    --popover-foreground: 36 30% 94%;
-    --primary: 24 65% 55%;
-    --primary-foreground: 20 23% 12%;
-    --secondary: 20 14% 18%;
-    --secondary-foreground: 36 30% 94%;
-    --muted: 20 14% 18%;
-    --muted-foreground: 30 12% 62%;
-    --accent: 105 12% 18%;
-    --accent-foreground: 36 30% 94%;
-    --destructive: 4 70% 52%;
-    --destructive-foreground: 36 30% 94%;
-    --border: 20 12% 20%;
-    --input: 20 12% 20%;
-    --ring: 24 65% 55%;
+    --background: 0 0% 8%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 358 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 210 5% 62%;
+    --accent: 121 20% 16%;
+    --accent-foreground: 95 32% 70%;
+    --destructive: 358 90% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 358 100% 55%;
 
-    --success: 105 18% 48%;
-    --success-foreground: 20 23% 12%;
-    --warning: 32 85% 52%;
-    --warning-foreground: 20 23% 12%;
-    --info: 200 40% 55%;
-    --info-foreground: 20 23% 12%;
-    --navy: 36 30% 94%;
-    --coral: 24 65% 55%;
-    --canvas: 20 18% 10%;
-    --surface-raised: 20 16% 13%;
-    --sage: 105 12% 55%;
-    --ink: 36 30% 94%;
+    --success: 121 40% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 47 100% 50%;
+    --warning-foreground: 0 0% 8%;
+    --info: 124 8% 70%;
+    --info-foreground: 0 0% 8%;
+    --navy: 0 0% 96%;
+    --coral: 358 100% 55%;
+    --canvas: 0 0% 8%;
+    --surface-raised: 0 0% 11%;
+    --sage: 95 28% 58%;
+    --ink: 0 0% 96%;
+    --brand-yellow: 47 100% 50%;
+    --brand-cream: 43 30% 16%;
   }
 }
 
@@ -115,18 +122,19 @@
   .pos-atmosphere {
     background-color: hsl(var(--canvas));
     background-image:
-      radial-gradient(ellipse 120% 80% at 10% -20%, hsl(24 61% 48% / 0.08), transparent 55%),
-      radial-gradient(ellipse 90% 60% at 100% 0%, hsl(105 10% 47% / 0.07), transparent 50%);
+      radial-gradient(ellipse 120% 80% at 10% -20%, hsl(358 100% 47% / 0.06), transparent 55%),
+      radial-gradient(ellipse 90% 60% at 100% 0%, hsl(47 100% 50% / 0.1), transparent 50%),
+      radial-gradient(ellipse 70% 50% at 80% 100%, hsl(121 42% 32% / 0.05), transparent 55%);
   }
   .shadow-card {
     box-shadow:
-      0 1px 2px hsl(20 23% 15% / 0.04),
-      0 8px 24px hsl(20 23% 15% / 0.05);
+      0 1px 2px hsl(0 0% 0% / 0.04),
+      0 8px 24px hsl(0 0% 0% / 0.05);
   }
   .shadow-card-hover {
     box-shadow:
-      0 2px 4px hsl(20 23% 15% / 0.05),
-      0 12px 28px hsl(20 23% 15% / 0.07);
+      0 2px 4px hsl(0 0% 0% / 0.05),
+      0 12px 28px hsl(0 0% 0% / 0.07);
   }
 }
 
