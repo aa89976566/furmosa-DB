@@ -6,12 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { POS_BUTTON_LABELS } from '@/lib/config/product-settings';
 
+export type JarProductOption = {
+  id: string;
+  name: string;
+  sku: string;
+  stockQty: number;
+};
+
 type Props = {
   orderId: string;
   status: string;
   paid: boolean;
   deliveryMode: string;
   payQrUrl: string | null;
+  jarProducts?: JarProductOption[];
+  initialProductId?: string | null;
 };
 
 export function RefillOrderActions({
@@ -20,10 +29,13 @@ export function RefillOrderActions({
   paid,
   deliveryMode,
   payQrUrl,
+  jarProducts = [],
+  initialProductId = null,
 }: Props) {
   const router = useRouter();
   const [oldSerial, setOldSerial] = useState('');
   const [newSerial, setNewSerial] = useState('');
+  const [productId, setProductId] = useState(initialProductId ?? '');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,6 +104,33 @@ export function RefillOrderActions({
   }
 
   const isFirst = deliveryMode === 'first';
+  const needsProduct = jarProducts.length > 0;
+  const canDeliver =
+    newSerial.length === 8 && (!needsProduct || Boolean(productId));
+
+  const flavourPicker =
+    needsProduct && (status === 'old_container_verified' || isFirst || status === 'paid_waiting_return') ? (
+      <div className="space-y-2">
+        <label className="text-sm font-medium" htmlFor="jar-product">
+          交付口味
+        </label>
+        <select
+          id="jar-product"
+          className="min-h-[48px] w-full rounded-md border bg-background px-3 text-base"
+          value={productId}
+          onChange={(e) => setProductId(e.target.value)}
+          required
+        >
+          <option value="">請選擇口味</option>
+          {jarProducts.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+              {p.stockQty > 0 ? `（現有 ${p.stockQty}）` : '（庫存 0）'}
+            </option>
+          ))}
+        </select>
+      </div>
+    ) : null;
 
   return (
     <div className="space-y-4">
@@ -110,18 +149,39 @@ export function RefillOrderActions({
       ) : null}
 
       {(status === 'old_container_verified' || isFirst) && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">新罐瓶底 8 碼</label>
-          <Input
-            inputMode="numeric"
-            maxLength={8}
-            value={newSerial}
-            onChange={(e) => setNewSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="輸入新罐序號"
-            className="min-h-[48px] text-lg tracking-widest"
-          />
-        </div>
+        <>
+          {flavourPicker}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">新罐瓶底 8 碼</label>
+            <Input
+              inputMode="numeric"
+              maxLength={8}
+              value={newSerial}
+              onChange={(e) => setNewSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="輸入新罐序號"
+              className="min-h-[48px] text-lg tracking-widest"
+            />
+          </div>
+        </>
       )}
+
+      {/* one-shot path also needs flavour + new serial fields visible */}
+      {!isFirst && status === 'paid_waiting_return' ? (
+        <>
+          {flavourPicker}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">新罐瓶底 8 碼（一次完成時填）</label>
+            <Input
+              inputMode="numeric"
+              maxLength={8}
+              value={newSerial}
+              onChange={(e) => setNewSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="輸入新罐序號"
+              className="min-h-[48px] text-lg tracking-widest"
+            />
+          </div>
+        </>
+      ) : null}
 
       {err ? <p className="text-sm text-destructive">{err}</p> : null}
       {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
@@ -166,11 +226,12 @@ export function RefillOrderActions({
       {status === 'old_container_verified' || isFirst ? (
         <Button
           className="w-full min-h-[52px]"
-          disabled={busy || newSerial.length !== 8}
+          disabled={busy || !canDeliver}
           onClick={() =>
             post(`/api/merchant/refill-orders/${orderId}/complete`, {
               newSerial,
               oldSerial: oldSerial || undefined,
+              productId: productId || undefined,
             })
           }
         >
@@ -180,16 +241,16 @@ export function RefillOrderActions({
         </Button>
       ) : null}
 
-      {/* One-shot: verify old + assign new */}
       {!isFirst && status === 'paid_waiting_return' ? (
         <Button
           variant="secondary"
           className="w-full min-h-[48px]"
-          disabled={busy || oldSerial.length !== 8 || newSerial.length !== 8}
+          disabled={busy || oldSerial.length !== 8 || !canDeliver}
           onClick={() =>
             post(`/api/merchant/refill-orders/${orderId}/complete`, {
               newSerial,
               oldSerial,
+              productId: productId || undefined,
             })
           }
         >

@@ -10,6 +10,7 @@ import {
   type RefillFlavourView,
   type RefillPlanSettingsView,
 } from '@/lib/jar-exchange/refill-flavours';
+import { REFILL_PRICES } from '@/lib/refill/constants';
 import {
   buildJarDialogueBubble,
   withJarDialogueBackground,
@@ -149,7 +150,7 @@ function buildIntroFlexContents(opts: {
   /** @deprecated CTA 一律送「開始換罐」，由伺服器依當下開戶狀態分流 */
   registered?: boolean;
 }) {
-  const { settings, flavours } = opts;
+  const { flavours } = opts;
   const bodyText = REFILL_INTRO_COPY.bodyLines.join('\n');
   const flavourLines = flavours.map((f) => `・${f.label}`);
   // 不在產生 Flex 時寫死開戶／序號：避免已開戶者仍收到「立即開戶」
@@ -185,8 +186,8 @@ function buildIntroFlexContents(opts: {
       spacing: 'md',
       margin: 'lg',
       contents: [
-        priceCell('第一罐', settings.firstJarPrice),
-        priceCell('帶空罐換新罐', settings.exchangePrice),
+        priceCell('第一罐', REFILL_PRICES.first),
+        priceCell('帶空罐換新罐', REFILL_PRICES.exchange),
       ],
     },
     separator('lg'),

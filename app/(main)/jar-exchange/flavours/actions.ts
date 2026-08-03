@@ -10,12 +10,18 @@ import {
   ensureJarProductForFlavour,
   linkProductToFlavour,
 } from '@/lib/jar-exchange/catalogue-sync';
+import {
+  refillAdminSyncNote,
+  syncMerchantStockAbsolute,
+} from '@/lib/jar-exchange/refill-inventory';
+import { resolveMerchantForStore } from '@/lib/stores/store-merchant-link';
 
 function revalidateRefill() {
   invalidateRefillPlanCache();
   revalidatePath('/jar-exchange/flavours');
   revalidatePath('/jar-exchange/manage');
   revalidatePath('/pos/restock');
+  revalidatePath('/pos/refill');
   revalidatePath('/products');
   revalidatePath('/restock-requests');
 }
@@ -63,7 +69,6 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
   if (productIdRaw) {
     await linkProductToFlavour({ productId: productIdRaw, flavourId });
   } else {
-    // 未指定商品時自動建立／對應 JAR_EXCHANGE 主檔
     await ensureJarProductForFlavour({
       id: flavourId,
       code,
@@ -89,27 +94,60 @@ export async function setRefillStockAction(formData: FormData): Promise<void> {
     return;
   }
 
-  const existing = await prisma.merchantRefillStock.findUnique({
-    where: { storeId_flavourId: { storeId, flavourId } },
+  const flavour = await prisma.refillFlavour.findUnique({
+    where: { id: flavourId },
+    select: { id: true, productId: true, code: true, name: true, weightGrams: true },
   });
-  const prevQty = existing?.quantity ?? 0;
-  const changeQty = quantity - prevQty;
+  if (!flavour) return;
 
-  const row = await prisma.merchantRefillStock.upsert({
-    where: { storeId_flavourId: { storeId, flavourId } },
-    create: { storeId, flavourId, quantity, isAvailable },
-    update: { quantity, isAvailable },
-  });
+  let productId = flavour.productId;
+  if (!productId) {
+    const ensured = await ensureJarProductForFlavour({
+      id: flavour.id,
+      code: flavour.code,
+      name: flavour.name,
+      weightGrams: flavour.weightGrams,
+    });
+    productId = ensured.productId;
+  }
 
-  await prisma.refillStockTxn.create({
-    data: {
-      storeId,
-      flavourId,
-      changeQty,
-      quantityAfter: row.quantity,
-      reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
-      note,
-    },
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.merchantRefillStock.findUnique({
+      where: { storeId_flavourId: { storeId, flavourId } },
+    });
+    const prevQty = existing?.quantity ?? 0;
+    const changeQty = quantity - prevQty;
+
+    const row = await tx.merchantRefillStock.upsert({
+      where: { storeId_flavourId: { storeId, flavourId } },
+      create: { storeId, flavourId, quantity, isAvailable },
+      update: { quantity, isAvailable },
+    });
+
+    await tx.refillStockTxn.create({
+      data: {
+        storeId,
+        flavourId,
+        changeQty,
+        quantityAfter: row.quantity,
+        reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
+        note,
+      },
+    });
+
+    // 雙寫：口味庫存 → MerchantStock（可對應時）
+    const merchant = await resolveMerchantForStore(storeId, tx);
+    if (merchant && productId) {
+      await syncMerchantStockAbsolute({
+        tx,
+        merchantId: merchant.id,
+        productId,
+        quantity: isAvailable ? quantity : 0,
+        note: note
+          ? `${refillAdminSyncNote(storeId)} ${note}`
+          : refillAdminSyncNote(storeId),
+      });
+    }
   });
 
   revalidateRefill();

@@ -75,7 +75,7 @@ export default async function RefillFlavoursAdminPage() {
                 />
               </label>
               <label className="text-sm">
-                第一罐 NT$
+                第一罐 NT$（顯示用；實收以系統常數為準）
                 <input
                   name="firstJarPrice"
                   type="number"
@@ -84,7 +84,7 @@ export default async function RefillFlavoursAdminPage() {
                 />
               </label>
               <label className="text-sm">
-                換罐 NT$
+                換罐 NT$（顯示用；實收以系統常數為準）
                 <input
                   name="exchangePrice"
                   type="number"
@@ -233,6 +233,10 @@ export default async function RefillFlavoursAdminPage() {
         <JarPanel>
           <div className="border-b border-border/60 px-5 py-4">
             <h2 className="text-base font-semibold text-navy">合作店庫存</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              更新後會雙寫到對應寄賣店的 MerchantStock（若 Store↔Merchant 可對應），POS
+              交付會從此扣庫存。
+            </p>
           </div>
           <div className="px-5 py-4">
             <form action={setRefillStockAction} className="mb-4 grid gap-2 md:grid-cols-5">

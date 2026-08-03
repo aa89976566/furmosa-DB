@@ -5,6 +5,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { RefillOrderActions } from '@/components/pos/refill-order-actions';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
+import { listMerchantJarProductsForDelivery } from '@/lib/refill/merchant';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +23,7 @@ export default async function PosRefillDetailPage({
       merchant: { select: { id: true, name: true, merchantId: true } },
       appointment: { select: { startsAt: true, petName: true } },
       customer: { select: { name: true } },
+      product: { select: { id: true, name: true } },
       payments: { orderBy: { createdAt: 'desc' }, take: 3 },
     },
   });
@@ -29,6 +31,8 @@ export default async function PosRefillDetailPage({
   if (!order || order.merchantId !== session.merchantId) {
     notFound();
   }
+
+  const jarProducts = await listMerchantJarProductsForDelivery(session.merchantId);
 
   const paid =
     Boolean(order.paidAt) || order.payments.some((p) => p.status === 'paid');
@@ -57,7 +61,13 @@ export default async function PosRefillDetailPage({
         </header>
 
         <dl className="space-y-2 text-sm rounded-xl border p-4">
-          <Row label="商品" value={order.orderType === 'first' ? '首罐' : '換罐'} />
+          <Row
+            label="商品"
+            value={
+              order.product?.name ??
+              (order.orderType === 'first' ? '首罐' : '換罐')
+            }
+          />
           <Row label="指定店家" value={order.merchant.name} />
           <Row label="付款" value={paid ? `已付款 NT$${order.totalAmount}` : '尚未付款'} />
           <Row
@@ -89,6 +99,8 @@ export default async function PosRefillDetailPage({
           paid={paid}
           deliveryMode={order.deliveryMode}
           payQrUrl={payQrUrl}
+          jarProducts={jarProducts}
+          initialProductId={order.productId}
         />
       </div>
     </PosShell>
