@@ -47,7 +47,7 @@ export function cardHeroUrl(heroKey: string): string {
   return lineAssetUrl(`/line/cards/${heroKey}.png`);
 }
 
-/** 活動中心／沒梗了：優先輪播 cover，其次活動海報 */
+/** 活動中心：優先輪播 cover，其次活動海報 */
 export function eventsCoverUrl(): string {
   const card = join(process.cwd(), 'public/line/cards/chaos-events.png');
   if (existsSync(card)) return cardHeroUrl('chaos-events');
@@ -119,7 +119,7 @@ export function buildFrogProjectMessages(opts?: {
   });
 }
 
-/** 活動中心 → 沒梗了：輪播 cover＋對話 */
+/** 活動中心：輪播 cover＋邀請丟想法（bark） */
 export function buildEventsCenterMessages(opts?: {
   registered?: boolean;
   includeHub?: boolean;

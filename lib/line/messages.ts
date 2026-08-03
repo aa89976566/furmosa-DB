@@ -46,7 +46,7 @@ export const LINE_BIND_HELP_TEXT = `開戶 = 把這個 LINE 跟毛孩檔案對�
 export const LINE_HELP_TEXT = `【匠寵怎麼玩】
 
 • ${LINE_BTN.hubJar} → 開戶、序號、會員、換罐
-• ${LINE_BTN.hubChaos} → 嗷嗚計劃（青蛙）、活動中心（沒梗了）、開箱任務
+• ${LINE_BTN.hubChaos} → 嗷嗚計劃（青蛙）、活動中心（來點想法）、開箱任務
 • 預約美容 → 還沒放好水（好玩版敬請期待）
 • ${LINE_BTN.hubWild} → furmosa.com 與 @furmosa_food
 • 存罐 → 直接傳 8 位序號（要先開戶）`;
