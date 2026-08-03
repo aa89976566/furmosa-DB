@@ -240,8 +240,10 @@ describe('一起野放', () => {
     const joined = texts.map((t) => t.text).join('\n');
     assert.match(joined, /汪！活動中心報到/);
     assert.match(joined, /丟想法/);
-    assert.match(joined, /下一檔/);
+    assert.match(joined, /你提的點子/);
+    assert.match(joined, /下一檔活動/);
     assert.doesNotMatch(joined, /沒梗了/);
+    assert.doesNotMatch(joined, /你家那句/);
     assert.doesNotMatch(joined, /【/);
     assert.ok(msgs.length <= 5);
   });
