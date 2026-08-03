@@ -6,6 +6,7 @@ import {
   GROOMING_COUPON_DISCOUNT_LABEL,
   GROOMING_COUPON_POINTS,
 } from '@/lib/coupons/constants';
+import { buildJarDialogueBubble } from '@/lib/line/jar-dialogue-shell';
 import { LINE_BTN, LINE_COUPON_VERIFY_HINT } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
@@ -126,25 +127,18 @@ export function buildCouponListMessages(groups: {
     {
       type: 'flex',
       altText: '我的優惠券',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'text',
-              text: '我的優惠券',
-              weight: 'bold',
-              size: 'md',
-              color: '#1a1a1a',
-            },
-            ...rows,
-          ],
-        },
-      },
+      contents: buildJarDialogueBubble({
+        bodyContents: [
+          {
+            type: 'text',
+            text: '我的優惠券',
+            weight: 'bold',
+            size: 'md',
+            color: '#1a1a1a',
+          },
+          ...rows,
+        ],
+      }),
     },
   ];
 }
@@ -159,56 +153,45 @@ export function buildGroomingRedeemConfirmMessages(opts: {
     {
       type: 'flex',
       altText: '兌換美容折價券',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            { type: 'text', text: `兌換美容折 ${opts.discountAmount} 元`, weight: 'bold', size: 'md' },
-            {
-              type: 'text',
-              text: [
-                `消耗點數：${GROOMING_COUPON_POINTS} 點`,
-                `目前餘額：${opts.pointsBalance} 點`,
-                `折抵金額：${opts.discountAmount} 元（僅限 ${opts.storeName}）`,
-                '有效期限：兌換後 30 天',
-              ].join('\n'),
-              size: 'xs',
-              color: '#444444',
-              wrap: true,
+      contents: buildJarDialogueBubble({
+        spacing: 'md',
+        bodyContents: [
+          { type: 'text', text: `兌換美容折 ${opts.discountAmount} 元`, weight: 'bold', size: 'md' },
+          {
+            type: 'text',
+            text: [
+              `消耗點數：${GROOMING_COUPON_POINTS} 點`,
+              `目前餘額：${opts.pointsBalance} 點`,
+              `折抵金額：${opts.discountAmount} 元（僅限 ${opts.storeName}）`,
+              '有效期限：兌換後 30 天',
+            ].join('\n'),
+            size: 'xs',
+            color: '#444444',
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: LINE_COUPON_VERIFY_HINT,
+            size: 'xxs',
+            color: '#b45309',
+            wrap: true,
+            margin: 'md',
+          },
+        ],
+        footerContents: [
+          {
+            type: 'button',
+            style: 'primary',
+            height: 'sm',
+            action: {
+              type: 'postback',
+              label: LINE_BTN.confirmGroomingRedeem,
+              data: 'jd=cp_groom_ok',
+              displayText: LINE_BTN.confirmGroomingRedeem,
             },
-            {
-              type: 'text',
-              text: LINE_COUPON_VERIFY_HINT,
-              size: 'xxs',
-              color: '#b45309',
-              wrap: true,
-              margin: 'md',
-            },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            {
-              type: 'button',
-              style: 'primary',
-              height: 'sm',
-              action: {
-                type: 'postback',
-                label: LINE_BTN.confirmGroomingRedeem,
-                data: 'jd=cp_groom_ok',
-                displayText: LINE_BTN.confirmGroomingRedeem,
-              },
-            },
-          ],
-        },
-      },
+          },
+        ],
+      }),
     },
   ];
 }

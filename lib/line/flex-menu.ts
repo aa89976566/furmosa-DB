@@ -2,6 +2,7 @@ import { formatRedeemButtonLabel, type LineRewardOption } from '@/lib/line/rewar
 import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildThreeWorldsMenuMessages } from '@/lib/line/flex-hubs';
+import { buildJarDialogueBubble } from '@/lib/line/jar-dialogue-shell';
 import { LINE_BTN, LINE_STORE_PROMPT } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
@@ -70,41 +71,26 @@ export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
     {
       type: 'flex',
       altText: '選擇美容合作店',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: {
-          body: { backgroundColor: '#FFF8F1' },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: '選合作店',
-              weight: 'bold',
-              size: 'md',
-              color: '#1F1A14',
-            },
-            {
-              type: 'text',
-              text: LINE_STORE_PROMPT,
-              size: 'xs',
-              color: '#5C5346',
-              wrap: true,
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              spacing: 'sm',
-              margin: 'lg',
-              contents: storeButtons,
-            },
-          ],
-        },
-      },
+      contents: buildJarDialogueBubble({
+        spacing: 'md',
+        bodyContents: [
+          {
+            type: 'text',
+            text: '選合作店',
+            weight: 'bold',
+            size: 'md',
+            color: '#1F1A14',
+          },
+          {
+            type: 'text',
+            text: LINE_STORE_PROMPT,
+            size: 'xs',
+            color: '#5C5346',
+            wrap: true,
+          },
+        ],
+        footerContents: storeButtons,
+      }),
     },
   ];
 }
@@ -124,40 +110,25 @@ export function buildSpeciesPickerMessages(): LineReplyMessage[] {
     {
       type: 'flex',
       altText: '選擇毛孩種類',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: {
-          body: { backgroundColor: '#FFF8F1' },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: '毛孩種類',
-              weight: 'bold',
-              size: 'md',
-            },
-            {
-              type: 'text',
-              text: '點一個就好，不用跳轉。',
-              size: 'xs',
-              color: '#888888',
-              wrap: true,
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              spacing: 'sm',
-              margin: 'lg',
-              contents: speciesButtons,
-            },
-          ],
-        },
-      },
+      contents: buildJarDialogueBubble({
+        spacing: 'md',
+        bodyContents: [
+          {
+            type: 'text',
+            text: '毛孩種類',
+            weight: 'bold',
+            size: 'md',
+          },
+          {
+            type: 'text',
+            text: '點一個就好，不用跳轉。',
+            size: 'xs',
+            color: '#888888',
+            wrap: true,
+          },
+        ],
+        footerContents: speciesButtons,
+      }),
     },
   ];
 }
@@ -167,41 +138,27 @@ export function buildRegisterConfirmMessages(summary: string): LineReplyMessage[
     {
       type: 'flex',
       altText: '確認開戶資料',
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: {
-          body: { backgroundColor: '#FFF8F1' },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: '這樣對嗎？',
-              weight: 'bold',
-              size: 'lg',
-            },
-            {
-              type: 'text',
-              text: summary,
-              size: 'sm',
-              wrap: true,
-            },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            pbBtn(LINE_BTN.confirm, 'jd=reg_ok', 'primary'),
-            pbBtn(LINE_BTN.cancel, 'jd=reg_no', 'link'),
-          ],
-        },
-      },
+      contents: buildJarDialogueBubble({
+        spacing: 'md',
+        bodyContents: [
+          {
+            type: 'text',
+            text: '這樣對嗎？',
+            weight: 'bold',
+            size: 'lg',
+          },
+          {
+            type: 'text',
+            text: summary,
+            size: 'sm',
+            wrap: true,
+          },
+        ],
+        footerContents: [
+          pbBtn(LINE_BTN.confirm, 'jd=reg_ok', 'primary'),
+          pbBtn(LINE_BTN.cancel, 'jd=reg_no', 'link'),
+        ],
+      }),
     },
   ];
 }
@@ -228,35 +185,24 @@ export function buildRedeemPickerMessages(
     {
       type: 'flex',
       altText: LINE_BTN.redeem,
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: LINE_BTN.redeem,
-              weight: 'bold',
-              size: 'lg',
-            },
-            {
-              type: 'text',
-              text: `目前罐庫點數：${balance}`,
-              size: 'sm',
-              wrap: true,
-            },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: pick,
-        },
-      },
+      contents: buildJarDialogueBubble({
+        spacing: 'md',
+        bodyContents: [
+          {
+            type: 'text',
+            text: LINE_BTN.redeem,
+            weight: 'bold',
+            size: 'lg',
+          },
+          {
+            type: 'text',
+            text: `目前罐庫點數：${balance}`,
+            size: 'sm',
+            wrap: true,
+          },
+        ],
+        footerContents: pick,
+      }),
     },
   ];
 }

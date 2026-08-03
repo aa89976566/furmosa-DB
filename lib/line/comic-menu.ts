@@ -56,6 +56,7 @@ export function buildJarLiffCtaMessages(): LineReplyMessage[] {
       theme: WORLD_THEME.jar,
       title: '線上預購換罐',
       subtitle: '預約確認後，在這裡付換罐款、預購下一罐零食。',
+      dogFrame: true,
       items: [
         {
           label: '線上預購換罐',

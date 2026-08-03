@@ -21,6 +21,7 @@ import {
   WORLD_THEME,
   type WorldTheme,
 } from '@/lib/line/card-theme';
+import { buildJarDialogueBubble } from '@/lib/line/jar-dialogue-shell';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
@@ -160,44 +161,32 @@ export function buildJarFlowStoryMessages(): LineReplyMessage[] {
     {
       type: 'flex',
       altText: `${JAR_FLOW_STORY.title}：${JAR_FLOW_STORY.subtitle}`,
-      contents: {
-        type: 'bubble',
-        size: 'mega',
-        styles: {
-          body: { backgroundColor: theme.card },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          paddingAll: '18px',
-          backgroundColor: theme.card,
-          contents: [
-            {
-              type: 'text',
-              text: JAR_FLOW_STORY.title,
-              weight: 'bold',
-              size: 'lg',
-              color: theme.ink,
-              wrap: true,
-            },
-            {
-              type: 'text',
-              text: JAR_FLOW_STORY.subtitle,
-              size: 'sm',
-              color: theme.muted,
-              wrap: true,
-              margin: 'sm',
-            },
-            {
-              type: 'separator',
-              margin: 'md',
-              color: theme.rule,
-            },
-            ...stepBoxes,
-          ],
-        },
-      },
+      contents: buildJarDialogueBubble({
+        bodyContents: [
+          {
+            type: 'text',
+            text: JAR_FLOW_STORY.title,
+            weight: 'bold',
+            size: 'lg',
+            color: theme.ink,
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: JAR_FLOW_STORY.subtitle,
+            size: 'sm',
+            color: theme.muted,
+            wrap: true,
+            margin: 'sm',
+          },
+          {
+            type: 'separator',
+            margin: 'md',
+            color: theme.rule,
+          },
+          ...stepBoxes,
+        ],
+      }),
     },
   ];
 }
@@ -247,75 +236,6 @@ function toLineAction(action: CardAction, label: string) {
   return { type: 'message' as const, label: safeLabel, text: action.text };
 }
 
-/** 換罐選單／介紹共用：狗狗邊框底圖 */
-const JAR_DOG_FRAME_BG = '/images/refill-plan/dog-frame-bg-tall.jpg';
-
-function withDogFrameShell(
-  theme: WorldTheme,
-  bodyContents: Record<string, unknown>[],
-  footerContents: Record<string, unknown>[],
-): Record<string, unknown> {
-  const bg = lineAssetUrl(JAR_DOG_FRAME_BG);
-  const cream = '#F8F3EA';
-  return {
-    type: 'bubble',
-    size: 'mega',
-    styles: {
-      body: { backgroundColor: cream },
-    },
-    body: {
-      type: 'box',
-      layout: 'vertical',
-      paddingAll: '0px',
-      backgroundColor: cream,
-      contents: [
-        {
-          type: 'box',
-          layout: 'vertical',
-          position: 'relative',
-          contents: [
-            {
-              type: 'box',
-              layout: 'vertical',
-              width: '1px',
-              height: '1px',
-              contents: [{ type: 'filler' }],
-            },
-            {
-              type: 'image',
-              url: bg,
-              size: 'full',
-              aspectMode: 'cover',
-              position: 'absolute',
-              gravity: 'center',
-              offsetTop: '0px',
-              offsetBottom: '0px',
-              offsetStart: '0px',
-              offsetEnd: '0px',
-            },
-            {
-              type: 'box',
-              layout: 'vertical',
-              spacing: 'sm',
-              paddingAll: '18px',
-              contents: [
-                ...bodyContents,
-                {
-                  type: 'box',
-                  layout: 'vertical',
-                  spacing: 'sm',
-                  margin: 'lg',
-                  contents: footerContents,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  };
-}
-
 /**
  * 垂直按鈕選單（取代 carousel）
  * 選項由上往下排在同一則對話氣泡內，不用左右滑。
@@ -326,7 +246,7 @@ export function buildButtonMenuFlex(opts: {
   title?: string;
   subtitle?: string;
   items: MenuButtonItem[];
-  /** 換罐計劃：整卡鋪狗狗邊框背景 */
+  /** 換罐計劃：整卡鋪狗鼻底圖背景 */
   dogFrame?: boolean;
 }): LineReplyMessage {
   const buttons = opts.items.slice(0, 13).map((item) => {
@@ -367,7 +287,10 @@ export function buildButtonMenuFlex(opts: {
     return {
       type: 'flex',
       altText: opts.altText,
-      contents: withDogFrameShell(opts.theme, bodyContents, buttons),
+      contents: buildJarDialogueBubble({
+        bodyContents,
+        footerContents: buttons,
+      }),
     };
   }
 
@@ -649,6 +572,7 @@ export function buildRegisterGateMessages(
       theme,
       title: '先幫毛孩開戶',
       subtitle: text.replace(/\n/g, ' '),
+      dogFrame: true,
       items: [
         {
           label: LINE_BTN.registerNow,
@@ -701,6 +625,7 @@ export function buildJarExplainMessages(): LineReplyMessage[] {
       title: '換罐說明',
       subtitle: '想先看哪一段？',
       items: sections,
+      dogFrame: true,
     }),
   ];
 }
@@ -714,6 +639,7 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
       theme,
       title: '輸入序號',
       subtitle: '罐底 8 碼，直接打在對話框就好。',
+      dogFrame: true,
       items: [
         {
           label: '我的會員',
@@ -737,74 +663,60 @@ export function buildJarSuccessFlex(opts: {
   return {
     type: 'flex',
     altText: `存罐成功 +${opts.pointsEarned}`,
-    contents: {
-      type: 'bubble',
-      size: 'mega',
-      styles: { body: { backgroundColor: theme.card } },
-      body: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'md',
-        paddingAll: '20px',
-        contents: [
-          {
-            type: 'text',
-            text: '罐進去了 ✨',
-            weight: 'bold',
-            size: 'xl',
-            color: theme.accent,
+    contents: buildJarDialogueBubble({
+      paddingAll: '20px',
+      spacing: 'md',
+      bodyContents: [
+        {
+          type: 'text',
+          text: '罐進去了 ✨',
+          weight: 'bold',
+          size: 'xl',
+          color: theme.accent,
+        },
+        {
+          type: 'text',
+          text: `序號 ${opts.code}  →  +${opts.pointsEarned}`,
+          size: 'sm',
+          color: theme.ink,
+          wrap: true,
+        },
+        {
+          type: 'separator',
+          margin: 'md',
+          color: theme.rule,
+        },
+        {
+          type: 'text',
+          text: `罐庫 ${opts.pointsBalance} 點　累積 ${opts.jarsDeposited} 罐`,
+          size: 'sm',
+          color: theme.ink,
+          wrap: true,
+          margin: 'md',
+        },
+        {
+          type: 'text',
+          text: opts.progressLine,
+          size: 'xs',
+          color: theme.muted,
+          wrap: true,
+        },
+      ],
+      footerContents: [
+        {
+          type: 'button',
+          style: 'primary',
+          height: 'sm',
+          color: theme.accent,
+          action: {
+            type: 'postback',
+            label: '🪪 我的會員',
+            data: 'jd=jar_vault',
+            displayText: '我的會員',
           },
-          {
-            type: 'text',
-            text: `序號 ${opts.code}  →  +${opts.pointsEarned}`,
-            size: 'sm',
-            color: theme.ink,
-            wrap: true,
-          },
-          {
-            type: 'separator',
-            margin: 'md',
-            color: theme.rule,
-          },
-          {
-            type: 'text',
-            text: `罐庫 ${opts.pointsBalance} 點　累積 ${opts.jarsDeposited} 罐`,
-            size: 'sm',
-            color: theme.ink,
-            wrap: true,
-            margin: 'md',
-          },
-          {
-            type: 'text',
-            text: opts.progressLine,
-            size: 'xs',
-            color: theme.muted,
-            wrap: true,
-          },
-        ],
-      },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'sm',
-        paddingAll: '12px',
-        backgroundColor: theme.soft,
-        contents: [
-          {
-            type: 'button',
-            style: 'primary',
-            height: 'sm',
-            color: theme.accent,
-            action: {
-              type: 'postback',
-              label: '🪪 我的會員',
-              data: 'jd=jar_vault',
-              displayText: '我的會員',
-            },
-          },
-        ],
-      },
-    },
+        },
+      ],
+    }),
   };
 }
 

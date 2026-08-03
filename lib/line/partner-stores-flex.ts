@@ -5,6 +5,10 @@
 import { formatLineStorePickerLabel } from '@/lib/coupons/constants';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
 import { inferPartnerStoreRegion } from '@/lib/stores/partner-store-visibility';
+import {
+  buildJarDialogueBubble,
+  withJarDialogueBackground,
+} from '@/lib/line/jar-dialogue-shell';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 const THEME = {
@@ -67,59 +71,39 @@ function storeRow(name: string) {
 }
 
 function introBubble(storeCount: number): Record<string, unknown> {
-  return {
-    type: 'bubble',
-    size: 'mega',
-    styles: {
-      body: { backgroundColor: THEME.bg },
-      footer: { backgroundColor: THEME.cream },
-    },
-    body: {
-      type: 'box',
-      layout: 'vertical',
-      spacing: 'md',
-      paddingAll: '18px',
-      backgroundColor: THEME.bg,
-      contents: [
-        text('合作美容店', { size: 'lg', weight: 'bold' }),
-        text('空罐回來的地方。', {
-          size: 'md',
-          weight: 'bold',
-          color: THEME.accent,
-          margin: 'sm',
-        }),
-        text(
-          `目前有 ${storeCount} 間店願意當換罐據點。\n開戶時選一間你常去的，之後折價券會綁那間用喔。`,
-          { color: THEME.muted, margin: 'md' },
-        ),
-        text('往右滑，依區域看看哪裡離家近～', {
-          size: 'xs',
-          color: THEME.muted,
-          margin: 'md',
-        }),
-      ],
-    },
-    footer: {
-      type: 'box',
-      layout: 'vertical',
-      spacing: 'sm',
-      paddingAll: '12px',
-      backgroundColor: THEME.cream,
-      contents: [
-        {
-          type: 'button',
-          style: 'primary',
-          height: 'sm',
-          color: THEME.accent,
-          action: {
-            type: 'message',
-            label: '幫毛孩開戶',
-            text: '幫毛孩開戶',
-          },
+  return buildJarDialogueBubble({
+    bodyContents: [
+      text('合作美容店', { size: 'lg', weight: 'bold' }),
+      text('空罐回來的地方。', {
+        size: 'md',
+        weight: 'bold',
+        color: THEME.accent,
+        margin: 'sm',
+      }),
+      text(
+        `目前有 ${storeCount} 間店願意當換罐據點。\n開戶時選一間你常去的，之後折價券會綁那間用喔。`,
+        { color: THEME.muted, margin: 'md' },
+      ),
+      text('往右滑，依區域看看哪裡離家近～', {
+        size: 'xs',
+        color: THEME.muted,
+        margin: 'md',
+      }),
+    ],
+    footerContents: [
+      {
+        type: 'button',
+        style: 'primary',
+        height: 'sm',
+        color: THEME.accent,
+        action: {
+          type: 'message',
+          label: '幫毛孩開戶',
+          text: '幫毛孩開戶',
         },
-      ],
-    },
-  };
+      },
+    ],
+  });
 }
 
 function regionBubble(
@@ -135,44 +119,37 @@ function regionBubble(
     type: 'bubble',
     size: 'mega',
     styles: {
-      body: { backgroundColor: THEME.cream },
+      body: { backgroundColor: THEME.bg },
     },
-    body: {
-      type: 'box',
-      layout: 'vertical',
-      spacing: 'sm',
-      paddingAll: '18px',
-      backgroundColor: THEME.cream,
-      contents: [
-        text(region, { size: 'md', weight: 'bold' }),
-        text(REGION_BEAT[region] ?? REGION_BEAT['其他據點']!, {
-          size: 'xs',
-          color: THEME.muted,
-          margin: 'sm',
-        }),
-        {
-          type: 'separator',
-          margin: 'md',
-          color: '#E5D9C8',
-        },
-        {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          margin: 'md',
-          contents: shown.map((n) => storeRow(n)),
-        },
-        ...(more > 0
-          ? [
-              text(`還有 ${more} 間，開戶選店時會一次看到喔。`, {
-                size: 'xs',
-                color: THEME.muted,
-                margin: 'md',
-              }),
-            ]
-          : []),
-      ],
-    },
+    body: withJarDialogueBackground([
+      text(region, { size: 'md', weight: 'bold' }),
+      text(REGION_BEAT[region] ?? REGION_BEAT['其他據點']!, {
+        size: 'xs',
+        color: THEME.muted,
+        margin: 'sm',
+      }),
+      {
+        type: 'separator',
+        margin: 'md',
+        color: '#E5D9C8',
+      },
+      {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        margin: 'md',
+        contents: shown.map((n) => storeRow(n)),
+      },
+      ...(more > 0
+        ? [
+            text(`還有 ${more} 間，開戶選店時會一次看到喔。`, {
+              size: 'xs',
+              color: THEME.muted,
+              margin: 'md',
+            }),
+          ]
+        : []),
+    ], { spacing: 'sm' }),
   };
 }
 
