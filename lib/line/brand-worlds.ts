@@ -42,7 +42,7 @@ export const WORLD_HUB_TAGLINE: Record<WorldHubId, string> = {
 };
 
 export const JAR_ENTER_HINT_REGISTERED =
-  '罐底那串 8 碼傳上來就好～\n我們會幫你記進毛孩名下喔。';
+  '罐底那串 8 碼傳上來就好～\n接著選這次拿的口味，我們會記進訂單與毛孩名下。';
 
 export const JAR_ENTER_BLOCKED_GUEST = `麻煩先幫毛孩開個戶喔～
 開好戶，罐底序號才能幫你記進去。`;

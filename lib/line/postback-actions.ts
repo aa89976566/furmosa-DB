@@ -3,6 +3,7 @@ import {
   listCouponsForCustomer,
   redeemGroomingCouponForCustomer,
 } from '@/lib/coupons/service';
+import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
@@ -18,6 +19,7 @@ import {
 } from '@/lib/line/coupon-menu';
 import {
   formatHistoryStatusMessage,
+  formatJarDepositSuccessMessage,
   formatVaultStatusMessage,
   rewardProgress,
 } from '@/lib/line/jar-deposit-copy';
@@ -32,6 +34,7 @@ import {
   buildHomeHubMessages,
   buildJarExplainTopicMessages,
   buildJarStartMessages,
+  buildJarSuccessFlex,
   buildRegisterGateMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
@@ -52,6 +55,8 @@ import {
 import { buildPartnerStoresMessages } from '@/lib/line/partner-stores-flex';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { prisma } from '@/lib/prisma';
+import { buildJarFlavourPickerMessages } from '@/lib/line/jar-flavour-picker';
+import { listActiveRefillFlavours } from '@/lib/jar-exchange/refill-flavours';
 
 async function loadVaultSnapshot(
   customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>,
@@ -223,6 +228,59 @@ export async function handleLinePostback(
       return;
     }
     await replyLineMessage(replyToken, buildEnterCodePromptMessages());
+    return;
+  }
+
+  if (action === 'jar_fl') {
+    if (!customer) {
+      await replyLineMessage(replyToken, buildRegisterGateMessages(JAR_ENTER_BLOCKED_GUEST));
+      return;
+    }
+    const code = params.get('c') ?? '';
+    const flavourCode = params.get('f') ?? '';
+    if (!code || !flavourCode) {
+      await replyLineText(replyToken, '請重新輸入序號，再選一次口味。');
+      return;
+    }
+
+    const flavours = await listActiveRefillFlavours();
+    const flavourOk = flavours.some((f) => f.code === flavourCode);
+    if (!flavourOk) {
+      await replyLineMessage(
+        replyToken,
+        buildJarFlavourPickerMessages({ code, flavours }),
+      );
+      return;
+    }
+
+    const result = await redeemJarCode(customer.id, code, { flavourCode });
+    if (!result.ok) {
+      await replyLineText(replyToken, result.error);
+      return;
+    }
+
+    const snapshot = await loadVaultSnapshot(customer);
+    const { progressLine } = rewardProgress(result.balanceAfter);
+    const flavourLine = result.flavourName ? `\n口味：${result.flavourName}` : '';
+    await replyLineMessage(replyToken, [
+      {
+        type: 'text',
+        text:
+          formatJarDepositSuccessMessage({
+            ...snapshot,
+            pointsBalance: result.balanceAfter,
+            pointsEarnedThisTime: result.pointsEarned,
+            code: result.code,
+          }) + flavourLine,
+      },
+      buildJarSuccessFlex({
+        code: result.code,
+        pointsEarned: result.pointsEarned,
+        pointsBalance: result.balanceAfter,
+        jarsDeposited: snapshot.jarsDeposited,
+        progressLine,
+      }),
+    ]);
     return;
   }
 

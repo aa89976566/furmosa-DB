@@ -638,7 +638,7 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
       altText: '輸入序號',
       theme,
       title: '輸入序號',
-      subtitle: '罐底 8 碼，直接打在對話框就好。',
+      subtitle: '罐底 8 碼打在對話框；接著選這次拿的口味，訂單才會記對。',
       dogFrame: true,
       items: [
         {

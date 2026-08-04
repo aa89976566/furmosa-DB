@@ -1,4 +1,4 @@
-import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
+import { previewJarCodeForRedeem } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
@@ -6,12 +6,11 @@ import { JAR_ENTER_BLOCKED_GUEST } from '@/lib/line/brand-worlds';
 import { clearLineChatSession } from '@/lib/line/chat-session';
 import { runAfterReply } from '@/lib/line/defer';
 import {
-  formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
   formatVaultStatusMessage,
-  rewardProgress,
 } from '@/lib/line/jar-deposit-copy';
 import { buildRedeemPickerMessages } from '@/lib/line/flex-menu';
+import { buildJarFlavourPickerMessages } from '@/lib/line/jar-flavour-picker';
 import {
   buildComicGroomingMessages,
   buildComicHomeMessages,
@@ -23,7 +22,6 @@ import {
   buildFrogProjectMessages,
   buildJarExplainTopicMessages,
   buildJarStartMessages,
-  buildJarSuccessFlex,
   buildRegisterGateMessages,
 } from '@/lib/line/flex-hubs';
 import {
@@ -471,31 +469,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
 
-    const result = await redeemJarCode(customer.id, parsed.code);
-    if (!result.ok) {
-      await replyLineText(replyToken, result.error);
+    const preview = await previewJarCodeForRedeem(parsed.code);
+    if (!preview.ok) {
+      await replyLineText(replyToken, preview.error);
       return;
     }
-    const snapshot = await loadVaultSnapshot(customer);
-    const { progressLine } = rewardProgress(result.balanceAfter);
-    await replyLineMessage(replyToken, [
-      {
-        type: 'text',
-        text: formatJarDepositSuccessMessage({
-          ...snapshot,
-          pointsBalance: result.balanceAfter,
-          pointsEarnedThisTime: result.pointsEarned,
-          code: result.code,
-        }),
-      },
-      buildJarSuccessFlex({
-        code: result.code,
-        pointsEarned: result.pointsEarned,
-        pointsBalance: result.balanceAfter,
-        jarsDeposited: snapshot.jarsDeposited,
-        progressLine,
-      }),
-    ]);
+    const flavours = await listActiveRefillFlavours();
+    await replyLineMessage(
+      replyToken,
+      buildJarFlavourPickerMessages({ code: preview.code, flavours }),
+    );
     return;
   }
 }
