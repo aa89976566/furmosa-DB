@@ -3,6 +3,7 @@ import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
 import { prisma } from '@/lib/prisma';
 import { isInternalMerchantId } from '@/lib/stores/partner-store-visibility';
+import { ensureMissingRefillStockRowsForStore } from '@/lib/refill/ensure-store-stock';
 
 /** 寄賣店家編號 → 核銷 slug（MER-0001 → mer_0001） */
 export function merchantToStoreSlug(merchantId: string): string {
@@ -46,6 +47,8 @@ export async function syncPartnerStoreForJarExchangeMerchant(
         data: { name: merchant.name },
       });
     }
+    // 補齊缺少的口味庫存列（quantity=0；不覆蓋既有）
+    await ensureMissingRefillStockRowsForStore(db, existingBySlug.id);
     return;
   }
 
@@ -60,10 +63,11 @@ export async function syncPartnerStoreForJarExchangeMerchant(
         data: { name: merchant.name },
       });
     }
+    await ensureMissingRefillStockRowsForStore(db, existingByName.id);
     return;
   }
 
-  await db.store.create({
+  const created = await db.store.create({
     data: {
       id: `store_${slug}`,
       name: merchant.name,
@@ -71,6 +75,7 @@ export async function syncPartnerStoreForJarExchangeMerchant(
       secretToken: generateSecretToken(),
     },
   });
+  await ensureMissingRefillStockRowsForStore(db, created.id);
 }
 
 /** 將所有換罐寄賣店家同步至核銷店家主檔 */

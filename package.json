@@ -4,7 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
-    "build": "prisma generate && (prisma migrate resolve --rolled-back 20260722110000_qimu_delivery_address || true) && (prisma migrate resolve --applied 20260722110000_qimu_delivery_address || true) && (prisma migrate deploy || echo 'WARN: prisma migrate deploy failed — continuing build') && (tsx scripts/ensure-demo-admin.ts || echo 'WARN: ensure-demo-admin failed — continuing build') && next build",
+    "build": "prisma generate && (prisma migrate resolve --rolled-back 20260722110000_qimu_delivery_address || true) && (prisma migrate resolve --applied 20260722110000_qimu_delivery_address || true) && prisma migrate deploy && (tsx scripts/ensure-demo-admin.ts || echo 'WARN: ensure-demo-admin failed — continuing build') && next build",
+    "test:refill:integration": "node --import tsx --test lib/refill/__tests__/complete-txn.integration.test.ts lib/refill/__tests__/payment-unique.integration.test.ts",
+    "refill:stock-audit": "tsx scripts/refill-stock-audit.ts",
+    "refill:stock-backfill": "tsx scripts/refill-stock-audit.ts --apply",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
@@ -20,6 +23,7 @@
     "db:import-prices": "tsx prisma/import.ts --price-only",
     "db:reset": "prisma migrate reset --force",
     "test": "node --import tsx --test lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/restock-request/__tests__/*.test.ts lib/booking/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts lib/campaigns/jiba-two-piece/__tests__/*.test.ts lib/pos/__tests__/*.test.ts lib/refill/__tests__/*.test.ts lib/payments/ecpay/__tests__/*.test.ts lib/customers/__tests__/*.test.ts",
+    "test:unit": "node --import tsx --test lib/refill/__tests__/callback-logic.test.ts lib/refill/__tests__/eligibility.test.ts lib/refill/__tests__/transitions.test.ts lib/refill/__tests__/flavour-fulfill.test.ts",
     "merchant:create-user": "tsx scripts/create-merchant-user.ts",
     "merchant:ensure-demo-admin": "tsx scripts/ensure-demo-admin.ts",
     "refill:seed-test": "tsx scripts/seed-refill-test-data.ts"

@@ -330,6 +330,8 @@ model PaymentOrder {
 
   @@index([refillOrderId, purpose])
   @@index([status])
+  /// DB 另有 partial unique：同一 refill+purpose 最多一筆 pending|paid
+  /// （見 migration 20260804160000_payment_order_active_unique）
   @@map("payment_orders")
 }
 
