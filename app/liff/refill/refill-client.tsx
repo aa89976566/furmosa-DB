@@ -23,6 +23,12 @@ type Booking = {
   activeOrderStatus: string | null;
 };
 
+type FlavourOption = {
+  id: string;
+  code: string;
+  label: string;
+};
+
 type Eligibility = {
   registered: boolean;
   customerName: string;
@@ -34,6 +40,7 @@ type Eligibility = {
   bookings: Booking[];
   selectedBooking: Booking | null;
   openOrders: { id: string; status: string; totalAmount: number }[];
+  flavours?: FlavourOption[];
 };
 
 type OrderView = {
@@ -47,6 +54,9 @@ type OrderView = {
   merchantName: string;
   date: string;
   time: string;
+  preferredFlavourId?: string | null;
+  preferredFlavourLabel?: string | null;
+  fulfilledFlavourLabel?: string | null;
 };
 
 type Step =
@@ -59,6 +69,8 @@ type Step =
   | 'confirming'
   | 'view'
   | 'error';
+
+const DECIDE_AT_STORE = '__decide_at_store__';
 
 export function LiffRefillClient(props: Props) {
   return (
@@ -78,6 +90,7 @@ function RefillFlow({
   const [error, setError] = useState<string | null>(null);
   const [elig, setElig] = useState<Eligibility | null>(null);
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  const [preferredFlavourId, setPreferredFlavourId] = useState<string>(DECIDE_AT_STORE);
   const [order, setOrder] = useState<OrderView | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -181,6 +194,8 @@ function RefillFlow({
         body: JSON.stringify({
           idToken,
           appointmentId,
+          preferredFlavourId:
+            preferredFlavourId === DECIDE_AT_STORE ? null : preferredFlavourId,
           amount: 1, // 故意錯誤金額；後端必須忽略
         }),
       });
@@ -188,13 +203,6 @@ function RefillFlow({
       if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
       const oid = created.order.id as string;
       setOrder(created.order);
-
-      if (
-        created.order.status === 'paid_waiting_return' ||
-        created.order.status === 'payment_pending'
-      ) {
-        /* continue */
-      }
 
       const payRes = await fetch(`/api/refill/orders/${oid}/payment`, {
         method: 'POST',
@@ -205,7 +213,6 @@ function RefillFlow({
       if (!payRes.ok) throw new Error(pay.error ?? REFILL_COPY.genericError);
 
       setStep('paying');
-      // Auto-submit ECPay form
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = pay.checkout.paymentUrl;
@@ -260,33 +267,40 @@ function RefillFlow({
 
   if (step === 'success' || step === 'view') {
     const o = order;
+    const successMsg = o?.preferredFlavourLabel
+      ? REFILL_COPY.paySuccessPreferred(o.preferredFlavourLabel)
+      : REFILL_COPY.paySuccessDecideAtStore;
     return (
       <div className="space-y-4">
         <div>
           <p className="text-lg font-semibold text-foreground">{REFILL_COPY.payDone}</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            到店後，請帶空罐給店員。店家確認序號後，就可以領取新罐。
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">{successMsg}</p>
         </div>
         {o && (
           <dl className="space-y-2 text-sm">
             <Row label="毛孩" value={o.petName ?? '—'} />
             <Row label="店家" value={o.merchantName} />
             <Row label="日期" value={`${o.date} ${o.time}`} />
+            <Row label="希望口味" value={o.preferredFlavourLabel ?? REFILL_COPY.flavourDecideAtStore} />
+            {o.fulfilledFlavourLabel ? (
+              <Row label="實際交付" value={o.fulfilledFlavourLabel} />
+            ) : null}
             <Row label="已付款" value={`NT$${o.totalAmount}`} />
-            <Row label="訂單編號" value={o.id.slice(0, 8).toUpperCase()} />
+            <Row label="資格編號" value={o.id.slice(0, 8).toUpperCase()} />
             <Row label="狀態" value={REFILL_COPY.waitingAtStore} />
           </dl>
         )}
-        <p className="text-sm font-medium text-foreground">{REFILL_COPY.rememberEmptyJar}</p>
+        {o?.orderType === 'exchange' ? (
+          <p className="text-sm font-medium text-foreground">{REFILL_COPY.rememberEmptyJar}</p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">{REFILL_COPY.preferredNotReserved}</p>
         <Button
           type="button"
           variant="outline"
           className="w-full min-h-[48px]"
           onClick={() => {
             try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const liff = (window as any).liff;
+              const liff = (window as Window & { liff?: { closeWindow?: () => void } }).liff;
               if (liff?.closeWindow) liff.closeWindow();
             } catch {
               /* ignore */
@@ -330,12 +344,12 @@ function RefillFlow({
     );
   }
 
-  // confirm
   const booking =
     elig?.bookings.find((b) => b.appointmentId === appointmentId) ?? elig?.selectedBooking;
   const amount = elig?.amount ?? 99;
   const priceLabel =
     elig?.orderType === 'exchange' ? REFILL_COPY.exchangePrice : REFILL_COPY.firstPrice;
+  const flavours = elig?.flavours ?? [];
 
   return (
     <div className="space-y-5">
@@ -347,6 +361,28 @@ function RefillFlow({
         <Row label="項目" value="換罐計畫" />
         <Row label="金額" value={`NT$${amount}`} />
       </dl>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">{REFILL_COPY.flavourTitle}</p>
+        <p className="text-xs text-muted-foreground">{REFILL_COPY.flavourHint}</p>
+        <div className="grid gap-2">
+          <FlavourChoice
+            selected={preferredFlavourId === DECIDE_AT_STORE}
+            label={REFILL_COPY.flavourDecideAtStore}
+            onClick={() => setPreferredFlavourId(DECIDE_AT_STORE)}
+          />
+          {flavours.map((f) => (
+            <FlavourChoice
+              key={f.id}
+              selected={preferredFlavourId === f.id}
+              label={f.label}
+              onClick={() => setPreferredFlavourId(f.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <p className="text-sm text-muted-foreground">{REFILL_COPY.payKeepsEntitlement}</p>
       <p className="text-base font-semibold">{priceLabel}</p>
       {error && <LiffStatus message={error} variant="error" />}
       <Button
@@ -361,6 +397,28 @@ function RefillFlow({
         付款給匠寵。美容費請另外付給店家。
       </p>
     </div>
+  );
+}
+
+function FlavourChoice({
+  selected,
+  label,
+  onClick,
+}: {
+  selected: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-xl border px-4 py-3 text-left text-sm min-h-[48px] ${
+        selected ? 'border-primary bg-primary/5 font-medium' : 'bg-card'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

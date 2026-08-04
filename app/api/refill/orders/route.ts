@@ -10,6 +10,7 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       idToken?: string;
       appointmentId?: string;
+      preferredFlavourId?: string | null;
       amount?: number;
       idempotencyKey?: string;
     };
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
     const { order, reused } = await createRefillOrder({
       customerId: customer.customerId,
       appointmentId: body.appointmentId,
+      preferredFlavourId: body.preferredFlavourId,
       clientAmount: body.amount,
       idempotencyKey: body.idempotencyKey,
     });

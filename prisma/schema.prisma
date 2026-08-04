@@ -255,6 +255,7 @@ model MemberPointsLedger {
 // =====================================================
 
 /// 換罐／首罐訂單（綁定預約店家；美容費不在此收取）
+/// 付款鎖定金額與領取資格；preferredFlavour 僅 soft preference，fulfilledFlavour 交付時才寫入。
 model RefillOrder {
   id                     String    @id @default(cuid())
   customerId             String    @map("customer_id")
@@ -262,6 +263,12 @@ model RefillOrder {
   merchantId             String    @map("merchant_id")
   petName                String?   @map("pet_name")
   productId              String?   @map("product_id")
+  /// 希望口味（可 null＝到店再選）；付款時不扣庫存、不視為已保留
+  preferredFlavourId     String?   @map("preferred_flavour_id")
+  /// 實際交付口味；付款時必須為 null，僅 POS 交付完成時寫入
+  fulfilledFlavourId     String?   @map("fulfilled_flavour_id")
+  /// POS 完成交付的店員
+  fulfilledByUserId      String?   @map("fulfilled_by_user_id")
   /// first | exchange
   orderType              String    @map("order_type")
   baseAmount             Int       @map("base_amount")
@@ -283,18 +290,22 @@ model RefillOrder {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  appointment Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  merchant    Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  product     Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
-  payments    PaymentOrder[]
-  auditLogs   RefillAuditLog[]
-  lockedJarCodes JarCode[]   @relation("JarCodeLockedByRefill")
+  customer         Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  appointment      Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  merchant         Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  product          Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  preferredFlavour RefillFlavour? @relation("RefillOrderPreferredFlavour", fields: [preferredFlavourId], references: [id], onDelete: SetNull)
+  fulfilledFlavour RefillFlavour? @relation("RefillOrderFulfilledFlavour", fields: [fulfilledFlavourId], references: [id], onDelete: SetNull)
+  payments         PaymentOrder[]
+  auditLogs        RefillAuditLog[]
+  lockedJarCodes   JarCode[]      @relation("JarCodeLockedByRefill")
 
   @@index([customerId, status])
   @@index([merchantId, status])
   @@index([appointmentId])
   @@index([status, createdAt])
+  @@index([preferredFlavourId])
+  @@index([fulfilledFlavourId])
   @@map("refill_orders")
 }
 
@@ -319,6 +330,8 @@ model PaymentOrder {
 
   @@index([refillOrderId, purpose])
   @@index([status])
+  /// DB 另有 partial unique：同一 refill+purpose 最多一筆 pending|paid
+  /// （見 migration 20260804160000_payment_order_active_unique）
   @@map("payment_orders")
 }
 
@@ -1263,8 +1276,10 @@ model RefillFlavour {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  stocks    MerchantRefillStock[]
-  stockTxns RefillStockTxn[]
+  stocks              MerchantRefillStock[]
+  stockTxns           RefillStockTxn[]
+  preferredByOrders   RefillOrder[] @relation("RefillOrderPreferredFlavour")
+  fulfilledByOrders   RefillOrder[] @relation("RefillOrderFulfilledFlavour")
 
   @@index([isActive, sortOrder])
   @@map("refill_flavours")
@@ -1297,7 +1312,7 @@ model RefillStockTxn {
   flavourId       String   @map("flavour_id")
   changeQty       Int      @map("change_qty")
   quantityAfter   Int      @map("quantity_after")
-  reason          String // adjust | period_copy | out_of_stock | restock | seed
+  reason          String // adjust | period_copy | out_of_stock | restock | seed | fulfill
   note            String?
   createdByUserId String?  @map("created_by_user_id")
   createdAt       DateTime @default(now()) @map("created_at")

@@ -133,7 +133,7 @@ export async function handleEcpayCallback(
   }
 
   const now = new Date();
-  await prisma.$transaction(async (tx) => {
+  const didClaim = await prisma.$transaction(async (tx) => {
     const claimed = await tx.paymentOrder.updateMany({
       where: { id: payment.id, status: 'pending' },
       data: {
@@ -144,7 +144,7 @@ export async function handleEcpayCallback(
       },
     });
     if (claimed.count === 0) {
-      return;
+      return false;
     }
 
     const refill = payment.refillOrder;
@@ -152,11 +152,13 @@ export async function handleEcpayCallback(
       const from = refill.status as RefillOrderStatus;
       if (from === 'payment_pending' || from === 'draft' || from === 'payment_failed') {
         assertTransition(from, 'paid_waiting_return');
+        // 付款成功＝資格；不寫 fulfilledFlavour、不扣庫存
         await tx.refillOrder.update({
           where: { id: refill.id },
           data: {
             status: 'paid_waiting_return',
             paidAt: now,
+            fulfilledFlavourId: null,
           },
         });
       }
@@ -171,6 +173,7 @@ export async function handleEcpayCallback(
             deliveryMode: 'first',
             extraAmount: top.extraAmount,
             totalAmount: top.totalAmount,
+            fulfilledFlavourId: null,
             missingContainerNote: refill.missingContainerNote
               ? `${refill.missingContainerNote}；已補差額`
               : '已補差額 NT$30',
@@ -190,18 +193,24 @@ export async function handleEcpayCallback(
         amount: payment.amount,
         merchantTradeNo: tradeNo,
         providerTradeNo: params.TradeNo,
+        preferredFlavourId: refill.preferredFlavourId,
+        fulfilledFlavourId: null,
+        stockReserved: false,
       },
     });
+    return true;
   });
 
-  // LINE notify outside txn
-  try {
-    await notifyRefillPaid(payment.refillOrderId);
-  } catch (e) {
-    console.error('[ecpay.callback] notify', e);
+  // 僅在伺服器確認 claim 成功後才推播；webhook 重送不重複通知
+  if (didClaim) {
+    try {
+      await notifyRefillPaid(payment.refillOrderId);
+    } catch (e) {
+      console.error('[ecpay.callback] notify', e);
+    }
   }
 
-  return { ack: '1|OK', updated: true };
+  return { ack: '1|OK', updated: didClaim };
 }
 
 export function parseEcpayFormBody(raw: string): EcpayCallbackParams {

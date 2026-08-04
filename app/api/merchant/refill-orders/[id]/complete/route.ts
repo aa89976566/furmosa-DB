@@ -11,13 +11,21 @@ export async function POST(
 ) {
   try {
     const session = await requireRefillMerchantSession();
-    const body = (await req.json()) as { newSerial?: string; oldSerial?: string };
+    const body = (await req.json()) as {
+      newSerial?: string;
+      oldSerial?: string;
+      fulfilledFlavourId?: string;
+      /** 前端若誤傳 preferred／amount，一律忽略 */
+      preferredFlavourId?: string;
+      amount?: number;
+    };
     const result = await assignNewAndComplete({
       orderId: params.id,
       merchantId: session.merchantId,
       actorId: session.merchantUserId,
       newSerialRaw: body.newSerial ?? '',
       oldSerialRaw: body.oldSerial,
+      fulfilledFlavourId: body.fulfilledFlavourId ?? '',
     });
     return NextResponse.json(result);
   } catch (e) {

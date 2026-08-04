@@ -1,10 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { POS_BUTTON_LABELS } from '@/lib/config/product-settings';
+import { canEnableFulfilment } from '@/lib/refill/fulfilment-rules';
+
+export type PosStockRow = {
+  flavourId: string;
+  label: string;
+  quantity: number;
+  isAvailable: boolean;
+};
 
 type Props = {
   orderId: string;
@@ -12,6 +20,12 @@ type Props = {
   paid: boolean;
   deliveryMode: string;
   payQrUrl: string | null;
+  preferredFlavourLabel: string | null;
+  fulfilledFlavourLabel: string | null;
+  oldContainerSerial: string | null;
+  newContainerSerial: string | null;
+  totalAmount: number;
+  stock: PosStockRow[];
 };
 
 export function RefillOrderActions({
@@ -20,13 +34,33 @@ export function RefillOrderActions({
   paid,
   deliveryMode,
   payQrUrl,
+  preferredFlavourLabel,
+  fulfilledFlavourLabel,
+  oldContainerSerial,
+  newContainerSerial,
+  totalAmount,
+  stock,
 }: Props) {
   const router = useRouter();
   const [oldSerial, setOldSerial] = useState('');
   const [newSerial, setNewSerial] = useState('');
+  const [fulfilledFlavourId, setFulfilledFlavourId] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const available = useMemo(() => stock.filter((s) => s.isAvailable && s.quantity > 0), [stock]);
+  const selected = available.find((s) => s.flavourId === fulfilledFlavourId) ?? null;
+  const isFirst = deliveryMode === 'first';
+  const oldVerified = status === 'old_container_verified' || Boolean(oldContainerSerial);
+  const canComplete = canEnableFulfilment({
+    paid,
+    isFirstPath: isFirst,
+    oldJarVerified: isFirst ? true : oldVerified || oldSerial.length === 8,
+    fulfilledFlavourId: fulfilledFlavourId || null,
+    flavourInStock: Boolean(selected),
+    newSerialValid: newSerial.length === 8,
+  });
 
   async function post(path: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -75,7 +109,16 @@ export function RefillOrderActions({
   }
 
   if (status === 'completed') {
-    return <p className="text-sm text-muted-foreground">這筆換罐已完成。</p>;
+    return (
+      <div className="space-y-2 text-sm">
+        <p className="text-muted-foreground">這筆換罐已完成交付。</p>
+        <p>希望口味：{preferredFlavourLabel ?? '到店再選'}</p>
+        <p>實際交付：{fulfilledFlavourLabel ?? '—'}</p>
+        <p>舊罐：{oldContainerSerial ?? '（首罐／補差額）'}</p>
+        <p>新罐：{newContainerSerial ?? '—'}</p>
+        <p>付款：已付款 NT${totalAmount}</p>
+      </div>
+    );
   }
 
   if (status === 'awaiting_extra_payment') {
@@ -91,10 +134,52 @@ export function RefillOrderActions({
     );
   }
 
-  const isFirst = deliveryMode === 'first';
-
   return (
     <div className="space-y-4">
+      <dl className="rounded-xl border p-4 space-y-2 text-sm">
+        <Row label="希望口味" value={preferredFlavourLabel ?? '到店再選（僅參考）'} />
+        <Row label="付款金額" value={`已付款 NT$${totalAmount}`} />
+        <Row
+          label="交付狀態"
+          value={status === 'old_container_verified' ? '舊罐已驗，待交新罐' : '等待交付'}
+        />
+      </dl>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">該店目前可用庫存</p>
+        {available.length === 0 ? (
+          <p className="text-sm text-destructive">目前沒有可交付口味，請先補貨。</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {available.map((s) => (
+              <li key={s.flavourId} className="flex justify-between gap-2">
+                <span>{s.label}</span>
+                <span className="text-muted-foreground">{s.quantity} 罐</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-muted-foreground">
+          希望口味缺貨時可直接改選其他現貨，不必取消或重新付款。
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">實際交付口味</label>
+        <select
+          className="w-full min-h-[48px] rounded-md border bg-background px-3 text-sm"
+          value={fulfilledFlavourId}
+          onChange={(e) => setFulfilledFlavourId(e.target.value)}
+        >
+          <option value="">請選擇現貨口味</option>
+          {available.map((s) => (
+            <option key={s.flavourId} value={s.flavourId}>
+              {s.label}（剩 {s.quantity}）
+            </option>
+          ))}
+        </select>
+      </div>
+
       {!isFirst && status === 'paid_waiting_return' ? (
         <div className="space-y-2">
           <label className="text-sm font-medium">舊罐瓶底 8 碼</label>
@@ -109,7 +194,7 @@ export function RefillOrderActions({
         </div>
       ) : null}
 
-      {(status === 'old_container_verified' || isFirst) && (
+      {(status === 'old_container_verified' || isFirst || status === 'paid_waiting_return') && (
         <div className="space-y-2">
           <label className="text-sm font-medium">新罐瓶底 8 碼</label>
           <Input
@@ -166,11 +251,11 @@ export function RefillOrderActions({
       {status === 'old_container_verified' || isFirst ? (
         <Button
           className="w-full min-h-[52px]"
-          disabled={busy || newSerial.length !== 8}
+          disabled={busy || !canComplete}
           onClick={() =>
             post(`/api/merchant/refill-orders/${orderId}/complete`, {
               newSerial,
-              oldSerial: oldSerial || undefined,
+              fulfilledFlavourId,
             })
           }
         >
@@ -180,22 +265,31 @@ export function RefillOrderActions({
         </Button>
       ) : null}
 
-      {/* One-shot: verify old + assign new */}
       {!isFirst && status === 'paid_waiting_return' ? (
         <Button
           variant="secondary"
           className="w-full min-h-[48px]"
-          disabled={busy || oldSerial.length !== 8 || newSerial.length !== 8}
+          disabled={busy || !canComplete || oldSerial.length !== 8}
           onClick={() =>
             post(`/api/merchant/refill-orders/${orderId}/complete`, {
               newSerial,
               oldSerial,
+              fulfilledFlavourId,
             })
           }
         >
           一次完成：收空罐並交付
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 py-1">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-right">{value}</dd>
     </div>
   );
 }
