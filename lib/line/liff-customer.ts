@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { createCustomerRecord } from '@/lib/customers/create-customer';
 import { validatePetFieldsConsistency, type ParsedPetFields } from '@/lib/customers/pet-fields';
+import { revalidateJarExchangeHq } from '@/lib/jar-exchange/revalidate';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { resolvePetSpeciesLabel } from '@/lib/customers/pet-fields';
+import { runAfterReply } from '@/lib/line/defer';
 import { verifyLineIdToken } from '@/lib/line/verify-id-token';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 
@@ -64,6 +66,7 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
       });
       await ensureJarExchangeService(tx, existing.id);
     });
+    runAfterReply(Promise.resolve().then(() => revalidateJarExchangeHq()));
 
     return { customerId: existing.id, customerCode: existing.customerId, isNew: false };
   }
@@ -76,6 +79,7 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
     ...pet,
   });
   await ensureJarExchangeService(prisma, created.id);
+  runAfterReply(Promise.resolve().then(() => revalidateJarExchangeHq()));
 
   return { customerId: created.id, customerCode: created.customerId, isNew: true };
 }
