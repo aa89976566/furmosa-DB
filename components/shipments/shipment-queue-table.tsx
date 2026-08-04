@@ -372,15 +372,15 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 lg:block">
-        <Table className="min-w-[68rem] table-fixed">
+        <Table className="min-w-[68rem]">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[11rem]">單號</TableHead>
-              <TableHead className="w-[10rem]">對象</TableHead>
-              <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
-              <TableHead className="w-[14rem]">寄送地</TableHead>
-              <TableHead className="w-[9rem]">電話</TableHead>
-              <TableHead className="min-w-[16rem]">商品 · 件數</TableHead>
+              <TableHead className="min-w-[10rem] whitespace-nowrap">單號</TableHead>
+              <TableHead className="min-w-[9rem] whitespace-nowrap">對象</TableHead>
+              <TableHead className="min-w-[12.5rem] whitespace-nowrap">運輸狀態</TableHead>
+              <TableHead className="min-w-[12rem] whitespace-nowrap">寄送地</TableHead>
+              <TableHead className="min-w-[8rem] whitespace-nowrap">電話</TableHead>
+              <TableHead className="min-w-[16rem] whitespace-nowrap">商品 · 件數</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
