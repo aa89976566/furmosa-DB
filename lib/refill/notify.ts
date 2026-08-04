@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { pushLineMessages } from '@/lib/line/push';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { getPointsBalance } from '@/lib/jar-exchange/points';
+import { formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
+import { buildPaidNotifyText } from '@/lib/refill/copy';
 
 export async function notifyRefillPaid(refillOrderId: string) {
   const order = await prisma.refillOrder.findUnique({
@@ -10,21 +12,30 @@ export async function notifyRefillPaid(refillOrderId: string) {
       customer: { select: { lineUserId: true } },
       merchant: { select: { name: true } },
       appointment: { select: { startsAt: true, petName: true } },
+      preferredFlavour: { select: { name: true, weightGrams: true } },
     },
   });
   if (!order?.customer.lineUserId) return;
 
   const pet = order.petName ?? order.appointment.petName ?? '毛孩';
   const date = `${formatLocalDate(order.appointment.startsAt)} ${formatLocalTime(order.appointment.startsAt)}`;
+  const preferredLabel = order.preferredFlavour
+    ? formatFlavourLabel(order.preferredFlavour.name, order.preferredFlavour.weightGrams)
+    : null;
+  const isExchange = order.deliveryMode === 'exchange' && order.orderType === 'exchange';
+
   const text = [
     `${pet} 的換罐付款完成。`,
     '',
-    `到${order.merchant.name}時，記得帶空罐。`,
-    '店家確認瓶底序號後，就可以帶新的一罐回家。',
-    '',
-    `金額：NT$${order.totalAmount}`,
-    '狀態：等待到店換罐',
-    `預約：${date}`,
+    buildPaidNotifyText({
+      petName: pet,
+      merchantName: order.merchant.name,
+      amount: order.totalAmount,
+      dateLine: date,
+      orderIdShort: order.id.slice(0, 8).toUpperCase(),
+      preferredLabel,
+      isExchange,
+    }),
   ].join('\n');
 
   await pushLineMessages(order.customer.lineUserId, [{ type: 'text', text }]);
@@ -35,6 +46,9 @@ export async function notifyRefillCompleted(refillOrderId: string, pointsAwarded
     where: { id: refillOrderId },
     include: {
       customer: { select: { id: true, lineUserId: true } },
+      fulfilledFlavour: { select: { name: true, weightGrams: true } },
+      preferredFlavour: { select: { name: true, weightGrams: true } },
+      merchant: { select: { name: true } },
     },
   });
   if (!order?.customer.lineUserId) return;
@@ -46,9 +60,19 @@ export async function notifyRefillCompleted(refillOrderId: string, pointsAwarded
     pointsLine = `\n本次增加 1 點。\n目前共 ${balance} 點。`;
   }
 
+  const actual = order.fulfilledFlavour
+    ? formatFlavourLabel(order.fulfilledFlavour.name, order.fulfilledFlavour.weightGrams)
+    : null;
+  const preferred = order.preferredFlavour
+    ? formatFlavourLabel(order.preferredFlavour.name, order.preferredFlavour.weightGrams)
+    : null;
+
   const text = [
     `${pet} 今天換罐完成。`,
     '',
+    actual ? `實際交付口味：${actual}` : null,
+    preferred && preferred !== actual ? `原先希望：${preferred}` : null,
+    `領取店家：${order.merchant.name}`,
     '舊罐已回收，新罐已登記。',
     pointsLine,
   ]

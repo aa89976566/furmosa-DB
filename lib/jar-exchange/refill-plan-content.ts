@@ -48,7 +48,8 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'choose-flavour',
     question: '可以自己選口味嗎？',
-    answer: '可以從預約店家當期有庫存的口味中選擇。各店品項每兩週更新。',
+    answer:
+      '付款時可先選希望口味給店家參考，實際口味以取貨當日店內現貨為準；售完可直接改選，不用重新付款。各店品項每兩週更新。',
   },
   {
     id: 'serial-where',

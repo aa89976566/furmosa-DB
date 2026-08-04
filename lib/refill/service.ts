@@ -9,6 +9,9 @@ import { isBookableForRefill } from '@/lib/refill/eligibility';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import { listActiveRefillFlavours } from '@/lib/jar-exchange/refill-flavours';
+import { formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
+import { assertPaymentDoesNotLockFlavour } from '@/lib/refill/fulfilment-rules';
 
 export async function countIssuedJars(customerId: string): Promise<number> {
   return prisma.jarCode.count({
@@ -144,6 +147,8 @@ export async function getRefillEligibility(input: {
     },
   });
 
+  const flavours = await listActiveRefillFlavours();
+
   return {
     registered: true,
     customerName: customer?.name ?? input.customerName,
@@ -158,12 +163,40 @@ export async function getRefillEligibility(input: {
     bookings,
     selectedBooking: selected,
     openOrders: openPaid,
+    /** 參考用；不保證保留、付款不扣庫存 */
+    flavours: flavours.map((f) => ({
+      id: f.id,
+      code: f.code,
+      label: f.label,
+    })),
   };
+}
+
+async function resolvePreferredFlavourId(
+  preferredFlavourId: string | null | undefined,
+): Promise<string | null> {
+  if (preferredFlavourId == null || preferredFlavourId === '' || preferredFlavourId === '__decide_at_store__') {
+    return null;
+  }
+  // ignore fallback ids from client cache
+  if (preferredFlavourId.startsWith('fallback-')) {
+    return null;
+  }
+  const flavour = await prisma.refillFlavour.findFirst({
+    where: { id: preferredFlavourId, isActive: true },
+    select: { id: true },
+  });
+  if (!flavour) {
+    throw new RefillError('找不到這個口味，請重新選擇。', 'FLAVOUR_NOT_FOUND', 400);
+  }
+  return flavour.id;
 }
 
 export async function createRefillOrder(input: {
   customerId: string;
   appointmentId: string;
+  /** 希望口味；null／省略＝到店再選。不鎖庫存、不寫入 fulfilled */
+  preferredFlavourId?: string | null;
   /** 前端傳入金額一律忽略 */
   clientAmount?: number;
   idempotencyKey?: string | null;
@@ -195,10 +228,30 @@ export async function createRefillOrder(input: {
     input.idempotencyKey?.trim() ||
     `refill:${input.customerId}:${input.appointmentId}`;
 
+  const preferredFlavourId = await resolvePreferredFlavourId(input.preferredFlavourId);
+
+  // 付款資格不得鎖死實際口味或扣庫存
+  assertPaymentDoesNotLockFlavour({
+    preferredFlavourId,
+    fulfilledFlavourId: null,
+    stockDecrementedAtPayment: false,
+  });
+
   const existingByKey = await prisma.refillOrder.findUnique({
     where: { idempotencyKey: idem },
   });
   if (existingByKey) {
+    if (
+      preferredFlavourId !== undefined &&
+      (existingByKey.status === 'draft' || existingByKey.status === 'payment_pending') &&
+      existingByKey.preferredFlavourId !== preferredFlavourId
+    ) {
+      const updated = await prisma.refillOrder.update({
+        where: { id: existingByKey.id },
+        data: { preferredFlavourId },
+      });
+      return { order: updated, reused: true as const };
+    }
     return { order: existingByKey, reused: true as const };
   }
 
@@ -209,6 +262,16 @@ export async function createRefillOrder(input: {
     },
   });
   if (active) {
+    if (
+      (active.status === 'draft' || active.status === 'payment_pending') &&
+      active.preferredFlavourId !== preferredFlavourId
+    ) {
+      const updated = await prisma.refillOrder.update({
+        where: { id: active.id },
+        data: { preferredFlavourId },
+      });
+      return { order: updated, reused: true as const };
+    }
     return { order: active, reused: true as const };
   }
 
@@ -229,6 +292,8 @@ export async function createRefillOrder(input: {
           appointmentId: appointment.id,
           merchantId: appointment.merchantId,
           petName: appointment.petName ?? customer?.petName ?? null,
+          preferredFlavourId,
+          fulfilledFlavourId: null,
           orderType,
           baseAmount: amounts.baseAmount,
           extraAmount: amounts.extraAmount,
@@ -247,6 +312,9 @@ export async function createRefillOrder(input: {
         detail: {
           orderType,
           totalAmount: amounts.totalAmount,
+          preferredFlavourId,
+          fulfilledFlavourId: null,
+          stockReserved: false,
           clientAmountIgnored: input.clientAmount ?? null,
         },
       });
@@ -269,6 +337,8 @@ export async function getRefillOrderForCustomer(orderId: string, customerId: str
       appointment: {
         select: { id: true, startsAt: true, petName: true, status: true, serviceName: true },
       },
+      preferredFlavour: { select: { id: true, name: true, weightGrams: true } },
+      fulfilledFlavour: { select: { id: true, name: true, weightGrams: true } },
       payments: {
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -290,6 +360,9 @@ export function serializeOrder(order: {
   extraAmount: number;
   totalAmount: number;
   petName: string | null;
+  preferredFlavourId?: string | null;
+  fulfilledFlavourId?: string | null;
+  fulfilledByUserId?: string | null;
   oldContainerSerial: string | null;
   newContainerSerial: string | null;
   missingContainerNote: string | null;
@@ -303,8 +376,17 @@ export function serializeOrder(order: {
     status: string;
     serviceName: string;
   };
+  preferredFlavour?: { id: string; name: string; weightGrams: number } | null;
+  fulfilledFlavour?: { id: string; name: string; weightGrams: number } | null;
   payments?: { id: string; purpose: string; amount: number; status: string; merchantTradeNo: string }[];
 }) {
+  const preferredLabel = order.preferredFlavour
+    ? formatFlavourLabel(order.preferredFlavour.name, order.preferredFlavour.weightGrams)
+    : null;
+  const fulfilledLabel = order.fulfilledFlavour
+    ? formatFlavourLabel(order.fulfilledFlavour.name, order.fulfilledFlavour.weightGrams)
+    : null;
+
   return {
     id: order.id,
     status: order.status,
@@ -321,6 +403,10 @@ export function serializeOrder(order: {
     date: formatLocalDate(order.appointment.startsAt),
     time: formatLocalTime(order.appointment.startsAt),
     serviceName: order.appointment.serviceName,
+    preferredFlavourId: order.preferredFlavourId ?? order.preferredFlavour?.id ?? null,
+    preferredFlavourLabel: preferredLabel,
+    fulfilledFlavourId: order.fulfilledFlavourId ?? order.fulfilledFlavour?.id ?? null,
+    fulfilledFlavourLabel: fulfilledLabel,
     oldContainerSerial: order.oldContainerSerial,
     newContainerSerial: order.newContainerSerial,
     missingContainerNote: order.missingContainerNote,

@@ -5,6 +5,8 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { RefillOrderActions } from '@/components/pos/refill-order-actions';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
+import { formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
+import { listMerchantFulfilmentStock } from '@/lib/refill/store-stock';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +24,8 @@ export default async function PosRefillDetailPage({
       merchant: { select: { id: true, name: true, merchantId: true } },
       appointment: { select: { startsAt: true, petName: true } },
       customer: { select: { name: true } },
+      preferredFlavour: { select: { name: true, weightGrams: true } },
+      fulfilledFlavour: { select: { name: true, weightGrams: true } },
       payments: { orderBy: { createdAt: 'desc' }, take: 3 },
     },
   });
@@ -35,6 +39,20 @@ export default async function PosRefillDetailPage({
   const liffBase = getLiffUrlIfConfigured('refill');
   const payQrUrl = liffBase
     ? `${liffBase}?storeId=${encodeURIComponent(order.merchant.merchantId)}`
+    : null;
+
+  let stock: Awaited<ReturnType<typeof listMerchantFulfilmentStock>> = [];
+  try {
+    stock = await listMerchantFulfilmentStock(prisma, session.merchantId);
+  } catch {
+    stock = [];
+  }
+
+  const preferredLabel = order.preferredFlavour
+    ? formatFlavourLabel(order.preferredFlavour.name, order.preferredFlavour.weightGrams)
+    : null;
+  const fulfilledLabel = order.fulfilledFlavour
+    ? formatFlavourLabel(order.fulfilledFlavour.name, order.fulfilledFlavour.weightGrams)
     : null;
 
   return (
@@ -59,24 +77,30 @@ export default async function PosRefillDetailPage({
         <dl className="space-y-2 text-sm rounded-xl border p-4">
           <Row label="商品" value={order.orderType === 'first' ? '首罐' : '換罐'} />
           <Row label="指定店家" value={order.merchant.name} />
+          <Row label="希望口味" value={preferredLabel ?? '到店再選'} />
+          <Row label="實際交付口味" value={fulfilledLabel ?? '尚未交付'} />
           <Row label="付款" value={paid ? `已付款 NT$${order.totalAmount}` : '尚未付款'} />
           <Row
-            label="空罐"
+            label="舊罐序號"
             value={
               order.deliveryMode === 'first'
                 ? '不需回收（首罐／補差額）'
                 : order.oldContainerSerial
-                  ? `已收 ${order.oldContainerSerial}`
+                  ? order.oldContainerSerial
                   : '等待收空罐'
             }
           />
           <Row
-            label="交付"
+            label="新罐序號"
             value={
               order.status === 'completed'
-                ? `已交付 ${order.newContainerSerial ?? ''}`
-                : '尚未交付'
+                ? order.newContainerSerial ?? '—'
+                : '交付時綁定'
             }
+          />
+          <Row
+            label="交付"
+            value={order.status === 'completed' ? '已完成交付' : '尚未交付'}
           />
           {order.missingContainerNote ? (
             <Row label="備註" value={order.missingContainerNote} />
@@ -89,6 +113,12 @@ export default async function PosRefillDetailPage({
           paid={paid}
           deliveryMode={order.deliveryMode}
           payQrUrl={payQrUrl}
+          preferredFlavourLabel={preferredLabel}
+          fulfilledFlavourLabel={fulfilledLabel}
+          oldContainerSerial={order.oldContainerSerial}
+          newContainerSerial={order.newContainerSerial}
+          totalAmount={order.totalAmount}
+          stock={stock}
         />
       </div>
     </PosShell>
