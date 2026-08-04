@@ -4,12 +4,19 @@ import { activeOrderWhere } from '@/lib/order-list';
 import { revenueEligibleOrderWhere } from '@/lib/jar-exchange/revenue';
 import { prisma } from '@/lib/prisma';
 import { withRuntimeCache } from '@/lib/runtime-cache';
+import { defaultTaipeiMonthRange, taipeiTodayRange } from '@/lib/taipei-date';
 import type { Prisma } from '@prisma/client';
 
 export type OrderSourceTotal = {
   source: string;
   total: number;
   count: number;
+};
+
+export type OrderHubKpis = {
+  monthRevenue: number;
+  todayCount: number;
+  pendingFulfillmentCount: number;
 };
 
 /** 訂單 Hub 來源合計 — 短 TTL 熱快取 */
@@ -37,6 +44,56 @@ export async function getOrderSourceTotals(): Promise<OrderSourceTotal[]> {
           }));
         },
         ['order-hub-totals-v1'],
+        { revalidate: 30, tags: [CACHE_TAGS.orderHubTotals] },
+      )(),
+  );
+}
+
+/** 訂單列表頂部三黑 KPI */
+export async function getOrderHubKpis(): Promise<OrderHubKpis> {
+  return withRuntimeCache(
+    'order-hub-kpis-v1',
+    {
+      ttlSeconds: 30,
+      tags: [CACHE_TAGS.orderHubTotals],
+      name: 'order-hub-kpis',
+    },
+    () =>
+      unstable_cache(
+        async () => {
+          const { start: startOfMonth } = defaultTaipeiMonthRange();
+          const { start: startOfDay, end: endOfDay } = taipeiTodayRange();
+
+          const [monthAgg, todayCount, pendingFulfillmentCount] = await Promise.all([
+            prisma.order.aggregate({
+              _sum: { total: true },
+              where: {
+                ...activeOrderWhere,
+                ...revenueEligibleOrderWhere,
+                orderedAt: { gte: startOfMonth },
+              },
+            }),
+            prisma.order.count({
+              where: {
+                ...activeOrderWhere,
+                orderedAt: { gte: startOfDay, lte: endOfDay },
+              },
+            }),
+            prisma.order.count({
+              where: {
+                ...activeOrderWhere,
+                fulfillmentStatus: { in: ['pending', 'packed'] },
+              },
+            }),
+          ]);
+
+          return {
+            monthRevenue: Number(monthAgg._sum.total ?? 0),
+            todayCount,
+            pendingFulfillmentCount,
+          };
+        },
+        ['order-hub-kpis-v1'],
         { revalidate: 30, tags: [CACHE_TAGS.orderHubTotals] },
       )(),
   );

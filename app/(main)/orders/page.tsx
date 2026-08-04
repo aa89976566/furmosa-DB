@@ -5,11 +5,10 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionSkeleton } from '@/components/shared/page-skeleton';
 import { ListPagination } from '@/components/shared/list-pagination';
 import { OrderListTable } from '@/components/orders/order-list-table';
+import { OrdersListFilters } from '@/components/orders/orders-list-filters';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency } from '@/lib/format';
-import { getOrderSourceTotals } from '@/lib/hot-path-reads';
+import { formatCurrency, formatNumber } from '@/lib/format';
+import { getOrderHubKpis } from '@/lib/hot-path-reads';
 import {
   hrefWithPage,
   ORDER_PAGE_SIZE,
@@ -18,37 +17,41 @@ import {
 } from '@/lib/list-pagination';
 import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
-import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
-import { Plus } from 'lucide-react';
+import { ORDER_SOURCE_KEYS } from '@/lib/order-hub-kinds';
+import { Plus, Search } from 'lucide-react';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
 
 export const dynamic = 'force-dynamic';
 
-function OrdersTotalsFallback() {
+function OrdersKpiFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 animate-pulse rounded-md bg-muted/40" />
+    <div className="grid gap-3 sm:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="h-28 animate-pulse rounded-2xl bg-ink/80" />
       ))}
     </div>
   );
 }
 
-async function OrdersTotalsSection() {
-  const totals = await getOrderSourceTotals();
+async function OrdersKpiSection() {
+  const kpis = await getOrderHubKpis();
+  const cards = [
+    { label: '本月營收', value: formatCurrency(kpis.monthRevenue) },
+    { label: '今日筆數', value: formatNumber(kpis.todayCount) },
+    { label: '待出貨', value: formatNumber(kpis.pendingFulfillmentCount) },
+  ];
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {totals.map((t) => (
-        <Card key={t.source}>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">
-              <StatusBadge kind="orderSource" value={t.source} />
-            </div>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(t.total)}</p>
-            <p className="text-xs text-muted-foreground">{t.count} 筆訂單</p>
-          </CardContent>
-        </Card>
+    <div className="grid gap-3 sm:grid-cols-3">
+      {cards.map((c) => (
+        <div key={c.label} className="bento-kpi space-y-3">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-white/55">
+            {c.label}
+          </p>
+          <p className="font-display text-3xl font-semibold tracking-tight tabular-nums text-white md:text-4xl">
+            {c.value}
+          </p>
+        </div>
       ))}
     </div>
   );
@@ -149,48 +152,52 @@ export default function OrdersPage({
 }: {
   searchParams: { source?: string; status?: string; q?: string; page?: string };
 }) {
+  const q = searchParams.q ?? '';
+
   return (
     <>
       <PageHeader
         tone="orders"
-        title="訂單 Order Hub"
-        description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
+        title="訂單"
+        description="本月重點數字與訂單工作台"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">
               <Plus className="mr-1 h-4 w-4" />
-              新增訂單
+              新建訂單
             </Link>
           </Button>
         }
       />
 
-      <div className="space-y-4 p-4 sm:p-6">
-        <Suspense fallback={<OrdersTotalsFallback />}>
-          <OrdersTotalsSection />
+      <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+        <form method="get" className="bento-card p-3 sm:p-4">
+          {searchParams.source ? (
+            <input type="hidden" name="source" value={searchParams.source} />
+          ) : null}
+          {searchParams.status ? (
+            <input type="hidden" name="status" value={searchParams.status} />
+          ) : null}
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="搜尋訂單編號、收件人、備註…"
+              className="h-11 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </label>
+        </form>
+
+        <Suspense fallback={<OrdersKpiFallback />}>
+          <OrdersKpiSection />
         </Suspense>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">種類</span>
-          {ORDER_SOURCE_TABS.map((s) => {
-            const active =
-              (searchParams.source ?? '') === s.key ||
-              (s.key === 'consignment' && searchParams.source === 'restock');
-            const href = s.key ? `/orders?source=${s.key}` : '/orders';
-            return (
-              <Button
-                key={s.key || 'all'}
-                variant={active ? 'default' : 'outline'}
-                size="sm"
-                asChild
-              >
-                <Link href={href} prefetch>
-                  {s.label}
-                </Link>
-              </Button>
-            );
-          })}
-        </div>
+        <OrdersListFilters
+          source={searchParams.source}
+          status={searchParams.status}
+          q={q || undefined}
+        />
 
         <Suspense
           key={`${searchParams.source ?? ''}|${searchParams.status ?? ''}|${searchParams.q ?? ''}|${searchParams.page ?? '1'}`}

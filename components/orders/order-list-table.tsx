@@ -9,181 +9,116 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { formatCurrency, formatDateTime } from '@/lib/format';
-import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
-import { shipmentStatusLabel } from '@/lib/shipment';
 import type { Prisma } from '@prisma/client';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { ChevronRight, Package } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
-function fulfillmentDisplay(order: OrderListRow): string {
-  const shipment = order.shipments[0];
-  if (!shipment) return order.fulfillmentStatus;
-  if (shipment.status === 'packed' || shipment.status === 'pending') return 'pending';
-  if (shipment.status === 'shipped') return 'shipped';
-  if (shipment.status === 'delivered') return 'delivered';
-  if (shipment.status === 'cancelled') return 'returned';
-  return order.fulfillmentStatus;
+function counterparty(order: OrderListRow) {
+  return order.customer?.name ?? order.merchant?.name ?? '—';
 }
 
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
   if (orders.length === 0) {
     return (
-      <Card className="p-0">
-        <p className="py-10 text-center text-sm text-muted-foreground">沒有符合條件的訂單</p>
-      </Card>
+      <div className="bento-card px-4 py-12 text-center text-sm text-muted-foreground">
+        沒有符合條件的訂單
+      </div>
     );
   }
 
   return (
     <>
-      {/* 手機：虛擬化卡片，免左右滑動 */}
       <div className="md:hidden">
         <VirtualCardList
           items={orders}
-          estimateSize={168}
+          estimateSize={112}
           getKey={(o) => o.id}
           renderItem={(o) => <OrderCard order={o} />}
         />
       </div>
 
-      {/* 桌機：完整表格（已分頁，列數有限） */}
-      <Card className="hidden p-0 md:block">
+      <div className="bento-card hidden overflow-hidden md:block">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>訂單編號</TableHead>
-              <TableHead>來源</TableHead>
-              <TableHead>客戶</TableHead>
-              <TableHead>店家</TableHead>
-              <TableHead className="min-w-[10rem]">運輸資訊</TableHead>
-              <TableHead className="text-right">品項</TableHead>
-              <TableHead className="text-right">總額</TableHead>
-              <TableHead>付款</TableHead>
-              <TableHead>出貨</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead>下單時間</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="whitespace-nowrap pl-5">訂單編號</TableHead>
+              <TableHead className="min-w-[8rem]">對象</TableHead>
+              <TableHead className="whitespace-nowrap text-right">總額</TableHead>
+              <TableHead className="whitespace-nowrap">狀態</TableHead>
+              <TableHead className="whitespace-nowrap pr-5">時間</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((o) => {
-              const logistics = resolveLogisticsForOrderList(o);
-              return (
-                <TableRow key={o.id}>
-                  <TableCell>
-                    <Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">
-                      {o.orderNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="orderSource" value={o.source} />
-                  </TableCell>
-                  <TableCell className="text-sm">{o.customer?.name ?? '-'}</TableCell>
-                  <TableCell className="text-sm">
-                    {o.merchant ? (
-                      <Link
-                        href={`/merchants/${o.merchant.id}`}
-                        className="text-info hover:underline"
-                      >
-                        {o.merchant.name}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <LogisticsSummary logistics={logistics} compact />
-                  </TableCell>
-                  <TableCell className="text-right">{o._count.items}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(Number(o.total))}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="payment" value={o.paymentStatus} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
-                      {o.shipments[0] ? (
-                        <Link
-                          href={`/shipments/${o.shipments[0].id}`}
-                          className="block font-mono text-[11px] text-info hover:underline"
-                        >
-                          {o.shipments[0].shipmentNumber} ·{' '}
-                          {shipmentStatusLabel[o.shipments[0].status] ?? o.shipments[0].status}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="order" value={o.status} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDateTime(o.orderedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {orders.map((o) => (
+              <TableRow key={o.id} className="group">
+                <TableCell className="pl-5">
+                  <Link
+                    href={`/orders/${o.id}`}
+                    className="font-mono text-xs font-medium text-ink hover:underline"
+                  >
+                    {o.orderNumber}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-ink">{counterparty(o)}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {o.customer?.name && o.merchant?.name
+                        ? o.merchant.name
+                        : o.source === 'consignment'
+                          ? '寄賣'
+                          : o.source === 'website'
+                            ? '官網'
+                            : o.source === 'line'
+                              ? 'LINE'
+                              : '手動'}
+                    </p>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums">
+                  {formatCurrency(Number(o.total))}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge kind="order" value={o.status} />
+                </TableCell>
+                <TableCell className="pr-5 text-sm text-muted-foreground tabular-nums">
+                  {formatDateTime(o.orderedAt)}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
-      </Card>
+      </div>
     </>
   );
 }
 
 function OrderCard({ order: o }: { order: OrderListRow }) {
-  const logistics = resolveLogisticsForOrderList(o);
-  const counterparty = o.customer?.name ?? o.merchant?.name ?? '—';
-  const shipment = o.shipments[0];
-
   return (
     <Link
       href={`/orders/${o.id}`}
-      className="block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-colors active:bg-muted/40"
+      className={cn(
+        'flex items-center justify-between gap-3 border-b border-border/70 bg-card px-4 py-4',
+        'transition-colors active:bg-muted/40',
+      )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{o.orderNumber}</span>
-            <StatusBadge kind="orderSource" value={o.source} />
-          </div>
-          <p className="mt-1 truncate text-sm font-medium text-foreground">{counterparty}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1 text-right">
-          <div>
-            <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
-            <p className="text-[11px] text-muted-foreground">
-              <Package className="mr-0.5 inline h-3 w-3 align-[-1px]" />
-              {o._count.items} 項
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+      <div className="min-w-0">
+        <p className="font-mono text-sm font-semibold text-ink">{o.orderNumber}</p>
+        <p className="mt-0.5 truncate text-sm text-foreground">{counterparty(o)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <StatusBadge kind="order" value={o.status} />
+          <span className="text-[11px] text-muted-foreground">{formatDateTime(o.orderedAt)}</span>
         </div>
       </div>
-
-      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
-        <LogisticsSummary logistics={logistics} compact />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <StatusBadge kind="order" value={o.status} />
-        <StatusBadge kind="payment" value={o.paymentStatus} />
-        <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
-      </div>
-
-      <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span>{formatDateTime(o.orderedAt)}</span>
-        {shipment ? (
-          <span className="truncate font-mono text-info">
-            {shipment.shipmentNumber} · {shipmentStatusLabel[shipment.status] ?? shipment.status}
-          </span>
-        ) : null}
+      <div className="flex shrink-0 items-center gap-1 text-right">
+        <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
+        <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
       </div>
     </Link>
   );
