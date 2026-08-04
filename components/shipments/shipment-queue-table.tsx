@@ -392,15 +392,22 @@ export function ShipmentQueueTable({
                 <TableRow
                   key={shipment.id}
                   className={cn(
-                    'relative cursor-pointer align-top transition-colors hover:bg-muted/40',
-                    'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary before:opacity-0 before:transition-opacity',
+                    'cursor-pointer align-top transition-colors hover:bg-muted/40',
                     selectedShipmentId === shipment.id &&
-                      'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
+                      'bg-primary/[0.06] hover:bg-primary/[0.06]',
                   )}
                   onClick={() => onSelectShipment(shipment)}
                   title={`${number} · ${party} · ${shipment.shipmentNumber}`}
                 >
-                  <TableCell className="py-3">
+                  <TableCell className="relative py-3 pl-4">
+                    {/* 選取指示線放在 td 內，不可用 tr::before（會多出一欄導致整列錯位） */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute inset-y-2 left-0 w-0.5 rounded-full bg-ink transition-opacity',
+                        selectedShipmentId === shipment.id ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
                     <span
                       className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
                       title={shipment.shipmentNumber}
