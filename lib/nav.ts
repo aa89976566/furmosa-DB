@@ -6,7 +6,6 @@ import {
   Package,
   ShoppingCart,
   Boxes,
-  CheckSquare,
   Repeat,
   Rocket,
   Gift,
@@ -31,14 +30,15 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/** 高頻在上、訂閱置底（倒數第一） */
 export const navGroups: NavGroup[] = [
   {
     label: '總覽',
     tone: 'overview',
-    items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+    items: [{ href: '/dashboard', label: '儀表板', icon: LayoutDashboard }],
   },
   {
-    label: '主資料 Master Data',
+    label: '主資料',
     tone: 'master',
     items: [
       { href: '/vendors', label: '廠商', icon: Building2 },
@@ -47,7 +47,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '訂單 Order Hub',
+    label: '訂單',
     tone: 'orders',
     items: [
       { href: '/orders', label: '訂單列表', icon: ShoppingCart },
@@ -57,16 +57,7 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '訂閱制 Subscription',
-    tone: 'subscription',
-    items: [
-      { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
-      { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
-      { href: '/subscriptions/plans', label: '訂閱方案', icon: ListChecks },
-    ],
-  },
-  {
-    label: '庫存 Inventory',
+    label: '庫存',
     tone: 'inventory',
     items: [
       { href: '/inventory', label: '即時庫存', icon: Boxes },
@@ -74,28 +65,36 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '換罐會員',
+    label: '換罐',
     tone: 'supply',
     items: [
-      { href: '/jar-exchange/members', label: '會員列表', icon: Users },
+      { href: '/jar-exchange/members', label: '會員', icon: Users },
       { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
       { href: '/jar-exchange/flavours', label: '口味與庫存', icon: Package },
-      { href: '/jar-exchange/manage?tab=codes', label: '序號管理', icon: Rocket },
-      { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', icon: Rocket },
-      { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', icon: Gift },
-      { href: '/admin/store-report', label: '店家核銷報表', icon: BarChart3 },
+      { href: '/jar-exchange/manage?tab=codes', label: '序號', icon: Rocket },
+      { href: '/jar-exchange/manage?tab=ledger', label: '點數', icon: Rocket },
+      { href: '/jar-exchange/manage?tab=rewards', label: '禮品', icon: Gift },
+      { href: '/admin/store-report', label: '核銷報表', icon: BarChart3 },
     ],
   },
   {
-    label: '營運任務',
+    label: '營運',
     tone: 'operations',
     items: [
-      { href: '/tasks', label: '任務看板', icon: CheckSquare },
       {
         href: '/campaigns/jiba-two-piece',
-        label: '雞霸開箱審核',
+        label: '雞霸開箱',
         icon: PackageOpen,
       },
+    ],
+  },
+  {
+    label: '訂閱',
+    tone: 'subscription',
+    items: [
+      { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
+      { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
+      { href: '/subscriptions/plans', label: '訂閱方案', icon: ListChecks },
     ],
   },
 ];

@@ -143,7 +143,40 @@ async function nextJarSaleOrderNumber(db: DbClient = prisma) {
 export async function resolveJarCodeSaleUnitPrice(
   jarCode: { productSku: string | null },
   db: DbClient = prisma,
-): Promise<{ unitPrice: number; productId: string | null; productName: string; sku: string }> {
+  opts?: { flavourCode?: string | null; flavourName?: string | null },
+): Promise<{
+  unitPrice: number;
+  productId: string | null;
+  productName: string;
+  sku: string;
+}> {
+  const flavourName = opts?.flavourName?.trim() || null;
+
+  if (flavourName) {
+    const byFlavour = await db.product.findFirst({
+      where: {
+        productCategory: 'JAR_EXCHANGE',
+        status: 'active',
+        OR: [
+          { name: flavourName },
+          { name: `換罐-${flavourName}` },
+          { name: `換罐 - ${flavourName}` },
+          { name: { contains: flavourName } },
+        ],
+      },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, sku: true, price: true },
+    });
+    if (byFlavour) {
+      return {
+        unitPrice: Number(byFlavour.price),
+        productId: byFlavour.id,
+        productName: byFlavour.name,
+        sku: byFlavour.sku,
+      };
+    }
+  }
+
   if (jarCode.productSku) {
     const product = await db.product.findFirst({
       where: { sku: jarCode.productSku },
@@ -153,7 +186,7 @@ export async function resolveJarCodeSaleUnitPrice(
       return {
         unitPrice: Number(product.price),
         productId: product.id,
-        productName: product.name,
+        productName: flavourName ? `換罐-${flavourName}` : product.name,
         sku: product.sku,
       };
     }
@@ -168,7 +201,7 @@ export async function resolveJarCodeSaleUnitPrice(
     return {
       unitPrice: Number(fallback.price),
       productId: fallback.id,
-      productName: fallback.name,
+      productName: flavourName ? `換罐-${flavourName}` : fallback.name,
       sku: fallback.sku,
     };
   }
@@ -176,7 +209,7 @@ export async function resolveJarCodeSaleUnitPrice(
   return {
     unitPrice: 0,
     productId: null,
-    productName: '換罐商品',
+    productName: flavourName ? `換罐-${flavourName}` : '換罐商品',
     sku: 'JAR',
   };
 }
@@ -187,6 +220,7 @@ export async function recordJarExchangeSaleOnRedeem(
   jarCodeId: string,
   code: string,
   db: DbClient = prisma,
+  opts?: { flavourCode?: string | null; flavourName?: string | null },
 ) {
   const jarCode = await db.jarCode.findUnique({
     where: { id: jarCodeId },
@@ -200,14 +234,23 @@ export async function recordJarExchangeSaleOnRedeem(
   });
   if (existing) return existing;
 
-  const priceInfo = await resolveJarCodeSaleUnitPrice(jarCode, db);
+  const priceInfo = await resolveJarCodeSaleUnitPrice(jarCode, db, opts);
   if (priceInfo.unitPrice <= 0 || !priceInfo.productId) return null;
+
+  // 補綁序號 SKU，之後報表／列表可對到商品
+  if (!jarCode.productSku && priceInfo.sku && priceInfo.sku !== 'JAR') {
+    await db.jarCode.update({
+      where: { id: jarCodeId },
+      data: { productSku: priceInfo.sku },
+    });
+  }
 
   const orderNumber = await nextJarSaleOrderNumber(db);
   const customer = await db.customer.findUnique({
     where: { id: customerId },
     select: { signupStore: true, storeId: true },
   });
+  const flavourTag = opts?.flavourName ? `・口味 ${opts.flavourName}` : '';
 
   return db.order.create({
     data: {
@@ -225,7 +268,7 @@ export async function recordJarExchangeSaleOnRedeem(
       companyShippingCost: 0,
       total: priceInfo.unitPrice,
       shippingMethod: 'delivery',
-      note: `換罐序號 ${code} 返航入帳（${customer?.signupStore ?? customer?.storeId ?? '會員'}）`,
+      note: `換罐序號 ${code} 返航入帳（${customer?.signupStore ?? customer?.storeId ?? '會員'}）${flavourTag}`,
       orderedAt: new Date(),
       completedAt: new Date(),
       items: {

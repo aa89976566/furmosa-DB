@@ -16,6 +16,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -66,6 +67,10 @@ const config: Config = {
         navy: 'hsl(var(--navy))',
         coral: 'hsl(var(--coral))',
         canvas: 'hsl(var(--canvas))',
+        sage: 'hsl(var(--sage))',
+        ink: 'hsl(var(--ink))',
+        orange: 'hsl(var(--brand-orange))',
+        yellow: 'hsl(var(--brand-yellow))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -75,9 +80,8 @@ const config: Config = {
         '2xl': 'calc(var(--radius) + 8px)',
       },
       boxShadow: {
-        card: '0 1px 2px hsl(215 44% 14% / 0.04), 0 8px 24px hsl(215 44% 14% / 0.06)',
-        'card-hover':
-          '0 2px 4px hsl(215 44% 14% / 0.05), 0 12px 32px hsl(215 44% 14% / 0.08)',
+        card: '0 1px 2px hsl(0 0% 0% / 0.04)',
+        'card-hover': '0 4px 16px hsl(0 0% 0% / 0.06)',
       },
       keyframes: {
         'accordion-down': {

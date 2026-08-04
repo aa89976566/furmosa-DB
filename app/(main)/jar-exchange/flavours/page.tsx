@@ -81,13 +81,13 @@ export default async function RefillFlavoursAdminPage() {
               <div className="md:col-span-2 flex flex-wrap gap-2">
                 <button
                   type="submit"
-                  className="rounded bg-[#C46A2F] px-3 py-1.5 text-sm text-white"
+                  className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground"
                 >
                   儲存設定
                 </button>
                 <button
                   formAction={copyRefillPeriodAction}
-                  className="rounded border border-[#2E231D] bg-[#FFFCF7] px-3 py-1.5 text-sm"
+                  className="rounded border border-ink bg-card px-3 py-1.5 text-sm"
                 >
                   開始新一期（複製庫存紀錄）
                 </button>
@@ -175,7 +175,7 @@ export default async function RefillFlavoursAdminPage() {
               </label>
               <input name="availableFrom" type="date" className="rounded border px-2 py-1.5" />
               <input name="availableUntil" type="date" className="rounded border px-2 py-1.5" />
-              <button type="submit" className="rounded bg-[#71836B] px-3 py-1.5 text-sm text-white">
+              <button type="submit" className="rounded bg-success px-3 py-1.5 text-sm text-success-foreground">
                 新增／更新口味
               </button>
             </form>
@@ -225,7 +225,7 @@ export default async function RefillFlavoursAdminPage() {
                 <input name="isAvailable" type="checkbox" defaultChecked />
                 可選
               </label>
-              <button type="submit" className="rounded bg-[#C46A2F] px-3 py-1.5 text-sm text-white">
+              <button type="submit" className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground">
                 更新庫存
               </button>
               <input

@@ -12,12 +12,12 @@ import {
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 const THEME = {
-  bg: '#F8F3EA',
-  ink: '#2E231D',
-  muted: '#6B5E52',
-  accent: '#C46A2F',
-  cream: '#FFFCF7',
-  soft: '#EEF6F1',
+  bg: '#F6F4F8',
+  ink: '#2F1B41',
+  muted: '#6B5B7A',
+  accent: '#C62C60',
+  cream: '#FFFBFE',
+  soft: '#F9EEF2',
 } as const;
 
 const REGION_ORDER = ['新北據點', '台北據點', '北桃竹據點', '中南部據點', '其他據點'] as const;
@@ -131,7 +131,7 @@ function regionBubble(
       {
         type: 'separator',
         margin: 'md',
-        color: '#E5D9C8',
+        color: '#E5D9EC',
       },
       {
         type: 'box',

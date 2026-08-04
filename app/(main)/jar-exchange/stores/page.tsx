@@ -76,54 +76,117 @@ export default async function JarExchangeStoresPage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/20 text-left text-xs text-muted-foreground">
-                  <th className="px-5 py-3 font-medium">編號</th>
-                  <th className="px-5 py-3 font-medium">店家名稱</th>
-                  <th className="px-5 py-3 font-medium">城市</th>
-                  <th className="px-5 py-3 font-medium">美容折價券</th>
-                  <th className="px-5 py-3 font-medium">類型</th>
-                  <th className="px-5 py-3 text-right font-medium">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {merchants.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
-                      尚無標記為換罐的店家
-                    </td>
-                  </tr>
-                ) : (
-                  merchants.map((merchant) => {
-                    const slug = merchantToStoreSlug(merchant.merchantId);
-                    const discount = getGroomingCouponDiscountForStore(slug, merchant.name);
-                    return (
-                    <tr key={merchant.id} className="hover:bg-muted/10">
-                      <td className="px-5 py-3 font-mono text-xs">{merchant.merchantId}</td>
-                      <td className="px-5 py-3 font-medium">{merchant.name}</td>
-                      <td className="px-5 py-3 text-muted-foreground">{merchant.city ?? '—'}</td>
-                      <td className="px-5 py-3">
-                        <Badge variant={discount === GROOMING_COUPON_DISCOUNT_ZHUWO ? 'warning' : 'secondary'}>
-                          {formatGroomingCouponDiscountAmount(discount)}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-3">
-                        <MerchantTypeBadges types={merchant.types} />
-                      </td>
-                      <td className="px-5 py-3 text-right">
+          {merchants.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+              尚無標記為換罐的店家
+            </p>
+          ) : (
+            <>
+              <div className="lg:hidden">
+                {merchants.map((merchant) => {
+                  const slug = merchantToStoreSlug(merchant.merchantId);
+                  const discount = getGroomingCouponDiscountForStore(slug, merchant.name);
+                  return (
+                    <article
+                      key={merchant.id}
+                      className="space-y-3 border-b border-border/70 px-5 py-4 last:border-b-0"
+                    >
+                      <div className="min-w-0">
+                        <h3 className="break-words font-medium text-ink">{merchant.name}</h3>
+                        <p className="font-mono text-xs text-muted-foreground">
+                          {merchant.merchantId}
+                        </p>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <dt className="text-[11px] text-muted-foreground">城市</dt>
+                          <dd>{merchant.city ?? '—'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] text-muted-foreground">美容折價券</dt>
+                          <dd className="mt-1">
+                            <Badge
+                              variant={
+                                discount === GROOMING_COUPON_DISCOUNT_ZHUWO
+                                  ? 'warning'
+                                  : 'secondary'
+                              }
+                            >
+                              {formatGroomingCouponDiscountAmount(discount)}
+                            </Badge>
+                          </dd>
+                        </div>
+                        <div className="col-span-2">
+                          <dt className="text-[11px] text-muted-foreground">類型</dt>
+                          <dd className="mt-1">
+                            <MerchantTypeBadges types={merchant.types} />
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="flex justify-end border-t border-border/50 pt-3">
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/merchants/${merchant.id}`}>查看</Link>
                         </Button>
-                      </td>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-left text-xs text-muted-foreground">
+                      <th className="whitespace-nowrap px-5 py-3 font-medium">編號</th>
+                      <th className="min-w-[10rem] px-5 py-3 font-medium">店家名稱</th>
+                      <th className="whitespace-nowrap px-5 py-3 font-medium">城市</th>
+                      <th className="whitespace-nowrap px-5 py-3 font-medium">美容折價券</th>
+                      <th className="px-5 py-3 font-medium">類型</th>
+                      <th className="px-5 py-3 text-right font-medium">操作</th>
                     </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y">
+                    {merchants.map((merchant) => {
+                      const slug = merchantToStoreSlug(merchant.merchantId);
+                      const discount = getGroomingCouponDiscountForStore(slug, merchant.name);
+                      return (
+                        <tr key={merchant.id} className="align-top hover:bg-muted/10">
+                          <td className="whitespace-nowrap px-5 py-3 font-mono text-xs">
+                            {merchant.merchantId}
+                          </td>
+                          <td className="max-w-[14rem] break-words px-5 py-3 font-medium">
+                            {merchant.name}
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
+                            {merchant.city ?? '—'}
+                          </td>
+                          <td className="px-5 py-3">
+                            <Badge
+                              variant={
+                                discount === GROOMING_COUPON_DISCOUNT_ZHUWO
+                                  ? 'warning'
+                                  : 'secondary'
+                              }
+                            >
+                              {formatGroomingCouponDiscountAmount(discount)}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-3">
+                            <MerchantTypeBadges types={merchant.types} />
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/merchants/${merchant.id}`}>查看</Link>
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </JarPanel>
       </div>
     </JarShell>

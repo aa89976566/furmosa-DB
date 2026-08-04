@@ -4,15 +4,15 @@
  * 區塊第一個子元件不可 absolute，故先放 1px filler 錨點。
  *
  * 可讀性：狗臉筆觸偏黑，與內文同色會糊在一起。
- * 做法是 (1) 使用陰影已提亮的底圖 (2) 再鋪半透明奶油色遮罩。
+ * 做法是 (1) 使用陰影已提亮的底圖 (2) 再鋪半透明淡紫遮罩。
  */
 
 /** 狗鼻底圖（v3：陰影提亮，破 LINE CDN 快取） */
 export const JAR_DIALOGUE_BG_PATH = '/images/refill-plan/dialogue-bg-nose-v3.jpg';
 
-const CREAM = '#F8F3EA';
-/** 約 55% 奶油遮罩：插畫仍透出，內文對比足夠 */
-const CREAM_SCRIM = '#F8F3EA8C';
+const CREAM = '#F6F4F8';
+/** 約 55% 淡紫遮罩：插畫仍透出，內文對比足夠 */
+const CREAM_SCRIM = '#F6F4F88C';
 
 type FlexComponent = Record<string, unknown>;
 

@@ -4,71 +4,83 @@
 
 @layer base {
   :root {
-  /* Monzo-inspired: coral CTA, navy text, soft canvas */
-    --background: 220 20% 97%;
-    --foreground: 215 44% 14%;
+    /*
+      Furmosa 工作台 — 黑白 Bento（參考高對比資料台）
+      Ink #111｜Canvas #F7F7F7｜Card #FFF｜Border #E5E5E5
+    */
+    --background: 0 0% 97%; /* #F7F7F7 */
+    --foreground: 0 0% 7%; /* #111 */
     --card: 0 0% 100%;
-    --card-foreground: 215 44% 14%;
+    --card-foreground: 0 0% 7%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 44% 14%;
-    --primary: 6 100% 63%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 0 0% 7%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 93%;
-    --secondary-foreground: 215 44% 14%;
-    --muted: 220 16% 95%;
-    --muted-foreground: 215 12% 46%;
-    --accent: 6 100% 96%;
-    --accent-foreground: 215 44% 14%;
-    --destructive: 4 88% 58%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 0% 20%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 89%;
-    --input: 220 16% 89%;
-    --ring: 6 90% 58%;
-    --radius: 0.875rem;
+    --border: 0 0% 90%; /* #E5E5E5 */
+    --input: 0 0% 90%;
+    --ring: 0 0% 7%;
+    --radius: 1rem;
 
-    --success: 148 100% 36%;
+    --success: 0 0% 20%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 95% 52%;
-    --warning-foreground: 215 44% 14%;
-    --info: 212 80% 48%;
+    --warning: 0 0% 35%;
+    --warning-foreground: 0 0% 100%;
+    --info: 0 0% 45%;
     --info-foreground: 0 0% 100%;
-    --navy: 215 44% 14%;
-    --coral: 6 100% 63%;
-    --canvas: 220 20% 97%;
+
+    --navy: 0 0% 7%;
+    --coral: 0 0% 7%;
+    --canvas: 0 0% 97%;
     --surface-raised: 0 0% 100%;
+    --sage: 0 0% 45%;
+    --ink: 0 0% 7%;
+    --brand-orange: 0 0% 35%;
+    --brand-yellow: 0 0% 55%;
   }
 
   .dark {
-    --background: 215 44% 8%;
-    --foreground: 210 40% 98%;
-    --card: 215 40% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 215 40% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 6 100% 66%;
-    --primary-foreground: 215 44% 10%;
-    --secondary: 215 32% 16%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 32% 16%;
-    --muted-foreground: 215 16% 65%;
-    --accent: 6 55% 18%;
-    --accent-foreground: 6 100% 92%;
-    --destructive: 4 78% 55%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 28% 18%;
-    --input: 215 28% 18%;
-    --ring: 6 90% 62%;
+    --background: 0 0% 7%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 7%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 14%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 0% 70%;
+    --destructive-foreground: 0 0% 7%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 96%;
 
-    --success: 148 72% 42%;
-    --success-foreground: 215 44% 10%;
-    --warning: 38 92% 55%;
-    --warning-foreground: 215 44% 10%;
-    --info: 212 75% 58%;
-    --info-foreground: 215 44% 10%;
-    --navy: 210 40% 98%;
-    --coral: 6 100% 66%;
-    --canvas: 215 44% 8%;
-    --surface-raised: 215 40% 11%;
+    --success: 0 0% 70%;
+    --success-foreground: 0 0% 7%;
+    --warning: 0 0% 65%;
+    --warning-foreground: 0 0% 7%;
+    --info: 0 0% 65%;
+    --info-foreground: 0 0% 7%;
+    --navy: 0 0% 96%;
+    --coral: 0 0% 96%;
+    --canvas: 0 0% 7%;
+    --surface-raised: 0 0% 10%;
+    --sage: 0 0% 65%;
+    --ink: 0 0% 96%;
+    --brand-orange: 0 0% 65%;
+    --brand-yellow: 0 0% 75%;
   }
 }
 
@@ -79,6 +91,11 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+  h1,
+  h2,
+  .font-display {
+    letter-spacing: -0.02em;
   }
 }
 
@@ -92,15 +109,29 @@
   .text-navy {
     color: hsl(var(--navy));
   }
+  .text-ink {
+    color: hsl(var(--ink));
+  }
+  .text-sage {
+    color: hsl(var(--sage));
+  }
+  .bg-sage {
+    background-color: hsl(var(--sage));
+  }
+  .pos-atmosphere {
+    background-color: hsl(var(--canvas));
+  }
   .shadow-card {
-    box-shadow:
-      0 1px 2px hsl(215 44% 14% / 0.04),
-      0 8px 24px hsl(215 44% 14% / 0.06);
+    box-shadow: 0 1px 2px hsl(0 0% 0% / 0.04);
   }
   .shadow-card-hover {
-    box-shadow:
-      0 2px 4px hsl(215 44% 14% / 0.05),
-      0 12px 32px hsl(215 44% 14% / 0.08);
+    box-shadow: 0 4px 16px hsl(0 0% 0% / 0.06);
+  }
+  .bento-card {
+    @apply rounded-2xl border border-border/80 bg-card shadow-card;
+  }
+  .bento-kpi {
+    @apply rounded-2xl bg-ink p-5 text-white shadow-card;
   }
 }
 
