@@ -9,6 +9,11 @@ import { isBookableForRefill } from '@/lib/refill/eligibility';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import {
+  CUSTOMER_PAYMENT_SELECT,
+  mapCustomerPayments,
+  type CustomerPaymentView,
+} from '@/lib/refill/integrity-lock';
 
 export async function countIssuedJars(customerId: string): Promise<number> {
   return prisma.jarCode.count({
@@ -272,6 +277,7 @@ export async function getRefillOrderForCustomer(orderId: string, customerId: str
       payments: {
         orderBy: { createdAt: 'desc' },
         take: 5,
+        select: CUSTOMER_PAYMENT_SELECT,
       },
     },
   });
@@ -303,8 +309,16 @@ export function serializeOrder(order: {
     status: string;
     serviceName: string;
   };
-  payments?: { id: string; purpose: string; amount: number; status: string; merchantTradeNo: string }[];
+  payments?: Array<{
+    id: string;
+    purpose: string;
+    amount: number;
+    status: string;
+    paidAt: Date | string | null;
+    merchantTradeNo: string;
+  }>;
 }) {
+  const payments: CustomerPaymentView[] = mapCustomerPayments(order.payments);
   return {
     id: order.id,
     status: order.status,
@@ -326,6 +340,6 @@ export function serializeOrder(order: {
     missingContainerNote: order.missingContainerNote,
     paidAt: order.paidAt?.toISOString() ?? null,
     completedAt: order.completedAt?.toISOString() ?? null,
-    payments: order.payments ?? [],
+    payments,
   };
 }
