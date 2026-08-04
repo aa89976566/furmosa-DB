@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -372,9 +371,10 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 lg:block">
-        <Table className="min-w-[68rem]">
+        {/* 單一捲動層，避免 Table 元件雙層 overflow 造成表頭／欄位錯位 */}
+        <table className="min-w-[68rem] w-full caption-bottom text-sm">
           <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow>
+            <TableRow className="hover:bg-transparent">
               <TableHead className="min-w-[10rem] whitespace-nowrap">單號</TableHead>
               <TableHead className="min-w-[9rem] whitespace-nowrap">對象</TableHead>
               <TableHead className="min-w-[12.5rem] whitespace-nowrap">運輸狀態</TableHead>
@@ -454,7 +454,7 @@ export function ShipmentQueueTable({
               );
             })}
           </TableBody>
-        </Table>
+        </table>
       </div>
     </>
   );
