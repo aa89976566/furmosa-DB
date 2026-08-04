@@ -12,6 +12,8 @@ export const customerServiceStatusLabel: Record<string, string> = {
 
 export const jarCodeStatusLabel: Record<string, string> = {
   unused: '未使用',
+  issued: '持有中',
+  returned: '已回收',
   used: '已返航',
   expired: '已過期',
 };
@@ -22,6 +24,7 @@ export const ledgerSourceLabel: Record<string, string> = {
   reward_redemption: '獎勵兌換',
   grooming_coupon_redemption: '美容折價券兌換',
   campaign_bonus: '活動贈點',
+  refill_completed: '換罐交付完成',
 };
 
 export const rewardActiveLabel: Record<string, string> = {

@@ -11,6 +11,12 @@ import { CustomerServicesBlock } from '@/components/customers/customer-services-
 import { CustomerJarExchangePanel } from '@/components/customers/customer-jar-exchange-panel';
 import { CustomerOrdersPreview } from '@/components/customers/customer-orders-preview';
 import { CustomerDeleteButton } from '@/components/customers/customer-delete-button';
+import {
+  CustomerIssuedJars,
+  CustomerOpenRefills,
+  CustomerPointsSummary,
+  CustomerRecentAppointments,
+} from '@/components/customers/customer-crm-sections';
 import { loadCustomerDetail } from '@/lib/customers/load-customer-detail';
 import { parseTags } from '@/lib/parse-tags';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
@@ -23,7 +29,16 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
   const data = await loadCustomerDetail(params.id);
   if (!data) notFound();
 
-  const { customer, hasJar, jar } = data;
+  const {
+    customer,
+    hasJar,
+    jar,
+    issuedJars,
+    recentAppointments,
+    openRefillOrders,
+    recentPointsLedger,
+    pointsBalance,
+  } = data;
   const tags = parseTags(customer.tags);
   const activeSub = customer.subscriptions.find((s) => s.status === 'active');
   const orderTotal = customer._count.orders;
@@ -112,6 +127,19 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           />
         </div>
 
+        <CustomerContactCard customer={customer} tags={tags} />
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <CustomerPointsSummary
+            pointsBalance={pointsBalance}
+            recentLedger={recentPointsLedger}
+            customerId={customer.id}
+          />
+          <CustomerIssuedJars jars={issuedJars} />
+          <CustomerRecentAppointments appointments={recentAppointments} />
+          <CustomerOpenRefills orders={openRefillOrders} />
+        </div>
+
         {hasJar && jar ? (
           <SectionCard title="換罐會員" tone="supply" contentClassName="pt-6">
             <CustomerJarExchangePanel
@@ -141,7 +169,6 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
 
         <div className="grid gap-6 lg:grid-cols-5">
           <div className="space-y-6 lg:col-span-3">
-            <CustomerContactCard customer={customer} tags={tags} />
             <CustomerOrdersPreview orders={customer.orders} totalCount={orderTotal} />
           </div>
           <div className="space-y-6 lg:col-span-2">
