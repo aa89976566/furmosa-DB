@@ -12,12 +12,12 @@ export function PosLoginForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState(posLoginAction, initialState);
 
   return (
-    <Card>
+    <Card className="rounded-[1.35rem] border-border/60 shadow-card">
       <CardContent className="p-6">
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next ?? ''} />
           <div className="space-y-1.5">
-            <label htmlFor="username" className="text-sm font-medium">
+            <label htmlFor="username" className="text-sm font-medium text-navy">
               帳號
             </label>
             <Input
@@ -27,11 +27,11 @@ export function PosLoginForm({ next }: { next?: string }) {
               autoComplete="username"
               defaultValue={state.values?.username ?? ''}
               required
-              className="h-11"
+              className="h-12 rounded-xl text-base"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium">
+            <label htmlFor="password" className="text-sm font-medium text-navy">
               密碼
             </label>
             <Input
@@ -40,11 +40,11 @@ export function PosLoginForm({ next }: { next?: string }) {
               type="password"
               autoComplete="current-password"
               required
-              className="h-11"
+              className="h-12 rounded-xl text-base"
             />
           </div>
           {state.error ? (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {state.error}
             </p>
           ) : null}
