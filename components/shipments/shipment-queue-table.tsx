@@ -66,8 +66,11 @@ export type ShipmentQueueRow = {
 
 type QueueRowView = {
   shipment: ShipmentQueueRow;
-  label: string;
+  /** 單號欄：訂單號／訂閱號／出貨單號（不再用店名充當單號） */
+  docNumber: string;
   shortNumber: string;
+  /** 對象：顧客／收件人／店家 */
+  party: string;
   logistics: ReturnType<typeof resolveLogisticsFromShipment>;
   productLines: string[];
   totalQty: number;
@@ -83,16 +86,28 @@ function shortShipmentNumber(value: string) {
   return value.length > 10 ? value.slice(-10) : value;
 }
 
-function rowLabel(s: ShipmentQueueRow) {
-  if (s.type === 'merchant_restock' && s.merchant?.name) {
-    return s.merchant.name;
-  }
+/** 單號：優先訂單／訂閱編號，避免寄賣單把店名塞進單號欄 */
+function docNumber(s: ShipmentQueueRow) {
   return (
     s.order?.orderNumber ??
     s.subscriptionShipment?.subscription?.subscriptionNo ??
     s.subscriptionShipment?.shipmentNo ??
     s.shipmentNumber
   );
+}
+
+/** 對象：顧客 → 收件人 → 店家聯絡人 → 店名 */
+function partyName(s: ShipmentQueueRow) {
+  const recipient = s.recipientName?.trim();
+  if (s.customer?.name) return s.customer.name;
+  if (recipient) return recipient;
+  if (s.type === 'merchant_restock' && s.merchant?.name) {
+    return s.merchant.contactName?.trim()
+      ? `${s.merchant.name}（${s.merchant.contactName.trim()}）`
+      : s.merchant.name;
+  }
+  if (s.merchant?.name) return s.merchant.name;
+  return '未指定對象';
 }
 
 function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
@@ -122,8 +137,9 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
 
   return {
     shipment: s,
-    label: rowLabel(s),
+    docNumber: docNumber(s),
     shortNumber: shortShipmentNumber(s.shipmentNumber),
+    party: partyName(s),
     logistics,
     productLines,
     totalQty,
@@ -136,7 +152,7 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
 
 function ItemBulletList({ items }: { items: string[] }) {
   return (
-    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+    <ul className="list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-muted-foreground">
       {items.map((item, index) => (
         <li key={`${index}-${item}`} className="break-words [overflow-wrap:anywhere]">
           {item}
@@ -156,7 +172,7 @@ function LogisticsBlock({
   const { logistics, scheduledDate } = view;
 
   return (
-    <div className="space-y-1">
+    <div className="min-w-[10rem] space-y-1">
       {variant === 'subscription' && scheduledDate ? (
         <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-medium text-info">
           <CalendarClock className="h-3.5 w-3.5 shrink-0" />
@@ -172,7 +188,6 @@ function LogisticsBlock({
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{logistics.destination}</span>
       </div>
-      <div className="pl-5 text-xs text-muted-foreground">{logistics.contactName}</div>
     </div>
   );
 }
@@ -183,7 +198,7 @@ function ProductsBlock({ view }: { view: QueueRowView }) {
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="min-w-[14rem] max-w-md space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
           {view.itemCountLabel}
@@ -226,7 +241,8 @@ function ShipmentQueueCard({
   queueType?: string;
   onSelect: () => void;
 }) {
-  const { shipment, label, shortNumber, logistics } = view;
+  const { shipment, docNumber: number, shortNumber, party, logistics } = view;
+  const unnamed = party === '未指定對象';
 
   return (
     <div
@@ -255,17 +271,29 @@ function ShipmentQueueCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{label}</span>
+            <span className="font-mono text-sm font-semibold text-foreground">{number}</span>
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
           </div>
+          <p
+            className={cn(
+              'mt-0.5 truncate text-sm',
+              unnamed ? 'text-muted-foreground' : 'font-medium text-foreground',
+            )}
+          >
+            {party}
+          </p>
           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{shortNumber}</p>
         </div>
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </div>
 
-      <div className="mt-3" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+      <div
+        className="mt-3"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           運輸狀態
         </p>
@@ -324,10 +352,11 @@ export function ShipmentQueueTable({
 
   return (
     <>
-      <div className="md:hidden">
+      {/* 窄屏／側欄擠壓：用卡片，避免表格欄被壓成中文直排 */}
+      <div className="lg:hidden">
         <VirtualCardList
           items={views}
-          estimateSize={156}
+          estimateSize={200}
           getKey={(view) => view.shipment.id}
           renderItem={(view) => (
             <ShipmentQueueCard
@@ -342,20 +371,22 @@ export function ShipmentQueueTable({
         />
       </div>
 
-      <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
-        <Table>
+      <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 lg:block">
+        <Table className="min-w-[68rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[7.5rem]">單號</TableHead>
+              <TableHead className="w-[11rem]">單號</TableHead>
+              <TableHead className="w-[10rem]">對象</TableHead>
               <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
-              <TableHead className="min-w-[12rem]">寄送地</TableHead>
+              <TableHead className="w-[14rem]">寄送地</TableHead>
               <TableHead className="w-[9rem]">電話</TableHead>
-              <TableHead>商品 · 件數</TableHead>
+              <TableHead className="min-w-[16rem]">商品 · 件數</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {views.map((view) => {
-              const { shipment, label, shortNumber, logistics } = view;
+              const { shipment, docNumber: number, shortNumber, party, logistics } = view;
+              const unnamed = party === '未指定對象';
 
               return (
                 <TableRow
@@ -367,21 +398,33 @@ export function ShipmentQueueTable({
                       'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
                   )}
                   onClick={() => onSelectShipment(shipment)}
-                  title={`${label} · ${shipment.shipmentNumber}`}
+                  title={`${number} · ${party} · ${shipment.shipmentNumber}`}
                 >
                   <TableCell className="py-3">
                     <span
                       className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
                       title={shipment.shipmentNumber}
                     >
-                      {label}
+                      {number}
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
                         {shipmentTypeLabel[shipment.type] ?? shipment.type}
                       </Badge>
-                      <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {shortNumber}
+                      </span>
                     </div>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <p
+                      className={cn(
+                        'text-sm font-medium leading-snug break-words [overflow-wrap:anywhere]',
+                        unnamed ? 'text-muted-foreground' : 'text-foreground',
+                      )}
+                    >
+                      {party}
+                    </p>
                   </TableCell>
                   <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
                     <ShipmentQueueStatusCell
@@ -396,7 +439,7 @@ export function ShipmentQueueTable({
                   </TableCell>
                   <TableCell className="py-3">
                     {logistics.phone && logistics.phone !== '—' ? (
-                      <div className="flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
+                      <div className="flex min-w-[7rem] items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
                         <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="break-all">{logistics.phone}</span>
                       </div>
