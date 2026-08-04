@@ -38,23 +38,15 @@ function queueOptionsForStatus(status: string) {
   return QUEUE_PENDING_OPTIONS;
 }
 
-/** Soft status chip styles — muted fills, no harsh primaries */
-function statusChipClass(value: string, active: boolean) {
+/** Active chip：黑底白字，對齊 Bento 單色系統 */
+function statusChipClass(active: boolean) {
   if (!active) {
     return cn(
       'border-transparent bg-transparent text-muted-foreground',
       'hover:bg-black/[0.04] hover:text-foreground',
     );
   }
-  switch (value) {
-    case 'delivered':
-      return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 shadow-sm';
-    case 'shipped':
-      return 'border-sky-200/80 bg-sky-50 text-sky-800 shadow-sm';
-    case 'pending':
-    default:
-      return 'border-amber-200/80 bg-amber-50 text-amber-900 shadow-sm';
-  }
+  return 'border-ink bg-ink text-white shadow-sm';
 }
 
 export function ShipmentQueueStatusSelect({
@@ -124,7 +116,7 @@ export function ShipmentQueueStatusSelect({
               'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
               'disabled:cursor-not-allowed',
-              statusChipClass(option.value, active),
+              statusChipClass(active),
             )}
           >
             {option.label}
