@@ -88,7 +88,6 @@ async function loadDashboardData() {
     topProductsRaw,
     topMerchantsRaw,
     lowStockBalances,
-    pendingTasks,
     jarKpis,
   ] = (await runInBatches([
     // 順序必須與上方解構變數一致
@@ -190,13 +189,6 @@ async function loadDashboardData() {
       prisma.inventoryBalance.findMany({
         include: { product: true, warehouse: true },
       }),
-    () =>
-      prisma.task.findMany({
-        where: { status: { in: ['todo', 'in_progress', 'blocked'] } },
-        include: { assignee: true },
-        orderBy: { dueDate: 'asc' },
-        take: 6,
-      }),
     () => getMonthJarExchangeKpis(),
   ])) as [
     number,
@@ -238,13 +230,6 @@ async function loadDashboardData() {
       ReturnType<
         typeof prisma.inventoryBalance.findMany<{
           include: { product: true; warehouse: true };
-        }>
-      >
-    >,
-    Awaited<
-      ReturnType<
-        typeof prisma.task.findMany<{
-          include: { assignee: true };
         }>
       >
     >,
@@ -380,16 +365,6 @@ async function loadDashboardData() {
         : null,
     }));
 
-  const pendingTasksPlain = pendingTasks.map((t) => ({
-    id: t.id,
-    taskId: t.taskId,
-    title: t.title,
-    priority: t.priority,
-    status: t.status,
-    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-    assignee: t.assignee ? { name: t.assignee.name } : null,
-  }));
-
   const weekShipmentsPlain = weekShipments.map((sh) => ({
     id: sh.id,
     status: sh.status,
@@ -428,7 +403,6 @@ async function loadDashboardData() {
     topProducts,
     topMerchants,
     lowStockBalances: lowStockPlain,
-    pendingTasks: pendingTasksPlain,
     weekShipments: weekShipmentsPlain,
   };
 }

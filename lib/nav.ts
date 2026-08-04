@@ -6,7 +6,6 @@ import {
   Package,
   ShoppingCart,
   Boxes,
-  CheckSquare,
   Repeat,
   Rocket,
   Gift,
@@ -82,7 +81,6 @@ export const navGroups: NavGroup[] = [
     label: '營運',
     tone: 'operations',
     items: [
-      { href: '/tasks', label: '任務看板', icon: CheckSquare },
       {
         href: '/campaigns/jiba-two-piece',
         label: '雞霸開箱',

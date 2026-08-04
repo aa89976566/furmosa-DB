@@ -4,7 +4,6 @@ import {
   DashboardHeroKpis,
   DashboardKpiOverview,
 } from '@/components/dashboard/dashboard-kpi-overview';
-import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
 import { SectionBlock } from '@/components/shared/section-block';
 import { SectionCard } from '@/components/shared/section-card';
 import { SectionSkeleton } from '@/components/shared/page-skeleton';
@@ -21,7 +20,6 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { getDashboardData } from '@/features/dashboard/queries';
-import { getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
 
 const chartFallback = (
   <div className="h-56 animate-pulse rounded-md bg-muted/40" aria-hidden />
@@ -41,10 +39,6 @@ const TopProductsChart = nextDynamic(
   { loading: () => chartFallback },
 );
 
-export function DashboardTasksFallback() {
-  return <SectionSkeleton rows={5} />;
-}
-
 export function DashboardBodyFallback() {
   return (
     <div className="space-y-8">
@@ -56,16 +50,6 @@ export function DashboardBodyFallback() {
       </div>
       <div className="h-56 animate-pulse rounded-md bg-muted/40" />
     </div>
-  );
-}
-
-export async function DashboardTasksSection() {
-  const todayTasks = await getTodayTasksForDashboard();
-  return (
-    <DashboardTodayTasks
-      key={todayTasks.map((t) => t.id).join('-') || 'empty'}
-      tasks={todayTasks}
-    />
   );
 }
 
@@ -229,86 +213,53 @@ export async function DashboardBodySection() {
         </SectionCard>
       </SectionBlock>
 
-      <SectionBlock tone="inventory" title="庫存與任務" description="需要優先處理的警示與待辦">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <SectionCard
-            tone="inventory"
-            title="低庫存警示"
-            description="WH-MAIN 數量已達或低於補貨點"
-            action={
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/inventory">查看庫存</Link>
-              </Button>
-            }
-          >
-            <Table>
-              <TableHeader>
+      <SectionBlock tone="inventory" title="庫存警示" description="需要優先處理的低庫存品項">
+        <SectionCard
+          tone="inventory"
+          title="低庫存警示"
+          description="WH-MAIN 數量已達或低於補貨點"
+          action={
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/inventory">查看庫存</Link>
+            </Button>
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>商品</TableHead>
+                <TableHead className="text-right">在庫</TableHead>
+                <TableHead className="text-right">補貨點</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.lowStockBalances.length === 0 ? (
                 <TableRow>
-                  <TableHead>商品</TableHead>
-                  <TableHead className="text-right">在庫</TableHead>
-                  <TableHead className="text-right">補貨點</TableHead>
+                  <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
+                    所有商品庫存正常
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.lowStockBalances.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-sm text-muted-foreground">
-                      所有商品庫存正常
+              ) : (
+                data.lowStockBalances.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell>
+                      <div className="font-medium">{b.product?.name ?? '—'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {b.product?.productId ?? '—'} · {b.product?.sku ?? '—'}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-semibold text-warning">
+                      {formatNumber(b.quantity)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">
+                      {formatNumber(b.product?.reorderPoint ?? 0)}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  data.lowStockBalances.map((b) => (
-                    <TableRow key={b.id}>
-                      <TableCell>
-                        <div className="font-medium">{b.product?.name ?? '—'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {b.product?.productId ?? '—'} · {b.product?.sku ?? '—'}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-semibold text-warning">
-                        {formatNumber(b.quantity)}
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatNumber(b.product?.reorderPoint ?? 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </SectionCard>
-
-          <SectionCard
-            tone="operations"
-            title="待處理任務"
-            description="todo / in_progress / blocked"
-            action={
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/tasks">所有任務</Link>
-              </Button>
-            }
-          >
-            <div className="divide-y">
-              {data.pendingTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">沒有待辦任務 ✨</p>
-              ) : (
-                data.pendingTasks.map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{t.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t.taskId} · {t.assignee?.name ?? '未指派'} ·{' '}
-                        {t.dueDate ? formatDate(t.dueDate) : '無期限'}
-                      </p>
-                    </div>
-                    <StatusBadge kind="taskPriority" value={t.priority} />
-                    <StatusBadge kind="task" value={t.status} />
-                  </div>
                 ))
               )}
-            </div>
-          </SectionCard>
-        </div>
+            </TableBody>
+          </Table>
+        </SectionCard>
       </SectionBlock>
     </>
   );
