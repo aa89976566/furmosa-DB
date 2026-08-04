@@ -8,6 +8,7 @@
     "test:refill:integration": "node --import tsx --test lib/refill/__tests__/complete-txn.integration.test.ts lib/refill/__tests__/payment-unique.integration.test.ts",
     "refill:stock-audit": "tsx scripts/refill-stock-audit.ts",
     "refill:stock-backfill": "tsx scripts/refill-stock-audit.ts --apply",
+    "refill:payment-dedup-audit": "tsx scripts/payment-dedup-audit.ts",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
