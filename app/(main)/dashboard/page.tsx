@@ -31,19 +31,18 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="space-y-6 p-4 sm:p-6">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.35fr_0.65fr] lg:gap-5">
-          <div className="order-2 min-w-0 lg:order-1">
-            <div className="bento-card p-4 sm:p-5">
-              <DashboardSearch />
-            </div>
-          </div>
-          <div className="order-1 min-w-0 lg:order-2">
-            <Suspense fallback={<DashboardHeroFallback />}>
-              <DashboardHeroSection />
-            </Suspense>
-          </div>
+      {/*
+        待辦移除後不再用左右雙欄（左空右重）。
+        專業層級：工具列 → 主數字橫排 → 細節（數字優先、無空洞）。
+      */}
+      <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+        <div className="bento-card p-3 sm:p-4">
+          <DashboardSearch />
         </div>
+
+        <Suspense fallback={<DashboardHeroFallback />}>
+          <DashboardHeroSection />
+        </Suspense>
 
         <Suspense fallback={<DashboardBodyFallback />}>
           <DashboardBodySection />

@@ -87,10 +87,10 @@ function StatColumn({
   );
 }
 
-/** 右側／頂部黑底 KPI 直排（Bento 強調區） */
+/** 主數字橫排：全寬三卡，避免直欄造成版面空洞 */
 export function DashboardHeroKpis({ kpis }: { kpis: DashboardKpis }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+    <div className="grid gap-3 sm:grid-cols-3">
       <DarkKpi
         label="本月營收"
         value={formatCurrency(kpis.monthRevenue)}

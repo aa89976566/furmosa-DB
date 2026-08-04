@@ -55,7 +55,7 @@ export function DashboardBodyFallback() {
 
 export function DashboardHeroFallback() {
   return (
-    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+    <div className="grid gap-3 sm:grid-cols-3">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="h-28 animate-pulse rounded-2xl bg-ink/80" />
       ))}
