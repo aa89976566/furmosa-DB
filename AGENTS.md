@@ -46,3 +46,54 @@
 4. 完成程式修改。
 5. 執行檢查或測試。
 6. 說明結果、修改檔案和待確認事項。
+
+## Furmosa DB 技術架構
+
+- 固定使用 Next.js 14 App Router、React、TypeScript、Tailwind CSS、shadcn/ui、Prisma、PostgreSQL 與 Supabase。
+- 不得擅自更換框架、ORM、資料庫或建立平行的新系統。
+- 優先使用既有的 components、lib、features 與資料結構。
+- 建立新元件前，先檢查是否已有可重用元件。
+
+## 登入與權限
+
+- HQ 與 POS 是兩套不同的登入機制。
+- 不得混用 HQ 和 POS 的 cookie、session 或驗證邏輯。
+- 修改 middleware.ts、lib/auth、lib/auth-edge、lib/auth-secret 或 lib/merchant-auth 前，必須先說明影響範圍。
+- 不得為了方便測試而繞過登入或權限驗證。
+
+## 資料庫安全
+
+- 未經使用者明確同意，不得修改 schema.prisma。
+- 未經使用者明確同意，不得執行 migration、db push、seed、資料匯入、資料刪除或正式資料修改。
+- 不得自行重設、清空或重建資料庫。
+- 資料庫結構變更必須先提出變更計畫、影響範圍與回復方式。
+- 金額欄位相關修改必須特別檢查 Float 精度與結算影響。
+
+## 正式環境與秘密資料
+
+- API Key、JWT Secret、LINE Secret、綠界金鑰與資料庫連線不得寫進程式碼或提交版本控制。
+- 不得顯示、複製或回報秘密值。
+- 未經明確同意，不得操作 Vercel Production、Supabase 正式資料庫或正式環境變數。
+- 未經明確同意，不得部署、執行正式 cron 或同步正式資料庫設定。
+- 不得在正式環境建立示範帳號或示範資料。
+
+## 公開入口與金流
+
+- 修改 LIFF、LINE webhook、綠界付款回呼、refill API 或 cron 前，必須先說明安全與資料影響。
+- 不得移除 webhook 簽章、付款驗證或授權檢查。
+- 金額、付款狀態、退款與會員點數的修改必須有測試。
+- 不得使用瀏覽器傳入的金額直接作為最終付款金額，必須由伺服器驗證。
+
+## 測試與建置
+
+- 修改既有功能後，要執行相關測試。
+- 在確認指令安全後才能執行 npm test 或 lint。
+- build 指令可能涉及資料庫 migration；未經同意不得直接執行 build。
+- 不得為了讓測試通過而刪除測試或降低安全檢查。
+- 測試失敗時，必須如實回報，不得宣稱工作完成。
+
+## 文件判斷
+
+- README 與程式現況衝突時，不得直接依照舊 README 操作。
+- 應先比對目前程式、schema.prisma、package.json、DEPLOY.md 與 .env.example。
+- 發現文件過期時先回報，不要順便大幅重寫文件。
