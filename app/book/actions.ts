@@ -2,6 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import {
+  CUSTOMER_BOOKING_LOGIN_REQUIRED_MESSAGE,
+  isCustomerBookingIdentityPresent,
+} from '@/lib/booking/auth-gate';
 import { submitCustomerBooking } from '@/lib/booking/service';
 import { verifyLineIdToken } from '@/lib/line/verify-id-token';
 
@@ -27,6 +31,9 @@ export async function publicBookAction(
       } catch {
         return { error: 'LINE 登入已失效，請重新開啟頁面後再送出。' };
       }
+    }
+    if (!isCustomerBookingIdentityPresent(lineUserId)) {
+      return { error: CUSTOMER_BOOKING_LOGIN_REQUIRED_MESSAGE };
     }
 
     const row = await submitCustomerBooking({
