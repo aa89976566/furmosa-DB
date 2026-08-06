@@ -5,7 +5,44 @@ import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
 import { REFILL_COPY } from '@/lib/refill/copy';
+import {
+  LINE_ID_TOKEN_INVALID_CODE,
+  buildLiffRefillRedirectUri,
+  clearLiffReauthGuard,
+  markLiffReauthGuard,
+  readLiffReauthGuard,
+  shouldAttemptLiffReauth,
+} from '@/lib/refill/liff-auth-recovery';
 import { liffRefillFetch } from '@/lib/refill/liff-refill-fetch';
+
+type ApiErrorBody = { error?: string; code?: string };
+
+function sessionStorageOrNull(): Storage | null {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/** At most one logout→login for expired idToken; preserves path + _vercel_share. */
+async function maybeReauthForInvalidIdToken(code: string | undefined): Promise<boolean> {
+  const storage = sessionStorageOrNull();
+  const attempted = readLiffReauthGuard(storage);
+  if (!shouldAttemptLiffReauth(code, attempted)) {
+    if (code === LINE_ID_TOKEN_INVALID_CODE && attempted) {
+      clearLiffReauthGuard(storage);
+    }
+    return false;
+  }
+  markLiffReauthGuard(storage);
+  const liff = (await import('@line/liff')).default;
+  if (liff.isLoggedIn()) {
+    liff.logout();
+  }
+  liff.login({ redirectUri: buildLiffRefillRedirectUri(window.location.href) });
+  return true;
+}
 
 type Props = {
   liffId: string;
@@ -89,25 +126,34 @@ function RefillFlow({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, storeId, appointmentId: appointmentId ?? undefined }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as ApiErrorBody & Partial<Eligibility>;
     if (res.status === 404 && data.code === 'NOT_REGISTERED') {
+      clearLiffReauthGuard(sessionStorageOrNull());
       setStep('register');
       return null;
     }
-    if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+    if (!res.ok) {
+      if (await maybeReauthForInvalidIdToken(data.code)) return null;
+      throw new Error(data.error ?? REFILL_COPY.genericError);
+    }
+    clearLiffReauthGuard(sessionStorageOrNull());
     setElig(data as Eligibility);
     return data as Eligibility;
   }, [idToken, storeId, appointmentId]);
 
   const loadOrder = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<OrderView | null> => {
       const res = await liffRefillFetch(`/api/refill/orders/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+      const data = (await res.json()) as ApiErrorBody & { order?: OrderView };
+      if (!res.ok) {
+        if (await maybeReauthForInvalidIdToken(data.code)) return null;
+        throw new Error(data.error ?? REFILL_COPY.genericError);
+      }
+      clearLiffReauthGuard(sessionStorageOrNull());
       setOrder(data.order as OrderView);
       return data.order as OrderView;
     },
@@ -123,6 +169,7 @@ function RefillFlow({
           let tries = 0;
           while (tries < 8 && !cancelled) {
             const o = await loadOrder(orderId);
+            if (!o) return; // reauth redirect in progress
             if (
               o.status === 'paid_waiting_return' ||
               o.status === 'old_container_verified' ||
@@ -144,7 +191,8 @@ function RefillFlow({
         const e = await loadEligibility();
         if (cancelled || !e) return;
         if (e.openOrders?.[0]?.status === 'paid_waiting_return') {
-          await loadOrder(e.openOrders[0].id);
+          const o = await loadOrder(e.openOrders[0].id);
+          if (!o) return;
           setStep('view');
           return;
         }
@@ -185,14 +233,19 @@ function RefillFlow({
           amount: 1, // 故意錯誤金額；後端必須忽略
         }),
       });
-      const created = await createRes.json();
-      if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
-      const oid = created.order.id as string;
-      setOrder(created.order);
+      const created = (await createRes.json()) as ApiErrorBody & {
+        order?: OrderView;
+      };
+      if (!createRes.ok) {
+        if (await maybeReauthForInvalidIdToken(created.code)) return;
+        throw new Error(created.error ?? REFILL_COPY.genericError);
+      }
+      const oid = created.order!.id as string;
+      setOrder(created.order!);
 
       if (
-        created.order.status === 'paid_waiting_return' ||
-        created.order.status === 'payment_pending'
+        created.order!.status === 'paid_waiting_return' ||
+        created.order!.status === 'payment_pending'
       ) {
         /* continue */
       }
@@ -202,15 +255,21 @@ function RefillFlow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const pay = await payRes.json();
-      if (!payRes.ok) throw new Error(pay.error ?? REFILL_COPY.genericError);
+      const pay = (await payRes.json()) as ApiErrorBody & {
+        checkout?: { paymentUrl: string; fields: Record<string, string> };
+      };
+      if (!payRes.ok) {
+        if (await maybeReauthForInvalidIdToken(pay.code)) return;
+        throw new Error(pay.error ?? REFILL_COPY.genericError);
+      }
 
       setStep('paying');
       // Auto-submit ECPay form
+      const checkout = pay.checkout!;
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = pay.checkout.paymentUrl;
-      for (const [k, v] of Object.entries(pay.checkout.fields as Record<string, string>)) {
+      form.action = checkout.paymentUrl;
+      for (const [k, v] of Object.entries(checkout.fields)) {
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = k;
