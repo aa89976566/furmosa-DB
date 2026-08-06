@@ -5,6 +5,7 @@ import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
 import { REFILL_COPY } from '@/lib/refill/copy';
+import { liffRefillFetch } from '@/lib/refill/liff-refill-fetch';
 
 type Props = {
   liffId: string;
@@ -83,7 +84,7 @@ function RefillFlow({
 
   const loadEligibility = useCallback(async () => {
     setError(null);
-    const res = await fetch('/api/refill/eligibility', {
+    const res = await liffRefillFetch('/api/refill/eligibility', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, storeId, appointmentId: appointmentId ?? undefined }),
@@ -100,7 +101,7 @@ function RefillFlow({
 
   const loadOrder = useCallback(
     async (id: string) => {
-      const res = await fetch(`/api/refill/orders/${id}`, {
+      const res = await liffRefillFetch(`/api/refill/orders/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
@@ -175,7 +176,7 @@ function RefillFlow({
     setBusy(true);
     setError(null);
     try {
-      const createRes = await fetch('/api/refill/orders', {
+      const createRes = await liffRefillFetch('/api/refill/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,7 +197,7 @@ function RefillFlow({
         /* continue */
       }
 
-      const payRes = await fetch(`/api/refill/orders/${oid}/payment`, {
+      const payRes = await liffRefillFetch(`/api/refill/orders/${oid}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
