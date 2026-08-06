@@ -20,6 +20,7 @@ import {
   notifyAppointmentRescheduled,
 } from '@/lib/booking/notify';
 import { bindCustomerLineUserId } from '@/lib/line/bind-customer';
+import { assertCustomerBookingIdentity } from '@/lib/booking/auth-gate';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -189,6 +190,9 @@ export async function submitCustomerBooking(input: {
   serviceName?: string | null;
   lineUserId?: string | null;
 }) {
+  // 產品核准：不可匿名預約；須 LINE 登入（UI 待關閉匿名流程）
+  const lineUserId = assertCustomerBookingIdentity(input.lineUserId);
+
   const merchant = await prisma.merchant.findFirst({
     where: { id: input.merchantId, status: 'active' },
     select: { id: true },
@@ -217,7 +221,7 @@ export async function submitCustomerBooking(input: {
     name: input.customerName,
     phone: input.customerPhone,
     petName: input.petName,
-    lineUserId: input.lineUserId,
+    lineUserId,
   });
 
   // Serializable tx: capacity check + create must not race into double-book
