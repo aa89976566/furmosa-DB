@@ -9,10 +9,14 @@ export type LineTriggerKey =
   | 'unboxing'
   | 'activity'
   | 'contact'
-  | 'menu_fallback';
+  | 'menu_fallback'
+  | 'recovery';
 
-/** 被動觸發：不主動回覆 */
-export const PASSIVE_AUTO_REPLY_KINDS = new Set(['unknown', 'greeting']);
+/**
+ * 被動觸發：不主動回覆的 kind。
+ * greeting／unknown 改走節流 recovery 卡，不再靜默。
+ */
+export const PASSIVE_AUTO_REPLY_KINDS = new Set<string>([]);
 
 export function isPassiveAutoReply(kind: string): boolean {
   return PASSIVE_AUTO_REPLY_KINDS.has(kind);

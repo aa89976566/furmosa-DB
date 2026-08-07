@@ -97,6 +97,7 @@ type Step =
   | 'success'
   | 'confirming'
   | 'view'
+  | 'no_booking'
   | 'error';
 
 export function LiffRefillClient(props: Props) {
@@ -198,8 +199,8 @@ function RefillFlow({
           return;
         }
         if (e.bookings.length === 0) {
-          setError(REFILL_COPY.noBooking);
-          setStep('error');
+          setError(null);
+          setStep('no_booking');
           return;
         }
         if (e.selectedBooking) {
@@ -313,6 +314,67 @@ function RefillFlow({
         <p className="text-lg font-semibold">{REFILL_COPY.confirmingPayment}</p>
         <p className="text-sm text-muted-foreground">我們正在向銀行確認，請不要關閉頁面。</p>
         {error && <LiffStatus message={error} variant="error" />}
+      </div>
+    );
+  }
+
+  if (step === 'no_booking') {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-base font-semibold text-foreground whitespace-pre-line">
+            {REFILL_COPY.noBooking}
+          </p>
+          <p className="text-sm text-muted-foreground whitespace-pre-line">
+            {REFILL_COPY.noBookingNext}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Button
+            type="button"
+            className="w-full min-h-[48px]"
+            onClick={() => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const liff = (window as any).liff;
+                if (liff?.closeWindow) liff.closeWindow();
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            {REFILL_COPY.backToJarMenu}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full min-h-[48px]"
+            onClick={() => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const liff = (window as any).liff;
+                if (liff?.sendMessages) {
+                  void liff.sendMessages([{ type: 'text', text: '查看合作店家' }]).finally(() => {
+                    try {
+                      liff.closeWindow?.();
+                    } catch {
+                      /* ignore */
+                    }
+                  });
+                  return;
+                }
+                liff?.closeWindow?.();
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            {REFILL_COPY.viewPartnerStores}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          回 LINE 後也可點「換罐計劃」→「了解更多」看合作店家。
+        </p>
       </div>
     );
   }

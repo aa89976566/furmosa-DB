@@ -19,9 +19,11 @@ import {
   buildComicRoamMessages,
 } from '@/lib/line/comic-menu';
 import {
+  buildConversationRecoveryMessages,
   buildEventsCenterMessages,
   buildFrogProjectMessages,
   buildJarExplainTopicMessages,
+  buildJarMoreHelpMessages,
   buildJarStartMessages,
   buildJarSuccessFlex,
   buildRegisterGateMessages,
@@ -34,13 +36,12 @@ import {
   buildJarIntroMessages,
   buildRefillFlavoursListMessages,
 } from '@/lib/line/refill-intro-flex';
-import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import {
   buildGuestWelcomeText,
   guestWelcomePromptMarks,
-  LINE_BIND_HELP_TEXT,
   LINE_HELP_TEXT,
   lineBindRequiredText,
+  lineUnknownText,
 } from '@/lib/line/messages';
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
@@ -184,7 +185,6 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
     try {
       if (parsed.kind === 'hub_jar') {
-        // 「線上預購換罐」已併進選單（有 LINE_LIFF_ID_REFILL 時），不再依賴背景 Push
         await replyLineMessage(replyToken, buildComicJarMessages(), {
           lineUserId,
         });
@@ -221,8 +221,8 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   // 否則開箱「選門市」會把「介紹」當成店名候選
   const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
   if (bypassSession) {
-    // bind_help（立即開戶）會建立 register session，不可先 clear 掉
-    if (parsed.kind !== 'bind_help') {
+    // bind_help／jar_refill（未開戶）會建立 register session，不可背景 clear 掉
+    if (parsed.kind !== 'bind_help' && parsed.kind !== 'jar_refill') {
       runAfterReply(
         clearLineChatSession(lineUserId).catch((err) => {
           console.error('[line] clear session on jar shortcut failed', err);
@@ -259,6 +259,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (isPassiveAutoReply(parsed.kind)) {
+    return;
+  }
+
+  // 打招呼／未知句：節流後回四選項恢復卡（避免洗版）
+  if (parsed.kind === 'greeting' || parsed.kind === 'unknown') {
+    await replyTriggerOnce(lineUserId, 'recovery', async () => {
+      const flags = await getOnboardingPromptFlags(lineUserId);
+      const body =
+        parsed.kind === 'greeting'
+          ? '汪，你好～想先幫毛孩做哪一件？'
+          : lineUnknownText(flags.showJar);
+      await replyLineMessage(replyToken, buildConversationRecoveryMessages(body), {
+        lineUserId,
+      });
+    });
     return;
   }
 
@@ -325,10 +340,19 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       buildJarStartMessages({
         registered,
         customerName: customer?.name ?? null,
-        refillLiffUrl: getLiffUrlIfConfigured('refill'),
       }),
       { lineUserId },
     );
+    return;
+  }
+  if (parsed.kind === 'jar_refill') {
+    await handleLinePostback(replyToken, lineUserId, 'jd=jar_refill');
+    return;
+  }
+  if (parsed.kind === 'jar_more') {
+    await replyLineMessage(replyToken, buildJarMoreHelpMessages(), {
+      lineUserId,
+    });
     return;
   }
   if (parsed.kind === 'jar_enter') {

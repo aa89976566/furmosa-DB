@@ -12,6 +12,7 @@ import {
   WORLD_HUB_TAGLINE,
   buildHomeItems,
   buildJarHubItems,
+  buildJarMoreHelpItems,
   type WorldHubId,
   type WorldMenuItem,
 } from '@/lib/line/brand-worlds';
@@ -25,6 +26,13 @@ import { buildJarDialogueBubble } from '@/lib/line/jar-dialogue-shell';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import type { LineReplyMessage } from '@/lib/line/reply';
+
+/** 已開戶後才給的換罐 LIFF CTA；未設定時友善提示、不給壞連結 */
+export const REFILL_LIFF_UNAVAILABLE =
+  '線上換罐這會兒還沒開好。先跟合作店家說一聲，或晚點再從「換罐計劃」進來喔。';
+
+export const REFILL_READY_HINT =
+  '店家確認過美容預約後，點下面就能付換罐款。別急著連點喔。';
 
 /**
  * Flex／LINE 圖片用的公開網址。
@@ -516,10 +524,8 @@ export function buildWorldHubMessages(
   const theme = WORLD_THEME[hub];
 
   if (hub === 'jar') {
-    // 與一起野放相同：只回選單卡；LIFF 就緒時第三鍵「線上預購換罐」
-    const hubCfg = buildJarHubItems(registered, {
-      refillLiffUrl: getLiffUrlIfConfigured('refill'),
-    });
+    // 一級：我要換罐／開戶／輸入空罐序號／了解更多（換罐不直接掛 LIFF URI）
+    const hubCfg = buildJarHubItems(registered);
     const messages: LineReplyMessage[] = [];
     if (opts?.body) {
       messages.push({ type: 'text', text: opts.body });
@@ -635,9 +641,9 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
   return [
     { type: 'text', text: JAR_ENTER_HINT_REGISTERED },
     buildButtonMenuFlex({
-      altText: '輸入序號',
+      altText: LINE_BTN.enterCode,
       theme,
-      title: '輸入序號',
+      title: LINE_BTN.enterCode,
       subtitle: '罐底 8 碼，直接打在對話框就好。',
       dogFrame: true,
       items: [
@@ -652,13 +658,99 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
 }
 
 /**
- * 「開始換罐」點擊後的分流卡（依當下開戶狀態，不當場寫死進介紹 Flex）。
- * - 已開戶：下一步選單（輸入序號／線上預購／會員）
- * - 未開戶：先開戶，完成後可接回序號
+ * 已確認開戶後：單一「開始換罐」LIFF 按鈕；未設定 LIFF 時友善說明。
+ */
+export function buildRefillLaunchMessages(opts?: {
+  body?: string;
+  buttonLabel?: string;
+}): LineReplyMessage[] {
+  const theme = WORLD_THEME.jar;
+  const url = getLiffUrlIfConfigured('refill');
+  const body = opts?.body?.trim() || REFILL_READY_HINT;
+  if (!url) {
+    return [{ type: 'text', text: `${body}\n\n${REFILL_LIFF_UNAVAILABLE}` }];
+  }
+  const label = (opts?.buttonLabel ?? LINE_BTN.startRefill).slice(0, 20);
+  return [
+    { type: 'text', text: body },
+    buildButtonMenuFlex({
+      altText: label,
+      theme,
+      title: label,
+      subtitle: '點一下就好，別連點。',
+      dogFrame: true,
+      items: [
+        {
+          label,
+          action: { type: 'uri', uri: url },
+          style: 'primary',
+        },
+      ],
+    }),
+  ];
+}
+
+/** 未知句／打招呼：四選項恢復卡（節流由呼叫端負責） */
+export function buildConversationRecoveryMessages(body: string): LineReplyMessage[] {
+  const theme = WORLD_THEME.jar;
+  return [
+    { type: 'text', text: body },
+    buildButtonMenuFlex({
+      altText: '可以這樣繼續',
+      theme,
+      title: '可以這樣繼續',
+      subtitle: '選一件就好。',
+      dogFrame: true,
+      items: [
+        {
+          label: '幫毛孩開戶',
+          action: { type: 'message', text: '幫毛孩開戶' },
+          style: 'primary',
+        },
+        {
+          label: LINE_BTN.wantRefill,
+          action: { type: 'message', text: LINE_BTN.wantRefill },
+          style: 'secondary',
+        },
+        {
+          label: LINE_BTN.enterCode,
+          action: { type: 'message', text: LINE_BTN.enterCode },
+          style: 'secondary',
+        },
+        {
+          label: '查看點數',
+          action: { type: 'message', text: '查看點數' },
+          style: 'link',
+        },
+      ],
+    }),
+  ];
+}
+
+/** 換罐二級：說明／點數／合作店家／FAQ */
+export function buildJarMoreHelpMessages(): LineReplyMessage[] {
+  const theme = WORLD_THEME.jar;
+  return [
+    menuFromItems({
+      altText: '了解更多',
+      theme,
+      title: '了解更多',
+      subtitle: '想先看哪一段？',
+      items: buildJarMoreHelpItems(),
+      dogFrame: true,
+    }),
+  ];
+}
+
+/**
+ * 「開始換罐」點擊後的分流卡（依當下開戶狀態）。
+ * - 已開戶：下一步（輸入空罐序號／我要換罐文字閘道／會員）
+ * - 未開戶：先開戶
  */
 export function buildJarStartMessages(opts: {
   registered: boolean;
   customerName?: string | null;
+  /** @deprecated 換罐改走文字閘道；保留參數以免舊呼叫端炸掉 */
   refillLiffUrl?: string | null;
 }): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
@@ -669,7 +761,7 @@ export function buildJarStartMessages(opts: {
         altText: '開始換罐・先開戶',
         theme,
         title: '開始換罐',
-        subtitle: '先幫毛孩開好戶，罐底序號才能記進名下。',
+        subtitle: '汪，先幫毛孩把資料對起來，空罐才能記進名下。',
         dogFrame: true,
         items: [
           {
@@ -687,8 +779,8 @@ export function buildJarStartMessages(opts: {
             style: 'secondary',
           },
           {
-            label: '查看合作店',
-            action: { type: 'message', text: '查看合作店' },
+            label: '查看合作店家',
+            action: { type: 'message', text: '查看合作店家' },
             style: 'link',
           },
         ],
@@ -699,20 +791,15 @@ export function buildJarStartMessages(opts: {
   const name = opts.customerName?.trim();
   const items: MenuButtonItem[] = [
     {
-      label: '輸入序號',
-      action: { type: 'message', text: '輸入序號' },
+      label: LINE_BTN.wantRefill,
+      action: { type: 'message', text: LINE_BTN.wantRefill },
       style: 'primary',
     },
-  ];
-  const refillUrl = opts.refillLiffUrl?.trim();
-  if (refillUrl) {
-    items.push({
-      label: '我要換罐',
-      action: { type: 'uri', uri: refillUrl },
+    {
+      label: LINE_BTN.enterCode,
+      action: { type: 'message', text: LINE_BTN.enterCode },
       style: 'secondary',
-    });
-  }
-  items.push(
+    },
     {
       label: '我的會員',
       action: { type: 'message', text: '我的會員' },
@@ -723,7 +810,7 @@ export function buildJarStartMessages(opts: {
       action: { type: 'message', text: '看本期口味' },
       style: 'link',
     },
-  );
+  ];
 
   return [
     buildButtonMenuFlex({

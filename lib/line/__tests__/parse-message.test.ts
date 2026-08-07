@@ -66,17 +66,23 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('Q&A').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('q&a').kind, 'jar_explain_faq');
     assert.equal(parseLineUserText('查看合作店').kind, 'jar_stores');
+    assert.equal(parseLineUserText('查看合作店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('合作店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('配合店家').kind, 'jar_stores');
     assert.equal(parseLineUserText('兌換序號').kind, 'jar_enter');
     assert.equal(parseLineUserText('輸入序號').kind, 'jar_enter');
+    assert.equal(parseLineUserText('輸入空罐序號').kind, 'jar_enter');
     assert.equal(parseLineUserText('開始換罐').kind, 'jar_start');
+    assert.equal(parseLineUserText('我要換罐').kind, 'jar_refill');
+    assert.equal(parseLineUserText('線上預購換罐').kind, 'jar_refill');
+    assert.equal(parseLineUserText('了解更多').kind, 'jar_more');
     assert.equal(parseLineUserText('點數換折價').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換優惠券').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換美容折價券').kind, 'redeem_coupon');
     assert.equal(parseLineUserText('兌換好禮').kind, 'rewards_list');
     assert.equal(parseLineUserText('換罐計劃\u200b').kind, 'hub_jar');
     assert.equal(parseLineUserText('看本期口味').kind, 'refill_flavours');
+    assert.equal(parseLineUserText('查看點數').kind, 'balance');
   });
 
   it('recognizes jar codes', () => {

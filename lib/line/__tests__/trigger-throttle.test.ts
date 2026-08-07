@@ -9,21 +9,22 @@ import {
 } from '../trigger-throttle';
 
 describe('isPassiveAutoReply', () => {
-  it('未知與打招呼不主動回覆', () => {
-    assert.equal(isPassiveAutoReply('unknown'), true);
-    assert.equal(isPassiveAutoReply('greeting'), true);
+  it('未知與打招呼不再靜默（改走 recovery 節流）', () => {
+    assert.equal(isPassiveAutoReply('unknown'), false);
+    assert.equal(isPassiveAutoReply('greeting'), false);
     assert.equal(isPassiveAutoReply('jar_code'), false);
     assert.equal(isPassiveAutoReply('help'), false);
   });
 
-  it('被動類型集合固定', () => {
-    assert.deepEqual([...PASSIVE_AUTO_REPLY_KINDS].sort(), ['greeting', 'unknown']);
+  it('被動類型集合預設為空', () => {
+    assert.deepEqual([...PASSIVE_AUTO_REPLY_KINDS], []);
   });
 });
 
 describe('shouldSendTriggerReply', () => {
   it('無 lineUserId 時允許回覆', async () => {
     assert.equal(await shouldSendTriggerReply('', 'help'), true);
+    assert.equal(await shouldSendTriggerReply('', 'recovery'), true);
   });
 });
 

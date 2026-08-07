@@ -45,11 +45,11 @@ export const LINE_BIND_HELP_TEXT = `開戶 = 把這個 LINE 跟毛孩檔案對�
 
 export const LINE_HELP_TEXT = `【匠寵怎麼玩】
 
-• ${LINE_BTN.hubJar} → 開戶、序號、會員、換罐
+• ${LINE_BTN.hubJar} → 我要換罐、開戶、輸入空罐序號
 • ${LINE_BTN.hubChaos} → 嗷嗚計劃（青蛙）、活動中心（來點想法）、開箱任務
-• 預約美容 → 還沒放好水（好玩版敬請期待）
+• 預約美容 → 線上預約尚未開放，請先跟合作店家約
 • ${LINE_BTN.hubWild} → furmosa.com 與 @furmosa_food
-• 存罐 → 直接傳 8 位序號（要先開戶）`;
+• 空罐 → 先開戶，再傳罐底 8 碼`;
 
 export function lineBindRequiredText() {
   return `序號收到了，可是還不知道是哪位毛孩的罐 🤔\n先點「${LINE_BTN.register}」開個戶。`;

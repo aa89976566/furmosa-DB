@@ -10,14 +10,11 @@
  * └────────────┴────────────┘
  */
 
-import { WORLD_THEME } from '@/lib/line/card-theme';
 import {
-  buildButtonMenuFlex,
   buildGroomingSoonMessages,
   buildHomeHubMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
-import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 export type ComicMenuKind = 'roam' | 'grooming' | 'jar' | 'home';
@@ -36,36 +33,22 @@ export function buildComicRoamMessages(_registered = false): LineReplyMessage[] 
   return buildWorldHubMessages('chaos');
 }
 
-/** 預約美容 → 封面＋短文（很快就能約） */
+/** 預約美容 → 封面＋短文（尚未開放線上預約） */
 export function buildComicGroomingMessages(): LineReplyMessage[] {
   return buildGroomingSoonMessages();
 }
 
-/** 換罐計劃主選單（五鍵；不依開戶狀態，熱路徑可零 DB） */
+/** 換罐計劃主選單（三主鍵＋了解更多；換罐走伺服器閘道） */
 export function buildComicJarMessages(_registered = false): LineReplyMessage[] {
   return buildWorldHubMessages('jar');
 }
 
-/** 已開戶附加卡：Reply 後再 Push，不阻塞主選單 */
+/**
+ * @deprecated 換罐改由 jd=jar_refill 伺服器閘道後再給 LIFF。
+ * 保留空實作以免舊呼叫端炸掉。
+ */
 export function buildJarLiffCtaMessages(): LineReplyMessage[] {
-  const url = getLiffUrlIfConfigured('refill');
-  if (!url) return [];
-  return [
-    buildButtonMenuFlex({
-      altText: '線上預購換罐',
-      theme: WORLD_THEME.jar,
-      title: '線上預購換罐',
-      subtitle: '預約確認後，在這裡付換罐款、預購下一罐零食。',
-      dogFrame: true,
-      items: [
-        {
-          label: '線上預購換罐',
-          action: { type: 'uri', uri: url },
-          style: 'primary',
-        },
-      ],
-    }),
-  ];
+  return [];
 }
 
 /** 回家 → furmosa.com + IG，像回家不是點首頁 */
