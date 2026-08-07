@@ -16,8 +16,12 @@ describe('isSameOriginRefillApiPath', () => {
     assert.equal(isSameOriginRefillApiPath('/api/refill/eligibility?x=1'), true);
   });
 
-  it('rejects non-refill and absolute / protocol-relative URLs', () => {
-    assert.equal(isSameOriginRefillApiPath('/api/line/liff/me'), false);
+  it('also accepts LINE LIFF API paths (shared Preview helper)', () => {
+    assert.equal(isSameOriginRefillApiPath('/api/line/liff/me'), true);
+    assert.equal(isSameOriginRefillApiPath('/api/line/liff/register'), true);
+  });
+
+  it('rejects non-LIFF and absolute / protocol-relative URLs', () => {
     assert.equal(isSameOriginRefillApiPath('/api/health'), false);
     assert.equal(isSameOriginRefillApiPath('/liff/refill'), false);
     assert.equal(
@@ -135,7 +139,7 @@ describe('liffRefillFetch', () => {
     }) as typeof fetch;
 
     try {
-      const init = { method: 'GET' as const };
+      const init: RequestInit = { method: 'GET' };
       await liffRefillFetch(
         '/api/health',
         init,
@@ -153,7 +157,7 @@ describe('liffRefillFetch', () => {
   it('behaves as plain fetch for refill API when page has no share', async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
     const original = globalThis.fetch;
-    const init = { method: 'POST' as const };
+    const init: RequestInit = { method: 'POST' };
     globalThis.fetch = (async (input: RequestInfo | URL, nextInit?: RequestInit) => {
       calls.push({ url: String(input), init: nextInit });
       return new Response('{}', { status: 200 });

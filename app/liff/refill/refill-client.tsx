@@ -13,6 +13,7 @@ import {
   readLiffReauthGuard,
   shouldAttemptLiffReauth,
 } from '@/lib/refill/liff-auth-recovery';
+import { withExistingVercelShare } from '@/lib/liff/vercel-share-fetch';
 import { liffRefillFetch } from '@/lib/refill/liff-refill-fetch';
 
 type ApiErrorBody = { error?: string; code?: string };
@@ -287,14 +288,16 @@ function RefillFlow({
   }
 
   if (step === 'register') {
-    const returnTo = encodeURIComponent(
-      `/liff/refill${storeId ? `?storeId=${storeId}` : ''}`,
+    const returnPath = `/liff/refill${storeId ? `?storeId=${storeId}` : ''}`;
+    const registerHref = withExistingVercelShare(
+      `/liff/register?return=${encodeURIComponent(returnPath)}`,
+      typeof window !== 'undefined' ? window.location.href : '',
     );
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">請先完成會員註冊，再回來換罐付款。</p>
         <Button asChild className="w-full min-h-[48px]">
-          <a href={`/liff/register?return=${returnTo}`}>前往註冊</a>
+          <a href={registerHref}>前往註冊</a>
         </Button>
       </div>
     );

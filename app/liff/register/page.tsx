@@ -1,15 +1,26 @@
 import { Suspense } from 'react';
-import { getLiffId, isLiffConfigured } from '@/lib/line/liff-config';
+import { getLiffIdIfConfigured } from '@/lib/line/liff-config';
 import { LiffRegisterClient } from './register-client';
 
 export const dynamic = 'force-dynamic';
 
-export default function LiffRegisterPage() {
-  if (!isLiffConfigured()) {
+export default function LiffRegisterPage({
+  searchParams,
+}: {
+  searchParams?: { return?: string };
+}) {
+  const returnPath = searchParams?.return ?? '';
+  // Inside the refill LIFF webview, re-init with a different LIFF ID fails
+  // (browser "Failed to fetch"). Keep the refill LIFF app for that return path.
+  const fromRefill = returnPath.startsWith('/liff/refill');
+  const liffId = fromRefill
+    ? (getLiffIdIfConfigured('refill') ?? getLiffIdIfConfigured('register'))
+    : getLiffIdIfConfigured('register');
+
+  if (!liffId) {
     return <LiffSetupMissing page="register" />;
   }
 
-  const liffId = getLiffId('register');
   return (
     <Suspense fallback={<p className="p-6 text-sm text-muted-foreground">載入中…</p>}>
       <LiffRegisterClient liffId={liffId} />

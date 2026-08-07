@@ -7,6 +7,10 @@ import { LiffStatus } from '@/components/liff/liff-status';
 import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  liffPreviewFetch,
+  withExistingVercelShare,
+} from '@/lib/liff/vercel-share-fetch';
 
 type Props = { liffId: string };
 
@@ -43,7 +47,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
     };
 
     try {
-      const res = await fetch('/api/line/liff/register', {
+      const res = await liffPreviewFetch('/api/line/liff/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -51,7 +55,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
       const data = (await res.json()) as { message?: string; error?: string };
       if (!res.ok) throw new Error(data.error ?? '註冊失敗');
       if (returnPath && returnPath.startsWith('/liff/')) {
-        window.location.href = returnPath;
+        window.location.href = withExistingVercelShare(returnPath, window.location.href);
         return;
       }
       setStatus({ type: 'ok', text: data.message ?? '完成！' });
