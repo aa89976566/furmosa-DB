@@ -5,6 +5,45 @@ import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
 import { REFILL_COPY } from '@/lib/refill/copy';
+import {
+  LINE_ID_TOKEN_INVALID_CODE,
+  buildLiffRefillRedirectUri,
+  clearLiffReauthGuard,
+  markLiffReauthGuard,
+  readLiffReauthGuard,
+  shouldAttemptLiffReauth,
+} from '@/lib/refill/liff-auth-recovery';
+import { withExistingVercelShare } from '@/lib/liff/vercel-share-fetch';
+import { liffRefillFetch } from '@/lib/refill/liff-refill-fetch';
+
+type ApiErrorBody = { error?: string; code?: string };
+
+function sessionStorageOrNull(): Storage | null {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/** At most one logout→login for expired idToken; preserves path + _vercel_share. */
+async function maybeReauthForInvalidIdToken(code: string | undefined): Promise<boolean> {
+  const storage = sessionStorageOrNull();
+  const attempted = readLiffReauthGuard(storage);
+  if (!shouldAttemptLiffReauth(code, attempted)) {
+    if (code === LINE_ID_TOKEN_INVALID_CODE && attempted) {
+      clearLiffReauthGuard(storage);
+    }
+    return false;
+  }
+  markLiffReauthGuard(storage);
+  const liff = (await import('@line/liff')).default;
+  if (liff.isLoggedIn()) {
+    liff.logout();
+  }
+  liff.login({ redirectUri: buildLiffRefillRedirectUri(window.location.href) });
+  return true;
+}
 
 type Props = {
   liffId: string;
@@ -58,6 +97,7 @@ type Step =
   | 'success'
   | 'confirming'
   | 'view'
+  | 'no_booking'
   | 'error';
 
 export function LiffRefillClient(props: Props) {
@@ -83,30 +123,39 @@ function RefillFlow({
 
   const loadEligibility = useCallback(async () => {
     setError(null);
-    const res = await fetch('/api/refill/eligibility', {
+    const res = await liffRefillFetch('/api/refill/eligibility', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, storeId, appointmentId: appointmentId ?? undefined }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as ApiErrorBody & Partial<Eligibility>;
     if (res.status === 404 && data.code === 'NOT_REGISTERED') {
+      clearLiffReauthGuard(sessionStorageOrNull());
       setStep('register');
       return null;
     }
-    if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+    if (!res.ok) {
+      if (await maybeReauthForInvalidIdToken(data.code)) return null;
+      throw new Error(data.error ?? REFILL_COPY.genericError);
+    }
+    clearLiffReauthGuard(sessionStorageOrNull());
     setElig(data as Eligibility);
     return data as Eligibility;
   }, [idToken, storeId, appointmentId]);
 
   const loadOrder = useCallback(
-    async (id: string) => {
-      const res = await fetch(`/api/refill/orders/${id}`, {
+    async (id: string): Promise<OrderView | null> => {
+      const res = await liffRefillFetch(`/api/refill/orders/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+      const data = (await res.json()) as ApiErrorBody & { order?: OrderView };
+      if (!res.ok) {
+        if (await maybeReauthForInvalidIdToken(data.code)) return null;
+        throw new Error(data.error ?? REFILL_COPY.genericError);
+      }
+      clearLiffReauthGuard(sessionStorageOrNull());
       setOrder(data.order as OrderView);
       return data.order as OrderView;
     },
@@ -122,6 +171,7 @@ function RefillFlow({
           let tries = 0;
           while (tries < 8 && !cancelled) {
             const o = await loadOrder(orderId);
+            if (!o) return; // reauth redirect in progress
             if (
               o.status === 'paid_waiting_return' ||
               o.status === 'old_container_verified' ||
@@ -143,13 +193,14 @@ function RefillFlow({
         const e = await loadEligibility();
         if (cancelled || !e) return;
         if (e.openOrders?.[0]?.status === 'paid_waiting_return') {
-          await loadOrder(e.openOrders[0].id);
+          const o = await loadOrder(e.openOrders[0].id);
+          if (!o) return;
           setStep('view');
           return;
         }
         if (e.bookings.length === 0) {
-          setError(REFILL_COPY.noBooking);
-          setStep('error');
+          setError(null);
+          setStep('no_booking');
           return;
         }
         if (e.selectedBooking) {
@@ -175,7 +226,7 @@ function RefillFlow({
     setBusy(true);
     setError(null);
     try {
-      const createRes = await fetch('/api/refill/orders', {
+      const createRes = await liffRefillFetch('/api/refill/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -184,32 +235,43 @@ function RefillFlow({
           amount: 1, // 故意錯誤金額；後端必須忽略
         }),
       });
-      const created = await createRes.json();
-      if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
-      const oid = created.order.id as string;
-      setOrder(created.order);
+      const created = (await createRes.json()) as ApiErrorBody & {
+        order?: OrderView;
+      };
+      if (!createRes.ok) {
+        if (await maybeReauthForInvalidIdToken(created.code)) return;
+        throw new Error(created.error ?? REFILL_COPY.genericError);
+      }
+      const oid = created.order!.id as string;
+      setOrder(created.order!);
 
       if (
-        created.order.status === 'paid_waiting_return' ||
-        created.order.status === 'payment_pending'
+        created.order!.status === 'paid_waiting_return' ||
+        created.order!.status === 'payment_pending'
       ) {
         /* continue */
       }
 
-      const payRes = await fetch(`/api/refill/orders/${oid}/payment`, {
+      const payRes = await liffRefillFetch(`/api/refill/orders/${oid}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
-      const pay = await payRes.json();
-      if (!payRes.ok) throw new Error(pay.error ?? REFILL_COPY.genericError);
+      const pay = (await payRes.json()) as ApiErrorBody & {
+        checkout?: { paymentUrl: string; fields: Record<string, string> };
+      };
+      if (!payRes.ok) {
+        if (await maybeReauthForInvalidIdToken(pay.code)) return;
+        throw new Error(pay.error ?? REFILL_COPY.genericError);
+      }
 
       setStep('paying');
       // Auto-submit ECPay form
+      const checkout = pay.checkout!;
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = pay.checkout.paymentUrl;
-      for (const [k, v] of Object.entries(pay.checkout.fields as Record<string, string>)) {
+      form.action = checkout.paymentUrl;
+      for (const [k, v] of Object.entries(checkout.fields)) {
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = k;
@@ -227,14 +289,16 @@ function RefillFlow({
   }
 
   if (step === 'register') {
-    const returnTo = encodeURIComponent(
-      `/liff/refill${storeId ? `?storeId=${storeId}` : ''}`,
+    const returnPath = `/liff/refill${storeId ? `?storeId=${storeId}` : ''}`;
+    const registerHref = withExistingVercelShare(
+      `/liff/register?return=${encodeURIComponent(returnPath)}`,
+      typeof window !== 'undefined' ? window.location.href : '',
     );
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">請先完成會員註冊，再回來換罐付款。</p>
         <Button asChild className="w-full min-h-[48px]">
-          <a href={`/liff/register?return=${returnTo}`}>前往註冊</a>
+          <a href={registerHref}>前往註冊</a>
         </Button>
       </div>
     );
@@ -250,6 +314,67 @@ function RefillFlow({
         <p className="text-lg font-semibold">{REFILL_COPY.confirmingPayment}</p>
         <p className="text-sm text-muted-foreground">我們正在向銀行確認，請不要關閉頁面。</p>
         {error && <LiffStatus message={error} variant="error" />}
+      </div>
+    );
+  }
+
+  if (step === 'no_booking') {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <p className="text-base font-semibold text-foreground whitespace-pre-line">
+            {REFILL_COPY.noBooking}
+          </p>
+          <p className="text-sm text-muted-foreground whitespace-pre-line">
+            {REFILL_COPY.noBookingNext}
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Button
+            type="button"
+            className="w-full min-h-[48px]"
+            onClick={() => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const liff = (window as any).liff;
+                if (liff?.closeWindow) liff.closeWindow();
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            {REFILL_COPY.backToJarMenu}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full min-h-[48px]"
+            onClick={() => {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const liff = (window as any).liff;
+                if (liff?.sendMessages) {
+                  void liff.sendMessages([{ type: 'text', text: '查看合作店家' }]).finally(() => {
+                    try {
+                      liff.closeWindow?.();
+                    } catch {
+                      /* ignore */
+                    }
+                  });
+                  return;
+                }
+                liff?.closeWindow?.();
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            {REFILL_COPY.viewPartnerStores}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          回 LINE 後也可點「換罐計劃」→「了解更多」看合作店家。
+        </p>
       </div>
     );
   }

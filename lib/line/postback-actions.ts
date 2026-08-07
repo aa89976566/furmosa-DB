@@ -31,11 +31,12 @@ import {
   buildFrogProjectMessages,
   buildHomeHubMessages,
   buildJarExplainTopicMessages,
+  buildJarMoreHelpMessages,
   buildJarStartMessages,
+  buildRefillLaunchMessages,
   buildRegisterGateMessages,
   buildWorldHubMessages,
 } from '@/lib/line/flex-hubs';
-import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
 import {
   handleRegisterPostback,
@@ -200,8 +201,34 @@ export async function handleLinePostback(
   }
 
   if (action === 'jar_reg' || action === 'reg') {
-    const resumeAfter = params.get('next') === 'enter' ? 'enter_code' : null;
+    const next = params.get('next');
+    const resumeAfter =
+      next === 'enter' ? 'enter_code' : next === 'refill' ? 'start_refill' : null;
     await startRegisterFlow(replyToken, lineUserId, { resumeAfter });
+    return;
+  }
+
+  if (action === 'jar_refill') {
+    if (!customer) {
+      await startRegisterFlow(replyToken, lineUserId, {
+        resumeAfter: 'start_refill',
+      });
+      return;
+    }
+    // 已開戶：清掉進行中對話，再給單一換罐按鈕
+    try {
+      await clearLineChatSession(lineUserId);
+    } catch (err) {
+      console.error('[line] clear session on jar_refill failed', err);
+    }
+    await replyLineMessage(replyToken, buildRefillLaunchMessages());
+    return;
+  }
+
+  if (action === 'jar_more') {
+    await replyLineMessage(replyToken, buildJarMoreHelpMessages(), {
+      lineUserId,
+    });
     return;
   }
 
@@ -211,7 +238,6 @@ export async function handleLinePostback(
       buildJarStartMessages({
         registered,
         customerName: customer?.name ?? null,
-        refillLiffUrl: getLiffUrlIfConfigured('refill'),
       }),
     );
     return;

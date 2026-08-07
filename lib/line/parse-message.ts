@@ -25,6 +25,8 @@ export type ParsedLineText =
   | { kind: 'jar_explain' }
   | { kind: 'jar_enter' }
   | { kind: 'jar_start' }
+  | { kind: 'jar_refill' }
+  | { kind: 'jar_more' }
   | { kind: 'jar_stores' }
   | { kind: 'redeem_coupon' }
   | { kind: 'refill_flavours' }
@@ -32,7 +34,7 @@ export type ParsedLineText =
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
 const REDEEM_REWARD_RE = /^(?:兌換|兑换|換|redeem)\s*[：:\s]?\s*(.+)$/i;
-const BALANCE_RE = /^(?:點數|点数|餘額|余额|balance|查點數|查点数)$/i;
+const BALANCE_RE = /^(?:點數|点数|餘額|余额|balance|查點數|查点数|查看點數)$/i;
 const SAVINGS_RE =
   /^(?:小金庫|金庫|罐罐存摺|我的存罐本|小銀行|罐罐|存罐記錄|我的罐罐|罐罐存款|會員資料與存罐紀錄|會員資料|存罐紀錄|毛孩罐庫|罐庫)$/i;
 const HELP_RE = /^(?:說明|帮助|help|\?|？|指令|使用方法|存罐攻略|攻略)$/i;
@@ -58,13 +60,18 @@ const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
 const JAR_EXPLAIN_INTRO_RE = /^(?:什麼是換罐計劃？|什麼是換罐計劃|介紹)$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
 const JAR_EXPLAIN_FAQ_RE = /^(?:毛爸媽常問|常見問題|Q&A|QA)$/i;
-const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
+const JAR_ENTER_RE = /^(?:兌換序號|輸入序號|輸入空罐序號)$/;
 /** 介紹卡主 CTA：點擊後依當下開戶狀態分流 */
 const JAR_START_RE = /^開始換罐$/;
+/** 伺服器閘道換罐（勿直接當 URI） */
+const JAR_REFILL_RE = /^(?:我要換罐|線上預購換罐)$/;
+/** 換罐二級說明選單 */
+const JAR_MORE_RE = /^(?:了解更多|換罐了解更多)$/;
 /** 須先於「兌換 xxx」模糊規則，避免被拆成 redeem_reward */
 const REDEEM_COUPON_RE =
   /^(?:點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券)$/;
-const JAR_STORES_RE = /^(?:查看合作店|合作店家|合作美容店|配合店家)$/;
+const JAR_STORES_RE =
+  /^(?:查看合作店|查看合作店家|合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
 
 /** 去掉零寬字元，避免 Rich Menu 帶入後對不到捷徑 */
@@ -96,6 +103,8 @@ export function parseLineUserText(raw: string): ParsedLineText {
   // 精確換罐捷徑要先於「兌換 xxx」模糊規則
   if (JAR_EXPLAIN_MENU_RE.test(text)) return { kind: 'jar_explain' };
   if (JAR_START_RE.test(text)) return { kind: 'jar_start' };
+  if (JAR_REFILL_RE.test(text)) return { kind: 'jar_refill' };
+  if (JAR_MORE_RE.test(text)) return { kind: 'jar_more' };
   if (JAR_ENTER_RE.test(text)) return { kind: 'jar_enter' };
   if (REDEEM_COUPON_RE.test(text)) return { kind: 'redeem_coupon' };
   if (JAR_EXPLAIN_INTRO_RE.test(text)) return { kind: 'jar_explain_intro' };
