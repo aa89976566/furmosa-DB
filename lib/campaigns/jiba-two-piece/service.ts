@@ -70,6 +70,8 @@ let cachedCampaign:
 export async function ensureJibaCampaign() {
   if (cachedCampaign) return cachedCampaign;
   try {
+    // 含可空欄位 ADD COLUMN IF NOT EXISTS（migrate soft-fail 補償）；結果有 isolate 快取
+    await ensureJibaCampaignSchema();
     cachedCampaign = await upsertJibaCampaign();
     return cachedCampaign;
   } catch (err) {
@@ -114,6 +116,17 @@ export async function createJibaEnrollment(opts: {
     findCustomerByLineUserId(opts.lineUserId),
     nextCampaignOrderNumber(),
   ]);
+  // 報名當下盡力取 profile；失敗不擋報名
+  const { fetchLineUserProfile } = await import('@/lib/line/profile');
+  const profile = await fetchLineUserProfile(opts.lineUserId).catch(() => null);
+  const lineDisplayName =
+    opts.lineDisplayName?.trim() ||
+    profile?.displayName ||
+    customer?.lineDisplay ||
+    null;
+  const linePictureUrl = profile?.pictureUrl ?? null;
+  const lineProfileSyncedAt = profile ? new Date() : null;
+
   const order = await prisma.order.create({
     data: {
       orderNumber,
@@ -140,7 +153,9 @@ export async function createJibaEnrollment(opts: {
       campaignId: campaign.id,
       customerId: customer?.id ?? null,
       lineUserId: opts.lineUserId,
-      lineDisplayName: opts.lineDisplayName ?? customer?.lineDisplay ?? null,
+      lineDisplayName,
+      linePictureUrl,
+      lineProfileSyncedAt,
       orderId: order.id,
       status: APP_STATUS.COLLECTING_INFO,
       shippingQueueStatus: 'NOT_READY',

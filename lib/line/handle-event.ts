@@ -5,6 +5,7 @@ import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bin
 import { JAR_ENTER_BLOCKED_GUEST } from '@/lib/line/brand-worlds';
 import { clearLineChatSession } from '@/lib/line/chat-session';
 import { runAfterReply } from '@/lib/line/defer';
+import { syncLineProfileForUser } from '@/lib/line/sync-profile';
 import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
@@ -125,11 +126,19 @@ async function loadVaultSnapshot(customer: BoundCustomer) {
   };
 }
 
+function scheduleLineProfileSync(lineUserId: string): void {
+  // 背景同步；失敗不影響主流程，也不 log 個資
+  runAfterReply(
+    syncLineProfileForUser(lineUserId).then(() => undefined),
+  );
+}
+
 export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<void> {
   if (event.type === 'follow' && 'replyToken' in event && event.replyToken) {
     const follow = event as LineFollowEvent;
     if (!follow.source?.userId) return;
     const lineUserId = follow.source.userId;
+    scheduleLineProfileSync(lineUserId);
     await replyTriggerOnce(lineUserId, 'welcome', async () => {
       const promptFlags = await getOnboardingPromptFlags(lineUserId);
       await replyMenuHub(event.replyToken!, lineUserId, {
@@ -154,6 +163,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
 
+    scheduleLineProfileSync(lineUserId);
     await handleLinePostback(pb.replyToken, lineUserId, pb.postback.data);
     return;
   }
@@ -171,6 +181,8 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyLineText(replyToken, '操作有點密，晚點再試。');
     return;
   }
+
+  scheduleLineProfileSync(lineUserId);
 
   const parsed = parseLineUserText(msgEvent.message.text);
 
