@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { ANIMAL_FACT_DISCLOSURE } from '../domain/types';
 import { isContentSendable, mapContentRow } from '../content';
-import { assertNoPromo, renderJokeMessage, renderNewsMessage } from '../renderer';
+import {
+  assertAnimalFactDisclosure,
+  assertNoPromo,
+  renderAnimalFactMessage,
+  renderJokeMessage,
+  renderNewsMessage,
+} from '../renderer';
 
 describe('morning renderer + content rules', () => {
   it('笑話 ≤80 字且無促銷', () => {
@@ -22,6 +29,26 @@ describe('morning renderer + content rules', () => {
     });
     assert.match(r.text, /來源：臺北市立動物園/);
     assert.match(r.text, /https:\/\/zoo\.taipei\.gov\.tw\/news\/x/);
+  });
+
+  it('ANIMAL_FACT 必須含固定揭露句且禁止新聞口吻', () => {
+    const r = renderAnimalFactMessage({
+      factSummary: '兔子的牙齒會不停生長，需要足夠的磨牙素材。',
+      barkLine: '這題我聞過，不是頭條，是冷知識。',
+      attribution: '某公開教育資料',
+      canonicalUrl: 'https://example.org/fact/rabbit-teeth',
+    });
+    assert.equal(assertAnimalFactDisclosure(r.text), true);
+    assert.match(r.text, new RegExp(ANIMAL_FACT_DISCLOSURE));
+    assert.match(r.text, /來源：/);
+    assert.equal(assertNoPromo(r.text), true);
+
+    const bad = renderAnimalFactMessage({
+      factSummary: '今日新聞：有人說兔子牙齒會一直長。',
+      attribution: '某公開教育資料',
+      canonicalUrl: 'https://example.org/fact/x',
+    });
+    assert.ok(bad.issues?.some((i) => i.includes('fact_news_impersonation')));
   });
 
   it('DRAFT／ARCHIVED 永不 sendable；APPROVED 才可，cooldown 生效', () => {

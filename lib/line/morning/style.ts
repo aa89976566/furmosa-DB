@@ -66,7 +66,7 @@ function countBarkImagery(text: string): number {
 export function lintMorningStyle(
   text: string,
   opts?: {
-    kind?: 'news' | 'joke' | 'intro' | 'preference' | 'notice';
+    kind?: 'news' | 'joke' | 'animal_fact' | 'intro' | 'preference' | 'notice';
     /** 新聞正文目標 70–120；joke 可較短 */
     minChars?: number;
     maxChars?: number;
