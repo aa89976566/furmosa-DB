@@ -97,3 +97,9 @@
 - README 與程式現況衝突時，不得直接依照舊 README 操作。
 - 應先比對目前程式、schema.prisma、package.json、DEPLOY.md 與 .env.example。
 - 發現文件過期時先回報，不要順便大幅重寫文件。
+
+## 壽司匠早安（LINE Morning）Request Ledger
+
+- Canonical 工作紀錄：`docs/LINE-MORNING-WORKLOG.md`（單一來源；勿另建平行 worklog）。
+- 任何 AI／Remote（含手機 Remote、Desktop、Codex relay）指令：**動碼前**必須先寫入該檔 Request Ledger（至少時間、來源、摘要、狀態）。
+- 未入 ledger 並 commit 的指示，一律視為尚未執行。

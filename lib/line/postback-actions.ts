@@ -140,7 +140,25 @@ export async function handleLinePostback(
   replyToken: string,
   lineUserId: string,
   data: string,
+  opts?: { webhookEventId?: string | null; timestamp?: number | null },
 ): Promise<void> {
+  // 早安 opt-in postback（CONSENSUS：nonce+step/version+action）
+  if (data.includes('lmpref=1')) {
+    const { handleMorningOptinPostback } = await import(
+      '@/lib/line/morning/preference-flow'
+    );
+    const handled = await handleMorningOptinPostback(
+      replyToken,
+      lineUserId,
+      data,
+      {
+        webhookEventId: opts?.webhookEventId,
+        timestamp: opts?.timestamp,
+      },
+    );
+    if (handled) return;
+  }
+
   const params = parseLinePostbackData(data);
   const action = params.get('jd');
 

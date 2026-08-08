@@ -3,6 +3,7 @@ export * from '@/lib/line/morning/domain/consent';
 export * from '@/lib/line/morning/domain/frequency';
 export * from '@/lib/line/morning/domain/source-contract';
 export * from '@/lib/line/morning/domain/decision';
+export * from '@/lib/line/morning/domain/optin';
 
 import {
   isActiveDomainContentMode,

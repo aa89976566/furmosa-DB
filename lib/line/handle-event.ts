@@ -68,13 +68,7 @@ import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
 import {
   handleMorningGlobalCommand,
   handleMorningPreferenceMessage,
-  startMorningPreferenceFlow,
 } from '@/lib/line/morning/preference-flow';
-import {
-  getMorningPreference,
-  shouldPromptPreference,
-} from '@/lib/line/morning/preferences';
-import { hasUsableCustomerName } from '@/lib/line/morning/name';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -90,6 +84,8 @@ type LineMessageEvent = {
   message: { type: string; id: string; text?: string };
   source: { type: string; userId?: string };
   replyToken: string;
+  webhookEventId?: string;
+  timestamp?: number;
 };
 
 type LinePostbackEvent = {
@@ -97,6 +93,8 @@ type LinePostbackEvent = {
   postback: { data: string };
   source: { type: string; userId?: string };
   replyToken: string;
+  webhookEventId?: string;
+  timestamp?: number;
 };
 
 type LineFollowEvent = {
@@ -164,7 +162,10 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
 
-    await handleLinePostback(pb.replyToken, lineUserId, pb.postback.data);
+    await handleLinePostback(pb.replyToken, lineUserId, pb.postback.data, {
+      webhookEventId: pb.webhookEventId,
+      timestamp: pb.timestamp,
+    });
     return;
   }
 
@@ -426,25 +427,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
-    let morningHint = '';
-    try {
-      const pref = await getMorningPreference(lineUserId);
-      if (shouldPromptPreference(pref) && hasUsableCustomerName(result.customerName)) {
-        const bound = await findCustomerByLineUserId(lineUserId);
-        await startMorningPreferenceFlow(null, lineUserId, {
-          customerId: bound?.id ?? null,
-          reply: false,
-        });
-        morningHint =
-          '\n\n另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。';
-      }
-    } catch (err) {
-      console.error('[line] morning prefs after bind failed', err);
-    }
+    // CONSENSUS 4B-B：bind 完成禁止偏好 CTA／自動邀請
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `開戶對上了！\n${result.customerName}\n\n罐底 8 碼直接傳上來。${morningHint}`,
+      `開戶對上了！\n${result.customerName}\n\n罐底 8 碼直接傳上來。`,
       { registered: true },
     );
     return;
