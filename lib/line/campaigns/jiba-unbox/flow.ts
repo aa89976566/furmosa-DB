@@ -172,6 +172,26 @@ function jibaProductChoiceMenu(): LineReplyMessage {
   });
 }
 
+/** 選完商品後：Instagram 開箱樣本 URI CTA（標籤與網址勿改寫） */
+export const JIBA_SAMPLE_UNBOX_CTA_LABEL = '看一個開箱樣本';
+export const JIBA_SAMPLE_UNBOX_IG_URI =
+  'https://www.instagram.com/s/aGlnaGxpZ2h0OjE4MDk2MzY0MDcwMTc1NjEz?story_media_id=3920692691184160856&igsh=ZzdoZzEwb3A5M2xk';
+
+export function jibaSampleUnboxCtaFlex(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: JIBA_SAMPLE_UNBOX_CTA_LABEL,
+    theme: WORLD_THEME.chaos,
+    title: JIBA_SAMPLE_UNBOX_CTA_LABEL,
+    items: [
+      {
+        label: JIBA_SAMPLE_UNBOX_CTA_LABEL,
+        action: { type: 'uri', uri: JIBA_SAMPLE_UNBOX_IG_URI },
+        style: 'primary',
+      },
+    ],
+  });
+}
+
 function jibaResumeChoiceMenu(): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: '繼續開箱？',
@@ -938,6 +958,7 @@ export async function handleJibaUnboxMessage(
       await logBot(sid, brief);
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
+        jibaSampleUnboxCtaFlex(),
         { type: 'text', text: brief },
         buildButtonMenuFlex({
           altText: '開始填資料',
