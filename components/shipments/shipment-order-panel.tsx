@@ -179,8 +179,8 @@ export function ShipmentOrderPanel({
     orderLabel ?? data.order?.orderNumber ?? data.shipmentNumber;
 
   return (
-    <div className="min-w-0 space-y-5" data-shipment-panel-state="ready">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+    <div className="min-w-0 space-y-6" data-shipment-panel-state="ready">
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border/70 bg-card p-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-semibold">{data.shipmentNumber}</span>
@@ -230,9 +230,9 @@ export function ShipmentOrderPanel({
       ) : null}
 
       {/* 1. 出貨品項 */}
-      <section className="min-w-0 rounded-lg border bg-card p-4">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Package className="h-4 w-4 text-info" />
+      <section className="min-w-0 rounded-xl border border-border/70 bg-card p-4">
+        <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+          <Package className="h-4 w-4 shrink-0 text-info" />
           出貨品項
           {productSummary.state === 'ok' ? (
             <span className="text-xs font-normal text-muted-foreground">
@@ -306,9 +306,9 @@ export function ShipmentOrderPanel({
       </section>
 
       {/* 2. 收件／目的地 */}
-      <section className="min-w-0 rounded-lg border bg-card p-4">
+      <section className="min-w-0 rounded-xl border border-border/70 bg-card p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <MapPin className="h-4 w-4 text-info" />
+          <MapPin className="h-4 w-4 shrink-0 text-info" />
           收件／目的地
         </h3>
         <dl className="mt-4 space-y-3 text-sm">
@@ -341,7 +341,7 @@ export function ShipmentOrderPanel({
       </section>
 
       {/* 3. 付款摘要 */}
-      <section className="min-w-0 rounded-lg border bg-card p-4">
+      <section className="min-w-0 rounded-xl border border-border/70 bg-card p-4">
         <h3 className="text-sm font-semibold">付款摘要</h3>
         {data.order ? (
           <dl className="mt-4 space-y-3 text-sm">
@@ -364,9 +364,9 @@ export function ShipmentOrderPanel({
       </section>
 
       {/* 4. 物流／追蹤／狀態 */}
-      <section className="min-w-0 rounded-lg border bg-card p-4">
+      <section className="min-w-0 rounded-xl border border-border/70 bg-card p-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <Truck className="h-4 w-4 text-info" />
+          <Truck className="h-4 w-4 shrink-0 text-info" />
           物流／追蹤
         </h3>
         <dl className="mt-4 space-y-3 text-sm">
@@ -399,23 +399,23 @@ export function ShipmentOrderPanel({
         </dl>
       </section>
 
-      {/* 5. 寫入操作區（與唯讀區清楚分隔） */}
+      {/* 5. 寫入操作區（與唯讀區清楚分隔；Drawer 內單欄） */}
       <section
-        className="rounded-lg border-2 border-primary/20 bg-primary/[0.03] p-4"
+        className="min-w-0 rounded-xl border border-border/80 bg-muted/20 p-4"
         data-shipment-write-section="true"
         aria-label={`出貨操作 ${labelForAria}`}
       >
         <h3 className="text-sm font-semibold">出貨操作</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。
         </p>
         {stale ? (
-          <p className="mt-4 text-sm text-amber-900">
+          <p className="mt-5 text-sm text-amber-900">
             狀態已變更，請先重新整理後再操作。
           </p>
         ) : (
           <div
-            className="mt-4"
+            className="mt-5 w-full min-w-0"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
           >

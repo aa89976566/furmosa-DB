@@ -176,6 +176,7 @@ export function ShipmentQueueWorkspace({
       >
         <SheetContent
           side="right"
+          aria-labelledby="shipment-drawer-title"
           aria-describedby="shipment-drawer-desc"
           data-shipment-detail-placement="drawer"
           onCloseAutoFocus={(event) => {
@@ -183,7 +184,7 @@ export function ShipmentQueueWorkspace({
             triggerRef.current?.focus?.();
           }}
         >
-          <SheetHeader className="shrink-0">
+          <SheetHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
@@ -193,7 +194,7 @@ export function ShipmentQueueWorkspace({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
                     訂單內容
                   </p>
-                  <SheetTitle className="truncate">{drawerLabel}</SheetTitle>
+                  <SheetTitle id="shipment-drawer-title">{drawerLabel}</SheetTitle>
                   <SheetDescription id="shipment-drawer-desc">
                     品項、收件、付款與物流狀態。變更狀態請在下方操作區。
                   </SheetDescription>
@@ -203,7 +204,7 @@ export function ShipmentQueueWorkspace({
             </div>
           </SheetHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 py-6">
             {selectedShipmentId ? (
               <ShipmentOrderPanel
                 key={`${selectedShipmentId}-${panelRefreshKey}-${listEpoch}`}

@@ -326,3 +326,10 @@ export function getShipmentDetailPlacementMode() {
 export function rowOpenDoesNotTriggerStatusWrite() {
   return true;
 }
+
+/** Drawer 操作區：主流程與取消 danger zone 分離（禁止並排） */
+export function partitionShipmentWriteActions<T extends string>(allowedNext: T[]) {
+  const primary = allowedNext.filter((status) => status !== 'cancelled');
+  const danger = allowedNext.filter((status) => status === 'cancelled');
+  return { primary, danger };
+}

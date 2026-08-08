@@ -30,7 +30,7 @@ SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    /** ≥1280px 右側 520px；小於則全寬 */
+    /** ≥1280px 右側 clamp 寬；小於則全寬 overlay */
     side?: 'right';
   }
 >(({ className, children, side = 'right', ...props }, ref) => (
@@ -38,15 +38,16 @@ const SheetContent = React.forwardRef<
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      role="dialog"
       className={cn(
-        'fixed z-[190] flex flex-col gap-0 bg-card shadow-xl outline-none',
+        'fixed z-[190] flex max-w-full flex-col gap-0 overflow-x-hidden bg-card shadow-xl outline-none',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'duration-200',
         side === 'right' &&
           cn(
             'inset-y-0 right-0 h-full w-full border-l',
-            'min-[1280px]:w-[520px]',
+            'min-[1280px]:w-[clamp(420px,42vw,560px)]',
             'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
           ),
         className,
@@ -62,14 +63,17 @@ SheetContent.displayName = DialogPrimitive.Content.displayName;
 function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex flex-col space-y-1.5 border-b bg-primary/[0.04] px-4 py-3 sm:px-5', className)}
+      className={cn(
+        'flex shrink-0 flex-col space-y-1.5 border-b bg-primary/[0.04] px-6 py-4',
+        className,
+      )}
       {...props}
     />
   );
 }
 
 function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('mt-auto border-t p-4', className)} {...props} />;
+  return <div className={cn('mt-auto border-t p-6', className)} {...props} />;
 }
 
 const SheetTitle = React.forwardRef<
@@ -78,7 +82,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('font-mono text-base font-semibold text-navy', className)}
+    className={cn('font-mono text-base font-semibold leading-snug text-navy break-words', className)}
     {...props}
   />
 ));
@@ -90,7 +94,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-xs text-muted-foreground', className)}
+    className={cn('text-xs leading-relaxed text-muted-foreground', className)}
     {...props}
   />
 ));
@@ -100,7 +104,7 @@ function SheetCloseButton({ className, ...props }: React.ComponentPropsWithoutRe
   return (
     <DialogPrimitive.Close
       className={cn(
-        'inline-flex h-8 w-8 items-center justify-center rounded-md border bg-card text-muted-foreground',
+        'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-card text-muted-foreground',
         'transition hover:bg-muted hover:text-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
