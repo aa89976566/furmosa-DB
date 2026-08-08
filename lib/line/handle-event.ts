@@ -246,7 +246,19 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
         return;
       }
     } catch (err) {
-      console.error('[line] register flow gate failed', err);
+      console.error('[line] register flow gate failed', {
+        err: err instanceof Error ? err.message : 'unknown',
+      });
+      // 絕不可沉默；不用 Push API 當 reply fallback
+      try {
+        const { BIRTHDAY_COPY } = await import('@/lib/line/register-birthday');
+        await replyLineText(replyToken, BIRTHDAY_COPY.recover);
+      } catch (err2) {
+        console.error('[line] register recover reply failed', {
+          err: err2 instanceof Error ? err2.message : 'unknown',
+        });
+      }
+      return;
     }
 
     // 開箱對話以 DB session 為準；campaign 表未就緒時不得讓整段 webhook 掛掉

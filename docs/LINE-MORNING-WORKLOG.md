@@ -17,10 +17,10 @@
 
 | 欄位 | 值 |
 |------|-----|
-| Phase | **4B-B** — 明確 opt-in UI + HQ dry-run 驗證（進行中） |
+| Phase | **LINE 註冊生日無回應修正**（stacked on #98） |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-morning-phase4b-b-optin` |
-| Stack base | PR #97 head `2ecdfec`（`cursor/line-morning-phase4b-a-2673`） |
+| Active branch | `cursor/line-birthday-parser-fix-2673` |
+| Stack base | PR #98 head `7e455da`（`cursor/line-morning-phase4b-b-optin`） |
 
 ## PR stack
 
@@ -35,9 +35,10 @@ main
 |----|--------|----------|------|------|
 | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | `cursor/line-morning-mvp-2673` | `446d648` | `main` | MVP + 安全框架 + Phase 3 QA |
 | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | `cursor/line-morning-phase4b-a-2673` | `2ecdfec` | #96 branch | Phase 4B-A domain contract |
-| [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | `cursor/line-morning-phase4b-b-optin` | `14ba161` | #97 branch | Phase 4B-B opt-in |
+| [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | `cursor/line-morning-phase4b-b-optin` | `7e455da` | #97 branch | Phase 4B-B opt-in |
+| [#99](https://github.com/aa89976566/furmosa-DB/pull/99) | `cursor/line-birthday-parser-fix-2673` | `32ad543` | #98 branch | 註冊生日 parser／狀態機 |
 
-**硬規則**：不得改寫 #96／#97 head；不 merge；不 Production。
+**硬規則**：不得改寫 #96／#97／#98 head；不 merge；不 Production。
 
 ---
 
@@ -65,6 +66,20 @@ main
 | RL-2026-08-08-4BB-AUTH | 2026-08-08T12:36Z | Desktop（使用者授權） | 授權開始 Phase 4B-B；先完成永久留痕（worklog）與安全 stacked branch，再做明確 opt-in UI + HQ dry-run；LINE 真送必須 0 | `VERIFIED` | `cursor/line-morning-phase4b-b-optin` | `2d1ace6`→`14ba161` | [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | morning+LINE 151 pass；build 0 | https://furmosa-db-git-cursor-line-morning-5c05c4-aa89976566s-projects.vercel.app |
 | RL-HIST-96 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 1–3：Preview MVP、新聞安全框架、Phase 3 QA（手機卡片／繁中標籤／region） | `VERIFIED` | `cursor/line-morning-mvp-2673` | `446d648` | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | morning+LINE pass（當時） | Preview Ready（#96） |
 | RL-HIST-97 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 4B-A：domain／零擴張 consent／decision／ANIMAL_FACT renderer；無 UI 擴張 | `VERIFIED` | `cursor/line-morning-phase4b-a-2673` | `2ecdfec` | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | domain+morning 65 pass；build 0；Vercel SUCCESS | https://furmosa-db-git-cursor-line-morning-247c4b-aa89976566s-projects.vercel.app |
+| RL-2026-08-08-BDAY-FIX | 2026-08-08T13:49Z | Mobile Remote／Codex relay（使用者授權；ChatGPT 主審＋Claude/Gemini 交叉審查） | LINE 註冊生日：支援台灣常用／中文年月日／中文數字；normalize date-only ISO；invalid／例外不可沉默；狀態機必須每次 webhook 有回覆 | `VERIFIED` | `cursor/line-birthday-parser-fix-2673` | `5af8b39`→`32ad543` | [#99](https://github.com/aa89976566/furmosa-DB/pull/99) | birthday+LINE+morning 174 pass；build 0 | https://furmosa-db-git-cursor-line-birthday-d20f9d-aa89976566s-projects.vercel.app |
+
+### 根因盤點（RL-2026-08-08-BDAY-FIX）
+
+| 層 | 路徑 | 現況問題 |
+|----|------|----------|
+| Parser | `register-from-chat.ts` `parseBirthdayOptional` | **只接受** `YYYY-MM-DD`；`2020/5/6`、民國、中文年月日全部變 invalid |
+| 狀態機沉默 | 同檔 `breed→birthday` 先 `markRegisterStepPrompt('birthday')`，invalid 走 `replyRegisterStepPromptOnce` | **24h cooldown 已觸發 → 直接 return 不回覆**（主因） |
+| 例外 | `handle-event.ts` register gate `catch` 只 log | parser／handler throw 可能**整段無 reply** |
+| Copy | `LINE_PET_BIRTHDAY_PROMPT` | 只示例 ISO，未說明民國／中文；無 Quick Reply「略過」 |
+| DB | `Customer.petBirthday` DateTime? | 維持既有；draft 存 date-only ISO，寫入用正午 UTC（避免日界漂移）；**無 schema 衝突** |
+| 產品規則 | 無既有中文／民國規則 | 採核准契約：明示民國或中文 3 位數年 +1911；4 位數西元 |
+
+**變更邊界**：`lib/line/register-birthday.ts`（新 parser）、`register-from-chat.ts`、`line-copy.ts`、相關 tests、worklog。不碰 migration／morning opt-in／shipments／Production。
 
 ---
 
