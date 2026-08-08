@@ -402,11 +402,21 @@ export async function handleRegisterPostback(
             })
           : JAR_ENTER_HINT_REGISTERED;
 
+      // 偏好收集不阻擋註冊；合併進同一 replyToken（含 5 選 quick-reply）
+      const morningPrompt = await startMorningPreferenceFlow(null, lineUserId, {
+        customerId: created.id,
+        reply: false,
+      });
+      const morningMsg = {
+        type: 'text' as const,
+        text: morningPrompt.text,
+        quickReply: { items: morningPrompt.quickReplyItems },
+      };
       if (resumeAfter === 'enter_code') {
         await replyLineMessage(replyToken, [
           { type: 'text', text: `${doneText}\n\n接下來可以這樣做～` },
           { type: 'text', text: nextHint },
-          { type: 'text', text: '另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。' },
+          morningMsg,
         ]);
       } else {
         const hub = buildWorldHubMessages('jar', { registered: true });
@@ -416,14 +426,9 @@ export async function handleRegisterPostback(
             text: `${doneText}\n\n${nextHint}`,
           },
           ...hub.slice(0, 2),
-          { type: 'text', text: '另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。' },
+          morningMsg,
         ]);
       }
-      // 偏好收集不阻擋註冊；寫入 morning_prefs session 等下一則回覆
-      await startMorningPreferenceFlow(null, lineUserId, {
-        customerId: created.id,
-        reply: false,
-      });
     } catch (e) {
       await replyLineText(
         replyToken,

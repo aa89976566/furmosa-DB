@@ -18,6 +18,10 @@ import {
   decideMorningContent,
 } from '@/lib/line/morning/domain/decision';
 import {
+  assertMorningSenderUnused,
+  getMorningOutboundSender,
+} from '@/lib/line/morning/sender-gate';
+import {
   defaultMockNewsProvider,
 } from '@/lib/line/morning/news/mock-feed';
 import {
@@ -541,6 +545,12 @@ export async function runMorningDryRun(opts?: {
       quotaUsed += 1;
     }
   }
+
+  const sender = getMorningOutboundSender({ forceDryRun: true });
+  // 本路徑不得呼叫 push；重置後斷言，避免測試污染共享計數
+  sender.resetCallCount();
+  assertMorningSenderUnused(sender);
+  notes.push('morning sender call count=0（dry-run 閘門）');
 
   return {
     dryRunOnly: MORNING_PREVIEW_DRY_RUN_ONLY,

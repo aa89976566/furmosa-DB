@@ -15,10 +15,28 @@ export type MorningCommand =
   | { kind: 'none' };
 
 const CONTENT_RULES: Array<{ re: RegExp; mode: Exclude<MorningContentMode, 'unset'> }> = [
-  { re: /^(?:寵物笑話|笑話)$/, mode: 'jokes' },
+  // 新主選（較長／較明確的規則放前面）
+  {
+    re: /^(?:4|新鮮事到日常|新鮮事；沒有冷知識再日常|新鮮事.*冷知識.*日常|新聞.*冷知識.*笑話)$/,
+    mode: 'news_first_fact_or_humor_fallback',
+  },
+  {
+    re: /^(?:3|新鮮事｜冷知識|新鮮事；沒有可看冷知識|新鮮事.*冷知識|新聞.*冷知識)$/,
+    mode: 'news_first_fact_fallback',
+  },
+  {
+    re: /^(?:2|新鮮事｜跳過|寵物新鮮事；沒有安全新聞就跳過|寵物新鮮事；沒有就跳過|新鮮事；沒有就跳過)$/,
+    mode: 'news',
+  },
+  {
+    re: /^(?:1|僅毛孩笑話|毛孩笑話|寵物笑話|笑話)$/,
+    mode: 'jokes',
+  },
+  // 相容：舊短語仍映射 NEWS_ONLY（語意相等）
   { re: /^(?:全球寵物新鮮事|寵物新鮮事|新鮮事|新聞)$/, mode: 'news' },
+  // Legacy alternate：可解析但不在新 UI 主推；不升級為 FACT
   { re: /^(?:兩種交替|交替)$/, mode: 'alternate' },
-  { re: /^(?:內容先不用|先不用內容)$/, mode: 'off' },
+  { re: /^(?:5|內容先不用|先不用內容)$/, mode: 'off' },
 ];
 
 const FREQ_RULES: Array<{
