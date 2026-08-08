@@ -70,6 +70,7 @@ export async function ingestFixtureNewsPreview(opts?: {
       originalSummary: raw.summary,
       publishedAt: raw.publishedAt,
       speciesTags: raw.speciesTags,
+      region: raw.region,
       now,
     });
     if (!normalized.ok) {
@@ -143,6 +144,9 @@ export async function ingestFixtureNewsPreview(opts?: {
           fetchedAt: normalized.value.fetchedAt,
           factSummary: normalized.value.originalSummary,
           barkLine: observation,
+          region: gate.region,
+          sourceId: normalized.value.sourceId,
+          sourceName: normalized.value.sourceName,
         },
       });
       continue;

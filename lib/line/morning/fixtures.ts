@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/prisma';
 
+/** DRAFT 笑話：至少 dog／cat／rabbit／bird；成熟台灣語境，不預設核准 */
 export const MORNING_JOKE_DRAFT_FIXTURES = [
   {
     stableId: 'morning-joke-draft-001',
@@ -20,6 +21,11 @@ export const MORNING_JOKE_DRAFT_FIXTURES = [
     stableId: 'morning-joke-draft-003',
     body: '兔子忽然彈射起步，三秒後優雅坐下，像剛開完秘密會議。',
     petTags: ['rabbit', 'general'],
+  },
+  {
+    stableId: 'morning-joke-draft-004',
+    body: '鳥在鏡子前整理羽毛，每根都像要見重要客戶。我還穿著睡衣，突然有點心虛。',
+    petTags: ['bird', 'general'],
   },
 ] as const;
 

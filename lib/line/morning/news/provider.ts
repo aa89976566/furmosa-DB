@@ -68,6 +68,7 @@ export function processCandidates(
       originalTitle: c.title,
       originalSummary: c.factSummary,
       publishedAt: c.publishedAt,
+      region: c.region,
       now,
     });
 

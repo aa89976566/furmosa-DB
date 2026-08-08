@@ -62,6 +62,7 @@ export function classifyNewsSafety(candidate: RawNewsCandidate): SafetyClassific
     originalTitle: candidate.title,
     originalSummary: candidate.factSummary,
     publishedAt: candidate.publishedAt,
+    region: candidate.region,
   });
   if (!normalized.ok) {
     return {

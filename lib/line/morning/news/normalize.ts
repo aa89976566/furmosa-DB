@@ -82,6 +82,23 @@ export function parsePublishedAtStrict(
   return { ok: true, date: d };
 }
 
+/** 自 fixture path 推斷區域（global- / tw-）；明確傳入 region 時優先 */
+export function resolveFixtureRegion(
+  canonicalUrl: string,
+  explicit?: 'tw' | 'global' | null,
+  sourceDefault: 'tw' | 'global' = 'tw',
+): 'tw' | 'global' {
+  if (explicit === 'tw' || explicit === 'global') return explicit;
+  try {
+    const path = new URL(canonicalUrl).pathname.toLowerCase();
+    if (path.includes('/global-') || path.includes('/placeholder/global')) return 'global';
+    if (path.includes('/tw-') || path.includes('/placeholder/tw')) return 'tw';
+  } catch {
+    // ignore
+  }
+  return sourceDefault;
+}
+
 export function normalizeNewsCandidate(input: {
   sourceId: string;
   canonicalUrl: string;
@@ -90,6 +107,8 @@ export function normalizeNewsCandidate(input: {
   publishedAt: Date | string | null;
   fetchedAt?: Date;
   speciesTags?: string[];
+  /** 單則覆蓋（fixture 全球／台灣）；優先於 registry.regionDefault */
+  region?: 'tw' | 'global';
   now?: Date;
 }): NormalizeOk | NormalizeFail {
   const source = getSourceById(input.sourceId);
@@ -129,6 +148,12 @@ export function normalizeNewsCandidate(input: {
     publishedAt: pub.date,
   });
 
+  const region = resolveFixtureRegion(
+    canonicalUrl,
+    input.region,
+    source.regionDefault,
+  );
+
   return {
     ok: true,
     value: {
@@ -139,7 +164,7 @@ export function normalizeNewsCandidate(input: {
       originalSummary: summary.slice(0, 280),
       publishedAt: pub.date,
       fetchedAt,
-      region: source.regionDefault,
+      region,
       speciesTags: (input.speciesTags ?? []).slice(0, 8),
       contentHash,
     },

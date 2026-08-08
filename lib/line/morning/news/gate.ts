@@ -198,14 +198,15 @@ export function gateNormalizedNews(n: NormalizedNewsCandidate): GateResult {
     riskLabels.add('uncertain');
   }
 
-  const src = getSourceById(n.sourceId);
+  // 單則 normalize 區域優先（避免 fixture_placeholder 預設 tw 蓋掉 global 條目）
+  void getSourceById(n.sourceId);
   return {
     status,
     riskLevel,
     riskLabels: [...riskLabels],
     confidence,
     reasons,
-    region: src?.regionDefault ?? n.region,
+    region: n.region,
   };
 }
 

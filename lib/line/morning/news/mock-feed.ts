@@ -12,6 +12,8 @@ export type FixtureNewsRaw = {
   title: string;
   summary: string;
   publishedAt: string;
+  /** 單則區域；不得被 registry 預設蓋掉 */
+  region: 'tw' | 'global';
   speciesTags?: string[];
   /** 僅 AUTO_APPROVED 路徑可用；不得含新事實 */
   safeObservation?: string | null;
@@ -26,6 +28,7 @@ export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
     summary:
       '這是測試用占位摘要：示範園區替水獺更新漂浮玩具後，觀察到牠們探索與戲水的時間變長，工作人員持續記錄互動情況。非真實新聞。',
     publishedAt: new Date().toISOString(),
+    region: 'tw',
     speciesTags: ['general'],
     safeObservation: '玩具一進水，認真程度瞬間像開會。',
   },
@@ -36,6 +39,7 @@ export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
     summary:
       '這是測試用占位摘要：示範城市在狗公園增加嗅聞步道，讓犬隻用鼻子探索環境，減少只圍繞跑道奔跑的單一設計。非真實新聞。',
     publishedAt: new Date().toISOString(),
+    region: 'global',
     speciesTags: ['dog'],
     safeObservation: '鼻子行事曆，永遠比人類滿。',
   },
@@ -45,6 +49,7 @@ export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
     title: '[FIXTURE] 某地傳出寵物疾病疫情',
     summary: '測試用占位：疑似寵物疾病感染案例，用於驗證硬規則阻擋。非真實新聞。',
     publishedAt: new Date().toISOString(),
+    region: 'tw',
     speciesTags: ['dog'],
     safeObservation: null,
   },
@@ -54,6 +59,7 @@ export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
     title: '[FIXTURE] 五個偏方保證治好毛孩腸胃',
     summary: '測試用占位：未經證實的健康建議，應被阻擋。非真實新聞。',
     publishedAt: new Date().toISOString(),
+    region: 'tw',
     safeObservation: null,
   },
   {
@@ -62,6 +68,7 @@ export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
     title: '[FIXTURE] 過期示範新聞',
     summary: '測試用占位：用於驗證 72 小時時效。非真實新聞。',
     publishedAt: '2020-01-01T00:00:00.000Z',
+    region: 'tw',
     safeObservation: null,
   },
 ];
@@ -73,7 +80,7 @@ export const MOCK_NEWS_FIXTURES: RawNewsCandidate[] = FIXTURE_NEWS_RAW.map((f) =
   publishedAt: f.publishedAt,
   title: f.title,
   factSummary: f.summary,
-  region: 'tw' as const,
+  region: f.region,
   barkLine: f.safeObservation ?? null,
   sourceId: f.sourceId,
 }));
