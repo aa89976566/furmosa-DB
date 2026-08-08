@@ -39,8 +39,17 @@ export {
 export const LINE_STORE_PROMPT =
   '請選一間常去的合作美容店喔。之後折價券會綁這間；可折金額依門市，綁定後會跟你說。';
 
-export const LINE_REGISTER_INTRO =
-  '【開戶】先跟我們說一下你的暱稱～（例：小美）\n\n如果想先暫停，傳「取消」就可以。';
+/** 開戶暱稱步驟：壽司匠固定開場（復用 Customer.name，不另建 preferredName） */
+export const LINE_REGISTER_INTRO = [
+  '汪！有新朋友，我先聞一下……',
+  '好，確認是自己人了 🐾',
+  '',
+  '我是壽司匠。毛孩的好康、開箱和包裹進度，都歸我顧。',
+  '',
+  '還不知道怎麼叫你耶，要留個名字或暱稱給我嗎？',
+  '',
+  '如果想先暫停，傳「取消」就可以。',
+].join('\n');
 
 export const LINE_REGISTER_PHONE_PROMPT =
   '手機號碼可以留給我們嗎？（例：0912345678）\n這支用來核對資料，請填平常有在用的號碼喔。';

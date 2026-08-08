@@ -96,6 +96,11 @@ export const navGroups: NavGroup[] = [
         label: '雞霸開箱審核',
         icon: PackageOpen,
       },
+      {
+        href: '/campaigns/line-morning',
+        label: '壽司匠早安',
+        icon: PackageOpen,
+      },
     ],
   },
 ];

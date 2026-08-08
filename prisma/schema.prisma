@@ -1325,3 +1325,152 @@ model RefillPlanSettings {
 
   @@map("refill_plan_settings")
 }
+
+// =====================================================
+// 壽司匠早安 LINE Morning MVP（加性；與飼料 Subscription／UGC Campaign 無關）
+// =====================================================
+
+/// 會員早安訂閱偏好（opt-in）
+model LineMorningPreference {
+  id          String    @id @default(cuid())
+  lineUserId  String    @unique @map("line_user_id")
+  customerId  String?   @map("customer_id")
+  /// jokes | news | alternate | off | unset
+  contentMode String    @default("unset") @map("content_mode")
+  /// daily | weekday | weekly | off | unset
+  frequency   String    @default("unset") @map("frequency")
+  /// 暫停（可恢復）；frequency=off 表示退訂
+  pausedAt    DateTime? @map("paused_at")
+  /// 上次補問偏好時間（節流）
+  promptedAt  DateTime? @map("prompted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([frequency, contentMode])
+  @@index([customerId])
+  @@map("line_morning_preferences")
+}
+
+/// 人工核准內容庫（笑話等）。DRAFT 不可發；只送 APPROVED。
+model LineMorningContent {
+  id           String    @id @default(cuid())
+  stableId     String    @unique @map("stable_id")
+  /// joke
+  kind         String    @default("joke")
+  /// DRAFT | APPROVED | ARCHIVED
+  status       String    @default("DRAFT")
+  body         String
+  /// JSON string array：dog / cat / rabbit / bird / rodent / …
+  petTags      String    @default("[]") @map("pet_tags")
+  cooldownDays Int       @default(14) @map("cooldown_days")
+  lastUsedAt   DateTime? @map("last_used_at")
+  reviewedBy   String?   @map("reviewed_by")
+  reviewedAt   DateTime? @map("reviewed_at")
+  reviewNote   String?   @map("review_note")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  deliveries LineMorningDelivery[]
+
+  @@index([status, kind])
+  @@map("line_morning_contents")
+}
+
+/// 全球寵物新鮮事（自動安全閘門；MVP 用 mock／fixtures，不串即時抓取）
+model LineMorningNewsItem {
+  id           String   @id @default(cuid())
+  fingerprint  String   @unique
+  canonicalUrl String   @map("canonical_url")
+  sourceName   String   @map("source_name")
+  publishedAt  DateTime @map("published_at")
+  /// tw | global
+  region       String   @default("global")
+  /// low | medium | high
+  riskLevel    String   @map("risk_level")
+  /// AUTO_APPROVED | BLOCKED | REVIEW_REQUIRED | ARCHIVED
+  status       String
+  title        String
+  factSummary  String   @map("fact_summary")
+  barkLine     String?  @map("bark_line")
+  /// 加性：真實來源 Preview 中繼資料（不存全文）
+  sourceId     String?  @map("source_id")
+  fetchedAt    DateTime? @map("fetched_at")
+  /// SHA-256 hex
+  contentHash  String?  @unique @map("content_hash")
+  /// JSON string array of risk label codes
+  riskLabels   String   @default("[]") @map("risk_labels")
+  /// 0–100；classifier confidence（愈高愈確定）
+  confidence   Int      @default(0)
+  /// JSON string array of species tags
+  speciesTags  String   @default("[]") @map("species_tags")
+  /// JSON string array of gate reasons
+  gateReasons  String   @default("[]") @map("gate_reasons")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  deliveries LineMorningDelivery[]
+
+  @@index([status, publishedAt])
+  @@index([region, status])
+  @@index([sourceId, publishedAt])
+  @@map("line_morning_news_items")
+}
+
+/// Preview 抓取／閘門統計（不真送；可回滾 DROP）
+model LineMorningIngestRun {
+  id            String   @id @default(cuid())
+  /// fixture | dry_run
+  mode          String   @default("fixture")
+  masterEnabled Boolean  @map("master_enabled")
+  fetchedCount  Int      @default(0) @map("fetched_count")
+  passedCount   Int      @default(0) @map("passed_count")
+  blockedCount  Int      @default(0) @map("blocked_count")
+  duplicateCount Int     @default(0) @map("duplicate_count")
+  staleCount    Int      @default(0) @map("stale_count")
+  /// JSON summary（無 PII、無完整 payload）
+  summaryJson   String   @default("{}") @map("summary_json")
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("line_morning_ingest_runs")
+}
+
+/// Exactly-once：recipient + campaignKey + Taiwan date
+model LineMorningDelivery {
+  id           String   @id @default(cuid())
+  lineUserId   String   @map("line_user_id")
+  campaignKey  String   @map("campaign_key")
+  /// YYYY-MM-DD（Asia/Taipei）
+  taipeiDate   String   @map("taipei_date")
+  /// SENT | SKIPPED | FAILED | DRY_RUN
+  status       String
+  skipReason   String?  @map("skip_reason")
+  /// joke | news
+  contentKind  String?  @map("content_kind")
+  contentId    String?  @map("content_id")
+  newsItemId   String?  @map("news_item_id")
+  /// 08:00–08:29 內的分鐘偏移（0–29）
+  slotMinute   Int      @default(0) @map("slot_minute")
+  renderedText String?  @map("rendered_text")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  content  LineMorningContent?  @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  newsItem LineMorningNewsItem? @relation(fields: [newsItemId], references: [id], onDelete: SetNull)
+
+  @@unique([lineUserId, campaignKey, taipeiDate])
+  @@index([taipeiDate, status])
+  @@index([lineUserId, createdAt])
+  @@map("line_morning_deliveries")
+}
+
+/// 早安總開關與配額（Preview MVP 預設 masterEnabled=false）
+model LineMorningSettings {
+  id            String   @id @default("default")
+  masterEnabled Boolean  @default(false) @map("master_enabled")
+  dailyQuota    Int      @default(100) @map("daily_quota")
+  updatedBy     String?  @map("updated_by")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("line_morning_settings")
+}
