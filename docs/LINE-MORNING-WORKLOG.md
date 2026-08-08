@@ -17,10 +17,12 @@
 
 | 欄位 | 值 |
 |------|-----|
-| Phase | **4B-B CONSENSUS** — 明確 re-opt-in 偏好對話＋共用 HQ Preview（stacked on #97） |
+| Phase | **4B-B CONSENSUS** — 明確 re-opt-in 偏好對話＋ConfirmLedger＋共用 HQ Preview |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-morning-phase4b-b-consensus-2673` |
+| Active branch | `cursor/line-morning-phase4b-b-consensus-2673` @ `d529187` |
 | Stack base | PR #97 head `2ecdfec`（`cursor/line-morning-phase4b-a-2673`） |
+| Draft PR | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) |
+| Preview | https://furmosa-db-git-cursor-line-morning-81f5db-aa89976566s-projects.vercel.app |
 
 ## PR stack
 
