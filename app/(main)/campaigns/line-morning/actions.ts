@@ -65,7 +65,13 @@ export async function updateMorningContentStatusAction(formData: FormData) {
 
 export async function ensureMorningFixturesAction() {
   await requireMorningAdmin();
-  await ensureMorningDraftFixtures();
+  const result = await ensureMorningDraftFixtures();
+  // 缺 bird／任一 stableId 時 ensureMorningDraftFixtures 會 throw
+  if (!result.speciesPresent.includes('bird') || result.present.length < 4) {
+    throw new Error(
+      `草稿範例不完整：present=${result.present.join(',')} species=${result.speciesPresent.join(',')}`,
+    );
+  }
   revalidate();
 }
 

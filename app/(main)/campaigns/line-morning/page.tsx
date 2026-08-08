@@ -246,6 +246,14 @@ export default async function LineMorningAdminPage() {
 
   const approvedCount = contents.filter((c) => c.status === 'APPROVED').length;
   const draftCount = contents.filter((c) => c.status === 'DRAFT').length;
+  const draftSpecies = [
+    ...new Set(
+      contents
+        .filter((c) => c.status === 'DRAFT')
+        .flatMap((c) => c.petTags)
+        .filter((t) => t !== 'general'),
+    ),
+  ];
 
   return (
     <>
@@ -279,6 +287,9 @@ export default async function LineMorningAdminPage() {
                 今日（{taipeiDate}）試跑／送出約 {usedToday}／配額 {settings.dailyQuota}；
                 活躍訂閱估 {activeCount}／偏好列 {prefCount}；已核准笑話 {approvedCount}、草稿{' '}
                 {draftCount}
+                {draftSpecies.length
+                  ? `（物種：${draftSpecies.map((t) => labelPetTag(t)).join('、')}）`
+                  : ''}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">

@@ -1,17 +1,25 @@
 /**
  * Fixture → normalize → gate → preview DB（idempotent）
  * 禁止 LINE API；禁止對 enabled=false 來源做真實網路抓取。
+ *
+ * Identity：contentHash 或 canonicalUrl（同 identity 不新增重複）。
+ * 重跑可校正：region／sourceId／sourceName／fetchedAt／gate 中繼。
+ * 保留 audit-safe：既有 title／fingerprint／contentHash（已有值時不改）。
  */
 
 import { prisma } from '@/lib/prisma';
 import { getMorningSettings } from '@/lib/line/morning/settings';
 import { gateNormalizedNews, isMorningNewsCandidate } from '@/lib/line/morning/news/gate';
-import { normalizeNewsCandidate } from '@/lib/line/morning/news/normalize';
 import {
-  FIXTURE_NEWS_RAW,
+  normalizeNewsCandidate,
+  type NormalizedNewsCandidate,
+} from '@/lib/line/morning/news/normalize';
+import {
+  buildFixtureNewsRaw,
   type FixtureNewsRaw,
 } from '@/lib/line/morning/news/mock-feed';
 import { renderNewsInStyle, assertNoInventedFacts } from '@/lib/line/morning/style';
+import type { GateResult } from '@/lib/line/morning/news/gate';
 import { Prisma } from '@prisma/client';
 
 export type IngestStats = {
@@ -22,6 +30,7 @@ export type IngestStats = {
   staleCount: number;
   reviewCount: number;
   reasonCounts: Record<string, number>;
+  updatedCount: number;
   passedPreview: Array<{
     contentHash: string;
     title: string;
@@ -32,21 +41,211 @@ export type IngestStats = {
   message: string;
 };
 
+export type MorningNewsPersistRow = {
+  id: string;
+  fingerprint: string;
+  contentHash: string | null;
+  canonicalUrl: string;
+  title: string;
+  region: string;
+  status: string;
+  sourceId: string | null;
+  sourceName: string;
+};
+
+export type MorningNewsPersistDb = {
+  lineMorningNewsItem: {
+    findFirst: (args: {
+      where: {
+        OR: Array<
+          | { contentHash: string }
+          | { canonicalUrl: string }
+          | { fingerprint: string }
+        >;
+      };
+      select: {
+        id: true;
+        fingerprint: true;
+        contentHash: true;
+        canonicalUrl: true;
+        title: true;
+        region: true;
+        status: true;
+        sourceId: true;
+        sourceName: true;
+      };
+    }) => Promise<MorningNewsPersistRow | null>;
+    update: (args: {
+      where: { id: string };
+      data: Record<string, unknown>;
+    }) => Promise<MorningNewsPersistRow>;
+    create: (args: { data: Record<string, unknown> }) => Promise<MorningNewsPersistRow>;
+    count?: (args: { where: Record<string, unknown> }) => Promise<number>;
+  };
+  lineMorningIngestRun?: {
+    create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+  };
+};
+
 function bump(map: Record<string, number>, key: string) {
   map[key] = (map[key] ?? 0) + 1;
+}
+
+/** 可校正欄位；不覆寫既有 title／fingerprint／已存在的 contentHash */
+export function buildNewsCorrectableUpdate(input: {
+  existing: MorningNewsPersistRow;
+  normalized: NormalizedNewsCandidate;
+  gate: GateResult;
+  observation: string | null;
+}): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    region: input.gate.region,
+    sourceId: input.normalized.sourceId,
+    sourceName: input.normalized.sourceName,
+    fetchedAt: input.normalized.fetchedAt,
+    riskLevel: input.gate.riskLevel,
+    riskLabels: JSON.stringify(input.gate.riskLabels),
+    confidence: input.gate.confidence,
+    gateReasons: JSON.stringify(input.gate.reasons),
+    status: input.gate.status,
+    factSummary: input.normalized.originalSummary,
+    barkLine: input.observation,
+    speciesTags: JSON.stringify(input.normalized.speciesTags),
+  };
+  // 僅在缺 contentHash 時回填，不改寫既有 hash（audit-safe）
+  if (!input.existing.contentHash) {
+    data.contentHash = input.normalized.contentHash;
+  }
+  return data;
+}
+
+export async function findExistingMorningNews(
+  db: MorningNewsPersistDb,
+  normalized: NormalizedNewsCandidate,
+): Promise<MorningNewsPersistRow | null> {
+  return db.lineMorningNewsItem.findFirst({
+    where: {
+      OR: [
+        { contentHash: normalized.contentHash },
+        { fingerprint: normalized.contentHash },
+        { canonicalUrl: normalized.canonicalUrl },
+      ],
+    },
+    select: {
+      id: true,
+      fingerprint: true,
+      contentHash: true,
+      canonicalUrl: true,
+      title: true,
+      region: true,
+      status: true,
+      sourceId: true,
+      sourceName: true,
+    },
+  });
+}
+
+/**
+ * Idempotent persist：同 identity 更新可校正欄位；否則新建。
+ * 回傳 'created' | 'updated'
+ */
+export async function persistNormalizedNewsItem(
+  db: MorningNewsPersistDb,
+  input: {
+    normalized: NormalizedNewsCandidate;
+    gate: GateResult;
+    observation: string | null;
+  },
+): Promise<{ outcome: 'created' | 'updated'; row: MorningNewsPersistRow }> {
+  const existing = await findExistingMorningNews(db, input.normalized);
+  if (existing) {
+    const data = buildNewsCorrectableUpdate({
+      existing,
+      normalized: input.normalized,
+      gate: input.gate,
+      observation: input.observation,
+    });
+    const row = await db.lineMorningNewsItem.update({
+      where: { id: existing.id },
+      data,
+    });
+    return { outcome: 'updated', row: { ...existing, ...row, region: input.gate.region } };
+  }
+
+  try {
+    const row = await db.lineMorningNewsItem.create({
+      data: {
+        fingerprint: input.normalized.contentHash,
+        contentHash: input.normalized.contentHash,
+        canonicalUrl: input.normalized.canonicalUrl,
+        sourceName: input.normalized.sourceName,
+        sourceId: input.normalized.sourceId,
+        publishedAt: input.normalized.publishedAt,
+        fetchedAt: input.normalized.fetchedAt,
+        region: input.gate.region,
+        riskLevel: input.gate.riskLevel,
+        status: input.gate.status,
+        title: input.normalized.originalTitle,
+        factSummary: input.normalized.originalSummary,
+        barkLine: input.observation,
+        riskLabels: JSON.stringify(input.gate.riskLabels),
+        confidence: input.gate.confidence,
+        speciesTags: JSON.stringify(input.normalized.speciesTags),
+        gateReasons: JSON.stringify(input.gate.reasons),
+      },
+    });
+    return {
+      outcome: 'created',
+      row: {
+        id: String(row.id),
+        fingerprint: input.normalized.contentHash,
+        contentHash: input.normalized.contentHash,
+        canonicalUrl: input.normalized.canonicalUrl,
+        title: input.normalized.originalTitle,
+        region: input.gate.region,
+        status: input.gate.status,
+        sourceId: input.normalized.sourceId,
+        sourceName: input.normalized.sourceName,
+      },
+    };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      // 競態：改找既有列並校正
+      const raced = await findExistingMorningNews(db, input.normalized);
+      if (!raced) throw e;
+      const data = buildNewsCorrectableUpdate({
+        existing: raced,
+        normalized: input.normalized,
+        gate: input.gate,
+        observation: input.observation,
+      });
+      const row = await db.lineMorningNewsItem.update({
+        where: { id: raced.id },
+        data,
+      });
+      return {
+        outcome: 'updated',
+        row: { ...raced, ...row, region: input.gate.region },
+      };
+    }
+    throw e;
+  }
 }
 
 export async function ingestFixtureNewsPreview(opts?: {
   fixtures?: FixtureNewsRaw[];
   now?: Date;
   createdBy?: string | null;
-  /** 執行前／寫入前皆檢查；OFF 時仍可預覽閘門結果但不寫入 AUTO_APPROVED 以外？ 規格：kill switch 預設 OFF，Preview refresh 仍可跑統計 */
   persist?: boolean;
+  db?: MorningNewsPersistDb;
+  /** 測試注入；未提供則讀 DB settings */
+  settings?: { masterEnabled: boolean; dailyQuota: number };
 }): Promise<IngestStats> {
   const now = opts?.now ?? new Date();
-  const settings = await getMorningSettings(); // 執行前檢查
-  const fixtures = opts?.fixtures ?? FIXTURE_NEWS_RAW;
+  const settings = opts?.settings ?? (await getMorningSettings());
+  const fixtures = opts?.fixtures ?? buildFixtureNewsRaw(now);
   const persist = opts?.persist !== false;
+  const db = opts?.db ?? (prisma as unknown as MorningNewsPersistDb);
 
   const reasonCounts: Record<string, number> = {};
   let fetchedCount = 0;
@@ -55,10 +254,9 @@ export async function ingestFixtureNewsPreview(opts?: {
   let duplicateCount = 0;
   let staleCount = 0;
   let reviewCount = 0;
+  let updatedCount = 0;
   const passedPreview: IngestStats['passedPreview'] = [];
 
-  // 寫入前再檢查一次 kill switch 語意：masterEnabled=false 不代表不能 Preview 統計
-  // 但不得「當成可發送候選」；此處 Preview-only，一律不 LINE 發送。
   void settings.masterEnabled;
 
   for (const raw of fixtures) {
@@ -89,10 +287,10 @@ export async function ingestFixtureNewsPreview(opts?: {
       blockedCount += 1;
     } else if (gate.status === 'REVIEW_REQUIRED') {
       reviewCount += 1;
-      blockedCount += 1; // 不進晨間候選
+      blockedCount += 1;
     }
 
-    const observation =
+    let observation =
       gate.status === 'AUTO_APPROVED' ? raw.safeObservation ?? null : null;
     const rendered =
       gate.status === 'AUTO_APPROVED'
@@ -112,78 +310,31 @@ export async function ingestFixtureNewsPreview(opts?: {
       );
       if (!facts.ok || !rendered.lint.ok) {
         blockedCount += 1;
-        passedCount = Math.max(0, passedCount);
         facts.issues.forEach((i) => bump(reasonCounts, i));
         rendered.lint.issues.forEach((i) => bump(reasonCounts, `style:${i}`));
-        // 降為 BLOCKED 寫入
         gate.status = 'BLOCKED';
         gate.reasons.push('style_or_fact_fail');
+        observation = null;
       }
     }
 
     if (!persist) continue;
 
-    const settingsAgain = await getMorningSettings(); // 寫入前再檢查
+    // 寫入前再讀一次（測試可注入固定 settings）
+    const settingsAgain = opts?.settings ?? (await getMorningSettings());
     void settingsAgain.masterEnabled;
 
-    const existing = await prisma.lineMorningNewsItem.findUnique({
-      where: { contentHash: normalized.value.contentHash },
-      select: { id: true },
+    const result = await persistNormalizedNewsItem(db, {
+      normalized: normalized.value,
+      gate,
+      observation,
     });
-    if (existing) {
+
+    if (result.outcome === 'updated') {
       duplicateCount += 1;
+      updatedCount += 1;
       bump(reasonCounts, 'duplicate');
-      await prisma.lineMorningNewsItem.update({
-        where: { contentHash: normalized.value.contentHash },
-        data: {
-          status: gate.status,
-          riskLevel: gate.riskLevel,
-          riskLabels: JSON.stringify(gate.riskLabels),
-          confidence: gate.confidence,
-          gateReasons: JSON.stringify(gate.reasons),
-          fetchedAt: normalized.value.fetchedAt,
-          factSummary: normalized.value.originalSummary,
-          barkLine: observation,
-          region: gate.region,
-          sourceId: normalized.value.sourceId,
-          sourceName: normalized.value.sourceName,
-        },
-      });
-      continue;
-    }
-
-    try {
-      await prisma.lineMorningNewsItem.create({
-        data: {
-          fingerprint: normalized.value.contentHash,
-          contentHash: normalized.value.contentHash,
-          canonicalUrl: normalized.value.canonicalUrl,
-          sourceName: normalized.value.sourceName,
-          sourceId: normalized.value.sourceId,
-          publishedAt: normalized.value.publishedAt,
-          fetchedAt: normalized.value.fetchedAt,
-          region: gate.region,
-          riskLevel: gate.riskLevel,
-          status: gate.status,
-          title: normalized.value.originalTitle,
-          factSummary: normalized.value.originalSummary,
-          barkLine: observation,
-          riskLabels: JSON.stringify(gate.riskLabels),
-          confidence: gate.confidence,
-          speciesTags: JSON.stringify(normalized.value.speciesTags),
-          gateReasons: JSON.stringify(gate.reasons),
-        },
-      });
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        duplicateCount += 1;
-        bump(reasonCounts, 'duplicate');
-        continue;
-      }
-      throw e;
-    }
-
-    if (isMorningNewsCandidate(gate) && rendered) {
+    } else if (isMorningNewsCandidate(gate) && rendered) {
       passedCount += 1;
       passedPreview.push({
         contentHash: normalized.value.contentHash,
@@ -192,37 +343,38 @@ export async function ingestFixtureNewsPreview(opts?: {
         region: gate.region,
         renderedText: rendered.text,
       });
-    } else if (gate.status === 'AUTO_APPROVED' && !rendered) {
-      // style fail 已在上方改 BLOCKED
     }
   }
 
-  // 以 contentHash 再掃一次計算 duplicate：同 job 內 fixtures 重複
-  // （上方 P2002 已計）
-
   const message =
-    passedCount === 0
+    passedCount === 0 && updatedCount === 0
       ? '今天沒有通過安全檢查的新鮮事'
-      : `通過 ${passedCount} 則安全候選（Preview only）`;
+      : `通過 ${passedCount} 則安全候選／校正 ${updatedCount} 則（Preview only）`;
 
   if (persist) {
-    await prisma.lineMorningIngestRun.create({
-      data: {
-        mode: 'fixture',
-        masterEnabled: settings.masterEnabled,
-        fetchedCount,
-        passedCount,
-        blockedCount,
-        duplicateCount,
-        staleCount,
-        summaryJson: JSON.stringify({
-          reasonCounts,
-          reviewCount,
-          note: 'preview_fixture_ingest',
-        }),
-        createdBy: opts?.createdBy ?? null,
-      },
-    });
+    const runDb = db.lineMorningIngestRun
+      ? db
+      : (prisma as unknown as MorningNewsPersistDb);
+    if (runDb.lineMorningIngestRun) {
+      await runDb.lineMorningIngestRun.create({
+        data: {
+          mode: 'fixture',
+          masterEnabled: settings.masterEnabled,
+          fetchedCount,
+          passedCount,
+          blockedCount,
+          duplicateCount,
+          staleCount,
+          summaryJson: JSON.stringify({
+            reasonCounts,
+            reviewCount,
+            updatedCount,
+            note: 'preview_fixture_ingest',
+          }),
+          createdBy: opts?.createdBy ?? null,
+        },
+      });
+    }
   }
 
   return {
@@ -233,12 +385,12 @@ export async function ingestFixtureNewsPreview(opts?: {
     staleCount,
     reviewCount,
     reasonCounts,
+    updatedCount,
     passedPreview,
     message,
   };
 }
 
-/** 同 job 重跑零新增：以 contentHash unique 保證 */
 export async function countNewsByContentHash(contentHash: string): Promise<number> {
   return prisma.lineMorningNewsItem.count({ where: { contentHash } });
 }
