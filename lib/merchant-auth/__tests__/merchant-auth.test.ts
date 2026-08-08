@@ -183,6 +183,26 @@ describe('middleware guards (HQ vs POS cookies do not elevate)', () => {
     assert.equal(d.action, 'redirect');
     if (d.action === 'redirect') assert.equal(d.pathname, '/dashboard');
   });
+
+  it('LINE 訊息預覽 /admin/line-message-preview 需 HQ session', () => {
+    const denied = decideHqAccess({
+      pathname: '/admin/line-message-preview',
+      hasHqSession: false,
+      isPublic: false,
+    });
+    assert.equal(denied.action, 'redirect');
+    if (denied.action === 'redirect') {
+      assert.equal(denied.pathname, '/login');
+      assert.equal(denied.next, '/admin/line-message-preview');
+    }
+
+    const allowed = decideHqAccess({
+      pathname: '/admin/line-message-preview',
+      hasHqSession: true,
+      isPublic: false,
+    });
+    assert.equal(allowed.action, 'next');
+  });
 });
 
 describe('product settings (not hardcoded in domain)', () => {

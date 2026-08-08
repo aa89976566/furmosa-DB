@@ -15,6 +15,7 @@ import {
   Truck,
   BarChart3,
   PackageOpen,
+  MessageSquareText,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionTone } from '@/lib/section-tone';
@@ -95,6 +96,11 @@ export const navGroups: NavGroup[] = [
         href: '/campaigns/jiba-two-piece',
         label: '雞霸開箱審核',
         icon: PackageOpen,
+      },
+      {
+        href: '/admin/line-message-preview',
+        label: 'LINE 訊息預覽',
+        icon: MessageSquareText,
       },
     ],
   },
