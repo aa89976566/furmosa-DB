@@ -21,6 +21,7 @@ export function ShipmentStatusActions({
   defaultPickupPhone,
   inline = false,
   queueStatus,
+  orderLabel,
 }: {
   shipmentId: string;
   currentStatus: string;
@@ -32,6 +33,8 @@ export function ShipmentStatusActions({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  /** 無障礙：寫入按鈕 aria-label 含訂單編號 */
+  orderLabel?: string;
 }) {
   if (allowedNext.length === 0) {
     return (
@@ -40,7 +43,11 @@ export function ShipmentStatusActions({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div
+      className="grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      data-shipment-status-actions="true"
+      onClick={(event) => event.stopPropagation()}
+    >
       {allowedNext.map((next) => (
         <StatusActionCard
           key={next}
@@ -54,6 +61,7 @@ export function ShipmentStatusActions({
           defaultPickupPhone={defaultPickupPhone}
           inline={inline}
           queueStatus={queueStatus}
+          orderLabel={orderLabel}
         />
       ))}
     </div>
@@ -71,6 +79,7 @@ function StatusActionCard({
   defaultPickupPhone,
   inline,
   queueStatus,
+  orderLabel,
 }: {
   shipmentId: string;
   next: ShipmentStatus;
@@ -82,17 +91,22 @@ function StatusActionCard({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  orderLabel?: string;
 }) {
   const isShipping = next === 'shipped';
   const isDanger = next === 'cancelled';
+  const actionLabel = nextActionLabel(next);
+  const ariaLabel = orderLabel ? `${actionLabel}（${orderLabel}）` : actionLabel;
 
   return (
     <form
       action={markShipmentStatus}
+      data-shipment-write-control="true"
       className={cn(
         'space-y-3 rounded-lg border p-4',
         isDanger ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20',
       )}
+      onClick={(event) => event.stopPropagation()}
     >
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="next" value={next} />
@@ -106,7 +120,7 @@ function StatusActionCard({
         {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-success" />}
         {next === 'cancelled' && <XCircle className="h-4 w-4 text-destructive" />}
         {next === 'pending' && <Clock className="h-4 w-4 text-warning" />}
-        <h3 className="text-sm font-semibold">{nextActionLabel(next)}</h3>
+        <h3 className="text-sm font-semibold">{actionLabel}</h3>
       </div>
 
       {isShipping ? (
@@ -154,9 +168,10 @@ function StatusActionCard({
       <Button
         type="submit"
         variant={isDanger ? 'outline' : 'default'}
+        aria-label={ariaLabel}
         className={cn('w-full', isDanger && 'text-destructive hover:bg-destructive/10')}
       >
-        {nextActionLabel(next)}
+        {actionLabel}
       </Button>
     </form>
   );

@@ -10,6 +10,7 @@ import {
   type SubscriptionShipmentStatus,
 } from '@/lib/subscription-shipment-status';
 import { parsePlanContents, type PlanContentItem } from '@/lib/plan-contents';
+import { resolveCampaignProductFallback } from '@/lib/shipment-queue-products';
 import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
 import {
   QIMU_DELIVERY_ADDRESS,
@@ -327,6 +328,7 @@ export type ShipmentPanelData = {
   shipmentNumber: string;
   status: string;
   type: string;
+  updatedAt: string;
   recipientName: string | null;
   recipientPhone: string | null;
   recipientAddress: string | null;
@@ -346,6 +348,7 @@ export type ShipmentPanelData = {
   order: {
     id: string;
     orderNumber: string;
+    source: string;
     shippingMethod: string;
     cvsBrand: string | null;
     cvsStoreId: string | null;
@@ -364,6 +367,22 @@ export type ShipmentPanelData = {
     weightGrams: number | null;
     unit: string | null;
   }>;
+  /** 當 shipment.items 為空時的訂單品項（含零價／贈品） */
+  orderItems: Array<{
+    id: string;
+    productName: string;
+    sku: string;
+    quantity: number;
+    weightGrams: number | null;
+    unit: string | null;
+  }> | null;
+  /** 雞霸等活動：shipment/order items 皆空時的唯讀 fallback */
+  campaignProduct: {
+    productName: string;
+    quantity: number;
+    unit: string | null;
+    sku: string | null;
+  } | null;
   subscription: {
     subscriptionNo: string;
     shipmentNo: string;
@@ -389,7 +408,21 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           pickupStoreName: true,
         },
       },
-      order: true,
+      order: {
+        include: {
+          items: {
+            select: {
+              id: true,
+              productName: true,
+              sku: true,
+              quantity: true,
+              weightGrams: true,
+              unit: true,
+            },
+            orderBy: { productName: 'asc' },
+          },
+        },
+      },
       subscriptionShipment: {
         include: {
           subscription: { include: { plan: true } },
@@ -400,11 +433,42 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
   });
   if (!shipment) return null;
 
+  let campaignProduct: ShipmentPanelData['campaignProduct'] = null;
+  if (shipment.items.length === 0 && shipment.orderId) {
+    const application = await prisma.campaignApplication.findFirst({
+      where: { orderId: shipment.orderId },
+      select: {
+        campaign: { select: { productName: true, productQuantity: true } },
+        conversationSession: { select: { collectedDataJson: true } },
+      },
+    });
+    if (application) {
+      campaignProduct = resolveCampaignProductFallback({
+        collectedDataJson: application.conversationSession?.collectedDataJson,
+        campaignProductName: application.campaign.productName,
+        campaignProductQuantity: application.campaign.productQuantity,
+      });
+    }
+  }
+
+  const orderItems =
+    shipment.items.length === 0 && shipment.order?.items?.length
+      ? shipment.order.items.map((item) => ({
+          id: item.id,
+          productName: item.productName,
+          sku: item.sku,
+          quantity: item.quantity,
+          weightGrams: item.weightGrams,
+          unit: item.unit,
+        }))
+      : null;
+
   return {
     id: shipment.id,
     shipmentNumber: shipment.shipmentNumber,
     status: shipment.status,
     type: shipment.type,
+    updatedAt: shipment.updatedAt.toISOString(),
     recipientName: shipment.recipientName,
     recipientPhone: shipment.recipientPhone,
     recipientAddress: shipment.recipientAddress,
@@ -416,6 +480,7 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
       ? {
           id: shipment.order.id,
           orderNumber: shipment.order.orderNumber,
+          source: shipment.order.source,
           shippingMethod: shipment.order.shippingMethod,
           cvsBrand: shipment.order.cvsBrand,
           cvsStoreId: shipment.order.cvsStoreId,
@@ -435,6 +500,8 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
       weightGrams: item.weightGrams,
       unit: item.unit,
     })),
+    orderItems,
+    campaignProduct,
     subscription: shipment.subscriptionShipment
       ? {
           subscriptionNo: shipment.subscriptionShipment.subscription.subscriptionNo,
