@@ -35,12 +35,14 @@ import {
 import { defaultMockNewsProvider } from '@/lib/line/morning/news/mock-feed';
 import { MORNING_SOURCE_REGISTRY } from '@/lib/line/morning/news/registry';
 import {
+  ensureMorningAnimalFactFixturesAction,
   ensureMorningFixturesAction,
   refreshMorningNewsPreviewAction,
   setMorningDailyQuotaAction,
   setMorningMasterEnabledAction,
   updateMorningContentStatusAction,
 } from './actions';
+import { DryRunPreviewPanel } from './dry-run-preview-panel';
 
 type DeliveryRow = Awaited<ReturnType<typeof listRecentDeliveries>>[number];
 type MorningSettingsView = Awaited<ReturnType<typeof getMorningSettings>>;
@@ -322,7 +324,22 @@ export default async function LineMorningAdminPage() {
                   Preview 刷新新聞閘門
                 </Button>
               </form>
+              <form action={ensureMorningAnimalFactFixturesAction} className="flex flex-wrap gap-2">
+                <input type="hidden" name="approveNew" value="1" />
+                <Button type="submit" size="sm" variant="secondary">
+                  載入冷知識 fixture（新建並核准 Preview）
+                </Button>
+              </form>
             </div>
+            <p className="text-xs text-muted-foreground">
+              冷知識 fixture 會標「非真新聞」；不偽造新聞時效。禁止批次改正式會員 consent。
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <DryRunPreviewPanel defaultTaipeiDate={taipeiDate} />
           </CardContent>
         </Card>
 

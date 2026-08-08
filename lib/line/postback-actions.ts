@@ -141,6 +141,15 @@ export async function handleLinePostback(
   lineUserId: string,
   data: string,
 ): Promise<void> {
+  // 壽司匠早安 opt-in（HMAC＋nonce；獨立於 jd= hub）
+  if (data.startsWith('morning=1')) {
+    const { handleMorningOptinPostback } = await import(
+      '@/lib/line/morning/preference-flow'
+    );
+    await handleMorningOptinPostback(replyToken, lineUserId, data);
+    return;
+  }
+
   const params = parseLinePostbackData(data);
   const action = params.get('jd');
 

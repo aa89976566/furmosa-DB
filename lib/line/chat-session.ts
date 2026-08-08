@@ -27,6 +27,8 @@ export type JibaUnboxDraft = {
 export type MorningPrefsDraft = {
   contentMode?: string;
   fromSettings?: boolean;
+  /** 當次 opt-in postback nonce（防重播） */
+  optinNonce?: string;
 };
 
 export type LineChatFlow = 'register' | 'jiba_unbox' | 'morning_prefs';

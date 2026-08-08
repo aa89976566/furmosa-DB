@@ -142,3 +142,70 @@ export async function ensureMorningDraftFixtures(
 
   return { created, skipped, present, speciesPresent };
 }
+
+/**
+ * Preview 動物冷知識 fixtures（明確非新聞；來源欄位齊；預設 DRAFT）
+ * approveForPreview=true 時可把新建立列設 APPROVED 供 dry-run（不碰既有列）
+ */
+export const MORNING_ANIMAL_FACT_DRAFT_FIXTURES = [
+  {
+    stableId: 'morning-fact-draft-001',
+    title: '兔子牙齒會不停生長',
+    factSummary: '兔子的牙齒會不停生長，需要足夠的磨牙素材保持長度。',
+    barkLine: '這題我聞過，不是頭條，是冷知識。',
+    petTags: ['rabbit', 'general'],
+    provider: 'fixture-preview',
+    itemId: 'fact-001',
+    canonicalUrl: 'https://fixture.local/morning/animal-fact/001',
+    licenseType: 'fixture-non-commercial-preview',
+    licenseUrl: null as string | null,
+    attribution: 'Preview Fixture（非真新聞）',
+    contentHash:
+      '44744b40acf834905f02983b0543526fe5a6c9bfdbec26b8ce6afb216860d319',
+  },
+] as const;
+
+export async function ensureMorningAnimalFactFixtures(opts?: {
+  /** 僅新建列可設 APPROVED；已存在不覆寫 */
+  approveNewForPreview?: boolean;
+}): Promise<{ created: string[]; skipped: string[]; approvedNew: string[] }> {
+  const created: string[] = [];
+  const skipped: string[] = [];
+  const approvedNew: string[] = [];
+  const status = opts?.approveNewForPreview ? 'APPROVED' : 'DRAFT';
+  const retrievedAt = new Date();
+
+  for (const f of MORNING_ANIMAL_FACT_DRAFT_FIXTURES) {
+    const existing = await prisma.lineMorningAnimalFact.findUnique({
+      where: { stableId: f.stableId },
+      select: { id: true },
+    });
+    if (existing) {
+      skipped.push(f.stableId);
+      continue;
+    }
+    await prisma.lineMorningAnimalFact.create({
+      data: {
+        stableId: f.stableId,
+        status,
+        title: f.title,
+        factSummary: f.factSummary,
+        barkLine: f.barkLine,
+        petTags: JSON.stringify([...f.petTags]),
+        provider: f.provider,
+        itemId: f.itemId,
+        canonicalUrl: f.canonicalUrl,
+        licenseType: f.licenseType,
+        licenseUrl: f.licenseUrl,
+        attribution: f.attribution,
+        contentHash: f.contentHash,
+        sourcePublishedAt: null,
+        retrievedAt,
+        cooldownDays: 30,
+      },
+    });
+    created.push(f.stableId);
+    if (status === 'APPROVED') approvedNew.push(f.stableId);
+  }
+  return { created, skipped, approvedNew };
+}

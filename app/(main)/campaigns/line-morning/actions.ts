@@ -3,9 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { ensureMorningDraftFixtures } from '@/lib/line/morning/fixtures';
+import {
+  ensureMorningAnimalFactFixtures,
+  ensureMorningDraftFixtures,
+} from '@/lib/line/morning/fixtures';
 import { updateMorningSettings } from '@/lib/line/morning/settings';
-import { MORNING_CONTENT_STATUSES } from '@/lib/line/morning/constants';
+import {
+  MORNING_CONTENT_MODES,
+  MORNING_CONTENT_STATUSES,
+  MORNING_FREQUENCIES,
+  type MorningContentMode,
+  type MorningFrequency,
+} from '@/lib/line/morning/constants';
+import {
+  runMorningDryRunPreview,
+  type MorningDryRunPreviewResult,
+} from '@/lib/line/morning/dry-run-preview';
 
 const ALLOWED_ROLES = new Set(['admin', 'staff']);
 
@@ -20,6 +33,8 @@ async function requireMorningAdmin() {
 function revalidate() {
   revalidatePath('/campaigns/line-morning');
 }
+
+export type { MorningDryRunPreviewResult };
 
 export async function setMorningMasterEnabledAction(formData: FormData) {
   const user = await requireMorningAdmin();
@@ -85,4 +100,46 @@ export async function refreshMorningNewsPreviewAction(_formData?: FormData) {
     persist: true,
   });
   revalidate();
+}
+
+/** 載入 ANIMAL_FACT Preview fixtures；可選核准新建列供 dry-run */
+export async function ensureMorningAnimalFactFixturesAction(formData: FormData) {
+  await requireMorningAdmin();
+  const approve = String(formData.get('approveNew') ?? '') === '1';
+  await ensureMorningAnimalFactFixtures({ approveNewForPreview: approve });
+  revalidate();
+}
+
+/**
+ * 單筆 Preview dry-run。
+ * - 禁止批次改正式會員 consent
+ * - 非 U_TEST_* 只做記憶體覆寫、不寫 preference
+ * - LINE push call count 必須為 0
+ */
+export async function runMorningDryRunPreviewAction(
+  formData: FormData,
+): Promise<MorningDryRunPreviewResult> {
+  await requireMorningAdmin();
+  const lineUserId = String(formData.get('lineUserId') ?? '').trim();
+  const contentMode = String(formData.get('contentMode') ?? '').trim();
+  const frequency = String(formData.get('frequency') ?? 'daily').trim();
+  const taipeiDate = String(formData.get('taipeiDate') ?? '').trim();
+  const confirmTestPreview = String(formData.get('confirmTestPreview') ?? '') === '1';
+
+  if (!(MORNING_CONTENT_MODES as readonly string[]).includes(contentMode)) {
+    throw new Error('contentMode 無效');
+  }
+  if (!(MORNING_FREQUENCIES as readonly string[]).includes(frequency)) {
+    throw new Error('frequency 無效');
+  }
+
+  const result = await runMorningDryRunPreview({
+    lineUserId,
+    contentMode: contentMode as MorningContentMode,
+    frequency: frequency as MorningFrequency,
+    taipeiDate,
+    confirmTestPreview,
+  });
+  revalidate();
+  return result;
 }
