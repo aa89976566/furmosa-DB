@@ -59,8 +59,14 @@ export const LINE_PET_NAME_PROMPT = '毛孩叫什麼名字呀？';
 export const LINE_PET_BREED_PROMPT =
   '品種是？（例：柯基、米克斯）\n不確定的話可以傳「略過」';
 
-export const LINE_PET_BIRTHDAY_PROMPT =
-  '生日是哪一天呢？（例：2020-05-06）\n選填，也可以傳「略過」';
+export { BIRTHDAY_COPY } from '@/lib/line/register-birthday';
+
+/** @deprecated 請用 BIRTHDAY_COPY.prompt；保留別名以免舊 import 斷裂 */
+export const LINE_PET_BIRTHDAY_PROMPT = [
+  '毛孩生日是哪一天？',
+  '西元、民國或中文日期都可以，例如『2020年5月6日』或『民國109年5月6日』。',
+  '不確定的話，點『略過』就好。',
+].join('\n');
 
 export const LINE_PET_AGE_PROMPT =
   '毛孩大概幾歲呀？傳數字就好（例：3）\n或直接傳生日（例：2020-05-06）\n不確定可以傳「略過」';

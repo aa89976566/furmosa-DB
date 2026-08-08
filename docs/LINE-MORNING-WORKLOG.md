@@ -19,7 +19,7 @@
 |------|-----|
 | Phase | **LINE 註冊生日無回應修正**（stacked on #98） |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-birthday-parser-fix-2673`（待建立） |
+| Active branch | `cursor/line-birthday-parser-fix-2673` |
 | Stack base | PR #98 head `7e455da`（`cursor/line-morning-phase4b-b-optin`） |
 
 ## PR stack
@@ -66,7 +66,7 @@ main
 | RL-2026-08-08-4BB-AUTH | 2026-08-08T12:36Z | Desktop（使用者授權） | 授權開始 Phase 4B-B；先完成永久留痕（worklog）與安全 stacked branch，再做明確 opt-in UI + HQ dry-run；LINE 真送必須 0 | `VERIFIED` | `cursor/line-morning-phase4b-b-optin` | `2d1ace6`→`14ba161` | [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | morning+LINE 151 pass；build 0 | https://furmosa-db-git-cursor-line-morning-5c05c4-aa89976566s-projects.vercel.app |
 | RL-HIST-96 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 1–3：Preview MVP、新聞安全框架、Phase 3 QA（手機卡片／繁中標籤／region） | `VERIFIED` | `cursor/line-morning-mvp-2673` | `446d648` | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | morning+LINE pass（當時） | Preview Ready（#96） |
 | RL-HIST-97 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 4B-A：domain／零擴張 consent／decision／ANIMAL_FACT renderer；無 UI 擴張 | `VERIFIED` | `cursor/line-morning-phase4b-a-2673` | `2ecdfec` | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | domain+morning 65 pass；build 0；Vercel SUCCESS | https://furmosa-db-git-cursor-line-morning-247c4b-aa89976566s-projects.vercel.app |
-| RL-2026-08-08-BDAY-FIX | 2026-08-08T13:49Z | Mobile Remote／Codex relay（使用者授權；ChatGPT 主審＋Claude/Gemini 交叉審查） | LINE 註冊生日：支援台灣常用／中文年月日／中文數字；normalize date-only ISO；invalid／例外不可沉默；狀態機必須每次 webhook 有回覆 | `PLANNED` | `cursor/line-birthday-parser-fix-2673` | — | TBD | — | — |
+| RL-2026-08-08-BDAY-FIX | 2026-08-08T13:49Z | Mobile Remote／Codex relay（使用者授權；ChatGPT 主審＋Claude/Gemini 交叉審查） | LINE 註冊生日：支援台灣常用／中文年月日／中文數字；normalize date-only ISO；invalid／例外不可沉默；狀態機必須每次 webhook 有回覆 | `IMPLEMENTED` | `cursor/line-birthday-parser-fix-2673` | （push 後填） | TBD | birthday+LINE+morning 174 pass | Preview pending |
 
 ### 根因盤點（RL-2026-08-08-BDAY-FIX）
 

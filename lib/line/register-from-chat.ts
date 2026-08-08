@@ -19,13 +19,18 @@ import { buildEnterCodePromptMessages, buildJarStartMessages, buildWorldHubMessa
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import {
   LINE_BTN,
-  LINE_PET_BIRTHDAY_PROMPT,
   LINE_PET_BREED_PROMPT,
   LINE_PET_NAME_PROMPT,
   LINE_REGISTER_INTRO,
   LINE_REGISTER_PHONE_PROMPT,
   resolveSignupStoreLabel,
 } from '@/lib/line/line-copy';
+import {
+  BIRTHDAY_COPY,
+  birthdayIsoToUtcNoon,
+  birthdaySkipQuickReplyItems,
+  safeDecideBirthdayStep,
+} from '@/lib/line/register-birthday';
 import {
   buildPostBindPointsHint,
   formatGroomingCouponDiscountForStore,
@@ -68,25 +73,7 @@ async function clearExpiredRegisterSession(lineUserId: string) {
 }
 
 function petBirthdayToDate(iso: string | null | undefined): Date | null {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const d = new Date(`${iso}T12:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function parseBirthdayOptional(input: string): {
-  petBirthday: string | null;
-  error?: string;
-} {
-  const t = input.trim();
-  if (SKIP_RE.test(t)) return { petBirthday: null };
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    const d = new Date(`${t}T12:00:00.000Z`);
-    if (!Number.isNaN(d.getTime())) return { petBirthday: t };
-  }
-  return {
-    petBirthday: null,
-    error: '請傳生日（2020-05-06）或「略過」',
-  };
+  return birthdayIsoToUtcNoon(iso);
 }
 
 /** 同一步驟 24 小時內只提示一次；冷卻中則靜默不回复 */
@@ -265,21 +252,41 @@ export async function handleRegisterFlowMessage(
     } else {
       draft.petBreed = trimmed.slice(0, 80);
     }
-    const withPrompt = markRegisterStepPrompt(draft, 'birthday');
-    await upsertLineChatSession(lineUserId, 'register', 'birthday', withPrompt);
-    await replyLineText(replyToken, LINE_PET_BIRTHDAY_PROMPT);
+    // 進入生日步驟：不預先 mark cooldown（否則 invalid 會被靜默）
+    await upsertLineChatSession(lineUserId, 'register', 'birthday', draft);
+    await replyLineMessage(replyToken, [
+      {
+        type: 'text',
+        text: BIRTHDAY_COPY.prompt,
+        quickReply: { items: birthdaySkipQuickReplyItems() },
+      },
+    ]);
     return true;
   }
 
   if (session.step === 'birthday') {
-    const parsed = parseBirthdayOptional(trimmed);
-    if (parsed.error) {
-      await replyRegisterStepPromptOnce(replyToken, lineUserId, 'birthday', draft, parsed.error);
+    const decision = safeDecideBirthdayStep(trimmed);
+    if (decision.action === 'stay') {
+      // 每次 invalid／例外都必須回覆；維持 birthday；不寫 DB、不前進
+      await replyLineMessage(replyToken, [
+        {
+          type: 'text',
+          text: decision.message,
+          quickReply: { items: birthdaySkipQuickReplyItems() },
+        },
+      ]);
       return true;
     }
-    draft.petBirthday = parsed.petBirthday;
+    draft.petBirthday = decision.petBirthday;
     await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
-    await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
+    const confirm = buildRegisterConfirmMessages(formatRegisterSummary(draft));
+    // 同一 replyToken 一次回覆（成功句＋確認卡）
+    await replyLineMessage(replyToken, [
+      ...(decision.successMessage
+        ? [{ type: 'text' as const, text: decision.successMessage }]
+        : []),
+      ...confirm,
+    ]);
     return true;
   }
 
