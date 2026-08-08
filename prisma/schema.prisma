@@ -1351,6 +1351,35 @@ model LineMorningPreference {
   @@map("line_morning_preferences")
 }
 
+/// Confirm 成功結果 ledger（Phase 4B-B CONSENSUS）
+/// 不可放 LineChatSession（會被新 flow 覆寫）
+/// 只存 sessionNonceHash（不存 raw nonce、replyToken、訊息正文）
+/// dedup 查詢禁止用 expiresAt 或 now 過濾；expiresAt 僅供未來 retention
+model LineMorningPreferenceConfirmLedger {
+  id                 String   @id @default(cuid())
+  lineUserId         String   @map("line_user_id")
+  /// webhook event 冪等鍵（優先 webhookEventId）
+  eventDedupKey      String   @unique @map("event_dedup_key")
+  /// SHA-256(hex) of session nonce；不存 raw nonce
+  sessionNonceHash   String   @map("session_nonce_hash")
+  stepVersion        Int      @map("step_version")
+  payloadDigest      String   @map("payload_digest")
+  /// JSON：{ contentMode, frequency }
+  preferenceSnapshot String   @map("preference_snapshot")
+  /// byte-stable 成功摘要（重播用）
+  successSummary     String   @map("success_summary")
+  /// 本 PR 僅寫 SUCCESS
+  status             String   @default("SUCCESS")
+  createdAt          DateTime @default(now()) @map("created_at")
+  /// 未來 retention 參考；本 PR 不清理、不參與 dedup 過濾
+  expiresAt          DateTime @map("expires_at")
+
+  @@unique([sessionNonceHash, payloadDigest])
+  @@index([lineUserId, createdAt])
+  @@index([sessionNonceHash])
+  @@map("line_morning_preference_confirm_ledgers")
+}
+
 /// 人工核准內容庫（HUMOR／笑話等）。DRAFT 不可發；只送 APPROVED。
 model LineMorningContent {
   id           String    @id @default(cuid())

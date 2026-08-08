@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   MORNING_CONTENT_MODES,
@@ -5,6 +6,8 @@ import {
   type MorningContentMode,
   type MorningFrequency,
 } from '@/lib/line/morning/constants';
+
+type PreferenceDb = Pick<Prisma.TransactionClient, 'lineMorningPreference'> | typeof prisma;
 
 export type MorningPreferenceRow = {
   id: string;
@@ -64,8 +67,9 @@ export async function upsertMorningPreference(
     pausedAt?: Date | null;
     promptedAt?: Date | null;
   },
+  db: PreferenceDb = prisma,
 ): Promise<MorningPreferenceRow> {
-  const row = await prisma.lineMorningPreference.upsert({
+  const row = await db.lineMorningPreference.upsert({
     where: { lineUserId },
     create: {
       lineUserId,

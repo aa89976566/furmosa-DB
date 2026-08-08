@@ -34,6 +34,7 @@ import {
 } from '@/lib/line/morning/news/provider';
 import { defaultMockNewsProvider } from '@/lib/line/morning/news/mock-feed';
 import { MORNING_SOURCE_REGISTRY } from '@/lib/line/morning/news/registry';
+import { buildMorningOptinPreview } from '@/lib/line/morning/optin-preview';
 import {
   ensureMorningFixturesAction,
   refreshMorningNewsPreviewAction,
@@ -255,6 +256,12 @@ export default async function LineMorningAdminPage() {
     ),
   ];
 
+  const optinPreview = buildMorningOptinPreview({
+    currentStorageMode: 'alternate',
+    contentActionId: 'content_c',
+    frequencyActionId: 'freq_friday',
+  });
+
   return (
     <>
       <PageHeader
@@ -273,6 +280,37 @@ export default async function LineMorningAdminPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        <Card>
+          <CardContent className="space-y-3 p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">早安設定（Opt-in Preview）</span>
+              <Badge variant="outline">共用 domain/optin</Badge>
+              <Badge variant="secondary">0 push</Badge>
+            </div>
+            <p className="text-muted-foreground">
+              與 LINE「早安設定」同一文案／選項來源；僅 Preview，不寫 preference、不真送。
+            </p>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+                {optinPreview.contentPrompt}
+              </pre>
+              <div className="space-y-2">
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+                  {optinPreview.summary ?? '（選內容＋頻率後顯示摘要）'}
+                </pre>
+                <pre className="max-h-24 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+                  {optinPreview.successSummary ?? '（確認後成功摘要）'}
+                </pre>
+              </div>
+            </div>
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              {optinPreview.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="flex flex-col gap-4 p-4 text-sm sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">

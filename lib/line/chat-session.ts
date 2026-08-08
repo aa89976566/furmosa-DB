@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { MorningOptinDraft } from '@/lib/line/morning/domain/optin/draft';
 
 export type RegisterResumeAfter = 'enter_code';
 
@@ -23,15 +24,27 @@ export type JibaUnboxDraft = {
   applicationId?: string;
 };
 
-/** 壽司匠早安偏好收集（不阻擋開戶／開箱） */
+/**
+ * 壽司匠早安偏好 draft（Phase 4B-B CONSENSUS）
+ * 僅短期 draft；confirm 成功結果見 LineMorningPreferenceConfirmLedger。
+ */
 export type MorningPrefsDraft = {
+  version?: number;
+  nonce?: string;
+  expiresAt?: string;
+  contentActionId?: string;
+  frequencyActionId?: string;
   contentMode?: string;
   fromSettings?: boolean;
 };
 
 export type LineChatFlow = 'register' | 'jiba_unbox' | 'morning_prefs';
 
-export type LineChatPayload = RegisterDraft | JibaUnboxDraft | MorningPrefsDraft;
+export type LineChatPayload =
+  | RegisterDraft
+  | JibaUnboxDraft
+  | MorningPrefsDraft
+  | MorningOptinDraft;
 
 /** 未完成開戶流程超過此時間視為過期，不再攔截一般訊息 */
 export const REGISTER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
