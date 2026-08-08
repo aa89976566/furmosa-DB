@@ -17,10 +17,10 @@
 
 | 欄位 | 值 |
 |------|-----|
-| Phase | **4B-B** — 明確 opt-in UI + HQ dry-run 驗證（進行中） |
+| Phase | **LINE 註冊生日無回應修正**（stacked on #98） |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-morning-phase4b-b-optin` |
-| Stack base | PR #97 head `2ecdfec`（`cursor/line-morning-phase4b-a-2673`） |
+| Active branch | `cursor/line-birthday-parser-fix-2673`（待建立） |
+| Stack base | PR #98 head `7e455da`（`cursor/line-morning-phase4b-b-optin`） |
 
 ## PR stack
 
