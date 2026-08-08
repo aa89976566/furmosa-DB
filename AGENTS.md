@@ -47,6 +47,14 @@
 5. 執行檢查或測試。
 6. 說明結果、修改檔案和待確認事項。
 
+## 壽司匠早安（LINE Morning）Request Ledger
+
+- Canonical 工作紀錄：`docs/LINE-MORNING-WORKLOG.md`（單一來源；勿另建平行 worklog）。
+- 任何 AI／Remote（含手機 Remote、Desktop、Codex relay）指令：**動碼前**必須先寫入該檔 Request Ledger（至少時間、來源、摘要、狀態）。
+- 每完成一段：更新 Ledger 的狀態、commit、tests、PR／Preview（若有）。
+- 未寫入 Ledger **且**未 commit 的指示，一律視為尚未執行。
+- 其餘 Morning 安全硬限制仍以該 worklog 的 Immutable decisions 與本檔安全／公開入口規則為準。
+
 ## Furmosa DB 技術架構
 
 - 固定使用 Next.js 14 App Router、React、TypeScript、Tailwind CSS、shadcn/ui、Prisma、PostgreSQL 與 Supabase。
