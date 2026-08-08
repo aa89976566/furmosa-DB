@@ -65,6 +65,16 @@ import {
 } from '@/lib/line/reward-menu';
 import { prisma } from '@/lib/prisma';
 import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
+import {
+  handleMorningGlobalCommand,
+  handleMorningPreferenceMessage,
+  startMorningPreferenceFlow,
+} from '@/lib/line/morning/preference-flow';
+import {
+  getMorningPreference,
+  shouldPromptPreference,
+} from '@/lib/line/morning/preferences';
+import { hasUsableCustomerName } from '@/lib/line/morning/name';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -256,6 +266,24 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     } catch (err) {
       console.error('[line] jiba session gate failed', err);
     }
+
+    // 早安偏好 session（優先序低於開戶／開箱，不打斷交易流程）
+    try {
+      if (await handleMorningPreferenceMessage(replyToken, lineUserId, msgEvent.message.text)) {
+        return;
+      }
+    } catch (err) {
+      console.error('[line] morning prefs gate failed', err);
+    }
+  }
+
+  // 早安全域指令（早安設定／暫停／退訂／裸「停止」澄清）
+  try {
+    if (await handleMorningGlobalCommand(replyToken, lineUserId, msgEvent.message.text)) {
+      return;
+    }
+  } catch (err) {
+    console.error('[line] morning global command failed', err);
   }
 
   if (isPassiveAutoReply(parsed.kind)) {
@@ -398,10 +426,25 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       await replyLineText(replyToken, result.error);
       return;
     }
+    let morningHint = '';
+    try {
+      const pref = await getMorningPreference(lineUserId);
+      if (shouldPromptPreference(pref) && hasUsableCustomerName(result.customerName)) {
+        const bound = await findCustomerByLineUserId(lineUserId);
+        await startMorningPreferenceFlow(null, lineUserId, {
+          customerId: bound?.id ?? null,
+          reply: false,
+        });
+        morningHint =
+          '\n\n另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。';
+      }
+    } catch (err) {
+      console.error('[line] morning prefs after bind failed', err);
+    }
     await replyLineTextWithMenu(
       replyToken,
       lineUserId,
-      `開戶對上了！\n${result.customerName}\n\n罐底 8 碼直接傳上來。`,
+      `開戶對上了！\n${result.customerName}\n\n罐底 8 碼直接傳上來。${morningHint}`,
       { registered: true },
     );
     return;

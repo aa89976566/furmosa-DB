@@ -23,9 +23,15 @@ export type JibaUnboxDraft = {
   applicationId?: string;
 };
 
-export type LineChatFlow = 'register' | 'jiba_unbox';
+/** 壽司匠早安偏好收集（不阻擋開戶／開箱） */
+export type MorningPrefsDraft = {
+  contentMode?: string;
+  fromSettings?: boolean;
+};
 
-export type LineChatPayload = RegisterDraft | JibaUnboxDraft;
+export type LineChatFlow = 'register' | 'jiba_unbox' | 'morning_prefs';
+
+export type LineChatPayload = RegisterDraft | JibaUnboxDraft | MorningPrefsDraft;
 
 /** 未完成開戶流程超過此時間視為過期，不再攔截一般訊息 */
 export const REGISTER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -76,8 +82,12 @@ export async function upsertJibaLineChatSessionIfIdle(
     where: { lineUserId },
     select: { flow: true },
   });
-  if (current?.flow === 'register') {
-    console.warn('[line] skip jiba session upsert; register in progress', lineUserId);
+  if (current?.flow === 'register' || current?.flow === 'morning_prefs') {
+    console.warn(
+      '[line] skip jiba session upsert; higher-priority flow in progress',
+      current.flow,
+      lineUserId,
+    );
     return null;
   }
   return upsertLineChatSession(lineUserId, 'jiba_unbox', step, payload);
