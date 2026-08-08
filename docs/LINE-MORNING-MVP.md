@@ -65,6 +65,17 @@ Migration：`prisma/migrations/20260808060000_line_morning_mvp`
 - 純 `news` 偏好無安全新聞 → skip（`no_safe_news`）；僅 `alternate` 可退回核准笑話
 - Admin：「Preview 刷新新聞閘門」跑 fixture ingest（需 HQ auth）
 
+## Phase 4B-A domain contract（本階段）
+
+Migration：`20260808120000_line_morning_phase4b_a_domain`（additive）
+
+- Domain 模組：`lib/line/morning/domain/**`
+- Consent（零擴張）：`jokes→HUMOR_ONLY`、`news→NEWS_ONLY`；`alternate` 仍為笑話↔新聞（無 ANIMAL_FACT fallback）；`off`/`unset` 不活躍、不推定同意
+- Frequency：DB 仍 `daily|weekday|weekly|off|unset`；domain alias `DAILY|WEEKDAYS|WEEKLY|OFF|UNSET`
+- 新表：`LineMorningAnimalFact`；新聞加性來源欄位；delivery 加 `animalFactId`
+- 新 FACT mixed modes 僅供未來明確 re-opt-in；本 PR **不擴 UI／指令**
+- **不做** live adapter、真送、Production cron、merge
+
 ## 禁止事項
 
 - Production deploy／merge（由人類決定）

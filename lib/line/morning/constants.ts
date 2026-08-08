@@ -2,15 +2,23 @@
 
 export const MORNING_CAMPAIGN_KEY = 'morning';
 
+/**
+ * DB／指令相容儲存值。
+ * Domain canonical 見 `lib/line/morning/domain`（jokes→HUMOR_ONLY、news→NEWS_ONLY…）。
+ * news_first_fact_* 僅供未來明確 re-opt-in；不得由舊值推定。
+ */
 export const MORNING_CONTENT_MODES = [
   'jokes',
   'news',
   'alternate',
   'off',
   'unset',
+  'news_first_fact_fallback',
+  'news_first_fact_or_humor_fallback',
 ] as const;
 export type MorningContentMode = (typeof MORNING_CONTENT_MODES)[number];
 
+/** DB 頻率值不變；domain alias 見 domain/frequency（weekday→WEEKDAYS） */
 export const MORNING_FREQUENCIES = [
   'daily',
   'weekday',
@@ -52,6 +60,12 @@ export const MORNING_SKIP_REASONS = {
   ALREADY_DELIVERED: 'already_delivered',
   OUTSIDE_WINDOW: 'outside_window',
   MASTER_OFF: 'master_off',
+} as const;
+
+/** Domain 命名別名（儲存值仍為上表 snake_case） */
+export const MORNING_DOMAIN_SKIP_ALIASES = {
+  SKIPPED_NO_CONTENT: MORNING_SKIP_REASONS.NO_CONTENT,
+  SKIPPED_NO_SAFE_NEWS: MORNING_SKIP_REASONS.NO_SAFE_NEWS,
 } as const;
 
 /** 新聞時效窗（小時）；缺日期／未來／過期一律 fail-closed */

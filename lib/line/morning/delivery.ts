@@ -11,9 +11,10 @@ export type DeliveryWrite = {
   taipeiDate: string;
   status: MorningDeliveryStatus;
   skipReason?: MorningSkipReason | string | null;
-  contentKind?: 'joke' | 'news' | null;
+  contentKind?: 'joke' | 'news' | 'animal_fact' | null;
   contentId?: string | null;
   newsItemId?: string | null;
+  animalFactId?: string | null;
   slotMinute: number;
   renderedText?: string | null;
   campaignKey?: string;
@@ -40,6 +41,7 @@ export async function recordMorningDelivery(input: DeliveryWrite): Promise<{
         contentKind: input.contentKind ?? null,
         contentId: input.contentId ?? null,
         newsItemId: input.newsItemId ?? null,
+        animalFactId: input.animalFactId ?? null,
         slotMinute: input.slotMinute,
         renderedText: input.renderedText ?? null,
       },
