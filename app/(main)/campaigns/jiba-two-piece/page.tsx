@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { LineProfileCell } from '@/components/campaigns/line-profile-cell';
 import { formatDateTime } from '@/lib/format';
 import { APP_STATUS, JIBA_CAMPAIGN_SLUG } from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
@@ -108,10 +109,11 @@ export default async function JibaReviewListPage() {
                         {formatDateTime(a.createdAt)}
                       </td>
                       <td className="px-3 py-2">
-                        <div className="font-medium">{a.lineDisplayName || '—'}</div>
-                        <div className="font-mono text-[11px] text-muted-foreground">
-                          {a.lineUserId}
-                        </div>
+                        <LineProfileCell
+                          lineUserId={a.lineUserId}
+                          displayName={a.lineDisplayName}
+                          pictureUrl={a.linePictureUrl}
+                        />
                       </td>
                       <td className="px-3 py-2">
                         <div>{a.recipientName || '—'}</div>

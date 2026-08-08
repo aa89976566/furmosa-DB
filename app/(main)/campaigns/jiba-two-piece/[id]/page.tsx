@@ -5,7 +5,9 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { LineProfileCell } from '@/components/campaigns/line-profile-cell';
 import { formatDateTime } from '@/lib/format';
+import { resolveLineDisplayName } from '@/lib/line/mask-user-id';
 import {
   APP_STATUS,
   JIBA_BANK_TRANSFER,
@@ -91,7 +93,7 @@ export default async function JibaReviewDetailPage({
     <>
       <PageHeader
         title="開箱申請審核"
-        description={`${app.campaign.name} · ${app.lineDisplayName || app.lineUserId}`}
+        description={`${app.campaign.name} · ${resolveLineDisplayName(app.lineDisplayName)}`}
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href="/campaigns/jiba-two-piece">返回列表</Link>
@@ -104,9 +106,18 @@ export default async function JibaReviewDetailPage({
             <CardHeader>
               <CardTitle className="text-base">顧客資料</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="LINE 顯示名稱" value={app.lineDisplayName || '—'} />
-              <Row label="LINE userId" value={app.lineUserId} mono />
+            <CardContent className="space-y-3 text-sm">
+              <div>
+                <div className="mb-1.5 text-muted-foreground">LINE</div>
+                <LineProfileCell
+                  lineUserId={app.lineUserId}
+                  displayName={app.lineDisplayName}
+                  pictureUrl={app.linePictureUrl}
+                  syncedAt={app.lineProfileSyncedAt}
+                  showSyncedAt
+                  size="md"
+                />
+              </div>
               <Row label="收件人" value={app.recipientName || '—'} />
               <Row label="手機" value={app.recipientPhone || '—'} />
               <Row
