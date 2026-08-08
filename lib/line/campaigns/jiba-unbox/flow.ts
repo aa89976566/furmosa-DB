@@ -177,7 +177,7 @@ export const JIBA_SAMPLE_UNBOX_CTA_LABEL = '看一個開箱樣本';
 export const JIBA_SAMPLE_UNBOX_IG_URI =
   'https://www.instagram.com/s/aGlnaGxpZ2h0OjE4MDk2MzY0MDcwMTc1NjEz?story_media_id=3920692691184160856&igsh=ZzdoZzEwb3A5M2xk';
 
-function jibaSampleUnboxCtaFlex(): LineReplyMessage {
+export function jibaSampleUnboxCtaFlex(): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: JIBA_SAMPLE_UNBOX_CTA_LABEL,
     theme: WORLD_THEME.chaos,
@@ -190,33 +190,6 @@ function jibaSampleUnboxCtaFlex(): LineReplyMessage {
       },
     ],
   });
-}
-
-/**
- * 選完商品後的訊息序（兩種商品共用）：
- * 確認文案 → Instagram 樣本 CTA → 投稿說明 →「看完了嗎？」卡
- */
-export function jibaPostProductPickedMessages(
-  productKey: JibaProductKey,
-): LineReplyMessage[] {
-  return [
-    { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
-    jibaSampleUnboxCtaFlex(),
-    { type: 'text', text: jibaBriefAndUpsell(productKey) },
-    buildButtonMenuFlex({
-      altText: '開始填資料',
-      theme: WORLD_THEME.chaos,
-      title: '看完了嗎？',
-      subtitle: '準備好就開始填收件資料，零食才寄得出發喔。',
-      items: [
-        {
-          label: '好，開始填資料',
-          action: { type: 'message', text: '好，開始填資料' },
-          style: 'primary',
-        },
-      ],
-    }),
-  ];
 }
 
 function jibaResumeChoiceMenu(): LineReplyMessage {
@@ -983,11 +956,24 @@ export async function handleJibaUnboxMessage(
         productLabel: JIBA_PRODUCTS[productKey].orderLabel,
       });
       await logBot(sid, brief);
-      await replyJiba(
-        replyToken,
-        lineUserId,
-        jibaPostProductPickedMessages(productKey),
-      );
+      await replyJiba(replyToken, lineUserId, [
+        { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
+        jibaSampleUnboxCtaFlex(),
+        { type: 'text', text: brief },
+        buildButtonMenuFlex({
+          altText: '開始填資料',
+          theme: WORLD_THEME.chaos,
+          title: '看完了嗎？',
+          subtitle: '準備好就開始填收件資料，零食才寄得出發喔。',
+          items: [
+            {
+              label: '好，開始填資料',
+              action: { type: 'message', text: '好，開始填資料' },
+              style: 'primary',
+            },
+          ],
+        }),
+      ]);
       return true;
     }
     case FLOW_STATE.SHOW_BRIEF: {
