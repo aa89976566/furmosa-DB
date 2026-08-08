@@ -236,7 +236,7 @@ export async function planOneRecipient(opts: {
 
   if (kind === 'news') {
     const processed = processCandidates(await newsProvider.fetchCandidates(now));
-    let news = pickAutoApprovedNews(processed);
+    const news = pickAutoApprovedNews(processed);
     if (!news) {
       // fallback joke
       const joke = await pickApprovedJoke({
