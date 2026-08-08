@@ -68,3 +68,15 @@ export async function ensureMorningFixturesAction() {
   await ensureMorningDraftFixtures();
   revalidate();
 }
+
+/** Preview refresh：fixture → normalize → gate → DB；不真送、不打 live 網路 */
+export async function refreshMorningNewsPreviewAction() {
+  const user = await requireMorningAdmin();
+  const { ingestFixtureNewsPreview } = await import('@/lib/line/morning/news/ingest');
+  const stats = await ingestFixtureNewsPreview({
+    createdBy: user.email,
+    persist: true,
+  });
+  revalidate();
+  return stats;
+}

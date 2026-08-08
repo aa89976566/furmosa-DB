@@ -22,8 +22,10 @@ import {
   type MorningNewsRecord,
 } from '@/lib/line/morning/news/provider';
 import { defaultMockNewsProvider } from '@/lib/line/morning/news/mock-feed';
+import { MORNING_SOURCE_REGISTRY } from '@/lib/line/morning/news/registry';
 import {
   ensureMorningFixturesAction,
+  refreshMorningNewsPreviewAction,
   setMorningDailyQuotaAction,
   setMorningMasterEnabledAction,
   updateMorningContentStatusAction,
@@ -73,6 +75,31 @@ export default async function LineMorningAdminPage() {
   let activeCount = 0;
   let usedToday = 0;
   let newsPreview: MorningNewsRecord[] = [];
+  let ingestRuns: Array<{
+    id: string;
+    createdAt: Date;
+    masterEnabled: boolean;
+    fetchedCount: number;
+    passedCount: number;
+    blockedCount: number;
+    duplicateCount: number;
+    staleCount: number;
+    summaryJson: string;
+    createdBy: string | null;
+  }> = [];
+  let newsItems: Array<{
+    id: string;
+    title: string;
+    status: string;
+    sourceName: string;
+    sourceId: string | null;
+    region: string;
+    riskLevel: string;
+    confidence: number;
+    gateReasons: string;
+    contentHash: string | null;
+    publishedAt: Date;
+  }> = [];
   let schemaError: string | null = null;
 
   try {
@@ -89,9 +116,33 @@ export default async function LineMorningAdminPage() {
       },
     });
     newsPreview = processCandidates(await defaultMockNewsProvider.fetchCandidates());
+    ingestRuns = await prisma.lineMorningIngestRun.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+    newsItems = await prisma.lineMorningNewsItem.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 40,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        sourceName: true,
+        sourceId: true,
+        region: true,
+        riskLevel: true,
+        confidence: true,
+        gateReasons: true,
+        contentHash: true,
+        publishedAt: true,
+      },
+    });
   } catch (e) {
     schemaError = e instanceof Error ? e.message : String(e);
   }
+
+  const liveEnabledCount = MORNING_SOURCE_REGISTRY.filter((s) => s.enabled).length;
+  const lastIngest = ingestRuns[0] ?? null;
 
   const approvedCount = contents.filter((c) => c.status === 'APPROVED').length;
   const draftCount = contents.filter((c) => c.status === 'DRAFT').length;
@@ -155,7 +206,62 @@ export default async function LineMorningAdminPage() {
                   載入 DRAFT 範例
                 </Button>
               </form>
+              <form action={refreshMorningNewsPreviewAction}>
+                <Button type="submit" size="sm" variant="default">
+                  Preview 刷新新聞閘門
+                </Button>
+              </form>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-3 p-4 text-sm">
+            <p className="font-medium">來源健康（registry）</p>
+            <p className="text-muted-foreground">
+              live enabled：{liveEnabledCount}（本階段應為 0；未商業授權禁止網路存取）
+            </p>
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 text-left text-muted-foreground">
+                  <tr>
+                    <th className="px-2 py-1">sourceId</th>
+                    <th className="px-2 py-1">優先</th>
+                    <th className="px-2 py-1">enabled</th>
+                    <th className="px-2 py-1">授權</th>
+                    <th className="px-2 py-1">查驗</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {MORNING_SOURCE_REGISTRY.map((s) => (
+                    <tr key={s.sourceId} className="border-t align-top">
+                      <td className="px-2 py-1 font-mono">{s.sourceId}</td>
+                      <td className="px-2 py-1">{s.countryPriority}</td>
+                      <td className="px-2 py-1">
+                        <Badge variant={s.enabled ? 'default' : 'secondary'}>
+                          {s.enabled ? 'ON' : 'OFF'}
+                        </Badge>
+                      </td>
+                      <td className="px-2 py-1">{s.usagePolicy}</td>
+                      <td className="px-2 py-1">{s.verifiedAt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {lastIngest ? (
+              <p className="text-muted-foreground">
+                最近抓取（fixture）：{formatDateTime(lastIngest.createdAt)} · fetched{' '}
+                {lastIngest.fetchedCount}／passed {lastIngest.passedCount}／blocked{' '}
+                {lastIngest.blockedCount}／dup {lastIngest.duplicateCount}／stale{' '}
+                {lastIngest.staleCount}
+                {lastIngest.passedCount === 0
+                  ? ' · 今天沒有通過安全檢查的新鮮事'
+                  : null}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">尚無 ingest 紀錄，請按「Preview 刷新新聞閘門」。</p>
+            )}
           </CardContent>
         </Card>
 
@@ -255,7 +361,55 @@ export default async function LineMorningAdminPage() {
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold">新聞 mock feed（安全閘門預覽）</h2>
+          <h2 className="text-base font-semibold">已寫入新聞列（含阻擋原因）</h2>
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2">狀態</th>
+                  <th className="px-3 py-2">來源</th>
+                  <th className="px-3 py-2">標題</th>
+                  <th className="px-3 py-2">信心</th>
+                  <th className="px-3 py-2">gate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {newsItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
+                      尚無新聞列
+                    </td>
+                  </tr>
+                ) : (
+                  newsItems.map((n) => (
+                    <tr key={n.id} className="border-t align-top">
+                      <td className="px-3 py-2">
+                        <Badge variant={STATUS_TONE[n.status] ?? 'outline'}>{n.status}</Badge>
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        <div>{n.sourceName}</div>
+                        <div className="font-mono text-muted-foreground">{n.sourceId}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{n.title}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground">
+                          {n.contentHash?.slice(0, 12)}…
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">{n.confidence}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                        {n.gateReasons}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold">Fixture 閘門即時預覽（非真新聞）</h2>
           <div className="overflow-x-auto rounded-xl border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">

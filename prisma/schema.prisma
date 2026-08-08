@@ -1392,6 +1392,19 @@ model LineMorningNewsItem {
   title        String
   factSummary  String   @map("fact_summary")
   barkLine     String?  @map("bark_line")
+  /// 加性：真實來源 Preview 中繼資料（不存全文）
+  sourceId     String?  @map("source_id")
+  fetchedAt    DateTime? @map("fetched_at")
+  /// SHA-256 hex
+  contentHash  String?  @unique @map("content_hash")
+  /// JSON string array of risk label codes
+  riskLabels   String   @default("[]") @map("risk_labels")
+  /// 0–100；classifier confidence（愈高愈確定）
+  confidence   Int      @default(0)
+  /// JSON string array of species tags
+  speciesTags  String   @default("[]") @map("species_tags")
+  /// JSON string array of gate reasons
+  gateReasons  String   @default("[]") @map("gate_reasons")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -1399,7 +1412,28 @@ model LineMorningNewsItem {
 
   @@index([status, publishedAt])
   @@index([region, status])
+  @@index([sourceId, publishedAt])
   @@map("line_morning_news_items")
+}
+
+/// Preview 抓取／閘門統計（不真送；可回滾 DROP）
+model LineMorningIngestRun {
+  id            String   @id @default(cuid())
+  /// fixture | dry_run
+  mode          String   @default("fixture")
+  masterEnabled Boolean  @map("master_enabled")
+  fetchedCount  Int      @default(0) @map("fetched_count")
+  passedCount   Int      @default(0) @map("passed_count")
+  blockedCount  Int      @default(0) @map("blocked_count")
+  duplicateCount Int     @default(0) @map("duplicate_count")
+  staleCount    Int      @default(0) @map("stale_count")
+  /// JSON summary（無 PII、無完整 payload）
+  summaryJson   String   @default("{}") @map("summary_json")
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("line_morning_ingest_runs")
 }
 
 /// Exactly-once：recipient + campaignKey + Taiwan date

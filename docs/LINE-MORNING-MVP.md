@@ -11,7 +11,7 @@
 | Delivery | 專用表；`@@unique(lineUserId, campaignKey, taipeiDate)` |
 | Cron | 僅 dry-run API；**未**加入 `vercel.json`；不真送 |
 | Kill switch | DB `LineMorningSettings.masterEnabled` 預設 `false` |
-| 新聞 | Provider interface + 白名單 + 安全閘門 + mock feed；不串即時抓取 |
+| 新聞 | Provider + registry（enabled=false）+ SSRF／XXE 框架 + fixture；**不串 live** |
 
 ## 重用既有元件
 
@@ -58,8 +58,17 @@ Migration：`prisma/migrations/20260808060000_line_morning_mvp`
 5. 後台查看 delivery／skip reason；再打一次確認不重複（unique）
 6. 確認 `vercel.json` **沒有** morning cron；總開關保持 OFF
 
+## 真實來源 Preview（本階段）
+
+- 文件：`LINE-MORNING-SOURCES.md`、`LINE-MORNING-THREAT-MODEL.md`、`LINE-MORNING-STYLE.md`
+- Migration：`20260808080000_line_morning_news_metadata`（additive）
+- 純 `news` 偏好無安全新聞 → skip（`no_safe_news`）；僅 `alternate` 可退回核准笑話
+- Admin：「Preview 刷新新聞閘門」跑 fixture ingest（需 HQ auth）
+
 ## 禁止事項
 
 - Production deploy／merge（由人類決定）
 - 對真實 LINE 用戶廣播或測試發送
 - 覆寫既有 seed／把 DRAFT fixtures 預設核准
+- HTML scraping、付費 LLM、Production secret 做抓取
+- 未授權來源 `enabled=true` 或實際網路存取

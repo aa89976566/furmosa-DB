@@ -48,10 +48,14 @@ export const MORNING_SKIP_REASONS = {
   SLOT_NOT_YET: 'slot_not_yet',
   TRANSACTIONAL_PRIORITY: 'transactional_priority',
   NO_CONTENT: 'no_content',
+  NO_SAFE_NEWS: 'no_safe_news',
   ALREADY_DELIVERED: 'already_delivered',
   OUTSIDE_WINDOW: 'outside_window',
   MASTER_OFF: 'master_off',
 } as const;
+
+/** 新聞時效窗（小時）；缺日期／未來／過期一律 fail-closed */
+export const MORNING_NEWS_MAX_AGE_HOURS = 72;
 
 export type MorningSkipReason =
   (typeof MORNING_SKIP_REASONS)[keyof typeof MORNING_SKIP_REASONS];

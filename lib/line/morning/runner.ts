@@ -232,13 +232,36 @@ export async function planOneRecipient(opts: {
     };
   }
 
-  const kind = chooseKind(opts.recipient.preference.contentMode, taipeiDate);
+  const contentMode = opts.recipient.preference.contentMode;
+  const kind = chooseKind(contentMode, taipeiDate);
 
   if (kind === 'news') {
-    const processed = processCandidates(await newsProvider.fetchCandidates(now));
+    const processed = processCandidates(await newsProvider.fetchCandidates(now), now);
     const news = pickAutoApprovedNews(processed);
     if (!news) {
-      // fallback joke
+      // 純 NEWS：無安全新聞必須 skip，不得改成笑話
+      // ALTERNATE：才可退回已核准笑話
+      if (contentMode !== 'alternate') {
+        const recorded = await recordMorningDelivery({
+          lineUserId: opts.recipient.lineUserId,
+          taipeiDate,
+          status: 'SKIPPED',
+          skipReason: MORNING_SKIP_REASONS.NO_SAFE_NEWS,
+          slotMinute,
+          renderedText: '今天沒有通過安全檢查的新鮮事',
+        });
+        return {
+          lineUserId: opts.recipient.lineUserId,
+          taipeiDate,
+          slotMinute,
+          outcome: 'SKIPPED',
+          skipReason: MORNING_SKIP_REASONS.NO_SAFE_NEWS,
+          deliveryId: recorded.id,
+          created: recorded.created,
+          renderedText: '今天沒有通過安全檢查的新鮮事',
+        };
+      }
+
       const joke = await pickApprovedJoke({
         preferredTags: mapPetTag(opts.recipient.petSpecies),
         now,
@@ -290,26 +313,36 @@ export async function planOneRecipient(opts: {
       };
     }
 
-    // persist news item upsert by fingerprint for audit
     const newsRow = await prisma.lineMorningNewsItem.upsert({
-      where: { fingerprint: news.fingerprint },
+      where: { contentHash: news.contentHash },
       create: {
-        fingerprint: news.fingerprint,
+        fingerprint: news.contentHash,
+        contentHash: news.contentHash,
         canonicalUrl: news.canonicalUrl,
         sourceName: news.sourceName,
+        sourceId: news.sourceId,
         publishedAt: news.publishedAt,
+        fetchedAt: now,
         region: news.region,
         riskLevel: news.riskLevel,
         status: news.status,
         title: news.title,
         factSummary: news.factSummary,
         barkLine: news.barkLine,
+        riskLabels: JSON.stringify(news.riskLabels),
+        confidence: news.confidence,
+        speciesTags: JSON.stringify(news.speciesTags),
+        gateReasons: JSON.stringify(news.safetyReasons),
       },
       update: {
         status: news.status,
         riskLevel: news.riskLevel,
         factSummary: news.factSummary,
         barkLine: news.barkLine,
+        riskLabels: JSON.stringify(news.riskLabels),
+        confidence: news.confidence,
+        gateReasons: JSON.stringify(news.safetyReasons),
+        fetchedAt: now,
       },
     });
 
@@ -318,6 +351,7 @@ export async function planOneRecipient(opts: {
       barkLine: news.barkLine,
       sourceName: news.sourceName,
       canonicalUrl: news.canonicalUrl,
+      publishedAt: news.publishedAt,
     });
     const recorded = await recordMorningDelivery({
       lineUserId: opts.recipient.lineUserId,
@@ -334,7 +368,7 @@ export async function planOneRecipient(opts: {
       slotMinute,
       outcome: 'DRY_RUN',
       contentKind: 'news',
-      newsFingerprint: news.fingerprint,
+      newsFingerprint: news.contentHash,
       renderedText: rendered.text,
       deliveryId: recorded.id,
       created: recorded.created,

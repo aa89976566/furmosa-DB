@@ -6,7 +6,7 @@ import { pickAutoApprovedNews, processCandidates } from '../news/provider';
 import { MOCK_NEWS_FIXTURES } from '../news/mock-feed';
 
 describe('morning news safety', () => {
-  it('白名單輕鬆新聞可 AUTO_APPROVED；疾病／偏方 BLOCKED', () => {
+  it('白名單輕鬆新聞可 AUTO_APPROVED；疾病／偏方／未列名來源 BLOCKED', () => {
     const processed = processCandidates(MOCK_NEWS_FIXTURES);
     const ok = processed.filter((p) => p.status === 'AUTO_APPROVED');
     assert.ok(ok.length >= 1);
@@ -15,7 +15,16 @@ describe('morning news safety', () => {
     const blockedDisease = classifyNewsSafety(MOCK_NEWS_FIXTURES[2]!);
     assert.equal(blockedDisease.status, 'BLOCKED');
 
-    const blockedUnlisted = classifyNewsSafety(MOCK_NEWS_FIXTURES[3]!);
+    const blockedUnverified = classifyNewsSafety(MOCK_NEWS_FIXTURES[3]!);
+    assert.equal(blockedUnverified.status, 'BLOCKED');
+
+    const blockedUnlisted = classifyNewsSafety({
+      canonicalUrl: 'https://evil.example/rss/item-1',
+      sourceName: 'Evil',
+      publishedAt: new Date().toISOString(),
+      title: '[FIXTURE] 未列名來源',
+      factSummary: '這是測試用占位摘要：用於驗證未列名來源 fail-closed。',
+    });
     assert.equal(blockedUnlisted.status, 'BLOCKED');
     assert.ok(blockedUnlisted.reasons.includes('source_not_whitelisted'));
   });

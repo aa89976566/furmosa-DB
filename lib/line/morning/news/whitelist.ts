@@ -1,77 +1,32 @@
 /**
- * 新聞來源白名單（MVP：靜態設定；不串即時抓取）
- * 優先：台灣官方 → 可信國際媒體 → 官方獸醫／研究機構
+ * 相容層：白名單改由 registry 管理。
  */
 
-export type NewsSourceTier = 'tw_official' | 'intl_media' | 'vet_research';
+import {
+  findSourceByHost,
+  MORNING_SOURCE_REGISTRY,
+  type MorningSourceRegistryEntry,
+} from '@/lib/line/morning/news/registry';
 
 export type WhitelistedSource = {
   id: string;
   name: string;
-  tier: NewsSourceTier;
-  /** 允許的 hostname（不含 www） */
+  tier: string;
   hostnames: string[];
   regionDefault: 'tw' | 'global';
+  enabled: boolean;
 };
 
-export const NEWS_SOURCE_WHITELIST: WhitelistedSource[] = [
-  {
-    id: 'coa_tw',
-    name: '農業部',
-    tier: 'tw_official',
-    hostnames: ['moa.gov.tw', 'coa.gov.tw'],
-    regionDefault: 'tw',
-  },
-  {
-    id: 'cdc_tw',
-    name: '疾管署',
-    tier: 'tw_official',
-    hostnames: ['cdc.gov.tw'],
-    regionDefault: 'tw',
-  },
-  {
-    id: 'taipei_zoo',
-    name: '臺北市立動物園',
-    tier: 'tw_official',
-    hostnames: ['zoo.taipei.gov.tw'],
-    regionDefault: 'tw',
-  },
-  {
-    id: 'bbc_news',
-    name: 'BBC News',
-    tier: 'intl_media',
-    hostnames: ['bbc.com', 'bbc.co.uk'],
-    regionDefault: 'global',
-  },
-  {
-    id: 'reuters',
-    name: 'Reuters',
-    tier: 'intl_media',
-    hostnames: ['reuters.com'],
-    regionDefault: 'global',
-  },
-  {
-    id: 'ap_news',
-    name: 'Associated Press',
-    tier: 'intl_media',
-    hostnames: ['apnews.com'],
-    regionDefault: 'global',
-  },
-  {
-    id: 'avma',
-    name: 'AVMA',
-    tier: 'vet_research',
-    hostnames: ['avma.org'],
-    regionDefault: 'global',
-  },
-  {
-    id: 'woah',
-    name: 'WOAH',
-    tier: 'vet_research',
-    hostnames: ['woah.org'],
-    regionDefault: 'global',
-  },
-];
+export const NEWS_SOURCE_WHITELIST: WhitelistedSource[] = MORNING_SOURCE_REGISTRY.map(
+  (s: MorningSourceRegistryEntry) => ({
+    id: s.sourceId,
+    name: s.sourceName,
+    tier: s.trustTier,
+    hostnames: s.allowedHosts,
+    regionDefault: s.regionDefault,
+    enabled: s.enabled,
+  }),
+);
 
 export function normalizeHostname(url: string): string | null {
   try {
@@ -86,9 +41,14 @@ export function normalizeHostname(url: string): string | null {
 export function findWhitelistedSource(canonicalUrl: string): WhitelistedSource | null {
   const host = normalizeHostname(canonicalUrl);
   if (!host) return null;
-  return (
-    NEWS_SOURCE_WHITELIST.find((s) =>
-      s.hostnames.some((h) => host === h || host.endsWith(`.${h}`)),
-    ) ?? null
-  );
+  const src = findSourceByHost(host);
+  if (!src) return null;
+  return {
+    id: src.sourceId,
+    name: src.sourceName,
+    tier: src.trustTier,
+    hostnames: src.allowedHosts,
+    regionDefault: src.regionDefault,
+    enabled: src.enabled,
+  };
 }

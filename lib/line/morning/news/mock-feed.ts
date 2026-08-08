@@ -1,48 +1,82 @@
 /**
- * MVP mock feed／fixtures（不可預設核准危險內容；安全閘門仍會跑）
+ * Fixture／placeholder 新聞（不得偽裝成真新聞）
+ * 所有 canonicalUrl 使用 fixtures.morning.local
  */
 
-import type { RawNewsCandidate } from '@/lib/line/morning/news/safety';
 import type { MorningNewsProvider } from '@/lib/line/morning/news/provider';
+import type { RawNewsCandidate } from '@/lib/line/morning/news/safety';
 
-export const MOCK_NEWS_FIXTURES: RawNewsCandidate[] = [
+export type FixtureNewsRaw = {
+  sourceId: string;
+  canonicalUrl: string;
+  title: string;
+  summary: string;
+  publishedAt: string;
+  speciesTags?: string[];
+  /** 僅 AUTO_APPROVED 路徑可用；不得含新事實 */
+  safeObservation?: string | null;
+};
+
+/** Placeholder fixtures — 標題明確標示 [FIXTURE] */
+export const FIXTURE_NEWS_RAW: FixtureNewsRaw[] = [
   {
-    canonicalUrl: 'https://zoo.taipei.gov.tw/news/mock-otter-enrichment-2026',
-    sourceName: '臺北市立動物園',
-    publishedAt: '2026-08-05T02:00:00.000Z',
-    region: 'tw',
-    title: '動物園為水獺增加漂浮玩具',
-    factSummary: '臺北市立動物園宣布為亞洲小爪水獺更新戲水玩具，觀察到牠們探索時間變長。',
-    barkLine: '玩具一丟下水，認真程度瞬間像開會。',
+    sourceId: 'fixture_placeholder',
+    canonicalUrl: 'https://fixtures.morning.local/placeholder/tw-enrichment-001',
+    title: '[FIXTURE] 示範園區為水獺更新漂浮玩具',
+    summary:
+      '這是測試用占位摘要：示範園區替水獺更新漂浮玩具後，觀察到牠們探索與戲水的時間變長，工作人員持續記錄互動情況。非真實新聞。',
+    publishedAt: new Date().toISOString(),
+    speciesTags: ['general'],
+    safeObservation: '玩具一進水，認真程度瞬間像開會。',
   },
   {
-    canonicalUrl: 'https://www.bbc.com/news/mock-dog-park-design-2026',
-    sourceName: 'BBC News',
-    publishedAt: '2026-08-04T10:00:00.000Z',
-    region: 'global',
-    title: '城市狗公園開始加設嗅聞步道',
-    factSummary: '多個城市在狗公園增設嗅聞步道，讓犬隻用鼻子探索環境，減少只圍著跑步的設計。',
-    barkLine: '鼻子行事曆永遠比人類滿。',
+    sourceId: 'fixture_placeholder',
+    canonicalUrl: 'https://fixtures.morning.local/placeholder/global-dogpark-001',
+    title: '[FIXTURE] 示範城市狗公園加設嗅聞步道',
+    summary:
+      '這是測試用占位摘要：示範城市在狗公園增加嗅聞步道，讓犬隻用鼻子探索環境，減少只圍繞跑道奔跑的單一設計。非真實新聞。',
+    publishedAt: new Date().toISOString(),
+    speciesTags: ['dog'],
+    safeObservation: '鼻子行事曆，永遠比人類滿。',
   },
   {
-    canonicalUrl: 'https://www.reuters.com/mock-pet-disease-outbreak',
-    sourceName: 'Reuters',
-    publishedAt: '2026-08-03T08:00:00.000Z',
-    region: 'global',
-    title: '某地傳出寵物疾病疫情',
-    factSummary: '外電報導出現疑似寵物疾病感染案例，衛生單位持續調查。',
-    barkLine: null,
+    sourceId: 'fixture_placeholder',
+    canonicalUrl: 'https://fixtures.morning.local/placeholder/blocked-disease-001',
+    title: '[FIXTURE] 某地傳出寵物疾病疫情',
+    summary: '測試用占位：疑似寵物疾病感染案例，用於驗證硬規則阻擋。非真實新聞。',
+    publishedAt: new Date().toISOString(),
+    speciesTags: ['dog'],
+    safeObservation: null,
   },
   {
-    canonicalUrl: 'https://unknown-blog.example/pet-tips',
-    sourceName: 'Random Blog',
-    publishedAt: '2026-08-02T08:00:00.000Z',
-    region: 'global',
-    title: '五個偏方保證治好毛孩腸胃',
-    factSummary: '網傳未經證實的健康建議。',
-    barkLine: null,
+    sourceId: 'fixture_placeholder',
+    canonicalUrl: 'https://fixtures.morning.local/placeholder/blocked-unverified-001',
+    title: '[FIXTURE] 五個偏方保證治好毛孩腸胃',
+    summary: '測試用占位：未經證實的健康建議，應被阻擋。非真實新聞。',
+    publishedAt: new Date().toISOString(),
+    safeObservation: null,
+  },
+  {
+    sourceId: 'fixture_placeholder',
+    canonicalUrl: 'https://fixtures.morning.local/placeholder/stale-001',
+    title: '[FIXTURE] 過期示範新聞',
+    summary: '測試用占位：用於驗證 72 小時時效。非真實新聞。',
+    publishedAt: '2020-01-01T00:00:00.000Z',
+    safeObservation: null,
   },
 ];
+
+/** 相容舊 MorningNewsProvider 介面（轉成 RawNewsCandidate） */
+export const MOCK_NEWS_FIXTURES: RawNewsCandidate[] = FIXTURE_NEWS_RAW.map((f) => ({
+  canonicalUrl: f.canonicalUrl,
+  sourceName: 'Fixture Placeholder',
+  publishedAt: f.publishedAt,
+  title: f.title,
+  factSummary: f.summary,
+  region: 'tw' as const,
+  barkLine: f.safeObservation ?? null,
+  sourceId: f.sourceId,
+}));
 
 export class MockMorningNewsProvider implements MorningNewsProvider {
   readonly id = 'mock';

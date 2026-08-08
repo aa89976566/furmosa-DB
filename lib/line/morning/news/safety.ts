@@ -1,13 +1,14 @@
 /**
- * 自動內容安全閘門
- * - 輕鬆社會新聞、動物研究與趣聞 → AUTO_APPROVED
- * - 疾病／醫療／召回／法規／災害／血腥／募款／政治／未核實健康建議 → BLOCKED 或 REVIEW_REQUIRED
+ * 舊介面相容層：轉呼叫 normalize + gate。
+ * 新程式請直接用 normalize.ts / gate.ts。
  */
 
 import type { MorningNewsStatus } from '@/lib/line/morning/constants';
-import { findWhitelistedSource } from '@/lib/line/morning/news/whitelist';
+import { gateNormalizedNews, type NewsRiskLevel } from '@/lib/line/morning/news/gate';
+import { normalizeNewsCandidate } from '@/lib/line/morning/news/normalize';
+import { findSourceByHost } from '@/lib/line/morning/news/registry';
 
-export type NewsRiskLevel = 'low' | 'medium' | 'high';
+export type { NewsRiskLevel };
 
 export type RawNewsCandidate = {
   canonicalUrl: string;
@@ -17,6 +18,7 @@ export type RawNewsCandidate = {
   factSummary: string;
   region?: 'tw' | 'global';
   barkLine?: string | null;
+  sourceId?: string;
 };
 
 export type SafetyClassification = {
@@ -25,132 +27,77 @@ export type SafetyClassification = {
   reasons: string[];
   sourceId: string | null;
   region: 'tw' | 'global';
+  riskLabels?: string[];
+  confidence?: number;
 };
 
-const BLOCK_PATTERNS: Array<{ re: RegExp; reason: string }> = [
-  { re: /疾病|疫情|感染|病原|病毒|細菌|狂犬|禽流感|寄生蟲病/i, reason: 'disease' },
-  { re: /醫療|用藥|處方|手術|診斷|治療建議|症狀/i, reason: 'medical' },
-  { re: /召回|回收產品|飼料污染|產品下架/i, reason: 'recall' },
-  { re: /法規|修法|條例|禁令|罰鍰/i, reason: 'regulation' },
-  { re: /地震|颱風|洪水|火災|空難|重大傷亡|災害/i, reason: 'disaster' },
-  { re: /血腥|虐殺|死亡|屍體|解剖畫面/i, reason: 'graphic' },
-  { re: /募款|捐款|眾籌|急難救助金/i, reason: 'fundraising' },
-  { re: /戰爭|衝突|制裁|選舉|政黨/i, reason: 'politics' },
-  { re: /偏方|必癒|保證治好|未經證實|網傳秘方/i, reason: 'unverified_health' },
-];
-
-const REVIEW_PATTERNS: Array<{ re: RegExp; reason: string }> = [
-  { re: /受傷|走失尋獲|救援|收容所爆滿/i, reason: 'sensitive_rescue' },
-  { re: /研究指出|臨床試驗|營養補充/i, reason: 'research_nuance' },
-];
-
-function textBlob(c: RawNewsCandidate): string {
-  return `${c.title}\n${c.factSummary}\n${c.barkLine ?? ''}`;
-}
-
-function parsePublishedAt(v: Date | string): Date | null {
-  const d = v instanceof Date ? v : new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 export function classifyNewsSafety(candidate: RawNewsCandidate): SafetyClassification {
-  const reasons: string[] = [];
-  const source = findWhitelistedSource(candidate.canonicalUrl);
-  if (!source) {
+  const host = (() => {
+    try {
+      return new URL(candidate.canonicalUrl).hostname;
+    } catch {
+      return '';
+    }
+  })();
+  const hostSource = findSourceByHost(host);
+
+  // 未提供 sourceId 且 host 不在 registry → fail-closed（不得落到 fixture）
+  if (!candidate.sourceId && !hostSource) {
     return {
       status: 'BLOCKED',
       riskLevel: 'high',
       reasons: ['source_not_whitelisted'],
       sourceId: null,
       region: candidate.region ?? 'global',
+      riskLabels: ['source_not_whitelisted'],
+      confidence: 100,
     };
   }
 
-  if (candidate.sourceName.trim() && candidate.sourceName.trim() !== source.name) {
-    // 允許別名但記錄；名稱空白則之後補
-    reasons.push('source_name_mismatch_soft');
-  }
+  const sourceId = candidate.sourceId ?? hostSource!.sourceId;
 
-  const publishedAt = parsePublishedAt(candidate.publishedAt);
-  if (!publishedAt) {
+  const normalized = normalizeNewsCandidate({
+    sourceId,
+    canonicalUrl: candidate.canonicalUrl,
+    originalTitle: candidate.title,
+    originalSummary: candidate.factSummary,
+    publishedAt: candidate.publishedAt,
+  });
+  if (!normalized.ok) {
     return {
       status: 'BLOCKED',
       riskLevel: 'high',
-      reasons: ['invalid_published_at'],
-      sourceId: source.id,
-      region: candidate.region ?? source.regionDefault,
+      reasons: [normalized.reason],
+      sourceId,
+      region: candidate.region ?? 'global',
+      riskLabels: [normalized.reason],
+      confidence: 100,
     };
   }
-
-  // 過舊（>30 天）不進晨報自動池
-  const ageMs = Date.now() - publishedAt.getTime();
-  if (ageMs > 30 * 24 * 60 * 60 * 1000) {
-    return {
-      status: 'BLOCKED',
-      riskLevel: 'medium',
-      reasons: ['stale_published_at'],
-      sourceId: source.id,
-      region: candidate.region ?? source.regionDefault,
-    };
-  }
-
-  if (!candidate.canonicalUrl.startsWith('http')) {
-    return {
-      status: 'BLOCKED',
-      riskLevel: 'high',
-      reasons: ['invalid_url'],
-      sourceId: source.id,
-      region: candidate.region ?? source.regionDefault,
-    };
-  }
-
-  const blob = textBlob(candidate);
-  for (const p of BLOCK_PATTERNS) {
-    if (p.re.test(blob)) {
-      return {
-        status: 'BLOCKED',
-        riskLevel: 'high',
-        reasons: [...reasons, p.reason],
-        sourceId: source.id,
-        region: candidate.region ?? source.regionDefault,
-      };
-    }
-  }
-
-  for (const p of REVIEW_PATTERNS) {
-    if (p.re.test(blob)) {
-      return {
-        status: 'REVIEW_REQUIRED',
-        riskLevel: 'medium',
-        reasons: [...reasons, p.reason],
-        sourceId: source.id,
-        region: candidate.region ?? source.regionDefault,
-      };
-    }
-  }
-
+  const gate = gateNormalizedNews(normalized.value);
   return {
-    status: 'AUTO_APPROVED',
-    riskLevel: 'low',
-    reasons: reasons.length ? reasons : ['ok'],
-    sourceId: source.id,
-    region: candidate.region ?? source.regionDefault,
+    status: gate.status,
+    riskLevel: gate.riskLevel,
+    reasons: gate.reasons,
+    sourceId: normalized.value.sourceId,
+    region: gate.region,
+    riskLabels: gate.riskLabels,
+    confidence: gate.confidence,
   };
 }
 
-/** 去重指紋：normalize URL + 日期 */
+/** @deprecated 改用 SHA-256 contentHash（normalize.computeContentHash） */
 export function newsFingerprint(canonicalUrl: string, publishedAt: Date): string {
   let normalized = canonicalUrl.trim().toLowerCase();
   try {
     const u = new URL(normalized);
     u.hash = '';
-    // 去掉常見追蹤參數
     ['utm_source', 'utm_medium', 'utm_campaign', 'fbclid'].forEach((k) =>
       u.searchParams.delete(k),
     );
     normalized = `${u.origin}${u.pathname}${u.search}`;
   } catch {
-    // keep raw
+    // keep
   }
   const day = publishedAt.toISOString().slice(0, 10);
   return `${normalized}|${day}`;
