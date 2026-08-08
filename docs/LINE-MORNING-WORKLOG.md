@@ -35,7 +35,7 @@ main
 |----|--------|----------|------|------|
 | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | `cursor/line-morning-mvp-2673` | `446d648` | `main` | MVP + 安全框架 + Phase 3 QA |
 | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | `cursor/line-morning-phase4b-a-2673` | `2ecdfec` | #96 branch | Phase 4B-A domain contract |
-| TBD | `cursor/line-morning-phase4b-b-optin` | `2d1ace6`+ | #97 branch | Phase 4B-B opt-in |
+| [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | `cursor/line-morning-phase4b-b-optin` | `14ba161` | #97 branch | Phase 4B-B opt-in |
 
 **硬規則**：不得改寫 #96／#97 head；不 merge；不 Production。
 
@@ -62,7 +62,7 @@ main
 | ID | 時間 (UTC) | 來源 | 原始需求摘要 | 狀態 | Branch | Commit | PR | Tests | Preview |
 |----|------------|------|--------------|------|--------|--------|-----|-------|---------|
 | RL-2026-08-08-RISK-MOBILE | 2026-08-07～08（回溯） | Mobile Remote／追蹤缺口 | 手機 Remote 指示可能未進入電腦 Cursor 對話 → **無程式／無 commit／無紀錄風險**。緩解：本 worklog + AGENTS 最小補充；未入 ledger+commit 視為未執行 | `VERIFIED`（機制建立中→見 RL-2026-08-08-4BB-AUTH） | — | — | — | — | — |
-| RL-2026-08-08-4BB-AUTH | 2026-08-08T12:36Z | Desktop（使用者授權） | 授權開始 Phase 4B-B；先完成永久留痕（worklog）與安全 stacked branch，再做明確 opt-in UI + HQ dry-run；LINE 真送必須 0 | `IMPLEMENTED` | `cursor/line-morning-phase4b-b-optin` | `2d1ace6`+feature | TBD | morning+LINE 151 pass | Preview pending |
+| RL-2026-08-08-4BB-AUTH | 2026-08-08T12:36Z | Desktop（使用者授權） | 授權開始 Phase 4B-B；先完成永久留痕（worklog）與安全 stacked branch，再做明確 opt-in UI + HQ dry-run；LINE 真送必須 0 | `VERIFIED` | `cursor/line-morning-phase4b-b-optin` | `2d1ace6`→`14ba161` | [#98](https://github.com/aa89976566/furmosa-DB/pull/98) | morning+LINE 151 pass；build 0 | https://furmosa-db-git-cursor-line-morning-5c05c4-aa89976566s-projects.vercel.app |
 | RL-HIST-96 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 1–3：Preview MVP、新聞安全框架、Phase 3 QA（手機卡片／繁中標籤／region） | `VERIFIED` | `cursor/line-morning-mvp-2673` | `446d648` | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | morning+LINE pass（當時） | Preview Ready（#96） |
 | RL-HIST-97 | 2026-08-08（historical） | Desktop／Cloud Agent | Phase 4B-A：domain／零擴張 consent／decision／ANIMAL_FACT renderer；無 UI 擴張 | `VERIFIED` | `cursor/line-morning-phase4b-a-2673` | `2ecdfec` | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | domain+morning 65 pass；build 0；Vercel SUCCESS | https://furmosa-db-git-cursor-line-morning-247c4b-aa89976566s-projects.vercel.app |
 
@@ -109,12 +109,12 @@ main
 - [x] HQ Preview dry-run UI（U_TEST_* 標記；非測試不寫 preference）
 - [x] ANIMAL_FACT Preview fixture 入口
 - [x] sender-gate call count = 0
-- [ ] Draft PR + Vercel Preview Ready → Ledger `VERIFIED`
+- [x] Draft PR #98 + Vercel Preview Ready → Ledger `VERIFIED`
 
 ## Next action
 
-1. 開 stacked Draft PR（base = #97 branch）  
-2. 等 Preview Ready，回填 URL／狀態 `VERIFIED`
+- 人類 QA：Preview HQ `/campaigns/line-morning` 單筆 dry-run（`U_TEST_*`）＋ LINE 5 選文案  
+- 不 merge、不 Production，除非另授權
 
 ## Blockers
 
