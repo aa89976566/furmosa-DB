@@ -245,7 +245,7 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
       { webhookEventId: 'ev-freq', deps: mem.deps },
     );
     assert.equal(mem.preferenceWrites, 0);
-    assert.ok(lastText(mem.replies).includes('設定摘要'));
+    assert.ok(lastText(mem.replies).includes('請確認設定'));
 
     const d3 = sessionDraft(mem.sessions);
     await handleMorningOptinPostback(
@@ -400,8 +400,8 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
     });
     await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
     const text = lastText(mem.replies);
-    assert.ok(text.includes('沿用原設定：笑話／新聞交替'));
+    assert.ok(text.includes('笑話／新聞交替'));
     assert.ok(text.includes(NEWS_ONLY_SOURCE_DISCLOSURE));
-    assert.ok(text.includes('絕不改發'));
+    assert.ok(text.includes('不會改發其他內容'));
   });
 });

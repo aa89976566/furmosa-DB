@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  alternatePrimaryIntent,
   contentTypeToDeliveryKind,
   decideMorningContent,
+  resolveAlternatePrimaryIntent,
   type MorningAvailability,
 } from '../domain/decision';
 
@@ -19,7 +19,7 @@ const NONE: MorningAvailability = {
   hasHumor: false,
 };
 
-describe('Phase 4B-A decision engine', () => {
+describe('Phase 4B-A／4B-C decision engine', () => {
   it('HUMOR_ONLY 繞過 NEWS／FACT', () => {
     const d = decideMorningContent({
       contentMode: 'jokes',
@@ -40,29 +40,35 @@ describe('Phase 4B-A decision engine', () => {
     if (d.outcome === 'SKIP') assert.equal(d.reason, 'no_safe_news');
   });
 
-  it('ALTERNATE 奇數日 NEWS；無新聞可退 HUMOR；永不退 FACT', () => {
-    assert.equal(alternatePrimaryIntent('2026-08-07'), 'NEWS'); // 20260807 odd
-    assert.equal(alternatePrimaryIntent('2026-08-08'), 'HUMOR'); // even
+  it('ALTERNATE 4B-C：last SUCCESS 推進；NEWS 缺不暗換笑話', () => {
+    assert.equal(resolveAlternatePrimaryIntent({}), 'HUMOR');
+    assert.equal(
+      resolveAlternatePrimaryIntent({ lastSuccessContentType: 'HUMOR' }),
+      'NEWS',
+    );
+    assert.equal(
+      resolveAlternatePrimaryIntent({ lastSuccessContentType: 'NEWS' }),
+      'HUMOR',
+    );
 
-    const newsDayFallback = decideMorningContent({
+    const first = decideMorningContent({
+      contentMode: 'alternate',
+      availability: ALL,
+      taipeiDate: '2026-08-07',
+      lastSuccessContentType: null,
+    });
+    assert.equal(first.outcome, 'DELIVER');
+    if (first.outcome === 'DELIVER') assert.equal(first.contentType, 'HUMOR');
+
+    const newsTurnMissing = decideMorningContent({
       contentMode: 'alternate',
       availability: { hasSafeNews: false, hasAnimalFact: true, hasHumor: true },
       taipeiDate: '2026-08-07',
+      lastSuccessContentType: 'HUMOR',
     });
-    assert.equal(newsDayFallback.outcome, 'DELIVER');
-    if (newsDayFallback.outcome === 'DELIVER') {
-      assert.equal(newsDayFallback.contentType, 'HUMOR');
-      assert.equal(newsDayFallback.usedFallback, true);
-    }
-
-    const newsDayNoHumor = decideMorningContent({
-      contentMode: 'alternate',
-      availability: { hasSafeNews: false, hasAnimalFact: true, hasHumor: false },
-      taipeiDate: '2026-08-07',
-    });
-    assert.equal(newsDayNoHumor.outcome, 'SKIP');
-    if (newsDayNoHumor.outcome === 'SKIP') {
-      assert.equal(newsDayNoHumor.reason, 'no_content');
+    assert.equal(newsTurnMissing.outcome, 'SKIP');
+    if (newsTurnMissing.outcome === 'SKIP') {
+      assert.equal(newsTurnMissing.reason, 'no_safe_news');
     }
   });
 

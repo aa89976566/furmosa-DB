@@ -41,7 +41,8 @@ describe('Phase 4B-B shared optin parity', () => {
     assert.ok(c.disclosure.includes(ANIMAL_FACT_DISCLOSURE));
     assert.ok(c.disclosure.includes('不是新聞'));
     const a = getContentOption('content_a')!;
-    assert.ok(a.disclosure.includes('不承諾每日新聞'));
+    assert.ok(a.disclosure.includes('毛孩笑話'));
+    assert.ok(!a.disclosure.includes('HUMOR_ONLY'));
   });
 
   it('postback 只帶 nonce+version+step+action；拒絕 mode', () => {
@@ -90,12 +91,14 @@ describe('Phase 4B-B shared optin parity', () => {
   it('renderContentPrompt 含完整揭露（供 LINE／HQ 共用）', () => {
     const text = renderContentPrompt({ currentStorageMode: 'alternate' });
     assert.ok(text.includes(NEWS_ONLY_SOURCE_DISCLOSURE));
-    assert.ok(text.includes('沿用原設定：笑話／新聞交替'));
+    assert.ok(text.includes('笑話／新聞交替'));
+    assert.ok(text.includes('只要設一次'));
+    assert.ok(text.includes('①'));
     const summary = renderOptinSummary({
       content: getContentOption('content_b')!,
       frequency: getFrequencyOption('freq_friday')!,
     });
-    assert.ok(summary.includes('設定摘要'));
+    assert.ok(summary.includes('請確認設定'));
     assert.ok(summary.includes('每週五'));
   });
 

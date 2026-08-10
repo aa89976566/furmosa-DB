@@ -9,7 +9,15 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { taipeiTodayRange } from '@/lib/taipei-date';
+import { parseTaipeiDateRange, taipeiTodayRange } from '@/lib/taipei-date';
+
+/** 同一 Asia/Taipei 曆日 00:00:00–23:59:59.999（Preview／runner 共用） */
+export function morningTransactionalWindow(taipeiDate: string): {
+  start: Date;
+  end: Date;
+} | null {
+  return parseTaipeiDateRange(taipeiDate, taipeiDate);
+}
 
 export type TransactionalHit = {
   channel: string;
@@ -32,10 +40,13 @@ export class AppointmentTransactionalProvider implements TransactionalSignalProv
 
   async findSignalsForMorning(
     lineUserId: string,
-    _taipeiDate: string,
+    taipeiDate: string,
     now: Date = new Date(),
   ): Promise<TransactionalHit[]> {
-    const { start, end } = taipeiTodayRange(now);
+    // 優先用呼叫端 runDate；缺省才退回 now 的台北曆日窗
+    const window =
+      morningTransactionalWindow(taipeiDate) ?? taipeiTodayRange(now);
+    const { start, end } = window;
     const customer = await prisma.customer.findFirst({
       where: { lineUserId },
       select: { id: true },
