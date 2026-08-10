@@ -17,7 +17,8 @@ import {
   contentTypeToDeliveryKind,
   decideMorningContent,
 } from '@/lib/line/morning/domain/decision';
-import {
+import { toDomainContentMode } from '@/lib/line/morning/domain/consent';
+import { findLastSuccessMorningContentType } from '@/lib/line/morning/plan/alternate-history';import {
   defaultMockNewsProvider,
 } from '@/lib/line/morning/news/mock-feed';
 import {
@@ -242,9 +243,16 @@ export async function planOneRecipient(opts: {
   });
   const animalFact = await pickApprovedAnimalFact({ now });
 
+  const domainMode = toDomainContentMode(opts.recipient.preference.contentMode);
+  const lastSuccessContentType =
+    domainMode === 'ALTERNATE'
+      ? await findLastSuccessMorningContentType(opts.recipient.lineUserId)
+      : null;
+
   const decision = decideMorningContent({
     contentMode: opts.recipient.preference.contentMode,
     taipeiDate,
+    lastSuccessContentType,
     availability: {
       hasSafeNews: Boolean(news),
       hasHumor: Boolean(joke),

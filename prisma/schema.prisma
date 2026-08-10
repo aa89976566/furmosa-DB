@@ -1539,6 +1539,30 @@ model LineMorningDelivery {
   @@map("line_morning_deliveries")
 }
 
+/// Phase 4B-C：每日 morning plan ledger（immutable metadata）
+/// @@unique([runDate, lineUserId])：同一台北曆日每人最多一筆
+/// 不存訊息正文、姓名、raw token／replyToken／nonce
+/// 結構零發送：僅 plan／skip 結果，不含真送路徑
+model LineMorningPlanLedger {
+  id             String   @id @default(cuid())
+  lineUserId     String   @map("line_user_id")
+  /// Asia/Taipei YYYY-MM-DD（不得用 server UTC 切日）
+  runDate        String   @map("run_date")
+  contentId      String?  @map("content_id")
+  /// HUMOR | NEWS | ANIMAL_FACT；SKIP 時可 null
+  contentType    String?  @map("content_type")
+  /// typed decision reason
+  decisionReason String   @map("decision_reason")
+  /// PLANNED | SKIPPED
+  planStatus     String   @map("plan_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([runDate, lineUserId])
+  @@index([runDate, planStatus])
+  @@index([lineUserId, createdAt])
+  @@map("line_morning_plan_ledgers")
+}
+
 /// 早安總開關與配額（Preview MVP 預設 masterEnabled=false）
 model LineMorningSettings {
   id            String   @id @default("default")

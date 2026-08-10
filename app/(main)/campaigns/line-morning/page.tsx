@@ -35,6 +35,8 @@ import {
 import { defaultMockNewsProvider } from '@/lib/line/morning/news/mock-feed';
 import { MORNING_SOURCE_REGISTRY } from '@/lib/line/morning/news/registry';
 import { buildMorningOptinPreview } from '@/lib/line/morning/optin-preview';
+import { buildMorningPlanPreview } from '@/lib/line/morning/plan-preview';
+import { generateMorningPlanPreviewAction } from '@/lib/line/morning/plan/hq-actions';
 import {
   ensureMorningFixturesAction,
   refreshMorningNewsPreviewAction,
@@ -262,6 +264,15 @@ export default async function LineMorningAdminPage() {
     frequencyActionId: 'freq_friday',
   });
 
+  let planPreview: Awaited<ReturnType<typeof buildMorningPlanPreview>> | null =
+    null;
+  let planPreviewError: string | null = null;
+  try {
+    planPreview = await buildMorningPlanPreview({ limit: 30 });
+  } catch (e) {
+    planPreviewError = e instanceof Error ? e.message : String(e);
+  }
+
   return (
     <>
       <PageHeader
@@ -280,6 +291,68 @@ export default async function LineMorningAdminPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        <Card>
+          <CardContent className="space-y-3 p-4 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">今日 Plan（4B-C）</span>
+                <Badge variant="outline">結構零發送</Badge>
+                <Badge variant="secondary">LINE id 遮罩</Badge>
+              </div>
+              <form action={generateMorningPlanPreviewAction}>
+                <Button type="submit" size="sm" variant="outline">
+                  產生今日 plan（不真送）
+                </Button>
+              </form>
+            </div>
+            {planPreviewError ? (
+              <p className="font-mono text-xs text-destructive/80">
+                {planPreviewError}
+              </p>
+            ) : planPreview ? (
+              <>
+                <p className="text-muted-foreground">
+                  台北日 {planPreview.runDate}｜會產生 {planPreview.plannedCount}｜略過{' '}
+                  {planPreview.skippedCount}
+                </p>
+                <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                  {planPreview.transactionalCoverageNotes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+                <div className="max-h-72 space-y-2 overflow-auto rounded-md border p-2">
+                  {planPreview.rows.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      尚無 plan。可按「產生今日 plan」。
+                    </p>
+                  ) : (
+                    planPreview.rows.map((r) => (
+                      <div
+                        key={`${r.maskedLineUserId}-${r.decisionReason}-${r.planStatus}`}
+                        className="rounded border bg-muted/20 p-2 text-xs"
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          <span className="font-mono">{r.maskedLineUserId}</span>
+                          <Badge variant="outline">{r.planStatus}</Badge>
+                          <span className="text-muted-foreground">{r.decisionReason}</span>
+                          {r.contentType ? (
+                            <span className="text-muted-foreground">{r.contentType}</span>
+                          ) : null}
+                        </div>
+                        {r.contentPreview ? (
+                          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap text-[11px]">
+                            {r.contentPreview}
+                          </pre>
+                        ) : null}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="space-y-3 p-4 text-sm">
