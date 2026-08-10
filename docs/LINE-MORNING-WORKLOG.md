@@ -20,6 +20,10 @@
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
 | Active branch | `cursor/line-morning-phase4b-c-plan-2673` |
 | Stack base | PR #100 head `a60ad1a`（`cursor/line-morning-phase4b-b-consensus-2673`） |
+| Head | `94254bd`＋worklog VERIFIED |
+| Draft PR | [#101](https://github.com/aa89976566/furmosa-DB/pull/101) |
+| Preview | https://furmosa-db-git-cursor-line-morning-a6bbcb-aa89976566s-projects.vercel.app |
+| HQ path | `/campaigns/line-morning` |
 
 ## PR stack
 
@@ -28,7 +32,7 @@ main
   └── #96  @ 446d648
         └── #97  @ 2ecdfec
               └── #100 @ a60ad1a  (4B-B CONSENSUS ConfirmLedger)
-                    └── (本階段) cursor/line-morning-phase4b-c-plan-2673
+                    └── #101 @ 94254bd  (4B-C plan runner；本階段)
 ```
 
 | PR | Branch | Head | 角色 |
@@ -36,6 +40,7 @@ main
 | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | mvp | `446d648` | MVP |
 | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | 4B-A | `2ecdfec` | domain/decision |
 | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 4B-B consensus | `a60ad1a` | opt-in + ConfirmLedger |
+| [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 4B-C plan | `94254bd` | plan runner + copy minimize |
 | [#99](https://github.com/aa89976566/furmosa-DB/pull/99) | birthday | `04e4eea` | 凍結；不改 |
 
 **硬規則**：不得改寫／force-push／merge／關閉 #96／#97／#99／#100。
@@ -76,9 +81,31 @@ main
 
 ---
 
+## Verification（4B-C）
+
+| Check | Result |
+|-------|--------|
+| morning+LINE | **177 pass / 0 fail** |
+| plan eligibility / alternate / Taipei / structural zero-send / migration | pass |
+| #100 opt-in / confirm ledger regression | pass |
+| prisma validate/generate | ok |
+| migrate diff vs #100 | CREATE `line_morning_plan_ledgers` only |
+| next build | ok |
+| tsc | **0 new**（baseline 3 unrelated） |
+| Vercel Preview | Ready（Deployment has completed） |
+| Frozen heads #96/#97/#100 | unchanged `446d648` / `2ecdfec` / `a60ad1a` |
+| push/broadcast | structural tests：plan 模組 0 import／0 call；vercel.json 無 morning cron |
+
+### Next PR 邊界（不在 #101）
+- 真實 sender／cron／live news source
+- Ledger retention cleanup
+- Dashboard 全面 UI 重整
+
+---
+
 ## Request Ledger
 
 | ID | 時間 (UTC) | 來源 | 摘要 | 狀態 | Branch | Commit | PR | Tests | Preview |
 |----|------------|------|------|------|--------|--------|-----|-------|---------|
 | RL-HIST-100 | 2026-08-08 | Cloud | 4B-B CONSENSUS | `VERIFIED` | `…-b-consensus-2673` | `a60ad1a` | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 163+ | Ready |
-| RL-2026-08-10-4BC | 2026-08-10T09:37Z | Desktop（ChatGPT/Claude/Gemini CONSENSUS） | 4B-C：每日 plan runner（結構零發送）＋plan ledger＋文案最小化＋HQ 只讀驗收 | `PLANNED` | `cursor/line-morning-phase4b-c-plan-2673` | — | TBD | — | — |
+| RL-2026-08-10-4BC | 2026-08-10T09:37Z | Desktop（ChatGPT/Claude/Gemini CONSENSUS） | 4B-C：每日 plan runner（結構零發送）＋plan ledger＋文案最小化＋HQ 只讀驗收 | `VERIFIED` | `cursor/line-morning-phase4b-c-plan-2673` | `94254bd` | [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 177 pass | [Ready](https://furmosa-db-git-cursor-line-morning-a6bbcb-aa89976566s-projects.vercel.app) |
