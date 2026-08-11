@@ -6,9 +6,6 @@ import { runDailyMorningPlan } from '@/lib/line/morning/plan/daily-runner';
 import { MORNING_PLAN_REASONS } from '@/lib/line/morning/plan/types';
 import type { MorningPlanPreviewUxState } from '@/lib/line/morning/plan/hq-action-state';
 
-export type { MorningPlanPreviewUxState } from '@/lib/line/morning/plan/hq-action-state';
-export { INITIAL_MORNING_PLAN_PREVIEW_UX_STATE } from '@/lib/line/morning/plan/hq-action-state';
-
 const ALLOWED_ROLES = new Set(['admin', 'staff']);
 
 async function requireHqMorningAdmin() {
