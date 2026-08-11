@@ -46,13 +46,9 @@ export default function LoginPage({
           </div>
           <LoginForm next={searchParams.next} />
           <div className="rounded-2xl border border-border/70 bg-card p-4 text-xs text-muted-foreground shadow-card">
-            <p className="mb-1 font-medium text-foreground">測試帳號（密碼皆為 furmosa2026）</p>
-            <ul className="space-y-0.5 font-mono">
-              <li>admin@furmosa.com</li>
-              <li>finance@furmosa.com</li>
-              <li>ops@furmosa.com</li>
-              <li>wh@furmosa.com</li>
-            </ul>
+            <p className="font-medium text-foreground">
+              請使用管理員提供的帳號登入；無法登入請聯絡系統管理員。
+            </p>
           </div>
         </div>
       </div>
