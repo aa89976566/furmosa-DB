@@ -336,6 +336,9 @@ describe('換罐說明', () => {
     assert.match(raw, /吃完，不用說再見/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
+    assert.match(raw, /換購期限/);
+    assert.match(raw, /30 天內/);
+    assert.match(raw, /Preview/);
     assert.match(raw, /開始換罐/);
     assert.match(raw, /"text":"開始換罐"/);
     assert.doesNotMatch(raw, /"text":"立即開戶"/);

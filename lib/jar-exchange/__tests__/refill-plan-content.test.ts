@@ -23,15 +23,22 @@ describe('refill plan content', () => {
     assert.equal(formatFlavourLabel('牛肉凍乾', 20), '牛肉凍乾｜20g');
   });
 
-  it('FAQ covers price, empty jar, serial, points', () => {
+  it('FAQ covers price, empty jar, serial, points, window', () => {
     const joined = REFILL_PLAN_FAQ.map((f) => `${f.question}${f.answer}`).join('\n');
     assert.match(joined, /129/);
     assert.match(joined, /99/);
-    assert.match(joined, /空罐/);
+    assert.match(joined, /空罐|空瓶/);
     assert.match(joined, /8 位/);
     assert.match(joined, /10 點/);
     assert.match(joined, /200/);
-    assert.ok(REFILL_PLAN_FAQ.length >= 9);
+    assert.match(joined, /30 天/);
+    assert.match(joined, /原店/);
+    assert.ok(REFILL_PLAN_FAQ.length >= 10);
+  });
+
+  it('aligns window days with exchange-window SSOT', () => {
+    assert.equal(REFILL_PLAN_RULES.exchangeWindowDays, 30);
+    assert.equal(REFILL_PLAN_RULES.expiryReminderDays, 7);
   });
 
   it('intro CTA labels are concrete', () => {

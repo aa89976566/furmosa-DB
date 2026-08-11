@@ -3,6 +3,11 @@
  * LINE Flex／FAQ／後台說明都讀這裡，避免規則散落。
  */
 
+import {
+  REFILL_EXCHANGE_WINDOW_DAYS,
+  REFILL_EXPIRY_REMINDER_DAYS,
+} from '@/lib/refill/exchange-window';
+
 export const REFILL_PLAN_RULES = {
   brandName: '匠寵 FURMOSA',
   concept: '吃完不是結束，帶回空罐，再換一種口味。',
@@ -20,6 +25,9 @@ export const REFILL_PLAN_RULES = {
   discountAmountDefault: 200,
   heroImagePath: '/images/refill-plan/refill-flavours-v2.jpg',
   heroAlt: '匠寵換罐計劃七種零食口味',
+  /** 與 lib/refill/exchange-window.ts SSOT 對齊 */
+  exchangeWindowDays: REFILL_EXCHANGE_WINDOW_DAYS,
+  expiryReminderDays: REFILL_EXPIRY_REMINDER_DAYS,
 } as const;
 
 export type RefillPlanFaqItem = {
@@ -38,7 +46,18 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'price-exchange',
     question: '換罐多少錢？',
-    answer: '下次美容帶回一個匠寵空罐，可用 NT$99 換一罐新口味。',
+    answer: `店家確認收到空瓶後，可於原店以 NT$99 換一罐新口味；資格自確認起 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內有效。`,
+  },
+  {
+    id: 'exchange-window',
+    question: '換購資格有期限嗎？',
+    answer: `有。店家確認收到空瓶後，請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內回序號所屬原店完成換罐；啟用後會顯示實際最後使用日。`,
+  },
+  {
+    id: 'home-store',
+    question: '可以跨店換罐嗎？',
+    answer:
+      '第一階段不能跨店。空瓶須帶回序號所屬原店；不是故意刁難，是庫存和換罐紀錄要對得起來。',
   },
   {
     id: 'no-empty',
@@ -48,7 +67,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'choose-flavour',
     question: '可以自己選口味嗎？',
-    answer: '可以從預約店家當期有庫存的口味中選擇。各店品項每兩週更新。',
+    answer: '可以從原店當期有庫存的口味中選擇。各店品項每兩週更新。',
   },
   {
     id: 'serial-where',
@@ -91,13 +110,13 @@ export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
   },
   {
     no: '02',
-    title: '吃完留下空罐',
-    body: '下次預約美容時，把空罐一起帶回來。',
+    title: '吃完帶回原店',
+    body: '空瓶帶回序號所屬原店（第一階段不能跨店）。',
   },
   {
     no: '03',
     title: 'NT$99 換新口味',
-    body: '店家確認空罐後，交付本期可選的新罐。',
+    body: `店家確認空瓶後啟用資格，請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內換完。`,
   },
   {
     no: '04',
@@ -111,8 +130,8 @@ export const REFILL_INTRO_COPY = {
   headline: '吃完，不用說再見。',
   bodyLines: [
     '第一罐 NT$129。',
-    '下次美容帶回空罐，',
-    'NT$99 就能換一罐新口味。',
+    '吃完後把空瓶帶回序號所屬原店，',
+    '店家確認後，NT$99 就能換一罐新口味。',
     '',
     '每個瓶底都有專屬 8 位序號。',
     '加入官方 LINE、建立毛孩帳號，',

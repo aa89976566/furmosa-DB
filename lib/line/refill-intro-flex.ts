@@ -14,6 +14,7 @@ import {
   buildJarDialogueBubble,
   withJarDialogueBackground,
 } from '@/lib/line/jar-dialogue-shell';
+import { REFILL_EXCHANGE_WINDOW_COPY } from '@/lib/refill/exchange-window';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 /** 與 flex-hubs.lineAssetUrl 相同策略，避免循環依賴 */
@@ -143,6 +144,61 @@ function stepRow(step: { no: string; title: string; body: string }) {
   };
 }
 
+/**
+ * 加入前「換購期限」醒目區塊。
+ * 「30 天內」獨立 text（較大＋粗體），不只靠顏色；wrap 防手機截字。
+ */
+export function buildExchangeWindowHighlightBox(): FlexComponent {
+  const warmBg = '#F4E2C8';
+  const warmBorder = INTRO_THEME.cta;
+  return {
+    type: 'box',
+    layout: 'vertical',
+    margin: 'lg',
+    paddingAll: '14px',
+    backgroundColor: warmBg,
+    cornerRadius: '10px',
+    borderColor: warmBorder,
+    borderWidth: '2px',
+    spacing: 'sm',
+    contents: [
+      text(REFILL_EXCHANGE_WINDOW_COPY.highlightTitle, {
+        size: 'md',
+        weight: 'bold',
+        color: INTRO_THEME.ink,
+      }),
+      text(REFILL_EXCHANGE_WINDOW_COPY.highlightLeadBefore, {
+        size: 'sm',
+        color: INTRO_THEME.ink,
+        wrap: true,
+      }),
+      text(REFILL_EXCHANGE_WINDOW_COPY.highlightLeadEmphasis, {
+        size: 'xl',
+        weight: 'bold',
+        color: INTRO_THEME.cta,
+        wrap: true,
+      }),
+      text(REFILL_EXCHANGE_WINDOW_COPY.highlightLeadAfter, {
+        size: 'sm',
+        color: INTRO_THEME.ink,
+        wrap: true,
+      }),
+      text(REFILL_EXCHANGE_WINDOW_COPY.highlightNote, {
+        size: 'xs',
+        color: INTRO_THEME.muted,
+        wrap: true,
+        margin: 'sm',
+      }),
+      text(REFILL_EXCHANGE_WINDOW_COPY.previewBadge, {
+        size: 'xxs',
+        color: INTRO_THEME.muted,
+        wrap: true,
+        margin: 'sm',
+      }),
+    ],
+  };
+}
+
 function buildIntroFlexContents(opts: {
   settings: RefillPlanSettingsView;
   flavours: RefillFlavourView[];
@@ -171,6 +227,7 @@ function buildIntroFlexContents(opts: {
       margin: 'sm',
     }),
     text(bodyText, { size: 'sm', color: INTRO_THEME.ink, margin: 'md' }),
+    buildExchangeWindowHighlightBox(),
     {
       type: 'box',
       layout: 'horizontal',
@@ -257,6 +314,14 @@ function buildIntroFlexContents(opts: {
     },
     body: withJarDialogueBackground(bodyContents),
   };
+}
+
+/** 測試／Preview：不打 DB，組出介紹 bubble JSON */
+export function buildRefillIntroBubblePreview(opts: {
+  settings: RefillPlanSettingsView;
+  flavours: RefillFlavourView[];
+}): Record<string, unknown> {
+  return buildIntroFlexContents(opts);
 }
 
 /**
