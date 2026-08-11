@@ -19,7 +19,11 @@
 | Phase | **4B-D CONSENSUS** — HQ Dashboard 資訊架構精簡（presentation only） |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
 | Active branch | `cursor/line-morning-phase4b-d-dashboard-2673` |
-| Stack base | PR #101 head `6213fdd`（`cursor/line-morning-phase4b-c-plan-2673`） |
+| Stack base | PR #101 head `6213fdd` |
+| Head | `dbf9e57` |
+| Draft PR | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) |
+| Preview | https://furmosa-db-git-cursor-line-morning-85dcf0-aa89976566s-projects.vercel.app |
+| HQ path | `/campaigns/line-morning`（`?tab=today|content|preferences|system`） |
 
 ## PR stack
 
@@ -27,9 +31,9 @@
 main
   └── #96  @ 446d648
         └── #97  @ 2ecdfec
-              └── #100 @ a60ad1a  (4B-B ConfirmLedger)
+              └── #100 @ a60ad1a
                     └── #101 @ 6213fdd  (4B-C plan runner)
-                          └── (本階段) cursor/line-morning-phase4b-d-dashboard-2673
+                          └── #102 @ dbf9e57  (4B-D dashboard IA；本階段)
 ```
 
 | PR | Branch | Head | 角色 |
@@ -37,50 +41,46 @@ main
 | [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | mvp | `446d648` | MVP |
 | [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | 4B-A | `2ecdfec` | domain/decision |
 | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 4B-B consensus | `a60ad1a` | opt-in + ConfirmLedger |
-| [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 4B-C plan | `6213fdd` | plan runner + copy minimize |
+| [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 4B-C plan | `6213fdd` | plan runner |
+| [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 4B-D dashboard | `dbf9e57` | HQ IA tabs + plan UX |
 | [#99](https://github.com/aa89976566/furmosa-DB/pull/99) | birthday | `04e4eea` | 凍結；不改 |
 
 **硬規則**：不得改寫／force-push／merge／關閉 #96／#97／#99／#100／#101。
 
 ---
 
-## Inventory（4B-D 動碼前）
+## Capability inventory（before = after 可達）
 
-### Topology
-- #101 base=#100 `a60ad1a`；head=`6213fdd` Draft OPEN — OK
-- 新 branch base = #101 head；schema diff 必須 0
-
-### Before capability inventory（必須全部可達）
 | ID | 能力 | 入口 |
 |----|------|------|
-| C-PLAN | 產生今日 plan preview（零發送） | `generateMorningPlanPreviewAction` |
-| C-MASTER | 總開關 on/off | `setMorningMasterEnabledAction` |
-| C-QUOTA | 更新每日配額 | `setMorningDailyQuotaAction` |
+| C-PLAN | 產生今日 plan preview | `generateMorningPlanPreviewAction` |
+| C-PLAN-UX | Plan UX wrapper（同業務） | `generateMorningPlanPreviewUxAction` |
+| C-MASTER | 總開關（二次確認） | `setMorningMasterEnabledAction` |
+| C-QUOTA | 配額 | `setMorningDailyQuotaAction` |
 | C-FIX-LOAD | 載入草稿範例 | `ensureMorningFixturesAction` |
-| C-FIX-REFRESH | Preview 刷新新聞閘門 | `refreshMorningNewsPreviewAction` |
+| C-FIX-REFRESH | fixture refresh（二次確認） | `refreshMorningNewsPreviewAction` |
 | C-CONTENT | 核准／回草稿／封存 | `updateMorningContentStatusAction` |
-| C-OPTIN-RO | 共用 Opt-in Preview（唯讀、不寫 preference） | `buildMorningOptinPreview` |
-| C-SOURCE | 來源健康／live enabled=0 | registry 顯示 |
-| C-TX | 交易覆蓋說明 | `TRANSACTIONAL_COVERAGE_NOTES` |
-| C-NEWS | 已寫入新聞列 | prisma list |
-| C-GATE | Fixture 閘門即時預覽 | mock provider |
-| C-LOGS | delivery／plan 結果 | listRecentDeliveries / plan preview |
-| C-AUTH | admin+staff only | `getCurrentUser` + actions |
+| C-OPTIN-RO | Opt-in Preview 唯讀 | `buildMorningOptinPreview` |
+| C-SOURCE / C-TX / C-NEWS / C-GATE / C-LOGS | 系統 details | 系統狀態 tab |
 
-### 本 PR 邊界
-- 只做 presentation／view-model／UX wrapper／copy／tests／docs
-- 禁止改 decision runner、plan ledger、schema/migration、opt-in state machine、confirm ledger、sender、cron、webhook、其他模組
+## Verification（4B-D）
 
----
+| Check | Result |
+|-------|--------|
+| morning+LINE | **197 pass / 0 fail** |
+| HQ tab／capability／plan UX／a11y／schema=0 | pass |
+| prisma validate/generate | ok |
+| schema diff vs #101 | **0** |
+| next build（無 migrate deploy） | ok |
+| tsc | **0 new**（baseline 3 unrelated） |
+| Vercel Preview | Ready |
+| Frozen #96/#97/#100/#101 | `446d648` / `2ecdfec` / `a60ad1a` / `6213fdd` |
+| push/broadcast／morning cron | 0 |
 
-## Immutable decisions（4B-D）
-
-| ID | 決策 | 狀態 |
-|----|------|------|
-| D-IA-TABS | 同路由 `?tab=`：today／content／preferences／system；非法→today | LOCKED |
-| D-PRES-ONLY | schema diff vs #101 = 0；business/auth 不變 | LOCKED |
-| D-OPTIN-RO |「早安設定」Preview 本來唯讀；不得誤認成被移除的客服寫入 | LOCKED |
-| D-CONFIRM-UX | 總開關／fixture refresh 二次確認 modal；取消 0 writes；server 仍最終防線 | LOCKED |
+### Next PR 邊界
+- 真實 sender／cron／live news
+- Dashboard 視覺品牌大改（非本 PR）
+- Production migrate／deploy／merge
 
 ---
 
@@ -90,4 +90,4 @@ main
 |----|------------|------|------|------|--------|--------|-----|-------|---------|
 | RL-HIST-100 | 2026-08-08 | Cloud | 4B-B CONSENSUS | `VERIFIED` | `…-b-consensus-2673` | `a60ad1a` | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 163+ | Ready |
 | RL-HIST-101 | 2026-08-10 | Cloud | 4B-C CONSENSUS | `VERIFIED` | `…-c-plan-2673` | `6213fdd` | [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 177 | Ready |
-| RL-2026-08-11-4BD | 2026-08-11T00:25Z | Desktop（ChatGPT/Claude/Gemini CONSENSUS） | 4B-D：HQ Dashboard IA 精簡（四區 tab、async plan UX、確認 modal） | `PLANNED` | `cursor/line-morning-phase4b-d-dashboard-2673` | — | TBD | — | — |
+| RL-2026-08-11-4BD | 2026-08-11T00:25Z | Desktop（ChatGPT/Claude/Gemini CONSENSUS） | 4B-D：HQ Dashboard IA 精簡 | `VERIFIED` | `cursor/line-morning-phase4b-d-dashboard-2673` | `dbf9e57` | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 197 pass | [Ready](https://furmosa-db-git-cursor-line-morning-85dcf0-aa89976566s-projects.vercel.app) |
