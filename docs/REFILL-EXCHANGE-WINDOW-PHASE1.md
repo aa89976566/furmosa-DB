@@ -23,6 +23,16 @@ Branch：`cursor/refill-exchange-window-b63a`
 
 此頁重用／對齊雞霸 PR 的 LINE Preview 桌機模擬器概念（`components/line-preview`），但**不**引入雞霸流程、**不**接 live DB／push／cron。
 
+### 驗收限制（如實）
+
+1. **Vercel Deployment Protection**：Preview URL 可能先要求 Vercel 帳號權限，agent／外部無法直接開頁。
+2. **HQ 登入**：通過 Vercel 後仍需 HQ session（與 `/admin/store-report` 相同）；未登入導向 `/login`。
+3. **人工目視**：真實瀏覽器截圖需 Owner 登入後自行確認；本輪以契約測試＋靜態 QA HTML（420／320）完成結構化驗收，**不宣稱已有 Production Preview 真人截圖**。
+
+### 靜態 QA 腳本（可選）
+
+`scripts/render-refill-exchange-preview-qa.ts`：**非 Production runtime、非部署必要**。僅手動重產靜態 HTML 對照 Flex；不進 app import graph。
+
 **已完成（Phase 1）**
 
 1. **資料模型** `RefillExchangeEntitlement` → 表 `refill_exchange_entitlements`

@@ -1,3 +1,14 @@
+/**
+ * 換購期限 Flex — 一次性／手動視覺驗收腳本（非 Production runtime）。
+ *
+ * - 不會被 Next.js app、API、middleware、cron 引用
+ * - 非部署必要檔；不進 Vercel build 必跑路徑
+ * - 僅供本機手動：`node --import tsx scripts/render-refill-exchange-preview-qa.ts`
+ * - 輸出寫到 /opt/cursor/artifacts（或本機指定路徑），方便在無 Vercel／HQ 登入時
+ *   對照「30 天內」字級與 420／320 窄版排版契約
+ * - 保留理由：Owner 人工目視前，可用同一 builder 重產靜態 HTML，避免驗收環境被
+ *   Deployment Protection 擋住時完全無法對照 Flex JSON
+ */
 import { writeFileSync } from 'node:fs';
 import {
   REFILL_EXCHANGE_PREVIEW_STATE_LABELS,
