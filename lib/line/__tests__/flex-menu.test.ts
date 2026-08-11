@@ -334,10 +334,10 @@ describe('換罐說明', () => {
     assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /匠寵換罐計畫/);
-    assert.match(raw, /吃完，不用說再見/);
+    assert.match(raw, /這罐吃完，先別急著說再見/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
-    assert.match(raw, /店家確認收到空瓶後/);
+    assert.match(raw, /空瓶交回原店後，記得在/);
     assert.match(raw, /30 天內/);
     assert.match(raw, /Preview/);
     assert.match(raw, /"label":"我要參加"/);

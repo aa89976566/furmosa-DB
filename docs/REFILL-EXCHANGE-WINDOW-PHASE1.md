@@ -54,6 +54,8 @@ Branch：`cursor/refill-exchange-window-b63a`
    - 主卡已精簡為決策卡：標題／副標／核心四項／30 天醒目／三 CTA
    - 四步驟、七口味清單、合作店按鈕、雙價格格已移出主卡（完整規則／口味回覆仍在）
 6. **Preview 文案 builders**（啟用／錯店／即將到期／已過期）— `mode: preview-only`
+7. **顧客文案語氣統一**（見 `lib/jar-exchange/refill-customer-copy-tone.ts`）
+   - 加入前主卡、五態 Preview、FAQ 皆套用台灣飼主自然口語＋Bark 感；不暗示 Preview 已上線
 
 ### onDelete 說明（保守）
 
@@ -72,7 +74,7 @@ Branch：`cursor/refill-exchange-window-b63a`
 - [ ] 舊資料 backfill
 - [ ] 與 #89／#90 的 merchant／付款路徑整合
 
-**驗收注意：** Flex 上的「Preview・規則預告（尚未接 live 核銷）」不可解讀為已強制執行。
+**驗收注意：** Flex 上的「Preview・規則預告（尚未正式啟用）」不可解讀為已強制執行。
 
 ## 禁止事項（本 PR）
 

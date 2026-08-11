@@ -38,7 +38,7 @@ describe('refill exchange entitlement HQ preview', () => {
 
   it('join-before Flex keeps 30-day emphasis contract', () => {
     const raw = JSON.stringify(buildJoinBeforePreviewMessages());
-    assert.match(raw, /店家確認收到空瓶後/);
+    assert.match(raw, /空瓶交回原店後，記得在/);
     assert.match(raw, /"text":"30 天內"/);
     assert.match(raw, /"size":"xl"/);
     assert.match(raw, /"weight":"bold"/);
@@ -46,6 +46,7 @@ describe('refill exchange entitlement HQ preview', () => {
     assert.match(raw, new RegExp(REFILL_EXCHANGE_WINDOW_COPY.previewBadge));
     assert.match(raw, /我要參加/);
     assert.match(raw, /查看完整規則/);
+    assert.match(raw, /這罐吃完，先別急著說再見/);
     assert.doesNotMatch(raw, /怎麼參加/);
     assert.doesNotMatch(raw, /蔬果凍乾/);
   });
@@ -55,11 +56,11 @@ describe('refill exchange entitlement HQ preview', () => {
       storeName: REFILL_EXCHANGE_PREVIEW_FIXTURE.storeName,
     });
     const raw = JSON.stringify(msgs);
-    assert.match(raw, /空瓶安全回家/);
+    assert.match(raw, /空瓶平安回店/);
     assert.match(raw, /"text":"30 天內"/);
     assert.match(raw, /"size":"xl"/);
     assert.match(raw, /"weight":"bold"/);
-    assert.match(raw, /最後使用日：\d{4}\/\d{2}\/\d{2}/);
+    assert.match(raw, /最晚使用日：\d{4}\/\d{2}\/\d{2}/);
     assert.match(raw, new RegExp(REFILL_EXCHANGE_PREVIEW_FIXTURE.storeName));
     assert.match(raw, /Preview/);
   });

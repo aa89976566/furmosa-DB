@@ -15,12 +15,13 @@ export const REFILL_EXCHANGE_WINDOW_COPY = {
   /**
    * 加入前主卡醒目句（顧客面）。
    * 「30 天內」必須獨立 text（較大＋粗體＋wrap），不只靠顏色。
+   * 語氣見 lib/jar-exchange/refill-customer-copy-tone.ts
    */
-  highlightLeadBefore: '⏰ 店家確認收到空瓶後，',
+  highlightLeadBefore: '⏰ 空瓶交回原店後，記得在',
   highlightLeadEmphasis: '30 天內',
-  highlightLeadAfter: '使用',
-  /** Preview／尚未 live enforcement 標示（勿讓驗收誤認已上線；小字、不搶主資訊） */
-  previewBadge: 'Preview・規則預告（尚未接 live 核銷）',
+  highlightLeadAfter: '把毛孩的下一罐帶回家',
+  /** Preview／尚未 live 標示（小字、不搶主資訊；不可讀成已上線） */
+  previewBadge: 'Preview・規則預告（尚未正式啟用）',
 } as const;
 
 export type ExchangeEntitlementLifecycle =

@@ -89,12 +89,14 @@ describe('refill intro exchange-window Flex contract', () => {
 
     // 核心四項＋標題副標
     assert.match(raw, /匠寵換罐計畫/);
-    assert.match(raw, /吃完，不用說再見/);
-    assert.match(raw, /第一罐 NT\$129/);
-    assert.match(raw, /空瓶帶回序號所屬原店，下一罐不同口味 NT\$99/);
-    assert.match(raw, /每罐累積 1 點，滿 10 點折 NT\$200 美容費/);
-    assert.match(raw, /口味依原店當期庫存/);
+    assert.match(raw, /這罐吃完，先別急著說再見/);
+    assert.match(raw, /第一罐 NT\$129，先讓毛孩試試口味/);
+    assert.match(raw, /吃完把空瓶帶回原店，下一罐不同口味 NT\$99/);
+    assert.match(raw, /每罐再存 1 點，集滿 10 點折 NT\$200 美容費/);
+    assert.match(raw, /想換哪一味，到店看現場庫存最準/);
+    assert.match(raw, /空瓶交回原店後，記得在/);
     assert.match(raw, /30 天內/);
+    assert.match(raw, /把毛孩的下一罐帶回家/);
 
     // 三個 CTA（標籤 vs message）
     assert.match(raw, /"label":"我要參加"/);
@@ -114,7 +116,6 @@ describe('refill intro exchange-window Flex contract', () => {
     assert.doesNotMatch(raw, /8 位/);
     assert.doesNotMatch(raw, /查看合作店/);
     assert.doesNotMatch(raw, /帶空罐換新罐/);
-    // 庫存說明只留「口味依原店當期庫存」，不含舊 disclaimer 重複句
     assert.doesNotMatch(raw, /依合作店當期庫存為準/);
 
     const topBlocks = findDecisionContents(bubble);

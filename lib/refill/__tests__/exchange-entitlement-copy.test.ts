@@ -24,11 +24,11 @@ describe('exchange entitlement copy (preview-only)', () => {
     assert.equal(preview.mode, EXCHANGE_ENTITLEMENT_PREVIEW_MODE);
     assert.equal(preview.kind, 'activated');
     assert.deepEqual(preview.lines, [
-      '空瓶安全回家，任務完成。',
-      '你的 NT$99 換購資格已經啟用，可以挑一罐不同口味。',
-      `⏰ 請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內使用`,
-      `最後使用日：${preview.expiresDisplay}`,
-      `請回到「${storeName}」完成換罐，口味依門市現場庫存為準。`,
+      '空瓶平安回店，這一罐有好好完成任務。',
+      'NT$99 換口味資格已經開好，可以替毛孩挑下一罐了。',
+      `⏰ 記得在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內使用`,
+      `最晚使用日：${preview.expiresDisplay}`,
+      `到「${storeName}」出示資格就能換；口味以現場庫存為準。`,
     ]);
     assert.match(preview.expiresDisplay!, /^\d{4}\/\d{2}\/\d{2}$/);
   });
@@ -37,19 +37,23 @@ describe('exchange entitlement copy (preview-only)', () => {
     const preview = buildExchangeWrongStoreCopy({ storeName });
     assert.equal(preview.mode, EXCHANGE_ENTITLEMENT_PREVIEW_MODE);
     assert.deepEqual(preview.lines, [
-      '這罐有自己的回家路線。',
-      `它是從「${storeName}」出發的，要帶回原店才能完成換罐。`,
-      '不是故意刁難，是庫存和換罐紀錄要對得起來。',
+      '這罐今天走錯店了。',
+      `它原本從「${storeName}」出發，還是要帶回這間店才能換。`,
+      '每間店的庫存和紀錄各自管理，走原路回去才不會對錯帳。',
     ]);
   });
 
-  it('expiring / expired builders stay preview-only', () => {
+  it('expiring / expired builders stay preview-only and accurate', () => {
     const soon = buildExchangeExpiringSoonCopy({ storeName, expiresAt });
     const expired = buildExchangeExpiredCopy({ storeName, expiresAt });
     assert.equal(soon.mode, 'preview-only');
     assert.equal(expired.mode, 'preview-only');
-    assert.match(soon.lines.join('\n'), /即將|快到了/);
-    assert.match(expired.lines.join('\n'), /已經到期/);
+    assert.match(soon.lines.join('\n'), /下一罐還在等你/);
+    assert.match(soon.lines.join('\n'), /最晚使用日/);
+    assert.match(expired.lines.join('\n'), /已經過期/);
+    // 一空瓶一組期限：過期後開「新」期限，不是舊資格重新啟用
+    assert.match(expired.lines.join('\n'), /再開一組新的/);
+    assert.doesNotMatch(expired.lines.join('\n'), /重新啟用/);
   });
 
   it('lifecycle preview routes by derived status', () => {
@@ -68,12 +72,23 @@ describe('exchange entitlement copy (preview-only)', () => {
       now: expiresAt,
     });
     assert.equal(expired.lifecycle, 'expired');
+
+    const redeemed = buildExchangeLifecycleCopyPreview({
+      storeName,
+      activatedAt,
+      expiresAt,
+      redeemedAt: new Date(activatedAt.getTime() + 2000),
+      now: new Date(activatedAt.getTime() + 3000),
+    });
+    assert.equal(redeemed.lifecycle, 'redeemed');
+    assert.match(redeemed.lines.join('\n'), /已經用過了/);
+    assert.doesNotMatch(redeemed.lines.join('\n'), /囉/);
   });
 
   it('join-before window lines include 30-day emphasis', () => {
     const lines = buildJoinBeforeWindowLines().join('\n');
-    assert.match(lines, /店家確認收到空瓶後/);
+    assert.match(lines, /空瓶交回原店後，記得在/);
     assert.match(lines, /30 天內/);
-    assert.match(lines, /使用/);
+    assert.match(lines, /把毛孩的下一罐帶回家/);
   });
 });

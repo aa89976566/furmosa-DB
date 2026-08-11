@@ -1,6 +1,9 @@
 /**
- * 換罐計劃正式內容（單一來源）。
+ * 換罐計畫正式內容（單一來源）。
  * LINE Flex／FAQ／後台說明都讀這裡，避免規則散落。
+ *
+ * 顧客文案語氣：見 lib/jar-exchange/refill-customer-copy-tone.ts
+ * — 台灣飼主自然口語、Bark 感、成熟不幼稚；規則必須準確。
  */
 
 import {
@@ -10,21 +13,21 @@ import {
 
 export const REFILL_PLAN_RULES = {
   brandName: '匠寵 FURMOSA',
-  concept: '吃完不是結束，帶回空罐，再換一種口味。',
+  concept: '這罐吃完，先別急著說再見。帶回空瓶，再換一種口味。',
   firstJarPrice: 129,
   exchangePrice: 99,
   /** 必須一罐空罐換一罐新品 */
   oneForOneRequired: true,
   /** 口味／庫存更新節奏文案 */
   flavourUpdateCadence: '每兩週更新',
-  stockDisclaimer: '依合作店當期庫存為準',
+  stockDisclaimer: '口味以原店當天庫存為準',
   serialDigits: 8,
   pointsPerJar: 1,
   pointsForDiscount: 10,
   /** 預設折抵；實際綁定店可能為豬窩 250，顯示時再依店家覆寫 */
   discountAmountDefault: 200,
   heroImagePath: '/images/refill-plan/refill-flavours-v2.jpg',
-  heroAlt: '匠寵換罐計劃七種零食口味',
+  heroAlt: '匠寵換罐計畫七種零食口味',
   /** 與 lib/refill/exchange-window.ts SSOT 對齊 */
   exchangeWindowDays: REFILL_EXCHANGE_WINDOW_DAYS,
   expiryReminderDays: REFILL_EXPIRY_REMINDER_DAYS,
@@ -36,38 +39,38 @@ export type RefillPlanFaqItem = {
   answer: string;
 };
 
-/** 常見問題（正式規則） */
+/** 常見問題（正式規則・顧客口語） */
 export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'price-first',
     question: '第一罐多少錢？',
-    answer: '第一罐 NT$129。',
+    answer: '第一罐 NT$129，先讓毛孩試試口味。',
   },
   {
     id: 'price-exchange',
     question: '換罐多少錢？',
-    answer: `店家確認收到空瓶後，可於原店以 NT$99 換一罐新口味；資格自確認起 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內有效。`,
+    answer: `空瓶交回序號所屬原店、店家確認後，下一罐不同口味 NT$99；請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內換完。`,
   },
   {
     id: 'exchange-window',
-    question: '換購資格有期限嗎？',
-    answer: `有。店家確認收到空瓶後，請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內回序號所屬原店完成換罐；啟用後會顯示實際最後使用日。`,
+    question: '換口味有期限嗎？',
+    answer: `有。空瓶交回原店、店家確認後，記得在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內回同一間店換罐；啟用後會看到最晚使用日。`,
   },
   {
     id: 'home-store',
     question: '可以跨店換罐嗎？',
     answer:
-      '第一階段不能跨店。空瓶須帶回序號所屬原店；不是故意刁難，是庫存和換罐紀錄要對得起來。',
+      '現在還不行。空瓶要帶回序號所屬原店；每間店的庫存和紀錄各自管理，走原路回去才不會對錯帳。',
   },
   {
     id: 'no-empty',
     question: '可以不帶空罐嗎？',
-    answer: '換罐價必須完成一罐換一罐。沒帶空罐時，不可直接以 NT$99 領取新品。',
+    answer: '不行喔。NT$99 是「一罐空瓶換一罐新品」；沒帶空瓶，就還是要用一般價格買。',
   },
   {
     id: 'choose-flavour',
     question: '可以自己選口味嗎？',
-    answer: '可以從原店當期有庫存的口味中選擇。各店品項每兩週更新。',
+    answer: '可以，從原店當天有貨的口味裡挑。各店品項大概每兩週會調整一次。',
   },
   {
     id: 'serial-where',
@@ -77,22 +80,22 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'how-points',
     question: '如何集點？',
-    answer: '建立毛孩帳號後，於官方 LINE 輸入罐底序號，每個有效序號累積 1 點。',
+    answer: '先幫毛孩開好帳號，再到官方 LINE 輸入罐底序號；每個有效序號存 1 點。',
   },
   {
     id: 'ten-points',
     question: '集滿 10 點可以做什麼？',
-    answer: '可於帳號綁定的合作美容店折抵 NT$200 美容費。',
+    answer: '可以在帳號綁定的合作美容店，折抵 NT$200 美容費。',
   },
   {
     id: 'points-share',
     question: '不同店家的點數可以共用嗎？',
-    answer: '折價使用規則依帳號綁定的合作店為準；開戶完成後會顯示你綁定的店家。',
+    answer: '折價看你帳號綁定的合作店；開戶完成後會顯示綁定哪一間。',
   },
   {
     id: 'all-seven',
     question: '每間店都有七種口味嗎？',
-    answer: '不一定。七種為目前換罐系列，實際可選品項依各合作店當期庫存為準。',
+    answer: '不一定。七種是目前系列，實際能選哪些，以各合作店當天庫存為準。',
   },
 ];
 
@@ -102,26 +105,27 @@ export type RefillIntroStep = {
   body: string;
 };
 
+/** 流程步驟文案（完整規則／流程卡用；不塞進加入前主卡） */
 export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
   {
     no: '01',
     title: '先帶一罐回家',
-    body: '第一罐 NT$129，於合作美容店取貨。',
+    body: '第一罐 NT$129，先讓毛孩試試口味。',
   },
   {
     no: '02',
     title: '吃完帶回原店',
-    body: '空瓶帶回序號所屬原店（第一階段不能跨店）。',
+    body: '空瓶帶回序號所屬原店；現在還不能跨店。',
   },
   {
     no: '03',
     title: 'NT$99 換新口味',
-    body: `店家確認空瓶後啟用資格，請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內換完。`,
+    body: `店家確認空瓶後，請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內換完。`,
   },
   {
     no: '04',
     title: '輸入瓶底序號',
-    body: '每罐累積 1 點，滿 10 點折 NT$200 美容費。',
+    body: '每罐再存 1 點，集滿 10 點折 NT$200 美容費。',
   },
 ];
 
@@ -131,23 +135,23 @@ export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
  */
 export const REFILL_INTRO_COPY = {
   flexTitle: '匠寵換罐計畫',
-  headline: '吃完，不用說再見。',
+  headline: '這罐吃完，先別急著說再見。',
   /** 主卡核心資訊（不含 30 天醒目區；該區走 exchange-window SSOT） */
   bodyLines: [
-    '第一罐 NT$129',
-    '空瓶帶回序號所屬原店，下一罐不同口味 NT$99',
-    '每罐累積 1 點，滿 10 點折 NT$200 美容費',
-    '口味依原店當期庫存',
+    '第一罐 NT$129，先讓毛孩試試口味。',
+    '吃完把空瓶帶回原店，下一罐不同口味 NT$99。',
+    '每罐再存 1 點，集滿 10 點折 NT$200 美容費。',
+    '想換哪一味，到店看現場庫存最準。',
   ],
   /** 口味回覆專用（不進加入前主卡） */
   flavourSectionTitle: '這期想吃哪一罐？',
   flavourSectionLead: [
-    '目前共有 7 種口味，',
-    '各合作店可選品項每兩週更新一次。',
+    '目前系列有 7 種口味，',
+    '各合作店大概每兩週會調整一次。',
     '',
-    '依合作店當期庫存為準。',
+    '實際能選哪些，到店看現場庫存最準。',
   ],
-  /** CTA：按鈕標籤 vs 實際送出的 message text */
+  /** CTA：按鈕標籤 vs 實際送出的 message text（本輪不改） */
   ctaJoinLabel: '我要參加',
   ctaJoinMessage: '開始換罐',
   ctaFlavoursLabel: '先看口味',

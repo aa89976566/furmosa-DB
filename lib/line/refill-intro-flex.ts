@@ -152,7 +152,7 @@ export function buildJarFaqFlexMessages(): LineReplyMessage[] {
       contents: buildJarDialogueBubble({
         bodyContents: [
           text('常見問題', { size: 'lg', weight: 'bold' }),
-          text('換罐價格、空罐規則、序號集點一次看完。', {
+          text('換罐價錢、空瓶規則、序號集點，一次看完。', {
             size: 'xs',
             color: INTRO_THEME.muted,
             margin: 'sm',

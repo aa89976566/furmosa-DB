@@ -20,7 +20,6 @@ import {
   REFILL_EXCHANGE_WINDOW_COPY,
   REFILL_EXCHANGE_WINDOW_DAYS,
   computeExchangeExpiresAt,
-  formatExchangeDeadlineDisplay,
 } from '@/lib/refill/exchange-window';
 
 export const REFILL_EXCHANGE_PREVIEW_STATES = [
@@ -140,8 +139,8 @@ export function buildActivatedPreviewMessages(input?: {
   const copy = buildExchangeActivatedCopy({ storeName, expiresAt });
   return [
     buildSimpleBubble(copy.altText, [
-      textNode('空瓶安全回家，任務完成。', { size: 'md', weight: 'bold' }),
-      textNode('你的 NT$99 換購資格已經啟用，可以挑一罐不同口味。', {
+      textNode(copy.lines[0], { size: 'md', weight: 'bold' }),
+      textNode(copy.lines[1], {
         size: 'sm',
         margin: 'md',
       }),
@@ -156,21 +155,21 @@ export function buildActivatedPreviewMessages(input?: {
         borderWidth: '2px',
         spacing: 'sm',
         contents: [
-          textNode('⏰ 請在', { size: 'sm' }),
+          textNode('⏰ 記得在', { size: 'sm' }),
           textNode(`${REFILL_EXCHANGE_WINDOW_DAYS} 天內`, {
             size: 'xl',
             weight: 'bold',
             color: INTRO_THEME.cta,
           }),
           textNode('使用', { size: 'sm' }),
-          textNode(`最後使用日：${formatExchangeDeadlineDisplay(expiresAt)}`, {
+          textNode(copy.lines[3], {
             size: 'sm',
             weight: 'bold',
             margin: 'sm',
           }),
         ],
       },
-      textNode(`請回到「${storeName}」完成換罐，口味依門市現場庫存為準。`, {
+      textNode(copy.lines[4], {
         size: 'sm',
         color: INTRO_THEME.muted,
         margin: 'md',
@@ -209,7 +208,7 @@ export function buildExpiringSoonPreviewMessages(input?: {
   return [
     buildSimpleBubble(copy.altText, [
       textNode(copy.lines[0], { size: 'md', weight: 'bold' }),
-      textNode(`最後使用日：${formatExchangeDeadlineDisplay(expiresAt)}`, {
+      textNode(copy.lines[1], {
         size: 'lg',
         weight: 'bold',
         color: INTRO_THEME.cta,

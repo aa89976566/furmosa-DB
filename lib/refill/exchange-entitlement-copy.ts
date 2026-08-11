@@ -1,6 +1,8 @@
 /**
  * 換購資格相關會員文案／Preview 資料形狀。
  * Phase 1：僅 builder + Preview；禁止真實 LINE push／cron。
+ *
+ * 顧客文案語氣：見 lib/jar-exchange/refill-customer-copy-tone.ts
  */
 
 import {
@@ -39,15 +41,15 @@ export function buildExchangeActivatedCopy(input: {
     mode: EXCHANGE_ENTITLEMENT_PREVIEW_MODE,
     kind: 'activated',
     lifecycle: 'active',
-    altText: '換購資格已啟用（Preview）',
+    altText: '換口味資格已開好（Preview）',
     storeName: input.storeName,
     expiresDisplay,
     lines: [
-      '空瓶安全回家，任務完成。',
-      '你的 NT$99 換購資格已經啟用，可以挑一罐不同口味。',
-      `⏰ 請在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內使用`,
-      `最後使用日：${expiresDisplay}`,
-      `請回到「${input.storeName}」完成換罐，口味依門市現場庫存為準。`,
+      '空瓶平安回店，這一罐有好好完成任務。',
+      'NT$99 換口味資格已經開好，可以替毛孩挑下一罐了。',
+      `⏰ 記得在 ${REFILL_EXCHANGE_WINDOW_DAYS} 天內使用`,
+      `最晚使用日：${expiresDisplay}`,
+      `到「${input.storeName}」出示資格就能換；口味以現場庫存為準。`,
     ],
   };
 }
@@ -62,9 +64,9 @@ export function buildExchangeWrongStoreCopy(input: {
     altText: '請回原店換罐（Preview）',
     storeName: input.storeName,
     lines: [
-      '這罐有自己的回家路線。',
-      `它是從「${input.storeName}」出發的，要帶回原店才能完成換罐。`,
-      '不是故意刁難，是庫存和換罐紀錄要對得起來。',
+      '這罐今天走錯店了。',
+      `它原本從「${input.storeName}」出發，還是要帶回這間店才能換。`,
+      '每間店的庫存和紀錄各自管理，走原路回去才不會對錯帳。',
     ],
   };
 }
@@ -79,19 +81,22 @@ export function buildExchangeExpiringSoonCopy(input: {
     mode: EXCHANGE_ENTITLEMENT_PREVIEW_MODE,
     kind: 'expiring-soon',
     lifecycle: 'expiring-soon',
-    altText: '換購資格即將到期（Preview）',
+    altText: '換口味期限快到了（Preview）',
     storeName: input.storeName,
     expiresDisplay,
     lines: [
-      '換購期限快到了。',
-      `最後使用日：${expiresDisplay}`,
-      `請回到「${input.storeName}」完成 NT$99 換罐。`,
-      '口味依門市現場庫存為準。',
+      '提醒一下，毛孩的下一罐還在等你。',
+      `最晚使用日：${expiresDisplay}`,
+      `記得回「${input.storeName}」，用 NT$99 換一罐新口味。`,
+      '現場有哪些口味，以門市當天庫存為準。',
     ],
   };
 }
 
-/** 已過期 */
+/**
+ * 已過期
+ * 規則：一空瓶一組期限；過期後需再帶空瓶、店家確認後開「新」期限，不是舊資格重新啟用。
+ */
 export function buildExchangeExpiredCopy(input: {
   storeName: string;
   expiresAt: Date;
@@ -101,13 +106,13 @@ export function buildExchangeExpiredCopy(input: {
     mode: EXCHANGE_ENTITLEMENT_PREVIEW_MODE,
     kind: 'expired',
     lifecycle: 'expired',
-    altText: '換購資格已過期（Preview）',
+    altText: '換口味資格已過期（Preview）',
     storeName: input.storeName,
     expiresDisplay,
     lines: [
-      '這次的 NT$99 換購資格已經到期。',
+      '這次的 NT$99 換口味資格已經過期了。',
       `最後使用日是 ${expiresDisplay}。`,
-      `若還想換罐，請再帶空瓶回「${input.storeName}」重新確認後啟用。`,
+      `沒關係，下次再帶一個空瓶回「${input.storeName}」。店家確認後，會再開一組新的 NT$99 換口味期限。`,
     ],
   };
 }
@@ -132,10 +137,12 @@ export function buildExchangeLifecycleCopyPreview(input: {
       mode: EXCHANGE_ENTITLEMENT_PREVIEW_MODE,
       kind: 'lifecycle',
       lifecycle,
-      altText: '換購資格已使用（Preview）',
+      altText: '換口味已使用（Preview）',
       storeName: input.storeName,
       expiresDisplay: formatExchangeDeadlineDisplay(input.expiresAt),
-      lines: ['這次的 NT$99 換購資格已經使用過了。'],
+      lines: [
+        '這次的 NT$99 換口味已經用過了，下一罐也有好好接棒。',
+      ],
     };
   }
   if (lifecycle === 'expired') {
