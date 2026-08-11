@@ -1,5 +1,5 @@
 /**
- * Sample-first CONSENSUS：偏好流程文案單一來源
+ * Brief-first CONSENSUS：偏好流程文案單一來源
  * LINE handler 與 HQ Preview 必須 import 此模組。
  */
 
@@ -12,6 +12,8 @@ import {
 } from '@/lib/line/morning/domain/optin/options';
 import {
   ONBOARDING_MODE_LABELS,
+  getFirstContent,
+  isOnboardingModeActionId,
   type OnboardingModeActionId,
 } from '@/lib/line/morning/domain/optin/samples';
 import {
@@ -56,6 +58,13 @@ export const OPTIN_ABORT_FREE_TEXT_REPLY =
 
 export const OPTIN_SAMPLE_PASS_REPLY =
   '好，先不用。之後想開再回「早安設定」。交易通知不受影響。';
+
+/** brief_pass 與 sample_pass 共用文案 */
+export const OPTIN_BRIEF_PASS_REPLY = OPTIN_SAMPLE_PASS_REPLY;
+
+/** 讀到 stale MODE_SAMPLE pending 時提示（清 pending → AWAITING_MODE） */
+export const OPTIN_STALE_SAMPLE_REPLY =
+  '設定內容已更新，請重新選一次';
 
 export const OPTIN_LEGACY_KEEP_REPLY =
   '好，維持目前設定。之後想改再回「早安設定」。';
@@ -157,8 +166,9 @@ export function renderHumorCompletion(frequency: string): string {
   return [
     '收到。',
     `${lead}，我繞完一圈就來陪你笑個毛。`,
+    '',
     '不講硬到要查答案的梗，也不只聊狗狗。',
-    '想換口味或先休息，跟我說「早安設定」就好。',
+    '想換口味或先休息，到活動中心找「早安設定」就好。',
   ].join('\n');
 }
 
@@ -167,8 +177,9 @@ export function renderNewsCompletion(frequency: string): string {
   return [
     '收到。',
     `${lead}，我會替你豎起耳朵，聽聽毛孩圈有什麼新鮮事。`,
+    '',
     '台灣消息優先，全球值得看的也不漏掉。',
-    '沒有可靠內容就不硬湊，想調整時跟我說「早安設定」。',
+    '沒有可靠內容就不硬湊，想調整時到活動中心找「早安設定」。',
   ].join('\n');
 }
 
@@ -194,6 +205,32 @@ export function renderOptinSuccessSummary(input: {
   const cLabel = contentLabel(input.content);
   const fLabel = frequencyLabel(input.frequency);
   return `設定完成。內容：${cLabel}；頻率：${fLabel}。想改隨時回「早安設定」。`;
+}
+
+/**
+ * CONFIRM winner 最終 reply 文案（同一 reply call；目標 ≤2 objects）
+ * successSummary 寫入 ledger；messages 僅 winner composition 使用一次。
+ */
+export function buildOptinConfirmWinnerTexts(input: {
+  content: OptinContentOption;
+  frequency: OptinFrequencyOption;
+}): { successSummary: string; messages: string[] } {
+  const successSummary = renderOptinSuccessSummary(input);
+  if (
+    input.content.actionId === 'content_e' ||
+    input.frequency.actionId === 'freq_off' ||
+    input.content.storageMode === 'off' ||
+    input.frequency.storageFrequency === 'off'
+  ) {
+    return { successSummary, messages: [successSummary] };
+  }
+  if (isOnboardingModeActionId(input.content.actionId)) {
+    return {
+      successSummary,
+      messages: [successSummary, getFirstContent(input.content.actionId)],
+    };
+  }
+  return { successSummary, messages: [successSummary] };
 }
 
 export function modeLabelForAction(actionId: OnboardingModeActionId): string {

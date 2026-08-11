@@ -16,57 +16,46 @@
 
 | 欄位 | 值 |
 |------|-----|
-| Phase | **Sample-first CONSENSUS** — 雙選項 sample flow＋活動中心單一入口 |
+| Phase | **Brief-first follow-up** — MODE_BRIEF_SHOWN＋CONFIRM winner first content |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-morning-sample-first-2673` |
-| Stack base | PR #102 head `3b15f34` |
-| Head | `5ac5943`＋worklog |
-| Draft PR | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) |
-| Preview | https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app |
+| Active branch | `cursor/line-morning-brief-first-2673` |
+| Stack base | PR #103 head `9946077` |
+| Head | `4bc585a` |
+| Draft PR | [#104](https://github.com/aa89976566/furmosa-DB/pull/104) |
+| Preview | https://furmosa-db-git-cursor-line-morning-af8596-aa89976566s-projects.vercel.app |
 
 ## PR stack
 
 ```
-main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @5ac5943
+main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @9946077 → brief-first（本 PR）
 ```
 
-**硬規則**：不得改寫／force-push／merge／關閉既有 PR。
+**硬規則**：不得改寫／force-push／merge／關閉既有 PR（含 #103）。
 
 ---
 
-## Phase 0 Inventory（通過）
+## Preflight（本 PR）
 
 | 檢查 | 結果 |
 |------|------|
-| HUMOR_ONLY／NEWS_ONLY／ALTERNATE／NEWS_FIRST_*／OFF | 存在；不新增 enum |
-| Legacy mapping | `CONTENT_MODE_LABELS` + full `OPTIN_CONTENT_OPTIONS` |
-| Consent | 既有 ConfirmLedger |
-| Master switch | 既有 |
-| 活動中心 | repo 內 `buildEventsCenterMessages` |
-| Schema migration | **不需要**（pending 用 session draft） |
+| flow step 儲存 | `LineChatSession.step` 為 **String**（非 Prisma enum）→ 可加 `brief` |
+| MODE_SAMPLE | 保留 legacy read-only；讀到即清 pending |
+| schema/enum migration | **不需要** → 繼續 |
+| ConfirmLedger | `eventDedupKey` unique + `(sessionNonceHash,payloadDigest)` unique + tx |
+| winner-only reply | 僅 `wrote===true` 後 composition；同 event retry → 200/no-op |
+| final reply ≤5 | 目標 2 text objects |
+| push/broadcast | 禁止；reply failure 無 fallback |
 
 ## Verification
 
 | Check | Result |
 |-------|--------|
-| morning+LINE | **203 pass** |
-| schema diff vs #102 | **0** |
+| morning+LINE | **212 pass** |
+| schema diff vs #103 | **0** |
 | prisma validate/generate | ok |
 | next build（無 migrate deploy） | ok |
 | tsc | **0 new**（baseline 3） |
-| Vercel Preview | Ready |
-| push/broadcast／cron | 無 |
-| Frozen #96–#102 | 不變 |
-
-### 新聞來源核對（NEWS sample）
-- 7 座寵物公園
-- 2009 年起陸續設置
-- 2023 年全面增設洗腳池
-- URL：ntpc.gov.tw dataserno=579176ca4ae665a9a8553ccf68864cb8
-
-### Next
-- 真送／cron／live 新聞另 PR
-- Preview 手測：兩 sample、切換、取消、三頻率、legacy、活動中心
+| Frozen #96–#103 | 不變（#103 仍 `9946077`） |
 
 ---
 
@@ -75,4 +64,5 @@ main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @5ac5943
 | ID | 時間 (UTC) | 來源 | 摘要 | 狀態 | Branch | Commit | PR | Tests | Preview |
 |----|------------|------|------|------|--------|--------|-----|-------|---------|
 | RL-HIST-102 | 2026-08-11 | Cloud | 4B-D Dashboard | `VERIFIED` | `…-d-dashboard-2673` | `3b15f34` | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 197 | Ready |
-| RL-2026-08-11-SAMPLE | 2026-08-11T00:49Z | Desktop CONSENSUS | sample-first 雙選項＋活動中心 | `VERIFIED` | `cursor/line-morning-sample-first-2673` | `5ac5943` | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) | 203 | [Ready](https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app) |
+| RL-2026-08-11-SAMPLE | 2026-08-11T00:49Z | Desktop CONSENSUS | sample-first 雙選項＋活動中心 | `VERIFIED` | `cursor/line-morning-sample-first-2673` | `5ac5943`／`9946077` | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) | 203 | [Ready](https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app) |
+| RL-2026-08-11-BRIEF | 2026-08-11T01:20Z | Desktop CONSENSUS | brief-first＋winner first content | `VERIFIED` | `cursor/line-morning-brief-first-2673` | `4bc585a` | [#104](https://github.com/aa89976566/furmosa-DB/pull/104) | 212 | [Ready](https://furmosa-db-git-cursor-line-morning-af8596-aa89976566s-projects.vercel.app) |

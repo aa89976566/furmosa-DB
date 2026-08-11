@@ -57,11 +57,11 @@ export function PreferencesPanel({
               {optinPreview.contentPrompt}
             </pre>
             <div className="space-y-2">
-              {optinPreview.samplePreview ? (
+              {optinPreview.briefPreview ? (
                 <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
-                  {optinPreview.samplePreview}
+                  {optinPreview.briefPreview}
                   {'\n\n'}
-                  {optinPreview.sampleButtons.join(' ／ ')}
+                  {optinPreview.briefButtons.join(' ／ ')}
                 </pre>
               ) : null}
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
@@ -73,6 +73,11 @@ export function PreferencesPanel({
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
                 {optinPreview.successSummary ?? '（確認後成功摘要）'}
               </pre>
+              {optinPreview.firstContentPreview ? (
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+                  {optinPreview.firstContentPreview}
+                </pre>
+              ) : null}
             </div>
           </div>
           <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">

@@ -1,5 +1,5 @@
 /**
- * Sample-first CONSENSUS：偏好選項單一來源
+ * Brief-first CONSENSUS：偏好選項單一來源
  * - onboarding 入口僅 HUMOR_ONLY「笑個毛」與 NEWS_ONLY「豎起耳朵」
  * - full display mapping 仍保留全部 legacy／OFF／FACT mixed（禁止刪 enum、禁止讀取 coerce）
  * LINE handler 與 HQ Preview 必須由此 import。
@@ -35,8 +35,12 @@ export type OptinFrequencyActionId = (typeof OPTIN_FREQUENCY_ACTION_IDS)[number]
 export const OPTIN_SUMMARY_ACTION_IDS = ['confirm', 'cancel'] as const;
 export type OptinSummaryActionId = (typeof OPTIN_SUMMARY_ACTION_IDS)[number];
 
-/** sample-first／legacy gate 專用 actions（不對應新 contentMode） */
+/** brief-first／legacy gate 專用 actions（不對應新 contentMode） */
 export const OPTIN_FLOW_ACTION_IDS = [
+  'brief_confirm',
+  'brief_switch',
+  'brief_pass',
+  /** @deprecated MODE_SAMPLE legacy；allowlist 保留，新流程不寫入 */
   'sample_confirm',
   'sample_switch',
   'sample_pass',
@@ -310,6 +314,17 @@ export function matchSummaryActionFromText(raw: string): OptinSummaryActionId | 
   return null;
 }
 
+export function matchBriefActionFromText(
+  raw: string,
+): OptinFlowActionId | null {
+  const text = raw.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+  if (/^(?:確認此模式)$/.test(text)) return 'brief_confirm';
+  if (/^(?:看看另一個)$/.test(text)) return 'brief_switch';
+  if (/^(?:先不用)$/.test(text)) return 'brief_pass';
+  return null;
+}
+
+/** @deprecated MODE_SAMPLE legacy text match（stale path 不再續跑） */
 export function matchSampleActionFromText(
   raw: string,
   pendingMode: OnboardingModeActionId,

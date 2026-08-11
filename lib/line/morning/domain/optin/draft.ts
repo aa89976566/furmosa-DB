@@ -18,7 +18,7 @@ export type MorningOptinDraft = {
   /** 短期 draft 用 opaque nonce；confirm ledger 只存 hash */
   nonce: string;
   expiresAt: string;
-  /** pendingMode（sample-first）；confirm 前不寫 preference */
+  /** pendingMode（brief-first）；confirm 前不寫 preference */
   contentActionId?: OptinContentActionId;
   frequencyActionId?: OptinFrequencyActionId;
 };

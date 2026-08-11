@@ -17,7 +17,7 @@ import {
 } from '@/lib/line/morning/domain/optin';
 import { buildMorningOptinPreview } from '@/lib/line/morning/optin-preview';
 
-describe('optin shared parity（sample-first）', () => {
+describe('optin shared parity（brief-first）', () => {
   it('onboarding 兩項；full mapping 含 FACT／OFF／alternate', () => {
     const ids = listOnboardingModeOptions().map((o) => o.actionId);
     assert.deepEqual(ids, ['content_a', 'content_b']);
@@ -35,19 +35,26 @@ describe('optin shared parity（sample-first）', () => {
     );
   });
 
-  it('postback 拒絕 mode／label 欄位；允許 sample actions', () => {
+  it('postback 拒絕 mode／label 欄位；允許 brief actions；sample 仍可 parse（legacy）', () => {
     const data = buildOptinPostbackData({
+      nonce: 'a'.repeat(32),
+      version: 1,
+      step: 'brief',
+      actionId: 'brief_confirm',
+    });
+    const parsed = parseOptinPostbackData(data);
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) {
+      assert.equal(parsed.actionId, 'brief_confirm');
+      assert.equal(parsed.step, 'brief');
+    }
+    const legacy = buildOptinPostbackData({
       nonce: 'a'.repeat(32),
       version: 1,
       step: 'sample',
       actionId: 'sample_confirm',
     });
-    const parsed = parseOptinPostbackData(data);
-    assert.equal(parsed.ok, true);
-    if (parsed.ok) {
-      assert.equal(parsed.actionId, 'sample_confirm');
-      assert.equal(parsed.step, 'sample');
-    }
+    assert.equal(parseOptinPostbackData(legacy).ok, true);
     const bad = parseOptinPostbackData(`${data}&mode=jokes`);
     assert.equal(bad.ok, false);
   });
@@ -63,9 +70,11 @@ describe('optin shared parity（sample-first）', () => {
     assert.equal(preview.successSummary, success);
     assert.equal(preview.contentPrompt, renderModePrompt());
     assert.ok(preview.contentPrompt.includes('笑個毛'));
+    assert.ok(preview.briefPreview);
+    assert.equal(preview.winnerReplyTexts?.[0], success);
   });
 
-  it('preference-flow／HQ 不 hardcode sample switch', () => {
+  it('preference-flow／HQ 不 hardcode brief switch', () => {
     const flow = readFileSync(
       resolve(process.cwd(), 'lib/line/morning/preference-flow.ts'),
       'utf8',
@@ -77,5 +86,7 @@ describe('optin shared parity（sample-first）', () => {
     assert.ok(flow.includes("from '@/lib/line/morning/domain/optin'"));
     assert.ok(hq.includes("from '@/lib/line/morning/domain/optin'"));
     assert.ok(!/case\s+'content_a'/.test(hq));
+    assert.ok(!flow.includes("step: 'sample'"));
+    assert.ok(flow.includes("step: 'brief'"));
   });
 });

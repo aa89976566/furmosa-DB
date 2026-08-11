@@ -1,8 +1,9 @@
 /**
- * Sample-first CONSENSUS：雙選項 sample flow
- * IDLE → mode → sample → frequency → summary → confirm
+ * Brief-first CONSENSUS：雙選項 brief flow
+ * IDLE → mode → brief → frequency → summary → confirm
  * Legacy：摘要 → keep(0 writes)／explore → mode…
- * 僅 confirm 單交易寫入 preference；此前 preference 0 writes
+ * stale `sample`：清 pending → AWAITING_MODE（零下游寫入／內容）
+ * 僅 confirm 單交易寫入 preference；winner 才 composition final reply
  */
 
 import {
@@ -13,26 +14,28 @@ import {
 import { parseLineUserText } from '@/lib/line/parse-message';
 import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
 import {
+  OPTIN_BRIEF_PASS_REPLY,
   OPTIN_CANCEL_REPLY,
   OPTIN_EXPIRED_REPLY,
   OPTIN_INVALID_STAY_HINT,
   OPTIN_LEGACY_KEEP_REPLY,
-  OPTIN_SAMPLE_PASS_REPLY,
+  OPTIN_STALE_SAMPLE_REPLY,
+  buildOptinConfirmWinnerTexts,
   buildOptinPostbackData,
   createOptinNonce,
   digestOptinConfirmPayload,
+  getBriefButtons,
   getContentOption,
   getFrequencyOption,
-  getSampleButtons,
   isOnboardingModeActionId,
   isOptinContentActionId,
   isOptinFrequencyActionId,
   listActiveFrequencyOptions,
   listOnboardingModeOptions,
+  matchBriefActionFromText,
   matchContentActionFromText,
   matchFrequencyActionFromText,
   matchLegacyGateActionFromText,
-  matchSampleActionFromText,
   matchSummaryActionFromText,
   newOptinDraft,
   normalizeOptinFlowStep,
@@ -41,10 +44,9 @@ import {
   parseOptinPostbackData,
   renderFrequencyPrompt,
   renderLegacyPreferenceSummary,
+  renderModeBriefMessage,
   renderModePrompt,
-  renderOptinSuccessSummary,
   renderOptinSummary,
-  renderSampleMessage,
   resolveOptinEventKey,
   assertDraftMatchesPostback,
   isOptinFlowStep,
@@ -202,17 +204,14 @@ function buildModeQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] {
   );
 }
 
-function buildSampleQuickReply(
-  draft: MorningOptinDraft,
-  pending: OnboardingModeActionId,
-): LineQuickReplyItem[] {
-  return getSampleButtons(pending).map((btn) =>
+function buildBriefQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] {
+  return getBriefButtons().map((btn) =>
     qrPostback(
       btn.label,
       buildOptinPostbackData({
         nonce: draft.nonce,
         version: draft.version,
-        step: 'sample',
+        step: 'brief',
         actionId: btn.actionId,
       }),
       btn.label,
@@ -323,13 +322,13 @@ async function redisplayCurrentStep(
     ]);
     return;
   }
-  if (step === 'sample' && draft.contentActionId && isOnboardingModeActionId(draft.contentActionId)) {
+  if (step === 'brief' && draft.contentActionId && isOnboardingModeActionId(draft.contentActionId)) {
     const pending = draft.contentActionId;
     await deps.reply(replyToken, [
       {
         type: 'text',
-        text: `${renderSampleMessage(pending)}\n\n${hint}`,
-        quickReply: { items: buildSampleQuickReply(draft, pending) },
+        text: `${renderModeBriefMessage(pending)}\n\n${hint}`,
+        quickReply: { items: buildBriefQuickReply(draft) },
       },
     ]);
     return;
@@ -375,7 +374,8 @@ async function enterModeStep(
   ]);
 }
 
-async function enterSampleStep(
+/** 新流程只寫 MODE_BRIEF_SHOWN（session step=`brief`） */
+async function enterBriefStep(
   deps: PreferenceFlowDeps,
   replyToken: string,
   lineUserId: string,
@@ -388,12 +388,35 @@ async function enterSampleStep(
     contentActionId: pendingMode,
     frequencyActionId: undefined,
   };
-  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'sample', next);
+  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'brief', next);
   await deps.reply(replyToken, [
     {
       type: 'text',
-      text: renderSampleMessage(pendingMode),
-      quickReply: { items: buildSampleQuickReply(next, pendingMode) },
+      text: renderModeBriefMessage(pendingMode),
+      quickReply: { items: buildBriefQuickReply(next) },
+    },
+  ]);
+}
+
+/**
+ * stale MODE_SAMPLE：清除 pending、提示更新、回 AWAITING_MODE
+ * 零 preference／consent 寫入、零 first content、不沿新流程續跑
+ */
+async function clearStaleSamplePending(
+  deps: PreferenceFlowDeps,
+  replyToken: string,
+  lineUserId: string,
+): Promise<void> {
+  const fresh = newOptinDraft({
+    nonce: deps.createNonce(),
+    now: deps.now(),
+  });
+  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'mode', fresh);
+  await deps.reply(replyToken, [
+    {
+      type: 'text',
+      text: `${OPTIN_STALE_SAMPLE_REPLY}\n\n${renderModePrompt()}`,
+      quickReply: { items: buildModeQuickReply(fresh) },
     },
   ]);
 }
@@ -447,6 +470,34 @@ async function advanceToSummary(
   ]);
 }
 
+/**
+ * write/commit 失敗且尚未建立 ledger：
+ * 零 success、零 first content；若仍在 summary 則重顯以供安全 retry，否則過期。
+ */
+async function replyConfirmWriteFailureStay(
+  deps: PreferenceFlowDeps,
+  replyToken: string,
+  lineUserId: string,
+  draft: MorningOptinDraft,
+): Promise<void> {
+  const session = await deps.getSession(lineUserId);
+  if (
+    session &&
+    session.flow === OPTIN_FLOW &&
+    session.step === 'summary' &&
+    draft.contentActionId &&
+    draft.frequencyActionId
+  ) {
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'summary', draft);
+    return;
+  }
+  await replyExpired(deps, replyToken, lineUserId);
+}
+
+/**
+ * 相同 webhook event／replyToken retry：winner 後純 200/no-op（不再 reply）
+ * 非 identical → 過期文案（不含 first content）
+ */
 async function tryReplayIdenticalConfirm(
   deps: PreferenceFlowDeps,
   replyToken: string,
@@ -457,12 +508,12 @@ async function tryReplayIdenticalConfirm(
     stepVersion: number;
     payloadDigest: string;
   },
-): Promise<'replayed' | 'rejected' | 'miss'> {
+): Promise<'noop' | 'rejected' | 'miss'> {
   const row = await deps.findLedgerByEventKey(input.eventDedupKey);
   if (!row) return 'miss';
   if (isIdenticalConfirmSuccess({ row, ...input })) {
-    await deps.reply(replyToken, [{ type: 'text', text: row.successSummary }]);
-    return 'replayed';
+    void replyToken;
+    return 'noop';
   }
   await replyExpired(deps, replyToken, lineUserId);
   return 'rejected';
@@ -511,7 +562,10 @@ async function applyConfirm(
     return;
   }
 
-  const successSummary = renderOptinSuccessSummary({ content, frequency });
+  const { successSummary, messages: winnerTexts } = buildOptinConfirmWinnerTexts({
+    content,
+    frequency,
+  });
   const payloadDigest = digestOptinConfirmPayload({
     contentActionId: content.actionId,
     frequencyActionId: frequency.actionId,
@@ -527,18 +581,17 @@ async function applyConfirm(
     payloadDigest,
   };
 
+  // 相同 event retry：已有 ledger → 200/no-op（不得再次 reply／first content）
   const existingByEvent = await deps.findLedgerByEventKey(eventKey);
   if (existingByEvent) {
     if (isIdenticalConfirmSuccess({ row: existingByEvent, ...matchInput })) {
-      await deps.reply(replyToken, [
-        { type: 'text', text: existingByEvent.successSummary },
-      ]);
       return;
     }
     await replyExpired(deps, replyToken, lineUserId);
     return;
   }
 
+  // 不同 event／雙擊：nonce 已消費 → 過期狀態（不含 first content）
   const byNonce = await deps.findLedgersByNonceHash(sessionNonceHash);
   if (byNonce.length > 0) {
     await replyExpired(deps, replyToken, lineUserId);
@@ -597,8 +650,10 @@ async function applyConfirm(
       matchInput,
     );
     if (outcome === 'miss') {
-      await replyExpired(deps, replyToken, lineUserId);
+      // write/commit 失敗且無 ledger：不顯示成功／內容；保留 summary 供安全 retry
+      await replyConfirmWriteFailureStay(deps, replyToken, lineUserId, draft);
     }
+    // noop／rejected：皆不得 fallback push、不得再 composition first content
     return;
   }
 
@@ -610,12 +665,16 @@ async function applyConfirm(
       matchInput,
     );
     if (outcome === 'miss') {
-      await replyExpired(deps, replyToken, lineUserId);
+      await replyConfirmWriteFailureStay(deps, replyToken, lineUserId, draft);
     }
     return;
   }
 
-  await deps.reply(replyToken, [{ type: 'text', text: successSummary }]);
+  // 唯有 transaction commit 的 winner 可 composition final reply（≤2 text objects）
+  await deps.reply(
+    replyToken,
+    winnerTexts.map((text) => ({ type: 'text' as const, text })),
+  );
 }
 
 async function handleAction(
@@ -657,33 +716,39 @@ async function handleAction(
       await redisplayCurrentStep(deps, replyToken, lineUserId, 'mode', draft);
       return;
     }
-    await enterSampleStep(deps, replyToken, lineUserId, draft, actionId);
+    await enterBriefStep(deps, replyToken, lineUserId, draft, actionId);
     return;
   }
 
+  // legacy MODE_SAMPLE：不得續跑（防禦；正常路徑應已在入口清除）
   if (step === 'sample') {
+    await clearStaleSamplePending(deps, replyToken, lineUserId);
+    return;
+  }
+
+  if (step === 'brief') {
     if (!draft.contentActionId || !isOnboardingModeActionId(draft.contentActionId)) {
       await replyExpired(deps, replyToken, lineUserId);
       return;
     }
     const pending = draft.contentActionId;
-    if (actionId === 'sample_confirm') {
+    if (actionId === 'brief_confirm') {
       await advanceToFrequency(deps, replyToken, lineUserId, draft);
       return;
     }
-    if (actionId === 'sample_switch') {
+    if (actionId === 'brief_switch') {
       const other = otherOnboardingMode(pending);
-      await enterSampleStep(deps, replyToken, lineUserId, draft, other);
+      await enterBriefStep(deps, replyToken, lineUserId, draft, other);
       return;
     }
-    if (actionId === 'sample_pass') {
+    if (actionId === 'brief_pass') {
       await deps.clearSession(lineUserId);
       await deps.reply(replyToken, [
-        { type: 'text', text: OPTIN_SAMPLE_PASS_REPLY },
+        { type: 'text', text: OPTIN_BRIEF_PASS_REPLY },
       ]);
       return;
     }
-    await redisplayCurrentStep(deps, replyToken, lineUserId, 'sample', draft);
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'brief', draft);
     return;
   }
 
@@ -810,11 +875,9 @@ export async function handleMorningOptinPostback(
   }
 
   {
+    // 相同 webhook event retry：已 SUCCESS → 200/no-op（不得再 reply）
     const byEvent = await deps.findLedgerByEventKey(eventKey);
     if (byEvent?.status === 'SUCCESS') {
-      await deps.reply(replyToken, [
-        { type: 'text', text: byEvent.successSummary },
-      ]);
       return true;
     }
   }
@@ -831,6 +894,12 @@ export async function handleMorningOptinPostback(
   const session = await deps.getSession(lineUserId);
   if (!session || session.flow !== OPTIN_FLOW) {
     await replyExpired(deps, replyToken, lineUserId);
+    return true;
+  }
+
+  // stale MODE_SAMPLE pending：清除並回 AWAITING_MODE
+  if (session.step === 'sample') {
+    await clearStaleSamplePending(deps, replyToken, lineUserId);
     return true;
   }
 
@@ -884,6 +953,13 @@ export async function handleMorningPreferenceMessage(
     await replyExpired(deps, replyToken, lineUserId);
     return true;
   }
+
+  // stale MODE_SAMPLE pending：清除並回 AWAITING_MODE
+  if (session.step === 'sample') {
+    await clearStaleSamplePending(deps, replyToken, lineUserId);
+    return true;
+  }
+
   const step = normalizeOptinFlowStep(session.step) ?? session.step;
 
   const cmd = parseMorningCommand(text);
@@ -948,17 +1024,13 @@ export async function handleMorningPreferenceMessage(
     return true;
   }
 
-  if (step === 'sample') {
-    if (!draft.contentActionId || !isOnboardingModeActionId(draft.contentActionId)) {
-      await replyExpired(deps, replyToken, lineUserId);
-      return true;
-    }
-    const action = matchSampleActionFromText(text, draft.contentActionId);
+  if (step === 'brief') {
+    const action = matchBriefActionFromText(text);
     if (action) {
-      await handleAction(deps, replyToken, lineUserId, draft, 'sample', action, eventKey);
+      await handleAction(deps, replyToken, lineUserId, draft, 'brief', action, eventKey);
       return true;
     }
-    await redisplayCurrentStep(deps, replyToken, lineUserId, 'sample', draft);
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'brief', draft);
     return true;
   }
 
