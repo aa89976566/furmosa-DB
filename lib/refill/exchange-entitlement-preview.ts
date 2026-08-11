@@ -7,7 +7,7 @@ import {
   REFILL_PLAN_RULES,
   formatFlavourLabel,
 } from '@/lib/jar-exchange/refill-plan-content';
-import { buildRefillIntroBubblePreview } from '@/lib/line/refill-intro-flex';
+import { buildRefillIntroBubblePreview } from '@/lib/line/refill-intro-content';
 import type { PreviewChatItem, PreviewLineMessage } from '@/lib/line-preview/types';
 import {
   EXCHANGE_ENTITLEMENT_PREVIEW_MODE,
@@ -113,26 +113,10 @@ function buildSimpleBubble(
 export function buildJoinBeforePreviewMessages(): PreviewLineMessage[] {
   const bubble = buildRefillIntroBubblePreview({
     settings: {
-      heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
       firstJarPrice: REFILL_PLAN_RULES.firstJarPrice,
       exchangePrice: REFILL_PLAN_RULES.exchangePrice,
-      pointsPerJar: REFILL_PLAN_RULES.pointsPerJar,
-      pointsForDiscount: REFILL_PLAN_RULES.pointsForDiscount,
-      discountAmount: REFILL_PLAN_RULES.discountAmountDefault,
-      flavourUpdateNote: REFILL_PLAN_RULES.flavourUpdateCadence,
-      periodStartedAt: null,
-      periodEndedAt: null,
     },
-    flavours: DEFAULT_REFILL_FLAVOURS.map((f, i) => ({
-      id: `preview-f-${i}`,
-      code: f.code,
-      name: f.name,
-      weightGrams: f.weightGrams,
-      imageUrl: null,
-      isActive: true,
-      availableFrom: null,
-      availableUntil: null,
-      sortOrder: f.sortOrder,
+    flavours: DEFAULT_REFILL_FLAVOURS.map((f) => ({
       label: formatFlavourLabel(f.name, f.weightGrams),
     })),
   });

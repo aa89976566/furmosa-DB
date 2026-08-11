@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import {
   buildExchangeWindowHighlightBox,
   buildRefillIntroBubblePreview,
-} from '../refill-intro-flex';
+} from '../refill-intro-content';
 import { REFILL_EXCHANGE_WINDOW_COPY } from '@/lib/refill/exchange-window';
 import { REFILL_PLAN_RULES, DEFAULT_REFILL_FLAVOURS, formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
 
@@ -27,26 +27,10 @@ describe('refill intro exchange-window Flex contract', () => {
   it('intro bubble JSON is serializable and includes window block', () => {
     const bubble = buildRefillIntroBubblePreview({
       settings: {
-        heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
         firstJarPrice: 129,
         exchangePrice: 99,
-        pointsPerJar: 1,
-        pointsForDiscount: 10,
-        discountAmount: 200,
-        flavourUpdateNote: '每兩週更新',
-        periodStartedAt: null,
-        periodEndedAt: null,
       },
-      flavours: DEFAULT_REFILL_FLAVOURS.map((f, i) => ({
-        id: `f-${i}`,
-        code: f.code,
-        name: f.name,
-        weightGrams: f.weightGrams,
-        imageUrl: null,
-        isActive: true,
-        availableFrom: null,
-        availableUntil: null,
-        sortOrder: f.sortOrder,
+      flavours: DEFAULT_REFILL_FLAVOURS.map((f) => ({
         label: formatFlavourLabel(f.name, f.weightGrams),
       })),
     });
