@@ -157,7 +157,7 @@ export default async function LineMorningAdminPage({
 
   const optinPreview = buildMorningOptinPreview({
     currentStorageMode: 'alternate',
-    contentActionId: 'content_c',
+    contentActionId: 'content_a',
     frequencyActionId: 'freq_friday',
   });
   const frequencyStats = tallyPreferenceFrequencies(preferenceFreqRows);

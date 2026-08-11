@@ -16,71 +16,57 @@
 
 | 欄位 | 值 |
 |------|-----|
-| Phase | **4B-D CONSENSUS** — HQ Dashboard 資訊架構精簡（presentation only） |
+| Phase | **Sample-first CONSENSUS** — 雙選項 sample flow＋活動中心單一入口 |
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
-| Active branch | `cursor/line-morning-phase4b-d-dashboard-2673` |
-| Stack base | PR #101 head `6213fdd` |
-| Head | `dbf9e57` |
-| Draft PR | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) |
-| Preview | https://furmosa-db-git-cursor-line-morning-85dcf0-aa89976566s-projects.vercel.app |
-| HQ path | `/campaigns/line-morning`（`?tab=today|content|preferences|system`） |
+| Active branch | `cursor/line-morning-sample-first-2673` |
+| Stack base | PR #102 head `3b15f34` |
+| Head | `5ac5943`＋worklog |
+| Draft PR | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) |
+| Preview | https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app |
 
 ## PR stack
 
 ```
-main
-  └── #96  @ 446d648
-        └── #97  @ 2ecdfec
-              └── #100 @ a60ad1a
-                    └── #101 @ 6213fdd  (4B-C plan runner)
-                          └── #102 @ dbf9e57  (4B-D dashboard IA；本階段)
+main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @5ac5943
 ```
 
-| PR | Branch | Head | 角色 |
-|----|--------|------|------|
-| [#96](https://github.com/aa89976566/furmosa-DB/pull/96) | mvp | `446d648` | MVP |
-| [#97](https://github.com/aa89976566/furmosa-DB/pull/97) | 4B-A | `2ecdfec` | domain/decision |
-| [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 4B-B consensus | `a60ad1a` | opt-in + ConfirmLedger |
-| [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 4B-C plan | `6213fdd` | plan runner |
-| [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 4B-D dashboard | `dbf9e57` | HQ IA tabs + plan UX |
-| [#99](https://github.com/aa89976566/furmosa-DB/pull/99) | birthday | `04e4eea` | 凍結；不改 |
-
-**硬規則**：不得改寫／force-push／merge／關閉 #96／#97／#99／#100／#101。
+**硬規則**：不得改寫／force-push／merge／關閉既有 PR。
 
 ---
 
-## Capability inventory（before = after 可達）
+## Phase 0 Inventory（通過）
 
-| ID | 能力 | 入口 |
-|----|------|------|
-| C-PLAN | 產生今日 plan preview | `generateMorningPlanPreviewAction` |
-| C-PLAN-UX | Plan UX wrapper（同業務） | `generateMorningPlanPreviewUxAction` |
-| C-MASTER | 總開關（二次確認） | `setMorningMasterEnabledAction` |
-| C-QUOTA | 配額 | `setMorningDailyQuotaAction` |
-| C-FIX-LOAD | 載入草稿範例 | `ensureMorningFixturesAction` |
-| C-FIX-REFRESH | fixture refresh（二次確認） | `refreshMorningNewsPreviewAction` |
-| C-CONTENT | 核准／回草稿／封存 | `updateMorningContentStatusAction` |
-| C-OPTIN-RO | Opt-in Preview 唯讀 | `buildMorningOptinPreview` |
-| C-SOURCE / C-TX / C-NEWS / C-GATE / C-LOGS | 系統 details | 系統狀態 tab |
+| 檢查 | 結果 |
+|------|------|
+| HUMOR_ONLY／NEWS_ONLY／ALTERNATE／NEWS_FIRST_*／OFF | 存在；不新增 enum |
+| Legacy mapping | `CONTENT_MODE_LABELS` + full `OPTIN_CONTENT_OPTIONS` |
+| Consent | 既有 ConfirmLedger |
+| Master switch | 既有 |
+| 活動中心 | repo 內 `buildEventsCenterMessages` |
+| Schema migration | **不需要**（pending 用 session draft） |
 
-## Verification（4B-D）
+## Verification
 
 | Check | Result |
 |-------|--------|
-| morning+LINE | **197 pass / 0 fail** |
-| HQ tab／capability／plan UX／a11y／schema=0 | pass |
+| morning+LINE | **203 pass** |
+| schema diff vs #102 | **0** |
 | prisma validate/generate | ok |
-| schema diff vs #101 | **0** |
 | next build（無 migrate deploy） | ok |
-| tsc | **0 new**（baseline 3 unrelated） |
+| tsc | **0 new**（baseline 3） |
 | Vercel Preview | Ready |
-| Frozen #96/#97/#100/#101 | `446d648` / `2ecdfec` / `a60ad1a` / `6213fdd` |
-| push/broadcast／morning cron | 0 |
+| push/broadcast／cron | 無 |
+| Frozen #96–#102 | 不變 |
 
-### Next PR 邊界
-- 真實 sender／cron／live news
-- Dashboard 視覺品牌大改（非本 PR）
-- Production migrate／deploy／merge
+### 新聞來源核對（NEWS sample）
+- 7 座寵物公園
+- 2009 年起陸續設置
+- 2023 年全面增設洗腳池
+- URL：ntpc.gov.tw dataserno=579176ca4ae665a9a8553ccf68864cb8
+
+### Next
+- 真送／cron／live 新聞另 PR
+- Preview 手測：兩 sample、切換、取消、三頻率、legacy、活動中心
 
 ---
 
@@ -88,6 +74,5 @@ main
 
 | ID | 時間 (UTC) | 來源 | 摘要 | 狀態 | Branch | Commit | PR | Tests | Preview |
 |----|------------|------|------|------|--------|--------|-----|-------|---------|
-| RL-HIST-100 | 2026-08-08 | Cloud | 4B-B CONSENSUS | `VERIFIED` | `…-b-consensus-2673` | `a60ad1a` | [#100](https://github.com/aa89976566/furmosa-DB/pull/100) | 163+ | Ready |
-| RL-HIST-101 | 2026-08-10 | Cloud | 4B-C CONSENSUS | `VERIFIED` | `…-c-plan-2673` | `6213fdd` | [#101](https://github.com/aa89976566/furmosa-DB/pull/101) | 177 | Ready |
-| RL-2026-08-11-4BD | 2026-08-11T00:25Z | Desktop（ChatGPT/Claude/Gemini CONSENSUS） | 4B-D：HQ Dashboard IA 精簡 | `VERIFIED` | `cursor/line-morning-phase4b-d-dashboard-2673` | `dbf9e57` | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 197 pass | [Ready](https://furmosa-db-git-cursor-line-morning-85dcf0-aa89976566s-projects.vercel.app) |
+| RL-HIST-102 | 2026-08-11 | Cloud | 4B-D Dashboard | `VERIFIED` | `…-d-dashboard-2673` | `3b15f34` | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 197 | Ready |
+| RL-2026-08-11-SAMPLE | 2026-08-11T00:49Z | Desktop CONSENSUS | sample-first 雙選項＋活動中心 | `VERIFIED` | `cursor/line-morning-sample-first-2673` | `5ac5943` | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) | 203 | [Ready](https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app) |

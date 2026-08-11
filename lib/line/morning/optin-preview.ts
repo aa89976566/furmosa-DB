@@ -4,20 +4,24 @@
  */
 
 import {
-  listContentOptionsForUser,
-  OPTIN_FREQUENCY_OPTIONS,
-  renderContentPrompt,
+  listOnboardingModeOptions,
+  listActiveFrequencyOptions,
+  listAllContentOptionsForDisplay,
+  renderModePrompt,
   renderFrequencyPrompt,
   renderOptinSuccessSummary,
   renderOptinSummary,
+  renderSampleMessage,
+  getSampleButtons,
   getContentOption,
   getFrequencyOption,
+  isOnboardingModeActionId,
   type OptinContentActionId,
   type OptinFrequencyActionId,
+  type OnboardingModeActionId,
 } from '@/lib/line/morning/domain/optin';
 
 export type MorningOptinPreviewInput = {
-  /** 目前 DB contentMode；alternate 時顯示沿用選項 */
   currentStorageMode?: string | null;
   contentActionId?: OptinContentActionId;
   frequencyActionId?: OptinFrequencyActionId;
@@ -26,10 +30,19 @@ export type MorningOptinPreviewInput = {
 export type MorningOptinPreviewResult = {
   contentPrompt: string;
   frequencyPrompt: string;
+  samplePreview: string | null;
+  sampleButtons: string[];
   contentOptions: Array<{
     actionId: string;
     buttonLabel: string;
     disclosure: string;
+    storageMode: string;
+    domainMode: string;
+  }>;
+  /** full mapping（含 legacy／OFF）收在 details 用 */
+  allContentOptions: Array<{
+    actionId: string;
+    buttonLabel: string;
     storageMode: string;
     domainMode: string;
   }>;
@@ -49,23 +62,36 @@ export function buildMorningOptinPreview(
 ): MorningOptinPreviewResult {
   const notes: string[] = [
     '此 Preview 與 LINE「早安設定」共用 lib/line/morning/domain/optin。',
+    'Onboarding 僅「笑個毛／豎起耳朵」；full mapping 仍保留 legacy／OFF。',
     '不寫入 preference；不呼叫 LINE push／broadcast。',
   ];
-  const contentOptions = listContentOptionsForUser(
-    input.currentStorageMode ?? null,
-  ).map((o) => ({
+  const contentOptions = listOnboardingModeOptions().map((o) => ({
     actionId: o.actionId,
     buttonLabel: o.buttonLabel,
     disclosure: o.disclosure,
     storageMode: o.storageMode,
     domainMode: o.domainMode,
   }));
-  const frequencyOptions = OPTIN_FREQUENCY_OPTIONS.map((o) => ({
+  const allContentOptions = listAllContentOptionsForDisplay().map((o) => ({
+    actionId: o.actionId,
+    buttonLabel: o.buttonLabel,
+    storageMode: o.storageMode,
+    domainMode: o.domainMode,
+  }));
+  const frequencyOptions = listActiveFrequencyOptions().map((o) => ({
     actionId: o.actionId,
     buttonLabel: o.buttonLabel,
     disclosure: o.disclosure,
     storageFrequency: o.storageFrequency,
   }));
+
+  let samplePreview: string | null = null;
+  let sampleButtons: string[] = [];
+  if (input.contentActionId && isOnboardingModeActionId(input.contentActionId)) {
+    const mode = input.contentActionId as OnboardingModeActionId;
+    samplePreview = renderSampleMessage(mode);
+    sampleButtons = getSampleButtons(mode).map((b) => b.label);
+  }
 
   let summary: string | null = null;
   let successSummary: string | null = null;
@@ -81,11 +107,12 @@ export function buildMorningOptinPreview(
   }
 
   return {
-    contentPrompt: renderContentPrompt({
-      currentStorageMode: input.currentStorageMode,
-    }),
+    contentPrompt: renderModePrompt(),
     frequencyPrompt: renderFrequencyPrompt(),
+    samplePreview,
+    sampleButtons,
     contentOptions,
+    allContentOptions,
     frequencyOptions,
     summary,
     successSummary,

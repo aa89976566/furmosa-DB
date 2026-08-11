@@ -62,19 +62,26 @@ export function morningUnsubscribedText(): string {
 }
 
 export const CONTENT_MODE_LABELS: Record<string, string> = {
-  jokes: '毛孩笑話',
-  news: '只要寵物新鮮事',
-  alternate: '沿用原設定：笑話／新聞交替',
+  jokes: '笑個毛',
+  news: '豎起耳朵',
+  humor_only: '笑個毛',
+  HUMOR_ONLY: '笑個毛',
+  news_only: '豎起耳朵',
+  NEWS_ONLY: '豎起耳朵',
+  alternate: '笑話／新聞交替',
+  ALTERNATE: '笑話／新聞交替',
   news_first_fact_fallback: '新鮮事；沒有時改冷知識',
   news_first_fact_or_humor_fallback: '新鮮事；沒有時冷知識／笑話',
   off: '先不用',
+  OFF: '先不用',
   unset: '未設定',
+  UNSET: '未設定',
 };
 
 export const FREQUENCY_LABELS: Record<string, string> = {
-  daily: '每天',
-  weekday: '平日',
-  weekly: '每週五',
+  daily: '每天早上',
+  weekday: '平日早上',
+  weekly: '每週五早上',
   off: '先不用',
   unset: '未設定',
 };

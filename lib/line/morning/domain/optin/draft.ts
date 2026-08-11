@@ -9,6 +9,7 @@ import type {
 } from '@/lib/line/morning/domain/optin/options';
 import {
   OPTIN_SESSION_TTL_MS,
+  normalizeOptinFlowStep,
   type OptinFlowStep,
 } from '@/lib/line/morning/domain/optin/postback';
 
@@ -17,6 +18,7 @@ export type MorningOptinDraft = {
   /** 短期 draft 用 opaque nonce；confirm ledger 只存 hash */
   nonce: string;
   expiresAt: string;
+  /** pendingMode（sample-first）；confirm 前不寫 preference */
   contentActionId?: OptinContentActionId;
   frequencyActionId?: OptinFrequencyActionId;
 };
@@ -83,7 +85,9 @@ export function assertDraftMatchesPostback(input: {
   if (input.draft.version !== input.version) {
     return { ok: false, reason: 'mismatch' };
   }
-  if (input.sessionStep !== input.step) {
+  const sessionNorm = normalizeOptinFlowStep(input.sessionStep);
+  const stepNorm = normalizeOptinFlowStep(input.step);
+  if (!sessionNorm || !stepNorm || sessionNorm !== stepNorm) {
     return { ok: false, reason: 'mismatch' };
   }
   return { ok: true };
