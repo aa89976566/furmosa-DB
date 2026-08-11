@@ -7,7 +7,23 @@
 Base：`main` @ `8b291fc`  
 Branch：`cursor/refill-exchange-window-b63a`
 
-## 已完成（Phase 1）
+## HQ 可視化驗收入口（本輪補齊）
+
+精確路徑（需 HQ 登入，與 `/admin/store-report` 相同 session）：
+
+| 狀態 | URL path |
+|------|----------|
+| 加入前規則 | `/admin/line-message-preview/refill-exchange-window?state=join-before` |
+| 資格啟用 | `/admin/line-message-preview/refill-exchange-window?state=activated` |
+| 錯店 | `/admin/line-message-preview/refill-exchange-window?state=wrong-store` |
+| 即將到期 | `/admin/line-message-preview/refill-exchange-window?state=expiring-soon` |
+| 已過期 | `/admin/line-message-preview/refill-exchange-window?state=expired` |
+
+側欄：**換罐會員 → 換購期限預覽**
+
+此頁重用／對齊雞霸 PR 的 LINE Preview 桌機模擬器概念（`components/line-preview`），但**不**引入雞霸流程、**不**接 live DB／push／cron。
+
+**已完成（Phase 1）**
 
 1. **資料模型** `RefillExchangeEntitlement` → 表 `refill_exchange_entitlements`
    - 一空瓶（`returnedJarCodeId` unique）→ 一筆資格

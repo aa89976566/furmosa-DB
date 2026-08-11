@@ -15,6 +15,7 @@ import {
   Truck,
   BarChart3,
   PackageOpen,
+  MessageSquareText,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionTone } from '@/lib/section-tone';
@@ -84,6 +85,11 @@ export const navGroups: NavGroup[] = [
       { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', icon: Rocket },
       { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', icon: Gift },
       { href: '/admin/store-report', label: '店家核銷報表', icon: BarChart3 },
+      {
+        href: '/admin/line-message-preview/refill-exchange-window',
+        label: '換購期限預覽',
+        icon: MessageSquareText,
+      },
     ],
   },
   {
