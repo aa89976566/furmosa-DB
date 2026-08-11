@@ -20,9 +20,9 @@
 | Canonical Cursor agent | https://cursor.com/agents/bc-20a8edae-6fd3-422d-b7fb-2be1d3702673 |
 | Active branch | `cursor/line-morning-brief-first-2673` |
 | Stack base | PR #103 head `9946077` |
-| Head | （本 PR） |
-| Draft PR | （建立中） |
-| Preview | （建立中） |
+| Head | `f8f5741` |
+| Draft PR | [#104](https://github.com/aa89976566/furmosa-DB/pull/104) |
+| Preview | （Vercel Ready 後更新） |
 
 ## PR stack
 
@@ -50,12 +50,12 @@ main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @9946077 → b
 
 | Check | Result |
 |-------|--------|
-| morning+LINE | （跑測中） |
-| schema diff vs #103 | **必須 0** |
-| prisma validate/generate | （待） |
-| next build（無 migrate deploy） | （待） |
+| morning+LINE | **212 pass** |
+| schema diff vs #103 | **0** |
+| prisma validate/generate | ok |
+| next build（無 migrate deploy） | ok |
 | tsc | **0 new**（baseline 3） |
-| Frozen #96–#103 | 不變 |
+| Frozen #96–#103 | 不變（#103 仍 `9946077`） |
 
 ---
 
@@ -65,4 +65,4 @@ main → #96 → #97 → #100 → #101 → #102 @3b15f34 → #103 @9946077 → b
 |----|------------|------|------|------|--------|--------|-----|-------|---------|
 | RL-HIST-102 | 2026-08-11 | Cloud | 4B-D Dashboard | `VERIFIED` | `…-d-dashboard-2673` | `3b15f34` | [#102](https://github.com/aa89976566/furmosa-DB/pull/102) | 197 | Ready |
 | RL-2026-08-11-SAMPLE | 2026-08-11T00:49Z | Desktop CONSENSUS | sample-first 雙選項＋活動中心 | `VERIFIED` | `cursor/line-morning-sample-first-2673` | `5ac5943`／`9946077` | [#103](https://github.com/aa89976566/furmosa-DB/pull/103) | 203 | [Ready](https://furmosa-db-git-cursor-line-morning-0e30a0-aa89976566s-projects.vercel.app) |
-| RL-2026-08-11-BRIEF | 2026-08-11T01:20Z | Desktop CONSENSUS | brief-first＋winner first content | `PLANNED` | `cursor/line-morning-brief-first-2673` | — | — | — | — |
+| RL-2026-08-11-BRIEF | 2026-08-11T01:20Z | Desktop CONSENSUS | brief-first＋winner first content | `VERIFIED` | `cursor/line-morning-brief-first-2673` | `f8f5741` | [#104](https://github.com/aa89976566/furmosa-DB/pull/104) | 212 | （Preview） |
