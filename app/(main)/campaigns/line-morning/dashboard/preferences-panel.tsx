@@ -57,13 +57,20 @@ export function PreferencesPanel({
               {optinPreview.contentPrompt}
             </pre>
             <div className="space-y-2">
+              {optinPreview.samplePreview ? (
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+                  {optinPreview.samplePreview}
+                  {'\n\n'}
+                  {optinPreview.sampleButtons.join(' ／ ')}
+                </pre>
+              ) : null}
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
                 {optinPreview.frequencyPrompt}
               </pre>
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
                 {optinPreview.summary ?? '（選內容＋頻率後顯示摘要）'}
               </pre>
-              <pre className="max-h-24 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
+              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 text-xs">
                 {optinPreview.successSummary ?? '（確認後成功摘要）'}
               </pre>
             </div>

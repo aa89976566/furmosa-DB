@@ -1,6 +1,7 @@
 /**
- * Phase 4B-B CONSENSUS：明確 re-opt-in 偏好對話
- * content → frequency → summary → confirm
+ * Sample-first CONSENSUS：雙選項 sample flow
+ * IDLE → mode → sample → frequency → summary → confirm
+ * Legacy：摘要 → keep(0 writes)／explore → mode…
  * 僅 confirm 單交易寫入 preference；此前 preference 0 writes
  */
 
@@ -14,31 +15,42 @@ import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
 import {
   OPTIN_CANCEL_REPLY,
   OPTIN_EXPIRED_REPLY,
-  OPTIN_ABORT_FREE_TEXT_REPLY,
+  OPTIN_INVALID_STAY_HINT,
+  OPTIN_LEGACY_KEEP_REPLY,
+  OPTIN_SAMPLE_PASS_REPLY,
   buildOptinPostbackData,
   createOptinNonce,
   digestOptinConfirmPayload,
   getContentOption,
   getFrequencyOption,
+  getSampleButtons,
+  isOnboardingModeActionId,
   isOptinContentActionId,
   isOptinFrequencyActionId,
-  listContentOptionsForUser,
+  listActiveFrequencyOptions,
+  listOnboardingModeOptions,
   matchContentActionFromText,
   matchFrequencyActionFromText,
+  matchLegacyGateActionFromText,
+  matchSampleActionFromText,
   matchSummaryActionFromText,
   newOptinDraft,
+  normalizeOptinFlowStep,
+  otherOnboardingMode,
   parseMorningOptinDraft,
   parseOptinPostbackData,
-  renderContentPrompt,
   renderFrequencyPrompt,
+  renderLegacyPreferenceSummary,
+  renderModePrompt,
   renderOptinSuccessSummary,
   renderOptinSummary,
+  renderSampleMessage,
   resolveOptinEventKey,
   assertDraftMatchesPostback,
   isOptinFlowStep,
   OPTIN_FLOW,
-  OPTIN_FREQUENCY_OPTIONS,
   type MorningOptinDraft,
+  type OnboardingModeActionId,
   type OptinActionId,
   type OptinContentActionId,
   type OptinFlowStep,
@@ -103,14 +115,17 @@ export type PreferenceFlowDeps = {
   reply: PreferenceFlowReplyFn;
   now: () => Date;
   createNonce: () => string;
-  /**
-   * preference upsert + ledger create 必須同交易。
-   * 回呼內應使用 tx 上的寫入方法，避免跨 client。
-   */
+  /** 未建 profile → 走既有註冊閘門；null＝允許（測試） */
+  findCustomerIdByLineUserId?: (lineUserId: string) => Promise<string | null>;
+  /** 註冊閘門回覆（預設文字） */
+  replyRegisterGate?: PreferenceFlowReplyFn;
   runConfirmTransaction: <T>(
     fn: (tx: ConfirmTxClient) => Promise<T>,
   ) => Promise<T>;
 };
+
+const REGISTER_GATE_TEXT =
+  '麻煩先幫毛孩開個戶喔～\n開好戶再回「早安設定」，我再陪你選。';
 
 const defaultDeps: PreferenceFlowDeps = {
   getSession: getLineChatSession,
@@ -126,6 +141,16 @@ const defaultDeps: PreferenceFlowDeps = {
   },
   now: () => new Date(),
   createNonce: createOptinNonce,
+  findCustomerIdByLineUserId: async (lineUserId) => {
+    const c = await prisma.customer.findFirst({
+      where: { lineUserId },
+      select: { id: true },
+    });
+    return c?.id ?? null;
+  },
+  replyRegisterGate: async (replyToken, messages) => {
+    await replyLineMessage(replyToken, messages);
+  },
   runConfirmTransaction: async (fn) =>
     prisma.$transaction(async (tx) =>
       fn({
@@ -162,17 +187,14 @@ function qrPostback(
   };
 }
 
-function buildContentQuickReply(
-  draft: MorningOptinDraft,
-  currentStorageMode: string | null | undefined,
-): LineQuickReplyItem[] {
-  return listContentOptionsForUser(currentStorageMode).map((opt) =>
+function buildModeQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] {
+  return listOnboardingModeOptions().map((opt) =>
     qrPostback(
       opt.buttonLabel,
       buildOptinPostbackData({
         nonce: draft.nonce,
         version: draft.version,
-        step: 'content',
+        step: 'mode',
         actionId: opt.actionId,
       }),
       opt.buttonLabel,
@@ -180,8 +202,26 @@ function buildContentQuickReply(
   );
 }
 
+function buildSampleQuickReply(
+  draft: MorningOptinDraft,
+  pending: OnboardingModeActionId,
+): LineQuickReplyItem[] {
+  return getSampleButtons(pending).map((btn) =>
+    qrPostback(
+      btn.label,
+      buildOptinPostbackData({
+        nonce: draft.nonce,
+        version: draft.version,
+        step: 'sample',
+        actionId: btn.actionId,
+      }),
+      btn.label,
+    ),
+  );
+}
+
 function buildFrequencyQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] {
-  return OPTIN_FREQUENCY_OPTIONS.map((opt) =>
+  return listActiveFrequencyOptions().map((opt) =>
     qrPostback(
       opt.buttonLabel,
       buildOptinPostbackData({
@@ -217,6 +257,30 @@ function buildSummaryQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] 
   ];
 }
 
+function buildLegacyQuickReply(draft: MorningOptinDraft): LineQuickReplyItem[] {
+  return [
+    qrPostback(
+      '維持目前設定',
+      buildOptinPostbackData({
+        nonce: draft.nonce,
+        version: draft.version,
+        step: 'legacy',
+        actionId: 'legacy_keep',
+      }),
+    ),
+    qrPostback(
+      '看看笑個毛／豎起耳朵',
+      buildOptinPostbackData({
+        nonce: draft.nonce,
+        version: draft.version,
+        step: 'legacy',
+        actionId: 'legacy_explore',
+      }),
+      '看看笑個毛／豎起耳朵',
+    ),
+  ];
+}
+
 async function replyExpired(
   deps: PreferenceFlowDeps,
   replyToken: string,
@@ -226,75 +290,112 @@ async function replyExpired(
   await deps.reply(replyToken, [{ type: 'text', text: OPTIN_EXPIRED_REPLY }]);
 }
 
-async function abortDraft(
+async function redisplayCurrentStep(
   deps: PreferenceFlowDeps,
   replyToken: string,
   lineUserId: string,
-  text: string,
+  step: OptinFlowStep,
+  draft: MorningOptinDraft,
 ): Promise<void> {
-  await deps.clearSession(lineUserId);
-  await deps.reply(replyToken, [{ type: 'text', text }]);
-}
-
-/** 交易／導覽指令：清 draft、交回原 handler（不吞） */
-function isTransactionalPassThrough(text: string): boolean {
-  const parsed = parseLineUserText(text);
-  if (parsed.kind === 'unknown') return false;
-  if (parsed.kind === 'greeting' || parsed.kind === 'help') return false;
-  if (SESSION_BYPASS_KINDS.has(parsed.kind)) return true;
-  return (
-    parsed.kind === 'jar_code' ||
-    parsed.kind === 'bind' ||
-    parsed.kind === 'balance' ||
-    parsed.kind === 'savings' ||
-    parsed.kind === 'status' ||
-    parsed.kind === 'rewards_list' ||
-    parsed.kind === 'redeem_reward' ||
-    parsed.kind === 'unboxing' ||
-    parsed.kind === 'events_center' ||
-    parsed.kind === 'hub_jar' ||
-    parsed.kind === 'hub_chaos' ||
-    parsed.kind === 'hub_wild' ||
-    parsed.kind === 'comic_roam' ||
-    parsed.kind === 'comic_grooming' ||
-    parsed.kind === 'comic_home' ||
-    parsed.kind === 'bind_help'
-  );
-}
-
-/**
- * 開啟偏好流程（preference 0 writes；只寫 LineChatSession draft）
- */
-export async function startMorningPreferenceFlow(
-  replyToken: string | null,
-  lineUserId: string,
-  opts?: {
-    fromSettings?: boolean;
-    reply?: boolean;
-    deps?: Partial<PreferenceFlowDeps>;
-  },
-): Promise<{ text: string; nonce: string; version: number }> {
-  const deps = resolveDeps(opts?.deps);
-  const pref = await deps.getPreference(lineUserId);
-  const nonce = deps.createNonce();
-  const draft = newOptinDraft({ nonce, now: deps.now() });
-  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'content', draft);
-  const text = renderContentPrompt({
-    currentStorageMode: pref?.contentMode ?? null,
-  });
-  const items = buildContentQuickReply(draft, pref?.contentMode ?? null);
-
-  if (opts?.reply === false || !replyToken) {
-    return { text, nonce: draft.nonce, version: draft.version };
+  const hint = OPTIN_INVALID_STAY_HINT;
+  if (step === 'legacy') {
+    const pref = await deps.getPreference(lineUserId);
+    const text = [
+      renderLegacyPreferenceSummary({
+        contentMode: pref?.contentMode ?? 'unset',
+        frequency: pref?.frequency ?? 'unset',
+      }),
+      '',
+      hint,
+    ].join('\n');
+    await deps.reply(replyToken, [
+      { type: 'text', text, quickReply: { items: buildLegacyQuickReply(draft) } },
+    ]);
+    return;
   }
+  if (step === 'mode' || step === 'content') {
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text: `${renderModePrompt()}\n\n${hint}`,
+        quickReply: { items: buildModeQuickReply(draft) },
+      },
+    ]);
+    return;
+  }
+  if (step === 'sample' && draft.contentActionId && isOnboardingModeActionId(draft.contentActionId)) {
+    const pending = draft.contentActionId;
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text: `${renderSampleMessage(pending)}\n\n${hint}`,
+        quickReply: { items: buildSampleQuickReply(draft, pending) },
+      },
+    ]);
+    return;
+  }
+  if (step === 'frequency') {
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text: `${renderFrequencyPrompt()}\n\n${hint}`,
+        quickReply: { items: buildFrequencyQuickReply(draft) },
+      },
+    ]);
+    return;
+  }
+  if (step === 'summary' && draft.contentActionId && draft.frequencyActionId) {
+    const content = getContentOption(draft.contentActionId)!;
+    const frequency = getFrequencyOption(draft.frequencyActionId)!;
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text: `${renderOptinSummary({ content, frequency })}\n\n${hint}`,
+        quickReply: { items: buildSummaryQuickReply(draft) },
+      },
+    ]);
+    return;
+  }
+  await replyExpired(deps, replyToken, lineUserId);
+}
+
+async function enterModeStep(
+  deps: PreferenceFlowDeps,
+  replyToken: string,
+  lineUserId: string,
+  draft: MorningOptinDraft,
+): Promise<void> {
+  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'mode', draft);
   await deps.reply(replyToken, [
     {
       type: 'text',
-      text,
-      quickReply: { items },
+      text: renderModePrompt(),
+      quickReply: { items: buildModeQuickReply(draft) },
     },
   ]);
-  return { text, nonce: draft.nonce, version: draft.version };
+}
+
+async function enterSampleStep(
+  deps: PreferenceFlowDeps,
+  replyToken: string,
+  lineUserId: string,
+  draft: MorningOptinDraft,
+  pendingMode: OnboardingModeActionId,
+): Promise<void> {
+  const next: MorningOptinDraft = {
+    ...draft,
+    version: draft.version + 1,
+    contentActionId: pendingMode,
+    frequencyActionId: undefined,
+  };
+  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'sample', next);
+  await deps.reply(replyToken, [
+    {
+      type: 'text',
+      text: renderSampleMessage(pendingMode),
+      quickReply: { items: buildSampleQuickReply(next, pendingMode) },
+    },
+  ]);
 }
 
 async function advanceToFrequency(
@@ -302,33 +403,10 @@ async function advanceToFrequency(
   replyToken: string,
   lineUserId: string,
   draft: MorningOptinDraft,
-  contentActionId: OptinContentActionId,
 ): Promise<void> {
-  // E 先不用：略過頻率，直接摘要（frequency=off）
-  if (contentActionId === 'content_e') {
-    const next: MorningOptinDraft = {
-      ...draft,
-      version: draft.version + 1,
-      contentActionId,
-      frequencyActionId: 'freq_off',
-    };
-    await deps.upsertSession(lineUserId, OPTIN_FLOW, 'summary', next);
-    const content = getContentOption(contentActionId)!;
-    const frequency = getFrequencyOption('freq_off')!;
-    await deps.reply(replyToken, [
-      {
-        type: 'text',
-        text: renderOptinSummary({ content, frequency }),
-        quickReply: { items: buildSummaryQuickReply(next) },
-      },
-    ]);
-    return;
-  }
-
   const next: MorningOptinDraft = {
     ...draft,
     version: draft.version + 1,
-    contentActionId,
     frequencyActionId: undefined,
   };
   await deps.upsertSession(lineUserId, OPTIN_FLOW, 'frequency', next);
@@ -386,7 +464,6 @@ async function tryReplayIdenticalConfirm(
     await deps.reply(replyToken, [{ type: 'text', text: row.successSummary }]);
     return 'replayed';
   }
-  // 同 event key 但 digest/version/nonce 不一致 → 拒絕（0 writes）
   await replyExpired(deps, replyToken, lineUserId);
   return 'rejected';
 }
@@ -409,6 +486,31 @@ async function applyConfirm(
     return;
   }
 
+  // 完成後相同設定 no-op：若 preference 已相同且有 ledger 成功摘要
+  const existingPref = await deps.getPreference(lineUserId);
+  if (
+    existingPref &&
+    existingPref.contentMode === content.storageMode &&
+    existingPref.frequency === frequency.storageFrequency &&
+    isPreferenceComplete(existingPref)
+  ) {
+    await deps.clearSession(lineUserId);
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text: [
+          '目前已是這個設定，不用再改一次。',
+          '',
+          renderLegacyPreferenceSummary({
+            contentMode: existingPref.contentMode,
+            frequency: existingPref.frequency,
+          }),
+        ].join('\n'),
+      },
+    ]);
+    return;
+  }
+
   const successSummary = renderOptinSuccessSummary({ content, frequency });
   const payloadDigest = digestOptinConfirmPayload({
     contentActionId: content.actionId,
@@ -425,8 +527,6 @@ async function applyConfirm(
     payloadDigest,
   };
 
-  // 相同 webhook redelivery → 0 additional writes + byte-stable 重播
-  // （查詢不用 expiresAt／now）
   const existingByEvent = await deps.findLedgerByEventKey(eventKey);
   if (existingByEvent) {
     if (isIdenticalConfirmSuccess({ row: existingByEvent, ...matchInput })) {
@@ -439,7 +539,6 @@ async function applyConfirm(
     return;
   }
 
-  // nonce 已消費但 event／digest／version 不同 → 拒絕
   const byNonce = await deps.findLedgersByNonceHash(sessionNonceHash);
   if (byNonce.length > 0) {
     await replyExpired(deps, replyToken, lineUserId);
@@ -449,15 +548,10 @@ async function applyConfirm(
   let wrote = false;
   try {
     await deps.runConfirmTransaction(async (tx) => {
-      // 交易內再查 event（防競態 redelivery；不用 expiresAt）
       const again = await tx.findLedgerByEventKey(eventKey);
-      if (again) {
-        return;
-      }
+      if (again) return;
       const nonceHit = await tx.findLedgersByNonceHash(sessionNonceHash);
-      if (nonceHit.length > 0) {
-        return;
-      }
+      if (nonceHit.length > 0) return;
 
       const session = await tx.getSession(lineUserId);
       if (!session || session.flow !== OPTIN_FLOW || session.step !== 'summary') {
@@ -491,12 +585,10 @@ async function applyConfirm(
         successSummary,
         now: deps.now(),
       });
-      // 成功結果不留在 Session（避免被新 flow 覆寫）；清 draft
       await tx.clearSession(lineUserId);
       wrote = true;
     });
   } catch (err) {
-    // unique 衝突：可能並發同 event redelivery
     console.error('[line/morning] confirm ledger write conflict', err);
     const outcome = await tryReplayIdenticalConfirm(
       deps,
@@ -535,46 +627,160 @@ async function handleAction(
   actionId: OptinActionId,
   eventKey: string,
 ): Promise<void> {
-  if (sessionStep === 'content') {
-    if (!isOptinContentActionId(actionId)) {
-      await replyExpired(deps, replyToken, lineUserId);
+  const step = normalizeOptinFlowStep(sessionStep) ?? sessionStep;
+
+  if (step === 'legacy') {
+    if (actionId === 'legacy_keep') {
+      await deps.clearSession(lineUserId);
+      await deps.reply(replyToken, [
+        { type: 'text', text: OPTIN_LEGACY_KEEP_REPLY },
+      ]);
       return;
     }
-    // legacy alternate 僅在目前為 alternate 時允許
-    if (actionId === 'content_legacy_alternate') {
-      const pref = await deps.getPreference(lineUserId);
-      if (pref?.contentMode !== 'alternate') {
-        await replyExpired(deps, replyToken, lineUserId);
-        return;
-      }
+    if (actionId === 'legacy_explore') {
+      const next = newOptinDraft({ nonce: draft.nonce, now: deps.now() });
+      // 保留同一 nonce 家族？改新 nonce 較安全重啟
+      const fresh = newOptinDraft({
+        nonce: deps.createNonce(),
+        now: deps.now(),
+      });
+      void next;
+      await enterModeStep(deps, replyToken, lineUserId, fresh);
+      return;
     }
-    await advanceToFrequency(deps, replyToken, lineUserId, draft, actionId);
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'legacy', draft);
     return;
   }
 
-  if (sessionStep === 'frequency') {
-    if (!isOptinFrequencyActionId(actionId)) {
+  if (step === 'mode') {
+    if (!isOptinContentActionId(actionId) || !isOnboardingModeActionId(actionId)) {
+      await redisplayCurrentStep(deps, replyToken, lineUserId, 'mode', draft);
+      return;
+    }
+    await enterSampleStep(deps, replyToken, lineUserId, draft, actionId);
+    return;
+  }
+
+  if (step === 'sample') {
+    if (!draft.contentActionId || !isOnboardingModeActionId(draft.contentActionId)) {
       await replyExpired(deps, replyToken, lineUserId);
+      return;
+    }
+    const pending = draft.contentActionId;
+    if (actionId === 'sample_confirm') {
+      await advanceToFrequency(deps, replyToken, lineUserId, draft);
+      return;
+    }
+    if (actionId === 'sample_switch') {
+      const other = otherOnboardingMode(pending);
+      await enterSampleStep(deps, replyToken, lineUserId, draft, other);
+      return;
+    }
+    if (actionId === 'sample_pass') {
+      await deps.clearSession(lineUserId);
+      await deps.reply(replyToken, [
+        { type: 'text', text: OPTIN_SAMPLE_PASS_REPLY },
+      ]);
+      return;
+    }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'sample', draft);
+    return;
+  }
+
+  if (step === 'frequency') {
+    if (!isOptinFrequencyActionId(actionId) || actionId === 'freq_off') {
+      await redisplayCurrentStep(deps, replyToken, lineUserId, 'frequency', draft);
       return;
     }
     await advanceToSummary(deps, replyToken, lineUserId, draft, actionId);
     return;
   }
 
-  if (sessionStep === 'summary') {
+  if (step === 'summary') {
     if (actionId === 'cancel') {
-      await abortDraft(deps, replyToken, lineUserId, OPTIN_CANCEL_REPLY);
+      await deps.clearSession(lineUserId);
+      await deps.reply(replyToken, [{ type: 'text', text: OPTIN_CANCEL_REPLY }]);
       return;
     }
     if (actionId === 'confirm') {
       await applyConfirm(deps, replyToken, lineUserId, draft, eventKey);
       return;
     }
-    await replyExpired(deps, replyToken, lineUserId);
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'summary', draft);
     return;
   }
 
   await replyExpired(deps, replyToken, lineUserId);
+}
+
+/**
+ * 開啟偏好流程（preference 0 writes；只寫 LineChatSession draft）
+ * 安全重啟：清過期 pending，不沿用。
+ */
+export async function startMorningPreferenceFlow(
+  replyToken: string | null,
+  lineUserId: string,
+  opts?: {
+    fromSettings?: boolean;
+    reply?: boolean;
+    deps?: Partial<PreferenceFlowDeps>;
+  },
+): Promise<{ text: string; nonce: string; version: number; step: OptinFlowStep }> {
+  const deps = resolveDeps(opts?.deps);
+
+  // auth guard：未建 profile → 既有註冊流程
+  if (deps.findCustomerIdByLineUserId) {
+    const customerId = await deps.findCustomerIdByLineUserId(lineUserId);
+    if (!customerId) {
+      const text = REGISTER_GATE_TEXT;
+      if (opts?.reply !== false && replyToken) {
+        const gate = deps.replyRegisterGate ?? deps.reply;
+        await gate(replyToken, [{ type: 'text', text }]);
+      }
+      return { text, nonce: '', version: 0, step: 'mode' };
+    }
+  }
+
+  // 重啟：清舊 session
+  await deps.clearSession(lineUserId);
+
+  const pref = await deps.getPreference(lineUserId);
+  const nonce = deps.createNonce();
+  const draft = newOptinDraft({ nonce, now: deps.now() });
+
+  // Legacy：已完整設定 → 先摘要閘門（0 preference writes）
+  if (isPreferenceComplete(pref)) {
+    await deps.upsertSession(lineUserId, OPTIN_FLOW, 'legacy', draft);
+    const text = renderLegacyPreferenceSummary({
+      contentMode: pref!.contentMode,
+      frequency: pref!.frequency,
+    });
+    if (opts?.reply === false || !replyToken) {
+      return { text, nonce: draft.nonce, version: draft.version, step: 'legacy' };
+    }
+    await deps.reply(replyToken, [
+      {
+        type: 'text',
+        text,
+        quickReply: { items: buildLegacyQuickReply(draft) },
+      },
+    ]);
+    return { text, nonce: draft.nonce, version: draft.version, step: 'legacy' };
+  }
+
+  await deps.upsertSession(lineUserId, OPTIN_FLOW, 'mode', draft);
+  const text = renderModePrompt();
+  if (opts?.reply === false || !replyToken) {
+    return { text, nonce: draft.nonce, version: draft.version, step: 'mode' };
+  }
+  await deps.reply(replyToken, [
+    {
+      type: 'text',
+      text,
+      quickReply: { items: buildModeQuickReply(draft) },
+    },
+  ]);
+  return { text, nonce: draft.nonce, version: draft.version, step: 'mode' };
 }
 
 export async function handleMorningOptinPostback(
@@ -603,8 +809,6 @@ export async function handleMorningOptinPostback(
     return true;
   }
 
-  // Session 可能已被清掉：相同 event redelivery 仍須靠 DB ledger 重播
-  // （correctness 不依賴 TTL／Session）
   {
     const byEvent = await deps.findLedgerByEventKey(eventKey);
     if (byEvent?.status === 'SUCCESS') {
@@ -615,7 +819,6 @@ export async function handleMorningOptinPostback(
     }
   }
 
-  // 歷史按鈕／已消費 nonce（不同 event）→ 過期（0 writes）
   {
     const nonceHash = hashOptinSessionNonce(parsed.nonce);
     const consumed = await deps.findLedgersByNonceHash(nonceHash);
@@ -681,6 +884,7 @@ export async function handleMorningPreferenceMessage(
     await replyExpired(deps, replyToken, lineUserId);
     return true;
   }
+  const step = normalizeOptinFlowStep(session.step) ?? session.step;
 
   const cmd = parseMorningCommand(text);
   if (cmd.kind === 'bare_stop') {
@@ -688,6 +892,7 @@ export async function handleMorningPreferenceMessage(
     return true;
   }
   if (cmd.kind === 'settings') {
+    // 安全重啟入口，不沿用過期 pending
     await startMorningPreferenceFlow(replyToken, lineUserId, { deps });
     return true;
   }
@@ -716,7 +921,6 @@ export async function handleMorningPreferenceMessage(
     return true;
   }
 
-  // 交易指令：中止 draft、0 preference writes（除清 session）、交回 handler
   if (isTransactionalPassThrough(text)) {
     await deps.clearSession(lineUserId);
     return false;
@@ -724,57 +928,87 @@ export async function handleMorningPreferenceMessage(
 
   const eventKey = `msg:${lineUserId}:${deps.now().getTime()}`;
 
-  if (session.step === 'content') {
+  if (step === 'legacy') {
+    const action = matchLegacyGateActionFromText(text);
+    if (action) {
+      await handleAction(deps, replyToken, lineUserId, draft, 'legacy', action, eventKey);
+      return true;
+    }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'legacy', draft);
+    return true;
+  }
+
+  if (step === 'mode') {
     const action = matchContentActionFromText(text);
-    if (action) {
-      await handleAction(
-        deps,
-        replyToken,
-        lineUserId,
-        draft!,
-        'content',
-        action,
-        eventKey,
-      );
+    if (action && isOnboardingModeActionId(action)) {
+      await handleAction(deps, replyToken, lineUserId, draft, 'mode', action, eventKey);
       return true;
     }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'mode', draft);
+    return true;
   }
 
-  if (session.step === 'frequency') {
+  if (step === 'sample') {
+    if (!draft.contentActionId || !isOnboardingModeActionId(draft.contentActionId)) {
+      await replyExpired(deps, replyToken, lineUserId);
+      return true;
+    }
+    const action = matchSampleActionFromText(text, draft.contentActionId);
+    if (action) {
+      await handleAction(deps, replyToken, lineUserId, draft, 'sample', action, eventKey);
+      return true;
+    }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'sample', draft);
+    return true;
+  }
+
+  if (step === 'frequency') {
     const action = matchFrequencyActionFromText(text);
-    if (action) {
-      await handleAction(
-        deps,
-        replyToken,
-        lineUserId,
-        draft!,
-        'frequency',
-        action,
-        eventKey,
-      );
+    if (action && action !== 'freq_off') {
+      await handleAction(deps, replyToken, lineUserId, draft, 'frequency', action, eventKey);
       return true;
     }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'frequency', draft);
+    return true;
   }
 
-  if (session.step === 'summary') {
+  if (step === 'summary') {
     const action = matchSummaryActionFromText(text);
     if (action) {
-      await handleAction(
-        deps,
-        replyToken,
-        lineUserId,
-        draft!,
-        'summary',
-        action,
-        eventKey,
-      );
+      await handleAction(deps, replyToken, lineUserId, draft, 'summary', action, eventKey);
       return true;
     }
+    await redisplayCurrentStep(deps, replyToken, lineUserId, 'summary', draft);
+    return true;
   }
 
-  // 一般自由文字：中止、清 draft、0 preference writes
-  await abortDraft(deps, replyToken, lineUserId, OPTIN_ABORT_FREE_TEXT_REPLY);
+  await redisplayCurrentStep(deps, replyToken, lineUserId, step, draft);
   return true;
+}
+
+function isTransactionalPassThrough(text: string): boolean {
+  const parsed = parseLineUserText(text);
+  if (parsed.kind === 'unknown') return false;
+  if (parsed.kind === 'greeting' || parsed.kind === 'help') return false;
+  if (SESSION_BYPASS_KINDS.has(parsed.kind)) return true;
+  return (
+    parsed.kind === 'jar_code' ||
+    parsed.kind === 'bind' ||
+    parsed.kind === 'balance' ||
+    parsed.kind === 'savings' ||
+    parsed.kind === 'status' ||
+    parsed.kind === 'rewards_list' ||
+    parsed.kind === 'redeem_reward' ||
+    parsed.kind === 'unboxing' ||
+    parsed.kind === 'events_center' ||
+    parsed.kind === 'hub_jar' ||
+    parsed.kind === 'hub_chaos' ||
+    parsed.kind === 'hub_wild' ||
+    parsed.kind === 'comic_roam' ||
+    parsed.kind === 'comic_grooming' ||
+    parsed.kind === 'comic_home' ||
+    parsed.kind === 'bind_help'
+  );
 }
 
 function isExpiredOrBad(draft: MorningOptinDraft, now: Date): boolean {
@@ -782,10 +1016,6 @@ function isExpiredOrBad(draft: MorningOptinDraft, now: Date): boolean {
   return Number.isNaN(exp) || now.getTime() >= exp;
 }
 
-/**
- * 全域早安指令（非 session）：僅設定／暫停／恢復／退訂／裸停止
- * 內容／頻率關鍵字不再直接寫入（必須走 confirm 流程）
- */
 export async function handleMorningGlobalCommand(
   replyToken: string,
   lineUserId: string,
@@ -831,7 +1061,6 @@ export async function handleMorningGlobalCommand(
     return true;
   }
 
-  // content_mode / frequency 全域捷徑：改引導進設定，不直接寫
   if (cmd.kind === 'content_mode' || cmd.kind === 'frequency') {
     await startMorningPreferenceFlow(replyToken, lineUserId, { deps });
     return true;
@@ -840,7 +1069,6 @@ export async function handleMorningGlobalCommand(
   return false;
 }
 
-/** 測試／HQ 用：讀取目前 draft（不寫入） */
 export async function peekMorningOptinDraft(
   lineUserId: string,
   deps?: Partial<PreferenceFlowDeps>,

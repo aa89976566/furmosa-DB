@@ -119,14 +119,35 @@ export function buildFrogProjectMessages(opts?: {
   });
 }
 
-/** 活動中心：輪播 cover＋邀請丟想法（bark） */
+/** 活動中心 canonical「早安設定」入口（message → 既有 webhook／router／auth） */
+export const EVENTS_CENTER_MORNING_SETTINGS_LABEL = '早安設定';
+export const EVENTS_CENTER_MORNING_SETTINGS_MESSAGE = '早安設定';
+
+/** 活動中心：輪播 cover＋邀請丟想法（bark）＋單一 canonical 早安設定按鈕 */
 export function buildEventsCenterMessages(opts?: {
   registered?: boolean;
   includeHub?: boolean;
 }): LineReplyMessage[] {
+  const morningBtn = buildButtonMenuFlex({
+    altText: EVENTS_CENTER_MORNING_SETTINGS_LABEL,
+    theme: WORLD_THEME.chaos,
+    title: '壽司匠早安',
+    subtitle: '每天一小則，陪你開啟毛孩日常。',
+    items: [
+      {
+        label: EVENTS_CENTER_MORNING_SETTINGS_LABEL,
+        action: {
+          type: 'message',
+          text: EVENTS_CENTER_MORNING_SETTINGS_MESSAGE,
+        },
+        style: 'primary',
+      },
+    ],
+  });
   return buildCoverDialogueMessages({
     coverUrl: eventsCoverUrl(),
     lines: CHAOS_DIALOGUE.chaos_events,
+    trailing: [morningBtn],
   });
 }
 

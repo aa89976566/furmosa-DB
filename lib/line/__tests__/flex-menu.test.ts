@@ -230,7 +230,7 @@ describe('一起野放', () => {
     assert.ok(msgs.length <= 5);
   });
 
-  it('活動中心：輪播 cover＋邀請丟想法（bark）', () => {
+  it('活動中心：輪播 cover＋邀請丟想法（bark）＋canonical 早安設定', () => {
     const msgs = buildEventsCenterMessages({ registered: false, includeHub: false });
     assert.equal(msgs[0]?.type, 'image');
     const img = msgs[0] as { originalContentUrl: string };
@@ -245,6 +245,9 @@ describe('一起野放', () => {
     assert.doesNotMatch(joined, /沒梗了/);
     assert.doesNotMatch(joined, /你家那句/);
     assert.doesNotMatch(joined, /【/);
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /早安設定/);
+    assert.ok(msgs.some((m) => m.type === 'flex'));
     assert.ok(msgs.length <= 5);
   });
 });

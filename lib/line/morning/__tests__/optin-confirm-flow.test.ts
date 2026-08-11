@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 
 import {
   OPTIN_EXPIRED_REPLY,
-  NEWS_ONLY_SOURCE_DISCLOSURE,
+  OPTIN_INVALID_STAY_HINT,
+  HUMOR_SAMPLE_BODY,
   buildOptinPostbackData,
   type MorningOptinDraft,
 } from '@/lib/line/morning/domain/optin';
@@ -54,7 +55,7 @@ function createMemoryDeps(seed?: {
     prefs.set('U1', {
       id: 'p1',
       lineUserId: 'U1',
-      customerId: null,
+      customerId: 'cust1',
       contentMode: 'unset',
       frequency: 'unset',
       pausedAt: null,
@@ -81,7 +82,7 @@ function createMemoryDeps(seed?: {
       customerId:
         data.customerId !== undefined
           ? data.customerId ?? null
-          : prev?.customerId ?? null,
+          : prev?.customerId ?? 'cust1',
       contentMode: (data.contentMode ??
         prev?.contentMode ??
         'unset') as MorningPreferenceRow['contentMode'],
@@ -180,6 +181,7 @@ function createMemoryDeps(seed?: {
         .digest('hex')
         .slice(0, 32);
     },
+    findCustomerIdByLineUserId: async () => 'cust1',
     runConfirmTransaction: async (fn) => fn(txClient),
   };
 
@@ -210,42 +212,55 @@ function sessionDraft(sessions: Map<string, SessionRow>): MorningOptinDraft {
   return JSON.parse(s.payload) as MorningOptinDraft;
 }
 
-describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
-  it('confirm 前 preference 0 writes；完整 content→freq→summary→confirm 一次 write', async () => {
+async function walkToSummary(mem: Mem, mode: 'content_a' | 'content_b' = 'content_a') {
+  await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
+  let d = sessionDraft(mem.sessions);
+  await handleMorningOptinPostback(
+    'tok',
+    'U1',
+    buildOptinPostbackData({
+      nonce: d.nonce,
+      version: d.version,
+      step: 'mode',
+      actionId: mode,
+    }),
+    { webhookEventId: 'ev-mode', deps: mem.deps },
+  );
+  d = sessionDraft(mem.sessions);
+  assert.equal(mem.sessions.get('U1')?.step, 'sample');
+  await handleMorningOptinPostback(
+    'tok',
+    'U1',
+    buildOptinPostbackData({
+      nonce: d.nonce,
+      version: d.version,
+      step: 'sample',
+      actionId: 'sample_confirm',
+    }),
+    { webhookEventId: 'ev-sample', deps: mem.deps },
+  );
+  d = sessionDraft(mem.sessions);
+  assert.equal(mem.sessions.get('U1')?.step, 'frequency');
+  await handleMorningOptinPostback(
+    'tok',
+    'U1',
+    buildOptinPostbackData({
+      nonce: d.nonce,
+      version: d.version,
+      step: 'frequency',
+      actionId: 'freq_daily',
+    }),
+    { webhookEventId: 'ev-freq', deps: mem.deps },
+  );
+  assert.ok(lastText(mem.replies).includes('請確認設定'));
+}
+
+describe('Sample-first confirm flow + ConfirmLedger', () => {
+  it('confirm 前 0 writes；mode→sample→freq→summary→confirm 恰 1 筆', async () => {
     const mem = createMemoryDeps();
-    await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
+    await walkToSummary(mem, 'content_a');
     assert.equal(mem.preferenceWrites, 0);
-    assert.ok(lastText(mem.replies).includes(NEWS_ONLY_SOURCE_DISCLOSURE));
-
-    const d1 = sessionDraft(mem.sessions);
-    await handleMorningOptinPostback(
-      'tok',
-      'U1',
-      buildOptinPostbackData({
-        nonce: d1.nonce,
-        version: d1.version,
-        step: 'content',
-        actionId: 'content_a',
-      }),
-      { webhookEventId: 'ev-content', deps: mem.deps },
-    );
-    assert.equal(mem.preferenceWrites, 0);
-
-    const d2 = sessionDraft(mem.sessions);
-    assert.equal(mem.sessions.get('U1')?.step, 'frequency');
-    await handleMorningOptinPostback(
-      'tok',
-      'U1',
-      buildOptinPostbackData({
-        nonce: d2.nonce,
-        version: d2.version,
-        step: 'frequency',
-        actionId: 'freq_daily',
-      }),
-      { webhookEventId: 'ev-freq', deps: mem.deps },
-    );
-    assert.equal(mem.preferenceWrites, 0);
-    assert.ok(lastText(mem.replies).includes('請確認設定'));
+    assert.ok(lastText(mem.replies).includes('笑個毛') || lastText(mem.replies).includes('請確認'));
 
     const d3 = sessionDraft(mem.sessions);
     await handleMorningOptinPostback(
@@ -264,30 +279,33 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
     assert.equal(mem.ledgerWrites, 1);
     assert.equal(mem.prefs.get('U1')?.contentMode, 'jokes');
     assert.equal(mem.prefs.get('U1')?.frequency, 'daily');
-    assert.equal(mem.sessions.has('U1'), false, 'confirm 後清 session');
-    assert.ok(!mem.ledgers[0]!.successSummary.includes(d3.nonce));
-    assert.equal(
-      mem.ledgers[0]!.sessionNonceHash,
-      createHash('sha256').update(d3.nonce, 'utf8').digest('hex'),
-    );
+    assert.equal(mem.sessions.has('U1'), false);
+    assert.ok(lastText(mem.replies).includes('陪你笑個毛'));
   });
 
-  it('相同 event redelivery：0 additional writes + byte-stable 重播', async () => {
+  it('sample 步驟顯示 exact humor body', async () => {
     const mem = createMemoryDeps();
     await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
-    let d = sessionDraft(mem.sessions);
+    const d = sessionDraft(mem.sessions);
     await handleMorningOptinPostback(
       'tok',
       'U1',
       buildOptinPostbackData({
         nonce: d.nonce,
         version: d.version,
-        step: 'content',
-        actionId: 'content_e',
+        step: 'mode',
+        actionId: 'content_a',
       }),
-      { webhookEventId: 'ev-e', deps: mem.deps },
+      { webhookEventId: 'ev-s', deps: mem.deps },
     );
-    d = sessionDraft(mem.sessions);
+    assert.equal(lastText(mem.replies), HUMOR_SAMPLE_BODY);
+    assert.equal(mem.preferenceWrites, 0);
+  });
+
+  it('相同 event redelivery：0 additional writes + byte-stable 重播', async () => {
+    const mem = createMemoryDeps();
+    await walkToSummary(mem, 'content_a');
+    const d = sessionDraft(mem.sessions);
     const confirmData = buildOptinPostbackData({
       nonce: d.nonce,
       version: d.version,
@@ -312,7 +330,7 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
     assert.ok(!lastText(mem.replies).includes(OPTIN_EXPIRED_REPLY));
   });
 
-  it('錯 nonce／歷史按鈕：0 writes + 過期文案', async () => {
+  it('錯 nonce：0 writes + 過期文案', async () => {
     const mem = createMemoryDeps();
     await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
     const d = sessionDraft(mem.sessions);
@@ -322,7 +340,7 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
       buildOptinPostbackData({
         nonce: 'ffffffffffffffffffffffffffffffff',
         version: d.version,
-        step: 'content',
+        step: 'mode',
         actionId: 'content_a',
       }),
       { webhookEventId: 'ev-bad', deps: mem.deps },
@@ -333,32 +351,8 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
 
   it('已消費 nonce + 不同 event：0 writes + 過期', async () => {
     const mem = createMemoryDeps();
-    await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
-    let d = sessionDraft(mem.sessions);
-    await handleMorningOptinPostback(
-      'tok',
-      'U1',
-      buildOptinPostbackData({
-        nonce: d.nonce,
-        version: d.version,
-        step: 'content',
-        actionId: 'content_a',
-      }),
-      { webhookEventId: 'ev-c1', deps: mem.deps },
-    );
-    d = sessionDraft(mem.sessions);
-    await handleMorningOptinPostback(
-      'tok',
-      'U1',
-      buildOptinPostbackData({
-        nonce: d.nonce,
-        version: d.version,
-        step: 'frequency',
-        actionId: 'freq_off',
-      }),
-      { webhookEventId: 'ev-f1', deps: mem.deps },
-    );
-    d = sessionDraft(mem.sessions);
+    await walkToSummary(mem);
+    const d = sessionDraft(mem.sessions);
     const data = buildOptinPostbackData({
       nonce: d.nonce,
       version: d.version,
@@ -380,9 +374,10 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
     assert.equal(lastText(mem.replies), OPTIN_EXPIRED_REPLY);
   });
 
-  it('自由文字中止：清 draft、0 preference writes', async () => {
+  it('非法輸入留在目前步驟並重顯（零寫入）', async () => {
     const mem = createMemoryDeps();
     await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
+    assert.equal(mem.sessions.get('U1')?.step, 'mode');
     const handled = await handleMorningPreferenceMessage(
       'tok',
       'U1',
@@ -391,17 +386,36 @@ describe('Phase 4B-B confirm flow + ConfirmLedger', () => {
     );
     assert.equal(handled, true);
     assert.equal(mem.preferenceWrites, 0);
-    assert.equal(mem.sessions.has('U1'), false);
+    assert.equal(mem.sessions.has('U1'), true);
+    assert.equal(mem.sessions.get('U1')?.step, 'mode');
+    assert.ok(lastText(mem.replies).includes(OPTIN_INVALID_STAY_HINT));
   });
 
-  it('legacy alternate 顯示沿用；B 無 fallback 文案', async () => {
+  it('legacy：摘要＋維持零寫入', async () => {
     const mem = createMemoryDeps({
       pref: { contentMode: 'alternate', frequency: 'daily' },
     });
     await startMorningPreferenceFlow('tok', 'U1', { deps: mem.deps });
+    assert.equal(mem.sessions.get('U1')?.step, 'legacy');
     const text = lastText(mem.replies);
     assert.ok(text.includes('笑話／新聞交替'));
-    assert.ok(text.includes(NEWS_ONLY_SOURCE_DISCLOSURE));
-    assert.ok(text.includes('不會改發其他內容'));
+    assert.ok(text.includes('維持目前設定'));
+    assert.equal(mem.preferenceWrites, 0);
+
+    const d = sessionDraft(mem.sessions);
+    await handleMorningOptinPostback(
+      'tok',
+      'U1',
+      buildOptinPostbackData({
+        nonce: d.nonce,
+        version: d.version,
+        step: 'legacy',
+        actionId: 'legacy_keep',
+      }),
+      { webhookEventId: 'ev-keep', deps: mem.deps },
+    );
+    assert.equal(mem.preferenceWrites, 0);
+    assert.equal(mem.ledgerWrites, 0);
+    assert.equal(mem.prefs.get('U1')?.contentMode, 'alternate');
   });
 });

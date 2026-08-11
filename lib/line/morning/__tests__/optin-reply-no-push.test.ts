@@ -116,58 +116,70 @@ describe('Phase 4B-B reply vs push', () => {
         nonceSeq += 1;
         return createHash('sha256').update(String(nonceSeq)).digest('hex').slice(0, 32);
       },
+      findCustomerIdByLineUserId: async () => 'cust1',
       runConfirmTransaction: async (fn) => fn(tx),
     };
 
-    // 模擬：若流程誤用 push 會被計數（本測試 deps 無 push；契約為 replyCalls>0 且 push=0）
-    const maybePush = () => {
-      pushCalls += 1;
-    };
-    void maybePush;
     pushCalls = 0;
 
     await startMorningPreferenceFlow('t', 'U1', { deps });
-    const s1 = sessions.get('U1')!;
-    const d1 = JSON.parse(s1.payload) as { nonce: string; version: number };
+    let s = sessions.get('U1')!;
+    let d = JSON.parse(s.payload) as { nonce: string; version: number };
     await handleMorningOptinPostback(
       't',
       'U1',
       buildOptinPostbackData({
-        nonce: d1.nonce,
-        version: d1.version,
-        step: 'content',
+        nonce: d.nonce,
+        version: d.version,
+        step: 'mode',
         actionId: 'content_b',
       }),
       { webhookEventId: 'e1', deps },
     );
-    const s2 = sessions.get('U1')!;
-    const d2 = JSON.parse(s2.payload) as { nonce: string; version: number };
+    s = sessions.get('U1')!;
+    d = JSON.parse(s.payload) as { nonce: string; version: number };
     await handleMorningOptinPostback(
       't',
       'U1',
       buildOptinPostbackData({
-        nonce: d2.nonce,
-        version: d2.version,
+        nonce: d.nonce,
+        version: d.version,
+        step: 'sample',
+        actionId: 'sample_confirm',
+      }),
+      { webhookEventId: 'e1b', deps },
+    );
+    s = sessions.get('U1')!;
+    d = JSON.parse(s.payload) as { nonce: string; version: number };
+    await handleMorningOptinPostback(
+      't',
+      'U1',
+      buildOptinPostbackData({
+        nonce: d.nonce,
+        version: d.version,
         step: 'frequency',
         actionId: 'freq_weekdays',
       }),
       { webhookEventId: 'e2', deps },
     );
-    const s3 = sessions.get('U1')!;
-    const d3 = JSON.parse(s3.payload) as { nonce: string; version: number };
+    s = sessions.get('U1')!;
+    d = JSON.parse(s.payload) as { nonce: string; version: number };
     await handleMorningOptinPostback(
       't',
       'U1',
       buildOptinPostbackData({
-        nonce: d3.nonce,
-        version: d3.version,
+        nonce: d.nonce,
+        version: d.version,
         step: 'summary',
         actionId: 'confirm',
       }),
       { webhookEventId: 'e3', deps },
     );
 
-    assert.ok(replyCalls >= 4, `expected replies for entry/content/freq/success, got ${replyCalls}`);
+    assert.ok(
+      replyCalls >= 5,
+      `expected replies for mode/sample/freq/summary/success, got ${replyCalls}`,
+    );
     assert.equal(pushCalls, 0);
   });
 });
