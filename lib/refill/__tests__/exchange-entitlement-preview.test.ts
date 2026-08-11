@@ -38,12 +38,16 @@ describe('refill exchange entitlement HQ preview', () => {
 
   it('join-before Flex keeps 30-day emphasis contract', () => {
     const raw = JSON.stringify(buildJoinBeforePreviewMessages());
-    assert.match(raw, /換購期限/);
+    assert.match(raw, /店家確認收到空瓶後/);
     assert.match(raw, /"text":"30 天內"/);
     assert.match(raw, /"size":"xl"/);
     assert.match(raw, /"weight":"bold"/);
     assert.match(raw, /"wrap":true/);
     assert.match(raw, new RegExp(REFILL_EXCHANGE_WINDOW_COPY.previewBadge));
+    assert.match(raw, /我要參加/);
+    assert.match(raw, /查看完整規則/);
+    assert.doesNotMatch(raw, /怎麼參加/);
+    assert.doesNotMatch(raw, /蔬果凍乾/);
   });
 
   it('activated Flex emphasizes window and long store name wraps', () => {

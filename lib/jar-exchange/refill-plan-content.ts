@@ -125,23 +125,21 @@ export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
   },
 ];
 
+/**
+ * 加入前主卡文案（顧客決策卡 SSOT）。
+ * 完整步驟／七口味清單／合作店仍走既有 FAQ／口味／合作店回覆，不刪底層資料。
+ */
 export const REFILL_INTRO_COPY = {
-  flexTitle: '匠寵換罐計劃',
+  flexTitle: '匠寵換罐計畫',
   headline: '吃完，不用說再見。',
+  /** 主卡核心資訊（不含 30 天醒目區；該區走 exchange-window SSOT） */
   bodyLines: [
-    '第一罐 NT$129。',
-    '吃完後把空瓶帶回序號所屬原店，',
-    '店家確認後，NT$99 就能換一罐新口味。',
-    '',
-    '每個瓶底都有專屬 8 位序號。',
-    '加入官方 LINE、建立毛孩帳號，',
-    '輸入序號即可累積 1 點。',
-    '',
-    '集滿 10 點，',
-    '可在綁定的合作美容店',
-    '折抵 NT$200 美容費。',
+    '第一罐 NT$129',
+    '空瓶帶回序號所屬原店，下一罐不同口味 NT$99',
+    '每罐累積 1 點，滿 10 點折 NT$200 美容費',
+    '口味依原店當期庫存',
   ],
-  tags: ['7 種口味', '每兩週更新', '合作店取貨'] as const,
+  /** 口味回覆專用（不進加入前主卡） */
   flavourSectionTitle: '這期想吃哪一罐？',
   flavourSectionLead: [
     '目前共有 7 種口味，',
@@ -149,8 +147,14 @@ export const REFILL_INTRO_COPY = {
     '',
     '依合作店當期庫存為準。',
   ],
-  ctaStart: '開始換罐',
-  ctaFlavours: '看本期口味',
+  /** CTA：按鈕標籤 vs 實際送出的 message text */
+  ctaJoinLabel: '我要參加',
+  ctaJoinMessage: '開始換罐',
+  ctaFlavoursLabel: '先看口味',
+  ctaFlavoursMessage: '看本期口味',
+  ctaRulesLabel: '查看完整規則',
+  ctaRulesMessage: '換罐規則',
+  /** 口味／FAQ 等次要回覆仍可用 */
   ctaStores: '查看合作店',
 } as const;
 

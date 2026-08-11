@@ -51,6 +51,8 @@ Branch：`cursor/refill-exchange-window-b63a`
    - `deriveExchangeEntitlementLifecycle`：active／expiring-soon／redeemed／expired
    - 到期瞬間（`now >= expiresAt`）即不可用
 5. **加入前 LINE Flex** 醒目區塊（暖底＋「30 天內」獨立加大加粗）
+   - 主卡已精簡為決策卡：標題／副標／核心四項／30 天醒目／三 CTA
+   - 四步驟、七口味清單、合作店按鈕、雙價格格已移出主卡（完整規則／口味回覆仍在）
 6. **Preview 文案 builders**（啟用／錯店／即將到期／已過期）— `mode: preview-only`
 
 ### onDelete 說明（保守）

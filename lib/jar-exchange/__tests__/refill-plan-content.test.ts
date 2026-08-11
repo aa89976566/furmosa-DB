@@ -41,9 +41,15 @@ describe('refill plan content', () => {
     assert.equal(REFILL_PLAN_RULES.expiryReminderDays, 7);
   });
 
-  it('intro CTA labels are concrete', () => {
-    assert.equal(REFILL_INTRO_COPY.ctaStart, '開始換罐');
-    assert.equal(REFILL_INTRO_COPY.ctaFlavours, '看本期口味');
+  it('intro CTA labels map to existing message texts', () => {
+    assert.equal(REFILL_INTRO_COPY.ctaJoinLabel, '我要參加');
+    assert.equal(REFILL_INTRO_COPY.ctaJoinMessage, '開始換罐');
+    assert.equal(REFILL_INTRO_COPY.ctaFlavoursLabel, '先看口味');
+    assert.equal(REFILL_INTRO_COPY.ctaFlavoursMessage, '看本期口味');
+    assert.equal(REFILL_INTRO_COPY.ctaRulesLabel, '查看完整規則');
+    assert.equal(REFILL_INTRO_COPY.ctaRulesMessage, '換罐規則');
     assert.equal(REFILL_INTRO_COPY.ctaStores, '查看合作店');
+    assert.equal(REFILL_INTRO_COPY.flexTitle, '匠寵換罐計畫');
+    assert.equal(REFILL_INTRO_COPY.bodyLines.length, 4);
   });
 });

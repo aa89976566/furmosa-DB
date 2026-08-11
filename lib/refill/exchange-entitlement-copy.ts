@@ -168,8 +168,6 @@ export function buildExchangeLifecycleCopyPreview(input: {
 
 export function buildJoinBeforeWindowLines(): string[] {
   return [
-    REFILL_EXCHANGE_WINDOW_COPY.highlightTitle,
     `${REFILL_EXCHANGE_WINDOW_COPY.highlightLeadBefore}${REFILL_EXCHANGE_WINDOW_COPY.highlightLeadEmphasis}${REFILL_EXCHANGE_WINDOW_COPY.highlightLeadAfter}`,
-    REFILL_EXCHANGE_WINDOW_COPY.highlightNote,
   ];
 }

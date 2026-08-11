@@ -72,8 +72,8 @@ describe('exchange entitlement copy (preview-only)', () => {
 
   it('join-before window lines include 30-day emphasis', () => {
     const lines = buildJoinBeforeWindowLines().join('\n');
-    assert.match(lines, /換購期限/);
+    assert.match(lines, /店家確認收到空瓶後/);
     assert.match(lines, /30 天內/);
-    assert.match(lines, /原店/);
+    assert.match(lines, /使用/);
   });
 });

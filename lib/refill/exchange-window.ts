@@ -12,13 +12,14 @@ export const REFILL_EXCHANGE_WINDOW_DAYS = 30;
 export const REFILL_EXPIRY_REMINDER_DAYS = 7;
 
 export const REFILL_EXCHANGE_WINDOW_COPY = {
-  highlightTitle: '⏰ 換購期限',
-  /** 主句拆成片段，讓「30 天內」可獨立放大加粗 */
-  highlightLeadBefore: '店家確認收到空瓶後，請在',
+  /**
+   * 加入前主卡醒目句（顧客面）。
+   * 「30 天內」必須獨立 text（較大＋粗體＋wrap），不只靠顏色。
+   */
+  highlightLeadBefore: '⏰ 店家確認收到空瓶後，',
   highlightLeadEmphasis: '30 天內',
-  highlightLeadAfter: '使用。',
-  highlightNote: '啟用後會顯示實際最後使用日；須回序號所屬原店完成換罐。',
-  /** Preview／尚未 live enforcement 標示（勿讓驗收誤認已上線） */
+  highlightLeadAfter: '使用',
+  /** Preview／尚未 live enforcement 標示（勿讓驗收誤認已上線；小字、不搶主資訊） */
   previewBadge: 'Preview・規則預告（尚未接 live 核銷）',
 } as const;
 
