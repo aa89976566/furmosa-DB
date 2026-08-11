@@ -105,13 +105,21 @@ function createMemoryDeps(seed?: {
     return next;
   };
 
+  /** 模擬 DB unique：同步 claim，避免 Promise 交錯雙寫 */
+  const claimedEventKeys = new Set<string>();
+  const claimedNonceDigests = new Set<string>();
   const createLedgerSuccess: PreferenceFlowDeps['createLedgerSuccess'] = async (
     input,
   ) => {
-    if (ledgers.some((l) => l.eventDedupKey === input.eventDedupKey)) {
+    const nonceDigest = `${input.sessionNonceHash}:${input.payloadDigest}`;
+    if (
+      claimedEventKeys.has(input.eventDedupKey) ||
+      ledgers.some((l) => l.eventDedupKey === input.eventDedupKey)
+    ) {
       throw new Error('unique_event');
     }
     if (
+      claimedNonceDigests.has(nonceDigest) ||
       ledgers.some(
         (l) =>
           l.sessionNonceHash === input.sessionNonceHash &&
@@ -120,6 +128,8 @@ function createMemoryDeps(seed?: {
     ) {
       throw new Error('unique_nonce_digest');
     }
+    claimedEventKeys.add(input.eventDedupKey);
+    claimedNonceDigests.add(nonceDigest);
     counters.ledgerWrites += 1;
     const row: ConfirmLedgerRow = {
       id: `led_${counters.ledgerWrites}`,
@@ -187,7 +197,18 @@ function createMemoryDeps(seed?: {
         .slice(0, 32);
     },
     findCustomerIdByLineUserId: async () => 'cust1',
-    runConfirmTransaction: async (fn) => fn(txClient),
+    // 模擬 DB transaction 串行（unique claim 原子性）
+    runConfirmTransaction: (() => {
+      let chain: Promise<unknown> = Promise.resolve();
+      return async <T,>(fn: (tx: ConfirmTxClient) => Promise<T>): Promise<T> => {
+        const run = chain.then(() => fn(txClient));
+        chain = run.then(
+          () => undefined,
+          () => undefined,
+        );
+        return run;
+      };
+    })(),
   };
 
   return {
