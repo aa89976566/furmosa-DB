@@ -11,11 +11,13 @@ import {
   renderFrequencyPrompt,
   renderOptinSuccessSummary,
   renderOptinSummary,
-  renderSampleMessage,
-  getSampleButtons,
+  renderModeBriefMessage,
+  getBriefButtons,
+  getFirstContent,
   getContentOption,
   getFrequencyOption,
   isOnboardingModeActionId,
+  buildOptinConfirmWinnerTexts,
   type OptinContentActionId,
   type OptinFrequencyActionId,
   type OnboardingModeActionId,
@@ -30,7 +32,14 @@ export type MorningOptinPreviewInput = {
 export type MorningOptinPreviewResult = {
   contentPrompt: string;
   frequencyPrompt: string;
+  /** MODE_BRIEF_SHOWN 一句 brief（CONFIRM 前；非完整 sample） */
+  briefPreview: string | null;
+  briefButtons: string[];
+  /** CONFIRM winner 後 first content（與 LINE 同源） */
+  firstContentPreview: string | null;
+  /** @deprecated 相容舊欄位名；改指向 briefPreview */
   samplePreview: string | null;
+  /** @deprecated 相容舊欄位名；改指向 briefButtons */
   sampleButtons: string[];
   contentOptions: Array<{
     actionId: string;
@@ -54,6 +63,8 @@ export type MorningOptinPreviewResult = {
   }>;
   summary: string | null;
   successSummary: string | null;
+  /** winner final reply texts（完成＋first content；≤2） */
+  winnerReplyTexts: string[] | null;
   notes: string[];
 };
 
@@ -62,7 +73,7 @@ export function buildMorningOptinPreview(
 ): MorningOptinPreviewResult {
   const notes: string[] = [
     '此 Preview 與 LINE「早安設定」共用 lib/line/morning/domain/optin。',
-    'Onboarding 僅「笑個毛／豎起耳朵」；full mapping 仍保留 legacy／OFF。',
+    'Onboarding：mode → brief → frequency → summary → confirm（winner 才顯示 first content）。',
     '不寫入 preference；不呼叫 LINE push／broadcast。',
   ];
   const contentOptions = listOnboardingModeOptions().map((o) => ({
@@ -85,22 +96,29 @@ export function buildMorningOptinPreview(
     storageFrequency: o.storageFrequency,
   }));
 
-  let samplePreview: string | null = null;
-  let sampleButtons: string[] = [];
+  let briefPreview: string | null = null;
+  let briefButtons: string[] = [];
+  let firstContentPreview: string | null = null;
   if (input.contentActionId && isOnboardingModeActionId(input.contentActionId)) {
     const mode = input.contentActionId as OnboardingModeActionId;
-    samplePreview = renderSampleMessage(mode);
-    sampleButtons = getSampleButtons(mode).map((b) => b.label);
+    briefPreview = renderModeBriefMessage(mode);
+    briefButtons = getBriefButtons().map((b) => b.label);
+    firstContentPreview = getFirstContent(mode);
   }
 
   let summary: string | null = null;
   let successSummary: string | null = null;
+  let winnerReplyTexts: string[] | null = null;
   if (input.contentActionId && input.frequencyActionId) {
     const content = getContentOption(input.contentActionId);
     const frequency = getFrequencyOption(input.frequencyActionId);
     if (content && frequency) {
       summary = renderOptinSummary({ content, frequency });
       successSummary = renderOptinSuccessSummary({ content, frequency });
+      winnerReplyTexts = buildOptinConfirmWinnerTexts({
+        content,
+        frequency,
+      }).messages;
     } else {
       notes.push('無效的 content／frequency action id');
     }
@@ -109,13 +127,17 @@ export function buildMorningOptinPreview(
   return {
     contentPrompt: renderModePrompt(),
     frequencyPrompt: renderFrequencyPrompt(),
-    samplePreview,
-    sampleButtons,
+    briefPreview,
+    briefButtons,
+    firstContentPreview,
+    samplePreview: briefPreview,
+    sampleButtons: briefButtons,
     contentOptions,
     allContentOptions,
     frequencyOptions,
     summary,
     successSummary,
+    winnerReplyTexts,
     notes,
   };
 }

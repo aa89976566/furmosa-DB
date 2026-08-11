@@ -1,5 +1,5 @@
 /**
- * Sample-first CONSENSUS postback 契約
+ * Brief-first CONSENSUS postback 契約
  * payload 只帶 nonce + step/version + allowlisted action id
  * server 不信任 label／mode
  */
@@ -16,11 +16,14 @@ export const OPTIN_FLOW = 'morning_prefs' as const;
 
 /**
  * Session 步驟
- * mode → sample → frequency → summary
+ * mode → brief（MODE_BRIEF_SHOWN）→ frequency → summary
+ * sample（MODE_SAMPLE）：legacy read-only；讀到即清 pending，不得新寫入
  * legacy：已有設定時的維持／探索閘門
  */
 export type OptinFlowStep =
   | 'mode'
+  | 'brief'
+  /** @deprecated MODE_SAMPLE legacy；僅 read-only／stale 清除 */
   | 'sample'
   | 'frequency'
   | 'summary'
@@ -30,6 +33,7 @@ export type OptinFlowStep =
 
 export const OPTIN_FLOW_STEPS = [
   'mode',
+  'brief',
   'sample',
   'frequency',
   'summary',
