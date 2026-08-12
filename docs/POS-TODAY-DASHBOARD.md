@@ -36,10 +36,19 @@
 
 ## 明確不做
 
-- HQ／主系統 Dashboard 視覺重做（另 PR）
+- HQ Polaris／Mixpanel 全站換皮（draft PR #18，視覺另案）
 - 待換罐收罐流程、Phase 3 Schema
 - 為對帳捏造預約／庫存假資料
 
-## 主系統（HQ）下一步建議
+## 主系統（HQ）「今天營運」
 
-POS 用妞妞對完帳後，另開 HQ「今天營運」：待審 Restock、待出貨、預約待處理。
+已實作（`cursor/hq-today-ops-console-24aa`）：`/dashboard` 首屏改為 Experience Bible **H-02** 任務列——
+
+1. 待審叫貨 → `/restock-requests`
+2. 待寄出 → `/shipments`
+3. 預約待處理
+4. 換罐付款異常
+5. 雞霸開箱待審
+6. 今日已完成（回饋）
+
+KPI／圖表下移為「進階總覽」。側欄 IA：今天營運 → 店家與寄賣 → 換罐與 LINE → …
