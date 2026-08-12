@@ -16,3 +16,24 @@
 - Customer 預約的是 **Merchant**，不是員工。  
 
 詳見 `docs/BOOKING-MVP-PLAN.md`（**v1.0-frozen**）。
+
+---
+
+## Claude Code 交接包（工程）
+
+根目錄 `CLAUDE.md` 為入口。配套：
+
+| 文件 | 用途 |
+|------|------|
+| `docs/SYSTEM_OVERVIEW.md` | 系統邊界與旅程 |
+| `docs/ARCHITECTURE.md` | 模組與技術架構 |
+| `docs/BUSINESS_RULES.md` | 從程式抽出的業務規則 |
+| `docs/DATABASE.md` | Schema／關係／PII |
+| `docs/API_AND_DATA_FLOW.md` | API／Actions／時序圖 |
+| `docs/SECURITY_AUDIT.md` | 靜態安全發現 |
+| `docs/PERFORMANCE_AUDIT.md` | 效能發現 |
+| `docs/TECH_DEBT.md` | 技術債 |
+| `docs/TEST_STRATEGY.md` | 測試現況與缺口 |
+| `docs/ENVIRONMENT.md` | 環境變數（僅名稱） |
+| `docs/CLAUDE_REVIEW_PLAN.md` | 分階段檢視計畫 |
+| `docs/PHASE-0-BASELINE.md` | Phase 0 健康檢查報告 |
