@@ -146,7 +146,7 @@ export function ShipmentOrderPanel({
           </div>
           {data.type === 'customer_order' ? (
             <p className="text-xs text-muted-foreground">
-              在此更新物流狀態後，關聯訂單的出貨與訂單狀態會同步。
+              更新物流狀態後，關聯訂單的出貨與訂單狀態會同步。
             </p>
           ) : null}
         </div>
@@ -159,6 +159,27 @@ export function ShipmentOrderPanel({
           </div>
         ) : null}
       </div>
+
+      <section className="rounded-lg border bg-card p-4">
+        <h3 className="text-sm font-semibold">物流狀態與其他操作</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          掃單請用列表主按鈕。此區可填物流商／追蹤碼，或取消、退回。
+        </p>
+        <div className="mt-4">
+          <ShipmentStatusActions
+            shipmentId={data.id}
+            currentStatus={data.status}
+            allowedNext={allowedNext}
+            defaultCarrier={shipCarrierDefaults.defaultCarrier}
+            defaultTracking={data.trackingNumber}
+            defaultPickupStore={shipCarrierDefaults.pickupStore}
+            defaultPickupName={shipCarrierDefaults.pickupName}
+            defaultPickupPhone={shipCarrierDefaults.pickupPhone}
+            inline
+            queueStatus={queueStatus}
+          />
+        </div>
+      </section>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <section className="min-w-0 rounded-lg border bg-card p-4">
@@ -268,26 +289,6 @@ export function ShipmentOrderPanel({
         </section>
       </div>
 
-      <section className="rounded-lg border bg-card p-4">
-        <h3 className="text-sm font-semibold">物流狀態</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。
-        </p>
-        <div className="mt-4">
-          <ShipmentStatusActions
-            shipmentId={data.id}
-            currentStatus={data.status}
-            allowedNext={allowedNext}
-            defaultCarrier={shipCarrierDefaults.defaultCarrier}
-            defaultTracking={data.trackingNumber}
-            defaultPickupStore={shipCarrierDefaults.pickupStore}
-            defaultPickupName={shipCarrierDefaults.pickupName}
-            defaultPickupPhone={shipCarrierDefaults.pickupPhone}
-            inline
-            queueStatus={queueStatus}
-          />
-        </div>
-      </section>
     </div>
   );
 }

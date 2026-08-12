@@ -136,7 +136,7 @@ export function ShipmentQueueWorkspace({
                   {selectedShipment ? getShipmentLabel(selectedShipment) : selectedShipmentId}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
+                  主流程請用列表按鈕；此區可填物流單號，或取消／退回。
                 </p>
               </div>
             </div>
@@ -164,7 +164,7 @@ export function ShipmentQueueWorkspace({
           </span>
           <p className="text-sm font-medium text-foreground">尚未選取出貨單</p>
           <p className="max-w-md text-xs text-muted-foreground">
-            點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
+            列表可直接「標記已寄出／貨物到達」；點卡片則在此看詳情與其他操作。
           </p>
         </div>
       )}

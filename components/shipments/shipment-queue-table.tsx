@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ShipmentQueueStatusCell } from '@/components/shipments/shipment-queue-status-select';
+import { ShipmentQueuePrimaryAction } from '@/components/shipments/shipment-queue-primary-action';
 import { formatDate, formatRelative } from '@/lib/format';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
 import { productLabel } from '@/lib/product-label';
@@ -265,16 +265,13 @@ function ShipmentQueueCard({
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </div>
 
-      <div className="mt-3" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          運輸狀態
-        </p>
-        <ShipmentQueueStatusCell
+      <div className="mt-3">
+        <ShipmentQueuePrimaryAction
           shipmentId={shipment.id}
           status={shipment.status}
           queueStatus={queueStatus}
           queueType={queueType}
-          className="max-w-none"
+          layout="stack"
         />
       </div>
 
@@ -327,7 +324,7 @@ export function ShipmentQueueTable({
       <div className="md:hidden">
         <VirtualCardList
           items={views}
-          estimateSize={156}
+          estimateSize={168}
           getKey={(view) => view.shipment.id}
           renderItem={(view) => (
             <ShipmentQueueCard
@@ -347,7 +344,7 @@ export function ShipmentQueueTable({
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-[7.5rem]">單號</TableHead>
-              <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
+              <TableHead className="w-[9.5rem]">狀態 · 動作</TableHead>
               <TableHead className="min-w-[12rem]">寄送地</TableHead>
               <TableHead className="w-[9rem]">電話</TableHead>
               <TableHead>商品 · 件數</TableHead>
@@ -383,12 +380,13 @@ export function ShipmentQueueTable({
                       <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
-                    <ShipmentQueueStatusCell
+                  <TableCell className="py-3">
+                    <ShipmentQueuePrimaryAction
                       shipmentId={shipment.id}
                       status={shipment.status}
                       queueStatus={queueStatus}
                       queueType={queueType}
+                      layout="stack"
                     />
                   </TableCell>
                   <TableCell className="py-3">
