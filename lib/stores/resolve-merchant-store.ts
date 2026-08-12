@@ -3,10 +3,10 @@
  *
  * - 零 DB／零 side effect；候選 Stores 由呼叫端注入。
  * - 不得建立或同步 Store。
- * - 豬窩：店名匹配為必要條件；MER code 不可單獨授權。
- * - 一般店：derived slug（MER-xxxx → mer_xxxx）或精確店名；衝突／缺漏 fail closed。
- *
- * 對齊 repo：`merchantToStoreSlug`（sync-merchant-stores）、`ZHUWO_CONSIGNMENT_BRANCHES`。
+ * - 友好／豬窩 alias：僅版本控制 allowlist，(merchantId + merchant name) 必須同時匹配。
+ * - 候選 Store 必須同時 slug 與 name 命中目標；缺一不可。
+ * - 一般 mer_xxxx：僅允許 business ID 導出 slug，且 Store.name 必須等於 Merchant.name。
+ * - 禁止「任意 merchantId 只靠店名」授權。
  */
 
 import { isInternalMerchantId } from '@/lib/stores/partner-store-visibility';
@@ -36,44 +36,163 @@ export type MerchantStoreResolveDenyReason =
   | 'missing_store'
   | 'ambiguous'
   | 'name_conflict'
-  | 'zhuwo_mer_name_mismatch';
+  | 'allowlist_mismatch';
 
 export type MerchantStoreResolveResult =
   | {
       ok: true;
       store: StoreCandidate;
-      matchedBy: 'zhuwo_name' | 'derived_slug' | 'exact_name';
+      matchedBy: 'allowlist' | 'derived_slug';
     }
   | {
       ok: false;
       reason: MerchantStoreResolveDenyReason;
     };
 
+export type MerchantStoreAllowlistPair = {
+  merchantId: string;
+  merchantName: string;
+  storeSlug: string;
+  storeName: string;
+};
+
 /** 與 lib/stores/sync-merchant-stores.ts 相同規則（純字串，不 import sync 以免拉進 prisma）。 */
 export function merchantToStoreSlug(merchantId: string): string {
   return merchantId.trim().toLowerCase().replace(/-/g, '_');
 }
 
+export function normalizeMerchantId(merchantId: string): string {
+  return merchantId.trim().toUpperCase();
+}
+
+export function normalizeStoreName(name: string): string {
+  return name.trim();
+}
+
 function namesEqual(a: string, b: string): boolean {
-  return a.trim().localeCompare(b.trim(), 'zh-Hant', { sensitivity: 'accent' }) === 0;
+  return normalizeStoreName(a) === normalizeStoreName(b);
 }
 
-function findZhuwoBranchByName(name: string) {
-  return ZHUWO_CONSIGNMENT_BRANCHES.find((b) => namesEqual(b.name, name));
+/**
+ * 明確 allowlist：(normalized MER, exact merchant name) → expected store slug + store name。
+ * - 豬窩：ZHUWO_CONSIGNMENT_BRANCHES
+ * - 淡水妞妞／曼利莎：Production 唯讀核對之唯一 MER+name→slug（2026-08-12）
+ * - 柒沐／墨菲：FALLBACK slug 即 mer_xxxx，與 business ID 對齊
+ * - pet99：Production 無對應 Merchant／MER → 禁止列入，fail closed
+ */
+export const MERCHANT_STORE_ALLOWLIST: readonly MerchantStoreAllowlistPair[] = [
+  ...ZHUWO_CONSIGNMENT_BRANCHES.map((b) => ({
+    merchantId: b.merchantId,
+    merchantName: b.name,
+    storeSlug: b.storeSlug,
+    storeName: b.name,
+  })),
+  {
+    merchantId: 'MER-0010',
+    merchantName: '淡水妞妞',
+    storeSlug: 'niuniu',
+    storeName: '淡水妞妞',
+  },
+  {
+    merchantId: 'MER-0017',
+    merchantName: '曼利莎寵物美容',
+    storeSlug: 'manlisa',
+    storeName: '曼利莎寵物美容',
+  },
+  {
+    merchantId: 'MER-0014',
+    merchantName: '柒沐寵物美容',
+    storeSlug: 'mer_0014',
+    storeName: '柒沐寵物美容',
+  },
+  {
+    merchantId: 'MER-0018',
+    merchantName: '墨菲寵物美學',
+    storeSlug: 'mer_0018',
+    storeName: '墨菲寵物美學',
+  },
+] as const;
+
+function findAllowlistPair(
+  merchantId: string,
+  merchantName: string,
+): MerchantStoreAllowlistPair | undefined {
+  const id = normalizeMerchantId(merchantId);
+  return MERCHANT_STORE_ALLOWLIST.find(
+    (p) => normalizeMerchantId(p.merchantId) === id && namesEqual(p.merchantName, merchantName),
+  );
 }
 
-function findZhuwoBranchByMerchantId(merchantId: string) {
-  const id = merchantId.trim().toUpperCase();
-  return ZHUWO_CONSIGNMENT_BRANCHES.find((b) => b.merchantId.toUpperCase() === id);
+function allowlistTouchesMerchantOrName(merchantId: string, merchantName: string): boolean {
+  const id = normalizeMerchantId(merchantId);
+  return MERCHANT_STORE_ALLOWLIST.some(
+    (p) =>
+      normalizeMerchantId(p.merchantId) === id || namesEqual(p.merchantName, merchantName),
+  );
 }
 
-function uniqueOrFail(
-  matches: StoreCandidate[],
-): { ok: true; store: StoreCandidate } | { ok: false; reason: 'missing_store' | 'ambiguous' } {
-  if (matches.length === 0) return { ok: false, reason: 'missing_store' };
-  const ids = new Set(matches.map((m) => m.id));
-  if (ids.size !== 1) return { ok: false, reason: 'ambiguous' };
-  return { ok: true, store: matches[0]! };
+/**
+ * 候選必須同時符合 target slug 與 target store name。
+ * - slug 命中但 name 不符 → name_conflict
+ * - name 命中但 slug 不符 → name_conflict
+ * - 多筆／重複 id|slug → ambiguous
+ */
+function pickExactCandidate(
+  candidates: readonly StoreCandidate[],
+  targetSlug: string,
+  targetStoreName: string,
+): MerchantStoreResolveResult {
+  const slugHits = candidates.filter((s) => s.slug === targetSlug);
+  const nameHits = candidates.filter((s) => namesEqual(s.name, targetStoreName));
+
+  if (slugHits.length === 0 && nameHits.length === 0) {
+    return { ok: false, reason: 'missing_store' };
+  }
+
+  if (slugHits.length > 1 || nameHits.length > 1) {
+    return { ok: false, reason: 'ambiguous' };
+  }
+
+  if (slugHits.length === 1 && nameHits.length === 1) {
+    if (slugHits[0]!.id !== nameHits[0]!.id) {
+      return { ok: false, reason: 'name_conflict' };
+    }
+    const store = slugHits[0]!;
+    if (!namesEqual(store.name, targetStoreName) || store.slug !== targetSlug) {
+      return { ok: false, reason: 'name_conflict' };
+    }
+    return { ok: true, store, matchedBy: 'allowlist' };
+  }
+
+  // 僅 slug 或僅 name 命中 → 另一半不符
+  return { ok: false, reason: 'name_conflict' };
+}
+
+function pickDerivedCandidate(
+  candidates: readonly StoreCandidate[],
+  derivedSlug: string,
+  merchantName: string,
+): MerchantStoreResolveResult {
+  // 僅以 derived slug 為入口；禁止「只靠店名」命中其他友好 slug。
+  const slugHits = candidates.filter((s) => s.slug === derivedSlug);
+  if (slugHits.length === 0) {
+    return { ok: false, reason: 'missing_store' };
+  }
+  if (slugHits.length > 1) {
+    return { ok: false, reason: 'ambiguous' };
+  }
+  const store = slugHits[0]!;
+  if (!namesEqual(store.name, merchantName)) {
+    return { ok: false, reason: 'name_conflict' };
+  }
+  const nameHits = candidates.filter((s) => namesEqual(s.name, merchantName));
+  if (nameHits.length > 1) {
+    return { ok: false, reason: 'ambiguous' };
+  }
+  if (nameHits.length === 1 && nameHits[0]!.id !== store.id) {
+    return { ok: false, reason: 'name_conflict' };
+  }
+  return { ok: true, store, matchedBy: 'derived_slug' };
 }
 
 /**
@@ -94,67 +213,19 @@ export function resolveMerchantStore(
     return { ok: false, reason: 'internal_merchant' };
   }
 
-  const zhuwoByName = findZhuwoBranchByName(merchant.name);
-  const zhuwoByMer = findZhuwoBranchByMerchantId(merchant.merchantId);
-
-  // MER 屬豬窩偏好碼，但店名不是對應豬窩分店名 → 不可授權任何 zhuwo_*（含 MER-0016 + 非豬窩名）。
-  if (zhuwoByMer && !zhuwoByName) {
-    return { ok: false, reason: 'zhuwo_mer_name_mismatch' };
-  }
-  // 店名是豬窩 A，但 MER 是豬窩 B 的偏好碼 → fail closed。
-  if (zhuwoByName && zhuwoByMer && zhuwoByName.storeSlug !== zhuwoByMer.storeSlug) {
-    return { ok: false, reason: 'zhuwo_mer_name_mismatch' };
+  const pair = findAllowlistPair(merchant.merchantId, merchant.name);
+  if (pair) {
+    const picked = pickExactCandidate(candidates, pair.storeSlug, pair.storeName);
+    if (!picked.ok) return picked;
+    return { ok: true, store: picked.store, matchedBy: 'allowlist' };
   }
 
-  if (zhuwoByName) {
-    const matches = candidates.filter(
-      (s) => s.slug === zhuwoByName.storeSlug || namesEqual(s.name, zhuwoByName.name),
-    );
-    const uniq = uniqueOrFail(matches);
-    if (!uniq.ok) return uniq;
-    // 若同時撞到不同 slug（例如舊 mer_0016 與 zhuwo_zhonghe 同名）→ ambiguous 已由 uniqueOrFail 處理
-    if (uniq.store.slug !== zhuwoByName.storeSlug && !namesEqual(uniq.store.name, zhuwoByName.name)) {
-      return { ok: false, reason: 'name_conflict' };
-    }
-    // 名稱匹配到的店必須是目標 zhuwo slug，或同名唯一店；若唯一店 slug 不是 zhuwo 目標且名稱相符，仍允許？
-    // 規格：豬窩 alias 以店名匹配為必要，輸出應對應 zhuwo storeSlug。
-    if (uniq.store.slug !== zhuwoByName.storeSlug) {
-      return { ok: false, reason: 'name_conflict' };
-    }
-    return { ok: true, store: uniq.store, matchedBy: 'zhuwo_name' };
+  // MER 或店名出現在 allowlist 但 pair 不成 → 拒絕（含未知 MER + 合法豬窩／友好店名）
+  if (allowlistTouchesMerchantOrName(merchant.merchantId, merchant.name)) {
+    return { ok: false, reason: 'allowlist_mismatch' };
   }
 
+  // 非 allowlist：僅允許 derived mer_xxxx，且 Store.name 必須等於 Merchant.name
   const derivedSlug = merchantToStoreSlug(merchant.merchantId);
-  const bySlug = candidates.filter((s) => s.slug === derivedSlug);
-  const byName = candidates.filter((s) => namesEqual(s.name, merchant.name));
-
-  if (bySlug.length > 0 && byName.length > 0) {
-    const slugIds = new Set(bySlug.map((s) => s.id));
-    const nameIds = new Set(byName.map((s) => s.id));
-    const same =
-      slugIds.size === 1 &&
-      nameIds.size === 1 &&
-      [...slugIds][0] === [...nameIds][0];
-    if (!same) {
-      return { ok: false, reason: 'name_conflict' };
-    }
-    return { ok: true, store: bySlug[0]!, matchedBy: 'derived_slug' };
-  }
-
-  if (bySlug.length > 0) {
-    // slug 命中但店名與 Merchant 不一致 → 名稱衝突（fail closed，避免錯店核銷）
-    if (bySlug.length !== 1) return { ok: false, reason: 'ambiguous' };
-    if (!namesEqual(bySlug[0]!.name, merchant.name)) {
-      return { ok: false, reason: 'name_conflict' };
-    }
-    return { ok: true, store: bySlug[0]!, matchedBy: 'derived_slug' };
-  }
-
-  if (byName.length > 0) {
-    const uniq = uniqueOrFail(byName);
-    if (!uniq.ok) return uniq;
-    return { ok: true, store: uniq.store, matchedBy: 'exact_name' };
-  }
-
-  return { ok: false, reason: 'missing_store' };
+  return pickDerivedCandidate(candidates, derivedSlug, merchant.name);
 }
