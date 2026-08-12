@@ -1,7 +1,9 @@
 import { createCustomerRecord } from '@/lib/customers/create-customer';
 import { resolvePetSpeciesLabel, type PetSpeciesCode } from '@/lib/customers/pet-fields';
+import { revalidateJarExchangeHq } from '@/lib/jar-exchange/revalidate';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
+import { runAfterReply } from '@/lib/line/defer';
 import {
   clearLineChatSession,
   getLineChatSession,
@@ -377,6 +379,7 @@ export async function handleRegisterPostback(
         petBirthday: petBirthdayToDate(draft.petBirthday),
       });
       await ensureJarExchangeService(prisma, created.id);
+      runAfterReply(Promise.resolve().then(() => revalidateJarExchangeHq()));
       const resumeAfter = draft.resumeAfter;
       await clearLineChatSession(lineUserId);
 

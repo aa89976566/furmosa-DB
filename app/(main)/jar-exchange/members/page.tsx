@@ -3,10 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { JarShell, JarPanel } from '@/components/jar-exchange/jar-shell';
 import { JarExchangeAddMemberPanel } from '@/components/jar-exchange/add-member-panel';
 import { JarMemberRedeemMenu } from '@/components/jar-exchange/jar-member-redeem-menu';
+import { JarSignupLiveRefresh } from '@/components/jar-exchange/jar-signup-live-refresh';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDateTime, formatNumber } from '@/lib/format';
+import { formatDateTime, formatNumber, formatRelative } from '@/lib/format';
 import { formatGroomingCouponDiscountForStore } from '@/lib/coupons/constants';
+import { resolvePetSpeciesLabel } from '@/lib/customers/pet-fields';
 import { customerServiceTypeLabel } from '@/lib/jar-exchange/labels';
 import { resolveSignupStoreLabel } from '@/lib/line/line-copy';
 
@@ -19,36 +21,41 @@ export default async function JarExchangeMembersPage({
 }) {
   const q = (searchParams?.q ?? '').trim();
 
-  const where = {
-    services: {
-      some: { serviceType: 'jar_exchange', serviceStatus: 'active' },
-    },
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q, mode: 'insensitive' as const } },
-            { phone: { contains: q, mode: 'insensitive' as const } },
-            { customerId: { contains: q, mode: 'insensitive' as const } },
-          ],
-        }
-      : {}),
-  };
+  const customerFilter = q
+    ? {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' as const } },
+          { phone: { contains: q, mode: 'insensitive' as const } },
+          { customerId: { contains: q, mode: 'insensitive' as const } },
+          { petName: { contains: q, mode: 'insensitive' as const } },
+          { lineDisplay: { contains: q, mode: 'insensitive' as const } },
+        ],
+      }
+    : {};
 
-  const [customers, rewards] = await Promise.all([
-    prisma.customer.findMany({
-    where,
-    include: {
-      services: { where: { serviceStatus: 'active' } },
-      pointsLedger: { orderBy: { createdAt: 'desc' }, take: 1 },
-      _count: {
-        select: {
-          jarCodesRedeemed: { where: { status: 'used' } },
-          rewardRedemptions: { where: { couponStatus: { not: 'cancelled' } } },
+  const [serviceRows, rewards] = await Promise.all([
+    prisma.customerService.findMany({
+      where: {
+        serviceType: 'jar_exchange',
+        serviceStatus: 'active',
+        customer: customerFilter,
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 200,
+      include: {
+        customer: {
+          include: {
+            services: { where: { serviceStatus: 'active' } },
+            pointsLedger: { orderBy: { createdAt: 'desc' }, take: 1 },
+            _count: {
+              select: {
+                jarCodesRedeemed: { where: { status: 'used' } },
+                rewardRedemptions: { where: { couponStatus: { not: 'cancelled' } } },
+              },
+            },
+          },
         },
       },
-    },
-    orderBy: { name: 'asc' },
-    take: 200,
     }),
     prisma.rewardCatalog.findMany({
       where: {
@@ -68,65 +75,106 @@ export default async function JarExchangeMembersPage({
     }),
   ]);
 
-  const rows = customers.map((c) => ({
-    ...c,
-    points: c.pointsLedger[0]?.balanceAfter ?? 0,
-  }));
+  const rows = serviceRows.map((svc) => {
+    const c = svc.customer;
+    const petSpecies = resolvePetSpeciesLabel(c.petSpecies, c.petSpeciesOther);
+    return {
+      ...c,
+      jarStartedAt: svc.startedAt,
+      points: c.pointsLedger[0]?.balanceAfter ?? 0,
+      petLabel:
+        c.petName || petSpecies
+          ? [petSpecies, c.petName].filter(Boolean).join(' · ')
+          : null,
+    };
+  });
 
   return (
-    <JarShell pathname="/jar-exchange/members" title="換罐會員" description="可同時擁有個人、訂閱、換罐等多種服務類型">
+    <JarShell
+      pathname="/jar-exchange/members"
+      title="換罐會員"
+      description="LINE 開戶會同步進這裡。列表依開通時間新→舊，方便對帳今日註冊。"
+    >
       <JarExchangeAddMemberPanel />
 
-      <form className="mb-4 flex gap-2" method="get">
-        <input
-          name="q"
-          defaultValue={q}
-          placeholder="搜尋姓名、電話、編號…"
-          className="h-9 max-w-xs flex-1 rounded-xl border border-input bg-card px-3 text-sm"
-        />
-        <Button type="submit" size="sm" variant="outline">
-          搜尋
-        </Button>
-      </form>
+      <div className="mb-4 space-y-3">
+        <JarSignupLiveRefresh />
+        <form className="flex gap-2" method="get">
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="搜尋姓名、電話、毛孩、LINE、編號…"
+            className="h-10 max-w-md flex-1 rounded-xl border border-input bg-card px-3 text-sm"
+          />
+          <Button type="submit" size="sm" variant="outline" className="h-10 rounded-xl">
+            搜尋
+          </Button>
+        </form>
+      </div>
 
       <JarPanel>
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">會員</th>
-                <th className="px-4 py-3 font-medium">聯絡</th>
-                <th className="px-4 py-3 font-medium">開戶店家 · 折價券</th>
-                <th className="px-4 py-3 font-medium">服務類型</th>
+                <th className="px-4 py-3 font-medium">會員 · 毛孩</th>
+                <th className="px-4 py-3 font-medium">LINE / 電話</th>
+                <th className="px-4 py-3 font-medium">開戶店家</th>
+                <th className="px-4 py-3 font-medium">開通時間</th>
+                <th className="px-4 py-3 font-medium">服務</th>
                 <th className="px-4 py-3 font-medium text-right">點數</th>
-                <th className="px-4 py-3 font-medium text-right">已兌序號</th>
-                <th className="px-4 py-3 font-medium text-right">已兌獎勵</th>
-                <th className="px-4 py-3 font-medium">最近活動</th>
+                <th className="px-4 py-3 font-medium text-right">序號</th>
+                <th className="px-4 py-3 font-medium text-right">獎勵</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {rows.map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} className="align-top">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{c.name}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{c.customerId}</div>
+                    <div className="font-semibold text-navy">{c.name}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground">
+                      {c.customerId}
+                    </div>
+                    {c.petLabel ? (
+                      <div className="mt-1 text-xs text-muted-foreground">{c.petLabel}</div>
+                    ) : null}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{c.phone ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    {c.lineUserId ? (
+                      <Badge variant="info" className="mb-1 text-[10px]">
+                        LINE{c.lineDisplay ? ` · ${c.lineDisplay}` : ''}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="mb-1 text-[10px]">
+                        無 LINE
+                      </Badge>
+                    )}
+                    <div className="text-muted-foreground">{c.phone ?? '—'}</div>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {c.signupStore || c.storeId ? (
                       <div>
-                        <div>{resolveSignupStoreLabel(c.signupStore ?? c.storeId) ?? '—'}</div>
+                        <div>
+                          {resolveSignupStoreLabel(c.signupStore ?? c.storeId) ?? '—'}
+                        </div>
                         <div className="mt-0.5 text-xs tabular-nums">
                           {formatGroomingCouponDiscountForStore(
                             c.storeId ?? c.signupStore ?? '',
-                            c.storeName ?? resolveSignupStoreLabel(c.signupStore ?? c.storeId),
+                            c.storeName ??
+                              resolveSignupStoreLabel(c.signupStore ?? c.storeId),
                           )}
                         </div>
                       </div>
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground">
+                      {formatRelative(c.jarStartedAt)}
+                    </div>
+                    <div className="tabular-nums">{formatDateTime(c.jarStartedAt)}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
@@ -137,7 +185,7 @@ export default async function JarExchangeMembersPage({
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium">
+                  <td className="px-4 py-3 text-right font-medium tabular-nums">
                     {formatNumber(c.points)}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
@@ -145,11 +193,6 @@ export default async function JarExchangeMembersPage({
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {c._count.rewardRedemptions}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {c.pointsLedger[0]
-                      ? formatDateTime(c.pointsLedger[0].createdAt)
-                      : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-0.5">
@@ -169,7 +212,9 @@ export default async function JarExchangeMembersPage({
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                    尚無換罐會員，請使用上方「新增換罐會員」加入
+                    {q
+                      ? '找不到符合的會員'
+                      : '尚無換罐會員；LINE「幫毛孩開戶」完成後會出現在此'}
                   </td>
                 </tr>
               ) : null}

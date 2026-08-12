@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 const TABS: { href: string; label: string; match?: string }[] = [
+  { href: '/jar-exchange', label: '計劃總覽' },
   { href: '/jar-exchange/members', label: '換罐會員' },
   { href: '/jar-exchange/stores', label: '合作店家' },
   { href: '/jar-exchange/flavours', label: '口味與庫存' },
@@ -30,7 +31,7 @@ export function JarShell({
       <header className="border-b border-border/60 bg-card/80">
         <div className="mx-auto max-w-6xl px-6 py-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            換罐會員
+            換罐計劃
           </p>
           <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -44,13 +45,15 @@ export function JarShell({
           <nav className="mt-6 flex flex-wrap gap-1 border-b border-border/60">
             {TABS.map((t) => {
               const active =
-                t.href.startsWith('/jar-exchange/members')
-                  ? pathname.startsWith('/jar-exchange/members')
-                  : t.href.startsWith('/jar-exchange/stores')
-                    ? pathname.startsWith('/jar-exchange/stores')
-                    : t.href.startsWith('/jar-exchange/flavours')
-                      ? pathname.startsWith('/jar-exchange/flavours')
-                      : pathname.startsWith('/jar-exchange/manage') && tab === t.match;
+                t.href === '/jar-exchange'
+                  ? pathname === '/jar-exchange'
+                  : t.href.startsWith('/jar-exchange/members')
+                    ? pathname.startsWith('/jar-exchange/members')
+                    : t.href.startsWith('/jar-exchange/stores')
+                      ? pathname.startsWith('/jar-exchange/stores')
+                      : t.href.startsWith('/jar-exchange/flavours')
+                        ? pathname.startsWith('/jar-exchange/flavours')
+                        : pathname.startsWith('/jar-exchange/manage') && tab === t.match;
               return (
                 <Link
                   key={t.href}
