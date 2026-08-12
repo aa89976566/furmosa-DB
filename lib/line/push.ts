@@ -1,5 +1,6 @@
 import { expandLineMessages } from '@/lib/line/expand-messages';
 import { getLineChannelAccessToken, isLineWebhookConfigured } from '@/lib/line/config';
+import { allowsExternalEffects } from '@/lib/external-effects';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 /** Push 與 Reply 共用訊息型別 */
@@ -9,6 +10,16 @@ export type PushLineOptions = {
   /** 預設 true：文字換行拆成多則氣泡 */
   expand?: boolean;
 };
+
+const EXTERNAL_EFFECTS_DISABLED_ERROR = '外部副作用已停用';
+
+/** Runtime adapter：僅在 choke 讀取兩個政策變數名，傳給純核心。 */
+function isLineExternalEffectsAllowed(): boolean {
+  return allowsExternalEffects({
+    APP_ENV: process.env.APP_ENV,
+    EXTERNAL_EFFECTS_MODE: process.env.EXTERNAL_EFFECTS_MODE,
+  });
+}
 
 /**
  * LINE Messaging API Push（主動通知）。
@@ -31,6 +42,14 @@ export async function pushLineMessages(
   const prepared =
     opts?.expand === false ? messages : expandLineMessages(messages);
   if (prepared.length === 0) return { ok: true };
+
+  if (!isLineExternalEffectsAllowed()) {
+    return {
+      ok: false,
+      skipped: true,
+      error: EXTERNAL_EFFECTS_DISABLED_ERROR,
+    };
+  }
 
   try {
     const token = getLineChannelAccessToken();

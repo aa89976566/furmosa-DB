@@ -1,7 +1,16 @@
 import { expandLineMessages } from '@/lib/line/expand-messages';
 import { getLineChannelAccessToken } from '@/lib/line/config';
 import { runAfterReply } from '@/lib/line/defer';
+import { allowsExternalEffects } from '@/lib/external-effects';
 import { pushLineMessages } from '@/lib/line/push';
+
+/** Runtime adapter：僅在 choke 讀取兩個政策變數名，傳給純核心。 */
+function isLineExternalEffectsAllowed(): boolean {
+  return allowsExternalEffects({
+    APP_ENV: process.env.APP_ENV,
+    EXTERNAL_EFFECTS_MODE: process.env.EXTERNAL_EFFECTS_MODE,
+  });
+}
 
 export type LineQuickReplyItem = {
   type: 'action';
@@ -31,6 +40,7 @@ export type ReplyLineOptions = {
 };
 
 async function postReply(replyToken: string, messages: LineReplyMessage[]) {
+  if (!isLineExternalEffectsAllowed()) return;
   const token = getLineChannelAccessToken();
   const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',
