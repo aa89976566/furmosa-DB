@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
-    "build": "prisma generate && (prisma migrate resolve --rolled-back 20260722110000_qimu_delivery_address || true) && (prisma migrate resolve --applied 20260722110000_qimu_delivery_address || true) && (prisma migrate deploy || echo 'WARN: prisma migrate deploy failed — continuing build') && (tsx scripts/ensure-demo-admin.ts || echo 'WARN: ensure-demo-admin failed — continuing build') && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",

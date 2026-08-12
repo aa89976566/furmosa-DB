@@ -1,46 +1,55 @@
 /**
- * Idempotent demo／驗收帳號 bootstrap（HQ + POS）。
+ * 人工、明確啟用的 demo／驗收帳號 bootstrap（HQ + POS）。
  *
- * 1) 驗收主帳（Vercel Preview／Production 都會跑）：
- *    - 綁真實店家「妞妞／淡水妞妞」
- *    - POS：niuniu / furmosa2026
- *    - 找不到妞妞店家 → 略過（不造假店，避免對錯帳）
+ * Fail closed（任何 Prisma query／寫入前）：
+ * - VERCEL_ENV === "production" → 立即拒絕
+ * - ENABLE_DEMO_ADMIN 必須為 "1"（Preview 不會自動啟用）
+ * - DEMO_ADMIN_PASSWORD 必須存在且長度 >= 16
  *
- * 2) Preview 額外（或 ENABLE_DEMO_ADMIN=1）：
- *    - HQ：admin@furmosa.com / furmosa2026
- *    - Merchant MER-DEMO + POS admin（空店沙盒）
+ * 允許時（僅非 production）：
+ * - HQ：admin@furmosa.com（不存在才建立；既有帳號不改密碼）
+ * - Merchant MER-DEMO + POS admin（不存在才建立；既有帳號不改密碼、不 rebind）
  *
- * Never prints the password. Safe to re-run.
+ * Never prints the password.
  */
 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { pickNiuniuMerchant } from '../lib/pos/niuniu-merchant';
 
-const DEMO_PASSWORD = 'furmosa2026';
 const HQ_ADMIN_EMAIL = 'admin@furmosa.com';
 const POS_DEMO_USERNAME = 'admin';
-const POS_NIUNIU_USERNAME = 'niuniu';
 const DEMO_MERCHANT_BUSINESS_ID = 'MER-DEMO';
 const DEMO_MERCHANT_NAME = 'Furmosa Preview 店';
+const MIN_PASSWORD_LENGTH = 16;
 
-function isVercelDeploy(): boolean {
-  return (
-    process.env.VERCEL_ENV === 'preview' ||
-    process.env.VERCEL_ENV === 'production'
-  );
+function failClosed(message: string): never {
+  console.error(message);
+  process.exit(1);
 }
 
-function shouldRunFullDemo(): boolean {
-  if (process.env.ENABLE_DEMO_ADMIN === '1') return true;
-  if (process.env.ENABLE_DEMO_ADMIN === '0') return false;
-  return process.env.VERCEL_ENV === 'preview';
-}
+/** 所有 DB 操作前的安全閘門；通過後才回傳密碼（不記錄、不輸出）。 */
+function assertSafeToRun(): string {
+  if (process.env.VERCEL_ENV === 'production') {
+    failClosed('拒絕：production 環境禁止執行 ensure-demo-admin');
+  }
 
-function shouldEnsureNiuniu(): boolean {
-  if (process.env.ENSURE_NIUNIU_POS === '0') return false;
-  if (process.env.ENSURE_NIUNIU_POS === '1') return true;
-  return isVercelDeploy() || process.env.ENABLE_DEMO_ADMIN === '1';
+  if (process.env.ENABLE_DEMO_ADMIN !== '1') {
+    failClosed(
+      '拒絕：未明確啟用。請設定 ENABLE_DEMO_ADMIN=1（Preview／其他環境皆不會自動啟用）',
+    );
+  }
+
+  const password = process.env.DEMO_ADMIN_PASSWORD;
+  if (!password) {
+    failClosed('拒絕：缺少 DEMO_ADMIN_PASSWORD 環境變數');
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    failClosed(
+      `拒絕：DEMO_ADMIN_PASSWORD 長度不足（至少 ${MIN_PASSWORD_LENGTH} 字元）`,
+    );
+  }
+
+  return password;
 }
 
 function createPrisma() {
@@ -59,6 +68,7 @@ async function ensureHqAdmin(prisma: PrismaClient, passwordHash: string) {
     select: { id: true, email: true, role: true },
   });
   if (existing) {
+    // 既有帳號：不重設密碼
     return { status: 'exists' as const, email: existing.email, role: existing.role };
   }
   const created = await prisma.user.create({
@@ -89,37 +99,20 @@ async function ensureDemoMerchant(prisma: PrismaClient) {
       contactName: 'Preview Admin',
       city: '台北',
       status: 'active',
-      notes: '自動建立的 Preview／Demo 店家（ensure-demo-admin）',
+      notes: '明確啟用時建立的 Preview／Demo 店家（ensure-demo-admin）',
     },
     select: { id: true, merchantId: true, name: true },
   });
 }
 
-/** 優先用真實「妞妞」店，方便對帳；找不到則回 null */
-async function findNiuniuMerchant(prisma: PrismaClient) {
-  const candidates = await prisma.merchant.findMany({
-    where: {
-      OR: [
-        { name: { contains: '淡水妞妞' } },
-        { name: { contains: '妞妞' } },
-      ],
-      status: 'active',
-    },
-    select: { id: true, merchantId: true, name: true },
-    take: 20,
-  });
-  return pickNiuniuMerchant(candidates);
-}
-
-async function ensurePosUserForMerchant(
+/** 僅建立；既有帳號略過（不改密碼、不 rebind）。 */
+async function ensurePosDemoUser(
   prisma: PrismaClient,
   opts: {
     username: string;
     displayName: string;
     merchant: { id: string; merchantId: string; name: string };
     passwordHash: string;
-    /** 若帳號已存在但綁錯店，是否改綁到目標店（驗收用） */
-    rebindIfWrongMerchant?: boolean;
   },
 ) {
   const existing = await prisma.merchantUser.findUnique({
@@ -128,38 +121,18 @@ async function ensurePosUserForMerchant(
       id: true,
       username: true,
       isActive: true,
-      merchantId: true,
       merchant: { select: { merchantId: true, name: true } },
     },
   });
 
   if (existing) {
-    const wrongMerchant = existing.merchantId !== opts.merchant.id;
-    if (wrongMerchant && !opts.rebindIfWrongMerchant) {
-      return {
-        status: 'conflict' as const,
-        username: existing.username,
-        isActive: existing.isActive,
-        merchantId: existing.merchant.merchantId,
-        merchantName: existing.merchant.name,
-        note: '帳號已綁其他店，略過改綁',
-      };
-    }
-    await prisma.merchantUser.update({
-      where: { id: existing.id },
-      data: {
-        passwordHash: opts.passwordHash,
-        isActive: true,
-        displayName: opts.displayName,
-        ...(wrongMerchant ? { merchantId: opts.merchant.id } : {}),
-      },
-    });
     return {
-      status: (wrongMerchant ? 'rebound' : 'updated') as 'rebound' | 'updated',
+      status: 'exists' as const,
       username: existing.username,
-      isActive: true,
-      merchantId: opts.merchant.merchantId,
-      merchantName: opts.merchant.name,
+      isActive: existing.isActive,
+      merchantId: existing.merchant.merchantId,
+      merchantName: existing.merchant.name,
+      note: '既有帳號略過（不重設密碼、不改綁店家）',
     };
   }
 
@@ -184,52 +157,25 @@ async function ensurePosUserForMerchant(
 }
 
 async function main() {
+  const password = assertSafeToRun();
   const prisma = createPrisma();
   try {
-    const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
     const report: Record<string, unknown> = { status: 'ok' };
 
-    if (shouldEnsureNiuniu()) {
-      const niuniuMerchant = await findNiuniuMerchant(prisma);
-      if (!niuniuMerchant) {
-        report.niuniu = {
-          status: 'skipped',
-          reason: 'DB 找不到名稱含「妞妞」的 active Merchant（不造假店）',
-        };
-      } else {
-        report.niuniu = await ensurePosUserForMerchant(prisma, {
-          username: POS_NIUNIU_USERNAME,
-          displayName: niuniuMerchant.name,
-          merchant: niuniuMerchant,
-          passwordHash,
-          rebindIfWrongMerchant: true,
-        });
-      }
-    } else {
-      report.niuniu = { status: 'skipped', reason: 'ENSURE_NIUNIU_POS disabled' };
-    }
-
-    if (shouldRunFullDemo()) {
-      report.hq = await ensureHqAdmin(prisma, passwordHash);
-      const demoMerchant = await ensureDemoMerchant(prisma);
-      report.posDemo = await ensurePosUserForMerchant(prisma, {
-        username: POS_DEMO_USERNAME,
-        displayName: '店家 Admin',
-        merchant: demoMerchant,
-        passwordHash,
-        rebindIfWrongMerchant: false,
-      });
-    } else {
-      report.demo = {
-        status: 'skipped',
-        reason: 'Not preview and ENABLE_DEMO_ADMIN!=1',
-      };
-    }
-
+    report.hq = await ensureHqAdmin(prisma, passwordHash);
+    const demoMerchant = await ensureDemoMerchant(prisma);
+    report.posDemo = await ensurePosDemoUser(prisma, {
+      username: POS_DEMO_USERNAME,
+      displayName: '店家 Admin',
+      merchant: demoMerchant,
+      passwordHash,
+    });
     report.hint = {
       posLogin: '/pos/login',
-      niuniuUsername: POS_NIUNIU_USERNAME,
-      password: '(same as seed default — see docs/POS-TODAY-DASHBOARD.md)',
+      demoUsername: POS_DEMO_USERNAME,
+      hqEmail: HQ_ADMIN_EMAIL,
+      password: '(from DEMO_ADMIN_PASSWORD — never logged)',
     };
 
     console.log(JSON.stringify(report));
