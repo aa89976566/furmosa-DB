@@ -52,6 +52,8 @@ const DDL_STATEMENTS = [
     "customer_id" TEXT,
     "line_user_id" TEXT NOT NULL,
     "line_display_name" TEXT,
+    "line_picture_url" TEXT,
+    "line_profile_synced_at" TIMESTAMP(3),
     "order_id" TEXT,
     "instagram_handle" TEXT,
     "pet_name" TEXT,
@@ -135,6 +137,12 @@ const DDL_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS "status_audit_logs_entity_type_entity_id_idx" ON "status_audit_logs"("entity_type", "entity_id")`,
   `CREATE INDEX IF NOT EXISTS "status_audit_logs_application_id_idx" ON "status_audit_logs"("application_id")`,
+];
+
+/** 既有環境表已存在時，補可空欄位（idempotent） */
+const ADDITIVE_COLUMN_STATEMENTS = [
+  `ALTER TABLE "campaign_applications" ADD COLUMN IF NOT EXISTS "line_picture_url" TEXT`,
+  `ALTER TABLE "campaign_applications" ADD COLUMN IF NOT EXISTS "line_profile_synced_at" TIMESTAMP(3)`,
 ];
 
 const FK_STATEMENTS = [
@@ -237,6 +245,9 @@ async function runEnsureSchema() {
       for (const sql of FK_STATEMENTS) {
         await execSql(db, sql, true);
       }
+    }
+    for (const sql of ADDITIVE_COLUMN_STATEMENTS) {
+      await execSql(db, sql, true);
     }
     await execSql(db, SEED_CAMPAIGN_SQL, true);
     console.info('[jiba-two-piece] campaign schema ensured', { created: !ready });

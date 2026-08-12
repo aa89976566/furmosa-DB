@@ -1137,6 +1137,8 @@ model CampaignApplication {
   customerId            String?   @map("customer_id")
   lineUserId            String    @map("line_user_id")
   lineDisplayName       String?   @map("line_display_name")
+  linePictureUrl        String?   @map("line_picture_url")
+  lineProfileSyncedAt   DateTime? @map("line_profile_synced_at")
   orderId               String?   @unique @map("order_id")
   instagramHandle       String?   @map("instagram_handle")
   petName               String?   @map("pet_name")
