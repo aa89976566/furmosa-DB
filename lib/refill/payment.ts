@@ -1,3 +1,4 @@
+import { allowsExternalEffects } from '@/lib/external-effects';
 import { prisma } from '@/lib/prisma';
 import { assertTransition } from '@/lib/refill/transitions';
 import { RefillError } from '@/lib/refill/errors';
@@ -10,11 +11,28 @@ import {
 import { isEcpayConfigured } from '@/lib/payments/ecpay/config';
 import type { RefillOrderStatus } from '@/lib/refill/constants';
 
+/** Runtime adapter：僅在 choke 讀取兩個政策變數名，傳給純核心。 */
+function isEcpayExternalEffectsAllowed(): boolean {
+  return allowsExternalEffects({
+    APP_ENV: process.env.APP_ENV,
+    EXTERNAL_EFFECTS_MODE: process.env.EXTERNAL_EFFECTS_MODE,
+  });
+}
+
 export async function initiateRefillPayment(input: {
   orderId: string;
   customerId: string;
   purpose?: PaymentPurpose;
 }) {
+  // Fail-closed：任何 Prisma 讀寫／pending／transaction 之前先拒絕非 production checkout。
+  if (!isEcpayExternalEffectsAllowed()) {
+    throw new RefillError(
+      '付款功能目前無法使用，請稍後再試。',
+      'EXTERNAL_EFFECTS_DISABLED',
+      503,
+    );
+  }
+
   if (!isEcpayConfigured()) {
     throw new RefillError(
       '付款功能尚未設定完成，請稍後再試或聯繫匠寵。',

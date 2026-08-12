@@ -1,3 +1,4 @@
+import { allowsExternalEffects } from '@/lib/external-effects';
 import { generateCheckMacValue } from '@/lib/payments/ecpay/check-mac';
 import { getEcpayConfig } from '@/lib/payments/ecpay/config';
 
@@ -5,6 +6,16 @@ export type EcpayCheckoutForm = {
   paymentUrl: string;
   fields: Record<string, string>;
 };
+
+const EXTERNAL_EFFECTS_DISABLED_ERROR = '外部副作用已停用';
+
+/** Runtime adapter：僅在 choke 讀取兩個政策變數名，傳給純核心。 */
+function isEcpayExternalEffectsAllowed(): boolean {
+  return allowsExternalEffects({
+    APP_ENV: process.env.APP_ENV,
+    EXTERNAL_EFFECTS_MODE: process.env.EXTERNAL_EFFECTS_MODE,
+  });
+}
 
 /** MerchantTradeNo：綠界最長 20，英數 */
 export function buildMerchantTradeNo(prefix = 'RF'): string {
@@ -26,6 +37,11 @@ export function buildEcpayAioCheckout(input: {
   clientBackUrl?: string;
   customField1?: string;
 }): EcpayCheckoutForm {
+  // Fail-closed：讀取 merchant config／產生 CheckMac／form／付款 URL 之前先拒絕。
+  if (!isEcpayExternalEffectsAllowed()) {
+    throw new Error(EXTERNAL_EFFECTS_DISABLED_ERROR);
+  }
+
   const cfg = getEcpayConfig();
   const fields: Record<string, string | number> = {
     MerchantID: cfg.merchantId,
