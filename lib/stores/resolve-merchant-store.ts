@@ -3,10 +3,10 @@
  *
  * - 零 DB／零 side effect；候選 Stores 由呼叫端注入。
  * - 不得建立或同步 Store。
- * - 友好／豬窩 alias：僅版本控制 allowlist，(merchantId + merchant name) 必須同時匹配。
- * - 候選 Store 必須同時 slug 與 name 命中目標；缺一不可。
- * - 一般 mer_xxxx：僅允許 business ID 導出 slug，且 Store.name 必須等於 Merchant.name。
- * - 禁止「任意 merchantId 只靠店名」授權。
+ * - 僅接受版本控制 allowlist 完整四元組：
+ *   normalized merchantId + exact Merchant name + exact Store slug + exact Store name。
+ * - 未命中 allowlist → 一律 allowlist_mismatch（fail closed）。
+ * - 禁止任何 derived / 自我證明 fallback。
  */
 
 import { isInternalMerchantId } from '@/lib/stores/partner-store-visibility';
@@ -42,7 +42,7 @@ export type MerchantStoreResolveResult =
   | {
       ok: true;
       store: StoreCandidate;
-      matchedBy: 'allowlist' | 'derived_slug';
+      matchedBy: 'allowlist';
     }
   | {
       ok: false;
@@ -123,14 +123,6 @@ function findAllowlistPair(
   );
 }
 
-function allowlistTouchesMerchantOrName(merchantId: string, merchantName: string): boolean {
-  const id = normalizeMerchantId(merchantId);
-  return MERCHANT_STORE_ALLOWLIST.some(
-    (p) =>
-      normalizeMerchantId(p.merchantId) === id || namesEqual(p.merchantName, merchantName),
-  );
-}
-
 /**
  * 候選必須同時符合 target slug 與 target store name。
  * - slug 命中但 name 不符 → name_conflict
@@ -168,33 +160,6 @@ function pickExactCandidate(
   return { ok: false, reason: 'name_conflict' };
 }
 
-function pickDerivedCandidate(
-  candidates: readonly StoreCandidate[],
-  derivedSlug: string,
-  merchantName: string,
-): MerchantStoreResolveResult {
-  // 僅以 derived slug 為入口；禁止「只靠店名」命中其他友好 slug。
-  const slugHits = candidates.filter((s) => s.slug === derivedSlug);
-  if (slugHits.length === 0) {
-    return { ok: false, reason: 'missing_store' };
-  }
-  if (slugHits.length > 1) {
-    return { ok: false, reason: 'ambiguous' };
-  }
-  const store = slugHits[0]!;
-  if (!namesEqual(store.name, merchantName)) {
-    return { ok: false, reason: 'name_conflict' };
-  }
-  const nameHits = candidates.filter((s) => namesEqual(s.name, merchantName));
-  if (nameHits.length > 1) {
-    return { ok: false, reason: 'ambiguous' };
-  }
-  if (nameHits.length === 1 && nameHits[0]!.id !== store.id) {
-    return { ok: false, reason: 'name_conflict' };
-  }
-  return { ok: true, store, matchedBy: 'derived_slug' };
-}
-
 /**
  * 將 active jar_exchange Merchant 解析為唯一可核銷 Store。
  * `candidates` 應為呼叫端已讀取的 Store 清單；本函式絕不新增／更新。
@@ -214,18 +179,9 @@ export function resolveMerchantStore(
   }
 
   const pair = findAllowlistPair(merchant.merchantId, merchant.name);
-  if (pair) {
-    const picked = pickExactCandidate(candidates, pair.storeSlug, pair.storeName);
-    if (!picked.ok) return picked;
-    return { ok: true, store: picked.store, matchedBy: 'allowlist' };
-  }
-
-  // MER 或店名出現在 allowlist 但 pair 不成 → 拒絕（含未知 MER + 合法豬窩／友好店名）
-  if (allowlistTouchesMerchantOrName(merchant.merchantId, merchant.name)) {
+  if (!pair) {
     return { ok: false, reason: 'allowlist_mismatch' };
   }
 
-  // 非 allowlist：僅允許 derived mer_xxxx，且 Store.name 必須等於 Merchant.name
-  const derivedSlug = merchantToStoreSlug(merchant.merchantId);
-  return pickDerivedCandidate(candidates, derivedSlug, merchant.name);
+  return pickExactCandidate(candidates, pair.storeSlug, pair.storeName);
 }

@@ -1,5 +1,5 @@
 /**
- * Merchant→Store 純 mapping 規格鎖（allowlist + derived 雙重匹配）。
+ * Merchant→Store 純 mapping 規格鎖（僅 allowlist 四元組，無 derived fallback）。
  * 零 DB／零網路／零 env side effect。
  */
 import assert from 'node:assert/strict';
@@ -136,7 +136,7 @@ describe('resolveMerchantStore — unknown MER cannot use legal names/slugs', ()
       merchant({ merchantId: 'MER-9999', name: '99寵物美容' }),
       STORES,
     );
-    assert.deepEqual(r, { ok: false, reason: 'missing_store' });
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
   });
 
   it('unknown MER cannot authorize via derived mer_0010 when name is 淡水妞妞', () => {
@@ -146,6 +146,51 @@ describe('resolveMerchantStore — unknown MER cannot use legal names/slugs', ()
     );
     // allowlist expects niuniu; mer_0010 candidate with same name ≠ target slug
     assert.deepEqual(r, { ok: false, reason: 'name_conflict' });
+  });
+});
+
+describe('resolveMerchantStore — crafted / derived self-proof rejected', () => {
+  it('PET99 + 99寵物美容 + pet99 candidate 拒絕', () => {
+    const r = resolveMerchantStore(
+      merchant({ merchantId: 'PET99', name: '99寵物美容' }),
+      [{ id: 's_pet99', slug: 'pet99', name: '99寵物美容' }],
+    );
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
+  });
+
+  it('MER-9999 + 99寵物美容 + mer_9999 candidate 拒絕', () => {
+    const r = resolveMerchantStore(
+      merchant({ merchantId: 'MER-9999', name: '99寵物美容' }),
+      [{ id: 's_fake', slug: 'mer_9999', name: '99寵物美容' }],
+    );
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
+  });
+
+  it('niuniu + 淡水妞妞 + niuniu candidate 拒絕（非權威 MER）', () => {
+    const r = resolveMerchantStore(
+      merchant({ merchantId: 'niuniu', name: '淡水妞妞' }),
+      [{ id: 's_niuniu', slug: 'niuniu', name: '淡水妞妞' }],
+    );
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
+  });
+
+  it('任意未知 MER + 完全匹配 derived slug/name 仍拒絕', () => {
+    const r = resolveMerchantStore(
+      merchant({ merchantId: 'MER-8888', name: '完全自證店' }),
+      [{ id: 's_self', slug: 'mer_8888', name: '完全自證店' }],
+    );
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
+  });
+
+  it('MER-0050 derived pair 拒絕（無 allowlist）', () => {
+    const stores: StoreCandidate[] = [
+      { id: 's50', slug: 'mer_0050', name: '新合作店' },
+    ];
+    const r = resolveMerchantStore(
+      merchant({ merchantId: 'MER-0050', name: '新合作店' }),
+      stores,
+    );
+    assert.deepEqual(r, { ok: false, reason: 'allowlist_mismatch' });
   });
 });
 
@@ -288,41 +333,13 @@ describe('resolveMerchantStore — wrong name / wrong store name', () => {
     assert.deepEqual(r, { ok: false, reason: 'name_conflict' });
   });
 
-  it('derived slug 指 A / name 指 B → name_conflict', () => {
+  it('allowlist slug 指 A / name 指 B → name_conflict', () => {
     const stores: StoreCandidate[] = [
-      { id: 'slug_hit', slug: 'mer_0050', name: '店A' },
-      { id: 'name_hit', slug: 'other', name: '店B名稱' },
+      { id: 'slug_hit', slug: 'mer_0014', name: '店A' },
+      { id: 'name_hit', slug: 'other', name: '柒沐寵物美容' },
     ];
     const r = resolveMerchantStore(
-      merchant({ merchantId: 'MER-0050', name: '店B名稱' }),
-      stores,
-    );
-    assert.deepEqual(r, { ok: false, reason: 'name_conflict' });
-  });
-});
-
-describe('resolveMerchantStore — derived slug (non-allowlist MER)', () => {
-  it('合法 derived pair 成功', () => {
-    const stores: StoreCandidate[] = [
-      { id: 's50', slug: 'mer_0050', name: '新合作店' },
-    ];
-    const r = resolveMerchantStore(
-      merchant({ merchantId: 'MER-0050', name: '新合作店' }),
-      stores,
-    );
-    assert.equal(r.ok, true);
-    if (r.ok) {
-      assert.equal(r.store.slug, 'mer_0050');
-      assert.equal(r.matchedBy, 'derived_slug');
-    }
-  });
-
-  it('derived slug 店名不一致 → name_conflict', () => {
-    const stores: StoreCandidate[] = [
-      { id: 's50', slug: 'mer_0050', name: '別的名字' },
-    ];
-    const r = resolveMerchantStore(
-      merchant({ merchantId: 'MER-0050', name: '新合作店' }),
+      merchant({ merchantId: 'MER-0014', name: '柒沐寵物美容' }),
       stores,
     );
     assert.deepEqual(r, { ok: false, reason: 'name_conflict' });
@@ -332,11 +349,11 @@ describe('resolveMerchantStore — derived slug (non-allowlist MER)', () => {
 describe('resolveMerchantStore — duplicates / empty', () => {
   it('duplicate slug candidates → ambiguous', () => {
     const stores: StoreCandidate[] = [
-      { id: '1', slug: 'mer_0050', name: '新合作店' },
-      { id: '2', slug: 'mer_0050', name: '新合作店' },
+      { id: '1', slug: 'mer_0014', name: '柒沐寵物美容' },
+      { id: '2', slug: 'mer_0014', name: '柒沐寵物美容' },
     ];
     const r = resolveMerchantStore(
-      merchant({ merchantId: 'MER-0050', name: '新合作店' }),
+      merchant({ merchantId: 'MER-0014', name: '柒沐寵物美容' }),
       stores,
     );
     assert.deepEqual(r, { ok: false, reason: 'ambiguous' });
@@ -344,11 +361,11 @@ describe('resolveMerchantStore — duplicates / empty', () => {
 
   it('duplicate name candidates (same name different slug) → ambiguous', () => {
     const stores: StoreCandidate[] = [
-      { id: '1', slug: 'mer_0050', name: '新合作店' },
-      { id: '2', slug: 'alias', name: '新合作店' },
+      { id: '1', slug: 'mer_0014', name: '柒沐寵物美容' },
+      { id: '2', slug: 'alias', name: '柒沐寵物美容' },
     ];
     const r = resolveMerchantStore(
-      merchant({ merchantId: 'MER-0050', name: '新合作店' }),
+      merchant({ merchantId: 'MER-0014', name: '柒沐寵物美容' }),
       stores,
     );
     assert.deepEqual(r, { ok: false, reason: 'ambiguous' });
