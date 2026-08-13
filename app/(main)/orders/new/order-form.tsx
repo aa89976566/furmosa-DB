@@ -38,6 +38,7 @@ import {
   SHIPPING_FEE_HOME_BLACK_CAT,
 } from '@/lib/shipping-policy';
 import { createOrder, updateOrder, searchCustomersForOrder, searchProductsForOrder } from '../actions';
+import { isRedirectError } from '@/lib/redirect-error';
 import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
@@ -706,6 +707,7 @@ export function OrderForm({
             await createOrder(formData);
           }
         } catch (e) {
+          if (isRedirectError(e)) throw e;
           alert(e instanceof Error ? e.message : isEdit ? '儲存訂單失敗' : '建立訂單失敗');
         }
       }}
