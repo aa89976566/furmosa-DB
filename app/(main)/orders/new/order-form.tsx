@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition, useEffect } from 'react';
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -413,33 +413,39 @@ export function OrderForm({
     [productCatalog],
   );
 
-  const mergeCustomers = (rows: CustomerOption[]) => {
+  const mergeCustomers = useCallback((rows: CustomerOption[]) => {
     setCustomers((prev) => {
       const map = new Map(prev.map((c) => [c.id, c]));
       for (const row of rows) map.set(row.id, row);
       return [...map.values()];
     });
-  };
+  }, []);
 
-  const mergeProducts = (rows: ProductOption[]) => {
+  const mergeProducts = useCallback((rows: ProductOption[]) => {
     setProductCatalog((prev) => {
       const map = new Map(prev.map((p) => [p.id, p]));
       for (const row of rows) map.set(row.id, row);
       return [...map.values()];
     });
-  };
+  }, []);
 
-  const handleSearchCustomers = async (query: string) => {
-    const rows = await searchCustomersForOrder(query);
-    mergeCustomers(rows);
-    return rows;
-  };
+  const handleSearchCustomers = useCallback(
+    async (query: string) => {
+      const rows = await searchCustomersForOrder(query);
+      mergeCustomers(rows);
+      return rows;
+    },
+    [mergeCustomers],
+  );
 
-  const handleSearchProducts = async (query: string) => {
-    const rows = await searchProductsForOrder(query);
-    mergeProducts(rows);
-    return rows;
-  };
+  const handleSearchProducts = useCallback(
+    async (query: string) => {
+      const rows = await searchProductsForOrder(query);
+      mergeProducts(rows);
+      return rows;
+    },
+    [mergeProducts],
+  );
 
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
