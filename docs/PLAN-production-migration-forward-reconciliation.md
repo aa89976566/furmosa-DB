@@ -153,9 +153,10 @@ Audit counts／ranges 沿用 incident #112 的 **2026-08-14 point-in-time SELECT
 採用 **expand／compatibility、forward-only**。把工作拆成不同 PR／gate，不在單一 PR 同時「還原 history + 改 schema + 啟用功能」。
 
 1. **Gate 0（本 PR）：** design-only。12-entry manifest、相依、方案與驗證方法。不改 repo 其他檔。
-2. **Exact-history PR（後續，須本設計核准）：** 只保存 12 筆 **已套用位元組** 的可驗證複本，來源鎖死 manifest。`#4` 只能來自 `155979e2`。預設放在 **非 active** 位置（不得直接進 `prisma/migrations`）。
-3. **Schema compatibility PR（後續，與 history 分開）：** 讓 Prisma **解釋** 已存在物件（至少：`product_id`、points unique、payment active unique、`new_container_serial` unique、morning／entitlement 結構）。不產生會在 Production 重跑的 SQL。Morning 宣告 ≠ 啟用。
-4. **Active migrations 搬入：** **禁止**，除非同時證明：
+2. **Exact-history evidence archive PR（後續，須本設計核准）：** 只保存 12 筆 **已套用位元組** 的可驗證複本，來源鎖死 manifest。`#4` 只能來自 `155979e2`。預設放在 **非 active** 位置（不得直接進 `prisma/migrations`）。
+   非 active archive 只保存 byte-for-byte 證據與 checksum；Prisma 不會讀取它，因此它不改變 Prisma migration history、不修復 migrate status/drift，也不代表 reconciliation 完成。
+3. **Schema compatibility PR（後續，與 evidence archive 分開）：** 讓 Prisma **解釋** 已存在物件（至少：`product_id`、points unique、payment active unique、`new_container_serial` unique、morning／entitlement 結構）。不產生會在 Production 重跑的 SQL。Morning 宣告 ≠ 啟用。
+4. **是否移入 active migration tree、建立 baseline、或採其他 reconciliation：** 本設計 **不得預設**。必須等 empty DB／schema-only clone 驗證及人工決策後另設 gate。在該 gate 之前 **禁止** 搬入 active `prisma/migrations`。即使日後另設 gate，仍須同時證明：
    - **已存在 Production：** checksum 全數匹配 → migrate 為 no-op，不重跑、不改 ledger、不改資料。
    - **空白 DB（從 exact main）：** 要嘛不建出未準備好的 Draft 結構，要嘛建出後仍 disabled 且有明確產品授權。目前 **沒有** 這項授權。
    - `#4` 絕不會變成 `43519603…`。
@@ -227,8 +228,9 @@ Audit counts／ranges 沿用 incident #112 的 **2026-08-14 point-in-time SELECT
 
 1. Incident [PR #112](https://github.com/aa89976566/furmosa-DB/pull/112) **approved**（保留決策成為已核准輸入；核准 ≠ 改 Production）。
 2. **本 design PR approved**（仍是 documentation-only）。
-3. **Exact-history PR**（非 active archive；checksum 鎖死；#4 = `155979e2`）。
+3. **Exact-history evidence archive PR**（非 active；只存 byte-for-byte 證據與 checksum；Prisma 不讀取；不改變 migration history、不修復 migrate status/drift、不代表 reconciliation 完成；#4 = `155979e2`）。
 4. **Schema compatibility PR**（與 3 分開；不啟用功能；不重跑 SQL）。
+4a. **另設 gate（不得預設）：** 是否移入 active migration tree、建立 baseline、或採其他 reconciliation，必須等 empty DB／schema-only clone 驗證及人工決策。
 5. **Isolated validation**（empty DB from main ＋ schema-only／無 PII shadow）。
 6. **Read-only Production status check**（另案授權；只讀 counts／checksum／object existence）。
 7. **Human Production authorization**（每次 mutation 單獨授權）。
@@ -260,17 +262,25 @@ Audit counts／ranges 沿用 incident #112 的 **2026-08-14 point-in-time SELECT
 
 | 活動 | Cursor／AI | 設計作者（本 PR） | 人工 reviewer | Production 批准人 |
 |---|---|---|---|---|
-| 寫 design／manifest | 可起草 | A | R | I |
-| 核准 design | 不可 | C | A／R | I |
+| 寫 design／manifest | 可起草（非 R） | R | C | I |
+| 核准 design | 不可 | C | R | A |
 | 核准 incident #112 決策 | 不可 | I | R | A |
-| 改 schema／migration／code | 不可在本任務 | 不可在本任務 | R（未來 PR） | I |
-| 連 Production／跑 migrate | 不可 | 不可 | 不可擅自 | A（每次） |
+| 改 schema／migration／code | 不可在本任務 | 不可在本任務 | R（未來 PR 的 review） | A |
+| 連 Production／跑 migrate | 不可 | 不可 | 不可擅自（非 R） | A（每次） |
 | merge／deploy | **不可** | 不可 | R | A |
 | 重新評估 #111 | 不可 | I | R | A |
 
-- **R** = review，**A** = accountably approve，**C** = consult，**I** = inform。
-- Cursor／AI **不得**自行 merge、deploy、migrate、`db push`、改 ledger、或操作 Vercel／Supabase 正式環境。
-- 本文件不授予任何人 Production mutation 權限。
+標準 RACI（不得自創縮寫定義）：
+
+- **R** = Responsible
+- **A** = Accountable
+- **C** = Consulted
+- **I** = Informed
+
+人工 reviewer 是執行 review 的 **Responsible**。Production 批准人是 **Accountable**。
+連 Production／跑 migrate 的 Responsible 只能是另案授權的人工操作者，不是 Cursor、設計作者或 reviewer。
+Cursor／AI **不得**自行 merge、deploy、migrate、`db push`、改 ledger、或操作 Vercel／Supabase 正式環境。
+本文件不授予任何人 Production mutation 權限。
 
 ---
 
@@ -282,7 +292,7 @@ Audit counts／ranges 沿用 incident #112 的 **2026-08-14 point-in-time SELECT
 2. 對 **main 已管理的表** 宣告 extra unique（points／payment／`new_container_serial`）時，如何避免空白 DB 的 `migrate dev` 生出 **另一份不同 checksum** 的新 migration？
 3. Morning／entitlement 要用 first-class models 還是（在證明不 DROP 之後的）ignored models，才能讓 `migrate diff` 不提出刪表？
 4. 無 PII 的 Production schema shadow 要用哪種唯讀、可重複的取得方式（例如 schema-only dump），且不需要把 secret 寫進 repo？
-5. Exact-history 之後，Preview／空白環境的預期是「繼續沒有這 12 個物件」還是「可有 dark schema 但 runtime disabled」？這會決定能不能把檔案移入 active tree。
+5. Exact-history evidence archive 之後，Preview／空白環境的預期是「繼續沒有這 12 個物件」還是「可有 dark schema 但 runtime disabled」？這會決定能不能把檔案移入 active tree；本設計不得預設答案。
 6. 不連 Production 的 Prisma read-only drift 指令組合，要以哪一版 Prisma／哪兩個 data source（migrations folder vs schema vs schema-only shadow）為準？
 
 ---
@@ -294,4 +304,4 @@ Audit counts／ranges 沿用 incident #112 的 **2026-08-14 point-in-time SELECT
 - 連 Supabase／Vercel
 - 修改 PR #112 或 PR #111
 - 啟用 LINE morning
-- 開始 exact-history 或 schema compatibility 實作
+- 開始 Exact-history evidence archive 或 schema compatibility 實作
