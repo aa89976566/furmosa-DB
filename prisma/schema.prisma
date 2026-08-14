@@ -27,11 +27,12 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
-  role         String   @default("staff") // admin / staff / finance / warehouse
+  role         String   @default("staff") // owner / admin / staff / finance / warehouse
   passwordHash String
   avatarUrl    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  isActive     Boolean  @default(true)
 
   assignedTasks       Task[]                 @relation("AssignedTasks")
   pointsLedgerCreated MemberPointsLedger[]   @relation("PointsLedgerCreatedBy")
