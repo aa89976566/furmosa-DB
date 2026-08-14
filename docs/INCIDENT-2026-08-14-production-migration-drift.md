@@ -3,7 +3,8 @@
 **類型：** documentation-only
 **狀態：** OPEN
 **基準 main：** `e733f04435ed5cd811c241528deccd04944387c2`
-**本文件性質：** 只記錄已完成的唯讀稽核。沒有資料變更、沒有 remediation、沒有部署。
+**本文件性質：** 只記錄已完成的唯讀稽核與 2026-08-14 已確認的資料保留決策。沒有資料變更、沒有 remediation、沒有部署。
+**Audit snapshot：** 本文所有 audit counts／ranges 皆為 **2026-08-14 的 point-in-time SELECT-only snapshot**，不是永久 invariant。之後的列數可能改變；不得把當日數字當成可刪除或可忽略的依據。
 
 ---
 
@@ -88,7 +89,7 @@ Production `_prisma_migrations` ledger 有 **12 筆 `202608*` migration**。
 - `line_morning_news_items` metadata／license 欄位
 - `line_morning_deliveries.animal_fact_id` + FK
 
-**完整性計數（無 PII）：**
+**完整性計數（無 PII；2026-08-14 point-in-time SELECT-only snapshot，非永久 invariant）：**
 
 | 檢查 | 結果 |
 |---|---|
@@ -101,6 +102,7 @@ Production `_prisma_migrations` ledger 有 **12 筆 `202608*` migration**。
 ## 5. Data audit
 
 只記錄 counts／ranges。不含 PII、不含完整 row。
+下列數字全部是 **2026-08-14 point-in-time SELECT-only snapshot**，不是永久 invariant。
 
 | 對象 | count |
 |---|---|
@@ -114,6 +116,7 @@ Production `_prisma_migrations` ledger 有 **12 筆 `202608*` migration**。
 | `line_morning_plan_ledgers` | 0 |
 | `refill_exchange_entitlements` | 0 |
 | `refill_flavours.product_id` 非空 | 7 |
+| `refill_orders.new_container_serial` 非空 | 0 |
 | refill order 新口味／履行欄（`preferred_flavour_id` / `fulfilled_flavour_id` / `fulfilled_by_user_id`）非空 | 0 |
 | campaign LINE profile 欄（`line_picture_url` / `line_profile_synced_at`）非空 | 0 |
 
@@ -128,42 +131,81 @@ Production `_prisma_migrations` ledger 有 **12 筆 `202608*` migration**。
 
 ---
 
-## 7. Gate
+## 7. Business decisions — 2026-08-14
 
-- [PR #111](https://github.com/aa89976566/furmosa-DB/pull/111)（HQ RBAC foundation）**必須保持 Draft／blocked**。不得 merge、不得 deploy、不得在 Production 跑其 migration。
+以下為使用者已確認的資料保留決策。這些決策**不**授權啟用功能、不授權改 Production、不授權 DROP。
+
+### LINE morning：PRESERVE — FEATURE DISABLED
+
+- 保留 `line_morning_contents`（snapshot=4）、`line_morning_news_items`（snapshot=4）、`line_morning_ingest_runs`（snapshot=2）及其相關結構。
+- 相關 morning tables／columns／indexes／FKs 一併保留，不得當成可直接 decommission 的物件。
+- **目前不得啟用**發送、cron、新聞抓取或 unfinished runtime。
+- 未來只有在完整安全審查後，才可另案接回功能。本文件不是接回許可。
+
+### `refill_flavours.product_id`：PRESERVE — PRODUCTION DATA
+
+- snapshot 的 **7** 筆非空關聯視為**正式 Production 資料**。
+- 不得清除、覆寫、回滾，也不得當成 Preview 殘留處理。
+- 不得暗示這 7 筆可以連同 Draft 功能一起淘汰。
+
+### 其他目前零筆／零非空的 DB-only objects：UNRESOLVED — PRESERVE IN PLACE
+
+- 包含（但不限於）：其他 morning 表（preferences／deliveries／facts／confirm／plans）、`refill_exchange_entitlements`、campaign LINE profile 欄、refill order 新口味／履行欄、`refill_orders.new_container_serial`（snapshot 非空=0）與其 unique。
+- **零筆不代表可刪除。**
+- 另案 forward-only 設計完成並取得人工授權前，不得 DROP 這些物件。
+
+約束類物件（點數 source unique、payment active unique／paid dup guard、`new_container_serial` unique）同樣維持原地保留；零重複／零非空不是刪除理由。
+
+---
+
+## 8. Containment
+
+在另案設計與另行人工授權之前，強制遵守：
+
+- 禁止刪改 `_prisma_migrations` ledger。
+- 禁止 rollback、replay、重新執行這 12 筆 SQL。
+- 禁止用 PR #90 current checksum `43519603aa4aec3fdb3fb061ae356327fc81feb108cdf5b3058a9a4539284161` 覆蓋 Production。`20260804160000_payment_order_active_unique` **只認** historical commit `155979e2c06775971a49e4ee8926f2acc9edb407` 的匹配版本（Production checksum `dd723c6f2995961f11072cb767777984f2423d49650fefd5b6c9e61c3bbafa84`）。
+- [PR #111](https://github.com/aa89976566/furmosa-DB/pull/111) **保持 Draft／blocked**。不得 merge、不得 deploy、不得在 Production 跑其 migration。
+- 不得把 Draft 功能 PR（#84／#89／#90／#91／#93／#96／#97／#100／#101／#105）當成 remediation 直接 merge。
+- 不得把這 12 筆直接放進 main 的 active `prisma/migrations`。
+- 不得啟用 LINE morning 發送、cron、新聞抓取或 unfinished runtime。
+
+---
+
+## 9. Gate
+
 - 本 incident **不是** #111 的修復，也不是那些 Draft 功能 PR 的合併許可。
-- 必須先完成「保留／淘汰」決策，再設計 **forward-only reconciliation**。
+- 2026-08-14 保留決策已記錄於第 7 節。下一步**不是**實作 reconciliation，也不是啟用功能。
+- **下一 gate：** 另開 **design-only** forward reconciliation。先做 12-entry manifest（checksum／source／dependency／object mapping）。設計驗證**僅**可在隔離 empty DB／clone 進行。
+- 該 design-only 工作**不得**啟用功能，**不得**修改 Production。
 - 任何 Production mutation（含 ledger、schema、資料、deploy、migration）都需要**另行人工授權**。本文件不構成授權。
 
 ---
 
-## 8. 後續分類
+## 10. 分類（2026-08-14 已確認，不得解讀為可直接 decommission）
 
-尚未做保留／淘汰決策。以下只是稽核後的候選分類。
+### PRESERVE — FEATURE DISABLED
 
-### Preserve candidate
+- LINE morning 全部相關結構，含有資料的 contents／news_items／ingest_runs，以及目前零筆的 preferences／deliveries／facts／confirm／plans
+- 目前不得啟用發送、cron、新聞抓取或 unfinished runtime
 
-- 點數 `source` unique（`member_points_ledger_source_type_source_ref_id_key`）
-- payment active unique（`payment_orders_active_refill_purpose_key`）與 paid dup guard
-- `new_container_serial` unique
-- 已有 **7** 筆 `refill_flavours.product_id` 關聯
+### PRESERVE — PRODUCTION DATA
 
-### Unresolved with data
+- `refill_flavours.product_id` 的 7 筆非空關聯（2026-08-14 snapshot）及其 unique／FK
 
-- `line_morning_contents`（4）
-- `line_morning_news_items`（4）
-- `line_morning_ingest_runs`（2）
+### UNRESOLVED — PRESERVE IN PLACE
 
-### Empty but unresolved
+- `refill_exchange_entitlements`（snapshot=0）
+- campaign LINE profile 欄（snapshot 非空=0）
+- refill order 新口味／履行欄（snapshot 非空=0）
+- `refill_orders.new_container_serial`（snapshot 非空=0）與其 unique
+- 點數 source unique、payment active unique、paid dup guard
 
-- 其他 morning 表：preferences／deliveries／facts／confirm／plans
-- refill entitlement
-- campaign LINE profile 欄
-- refill order 新口味／履行欄
+零筆／零非空／零重複都**不是** DROP 或 decommission 的許可。Morning 與 7 筆 product links **不可**被解讀為可直接淘汰。
 
 ---
 
-## 9. Incident status
+## 11. Incident status
 
 | 欄位 | 值 |
 |---|---|
@@ -171,11 +213,11 @@ Production `_prisma_migrations` ledger 有 **12 筆 `202608*` migration**。
 | Data mutation performed | **no** |
 | Remediation deployed | **no** |
 
-本文件只記錄現況。沒有執行 archive、沒有改 ledger、沒有 rollback、沒有重跑 SQL、沒有 merge Draft 功能、沒有 deploy。
+本文件只記錄現況與 2026-08-14 保留決策。沒有執行 archive、沒有改 ledger、沒有 rollback、沒有重跑 SQL、沒有 merge Draft 功能、沒有 deploy、沒有啟用 LINE morning。
 
 ---
 
-## 10. Evidence
+## 12. Evidence
 
 來源只限：
 
