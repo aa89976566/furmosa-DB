@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition, useEffect } from 'react';
+import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,7 @@ import {
   SHIPPING_FEE_HOME_BLACK_CAT,
 } from '@/lib/shipping-policy';
 import { createOrder, updateOrder, searchCustomersForOrder, searchProductsForOrder } from '../actions';
+import { isRedirectError } from '@/lib/redirect-error';
 import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
@@ -413,33 +414,39 @@ export function OrderForm({
     [productCatalog],
   );
 
-  const mergeCustomers = (rows: CustomerOption[]) => {
+  const mergeCustomers = useCallback((rows: CustomerOption[]) => {
     setCustomers((prev) => {
       const map = new Map(prev.map((c) => [c.id, c]));
       for (const row of rows) map.set(row.id, row);
       return [...map.values()];
     });
-  };
+  }, []);
 
-  const mergeProducts = (rows: ProductOption[]) => {
+  const mergeProducts = useCallback((rows: ProductOption[]) => {
     setProductCatalog((prev) => {
       const map = new Map(prev.map((p) => [p.id, p]));
       for (const row of rows) map.set(row.id, row);
       return [...map.values()];
     });
-  };
+  }, []);
 
-  const handleSearchCustomers = async (query: string) => {
-    const rows = await searchCustomersForOrder(query);
-    mergeCustomers(rows);
-    return rows;
-  };
+  const handleSearchCustomers = useCallback(
+    async (query: string) => {
+      const rows = await searchCustomersForOrder(query);
+      mergeCustomers(rows);
+      return rows;
+    },
+    [mergeCustomers],
+  );
 
-  const handleSearchProducts = async (query: string) => {
-    const rows = await searchProductsForOrder(query);
-    mergeProducts(rows);
-    return rows;
-  };
+  const handleSearchProducts = useCallback(
+    async (query: string) => {
+      const rows = await searchProductsForOrder(query);
+      mergeProducts(rows);
+      return rows;
+    },
+    [mergeProducts],
+  );
 
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
@@ -700,6 +707,7 @@ export function OrderForm({
             await createOrder(formData);
           }
         } catch (e) {
+          if (isRedirectError(e)) throw e;
           alert(e instanceof Error ? e.message : isEdit ? '儲存訂單失敗' : '建立訂單失敗');
         }
       }}
