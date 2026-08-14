@@ -20,22 +20,18 @@ function deny(): { ok: false } {
   return { ok: false };
 }
 
-function verifiedSubjectUserId(userId: string | null): string {
-  if (typeof userId !== 'string') return '';
-  return userId.trim();
-}
-
 /**
  * Pure fresh-identity check for an already-verified HQ session subject
  * and an already-loaded User row. No I/O.
  * This does not authorize mutations or grant capabilities.
+ * userId is compared to row.id with strict equality; no trim or normalize.
  */
 export function evaluateFreshHqIdentity(input: {
   userId: string | null;
   row: FreshHqIdentityRow | null;
 }): FreshHqIdentityResult {
-  const userId = verifiedSubjectUserId(input.userId);
-  if (!userId) return deny();
+  const userId = input.userId;
+  if (typeof userId !== 'string' || userId === '') return deny();
 
   const row = input.row;
   if (!row) return deny();

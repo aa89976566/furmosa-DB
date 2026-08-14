@@ -127,6 +127,42 @@ describe('evaluateFreshHqIdentity', () => {
     assertDenied(evaluateFreshHqIdentity({ userId: '', row: row() }));
   });
 
+  it('denies padded userId " user_pk_001 " against row id user_pk_001', () => {
+    assertDenied(
+      evaluateFreshHqIdentity({
+        userId: ' user_pk_001 ',
+        row: row({ id: 'user_pk_001' }),
+      }),
+    );
+  });
+
+  it('denies trailing-space userId "user_pk_001 "', () => {
+    assertDenied(
+      evaluateFreshHqIdentity({
+        userId: 'user_pk_001 ',
+        row: row({ id: 'user_pk_001' }),
+      }),
+    );
+  });
+
+  it('denies newline-suffixed userId "user_pk_001\\n"', () => {
+    assertDenied(
+      evaluateFreshHqIdentity({
+        userId: 'user_pk_001\n',
+        row: row({ id: 'user_pk_001' }),
+      }),
+    );
+  });
+
+  it('allows only the exact userId user_pk_001', () => {
+    const result = evaluateFreshHqIdentity({
+      userId: 'user_pk_001',
+      row: row({ id: 'user_pk_001' }),
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.user.id, 'user_pk_001');
+  });
+
   it('denies a missing user row', () => {
     assertDenied(evaluateFreshHqIdentity({ userId: USER_ID, row: null }));
   });
