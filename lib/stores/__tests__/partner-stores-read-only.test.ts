@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { describe, it, mock } from 'node:test';
+import { register } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import { describe, it } from 'node:test';
 import { getGroomingCouponDiscountForStore } from '../../coupons/store-discount.ts';
 import { isCustomerFacingPartnerStore } from '../partner-store-visibility.ts';
 
@@ -17,20 +19,14 @@ const FORBIDDEN_STORE_METHODS = [
 
 const calls: PrismaCall[] = [];
 let findManyImpl: (args: unknown) => Promise<unknown[]> = async () => [];
-let syncHelperCalls = 0;
 
 function record(model: string, method: string): void {
   calls.push({ model, method });
 }
 
-function forbiddenDelegate(model: string): Record<string, (...args: unknown[]) => Promise<never>> {
-  const methods = [
-    'findMany',
-    'findUnique',
-    'findFirst',
-    ...FORBIDDEN_STORE_METHODS,
-  ];
-  const delegate: Record<string, (...args: unknown[]) => Promise<never>> = {};
+function forbiddenDelegate(model: string): Record<string, () => Promise<never>> {
+  const methods = ['findMany', 'findUnique', 'findFirst', ...FORBIDDEN_STORE_METHODS];
+  const delegate: Record<string, () => Promise<never>> = {};
   for (const method of methods) {
     delegate[method] = async () => {
       record(model, method);
@@ -70,23 +66,49 @@ const prisma = new Proxy(
   },
 );
 
-mock.module('@/lib/prisma', {
-  namedExports: { prisma },
-});
-mock.module('@/lib/coupons/store-discount', {
-  namedExports: { getGroomingCouponDiscountForStore },
-});
-mock.module('@/lib/stores/partner-store-visibility', {
-  namedExports: { isCustomerFacingPartnerStore },
-});
-mock.module('@/lib/stores/sync-merchant-stores', {
-  namedExports: {
-    syncAllJarExchangePartnerStores: async () => {
-      syncHelperCalls += 1;
-      throw new Error('syncAllJarExchangePartnerStores must not be called');
-    },
-  },
-});
+const harness = globalThis as typeof globalThis & {
+  __TEST_PRISMA__: typeof prisma;
+  __TEST_DISCOUNT__: typeof getGroomingCouponDiscountForStore;
+  __TEST_VISIBLE__: typeof isCustomerFacingPartnerStore;
+  __TEST_SYNC_CALLS__: number;
+};
+
+harness.__TEST_PRISMA__ = prisma;
+harness.__TEST_DISCOUNT__ = getGroomingCouponDiscountForStore;
+harness.__TEST_VISIBLE__ = isCustomerFacingPartnerStore;
+harness.__TEST_SYNC_CALLS__ = 0;
+
+const loader = `
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier === '@/lib/prisma') {
+    return {
+      shortCircuit: true,
+      url: 'data:text/javascript,export const prisma = globalThis.__TEST_PRISMA__;',
+    };
+  }
+  if (specifier === '@/lib/coupons/store-discount') {
+    return {
+      shortCircuit: true,
+      url: 'data:text/javascript,export const getGroomingCouponDiscountForStore = globalThis.__TEST_DISCOUNT__;',
+    };
+  }
+  if (specifier === '@/lib/stores/partner-store-visibility') {
+    return {
+      shortCircuit: true,
+      url: 'data:text/javascript,export const isCustomerFacingPartnerStore = globalThis.__TEST_VISIBLE__;',
+    };
+  }
+  if (specifier === '@/lib/stores/sync-merchant-stores') {
+    return {
+      shortCircuit: true,
+      url: 'data:text/javascript,export async function syncAllJarExchangePartnerStores(){globalThis.__TEST_SYNC_CALLS__+=1;throw new Error("syncAllJarExchangePartnerStores must not be called")}',
+    };
+  }
+  return nextResolve(specifier, context);
+}
+`;
+
+register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL(import.meta.url));
 
 const { listPartnerStoresFromDb, FALLBACK_PARTNER_STORES } = await import(
   '../partner-stores.ts'
@@ -126,14 +148,14 @@ function expectedFallback(includeInternal?: boolean) {
 
 function resetHarness(impl: (args: unknown) => Promise<unknown[]>) {
   calls.length = 0;
-  syncHelperCalls = 0;
+  harness.__TEST_SYNC_CALLS__ = 0;
   findManyImpl = impl;
 }
 
 function assertReadOnlyFindMany(args: unknown) {
   assert.deepEqual(args, EXPECTED_FIND_MANY_ARGS);
   assert.deepEqual(calls, [{ model: 'store', method: 'findMany' }]);
-  assert.equal(syncHelperCalls, 0);
+  assert.equal(harness.__TEST_SYNC_CALLS__, 0);
   assert.equal(
     calls.some((c) => c.model === 'merchant'),
     false,
@@ -154,10 +176,7 @@ describe('listPartnerStoresFromDb is read-only', () => {
 
     const rows = await listPartnerStoresFromDb();
     assertReadOnlyFindMany(received);
-    assert.deepEqual(rows, [
-      expectedView(DB_ROWS[1]),
-      expectedView(DB_ROWS[2]),
-    ]);
+    assert.deepEqual(rows, [expectedView(DB_ROWS[1]), expectedView(DB_ROWS[2])]);
   });
 
   it('keeps internal stores only when includeInternal is true', async () => {
@@ -191,14 +210,11 @@ describe('listPartnerStoresFromDb is read-only', () => {
     const shown = await listPartnerStoresFromDb({ includeInternal: true });
     assert.deepEqual(hidden, expectedFallback());
     assert.deepEqual(shown, expectedFallback(true));
-    assert.equal(syncHelperCalls, 0);
-    assert.deepEqual(
-      calls,
-      [
-        { model: 'store', method: 'findMany' },
-        { model: 'store', method: 'findMany' },
-      ],
-    );
+    assert.equal(harness.__TEST_SYNC_CALLS__, 0);
+    assert.deepEqual(calls, [
+      { model: 'store', method: 'findMany' },
+      { model: 'store', method: 'findMany' },
+    ]);
   });
 
   it('uses fallback when findMany fails and still does not mutate', async () => {
