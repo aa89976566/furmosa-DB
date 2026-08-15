@@ -9,21 +9,18 @@ export const ZHUWO_CONSIGNMENT_BRANCHES = [
     name: '豬窩 中和店',
     city: '新北',
     storeSlug: 'zhuwo_zhonghe',
-    storeSecretToken: '8k2m1x',
   },
   {
     merchantId: 'MER-0019',
     name: '豬窩 板橋店',
     city: '新北',
     storeSlug: 'zhuwo_banqiao',
-    storeSecretToken: '4f9d7k',
   },
   {
     merchantId: 'MER-0020',
     name: '豬窩 土城店',
     city: '新北',
     storeSlug: 'zhuwo_tucheng',
-    storeSecretToken: '7p3n8q',
   },
 ] as const;
 
