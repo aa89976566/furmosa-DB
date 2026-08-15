@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
@@ -9,13 +10,9 @@ export function merchantToStoreSlug(merchantId: string): string {
   return merchantId.trim().toLowerCase().replace(/-/g, '_');
 }
 
-function generateSecretToken(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let token = '';
-  for (let i = 0; i < 6; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return token;
+/** legacy NOT NULL placeholder, not auth credential */
+function generateLegacyStorePlaceholder(): string {
+  return randomBytes(24).toString('base64url');
 }
 
 type MerchantStoreSource = {
@@ -68,7 +65,7 @@ export async function syncPartnerStoreForJarExchangeMerchant(
       id: `store_${slug}`,
       name: merchant.name,
       slug,
-      secretToken: generateSecretToken(),
+      secretToken: generateLegacyStorePlaceholder(),
     },
   });
 }
