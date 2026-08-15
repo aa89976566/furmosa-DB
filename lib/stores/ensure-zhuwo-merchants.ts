@@ -1,7 +1,13 @@
+import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ZHUWO_CONSIGNMENT_BRANCHES } from '@/lib/stores/zhuwo-branches';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
+
+/** 只滿足 Store.secretToken NOT NULL；不是授權憑證，不得輸出或當 credential。 */
+function createZhuwoStoreLegacyPlaceholder(): string {
+  return randomBytes(24).toString('base64url');
+}
 
 async function nextFreeMerchantId(db: PrismaClient): Promise<string> {
   const rows = await db.merchant.findMany({
@@ -155,7 +161,7 @@ export async function ensureZhuwoConsignmentBranches(
     results.push({ name: created.name, merchantId: created.merchantId, created: true });
   }
 
-  // LINE 核銷：確保 zhuwo_* slug 存在（不依賴 mer_00xx）
+  // LINE 核銷：確保 zhuwo_* slug 存在（不依賴 mer_00xx）。缺列才建立。
   for (const branch of ZHUWO_CONSIGNMENT_BRANCHES) {
     const store = await db.store.findUnique({
       where: { slug: branch.storeSlug },
@@ -174,7 +180,7 @@ export async function ensureZhuwoConsignmentBranches(
           id: `store_${branch.storeSlug}`,
           name: branch.name,
           slug: branch.storeSlug,
-          secretToken: branch.storeSecretToken,
+          secretToken: createZhuwoStoreLegacyPlaceholder(),
         },
       });
     }
