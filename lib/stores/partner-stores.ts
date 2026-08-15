@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 import { isCustomerFacingPartnerStore } from '@/lib/stores/partner-store-visibility';
-import { syncAllJarExchangePartnerStores } from '@/lib/stores/sync-merchant-stores';
 
 /** DB 無資料時的後備清單（與 migration／zhuwo-branches 一致；豬窩僅列三間分店） */
 export const FALLBACK_PARTNER_STORES = [
@@ -45,7 +44,6 @@ export async function listPartnerStoresFromDb(
 ): Promise<PartnerStoreView[]> {
   const includeInternal = opts?.includeInternal === true;
   try {
-    await syncAllJarExchangePartnerStores();
     const rows = await prisma.store.findMany({
       orderBy: { name: 'asc' },
       select: { id: true, slug: true, name: true },
