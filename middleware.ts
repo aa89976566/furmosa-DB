@@ -9,8 +9,29 @@ import {
 
 const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
 
+const RETIRED_STORE_REDEEM_DESTINATION = '/pos/login';
+
+/** Exact /store-redeem, or /store/<one segment> (legacy /store/[access] only). */
+function isRetiredPublicStoreRedeemPath(pathname: string): boolean {
+  if (pathname === '/store-redeem') return true;
+  if (!pathname.startsWith('/store/')) return false;
+  const segment = pathname.slice('/store/'.length);
+  return segment.length > 0 && !segment.includes('/');
+}
+
+function redirectRetiredStoreRedeem(req: NextRequest): NextResponse {
+  return NextResponse.redirect(
+    new URL(RETIRED_STORE_REDEEM_DESTINATION, req.nextUrl.origin),
+  );
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Pathname-only. No cookies, session, or DB. Runs before HQ/POS auth.
+  if (isRetiredPublicStoreRedeemPath(pathname)) {
+    return redirectRetiredStoreRedeem(req);
+  }
 
   if (
     pathname.startsWith('/_next') ||
