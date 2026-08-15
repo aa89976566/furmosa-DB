@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { register } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { describe, it } from 'node:test';
 
 const RETIRED_DESTINATION = '/pos/login';
