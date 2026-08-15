@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,14 +31,85 @@ import { PreviewBanner } from './preview-banner';
 
 const FIXTURES = listFixtureKeys();
 
+const TABBABLE_SELECTOR =
+  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+export function nextTabIndex(currentIndex: number, count: number, shiftKey: boolean): number {
+  if (count <= 0) return 0;
+  if (currentIndex < 0) return shiftKey ? count - 1 : 0;
+  if (shiftKey) return currentIndex <= 0 ? count - 1 : currentIndex - 1;
+  return currentIndex >= count - 1 ? 0 : currentIndex + 1;
+}
+
+export function isEscapeKey(key: string): boolean {
+  return key === 'Escape';
+}
+
+function listTabbable(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(
+    (el) => el.getClientRects().length > 0,
+  );
+}
+
+export function usePreviewDialogFocus(
+  open: boolean,
+  dialogRef: RefObject<HTMLElement | null>,
+  triggerRef: RefObject<HTMLElement | null>,
+  onClose: () => void,
+) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return;
+    const rawPanel = dialogRef.current;
+    if (!rawPanel) return;
+    const panel: HTMLElement = rawPanel;
+
+    const first = listTabbable(panel)[0] ?? panel;
+    first.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (isEscapeKey(event.key)) {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = listTabbable(panel);
+      if (items.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const index = items.indexOf(document.activeElement as HTMLElement);
+      event.preventDefault();
+      items[nextTabIndex(index, items.length, event.shiftKey)]?.focus();
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      triggerRef.current?.focus();
+    };
+  }, [open, dialogRef, triggerRef]);
+}
+
 export function PosGroomingVoucherPreviewApp() {
   const [session, setSession] = useState<PosSession>(() => createPosSession());
   const redeemTimer = useRef<number | null>(null);
+  const reviewDialogRef = useRef<HTMLDivElement>(null);
+  const reviewTriggerRef = useRef<HTMLButtonElement>(null);
   const codeId = useId();
   const amountId = useId();
   const confirmId = useId();
   const reasonId = useId();
   const fixtureId = useId();
+  const reviewOpen = session.step === 'review';
+
+  usePreviewDialogFocus(reviewOpen, reviewDialogRef, reviewTriggerRef, () => {
+    setSession((current) => closeReview(current));
+  });
 
   useEffect(() => {
     return () => {
@@ -62,7 +133,10 @@ export function PosGroomingVoucherPreviewApp() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-canvas text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col">
+      <div
+        className="mx-auto flex min-h-screen w-full max-w-lg flex-col"
+        {...(reviewOpen ? { inert: true, 'aria-hidden': true } : {})}
+      >
         <PreviewBanner compact />
 
         <header className="flex items-start justify-between gap-3 px-4 pb-3 pt-5">
@@ -197,6 +271,7 @@ export function PosGroomingVoucherPreviewApp() {
                     <span className="text-sm font-medium text-navy">已完成美容服務</span>
                   </label>
                   <Button
+                    ref={reviewTriggerRef}
                     type="button"
                     className="min-h-11 w-full"
                     onClick={() => setSession(openReview(session))}
@@ -264,19 +339,22 @@ export function PosGroomingVoucherPreviewApp() {
         </div>
       </div>
 
-      {session.step === 'review' ? (
+      {reviewOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/40 p-0 sm:items-center sm:p-4">
           <button
             type="button"
+            tabIndex={-1}
             className="absolute inset-0 cursor-default"
             aria-label="關閉確認"
             disabled={session.submitting}
-            onClick={() => setSession(closeReview(session))}
+            onClick={() => setSession((current) => closeReview(current))}
           />
           <div
+            ref={reviewDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="redeem-review-title"
+            tabIndex={-1}
             className="relative w-full max-w-lg rounded-t-2xl bg-card p-5 shadow-card sm:rounded-2xl"
           >
             <h2 id="redeem-review-title" className="text-base font-semibold text-navy">
@@ -303,7 +381,7 @@ export function PosGroomingVoucherPreviewApp() {
                 variant="ghost"
                 className="min-h-11 w-full"
                 disabled={session.submitting}
-                onClick={() => setSession(closeReview(session))}
+                onClick={() => setSession((current) => closeReview(current))}
               >
                 返回修改
               </Button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import {
 } from '@/lib/grooming-voucher-preview/hq-logic';
 import type { HqCancelRequest, HqCancelTab } from '@/lib/grooming-voucher-preview/types';
 import { cn } from '@/lib/utils';
+import { usePreviewDialogFocus } from './pos-preview-app';
 import { PreviewBanner } from './preview-banner';
 
 const TABS: HqCancelTab[] = ['pending', 'approved', 'rejected'];
@@ -32,12 +33,33 @@ export function HqGroomingVoucherPreviewApp() {
   const [rejectNote, setRejectNote] = useState('');
   const [liveMessage, setLiveMessage] = useState('');
   const [confirmApprove, setConfirmApprove] = useState(false);
+  const [isOverlay, setIsOverlay] = useState(false);
   const rejectId = useId();
+  const lastRowTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const rowTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1280px)');
+    const sync = () => setIsOverlay(!media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  const mobileDialogOpen = Boolean(selectedId) && isOverlay;
+
+  function bindRowTrigger(id: string) {
+    return (node: HTMLButtonElement | null) => {
+      if (node) rowTriggerRefs.current.set(id, node);
+      else rowTriggerRefs.current.delete(id);
+    };
+  }
 
   const rows = useMemo(() => requestsForTab(requests, tab), [requests, tab]);
   const selected = selectedId ? findRequest(requests, selectedId) : undefined;
 
   function selectRow(id: string) {
+    lastRowTriggerRef.current = rowTriggerRefs.current.get(id) ?? null;
     setSelectedId(id);
     setConfirmApprove(false);
     setRejectNote('');
@@ -70,20 +92,24 @@ export function HqGroomingVoucherPreviewApp() {
     setLiveMessage('已拒絕這筆取消申請。');
   }
 
+  const backgroundLock = mobileDialogOpen ? { inert: true, 'aria-hidden': true } : {};
+
   return (
     <div className="overflow-x-hidden bg-canvas">
-      <PreviewBanner />
+      <div {...backgroundLock}>
+        <PreviewBanner />
 
-      <div className="border-b border-border/70 bg-card/80 px-4 py-5 sm:px-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Furmosa HQ</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-navy">美容券營運</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          看待審、核銷與補貼。美容券固定補貼和寄賣抽成分開算，不要混在同一張表。
-        </p>
+        <div className="border-b border-border/70 bg-card/80 px-4 py-5 sm:px-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">Furmosa HQ</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-navy">美容券營運</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            看待審、核銷與補貼。美容券固定補貼和寄賣抽成分開算，不要混在同一張表。
+          </p>
+        </div>
       </div>
 
       <div className="space-y-6 p-4 sm:p-6">
-        <section aria-label="摘要">
+        <section aria-label="摘要" {...backgroundLock}>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
             {HQ_SUMMARY_CARDS.map((card) => (
               <div
@@ -99,7 +125,7 @@ export function HqGroomingVoucherPreviewApp() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
-          <div className="min-w-0 space-y-3">
+          <div className="min-w-0 space-y-3" {...backgroundLock}>
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="取消申請">
               {TABS.map((item) => (
                 <button
@@ -116,6 +142,9 @@ export function HqGroomingVoucherPreviewApp() {
                   onClick={() => {
                     setTab(item);
                     const first = requestsForTab(requests, item)[0];
+                    lastRowTriggerRef.current = first
+                      ? rowTriggerRefs.current.get(first.id) ?? null
+                      : null;
                     setSelectedId(first?.id ?? null);
                     setConfirmApprove(false);
                     setLiveMessage('');
@@ -152,6 +181,7 @@ export function HqGroomingVoucherPreviewApp() {
                     >
                       <td className="px-3 py-3">
                         <button
+                          ref={bindRowTrigger(row.id)}
                           type="button"
                           className="min-h-11 text-left font-medium text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           onClick={() => selectRow(row.id)}
@@ -173,6 +203,7 @@ export function HqGroomingVoucherPreviewApp() {
               {rows.map((row) => (
                 <button
                   key={row.id}
+                  ref={bindRowTrigger(row.id)}
                   type="button"
                   onClick={() => selectRow(row.id)}
                   className={cn(
@@ -192,6 +223,8 @@ export function HqGroomingVoucherPreviewApp() {
 
           <DetailPanel
             selected={selected}
+            isOverlay={isOverlay}
+            triggerRef={lastRowTriggerRef}
             rejectId={rejectId}
             rejectNote={rejectNote}
             confirmApprove={confirmApprove}
@@ -204,6 +237,7 @@ export function HqGroomingVoucherPreviewApp() {
           />
         </section>
 
+        <div {...backgroundLock}>
         <div aria-live="polite" className="min-h-[1.25rem] text-sm text-navy">
           {liveMessage}
         </div>
@@ -257,6 +291,7 @@ export function HqGroomingVoucherPreviewApp() {
             </CardContent>
           </Card>
         </section>
+        </div>
       </div>
     </div>
   );
@@ -264,6 +299,8 @@ export function HqGroomingVoucherPreviewApp() {
 
 function DetailPanel({
   selected,
+  isOverlay,
+  triggerRef,
   rejectId,
   rejectNote,
   confirmApprove,
@@ -275,6 +312,8 @@ function DetailPanel({
   onClose,
 }: {
   selected: HqCancelRequest | undefined;
+  isOverlay: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
   rejectId: string;
   rejectNote: string;
   confirmApprove: boolean;
@@ -285,6 +324,11 @@ function DetailPanel({
   onReject: () => void;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const overlayOpen = Boolean(selected) && isOverlay;
+  usePreviewDialogFocus(overlayOpen, dialogRef, triggerRef, onClose);
+
   if (!selected) {
     return (
       <aside className="hidden rounded-xl border border-dashed border-border bg-card/60 p-4 text-sm text-muted-foreground xl:block">
@@ -299,15 +343,25 @@ function DetailPanel({
     <aside className="fixed inset-0 z-40 flex items-start justify-end p-3 xl:static xl:z-auto xl:p-0">
       <button
         type="button"
+        tabIndex={-1}
         className="absolute inset-0 bg-navy/40 xl:hidden"
         aria-label="關閉明細"
         onClick={onClose}
       />
-      <div className="relative flex max-h-[92vh] w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-border/70 bg-card p-4 shadow-card xl:max-h-none xl:max-w-none">
+      <div
+        ref={dialogRef}
+        role={isOverlay ? 'dialog' : undefined}
+        aria-modal={isOverlay ? true : undefined}
+        aria-labelledby={isOverlay ? titleId : undefined}
+        tabIndex={isOverlay ? -1 : undefined}
+        className="relative flex max-h-[92vh] w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-border/70 bg-card p-4 shadow-card xl:max-h-none xl:max-w-none"
+      >
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground">取消申請</p>
-            <h2 className="text-base font-semibold text-navy">{selected.memberNicknameMasked}</h2>
+            <h2 id={titleId} className="text-base font-semibold text-navy">
+              {selected.memberNicknameMasked}
+            </h2>
           </div>
           <Button type="button" variant="ghost" className="min-h-11 xl:hidden" onClick={onClose}>
             關閉
