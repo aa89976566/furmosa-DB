@@ -26,17 +26,31 @@ import { PreviewBanner } from './preview-banner';
 
 const TABS: HqCancelTab[] = ['pending', 'approved', 'rejected'];
 
+export function hqSelectedIdOnTabChange(
+  isOverlay: boolean,
+  firstRowId: string | null,
+): string | null {
+  return isOverlay ? null : firstRowId;
+}
+
+export function hqDialogOpen(isOverlay: boolean, selectedId: string | null): boolean {
+  return Boolean(isOverlay && selectedId);
+}
+
+export function hqRememberRowTrigger<T>(clicked: T | null | undefined): T | null {
+  return clicked ?? null;
+}
+
 export function HqGroomingVoucherPreviewApp() {
   const [requests, setRequests] = useState(cloneHqRequests);
   const [tab, setTab] = useState<HqCancelTab>('pending');
-  const [selectedId, setSelectedId] = useState<string | null>('cxl-preview-01');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [liveMessage, setLiveMessage] = useState('');
   const [confirmApprove, setConfirmApprove] = useState(false);
-  const [isOverlay, setIsOverlay] = useState(false);
+  const [isOverlay, setIsOverlay] = useState(true);
   const rejectId = useId();
   const lastRowTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const rowTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1280px)');
@@ -46,23 +60,34 @@ export function HqGroomingVoucherPreviewApp() {
     return () => media.removeEventListener('change', sync);
   }, []);
 
-  const mobileDialogOpen = Boolean(selectedId) && isOverlay;
+  useEffect(() => {
+    if (isOverlay) {
+      if (!lastRowTriggerRef.current) setSelectedId(null);
+      return;
+    }
+    setSelectedId((current) => current ?? requestsForTab(requests, tab)[0]?.id ?? null);
+  }, [isOverlay, requests, tab]);
 
-  function bindRowTrigger(id: string) {
-    return (node: HTMLButtonElement | null) => {
-      if (node) rowTriggerRefs.current.set(id, node);
-      else rowTriggerRefs.current.delete(id);
-    };
-  }
+  const mobileDialogOpen = hqDialogOpen(isOverlay, selectedId);
 
   const rows = useMemo(() => requestsForTab(requests, tab), [requests, tab]);
   const selected = selectedId ? findRequest(requests, selectedId) : undefined;
 
-  function selectRow(id: string) {
-    lastRowTriggerRef.current = rowTriggerRefs.current.get(id) ?? null;
+  function selectRow(id: string, trigger: HTMLButtonElement | null) {
+    lastRowTriggerRef.current = hqRememberRowTrigger(trigger);
     setSelectedId(id);
     setConfirmApprove(false);
     setRejectNote('');
+    setLiveMessage('');
+  }
+
+  function changeTab(next: HqCancelTab) {
+    setTab(next);
+    lastRowTriggerRef.current = null;
+    setSelectedId(
+      hqSelectedIdOnTabChange(isOverlay, requestsForTab(requests, next)[0]?.id ?? null),
+    );
+    setConfirmApprove(false);
     setLiveMessage('');
   }
 
@@ -139,16 +164,7 @@ export function HqGroomingVoucherPreviewApp() {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-card text-navy ring-1 ring-border',
                   )}
-                  onClick={() => {
-                    setTab(item);
-                    const first = requestsForTab(requests, item)[0];
-                    lastRowTriggerRef.current = first
-                      ? rowTriggerRefs.current.get(first.id) ?? null
-                      : null;
-                    setSelectedId(first?.id ?? null);
-                    setConfirmApprove(false);
-                    setLiveMessage('');
-                  }}
+                  onClick={() => changeTab(item)}
                 >
                   {HQ_TAB_LABELS[item]}
                   <span className="ml-2 tabular-nums opacity-80">
@@ -177,14 +193,15 @@ export function HqGroomingVoucherPreviewApp() {
                         'cursor-pointer border-t border-border/60',
                         selected?.id === row.id ? 'bg-accent' : 'hover:bg-muted/40',
                       )}
-                      onClick={() => selectRow(row.id)}
+                      onClick={(event) =>
+                        selectRow(row.id, event.currentTarget.querySelector('button'))
+                      }
                     >
                       <td className="px-3 py-3">
                         <button
-                          ref={bindRowTrigger(row.id)}
                           type="button"
                           className="min-h-11 text-left font-medium text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          onClick={() => selectRow(row.id)}
+                          onClick={(event) => selectRow(row.id, event.currentTarget)}
                         >
                           {row.memberNicknameMasked}
                         </button>
@@ -203,9 +220,8 @@ export function HqGroomingVoucherPreviewApp() {
               {rows.map((row) => (
                 <button
                   key={row.id}
-                  ref={bindRowTrigger(row.id)}
                   type="button"
-                  onClick={() => selectRow(row.id)}
+                  onClick={(event) => selectRow(row.id, event.currentTarget)}
                   className={cn(
                     'min-h-11 rounded-xl border bg-card p-3 text-left shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     selected?.id === row.id ? 'border-primary' : 'border-border/70',
