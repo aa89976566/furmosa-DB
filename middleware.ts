@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySessionEdge } from '@/lib/auth-edge';
+import { shouldBypassHqForGroomingPreviewSurface } from '@/lib/grooming-voucher-preview/preview-surface-gate';
 import {
   MERCHANT_SESSION_COOKIE_NAME,
   decideHqAccess,
@@ -81,6 +82,16 @@ export async function middleware(req: NextRequest) {
       if (decision.next) url.searchParams.set('next', decision.next);
       return NextResponse.redirect(url);
     }
+    return NextResponse.next();
+  }
+
+  // Preview login surface only: exact path + env gate. No cookie/HMAC here.
+  if (
+    shouldBypassHqForGroomingPreviewSurface({
+      pathname,
+      env: process.env,
+    })
+  ) {
     return NextResponse.next();
   }
 
