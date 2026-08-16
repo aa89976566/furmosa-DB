@@ -21,7 +21,10 @@ import {
 } from '@/lib/grooming-voucher-preview/hq-logic';
 import type { HqCancelRequest, HqCancelTab } from '@/lib/grooming-voucher-preview/types';
 import { cn } from '@/lib/utils';
-import { usePreviewDialogFocus } from './pos-preview-app';
+import {
+  HQ_APPROVE_SUCCESS_FOCUS_ID,
+  usePreviewDialogFocus,
+} from './pos-preview-app';
 import { PreviewBanner } from './preview-banner';
 
 const TABS: HqCancelTab[] = ['pending', 'approved', 'rejected'];
@@ -151,13 +154,12 @@ export function HqGroomingVoucherPreviewApp() {
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
           <div className="min-w-0 space-y-3" {...backgroundLock}>
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="取消申請">
+            <div className="flex flex-wrap gap-2" aria-label="取消申請篩選">
               {TABS.map((item) => (
                 <button
                   key={item}
                   type="button"
-                  role="tab"
-                  aria-selected={tab === item}
+                  aria-pressed={tab === item}
                   className={cn(
                     'min-h-11 rounded-xl px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     tab === item
@@ -341,9 +343,15 @@ function DetailPanel({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const successHeadingRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const overlayOpen = Boolean(selected) && isOverlay;
   usePreviewDialogFocus(overlayOpen, dialogRef, triggerRef, onClose);
+
+  useEffect(() => {
+    if (selected?.tab !== 'approved') return;
+    successHeadingRef.current?.focus();
+  }, [selected?.tab, selected?.id]);
 
   if (!selected) {
     return (
@@ -378,6 +386,17 @@ function DetailPanel({
             <h2 id={titleId} className="text-base font-semibold text-navy">
               {selected.memberNicknameMasked}
             </h2>
+            {selected.tab === 'approved' ? (
+              <h3
+                id={HQ_APPROVE_SUCCESS_FOCUS_ID}
+                ref={successHeadingRef}
+                tabIndex={-1}
+                role="status"
+                className="mt-1 text-sm font-semibold text-navy outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                已核准。原券永久作廢。
+              </h3>
+            ) : null}
           </div>
           <Button type="button" variant="ghost" className="min-h-11 xl:hidden" onClick={onClose}>
             關閉

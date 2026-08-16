@@ -8,9 +8,23 @@ import {
   hqSelectedIdOnTabChange,
 } from '../../../components/grooming-voucher-preview/hq-preview-app';
 import {
+  canRestoreDialogTrigger,
+  HQ_APPROVE_SUCCESS_FOCUS_ID,
   isEscapeKey,
   nextTabIndex,
+  POS_REDEEM_SUCCESS_FOCUS_ID,
+  successFocusTargetId,
 } from '../../../components/grooming-voucher-preview/pos-preview-app';
+import {
+  finishRedeem,
+  openRedeemTask,
+  openReview,
+  simulateScan,
+  startRedeem,
+  createPosSession,
+} from '../pos-logic';
+import { approveRequest, cloneHqRequests } from '../hq-logic';
+import type { PosSession } from '../types';
 
 const root = process.cwd();
 
@@ -49,8 +63,10 @@ describe('preview dialog semantics', () => {
     assert.match(src, /isEscapeKey\(event\.key\)/);
     assert.match(src, /event\.key !== 'Tab'/);
     assert.match(src, /nextTabIndex\(/);
-    assert.match(src, /triggerRef\.current\?\.focus\(\)/);
+    assert.match(src, /canRestoreDialogTrigger\(trigger\)/);
     assert.match(src, /first\.focus\(\)/);
+    assert.match(src, /id=\{POS_REDEEM_SUCCESS_FOCUS_ID\}/);
+    assert.match(src, /redeemSuccessRef\.current\?\.focus\(\)/);
   });
 
   it('HQ mobile overlay uses dialog semantics and the same keyboard helper', () => {
@@ -61,6 +77,45 @@ describe('preview dialog semantics', () => {
     assert.match(src, /usePreviewDialogFocus\(/);
     assert.match(src, /inert:\s*true/);
     assert.match(src, /'aria-hidden':\s*true/);
+    assert.doesNotMatch(src, /role="tab"/);
+    assert.doesNotMatch(src, /role="tablist"/);
+    assert.doesNotMatch(src, /aria-selected=/);
+    assert.match(src, /aria-pressed=\{tab === item\}/);
+    assert.match(src, /id=\{HQ_APPROVE_SUCCESS_FOCUS_ID\}/);
+    assert.match(src, /successHeadingRef\.current\?\.focus\(\)/);
+  });
+});
+
+describe('success focus targets after unmounting triggers', () => {
+  function readyToRedeem(): PosSession {
+    let session = createPosSession('available_200');
+    session = openRedeemTask(session);
+    session = simulateScan(session);
+    return {
+      ...session,
+      serviceTotalInput: '880',
+      serviceConfirmed: true,
+    };
+  }
+
+  it('POS redeem success focuses the receipt heading, not a detached trigger', () => {
+    const session = finishRedeem(startRedeem(openReview(readyToRedeem())));
+    assert.equal(session.step, 'receipt');
+    assert.equal(session.redeemed, true);
+    assert.equal(successFocusTargetId('pos-redeem'), POS_REDEEM_SUCCESS_FOCUS_ID);
+    assert.equal(canRestoreDialogTrigger({ isConnected: false }), false);
+    assert.equal(canRestoreDialogTrigger(null), false);
+  });
+
+  it('HQ approve success focuses the approved status, not a detached row', () => {
+    const result = approveRequest(cloneHqRequests(), 'cxl-preview-01');
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const updated = result.requests.find((row) => row.id === 'cxl-preview-01');
+    assert.equal(updated?.tab, 'approved');
+    assert.equal(successFocusTargetId('hq-approve'), HQ_APPROVE_SUCCESS_FOCUS_ID);
+    assert.equal(canRestoreDialogTrigger({ isConnected: true }), true);
+    assert.equal(canRestoreDialogTrigger({ isConnected: false }), false);
   });
 });
 

@@ -45,6 +45,19 @@ export function isEscapeKey(key: string): boolean {
   return key === 'Escape';
 }
 
+export const POS_REDEEM_SUCCESS_FOCUS_ID = 'grooming-pos-redeem-success';
+export const HQ_APPROVE_SUCCESS_FOCUS_ID = 'grooming-hq-approve-success';
+
+export function successFocusTargetId(flow: 'pos-redeem' | 'hq-approve'): string {
+  return flow === 'pos-redeem' ? POS_REDEEM_SUCCESS_FOCUS_ID : HQ_APPROVE_SUCCESS_FOCUS_ID;
+}
+
+export function canRestoreDialogTrigger(
+  node: { isConnected?: boolean } | null | undefined,
+): boolean {
+  return node?.isConnected === true;
+}
+
 function listTabbable(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(
     (el) => el.getClientRects().length > 0,
@@ -90,7 +103,8 @@ export function usePreviewDialogFocus(
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      triggerRef.current?.focus();
+      const trigger = triggerRef.current;
+      if (trigger && canRestoreDialogTrigger(trigger)) trigger.focus();
     };
   }, [open, dialogRef, triggerRef]);
 }
@@ -100,6 +114,7 @@ export function PosGroomingVoucherPreviewApp() {
   const redeemTimer = useRef<number | null>(null);
   const reviewDialogRef = useRef<HTMLDivElement>(null);
   const reviewTriggerRef = useRef<HTMLButtonElement>(null);
+  const redeemSuccessRef = useRef<HTMLHeadingElement>(null);
   const codeId = useId();
   const amountId = useId();
   const confirmId = useId();
@@ -116,6 +131,11 @@ export function PosGroomingVoucherPreviewApp() {
       if (redeemTimer.current) window.clearTimeout(redeemTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (session.step !== 'receipt' || !session.redeemed) return;
+    redeemSuccessRef.current?.focus();
+  }, [session.step, session.redeemed]);
 
   const voucher = currentVoucher(session);
   const blocked = Boolean(session.blockReason && session.liveMessage);
@@ -287,7 +307,14 @@ export function PosGroomingVoucherPreviewApp() {
             <Card className="border-success/30">
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-navy">核銷完成</h2>
+                  <h2
+                    id={POS_REDEEM_SUCCESS_FOCUS_ID}
+                    ref={redeemSuccessRef}
+                    tabIndex={-1}
+                    className="text-base font-semibold text-navy outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    核銷完成
+                  </h2>
                   <Badge variant="success">已核銷</Badge>
                 </div>
                 <Fact label="單號" value={session.receipt.reference} mono />
