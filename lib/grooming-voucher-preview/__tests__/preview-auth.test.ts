@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { scryptSync } from 'node:crypto';
+import { createHmac, scryptSync } from 'node:crypto';
 import { describe, it } from 'node:test';
 import {
   createSessionCookieValue,
@@ -17,7 +17,7 @@ import {
   SCRYPT_ENCODED_PREFIX,
   verifySessionCookieValue,
   type PreviewAuthEnv,
-} from '../preview-auth';
+} from '../preview-auth-core';
 
 const TEST_PASSWORD = 'preview-test-password';
 const TEST_SALT = Buffer.from('preview-test-salt16');
@@ -27,7 +27,7 @@ const TEST_SCRYPT = `${SCRYPT_ENCODED_PREFIX}${TEST_SALT.toString('base64url')}$
   32,
   { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 },
 ).toString('base64url')}`;
-
+const VALID_COOKIE_SECRET = Buffer.alloc(32, 9).toString('base64url');
 const NOW_MS = Date.parse('2026-08-16T08:00:00.000Z');
 
 function fakeAuthEnv(overrides: Partial<PreviewAuthEnv> = {}): PreviewAuthEnv {
@@ -39,7 +39,7 @@ function fakeAuthEnv(overrides: Partial<PreviewAuthEnv> = {}): PreviewAuthEnv {
     VERCEL_GIT_COMMIT_SHA: '552a7054cafcc772c1f05edd34db769ca361f3c9',
     GROOMING_PREVIEW_USERNAME: 'preview-test-user',
     GROOMING_PREVIEW_PASSWORD_SCRYPT: TEST_SCRYPT,
-    GROOMING_PREVIEW_COOKIE_SECRET: 'fake-preview-cookie-secret',
+    GROOMING_PREVIEW_COOKIE_SECRET: VALID_COOKIE_SECRET,
     ...overrides,
   };
 }
@@ -99,6 +99,42 @@ describe('grooming preview server auth', () => {
       }),
       'not_found',
     );
+  });
+
+  it('invalid cookie secret formats fail closed', () => {
+    const rejected = [
+      '',
+      'A',
+      Buffer.alloc(31, 9).toString('base64url'),
+      Buffer.alloc(33, 9).toString('base64url'),
+      `${VALID_COOKIE_SECRET}=`,
+      Buffer.alloc(32, 9).toString('base64'),
+    ];
+    for (const secret of rejected) {
+      const env = fakeAuthEnv({ GROOMING_PREVIEW_COOKIE_SECRET: secret });
+      assert.equal(isPreviewRouteAvailable(env), false, secret);
+      assert.equal(createSessionCookieValue(env, NOW_MS), null, secret);
+      assert.equal(
+        evaluatePageAccess({ env, cookieValue: 'x.y', nowMs: NOW_MS }),
+        'not_found',
+        secret,
+      );
+    }
+  });
+
+  it('HMAC signs and verifies with decoded secret bytes, not the raw string', () => {
+    const env = fakeAuthEnv();
+    const value = createSessionCookieValue(env, NOW_MS);
+    assert.ok(value);
+    const body = value.split('.')[0];
+    const actualSig = value.split('.')[1];
+    const stringKeySig = createHmac('sha256', VALID_COOKIE_SECRET).update(body).digest('base64url');
+    const byteKeySig = createHmac('sha256', Buffer.from(VALID_COOKIE_SECRET, 'base64url'))
+      .update(body)
+      .digest('base64url');
+    assert.equal(actualSig, byteKeySig);
+    assert.notEqual(actualSig, stringKeySig);
+    assert.equal(verifySessionCookieValue(value, env, NOW_MS), true);
   });
 
   it('branch mismatch is 404 even with a minted cookie', () => {

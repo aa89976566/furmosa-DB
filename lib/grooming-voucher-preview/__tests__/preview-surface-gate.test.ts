@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   decideGroomingPreviewSurfaceAccess,
+  GROOMING_PREVIEW_COOKIE_SECRET_BYTES,
   GROOMING_PREVIEW_PATH,
   isExactGroomingPreviewPath,
+  parseGroomingPreviewCookieSecret,
   readPreviewSurfaceEnv,
   shouldBypassHqForGroomingPreviewSurface,
   type PreviewSurfaceEnv,
 } from '../preview-surface-gate';
+
+const VALID_COOKIE_SECRET = Buffer.alloc(32, 9).toString('base64url');
 
 function fakeSurfaceEnv(overrides: Partial<PreviewSurfaceEnv> = {}): PreviewSurfaceEnv {
   return {
@@ -15,7 +19,7 @@ function fakeSurfaceEnv(overrides: Partial<PreviewSurfaceEnv> = {}): PreviewSurf
     GROOMING_PREVIEW_AUTH_ENABLED: 'true',
     GROOMING_PREVIEW_BRANCH: 'cursor/grooming-voucher-preview-login-49d3',
     VERCEL_GIT_COMMIT_REF: 'cursor/grooming-voucher-preview-login-49d3',
-    GROOMING_PREVIEW_COOKIE_SECRET: 'fake-preview-cookie-secret',
+    GROOMING_PREVIEW_COOKIE_SECRET: VALID_COOKIE_SECRET,
     ...overrides,
   };
 }
@@ -163,5 +167,37 @@ describe('grooming preview surface gate (middleware layer)', () => {
       env: fakeSurfaceEnv(),
     });
     assert.equal(decision, 'bypass_hq');
+  });
+
+  it('cookie secret must be canonical 32-byte base64url', () => {
+    const parsed = parseGroomingPreviewCookieSecret(VALID_COOKIE_SECRET);
+    assert.ok(parsed);
+    assert.equal(parsed.length, GROOMING_PREVIEW_COOKIE_SECRET_BYTES);
+    assert.equal(parsed.length, 32);
+
+    const asStdCharset = VALID_COOKIE_SECRET.replace(/-/g, '+').replace(/_/g, '/');
+    const rejected = [
+      '',
+      'A',
+      Buffer.alloc(31, 9).toString('base64url'),
+      Buffer.alloc(33, 9).toString('base64url'),
+      `${VALID_COOKIE_SECRET}=`,
+      Buffer.alloc(32, 9).toString('base64'),
+      '***not-base64url***',
+      ` ${VALID_COOKIE_SECRET}`,
+      `${VALID_COOKIE_SECRET} `,
+    ];
+    if (asStdCharset !== VALID_COOKIE_SECRET) rejected.push(asStdCharset);
+    for (const value of rejected) {
+      assert.equal(parseGroomingPreviewCookieSecret(value), null, value);
+      assert.equal(
+        decideGroomingPreviewSurfaceAccess({
+          pathname: GROOMING_PREVIEW_PATH,
+          env: fakeSurfaceEnv({ GROOMING_PREVIEW_COOKIE_SECRET: value }),
+        }),
+        'continue',
+        value,
+      );
+    }
   });
 });
