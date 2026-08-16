@@ -59,7 +59,20 @@ export async function resolve(specifier, context, nextResolve) {
 }
 `;
 
-register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL(import.meta.url));
+const previewSurfaceGateUrl = new URL(
+  './lib/grooming-voucher-preview/preview-surface-gate.ts',
+  import.meta.url,
+).href;
+
+const loaderWithPreviewGate = loader.replace(
+  'return nextResolve(specifier, context);',
+  `if (specifier === '@/lib/grooming-voucher-preview/preview-surface-gate') {
+    return { shortCircuit: true, url: ${JSON.stringify(previewSurfaceGateUrl)} };
+  }
+  return nextResolve(specifier, context);`,
+);
+
+register(`data:text/javascript,${encodeURIComponent(loaderWithPreviewGate)}`, pathToFileURL(import.meta.url));
 
 const { middleware } = await import('./middleware.ts');
 
