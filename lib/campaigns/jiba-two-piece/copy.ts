@@ -151,6 +151,7 @@ export function jibaLicenseBody(productKey?: JibaProductKey): string {
 
 這次貓咪試吃貓草雞肉乾的真實反應，經你按「我同意」後，也可能用在這頁：
 ${CATNIP_CHICK_HOMEPAGE_URL}`;
+}
 
 /** @deprecated 舊長文；改走 Flex 按鈕版 */
 export const JIBA_LICENSE = `投稿前，跟你確認一件事喔。
