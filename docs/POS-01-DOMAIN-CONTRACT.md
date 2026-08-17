@@ -1,7 +1,7 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.6
+> **版本：** v1.7
 > **日期：** 2026-08-17
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
@@ -34,7 +34,7 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 固定順序：先 parse／驗證 actor allow-list 且必須是 HQ → 再驗 request identity → 再驗 idempotency key → 再查 existing result／比 fingerprint。同內容回 `duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。**approve／reject 重送每次都必須重驗 HQ**，不可因已有結果跳過授權。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
 | R9 | 未付款 checkout／payment intent **24 小時**失效；未付款**不** reserve。付款成功才進 `paid_reserved` 並原子 reserve。`paid_reserved` **不**自動 expire／退款／釋放；逾期未領轉客服。 |
 | R10 | 完成交易、核銷、結算**不可 update/delete 原事實**，只能 reversal／adjustment。原 `completed` sale **永不修改或刪除**。`amountTwd` 是財務 fully_reversed 的唯一完成條件；quantity 只表示實物／庫存，不阻擋金額全退。 |
-| R11 | **退款庫存（原 O1，已凍結）。** 店家只提出退款，HQ 核准。原 sale／online snapshot 與佣金 snapshot 永不修改；退款與庫存效果都是新的 immutable effects。未履約取消：只 `release` 該 reservation（`reserved -= qty`、`onHandDelta=0`），不得 restock。已履約且實物退回、HQ 核准：未拆封良好可再售 → `restock_sellable`（`onHand += qty`）；已拆封／破損／變質／污染／其他不可售 → `loss_unsellable`（`onHandDelta=0`＋loss intent；`other_unsellable` 必須有 trim 後非空說明）。已履約但沒有實物退回 → `no_stock_effect`，不 release、不增加 onHand、不假裝 restock／loss。已鎖結算的退款與佣金沖銷進次期 adjustment。`approved` 只是 HQ decision；`completed` 只有財務 reversal plan 與必要 inventory／loss plan 都成功形成時才成立，任一步失敗語意上仍 `approved`。權威來源只有 `pos_sale_line` 與 `online_sale_snapshot_line`；線上來源是既有 Order／Payment／Fulfillment 的 projection，不建立第二套 payment／fulfillment 狀態。 |
+| R11 | **退款庫存（原 O1，已凍結）。** 只有店家提出退款，HQ 核准；沒有 customer actor，顧客不可直接提出。原 sale／online snapshot 與佣金 snapshot 永不修改；退款與庫存效果都是新的 immutable effects。未履約取消：只 `release` 該 reservation（`reserved -= qty`、`onHandDelta=0`），不得 restock。已履約且實物退回、HQ 核准：未拆封良好可再售 → `restock_sellable`（`onHand += qty`）；已拆封／破損／變質／污染／其他不可售 → `loss_unsellable`（`onHandDelta=0`＋loss intent；`other_unsellable` 必須有 trim 後非空說明）。已履約但沒有實物退回 → `no_stock_effect`，不 release、不增加 onHand、不假裝 restock／loss。有庫存效果時，處置 qty 必須精準等於本次財務 `requestedQuantity`；財務數量為 null 時只允許 `no_stock_effect`。`pos_sale_line` 只能搭配 `merchant_collected`；`online_sale_snapshot_line` 只能搭配 `furmosa_collected_line_ecpay`。已鎖結算的退款與佣金沖銷進次期 adjustment。純函式只產生 immutable plan 與 `proposedNextStatus:'completed'`；persisted 狀態仍是 `approved`，直到未來 adapter 同一交易寫完所有 effects 才更新。任一步 rollback 仍 `approved`。權威來源只有 `pos_sale_line` 與 `online_sale_snapshot_line`；線上來源是既有 Order／Payment／Fulfillment 的 projection，不建立第二套 payment／fulfillment 狀態。 |
 
 ### 1.1 安全（實作時必須遵守，本階段只寫進合約）
 
@@ -139,13 +139,16 @@ approved → completed
 rejected / completed → （終態）
 ```
 
-- 店家提出＝`requested`；HQ 核准／拒絕＝`approved`／`rejected`。
-- `approved` 只是 HQ decision，還不是完成。
-- `completed` 只有財務 reversal plan 與必要 inventory／loss plan 都成功形成時才成立。任一步失敗：語意上仍 `approved`，不寫 completed。
+- 只有店家提出＝`requested`；HQ 核准／拒絕＝`approved`／`rejected`。沒有 customer actor。
+- `approved` 是 persisted HQ decision，還不是完成。
+- 純函式只產生 immutable execution plan 與 `proposedNextStatus:'completed'`，**不得**宣稱呼叫後已持久化 `completed`。
+- 未來 adapter 必須在同一 DB transaction 成功寫入 refund line、financial ledger、disposition／loss、inventory ledger、MerchantStock delta、idempotency result 後，最後才把 request 改成 `completed`。任一步 rollback：persisted 仍是 `approved`。
 - `rejected`／`completed` 為終態；同一狀態再轉一次也拒絕。
-- 權威來源：`pos_sale_line` 或 `online_sale_snapshot_line`。線上來源保留 `sourceOrderId`／`sourceSnapshotLineId`，是既有 Order／Payment／Fulfillment 的 projection，**不**產生新的 payment／fulfillment 狀態。
-- 庫存效果見 R11。completion fingerprint 至少含：refund request／idempotency identity、source kind、source line identity、server-resolved `inventoryAggregateId`、qty、履約／實物退回事實、disposition、condition／reason／note。同 key＋完整相同 fingerprint 回既有 duplicate；任一不同 throw。
-- `completeApprovedRefund` 只回 immutable execution plan（`financialReversal`、`inventoryEffect|null`、`duplicate`），不寫 DB。
+- 權威來源：`pos_sale_line` 只能搭配 `merchant_collected`；`online_sale_snapshot_line` 只能搭配 `furmosa_collected_line_ecpay`。線上來源保留 `sourceOrderId`／`sourceSnapshotLineId`，是既有 Order／Payment／Fulfillment 的 projection，**不**產生新的 payment／fulfillment 狀態。
+- 庫存效果見 R11。有庫存效果時 qty 必須等於本次 canonical financial `requestedQuantity`；`requestedQuantity=null` 只允許 `no_stock_effect`，且 fingerprint 仍保留該 null identity。
+- completion fingerprint 用固定 key／順序的 canonical JSON（明確 `null`），不可用未 escape 的 `join('|')`。必須先形成／驗證 canonical financial reversal，再比 fingerprint。內容含：requestedAmountTwd、requestedQuantity（保留 null 區別）、saleId、original gross、collectionChannel、commissionRate、commissionAmountSnapshot、derived commissionReversalSnapshot、settlement status／routing／ledger direction，以及完整 O1／source identity。
+- 同 key＋完整相同 fingerprint 回既有 duplicate，但每次仍先驗 HQ 與 identity；amount／financial quantity／gross／rate／commission snapshot／channel／locked／open routing 任一不同皆 throw。
+- `completeApprovedRefund` 只回 plan（`financialReversal`、`inventoryEffect|null`、`duplicate`、`persistedRequestStatus:'approved'`、`proposedNextStatus:'completed'`），不寫 DB。
 
 ### 3.6 LINE 到店取貨 `FulfillmentStatus`
 

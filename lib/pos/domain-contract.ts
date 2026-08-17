@@ -1720,7 +1720,8 @@ export type RefundCompletionSource = {
 };
 
 export type RefundCompletionResult = {
-  requestStatus: 'completed';
+  persistedRequestStatus: 'approved';
+  proposedNextStatus: 'completed';
   financialReversal: {
     line: RefundReversalLine;
     ledger: RefundReversalLedger;
@@ -1735,7 +1736,8 @@ export type RefundCompletionResult = {
 export type StoredRefundCompletion = {
   idempotencyKey: string;
   fingerprint: string;
-  requestStatus: 'completed';
+  persistedRequestStatus: 'approved';
+  proposedNextStatus: 'completed';
   financialReversal: RefundCompletionResult['financialReversal'];
   inventoryEffect: RefundInventoryEffectPlan | null;
   source: RefundCompletionSource;
@@ -1757,40 +1759,77 @@ export function decideRefundRequest(input: {
   return { requestStatus: decision };
 }
 
+export function canonicalContractJson(value: Record<string, unknown>): string {
+  return JSON.stringify(value);
+}
+
 export function refundCompletionFingerprint(input: {
   refundRequestId: string;
   idempotencyKey: string;
+  requestedAmountTwd: TwdInteger;
+  requestedQuantity: NonNegativeIntegerUnits | null;
+  saleId: string;
+  originalGrossTwd: TwdInteger;
+  collectionChannel: CollectionChannel;
+  commissionRateSnapshot: IntegerPercent;
+  commissionAmountSnapshot: TwdInteger;
+  commissionReversalSnapshot: TwdInteger;
+  settlementStatus: SettlementStatus | null;
+  settlementDestination: RefundReversalLedger['settlementDestination'];
+  ledgerDirection: LedgerDirection;
   sourceKind: RefundSourceKind;
   sourceLineId: string;
   sourceOrderId: string | null;
   sourceSnapshotLineId: string | null;
   inventoryAggregateId: string;
-  qty: NonNegativeIntegerUnits;
   fulfillmentFact: RefundFulfillmentFact;
   physicalReturnFact: RefundPhysicalReturnFact;
   disposition: RefundInventoryDisposition;
   condition: RefundReturnCondition | null;
   reason: string;
   note: string | null;
-  collectionChannel: CollectionChannel;
 }): string {
-  return [
-    input.refundRequestId,
-    input.idempotencyKey,
-    input.sourceKind,
-    input.sourceLineId,
-    input.sourceOrderId ?? '',
-    input.sourceSnapshotLineId ?? '',
-    input.inventoryAggregateId,
-    String(input.qty),
-    input.fulfillmentFact,
-    input.physicalReturnFact,
-    input.disposition,
-    input.condition ?? '',
-    input.reason,
-    input.note ?? '',
-    input.collectionChannel,
-  ].join('|');
+  return canonicalContractJson({
+    refundRequestId: input.refundRequestId,
+    idempotencyKey: input.idempotencyKey,
+    requestedAmountTwd: input.requestedAmountTwd,
+    requestedQuantity: input.requestedQuantity,
+    saleId: input.saleId,
+    originalGrossTwd: input.originalGrossTwd,
+    collectionChannel: input.collectionChannel,
+    commissionRateSnapshot: input.commissionRateSnapshot,
+    commissionAmountSnapshot: input.commissionAmountSnapshot,
+    commissionReversalSnapshot: input.commissionReversalSnapshot,
+    settlementStatus: input.settlementStatus,
+    settlementDestination: input.settlementDestination,
+    ledgerDirection: input.ledgerDirection,
+    sourceKind: input.sourceKind,
+    sourceLineId: input.sourceLineId,
+    sourceOrderId: input.sourceOrderId,
+    sourceSnapshotLineId: input.sourceSnapshotLineId,
+    inventoryAggregateId: input.inventoryAggregateId,
+    fulfillmentFact: input.fulfillmentFact,
+    physicalReturnFact: input.physicalReturnFact,
+    disposition: input.disposition,
+    condition: input.condition,
+    reason: input.reason,
+    note: input.note,
+  });
+}
+
+export function assertRefundSourceCompatibleWithChannel(
+  sourceKind: RefundSourceKind,
+  collectionChannel: CollectionChannel,
+): void {
+  if (sourceKind === 'pos_sale_line' && collectionChannel !== 'merchant_collected') {
+    throw new Error('pos_sale_line 只能搭配 merchant_collected');
+  }
+  if (
+    sourceKind === 'online_sale_snapshot_line' &&
+    collectionChannel !== 'furmosa_collected_line_ecpay'
+  ) {
+    throw new Error('online_sale_snapshot_line 只能搭配 furmosa_collected_line_ecpay');
+  }
 }
 
 function resolveRefundSource(input: {
@@ -1865,7 +1904,8 @@ export function planRefundInventoryEffect(input: {
   disposition: unknown;
   condition?: unknown;
   note?: string;
-  qty: unknown;
+  qty?: unknown;
+  financialQuantity?: NonNegativeIntegerUnits | null;
   inventoryAggregateId: string;
 }): {
   disposition: RefundInventoryDisposition;
@@ -1874,7 +1914,6 @@ export function planRefundInventoryEffect(input: {
   const fulfillmentFact = parseRefundFulfillmentFact(input.fulfillmentFact);
   const physicalReturnFact = parseRefundPhysicalReturnFact(input.physicalReturnFact);
   const claimed = parseRefundInventoryDisposition(input.disposition);
-  const qty = assertPositiveUnits(input.qty, '退款庫存數量');
   const inventoryAggregateId = assertRequiredContractText(
     input.inventoryAggregateId,
     'inventoryAggregateId',
@@ -1893,6 +1932,22 @@ export function planRefundInventoryEffect(input: {
   }
   if (derived === 'no_stock_effect') {
     return { disposition: derived, effect: null };
+  }
+  if (input.financialQuantity === null) {
+    throw new Error('財務退款數量為空時不可有庫存效果');
+  }
+  const claimedQty =
+    input.qty === undefined || input.qty === null
+      ? null
+      : assertPositiveUnits(input.qty, '退款庫存數量');
+  const qty =
+    input.financialQuantity === undefined
+      ? claimedQty == null
+        ? assertPositiveUnits(input.qty, '退款庫存數量')
+        : claimedQty
+      : assertPositiveUnits(input.financialQuantity, '退款庫存數量');
+  if (claimedQty != null && claimedQty !== qty) {
+    throw new Error('庫存處置數量必須等於本次財務退款數量');
   }
   if (derived === 'release_only') {
     return {
@@ -1949,7 +2004,8 @@ export function storeRefundCompletion(
   return {
     idempotencyKey,
     fingerprint: result.fingerprint,
-    requestStatus: result.requestStatus,
+    persistedRequestStatus: result.persistedRequestStatus,
+    proposedNextStatus: result.proposedNextStatus,
     financialReversal: result.financialReversal,
     inventoryEffect: result.inventoryEffect,
     source: result.source,
@@ -1969,7 +2025,7 @@ export function completeApprovedRefund(input: {
   clientInput: UntrustedClientRefundInput;
   idempotencyKey: string;
   inventoryAggregateId: string;
-  qty: unknown;
+  qty?: unknown;
   fulfillmentFact: unknown;
   physicalReturnFact: unknown;
   disposition: unknown;
@@ -1991,58 +2047,9 @@ export function completeApprovedRefund(input: {
   });
   const idempotencyKey = assertRequiredContractText(input.idempotencyKey, 'idempotencyKey');
   const reason = assertRequiredContractText(input.reason, 'reason');
-  const inventory = planRefundInventoryEffect({
-    fulfillmentFact: input.fulfillmentFact,
-    physicalReturnFact: input.physicalReturnFact,
-    disposition: input.disposition,
-    condition: input.condition,
-    note: input.note,
-    qty: input.qty,
-    inventoryAggregateId: input.inventoryAggregateId,
-  });
+  assertSaleCommissionSnapshotConsistent(input.sale);
   const channel = parseCollectionChannel(input.sale.collectionChannel);
-  const fingerprint = refundCompletionFingerprint({
-    refundRequestId,
-    idempotencyKey,
-    sourceKind: source.kind,
-    sourceLineId: source.sourceLineId,
-    sourceOrderId: source.sourceOrderId,
-    sourceSnapshotLineId: source.sourceSnapshotLineId,
-    inventoryAggregateId: input.inventoryAggregateId,
-    qty: assertPositiveUnits(input.qty, '退款庫存數量'),
-    fulfillmentFact: parseRefundFulfillmentFact(input.fulfillmentFact),
-    physicalReturnFact: parseRefundPhysicalReturnFact(input.physicalReturnFact),
-    disposition: inventory.disposition,
-    condition:
-      input.condition == null || input.condition === ''
-        ? null
-        : parseRefundReturnCondition(input.condition),
-    reason,
-    note:
-      inventory.effect?.loss?.note ??
-      (input.note != null && input.note.trim() !== '' ? input.note.trim() : null),
-    collectionChannel: channel,
-  });
-
-  const prior = input.existingCompletions.find((row) => row.idempotencyKey === idempotencyKey);
-  if (prior) {
-    if (prior.fingerprint !== fingerprint) {
-      throw new Error('同一 idempotencyKey 不可對應不同退款完成內容');
-    }
-    return {
-      requestStatus: 'completed',
-      financialReversal: prior.financialReversal,
-      inventoryEffect: prior.inventoryEffect,
-      duplicate: true,
-      fingerprint: prior.fingerprint,
-      source: prior.source,
-    };
-  }
-
-  const currentStatus = parseRefundStatus(input.refundStatus);
-  if (currentStatus !== 'approved') {
-    throw new Error('只有 approved 的退款申請可 completed');
-  }
+  assertRefundSourceCompatibleWithChannel(source.kind, channel);
 
   const financial = applyRefundReversalLine({
     sale: input.sale,
@@ -2055,9 +2062,76 @@ export function completeApprovedRefund(input: {
     ...input.existingRefunds,
     financial.line,
   ]);
+  const financialQuantity = financial.line.quantity ?? null;
+  const inventory = planRefundInventoryEffect({
+    fulfillmentFact: input.fulfillmentFact,
+    physicalReturnFact: input.physicalReturnFact,
+    disposition: input.disposition,
+    condition: input.condition,
+    note: input.note,
+    qty: input.qty,
+    financialQuantity,
+    inventoryAggregateId: input.inventoryAggregateId,
+  });
+  const fingerprint = refundCompletionFingerprint({
+    refundRequestId,
+    idempotencyKey,
+    requestedAmountTwd: financial.line.amountTwd,
+    requestedQuantity: financialQuantity,
+    saleId: input.sale.id,
+    originalGrossTwd: input.sale.actualGrossTwd,
+    collectionChannel: channel,
+    commissionRateSnapshot: input.sale.commissionRateSnapshot,
+    commissionAmountSnapshot: input.sale.commissionAmountSnapshot,
+    commissionReversalSnapshot: financial.line.commissionReversalSnapshot,
+    settlementStatus: input.sale.settlementStatus,
+    settlementDestination: ledger.settlementDestination,
+    ledgerDirection: ledger.direction,
+    sourceKind: source.kind,
+    sourceLineId: source.sourceLineId,
+    sourceOrderId: source.sourceOrderId,
+    sourceSnapshotLineId: source.sourceSnapshotLineId,
+    inventoryAggregateId: assertRequiredContractText(
+      input.inventoryAggregateId,
+      'inventoryAggregateId',
+    ),
+    fulfillmentFact: parseRefundFulfillmentFact(input.fulfillmentFact),
+    physicalReturnFact: parseRefundPhysicalReturnFact(input.physicalReturnFact),
+    disposition: inventory.disposition,
+    condition:
+      input.condition == null || input.condition === ''
+        ? null
+        : parseRefundReturnCondition(input.condition),
+    reason,
+    note:
+      inventory.effect?.loss?.note ??
+      (input.note != null && input.note.trim() !== '' ? input.note.trim() : null),
+  });
+
+  const prior = input.existingCompletions.find((row) => row.idempotencyKey === idempotencyKey);
+  if (prior) {
+    if (prior.fingerprint !== fingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同退款完成內容');
+    }
+    return {
+      persistedRequestStatus: 'approved',
+      proposedNextStatus: 'completed',
+      financialReversal: prior.financialReversal,
+      inventoryEffect: prior.inventoryEffect,
+      duplicate: true,
+      fingerprint: prior.fingerprint,
+      source: prior.source,
+    };
+  }
+
+  const currentStatus = parseRefundStatus(input.refundStatus);
+  if (currentStatus !== 'approved') {
+    throw new Error('只有 approved 的退款申請可提出 completed 計畫');
+  }
   assertTransition(REFUND_TRANSITIONS, 'approved', 'completed', '退款');
   return {
-    requestStatus: 'completed',
+    persistedRequestStatus: 'approved',
+    proposedNextStatus: 'completed',
     financialReversal: {
       line: financial.line,
       ledger,
