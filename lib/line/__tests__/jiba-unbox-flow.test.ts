@@ -9,7 +9,12 @@ import {
   JIBA_INVITE_TITLE,
 } from '../../campaigns/jiba-two-piece/copy';
 import { validRecipientName } from '../../campaigns/jiba-two-piece/validation';
-import { jibaInviteMenu, jibaProductChoiceMenu } from '../campaigns/jiba-unbox/menus';
+import {
+  jibaInviteMenu,
+  jibaInviteMessages,
+  jibaProductChoiceMenu,
+  jibaProductChoiceMessages,
+} from '../campaigns/jiba-unbox/menus';
 import {
   decideJibaUnboxEntry,
   decideJibaUnboxMessage,
@@ -22,9 +27,11 @@ function flexRaw(msg: LineReplyMessage) {
 }
 
 describe('jiba invite / product menus', () => {
-  it('invite is a single decision without product or extra topics', () => {
-    const menu = jibaInviteMenu();
-    const raw = flexRaw(menu);
+  it('invite is a single Flex message', () => {
+    const messages = jibaInviteMessages();
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.type, 'flex');
+    const raw = flexRaw(jibaInviteMenu());
     assert.match(raw, new RegExp(JIBA_INVITE_TITLE));
     assert.match(raw, new RegExp(JIBA_INVITE_BODY.slice(0, 8)));
     assert.match(raw, new RegExp(JIBA_INVITE_JOIN));
@@ -33,9 +40,11 @@ describe('jiba invite / product menus', () => {
     assert.equal((raw.match(/"type":"button"/g) ?? []).length, 2);
   });
 
-  it('product menu has three LINE buttons with safe payloads', () => {
-    const menu = jibaProductChoiceMenu();
-    const raw = flexRaw(menu);
+  it('ASK_PRODUCT is a single Flex/button message', () => {
+    const messages = jibaProductChoiceMessages();
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.type, 'flex');
+    const raw = flexRaw(jibaProductChoiceMenu());
     assert.match(raw, /"text":"選雞霸"/);
     assert.match(raw, /"text":"選青蛙"/);
     assert.match(raw, /"text":"選貓草雞肉乾"/);
@@ -46,6 +55,19 @@ describe('jiba invite / product menus', () => {
     assert.equal(validRecipientName('選雞霸'), null);
     assert.equal(validRecipientName('選青蛙'), null);
     assert.equal(validRecipientName('選貓草雞肉乾'), null);
+  });
+
+  it('flow replies for invite and ASK_PRODUCT go through the single-message builders', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../campaigns/jiba-unbox/flow.ts', import.meta.url), 'utf8');
+    assert.match(src, /jibaInviteMessages\(\)/);
+    assert.match(src, /jibaProductChoiceMessages\(\)/);
+    assert.doesNotMatch(src, /jibaInviteMenu\(\)/);
+    assert.doesNotMatch(src, /jibaProductChoiceMenu\(\)/);
+    assert.doesNotMatch(
+      src,
+      /type:\s*'text'[\s\S]{0,80}jibaProductChoice/,
+    );
   });
 });
 

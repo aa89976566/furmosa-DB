@@ -99,7 +99,10 @@ import {
   isWorldNavLeaveText,
 } from '@/lib/line/session-leave';
 import { isJibaUnboxEntryIntent } from '@/lib/line/campaigns/jiba-unbox/intent';
-import { jibaInviteMenu, jibaProductChoiceMenu } from '@/lib/line/campaigns/jiba-unbox/menus';
+import {
+  jibaInviteMessages,
+  jibaProductChoiceMessages,
+} from '@/lib/line/campaigns/jiba-unbox/menus';
 import { decideJibaUnboxEntry } from '@/lib/line/campaigns/jiba-unbox/turns';
 import { prisma } from '@/lib/prisma';
 
@@ -381,7 +384,7 @@ async function replayCurrentJibaStep(
   const prompt = promptForState(state);
   switch (state) {
     case FLOW_STATE.CAMPAIGN_INTRO:
-      await replyJiba(replyToken, lineUserId, [jibaInviteMenu()]);
+      await replyJiba(replyToken, lineUserId, jibaInviteMessages());
       return;
     case FLOW_STATE.SHOW_RULES:
       await replyJiba(replyToken, lineUserId, [
@@ -390,10 +393,7 @@ async function replayCurrentJibaStep(
       ]);
       return;
     case FLOW_STATE.ASK_PRODUCT:
-      await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: prompt },
-        jibaProductChoiceMenu(),
-      ]);
+      await replyJiba(replyToken, lineUserId, jibaProductChoiceMessages());
       return;
     case FLOW_STATE.SHOW_BRIEF: {
       const key = jibaProductKeyFromCollected(collected);
@@ -476,7 +476,7 @@ export async function startJibaUnboxIntro(
     console.error('[jiba-unbox] findActiveJibaApplication failed', err);
   }
 
-  await replyJiba(replyToken, lineUserId, [jibaInviteMenu()]);
+  await replyJiba(replyToken, lineUserId, jibaInviteMessages());
 
   runAfterReply(
     upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.CAMPAIGN_INTRO, {
@@ -612,10 +612,7 @@ async function beginEnrollment(
     }
 
     await setConversationState(sid, FLOW_STATE.ASK_PRODUCT);
-    await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: JIBA_ASK_PRODUCT_PROMPT },
-      jibaProductChoiceMenu(),
-    ]);
+    await replyJiba(replyToken, lineUserId, jibaProductChoiceMessages());
     runAfterReply(
       (async () => {
         await upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.ASK_PRODUCT, {
@@ -801,11 +798,18 @@ export async function handleJibaUnboxMessage(
     });
     const prompt = promptForState(state);
     const collected = parseCollected(app.conversationSession.collectedDataJson);
+    if (state === FLOW_STATE.ASK_PRODUCT) {
+      await replyJiba(replyToken, lineUserId, jibaProductChoiceMessages());
+      return true;
+    }
+    if (state === FLOW_STATE.CAMPAIGN_INTRO) {
+      await replyJiba(replyToken, lineUserId, jibaInviteMessages());
+      return true;
+    }
     await replyJiba(replyToken, lineUserId, [
       { type: 'text', text: '好喔，我們接著上次繼續～' },
       { type: 'text', text: prompt },
       ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [licenseFlexFromCollected(collected)] : []),
-      ...(state === FLOW_STATE.ASK_PRODUCT ? [jibaProductChoiceMenu()] : []),
       ...(state === FLOW_STATE.SHOW_BRIEF
         ? [jibaBriefContinueMenu(jibaProductKeyFromCollected(collected))]
         : []),
@@ -819,10 +823,7 @@ export async function handleJibaUnboxMessage(
       console.error('[jiba-unbox] restart cancel failed', err);
     }
     await clearLineChatSession(lineUserId);
-    await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: '好喔，舊的先幫你收起來，我們重新來～' },
-      jibaInviteMenu(),
-    ]);
+    await replyJiba(replyToken, lineUserId, jibaInviteMessages());
     runAfterReply(
       upsertJibaLineChatSessionIfIdle(lineUserId, FLOW_STATE.CAMPAIGN_INTRO, {
         phase: 'intro',
@@ -945,10 +946,7 @@ export async function handleJibaUnboxMessage(
       return true;
     }
     if (chat.step === FLOW_STATE.CAMPAIGN_INTRO || chat.step === FLOW_STATE.SHOW_RULES) {
-      await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: JIBA_INVITE_REPROMPT },
-        jibaInviteMenu(),
-      ]);
+      await replyJiba(replyToken, lineUserId, jibaInviteMessages());
       return true;
     }
   }
@@ -1026,10 +1024,7 @@ export async function handleJibaUnboxMessage(
       }
       const productKey = parseJibaProductKey(trimmed);
       if (!productKey) {
-        await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '請點下面按鈕選一種喔～' },
-          jibaProductChoiceMenu(),
-        ]);
+        await replyJiba(replyToken, lineUserId, jibaProductChoiceMessages());
         return true;
       }
       const brief = jibaBriefAndUpsell(productKey);

@@ -67,8 +67,5 @@ export function jibaProductChoiceMenu(): LineReplyMessage {
 }
 
 export function jibaProductChoiceMessages(): LineReplyMessage[] {
-  return [
-    { type: 'text', text: JIBA_ASK_PRODUCT_PROMPT },
-    jibaProductChoiceMenu(),
-  ];
+  return [jibaProductChoiceMenu()];
 }
