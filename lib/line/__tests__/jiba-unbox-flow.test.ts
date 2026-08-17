@@ -20,6 +20,8 @@ import {
   jibaInviteMessages,
   jibaProductChoiceMenu,
   jibaProductChoiceMessages,
+  jibaTransferMenu,
+  jibaTransferMessages,
   jibaUpsellMenu,
   jibaUpsellMessages,
 } from '../campaigns/jiba-unbox/menus';
@@ -99,6 +101,8 @@ describe('jiba invite / product menus', () => {
       /type:\s*'text'[\s\S]{0,80}jibaProductChoice/,
     );
     assert.match(src, /FLOW_STATE\.ASK_UPSELL/);
+    assert.match(src, /FLOW_STATE\.ASK_TRANSFER/);
+    assert.match(src, /declareJibaShippingPayment/);
     assert.match(src, /setConversationState\(sid, FLOW_STATE\.ASK_UPSELL/);
     assert.doesNotMatch(
       src,
@@ -117,6 +121,60 @@ describe('jiba invite / product menus', () => {
     assert.match(raw, new RegExp(`${JIBA_SHIPPING_FEE}\\s*元物流處理費`));
     assert.match(raw, /收件資訊齊了/);
     assert.match(JIBA_UPSELL_BODY, /加購/);
+  });
+
+  it('transfer card uses fake account from caller and safe payload', () => {
+    const fake = {
+      bankName: '測試銀行',
+      bankCode: '000',
+      account: '00000999991',
+      accountLast5: '99991',
+    };
+    const messages = jibaTransferMessages(fake);
+    assert.equal(messages.length, 1);
+    const raw = flexRaw(jibaTransferMenu(fake));
+    assert.match(raw, /測試銀行/);
+    assert.match(raw, /00000999991/);
+    assert.match(raw, /NT\$60/);
+    assert.match(raw, /選我已轉帳/);
+    assert.match(raw, /jd=jiba_xfer/);
+    assert.equal(validRecipientName('選我已轉帳'), null);
+    assert.equal(validRecipientName('我已轉帳'), null);
+    assert.deepEqual(
+      decideJibaUnboxMessage({
+        text: '選我已轉帳',
+        sessionActive: true,
+        pausedForRegister: false,
+        hasApplication: true,
+        state: FLOW_STATE.ASK_TRANSFER,
+      }),
+      { action: 'declare_transfer' },
+    );
+  });
+
+  it('missing transfer env fails closed without inventing an account', () => {
+    const prev = {
+      name: process.env.JIBA_TRANSFER_BANK_NAME,
+      code: process.env.JIBA_TRANSFER_BANK_CODE,
+      account: process.env.JIBA_TRANSFER_ACCOUNT,
+    };
+    delete process.env.JIBA_TRANSFER_BANK_NAME;
+    delete process.env.JIBA_TRANSFER_BANK_CODE;
+    delete process.env.JIBA_TRANSFER_ACCOUNT;
+    try {
+      const messages = jibaTransferMessages();
+      const raw = JSON.stringify(messages);
+      assert.match(raw, /轉帳資訊這會兒出不來/);
+      assert.doesNotMatch(raw, /00000999991/);
+      assert.doesNotMatch(raw, /"type":"flex"/);
+    } finally {
+      if (prev.name) process.env.JIBA_TRANSFER_BANK_NAME = prev.name;
+      else delete process.env.JIBA_TRANSFER_BANK_NAME;
+      if (prev.code) process.env.JIBA_TRANSFER_BANK_CODE = prev.code;
+      else delete process.env.JIBA_TRANSFER_BANK_CODE;
+      if (prev.account) process.env.JIBA_TRANSFER_ACCOUNT = prev.account;
+      else delete process.env.JIBA_TRANSFER_ACCOUNT;
+    }
   });
 });
 
@@ -234,6 +292,7 @@ describe('jiba state sequence', () => {
       FLOW_STATE.ASK_STORE,
       FLOW_STATE.CONFIRM_STORE,
       FLOW_STATE.ASK_UPSELL,
+      FLOW_STATE.ASK_TRANSFER,
       FLOW_STATE.ASK_INSTAGRAM,
       FLOW_STATE.ASK_PET_NAME,
       FLOW_STATE.ASK_CONTENT_LICENSE,
@@ -349,6 +408,7 @@ describe('jiba state sequence', () => {
       FLOW_STATE.ASK_RECIPIENT_PHONE,
       FLOW_STATE.ASK_STORE,
       FLOW_STATE.ASK_UPSELL,
+      FLOW_STATE.ASK_TRANSFER,
       FLOW_STATE.ASK_INSTAGRAM,
     ] as const;
     for (const state of states) {

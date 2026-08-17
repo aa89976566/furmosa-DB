@@ -17,14 +17,14 @@ import {
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
-  JIBA_APPROVED,
+  JIBA_APPROVED_AWAIT_TRANSFER,
+  JIBA_APPROVED_QUEUED,
   JIBA_ASK_IG,
   JIBA_ASK_NAME,
   JIBA_ASK_PET,
   JIBA_ASK_PHONE,
   JIBA_ASK_PRODUCT_PROMPT,
   JIBA_ASK_STORE,
-  JIBA_BANK_INFO,
   JIBA_BRIEF_REPROMPT,
   JIBA_FIND_HELPER,
   JIBA_IG_ERROR,
@@ -45,9 +45,12 @@ import {
   JIBA_STORE_ERROR,
   JIBA_SUBMITTED,
   JIBA_TRANSFER_NOTED,
+  JIBA_TRANSFER_REPROMPT,
+  JIBA_TRANSFER_UNAVAILABLE,
   JIBA_UPSELL_NOTED,
   JIBA_UPSELL_REPROMPT,
   JIBA_UPSELL_SKIPPED,
+  jibaBankInfoText,
   jibaBriefContinueLabel,
   jibaConfirmSummary,
   jibaFieldRetryEscalation,
@@ -55,6 +58,7 @@ import {
   jibaProductBrief,
   jibaReturnFieldCopy,
   isJibaBriefContinue,
+  isJibaTransferDeclared,
   isJibaUpsellAccept,
   isJibaUpsellSkip,
 } from '@/lib/campaigns/jiba-two-piece/copy';
@@ -69,6 +73,7 @@ import {
   appendConversationMessage,
   approveAndCreatePayment,
   createJibaEnrollment,
+  declareJibaShippingPayment,
   findActiveJibaApplication,
   markShippingPaid,
   rejectApplication,
@@ -77,6 +82,12 @@ import {
   submitForReview,
   syncApplicationFields,
 } from '@/lib/campaigns/jiba-two-piece/service';
+import {
+  assessJibaShippingFee,
+  nextStateAfterTransfer,
+  paymentDeclarationFromCollected,
+} from '@/lib/campaigns/jiba-two-piece/payment';
+import { requireJibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
 import {
   SEVEN_ELEVEN_STORE_FINDER_URL,
   isStoreLeaveNoise,
@@ -112,6 +123,7 @@ import { isJibaUnboxEntryIntent } from '@/lib/line/campaigns/jiba-unbox/intent';
 import {
   jibaInviteMessages,
   jibaProductChoiceMessages,
+  jibaTransferMessages,
   jibaUpsellMessages,
 } from '@/lib/line/campaigns/jiba-unbox/menus';
 import { decideJibaUnboxEntry } from '@/lib/line/campaigns/jiba-unbox/turns';
@@ -253,6 +265,40 @@ function productLabelFromCollected(data: Record<string, unknown>): string {
   return jibaProductLabelFromCollected(data);
 }
 
+function confirmSummaryForApp(
+  app: {
+    recipientName?: string | null;
+    recipientPhone?: string | null;
+    storeName?: string | null;
+    instagramHandle?: string | null;
+    petName?: string | null;
+    paymentStatus?: string | null;
+  },
+  collected: Record<string, unknown>,
+): string {
+  const fee = assessJibaShippingFee(collected);
+  const declaration = paymentDeclarationFromCollected(collected);
+  return jibaConfirmSummary({
+    recipientName: app.recipientName || '',
+    recipientPhone: app.recipientPhone || '',
+    storeName: app.storeName || '',
+    instagramHandle: app.instagramHandle || '',
+    petName: app.petName,
+    productLabel: productLabelFromCollected(collected),
+    shippingFeeDue: fee.due,
+    shippingFeeAmount: fee.amount,
+    paymentDeclared: Boolean(declaration) || app.paymentStatus === 'declared',
+    declaredPaidAt: declaration?.declaredPaidAt
+      ? declaration.declaredPaidAt.replace('T', ' ').slice(0, 16)
+      : null,
+    transferAccountLast5: declaration?.transferAccountLast5 ?? null,
+  });
+}
+
+function transferReplyMessages() {
+  return jibaTransferMessages(requireJibaTransferAccount());
+}
+
 function isLicenseAccept(text: string): boolean {
   return /^(?:我同意|同意)$/i.test(text.trim());
 }
@@ -332,6 +378,8 @@ function promptForState(state: FlowState): string {
       return JIBA_ASK_STORE;
     case FLOW_STATE.ASK_UPSELL:
       return JIBA_UPSELL_REPROMPT;
+    case FLOW_STATE.ASK_TRANSFER:
+      return JIBA_TRANSFER_REPROMPT;
     case FLOW_STATE.ASK_INSTAGRAM:
       return JIBA_ASK_IG;
     case FLOW_STATE.ASK_PET_NAME:
@@ -420,6 +468,8 @@ async function replayCurrentJibaStep(
       const guarded = resolveJibaResumeState(
         FLOW_STATE.ASK_UPSELL,
         shippingSnapshotFrom(app, collected),
+        collected,
+        app?.paymentStatus,
       );
       if (guarded !== FLOW_STATE.ASK_UPSELL) {
         if (app?.conversationSession) {
@@ -429,6 +479,23 @@ async function replayCurrentJibaStep(
         return;
       }
       await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+      return;
+    }
+    case FLOW_STATE.ASK_TRANSFER: {
+      const guarded = resolveJibaResumeState(
+        FLOW_STATE.ASK_TRANSFER,
+        shippingSnapshotFrom(app, collected),
+        collected,
+        app?.paymentStatus,
+      );
+      if (guarded !== FLOW_STATE.ASK_TRANSFER) {
+        if (app?.conversationSession) {
+          await setConversationState(app.conversationSession.id, guarded);
+        }
+        await replayCurrentJibaStep(replyToken, lineUserId, guarded, app);
+        return;
+      }
+      await replyJiba(replyToken, lineUserId, transferReplyMessages());
       return;
     }
     case FLOW_STATE.ASK_CONTENT_LICENSE:
@@ -618,7 +685,12 @@ async function beginEnrollment(
     // 已有進行中申請：依目前 state 續接，不重設、不跳步
     if (existing) {
       const collected = parseCollected(app.conversationSession?.collectedDataJson ?? '{}');
-      const guarded = resolveJibaResumeState(state, shippingSnapshotFrom(app, collected));
+      const guarded = resolveJibaResumeState(
+        state,
+        shippingSnapshotFrom(app, collected),
+        collected,
+        app.paymentStatus,
+      );
       if (guarded !== state) {
         await setConversationState(sid, guarded);
       }
@@ -830,17 +902,34 @@ export async function handleJibaUnboxMessage(
       await replyJiba(replyToken, lineUserId, jibaInviteMessages());
       return true;
     }
-    if (state === FLOW_STATE.ASK_UPSELL) {
+    if (state === FLOW_STATE.ASK_UPSELL || state === FLOW_STATE.ASK_TRANSFER) {
       const guarded = resolveJibaResumeState(
-        FLOW_STATE.ASK_UPSELL,
+        state,
         shippingSnapshotFrom(app, collected),
+        collected,
+        app.paymentStatus,
       );
-      if (guarded !== FLOW_STATE.ASK_UPSELL) {
+      if (guarded !== state) {
         await setConversationState(app.conversationSession.id, guarded);
         await replayCurrentJibaStep(replyToken, lineUserId, guarded, app);
         return true;
       }
-      await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+      await replyJiba(
+        replyToken,
+        lineUserId,
+        state === FLOW_STATE.ASK_TRANSFER ? transferReplyMessages() : jibaUpsellMessages(),
+      );
+      return true;
+    }
+    const resumeGuarded = resolveJibaResumeState(
+      state,
+      shippingSnapshotFrom(app, collected),
+      collected,
+      app.paymentStatus,
+    );
+    if (resumeGuarded !== state) {
+      await setConversationState(app.conversationSession.id, resumeGuarded);
+      await replayCurrentJibaStep(replyToken, lineUserId, resumeGuarded, app);
       return true;
     }
     await replyJiba(replyToken, lineUserId, [
@@ -939,13 +1028,16 @@ export async function handleJibaUnboxMessage(
       ]);
       return true;
     }
-    const summary = jibaConfirmSummary({
-      recipientName: app.recipientName || '（未填）',
-      recipientPhone: app.recipientPhone || '（未填）',
-      storeName: app.storeName || '（未填）',
-      instagramHandle: app.instagramHandle || '（未填）',
-      petName: app.petName,
-    });
+    const summary = confirmSummaryForApp(
+      {
+        ...app,
+        recipientName: app.recipientName || '（未填）',
+        recipientPhone: app.recipientPhone || '（未填）',
+        storeName: app.storeName || '（未填）',
+        instagramHandle: app.instagramHandle || '（未填）',
+      },
+      parseCollected(app.conversationSession?.collectedDataJson ?? '{}'),
+    );
     await replyJiba(replyToken, lineUserId, [{ type: 'text', text: summary }]);
     return true;
   }
@@ -1004,7 +1096,57 @@ export async function handleJibaUnboxMessage(
 
   const sid = app.conversationSession.id;
   const state = app.conversationSession.currentState as FlowState;
+
+  if (lineMessageId) {
+    const already = await prisma.conversationMessage.findFirst({
+      where: { sessionId: sid, lineMessageId },
+      select: { id: true },
+    });
+    if (already) {
+      return true;
+    }
+  }
+
   await logCustomer(sid, trimmed, lineMessageId);
+
+  if (isJibaTransferDeclared(trimmed)) {
+    const result = await declareJibaShippingPayment({
+      applicationId: app.id,
+      lineMessageId,
+      actorType: 'customer',
+    });
+    await logBot(sid, JIBA_TRANSFER_NOTED);
+    if (state === FLOW_STATE.ASK_TRANSFER || state === FLOW_STATE.AWAITING_SHIPPING_PAYMENT) {
+      if (state === FLOW_STATE.ASK_TRANSFER && !result.app.status.includes('READY')) {
+        const next = nextStateAfterTransfer({
+          instagramHandle: result.app.instagramHandle,
+          petRecorded:
+            result.app.petName !== undefined &&
+            result.app.petName !== null
+              ? true
+              : Object.prototype.hasOwnProperty.call(
+                  parseCollected(app.conversationSession.collectedDataJson),
+                  'petName',
+                ),
+          licenseAccepted: result.app.licenseAccepted,
+        });
+        await setConversationState(sid, next);
+        await logBot(sid, promptForState(next));
+        await replyJiba(replyToken, lineUserId, [
+          { type: 'text', text: JIBA_TRANSFER_NOTED },
+          { type: 'text', text: promptForState(next) },
+          ...(next === FLOW_STATE.ASK_CONTENT_LICENSE
+            ? [licenseFlexFromCollected(parseCollected(app.conversationSession.collectedDataJson))]
+            : []),
+        ]);
+        return true;
+      }
+    }
+    await replyJiba(replyToken, lineUserId, [
+      { type: 'text', text: JIBA_TRANSFER_NOTED },
+    ]);
+    return true;
+  }
 
   if (state === FLOW_STATE.PENDING_REVIEW) {
     await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_PENDING_HINT }]);
@@ -1012,9 +1154,11 @@ export async function handleJibaUnboxMessage(
   }
   if (state === FLOW_STATE.AWAITING_SHIPPING_PAYMENT) {
     if (/^(?:現在付款|我要轉帳|轉帳資訊)$/.test(trimmed)) {
-      await logBot(sid, JIBA_BANK_INFO);
+      const account = requireJibaTransferAccount();
+      const info = account ? jibaBankInfoText(account) : JIBA_TRANSFER_UNAVAILABLE;
+      await logBot(sid, info);
       await replyJiba(replyToken, lineUserId, [
-        textWithQr(JIBA_BANK_INFO, bankInfoQuickReplies()),
+        ...(account ? transferReplyMessages() : [{ type: 'text' as const, text: info }]),
       ]);
       return true;
     }
@@ -1025,19 +1169,7 @@ export async function handleJibaUnboxMessage(
       ]);
       return true;
     }
-    if (/^我已轉帳$/.test(trimmed)) {
-      await logBot(sid, JIBA_TRANSFER_NOTED);
-      await replyJiba(replyToken, lineUserId, [
-        textWithQr(JIBA_TRANSFER_NOTED, [
-          { label: `找${JIBA_SUPERVISOR_NAME}`, text: `找${JIBA_SUPERVISOR_NAME}` },
-          { label: '再看轉帳資訊', text: '現在付款' },
-        ]),
-      ]);
-      return true;
-    }
-    await replyJiba(replyToken, lineUserId, [
-      textWithQr(JIBA_APPROVED, payAskQuickReplies()),
-    ]);
+    await replyJiba(replyToken, lineUserId, transferReplyMessages());
     return true;
   }
   if (state === FLOW_STATE.READY_TO_SHIP) {
@@ -1318,10 +1450,27 @@ export async function handleJibaUnboxMessage(
       }
       if (isJibaUpsellSkip(trimmed) || isJibaUpsellAccept(trimmed)) {
         const interested = isJibaUpsellAccept(trimmed);
-        await setConversationState(sid, FLOW_STATE.ASK_INSTAGRAM, {
+        const afterUpsell = {
           upsellAsked: true,
           upsellInterest: interested,
           upsellAnsweredAt: new Date().toISOString(),
+        };
+        const fee = assessJibaShippingFee({ ...upsellCollected, ...afterUpsell });
+        if (fee.due) {
+          await setConversationState(sid, FLOW_STATE.ASK_TRANSFER, afterUpsell);
+          const nextCopy = interested ? JIBA_UPSELL_NOTED : JIBA_UPSELL_SKIPPED;
+          await logBot(sid, nextCopy);
+          await replyJiba(replyToken, lineUserId, [
+            { type: 'text', text: nextCopy },
+            ...transferReplyMessages(),
+          ]);
+          return true;
+        }
+        await setConversationState(sid, FLOW_STATE.ASK_INSTAGRAM, {
+          ...afterUpsell,
+          shippingFeeDue: false,
+          shippingFeeWaived: true,
+          shippingFeeReason: fee.reason,
         });
         const nextCopy = interested ? JIBA_UPSELL_NOTED : JIBA_UPSELL_SKIPPED;
         await logBot(sid, nextCopy);
@@ -1333,6 +1482,10 @@ export async function handleJibaUnboxMessage(
         return true;
       }
       await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+      return true;
+    }
+    case FLOW_STATE.ASK_TRANSFER: {
+      await replyJiba(replyToken, lineUserId, transferReplyMessages());
       return true;
     }
     case FLOW_STATE.ASK_INSTAGRAM: {
@@ -1437,14 +1590,7 @@ export async function handleJibaUnboxMessage(
       const sessFresh = await prisma.conversationSession.findUnique({ where: { id: sid } });
       const collectedFresh = parseCollected(sessFresh?.collectedDataJson ?? '{}');
       await setConversationState(sid, FLOW_STATE.SHOW_ORDER_CONFIRMATION);
-      const summary = jibaConfirmSummary({
-        recipientName: fresh.recipientName || '',
-        recipientPhone: fresh.recipientPhone || '',
-        storeName: fresh.storeName || '',
-        instagramHandle: fresh.instagramHandle || '',
-        petName: fresh.petName,
-        productLabel: productLabelFromCollected(collectedFresh),
-      });
+      const summary = confirmSummaryForApp(fresh, collectedFresh);
       await logBot(sid, summary);
       await replyJiba(replyToken, lineUserId, [
         textWithQr(summary, [
@@ -1514,25 +1660,50 @@ export async function handleJibaUnboxMessage(
   }
 }
 
-/** 壽司匠通過後：詢問是否轉帳（無線上金流） */
+/** LINE postback：我已轉帳（payload 不可當姓名） */
+export async function handleJibaUnboxPostback(
+  replyToken: string,
+  lineUserId: string,
+  data: string,
+  webhookEventId?: string,
+): Promise<boolean> {
+  if (data !== 'jd=jiba_xfer' && !data.includes('jiba_xfer')) return false;
+  return handleJibaUnboxMessage(
+    replyToken,
+    lineUserId,
+    '選我已轉帳',
+    webhookEventId ? `pb:${webhookEventId}` : undefined,
+  );
+}
+
+/** 壽司匠通過後：付款條件滿足則入出貨列；否則出示轉帳卡 */
 export async function notifyJibaApproved(applicationId: string, note?: string) {
   const app = await approveAndCreatePayment({
     applicationId,
     note,
     reviewerName: JIBA_SUPERVISOR_NAME,
   });
+  const queued = app.status === APP_STATUS.READY_TO_SHIP;
+  const copy = queued ? JIBA_APPROVED_QUEUED : JIBA_APPROVED_AWAIT_TRANSFER;
   const session = await prisma.conversationSession.findUnique({
     where: { campaignApplicationId: applicationId },
   });
   if (session) {
-    await logBot(session.id, JIBA_APPROVED, { paymentMethod: 'bank_transfer' });
+    await logBot(session.id, copy, { paymentMethod: 'bank_transfer', queued });
   }
-  await upsertJibaLineChatSessionIfIdle(app.lineUserId, FLOW_STATE.AWAITING_SHIPPING_PAYMENT, {
-    applicationId,
-  });
-  await pushLineMessages(app.lineUserId, [
-    textWithQr(JIBA_APPROVED, payAskQuickReplies()),
-  ]);
+  await upsertJibaLineChatSessionIfIdle(
+    app.lineUserId,
+    queued ? FLOW_STATE.READY_TO_SHIP : FLOW_STATE.AWAITING_SHIPPING_PAYMENT,
+    { applicationId },
+  );
+  if (queued) {
+    await pushLineMessages(app.lineUserId, [{ type: 'text', text: copy }]);
+  } else {
+    await pushLineMessages(app.lineUserId, [
+      { type: 'text', text: copy },
+      ...transferReplyMessages(),
+    ]);
+  }
   return app;
 }
 

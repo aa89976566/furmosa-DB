@@ -91,6 +91,9 @@ gh repo create furmosa-hq --private --source=. --push
    | `DIRECT_URL` | 5432 的 direct URL |
    | `AUTH_SECRET` | 用 `openssl rand -base64 32` 產一條 **新的**（**不要**和本機共用） |
    | `SESSION_HOURS` | `168` |
+   | `JIBA_TRANSFER_BANK_NAME` | Production 收款銀行名稱（Preview／本機用 placeholder） |
+   | `JIBA_TRANSFER_BANK_CODE` | Production 銀行代碼 |
+   | `JIBA_TRANSFER_ACCOUNT` | Production 收款帳號（**不要**寫進 Git） |
 
 4. 按 **Deploy**。Vercel 會跑：
 

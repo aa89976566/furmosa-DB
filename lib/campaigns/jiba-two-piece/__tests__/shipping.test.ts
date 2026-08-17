@@ -72,11 +72,15 @@ describe('old upsell session guard', () => {
       FLOW_STATE.SHOW_BRIEF,
     );
     assert.equal(
-      resolveJibaResumeState(FLOW_STATE.ASK_INSTAGRAM, {
-        recipientName: '王小明',
-        recipientPhone: '0912345678',
-        storeName: '板橋新埔門市',
-      }),
+      resolveJibaResumeState(
+        FLOW_STATE.ASK_INSTAGRAM,
+        {
+          recipientName: '王小明',
+          recipientPhone: '0912345678',
+          storeName: '板橋新埔門市',
+        },
+        { upsellAsked: false },
+      ),
       FLOW_STATE.ASK_INSTAGRAM,
     );
   });
@@ -103,6 +107,31 @@ describe('old upsell session guard', () => {
       FLOW_STATE.ASK_UPSELL,
     );
   });
+
+  it('redirects post-upsell collecting sessions to transfer when fee is due', () => {
+    const snap = {
+      recipientName: '王小明',
+      recipientPhone: '0912345678',
+      storeName: '板橋新埔門市',
+    };
+    assert.equal(
+      resolveJibaResumeState(FLOW_STATE.ASK_INSTAGRAM, snap, { upsellAsked: true }, 'unpaid'),
+      FLOW_STATE.ASK_TRANSFER,
+    );
+    assert.equal(
+      resolveJibaResumeState(
+        FLOW_STATE.ASK_INSTAGRAM,
+        snap,
+        { upsellAsked: true, declaredPaidAt: '2026-08-17T00:00:00.000Z' },
+        'declared',
+      ),
+      FLOW_STATE.ASK_INSTAGRAM,
+    );
+    assert.equal(
+      resolveJibaResumeState(FLOW_STATE.PENDING_REVIEW, snap, { upsellAsked: true }, 'unpaid'),
+      FLOW_STATE.PENDING_REVIEW,
+    );
+  });
 });
 
 describe('collecting sequence', () => {
@@ -116,7 +145,7 @@ describe('collecting sequence', () => {
     assert.ok(upsell < license);
     assert.equal(isJibaUpsellBeforeShipping(FLOW_STATE.ASK_UPSELL), false);
     assert.deepEqual(
-      JIBA_COLLECTING_SEQUENCE.slice(0, 8),
+      JIBA_COLLECTING_SEQUENCE.slice(0, 9),
       [
         FLOW_STATE.CAMPAIGN_INTRO,
         FLOW_STATE.ASK_PRODUCT,
@@ -126,6 +155,7 @@ describe('collecting sequence', () => {
         FLOW_STATE.ASK_STORE,
         FLOW_STATE.CONFIRM_STORE,
         FLOW_STATE.ASK_UPSELL,
+        FLOW_STATE.ASK_TRANSFER,
       ],
     );
   });

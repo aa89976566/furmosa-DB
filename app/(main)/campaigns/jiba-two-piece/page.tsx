@@ -75,7 +75,7 @@ export default async function JibaReviewListPage() {
       <>
         <PageHeader
           title="雞霸兩片開箱審核"
-          description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 壽司匠審核通過後請顧客轉帳運費；確認入帳後才入出貨隊列。`}
+          description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 審核通過且免運／已申報轉帳後進入出貨列表；尚未轉帳會留在等付款，不會消失。`}
         />
         <div className="space-y-6 p-6">
           <Card>
@@ -97,6 +97,7 @@ export default async function JibaReviewListPage() {
                   <th className="px-3 py-2">收件／門市</th>
                   <th className="px-3 py-2">IG／毛孩</th>
                   <th className="px-3 py-2">狀態</th>
+                  <th className="px-3 py-2">付款</th>
                   <th className="px-3 py-2">出貨列</th>
                   <th className="px-3 py-2" />
                 </tr>
@@ -104,7 +105,7 @@ export default async function JibaReviewListPage() {
               <tbody>
                 {apps.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
                       還沒有申請
                     </td>
                   </tr>
@@ -141,6 +142,9 @@ export default async function JibaReviewListPage() {
                         >
                           {STATUS_LABEL[a.status] ?? a.status}
                         </Badge>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {a.paymentStatus}
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {a.shippingQueueStatus}

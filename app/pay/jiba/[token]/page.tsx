@@ -2,14 +2,15 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import {
   APP_STATUS,
-  JIBA_BANK_TRANSFER,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  PAYMENT_STATUS,
 } from '@/lib/campaigns/jiba-two-piece/constants';
+import { requireJibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
 
 export const dynamic = 'force-dynamic';
 
-/** 轉帳說明頁（無線上金流）。入帳由壽司匠在後台確認。 */
+/** 轉帳說明頁（無線上金流）。入帳由壽司匠在後台確認。缺 env 時 fail closed。 */
 export default async function JibaPayPage({ params }: { params: { token: string } }) {
   const app = await prisma.campaignApplication.findUnique({
     where: { paymentToken: params.token },
@@ -18,7 +19,8 @@ export default async function JibaPayPage({ params }: { params: { token: string 
   if (!app) notFound();
 
   const alreadyPaid =
-    app.paymentStatus === 'paid' || app.status === APP_STATUS.READY_TO_SHIP;
+    app.paymentStatus === PAYMENT_STATUS.PAID || app.status === APP_STATUS.READY_TO_SHIP;
+  const transfer = requireJibaTransferAccount();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6 py-12">
@@ -33,11 +35,17 @@ export default async function JibaPayPage({ params }: { params: { token: string 
       </div>
       <div className="rounded-2xl border border-neutral-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 shadow-sm">
         <p className="text-3xl font-semibold">NT${JIBA_SHIPPING_FEE}</p>
-        <p className="mt-3 text-sm leading-relaxed text-neutral-700">
-          銀行：{JIBA_BANK_TRANSFER.bankName}（{JIBA_BANK_TRANSFER.bankCode}）
-          <br />
-          帳號：{JIBA_BANK_TRANSFER.account}
-        </p>
+        {transfer ? (
+          <p className="mt-3 text-sm leading-relaxed text-neutral-700">
+            銀行：{transfer.bankName}（{transfer.bankCode}）
+            <br />
+            帳號：{transfer.account}
+          </p>
+        ) : (
+          <p className="mt-3 text-sm leading-relaxed text-neutral-700">
+            轉帳資訊這會兒出不來。請回 LINE 說「找{JIBA_SUPERVISOR_NAME}」。
+          </p>
+        )}
         <p className="mt-3 text-sm text-neutral-500">
           收件：{app.recipientName || '—'} · {app.storeName || '—'}
         </p>
@@ -48,7 +56,7 @@ export default async function JibaPayPage({ params }: { params: { token: string 
         </p>
       ) : (
         <p className="rounded-xl bg-neutral-100 px-4 py-3 text-sm text-neutral-600">
-          轉帳完成後，請回 LINE 傳「我已轉帳」，或「找{JIBA_SUPERVISOR_NAME}」。
+          轉帳完成後，請回 LINE 點「我已轉帳」，或「找{JIBA_SUPERVISOR_NAME}」。
           小幫手對帳後會安排出貨。
         </p>
       )}

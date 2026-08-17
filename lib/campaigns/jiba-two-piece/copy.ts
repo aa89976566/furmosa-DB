@@ -1,12 +1,13 @@
 import {
   CATNIP_CHICK_HOMEPAGE_URL,
-  JIBA_BANK_TRANSFER,
   JIBA_FREE_SHIP,
   JIBA_PRODUCTS,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  JIBA_TRANSFER_ACTION_TEXT,
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
+import type { JibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
 
 /** 首則邀請：參加決策＋審核後寄出條件＋60 元物流處理費；不列商品、收件、加購或授權 */
 export const JIBA_INVITE_TITLE = '毛孩開箱體驗募集';
@@ -188,32 +189,71 @@ export const JIBA_SUBMITTED = `收到了，謝謝。
 接下來會先請${JIBA_SUPERVISOR_NAME}看一下資料，
 也會核對你剛剛留下的內容與 LINE 對話。
 
-確認完成後，再問你要不要現在轉帳 ${JIBA_SHIPPING_FEE} 元物流處理費。
-
 我們會再跟你聯絡，請稍等一下。`;
 
 export const JIBA_APPROVED = `${JIBA_SUPERVISOR_NAME}看過了，資料沒問題。
-你家毛孩正式參加開箱。
+你家毛孩正式參加開箱。`;
+
+export const JIBA_APPROVED_AWAIT_TRANSFER = `${JIBA_APPROVED}
 
 這單物流處理費是 ${JIBA_SHIPPING_FEE} 元，需自付。
 要現在轉帳嗎？`;
 
-export const JIBA_BANK_INFO = `好，轉帳資訊在這裡：
+export const JIBA_APPROVED_QUEUED = `${JIBA_APPROVED}
 
-銀行：${JIBA_BANK_TRANSFER.bankName}（${JIBA_BANK_TRANSFER.bankCode}）
-帳號：${JIBA_BANK_TRANSFER.account}
+零食準備幫你家毛孩排進出貨。
+出貨後會再通知你。`;
+
+export const JIBA_TRANSFER_TITLE = '轉帳物流處理費';
+export const JIBA_TRANSFER_BUTTON = '我已轉帳';
+export const JIBA_TRANSFER_REPROMPT = '這步用下面按鈕回就好：我已轉帳。';
+export const JIBA_TRANSFER_UNAVAILABLE = `轉帳資訊這會兒出不來。
+先跟我們說「找${JIBA_SUPERVISOR_NAME}」，小幫手會幫你看。`;
+
+export function jibaTransferBody(account: JibaTransferAccount): string {
+  return `物流處理費 NT$${JIBA_SHIPPING_FEE}，轉到這裡就好。
+
+銀行：${account.bankName}（${account.bankCode}）
+帳號：${account.account}
 金額：NT$${JIBA_SHIPPING_FEE}
 
-轉完可以回「我已轉帳」，
-或直接說「找${JIBA_SUPERVISOR_NAME}」，我們都會再幫你看。`;
+轉完點「${JIBA_TRANSFER_BUTTON}」。
+我們會再核對款項，還沒對上之前不會當已入帳。`;
+}
+
+export function jibaTransferAltText(account: JibaTransferAccount): string {
+  return `轉帳物流處理費 NT$${JIBA_SHIPPING_FEE}｜${account.bankName} ${account.bankCode}`;
+}
+
+export function jibaBankInfoText(account: JibaTransferAccount): string {
+  return `好，轉帳資訊在這裡：
+
+銀行：${account.bankName}（${account.bankCode}）
+帳號：${account.account}
+金額：NT$${JIBA_SHIPPING_FEE}
+
+轉完點「${JIBA_TRANSFER_BUTTON}」，
+或直接說「找${JIBA_SUPERVISOR_NAME}」。`;
+}
+
+/** @deprecated 改走 jibaBankInfoText(env)；缺 env 時不可顯示帳號 */
+export const JIBA_BANK_INFO = JIBA_TRANSFER_UNAVAILABLE;
 
 export const JIBA_PAY_LATER = `好，不急。
 想付的時候回「現在付款」，
 或「找${JIBA_SUPERVISOR_NAME}」都可以。`;
 
-export const JIBA_TRANSFER_NOTED = `收到了，謝謝。
-${JIBA_SUPERVISOR_NAME}會幫忙對帳。
+export const JIBA_TRANSFER_NOTED = `收到轉帳通知，我們會核對款項。
 對上了再跟你說，零食就可以出發。`;
+
+export function isJibaTransferDeclared(text: string): boolean {
+  const t = text.trim();
+  return (
+    t === JIBA_TRANSFER_ACTION_TEXT ||
+    t === JIBA_TRANSFER_BUTTON ||
+    /^(?:選我已轉帳|我已轉帳)$/i.test(t)
+  );
+}
 
 export const JIBA_FIND_HELPER = `好，幫你請${JIBA_SUPERVISOR_NAME}來看。
 資料先幫你留著，小幫手會盡快回覆你。`;
@@ -229,7 +269,7 @@ export const JIBA_REJECTED = `不好意思，這次名額先額滿了。
 下一輪有機會，我們再找你。`;
 
 export const JIBA_PENDING_HINT = `還在等${JIBA_SUPERVISOR_NAME}幫你看資料。
-通過後會再問你要不要轉帳物流處理費。`;
+通過後會再跟你說下一步。`;
 
 export function jibaConfirmSummary(d: {
   recipientName: string;
@@ -238,16 +278,34 @@ export function jibaConfirmSummary(d: {
   instagramHandle: string;
   petName?: string | null;
   productLabel?: string;
+  shippingFeeDue?: boolean;
+  shippingFeeAmount?: number;
+  paymentDeclared?: boolean;
+  declaredPaidAt?: string | null;
+  transferAccountLast5?: string | null;
 }): string {
   const phone = d.recipientPhone.replace(/(\d{4})(\d{3})(\d{3})/, '$1-$2-$3');
   const product = d.productLabel ?? '壕大大雞霸 × 2';
+  const feeDue = d.shippingFeeDue !== false;
+  const feeAmount = d.shippingFeeAmount ?? JIBA_SHIPPING_FEE;
+  const feeLine = feeDue
+    ? `物流處理費：NT$${feeAmount}（需自付）`
+    : '物流處理費：免運';
+  const paymentLine = !feeDue
+    ? '付款申報：免運，不用轉帳'
+    : d.paymentDeclared
+      ? `付款申報：已申報待核對${d.declaredPaidAt ? `（${d.declaredPaidAt}）` : ''}${
+          d.transferAccountLast5 ? `\n收款帳號末五碼：${d.transferAccountLast5}` : ''
+        }`
+      : '付款申報：尚未轉帳';
   return `麻煩最後再幫我們確認一次。
 有錯現在改就好，寄出後就比較麻煩了。
 
 活動：毛孩開箱
 商品：${product}
 商品金額：NT$0
-物流處理費：NT$${JIBA_SHIPPING_FEE}（需自付）
+${feeLine}
+${paymentLine}
 
 收件人：${d.recipientName}
 手機：${phone}

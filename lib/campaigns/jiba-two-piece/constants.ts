@@ -5,12 +5,20 @@ export const JIBA_SHIPPING_FEE = 60;
 /** 小幫手／審核者顯示名 */
 export const JIBA_SUPERVISOR_NAME = '壽司匠';
 
-/** 運費轉帳（無線上金流） */
-export const JIBA_BANK_TRANSFER = {
-  bankName: '中國信託',
-  bankCode: '822',
-  account: '226540037896',
+/** 轉帳按鈕 payload：加「選」前綴，避免被姓名欄誤收 */
+export const JIBA_TRANSFER_ACTION_TEXT = '選我已轉帳';
+export const JIBA_TRANSFER_POSTBACK = 'jd=jiba_xfer';
+
+export const PAYMENT_STATUS = {
+  UNPAID: 'unpaid',
+  DECLARED: 'declared',
+  AWAITING_VERIFICATION: 'awaiting_verification',
+  PAID: 'paid',
+  FAILED: 'failed',
+  WAIVED: 'waived',
 } as const;
+
+export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
 
 export const APP_STATUS = {
   COLLECTING_INFO: 'COLLECTING_INFO',
@@ -38,6 +46,8 @@ export const FLOW_STATE = {
   CONFIRM_STORE: 'CONFIRM_STORE',
   /** 運送資訊齊備後才問加購；舊 session 若提前停在加購，先補收件 */
   ASK_UPSELL: 'ASK_UPSELL',
+  /** 加購後若仍應付 60：出示轉帳卡並等待「我已轉帳」申報 */
+  ASK_TRANSFER: 'ASK_TRANSFER',
   ASK_INSTAGRAM: 'ASK_INSTAGRAM',
   ASK_PET_NAME: 'ASK_PET_NAME',
   ASK_CONTENT_LICENSE: 'ASK_CONTENT_LICENSE',
