@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { markShipmentStatus } from '@/app/(main)/shipments/actions';
+import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
 
 export const QUEUE_DELIVERED_LABEL = '貨物到達';
@@ -62,12 +63,14 @@ export function ShipmentQueueStatusSelect({
   status,
   queueStatus,
   queueType,
+  paymentReviewHold = false,
   className,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
   queueType?: string;
+  paymentReviewHold?: boolean;
   className?: string;
 }) {
   const options = queueOptionsForStatus(status);
@@ -81,6 +84,15 @@ export function ShipmentQueueStatusSelect({
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
+  }
+
+  if (paymentReviewHold && (status === 'pending' || status === 'packed')) {
+    return (
+      <div className={cn('space-y-1', className)}>
+        <p className="text-[11px] font-medium text-amber-800">{JIBA_PAYMENT_REVIEW_LABEL}</p>
+        <p className="text-[10px] text-muted-foreground">尚未核對入帳，不可標記已寄出</p>
+      </div>
+    );
   }
 
   function submitNext(next: string) {
@@ -140,12 +152,14 @@ export function ShipmentQueueStatusCell({
   status,
   queueStatus,
   queueType,
+  paymentReviewHold,
   className,
 }: {
   shipmentId: string;
   status: string;
   queueStatus?: string;
   queueType?: string;
+  paymentReviewHold?: boolean;
   className?: string;
 }) {
   return (
@@ -154,6 +168,7 @@ export function ShipmentQueueStatusCell({
       status={status}
       queueStatus={queueStatus}
       queueType={queueType}
+      paymentReviewHold={paymentReviewHold}
       className={className}
     />
   );

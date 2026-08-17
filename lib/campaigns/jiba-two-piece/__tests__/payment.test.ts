@@ -5,9 +5,11 @@ import { APP_STATUS, FLOW_STATE, JIBA_SHIPPING_FEE, PAYMENT_STATUS } from '../co
 import {
   assessJibaShippingFee,
   buildPaymentDeclarationPatch,
+  canMarkJibaShipmentShipped,
   decideJibaApproveTransition,
   isJibaBackfillCandidate,
   isJibaPaymentDeclared,
+  isJibaPaymentReviewHold,
   isJibaPaymentSatisfied,
   isShipmentQueueVisibleOrderStatus,
   jibaBackfillRepairKind,
@@ -145,6 +147,17 @@ describe('shipment list visibility', () => {
     assert.equal(isShipmentQueueVisibleOrderStatus('pending_review'), true);
     assert.equal(isShipmentQueueVisibleOrderStatus('draft'), true);
     assert.equal(isShipmentQueueVisibleOrderStatus('cancelled'), false);
+  });
+
+  it('holds awaiting payment review so staff cannot mark shipped', () => {
+    assert.equal(
+      isJibaPaymentReviewHold({ status: 'awaiting_shipping_payment', paymentStatus: 'unpaid' }),
+      true,
+    );
+    assert.equal(canMarkJibaShipmentShipped({ status: 'awaiting_shipping_payment' }), false);
+    assert.equal(canMarkJibaShipmentShipped({ status: 'confirmed', paymentStatus: 'unpaid' }), true);
+    assert.equal(isJibaPaymentReviewHold({ status: 'confirmed' }), false);
+    assert.equal(isJibaPaymentReviewHold(null), false);
   });
 });
 

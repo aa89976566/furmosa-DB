@@ -242,6 +242,24 @@ export function decideJibaApproveTransition(input: {
 /** 出貨列表可見的訂單狀態：只排除已取消，避免 application／order 不一致漏單 */
 export const SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES = ['cancelled'] as const;
 
+export const JIBA_PAYMENT_REVIEW_ORDER_STATUS = 'awaiting_shipping_payment' as const;
+export const JIBA_PAYMENT_REVIEW_LABEL = '等運費核對';
+
+/** 已核准但運費尚未核對：列表要看得到，不可當成可立即寄出 */
+export function isJibaPaymentReviewHold(order?: {
+  status?: string | null;
+  paymentStatus?: string | null;
+} | null): boolean {
+  return order?.status === JIBA_PAYMENT_REVIEW_ORDER_STATUS;
+}
+
+export function canMarkJibaShipmentShipped(order?: {
+  status?: string | null;
+  paymentStatus?: string | null;
+} | null): boolean {
+  return !isJibaPaymentReviewHold(order);
+}
+
 export function isShipmentQueueVisibleOrderStatus(status: string | null | undefined): boolean {
   if (!status) return true;
   return !SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES.includes(

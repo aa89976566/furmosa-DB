@@ -17,6 +17,10 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
+import {
+  isJibaPaymentReviewHold,
+  JIBA_PAYMENT_REVIEW_LABEL,
+} from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
@@ -44,6 +48,8 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    status: string;
+    paymentStatus: string;
     shippingMethod: string;
     cvsBrand: string | null;
     cvsStoreId: string | null;
@@ -259,6 +265,11 @@ function ShipmentQueueCard({
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
+            {isJibaPaymentReviewHold(shipment.order) ? (
+              <Badge variant="warning" className="h-5 px-1.5 text-[10px] font-normal">
+                {JIBA_PAYMENT_REVIEW_LABEL}
+              </Badge>
+            ) : null}
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{shortNumber}</p>
         </div>
@@ -274,6 +285,7 @@ function ShipmentQueueCard({
           status={shipment.status}
           queueStatus={queueStatus}
           queueType={queueType}
+          paymentReviewHold={isJibaPaymentReviewHold(shipment.order)}
           className="max-w-none"
         />
       </div>
@@ -380,6 +392,11 @@ export function ShipmentQueueTable({
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
                         {shipmentTypeLabel[shipment.type] ?? shipment.type}
                       </Badge>
+                      {isJibaPaymentReviewHold(shipment.order) ? (
+                        <Badge variant="warning" className="h-4 px-1 text-[9px] font-normal">
+                          {JIBA_PAYMENT_REVIEW_LABEL}
+                        </Badge>
+                      ) : null}
                       <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
                     </div>
                   </TableCell>
@@ -389,6 +406,7 @@ export function ShipmentQueueTable({
                       status={shipment.status}
                       queueStatus={queueStatus}
                       queueType={queueType}
+                      paymentReviewHold={isJibaPaymentReviewHold(shipment.order)}
                     />
                   </TableCell>
                   <TableCell className="py-3">
