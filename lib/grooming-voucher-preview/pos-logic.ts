@@ -83,6 +83,21 @@ export function amountExceedsFace(amount: number, faceValue: number): boolean {
   return amount > faceValue;
 }
 
+export function liveServiceTotalMessage(raw: string, faceValue: number): string | null {
+  if (raw.trim() === '') return null;
+  const parsed = parseIntegerAmount(raw);
+  if (!parsed.ok) return COPY.invalidAmount;
+  if (!amountExceedsFace(parsed.value, faceValue)) return COPY.amountNotGreater(faceValue);
+  return null;
+}
+
+export function posClerkStep(session: PosSession): 1 | 2 | 3 {
+  if (session.step === 'receipt' || session.redeemed) return 3;
+  const voucher = getPreviewVoucher(session.fixtureKey);
+  if (session.lookedUp && voucher.kind === 'available' && !session.redeemed) return 2;
+  return 1;
+}
+
 export function messageForBlock(reason: PosBlockReason, faceValue: number): string {
   switch (reason) {
     case 'wrong_store':

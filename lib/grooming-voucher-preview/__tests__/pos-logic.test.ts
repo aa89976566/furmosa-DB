@@ -8,11 +8,13 @@ import {
   createPosSession,
   evaluateRedeemGate,
   finishRedeem,
+  liveServiceTotalMessage,
   lookupVoucher,
   messageForBlock,
   openRedeemTask,
   openReview,
   parseIntegerAmount,
+  posClerkStep,
   simulateScan,
   startRedeem,
   submitCancelRequest,
@@ -102,6 +104,29 @@ describe('grooming voucher POS preview logic', () => {
 
     const ok = openReview(readyToRedeem('available_200', '201'));
     assert.equal(ok.step, 'review');
+  });
+
+  it('live amount message flags equal and lower totals immediately', () => {
+    assert.equal(liveServiceTotalMessage('', 200), null);
+    assert.equal(liveServiceTotalMessage('200', 200), COPY.amountNotGreater(200));
+    assert.equal(liveServiceTotalMessage('199', 200), COPY.amountNotGreater(200));
+    assert.equal(liveServiceTotalMessage('250', 250), COPY.amountNotGreater(250));
+    assert.equal(liveServiceTotalMessage('201', 200), null);
+    assert.equal(liveServiceTotalMessage('12.5', 200), COPY.invalidAmount);
+    assert.ok(COPY.amountNotGreater(200).includes('美容服務總額要高於 NT$200'));
+    assert.ok(COPY.amountNotGreater(250).includes('美容服務總額要高於 NT$250'));
+  });
+
+  it('clerk steps stay 掃描 → 確認 → 完成', () => {
+    const home = createPosSession();
+    assert.equal(posClerkStep(home), 1);
+    const lookup = openRedeemTask(home);
+    assert.equal(posClerkStep(lookup), 1);
+    const scanned = simulateScan(lookup);
+    assert.equal(posClerkStep(scanned), 2);
+    const receipt = finishRedeem(startRedeem(openReview(readyToRedeem())));
+    assert.equal(posClerkStep(receipt), 3);
+    assert.equal(posClerkStep(simulateScan(openRedeemTask(createPosSession('expired')))), 1);
   });
 
   it('requires the completed-service checkbox', () => {
