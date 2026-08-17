@@ -1,9 +1,6 @@
 /**
- * POS-01 Domain Contract — 可執行純函式。
- *
- * 本模組不得被 app／API／cron／既有 runtime 引用。
- * Production 行為必須零改變。
- *
+ * POS-01 Domain Contract — 可落 DB 的不變量與純決策。
+ * 不得被 app／API／cron／既有 runtime 引用。Production 行為零改變。
  * 規格：docs/POS-01-DOMAIN-CONTRACT.md
  */
 
@@ -16,11 +13,6 @@ export const POS_01_OPEN_DECISIONS = {
     id: 'O1',
     status: 'UNDECIDED',
     note: '退款是否回庫、以及回庫原因尚未決定，不得猜測',
-  },
-  linePaymentReservationTimeout: {
-    id: 'O2',
-    status: 'UNDECIDED',
-    note: 'LINE 付款 reservation timeout 尚未決定，不得硬編碼秒數或天數',
   },
   zhuwoOfficialImmutableIds: {
     id: 'O3',
@@ -42,22 +34,22 @@ export const GROOMING_VOUCHER_TIME_ZONE = 'Asia/Taipei';
 export const GROOMING_VOUCHER_FACE_STANDARD_TWD = 200;
 export const GROOMING_VOUCHER_FACE_ZHUWO_TWD = 250;
 
+export const UNPAID_PAYMENT_INTENT_TTL_HOURS = 24;
+export const UNPAID_PAYMENT_INTENT_TTL_MS = UNPAID_PAYMENT_INTENT_TTL_HOURS * 60 * 60 * 1000;
+
 export const UNCOLLECTED_PICKUP_POLICY = {
   autoRefund: false,
+  autoExpire: false,
+  autoRelease: false,
   display: 'contact_support',
 } as const;
 
-/**
- * Client 可當「業務請求」提交的欄位。這些不是財務真相。
- * 型別名稱刻意標 Untrusted，不構成來源驗證。
- */
 export type UntrustedClientRefundInput = {
   actualUnitPriceTwd?: unknown;
   requestedQuantity?: unknown;
   requestedAmountTwd?: unknown;
 };
 
-/** Server 必須重查或自行計算；不可採用 client 值當最終真相。 */
 export const SERVER_MUST_RESOLVE_FIELDS = [
   'merchantId',
   'productId',
@@ -76,9 +68,9 @@ export const SERVER_MUST_RESOLVE_FIELDS = [
   'settlementStatus',
   'settlementRouting',
   'refundRemainder',
+  'commissionReversalSnapshot',
 ] as const;
 
-/** Client 可提交、但 server 仍須當 untrusted 再驗整數與上限。 */
 export const CLIENT_MAY_SUBMIT_BUSINESS_INPUT = [
   'actualUnitPriceTwd',
   'requestedQuantity',
@@ -107,7 +99,12 @@ export const LEDGER_KINDS = [
 ] as const;
 export type LedgerKind = (typeof LEDGER_KINDS)[number];
 
-/** 原 completed sale 的寫入狀態。fully_reversed 只是投影，不是可寫回原列的狀態。 */
+export const ADJUSTMENT_KINDS = [
+  'merchant_proposed_adjustment',
+  'next_period_adjustment',
+] as const;
+export type AdjustmentKind = (typeof ADJUSTMENT_KINDS)[number];
+
 export const SALE_STATUSES = ['draft', 'completed', 'cancelled'] as const;
 export type SaleStatus = (typeof SALE_STATUSES)[number];
 
@@ -156,7 +153,6 @@ export const RESTOCK_SHIPMENT_STATUSES = [
 ] as const;
 export type RestockShipmentStatus = (typeof RESTOCK_SHIPMENT_STATUSES)[number];
 
-/** 券本體。取消申請不混進此狀態。 */
 export const VOUCHER_STATUSES = [
   'issued',
   'available',
@@ -183,6 +179,15 @@ export type CompletedFactKind = (typeof COMPLETED_FACT_KINDS)[number];
 
 export type CorrectionMode = 'reversal' | 'next_period_adjustment';
 
+export const INVENTORY_OP_KINDS = [
+  'reserve',
+  'release',
+  'expire',
+  'consume_pickup',
+  'consume_in_store',
+] as const;
+export type InventoryOpKind = (typeof INVENTORY_OP_KINDS)[number];
+
 export const SETTLEMENT_DRAFT_METADATA_FIELDS = [
   'note',
   'periodStart',
@@ -199,7 +204,7 @@ export const SETTLEMENT_LOCKED_FACT_FIELDS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
-// Runtime allow-list validators — unknown / 大小寫不符一律 throw
+// Runtime allow-list — 未知／大小寫不符一律 throw
 // ---------------------------------------------------------------------------
 
 function parseAllowListValue<T extends string>(
@@ -221,6 +226,9 @@ export function parseLedgerDirection(value: unknown): LedgerDirection {
 }
 export function parseLedgerKind(value: unknown): LedgerKind {
   return parseAllowListValue(value, LEDGER_KINDS, '帳本種類');
+}
+export function parseAdjustmentKind(value: unknown): AdjustmentKind {
+  return parseAllowListValue(value, ADJUSTMENT_KINDS, '加減款種類');
 }
 export function parseSaleStatus(value: unknown): SaleStatus {
   return parseAllowListValue(value, SALE_STATUSES, '銷售狀態');
@@ -255,9 +263,12 @@ export function parsePosActor(value: unknown): PosActor {
 export function parseVoucherTier(value: unknown): GroomingVoucherFaceTier {
   return parseAllowListValue(value, GROOMING_VOUCHER_FACE_TIERS, '美容券面額層級');
 }
+export function parseInventoryOpKind(value: unknown): InventoryOpKind {
+  return parseAllowListValue(value, INVENTORY_OP_KINDS, '庫存操作');
+}
 
 // ---------------------------------------------------------------------------
-// 狀態轉移 allow-list（from === to 視為重複，拒絕；未知狀態 throw）
+// 狀態轉移
 // ---------------------------------------------------------------------------
 
 export const SALE_TRANSITIONS: Record<SaleStatus, readonly SaleStatus[]> = {
@@ -349,7 +360,7 @@ export function canTransition<S extends string>(
   const parsedFrom = parseAllowListValue(from, keys, '狀態');
   const parsedTo = parseAllowListValue(to, keys, '狀態');
   if (parsedFrom === parsedTo) return false;
-  return (allowList[parsedFrom] ?? []).includes(parsedTo);
+  return allowList[parsedFrom].includes(parsedTo);
 }
 
 export function assertTransition<S extends string>(
@@ -383,11 +394,10 @@ export const canTransitionSettlement = (from: unknown, to: unknown) =>
   canTransition(SETTLEMENT_TRANSITIONS, from, to);
 
 // ---------------------------------------------------------------------------
-// 金額 TwdInteger 與庫存 NonNegativeIntegerUnits 分型
+// 金額／件數／日期
 // ---------------------------------------------------------------------------
 
 export type TwdInteger = number;
-export type SignedTwdInteger = number;
 export type NonNegativeIntegerUnits = number;
 export type IntegerPercent = number;
 
@@ -414,13 +424,13 @@ export function assertTwdInteger(value: unknown, label = '金額'): asserts valu
   }
 }
 
-export function assertSignedTwdInteger(
+export function assertPositiveTwdInteger(
   value: unknown,
-  label = '加減款金額',
-): asserts value is SignedTwdInteger {
-  assertSafeIntegerCore(value, label);
+  label = '金額',
+): asserts value is TwdInteger {
+  assertTwdInteger(value, label);
   if (value === 0) {
-    throw new Error(`${label}不可為 0`);
+    throw new Error(`${label}必須大於 0`);
   }
 }
 
@@ -444,6 +454,16 @@ export function assertIntegerPercent(
   }
 }
 
+export function safeIntegerAdd(a: number, b: number, label = '金額'): number {
+  assertSafeIntegerCore(a, label);
+  assertSafeIntegerCore(b, label);
+  const sum = a + b;
+  if (!Number.isSafeInteger(sum)) {
+    throw new Error(`${label}加總超出安全整數`);
+  }
+  return sum;
+}
+
 export function safeIntegerMul(a: number, b: number, label = '金額'): number {
   assertSafeIntegerCore(a, label);
   assertSafeIntegerCore(b, label);
@@ -458,7 +478,6 @@ export function safeIntegerMul(a: number, b: number, label = '金額'): number {
   return product;
 }
 
-/** 依該 line 實際成交總額 × snapshot 百分比，四捨五入。中間值不安全則 throw。 */
 export function roundPercentCommission(actualGrossTwd: unknown, percent: unknown): TwdInteger {
   assertTwdInteger(actualGrossTwd, '實際成交額');
   assertIntegerPercent(percent);
@@ -468,6 +487,21 @@ export function roundPercentCommission(actualGrossTwd: unknown, percent: unknown
     throw new Error('佣金結果超出安全整數');
   }
   return rounded;
+}
+
+export function assertValidDate(value: unknown, label = '日期'): asserts value is Date {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new Error(`${label}不是有效日期`);
+  }
+}
+
+export function assertValidPeriod(start: unknown, end: unknown): { start: Date; end: Date } {
+  assertValidDate(start, '期間起日');
+  assertValidDate(end, '期間迄日');
+  if (!(start < end)) {
+    throw new Error('期間起日必須早於迄日');
+  }
+  return { start, end };
 }
 
 export type SaleLineCommissionSnapshot = {
@@ -490,24 +524,19 @@ export function snapshotCompletedSaleLine(
   };
 }
 
-/** 月結只加總各 line 已 snapshot 的佣金，絕不重算整月淨額。 */
 export function sumSettlementCommissionSnapshots(
   snapshots: readonly Pick<SaleLineCommissionSnapshot, 'commissionAmountSnapshot'>[],
 ): TwdInteger {
   let total = 0;
   for (const row of snapshots) {
     assertTwdInteger(row.commissionAmountSnapshot, 'snapshot 佣金');
-    const next = total + row.commissionAmountSnapshot;
-    if (!Number.isSafeInteger(next)) {
-      throw new Error('結算加總超出安全整數');
-    }
-    total = next;
+    total = safeIntegerAdd(total, row.commissionAmountSnapshot, '結算加總');
   }
   return total;
 }
 
 // ---------------------------------------------------------------------------
-// 庫存 — 原子效果 + idempotency
+// 庫存 — key→{fingerprint,result}，不是 Set<string>
 // ---------------------------------------------------------------------------
 
 export type InventoryState = {
@@ -515,18 +544,18 @@ export type InventoryState = {
   reserved: NonNegativeIntegerUnits;
 };
 
-export type InventoryOpKind =
-  | 'reserve'
-  | 'release'
-  | 'expire'
-  | 'consume_pickup'
-  | 'consume_in_store';
-
 export type InventoryOp = {
-  op: InventoryOpKind;
+  op: unknown;
   qty: unknown;
   idempotencyKey: string;
 };
+
+export type InventoryIdempotencyRecord = {
+  fingerprint: string;
+  result: InventoryState;
+};
+
+export type InventoryIdempotencyLog = ReadonlyMap<string, InventoryIdempotencyRecord>;
 
 export function availableUnits(onHand: unknown, reserved: unknown): NonNegativeIntegerUnits {
   assertNonNegativeIntegerUnits(onHand, '在庫量');
@@ -562,54 +591,68 @@ function assertPositiveUnits(qty: unknown, label = '數量'): NonNegativeInteger
   return qty;
 }
 
+export function inventoryOpFingerprint(
+  op: InventoryOpKind,
+  qty: NonNegativeIntegerUnits,
+  prior: InventoryState,
+): string {
+  return `${op}|qty:${qty}|onHand:${prior.onHand}|reserved:${prior.reserved}`;
+}
+
 export function applyInventoryOp(
   state: InventoryState,
   op: InventoryOp,
-  appliedKeys: ReadonlySet<string>,
-): { state: InventoryState; appliedKeys: Set<string>; duplicate: boolean } {
+  log: InventoryIdempotencyLog,
+): { state: InventoryState; log: Map<string, InventoryIdempotencyRecord>; duplicate: boolean } {
   if (!op.idempotencyKey || typeof op.idempotencyKey !== 'string') {
     throw new Error('庫存操作必須有 idempotencyKey');
   }
-  const nextKeys = new Set(appliedKeys);
-  if (appliedKeys.has(op.idempotencyKey)) {
-    return { state, appliedKeys: nextKeys, duplicate: true };
+  const kind = parseInventoryOpKind(op.op);
+  const qty = assertPositiveUnits(op.qty);
+  assertNonNegativeIntegerUnits(state.onHand, '在庫量');
+  assertNonNegativeIntegerUnits(state.reserved, '保留量');
+  const fingerprint = inventoryOpFingerprint(kind, qty, state);
+  const existing = log.get(op.idempotencyKey);
+  const nextLog = new Map(log);
+
+  if (existing) {
+    const sameOpQty =
+      existing.fingerprint.startsWith(`${kind}|qty:${qty}|`);
+    if (!sameOpQty) {
+      throw new Error('同一 idempotencyKey 不可對應不同庫存操作或數量');
+    }
+    return { state: existing.result, log: nextLog, duplicate: true };
   }
 
-  const qty = assertPositiveUnits(op.qty);
-  const onHand = state.onHand;
-  const reserved = state.reserved;
-  assertNonNegativeIntegerUnits(onHand, '在庫量');
-  assertNonNegativeIntegerUnits(reserved, '保留量');
-
   let next: InventoryState;
-  if (op.op === 'reserve') {
-    assertCanTakeFromAvailable(onHand, reserved, qty);
-    next = { onHand, reserved: reserved + qty };
-  } else if (op.op === 'release' || op.op === 'expire') {
-    if (qty > reserved) {
+  if (kind === 'reserve') {
+    assertCanTakeFromAvailable(state.onHand, state.reserved, qty);
+    next = { onHand: state.onHand, reserved: safeIntegerAdd(state.reserved, qty, '保留量') };
+  } else if (kind === 'release' || kind === 'expire') {
+    if (qty > state.reserved) {
       throw new Error('釋放量不可超過已保留量');
     }
-    next = { onHand, reserved: reserved - qty };
-  } else if (op.op === 'consume_pickup') {
-    if (qty > reserved) {
+    next = { onHand: state.onHand, reserved: state.reserved - qty };
+  } else if (kind === 'consume_pickup') {
+    if (qty > state.reserved) {
       throw new Error('取貨量不可超過已保留量');
     }
-    if (qty > onHand) {
+    if (qty > state.onHand) {
       throw new Error('可用庫存不足（嚴禁負庫存）');
     }
-    next = { onHand: onHand - qty, reserved: reserved - qty };
-  } else if (op.op === 'consume_in_store') {
-    assertCanTakeFromAvailable(onHand, reserved, qty);
-    next = { onHand: onHand - qty, reserved };
+    next = { onHand: state.onHand - qty, reserved: state.reserved - qty };
+  } else if (kind === 'consume_in_store') {
+    assertCanTakeFromAvailable(state.onHand, state.reserved, qty);
+    next = { onHand: state.onHand - qty, reserved: state.reserved };
   } else {
-    throw new Error('未知庫存操作');
+    throw new Error('庫存操作不在 allow-list，未知或大小寫不符');
   }
 
   if (next.onHand < 0 || next.reserved < 0 || next.onHand - next.reserved < 0) {
     throw new Error('可用庫存不可為負（嚴禁負庫存）');
   }
-  nextKeys.add(op.idempotencyKey);
-  return { state: next, appliedKeys: nextKeys, duplicate: false };
+  nextLog.set(op.idempotencyKey, { fingerprint, result: next });
+  return { state: next, log: nextLog, duplicate: false };
 }
 
 export function restockIncreasesStoreOnHand(status: unknown): boolean {
@@ -629,14 +672,63 @@ export function fulfillmentInventoryOp(
   const parsedTo = parseFulfillmentStatus(to);
   if (parsedFrom === 'pending_payment' && parsedTo === 'paid_reserved') return 'reserve';
   if (parsedFrom === 'ready_for_pickup' && parsedTo === 'picked_up') return 'consume_pickup';
-  if (parsedTo === 'refund_pending' && (parsedFrom === 'paid_reserved' || parsedFrom === 'ready_for_pickup')) {
+  if (
+    parsedTo === 'refund_pending' &&
+    (parsedFrom === 'paid_reserved' || parsedFrom === 'ready_for_pickup')
+  ) {
     return 'release';
   }
   return null;
 }
 
 // ---------------------------------------------------------------------------
-// 銷售 snapshot、部分退款／沖銷 line
+// 未付款 24h vs 已付款不自動失效
+// ---------------------------------------------------------------------------
+
+export function unpaidCheckoutReservesInventory(): false {
+  return false;
+}
+
+export function paidReservationAutoExpires(): false {
+  return false;
+}
+
+export function paidReservationAutoRefunds(): false {
+  return false;
+}
+
+export function paidReservationAutoReleases(): false {
+  return false;
+}
+
+export function isUnpaidPaymentIntentExpired(createdAt: unknown, now: unknown): boolean {
+  assertValidDate(createdAt, '建立時間');
+  assertValidDate(now, '現在時間');
+  return now.getTime() - createdAt.getTime() >= UNPAID_PAYMENT_INTENT_TTL_MS;
+}
+
+export function decideUnpaidPaymentExpiry(
+  status: unknown,
+  createdAt: unknown,
+  now: unknown,
+): 'expire' | 'keep' {
+  const parsed = parseFulfillmentStatus(status);
+  if (parsed !== 'pending_payment') {
+    throw new Error('只有未付款 checkout 適用 24 小時失效');
+  }
+  return isUnpaidPaymentIntentExpired(createdAt, now) ? 'expire' : 'keep';
+}
+
+export function paidPickupOverdueAction(status: unknown): 'contact_support' {
+  const parsed = parseFulfillmentStatus(status);
+  if (parsed !== 'paid_reserved' && parsed !== 'ready_for_pickup') {
+    throw new Error('逾期未領客服規則只適用已付款待取');
+  }
+  return UNCOLLECTED_PICKUP_POLICY.display;
+}
+
+// ---------------------------------------------------------------------------
+// 銷售 snapshot、部分退款
 // ---------------------------------------------------------------------------
 
 export type CompletedSaleLine = {
@@ -656,6 +748,7 @@ export type RefundReversalLine = {
   quantity?: NonNegativeIntegerUnits;
   originalCollectionChannel: CollectionChannel;
   originalCommissionRateSnapshot: IntegerPercent;
+  commissionReversalSnapshot: TwdInteger;
   idempotencyKey: string;
 };
 
@@ -679,6 +772,24 @@ export type RefundReversalLedger = {
   hqOwesMerchantTwd: TwdInteger;
   settlementDestination: 'current_open_period' | 'next_period_adjustment';
 };
+
+export function assertOriginalSaleImmutable(sale: CompletedSaleLine): void {
+  if (sale.status !== 'completed') {
+    throw new Error('原 sale 必須保持 completed');
+  }
+}
+
+export function assertSaleCommissionSnapshotConsistent(sale: CompletedSaleLine): void {
+  assertOriginalSaleImmutable(sale);
+  parseCollectionChannel(sale.collectionChannel);
+  assertTwdInteger(sale.actualGrossTwd, '實際成交額');
+  assertIntegerPercent(sale.commissionRateSnapshot);
+  assertTwdInteger(sale.commissionAmountSnapshot, '佣金 snapshot');
+  const expected = roundPercentCommission(sale.actualGrossTwd, sale.commissionRateSnapshot);
+  if (expected !== sale.commissionAmountSnapshot) {
+    throw new Error('原 sale 佣金 snapshot 與成交額／費率不一致');
+  }
+}
 
 export function ordinarySaleLedger(
   collectionChannel: unknown,
@@ -711,31 +822,65 @@ export function ordinarySaleLedger(
   };
 }
 
+export function refundFingerprint(input: {
+  originalSaleId: string;
+  amountTwd: TwdInteger;
+  quantity?: NonNegativeIntegerUnits;
+  originalCollectionChannel: CollectionChannel;
+  originalCommissionRateSnapshot: IntegerPercent;
+}): string {
+  const qty = input.quantity == null ? '' : String(input.quantity);
+  return [
+    input.originalSaleId,
+    input.amountTwd,
+    qty,
+    input.originalCollectionChannel,
+    input.originalCommissionRateSnapshot,
+  ].join('|');
+}
+
+function uniqueRefundsByKey(refunds: readonly RefundReversalLine[]): RefundReversalLine[] {
+  const seen = new Map<string, RefundReversalLine>();
+  for (const row of refunds) {
+    parseCollectionChannel(row.originalCollectionChannel);
+    const existing = seen.get(row.idempotencyKey);
+    if (!existing) {
+      seen.set(row.idempotencyKey, row);
+      continue;
+    }
+    if (refundFingerprint(existing) !== refundFingerprint(row)) {
+      throw new Error('同一 idempotencyKey 不可對應不同退款內容');
+    }
+  }
+  return [...seen.values()];
+}
+
 export function refundableRemainder(
   sale: CompletedSaleLine,
   refunds: readonly RefundReversalLine[],
 ): { amountTwd: TwdInteger; quantity: NonNegativeIntegerUnits | null } {
-  if (sale.status !== 'completed') {
-    throw new Error('只有 completed sale 可退');
-  }
-  const unique = dedupeRefundsByKey(refunds);
+  assertSaleCommissionSnapshotConsistent(sale);
+  const unique = uniqueRefundsByKey(refunds);
   let amount = 0;
   let qty = 0;
+  let hasQty = false;
   for (const row of unique) {
     if (row.originalSaleId !== sale.id) {
       throw new Error('退款 line 必須指向原 sale');
     }
+    parseCollectionChannel(row.originalCollectionChannel);
     assertTwdInteger(row.amountTwd, '退款金額');
-    amount += row.amountTwd;
+    amount = safeIntegerAdd(amount, row.amountTwd, '累計退款金額');
     if (row.quantity != null) {
       assertNonNegativeIntegerUnits(row.quantity, '退款數量');
-      qty += row.quantity;
+      qty = safeIntegerAdd(qty, row.quantity, '累計退款數量');
+      hasQty = true;
     }
   }
   if (amount > sale.actualGrossTwd) {
     throw new Error('累計退款金額不可超過原可退餘額');
   }
-  if (sale.quantity != null && qty > sale.quantity) {
+  if (hasQty && sale.quantity != null && qty > sale.quantity) {
     throw new Error('累計退款數量不可超過原可退餘額');
   }
   return {
@@ -744,23 +889,43 @@ export function refundableRemainder(
   };
 }
 
-function dedupeRefundsByKey(refunds: readonly RefundReversalLine[]): RefundReversalLine[] {
-  const seen = new Map<string, RefundReversalLine>();
-  for (const row of refunds) {
-    const existing = seen.get(row.idempotencyKey);
-    if (!existing) {
-      seen.set(row.idempotencyKey, row);
-      continue;
-    }
-    if (
-      existing.amountTwd !== row.amountTwd ||
-      existing.quantity !== row.quantity ||
-      existing.originalSaleId !== row.originalSaleId
-    ) {
-      throw new Error('同一 idempotencyKey 不可對應不同退款內容');
-    }
+export function sumCommissionReversals(refunds: readonly RefundReversalLine[]): TwdInteger {
+  let total = 0;
+  for (const row of uniqueRefundsByKey(refunds)) {
+    assertTwdInteger(row.commissionReversalSnapshot, '佣金回沖 snapshot');
+    total = safeIntegerAdd(total, row.commissionReversalSnapshot, '累計佣金回沖');
   }
-  return [...seen.values()];
+  return total;
+}
+
+/** 本筆回沖 = 原 snapshot − 退後剩餘淨額依原 rate 應得 − 既有已回沖。 */
+export function nextCommissionReversalSnapshot(
+  sale: CompletedSaleLine,
+  existingRefunds: readonly RefundReversalLine[],
+  newAmountTwd: TwdInteger,
+): TwdInteger {
+  assertSaleCommissionSnapshotConsistent(sale);
+  const alreadyRefundedAmount =
+    sale.actualGrossTwd - refundableRemainder(sale, existingRefunds).amountTwd;
+  const refundedAfterThis = safeIntegerAdd(alreadyRefundedAmount, newAmountTwd, '退後已退金額');
+  if (refundedAfterThis > sale.actualGrossTwd) {
+    throw new Error('累計退款金額不可超過原可退餘額');
+  }
+  const remainingNet = sale.actualGrossTwd - refundedAfterThis;
+  const deservedOnRemain = roundPercentCommission(remainingNet, sale.commissionRateSnapshot);
+  const already = sumCommissionReversals(existingRefunds);
+  const reversal = sale.commissionAmountSnapshot - deservedOnRemain - already;
+  if (!Number.isSafeInteger(reversal)) {
+    throw new Error('佣金回沖超出安全整數');
+  }
+  if (reversal < 0) {
+    throw new Error('佣金回沖不可超過原 commission snapshot');
+  }
+  const cumulative = safeIntegerAdd(already, reversal, '累計佣金回沖');
+  if (cumulative > sale.commissionAmountSnapshot) {
+    throw new Error('佣金回沖不可超過原 commission snapshot');
+  }
+  return reversal;
 }
 
 export function projectSaleReversalState(
@@ -768,19 +933,9 @@ export function projectSaleReversalState(
   refunds: readonly RefundReversalLine[],
 ): SaleReversalProjection {
   const remain = refundableRemainder(sale, refunds);
-  if (remain.amountTwd === sale.actualGrossTwd && (remain.quantity == null || remain.quantity === sale.quantity)) {
-    return 'not_reversed';
-  }
-  const amountDone = remain.amountTwd === 0;
-  const qtyDone = remain.quantity == null || remain.quantity === 0;
-  if (amountDone && qtyDone) return 'fully_reversed';
+  if (remain.amountTwd === sale.actualGrossTwd) return 'not_reversed';
+  if (remain.amountTwd === 0) return 'fully_reversed';
   return 'partially_reversed';
-}
-
-export function assertOriginalSaleImmutable(sale: CompletedSaleLine): void {
-  if (sale.status !== 'completed') {
-    throw new Error('原 sale 必須保持 completed');
-  }
 }
 
 export function parseClientRefundBusinessInput(input: UntrustedClientRefundInput): {
@@ -798,56 +953,77 @@ export function parseClientRefundBusinessInput(input: UntrustedClientRefundInput
     parsed.actualUnitPriceTwd = input.actualUnitPriceTwd;
   }
   if (input.requestedQuantity !== undefined) {
-    assertNonNegativeIntegerUnits(input.requestedQuantity, '退款數量');
-    if (input.requestedQuantity === 0) {
-      throw new Error('退款數量必須大於 0');
-    }
+    assertPositiveUnits(input.requestedQuantity, '退款數量');
     parsed.requestedQuantity = input.requestedQuantity;
   }
   if (input.requestedAmountTwd !== undefined) {
-    assertTwdInteger(input.requestedAmountTwd, '退款金額');
-    if (input.requestedAmountTwd === 0) {
-      throw new Error('退款金額必須大於 0');
-    }
+    assertPositiveTwdInteger(input.requestedAmountTwd, '退款金額');
     parsed.requestedAmountTwd = input.requestedAmountTwd;
   }
   return parsed;
 }
 
-export function buildRefundReversalLine(input: {
+export function applyRefundReversalLine(input: {
   sale: CompletedSaleLine;
   existingRefunds: readonly RefundReversalLine[];
   clientInput: UntrustedClientRefundInput;
   idempotencyKey: string;
-}): RefundReversalLine {
-  assertOriginalSaleImmutable(input.sale);
+}): { line: RefundReversalLine; duplicate: boolean } {
+  assertSaleCommissionSnapshotConsistent(input.sale);
   if (!input.idempotencyKey) {
     throw new Error('退款必須有 idempotencyKey');
   }
   const parsed = parseClientRefundBusinessInput(input.clientInput);
-  const remain = refundableRemainder(input.sale, input.existingRefunds);
-  const amountTwd = parsed.requestedAmountTwd;
-  if (amountTwd == null) {
+  if (parsed.requestedAmountTwd == null) {
     throw new Error('server 必須從已驗證的退款金額建立 line');
   }
-  if (amountTwd > remain.amountTwd) {
+  const channel = parseCollectionChannel(input.sale.collectionChannel);
+  const candidateFingerprint = refundFingerprint({
+    originalSaleId: input.sale.id,
+    amountTwd: parsed.requestedAmountTwd,
+    quantity: parsed.requestedQuantity,
+    originalCollectionChannel: channel,
+    originalCommissionRateSnapshot: input.sale.commissionRateSnapshot,
+  });
+
+  const prior = input.existingRefunds.find((row) => row.idempotencyKey === input.idempotencyKey);
+  if (prior) {
+    parseCollectionChannel(prior.originalCollectionChannel);
+    if (refundFingerprint(prior) !== candidateFingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同退款內容');
+    }
+    return { line: prior, duplicate: true };
+  }
+
+  const remain = refundableRemainder(input.sale, input.existingRefunds);
+  if (parsed.requestedAmountTwd > remain.amountTwd) {
     throw new Error('累計退款金額不可超過原可退餘額');
   }
   if (parsed.requestedQuantity != null) {
-    if (remain.quantity == null) {
+    if (input.sale.quantity == null) {
       throw new Error('原交易沒有數量，不可退數量');
     }
-    if (parsed.requestedQuantity > remain.quantity) {
+    if (remain.quantity == null || parsed.requestedQuantity > remain.quantity) {
       throw new Error('累計退款數量不可超過原可退餘額');
     }
   }
+
+  const commissionReversalSnapshot = nextCommissionReversalSnapshot(
+    input.sale,
+    input.existingRefunds,
+    parsed.requestedAmountTwd,
+  );
   return {
-    originalSaleId: input.sale.id,
-    amountTwd,
-    quantity: parsed.requestedQuantity,
-    originalCollectionChannel: input.sale.collectionChannel,
-    originalCommissionRateSnapshot: input.sale.commissionRateSnapshot,
-    idempotencyKey: input.idempotencyKey,
+    line: {
+      originalSaleId: input.sale.id,
+      amountTwd: parsed.requestedAmountTwd,
+      quantity: parsed.requestedQuantity,
+      originalCollectionChannel: channel,
+      originalCommissionRateSnapshot: input.sale.commissionRateSnapshot,
+      commissionReversalSnapshot,
+      idempotencyKey: input.idempotencyKey,
+    },
+    duplicate: false,
   };
 }
 
@@ -855,6 +1031,8 @@ export function refundReversalLedger(
   sale: CompletedSaleLine,
   refund: RefundReversalLine,
 ): RefundReversalLedger {
+  assertSaleCommissionSnapshotConsistent(sale);
+  parseCollectionChannel(refund.originalCollectionChannel);
   if (refund.originalSaleId !== sale.id) {
     throw new Error('退款 line 必須指向原 sale');
   }
@@ -864,13 +1042,11 @@ export function refundReversalLedger(
   if (refund.originalCommissionRateSnapshot !== sale.commissionRateSnapshot) {
     throw new Error('退款必須使用原 commission rate snapshot');
   }
-  const commissionTwd = roundPercentCommission(
-    refund.amountTwd,
-    sale.commissionRateSnapshot,
-  );
+  assertTwdInteger(refund.commissionReversalSnapshot, '佣金回沖 snapshot');
   const locked = sale.settlementStatus != null && isSettlementLocked(sale.settlementStatus);
   const destination = locked ? 'next_period_adjustment' : 'current_open_period';
   const kind = locked ? 'next_period_adjustment' : 'reversal';
+  const commissionTwd = refund.commissionReversalSnapshot;
 
   if (sale.collectionChannel === 'merchant_collected') {
     return {
@@ -916,6 +1092,18 @@ export type VoucherCancellationRequest = {
   requestedBy: PosActor;
 };
 
+export type VoucherSubsidyReversalLine = {
+  originalRedemptionId: string;
+  voucherId: string;
+  amountTwd: TwdInteger;
+  direction: 'merchant_owes_hq';
+  kind: 'reversal' | 'next_period_adjustment';
+  pointsDelta: typeof GROOMING_VOUCHER_POINTS;
+  actor: PosActor;
+  reason: string;
+  idempotencyKey: string;
+};
+
 export function groomingVoucherFaceTwd(tier: unknown): TwdInteger {
   const parsed = parseVoucherTier(tier);
   if (parsed === 'zhuwo_250') return GROOMING_VOUCHER_FACE_ZHUWO_TWD;
@@ -946,14 +1134,14 @@ export function voucherRedemptionLedger(tier: unknown): VoucherSubsidyLedger {
   };
 }
 
-/** Asia/Taipei 無 DST：發券當下凍結 issuedAt + 30×24h。 */
 export function freezeGroomingVoucherExpiresAt(issuedAt: Date): Date {
-  return new Date(
-    issuedAt.getTime() + GROOMING_VOUCHER_VALIDITY_DAYS * 24 * 60 * 60 * 1000,
-  );
+  assertValidDate(issuedAt, '發券時間');
+  return new Date(issuedAt.getTime() + GROOMING_VOUCHER_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
 }
 
 export function isGroomingVoucherUsable(now: Date, expiresAt: Date): boolean {
+  assertValidDate(now, '現在時間');
+  assertValidDate(expiresAt, '到期時間');
   return now < expiresAt;
 }
 
@@ -982,6 +1170,9 @@ export function requestVoucherCancellation(input: {
   if (!canRequestVoucherCancel(input.actor)) {
     throw new Error('只有店家可以提出美容券取消申請');
   }
+  if (!input.voucherId) {
+    throw new Error('取消申請必須有 voucherId');
+  }
   return {
     voucherId: input.voucherId,
     status: 'pending',
@@ -989,18 +1180,37 @@ export function requestVoucherCancellation(input: {
   };
 }
 
+export function voucherCancelFingerprint(input: {
+  voucherId: string;
+  redemptionId: string;
+  decision: CancellationRequestStatus;
+  voucherTier: GroomingVoucherFaceTier;
+}): string {
+  return [input.voucherId, input.redemptionId, input.decision, input.voucherTier].join('|');
+}
+
 export function decideVoucherCancellation(input: {
+  voucherId: string;
   voucherStatus: unknown;
+  redemptionId: string;
   request: VoucherCancellationRequest;
   actor: unknown;
   decision: unknown;
   voucherTier: unknown;
+  settlementStatus: unknown | null;
+  reason: string;
+  idempotencyKey: string;
+  existingReversals: readonly VoucherSubsidyReversalLine[];
 }): {
   requestStatus: CancellationRequestStatus;
   voucherStatus: VoucherStatus;
-  pointsDelta: 0 | 10;
-  subsidyReversalTwd: 0 | -200 | -250;
+  duplicate: boolean;
+  pointsLine: { pointsDelta: 10; voucherId: string; redemptionId: string; idempotencyKey: string } | null;
+  subsidyLine: VoucherSubsidyReversalLine | null;
 } {
+  if (input.request.voucherId !== input.voucherId) {
+    throw new Error('取消申請的 voucherId 必須等於被取消券');
+  }
   if (!canApproveVoucherCancel(input.actor)) {
     throw new Error('只有 HQ 才能核准或拒絕美容券取消');
   }
@@ -1019,25 +1229,78 @@ export function decideVoucherCancellation(input: {
     return {
       requestStatus: 'rejected',
       voucherStatus: 'redeemed',
-      pointsDelta: 0,
-      subsidyReversalTwd: 0,
+      duplicate: false,
+      pointsLine: null,
+      subsidyLine: null,
     };
   }
-  const face = groomingVoucherFaceTwd(input.voucherTier);
+
+  const tier = parseVoucherTier(input.voucherTier);
+  const fingerprint = voucherCancelFingerprint({
+    voucherId: input.voucherId,
+    redemptionId: input.redemptionId,
+    decision,
+    voucherTier: tier,
+  });
+  const prior = input.existingReversals.find((row) => row.idempotencyKey === input.idempotencyKey);
+  if (prior) {
+    const priorFp = voucherCancelFingerprint({
+      voucherId: prior.voucherId,
+      redemptionId: prior.originalRedemptionId,
+      decision: 'approved',
+      voucherTier: prior.amountTwd === 250 ? 'zhuwo_250' : 'standard_200',
+    });
+    if (priorFp !== fingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同美容券沖銷內容');
+    }
+    return {
+      requestStatus: 'approved',
+      voucherStatus: 'cancelled',
+      duplicate: true,
+      pointsLine: {
+        pointsDelta: GROOMING_VOUCHER_POINTS,
+        voucherId: prior.voucherId,
+        redemptionId: prior.originalRedemptionId,
+        idempotencyKey: prior.idempotencyKey,
+      },
+      subsidyLine: prior,
+    };
+  }
+
+  const face = groomingVoucherFaceTwd(tier);
+  const locked =
+    input.settlementStatus != null && isSettlementLocked(input.settlementStatus);
+  const subsidyLine: VoucherSubsidyReversalLine = {
+    originalRedemptionId: input.redemptionId,
+    voucherId: input.voucherId,
+    amountTwd: face,
+    direction: 'merchant_owes_hq',
+    kind: locked ? 'next_period_adjustment' : 'reversal',
+    pointsDelta: GROOMING_VOUCHER_POINTS,
+    actor: parsePosActor(input.actor),
+    reason: input.reason,
+    idempotencyKey: input.idempotencyKey,
+  };
   return {
     requestStatus: 'approved',
     voucherStatus: 'cancelled',
-    pointsDelta: GROOMING_VOUCHER_POINTS,
-    subsidyReversalTwd: face === 250 ? -250 : -200,
+    duplicate: false,
+    pointsLine: {
+      pointsDelta: GROOMING_VOUCHER_POINTS,
+      voucherId: input.voucherId,
+      redemptionId: input.redemptionId,
+      idempotencyKey: input.idempotencyKey,
+    },
+    subsidyLine,
   };
 }
 
 // ---------------------------------------------------------------------------
-// 結算鎖定與 adjustment
+// 結算
 // ---------------------------------------------------------------------------
 
 export type SettlementAdjustment = {
-  amountTwd: SignedTwdInteger;
+  amountTwd: TwdInteger;
   direction: LedgerDirection;
   reference: string;
   reason: string;
@@ -1045,7 +1308,7 @@ export type SettlementAdjustment = {
   approvedBy: PosActor | null;
   effectivePeriod: { start: Date; end: Date };
   idempotencyKey: string;
-  kind: 'merchant_proposed_adjustment' | 'next_period_adjustment';
+  kind: AdjustmentKind;
 };
 
 export function isSettlementLocked(status: unknown): boolean {
@@ -1053,7 +1316,6 @@ export function isSettlementLocked(status: unknown): boolean {
   return parsed === 'approved' || parsed === 'paid';
 }
 
-/** 底層 sale／voucher facts 任何結算狀態都不可改。 */
 export function canRewriteSettlementFacts(_status: unknown): false {
   return false;
 }
@@ -1098,16 +1360,13 @@ export function buildSettlementAdjustment(input: {
   reason: string;
   requestedBy: unknown;
   approvedBy: unknown;
-  effectivePeriod: { start: Date; end: Date };
+  effectivePeriod: { start: unknown; end: unknown };
   idempotencyKey: string;
-  kind: 'merchant_proposed_adjustment' | 'next_period_adjustment';
+  kind: unknown;
 }): SettlementAdjustment {
-  assertSignedTwdInteger(input.amountTwd, '加減款金額');
+  assertPositiveTwdInteger(input.amountTwd, '加減款金額');
   if (!input.reference || !input.reason || !input.idempotencyKey) {
     throw new Error('adjustment 必須有 reference、reason、idempotencyKey');
-  }
-  if (!(input.effectivePeriod.start instanceof Date) || !(input.effectivePeriod.end instanceof Date)) {
-    throw new Error('adjustment 必須有有效期間');
   }
   const requestedBy = parsePosActor(input.requestedBy);
   const approvedBy = input.approvedBy == null ? null : parsePosActor(input.approvedBy);
@@ -1121,9 +1380,9 @@ export function buildSettlementAdjustment(input: {
     reason: input.reason,
     requestedBy,
     approvedBy,
-    effectivePeriod: input.effectivePeriod,
+    effectivePeriod: assertValidPeriod(input.effectivePeriod.start, input.effectivePeriod.end),
     idempotencyKey: input.idempotencyKey,
-    kind: input.kind,
+    kind: parseAdjustmentKind(input.kind),
   };
 }
 
@@ -1132,7 +1391,7 @@ export function uncollectedPickupAction(): typeof UNCOLLECTED_PICKUP_POLICY {
 }
 
 // ---------------------------------------------------------------------------
-// 角色與補貨取消
+// 角色與補貨取消（取消事件，不寫出 allow-list 沒有的狀態）
 // ---------------------------------------------------------------------------
 
 export function canChangeCommissionRate(actor: unknown): boolean {
@@ -1150,6 +1409,7 @@ export function canApproveAdjustment(actor: unknown): boolean {
 
 export type RestockCancelPlan = {
   allowed: boolean;
+  mode: 'status_transition' | 'cancellation_event' | 'none';
   requestTo: RestockRequestStatus | null;
   shipmentAction: 'none' | 'cancel_shipment';
   reason: string;
@@ -1161,31 +1421,68 @@ export function planRestockCancel(
 ): RestockCancelPlan {
   const request = parseRestockRequestStatus(requestStatus);
   if (request === 'rejected' || request === 'cancelled') {
-    return { allowed: false, requestTo: null, shipmentAction: 'none', reason: '申請已結束' };
+    return {
+      allowed: false,
+      mode: 'none',
+      requestTo: null,
+      shipmentAction: 'none',
+      reason: '申請已結束',
+    };
   }
   if (request === 'draft' || request === 'submitted' || request === 'under_review') {
-    return { allowed: true, requestTo: 'cancelled', shipmentAction: 'none', reason: '尚未轉出貨' };
+    if (!canTransitionRestockRequest(request, 'cancelled')) {
+      throw new Error('補貨取消計畫與 canonical 轉移不一致');
+    }
+    return {
+      allowed: true,
+      mode: 'status_transition',
+      requestTo: 'cancelled',
+      shipmentAction: 'none',
+      reason: '尚未轉出貨，允許狀態取消',
+    };
   }
   if (request === 'approved') {
     if (shipmentStatus != null) {
       throw new Error('approved 且已有出貨時應走 converted_to_shipment 規則');
     }
-    return { allowed: true, requestTo: 'cancelled', shipmentAction: 'none', reason: '尚未建立出貨' };
+    return {
+      allowed: true,
+      mode: 'cancellation_event',
+      requestTo: null,
+      shipmentAction: 'none',
+      reason: '不改寫 approved 原申請，另建取消事件',
+    };
   }
   const shipment = parseRestockShipmentStatus(shipmentStatus);
   if (shipment === 'pending' || shipment === 'packed') {
     return {
       allowed: true,
-      requestTo: 'cancelled',
+      mode: 'cancellation_event',
+      requestTo: null,
       shipmentAction: 'cancel_shipment',
-      reason: '先取消未寄出出貨',
+      reason: '不改寫原申請；另建取消事件並取消未寄出出貨',
     };
   }
   return {
     allowed: false,
+    mode: 'none',
     requestTo: null,
     shipmentAction: 'none',
     reason: '已寄出或已送達不可取消，需另案處理',
   };
+}
+
+export function assertRestockCancelPlanConsistent(
+  requestStatus: unknown,
+  plan: RestockCancelPlan,
+): void {
+  if (plan.mode === 'status_transition') {
+    if (plan.requestTo == null || !canTransitionRestockRequest(requestStatus, plan.requestTo)) {
+      throw new Error('補貨取消計畫與 canonical 轉移不一致');
+    }
+  }
+  if (plan.mode === 'cancellation_event' && plan.requestTo != null) {
+    throw new Error('取消事件不得改寫原申請狀態');
+  }
 }
 
