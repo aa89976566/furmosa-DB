@@ -74,6 +74,7 @@ import {
   paidReservationAutoRefunds,
   paidReservationAutoReleases,
   parseAdjustmentKind,
+  parseClientRefundBusinessInput,
   parseCollectionChannel,
   parseRefundInventoryDisposition,
   parseRefundReturnCondition,
@@ -105,6 +106,7 @@ import {
   voucherRedemptionLedger,
   type CompletedSaleLine,
   type CommittedEffectsProof,
+  type RefundReturnCondition,
   type RefundReversalLine,
 } from '@/lib/pos/domain-contract';
 
@@ -402,6 +404,18 @@ describe('ledger direction — store collected vs Furmosa collected', () => {
     assert.equal(line.direction, 'hq_owes_merchant');
     assert.equal(line.hqOwesMerchantTwd, 300);
     assert.notEqual(store.direction, line.direction);
+  });
+});
+
+describe('parseClientRefundBusinessInput requestedQuantity', () => {
+  it('parses a legal requestedQuantity and rejects invalid values', () => {
+    assert.equal(parseClientRefundBusinessInput({ requestedQuantity: 3 }).requestedQuantity, 3);
+    for (const qty of [null, {}, '3', 0, 1.5]) {
+      assert.throws(
+        () => parseClientRefundBusinessInput({ requestedQuantity: qty }),
+        /大於 0|安全整數/,
+      );
+    }
   });
 });
 
@@ -2033,6 +2047,28 @@ describe('O1 frozen refund inventory policy', () => {
     );
     assert.equal(noStockRetry.duplicate, true);
     assert.equal(noStockRetry.inventoryEffect, null);
+  });
+
+  it('fail-closes a completed retry when stored disposition condition is an empty string', () => {
+    const first = completeApprovedRefund(completeInput());
+    const proof = effectsProof(first);
+    assert.ok(proof.dispositionReceipt);
+    assert.equal(proof.dispositionReceipt.condition, null);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              dispositionReceipt: {
+                ...proof.dispositionReceipt,
+                condition: '' as unknown as RefundReturnCondition,
+              },
+            }),
+          }),
+        ),
+      /allow-list/,
+    );
   });
 
   it('fail-closes a completed retry that is missing the financial ledger receipt', () => {
