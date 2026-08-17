@@ -107,6 +107,24 @@ function completedSale(overrides: Partial<CompletedSaleLine> = {}): CompletedSal
   };
 }
 
+function stockOp(
+  overrides: Partial<{
+    inventoryAggregateId: string;
+    op: 'reserve' | 'release' | 'expire' | 'consume_pickup' | 'consume_in_store';
+    qty: number;
+    idempotencyKey: string;
+    reference: string;
+  }> = {},
+) {
+  return {
+    inventoryAggregateId: 'merchant-stock-1',
+    op: 'reserve' as const,
+    qty: 3,
+    idempotencyKey: 'r1',
+    ...overrides,
+  };
+}
+
 describe('POS-01 open decisions must stay undecided', () => {
   it('does not guess refund restock or Zhuwo IDs', () => {
     assert.equal(POS_01_OPEN_DECISIONS.refundRestockReason.status, 'UNDECIDED');
@@ -188,15 +206,15 @@ describe('reservation reserve / release / consume and duplicates', () => {
   it('applies atomic stock effects and returns stored result on same key/payload', () => {
     const reserved = applyInventoryOp(
       { onHand: 10, reserved: 0 },
-      { op: 'reserve', qty: 3, idempotencyKey: 'r1' },
+      stockOp(),
       new Map(),
     );
     assert.deepEqual(reserved.state, { onHand: 10, reserved: 3 });
     assert.equal(reserved.duplicate, false);
 
     const dup = applyInventoryOp(
-      reserved.state,
-      { op: 'reserve', qty: 3, idempotencyKey: 'r1' },
+      { onHand: 99, reserved: 50 },
+      stockOp(),
       reserved.log,
     );
     assert.deepEqual(dup.state, { onHand: 10, reserved: 3 });
@@ -204,21 +222,21 @@ describe('reservation reserve / release / consume and duplicates', () => {
 
     const released = applyInventoryOp(
       reserved.state,
-      { op: 'release', qty: 1, idempotencyKey: 'rel-1' },
+      stockOp({ op: 'release', qty: 1, idempotencyKey: 'rel-1' }),
       reserved.log,
     );
     assert.deepEqual(released.state, { onHand: 10, reserved: 2 });
 
     const picked = applyInventoryOp(
       released.state,
-      { op: 'consume_pickup', qty: 2, idempotencyKey: 'pick-1' },
+      stockOp({ op: 'consume_pickup', qty: 2, idempotencyKey: 'pick-1' }),
       released.log,
     );
     assert.deepEqual(picked.state, { onHand: 8, reserved: 0 });
 
     const storeSale = applyInventoryOp(
       picked.state,
-      { op: 'consume_in_store', qty: 3, idempotencyKey: 'pos-1' },
+      stockOp({ op: 'consume_in_store', qty: 3, idempotencyKey: 'pos-1' }),
       picked.log,
     );
     assert.deepEqual(storeSale.state, { onHand: 5, reserved: 0 });
@@ -227,26 +245,43 @@ describe('reservation reserve / release / consume and duplicates', () => {
   it('throws when the same inventory key is reused with a different op or qty', () => {
     const first = applyInventoryOp(
       { onHand: 10, reserved: 0 },
-      { op: 'reserve', qty: 3, idempotencyKey: 'r1' },
+      stockOp(),
       new Map(),
     );
     assert.throws(
       () =>
         applyInventoryOp(
           first.state,
-          { op: 'release', qty: 3, idempotencyKey: 'r1' },
+          stockOp({ op: 'release', qty: 3 }),
           first.log,
         ),
-      /不同庫存操作或數量/,
+      /不同庫存聚合、操作或數量/,
     );
     assert.throws(
       () =>
         applyInventoryOp(
           first.state,
-          { op: 'reserve', qty: 2, idempotencyKey: 'r1' },
+          stockOp({ qty: 2 }),
           first.log,
         ),
-      /不同庫存操作或數量/,
+      /不同庫存聚合、操作或數量/,
+    );
+  });
+
+  it('throws when the same inventory key targets a different aggregate even with same op/qty', () => {
+    const first = applyInventoryOp(
+      { onHand: 10, reserved: 0 },
+      stockOp({ inventoryAggregateId: 'merchant-stock-A' }),
+      new Map(),
+    );
+    assert.throws(
+      () =>
+        applyInventoryOp(
+          { onHand: 10, reserved: 0 },
+          stockOp({ inventoryAggregateId: 'merchant-stock-B' }),
+          first.log,
+        ),
+      /不同庫存聚合、操作或數量/,
     );
   });
 
@@ -255,7 +290,7 @@ describe('reservation reserve / release / consume and duplicates', () => {
       () =>
         applyInventoryOp(
           { onHand: 2, reserved: 0 },
-          { op: 'reserve', qty: 3, idempotencyKey: 'x' },
+          stockOp({ idempotencyKey: 'x' }),
           new Map(),
         ),
       /負庫存/,
@@ -264,7 +299,7 @@ describe('reservation reserve / release / consume and duplicates', () => {
       () =>
         applyInventoryOp(
           { onHand: 5, reserved: 1 },
-          { op: 'release', qty: 2, idempotencyKey: 'x' },
+          stockOp({ op: 'release', qty: 2, idempotencyKey: 'x' }),
           new Map(),
         ),
       /不可超過已保留量/,
@@ -433,6 +468,51 @@ describe('partial refund remainder commission and idempotency', () => {
           idempotencyKey: 'ref-1',
         }),
       /不同退款內容/,
+    );
+  });
+
+  it('fails closed when existing refund lines disagree with the sale snapshot or over-reverse commission', () => {
+    const sale = completedSale();
+    const baseLine: RefundReversalLine = {
+      originalSaleId: 'sale-1',
+      amountTwd: 100,
+      originalCollectionChannel: 'merchant_collected',
+      originalCommissionRateSnapshot: 30,
+      commissionReversalSnapshot: 30,
+      idempotencyKey: 'hist-1',
+    };
+    assert.throws(
+      () =>
+        refundableRemainder(sale, [
+          { ...baseLine, originalCollectionChannel: 'furmosa_collected_line_ecpay' },
+        ]),
+      /collection channel 與原 sale snapshot 不一致/,
+    );
+    assert.throws(
+      () =>
+        refundableRemainder(sale, [
+          { ...baseLine, originalCommissionRateSnapshot: 10 },
+        ]),
+      /佣金率與原 sale snapshot 不一致/,
+    );
+    assert.throws(
+      () =>
+        refundableRemainder(sale, [
+          { ...baseLine, commissionReversalSnapshot: 301 },
+        ]),
+      /累計佣金回沖不可超過原 commission snapshot/,
+    );
+    assert.throws(
+      () =>
+        applyRefundReversalLine({
+          sale,
+          existingRefunds: [
+            { ...baseLine, originalCollectionChannel: 'furmosa_collected_line_ecpay' },
+          ],
+          clientInput: { requestedAmountTwd: 100 },
+          idempotencyKey: 'hist-1',
+        }),
+      /collection channel 與原 sale snapshot 不一致/,
     );
   });
 
@@ -958,6 +1038,7 @@ describe('uncollected pickup and untrusted client fields', () => {
       'paymentStatus',
       'voucherAmount',
       'originalSale',
+      'inventoryAggregateId',
     ] as const) {
       assert.ok(SERVER_MUST_RESOLVE_FIELDS.includes(field));
     }

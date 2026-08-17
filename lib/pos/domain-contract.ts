@@ -69,6 +69,7 @@ export const SERVER_MUST_RESOLVE_FIELDS = [
   'settlementRouting',
   'refundRemainder',
   'commissionReversalSnapshot',
+  'inventoryAggregateId',
 ] as const;
 
 export const CLIENT_MAY_SUBMIT_BUSINESS_INPUT = [
@@ -552,9 +553,12 @@ export type InventoryState = {
 };
 
 export type InventoryOp = {
+  /** Server 已解析的權威聚合身分，至少為 merchantStockId；不可信任 client 值。 */
+  inventoryAggregateId: string;
   op: unknown;
   qty: unknown;
   idempotencyKey: string;
+  reference?: string;
 };
 
 export type InventoryIdempotencyRecord = {
@@ -598,12 +602,18 @@ function assertPositiveUnits(qty: unknown, label = '數量'): NonNegativeInteger
   return qty;
 }
 
-export function inventoryOpFingerprint(
-  op: InventoryOpKind,
-  qty: NonNegativeIntegerUnits,
-  prior: InventoryState,
-): string {
-  return `${op}|qty:${qty}|onHand:${prior.onHand}|reserved:${prior.reserved}`;
+export function inventoryOpFingerprint(input: {
+  inventoryAggregateId: string;
+  op: InventoryOpKind;
+  qty: NonNegativeIntegerUnits;
+  reference?: string;
+}): string {
+  return [
+    input.inventoryAggregateId,
+    input.op,
+    String(input.qty),
+    input.reference ?? '',
+  ].join('|');
 }
 
 export function applyInventoryOp(
@@ -611,22 +621,31 @@ export function applyInventoryOp(
   op: InventoryOp,
   log: InventoryIdempotencyLog,
 ): { state: InventoryState; log: Map<string, InventoryIdempotencyRecord>; duplicate: boolean } {
-  if (!op.idempotencyKey || typeof op.idempotencyKey !== 'string') {
-    throw new Error('庫存操作必須有 idempotencyKey');
-  }
+  const idempotencyKey = assertRequiredContractText(op.idempotencyKey, 'idempotencyKey');
+  const inventoryAggregateId = assertRequiredContractText(
+    op.inventoryAggregateId,
+    'inventoryAggregateId',
+  );
   const kind = parseInventoryOpKind(op.op);
   const qty = assertPositiveUnits(op.qty);
+  const reference =
+    op.reference == null || op.reference === ''
+      ? undefined
+      : assertRequiredContractText(op.reference, 'inventory reference');
   assertNonNegativeIntegerUnits(state.onHand, '在庫量');
   assertNonNegativeIntegerUnits(state.reserved, '保留量');
-  const fingerprint = inventoryOpFingerprint(kind, qty, state);
-  const existing = log.get(op.idempotencyKey);
+  const fingerprint = inventoryOpFingerprint({
+    inventoryAggregateId,
+    op: kind,
+    qty,
+    reference,
+  });
+  const existing = log.get(idempotencyKey);
   const nextLog = new Map(log);
 
   if (existing) {
-    const sameOpQty =
-      existing.fingerprint.startsWith(`${kind}|qty:${qty}|`);
-    if (!sameOpQty) {
-      throw new Error('同一 idempotencyKey 不可對應不同庫存操作或數量');
+    if (existing.fingerprint !== fingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同庫存聚合、操作或數量');
     }
     return { state: existing.result, log: nextLog, duplicate: true };
   }
@@ -658,7 +677,7 @@ export function applyInventoryOp(
   if (next.onHand < 0 || next.reserved < 0 || next.onHand - next.reserved < 0) {
     throw new Error('可用庫存不可為負（嚴禁負庫存）');
   }
-  nextLog.set(op.idempotencyKey, { fingerprint, result: next });
+  nextLog.set(idempotencyKey, { fingerprint, result: next });
   return { state: next, log: nextLog, duplicate: false };
 }
 
@@ -850,6 +869,8 @@ function uniqueRefundsByKey(refunds: readonly RefundReversalLine[]): RefundRever
   const seen = new Map<string, RefundReversalLine>();
   for (const row of refunds) {
     parseCollectionChannel(row.originalCollectionChannel);
+    assertIntegerPercent(row.originalCommissionRateSnapshot);
+    assertTwdInteger(row.commissionReversalSnapshot, '佣金回沖 snapshot');
     const existing = seen.get(row.idempotencyKey);
     if (!existing) {
       seen.set(row.idempotencyKey, row);
@@ -862,6 +883,25 @@ function uniqueRefundsByKey(refunds: readonly RefundReversalLine[]): RefundRever
   return [...seen.values()];
 }
 
+export function assertRefundLineMatchesSale(
+  sale: CompletedSaleLine,
+  row: RefundReversalLine,
+): void {
+  parseCollectionChannel(row.originalCollectionChannel);
+  assertIntegerPercent(row.originalCommissionRateSnapshot);
+  assertTwdInteger(row.amountTwd, '退款金額');
+  assertTwdInteger(row.commissionReversalSnapshot, '佣金回沖 snapshot');
+  if (row.originalSaleId !== sale.id) {
+    throw new Error('退款 line 必須指向原 sale');
+  }
+  if (row.originalCollectionChannel !== sale.collectionChannel) {
+    throw new Error('既有退款 line 的 collection channel 與原 sale snapshot 不一致');
+  }
+  if (row.originalCommissionRateSnapshot !== sale.commissionRateSnapshot) {
+    throw new Error('既有退款 line 的佣金率與原 sale snapshot 不一致');
+  }
+}
+
 export function refundableRemainder(
   sale: CompletedSaleLine,
   refunds: readonly RefundReversalLine[],
@@ -870,14 +910,12 @@ export function refundableRemainder(
   const unique = uniqueRefundsByKey(refunds);
   let amount = 0;
   let qty = 0;
+  let commission = 0;
   let hasQty = false;
   for (const row of unique) {
-    if (row.originalSaleId !== sale.id) {
-      throw new Error('退款 line 必須指向原 sale');
-    }
-    parseCollectionChannel(row.originalCollectionChannel);
-    assertTwdInteger(row.amountTwd, '退款金額');
+    assertRefundLineMatchesSale(sale, row);
     amount = safeIntegerAdd(amount, row.amountTwd, '累計退款金額');
+    commission = safeIntegerAdd(commission, row.commissionReversalSnapshot, '累計佣金回沖');
     if (row.quantity != null) {
       assertNonNegativeIntegerUnits(row.quantity, '退款數量');
       qty = safeIntegerAdd(qty, row.quantity, '累計退款數量');
@@ -889,6 +927,9 @@ export function refundableRemainder(
   }
   if (hasQty && sale.quantity != null && qty > sale.quantity) {
     throw new Error('累計退款數量不可超過原可退餘額');
+  }
+  if (commission > sale.commissionAmountSnapshot) {
+    throw new Error('累計佣金回沖不可超過原 commission snapshot');
   }
   return {
     amountTwd: sale.actualGrossTwd - amount,
@@ -993,16 +1034,15 @@ export function applyRefundReversalLine(input: {
     originalCommissionRateSnapshot: input.sale.commissionRateSnapshot,
   });
 
+  const remain = refundableRemainder(input.sale, input.existingRefunds);
   const prior = input.existingRefunds.find((row) => row.idempotencyKey === input.idempotencyKey);
   if (prior) {
-    parseCollectionChannel(prior.originalCollectionChannel);
+    assertRefundLineMatchesSale(input.sale, prior);
     if (refundFingerprint(prior) !== candidateFingerprint) {
       throw new Error('同一 idempotencyKey 不可對應不同退款內容');
     }
     return { line: prior, duplicate: true };
   }
-
-  const remain = refundableRemainder(input.sale, input.existingRefunds);
   if (parsed.requestedAmountTwd > remain.amountTwd) {
     throw new Error('累計退款金額不可超過原可退餘額');
   }
