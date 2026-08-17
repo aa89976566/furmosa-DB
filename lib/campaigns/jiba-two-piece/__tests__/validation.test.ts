@@ -32,6 +32,11 @@ describe('jiba validation', () => {
     assert.equal(validRecipientName('開箱任務'), null);
     assert.equal(validRecipientName('先看看規則'), null);
     assert.equal(validRecipientName('選貓草雞肉乾'), null);
+    assert.equal(validRecipientName('選雞霸'), null);
+    assert.equal(validRecipientName('選青蛙'), null);
+    assert.equal(validRecipientName('先不用'), null);
+    assert.equal(validRecipientName('開箱'), null);
+    assert.equal(validRecipientName('ugc'), null);
     assert.equal(validRecipientName('我了解用途，開始填資料'), null);
     assert.equal(validRecipientName('@furmosa'), null);
     assert.equal(validRecipientName('0912345678'), null);
@@ -67,6 +72,7 @@ describe('jiba validation', () => {
   it('matches decline', () => {
     assert.equal(isDeclineIntent('這次先不要'), true);
     assert.equal(isDeclineIntent('我再想一下'), true);
+    assert.equal(isDeclineIntent('先不用'), true);
     assert.equal(isDeclineIntent('我要參加'), false);
   });
 });

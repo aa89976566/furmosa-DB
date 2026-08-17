@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 
 import {
   CATNIP_CHICK_HOMEPAGE_URL,
+  JIBA_PRODUCT_ACTION_TEXT,
+  JIBA_PRODUCT_BUTTON_LABEL,
   JIBA_PRODUCTS,
   jibaProductKeyFromCollected,
   jibaProductLabelFromCollected,
@@ -11,7 +13,8 @@ import {
 import {
   JIBA_BRIEF_CONTINUE,
   JIBA_CATNIP_PURPOSE_CONTINUE,
-  JIBA_INTRO,
+  JIBA_INVITE_BODY,
+  JIBA_INVITE_TITLE,
   JIBA_LICENSE_BODY,
   JIBA_PRODUCT_PICKED,
   JIBA_RULES,
@@ -34,11 +37,19 @@ describe('jiba unbox products', () => {
 
   it('parses product buttons without mixing items', () => {
     assert.equal(parseJibaProductKey('選雞霸兩片'), 'jiba');
+    assert.equal(parseJibaProductKey('選雞霸'), 'jiba');
     assert.equal(parseJibaProductKey('選青蛙凍乾'), 'frog');
+    assert.equal(parseJibaProductKey('選青蛙'), 'frog');
     assert.equal(parseJibaProductKey('選貓草雞肉乾'), 'catnip');
     assert.equal(parseJibaProductKey('貓草雞肉乾 30g'), 'catnip');
     assert.equal(parseJibaProductKey('我要參加'), null);
     assert.equal(parseJibaProductKey('好，開始填資料'), null);
+    assert.equal(JIBA_PRODUCT_BUTTON_LABEL.jiba, '雞霸');
+    assert.equal(JIBA_PRODUCT_BUTTON_LABEL.frog, '青蛙');
+    assert.equal(JIBA_PRODUCT_BUTTON_LABEL.catnip, '貓草雞肉乾 30g');
+    assert.equal(JIBA_PRODUCT_ACTION_TEXT.jiba, '選雞霸');
+    assert.equal(JIBA_PRODUCT_ACTION_TEXT.frog, '選青蛙');
+    assert.equal(JIBA_PRODUCT_ACTION_TEXT.catnip, '選貓草雞肉乾');
   });
 
   it('reads product from collectedDataJson and defaults to jiba', () => {
@@ -53,10 +64,10 @@ describe('jiba unbox products', () => {
 });
 
 describe('jiba unbox copy for catnip', () => {
-  it('lists all three products in intro and rules', () => {
-    assert.match(JIBA_INTRO, /壕大大雞霸兩片/);
-    assert.match(JIBA_INTRO, /青蛙凍乾一隻/);
-    assert.match(JIBA_INTRO, /貓草雞肉乾 30g/);
+  it('keeps invite copy to a single decision without listing products', () => {
+    assert.equal(JIBA_INVITE_TITLE, '開箱體驗募集');
+    assert.match(JIBA_INVITE_BODY, /先審核，再安排寄送/);
+    assert.doesNotMatch(JIBA_INVITE_BODY, /雞霸|青蛙|貓草|收件|授權|399|886|catnip-chick/);
     assert.match(JIBA_RULES, /貓草雞肉乾 30g/);
     assert.equal(JIBA_PRODUCT_PICKED.catnip.includes('貓草雞肉乾 30g'), true);
   });

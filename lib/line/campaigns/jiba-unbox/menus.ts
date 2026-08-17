@@ -1,0 +1,74 @@
+import {
+  JIBA_PRODUCT_ACTION_TEXT,
+  JIBA_PRODUCT_BUTTON_LABEL,
+} from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  JIBA_ASK_PRODUCT_PROMPT,
+  JIBA_INVITE_BODY,
+  JIBA_INVITE_DECLINE,
+  JIBA_INVITE_JOIN,
+  JIBA_INVITE_TITLE,
+} from '@/lib/campaigns/jiba-two-piece/copy';
+import { WORLD_THEME } from '@/lib/line/card-theme';
+import { buildButtonMenuFlex } from '@/lib/line/flex-hubs';
+import type { LineReplyMessage } from '@/lib/line/reply';
+
+/** 首則邀請：單一決策，不列商品 */
+export function jibaInviteMenu(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: JIBA_INVITE_TITLE,
+    theme: WORLD_THEME.chaos,
+    title: JIBA_INVITE_TITLE,
+    subtitle: JIBA_INVITE_BODY,
+    items: [
+      {
+        label: JIBA_INVITE_JOIN,
+        action: { type: 'message', text: JIBA_INVITE_JOIN },
+        style: 'primary',
+      },
+      {
+        label: JIBA_INVITE_DECLINE,
+        action: { type: 'message', text: JIBA_INVITE_DECLINE },
+        style: 'secondary',
+      },
+    ],
+  });
+}
+
+export function jibaInviteMessages(): LineReplyMessage[] {
+  return [jibaInviteMenu()];
+}
+
+/** 三商品 Flex 按鈕；payload 為「選…」避免被姓名欄誤收 */
+export function jibaProductChoiceMenu(): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: '選開箱商品',
+    theme: WORLD_THEME.chaos,
+    title: '選開箱商品',
+    subtitle: JIBA_ASK_PRODUCT_PROMPT,
+    items: [
+      {
+        label: JIBA_PRODUCT_BUTTON_LABEL.jiba,
+        action: { type: 'message', text: JIBA_PRODUCT_ACTION_TEXT.jiba },
+        style: 'primary',
+      },
+      {
+        label: JIBA_PRODUCT_BUTTON_LABEL.frog,
+        action: { type: 'message', text: JIBA_PRODUCT_ACTION_TEXT.frog },
+        style: 'secondary',
+      },
+      {
+        label: JIBA_PRODUCT_BUTTON_LABEL.catnip,
+        action: { type: 'message', text: JIBA_PRODUCT_ACTION_TEXT.catnip },
+        style: 'secondary',
+      },
+    ],
+  });
+}
+
+export function jibaProductChoiceMessages(): LineReplyMessage[] {
+  return [
+    { type: 'text', text: JIBA_ASK_PRODUCT_PROMPT },
+    jibaProductChoiceMenu(),
+  ];
+}

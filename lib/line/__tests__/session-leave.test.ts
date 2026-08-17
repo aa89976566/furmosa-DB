@@ -35,6 +35,13 @@ describe('session-leave', () => {
     assert.equal(isJarMenuLeaveText('立即開戶'), true);
   });
 
+  it('開箱入口 keyword 不再當成離開（改重播當前步驟）', () => {
+    assert.equal(isUnboxLeaveText('開箱任務'), false);
+    assert.equal(isUnboxLeaveText('毛孩來開箱'), false);
+    assert.equal(isUnboxLeaveText('嗷嗚計劃'), true);
+    assert.equal(isUnboxLeaveText('活動中心'), true);
+  });
+
 
   it('SESSION_BYPASS_KINDS 含介紹', () => {
     assert.ok(SESSION_BYPASS_KINDS.has('jar_explain_intro'));
