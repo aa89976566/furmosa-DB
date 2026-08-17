@@ -8,6 +8,18 @@ import {
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 
+/** 首則邀請：只做參加決策，不列商品、規則、收件、加購或授權 */
+export const JIBA_INVITE_TITLE = '開箱體驗募集';
+export const JIBA_INVITE_BODY =
+  '想邀請你和毛孩體驗 Furmosa 商品，分享真實開箱與試吃反應。完成申請後，我們會先審核，再安排寄送。';
+export const JIBA_INVITE_JOIN = '我要參加';
+export const JIBA_INVITE_DECLINE = '先不用';
+export const JIBA_INVITE_DECLINE_REPLY =
+  '好的，這次先不用沒關係。之後想參加，再傳「開箱任務」即可。';
+export const JIBA_INVITE_REPROMPT = '請用下面按鈕回覆：我要參加，或先不用。';
+export const JIBA_ASK_PRODUCT_PROMPT = '請選這次要體驗的商品。';
+
+/** @deprecated 舊長介紹；入口改走 JIBA_INVITE_*，保留給既有測試對照 */
 export const JIBA_INTRO = `汪！開箱任務來報到～
 
 想請你家毛孩幫忙拍一支開箱小影片。

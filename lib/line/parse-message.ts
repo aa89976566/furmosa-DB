@@ -1,4 +1,5 @@
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
+import { isJibaUnboxEntryIntent } from '@/lib/line/campaigns/jiba-unbox/intent';
 
 export type ParsedLineText =
   | { kind: 'jar_code'; code: string }
@@ -11,6 +12,7 @@ export type ParsedLineText =
   | { kind: 'status' }
   | { kind: 'rewards_list' }
   | { kind: 'redeem_reward'; target: string }
+  | { kind: 'jiba_unbox' }
   | { kind: 'unboxing' }
   | { kind: 'events_center' }
   | { kind: 'hub_jar' }
@@ -41,8 +43,9 @@ const BIND_HELP_RE =
 const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
 const STATUS_RE = /^(?:會員|会员|我的會員|我的会员|綁定狀態|绑定状态|我是誰|我是谁)$/i;
 const REWARDS_RE = /^(?:獎勵|奖励|禮品|礼品|兌換獎勵|兑换奖励|兌換好康|兌換好禮|reward|rewards)$/i;
-const UNBOXING_RE =
-  /^(?:毛孩來開箱|來開箱|開箱研究|最後一片研究計畫|嗷嗚計畫|嗷嗚計劃|清蛙誰在怕|青蛙誰在怕|青蛙：誰在怕？|開箱任務)$/i;
+/** 青蛙專案別名；開箱 UGC 改走 isJibaUnboxEntryIntent，避免 contains「開箱」誤觸 */
+const FROG_PROJECT_RE =
+  /^(?:最後一片研究計畫|嗷嗚計畫|嗷嗚計劃|清蛙誰在怕|青蛙誰在怕|青蛙：誰在怕？)$/i;
 /** 活動中心（舊別名「沒梗了」仍可進，但不對外使用） */
 const EVENTS_CENTER_RE = /^(?:活動中心|沒梗了)$/i;
 const HUB_JAR_RE = /^(?:(?:♻️|🫙)\s*)?(?:換罐計畫|換罐計劃)$/;
@@ -91,7 +94,8 @@ export function parseLineUserText(raw: string): ParsedLineText {
 
   if (REWARDS_RE.test(text)) return { kind: 'rewards_list' };
   if (EVENTS_CENTER_RE.test(text)) return { kind: 'events_center' };
-  if (UNBOXING_RE.test(text)) return { kind: 'unboxing' };
+  if (isJibaUnboxEntryIntent(text)) return { kind: 'jiba_unbox' };
+  if (FROG_PROJECT_RE.test(text)) return { kind: 'unboxing' };
 
   // 精確換罐捷徑要先於「兌換 xxx」模糊規則
   if (JAR_EXPLAIN_MENU_RE.test(text)) return { kind: 'jar_explain' };

@@ -13,7 +13,7 @@ export const JAR_MENU_LEAVE_RE =
 
 /** 一起野放子入口（開箱進行中點了別的活動） */
 export const CHAOS_NAV_LEAVE_RE =
-  /^(?:嗷嗚計劃|嗷嗚計畫|活動中心|沒梗了|青蛙誰在怕|清蛙誰在怕|開箱任務|毛孩來開箱)$/;
+  /^(?:嗷嗚計劃|嗷嗚計畫|活動中心|沒梗了|青蛙誰在怕|清蛙誰在怕)$/;
 
 export function isWorldNavLeaveText(text: string): boolean {
   return WORLD_NAV_LEAVE_RE.test(text.trim());

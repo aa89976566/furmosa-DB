@@ -86,12 +86,30 @@ export function isJibaProductKey(value: unknown): value is JibaProductKey {
   return typeof value === 'string' && value in JIBA_PRODUCTS;
 }
 
+/** LINE 選品按鈕顯示名（與資料模型 label 分開，避免手打進姓名欄） */
+export const JIBA_PRODUCT_BUTTON_LABEL = {
+  jiba: '雞霸',
+  frog: '青蛙',
+  catnip: '貓草雞肉乾 30g',
+} as const;
+
+/** LINE message action payload：加「選」前綴，避免被姓名驗證誤收 */
+export const JIBA_PRODUCT_ACTION_TEXT = {
+  jiba: '選雞霸',
+  frog: '選青蛙',
+  catnip: '選貓草雞肉乾',
+} as const;
+
 /** LINE 按鈕／打字選商品 */
 export function parseJibaProductKey(text: string): JibaProductKey | null {
   const t = text.trim();
-  if (/^(?:選雞霸兩片|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) return 'jiba';
-  if (/^(?:選青蛙凍乾|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
-  if (/^(?:選貓草雞肉乾|貓草雞肉乾\s*30g?|貓草雞肉乾|貓草)$/i.test(t)) return 'catnip';
+  if (/^(?:選雞霸兩片|選雞霸|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) {
+    return 'jiba';
+  }
+  if (/^(?:選青蛙凍乾|選青蛙|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
+  if (/^(?:選貓草雞肉乾(?:\s*30g)?|貓草雞肉乾\s*30g?|貓草雞肉乾|貓草)$/i.test(t)) {
+    return 'catnip';
+  }
   return null;
 }
 
@@ -136,4 +154,4 @@ export const ACTIVE_APP_STATUSES = [
 export const JOIN_INTENT_RE =
   /^(?:我要參加|要|可以|好|來吧|我想參加|怎麼參加|算我一個|敢|敢，來吧|這個我可以！|\+1|yes)$/i;
 
-export const DECLINE_RE = /^(?:這次先不要|不要|先不要|我再想一下|先不要送出)$/i;
+export const DECLINE_RE = /^(?:這次先不要|不要|先不要|我再想一下|先不用|先不要送出)$/i;
