@@ -14,9 +14,11 @@ import {
   decideJibaUnboxEntry,
   decideJibaUnboxMessage,
 } from '../campaigns/jiba-unbox/turns';
+import type { LineReplyMessage } from '../reply';
 
-function flexRaw(msg: { contents?: unknown }) {
-  return JSON.stringify(msg.contents ?? msg);
+function flexRaw(msg: LineReplyMessage) {
+  if (msg.type === 'flex') return JSON.stringify(msg.contents);
+  return JSON.stringify(msg);
 }
 
 describe('jiba invite / product menus', () => {
@@ -91,7 +93,7 @@ describe('jiba state sequence', () => {
       sessionActive: false,
       pausedForRegister: false,
       hasApplication: false,
-      state: null as const,
+      state: null,
     };
     assert.deepEqual(decideJibaUnboxMessage({ ...idle, text: '開箱' }), {
       action: 'invite',
