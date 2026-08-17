@@ -5,7 +5,23 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { COPY, FIXTURE_LABELS, POS_STORE_LABEL, POS_TASK_SUBTITLE, POS_TASK_TITLE } from '@/lib/grooming-voucher-preview/copy';
+import {
+  COPY,
+  FIXTURE_LABELS,
+  POS_AMOUNT_LABEL,
+  POS_CONFIRM_DATA,
+  POS_MANUAL_CODE,
+  POS_READ_CODE,
+  POS_SCAN_QR,
+  POS_STEP_CONFIRM,
+  POS_STEP_DONE,
+  POS_STEP_SCAN,
+  POS_STORE_LABEL,
+  POS_TASK_SUBTITLE,
+  POS_TASK_TITLE,
+  POS_TEST_TOOLS_NOTE,
+  POS_TEST_TOOLS_TITLE,
+} from '@/lib/grooming-voucher-preview/copy';
 import { listFixtureKeys } from '@/lib/grooming-voucher-preview/fixtures';
 import {
   closeReview,
@@ -13,9 +29,11 @@ import {
   currentVoucher,
   finishRedeem,
   goHome,
+  liveServiceTotalMessage,
   lookupVoucher,
   openRedeemTask,
   openReview,
+  posClerkStep,
   setCancelReason,
   setCodeInput,
   setServiceConfirmed,
@@ -111,12 +129,14 @@ export function usePreviewDialogFocus(
 
 export function PosGroomingVoucherPreviewApp() {
   const [session, setSession] = useState<PosSession>(() => createPosSession());
+  const [manualEntry, setManualEntry] = useState(false);
   const redeemTimer = useRef<number | null>(null);
   const reviewDialogRef = useRef<HTMLDivElement>(null);
   const reviewTriggerRef = useRef<HTMLButtonElement>(null);
   const redeemSuccessRef = useRef<HTMLHeadingElement>(null);
   const codeId = useId();
   const amountId = useId();
+  const amountErrorId = useId();
   const confirmId = useId();
   const reasonId = useId();
   const fixtureId = useId();
@@ -140,6 +160,8 @@ export function PosGroomingVoucherPreviewApp() {
   const voucher = currentVoucher(session);
   const blocked = Boolean(session.blockReason && session.liveMessage);
   const available = session.lookedUp && voucher.kind === 'available' && !session.redeemed;
+  const clerkStep = posClerkStep(session);
+  const amountError = available ? liveServiceTotalMessage(session.serviceTotalInput, voucher.faceValue) : null;
 
   function confirmRedeem() {
     const next = startRedeem(session);
@@ -167,25 +189,35 @@ export function PosGroomingVoucherPreviewApp() {
           <Badge variant="outline">預覽</Badge>
         </header>
 
-        <div className="px-4 pb-3">
-          <label htmlFor={fixtureId} className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            預覽情境
-          </label>
-          <select
-            id={fixtureId}
-            className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={session.fixtureKey}
-            onChange={(event) => setSession(switchFixture(session, event.target.value as FixtureKey))}
-          >
-            {FIXTURES.map((key) => (
-              <option key={key} value={key}>
-                {FIXTURE_LABELS[key]}
-              </option>
-            ))}
-          </select>
-        </div>
+        <details className="mx-4 mb-3 rounded-xl border border-border/70 bg-card">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-navy marker:content-none [&::-webkit-details-marker]:hidden">
+            <span>{POS_TEST_TOOLS_TITLE}</span>
+            <span className="text-xs font-normal text-muted-foreground">可收合</span>
+          </summary>
+          <div className="space-y-2 border-t border-border/60 px-3 py-3">
+            <p className="text-xs text-muted-foreground">{POS_TEST_TOOLS_NOTE}</p>
+            <label htmlFor={fixtureId} className="block text-xs font-medium text-muted-foreground">
+              預覽情境
+            </label>
+            <select
+              id={fixtureId}
+              className="min-h-11 w-full rounded-xl border border-input bg-card px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={session.fixtureKey}
+              onChange={(event) => {
+                setManualEntry(false);
+                setSession(switchFixture(session, event.target.value as FixtureKey));
+              }}
+            >
+              {FIXTURES.map((key) => (
+                <option key={key} value={key}>
+                  {FIXTURE_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </details>
 
-        <div className="flex-1 space-y-3 px-4 pb-8">
+        <div className={cn('flex-1 space-y-3 px-4', available ? 'pb-28' : 'pb-8')}>
           {session.step === 'home' ? (
             <button
               type="button"
@@ -209,54 +241,71 @@ export function PosGroomingVoucherPreviewApp() {
               <button
                 type="button"
                 className="min-h-11 text-left text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setSession(goHome(session))}
+                onClick={() => {
+                  setManualEntry(false);
+                  setSession(goHome(session));
+                }}
               >
                 ← 今天
               </button>
+              <ClerkSteps current={clerkStep} />
               <div className="space-y-2">
-                <label htmlFor={codeId} className="text-sm font-medium text-navy">
-                  券碼
-                </label>
-                <Input
-                  id={codeId}
-                  value={session.codeInput}
-                  onChange={(event) => setSession(setCodeInput(session, event.target.value))}
-                  className="min-h-11 font-mono tracking-wide"
-                  autoComplete="off"
-                  inputMode="text"
-                  placeholder="輸入或模擬掃碼"
-                />
-                <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  className="min-h-11 w-full"
+                  onClick={() => {
+                    setManualEntry(false);
+                    setSession(simulateScan(session));
+                  }}
+                >
+                  {POS_SCAN_QR}
+                </Button>
+                {manualEntry ? (
+                  <div className="space-y-2">
+                    <label htmlFor={codeId} className="text-sm font-medium text-navy">
+                      券碼
+                    </label>
+                    <Input
+                      id={codeId}
+                      value={session.codeInput}
+                      onChange={(event) => setSession(setCodeInput(session, event.target.value))}
+                      className="min-h-11 font-mono tracking-wide"
+                      autoComplete="off"
+                      inputMode="text"
+                      placeholder="輸入券碼"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="min-h-11 w-full"
+                      onClick={() => setSession(lookupVoucher(session))}
+                    >
+                      {POS_READ_CODE}
+                    </Button>
+                  </div>
+                ) : (
                   <Button
                     type="button"
-                    variant="outline"
-                    className="min-h-11"
-                    onClick={() => setSession(simulateScan(session))}
+                    variant="ghost"
+                    className="min-h-11 w-full"
+                    onClick={() => setManualEntry(true)}
                   >
-                    模擬掃碼
+                    {POS_MANUAL_CODE}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="min-h-11"
-                    onClick={() => setSession(lookupVoucher(session))}
-                  >
-                    讀取券
-                  </Button>
-                </div>
+                )}
               </div>
 
               {session.lookedUp ? (
                 <Card>
                   <CardContent className="space-y-2 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-navy">券資訊</p>
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-navy">可否核銷</p>
                       <StatusBadge kind={voucher.kind} label={voucher.statusLabel} />
                     </div>
-                    <Fact label="會員" value={voucher.memberNicknameMasked} />
-                    <Fact label="限本店" value={voucher.boundStoreLabel} />
-                    <Fact label="券面" value={`NT$${voucher.faceValue}`} />
+                    <Fact label="券面額" value={`NT$${voucher.faceValue}`} />
+                    <Fact label="綁定門市" value={voucher.boundStoreLabel} />
                     <Fact label="期限" value={voucher.expiresOn} />
+                    <Fact label="會員" value={voucher.memberNicknameMasked} />
                   </CardContent>
                 </Card>
               ) : null}
@@ -265,17 +314,29 @@ export function PosGroomingVoucherPreviewApp() {
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <label htmlFor={amountId} className="text-sm font-medium text-navy">
-                      本次美容服務總額
+                      {POS_AMOUNT_LABEL}
                     </label>
-                    <Input
-                      id={amountId}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={session.serviceTotalInput}
-                      onChange={(event) => setSession(setServiceTotalInput(session, event.target.value))}
-                      className="min-h-11 tabular-nums"
-                      placeholder="整數，必須高於券面"
-                    />
+                    <div className="flex min-h-11 items-center rounded-xl border border-input bg-card shadow-sm focus-within:ring-2 focus-within:ring-ring">
+                      <span className="shrink-0 pl-3 text-sm text-muted-foreground">NT$</span>
+                      <input
+                        id={amountId}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={session.serviceTotalInput}
+                        onChange={(event) =>
+                          setSession(setServiceTotalInput(session, event.target.value.replace(/\D/g, '')))
+                        }
+                        className="min-h-11 min-w-0 flex-1 bg-transparent px-2 text-sm tabular-nums outline-none"
+                        placeholder="0"
+                        aria-invalid={Boolean(amountError)}
+                        aria-describedby={amountError ? amountErrorId : undefined}
+                      />
+                    </div>
+                    {amountError ? (
+                      <p id={amountErrorId} role="alert" className="text-sm text-destructive">
+                        {amountError}
+                      </p>
+                    ) : null}
                   </div>
                   <label
                     htmlFor={confirmId}
@@ -290,14 +351,6 @@ export function PosGroomingVoucherPreviewApp() {
                     />
                     <span className="text-sm font-medium text-navy">已完成美容服務</span>
                   </label>
-                  <Button
-                    ref={reviewTriggerRef}
-                    type="button"
-                    className="min-h-11 w-full"
-                    onClick={() => setSession(openReview(session))}
-                  >
-                    檢查並核銷
-                  </Button>
                 </div>
               ) : null}
             </>
@@ -306,6 +359,7 @@ export function PosGroomingVoucherPreviewApp() {
           {session.step === 'receipt' && session.receipt ? (
             <Card className="border-success/30">
               <CardContent className="space-y-3 p-4">
+                <ClerkSteps current={3} />
                 <div className="flex items-center justify-between gap-2">
                   <h2
                     id={POS_REDEEM_SUCCESS_FOCUS_ID}
@@ -366,6 +420,21 @@ export function PosGroomingVoucherPreviewApp() {
         </div>
       </div>
 
+      {available && !reviewOpen ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-card/95 px-4 py-3 backdrop-blur">
+          <div className="mx-auto w-full max-w-lg">
+            <Button
+              ref={reviewTriggerRef}
+              type="button"
+              className="min-h-11 w-full"
+              onClick={() => setSession(openReview(session))}
+            >
+              {POS_CONFIRM_DATA}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {reviewOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy/40 p-0 sm:items-center sm:p-4">
           <button
@@ -387,7 +456,6 @@ export function PosGroomingVoucherPreviewApp() {
             <h2 id="redeem-review-title" className="text-base font-semibold text-navy">
               確認核銷
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">{COPY.reviewHint}</p>
             <dl className="mt-4 space-y-2 text-sm">
               <Fact label="服務總額" value={`NT$${session.serviceTotalInput}`} />
               <Fact label="Furmosa 固定補貼" value={`NT$${voucher.faceValue}`} />
@@ -417,6 +485,37 @@ export function PosGroomingVoucherPreviewApp() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ClerkSteps({ current }: { current: 1 | 2 | 3 }) {
+  const items = [
+    { n: 1 as const, label: POS_STEP_SCAN },
+    { n: 2 as const, label: POS_STEP_CONFIRM },
+    { n: 3 as const, label: POS_STEP_DONE },
+  ];
+  return (
+    <ol className="flex min-w-0 items-center gap-1 text-xs" aria-label="核銷步驟">
+      {items.map((item, index) => (
+        <li
+          key={item.n}
+          className={cn(
+            'flex min-w-0 items-center gap-1',
+            item.n === current ? 'font-semibold text-navy' : 'text-muted-foreground',
+          )}
+          aria-current={item.n === current ? 'step' : undefined}
+        >
+          <span>
+            {item.n} {item.label}
+          </span>
+          {index < items.length - 1 ? (
+            <span aria-hidden="true" className="shrink-0 text-muted-foreground">
+              →
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 
