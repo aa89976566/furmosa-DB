@@ -1,12 +1,12 @@
 # POS-02 Migration Plan
 
 > **地位：** POS-02 以後若要落庫，必須先過的閘門與順序。本輪**零資料庫變更**。
-> **版本：** v0.5
+> **版本：** v0.6
 > **日期：** 2026-08-17
 > **目標 SHA：** 只修 PR #128 head
-> `ad36f7dc3f1168e439cb6154ac37e76c39fd4441` 的兩份 docs。
+> `d00e5fad7f0f36687937b62337293ce3e5ab79ac` 的兩份 docs。
 > **承接：** PR #126 head `fc067be26a9df60c94d4e04b6ca9081f42cb9caf`
-> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md` v0.5
+> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md` v0.6
 > **合約：** POS-01 仍是 canonical。本檔不覆蓋 POS-01。
 > **本輪硬禁止：** 不改 schema、不新增 `prisma/migrations`、不跑 migrate／db push／
 > seed／SQL／Supabase、**不產生可對 Production 執行的 migration SQL**、
@@ -25,7 +25,8 @@
 - 出問題時：停新寫、讀回舊帳；**不刪**已經寫進 V2 的不可變列。
 - 建表當天就要有能執行的約束：線上店收必須有明細且與 Order 同單、
   退款 header／line 同一張單、現場開單只能用 active＋已驗證 binding、
-  已撤銷綁定不可 POS 開新單、未履約取消只釋放預約、已履約可再售才加回庫存。
+  驗證時間不得晚於成交、已啟用綁定不能改店家門市、
+  歷史補建必須用 POS 拿不到的資料庫權限、未履約取消只釋放預約。
 
 本輪只改這份說明與提案，資料庫一行都不動。
 
@@ -38,7 +39,7 @@
 | 寫這兩份 docs | 改 `schema.prisma`、加 migration |
 | 寫「以後 Preview 用」的**查詢規格** | 把規格當成 Production migration 去跑 |
 | 把 drift／Store／Float 標成 blocker | 連正式庫或 Preview 執行 |
-| 關閉提案 v0.5 最後一個 binding gate 文字 | merge、deploy、進 schema／POS-03 |
+| 關閉提案 v0.6 binding 時間序／不可變／backfill 權限文字 | merge、deploy、進 schema／POS-03 |
 
 `git diff` 相對 POS-01 branch **只能多這兩個 docs**。
 
@@ -127,7 +128,7 @@ Shadow 允許：只讀複製／離線比對，不取代 HQ 月結出口。
 | `PosSale`／`PosSaleLine` | composite parent FK、`bindingId` + `[binding_id, merchant_id]` → Binding、金額 BigInt、逐 line 欄位、result → 冪等 composite FK |
 | `MerchantSaleSnapshot`／`MerchantSaleSnapshotLine` | header／line 皆有 `source_order_id`；`source_order_id` unique、`source_order_item_id` unique；`line.source_order_id = header.source_order_id = OrderItem.order_id`；product／qty／price 來自該 item（能 FK 先 FK，其餘 DEFERRABLE trigger）；`bindingId` composite FK；Order／OrderItem merchant composite 或 raw 對等 |
 | `RefundRequest`／`RefundLine` | exactly-one CHECK、兩邊都是真 composite FK、header／line 同一來源 DEFERRABLE trigger、累計／佣金 lock 真正來源 line |
-| `MerchantStoreBinding` | partial unique active merchant／store；期間 CHECK；`pending_verify` ⇒ `verified_at IS NULL` CHECK；`active` ⇒ `verified_at IS NOT NULL` CHECK；revoked／effective 一致。**live fact 不可指向 revoked**；僅受控 HQ／migration backfill 可重建指向歷史 revoked 的 fact（需 actor／batch／reason） |
+| `MerchantStoreBinding` | partial unique active merchant／store；期間 CHECK；`pending_verify` ⇒ `verified_at IS NULL`；`active` ⇒ `verified_at IS NOT NULL`；`effective_from <= verified_at`（有驗證時）；revoked 必有 `revoked_at`＋`effective_to`。active／已引用後 `merchantId`／`storeId`／`effectiveFrom`／`verifiedAt` 不可 UPDATE，DELETE Restrict。只准受控 active→revoked。**live fact 不可指向 revoked**。路徑 B 僅 dedicated DB role 或 REVOKE 保護的 SECURITY DEFINER（GUC 非授權） |
 | `MerchantVoucherPolicy` | `[binding_id, merchant_id]` composite FK、version unique、期間 exclusion／partial、`face_twd IN (200, 250)` |
 | `InventoryReservation` | exactly-one source CHECK + composite FK、quantity>0、status allow-list、active partial unique、與 stock／ledger 同交易協定、binding 從 fact 追溯、未履約取消只 release reserved |
 | `PosInventoryLedger` | stock composite FK、冪等 composite FK、金額 BigInt |
@@ -281,9 +282,11 @@ Rollback **不是**刪 V2、也不是倒回 Production schema。
    - composite idempotency（含先驗 session 再查 key）
    - Order `[id, merchantId]` unique 或 raw 對等
    - binding 雙向 active unique；fact 保存 `bindingId`
-   - live INSERT 同時驗 active＋verifiedAt＋有效期＋同店
+   - live INSERT 同時驗 active＋verifiedAt＋`effectiveFrom <= verifiedAt <= soldAt`＋同店
+   - `soldAt < verifiedAt`（live 與 backfill）均 fail
    - pending 誤填 verifiedAt、revoked live insert 均 fail
-   - 受控歷史 backfill 另測（actor／batch／reason、soldAt 在當時有效期）
+   - 受控歷史 backfill 另測：dedicated role／SECURITY DEFINER＋audit；GUC 不算授權
+   - binding mutation：改身份欄、DELETE 已引用、revoke 的 effectiveTo 早於 max(soldAt) 均 fail
    - A merchant + B store／binding、未 verified、超出有效期均 fail
    - voucher policy exclusion + faceTwd 200／250 + 無 policy fail closed
    - reservation exactly-one、未付不建、與 stock 同交易
@@ -309,9 +312,15 @@ Rollback **不是**刪 V2、也不是倒回 Production schema。
 | B2 | `pending_verify` 列誤填 `verifiedAt`（binding CHECK 必須失敗） |
 | B3 | live INSERT 指向 `pending_verify` binding |
 | B4 | live INSERT 指向 `revoked` binding（即使 soldAt 在舊有效期） |
-| B5 | live INSERT 的 `soldAt` 超出 `effectiveFrom`／`effectiveTo` |
-| B6 | reservation／refund 用 client 另傳的 `storeId` 覆寫 fact |
-| B7 | 受控歷史 backfill **另測**：缺 actor／batch／reason，或由一般 POS session 呼叫 → 失敗；合格 backfill（revoked＋當時有效期＋audit）才通過 |
+| B5 | live／backfill 的 `soldAt < verifiedAt` |
+| B6 | live INSERT 的 `soldAt` 超出 `effectiveFrom`／`effectiveTo` |
+| B7 | reservation／refund 用 client 另傳的 `storeId` 覆寫 fact |
+| B8 | UPDATE 已 active（或已引用）binding 的 `merchantId`／`storeId`／`effectiveFrom`／`verifiedAt` |
+| B9 | DELETE 已被 fact／policy 引用的 binding，或 DELETE 已 active 列 |
+| B10 | `active → revoked` 未同時寫 `effectiveTo`／`revokedAt`，或 `effectiveTo < max(soldAt)` |
+| B11 | 一般 app／POS role 直接 INSERT revoked fact；或 `SET` custom GUC 後再 INSERT |
+| B12 | 一般 role `EXECUTE` backfill 函式；或 DEFINER 函式缺 actor／batch／reason |
+| B13 | 受控歷史 backfill **另測**：正確 dedicated role／函式＋`effectiveFrom <= verifiedAt <= soldAt`＋當時有效期＋audit 才通過 |
 | O1a | 未履約取消卻 `onHand += qty` |
 | O1b | 已履約不可售卻加可售 `onHand`（應只寫 loss） |
 4. 所有同 stock writer 切齊或阻擋清單已簽
@@ -328,7 +337,9 @@ Rollback **不是**刪 V2、也不是倒回 Production schema。
 ledger 不平衡、超額退款、佣金公式不符、已鎖期被改、quarantine 增加、
 bindings 被非 verified 路徑寫成 active、pending 列出現 verifiedAt、
 同一 merchant／store 出現第二個 active binding、
-POS runtime 用 revoked binding 寫入新 fact、
+POS runtime 用 revoked binding 寫入新 fact、一般 role 靠 GUC 假裝 backfill、
+已 active binding 被改 merchant／store／effectiveFrom／verifiedAt、
+revoke 的 effectiveTo 早於已成交 max(soldAt)、
 無 policy 仍發券、未付款出現 reservation、
 未履約取消卻增加 onHand、已履約不可售卻加可售庫存、
 snapshot line 掛錯 Order、refund header／line 交叉來源、
@@ -354,6 +365,7 @@ API 金額不是字串。
 | 線上 line snapshot + 統一退款來源 | **PASS** | 提案 §2；本檔 §5.1／§5.2／§4 代收列 |
 | composite idempotency + Order ownership | **PASS** | 提案 §3；本檔 §5.1／§5.2 |
 | Binding 雙向 1:1 active | **PASS** | 提案 §4；本檔 §5.1／§6.1 |
+| Binding 時間序／不可變／backfill 權限 | **PASS** | 提案 §4.4–§4.6；本檔 §9.1 B5／B8–B13。`verifiedAt <= soldAt`；GUC 非授權 |
 | Voucher policy 可落地 | **PASS** | 提案 §5；本檔 §5.1 |
 | Reservation 完整 invariant | **PASS** | 提案 §6；本檔 §5.1／§5.3 |
 | Constraint ownership 改正 | **PASS** | 提案 §7；本檔 §5.1 禁止裸表、approved 用 trigger 不用 REVOKE 取代 |
@@ -361,7 +373,7 @@ API 金額不是字串。
 | Float NaN 不用 `x <> x` | **PASS** | §6.2 改 `= 'NaN'::float8` 或 Preview 驗證 text 法；Infinity／非整數／round-trip 標 fixture／EXPLAIN |
 | Snapshot↔Order 一致性 | **PASS** | 提案 §2.3.1；本檔 §5.1、§9.1 S1–S4 |
 | Refund header／line 同一來源 | **PASS** | 提案 §2.5.1；本檔 §5.1、§9.1 R1–R4 |
-| Fact 保存 authoritative binding | **PASS** | 提案 §4.2／§4.4；本檔 §5.1、§9.1 B1–B7。live 四項同時驗；pending⇒verifiedAt 空；revoked 不可 POS runtime 建新 fact；歷史 backfill 另測 |
+| Fact 保存 authoritative binding | **PASS** | 提案 §4.2／§4.4–§4.6；本檔 §5.1、§9.1 B1–B13。`effectiveFrom <= verifiedAt <= soldAt`；binding 身份欄不可變；backfill 用 dedicated role／SECURITY DEFINER，GUC 非授權；mutation negatives 已列 |
 | O1 回庫文字已改正 | **PASS** | 提案 §11.1.1；本檔 §5.3、§9.1 O1a／O1b。未履約取消只 release；已履約實物退回才 restock 或 loss |
 
 ---
