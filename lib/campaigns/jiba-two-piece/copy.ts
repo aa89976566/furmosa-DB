@@ -5,6 +5,7 @@ import {
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
   JIBA_TRANSFER_ACTION_TEXT,
+  replaceJibaLegacyCatnipName,
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import type { JibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
@@ -280,24 +281,31 @@ export function jibaConfirmSummary(d: {
   productLabel?: string;
   shippingFeeDue?: boolean;
   shippingFeeAmount?: number;
+  shippingFeeLabel?: string;
+  shippingFeeKind?: 'awaiting_declaration' | 'declared' | 'paid' | 'free_threshold' | 'free_waived';
   paymentDeclared?: boolean;
   declaredPaidAt?: string | null;
   transferAccountLast5?: string | null;
 }): string {
   const phone = d.recipientPhone.replace(/(\d{4})(\d{3})(\d{3})/, '$1-$2-$3');
-  const product = d.productLabel ?? '壕大大雞霸 × 2';
-  const feeDue = d.shippingFeeDue !== false;
+  const product = replaceJibaLegacyCatnipName(d.productLabel ?? '壕大大雞霸 × 2');
+  const feeDue = d.shippingFeeDue !== false && d.shippingFeeKind !== 'free_threshold' && d.shippingFeeKind !== 'free_waived';
   const feeAmount = d.shippingFeeAmount ?? JIBA_SHIPPING_FEE;
-  const feeLine = feeDue
-    ? `物流處理費：NT$${feeAmount}（需自付）`
-    : '物流處理費：免運';
-  const paymentLine = !feeDue
-    ? '付款申報：免運，不用轉帳'
-    : d.paymentDeclared
-      ? `付款申報：已申報待核對${d.declaredPaidAt ? `（${d.declaredPaidAt}）` : ''}${
-          d.transferAccountLast5 ? `\n收款帳號末五碼：${d.transferAccountLast5}` : ''
-        }`
-      : '付款申報：尚未轉帳';
+  const feeLine = d.shippingFeeLabel
+    ? `運費：${d.shippingFeeLabel}`
+    : feeDue
+      ? `物流處理費：NT$${feeAmount}（需自付）`
+      : '物流處理費：免運';
+  const paymentLine =
+    d.shippingFeeKind === 'free_threshold'
+      ? '付款申報：加購達門檻，不用轉帳'
+      : d.shippingFeeKind === 'free_waived' || !feeDue
+        ? '付款申報：免運，不用轉帳'
+        : d.paymentDeclared
+          ? `付款申報：已申報待核對${d.declaredPaidAt ? `（${d.declaredPaidAt}）` : ''}${
+              d.transferAccountLast5 ? `\n收款帳號末五碼：${d.transferAccountLast5}` : ''
+            }`
+          : '付款申報：尚未轉帳';
   return `麻煩最後再幫我們確認一次。
 有錯現在改就好，寄出後就比較麻煩了。
 

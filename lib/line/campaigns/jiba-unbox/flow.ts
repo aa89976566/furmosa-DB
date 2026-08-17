@@ -84,6 +84,7 @@ import {
 } from '@/lib/campaigns/jiba-two-piece/service';
 import {
   assessJibaShippingFee,
+  describeJibaShippingCharge,
   nextStateAfterTransfer,
   paymentDeclarationFromCollected,
 } from '@/lib/campaigns/jiba-two-piece/payment';
@@ -277,6 +278,10 @@ function confirmSummaryForApp(
   collected: Record<string, unknown>,
 ): string {
   const fee = assessJibaShippingFee(collected);
+  const charge = describeJibaShippingCharge({
+    paymentStatus: app.paymentStatus,
+    collected,
+  });
   const declaration = paymentDeclarationFromCollected(collected);
   return jibaConfirmSummary({
     recipientName: app.recipientName || '',
@@ -287,6 +292,8 @@ function confirmSummaryForApp(
     productLabel: productLabelFromCollected(collected),
     shippingFeeDue: fee.due,
     shippingFeeAmount: fee.amount,
+    shippingFeeLabel: charge.label,
+    shippingFeeKind: charge.kind,
     paymentDeclared: Boolean(declaration) || app.paymentStatus === 'declared',
     declaredPaidAt: declaration?.declaredPaidAt
       ? declaration.declaredPaidAt.replace('T', ' ').slice(0, 16)

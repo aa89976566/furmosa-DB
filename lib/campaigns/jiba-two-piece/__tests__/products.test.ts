@@ -23,6 +23,7 @@ import {
   JIBA_UPSELL_BODY,
   jibaBriefAndUpsell,
   jibaBriefContinueLabel,
+  jibaConfirmSummary,
   jibaLicenseBody,
   jibaProductBrief,
   isJibaBriefContinue,
@@ -127,5 +128,34 @@ describe('jiba unbox copy for catnip', () => {
     assert.equal(validRecipientName('好，開始填收件資訊'), null);
     assert.equal(validRecipientName('想加購'), null);
     assert.equal(validRecipientName('王小明'), '王小明');
+  });
+
+  it('confirm page shows new catnip name and charge labels', () => {
+    const due = jibaConfirmSummary({
+      recipientName: '測試收件人',
+      recipientPhone: '0912000111',
+      storeName: '測試門市',
+      instagramHandle: '@test_pet',
+      productLabel: '貓草雞肉乾 30g',
+      shippingFeeLabel: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜待申報`,
+      shippingFeeKind: 'awaiting_declaration',
+    });
+    assert.match(due, /貓草雞肉薄片 30g/);
+    assert.doesNotMatch(due, /貓草雞肉乾/);
+    assert.match(due, /物流處理費 60 元｜待申報/);
+    assert.doesNotMatch(due, /包郵/);
+
+    const threshold = jibaConfirmSummary({
+      recipientName: '測試收件人',
+      recipientPhone: '0912000111',
+      storeName: '測試門市',
+      instagramHandle: '@test_pet',
+      productLabel: '貓草雞肉薄片 30g',
+      shippingFeeLabel: '加購達門檻｜免運',
+      shippingFeeKind: 'free_threshold',
+    });
+    assert.match(threshold, /加購達門檻｜免運/);
+    assert.match(threshold, /加購達門檻，不用轉帳/);
+    assert.doesNotMatch(threshold, /物流處理費：免運$/m);
   });
 });

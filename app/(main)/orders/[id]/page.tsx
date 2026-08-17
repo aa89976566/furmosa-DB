@@ -28,6 +28,10 @@ import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  loadJibaChargeSourcesByOrderIds,
+  resolveShipmentFulfillmentFee,
+} from '@/lib/campaigns/jiba-two-piece/shipment-charge';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 import {
   ArrowLeft,
@@ -63,6 +67,12 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
   const editable = isOrderEditable(order);
   const logistics = resolveLogisticsForOrderList(order);
+  const jibaSources = await loadJibaChargeSourcesByOrderIds([order.id]);
+  const fulfillmentFee = resolveShipmentFulfillmentFee({
+    orderStatus: order.status,
+    shippingFeeType: order.shippingFeeType,
+    jiba: jibaSources.get(order.id) ?? null,
+  });
   return (
     <>
       <PageHeader
@@ -265,8 +275,15 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                     </form>
                   ))}
                 </div>
+                {fulfillmentFee.isJiba ? (
+                  <p className="mt-2 text-sm font-medium">
+                    開箱運費：{fulfillmentFee.fulfillmentFeeLabel}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  {shippingMethodLabel(order)}。合計為買家應付；包郵時公司運費成本另列、不計入合計。
+                  {fulfillmentFee.isJiba
+                    ? '開箱單依申報／核帳狀態顯示，不把未付或待核帳寫成包郵。'
+                    : `${shippingMethodLabel(order)}。合計為買家應付；包郵時公司運費成本另列、不計入合計。`}
                 </p>
               </div>
             </div>
