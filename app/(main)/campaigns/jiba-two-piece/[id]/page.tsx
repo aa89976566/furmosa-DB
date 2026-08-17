@@ -92,14 +92,18 @@ export default async function JibaReviewDetailPage({
   const collected = session?.collectedDataJson ?? '{}';
   const productKey = jibaProductKeyFromCollected(collected);
   const productLabel = jibaProductLabelFromCollected(collected);
-  const purposeAcknowledged = (() => {
+  const collectedFlags = (() => {
     try {
-      const data = JSON.parse(collected) as { purposeAcknowledged?: unknown };
-      return data.purposeAcknowledged === true;
+      return JSON.parse(collected) as {
+        purposeAcknowledged?: unknown;
+        upsellInterest?: unknown;
+        upsellAsked?: unknown;
+      };
     } catch {
-      return false;
+      return {};
     }
   })();
+  const purposeAcknowledged = collectedFlags.purposeAcknowledged === true;
 
   return (
     <>
@@ -160,6 +164,16 @@ export default async function JibaReviewDetailPage({
                     : '未同意'
                 }
               />
+              {collectedFlags.upsellAsked === true ? (
+                <Row
+                  label="加購"
+                  value={
+                    collectedFlags.upsellInterest === true
+                      ? '有加購意向，審核後再聯繫'
+                      : '這次先不加'
+                  }
+                />
+              ) : null}
               {productKey === 'catnip' ? (
                 <>
                   <Row

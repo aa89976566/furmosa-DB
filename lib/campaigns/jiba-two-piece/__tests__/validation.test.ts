@@ -38,6 +38,9 @@ describe('jiba validation', () => {
     assert.equal(validRecipientName('開箱'), null);
     assert.equal(validRecipientName('ugc'), null);
     assert.equal(validRecipientName('我了解用途，開始填資料'), null);
+    assert.equal(validRecipientName('好，開始填收件資訊'), null);
+    assert.equal(validRecipientName('這次先不加'), null);
+    assert.equal(validRecipientName('想加購'), null);
     assert.equal(validRecipientName('@furmosa'), null);
     assert.equal(validRecipientName('0912345678'), null);
     assert.equal(checkRecipientName('我要參加').ok, false);
@@ -93,6 +96,7 @@ describe('status machine constants', () => {
     assert.equal(APP_STATUS.AWAITING_SHIPPING_PAYMENT, 'AWAITING_SHIPPING_PAYMENT');
     assert.equal(APP_STATUS.READY_TO_SHIP, 'READY_TO_SHIP');
     assert.equal(FLOW_STATE.PENDING_REVIEW, 'PENDING_REVIEW');
+    assert.equal(FLOW_STATE.ASK_UPSELL, 'ASK_UPSELL');
     assert.notEqual(APP_STATUS.PENDING_REVIEW, APP_STATUS.READY_TO_SHIP);
   });
 });

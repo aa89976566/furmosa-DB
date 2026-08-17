@@ -1,5 +1,5 @@
 /**
- * 開箱入口／選品的純決策（無 DB）。
+ * 開箱入口／選品／加購的純決策（無 DB）。
  * 進行中 session 重送入口 keyword → replay，不可重設。
  */
 import {
@@ -8,7 +8,11 @@ import {
   type FlowState,
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
-import { isJibaBriefContinue } from '@/lib/campaigns/jiba-two-piece/copy';
+import {
+  isJibaBriefContinue,
+  isJibaUpsellAccept,
+  isJibaUpsellSkip,
+} from '@/lib/campaigns/jiba-two-piece/copy';
 import { isDeclineIntent, isJoinIntent } from '@/lib/campaigns/jiba-two-piece/validation';
 import { isJibaUnboxEntryIntent } from '@/lib/line/campaigns/jiba-unbox/intent';
 
@@ -20,8 +24,11 @@ export type JibaTurnDecision =
   | { action: 'decline' }
   | { action: 'pick_product'; productKey: JibaProductKey }
   | { action: 'continue_brief' }
+  | { action: 'accept_upsell' }
+  | { action: 'skip_upsell' }
   | { action: 'reprompt_invite' }
   | { action: 'reprompt_product' }
+  | { action: 'reprompt_upsell' }
   | { action: 'pass' };
 
 export type JibaTurnContext = {
@@ -82,8 +89,19 @@ export function decideJibaUnboxMessage(ctx: JibaTurnContext): JibaTurnDecision {
     return { action: 'reprompt_product' };
   }
 
-  if (ctx.state === FLOW_STATE.SHOW_BRIEF && isJibaBriefContinue(trimmed)) {
-    return { action: 'continue_brief' };
+  if (ctx.state === FLOW_STATE.SHOW_BRIEF) {
+    if (isJibaBriefContinue(trimmed)) return { action: 'continue_brief' };
+    // 舊 session 停在提前加購的 SHOW_BRIEF：加購答案先當繼續，補齊運送資訊
+    if (isJibaUpsellSkip(trimmed) || isJibaUpsellAccept(trimmed)) {
+      return { action: 'continue_brief' };
+    }
+    return { action: 'pass' };
+  }
+
+  if (ctx.state === FLOW_STATE.ASK_UPSELL) {
+    if (isJibaUpsellSkip(trimmed)) return { action: 'skip_upsell' };
+    if (isJibaUpsellAccept(trimmed)) return { action: 'accept_upsell' };
+    return { action: 'reprompt_upsell' };
   }
 
   return { action: 'pass' };

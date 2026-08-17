@@ -25,6 +25,7 @@ import {
   JIBA_ASK_PRODUCT_PROMPT,
   JIBA_ASK_STORE,
   JIBA_BANK_INFO,
+  JIBA_BRIEF_REPROMPT,
   JIBA_FIND_HELPER,
   JIBA_IG_ERROR,
   JIBA_INVITE_DECLINE_REPLY,
@@ -38,21 +39,30 @@ import {
   JIBA_PENDING_HINT,
   JIBA_PET_ERROR,
   JIBA_PHONE_ERROR,
-  JIBA_PRODUCT_PICKED,
   JIBA_REJECTED,
   JIBA_RULES,
   JIBA_START_WORK,
   JIBA_STORE_ERROR,
   JIBA_SUBMITTED,
   JIBA_TRANSFER_NOTED,
-  jibaBriefAndUpsell,
+  JIBA_UPSELL_NOTED,
+  JIBA_UPSELL_REPROMPT,
+  JIBA_UPSELL_SKIPPED,
   jibaBriefContinueLabel,
   jibaConfirmSummary,
   jibaFieldRetryEscalation,
   jibaLicenseBody,
+  jibaProductBrief,
   jibaReturnFieldCopy,
   isJibaBriefContinue,
+  isJibaUpsellAccept,
+  isJibaUpsellSkip,
 } from '@/lib/campaigns/jiba-two-piece/copy';
+import {
+  nextJibaShippingState,
+  resolveJibaResumeState,
+  shippingSnapshotFrom,
+} from '@/lib/campaigns/jiba-two-piece/shipping';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import {
@@ -102,6 +112,7 @@ import { isJibaUnboxEntryIntent } from '@/lib/line/campaigns/jiba-unbox/intent';
 import {
   jibaInviteMessages,
   jibaProductChoiceMessages,
+  jibaUpsellMessages,
 } from '@/lib/line/campaigns/jiba-unbox/menus';
 import { decideJibaUnboxEntry } from '@/lib/line/campaigns/jiba-unbox/turns';
 import { prisma } from '@/lib/prisma';
@@ -124,7 +135,7 @@ function jibaRulesChoiceMenu(): LineReplyMessage {
     altText: '開箱規則',
     theme: WORLD_THEME.chaos,
     title: '看完規則了嗎？',
-    subtitle: '想繼續的話，點下面按鈕就可以喔。',
+    subtitle: '想繼續的話，點下面按鈕就可以。',
     items: [
       {
         label: '這個我可以！',
@@ -192,11 +203,11 @@ function jibaBriefContinueMenu(productKey: JibaProductKey): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: '開始填資料',
     theme: WORLD_THEME.chaos,
-    title: productKey === 'catnip' ? '可以請你先同意這次用途嗎？' : '看完了嗎？',
+    title: productKey === 'catnip' ? '可以請你先了解這次用途嗎？' : '看完這品說明了嗎？',
     subtitle:
       productKey === 'catnip'
-        ? '了解後再填收件資料。素材使用會在後面再請你按一次授權。'
-        : '準備好就開始填收件資料，零食才寄得出發喔。',
+        ? '了解後再填收件資訊。素材授權會在後面再請你按一次。'
+        : '準備好就開始填收件資訊，零食才寄得出發。',
     items: [
       {
         label,
@@ -311,7 +322,7 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_PRODUCT:
       return JIBA_ASK_PRODUCT_PROMPT;
     case FLOW_STATE.SHOW_BRIEF:
-      return '投稿事項跟免運說明剛說過喔。準備好就點下面按鈕繼續。';
+      return JIBA_BRIEF_REPROMPT;
     case FLOW_STATE.ASK_RECIPIENT_NAME:
       return JIBA_ASK_NAME;
     case FLOW_STATE.ASK_RECIPIENT_PHONE:
@@ -319,6 +330,8 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_STORE:
     case FLOW_STATE.CONFIRM_STORE:
       return JIBA_ASK_STORE;
+    case FLOW_STATE.ASK_UPSELL:
+      return JIBA_UPSELL_REPROMPT;
     case FLOW_STATE.ASK_INSTAGRAM:
       return JIBA_ASK_IG;
     case FLOW_STATE.ASK_PET_NAME:
@@ -326,11 +339,11 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_CONTENT_LICENSE:
       return JIBA_LICENSE_ASK;
     case FLOW_STATE.SHOW_ORDER_CONFIRMATION:
-      return '資料還在確認頁喔。確認沒問題就回「資料正確，送出」。';
+      return '資料還在確認頁。確認沒問題就回「資料正確，送出」。';
     case FLOW_STATE.PENDING_REVIEW:
-      return '還在請小幫手幫你看資料，通過後會再跟你說運費怎麼付喔。';
+      return '還在請小幫手幫你看資料，通過後會再跟你說物流處理費怎麼付。';
     case FLOW_STATE.AWAITING_SHIPPING_PAYMENT:
-      return '運費還在等你確認喔。付完之後，零食就可以出發了。';
+      return '物流處理費還在等你確認。付完之後，零食就可以出發。';
     case FLOW_STATE.READY_TO_SHIP:
       return JIBA_PAID;
     default:
@@ -398,9 +411,24 @@ async function replayCurrentJibaStep(
     case FLOW_STATE.SHOW_BRIEF: {
       const key = jibaProductKeyFromCollected(collected);
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: jibaBriefAndUpsell(key) },
+        { type: 'text', text: jibaProductBrief(key) },
         jibaBriefContinueMenu(key),
       ]);
+      return;
+    }
+    case FLOW_STATE.ASK_UPSELL: {
+      const guarded = resolveJibaResumeState(
+        FLOW_STATE.ASK_UPSELL,
+        shippingSnapshotFrom(app, collected),
+      );
+      if (guarded !== FLOW_STATE.ASK_UPSELL) {
+        if (app?.conversationSession) {
+          await setConversationState(app.conversationSession.id, guarded);
+        }
+        await replayCurrentJibaStep(replyToken, lineUserId, guarded, app);
+        return;
+      }
+      await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
       return;
     }
     case FLOW_STATE.ASK_CONTENT_LICENSE:
@@ -454,7 +482,7 @@ export async function startJibaUnboxIntro(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: '汪！看到一筆還沒填完的開箱申請～\n若你剛剛是在幫毛孩開戶，那多半不是這次要續辦的喔。',
+          text: '看到一筆還沒填完的開箱申請。\n若你剛剛是在幫毛孩開戶，那多半不是這次要續辦的。',
         },
         jibaResumeChoiceMenu(),
       ]);
@@ -587,25 +615,21 @@ async function beginEnrollment(
     const state = app.conversationSession!.currentState as FlowState;
     await clearJibaPausedForRegister(sid);
 
-    // 先回使用者，對話紀錄／session 背景寫（縮短體感等待）
-    if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME && state !== FLOW_STATE.ASK_PRODUCT) {
-      const prompt = promptForState(state);
+    // 已有進行中申請：依目前 state 續接，不重設、不跳步
+    if (existing) {
       const collected = parseCollected(app.conversationSession?.collectedDataJson ?? '{}');
-      await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '你上次還沒填完喔，我們接著繼續～' },
-        { type: 'text', text: prompt },
-        ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [licenseFlexFromCollected(collected)] : []),
-        ...(state === FLOW_STATE.SHOW_BRIEF
-          ? [jibaBriefContinueMenu(jibaProductKeyFromCollected(collected))]
-          : []),
-      ]);
+      const guarded = resolveJibaResumeState(state, shippingSnapshotFrom(app, collected));
+      if (guarded !== state) {
+        await setConversationState(sid, guarded);
+      }
+      await replayCurrentJibaStep(replyToken, lineUserId, guarded, app);
       runAfterReply(
         (async () => {
-          await upsertJibaLineChatSessionIfIdle(lineUserId, state, {
+          await upsertJibaLineChatSessionIfIdle(lineUserId, guarded, {
             applicationId: app.id,
           });
           await logCustomer(sid, trimmed, lineMessageId);
-          await logBot(sid, `我們接著上次繼續。\n${prompt}`);
+          await logBot(sid, `我們接著上次繼續。\n${promptForState(guarded)}`);
         })(),
       );
       return;
@@ -638,7 +662,7 @@ async function beginEnrollment(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: '不好意思，開箱系統剛剛有點狀況。再點一次「開箱任務」，或稍後再試一次喔。',
+          text: '不好意思，開箱系統剛剛有點狀況。再點一次「開箱任務」，或稍後再試一次。',
         },
       ]);
     }
@@ -739,7 +763,7 @@ export async function handleJibaUnboxMessage(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: '汪！看到一筆還沒填完的開箱申請～\n若你剛剛是在幫毛孩開戶，那多半不是這次要續辦的喔。',
+          text: '看到一筆還沒填完的開箱申請。\n若你剛剛是在幫毛孩開戶，那多半不是這次要續辦的。',
         },
         jibaResumeChoiceMenu(),
       ]);
@@ -806,8 +830,21 @@ export async function handleJibaUnboxMessage(
       await replyJiba(replyToken, lineUserId, jibaInviteMessages());
       return true;
     }
+    if (state === FLOW_STATE.ASK_UPSELL) {
+      const guarded = resolveJibaResumeState(
+        FLOW_STATE.ASK_UPSELL,
+        shippingSnapshotFrom(app, collected),
+      );
+      if (guarded !== FLOW_STATE.ASK_UPSELL) {
+        await setConversationState(app.conversationSession.id, guarded);
+        await replayCurrentJibaStep(replyToken, lineUserId, guarded, app);
+        return true;
+      }
+      await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+      return true;
+    }
     await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: '好喔，我們接著上次繼續～' },
+      { type: 'text', text: '好，我們接著上次繼續。' },
       { type: 'text', text: prompt },
       ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [licenseFlexFromCollected(collected)] : []),
       ...(state === FLOW_STATE.SHOW_BRIEF
@@ -852,7 +889,7 @@ export async function handleJibaUnboxMessage(
           await logCustomer(app.conversationSession.id, trimmed, lineMessageId);
           await logBot(
             app.conversationSession.id,
-            '好喔，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。',
+            '好，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。',
           );
         }
         await prisma.statusAuditLog.create({
@@ -871,7 +908,7 @@ export async function handleJibaUnboxMessage(
     }
     await clearLineChatSession(lineUserId);
     await replyJiba(replyToken, lineUserId, [
-      { type: 'text', text: '好喔，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。' },
+      { type: 'text', text: '好，這次先到這裡。之後想參加再跟我們說「開箱任務」就好。' },
     ]);
     return true;
   }
@@ -898,7 +935,7 @@ export async function handleJibaUnboxMessage(
     const app = await safeFindActiveJibaApplication(lineUserId);
     if (!app) {
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: '目前沒有進行中的開箱申請喔。想參加的話，跟我們說「開箱任務」就可以。' },
+        { type: 'text', text: '目前沒有進行中的開箱申請。想參加的話，跟我們說「開箱任務」就可以。' },
       ]);
       return true;
     }
@@ -1027,7 +1064,7 @@ export async function handleJibaUnboxMessage(
         await replyJiba(replyToken, lineUserId, jibaProductChoiceMessages());
         return true;
       }
-      const brief = jibaBriefAndUpsell(productKey);
+      const brief = jibaProductBrief(productKey);
       await setConversationState(sid, FLOW_STATE.SHOW_BRIEF, {
         productKey,
         productLabel: JIBA_PRODUCTS[productKey].orderLabel,
@@ -1035,7 +1072,6 @@ export async function handleJibaUnboxMessage(
       });
       await logBot(sid, brief);
       await replyJiba(replyToken, lineUserId, [
-        { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
         { type: 'text', text: brief },
         jibaBriefContinueMenu(productKey),
       ]);
@@ -1045,14 +1081,21 @@ export async function handleJibaUnboxMessage(
       const sessBrief = await prisma.conversationSession.findUnique({ where: { id: sid } });
       const briefData = parseCollected(sessBrief?.collectedDataJson ?? '{}');
       const briefKey = jibaProductKeyFromCollected(briefData);
-      if (!isJibaBriefContinue(trimmed)) {
+      const continueBrief =
+        isJibaBriefContinue(trimmed) ||
+        isJibaUpsellSkip(trimmed) ||
+        isJibaUpsellAccept(trimmed);
+      if (!continueBrief) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: jibaBriefAndUpsell(briefKey) },
+          { type: 'text', text: jibaProductBrief(briefKey) },
           jibaBriefContinueMenu(briefKey),
         ]);
         return true;
       }
-      await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_NAME, {
+      const afterBrief =
+        nextJibaShippingState(shippingSnapshotFrom(app, briefData)) ??
+        FLOW_STATE.ASK_UPSELL;
+      await setConversationState(sid, afterBrief, {
         ...(briefKey === 'catnip'
           ? {
               purposeAcknowledged: true,
@@ -1061,11 +1104,16 @@ export async function handleJibaUnboxMessage(
             }
           : {}),
       });
+      if (afterBrief === FLOW_STATE.ASK_UPSELL) {
+        await logBot(sid, JIBA_UPSELL_REPROMPT);
+        await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+        return true;
+      }
       await logBot(sid, JIBA_START_WORK);
-      await logBot(sid, JIBA_ASK_NAME);
+      await logBot(sid, promptForState(afterBrief));
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: JIBA_START_WORK },
-        { type: 'text', text: JIBA_ASK_NAME },
+        { type: 'text', text: promptForState(afterBrief) },
       ]);
       return true;
     }
@@ -1247,14 +1295,47 @@ export async function handleJibaUnboxMessage(
         storeName: picked.storeName,
         storeAddress: picked.storeAddress,
       });
-      await setConversationState(sid, FLOW_STATE.ASK_INSTAGRAM, {
+      await setConversationState(sid, FLOW_STATE.ASK_UPSELL, {
         storeName: picked.storeName,
         storeId: picked.storeId,
+        storeAddress: picked.storeAddress,
       });
-      await logBot(sid, JIBA_ASK_IG);
-      await replyJiba(replyToken, lineUserId, [{ type: 'text', text: JIBA_ASK_IG }]);
+      await logBot(sid, JIBA_UPSELL_REPROMPT);
+      await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
       return true;
-    }    case FLOW_STATE.ASK_INSTAGRAM: {
+    }
+    case FLOW_STATE.ASK_UPSELL: {
+      const sessUpsell = await prisma.conversationSession.findUnique({ where: { id: sid } });
+      const upsellCollected = parseCollected(sessUpsell?.collectedDataJson ?? '{}');
+      const upsellGuard = resolveJibaResumeState(
+        FLOW_STATE.ASK_UPSELL,
+        shippingSnapshotFrom(app, upsellCollected),
+      );
+      if (upsellGuard !== FLOW_STATE.ASK_UPSELL) {
+        await setConversationState(sid, upsellGuard);
+        await replayCurrentJibaStep(replyToken, lineUserId, upsellGuard, app);
+        return true;
+      }
+      if (isJibaUpsellSkip(trimmed) || isJibaUpsellAccept(trimmed)) {
+        const interested = isJibaUpsellAccept(trimmed);
+        await setConversationState(sid, FLOW_STATE.ASK_INSTAGRAM, {
+          upsellAsked: true,
+          upsellInterest: interested,
+          upsellAnsweredAt: new Date().toISOString(),
+        });
+        const nextCopy = interested ? JIBA_UPSELL_NOTED : JIBA_UPSELL_SKIPPED;
+        await logBot(sid, nextCopy);
+        await logBot(sid, JIBA_ASK_IG);
+        await replyJiba(replyToken, lineUserId, [
+          { type: 'text', text: nextCopy },
+          { type: 'text', text: JIBA_ASK_IG },
+        ]);
+        return true;
+      }
+      await replyJiba(replyToken, lineUserId, jibaUpsellMessages());
+      return true;
+    }
+    case FLOW_STATE.ASK_INSTAGRAM: {
       const ig = normalizeInstagramHandle(trimmed);
       if (!ig) {
         await replyInvalidField({
@@ -1336,7 +1417,7 @@ export async function handleJibaUnboxMessage(
       }
       if (!isLicenseAccept(trimmed)) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '這格要請你點下面按鈕明示同意或不同意喔。' },
+          { type: 'text', text: '這格要請你點下面按鈕明示同意或不同意。' },
           licenseFlexFromCollected(licenseCollected),
         ]);
         return true;
@@ -1380,7 +1461,7 @@ export async function handleJibaUnboxMessage(
         await replyJiba(replyToken, lineUserId, [
           {
             type: 'text',
-            text: '好喔，先幫你停在這裡，資料都留著。想送出時再說「資料正確，送出」就可以。',
+            text: '好，先幫你停在這裡，資料都留著。想送出時再說「資料正確，送出」就可以。',
           },
         ]);
         return true;
@@ -1409,7 +1490,7 @@ export async function handleJibaUnboxMessage(
         await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE);
         const sessNeedLicense = await prisma.conversationSession.findUnique({ where: { id: sid } });
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: '送出前還差授權同意喔。' },
+          { type: 'text', text: '送出前還差授權同意。' },
           licenseFlexFromCollected(parseCollected(sessNeedLicense?.collectedDataJson ?? '{}')),
         ]);
         return true;
@@ -1426,7 +1507,7 @@ export async function handleJibaUnboxMessage(
       await replyJiba(replyToken, lineUserId, [
         {
           type: 'text',
-          text: `這步好像有點卡住了，不好意思。你可以傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」，我們再幫你看。`,
+          text: `這步好像有點卡住了。你可以傳「查看目前資料」或「找${JIBA_SUPERVISOR_NAME}」，我們再幫你看。`,
         },
       ]);
       return true;

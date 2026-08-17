@@ -76,17 +76,19 @@ Postback：`lib/line/postback-actions.ts`
 
 觸發：正規化後精確 phrase（`開箱`／`開箱文`／`開箱任務`／`ugc`／`試吃開箱`／`開箱合作`／`合作開箱` 等），**不用 contains**。  
 進行中 session 重送入口 keyword → **重播當前步驟**，不重設。  
-無進行中 session → 只發邀請（我要參加／先不用），不立刻選商品。
+無進行中 session → 只發邀請（我要參加／先不用），不立刻選商品。  
+邀請卡必須在「我要參加」前寫清：商品免費、需自付 60 元物流處理費，並與審核後寄出條件一起呈現。
 
 | 狀態 | 問什麼 | 成功下一狀態 | 備註 |
 |------|--------|--------------|------|
-| CAMPAIGN_INTRO | 我要參加／先不用 | 報名選品或結束 | 先不用不建立申請 |
+| CAMPAIGN_INTRO | 我要參加／先不用 | 報名選品或結束 | 先不用不建立申請；邀請含 60 元物流處理費 |
 | ASK_PRODUCT | 雞霸／青蛙／貓草雞肉乾 30g | SHOW_BRIEF | LINE 按鈕；payload 為「選…」 |
-| SHOW_BRIEF | 投稿事項＋399/886 免運加購說明（貓草雞肉乾會說明首頁用途） | ASK_RECIPIENT_NAME | 「好，開始填資料」或「我了解用途，開始填資料」 |
+| SHOW_BRIEF | 該品必要說明（貓草雞肉乾會說明首頁用途） | ASK_RECIPIENT_NAME | 不含加購；舊 session 若當加購停在此，先補收件 |
 | ASK_RECIPIENT_NAME | 收件人姓名 | ASK_RECIPIENT_PHONE | 開箱文，非開戶暱稱 |
 | ASK_RECIPIENT_PHONE | 收件手機 | ASK_STORE | |
 | ASK_STORE | 輸入 7-11 關鍵字／門市查詢 | CONFIRM_STORE | 候選 Flex 按鈕；選門市時「介紹」不當離開 |
-| CONFIRM_STORE | 選候選／重選門市 | ASK_INSTAGRAM | |
+| CONFIRM_STORE | 選候選／重選門市 | ASK_UPSELL | 運送資訊齊備後才問加購 |
+| ASK_UPSELL | 想加購／這次先不加 | ASK_INSTAGRAM | 399/886 免運說明；舊 ASK_UPSELL 若收件未齊先導回運送欄 |
 | ASK_INSTAGRAM | `@` 帳號 | ASK_PET_NAME | |
 | ASK_PET_NAME | 開箱毛孩名（可略過） | ASK_CONTENT_LICENSE | |
 | ASK_CONTENT_LICENSE | 同意／不同意（單一 Flex 按鈕卡） | SHOW_ORDER_CONFIRMATION | 接受「同意」／「我同意」 |
