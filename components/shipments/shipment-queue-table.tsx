@@ -17,10 +17,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
-import {
-  isJibaPaymentReviewHold,
-  JIBA_PAYMENT_REVIEW_LABEL,
-} from '@/lib/campaigns/jiba-two-piece/payment';
+import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
@@ -50,11 +47,14 @@ export type ShipmentQueueRow = {
     orderNumber: string;
     status: string;
     paymentStatus: string;
+    shippingFeeType?: string;
     shippingMethod: string;
     cvsBrand: string | null;
     cvsStoreId: string | null;
     cvsStoreName: string | null;
   } | null;
+  fulfillmentFeeLabel?: string | null;
+  paymentReviewHold?: boolean;
   items: Array<{
     productName: string;
     weightGrams: number | null;
@@ -265,7 +265,14 @@ function ShipmentQueueCard({
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
-            {isJibaPaymentReviewHold(shipment.order) ? (
+            {shipment.fulfillmentFeeLabel ? (
+              <Badge
+                variant={shipment.paymentReviewHold ? 'warning' : 'outline'}
+                className="h-5 px-1.5 text-[10px] font-normal"
+              >
+                {shipment.fulfillmentFeeLabel}
+              </Badge>
+            ) : shipment.paymentReviewHold ? (
               <Badge variant="warning" className="h-5 px-1.5 text-[10px] font-normal">
                 {JIBA_PAYMENT_REVIEW_LABEL}
               </Badge>
@@ -285,7 +292,7 @@ function ShipmentQueueCard({
           status={shipment.status}
           queueStatus={queueStatus}
           queueType={queueType}
-          paymentReviewHold={isJibaPaymentReviewHold(shipment.order)}
+          paymentReviewHold={Boolean(shipment.paymentReviewHold)}
           className="max-w-none"
         />
       </div>
@@ -392,7 +399,14 @@ export function ShipmentQueueTable({
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
                         {shipmentTypeLabel[shipment.type] ?? shipment.type}
                       </Badge>
-                      {isJibaPaymentReviewHold(shipment.order) ? (
+                      {shipment.fulfillmentFeeLabel ? (
+                        <Badge
+                          variant={shipment.paymentReviewHold ? 'warning' : 'outline'}
+                          className="h-4 px-1 text-[9px] font-normal"
+                        >
+                          {shipment.fulfillmentFeeLabel}
+                        </Badge>
+                      ) : shipment.paymentReviewHold ? (
                         <Badge variant="warning" className="h-4 px-1 text-[9px] font-normal">
                           {JIBA_PAYMENT_REVIEW_LABEL}
                         </Badge>
@@ -406,7 +420,7 @@ export function ShipmentQueueTable({
                       status={shipment.status}
                       queueStatus={queueStatus}
                       queueType={queueType}
-                      paymentReviewHold={isJibaPaymentReviewHold(shipment.order)}
+                      paymentReviewHold={Boolean(shipment.paymentReviewHold)}
                     />
                   </TableCell>
                   <TableCell className="py-3">

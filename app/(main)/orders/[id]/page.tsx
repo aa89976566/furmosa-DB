@@ -27,6 +27,7 @@ import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 import {
   ArrowLeft,
@@ -157,7 +158,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             {order.note ? (
               <div className="mt-3 flex gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span className="whitespace-pre-line">{order.note}</span>
+                <span className="whitespace-pre-line">{replaceJibaLegacyCatnipName(order.note)}</span>
               </div>
             ) : null}
           </HorizontalSectionPane>
@@ -319,7 +320,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {it.productName}
+                          {replaceJibaLegacyCatnipName(it.productName)}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">

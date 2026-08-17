@@ -78,13 +78,15 @@ describe('jiba invite / product menus', () => {
     const raw = flexRaw(jibaProductChoiceMenu());
     assert.match(raw, /"text":"選雞霸"/);
     assert.match(raw, /"text":"選青蛙"/);
-    assert.match(raw, /"text":"選貓草雞肉乾"/);
+    assert.match(raw, /"text":"選貓草雞肉薄片"/);
     assert.match(raw, /"label":"雞霸"/);
     assert.match(raw, /"label":"青蛙"/);
-    assert.match(raw, /貓草雞肉乾 30g/);
+    assert.match(raw, /貓草雞肉薄片 30g/);
+    assert.doesNotMatch(raw, /貓草雞肉乾/);
     assert.equal((raw.match(/"type":"button"/g) ?? []).length, 3);
     assert.equal(validRecipientName('選雞霸'), null);
     assert.equal(validRecipientName('選青蛙'), null);
+    assert.equal(validRecipientName('選貓草雞肉薄片'), null);
     assert.equal(validRecipientName('選貓草雞肉乾'), null);
   });
 
@@ -255,6 +257,10 @@ describe('jiba state sequence', () => {
       action: 'pick_product',
       productKey: 'frog',
     });
+    assert.deepEqual(decideJibaUnboxMessage({ ...askProduct, text: '選貓草雞肉薄片' }), {
+      action: 'pick_product',
+      productKey: 'catnip',
+    });
     assert.deepEqual(decideJibaUnboxMessage({ ...askProduct, text: '選貓草雞肉乾' }), {
       action: 'pick_product',
       productKey: 'catnip',
@@ -317,7 +323,7 @@ describe('jiba state sequence', () => {
       };
       const picked = decideJibaUnboxMessage({
         ...askProduct,
-        text: productKey === 'jiba' ? '選雞霸' : productKey === 'frog' ? '選青蛙' : '選貓草雞肉乾',
+        text: productKey === 'jiba' ? '選雞霸' : productKey === 'frog' ? '選青蛙' : '選貓草雞肉薄片',
       });
       assert.deepEqual(picked, { action: 'pick_product', productKey });
 
@@ -444,7 +450,7 @@ describe('jiba state sequence', () => {
       'frog',
     );
     assert.equal(
-      (decideJibaUnboxMessage({ ...askProduct, text: '選貓草雞肉乾' }) as { productKey?: string })
+      (decideJibaUnboxMessage({ ...askProduct, text: '選貓草雞肉薄片' }) as { productKey?: string })
         .productKey,
       'catnip',
     );

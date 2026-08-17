@@ -36,7 +36,7 @@ export type AppStatus = (typeof APP_STATUS)[keyof typeof APP_STATUS];
 export const FLOW_STATE = {
   CAMPAIGN_INTRO: 'CAMPAIGN_INTRO',
   SHOW_RULES: 'SHOW_RULES',
-  /** 選開箱商品：雞霸兩片／青蛙凍乾一隻／貓草雞肉乾 30g */
+  /** 選開箱商品：雞霸兩片／青蛙凍乾一隻／貓草雞肉薄片 30g */
   ASK_PRODUCT: 'ASK_PRODUCT',
   /** 選完商品：該品必要說明（不含加購） */
   SHOW_BRIEF: 'SHOW_BRIEF',
@@ -61,7 +61,7 @@ export const FLOW_STATE = {
 
 export type FlowState = (typeof FLOW_STATE)[keyof typeof FLOW_STATE];
 
-/** 貓草雞肉乾用途說明（僅文案；不改 catnip-chick 網站） */
+/** 貓草雞肉薄片用途說明（僅文案；不改 catnip-chick 網站、不改目錄其他貓草商品） */
 export const CATNIP_CHICK_HOMEPAGE_URL = 'https://catnip-chick.vercel.app/?cat=1';
 
 /** 開箱可選商品（存 collectedDataJson.productKey） */
@@ -84,11 +84,11 @@ export const JIBA_PRODUCTS = {
   },
   catnip: {
     key: 'catnip',
-    label: '貓草雞肉乾 30g',
-    shortLabel: '貓草雞肉乾',
+    label: '貓草雞肉薄片 30g',
+    shortLabel: '貓草雞肉薄片',
     quantity: 1,
     unit: '包',
-    orderLabel: '貓草雞肉乾 30g',
+    orderLabel: '貓草雞肉薄片 30g',
   },
 } as const;
 
@@ -102,27 +102,45 @@ export function isJibaProductKey(value: unknown): value is JibaProductKey {
 export const JIBA_PRODUCT_BUTTON_LABEL = {
   jiba: '雞霸',
   frog: '青蛙',
-  catnip: '貓草雞肉乾 30g',
+  catnip: '貓草雞肉薄片 30g',
 } as const;
 
 /** LINE message action payload：加「選」前綴，避免被姓名驗證誤收 */
 export const JIBA_PRODUCT_ACTION_TEXT = {
   jiba: '選雞霸',
   frog: '選青蛙',
-  catnip: '選貓草雞肉乾',
+  catnip: '選貓草雞肉薄片',
 } as const;
 
-/** LINE 按鈕／打字選商品 */
+/** 舊顯示名／舊按鈕：可辨識，畫面一律用新名稱 */
+export const JIBA_CATNIP_LEGACY_LABELS = [
+  '貓草雞肉乾 30g',
+  '貓草雞肉乾30g',
+  '貓草雞肉乾',
+] as const;
+
+/** LINE 按鈕／打字選商品（含舊稱 alias） */
 export function parseJibaProductKey(text: string): JibaProductKey | null {
   const t = text.trim();
   if (/^(?:選雞霸兩片|選雞霸|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) {
     return 'jiba';
   }
   if (/^(?:選青蛙凍乾|選青蛙|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
-  if (/^(?:選貓草雞肉乾(?:\s*30g)?|貓草雞肉乾\s*30g?|貓草雞肉乾|貓草)$/i.test(t)) {
+  if (
+    /^(?:選貓草雞肉薄片(?:\s*30g)?|貓草雞肉薄片\s*30g?|貓草雞肉薄片|選貓草雞肉乾(?:\s*30g)?|貓草雞肉乾\s*30g?|貓草雞肉乾|貓草)$/i.test(
+      t,
+    )
+  ) {
     return 'catnip';
   }
   return null;
+}
+
+/** 舊「貓草雞肉乾」只改開箱顯示，不碰目錄其他貓草商品 */
+export function replaceJibaLegacyCatnipName(text: string): string {
+  return text.replace(/貓草雞肉乾(?:\s*30g)?/g, (match) =>
+    /30g/i.test(match) ? JIBA_PRODUCTS.catnip.orderLabel : JIBA_PRODUCTS.catnip.shortLabel,
+  );
 }
 
 export function parseCollectedDataJson(

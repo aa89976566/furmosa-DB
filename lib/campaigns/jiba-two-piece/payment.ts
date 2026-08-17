@@ -245,17 +245,79 @@ export const SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES = ['cancelled'] as const;
 export const JIBA_PAYMENT_REVIEW_ORDER_STATUS = 'awaiting_shipping_payment' as const;
 export const JIBA_PAYMENT_REVIEW_LABEL = '等運費核對';
 
-/** 已核准但運費尚未核對：列表要看得到，不可當成可立即寄出 */
+export type JibaShippingChargeKind =
+  | 'awaiting_declaration'
+  | 'declared'
+  | 'paid'
+  | 'free_threshold'
+  | 'free_waived';
+
+export type JibaShippingChargeDisplay = {
+  kind: JibaShippingChargeKind;
+  label: string;
+  hold: boolean;
+};
+
+/** 開箱運費顯示：只有真正免運才寫免運，不把未付／待核帳顯示成包郵 */
+export function describeJibaShippingCharge(input: {
+  paymentStatus?: string | null;
+  collected?: Record<string, unknown> | string | null;
+}): JibaShippingChargeDisplay {
+  if (input.paymentStatus === PAYMENT_STATUS.WAIVED) {
+    return { kind: 'free_waived', label: '免運', hold: false };
+  }
+  const fee = assessJibaShippingFee(input.collected);
+  if (!fee.due) {
+    const kind: JibaShippingChargeKind =
+      fee.reason === 'waived' ? 'free_waived' : 'free_threshold';
+    return {
+      kind,
+      label: kind === 'free_threshold' ? '加購達門檻｜免運' : '免運',
+      hold: false,
+    };
+  }
+  if (input.paymentStatus === PAYMENT_STATUS.PAID) {
+    return {
+      kind: 'paid',
+      label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜已核帳`,
+      hold: false,
+    };
+  }
+  if (isJibaPaymentDeclared(input.paymentStatus, input.collected)) {
+    return {
+      kind: 'declared',
+      label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜已申報待核帳`,
+      hold: true,
+    };
+  }
+  return {
+    kind: 'awaiting_declaration',
+    label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜待申報`,
+    hold: true,
+  };
+}
+
+/** 已核准但運費尚未核對／未入帳：列表要看得到，不可當成可立即寄出 */
 export function isJibaPaymentReviewHold(order?: {
   status?: string | null;
+  orderStatus?: string | null;
   paymentStatus?: string | null;
+  collected?: Record<string, unknown> | string | null;
+  isJiba?: boolean;
 } | null): boolean {
-  return order?.status === JIBA_PAYMENT_REVIEW_ORDER_STATUS;
+  if (!order) return false;
+  const status = order.orderStatus ?? order.status;
+  if (status === JIBA_PAYMENT_REVIEW_ORDER_STATUS) return true;
+  if (!order.isJiba) return false;
+  return describeJibaShippingCharge(order).hold;
 }
 
 export function canMarkJibaShipmentShipped(order?: {
   status?: string | null;
+  orderStatus?: string | null;
   paymentStatus?: string | null;
+  collected?: Record<string, unknown> | string | null;
+  isJiba?: boolean;
 } | null): boolean {
   return !isJibaPaymentReviewHold(order);
 }

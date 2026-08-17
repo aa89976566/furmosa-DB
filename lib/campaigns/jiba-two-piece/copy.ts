@@ -21,7 +21,7 @@ export const JIBA_INVITE_DECLINE_REPLY =
   '好，這次先不用沒關係。之後想參加，再傳「開箱任務」就好。';
 export const JIBA_INVITE_REPROMPT = '這步用下面按鈕回就好：我要參加，或先不用。';
 export const JIBA_ASK_PRODUCT_PROMPT = '這次想讓毛孩體驗哪一樣？點下面就好。';
-export const JIBA_ASK_PRODUCT_ALT_TEXT = '選開箱商品：雞霸、青蛙、貓草雞肉乾 30g';
+export const JIBA_ASK_PRODUCT_ALT_TEXT = '選開箱商品：雞霸、青蛙、貓草雞肉薄片 30g';
 export const JIBA_ASK_PRODUCT_TITLE = '選這次體驗的商品';
 
 /** @deprecated 舊長介紹；入口改走 JIBA_INVITE_*，保留給既有測試對照 */
@@ -33,7 +33,7 @@ export const JIBA_INTRO = `毛孩開箱體驗募集
 
 export const JIBA_RULES = `參加方式很單純：
 
-① 選一種體驗商品（雞霸、青蛙或貓草雞肉乾 30g）
+① 選一種體驗商品（雞霸、青蛙或貓草雞肉薄片 30g）
 ② 拍毛孩開箱／試吃的真實樣子
 ③ 發 Instagram Reels，標記 @furmosa_food
 ④ 素材經你授權後，可能用在官網、IG、LINE 或活動宣傳
@@ -46,7 +46,7 @@ export const JIBA_ASK_PRODUCT = `這次想讓毛孩體驗哪一樣？`;
 export const JIBA_PRODUCT_PICKED = {
   jiba: `好，這次體驗「壕大大雞霸兩片」。`,
   frog: `好，這次體驗「青蛙凍乾一隻」。`,
-  catnip: `好，這次體驗「貓草雞肉乾 30g」。`,
+  catnip: `好，這次體驗「貓草雞肉薄片 30g」。`,
 } as const;
 
 export const JIBA_BRIEF_CONTINUE = '好，開始填收件資訊';
@@ -170,7 +170,7 @@ export function jibaLicenseBody(productKey?: JibaProductKey): string {
   if (productKey !== 'catnip') return JIBA_LICENSE_BODY;
   return `${JIBA_LICENSE_BODY}
 
-這次貓咪試吃貓草雞肉乾的真實反應，經你按「我同意」後，也可能用在這頁：
+這次貓咪試吃貓草雞肉薄片的真實反應，經你按「我同意」後，也可能用在這頁：
 ${CATNIP_CHICK_HOMEPAGE_URL}`;
 }
 

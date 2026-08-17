@@ -51,6 +51,22 @@ describe('PENDING_REVIEW approve appears in shipment list', () => {
     const order = { status: decision.nextOrderStatus };
     assert.equal(isJibaPaymentReviewHold(order), true);
     assert.equal(canMarkJibaShipmentShipped(order), false);
+    assert.equal(
+      isJibaPaymentReviewHold({
+        status: 'confirmed',
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        isJiba: true,
+      }),
+      true,
+    );
+    assert.equal(
+      canMarkJibaShipmentShipped({
+        status: 'confirmed',
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        isJiba: true,
+      }),
+      false,
+    );
     const where = activeShipmentQueueWhere;
     const hidden = where.OR;
     assert.ok(Array.isArray(hidden));
@@ -76,5 +92,6 @@ describe('PENDING_REVIEW approve appears in shipment list', () => {
     const src = readFileSync(new URL('../../../../app/(main)/shipments/actions.ts', import.meta.url), 'utf8');
     assert.match(src, /canMarkJibaShipmentShipped/);
     assert.match(src, /JIBA_PAYMENT_REVIEW_LABEL/);
+    assert.match(src, /loadJibaChargeSourcesByOrderIds/);
   });
 });
