@@ -9,6 +9,12 @@ import { isBookableForRefill } from '@/lib/refill/eligibility';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import {
+  CUSTOMER_PAYMENT_SELECT,
+  mapCustomerPayments,
+  type CustomerPaymentView,
+} from '@/lib/refill/integrity-lock';
+import { REFILL_COPY } from '@/lib/refill/copy';
 
 export async function countIssuedJars(customerId: string): Promise<number> {
   return prisma.jarCode.count({
@@ -106,7 +112,7 @@ export async function getRefillEligibility(input: {
         include: { merchant: { select: { name: true } } },
       });
       if (!appt || appt.customerId !== input.customerId) {
-        throw new RefillError('目前找不到可換罐的預約。', 'NO_BOOKING', 404);
+        throw new RefillError(REFILL_COPY.noBooking, 'NO_BOOKING', 404);
       }
       const check = isBookableForRefill({
         status: appt.status,
@@ -116,8 +122,8 @@ export async function getRefillEligibility(input: {
       if (!check.ok) {
         throw new RefillError(
           check.code === 'BOOKING_NOT_CONFIRMED'
-            ? '這筆預約尚未確認，確認後才能付款。'
-            : '目前找不到可換罐的預約。',
+            ? REFILL_COPY.bookingNotConfirmed
+            : REFILL_COPY.noBooking,
           check.code ?? 'NO_BOOKING',
           400,
         );
@@ -173,7 +179,7 @@ export async function createRefillOrder(input: {
     include: { merchant: { select: { id: true, name: true } } },
   });
   if (!appointment || appointment.customerId !== input.customerId) {
-    throw new RefillError('目前找不到可換罐的預約。', 'NO_BOOKING', 404);
+    throw new RefillError(REFILL_COPY.noBooking, 'NO_BOOKING', 404);
   }
 
   const bookOk = isBookableForRefill({
@@ -184,8 +190,8 @@ export async function createRefillOrder(input: {
   if (!bookOk.ok) {
     throw new RefillError(
       bookOk.code === 'BOOKING_NOT_CONFIRMED'
-        ? '這筆預約尚未確認，確認後才能付款。'
-        : '目前找不到可換罐的預約。',
+        ? REFILL_COPY.bookingNotConfirmed
+        : REFILL_COPY.noBooking,
       bookOk.code ?? 'NO_BOOKING',
       400,
     );
@@ -272,6 +278,7 @@ export async function getRefillOrderForCustomer(orderId: string, customerId: str
       payments: {
         orderBy: { createdAt: 'desc' },
         take: 5,
+        select: CUSTOMER_PAYMENT_SELECT,
       },
     },
   });
@@ -303,8 +310,16 @@ export function serializeOrder(order: {
     status: string;
     serviceName: string;
   };
-  payments?: { id: string; purpose: string; amount: number; status: string; merchantTradeNo: string }[];
+  payments?: Array<{
+    id: string;
+    purpose: string;
+    amount: number;
+    status: string;
+    paidAt: Date | string | null;
+    merchantTradeNo: string;
+  }>;
 }) {
+  const payments: CustomerPaymentView[] = mapCustomerPayments(order.payments);
   return {
     id: order.id,
     status: order.status,
@@ -326,6 +341,6 @@ export function serializeOrder(order: {
     missingContainerNote: order.missingContainerNote,
     paidAt: order.paidAt?.toISOString() ?? null,
     completedAt: order.completedAt?.toISOString() ?? null,
-    payments: order.payments ?? [],
+    payments,
   };
 }

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { LedgerSourceType } from '@/lib/jar-exchange/constants';
+import { isPointsLedgerUniqueConflict } from '@/lib/refill/integrity-lock';
 
 type Db = Prisma.TransactionClient;
 
@@ -41,3 +42,6 @@ export async function appendPointsLedger(
     },
   });
 }
+
+export { isPointsLedgerUniqueConflict };
+

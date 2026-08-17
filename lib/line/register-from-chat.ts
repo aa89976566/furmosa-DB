@@ -15,8 +15,12 @@ import {
   buildRegisterConfirmMessages,
   buildStorePickerMessages,
 } from '@/lib/line/flex-menu';
-import { buildEnterCodePromptMessages, buildJarStartMessages, buildWorldHubMessages } from '@/lib/line/flex-hubs';
-import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
+import {
+  buildEnterCodePromptMessages,
+  buildJarStartMessages,
+  buildRefillLaunchMessages,
+  buildWorldHubMessages,
+} from '@/lib/line/flex-hubs';
 import {
   LINE_BTN,
   LINE_PET_BIRTHDAY_PROMPT,
@@ -103,7 +107,8 @@ async function replyRegisterStepPromptOnce(
 
 /**
  * 開戶：主人（暱稱／手機／店）→ 毛孩 → 完成
- * resumeAfter=enter_code：完成後自動回到「輸入序號」提示，不必再按一次。
+ * resumeAfter=enter_code：完成後回到輸入空罐序號提示。
+ * resumeAfter=start_refill：完成後回單一「開始換罐」LIFF 按鈕。
  */
 export async function startRegisterFlow(
   replyToken: string,
@@ -116,10 +121,19 @@ export async function startRegisterFlow(
       await replyLineMessage(replyToken, [
         {
           type: 'text',
-          text: `這隻毛孩已經開過戶囉（${existing.name}），直接輸入序號就可以了。`,
+          text: `這隻毛孩已經開過戶囉（${existing.name}），直接輸入空罐序號就可以了。`,
         },
         ...buildEnterCodePromptMessages(),
       ]);
+      return;
+    }
+    if (opts?.resumeAfter === 'start_refill') {
+      await replyLineMessage(
+        replyToken,
+        buildRefillLaunchMessages({
+          body: `這隻毛孩已經開過戶囉（${existing.name}）。\n店家確認過預約後，點下面就能付換罐款。`,
+        }),
+      );
       return;
     }
     // 舊介紹卡「立即開戶」／重複開戶：改回「開始換罐」下一步卡，不重跑開戶文案
@@ -128,7 +142,6 @@ export async function startRegisterFlow(
       buildJarStartMessages({
         registered: true,
         customerName: existing.name,
-        refillLiffUrl: getLiffUrlIfConfigured('refill'),
       }),
     );
     return;
@@ -142,12 +155,13 @@ export async function startRegisterFlow(
   await upsertLineChatSession(lineUserId, 'register', 'name', {
     resumeAfter: opts?.resumeAfter ?? null,
   });
-  await replyLineText(
-    replyToken,
+  const resumeHint =
     opts?.resumeAfter === 'enter_code'
-      ? `${LINE_REGISTER_INTRO}\n\n（開完會自動帶你回輸入序號）`
-      : LINE_REGISTER_INTRO,
-  );
+      ? '\n\n（開完會自動帶你回輸入空罐序號）'
+      : opts?.resumeAfter === 'start_refill'
+        ? '\n\n（開完會帶你去換罐）'
+        : '';
+  await replyLineText(replyToken, `${LINE_REGISTER_INTRO}${resumeHint}`);
 }
 
 export async function handleRegisterFlowMessage(
@@ -403,7 +417,15 @@ export async function handleRegisterPostback(
         await replyLineMessage(replyToken, [
           { type: 'text', text: `${doneText}\n\n接下來可以這樣做～` },
           { type: 'text', text: nextHint },
+          ...buildEnterCodePromptMessages().slice(1),
         ]);
+      } else if (resumeAfter === 'start_refill') {
+        await replyLineMessage(
+          replyToken,
+          buildRefillLaunchMessages({
+            body: `${doneText}\n\n開戶好了。店家確認過預約後，點下面就能付換罐款。`,
+          }),
+        );
       } else {
         await replyLineMessage(replyToken, [
           {

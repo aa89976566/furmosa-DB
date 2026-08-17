@@ -214,18 +214,59 @@ export const CHAOS_COPY: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * 換罐計劃選單（台灣 20–40 毛爸媽口吻）。
- * 順序：什麼是換罐計劃？→ 開戶 →（有 LIFF）線上預購換罐 → 輸入序號（highlight）→ 點數換折價 → 毛爸媽常問
+ * 換罐計劃一級選單（三主鍵＋了解更多）。
+ * 「我要換罐」只送文字／postback，由伺服器確認開戶後才給 LIFF。
  */
-export function buildJarHubItems(
-  _registered: boolean,
-  opts?: { refillLiffUrl?: string | null },
-): {
+export function buildJarHubItems(_registered: boolean): {
   items: WorldMenuItem[];
   primaryId: string;
   body: string;
 } {
   const items: WorldMenuItem[] = [
+    {
+      id: 'jar_refill',
+      mark: '',
+      label: '我要換罐',
+      subtitle: '店家確認預約後，再進來付換罐款。',
+      heroKey: 'jar-explain',
+      message: '我要換罐',
+    },
+    {
+      id: 'jar_reg',
+      mark: '',
+      label: '幫毛孩開戶',
+      subtitle: '開好戶，空罐序號才能記進毛孩名下。',
+      heroKey: 'jar-reg',
+      message: '幫毛孩開戶',
+    },
+    {
+      id: 'jar_enter',
+      mark: '',
+      label: '輸入空罐序號',
+      subtitle: '罐底那串 8 碼傳上來，就記進去囉。',
+      heroKey: 'jar-enter',
+      message: '輸入空罐序號',
+    },
+    {
+      id: 'jar_more',
+      mark: '',
+      label: '了解更多',
+      subtitle: '怎麼換、點數、合作店家、常問。',
+      heroKey: 'jar-faq',
+      message: '了解更多',
+    },
+  ];
+
+  return {
+    primaryId: 'jar_refill',
+    body: '',
+    items,
+  };
+}
+
+/** 換罐二級：說明／點數／店家／FAQ（不刪內容，只移出一級） */
+export function buildJarMoreHelpItems(): WorldMenuItem[] {
+  return [
     {
       id: 'jar_explain_intro',
       mark: '',
@@ -235,43 +276,20 @@ export function buildJarHubItems(
       message: '什麼是換罐計劃？',
     },
     {
-      id: 'jar_reg',
-      mark: '',
-      label: '幫毛孩開戶',
-      subtitle: '開好戶，罐底序號才能進你家毛孩名下。',
-      heroKey: 'jar-reg',
-      message: '幫毛孩開戶',
-    },
-  ];
-
-  const refillUrl = opts?.refillLiffUrl?.trim();
-  if (refillUrl) {
-    items.push({
-      id: 'jar_refill_pay',
-      mark: '',
-      label: '線上預購換罐',
-      subtitle: '預約確認後，在這裡付換罐款、預購下一罐。',
-      heroKey: 'jar-explain',
-      uri: refillUrl,
-    });
-  }
-
-  items.push(
-    {
-      id: 'jar_enter',
-      mark: '',
-      label: '輸入序號',
-      subtitle: '罐底那串 8 碼傳上來，就記進去囉。',
-      heroKey: 'jar-enter',
-      message: '輸入序號',
-    },
-    {
       id: 'redeem_coupon',
       mark: '',
       label: '點數換折價',
-      subtitle: '存滿點數，換成合作店美容折價券。',
+      subtitle: '存滿點數，換成合作店家美容折價券。',
       heroKey: 'jar-vault',
       message: '點數換折價',
+    },
+    {
+      id: 'jar_stores',
+      mark: '',
+      label: '查看合作店家',
+      subtitle: '空罐可以回去的地方。',
+      heroKey: 'jar-explain',
+      message: '查看合作店家',
     },
     {
       id: 'jar_faq',
@@ -281,14 +299,7 @@ export function buildJarHubItems(
       heroKey: 'jar-faq',
       message: '毛爸媽常問',
     },
-  );
-
-  return {
-    // 輸入序號固定主色 highlight
-    primaryId: 'jar_enter',
-    body: '',
-    items,
-  };
+  ];
 }
 
 /** 回家：官網＋IG，讓人自然繼續晃 */

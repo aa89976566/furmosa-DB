@@ -1,5 +1,6 @@
 import type { RefillOrderType } from '@/lib/refill/constants';
 import { REFILL_ACTIVE_STATUSES, REFILL_PRICES } from '@/lib/refill/constants';
+import { REFILL_COPY } from '@/lib/refill/copy';
 
 export type BookingEligibilityInput = {
   status: string;
@@ -79,8 +80,8 @@ export function resolveOrderTypeAndAmount(input: {
       code: bookingOk.code ?? 'NO_BOOKING',
       reason:
         bookingOk.code === 'BOOKING_NOT_CONFIRMED'
-          ? '這筆預約尚未確認，確認後才能付款。'
-          : '目前找不到可換罐的預約。',
+          ? REFILL_COPY.bookingNotConfirmed
+          : REFILL_COPY.noBooking,
     };
   }
 

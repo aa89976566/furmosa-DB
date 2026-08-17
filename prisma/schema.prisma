@@ -246,7 +246,8 @@ model MemberPointsLedger {
 
   @@index([customerId, createdAt])
   @@index([sourceType])
-  @@index([sourceType, sourceRefId])
+  /// 冪等鍵：同一 sourceType+sourceRefId 最多一筆（PostgreSQL 允許多筆 sourceRefId IS NULL）
+  @@unique([sourceType, sourceRefId])
   @@map("member_points_ledger")
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildJarHubItems } from '../brand-worlds';
+import { buildJarHubItems, buildJarMoreHelpItems } from '../brand-worlds';
 import { buildMainMenuMessages } from '../flex-menu';
 import {
   buildWorldHubMessages,
@@ -14,6 +14,10 @@ import {
   buildEventsCenterMessages,
   buildJarExplainTopicMessages,
   buildJarStartMessages,
+  buildConversationRecoveryMessages,
+  buildRefillLaunchMessages,
+  buildJarMoreHelpMessages,
+  REFILL_LIFF_UNAVAILABLE,
   GROOMING_SOON_COPY,
 } from '../flex-hubs';
 import { WORLD_THEME } from '../card-theme';
@@ -85,107 +89,111 @@ describe('垂直按鈕選單', () => {
         },
       ],
     });
-    assert.equal(flex.contents.type, 'bubble');
+    const bubble = flex as { contents: { type?: string } };
+    assert.equal(bubble.contents.type, 'bubble');
     assert.match(JSON.stringify(flex), /"type":"button"/);
     assert.doesNotMatch(JSON.stringify(flex), /carousel/);
   });
 });
 
 describe('換罐計劃選單', () => {
-  const fiveIds = [
-    'jar_explain_intro',
-    'jar_reg',
-    'jar_enter',
-    'redeem_coupon',
-    'jar_faq',
-  ];
+  const primaryIds = ['jar_refill', 'jar_reg', 'jar_enter', 'jar_more'];
 
-  it('未開戶：固定五鍵，輸入序號 highlight', () => {
+  it('一級三主鍵＋了解更多；我要換罐 highlight；不直接掛 LIFF URI', () => {
     const hub = buildJarHubItems(false);
     const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, fiveIds);
-    assert.equal(hub.primaryId, 'jar_enter');
+    assert.deepEqual(ids, primaryIds);
+    assert.equal(hub.primaryId, 'jar_refill');
     assert.deepEqual(
       hub.items.map((i) => i.label),
-      ['什麼是換罐計劃？', '幫毛孩開戶', '輸入序號', '點數換折價', '毛爸媽常問'],
+      ['我要換罐', '幫毛孩開戶', '輸入空罐序號', '了解更多'],
     );
-    assert.ok(!ids.includes('jar_explain'));
-    assert.ok(!ids.includes('jar_stores'));
+    assert.equal(hub.items.find((i) => i.id === 'jar_refill')!.message, '我要換罐');
+    assert.equal(hub.items.find((i) => i.id === 'jar_refill')!.uri, undefined);
+    assert.ok(!ids.includes('jar_refill_pay'));
+    assert.ok(!ids.includes('jar_explain_intro'));
   });
 
-  it('已開戶：同樣五鍵與語境文案', () => {
+  it('已開戶與未開戶同一級選單形狀', () => {
     const hub = buildJarHubItems(true);
-    const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, fiveIds);
-    assert.equal(hub.primaryId, 'jar_enter');
-    assert.equal(hub.items.find((i) => i.id === 'jar_reg')!.label, '幫毛孩開戶');
-    assert.equal(hub.items.find((i) => i.id === 'redeem_coupon')!.label, '點數換折價');
-    assert.equal(hub.items.find((i) => i.id === 'jar_faq')!.label, '毛爸媽常問');
-  });
-
-  it('有 LIFF URL 時第三鍵為線上預購換罐', () => {
-    const hub = buildJarHubItems(true, {
-      refillLiffUrl: 'https://liff.line.me/2009953429-1hqRSGV8',
-    });
-    assert.equal(hub.items[2]?.id, 'jar_refill_pay');
-    assert.equal(hub.items[2]?.label, '線上預購換罐');
-    assert.equal(hub.items[2]?.uri, 'https://liff.line.me/2009953429-1hqRSGV8');
-    assert.equal(hub.primaryId, 'jar_enter');
     assert.deepEqual(
       hub.items.map((i) => i.id),
-      [
-        'jar_explain_intro',
-        'jar_reg',
-        'jar_refill_pay',
-        'jar_enter',
-        'redeem_coupon',
-        'jar_faq',
-      ],
+      primaryIds,
     );
+    assert.equal(hub.primaryId, 'jar_refill');
   });
 
-  it('只回選單卡；輸入序號為 primary highlight', () => {
+  it('了解更多二級保留說明／點數／店家／FAQ', () => {
+    const items = buildJarMoreHelpItems();
+    assert.deepEqual(
+      items.map((i) => i.id),
+      ['jar_explain_intro', 'redeem_coupon', 'jar_stores', 'jar_faq'],
+    );
+    const msgs = buildJarMoreHelpMessages();
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /什麼是換罐計劃？/);
+    assert.match(raw, /點數換折價/);
+    assert.match(raw, /查看合作店家/);
+    assert.match(raw, /毛爸媽常問/);
+  });
+
+  it('只回選單卡；我要換罐為 primary，且無直連 liff.line.me', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
     assert.equal(guest.length, 1);
     assert.equal(guest[0]?.type, 'flex');
     const flex = flexFrom(guest);
     assert.equal(flex.contents.type, 'bubble');
-    // 測試環境通常未設 LINE_LIFF_ID_REFILL → 五鍵；有設則六鍵含「線上預購換罐」
     const raw = JSON.stringify(flex.contents);
-    const hasRefillEnv = Boolean(process.env.LINE_LIFF_ID_REFILL?.trim());
-    assert.equal(countButtons(flex), hasRefillEnv ? 6 : 5);
-    assert.match(raw, /什麼是換罐計劃？/);
+    assert.equal(countButtons(flex), 4);
+    assert.match(raw, /我要換罐/);
     assert.match(raw, /幫毛孩開戶/);
-    assert.match(raw, /毛爸媽常問/);
-    assert.match(raw, /點數換折價/);
-    assert.match(raw, /輸入序號/);
+    assert.match(raw, /輸入空罐序號/);
+    assert.match(raw, /了解更多/);
     assert.match(raw, /空罐先別丟/);
     assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /#F8F3EA8C/);
-    assert.doesNotMatch(raw, /這計劃到底幹嘛/);
-    assert.doesNotMatch(raw, /先別急著問客服/);
-    assert.doesNotMatch(raw, /吃完別丟/);
     assert.match(raw, /"style":"primary"/);
-    if (hasRefillEnv) {
-      assert.match(raw, /線上預購換罐/);
-      assert.match(raw, /liff\.line\.me/);
-    }
+    assert.doesNotMatch(raw, /liff\.line\.me/);
+    assert.doesNotMatch(raw, /線上預購換罐/);
     assert.doesNotMatch(raw, /點下面按鈕/);
-    assert.match(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
 
     const member = buildWorldHubMessages('jar', { registered: true });
-    assert.equal(member.length, 1);
-    const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), hasRefillEnv ? 6 : 5);
-    const memberRaw = JSON.stringify(memberFlex.contents);
-    assert.match(memberRaw, /輸入序號/);
-    assert.match(memberRaw, /點數換折價/);
-    assert.match(memberRaw, /幫毛孩開戶/);
-    assert.match(memberRaw, /"type":"message"/);
-    assert.match(memberRaw, /"style":"primary"/);
-    assert.doesNotMatch(memberRaw, /點數換好康/);
+    assert.equal(countButtons(flexFrom(member)), 4);
+  });
+});
+
+describe('換罐閘道 CTA／恢復卡', () => {
+  it('已確認開戶後才給開始換罐 URI；未設定則友善說明', () => {
+    const prev = process.env.LINE_LIFF_ID_REFILL;
+    try {
+      delete process.env.LINE_LIFF_ID_REFILL;
+      delete process.env.LINE_LIFF_ID;
+      const unavailable = buildRefillLaunchMessages();
+      const rawOff = JSON.stringify(unavailable);
+      assert.doesNotMatch(rawOff, /liff\.line\.me/);
+      assert.match(rawOff, new RegExp(REFILL_LIFF_UNAVAILABLE.slice(0, 8)));
+
+      process.env.LINE_LIFF_ID_REFILL = '2009953429-testRefill';
+      const ready = buildRefillLaunchMessages();
+      const rawOn = JSON.stringify(ready);
+      assert.match(rawOn, /開始換罐/);
+      assert.match(rawOn, /liff\.line\.me\/2009953429-testRefill/);
+      assert.equal(ready.filter((m) => m.type === 'flex').length, 1);
+    } finally {
+      if (prev === undefined) delete process.env.LINE_LIFF_ID_REFILL;
+      else process.env.LINE_LIFF_ID_REFILL = prev;
+    }
+  });
+
+  it('恢復卡四鍵：開戶／換罐／空罐序號／查看點數', () => {
+    const msgs = buildConversationRecoveryMessages('這句我們沒接住～');
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /幫毛孩開戶/);
+    assert.match(raw, /我要換罐/);
+    assert.match(raw, /輸入空罐序號/);
+    assert.match(raw, /查看點數/);
+    assert.equal(countButtons(flexFrom(msgs)), 4);
   });
 });
 
@@ -345,7 +353,7 @@ describe('換罐說明', () => {
     assert.doesNotMatch(JSON.stringify(msgs), /罐底那串 8 碼傳上來/);
   });
 
-  it('開始換罐：已開戶回下一步卡，不含開戶文案', () => {
+  it('開始換罐：已開戶回下一步卡，換罐走文字閘道不直連 URI', () => {
     const msgs = buildJarStartMessages({
       registered: true,
       customerName: '豆豆',
@@ -355,12 +363,12 @@ describe('換罐說明', () => {
     const raw = JSON.stringify(msgs);
     assert.match(raw, /開始換罐/);
     assert.match(raw, /豆豆 已開戶/);
-    assert.match(raw, /輸入序號/);
+    assert.match(raw, /輸入空罐序號/);
     assert.match(raw, /我要換罐/);
     assert.match(raw, /我的會員/);
+    assert.doesNotMatch(raw, /liff\.line\.me/);
     assert.doesNotMatch(raw, /幫毛孩開戶/);
     assert.doesNotMatch(raw, /立即開戶/);
-    assert.doesNotMatch(raw, /先幫毛孩開好戶/);
   });
 
   it('開始換罐：未開戶只引導開戶，不假裝已可輸入序號', () => {
@@ -369,7 +377,7 @@ describe('換罐說明', () => {
     assert.match(raw, /開始換罐/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /jar_reg&next=enter/);
-    assert.doesNotMatch(raw, /輸入序號/);
+    assert.doesNotMatch(raw, /輸入空罐序號/);
     assert.doesNotMatch(raw, /已開戶/);
   });
 
