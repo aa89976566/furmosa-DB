@@ -1,12 +1,12 @@
 # POS-02 Migration Plan
 
 > **地位：** POS-02 以後若要落庫，必須先過的閘門與順序。本輪**零資料庫變更**。
-> **版本：** v0.3
+> **版本：** v0.4
 > **日期：** 2026-08-17
 > **目標 SHA：** 只修 PR #128 head
-> `9681a46d8070dee06bbd9e3b972e91ca2f5302d8` 的兩份 docs。
+> `6dcb013b83d6a0553539aad6f31ba4269e004d65` 的兩份 docs。
 > **承接：** PR #126 head `fc067be26a9df60c94d4e04b6ca9081f42cb9caf`
-> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md` v0.3
+> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md` v0.4
 > **合約：** POS-01 仍是 canonical。本檔不覆蓋 POS-01。
 > **本輪硬禁止：** 不改 schema、不新增 `prisma/migrations`、不跑 migrate／db push／
 > seed／SQL／Supabase、**不產生可對 Production 執行的 migration SQL**、
@@ -23,9 +23,9 @@
 - 真實店家在 cutover 前**不能**寫新帳（no-real-POS gate）。
 - 新帳只在 Preview／shadow 比對。
 - 出問題時：停新寫、讀回舊帳；**不刪**已經寫進 V2 的不可變列。
-- 建表當天就要有能執行的約束：線上店收必須有明細、退款只能二選一來源、
-  冪等必須帶店家、綁定雙向一對一、券規則掛在綁定上、預約跟庫存同一筆交易、
-  金額只准 BigInt。
+- 建表當天就要有能執行的約束：線上店收必須有明細且與 Order 同單、
+  退款 header／line 同一張單、成交要記下當時 binding、
+  未履約取消只釋放預約、已履約可再售才加回庫存。
 
 本輪只改這份說明與提案，資料庫一行都不動。
 
@@ -38,7 +38,7 @@
 | 寫這兩份 docs | 改 `schema.prisma`、加 migration |
 | 寫「以後 Preview 用」的**查詢規格** | 把規格當成 Production migration 去跑 |
 | 把 drift／Store／Float 標成 blocker | 連正式庫或 Preview 執行 |
-| 關閉提案 v0.3 的 9 個 gate 文字 | merge、deploy、進 schema／POS-03 |
+| 關閉提案 v0.4 最後 4 項 gate 文字 | merge、deploy、進 schema／POS-03 |
 
 `git diff` 相對 POS-01 branch **只能多這兩個 docs**。
 
@@ -124,12 +124,12 @@ Shadow 允許：只讀複製／離線比對，不取代 HQ 月結出口。
 | 表 | 建表當日必須有 |
 |---|---|
 | `PosIdempotencyRecord` | `UNIQUE (id, merchant_id)`、`UNIQUE (merchant_id, scope, key)` |
-| `PosSale`／`PosSaleLine` | composite parent FK、金額 BigInt、逐 line 欄位、result → 冪等 composite FK |
-| `MerchantSaleSnapshot`／`MerchantSaleSnapshotLine` | `source_order_id` unique、`source_order_item_id` unique、Order／OrderItem merchant composite 或 raw 對等、逐 line product／tier／stock／policy／rate／commission／gross |
-| `RefundRequest`／`RefundLine` | exactly-one CHECK、兩邊都是真 composite FK、累計 constraint trigger |
-| `MerchantStoreBinding` | partial unique active merchant、partial unique active store、期間 CHECK、revoked／effective 一致 |
+| `PosSale`／`PosSaleLine` | composite parent FK、`bindingId` + `[binding_id, merchant_id]` → Binding、金額 BigInt、逐 line 欄位、result → 冪等 composite FK |
+| `MerchantSaleSnapshot`／`MerchantSaleSnapshotLine` | header／line 皆有 `source_order_id`；`source_order_id` unique、`source_order_item_id` unique；`line.source_order_id = header.source_order_id = OrderItem.order_id`；product／qty／price 來自該 item（能 FK 先 FK，其餘 DEFERRABLE trigger）；`bindingId` composite FK；Order／OrderItem merchant composite 或 raw 對等 |
+| `RefundRequest`／`RefundLine` | exactly-one CHECK、兩邊都是真 composite FK、header／line 同一來源 DEFERRABLE trigger、累計／佣金 lock 真正來源 line |
+| `MerchantStoreBinding` | partial unique active merchant、partial unique active store、期間 CHECK、revoked／effective 一致；fact 可指向已 revoked 的歷史列 |
 | `MerchantVoucherPolicy` | `[binding_id, merchant_id]` composite FK、version unique、期間 exclusion／partial、`face_twd IN (200, 250)` |
-| `InventoryReservation` | exactly-one source CHECK + composite FK、quantity>0、status allow-list、active partial unique、與 stock／ledger 同交易協定 |
+| `InventoryReservation` | exactly-one source CHECK + composite FK、quantity>0、status allow-list、active partial unique、與 stock／ledger 同交易協定、binding 從 fact 追溯、未履約取消只 release reserved |
 | `PosInventoryLedger` | stock composite FK、冪等 composite FK、金額 BigInt |
 | `PosSettlementV2`／adjustment | 金額 BigInt、approved immutability **trigger**（不以 REVOKE 取代） |
 
@@ -155,6 +155,8 @@ constraint trigger／DEFERRABLE constraint trigger。
 4. 讀端沒 ready **不可**當成 0 件
 5. `quantity` 只 mirror；cutover 後不可獨立寫
 6. reserve／release／fulfill 與 reservation／ledger **同一 transaction**
+7. 未履約取消：只 `reserved -= qty`，**不** `onHand += qty`
+8. 已履約且實物退回：HQ 核准後，可再售才 `onHand += qty`；不可售只寫 loss
 
 ### 5.4 Compatibility projection
 
@@ -272,16 +274,40 @@ Rollback **不是**刪 V2、也不是倒回 Production schema。
 
 1. Drift #112–#115（或核准替代）已關
 2. POS-01 contract bump（O1＋completed＋分型）已合併，或明確豁免紀錄
-3. Preview 演練必須涵蓋：
+3. Preview 演練必須涵蓋（**negative tests 見 §9.1**）：
+   - snapshot line 與 Order 同單；Order B item 掛 Order A snapshot 必須失敗
    - snapshot line 部分退款與佣金 exact cumulative
+   - refund header／line 同一來源；交叉 kind／不同單必須失敗
    - composite idempotency（含先驗 session 再查 key）
    - Order `[id, merchantId]` unique 或 raw 對等
-   - binding 雙向 active unique
+   - binding 雙向 active unique；fact 保存 `bindingId`
+   - A merchant + B store／binding、未 verified、超出有效期均 fail
    - voucher policy exclusion + faceTwd 200／250 + 無 policy fail closed
    - reservation exactly-one、未付不建、與 stock 同交易
+   - 未履約取消只 release reserved，不增加 onHand
+   - 已履約可再售才 onHand += qty；不可售只寫 loss
    - constraint trigger（退款累計、佣金、stock identity、approved 不可變）
    - BigInt JSON string round-trip
    - Float 規格用 Preview fixture 驗證後才當 gate
+
+### 9.1 Preview negative tests（只定義，本輪不執行、不跑 Production）
+
+| # | 必須失敗的案例 |
+|---|---|
+| S1 | 同 merchant，Order B 的 item 掛到 Order A 的 `MerchantSaleSnapshot` |
+| S2 | line.`sourceOrderId` ≠ header.`sourceOrderId` |
+| S3 | line.`sourceOrderId` ≠ 該 `sourceOrderItemId` 的 `OrderItem.orderId` |
+| S4 | product／qty／price 與該 OrderItem 不符 |
+| R1 | RefundRequest `pos_sale` + RefundLine `sale_snapshot_line` |
+| R2 | RefundRequest `sale_snapshot` + RefundLine `pos_sale_line` |
+| R3 | `PosSaleLine.saleId` ≠ request.`posSaleId`（同店不同單） |
+| R4 | `SnapshotLine.snapshotId` ≠ request.`saleSnapshotId` |
+| B1 | A merchant 寫入 B store／B binding 的 fact |
+| B2 | binding 未 verified（`verifiedAt` 空或 pending） |
+| B3 | `soldAt` 超出 binding `effectiveFrom`／`effectiveTo` |
+| B4 | reservation／refund 用 client 另傳的 `storeId` 覆寫 fact |
+| O1a | 未履約取消卻 `onHand += qty` |
+| O1b | 已履約不可售卻加可售 `onHand`（應只寫 loss） |
 4. 所有同 stock writer 切齊或阻擋清單已簽
 5. no-real-POS 解除授權
 6. backup、監控、roll-forward 負責人
@@ -296,6 +322,8 @@ Rollback **不是**刪 V2、也不是倒回 Production schema。
 ledger 不平衡、超額退款、佣金公式不符、已鎖期被改、quarantine 增加、
 bindings 被非 verified 路徑寫成 active、同一 merchant／store 出現第二個
 active binding、無 policy 仍發券、未付款出現 reservation、
+未履約取消卻增加 onHand、已履約不可售卻加可售庫存、
+snapshot line 掛錯 Order、refund header／line 交叉來源、
 `_prisma_migrations` 再分岔、真實店家在 flag 關閉時寫入 V2、
 API 金額不是字串。
 
@@ -323,13 +351,17 @@ API 金額不是字串。
 | Constraint ownership 改正 | **PASS** | 提案 §7；本檔 §5.1 禁止裸表、approved 用 trigger 不用 REVOKE 取代 |
 | 唯一 money type BigInt | **PASS** | 提案 §8；本檔 §7 |
 | Float NaN 不用 `x <> x` | **PASS** | §6.2 改 `= 'NaN'::float8` 或 Preview 驗證 text 法；Infinity／非整數／round-trip 標 fixture／EXPLAIN |
+| Snapshot↔Order 一致性 | **PASS** | 提案 §2.3.1；本檔 §5.1、§9.1 S1–S4 |
+| Refund header／line 同一來源 | **PASS** | 提案 §2.5.1；本檔 §5.1、§9.1 R1–R4 |
+| Fact 保存 authoritative binding | **PASS** | 提案 §4.4；本檔 §5.1、§9.1 B1–B4 |
+| O1 回庫文字已改正 | **PASS** | 提案 §11.1.1；本檔 §5.3、§9.1 O1a／O1b。未履約取消只 release；已履約實物退回才 restock 或 loss |
 
 ---
 
 ## 12. 仍未決／停止點
 
 - O3 豬窩三店正式 immutable IDs
-- POS-01 contract bump（O1 凍結）未開
+- POS-01 contract bump（把提案 §11.1.1 O1 寫進程式）未開
 - Drift #112–#115 未關
 - Order／OrderItem composite unique 要到 schema 階段才加；本輪只規定沒有就不建 snapshot
 

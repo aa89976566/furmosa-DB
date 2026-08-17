@@ -1,8 +1,7 @@
 # POS-02 Persistence Proposal
 
-> **文件狀態：** 提案 v0.3 — 關閉 channel-neutral sale line、merchant-safe
-> idempotency、binding 雙向 1:1、voucher policy、reservation invariant、
-> constraint ownership、唯一金額型別與 Float audit 寫法。
+> **文件狀態：** 提案 v0.4 — 關閉 snapshot↔Order 一致性、refund header/line
+> 同一來源、fact 保存 authoritative binding，並修正 O1 回庫文字。
 > **本輪禁止：** 修改 `schema.prisma`、建立 migration、執行 `db push` /
 > `migrate` / seed、改 runtime、操作正式資料庫或部署。
 > **本輪允許：** 只改本檔與 `docs/POS-02-MIGRATION-PLAN.md`。
@@ -12,7 +11,7 @@
 > **Stacked PR：** 本提案疊在 POS-01 PR #126
 > （`cursor/pos-01-domain-contract-aa87` @ `fc067be`），不是 `main`。
 > **目標 SHA：** 本輪只修 PR #128 head
-> `9681a46d8070dee06bbd9e3b972e91ca2f5302d8` 的兩份 docs。
+> `6dcb013b83d6a0553539aad6f31ba4269e004d65` 的兩份 docs。
 
 ---
 
@@ -21,9 +20,9 @@
 店內帳用 POS 自己的「店收＋店收明細」當真相。LINE／綠界帳仍以原本訂單、
 付款、履約當真相；POS 只建立「線上店收快照＋快照明細」，讓退款、回庫、
 佣金回沖、鎖帳都能逐行追溯。金額一律用整數元（BigInt），不再寫「或」。
-店與店家必須雙向一對一綁定，美容券規則必須掛在已驗證綁定上。庫存預約
-必須鎖來源、鎖數量、跟庫存帳同一筆交易。跨表規則不能靠普通 CHECK。
-本輪只改這兩份文件，不建表、不搬資料。
+店與店家必須雙向一對一綁定；每筆店收／快照要記下當時那筆已驗證綁定。
+未履約取消只釋放預約、不加可售庫存；已履約且實物退回、HQ 核准且可再售
+才加回 onHand。本輪只改這兩份文件，不建表、不搬資料。
 
 ---
 
@@ -31,17 +30,16 @@
 
 ### 1.1 本輪做什麼
 
-只修兩份文件，關閉下列 gate：
+只修兩份文件，關閉最後 4 項（v0.3 的 9 項仍成立）：
 
-1. Channel-neutral sale fact／line，含線上 snapshot line 與統一可退款來源。
-2. 所有 idempotency／result 與 order ownership 必須 merchant-safe。
-3. `MerchantStoreBinding` 雙向 1:1 active。
-4. `MerchantVoucherPolicy` 可落地。
-5. Reservation 完整 DB invariant。
-6. Constraint matrix 改正：普通 CHECK 不能跨表。
-7. 金額型別選唯一方案（BigInt 整數 TWD）。
-8. Float audit 修 NaN 寫法；Preview fixture 才可當 gate。
-9. Acceptance checklist 逐項補證據。
+1. Snapshot↔Order 一致性：line 自帶 `sourceOrderId`，必須等於 header 與
+   `OrderItem.orderId`；product／qty／price 來自該 OrderItem。
+2. Refund header／line 同一來源：kind 一致、parent sale／snapshot 一致；
+   禁止 header POS + line snapshot，也禁止同店不同單。
+3. Fact 保存 authoritative `bindingId`；reservation／refund 從 fact 追溯，
+   不接受 client 另傳 `storeId`。
+4. 修正 O1 文字：未履約取消只 release reserved；已履約且實物退回才可能
+   加回 onHand（可再售）或只記 loss（不可售）。
 
 ### 1.2 本輪不做什麼
 
@@ -70,9 +68,15 @@
 | HQ／POS 登入分離 | 每筆 duplicate lookup 先驗 session merchant／HQ |
 | O3 未確認 | 不 seed 豬窩正式 ID |
 
-O1（使用者已確認：未指定預設回庫、指定才回庫、線上履約後不可回庫）仍
-**不是** POS-01 程式真相。本提案只預留 `refundDisposition` 欄位與
-`MerchantSaleSnapshotLine` 追溯路徑；POS-02 **不得宣稱覆蓋 POS-01**。
+O1（使用者已確認，見 §11.1.1）仍**不是** POS-01 程式真相，必須另開
+POS-01 contract bump 才進 `domain-contract.ts`。本提案只把正確文字與
+欄位／trigger 路徑寫清楚；POS-02 **不得宣稱覆蓋 POS-01**。
+
+O1 正確規則：
+
+- **未履約取消：** 只 `release reserved`，**不**新增 `onHand`。
+- **已履約且實物退回：** HQ 核准後，未拆封／良好／可再售才
+  `onHand += qty`；不可售只寫 loss，不加可售庫存。
 
 ---
 
@@ -95,6 +99,7 @@ model PosSale {
   id                  String   @id @default(cuid())
   merchantId          String
   storeId             String
+  bindingId           String
   soldAt              DateTime
   status              String
   subtotalTwd         BigInt
@@ -108,6 +113,10 @@ model PosSale {
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
   store    Store    @relation(fields: [storeId], references: [id])
+  binding  MerchantStoreBinding @relation(
+    fields: [bindingId, merchantId],
+    references: [id, merchantId]
+  )
   lines    PosSaleLine[]
   idempotencyRecord PosIdempotencyRecord @relation(
     fields: [idempotencyRecordId, merchantId],
@@ -153,6 +162,7 @@ model MerchantSaleSnapshot {
   id                  String   @id @default(cuid())
   merchantId          String
   storeId             String
+  bindingId           String
   sourceOrderId       String   @unique
   soldAt              DateTime
   status              String
@@ -166,6 +176,10 @@ model MerchantSaleSnapshot {
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
   store    Store    @relation(fields: [storeId], references: [id])
+  binding  MerchantStoreBinding @relation(
+    fields: [bindingId, merchantId],
+    references: [id, merchantId]
+  )
   sourceOrder Order @relation(
     fields: [sourceOrderId, merchantId],
     references: [id, merchantId]
@@ -181,6 +195,7 @@ model MerchantSaleSnapshotLine {
   id                         String @id @default(cuid())
   merchantId                 String
   snapshotId                 String
+  sourceOrderId              String
   sourceOrderItemId          String @unique
   productId                  String
   productNameSnapshot        String
@@ -201,6 +216,10 @@ model MerchantSaleSnapshotLine {
     fields: [snapshotId, merchantId],
     references: [id, merchantId]
   )
+  sourceOrder Order @relation(
+    fields: [sourceOrderId, merchantId],
+    references: [id, merchantId]
+  )
   merchantStock MerchantStock @relation(
     fields: [merchantStockId, merchantId],
     references: [id, merchantId]
@@ -216,11 +235,41 @@ model MerchantSaleSnapshotLine {
 
 - header `sourceOrderId` unique：一張線上訂單最多一個 snapshot header。
 - 每條 `sourceOrderItemId` unique：一個訂單項最多一條 snapshot line。
+- line **必須自帶** `sourceOrderId`（或等價 key），不可只靠 header 推。
 - line **必須**含 product、tier、merchantStock、policy version、rate、
   commission、actual gross。缺一不可建立。
 - rounding **逐 line**：`commissionTwdSnapshot = round(actualGrossTwd × rate)`；
   header `commissionTwd` / `totalTwd` 是 line 加總，不是再 round 一次。
 - snapshot **不是**第二套 payment／fulfillment 狀態。付款與履約仍讀 Order。
+
+### 2.3.1 Snapshot↔Order 一致性（強制）
+
+寫入與後續 UPDATE 都必須滿足：
+
+```text
+line.snapshot.sourceOrderId
+  = line.sourceOrderId
+  = OrderItem.orderId   -- 該 line.sourceOrderItemId 所指的那一列
+```
+
+`sourceOrderItemId` unique **保留**。
+
+product／qty／price snapshot **必須來源於該 OrderItem**：
+
+| 欄位 | 來源 | 落地方式 |
+|---|---|---|
+| `sourceOrderId` + `merchantId` | header 與 Order | composite FK → `Order[id, merchantId]`（能做就先 FK） |
+| `sourceOrderItemId` + `merchantId` | 該 OrderItem | unique + 能做的 composite／經 Order 的 FK |
+| `line.sourceOrderId = snapshot.sourceOrderId` | 同單 | 能刪冗餘就靠 FK 路徑；否則 DEFERRABLE constraint trigger |
+| `line.sourceOrderId = OrderItem.orderId` | 同單 | DEFERRABLE constraint trigger（OrderItem 若無 merchant 欄） |
+| `productId`／`quantity`／`unitPriceTwd` | 該 OrderItem | DEFERRABLE constraint trigger：必須等於該 item 當下權威值（或 item 自己的 snapshot 欄）。禁止手填另一張單的商品／數量／單價 |
+
+Preview **negative test**（只定義，本輪不執行；以後 Preview fixture）：
+
+- 同 merchant 的 Order B 的 item，掛到 Order A 的 snapshot → **必須失敗**。
+- line.`sourceOrderId` ≠ header.`sourceOrderId` → 失敗。
+- line.`sourceOrderId` ≠ 該 `sourceOrderItemId` 的 `OrderItem.orderId` → 失敗。
+- product／qty／price 與該 OrderItem 不符 → 失敗。
 
 ### 2.4 Legacy Order 必須先有 merchant composite
 
@@ -321,18 +370,49 @@ CHECK (
 
 兩個來源都是**真 FK + merchant composite FK**，不是只存字串 id。
 
+### 2.5.1 Refund header／line 必須同一來源
+
+exactly-one CHECK 不夠。還要 DEFERRABLE constraint trigger（或重構 FK
+讓 line 經 header 走到同一 parent，禁止交叉指向）。必須同時保證：
+
+1. **kind 一致**
+   - request `source_kind = 'pos_sale'` ↔ 每條 line `source_kind = 'pos_sale_line'`
+   - request `source_kind = 'sale_snapshot'` ↔ 每條 line `source_kind = 'sale_snapshot_line'`
+2. **parent 同一張單**
+   - POS：`PosSaleLine.saleId = RefundRequest.posSaleId`
+   - 線上：`MerchantSaleSnapshotLine.snapshotId = RefundRequest.saleSnapshotId`
+3. **禁止交叉與同店不同單**
+   - header POS + line snapshot → 失敗
+   - header snapshot + line POS → 失敗
+   - 同 merchant 但 line 屬於另一張 sale／另一張 snapshot → 失敗
+
+累計退款金額／數量、佣金 exact cumulative、庫存 identity 的
+`SELECT ... FOR UPDATE` **都鎖該真正來源 line**
+（`PosSaleLine` 或 `MerchantSaleSnapshotLine`），不是只鎖 header、
+也不是鎖 client 傳來的另一個 id。
+
 線上部分退款、disposition、回庫、佣金回沖、locked-period routing **全部**
 必須從 `MerchantSaleSnapshotLine` 追溯：
 
 | 動作 | 追溯欄位 |
 |---|---|
-| 部分退款累計 | 同 `saleSnapshotLineId` 的 `SUM(amountTwd)` / `SUM(quantity)` |
-| disposition | line 自己的 `refundDisposition`；未指定不得回庫 |
-| 回庫 | `merchantStockId` on snapshot line；履約後不可回庫（O1，待 POS-01 bump） |
-| 佣金回沖 | 原 `commissionTwdSnapshot` + `actualGrossTwd` + `commissionRateBpsSnapshot` |
-| locked-period | snapshot line → header `soldAt` → 該店該期 settlement |
+| 部分退款累計 | lock 該 `saleSnapshotLineId`；`SUM(amountTwd)` / `SUM(quantity)` |
+| disposition | line 自己的 `refundDisposition`；依 §11.1.1 O1 決定是否加 onHand |
+| 回庫 | `merchantStockId` on 該來源 line；未履約取消只 release reserved；已履約且實物退回見 §11.1.1 |
+| 佣金回沖 | lock 同一來源 line 的 `commissionTwdSnapshot` + `actualGrossTwd` + rate |
+| locked-period | 來源 line → 其 header `soldAt` → 該 binding／店該期 settlement |
+| binding | 從 fact header 的 `bindingId` 追溯，不接受 client `storeId` |
 
 沒有 snapshot line 就不允許線上退款寫入 POS 新表。
+
+Preview **negative tests**（只定義，本輪不執行）：
+
+- header `pos_sale` + 任一 line `sale_snapshot_line` → 失敗。
+- header `sale_snapshot` + 任一 line `pos_sale_line` → 失敗。
+- line 的 `PosSaleLine.saleId` ≠ request.`posSaleId` → 失敗。
+- line 的 `SnapshotLine.snapshotId` ≠ request.`saleSnapshotId` → 失敗。
+- 同 merchant、兩張不同 PosSale／Snapshot 交叉掛在同一 RefundRequest → 失敗。
+- 累計超過來源 line 的 amount／qty，或佣金不等於剩餘淨額公式 → 失敗。
 
 ---
 
@@ -404,9 +484,10 @@ idempotencyRecord PosIdempotencyRecord @relation(fields: [idempotencyRecordId], 
 |---|---|
 | Snapshot → Order | `[sourceOrderId, merchantId] → Order[id, merchantId]` |
 | SnapshotLine → OrderItem | unique `sourceOrderItemId` + merchant 對等檢查 |
-| Reservation → PosSale 或 Snapshot | exactly-one + composite FK |
+| SnapshotLine → Order | line 自帶 `[sourceOrderId, merchantId]`；且 = header 與 `OrderItem.orderId` |
+| Reservation → PosSale 或 Snapshot | exactly-one + composite FK；binding 從 fact 追溯 |
 | RefundRequest → PosSale 或 Snapshot | exactly-one + composite FK |
-| RefundLine → PosSaleLine 或 SnapshotLine | exactly-one + composite FK |
+| RefundLine → PosSaleLine 或 SnapshotLine | exactly-one + 與 header 同一 parent（§2.5.1） |
 | Ledger → MerchantStock | `[merchantStockId, merchantId]` |
 | Settlement → Merchant + period | merchant 必填；approved 後不可改 merchant |
 
@@ -461,6 +542,30 @@ model MerchantStoreBinding {
 - 未綁、pending、revoked、verifiedAt 為空 → **fail closed**。
 - POS 開班、寫店收、發券、建 reservation 之前都必須讀到 verified active
   binding。找不到就拒絕，不得 fallback 店名或 audit 列。
+
+### 4.4 Fact 必須保存 authoritative binding
+
+`PosSale` 與 `MerchantSaleSnapshot` **寫入當下**就要存 `bindingId` snapshot：
+
+- composite FK `[bindingId, merchantId] → MerchantStoreBinding[id, merchantId]`。
+- DEFERRABLE constraint trigger 再驗：
+  1. `binding.storeId = fact.storeId`
+  2. 成交／快照時間 `soldAt` 落在該 binding 的 verified／effective 有效期
+     （`verifiedAt IS NOT NULL`、`soldAt >= effectiveFrom`、
+     `effectiveTo IS NULL OR soldAt < effectiveTo`）。
+  3. 寫入當下該 binding 必須是 verified；**保存後即使後來 revoked，歷史
+     fact 仍指向那一列**，不得改寫或改掛新 binding。
+- Reservation／Refund **只從 fact header 的 `bindingId` 追溯**。
+  API **不接受** client 另傳 `storeId` 或 `bindingId` 覆寫。
+- 之後的 locked-period routing、券政策、佣金店別，都以 fact 上那筆
+  歷史 binding 為準，不是「現在 active 的那一筆」。
+
+Preview **negative tests**（只定義，本輪不執行）：
+
+- A merchant + B store／B 的 binding → 失敗。
+- binding `verifiedAt` 為空或 `pending_verify` → 失敗。
+- `soldAt` 早於 `effectiveFrom`，或已過 `effectiveTo` → 失敗。
+- reservation／refund 帶與 fact 不同的 client `storeId` → 失敗（忽略或拒絕）。
 
 ---
 
@@ -564,17 +669,23 @@ model InventoryReservation {
 | paid reserve 不自動 expire | 沒有 expire job 可把 `paid_reserved` 改成 released。只有明確 release／fulfill／人工 HQ 流程 |
 | 與庫存同交易 | `reserve` / `release` / `fulfill` 必須與 `MerchantStock.reserved` / `onHand` 及 `PosInventoryLedger` **同一 transaction** |
 | onHand >= reserved | `CHECK (on_hand >= reserved)` 在 `MerchantStock`；跨表累計用 lock + constraint trigger |
+| binding 從 fact 來 | reservation 的 store／binding 只讀 `PosSale.bindingId` 或 `MerchantSaleSnapshot.bindingId`，不接受 client `storeId` |
+| 未履約取消 | 只把 `paid_reserved` → `released` 並減少 `reserved`；**不** `onHand += qty`（O1） |
+| 已履約回庫 | 見 §11.1.1：實物退回 + HQ 核准 + 可再售才 `onHand += qty` |
 
 ### 6.3 同交易順序
 
 1. `SELECT ... FOR UPDATE` lock `MerchantStock`。
 2. 驗證付款已成立；未付 → 不建 reservation。
 3. 插入／更新 `InventoryReservation`。
-4. 更新 `reserved`／`onHand`。
-5. 插入 `PosInventoryLedger`。
+4. 更新 `reserved`；**未履約取消到此為止，不增加 `onHand`**。
+5. 插入 `PosInventoryLedger`（release 事件；不是 restock 事件）。
 6. 提交。任何一步失敗整筆回滾。
 
 `onHand`／`reserved` **不可 DEFAULT 0**。新列必須由這筆交易寫入真實數字。
+
+已履約後的實物退回不是 reservation 的自動動作，走 Refund + HQ 核准 +
+§11.1.1 條件後，另開 ledger restock 或 loss。
 
 ---
 
@@ -594,6 +705,9 @@ v0.2 若讀起來像「CHECK 能保證跨表累計」，那是錯的。改正如
 | approved settlement 不可變 | 普通 CHECK 不夠；**也不准只用 REVOKE 取代** | BEFORE UPDATE／DELETE trigger 擋 `status = 'approved'`；permission 可當額外防護，但 app owner 可能與執行 role 相同，REVOKE 不可當唯一控制 |
 | 期間不重疊 | 普通 CHECK 不夠 | GiST exclusion 或 constraint trigger |
 | 跨表付款 precondition（未付款不建 reservation） | 普通 CHECK 不夠 | 寫入交易 + DEFERRABLE constraint trigger |
+| snapshot line 與 Order／OrderItem 同單 | 普通 CHECK 不夠 | line.`sourceOrderId` composite FK + DEFERRABLE trigger（§2.3.1） |
+| refund header／line 同一張單 | 普通 CHECK 不夠 | DEFERRABLE trigger 或經 header 重構 FK（§2.5.1） |
+| fact.binding.storeId 與有效期 | 普通 CHECK 不夠 | composite FK + DEFERRABLE trigger（§4.4） |
 
 能刪的冗餘值：若 child 的 `merchantId` 只是為了 CHECK 對上 parent，且已有
 `FOREIGN KEY (parent_id, merchant_id) REFERENCES parent(id, merchant_id)`，
@@ -772,6 +886,21 @@ Production 數過列數。
 - `quantity` 只當過渡 mirror，cutover 後不再當權威。
 - ledger 與 reservation 的冪等走 §3 composite FK。
 
+### 11.1.1 O1 回庫（正確文字；全文以此為準）
+
+正確規則：
+
+| 情境 | 庫存動作 |
+|---|---|
+| 未履約取消（已付款但尚未 fulfill） | 只 `release reserved`（`reserved -= qty`）。**不**新增 `onHand`。 |
+| 已履約，且實物退回，HQ 核准，狀態為未拆封／良好／可再售 | `onHand += qty`，並寫 restock ledger。 |
+| 已履約，且實物退回，HQ 核准，但不可售（拆封／損壞／污染等） | 只寫 **loss** ledger。**不加**可售 `onHand`。 |
+| 已履約但沒有實物退回 | 不增加 `onHand`，也不假裝 restock。 |
+
+`refundDisposition` 必須能區分：`release_only`、`restock_sellable`、
+`loss_unsellable`。未履約取消不得選 `restock_sellable`。
+POS-01 程式仍未凍結此規則；本節只修正文件，不覆蓋 POS-01 程式。
+
 ### 11.2 結算
 
 - 新月結只讀 V2 整數列（BigInt）。
@@ -792,21 +921,26 @@ Production 數過列數。
 
 | # | Gate | 本文件證據 |
 |---|---|---|
-| 1 | 線上 line snapshot + 統一退款來源 | §2.3 `MerchantSaleSnapshotLine`（`sourceOrderId`／`sourceOrderItemId` unique、逐 line rounding、必含 product／tier／stock／policy／rate／commission／gross）；§2.5 RefundRequest／RefundLine exactly-one CHECK + 雙真 composite FK；部分退款／disposition／回庫／佣金／鎖帳都從 snapshot line 追溯 |
+| 1 | 線上 line snapshot + 統一退款來源 | §2.3 `MerchantSaleSnapshotLine`（header／line `sourceOrderId`、`sourceOrderItemId` unique、逐 line rounding、必含 product／tier／stock／policy／rate／commission／gross）；§2.5 RefundRequest／RefundLine exactly-one CHECK + 雙真 composite FK；部分退款／disposition／回庫／佣金／鎖帳都從 snapshot line 追溯 |
 | 2 | Composite idempotency | §3.2 所有 result 皆 `[idempotencyRecordId, merchantId] → PosIdempotencyRecord[id, merchantId]` 且 `idempotencyRecordId` unique；§3.3 lookup 先驗 session 再查 merchant+scope+key；§2.4／§3.4 Order 必須 `@@unique([id, merchantId])` 或 raw 對等，不可只單 FK |
 | 3 | Binding 雙向 1:1 | §4.2 partial unique active merchantId 與 active storeId；`effectiveTo > effectiveFrom`；revoked／effective 一致；§4.3 audit 只是候選，verified active 才權威，未綁 fail closed |
 | 4 | Voucher policy | §5 composite FK `[bindingId, merchantId]`；version／effective／active；exclusion 不重疊；`faceTwd IN (200, 250)`；verified binding gate；無 policy fail closed；O3 不 seed |
-| 5 | Reservation | §6 exactly-one + composite FK；quantity>0；status allow-list；active uniqueness；與 stock／ledger 同交易；`onHand >= reserved`；未付不建；paid 不自動 expire |
+| 5 | Reservation | §6 exactly-one + composite FK；quantity>0；status allow-list；active uniqueness；與 stock／ledger 同交易；`onHand >= reserved`；未付不建；paid 不自動 expire；binding 從 fact 追溯 |
 | 6 | Constraint ownership | §7 普通 CHECK 只管單列；跨表用 composite FK、row lock、constraint trigger；刪得掉的冗餘複製值就刪；approved immutability 用 trigger，不以 REVOKE 取代 |
 | 7 | 唯一 money type | §8 選定 BigInt；Prisma／Postgres／JSON string／前端 parse／POS-01 Number 邊界與禁止隱式轉換；line／header／ledger／settlement／adjustment 一致 |
 | 8 | Float audit 寫法 | §10 NaN 用 `value = 'NaN'::float8` 或已驗證 text 法，不用 `x <> x`；Infinity／非整數／round-trip 標 Preview fixture／EXPLAIN，不直接跑 Production |
 | 9 | 仍只 2 docs | 本檔 + `docs/POS-02-MIGRATION-PLAN.md`。相對 POS-01 的 diff 不得含第三檔 |
+| 10 | Snapshot↔Order 一致性 | §2.3.1 line 自帶 `sourceOrderId`；`line.snapshot.sourceOrderId = line.sourceOrderId = OrderItem.orderId`；product／qty／price 來自該 item；能 FK 先 FK，其餘 DEFERRABLE trigger；Preview negative：Order B item 掛 Order A snapshot 必須失敗 |
+| 11 | Refund header／line 同一來源 | §2.5.1 kind 一致、parent sale／snapshot 一致；禁止 header POS + line snapshot 與同店不同單；累計／佣金／庫存 lock 真正來源 line；列 negative tests |
+| 12 | Fact 保存 authoritative binding | §4.4 `PosSale`／`MerchantSaleSnapshot` 存 `bindingId`；`[bindingId, merchantId]` composite FK；trigger 驗 `storeId` 與 verified／effective 期；歷史 binding 即使後來 revoked 仍保留；reservation／refund 不接受 client `storeId`；Preview negative：A+B、未 verified、超出有效期均 fail |
+| 13 | O1 回庫文字 | §1.3、§6.2、§11.1.1：未履約取消只 release reserved、不加 onHand；已履約且實物退回、HQ 核准後可再售才 `onHand += qty`，不可售只寫 loss |
 
 ---
 
 ## 13. 待 POS-01／營運確認（本提案不猜）
 
-1. **O1 contract bump：** 把已確認的回庫規則寫進 POS-01 程式與測試。
+1. **O1 contract bump：** 把 §11.1.1 的回庫規則寫進 POS-01 程式與測試
+   （未履約取消只 release；已履約實物退回才 restock 或 loss）。
 2. **O3：** 豬窩三店正式 immutable IDs。
 3. **Production drift #112–#115：** 關閉後才能建 POS-02 migration。
 4. **Order／OrderItem composite unique：** schema 階段才能真正加上；本輪只規定
