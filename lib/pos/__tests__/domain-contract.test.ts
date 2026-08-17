@@ -1264,6 +1264,17 @@ describe('O1 frozen refund inventory policy', () => {
     };
   }
 
+  function committedRetry(
+    first: ReturnType<typeof completeApprovedRefund>,
+    key = 'rf-1',
+  ) {
+    return {
+      existingCompletions: [storeRefundCompletion(key, first)],
+      existingRefunds: [first.financialReversal.line],
+      refundStatus: 'completed' as const,
+    };
+  }
+
   it('releases only the reservation for unfulfilled cancels', () => {
     const planned = planRefundInventoryEffect({
       fulfillmentFact: 'unfulfilled',
@@ -1278,7 +1289,7 @@ describe('O1 frozen refund inventory policy', () => {
     assert.equal(planned.effect?.loss, null);
     const completed = completeApprovedRefund(completeInput());
     assert.equal(completed.proposedNextStatus, 'completed');
-    assert.equal(completed.persistedRequestStatus, 'approved');
+    assert.equal(completed.currentPersistedStatus, 'approved');
     assert.equal(completed.inventoryEffect?.disposition, 'release_only');
     assert.equal(completed.inventoryEffect?.reservedDelta, -3);
     assert.equal(completed.inventoryEffect?.onHandDelta, 0);
@@ -1421,9 +1432,10 @@ describe('O1 frozen refund inventory policy', () => {
     assert.equal(decideRefundRequest({ currentStatus: 'requested', decision: 'approved', actor: 'hq' }).requestStatus, 'approved');
     const completed = completeApprovedRefund(completeInput());
     assert.equal(completed.proposedNextStatus, 'completed');
-    assert.equal(completed.persistedRequestStatus, 'approved');
+    assert.equal(completed.currentPersistedStatus, 'approved');
     assert.ok(completed.financialReversal.line);
     assert.ok(completed.inventoryEffect);
+    assert.ok(completed.committedOutcomeSnapshot);
   });
 
   it('treats rejected and completed refunds as terminal, including same-state', () => {
@@ -1445,10 +1457,15 @@ describe('O1 frozen refund inventory policy', () => {
   it('returns the stored completion for the same key and fingerprint and conflicts on any identity change', () => {
     const first = completeApprovedRefund(completeInput());
     const stored = [storeRefundCompletion('rf-1', first)];
-    const retry = completeApprovedRefund(completeInput({ existingCompletions: stored, refundStatus: 'approved' }));
+    const retry = completeApprovedRefund(completeInput(committedRetry(first)));
     assert.equal(retry.duplicate, true);
+    assert.equal(retry.currentPersistedStatus, 'completed');
+    assert.equal(retry.proposedNextStatus, null);
+    assert.equal(retry.requestFingerprint, first.requestFingerprint);
+    assert.equal(retry.fingerprint, first.requestFingerprint);
     assert.deepEqual(retry.inventoryEffect, first.inventoryEffect);
     assert.deepEqual(retry.financialReversal, first.financialReversal);
+    assert.deepEqual(retry.committedOutcomeSnapshot, first.committedOutcomeSnapshot);
     assert.throws(
       () =>
         completeApprovedRefund(
@@ -1605,7 +1622,7 @@ describe('O1 frozen refund inventory policy', () => {
     assert.equal(POS_01_REFUND_INVENTORY_POLICY.runtimeAuthNotImplemented, true);
   });
 
-  it('throws when the same completion key changes amount, financial qty, snapshots, or routing', () => {
+  it('throws when the same completion key changes amount, financial qty, or immutable snapshots', () => {
     const first = completeApprovedRefund(completeInput());
     const stored = [storeRefundCompletion('rf-1', first)];
     assert.throws(
@@ -1632,18 +1649,69 @@ describe('O1 frozen refund inventory policy', () => {
       /不同退款完成內容/,
     );
     assert.throws(
+      () => completeApprovedRefund(completeInput({ existingCompletions: stored, actor: 'merchant_staff' })),
+      /只有 HQ/,
+    );
+  });
+
+  it('returns the original open routing when settlement later becomes approved', () => {
+    const first = completeApprovedRefund(completeInput());
+    assert.equal(first.duplicate, false);
+    assert.equal(first.currentPersistedStatus, 'approved');
+    assert.equal(first.financialReversal.ledger.kind, 'reversal');
+    assert.equal(first.financialReversal.ledger.settlementDestination, 'current_open_period');
+    assert.equal(first.committedOutcomeSnapshot?.settlementStatusAtExecution, null);
+    const settledSale = completedSale({ settlementStatus: 'approved' });
+    const retry = completeApprovedRefund(
+      completeInput({
+        ...committedRetry(first),
+        sale: settledSale,
+      }),
+    );
+    assert.equal(retry.duplicate, true);
+    assert.equal(retry.currentPersistedStatus, 'completed');
+    assert.equal(retry.proposedNextStatus, null);
+    assert.equal(retry.requestFingerprint, first.requestFingerprint);
+    assert.equal(retry.financialReversal.ledger.kind, 'reversal');
+    assert.equal(retry.financialReversal.ledger.settlementDestination, 'current_open_period');
+    assert.equal(retry.committedOutcomeSnapshot?.settlementStatusAtExecution, null);
+    assert.equal(retry.committedOutcomeSnapshot?.ledgerKind, 'reversal');
+    assert.equal(retry.committedOutcomeSnapshot?.settlementDestination, 'current_open_period');
+    assert.deepEqual(retry.financialReversal, first.financialReversal);
+    assert.deepEqual(retry.inventoryEffect, first.inventoryEffect);
+    assert.throws(
       () =>
         completeApprovedRefund(
           completeInput({
-            existingCompletions: stored,
-            sale: completedSale({ settlementStatus: 'approved' }),
+            ...committedRetry(first),
+            sale: settledSale,
+            clientInput: { requestedAmountTwd: 300, requestedQuantity: 3 },
           }),
         ),
       /不同退款完成內容/,
     );
     assert.throws(
-      () => completeApprovedRefund(completeInput({ existingCompletions: stored, actor: 'merchant_staff' })),
-      /只有 HQ/,
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            sale: settledSale,
+            qty: 2,
+            clientInput: { requestedAmountTwd: 400, requestedQuantity: 2 },
+          }),
+        ),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            sale: completedSale({ id: 'sale-OTHER', settlementStatus: 'approved' }),
+            sourceLineId: 'sale-OTHER',
+          }),
+        ),
+      /不同退款完成內容/,
     );
   });
 
@@ -1658,10 +1726,6 @@ describe('O1 frozen refund inventory policy', () => {
       collectionChannel: 'merchant_collected',
       commissionRateSnapshot: 30,
       commissionAmountSnapshot: 300,
-      commissionReversalSnapshot: 120,
-      settlementStatus: null,
-      settlementDestination: 'current_open_period',
-      ledgerDirection: 'hq_owes_merchant',
       sourceKind: 'pos_sale_line',
       sourceLineId: 'sale-1',
       sourceOrderId: null,
@@ -1684,10 +1748,6 @@ describe('O1 frozen refund inventory policy', () => {
       collectionChannel: 'merchant_collected',
       commissionRateSnapshot: 30,
       commissionAmountSnapshot: 300,
-      commissionReversalSnapshot: 120,
-      settlementStatus: null,
-      settlementDestination: 'current_open_period',
-      ledgerDirection: 'hq_owes_merchant',
       sourceKind: 'pos_sale_line',
       sourceLineId: 'sale-1',
       sourceOrderId: null,
@@ -1701,7 +1761,11 @@ describe('O1 frozen refund inventory policy', () => {
       note: 'b',
     });
     assert.notEqual(left, right);
-    assert.match(left, /"reason":"a\\|b"/);
+    assert.match(left, /"reason":"a\|b"/);
+    assert.equal(left.includes('settlementStatus'), false);
+    assert.equal(left.includes('settlementDestination'), false);
+    assert.equal(left.includes('ledgerDirection'), false);
+    assert.equal(left.includes('commissionReversal'), false);
   });
 
   it('binds disposition qty to the canonical financial quantity and fail-closes mismatches', () => {
@@ -1781,15 +1845,63 @@ describe('O1 frozen refund inventory policy', () => {
 
   it('treats the completion plan as proposed, not a persisted completed request', () => {
     const planned = completeApprovedRefund(completeInput());
-    assert.equal(planned.persistedRequestStatus, 'approved');
+    assert.equal(planned.currentPersistedStatus, 'approved');
     assert.equal(planned.proposedNextStatus, 'completed');
     assert.equal(planned.duplicate, false);
+    assert.ok(planned.committedOutcomeSnapshot);
     const stored = [storeRefundCompletion('rf-1', planned)];
-    const retry = completeApprovedRefund(completeInput({ existingCompletions: stored }));
+    assert.equal(stored[0].persistedRequestStatus, 'completed');
+    assert.equal(stored[0].requestFingerprint, planned.requestFingerprint);
+    assert.deepEqual(stored[0].committedOutcomeSnapshot, planned.committedOutcomeSnapshot);
+    const retry = completeApprovedRefund(completeInput(committedRetry(planned)));
     assert.equal(retry.duplicate, true);
-    assert.equal(retry.persistedRequestStatus, 'approved');
-    assert.equal(retry.proposedNextStatus, 'completed');
-    assert.equal(stored[0].persistedRequestStatus, 'approved');
+    assert.equal(retry.currentPersistedStatus, 'completed');
+    assert.equal(retry.proposedNextStatus, null);
+    assert.deepEqual(retry.financialReversal, planned.financialReversal);
+    assert.deepEqual(retry.inventoryEffect, planned.inventoryEffect);
+    assert.throws(() => storeRefundCompletion('rf-1', retry), /只能提交首次 completed 計畫/);
+  });
+
+  it('fail-closes atomic persisted-state mismatches and missing committed financial lines', () => {
+    const first = completeApprovedRefund(completeInput());
+    const stored = [storeRefundCompletion('rf-1', first)];
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            existingCompletions: stored,
+            existingRefunds: [first.financialReversal.line],
+            refundStatus: 'approved',
+          }),
+        ),
+      /已有 committed completion 但 persisted 狀態不是 completed/,
+    );
+    assert.throws(
+      () => completeApprovedRefund(completeInput({ refundStatus: 'completed' })),
+      /persisted 已是 completed 但缺少 committed completion/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            existingCompletions: stored,
+            existingRefunds: [],
+            refundStatus: 'completed',
+          }),
+        ),
+      /已完成退款缺少已提交的財務 line/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            existingCompletions: stored,
+            existingRefunds: [{ ...first.financialReversal.line, amountTwd: 300 }],
+            refundStatus: 'completed',
+          }),
+        ),
+      /已完成退款的財務 line 與 stored 不一致/,
+    );
   });
 });
 
