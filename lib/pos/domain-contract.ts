@@ -1101,8 +1101,7 @@ export function parseClientRefundBusinessInput(input: UntrustedClientRefundInput
     parsed.actualUnitPriceTwd = input.actualUnitPriceTwd;
   }
   if (input.requestedQuantity !== undefined) {
-    assertPositiveUnits(input.requestedQuantity, '退款數量');
-    parsed.requestedQuantity = input.requestedQuantity;
+    parsed.requestedQuantity = assertPositiveUnits(input.requestedQuantity, '退款數量');
   }
   if (input.requestedAmountTwd !== undefined) {
     assertPositiveTwdInteger(input.requestedAmountTwd, '退款金額');

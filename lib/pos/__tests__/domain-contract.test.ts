@@ -74,6 +74,7 @@ import {
   paidReservationAutoRefunds,
   paidReservationAutoReleases,
   parseAdjustmentKind,
+  parseClientRefundBusinessInput,
   parseCollectionChannel,
   parseRefundInventoryDisposition,
   parseRefundReturnCondition,
@@ -402,6 +403,18 @@ describe('ledger direction — store collected vs Furmosa collected', () => {
     assert.equal(line.direction, 'hq_owes_merchant');
     assert.equal(line.hqOwesMerchantTwd, 300);
     assert.notEqual(store.direction, line.direction);
+  });
+});
+
+describe('parseClientRefundBusinessInput requestedQuantity', () => {
+  it('parses a legal requestedQuantity and rejects invalid values', () => {
+    assert.equal(parseClientRefundBusinessInput({ requestedQuantity: 3 }).requestedQuantity, 3);
+    for (const qty of [null, {}, '3', 0, 1.5]) {
+      assert.throws(
+        () => parseClientRefundBusinessInput({ requestedQuantity: qty }),
+        /大於 0|安全整數/,
+      );
+    }
   });
 });
 
