@@ -179,20 +179,32 @@ export function shipmentSearchWhere(term: string): Prisma.ShipmentWhereInput | u
   return { OR: or };
 }
 
-export function productSearchWhere(term: string): Prisma.ProductWhereInput | undefined {
+/** 開箱舊稱 → 目錄現名；不改其他貓草商品 */
+export function expandProductSearchTerms(term: string): string[] {
   const q = normalizeSearchInput(term);
-  if (!q) return undefined;
+  if (!q) return [];
+  const compact = q.replace(/\s+/g, '');
+  const extras: string[] = [];
+  if (compact.includes('貓草雞肉乾')) extras.push('貓草雞肉薄片');
+  return extras.length ? [q, ...extras] : [q];
+}
 
-  const contains = textContains(q);
+export function productSearchWhere(term: string): Prisma.ProductWhereInput | undefined {
+  const terms = expandProductSearchTerms(term);
+  if (terms.length === 0) return undefined;
+
   return {
-    OR: [
-      { name: contains },
-      { sku: contains },
-      { productId: contains },
-      { sourceSku: contains },
-      { style: contains },
-      { vendor: { name: contains } },
-    ],
+    OR: terms.flatMap((q) => {
+      const contains = textContains(q);
+      return [
+        { name: contains },
+        { sku: contains },
+        { productId: contains },
+        { sourceSku: contains },
+        { style: contains },
+        { vendor: { name: contains } },
+      ];
+    }),
   };
 }
 

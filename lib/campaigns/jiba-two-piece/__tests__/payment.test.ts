@@ -7,6 +7,7 @@ import {
   buildPaymentDeclarationPatch,
   canMarkJibaShipmentShipped,
   decideJibaApproveTransition,
+  describeJibaShippingCharge,
   isJibaBackfillCandidate,
   isJibaPaymentDeclared,
   isJibaPaymentReviewHold,
@@ -158,6 +159,88 @@ describe('shipment list visibility', () => {
     assert.equal(canMarkJibaShipmentShipped({ status: 'confirmed', paymentStatus: 'unpaid' }), true);
     assert.equal(isJibaPaymentReviewHold({ status: 'confirmed' }), false);
     assert.equal(isJibaPaymentReviewHold(null), false);
+  });
+
+  it('holds declared-but-unpaid jiba orders even after confirm', () => {
+    assert.equal(
+      isJibaPaymentReviewHold({
+        status: 'confirmed',
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        collected: { declaredPaidAt: '2026-08-17T01:00:00.000Z' },
+        isJiba: true,
+      }),
+      true,
+    );
+    assert.equal(
+      canMarkJibaShipmentShipped({
+        status: 'confirmed',
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        isJiba: true,
+      }),
+      false,
+    );
+    assert.equal(
+      canMarkJibaShipmentShipped({
+        status: 'confirmed',
+        paymentStatus: PAYMENT_STATUS.PAID,
+        isJiba: true,
+      }),
+      true,
+    );
+    assert.equal(
+      canMarkJibaShipmentShipped({
+        status: 'confirmed',
+        paymentStatus: 'unpaid',
+        collected: { upsellAmount: 399 },
+        isJiba: true,
+      }),
+      true,
+    );
+  });
+});
+
+describe('jiba shipping charge display', () => {
+  it('labels fee due, declared, paid, threshold free, and waived', () => {
+    assert.deepEqual(describeJibaShippingCharge({ paymentStatus: 'unpaid', collected: {} }), {
+      kind: 'awaiting_declaration',
+      label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜待申報`,
+      hold: true,
+    });
+    assert.deepEqual(
+      describeJibaShippingCharge({
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        collected: { declaredPaidAt: '2026-08-17T01:00:00.000Z' },
+      }),
+      {
+        kind: 'declared',
+        label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜已申報待核帳`,
+        hold: true,
+      },
+    );
+    assert.deepEqual(describeJibaShippingCharge({ paymentStatus: PAYMENT_STATUS.PAID }), {
+      kind: 'paid',
+      label: `物流處理費 ${JIBA_SHIPPING_FEE} 元｜已核帳`,
+      hold: false,
+    });
+    assert.deepEqual(describeJibaShippingCharge({ collected: { upsellAmount: 399 } }), {
+      kind: 'free_threshold',
+      label: '加購達門檻｜免運',
+      hold: false,
+    });
+    assert.deepEqual(describeJibaShippingCharge({ collected: { shippingFeeWaived: true } }), {
+      kind: 'free_waived',
+      label: '免運',
+      hold: false,
+    });
+    assert.deepEqual(describeJibaShippingCharge({ paymentStatus: PAYMENT_STATUS.WAIVED }), {
+      kind: 'free_waived',
+      label: '免運',
+      hold: false,
+    });
+    assert.doesNotMatch(
+      describeJibaShippingCharge({ paymentStatus: 'unpaid', collected: {} }).label,
+      /包郵/,
+    );
   });
 });
 

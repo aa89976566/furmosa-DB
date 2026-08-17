@@ -15,11 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  isJibaPaymentReviewHold,
-  JIBA_PAYMENT_REVIEW_LABEL,
-} from '@/lib/campaigns/jiba-two-piece/payment';
-import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
+import { paymentStatusLabel } from '@/lib/labels';
 import { formatPlanContents } from '@/lib/plan-contents';
 import { productLabel } from '@/lib/product-label';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
@@ -88,7 +85,7 @@ export function ShipmentOrderPanel({
     );
   }
 
-  const paymentReviewHold = isJibaPaymentReviewHold(data.order);
+  const paymentReviewHold = data.paymentReviewHold;
   const allowedNext = (
     paymentReviewHold
       ? nextStatuses(data.status).filter((status) => status !== 'shipped' && status !== 'delivered')
@@ -211,9 +208,7 @@ export function ShipmentOrderPanel({
                 />
                 <PanelRow
                   label="運費"
-                  value={
-                    shippingFeeTypeLabel[data.order.shippingFeeType] ?? data.order.shippingFeeType
-                  }
+                  value={data.fulfillmentFeeLabel ?? data.order.shippingFeeType}
                 />
               </>
             ) : null}

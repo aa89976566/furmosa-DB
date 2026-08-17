@@ -1,3 +1,5 @@
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+
 // 統一商品顯示：把 g 數 / 單位接到名字後面，避免重複顯示
 //   productLabel('雞肉丁凍乾', 30)             → '雞肉丁凍乾 30g'
 //   productLabel('雞肉丁凍乾30g', 30)          → '雞肉丁凍乾30g'  (名字已含 30g)
@@ -8,7 +10,7 @@ export function productLabel(
   weightGrams?: number | null,
   unit?: string | null,
 ): string {
-  let out = name;
+  let out = replaceJibaLegacyCatnipName(name);
   if (weightGrams && weightGrams > 0) {
     const re = new RegExp(`\\b${weightGrams}\\s*g\\b`, 'i');
     if (!re.test(name)) out = `${out} ${weightGrams}g`;

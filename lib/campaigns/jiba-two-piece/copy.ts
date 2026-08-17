@@ -5,6 +5,7 @@ import {
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
   JIBA_TRANSFER_ACTION_TEXT,
+  replaceJibaLegacyCatnipName,
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import type { JibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
@@ -21,7 +22,7 @@ export const JIBA_INVITE_DECLINE_REPLY =
   '好，這次先不用沒關係。之後想參加，再傳「開箱任務」就好。';
 export const JIBA_INVITE_REPROMPT = '這步用下面按鈕回就好：我要參加，或先不用。';
 export const JIBA_ASK_PRODUCT_PROMPT = '這次想讓毛孩體驗哪一樣？點下面就好。';
-export const JIBA_ASK_PRODUCT_ALT_TEXT = '選開箱商品：雞霸、青蛙、貓草雞肉乾 30g';
+export const JIBA_ASK_PRODUCT_ALT_TEXT = '選開箱商品：雞霸、青蛙、貓草雞肉薄片 30g';
 export const JIBA_ASK_PRODUCT_TITLE = '選這次體驗的商品';
 
 /** @deprecated 舊長介紹；入口改走 JIBA_INVITE_*，保留給既有測試對照 */
@@ -33,7 +34,7 @@ export const JIBA_INTRO = `毛孩開箱體驗募集
 
 export const JIBA_RULES = `參加方式很單純：
 
-① 選一種體驗商品（雞霸、青蛙或貓草雞肉乾 30g）
+① 選一種體驗商品（雞霸、青蛙或貓草雞肉薄片 30g）
 ② 拍毛孩開箱／試吃的真實樣子
 ③ 發 Instagram Reels，標記 @furmosa_food
 ④ 素材經你授權後，可能用在官網、IG、LINE 或活動宣傳
@@ -46,7 +47,7 @@ export const JIBA_ASK_PRODUCT = `這次想讓毛孩體驗哪一樣？`;
 export const JIBA_PRODUCT_PICKED = {
   jiba: `好，這次體驗「壕大大雞霸兩片」。`,
   frog: `好，這次體驗「青蛙凍乾一隻」。`,
-  catnip: `好，這次體驗「貓草雞肉乾 30g」。`,
+  catnip: `好，這次體驗「貓草雞肉薄片 30g」。`,
 } as const;
 
 export const JIBA_BRIEF_CONTINUE = '好，開始填收件資訊';
@@ -170,7 +171,7 @@ export function jibaLicenseBody(productKey?: JibaProductKey): string {
   if (productKey !== 'catnip') return JIBA_LICENSE_BODY;
   return `${JIBA_LICENSE_BODY}
 
-這次貓咪試吃貓草雞肉乾的真實反應，經你按「我同意」後，也可能用在這頁：
+這次貓咪試吃貓草雞肉薄片的真實反應，經你按「我同意」後，也可能用在這頁：
 ${CATNIP_CHICK_HOMEPAGE_URL}`;
 }
 
@@ -280,24 +281,31 @@ export function jibaConfirmSummary(d: {
   productLabel?: string;
   shippingFeeDue?: boolean;
   shippingFeeAmount?: number;
+  shippingFeeLabel?: string;
+  shippingFeeKind?: 'awaiting_declaration' | 'declared' | 'paid' | 'free_threshold' | 'free_waived';
   paymentDeclared?: boolean;
   declaredPaidAt?: string | null;
   transferAccountLast5?: string | null;
 }): string {
   const phone = d.recipientPhone.replace(/(\d{4})(\d{3})(\d{3})/, '$1-$2-$3');
-  const product = d.productLabel ?? '壕大大雞霸 × 2';
-  const feeDue = d.shippingFeeDue !== false;
+  const product = replaceJibaLegacyCatnipName(d.productLabel ?? '壕大大雞霸 × 2');
+  const feeDue = d.shippingFeeDue !== false && d.shippingFeeKind !== 'free_threshold' && d.shippingFeeKind !== 'free_waived';
   const feeAmount = d.shippingFeeAmount ?? JIBA_SHIPPING_FEE;
-  const feeLine = feeDue
-    ? `物流處理費：NT$${feeAmount}（需自付）`
-    : '物流處理費：免運';
-  const paymentLine = !feeDue
-    ? '付款申報：免運，不用轉帳'
-    : d.paymentDeclared
-      ? `付款申報：已申報待核對${d.declaredPaidAt ? `（${d.declaredPaidAt}）` : ''}${
-          d.transferAccountLast5 ? `\n收款帳號末五碼：${d.transferAccountLast5}` : ''
-        }`
-      : '付款申報：尚未轉帳';
+  const feeLine = d.shippingFeeLabel
+    ? `運費：${d.shippingFeeLabel}`
+    : feeDue
+      ? `物流處理費：NT$${feeAmount}（需自付）`
+      : '物流處理費：免運';
+  const paymentLine =
+    d.shippingFeeKind === 'free_threshold'
+      ? '付款申報：加購達門檻，不用轉帳'
+      : d.shippingFeeKind === 'free_waived' || !feeDue
+        ? '付款申報：免運，不用轉帳'
+        : d.paymentDeclared
+          ? `付款申報：已申報待核對${d.declaredPaidAt ? `（${d.declaredPaidAt}）` : ''}${
+              d.transferAccountLast5 ? `\n收款帳號末五碼：${d.transferAccountLast5}` : ''
+            }`
+          : '付款申報：尚未轉帳';
   return `麻煩最後再幫我們確認一次。
 有錯現在改就好，寄出後就比較麻煩了。
 

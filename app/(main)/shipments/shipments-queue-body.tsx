@@ -10,6 +10,11 @@ import {
 } from '@/lib/shipment';
 import { SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES } from '@/lib/campaigns/jiba-two-piece/payment';
 import {
+  loadJibaChargeSourcesByOrderIds,
+  resolveShipmentFulfillmentFee,
+} from '@/lib/campaigns/jiba-two-piece/shipment-charge';
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
 } from '@/lib/shipment-queue-filters';
@@ -49,6 +54,7 @@ const shipmentInclude = {
       source: true,
       status: true,
       paymentStatus: true,
+      shippingFeeType: true,
       shippingMethod: true,
       cvsBrand: true,
       cvsStoreId: true,
@@ -87,13 +93,13 @@ const QUEUE_SECTIONS = [
   {
     status: 'pending',
     title: '待出貨',
-    description: '點列表在下方開啟訂單內容，下拉可標記已寄出',
+    description: '點列表在下方開啟訂單內容，點選運輸狀態按鈕可標記已寄出',
     tone: 'operations' as const,
   },
   {
     status: 'shipped',
     title: '在途',
-    description: '已寄出 — 下拉選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
+    description: '已寄出 — 點選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
     tone: 'logistics' as const,
   },
 ];
@@ -213,6 +219,7 @@ function FilterChip({
 
 function toQueueRow(
   s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
+  fee: ReturnType<typeof resolveShipmentFulfillmentFee>,
 ): ShipmentQueueRow {
   return {
     id: s.id,
@@ -244,14 +251,17 @@ function toQueueRow(
           orderNumber: s.order.orderNumber,
           status: s.order.status,
           paymentStatus: s.order.paymentStatus,
+          shippingFeeType: s.order.shippingFeeType,
           shippingMethod: s.order.shippingMethod,
           cvsBrand: s.order.cvsBrand,
           cvsStoreId: s.order.cvsStoreId,
           cvsStoreName: s.order.cvsStoreName,
         }
       : null,
+    fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
+    paymentReviewHold: fee.paymentReviewHold,
     items: s.items.map((item) => ({
-      productName: item.productName,
+      productName: replaceJibaLegacyCatnipName(item.productName),
       weightGrams: item.weightGrams,
       quantity: item.quantity,
     })),
@@ -350,7 +360,17 @@ export async function ShipmentsQueueBody({
     })
     .join('|');
 
-  const queueRows = shipments.map(toQueueRow);
+  const jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
+  const queueRows = shipments.map((s) =>
+    toQueueRow(
+      s,
+      resolveShipmentFulfillmentFee({
+        orderStatus: s.order?.status,
+        shippingFeeType: s.order?.shippingFeeType,
+        jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
+      }),
+    ),
+  );
 
   const subscriptionRows = queueRows
     .filter((s) => s.type === 'subscription' && (s.status === 'pending' || s.status === 'packed'))

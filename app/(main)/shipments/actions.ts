@@ -21,6 +21,11 @@ import {
   canMarkJibaShipmentShipped,
   JIBA_PAYMENT_REVIEW_LABEL,
 } from '@/lib/campaigns/jiba-two-piece/payment';
+import {
+  loadJibaChargeSourcesByOrderIds,
+  resolveShipmentFulfillmentFee,
+} from '@/lib/campaigns/jiba-two-piece/shipment-charge';
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
@@ -91,9 +96,16 @@ async function markShipmentStatusInner(formData: FormData) {
   if (!allowed.includes(next)) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
   }
+  const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
+  const jiba = shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null;
   if (
     (next === 'shipped' || next === 'delivered') &&
-    !canMarkJibaShipmentShipped(shipment.order)
+    !canMarkJibaShipmentShipped({
+      status: shipment.order?.status,
+      paymentStatus: jiba?.paymentStatus ?? shipment.order?.paymentStatus,
+      collected: jiba?.collectedDataJson,
+      isJiba: Boolean(jiba),
+    })
   ) {
     throw new Error(`此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出`);
   }
@@ -368,6 +380,8 @@ export type ShipmentPanelData = {
     total: string;
     shippingFee: string;
   } | null;
+  fulfillmentFeeLabel: string | null;
+  paymentReviewHold: boolean;
   items: Array<{
     id: string;
     productName: string;
@@ -412,6 +426,13 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
   });
   if (!shipment) return null;
 
+  const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
+  const fee = resolveShipmentFulfillmentFee({
+    orderStatus: shipment.order?.status,
+    shippingFeeType: shipment.order?.shippingFeeType,
+    jiba: shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null,
+  });
+
   return {
     id: shipment.id,
     shipmentNumber: shipment.shipmentNumber,
@@ -440,9 +461,11 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           shippingFee: String(shipment.order.shippingFee),
         }
       : null,
+    fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
+    paymentReviewHold: fee.paymentReviewHold,
     items: shipment.items.map((item) => ({
       id: item.id,
-      productName: item.productName,
+      productName: replaceJibaLegacyCatnipName(item.productName),
       sku: item.sku,
       quantity: item.quantity,
       weightGrams: item.weightGrams,

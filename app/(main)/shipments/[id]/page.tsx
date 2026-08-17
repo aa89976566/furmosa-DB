@@ -14,11 +14,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDateTime } from '@/lib/format';
+import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import {
-  isJibaPaymentReviewHold,
-  JIBA_PAYMENT_REVIEW_LABEL,
-} from '@/lib/campaigns/jiba-two-piece/payment';
-import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
+  loadJibaChargeSourcesByOrderIds,
+  resolveShipmentFulfillmentFee,
+} from '@/lib/campaigns/jiba-two-piece/shipment-charge';
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import { paymentStatusLabel } from '@/lib/labels';
 import {
   shipmentStatusLabel,
   shipmentStatusVariant,
@@ -67,7 +69,13 @@ export default async function ShipmentDetailPage({
   if (!shipment) notFound();
 
   const totalQty = shipment.items.reduce((s, i) => s + i.quantity, 0);
-  const paymentReviewHold = isJibaPaymentReviewHold(shipment.order);
+  const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
+  const fee = resolveShipmentFulfillmentFee({
+    orderStatus: shipment.order?.status,
+    shippingFeeType: shipment.order?.shippingFeeType,
+    jiba: shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null,
+  });
+  const paymentReviewHold = fee.paymentReviewHold;
   const allowedNext = paymentReviewHold
     ? nextStatuses(shipment.status).filter((status) => status !== 'shipped' && status !== 'delivered')
     : nextStatuses(shipment.status);
@@ -289,8 +297,8 @@ export default async function ShipmentDetailPage({
                 <Row
                   label="運費類型"
                   value={
-                    <Badge variant="outline">
-                      {shippingFeeTypeLabel[shipment.order.shippingFeeType] ??
+                    <Badge variant={paymentReviewHold ? 'warning' : 'outline'}>
+                      {fee.fulfillmentFeeLabel ??
                         shipment.order.shippingFeeType}
                     </Badge>
                   }
@@ -321,7 +329,7 @@ export default async function ShipmentDetailPage({
           </dl>
           {shipment.notes && (
             <div className="mt-4 rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-line text-muted-foreground">
-              {shipment.notes}
+              {replaceJibaLegacyCatnipName(shipment.notes)}
             </div>
           )}
         </SectionCard>

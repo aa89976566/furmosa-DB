@@ -16,7 +16,7 @@ import {
   jibaProductLabelFromCollected,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
-  assessJibaShippingFee,
+  describeJibaShippingCharge,
   paymentDeclarationFromCollected,
 } from '@/lib/campaigns/jiba-two-piece/payment';
 import { paymentStatusLabel } from '@/lib/labels';
@@ -109,7 +109,10 @@ export default async function JibaReviewDetailPage({
     }
   })();
   const purposeAcknowledged = collectedFlags.purposeAcknowledged === true;
-  const fee = assessJibaShippingFee(collected);
+  const charge = describeJibaShippingCharge({
+    paymentStatus: app.paymentStatus,
+    collected,
+  });
   const declaration = paymentDeclarationFromCollected(collected);
 
   return (
@@ -159,7 +162,7 @@ export default async function JibaReviewDetailPage({
               <Row label="商品金額" value={`NT$${app.campaign.productUnitPrice}`} />
               <Row
                 label="物流處理費"
-                value={fee.due ? `需付 NT$${fee.amount}` : '免運'}
+                value={charge.label}
               />
               <Row
                 label="付款申報"

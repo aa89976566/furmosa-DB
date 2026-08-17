@@ -27,6 +27,11 @@ import { DetailBadgeRow, DetailStrip } from '@/components/shared/detail-fields';
 import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
+import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  loadJibaChargeSourcesByOrderIds,
+  resolveShipmentFulfillmentFee,
+} from '@/lib/campaigns/jiba-two-piece/shipment-charge';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 import {
   ArrowLeft,
@@ -62,6 +67,12 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
   const editable = isOrderEditable(order);
   const logistics = resolveLogisticsForOrderList(order);
+  const jibaSources = await loadJibaChargeSourcesByOrderIds([order.id]);
+  const fulfillmentFee = resolveShipmentFulfillmentFee({
+    orderStatus: order.status,
+    shippingFeeType: order.shippingFeeType,
+    jiba: jibaSources.get(order.id) ?? null,
+  });
   return (
     <>
       <PageHeader
@@ -157,7 +168,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             {order.note ? (
               <div className="mt-3 flex gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span className="whitespace-pre-line">{order.note}</span>
+                <span className="whitespace-pre-line">{replaceJibaLegacyCatnipName(order.note)}</span>
               </div>
             ) : null}
           </HorizontalSectionPane>
@@ -264,8 +275,15 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                     </form>
                   ))}
                 </div>
+                {fulfillmentFee.isJiba ? (
+                  <p className="mt-2 text-sm font-medium">
+                    開箱運費：{fulfillmentFee.fulfillmentFeeLabel}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  {shippingMethodLabel(order)}。合計為買家應付；包郵時公司運費成本另列、不計入合計。
+                  {fulfillmentFee.isJiba
+                    ? '開箱單依申報／核帳狀態顯示，不把未付或待核帳寫成包郵。'
+                    : `${shippingMethodLabel(order)}。合計為買家應付；包郵時公司運費成本另列、不計入合計。`}
                 </p>
               </div>
             </div>
@@ -319,7 +337,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {it.productName}
+                          {replaceJibaLegacyCatnipName(it.productName)}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">
