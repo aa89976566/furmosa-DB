@@ -14,6 +14,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency, formatDateTime } from '@/lib/format';
+import {
+  isJibaPaymentReviewHold,
+  JIBA_PAYMENT_REVIEW_LABEL,
+} from '@/lib/campaigns/jiba-two-piece/payment';
 import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
 import {
   shipmentStatusLabel,
@@ -63,7 +67,10 @@ export default async function ShipmentDetailPage({
   if (!shipment) notFound();
 
   const totalQty = shipment.items.reduce((s, i) => s + i.quantity, 0);
-  const allowedNext = nextStatuses(shipment.status);
+  const paymentReviewHold = isJibaPaymentReviewHold(shipment.order);
+  const allowedNext = paymentReviewHold
+    ? nextStatuses(shipment.status).filter((status) => status !== 'shipped' && status !== 'delivered')
+    : nextStatuses(shipment.status);
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'cancelled'].includes(shipment.status);
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({
@@ -100,6 +107,9 @@ export default async function ShipmentDetailPage({
             <Badge variant={shipmentStatusVariant[shipment.status] ?? 'secondary'}>
               {shipmentStatusLabel[shipment.status] ?? shipment.status}
             </Badge>
+            {paymentReviewHold ? (
+              <Badge variant="warning">{JIBA_PAYMENT_REVIEW_LABEL}</Badge>
+            ) : null}
             <span className="text-xs text-muted-foreground">
               建立於 {formatDateTime(shipment.createdAt)}
             </span>
@@ -436,9 +446,11 @@ export default async function ShipmentDetailPage({
           <SectionCard
             title="推進狀態"
             description={
-              shipment.type === 'customer_order'
-                ? '物流人員操作 — 狀態會同步更新關聯訂單的出貨與訂單狀態'
-                : '物流人員操作 — 寄出時要填物流商與追蹤碼'
+              paymentReviewHold
+                ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出`
+                : shipment.type === 'customer_order'
+                  ? '物流人員操作 — 狀態會同步更新關聯訂單的出貨與訂單狀態'
+                  : '物流人員操作 — 寄出時要填物流商與追蹤碼'
             }
             className="lg:col-span-3"
           >

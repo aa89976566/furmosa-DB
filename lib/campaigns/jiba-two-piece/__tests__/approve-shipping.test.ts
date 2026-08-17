@@ -3,11 +3,15 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { APP_STATUS, PAYMENT_STATUS } from '../constants';
-import { decideJibaApproveTransition } from '../payment';
+import {
+  canMarkJibaShipmentShipped,
+  decideJibaApproveTransition,
+  isJibaPaymentReviewHold,
+} from '../payment';
 import { activeShipmentQueueWhere } from '@/lib/shipment-queue-filters';
 
 /**
- * 重現：PENDING_REVIEW → approve（已申報）→ 出貨列表 where 可查到。
+ * 重現：PENDING_REVIEW → approve（已申報或未申報）→ 出貨列表 where 可查到。
  * 決策與 query 皆為純資料，不碰正式 DB。
  */
 describe('PENDING_REVIEW approve appears in shipment list', () => {
@@ -34,16 +38,27 @@ describe('PENDING_REVIEW approve appears in shipment list', () => {
     assert.equal(shipment.status, 'pending');
   });
 
-  it('unpaid approve does not create a shipment row', () => {
+  it('unpaid approve still creates a pending shipment visible in the list', () => {
     const decision = decideJibaApproveTransition({
       status: APP_STATUS.PENDING_REVIEW,
       paymentStatus: PAYMENT_STATUS.UNPAID,
     });
     assert.equal(decision.action, 'await_payment');
-    if (decision.action === 'await_payment') {
-      assert.equal(decision.createShipment, false);
-      assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
-    }
+    if (decision.action !== 'await_payment') return;
+
+    assert.equal(decision.createShipment, true);
+    assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
+    const order = { status: decision.nextOrderStatus };
+    assert.equal(isJibaPaymentReviewHold(order), true);
+    assert.equal(canMarkJibaShipmentShipped(order), false);
+    const where = activeShipmentQueueWhere;
+    const hidden = where.OR;
+    assert.ok(Array.isArray(hidden));
+    const orderClause = hidden.find(
+      (item) => item && typeof item === 'object' && 'order' in item,
+    ) as { order?: { status?: { notIn?: string[] } } };
+    assert.ok(orderClause?.order?.status?.notIn?.includes('cancelled'));
+    assert.equal(orderClause?.order?.status?.notIn?.includes(order.status), false);
   });
 
   it('approve service writes inside a transaction and is idempotent', () => {
@@ -53,6 +68,13 @@ describe('PENDING_REVIEW approve appears in shipment list', () => {
     assert.match(src, /decideJibaApproveTransition/);
     assert.match(src, /ensureQueuedShipment/);
     assert.match(src, /declareJibaShippingPayment/);
+    assert.match(src, /status: \{ not: 'cancelled' \}/);
     assert.doesNotMatch(src, /paymentStatus:\s*'paid'/);
+  });
+
+  it('shipment status action blocks payment-review holds', () => {
+    const src = readFileSync(new URL('../../../../app/(main)/shipments/actions.ts', import.meta.url), 'utf8');
+    assert.match(src, /canMarkJibaShipmentShipped/);
+    assert.match(src, /JIBA_PAYMENT_REVIEW_LABEL/);
   });
 });

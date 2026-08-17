@@ -47,6 +47,8 @@ const shipmentInclude = {
       id: true,
       orderNumber: true,
       source: true,
+      status: true,
+      paymentStatus: true,
       shippingMethod: true,
       cvsBrand: true,
       cvsStoreId: true,
@@ -240,6 +242,8 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          status: s.order.status,
+          paymentStatus: s.order.paymentStatus,
           shippingMethod: s.order.shippingMethod,
           cvsBrand: s.order.cvsBrand,
           cvsStoreId: s.order.cvsStoreId,

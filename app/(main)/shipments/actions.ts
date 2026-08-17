@@ -17,6 +17,10 @@ import {
   isQimuMerchantName,
 } from '@/lib/stores/ensure-qimu-delivery';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import {
+  canMarkJibaShipmentShipped,
+  JIBA_PAYMENT_REVIEW_LABEL,
+} from '@/lib/campaigns/jiba-two-piece/payment';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
@@ -67,6 +71,7 @@ async function markShipmentStatusInner(formData: FormData) {
     where: { id: shipmentId },
     include: {
       items: true,
+      order: { select: { status: true, paymentStatus: true } },
       merchant: {
         select: {
           id: true,
@@ -85,6 +90,12 @@ async function markShipmentStatusInner(formData: FormData) {
   const allowed = TRANSITIONS[shipment.status] ?? [];
   if (!allowed.includes(next)) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
+  }
+  if (
+    (next === 'shipped' || next === 'delivered') &&
+    !canMarkJibaShipmentShipped(shipment.order)
+  ) {
+    throw new Error(`此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出`);
   }
 
   const now = new Date();
@@ -346,6 +357,7 @@ export type ShipmentPanelData = {
   order: {
     id: string;
     orderNumber: string;
+    status: string;
     shippingMethod: string;
     cvsBrand: string | null;
     cvsStoreId: string | null;
@@ -416,6 +428,7 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
       ? {
           id: shipment.order.id,
           orderNumber: shipment.order.orderNumber,
+          status: shipment.order.status,
           shippingMethod: shipment.order.shippingMethod,
           cvsBrand: shipment.order.cvsBrand,
           cvsStoreId: shipment.order.cvsStoreId,

@@ -180,8 +180,8 @@ export type JibaApproveDecision =
       action: 'await_payment';
       nextAppStatus: typeof APP_STATUS.AWAITING_SHIPPING_PAYMENT;
       nextOrderStatus: 'awaiting_shipping_payment';
-      shippingQueueStatus: 'NOT_READY';
-      createShipment: false;
+      shippingQueueStatus: 'QUEUED';
+      createShipment: true;
     }
   | { action: 'idempotent'; nextAppStatus: AppStatus; createShipment: boolean }
   | { action: 'reject'; reason: string };
@@ -215,7 +215,7 @@ export function decideJibaApproveTransition(input: {
     return {
       action: 'idempotent',
       nextAppStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
-      createShipment: false,
+      createShipment: true,
     };
   }
   if (input.status !== APP_STATUS.PENDING_REVIEW) {
@@ -234,13 +234,31 @@ export function decideJibaApproveTransition(input: {
     action: 'await_payment',
     nextAppStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
     nextOrderStatus: 'awaiting_shipping_payment',
-    shippingQueueStatus: 'NOT_READY',
-    createShipment: false,
+    shippingQueueStatus: 'QUEUED',
+    createShipment: true,
   };
 }
 
 /** 出貨列表可見的訂單狀態：只排除已取消，避免 application／order 不一致漏單 */
 export const SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES = ['cancelled'] as const;
+
+export const JIBA_PAYMENT_REVIEW_ORDER_STATUS = 'awaiting_shipping_payment' as const;
+export const JIBA_PAYMENT_REVIEW_LABEL = '等運費核對';
+
+/** 已核准但運費尚未核對：列表要看得到，不可當成可立即寄出 */
+export function isJibaPaymentReviewHold(order?: {
+  status?: string | null;
+  paymentStatus?: string | null;
+} | null): boolean {
+  return order?.status === JIBA_PAYMENT_REVIEW_ORDER_STATUS;
+}
+
+export function canMarkJibaShipmentShipped(order?: {
+  status?: string | null;
+  paymentStatus?: string | null;
+} | null): boolean {
+  return !isJibaPaymentReviewHold(order);
+}
 
 export function isShipmentQueueVisibleOrderStatus(status: string | null | undefined): boolean {
   if (!status) return true;
@@ -254,8 +272,12 @@ export function isJibaBackfillCandidate(input: {
   paymentStatus?: string | null;
   collected?: Record<string, unknown> | string | null;
   hasActiveShipment: boolean;
+  orderId?: string | null;
+  orderStatus?: string | null;
 }): boolean {
   if (input.hasActiveShipment) return false;
+  if (!input.orderId) return false;
+  if (input.orderStatus === 'cancelled') return false;
   if (
     input.appStatus !== APP_STATUS.APPROVED &&
     input.appStatus !== APP_STATUS.AWAITING_SHIPPING_PAYMENT &&
@@ -263,8 +285,23 @@ export function isJibaBackfillCandidate(input: {
   ) {
     return false;
   }
-  return isJibaPaymentSatisfied({
-    paymentStatus: input.paymentStatus,
-    collected: input.collected,
-  });
+  return true;
+}
+
+/** 已核准漏單：付款已滿足才升 READY；未申報只補出貨單、不改成已付 */
+export function jibaBackfillRepairKind(input: {
+  appStatus: string;
+  paymentStatus?: string | null;
+  collected?: Record<string, unknown> | string | null;
+}): 'queue_ready' | 'await_payment_shipment' {
+  if (input.appStatus === APP_STATUS.READY_TO_SHIP) return 'queue_ready';
+  if (
+    isJibaPaymentSatisfied({
+      paymentStatus: input.paymentStatus,
+      collected: input.collected,
+    })
+  ) {
+    return 'queue_ready';
+  }
+  return 'await_payment_shipment';
 }

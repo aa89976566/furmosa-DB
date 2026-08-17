@@ -5,11 +5,14 @@ import { APP_STATUS, FLOW_STATE, JIBA_SHIPPING_FEE, PAYMENT_STATUS } from '../co
 import {
   assessJibaShippingFee,
   buildPaymentDeclarationPatch,
+  canMarkJibaShipmentShipped,
   decideJibaApproveTransition,
   isJibaBackfillCandidate,
   isJibaPaymentDeclared,
+  isJibaPaymentReviewHold,
   isJibaPaymentSatisfied,
   isShipmentQueueVisibleOrderStatus,
+  jibaBackfillRepairKind,
   shouldRedirectToTransfer,
 } from '../payment';
 
@@ -85,7 +88,7 @@ describe('jiba approve transition', () => {
     }
   });
 
-  it('PENDING_REVIEW + unpaid fee due → AWAITING, no shipment', () => {
+  it('PENDING_REVIEW + unpaid fee due → AWAITING, still create shipment', () => {
     const decision = decideJibaApproveTransition({
       status: APP_STATUS.PENDING_REVIEW,
       paymentStatus: PAYMENT_STATUS.UNPAID,
@@ -94,7 +97,9 @@ describe('jiba approve transition', () => {
     assert.equal(decision.action, 'await_payment');
     if (decision.action === 'await_payment') {
       assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
-      assert.equal(decision.createShipment, false);
+      assert.equal(decision.nextOrderStatus, 'awaiting_shipping_payment');
+      assert.equal(decision.shippingQueueStatus, 'QUEUED');
+      assert.equal(decision.createShipment, true);
     }
   });
 
@@ -122,14 +127,15 @@ describe('jiba approve transition', () => {
     }
   });
 
-  it('repeat approve while awaiting unpaid stays visible, no extra shipment', () => {
+  it('repeat approve while awaiting unpaid still ensures shipment', () => {
     const decision = decideJibaApproveTransition({
       status: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
       paymentStatus: PAYMENT_STATUS.UNPAID,
     });
     assert.equal(decision.action, 'idempotent');
     if (decision.action === 'idempotent') {
-      assert.equal(decision.createShipment, false);
+      assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
+      assert.equal(decision.createShipment, true);
     }
   });
 });
@@ -141,6 +147,17 @@ describe('shipment list visibility', () => {
     assert.equal(isShipmentQueueVisibleOrderStatus('pending_review'), true);
     assert.equal(isShipmentQueueVisibleOrderStatus('draft'), true);
     assert.equal(isShipmentQueueVisibleOrderStatus('cancelled'), false);
+  });
+
+  it('holds awaiting payment review so staff cannot mark shipped', () => {
+    assert.equal(
+      isJibaPaymentReviewHold({ status: 'awaiting_shipping_payment', paymentStatus: 'unpaid' }),
+      true,
+    );
+    assert.equal(canMarkJibaShipmentShipped({ status: 'awaiting_shipping_payment' }), false);
+    assert.equal(canMarkJibaShipmentShipped({ status: 'confirmed', paymentStatus: 'unpaid' }), true);
+    assert.equal(isJibaPaymentReviewHold({ status: 'confirmed' }), false);
+    assert.equal(isJibaPaymentReviewHold(null), false);
   });
 });
 
@@ -166,13 +183,14 @@ describe('old session transfer redirect', () => {
 });
 
 describe('backfill candidate', () => {
-  it('selects approved+declared without shipment, skips unpaid or already queued', () => {
+  it('selects approved without shipment even if unpaid; skips cancelled or already queued', () => {
     assert.equal(
       isJibaBackfillCandidate({
         appStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
         paymentStatus: PAYMENT_STATUS.DECLARED,
         collected: { declaredPaidAt: '2026-08-17T01:00:00.000Z' },
         hasActiveShipment: false,
+        orderId: 'ord_declared',
       }),
       true,
     );
@@ -182,6 +200,26 @@ describe('backfill candidate', () => {
         paymentStatus: PAYMENT_STATUS.UNPAID,
         collected: {},
         hasActiveShipment: false,
+        orderId: 'ord_unpaid',
+      }),
+      true,
+    );
+    assert.equal(
+      isJibaBackfillCandidate({
+        appStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
+        paymentStatus: PAYMENT_STATUS.UNPAID,
+        hasActiveShipment: false,
+        orderId: null,
+      }),
+      false,
+    );
+    assert.equal(
+      isJibaBackfillCandidate({
+        appStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
+        paymentStatus: PAYMENT_STATUS.UNPAID,
+        hasActiveShipment: false,
+        orderId: 'ord_cancelled',
+        orderStatus: 'cancelled',
       }),
       false,
     );
@@ -190,8 +228,24 @@ describe('backfill candidate', () => {
         appStatus: APP_STATUS.READY_TO_SHIP,
         paymentStatus: PAYMENT_STATUS.DECLARED,
         hasActiveShipment: true,
+        orderId: 'ord_queued',
       }),
       false,
+    );
+    assert.equal(
+      jibaBackfillRepairKind({
+        appStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
+        paymentStatus: PAYMENT_STATUS.UNPAID,
+      }),
+      'await_payment_shipment',
+    );
+    assert.equal(
+      jibaBackfillRepairKind({
+        appStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
+        paymentStatus: PAYMENT_STATUS.DECLARED,
+        collected: { declaredPaidAt: '2026-08-17T01:00:00.000Z' },
+      }),
+      'queue_ready',
     );
   });
 });

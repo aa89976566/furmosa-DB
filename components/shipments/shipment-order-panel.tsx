@@ -15,6 +15,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  isJibaPaymentReviewHold,
+  JIBA_PAYMENT_REVIEW_LABEL,
+} from '@/lib/campaigns/jiba-two-piece/payment';
 import { paymentStatusLabel, shippingFeeTypeLabel } from '@/lib/labels';
 import { formatPlanContents } from '@/lib/plan-contents';
 import { productLabel } from '@/lib/product-label';
@@ -84,7 +88,12 @@ export function ShipmentOrderPanel({
     );
   }
 
-  const allowedNext = nextStatuses(data.status) as ShipmentStatus[];
+  const paymentReviewHold = isJibaPaymentReviewHold(data.order);
+  const allowedNext = (
+    paymentReviewHold
+      ? nextStatuses(data.status).filter((status) => status !== 'shipped' && status !== 'delivered')
+      : nextStatuses(data.status)
+  ) as ShipmentStatus[];
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({
     carrier: data.carrier,
@@ -143,6 +152,9 @@ export function ShipmentOrderPanel({
             <Badge variant={shipmentStatusVariant[data.status] ?? 'secondary'}>
               {shipmentStatusLabel[data.status] ?? data.status}
             </Badge>
+            {paymentReviewHold ? (
+              <Badge variant="warning">{JIBA_PAYMENT_REVIEW_LABEL}</Badge>
+            ) : null}
           </div>
           {data.type === 'customer_order' ? (
             <p className="text-xs text-muted-foreground">
@@ -271,7 +283,9 @@ export function ShipmentOrderPanel({
       <section className="rounded-lg border bg-card p-4">
         <h3 className="text-sm font-semibold">物流狀態</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。
+          {paymentReviewHold
+            ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出。`
+            : '寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。'}
         </p>
         <div className="mt-4">
           <ShipmentStatusActions

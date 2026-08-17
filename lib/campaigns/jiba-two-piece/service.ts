@@ -22,6 +22,7 @@ import {
   decideJibaApproveTransition,
   isJibaBackfillCandidate,
   isJibaPaymentDeclared,
+  jibaBackfillRepairKind,
   JIBA_PAYMENT_METHOD_BANK_TRANSFER,
 } from '@/lib/campaigns/jiba-two-piece/payment';
 import { requireJibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
@@ -386,7 +387,10 @@ export async function approveAndCreatePayment(opts: {
         paymentStatus: again.paymentStatus,
         collected: again.conversationSession?.collectedDataJson,
       });
-      if (againDecision.action === 'queue' || again.status === APP_STATUS.READY_TO_SHIP) {
+      if (
+        againDecision.action !== 'reject' &&
+        (againDecision.createShipment || again.status === APP_STATUS.READY_TO_SHIP)
+      ) {
         await ensureQueuedShipment(opts.applicationId, tx);
       }
       return tx.campaignApplication.findUniqueOrThrow({ where: { id: opts.applicationId } });
@@ -480,7 +484,7 @@ async function nextShipmentNumber(db: Db = prisma) {
   return `${prefix}${String(seq).padStart(4, '0')}`;
 }
 
-/** 審核通過且付款條件滿足後才建立出貨單；已存在則沿用 */
+/** 審核通過後建立出貨單（未申報轉帳也進列表）；已存在則沿用 */
 async function ensureQueuedShipment(applicationId: string, db: Db = prisma) {
   const app = await db.campaignApplication.findUniqueOrThrow({
     where: { id: applicationId },
@@ -827,11 +831,12 @@ export type JibaShippingBackfillResult = {
     status: string;
     paymentStatus: string;
     shippingQueueStatus: string;
+    repairKind: 'queue_ready' | 'await_payment_shipment';
   }>;
   repaired: number;
 };
 
-/** 已核准且付款條件已滿足、卻沒有出貨單的申請。預設 dry-run，不自動跑正式環境。 */
+/** 已核准卻沒有有效出貨單的申請。預設 dry-run；未申報只補單、不標已付。 */
 export async function backfillJibaReadyToShip(opts?: {
   dryRun?: boolean;
   limit?: number;
@@ -856,6 +861,12 @@ export async function backfillJibaReadyToShip(opts?: {
 
   const candidates: JibaShippingBackfillResult['candidates'] = [];
   for (const app of rows) {
+    const order = app.orderId
+      ? await prisma.order.findUnique({
+          where: { id: app.orderId },
+          select: { status: true },
+        })
+      : null;
     const hasActiveShipment = app.orderId
       ? Boolean(
           await prisma.shipment.findFirst({
@@ -870,6 +881,8 @@ export async function backfillJibaReadyToShip(opts?: {
         paymentStatus: app.paymentStatus,
         collected: app.conversationSession?.collectedDataJson,
         hasActiveShipment,
+        orderId: app.orderId,
+        orderStatus: order?.status,
       })
     ) {
       continue;
@@ -880,6 +893,11 @@ export async function backfillJibaReadyToShip(opts?: {
       status: app.status,
       paymentStatus: app.paymentStatus,
       shippingQueueStatus: app.shippingQueueStatus,
+      repairKind: jibaBackfillRepairKind({
+        appStatus: app.status,
+        paymentStatus: app.paymentStatus,
+        collected: app.conversationSession?.collectedDataJson,
+      }),
     });
   }
 
@@ -890,10 +908,14 @@ export async function backfillJibaReadyToShip(opts?: {
   let repaired = 0;
   for (const item of candidates) {
     await prisma.$transaction(async (tx) => {
+      const nextAppStatus =
+        item.repairKind === 'queue_ready'
+          ? APP_STATUS.READY_TO_SHIP
+          : APP_STATUS.AWAITING_SHIPPING_PAYMENT;
       await tx.campaignApplication.update({
         where: { id: item.applicationId },
         data: {
-          status: APP_STATUS.READY_TO_SHIP,
+          status: nextAppStatus,
           shippingQueueStatus: 'QUEUED',
         },
       });
@@ -901,7 +923,8 @@ export async function backfillJibaReadyToShip(opts?: {
         await tx.order.update({
           where: { id: item.orderId },
           data: {
-            status: 'confirmed',
+            status:
+              item.repairKind === 'queue_ready' ? 'confirmed' : 'awaiting_shipping_payment',
             fulfillmentStatus: 'pending',
           },
         });
@@ -911,10 +934,13 @@ export async function backfillJibaReadyToShip(opts?: {
         entityType: 'campaign_application',
         entityId: item.applicationId,
         previousStatus: item.status,
-        newStatus: APP_STATUS.READY_TO_SHIP,
+        newStatus: nextAppStatus,
         actorType: 'system',
         applicationId: item.applicationId,
-        metadata: { repair: 'jiba_shipping_backfill' },
+        metadata: {
+          repair: 'jiba_shipping_backfill',
+          kind: item.repairKind,
+        },
         db: tx,
       });
     });
