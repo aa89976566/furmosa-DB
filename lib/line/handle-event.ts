@@ -363,14 +363,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  if (parsed.kind === 'jiba_unbox') {
+    await startJibaUnboxIntro(replyToken, lineUserId);
+    return;
+  }
+
   if (parsed.kind === 'unboxing') {
-    const t = msgEvent.message.text;
-    // 「開箱任務」走完整對話狀態機（封面圖＋選項＋狀態機）
-    if (t.includes('開箱')) {
-      await startJibaUnboxIntro(replyToken, lineUserId);
-      return;
-    }
-    // 嗷嗚計劃／青蛙誰在怕 → 青蛙專案（封面圖＋文案；網址後補）
+    // 嗷嗚計劃／青蛙誰在怕 → 青蛙專案（與開箱 UGC 分流，不用 contains）
     await replyLineMessage(replyToken, buildFrogProjectMessages({ registered }));
     return;
   }
