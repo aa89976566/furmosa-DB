@@ -1,676 +1,614 @@
 # POS-02 Persistence Proposal
 
 > **地位：** POS 帳務／庫存／美容券／結算的**持久化設計稿**（只討論以後怎麼落庫，本輪不改資料庫）
-> **版本：** v0.1
+> **版本：** v0.2
 > **日期：** 2026-08-17
 > **承接：** 已核准 PR #126 head `fc067be26a9df60c94d4e04b6ca9081f42cb9caf`（POS-01 Domain Contract v1.5）
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 兩份文件。本檔＋`docs/POS-02-MIGRATION-PLAN.md`
 > **本輪硬禁止：** 不改 `prisma/schema.prisma`、不新增 migration、不跑 Prisma／SQL／Supabase、不改 API／UI／service／tests／package／env、不部署、不讀寫正式資料
-> **下一步：** 三方 review 通過前不得進入 POS-03
+> **合約層級：** **POS-01 仍是 canonical。** POS-02 不得覆蓋、改寫或取代 POS-01。O1 已由使用者確認，必須列為**下一個 POS-01 contract bump**；在 bump 合併前，POS-01 程式的 `UNDECIDED` 標記仍有效，本檔只設計「確認後如何落庫」。
+> **下一步：** 三方 review 通過前不得進入 schema／POS-03
 
 ---
 
 ## 0. 這份文件在做什麼
 
 POS-01 已經用純函式寫死「可以做／不可以做」。
-POS-02 只回答：**以後這些事實要存在哪一張表、誰能改、誰不能改、怎樣避免變成第二套帳。**
+POS-02 只回答：**以後這些事實要存在哪一張表、誰能改、誰是唯一寫入者、怎樣用資料庫約束擋住跨店與壞帳。**
 
 用白話說：
 
-- 現在 HQ 後台的寄賣銷售、結算、庫存，已經有一組舊帳（`Order`、`MerchantStockTxn`、`Settlement`）。
-- 若 POS 再各寫各的，月底會對不上。
-- 所以新 POS 帳必須是**新的不可變帳本**，舊帳繼續活著，直到以後人工核准的 cutover。
-- 本輪**零資料庫變更**。下面的 Prisma 區塊只是設計草稿，不是可執行 migration。
+- 店內現金成交，以後由 POS 新帳負責。
+- LINE／綠界代收，付款與取貨狀態仍由現有訂單負責；POS 只能做結算投影，不能再當第二個付款系統。
+- 真實店家在 cutover 前**不准**寫新帳，只能 Preview／shadow，否則 HQ 舊結算會漏帳。
+- 本輪**零資料庫變更**。Prisma／SQL 區塊都是設計規格，不是可執行 migration。
 
 ---
 
-## 1. 已凍結（含本輪補上的 O1）
+## 1. 與 POS-01 的關係（不得覆蓋）
 
-POS-01 R1–R10 全部沿用。本輪另外凍結 **O1（退款回庫）**：
+| 項目 | 誰說了算 |
+|------|----------|
+| R1–R10、狀態機、佣金公式、冪等、24h 未付款 vs 已付款不自動失效 | **POS-01 canonical** |
+| O3 豬窩正式 ID | 仍 OPEN，本檔不猜 |
+| O1 退款回庫 | **使用者已確認**（見下）。POS-01 文件／`POS_01_OPEN_DECISIONS` 仍寫 UNDECIDED，直到 **下一個 POS-01 contract bump**。本檔不宣稱「POS-02 已覆蓋 POS-01」 |
 
-| 情況 | 誰申請 | 誰核准 | 庫存結果 |
-|------|--------|--------|----------|
-| 未拆封、良好、可再售 | 店家申請 | **只有 HQ** | 回**該門市**可售庫存（`RESTOCK_SELLABLE` + `UNOPENED_GOOD_RESELLABLE`） |
-| 已拆封／破損／變質／不可售 | 店家申請 | **只有 HQ** | **不回可售庫存**；另建不可變損耗（`WRITE_OFF` + `OPENED`／`DAMAGED`／`SPOILED`／`OTHER_UNSELLABLE`）。`OTHER` 必須填說明 |
+**下一個 POS-01 contract bump 必須寫入（本輪不改那 3 檔）：**
 
-其他凍結：
+- O1 從 OPEN 改為 Frozen，內容＝本檔 §1.1
+- 退款申請狀態補上 `completed`（決策與副作用分離；見 §5）
+- 店內成交 vs 代收成交的擁有者分型（見 §2）
 
-- 店家**不能**自行核准退款、回庫、改佣金或結算。
-- HQ 核准時：退款金額、佣金回沖、庫存處理必須在**同一受保護 transaction／workflow**，且冪等。
-- 原 sale 已進 `approved`／`paid` 結算：退款與佣金沖銷進**次期**，不重開舊期。
-- **退款金額**與**實物 disposition** 分開：金額全退就可以財務 `fully_reversed`；東西能不能回架是另一筆決定。
+### 1.1 使用者已確認的 O1（待 bump；落庫依此設計）
 
-**O3 仍未決：** 豬窩三店正式 immutable IDs。本檔只留空位，不填猜測 ID，不用中文店名辨識。
+| 情況 | 誰申請 | 誰核准 | 庫存 |
+|------|--------|--------|------|
+| 未拆封、良好、可再售 | 店家 | **只有 HQ** | `RESTOCK_SELLABLE` + `UNOPENED_GOOD_RESELLABLE` → 回**該門市**可售 |
+| 已拆封／破損／變質／不可售 | 店家 | **只有 HQ** | `WRITE_OFF` + `OPENED`／`DAMAGED`／`SPOILED`／`OTHER_UNSELLABLE`（OTHER 必填說明）。**不加 onHand** |
 
-POS-01 程式裡的 `POS_01_OPEN_DECISIONS.refundRestockReason` 仍標 `UNDECIDED`。本輪**不改那 3 個 POS-01 檔**；O1 以本提案為準，等後續合約 bump。
-
----
-
-## 2. 現況盤點（只讀，不改 Production）
-
-### 2.1 現有模型在做什麼
-
-| 現有模型 | 現在是什麼真相 | POS-02 怎麼對待 |
-|----------|----------------|-----------------|
-| `Merchant` / `MerchantUser` / `MerchantSettings` | 店與 POS 登入（`Merchant.id` = cuid；session 只信這個） | **沿用**。`merchantId` 只能來自 POS session |
-| `MerchantStock` | 店×商品×規格的**目前數量**（只有 `quantity`，沒有 reserved；可寫成負） | **擴充、不當財務真相**。`id` 當 server-resolved `inventoryAggregateId` |
-| `MerchantStockTxn` | HQ 寄賣**現行結算來源**（`type=sale` + 未配對的負 `adjust`）。金額是 Float；可刪未結清列；無冪等 key | **舊 HQ 帳繼續用**。**不是** POS 新財務真相。不可再讓 POS 銷售雙寫進這裡當第二套佣金 |
-| `Order` / `OrderItem` | 網站／LINE／寄賣訂單。金額 Float。快速銷售常常**沒有** Order | **顧客訂單真相**。POS 店內 completed sale **不**再用 Order 當佣金／結算來源 |
-| `Settlement` | 期間加總 Float；`paid` 才禁刪，`approved` 現在仍可刪並解開 txn | **沿用表頭，擴充整數 line**。對齊 R5：`approved` 起不可刪、不可改金額 |
-| `MerchantProductRule` | 現行 HQ **每商品**不同抽成（20%／30%） | 與 POS-01 R3（同店單一％）衝突。POS 新 sale **不讀此規則算佣金**；改讀店級整數％並 snapshot。舊規則留給 HQ 舊帳 |
-| `Merchant.commissionRate` | Float 0.30 fallback，銷售路徑幾乎沒用 | 不當 POS 真相。新店級％另存整數 snapshot |
-| `Shipment` / `ShipmentItem` | 出貨履約。code 在 shipped **或** delivered 就可能入店庫；合約只要 delivered | **沿用履約**。POS 入店庫只認 `delivered` |
-| `RestockRequest` / `RestockRequestItem` | POS 一鍵叫貨；取消只在合約、service 還沒做 | **沿用申請**。取消事件另表，不把 `approved` 改寫成 `cancelled` |
-| `GroomingCoupon` | LINE 美容券。`storeId`＝Store **slug**，不是 `Merchant.id`。面額 Float。過期不退點。公開核銷入口已退役 | **沿用券本體**。POS 核銷／取消走新 ledger／request，不把券表當結算加總來源 |
-| `Store` | LINE／會員／券的 slug 空間 | **不與 Merchant 用店名硬配**。只做 audit／backfill／quarantine |
-| `MemberPointsLedger` | 會員點數流水（Int）。兌換券已扣 10 點 | **沿用**退點 +10；新 source type + idempotency |
-| `RefillOrder.idempotencyKey` | 換罐訂單已有 `@unique` 冪等 | **抄模式**，不把 refill 金額當 POS 寄賣帳 |
-| `Warehouse` / `InventoryBalance` / `InventoryTransaction` | 總倉庫存，不是店庫存 | 不混用 |
-
-### 2.2 Source-of-truth matrix（避免第二套帳）
-
-| 事實 | 舊 HQ 真相（繼續活） | POS 新真相（本提案） | 禁止 |
-|------|----------------------|----------------------|------|
-| 店內／指定門市 completed sale 金額與佣金 | `MerchantStockTxn` Float snapshot（或缺欄重算規則） | `PosSaleLine` 整數 snapshot | 同一筆 POS 成交再寫一筆 Order 當結算來源 |
-| 退款／佣金回沖 | **沒有**寄賣退款 persistence | `PosRefundLine` + `PosLedgerEntry` | 改寫原 sale 或原 txn |
-| 庫存現況 | `MerchantStock.quantity` | 擴充後的 `onHand`／`reserved`；現況可由 ledger 重算核對 | POS 只改 quantity、不留 ledger |
-| 庫存事件 | `MerchantStockTxn`（可刪） | `PosInventoryLedger` 不可變 | 用 `Set<string>` 或依目前庫存數字判斷重試 |
-| 月結加總 | `Settlement` 重算／加總 txn | `PosSettlementLine` **只加總 snapshot** | 月底重算整月淨額×費率 |
-| 美容券補貼 | 無結算 line | `PosLedgerEntry` kind=`voucher_fixed_subsidy` | 把券當商品折價、或用店名猜 200／250 |
-| 顧客網站／訂閱訂單 | `Order` | 維持 Order | 不要把 POS 店收現金硬塞成第二套 Order 財務 |
-
-一句話：**舊帳不刪、新帳不抄舊欄位當權威；POS 新寫入只進 `Pos*`（與安全擴充的店庫存）。**
+店家不能自核退款、回庫、改佣金或結算。HQ 核准的財務回沖、disposition、庫存 ledger、`MerchantStock` 餘額、狀態必須**同一 transaction**；任一步失敗全 rollback。已鎖期（approved／paid）只進次期。金額與實物 disposition 分離。
 
 ---
 
-## 3. 金額型別（禁止新 Float）
+## 2. 單一 commerce truth
 
-| 選項 | 優點 | 缺點 | 本提案 |
-|------|------|------|--------|
-| `Int` | 對齊 POS-01 `TwdInteger`（安全整數）；Prisma／JS 簡單 | 約 21 億封頂 | **推薦 line／adjustment／券額／佣金 snapshot** |
-| `BigInt` | 幾乎不會溢位 | POS-01 helper 拒絕 JS BigInt；應用層要轉 | 僅當期間加總可能超過 `Int` 時備用；本階段期間加總仍用 `Int` + safe-add |
-| `Decimal(18,0)` | DB 精確整數 | Prisma Decimal 在 JS 難用；合約要 number | 不採用 |
-| `Decimal(12,2)`／`Float` | — | 分、精度漂移 | **禁止**新財務真相 |
+### 2.1 分型
 
-**推薦：** 所有 POS sale／refund／commission／voucher／adjustment／settlement line 用 **`Int` 整數 TWD**。費率用 **`Int` 0–100**（30 代表 30%），不用 `0.30` Float。
+| 成交類型 | 完成交易／付款／履約的權威 | POS 可以做什麼 | POS 不准做什麼 |
+|----------|---------------------------|----------------|----------------|
+| **店內、店家收款** | `PosSale` + `PosSaleLine` | 擁有 completed 事實、佣金 snapshot、店內庫存 consume | 再寫一筆 `Order` 當結算來源 |
+| **LINE／綠界、Furmosa 代收** | 既有 `Order` + Payment + fulfillment | 只建 `MerchantSaleSnapshot`（結算投影） | **不得**自有 `paymentStatus`／`fulfillmentStatus`；不得另建獨立 PosSale 當付款真相 |
 
-既有 Float（`MerchantStockTxn.unitPrice`、`Settlement.grossSales`、`GroomingCoupon.discountAmount`、`Order.total`…）走 **expand → backfill → verify → dual-read → cutover → 以後才 contract**。非整數或不一致**不得自動四捨五入**，進 quarantine。細節見 migration plan。
+`MerchantSaleSnapshot` 硬規則：
 
-月結：**只加總**各 line 已存的整數 snapshot，不重算。
+- `sourceOrderId` **@unique**（一張訂單最多一筆投影）
+- 必須有 **payment reference**（server 從既有付款紀錄解析）
+- 佣金／方向由 server 依 POS-01 公式 snapshot
+- 付款是否成功、是否 reserved／取貨，**只讀** Order／fulfillment
+
+### 2.2 Source-of-truth matrix
+
+| 事實 | Cutover 前（真實店家） | Cutover 後 | 禁止 |
+|------|------------------------|------------|------|
+| 店內店收 completed sale | **仍寫 legacy** `MerchantStockTxn`（＋既有 HQ 路徑）。新表只在 Preview／shadow | `PosSale`／`PosSaleLine` | 真實店家先寫新表、HQ 仍只讀舊 txn（會漏結算） |
+| 代收 LINE／ECPay | `Order`／Payment／fulfillment | 同上為付款權威；另有 `MerchantSaleSnapshot` | POS 自建 payment／fulfillment 狀態 |
+| 退款（店內） | 現行**沒有**寄賣退款 persistence；新鏈只 Preview | `PosRefund*` + ledger | 改寫原 sale／原 txn |
+| 庫存事件 | `MerchantStockTxn` + `quantity` | `PosInventoryLedger` + 同交易更新的 `onHand`／`reserved` | 兩套都當權威 |
+| 庫存現況 | `MerchantStock.quantity` | materialized `onHand`／`reserved` | `quantity` 獨立亂寫；`onHand` default 0 讓讀端以為沒貨 |
+| 月結 | legacy `Settlement` Float + txn | `PosSettlementV2` 只引用 ledger entry | Float 與 Int 混加總 |
+| 美容券補貼 | 無結算 line | ledger kind=`voucher_fixed_subsidy` | 店名猜 200／250 |
+| Merchant↔Store | 無權威 FK | 僅 `MerchantStoreBinding`（HQ verified） | audit 當權威；name／slug 自動綁 |
+
+### 2.3 Writer／cutover 表（commerce）
+
+| Writer | 現在寫哪 | Cutover 前真實店家 | Shadow／Preview | Cutover 後 |
+|--------|----------|--------------------|-----------------|------------|
+| HQ 現場售出／快速銷售 | `MerchantStockTxn` ± Order | **繼續 legacy** | 可投影到 shadow Pos*，不取代結算 | 改寫 `PosSale`（店收）或停止此入口 |
+| HQ adjust／盤點 | `MerchantStockTxn` adjust | 繼續 legacy | shadow | 改 `PosInventoryLedger` 或明確阻擋進 POS 結算 |
+| HQ／POS 叫貨出貨 | Shipment；code 可能 shipped 就入庫 | 繼續 legacy；合約只要 delivered | shadow | 只 `delivered` → ledger `restock_delivered` |
+| Refill／換罐 | `RefillOrder`（Int 金額，另一套帳） | **不併入**寄賣 POS 結算 | 不投影成 PosSale | 維持獨立；不可當寄賣佣金 |
+| POS 店內成交 | 多數走 HQ 同一套 txn | **禁止寫新帳**（no-real-POS gate） | 只 Preview | `PosSale` |
+| POS／HQ 退款 | 無 | 禁止寫新帳 | Preview 完整鏈 | `PosRefund*` |
+| LINE／ECPay 付款 | Order／Payment | 維持權威 | snapshot 可 shadow | 仍 Order 權威 + `MerchantSaleSnapshot` |
+
+**漏結算禁令：** 不允許「POS 只寫新表、HQ 結算仍只加總 legacy txn」。真實 go-live 當天，該入口的 writer 必須已切到同一套結算來源，或該入口被關掉。
 
 ---
 
-## 4. Prisma 設計草稿（只存在文件，不改 schema）
+## 3. 單一 inventory truth
 
-以下區塊**不是**可對 Production 執行的 SQL，也**不可**直接貼進 `schema.prisma` 後 migrate。
+- **未來 event 真相：** `PosInventoryLedger`（不可變）。fingerprint＝`inventoryAggregateId + op + qty + 必要 reference`，不含當下餘額。
+- **未來餘額真相：** `MerchantStock.onHand`／`reserved`，與 ledger **同一 transaction** 更新。`available = onHand - reserved ≥ 0`。
+- **Cutover 前：** `MerchantStockTxn` + `quantity` 仍是 legacy 真相。
+- `inventoryAggregateId`＝server 解析的 `MerchantStock.id`（merchant+product+tier）。client 值不可信。
+
+### 3.1 每個 writer 何時切 canonical
+
+| Writer | Legacy | 切到 canonical 的條件 | 未切齊時 |
+|--------|--------|----------------------|----------|
+| HQ sale（扣庫） | txn `sale` + `quantity--` | 與店內 PosSale consume 同日切，或停用 HQ 扣店庫 | **阻擋**新 POS 讀 onHand |
+| HQ adjust／return | txn adjust／return | 改 ledger `write_off`／`release` 等，或阻擋進 POS available | 阻擋 |
+| HQ restock 入庫 | txn restock（可能 shipped 就入） | 只認 shipment `delivered` + ledger | 阻擋 |
+| Shipment delivered | 改 `quantity` | 同交易寫 ledger + onHand | 阻擋 |
+| Refill 店庫 | 若有動店庫，維持獨立並文件化 | 不併 POS available，除非明確 binding | 預設不碰 POS 餘額 |
+| POS reserve／consume | 無 reserved | Preview only → cutover 當日全開 | 真實店家不可 reserve |
+| 退款回庫／損耗 | 無 | 與 refund `completed` 同交易 | Preview only |
+
+**真實 POS go-live 前：** 上表所有會改同一 `MerchantStock` 列的 writer 必須切齊，或被硬擋。不允許一半寫 `quantity`、一半寫 `onHand`。
+
+### 3.2 onHand／reserved expand（不得 default 0）
+
+1. 加 **nullable** `onHand`、`reserved`（**沒有** `DEFAULT 0`）
+2. 加 `stockReady`（或同等 readiness flag），預設 false
+3. backfill：僅 `quantity >= 0` 的列寫入 `onHand=quantity`、`reserved=0`；負數／不明進 quarantine，保持 null
+4. verify
+5. 對已 ready 的列設 `NOT NULL` + flag=true
+6. 讀端：**flag 未真則不得把 null 當 0 庫存**
+
+`quantity` 只是過渡 mirror。Cutover 後**不可獨立寫** `quantity`；若仍更新，只能由 onHand 同步，且有 CHECK／trigger 保證相等或停用 quantity 寫入。
+
+### 3.3 Compatibility projection
+
+若 HQ 畫面仍要看到「一筆 txn」：
+
+- 從 `PosInventoryLedger` **投影**到非權威列／表
+- `sourceEventId` **unique**，指向 ledger id
+- 投影可刪／可重建；**ledger 不可刪**
+- 結算與 available **不讀**投影
+
+---
+
+## 4. DB merchant 隔離（必須落在資料庫，不只 service）
+
+模式（每個 parent／child）：
 
 ```prisma
-// DRAFT ONLY — POS-02 persistence proposal. Do not apply.
-
-/// 店級佣金％（POS 新帳）。舊 MerchantProductRule 不當 POS 真相。
-model PosMerchantCommissionPolicy {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  ratePercent        Int      @map("rate_percent") // 0–100
-  effectiveFrom      DateTime @map("effective_from")
-  supersededAt       DateTime? @map("superseded_at")
-  createdByActor     String   @map("created_by_actor") // hq
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, effectiveFrom])
-  @@map("pos_merchant_commission_policies")
-}
-
+// DRAFT ONLY — 說明複合 FK，不是可套用 schema
 model PosSale {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  status             String   // draft | completed | cancelled
-  collectionChannel  String   @map("collection_channel")
-  fulfillmentStatus  String?  @map("fulfillment_status")
-  paymentStatus      String?  @map("payment_status")
-  idempotencyKey     String   @unique @map("idempotency_key")
-  createdByActor     String   @map("created_by_actor")
-  createdByUserId    String?  @map("created_by_user_id")
-  completedAt        DateTime? @map("completed_at")
-  createdAt          DateTime @default(now()) @map("created_at")
-  /// completed 後禁止改金額／通道／狀態（終態）
-  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  lines              PosSaleLine[]
-  refundRequests     PosRefundRequest[]
-  ledgerEntries      PosLedgerEntry[]
-
-  @@index([merchantId, createdAt])
-  @@index([merchantId, status])
-  @@map("pos_sales")
+  id         String
+  merchantId String
+  @@id([id])
+  @@unique([id, merchantId])
 }
 
 model PosSaleLine {
-  id                         String   @id @default(cuid())
-  merchantId                 String   @map("merchant_id")
-  saleId                     String   @map("sale_id")
-  productId                  String   @map("product_id")
-  inventoryAggregateId       String   @map("inventory_aggregate_id") // = MerchantStock.id，server 解析
-  quantity                   Int
-  actualGrossTwd             Int      @map("actual_gross_twd")
-  collectionChannel          String   @map("collection_channel")
-  commissionRateSnapshot     Int      @map("commission_rate_snapshot")
-  commissionAmountSnapshot   Int      @map("commission_amount_snapshot")
-  direction                  String
-  ledgerKind                 String   @default("ordinary_commission") @map("ledger_kind")
-  createdAt                  DateTime @default(now()) @map("created_at")
-
-  sale     PosSale       @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  merchant Merchant      @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  stock    MerchantStock @relation(fields: [inventoryAggregateId], references: [id], onDelete: Restrict)
-  product  Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
-
-  @@unique([merchantId, saleId, id])
-  @@index([merchantId, saleId])
-  @@map("pos_sale_lines")
+  id         String
+  merchantId String
+  saleId     String
+  sale       PosSale @relation(fields: [saleId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
 }
 
-model PosRefundRequest {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  saleId             String   @map("sale_id")
-  status             String   // requested | approved | rejected
-  requestedByActor   String   @map("requested_by_actor")
-  approvedByActor    String?  @map("approved_by_actor")
-  reason             String
-  idempotencyKey     String   @unique @map("idempotency_key")
-  createdAt          DateTime @default(now()) @map("created_at")
-  decidedAt          DateTime? @map("decided_at")
-
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  sale     PosSale  @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  lines    PosRefundLine[]
-  dispositions PosRefundDisposition[]
-
-  @@index([merchantId, saleId, status])
-  @@map("pos_refund_requests")
-}
-
-model PosRefundLine {
-  id                                String   @id @default(cuid())
-  merchantId                        String   @map("merchant_id")
-  requestId                         String   @map("request_id")
-  originalSaleId                    String   @map("original_sale_id")
-  originalSaleLineId                String?  @map("original_sale_line_id")
-  amountTwd                         Int      @map("amount_twd")
-  quantity                          Int?
-  originalCollectionChannel         String   @map("original_collection_channel")
-  originalCommissionRateSnapshot    Int      @map("original_commission_rate_snapshot")
-  commissionReversalSnapshot        Int      @map("commission_reversal_snapshot")
-  settlementDestination             String   @map("settlement_destination") // current_open_period | next_period_adjustment
-  idempotencyKey                    String   @unique @map("idempotency_key")
-  createdAt                         DateTime @default(now()) @map("created_at")
-
-  merchant Merchant         @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  request  PosRefundRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, originalSaleId])
-  @@map("pos_refund_lines")
-}
-
-/// 實物 disposition；與金額 line 分離
-model PosRefundDisposition {
-  id                     String   @id @default(cuid())
-  merchantId             String   @map("merchant_id")
-  requestId              String   @map("request_id")
-  inventoryAggregateId   String   @map("inventory_aggregate_id")
-  quantity               Int
-  action                 String   // RESTOCK_SELLABLE | WRITE_OFF
-  reasonCode             String   @map("reason_code")
-  /// UNOPENED_GOOD_RESELLABLE | OPENED | DAMAGED | SPOILED | OTHER_UNSELLABLE
-  reasonNote             String?  @map("reason_note") // OTHER 必填
-  inventoryLedgerId      String?  @unique @map("inventory_ledger_id")
-  createdAt              DateTime @default(now()) @map("created_at")
-
-  merchant Merchant         @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  request  PosRefundRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
-  stock    MerchantStock    @relation(fields: [inventoryAggregateId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, requestId])
-  @@map("pos_refund_dispositions")
-}
-
-model PosLedgerEntry {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  amountTwd          Int      @map("amount_twd") // 永遠正整數
-  direction          String   // merchant_owes_hq | hq_owes_merchant
-  kind               String
-  saleId             String?  @map("sale_id")
-  refundLineId       String?  @map("refund_line_id")
-  voucherId          String?  @map("voucher_id")
-  redemptionId       String?  @map("redemption_id")
-  adjustmentId       String?  @map("adjustment_id")
-  settlementId       String?  @map("settlement_id")
-  periodStart        DateTime? @map("period_start")
-  periodEnd          DateTime? @map("period_end")
-  idempotencyKey     String   @unique @map("idempotency_key")
-  createdByActor     String   @map("created_by_actor")
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  sale     PosSale? @relation(fields: [saleId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, createdAt])
-  @@index([merchantId, kind])
-  @@index([settlementId])
-  @@map("pos_ledger_entries")
-}
-
-model PosInventoryLedger {
-  id                     String   @id @default(cuid())
-  merchantId             String   @map("merchant_id")
-  inventoryAggregateId   String   @map("inventory_aggregate_id")
-  op                     String   // reserve | release | expire | consume_pickup | consume_in_store | restock_delivered | restock_sellable | write_off
-  quantity               Int
-  onHandAfter            Int      @map("on_hand_after")
-  reservedAfter          Int      @map("reserved_after")
-  reference              String?
-  reasonCode             String?  @map("reason_code")
-  reasonNote             String?  @map("reason_note")
-  idempotencyKey         String   @unique @map("idempotency_key")
-  fingerprint            String
-  createdByActor         String   @map("created_by_actor")
-  createdAt              DateTime @default(now()) @map("created_at")
-
-  merchant Merchant      @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  stock    MerchantStock @relation(fields: [inventoryAggregateId], references: [id], onDelete: Restrict)
-
-  @@unique([idempotencyKey])
-  @@index([merchantId, inventoryAggregateId, createdAt])
-  @@map("pos_inventory_ledger")
-}
-
-model PosSettlementLine {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  settlementId       String   @map("settlement_id")
-  ledgerEntryId      String   @unique @map("ledger_entry_id")
-  amountTwd          Int      @map("amount_twd")
-  direction          String
-  kind               String
-  sourceSnapshotTwd  Int      @map("source_snapshot_twd")
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  @@index([merchantId, settlementId])
-  @@map("pos_settlement_lines")
-}
-
-model PosSettlementAdjustment {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  amountTwd          Int      @map("amount_twd") // 正整數
-  direction          String
-  kind               String   // merchant_proposed_adjustment | next_period_adjustment
-  reference          String
-  reason             String
-  requestedByActor   String   @map("requested_by_actor")
-  approvedByActor    String?  @map("approved_by_actor")
-  effectiveStart     DateTime @map("effective_start")
-  effectiveEnd       DateTime @map("effective_end")
-  idempotencyKey     String   @unique @map("idempotency_key")
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, effectiveStart])
-  @@map("pos_settlement_adjustments")
-}
-
-model PosVoucherCancellationRequest {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  requestId          String   @unique @map("request_id")
-  voucherId          String   @map("voucher_id")
-  redemptionId       String   @map("redemption_id")
-  status             String   // pending | approved | rejected
-  requestedByActor   String   @map("requested_by_actor")
-  decidedByActor     String?  @map("decided_by_actor")
-  reason             String
-  idempotencyKey     String   @unique @map("idempotency_key")
-  fingerprint        String
-  createdAt          DateTime @default(now()) @map("created_at")
-  decidedAt          DateTime? @map("decided_at")
-
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-
-  @@index([merchantId, voucherId])
-  @@map("pos_voucher_cancellation_requests")
-}
-
-model PosIdempotencyRecord {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  scope              String   // sale | refund | inventory | voucher_cancel | adjustment | settlement
-  idempotencyKey     String   @map("idempotency_key")
-  fingerprint        String
-  resultRef          String   @map("result_ref")
-  createdAt          DateTime @default(now()) @map("created_at")
-
-  @@unique([merchantId, scope, idempotencyKey])
-  @@map("pos_idempotency_records")
-}
-
-/// 非權威。只供 audit／backfill／quarantine，禁止用名稱自動核准。
-model MerchantStoreLinkAudit {
-  id                 String   @id @default(cuid())
-  merchantId         String?  @map("merchant_id")
-  storeId            String?  @map("store_id")
-  storeSlug          String?  @map("store_slug")
-  observedName       String?  @map("observed_name")
-  status             String   // proposed | quarantined | hq_approved | rejected
-  reason             String
-  createdAt          DateTime @default(now()) @map("created_at")
-  reviewedByActor    String?  @map("reviewed_by_actor")
-
-  @@index([status, createdAt])
-  @@map("merchant_store_link_audits")
-}
-
-/// O3 空位：正式豬窩 immutable IDs 未定前不得填值當權威。
-model ZhuwoImmutableIdPolicySlot {
-  id                 String   @id @default(cuid())
-  slotKey            String   @unique @map("slot_key") // zhuwo_branch_1 | zhuwo_branch_2 | zhuwo_branch_3
-  officialMerchantId String?  @map("official_merchant_id") // 必須保持 null 直到 O3
-  officialStoreId    String?  @map("official_store_id")
-  status             String   @default("UNDECIDED")
-  note               String   @default("禁止用中文店名辨識；正式 ID 未定")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  @@map("zhuwo_immutable_id_policy_slots")
+model MerchantStock {
+  id         String
+  merchantId String
+  @@unique([id, merchantId]) // 供 child composite FK
+  @@unique([merchantId, productId, tierId])
 }
 ```
 
-既有 `MerchantStock` **安全擴充（以後才做，本輪不做）：**
+**必須用 `[parentId, merchantId] → [id, merchantId]` 的對象：**
 
-- 新增 `onHand Int`、`reserved Int`（預設 0）
-- 過渡期 `quantity` 當 dual-read 別名
-- **不**刪 `quantity` 直到 contract 階段
-- `@@unique([merchantId, productId, tierId])` 維持；`id`＝authoritative `inventoryAggregateId`
+- `PosSaleLine` → `PosSale`、`MerchantStock`
+- `PosRefundRequest` → `PosSale`
+- `PosRefundLine` → request、`PosSale`、`PosSaleLine`
+- `PosRefundDisposition` → request、refundLine、saleLine、`MerchantStock`
+- `PosFinancialLedgerEntry` → 恰好一個來源（見 §7）
+- `PosSettlementV2`／`PosSettlementLine`／`PosSettlementAdjustment`
+- `PosReservation` → sale 或 order-snapshot、`MerchantStock`
+- `MerchantSaleSnapshot` → `Merchant`（`sourceOrderId` unique；訂單本身可另 FK）
 
-既有 `Settlement` **安全擴充：**
+Prisma **不能**表達、必須在 **建新表當下**用 Postgres 寫入的（見 §9 矩陣）：
 
-- 新增整數欄（`grossSalesTwd` 等）與 `PosSettlementLine` 關聯
-- 舊 Float 欄保留到 cutover
-- 刪除政策改為：`approved`／`paid` 不可刪（應用層＋以後 DB 限制）
+| 不變量 | 機制 | 何時生效 |
+|--------|------|----------|
+| 跨表金額／佣金公式 | CHECK 或 trigger + transaction assert | 新表 CREATE 當時 |
+| ledger 恰好一個來源 | CHECK `(a IS NOT NULL)::int + … = 1` | 建表當時 |
+| 已核准結算不可改 line | trigger 或 REVOKE／column privilege | 建表當時 |
+| 佣金政策期間不重疊 | `btree_gist` EXCLUDE | 建表當時 |
+| 同時只有一條 active binding | partial unique | 建表當時 |
+| O1 action／reason 配對 | CHECK | 建表當時 |
 
-既有 `GroomingCoupon`：不改成 POS 結算來源。取消申請走 `PosVoucherCancellationRequest`。
-
-既有 `MemberPointsLedger`：新增 source type（例如 `grooming_coupon_cancel_reversal`）時仍走 expand，本輪不改。
-
----
-
-## 5. 每個新模型的契約
-
-以下「不可變」＝完成後禁止 update／delete 金額、方向、snapshot、身分欄。只能再寫 reversal／adjustment。
-
-### 5.1 `PosSale` / `PosSaleLine`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | `merchantId`＝POS session 的 `Merchant.id` |
-| 建立者 | 店員／店家可建 `draft`；`completed` 由 server 在同一 transaction 寫 line snapshot |
-| 可變 | 僅 `draft` 的非金額草稿。`completed`／`cancelled` 終態 |
-| 不可變 | 成交額、通道、費率／佣金 snapshot、direction、inventoryAggregateId |
-| 狀態 | `draft → completed \| cancelled`。`completed` 永不改、永不刪 |
-| 刪除 | 禁止硬刪。draft 取消＝`cancelled` |
-| Unique | `idempotencyKey`；line 必須同 `merchantId` |
-| Reversal | 指向 `PosRefundLine.originalSaleId` |
-| 隔離 | composite：`sale.merchantId = line.merchantId = stock.merchantId`。transaction 再 assert 等於 session |
-
-### 5.2 `PosRefundRequest` / `PosRefundLine` / `PosRefundDisposition`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | 與原 sale 同一 `merchantId` |
-| 建立者 | 店家申請；**只有 HQ** 核准 |
-| 可變 | 僅 `requested` 的申請備註 |
-| 不可變 | 核准後的 amount、commissionReversalSnapshot、channel／rate snapshot、disposition |
-| 狀態 | `requested → approved \| rejected`。approved 後不改寫，錯了另寫 |
-| 刪除 | 禁止 |
-| Unique | 每 line／request 各有 `idempotencyKey`。line fingerprint 含 commission snapshot |
-| 金額 vs 實物 | line＝財務；disposition＝回庫或損耗。金額全退即可 `fully_reversed` |
-| 已鎖結算 | `settlementDestination = next_period_adjustment` |
-
-### 5.3 `PosLedgerEntry`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | `merchantId` |
-| 建立者 | 只由 server 在 sale／refund／voucher／adjustment 決策後寫入 |
-| 不可變 | 全列。`amountTwd` 永遠正整數；方向只看 `direction` |
-| 刪除 | 禁止 |
-| Unique | `idempotencyKey` |
-| 月結 | `PosSettlementLine` 引用這些 entry 的 snapshot，不重算 |
-
-### 5.4 `PosInventoryLedger` + 擴充 `MerchantStock`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | `merchantId` + `inventoryAggregateId`（＝`MerchantStock.id`，server 解析） |
-| 建立者 | server。client 傳的 aggregateId 不可信 |
-| 不可變 | 全列。fingerprint＝`aggregateId + op + qty + 必要 reference`，**不**含當下 onHand／reserved |
-| 刪除 | 禁止（與現行 5 秒刪 txn 不同） |
-| Unique | `idempotencyKey`；同 key 不同 aggregate／op／qty throw |
-| 現況 | `available = onHand - reserved ≥ 0`。禁止負庫存 |
-| 入庫 | 只有 shipment `delivered` 的 `restock_delivered`；退貨可售＝`restock_sellable` |
-
-不建議把 POS 庫存事件只擴進 `MerchantStockTxn` 當唯一帳：舊 txn 可刪、無 reserved、無 fingerprint、金額 Float。若 HQ 要看，可以後 **投影** 一筆唯讀 txn，權威仍是 `PosInventoryLedger`。
-
-### 5.5 `PosSettlementLine` / `PosSettlementAdjustment`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | 與 `Settlement.merchantId` 相同 |
-| 建立者 | HQ。店員不可改佣金或結算 |
-| 可變 | 僅 draft／reviewing 的 metadata（備註、期間、意見） |
-| 不可變 | `approved` 起 lines／amounts。只准 `approved → paid` |
-| 刪除 | `approved`／`paid` 禁止。draft 可 `cancelled`（不是重開已核准） |
-| Adjustment | 正整數 + direction；0／負數拒絕 |
-
-### 5.6 `PosVoucherCancellationRequest`
-
-| 項目 | 規則 |
-|------|------|
-| Owner | session merchant；`request.voucherId` 必須等於被取消券 |
-| 建立者 | 店家申請；**每次**核准／拒絕都重驗 HQ（含 duplicate 重送） |
-| 順序 | HQ actor → request identity → idempotency key → existing fingerprint → 才驗券＝redeemed／申請＝pending |
-| 不可變 | 核准後的點數 +10 與補貼 reversal line |
-| 刪除 | 禁止 |
-| 點數 | 沿用 `MemberPointsLedger`；自然過期不退點 |
-
-### 5.7 `PosIdempotencyRecord`
-
-跨表保險櫃：`merchantId + scope + key` → `{fingerprint, resultRef}`。
-各業務表自己的 `@unique(idempotencyKey)` 仍要有。同 key 不同 fingerprint 必須 throw，不可回第一筆假裝成功。
-
-### 5.8 `MerchantStoreLinkAudit` / `ZhuwoImmutableIdPolicySlot`
-
-- Link：**非權威**。歧義進 `quarantined`。禁止用店名自動對上。
-- 豬窩 slot：三列 `UNDECIDED`，`officialMerchantId`／`officialStoreId` 保持 **null**。偏好的 `MER-0016/19/20` 只是舊程式註解，**不是**本提案填入的正式 ID。
+**只有 legacy backfill** 可用 `NOT VALID` 再 `VALIDATE`。新 POS 表不准「先裸表、以後再補約束」。
+Checklist **不可**只寫「service 會檢查」。
 
 ---
 
-## 6. merchant 隔離與 session
+## 5. 退款／O1 完整鏈
 
-- POS cookie＝`furmosa_merchant_session`；HQ cookie＝`furmosa_session`。不得混用。
-- 寫入時 `merchantId` **只能**來自已驗證 POS session（或 HQ 明確選店且 server 重查）。忽略 client 傳來的 merchantId。
-- `inventoryAggregateId`：server 用 session.merchantId + productId + tierId 查 `MerchantStock.id`。
-- 同一 transaction 斷言：sale／refund／stock／ledger／settlement 的 `merchantId` 全相等。
-- 建議以後用複合 FK（`saleId + merchantId` 參照 `PosSale(id, merchantId)`）。本輪不建。
-- Repo 內**沒有** Supabase RLS。跨店隔離必須靠 **service-side auth**，不能假設資料庫會擋。
+### 5.1 狀態（決策 ≠ 副作用）
 
----
+```text
+requested → approved | rejected
+approved → completed
+rejected → （終態）
+```
 
-## 7. 狀態機（與 POS-01 一致）
+- **HQ decision**＝`approved`／`rejected`（只改申請狀態、寫 actor／reason）。
+- **Side-effect execution**＝`completed`：財務 line、disposition、ledger、庫存餘額。
+- **優先保留 `completed`**，以便執行失敗可重試、冪等重送，而不把「已核准但庫存沒動」假裝做完。
+- 不採用「approved 必須等於 completed」的原子合併，除非下一個 POS-01 bump 明確改合約。本設計**不同步改 POS-01 狀態機**；bump 時再把 `completed` 寫進合約。
 
-- Sale／Refund／Fulfillment／Reservation／Restock／Voucher／Settlement：沿用 POS-01 allow-list。
-- 補貨：`draft`／`submitted`／`under_review` 可轉 `cancelled`；`approved`／`converted_to_shipment` 另建 cancellation event，不改寫原申請。
-- 未付款 checkout 24h → `expired`，不 reserve。
-- `paid_reserved` 不自動 expire／退款／釋放。
-- HQ 退款核准 workflow（同一 transaction）：
-  1. 再驗 HQ
-  2. 驗原 sale 仍 completed、merchant 相符
-  3. 寫／回 `PosRefundLine`（佣金精準公式）
-  4. 寫相反方向 `PosLedgerEntry`
-  5. 若有 disposition：`restock_sellable` 或 `write_off`
-  6. 已鎖結算則 ledger kind＝`next_period_adjustment`
+### 5.2 FK
 
----
+- `PosRefundLine.originalSaleId`＋`merchantId` → `PosSale(id, merchantId)`（真 FK）
+- `PosRefundLine.originalSaleLineId`＋`merchantId` → `PosSaleLine(id, merchantId)`（真 FK，**必填**）
+- `PosRefundDisposition` **必須**同時有：`refundLineId`、`originalSaleLineId`、`merchantStockId`（皆＋ merchant composite FK）
+- 禁止「A 商品退款寫進 B 庫存」：disposition.stock 必須等於該 sale line 的 `inventoryAggregateId`
 
-## 8. 冪等與併發
+另存：
 
-| 範圍 | key | fingerprint 至少含 |
-|------|-----|-------------------|
-| 完成銷售 | sale idempotencyKey | merchantId、channel、各 line 金額／qty／aggregateId、rate |
-| 退款 | refund line key | saleId、amount、qty、channel、rate、**commissionReversalSnapshot** |
-| 庫存 | inventory key | **aggregateId**、op、qty、必要 reference |
-| 券取消 | cancel key | requestId、voucherId、redemptionId、decision、tier、settlement 路由、reason |
-| 加減款 | adjustment key | merchant、amount、direction、kind、period、reason |
+- `originalSettlementId`（原 sale 已進哪一期；可空＝尚未結）
+- `settlementRouting`：`current_open_period`｜`next_period_adjustment`
+- `effectivePeriod`／`nextPeriod` 真 reference（指向 `PosSettlementV2` 或期間列）
 
-規則：
+### 5.3 數量與鎖
 
-- 同 key 同 fingerprint → 回原 result、`duplicate=true`。
-- 同 key 不同 fingerprint → throw。壞 duplicate 不可靜默略過。
-- 用 `UNIQUE` + transaction retry；不要先讀再寫當唯一保護。
-- 庫存列 `SELECT … FOR UPDATE`（以後實作）後再算 available。
-- 券取消重送仍要先過 HQ allow-list。
+- disposition.quantity ≤ 該 sale line 剩餘可處置數量（不是財務 amount）
+- 同一 sale line 的累計 disposition ≤ 原 quantity
+- 執行時 `SELECT … FOR UPDATE` 鎖 sale line、stock 列、既有 refund lines
+- 財務 `amountTwd` 仍是 `fully_reversed` 的唯一條件（POS-01）
 
----
+### 5.4 HQ 核准後的 execution transaction（`approved → completed`）
 
-## 9. 不變量（以後寫入時必須守）
+同一 transaction、同一冪等 claim：
 
-1. 原 completed sale 與佣金 snapshot 永不改。
-2. `sum(commissionReversalSnapshot) === 原佣金 − round((原成交 − 累計退款) × 原 rate)`。少或多都拒絕。
-3. 累計退款金額 ≤ 原成交；有數量時 ≤ 原數量。
-4. `available = onHand - reserved ≥ 0`。
-5. ledger `amountTwd > 0`；方向只看 `direction`。
-6. 月結只加總 snapshot。
-7. 未知 enum throw。
-8. 跨店 reference throw。
-9. `OTHER_UNSELLABLE` 無說明 throw。
-10. `RESTOCK_SELLABLE` 只能配 `UNOPENED_GOOD_RESELLABLE`。
+1. 再驗 HQ
+2. 驗 sale／line／stock 同 merchant
+3. 寫 `PosRefundLine`（佣金精準公式）
+4. 寫 `PosFinancialLedgerEntry`（相反方向）
+5. 寫 disposition
+6. 寫 `PosInventoryLedger`
+7. 更新 `MerchantStock` 餘額：可售才 `onHand += q`；**不可售只 loss，onHand 不變**
+8. request → `completed`
+
+任一步失敗 → 全 rollback。重試走同一 idempotency record。
 
 ---
 
-## 10. 帳務方向範例（整數 TWD）
+## 6. 唯一 financial ledger 與結算 V2
 
-假設原成交 1000、店級 30%、佣金 snapshot＝300。
+```text
+business fact（sale line／refund line／voucher／adjustment）
+    → 不可變 PosFinancialLedgerEntry
+        → PosSettlementLine 只 FK 到 entry
+```
 
-### 10.1 店家收款（現金）
+- Settlement line **不要複製**一份會漂的 amount。若為查詢方便存 snapshot，必須有 **DB CHECK** `line.amountTwd = entry.amountTwd`（且 direction／kind 相同）。
+- `PosSettlementLine`、`PosSettlementAdjustment`、`PosFinancialLedgerEntry` 彼此與 `PosSettlementV2` 都有真 relation + merchant composite FK。
 
-| 列 | kind | direction | 金額 | 說明 |
-|----|------|-----------|------|------|
-| sale | ordinary_commission | `merchant_owes_hq` | 店欠 700；佣金 snapshot 300 | 店收 1000，留下 300 |
+### 6.1 禁止與 legacy Float 混算
 
-### 10.2 Furmosa 代收（LINE／綠界）
+- **新建 `PosSettlementV2`**（或同等表＋`source/version` discriminator＝`pos_v2_int`）。
+- **禁止**在同一加總裡把 legacy `Settlement.grossSales`（Float）和 V2 Int／BigInt 相加。
+- 舊 `Settlement` 維持 HQ 舊帳，直到 cutover。不在舊表上「加幾個 Int 欄就當 V2」。
 
-| 列 | kind | direction | 金額 | 說明 |
-|----|------|-----------|------|------|
-| sale | ordinary_commission | `hq_owes_merchant` | 總部欠店 300 | 同一 30%，方向必須相反 |
+### 6.2 鎖定
 
-### 10.3 兩者都退 400（未鎖期）
+`approved` 之後（raw SQL trigger 與／或 REVOKE）：
 
-剩餘淨額 600，應得佣金 `round(600×30%)＝180`，本筆回沖＝300−180＝120。
+- 禁止 settlement **line** insert／update／delete
+- 禁止 header 金額欄改寫
+- `paid` **只**能新增付款 metadata（`paidAt`、付款參考）
+- 已鎖期的 reversal／adjustment 只能指向 **next open V2 period**
 
-| 原通道 | 退款 direction | 回沖佣金 | 債權 |
-|--------|----------------|----------|------|
-| 店收 | `hq_owes_merchant` | 120 | 回沖額 400−120＝280 |
-| 代收 | `merchant_owes_hq` | 120 | 回沖佣金 120 |
+Prisma 權限模型不夠，必須在 constraint 矩陣標 raw SQL。
 
-不得每筆只做 `round(400×30%)＝120` 當唯一算法；多筆拆單必須用剩餘淨額公式，最後累計回沖精準＝300。
+### 6.3 整數上限與序列化
 
-### 10.4 已鎖期（approved／paid）再退
+Postgres `Int`＝32-bit，約 ±21.47 億。
 
-原 sale／原 settlement **不改**。退款 line 與 ledger 的 `kind＝next_period_adjustment`，進下一開放期。
+| 欄位 | 推薦 | 上限證明／邊界 |
+|------|------|----------------|
+| 單筆 sale／refund／券／佣金 line | `Int` | 單筆成交實務遠低於 2×10⁹ TWD；應用層沿用 POS-01 safe integer。超過 Int 必須 throw，不准默默變 Float |
+| ledger entry／settlement header／期間加總 | **`BigInt` 或 `Decimal(18,0)`** | 多年多店加總可能接近或超過 2×10⁹；不推薦 header 用 Int |
+| 費率 | `Int` 0–100 | CHECK |
 
-### 10.5 可售回庫 vs 不可售損耗
+**Next.js／JSON 邊界：**
 
-同一筆退 400、退 1 件：
-
-| disposition | action | 庫存 |
-|-------------|--------|------|
-| 未拆封良好 | `RESTOCK_SELLABLE` + `UNOPENED_GOOD_RESELLABLE` | 該門市 `onHand += 1` |
-| 已拆封／破損／變質／其他不可售 | `WRITE_OFF` + 對應 reason（OTHER 必填） | 不回可售；只留損耗 ledger |
-
-財務 line 與 disposition 分開：可以錢退完、東西尚未回架。
-
----
-
-## 11. RLS／最小權限／auth 邊界
-
-| 層 | 現況 | POS-02 要求 |
-|----|------|-------------|
-| Cookie | HQ／POS 已分開 | 維持；HQ cookie 不能寫 POS 店帳 |
-| Service | Prisma 用 `DATABASE_URL`，無 RLS | **所有** POS 寫入先 `getAuthenticatedMerchantId()` 或 HQ 角色檢查 |
-| DB | 能拿連線就能讀全表 | 本輪不啟用 RLS、不改角色。以後若做，只能當多一層，不能取代 service 檢查 |
-| Client | 不可信 | 佣金、方向、可退上限、aggregateId、settlement 路由一律 server 重算 |
-| Cron／webhook | 綠界／LINE 另有簽章 | 不在本輪接；若接，金額仍以 server 原 sale 為準 |
-
-店員：可申請退款／回庫／叫貨，不可核准、不可改％、不可改已核准結算。
-店家：可提加減款，不可自核。
-HQ：可核准退款、disposition、加減款、結算付款 metadata。
+- JS `number` 安全整數到 2⁵³−1。`BigInt` 不能直接 `JSON.stringify`。
+- API 對 BigInt／Decimal **一律字串**進出；server 再解析並用 POS-01 helper 驗安全整數（若仍在 number 範圍）或專用 BigInt 路徑。
+- 本輪不改程式；只規定以後不可把 BigInt 當普通 number 傳進 React。
 
 ---
 
-## 12. Reuse vs new（給 review 一眼看）
+## 7. 單一冪等權威
 
-**沿用／安全擴充**
+**不採用**「業務表全域 `@unique(idempotencyKey)` 又加中央 registry」雙軌。
 
-- `Merchant`、`MerchantUser`、session
-- `MerchantStock.id` 當 aggregate
-- `Shipment`／`RestockRequest` 履約
-- `Settlement` 表頭（以後加整數欄）
-- `GroomingCoupon` 券本體
-- `MemberPointsLedger` 點數
-- refill 的 idempotency 模式
+**採用：**
 
-**新建（POS 權威）**
+- 唯一 key 空間：`PosIdempotencyRecord @@unique([merchantId, scope, key])`
+- 欄位：`fingerprint`、`resultRef`（或結果列回指）
+- 每筆業務結果有 `idempotencyRecordId @unique` → 該 record
+- **claim 與寫入結果必須同一 transaction**（先插入 record，再插業務列；衝突則比 fingerprint）
 
-- `PosSale`／`PosSaleLine`
-- `PosRefundRequest`／`PosRefundLine`／`PosRefundDisposition`
-- `PosLedgerEntry`
-- `PosInventoryLedger`
-- `PosSettlementLine`／`PosSettlementAdjustment`
-- `PosVoucherCancellationRequest`
-- `PosIdempotencyRecord`
-- `PosMerchantCommissionPolicy`
-- `MerchantStoreLinkAudit`（非權威）
-- `ZhuwoImmutableIdPolicySlot`（空）
+Scope 例：`in_store_sale`、`merchant_sale_snapshot`、`refund_request`、`refund_complete`、`inventory`、`voucher_cancel`、`adjustment`。
 
-**不當 POS 新真相**
+### 7.1 Ledger 來源 exactly-one
 
-- `Order` 金額、`MerchantStockTxn` 佣金 Float、`MerchantProductRule` 每商品％、用店名猜豬窩
+`PosFinancialLedgerEntry` 多個 optional 來源 ID 必須：
+
+- Postgres CHECK：非空來源欄位數＝1
+- 每一個來源都是 **真 FK**（＋ merchant composite）
+- 禁止 orphan（有 id 無關聯列）與 multi-source
 
 ---
 
-## 13. Contract checklist
+## 8. Merchant↔Store 權威與券政策
 
-| 項 | 結果 | 說明 |
+### 8.1 Audit 仍非權威
+
+`MerchantStoreLinkAudit` 只做觀察／quarantine。**不能**讓 POS 核銷或結算讀它當對應。
+
+### 8.2 `MerchantStoreBinding`（擬議權威）
+
+- `merchantId`、`storeId` 皆真 FK，`onDelete: Restrict`
+- **同時只有一條 active**（partial unique：`WHERE revokedAt IS NULL`）
+- `effectiveFrom`／`effectiveTo`
+- `verifiedByActor`、`verifiedAt`、`source`（只允許 `hq_manual` 一類；**禁止** name／slug／heuristic）
+- 未綁定 → **fail closed**
+
+POS 範圍＝`Merchant.id`（session）。
+LINE／券的 `Store.id` **只能**經 verified binding 找到 merchant。反向亦然。
+
+### 8.3 GroomingCoupon slug
+
+現行 `coupons.store_id` 存的是 **Store.slug 字串**，不是 `Store.id` PK。
+
+- 必須 **轉接／隔離**：查詢時 slug → `Store.id` → binding → `Merchant.id`
+- **不可**把 slug 當 `Store` PK，也不可把 slug 寫進 `MerchantStoreBinding.storeId`
+- 轉接失敗（找不到 store、未 verified）→ fail closed，不 fallback 店名
+
+禁止任何 job 用名稱／slug 自動 insert binding。
+
+### 8.4 `MerchantVoucherPolicy`（通用，不是豬窩特例表）
+
+- 掛在 **verified binding** 或 merchant（設計選 merchant + 可選 storeId，但 store 必須已 binding）
+- 面額 200／250 由**資料列**設定，不是 runtime `if 豬窩`
+- 無 policy、IDs 未核對、binding 無效 → **fail closed**，不准 default 200
+- 豬窩三店正式 ID＝**O3 OPEN**，不填、不猜。不建 `Zhuwo*` 權威表
+
+### 8.5 Commission policy
+
+- `PosMerchantCommissionPolicy`：`ratePercent`、`effectiveFrom`／`effectiveTo`、version
+- **期間不得重疊**（同一 merchant）：`EXCLUDE USING gist (merchantId WITH =, tstzrange(from,to) WITH &&)` 或同等 partial unique + transaction 規則
+- `PosSaleLine` 存 snapshot **並** FK 到 `policyId`／version
+- 代收 snapshot 同樣引用 policy version
+
+---
+
+## 9. Constraint 矩陣
+
+| 約束 | Prisma 能表達？ | 必須 raw SQL？ | 新表何時有 |
+|------|-----------------|----------------|------------|
+| parent `@@unique([id,merchantId])` | 能 | 否 | CREATE |
+| child composite FK | 能 | 否 | CREATE |
+| `idempotencyRecordId @unique` | 能 | 否 | CREATE |
+| `sourceOrderId @unique` | 能 | 否 | CREATE |
+| amount > 0、rate 0–100 | 否（無 CHECK） | CHECK | CREATE |
+| ledger exactly-one source | 否 | CHECK | CREATE |
+| settlement line amount＝entry | 否 | CHECK | CREATE |
+| O1 action／reason／OTHER note | 否 | CHECK | CREATE |
+| 佣金期間不重疊 | 否 | EXCLUDE | CREATE |
+| 一 merchant 一 active binding | 部分（unique 不夠表達時間） | partial unique／EXCLUDE | CREATE |
+| approved 後禁改 line | 否 | trigger／REVOKE | CREATE |
+| 跨表佣金公式 | 否 | trigger + tx assert | CREATE |
+| 負庫存 | 否 | CHECK `onHand>=0 AND reserved>=0 AND onHand>=reserved`（僅 ready 列） | ready 後 VALIDATE |
+
+### 9.1 O1 CHECK 清單
+
+- `RESTOCK_SELLABLE` ⇒ reason＝`UNOPENED_GOOD_RESELLABLE`，且 `onHand` 增加＝qty
+- `WRITE_OFF` ⇒ reason ∈ `OPENED|DAMAGED|SPOILED|OTHER_UNSELLABLE`，且 **onHand 不變**
+- `OTHER_UNSELLABLE` ⇒ `reasonNote` 非空、非空白
+- `quantity` ≥ 1、≤ 原 sale line 剩餘可處置
+- `amountTwd` ≥ 1
+- `originalCommissionRateSnapshot` 0–100 且等於原 line snapshot
+- stock 列＝該 sale line 的 aggregate
+- `completedAt` ≥ `approvedAt` ≥ `requestedAt`（時間單調）
+
+---
+
+## 10. Prisma 草稿（節錄；不可套用）
+
+完整欄位以本檔各節為準。下列只示範複合 FK、單一冪等、exactly-one、V2 結算。**不是 Production SQL。**
+
+```prisma
+// DRAFT ONLY — POS-02 v0.2. Do not apply. Do not migrate.
+
+model PosIdempotencyRecord {
+  id             String   @id @default(cuid())
+  merchantId     String
+  scope          String
+  idempotencyKey String
+  fingerprint    String
+  createdAt      DateTime @default(now())
+  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  @@unique([merchantId, scope, idempotencyKey])
+  @@unique([id, merchantId])
+}
+
+model PosSale {
+  id                   String @id @default(cuid())
+  merchantId           String
+  collectionChannel    String // 僅 merchant_collected
+  idempotencyRecordId  String @unique
+  merchant             Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  idempotency          PosIdempotencyRecord @relation(fields: [idempotencyRecordId], references: [id], onDelete: Restrict)
+  @@unique([id, merchantId])
+}
+
+model MerchantSaleSnapshot {
+  id                   String @id @default(cuid())
+  merchantId           String
+  sourceOrderId        String @unique
+  paymentReference     String
+  // 不准有 paymentStatus / fulfillmentStatus
+  actualGrossTwd       Int
+  commissionRateSnapshot Int
+  commissionAmountSnapshot Int
+  commissionPolicyId   String
+  idempotencyRecordId  String @unique
+  @@unique([id, merchantId])
+}
+
+model PosRefundRequest {
+  id         String @id @default(cuid())
+  merchantId String
+  saleId     String
+  status     String // requested | approved | rejected | completed
+  sale       PosSale @relation(fields: [saleId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
+}
+
+model PosRefundLine {
+  id                 String @id @default(cuid())
+  merchantId         String
+  requestId          String
+  originalSaleId     String
+  originalSaleLineId String
+  amountTwd          Int
+  commissionReversalSnapshot Int
+  originalSettlementId String?
+  settlementRouting  String
+  idempotencyRecordId String @unique
+  request            PosRefundRequest @relation(fields: [requestId, merchantId], references: [id, merchantId])
+  originalSale       PosSale @relation(fields: [originalSaleId, merchantId], references: [id, merchantId])
+  originalSaleLine   PosSaleLine @relation(fields: [originalSaleLineId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
+}
+
+model PosRefundDisposition {
+  id                 String @id @default(cuid())
+  merchantId         String
+  requestId          String
+  refundLineId       String
+  originalSaleLineId String
+  merchantStockId    String
+  quantity           Int
+  action             String
+  reasonCode         String
+  reasonNote         String?
+  request            PosRefundRequest @relation(fields: [requestId, merchantId], references: [id, merchantId])
+  refundLine         PosRefundLine @relation(fields: [refundLineId, merchantId], references: [id, merchantId])
+  saleLine           PosSaleLine @relation(fields: [originalSaleLineId, merchantId], references: [id, merchantId])
+  stock              MerchantStock @relation(fields: [merchantStockId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
+}
+
+model PosFinancialLedgerEntry {
+  id                  String @id @default(cuid())
+  merchantId          String
+  amountTwd           BigInt // 或 Decimal(18,0)；正整數
+  direction           String
+  kind                String
+  saleLineId          String?
+  refundLineId        String?
+  voucherRedemptionId String?
+  adjustmentId        String?
+  idempotencyRecordId String @unique
+  @@unique([id, merchantId])
+}
+
+model PosSettlementV2 {
+  id         String @id @default(cuid())
+  merchantId String
+  version    String @default("pos_v2_int")
+  status     String // draft | reviewing | approved | paid | cancelled
+  @@unique([id, merchantId])
+}
+
+model PosSettlementLine {
+  id            String @id @default(cuid())
+  merchantId    String
+  settlementId  String
+  ledgerEntryId String @unique
+  settlement    PosSettlementV2 @relation(fields: [settlementId, merchantId], references: [id, merchantId])
+  entry         PosFinancialLedgerEntry @relation(fields: [ledgerEntryId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
+}
+
+model MerchantStoreBinding {
+  id              String    @id @default(cuid())
+  merchantId      String
+  storeId         String    // Store.id PK，不是 slug
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  revokedAt       DateTime?
+  verifiedByActor String
+  verifiedAt      DateTime
+  source          String    // 只允許 hq_manual
+  merchant        Merchant  @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  store           Store     @relation(fields: [storeId], references: [id], onDelete: Restrict)
+}
+
+model MerchantVoucherPolicy {
+  id         String @id @default(cuid())
+  merchantId String
+  faceTwd    Int    // 200 | 250，資料列設定
+  bindingId  String? // 若按店，必須已 verified
+}
+
+model PosReservation {
+  id                 String @id @default(cuid())
+  merchantId         String
+  merchantStockId    String
+  saleId             String? // 店內不用；代收投影可空，改 sourceOrderId
+  sourceOrderId      String?
+  quantity           Int
+  status             String
+  stock              MerchantStock @relation(fields: [merchantStockId, merchantId], references: [id, merchantId])
+  @@unique([id, merchantId])
+}
+```
+
+對應 raw SQL **規格**（建表時一併有；本輪不執行、不進 `prisma/migrations`）：ledger exactly-one CHECK、settlement line＝entry CHECK、O1 CHECK、commission EXCLUDE、binding partial unique、approved lock trigger。
+
+---
+
+## 11. 帳務方向範例（仍依 POS-01）
+
+原成交 1000、30%、佣金 snapshot＝300。
+
+| 情境 | 權威 | 方向 |
+|------|------|------|
+| 店收 1000 | `PosSale` | `merchant_owes_hq`，店欠 700 |
+| 代收 1000 | Order 付款權威 + `MerchantSaleSnapshot` | `hq_owes_merchant`，欠店 300 |
+| 兩者退 400 | 剩餘 600→應得 180→回沖 120 | 店收反方向回 280；代收回沖佣金 120 |
+| 已鎖期再退 | 原 V2 不改 | `next_period_adjustment` |
+| 可售回庫 | disposition + ledger | onHand+1 |
+| 不可售 | WRITE_OFF | onHand 不變 |
+
+---
+
+## 12. RLS／auth
+
+Repo 無 RLS。跨店 **Prisma 複合 FK + CHECK／trigger + session merchantId** 三層都要。
+HQ／POS cookie 仍分離。client 不可指定 merchantId、aggregateId、佣金、routing。
+
+---
+
+## 13. Reuse vs new
+
+**沿用：** Merchant／session、`MerchantStock`（加 composite unique 與 nullable 餘額）、Shipment／RestockRequest、Order／Payment（代收權威）、GroomingCoupon 本體（slug 轉接）、MemberPointsLedger、legacy Settlement／txn（cutover 前）。
+
+**新建：** PosSale*（僅店收）、MerchantSaleSnapshot、PosRefund*、PosFinancialLedgerEntry、PosInventoryLedger、PosReservation、PosSettlementV2／Line／Adjustment、PosIdempotencyRecord、MerchantStoreBinding、MerchantStoreLinkAudit、MerchantVoucherPolicy、PosMerchantCommissionPolicy。
+
+**刪除／不建：** Zhuwo 特例權威表；業務表與中央 registry 雙重 `@unique(idempotencyKey)`。
+
+---
+
+## 14. Acceptance checklist（要有證據才 PASS）
+
+| 項 | 結果 | 證據 |
 |----|------|------|
-| O1 回庫規則 | **PASS** | 可售回該店；不可售寫損耗；店家不能自核；HQ 同一 workflow；已鎖期進次期 |
-| 不可變 ledger | **PASS** | 完成事實只准新 reversal／adjustment |
-| 冪等 | **PASS** | key→{fingerprint,result}；庫存含 aggregateId；退款含佣金 snapshot |
-| merchant 隔離 | **PASS** | session merchantId + 同列 assert；client 不可指定 |
-| 已鎖結算 | **PASS** | approved 不重開；次期 adjustment |
-| Float 共存 | **PASS** | 新帳 Int；舊 Float expand／quarantine，不自動 round |
-| drift gate | **PASS** | 列為 prerequisite blocker（見 migration plan） |
-| Store mapping | **PASS** | 只 audit／quarantine，不用名稱猜 |
-| 豬窩 ID 未猜 | **PASS** | slot 空、status＝UNDECIDED |
+| POS-01 仍 canonical、未宣稱覆蓋 | **PASS** | §1；O1 列為下一 bump |
+| 店內 vs 代收分型 | **PASS** | §2.1；snapshot 無 payment／fulfillment 狀態 |
+| 不漏結算／no-real-POS | **PASS** | §2.2–2.3；migration plan writer 表 |
+| 單一庫存＋cutover writers | **PASS** | §3 |
+| onHand 不 default 0 | **PASS** | §3.2 |
+| 投影 sourceEventId、非權威 | **PASS** | §3.3 |
+| 複合 FK 覆蓋所列 child | **PASS** | §4、§10 |
+| Prisma 不能表達者已標 raw SQL | **PASS** | §9 |
+| 退款 requested→…→completed | **PASS** | §5.1 |
+| Refund／disposition 真 FK | **PASS** | §5.2 |
+| O1 同交易 rollback、不可售不加 onHand | **PASS** | §5.4、§9.1 |
+| Ledger→settlement 只引用 | **PASS** | §6 |
+| V2 不與 Float 混算 | **PASS** | §6.1 |
+| 單一冪等＋ exactly-one | **PASS** | §7 |
+| Binding 權威、slug 轉接、不自動綁 | **PASS** | §8 |
+| 通用券政策、佣金不重疊、O3 未猜 | **PASS** | §8.4–8.5 |
+| 本輪零 schema／零正式 SQL | **PASS** | 僅 2 docs |
 
 ---
 
-## 14. 本輪不做
+## 15. 仍未決
 
-- 不進 POS-03（不實作 service／API／UI）
-- 不改 schema、不建 migration、不產生 Production SQL
-- 不 merge、不 deploy
-- 不讀寫正式資料
-- 不用文件字串假裝測試通過
+- **O3** 豬窩三店正式 immutable IDs
+- POS-01 **contract bump**（O1 凍結＋ refund `completed`＋ commerce 分型）尚未開 PR
+- Production migration drift（#112–#115）未 reconcile → 不可建 migration
+
+## 16. 本輪不做
+
+不進 schema、不進 POS-03、不 merge、不 deploy、不讀寫正式資料、不執行 §9 的 SQL 規格。

@@ -1,21 +1,26 @@
 # POS-02 Migration Plan
 
 > **地位：** POS-02 以後若要落庫，必須先過的閘門與順序。本輪**零資料庫變更**。
-> **版本：** v0.1
+> **版本：** v0.2
 > **日期：** 2026-08-17
 > **承接：** PR #126 head `fc067be26a9df60c94d4e04b6ca9081f42cb9caf`
-> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md`
-> **本輪硬禁止：** 不改 schema、不新增 `prisma/migrations`、不跑 `prisma migrate`／`db push`／seed／SQL／Supabase、不產生可對 Production 執行的 SQL、不讀寫正式資料、不部署
+> **配對：** `docs/POS-02-PERSISTENCE-PROPOSAL.md` v0.2
+> **合約：** POS-01 仍是 canonical。本檔不覆蓋 POS-01。
+> **本輪硬禁止：** 不改 schema、不新增 `prisma/migrations`、不跑 migrate／db push／seed／SQL／Supabase、**不產生可對 Production 執行的 migration SQL**、不讀寫正式資料、不部署
 
 ---
 
 ## 0. 用白話說
 
-現在正式資料庫的「搬家紀錄本」和 Git 裡的搬家檔**對不齊**。
-在對齊並經人工核准之前，**不准**為 POS 加新表或改舊欄。
+正式庫的搬家紀錄和 Git 對不齊（drift）。沒對齊之前，不准為 POS 建表。
 
-本檔只寫：以後要怎麼對齊、怎麼分階段、什麼情況要隔離（quarantine）、誰按最後一顆按鈕。
-本輪只提交這份說明，**資料庫一行都不動**。
+即使以後建了表：
+
+- 真實店家在 cutover 前**不能**寫新帳（no-real-POS gate）。
+- 新帳只在 Preview／shadow 比對。
+- 出問題時：停新寫、讀回舊帳；**不刪**已經寫進 V2 的不可變列。
+
+本輪只改這份說明，資料庫一行都不動。
 
 ---
 
@@ -23,273 +28,218 @@
 
 | 可以 | 不可以 |
 |------|--------|
-| 寫這兩份 docs | 改 `prisma/schema.prisma` |
-| 給三方 review | 新增任何 `prisma/migrations/**` |
-| 把 drift 標成 blocker | 跑 migrate／db push／seed／introspect |
-| | 連 Supabase／Production／Preview 做寫入 |
-| | 產出「拿去正式庫執行」的 SQL 檔 |
-| | merge、deploy、進 POS-03 |
+| 寫這兩份 docs | 改 `schema.prisma`、加 migration |
+| 寫「以後 Preview 用」的**查詢規格** | 把規格當成 Production migration 去跑 |
+| 把 drift／Store／Float 標成 blocker | 連正式庫或 Preview 執行 |
+| | merge、deploy、進 schema／POS-03 |
 
-驗證本輪：`git diff` 相對 POS-01 branch **只能多這兩個 docs**。
+`git diff` 相對 POS-01 branch **只能多這兩個 docs**。
 
 ---
 
-## 2. Prerequisite blocker：Production migration drift
+## 2. Prerequisite：drift 未 reconcile 不可建 migration
 
-### 2.1 為什麼先擋住
+`origin/main` 最後一筆 migration 仍是 `20260729170000_refill_flavours_stock`。
+Draft PR **#112–#115** 記錄 Production `_prisma_migrations` 另有 12 筆 `202608*`，repo 沒有對應檔。
 
-`origin/main` 的 `prisma/migrations/` 最後一筆仍是 `20260729170000_refill_flavours_stock`。
-Draft **PR #112–#115**（2026-08-14 事件）記錄：Production `_prisma_migrations` 另有 **12 筆已完成的 `202608*`**，repo **沒有**對應資料夾。
+**未關閉前：禁止建立任何 POS expand migration（含空表）。**
 
-相關 Draft（皆未核准 merge／deploy）：
-
-| PR | 用途 |
-|----|------|
-| #112 | 事故紀錄 |
-| #113 | 往前對齊設計（不可 replay 已套用的 ledger） |
-| #114 | 證據封存（byte 對 byte；**不是** active migration） |
-| #115 | schema 能否表達 vs 能否放行 |
-
-在這 4 個閘門關閉前，任何 POS 新表都可能：
-
-- 撞到正式庫已有、repo 沒有的物件
-- 讓 `migrate deploy` 以為要重放已套用的變更
-- 把 drift 藏進 POS 遷移裡
-
-**本提案判定：production migration drift ＝ POS-02 落庫的 prerequisite blocker。未解除前不得開始 expand。**
-
-### 2.2 文件與程式也不完全一致（只記錄）
-
-- `DEPLOY.md` 曾寫 build 會跑 `migrate deploy`。
-- 現行 `package.json` build 是 `prisma generate && next build`（測試也鎖住「build 零寫入」）。
-- 部分功能用 runtime DDL 補償（例如活動 schema ensure）。POS **不准**再走這條。
-
-本輪不重寫那些舊文件。
-
----
-
-## 3. Reconciliation（對齊）— 必須先做完
-
-正式步驟（全部要**另開人工授權**才碰正式庫；本輪只定義，不執行）：
+對齊步驟（本輪只定義，不執行；動正式庫要另開人工授權）：
 
 ```text
-1. Production ledger／schema 的 readonly snapshot
-2. 與 repo migrations、prisma/schema.prisma 做三方 diff
-3. 每筆分類：missing / applied / divergent / manual
-4. 人工核准分類與處置
-5. 只在 disposable Preview DB 演練（可丟棄）
-6. 備妥 backup、forward-only、roll-forward、validation
-7. 通過後才允許 POS expand 進入 Preview 演練
+readonly snapshot → repo／schema／ledger 三方 diff
+→ missing / applied / divergent / manual
+→ 人工核准 → disposable Preview 演練
+→ backup／forward-only／validation
+→ 通過後才允許 POS expand 的 Preview 演練
 ```
 
-### 3.1 分類定義
-
-| 類 | 意思 | 處置原則 |
-|----|------|----------|
-| missing | repo 有、正式 ledger 沒套 | 不可在正式庫「補跑舊檔」除非人工證明安全；優先 Preview |
-| applied | 正式已套、repo 沒檔 | **不可 replay**。先補文件／baseline，不重跑 SQL |
-| divergent | 兩邊都有但內容不同 | 停。人工比對。不准自動選一邊 |
-| manual | 人手改過、或 runtime DDL | 進 quarantine 清單，POS 遷移不可依賴它自動消失 |
-
-### 3.2 不可做
-
-- 把 Production ledger reset 成跟 main 一樣
-- 把 #114 證據 SQL 當 active migration 拿去 deploy
-- 為了 POS 方便而 `db push` 正式庫
-- 本輪產生「正式庫用」SQL
+不可 replay 已套用 ledger、不可 `db push` 正式庫、不可把 #114 證據當 active migration。
 
 ---
 
-## 4. POS 落庫順序（drift 解除之後）
+## 3. No-real-POS gate
 
-一律 **expand → backfill → verify → dual-read／shadow compare → cutover → 很久以後才 contract**。
-每一步自己可往前修（roll-forward），不設計「把正式庫倒回前一版 schema」當主方案。
+在 **writer 切齊 + shadow 通過 + 人工 cutover** 之前：
 
-### 4.1 Expand（只加、不拆舊）
+- 真實店家 POS／HQ 入口**不得** insert `PosSale`、`PosRefund*`、`PosFinancialLedgerEntry`、`PosInventoryLedger`、`PosSettlementV2`
+- 程式應有明確 feature flag（以後實作）：`POS_V2_WRITES = preview_only`
+- 違反此 gate＝漏結算（新帳有、舊 `Settlement` 沒加到）
 
-以後才允許的方向（仍須 Preview 演練＋正式人工 gate）：
-
-- 新增 `Pos*` 表（空表、有 unique／FK）
-- `MerchantStock` **加** `onHand`／`reserved`（先可 null 或與 `quantity` 雙寫）
-- `Settlement` **加** 整數欄，Float 舊欄留下
-- 點數 ledger **加** source type 與冪等，不改舊列語意
-- **不**在 expand 刪 Float、不改 `commissionRate` 語意、不刪 `MerchantStockTxn`
-
-加入 unique／composite 的順序：
-
-1. 先加可空欄、新表、一般 index
-2. backfill
-3. verify 零 quarantine
-4. 再加 `NOT NULL` 與複合 FK
-5. 最後才加會擋寫入的 `UNIQUE`（先在 Preview 用驗證查詢證明沒有重複）
-
-若先加 UNIQUE 再清資料，正式寫入會爆。
-
-### 4.2 Backfill
-
-- 舊 Float → 新 Int：只有**已經是整數**的值才能寫入新欄。
-- `quantity` → `onHand`：僅當 `quantity >= 0`。負庫存進 quarantine，不自動改成 0。
-- `reserved` 初始 0（舊系統沒有保留量）。
-- Store↔Merchant：只寫 `MerchantStoreLinkAudit`，status＝`proposed` 或 `quarantined`。名稱相同**不是**核准。
-- 豬窩 slot：保持 `UNDECIDED`／null。
-
-### 4.3 Verify
-
-每一批 backfill 要過：
-
-- 新 Int 欄＝舊 Float 當且僅當 Float 為整數且與公式一致
-- `onHand + 檢查 reserved` 與 ledger 重算一致（POS 新帳開始後）
-- 無跨店 FK
-- 無重複 idempotency key
-- settlement 整數加總＝該期 POS snapshot 加總（shadow）
-
-任一失敗：那一列進 quarantine，**整批不算過**。
-
-### 4.4 Dual-read／shadow compare
-
-- 讀：同時看舊 Float／舊 txn 與新 Int／`Pos*`，只記差異，不改正式結算出口
-- 寫：POS 新成交**只寫 Pos\***；必要時投影給 HQ 看，但 HQ 舊結算仍讀舊 txn，直到 cutover 被核准
-- 禁止「POS 寫 PosSale 又寫一筆 MerchantStockTxn 當第二套佣金真相」
-
-### 4.5 Cutover
-
-人工核准後：
-
-- POS 與新結算**只信**整數 snapshot
-- 舊 Float 改為唯讀相容
-- `approved` 結算改走 POS 鎖定規則
-
-### 4.6 以後才 Contract
-
-- 刪舊 Float、刪 `quantity` 別名、加硬性 CHECK
-- 必須在 cutover 穩定且 quarantine 清空之後
-- **不是 POS-02 本輪，也不是 POS-03 預設工作**
+Shadow 允許：只讀複製／離線比對，不取代 HQ 月結出口。
 
 ---
 
-## 5. Quarantine（隔離，不准自動修）
+## 4. Writer-by-writer cutover
 
-### 5.1 舊 Float
+與提案 §2.3、§3.1 同一張表。Cutover **不是**「先讓 POS 寫新表、HQ 慢慢改」。
 
-進 quarantine 的例子：
+建議順序（每步自己 Preview → 人工 gate）：
 
-- `1000.1`、`299.999999`、`NaN` 類值
-- `commissionAmount` 與 `round(成交×費率)` 對不上
-- sale 有金額、佣金是 null，卻被舊程式用「現在的商品規則」重算過
+1. Drift reconcile
+2. Expand 新表（**建表當下就有** CHECK／FK／EXCLUDE／trigger；見提案 §9）
+3. `MerchantStock` nullable `onHand`／`reserved`／`stockReady`（**無 DEFAULT 0**）
+4. Float／quantity backfill + quarantine
+5. Shadow compare（舊 txn 加總 vs 投影 V2；不混 Float+Int）
+6. 代收：`MerchantSaleSnapshot` shadow（Order 仍權威）
+7. **同一窗口**切會動同一 stock 列的 writers，或關掉未切的入口
+8. 打開真實 POS 寫入（解除 no-real-POS）
+9. HQ 月結改讀 `PosSettlementV2`（不再加總 legacy txn 當 POS 成交）
+10. 很久以後才 contract（刪 Float、停 quantity 寫入）
 
-**不得**為了讓 unique／NOT NULL 過關而自動 `Math.round`。
+| Writer | Cutover 日之前 | Cutover 日 |
+|--------|----------------|------------|
+| HQ 店內 sale／quick sale | legacy txn | 改 PosSale **或**關閉 |
+| HQ adjust／return | legacy | ledger **或**阻擋進 POS available |
+| Shipment 入庫 | legacy quantity | 只 delivered → ledger+onHand |
+| Refill | 獨立，不進寄賣結算 | 維持獨立 |
+| POS 店內 | **阻擋寫新帳** | PosSale |
+| 退款 | 阻擋 | PosRefund completed 鏈 |
+| LINE／ECPay | Order 權威 | Order 權威 + snapshot |
 
-### 5.2 Store mapping
-
-進 quarantine 的例子：
-
-- 一個 Merchant 名稱對到多個 Store slug
-- 一個 slug 對到多個 Merchant
-- 只靠「豬窩」「妞妞」或其他中文店名對上
-- Production 實際 `MER-xxxx` 與 repo 偏好編號不一致
-
-處置：`MerchantStoreLinkAudit.status = quarantined`，等 HQ 人工。POS 核銷在對應核准前，不可用猜的 slug。
-
-### 5.3 負庫存／壞 duplicate
-
-- `MerchantStock.quantity < 0`：不自動歸零
-- 同 idempotency key、fingerprint 不同：不取第一筆、不合併
-
----
-
-## 6. Preview 演練 vs Production 人工 gate
-
-### 6.1 Disposable Preview
-
-drift 對齊方案與 POS expand，都必須先在**可丟棄**的 Preview／複本演練：
-
-- 套用順序、失敗、重試
-- unique 衝突
-- backfill 後 verify 查詢
-- 故意丟進非整數 Float、負庫存、同 key 不同 snapshot，確認會進 quarantine 而不是被 round
-
-Preview 演練**不是**正式授權。
-
-### 6.2 Production 人工 gate（本輪不得觸發）
-
-以後若要動正式庫，每次都要獨立同意，至少包含：
-
-1. drift reconciliation 已關閉（#112–#115 或後續核准替代）
-2. Preview 演練紀錄
-3. backup 完成
-4. 變更範圍＝已核准的 expand（不可夾帶 contract 刪欄）
-5. 回報與監控已接
-6. 指定 roll-forward（修資料／補 migration），不是「倒回 Production」
-
-本文件**不附**正式庫 SQL。
+未切齊 → **明確阻擋**該 writer 碰 `onHand`／POS 結算，不准默默雙寫。
 
 ---
 
-## 7. 監控（cutover 前後都要看）
+## 5. Expand／backfill／verify（修正 v0.1 的錯誤）
 
-| 訊號 | 為什麼 |
-|------|--------|
-| 負庫存（`available < 0`） | 違反 R4 |
-| duplicate key／同 key 不同 fingerprint | 冪等被繞過或壞重送 |
-| 跨店 reference | merchant 隔離失敗 |
-| ledger 不平衡（方向加總對不上 snapshot） | 帳不平 |
-| 累計退款 > 原成交 | 超額退款 |
-| 佣金累計 ≠ 剩餘淨額公式 | 尾差或壞歷史 line |
-| 已鎖期被改寫 | 違反 R5 |
-| quarantine 列增加 | backfill／對應有問題 |
-| `_prisma_migrations` 與 repo 再分岔 | drift 復發 |
+### 5.1 新表
 
-本輪不接監控系統，只規定以後要有這些訊號。
+- 新 POS 表的約束在 **CREATE 當時**就存在。
+- 只有 **legacy 舊列**的 CHECK 可用 `NOT VALID` 再 `VALIDATE`。
+- 不在舊 `Settlement` 上加 Int 當 V2。V2 是新表。
 
----
+### 5.2 MerchantStock 餘額
 
-## 8. 與 POS-01／本提案的對照
+1. 加 nullable `onHand`、`reserved`、`stockReady`——**禁止 `DEFAULT 0`**
+2. backfill 合格列；負數／不明保持 null、`stockReady=false`
+3. 讀端沒 ready **不可**當成 0 件
+4. `quantity` 只 mirror；cutover 後不可獨立寫
+5. 再 NOT NULL（僅 ready 列）或分批
 
-| 合約要求 | 遷移怎麼守 |
-|----------|------------|
-| 新財務不用 Float | 只在新欄／新表用 Int；舊 Float 共存到 contract |
-| 月結只加總 snapshot | cutover 前 shadow 比對；cutover 後停用「重算整月」 |
-| 庫存 aggregateId | 用既有 `MerchantStock.id`，不讓 client 指定 |
-| 已鎖結算 | 應用層先擋刪 `approved`；DB 硬限制放 expand 後期 |
-| O1 | 回庫／損耗是新 ledger op，不改舊 txn 當權威 |
-| O3 | 不 backfill 豬窩正式 ID |
+### 5.3 Compatibility projection
 
----
+- `sourceEventId` unique、非權威
+- 可重建；不可當結算來源
 
-## 9. Roll-forward（不是 rollback Production）
+### 5.4 Shadow compare
 
-若 Preview 或以後正式 expand 失敗：
+比對項目（只記差異，不改正式出口）：
 
-- 停寫入新 POS 路徑
-- 修 migration／修 quarantine 規則
-- 再演練
-- 不把正式庫 schema 倒回當主計畫（正式資料與 12 筆已套用 drift 無法安全 replay）
-
-舊 HQ 結算在 cutover 前仍讀 `MerchantStockTxn`，所以 POS expand 失敗不應停止現行 HQ 月結——前提是沒有雙寫第二套佣金。
+- 同期間 legacy sale 加總 vs shadow PosSale／snapshot 加總（**分開**店收與代收）
+- 佣金 snapshot vs 剩餘淨額公式
+- onHand（ready 列）vs ledger 重算
+- 不得把 legacy Float 與 V2 BigInt 加在同一個「總應付」
 
 ---
 
-## 10. Checklist
+## 6. Quarantine
 
-| 項 | 結果 | 說明 |
+### 6.1 Store 歧義
+
+- 一名對多 slug、一 slug 對多 merchant、只靠中文店名、與偏好 MER 編號不一致
+- 只進 `MerchantStoreLinkAudit`（quarantined）
+- **不准**自動寫 `MerchantStoreBinding`
+- 未 verified binding → 券／LINE 對店 fail closed
+
+### 6.2 Float 異常（查詢規格；本輪不執行）
+
+下列是 **Preview 稽核規格**，用來以後找出不能自動 round 的列。
+**不是** Production migration，本輪**不要跑**、不要放進 `prisma/migrations`。
+
+目標表（至少）：`MerchantStockTxn.unitPrice`／`commissionAmount`／`companyRevenue`，`Settlement.grossSales`／`commissionAmount`／`payable`，`GroomingCoupon.discountAmount`，`Order.total`／`OrderItem.unitPrice`。
+
+```text
+SPEC ONLY — do not execute this round — not a production migration
+
+1) NaN
+   WHERE <float_col> IS NOT NULL AND <float_col> <> <float_col>
+
+2) Infinity / -Infinity
+   WHERE <float_col> IN ('Infinity'::float8, '-Infinity'::float8)
+
+3) 非整數（有小數）
+   WHERE <float_col> IS NOT NULL
+     AND <float_col> = <float_col>
+     AND <float_col> NOT IN ('Infinity'::float8, '-Infinity'::float8)
+     AND <float_col> <> trunc(<float_col>)
+
+4) round-trip 失真（float8 ↔ numeric）
+   WHERE <float_col> IS NOT NULL
+     AND <float_col> = <float_col>
+     AND <float_col>::numeric <> <float_col>
+     -- 或 ::text::float8 <> 原值
+
+5) 與 POS-01 公式不一致（僅已能解讀為整數者）
+   成交與佣金皆通過 1–4 後：
+   commission 應等於 round(gross * rate / 100)
+   對不上 → quarantine，禁止 Math.round 硬塞進 Int 欄
+```
+
+不合格列：**不得**自動四捨五入進 V2。
+
+---
+
+## 7. Rollback 定義
+
+Rollback **不是**刪 V2、也不是倒回 Production schema。
+
+允許：
+
+- 關掉 `POS_V2_WRITES`（停新寫）
+- HQ 結算讀回 legacy txn／舊 `Settlement`（若尚未切出口）
+- 修規則後 roll-forward
+
+禁止：
+
+- DELETE `PosFinancialLedgerEntry`／`PosInventoryLedger`／已 completed 退款
+- 為了「乾淨」truncate V2
+- 把已套用的 drift ledger replay 掉
+
+若 cutover 後發現錯：用 **下一期 adjustment** 或新 reversal，不改已核准 V2 金額。
+
+---
+
+## 8. Production 人工 gate（本輪不得觸發）
+
+1. Drift #112–#115（或核准替代）已關
+2. POS-01 contract bump（O1＋completed＋分型）已合併，或明確豁免紀錄
+3. Preview 演練：約束、複合 FK、冪等衝突、O1 rollback、Float 規格查出 quarantine
+4. 所有同 stock writer 切齊或阻擋清單已簽
+5. no-real-POS 解除授權
+6. backup、監控、roll-forward 負責人
+
+本文件不附正式庫 SQL。
+
+---
+
+## 9. 監控
+
+負庫存、同 key 不同 fingerprint、跨店 FK 失敗、ledger 不平衡、超額退款、佣金公式不符、已鎖期被改、quarantine 增加、bindings 被非 hq_manual 寫入、`_prisma_migrations` 再分岔、真實店家在 flag 關閉時寫入 V2。
+
+---
+
+## 10. Acceptance checklist（要有證據才 PASS）
+
+| 項 | 結果 | 證據 |
 |----|------|------|
-| 本輪零 DB 變更 | **PASS** | 只新增 docs |
-| drift 列為 blocker | **PASS** | §2；#112–#115 未關閉前不准 expand |
-| 不產生正式 SQL | **PASS** | 無 SQL 檔、無 migrate |
-| Float 不自動 round | **PASS** | §5.1 quarantine |
-| Store 歧義 quarantine | **PASS** | §5.2 |
-| 豬窩 ID 未猜 | **PASS** | slot 保持空 |
-| unique 加入順序 | **PASS** | §4.1 |
-| Preview → 人工 Production gate | **PASS** | §6 |
-| 監控項目已列 | **PASS** | §7 |
+| 本輪零 DB／零正式 migration SQL | **PASS** | 僅 2 docs；§6.2 標 SPEC ONLY |
+| drift 未 reconcile 不可建 migration | **PASS** | §2 |
+| writer-by-writer cutover | **PASS** | §4 |
+| shadow compare、不混 Float+Int | **PASS** | §5.4 |
+| no-real-POS gate | **PASS** | §3 |
+| onHand 不 default 0 | **PASS** | §5.2 |
+| Store／Float quarantine、不自動綁、不自動 round | **PASS** | §6 |
+| rollback＝停寫／回舊讀，不刪 V2 | **PASS** | §7 |
+| 豬窩 ID 未猜 | **PASS** | 無正式 ID backfill |
+| POS-01 未被本檔覆蓋 | **PASS** | 開頭＋提案 §1 |
 
 ---
 
-## 11. 停止點
+## 11. 仍未決／停止點
 
-本輪交付到此。
+- O3
+- POS-01 contract bump 未開
+- Drift 未關
 
-- 不進 POS-03
-- 不實作 Prisma
-- 不對 Preview／Production 執行任何遷移
-- 等待 drift 閘門與本設計的三方 review
+不進 schema、不進 POS-03、不執行任何 SQL、等待 review。
