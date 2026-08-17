@@ -6,9 +6,13 @@ import {
   ACTIVE_APP_STATUSES,
   APP_STATUS,
   FLOW_STATE,
+  CATNIP_CHICK_HOMEPAGE_URL,
   JIBA_LICENSE_VERSION,
   JIBA_PRODUCTS,
   JIBA_SUPERVISOR_NAME,
+  jibaProductKeyFromCollected,
+  jibaProductLabelFromCollected,
+  parseJibaProductKey,
   type FlowState,
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
@@ -25,7 +29,6 @@ import {
   JIBA_IG_ERROR,
   JIBA_INTRO,
   JIBA_LICENSE_ASK,
-  JIBA_LICENSE_BODY,
   JIBA_LICENSE_DECLINE,
   JIBA_NAME_ERROR,
   JIBA_NAME_RETRY,
@@ -42,9 +45,12 @@ import {
   JIBA_SUBMITTED,
   JIBA_TRANSFER_NOTED,
   jibaBriefAndUpsell,
+  jibaBriefContinueLabel,
   jibaConfirmSummary,
   jibaFieldRetryEscalation,
+  jibaLicenseBody,
   jibaReturnFieldCopy,
+  isJibaBriefContinue,
 } from '@/lib/campaigns/jiba-two-piece/copy';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
@@ -168,6 +174,11 @@ function jibaProductChoiceMenu(): LineReplyMessage {
         action: { type: 'message', text: '選青蛙凍乾' },
         style: 'secondary',
       },
+      {
+        label: JIBA_PRODUCTS.catnip.label,
+        action: { type: 'message', text: '選貓草雞肉乾' },
+        style: 'secondary',
+      },
     ],
   });
 }
@@ -194,12 +205,12 @@ function jibaResumeChoiceMenu(): LineReplyMessage {
 }
 
 /** 授權同意：單一 Flex（按鈕在同一張卡，不再拆成多則文字泡泡） */
-function jibaLicenseFlex(): LineReplyMessage {
+function jibaLicenseFlex(productKey?: JibaProductKey): LineReplyMessage {
   return buildButtonMenuFlex({
     altText: '投稿授權同意',
     theme: WORLD_THEME.chaos,
     title: JIBA_LICENSE_ASK,
-    subtitle: JIBA_LICENSE_BODY,
+    subtitle: jibaLicenseBody(productKey),
     items: [
       {
         label: '我同意',
@@ -210,6 +221,30 @@ function jibaLicenseFlex(): LineReplyMessage {
         label: '不同意',
         action: { type: 'message', text: '不同意' },
         style: 'secondary',
+      },
+    ],
+  });
+}
+
+function licenseFlexFromCollected(data: Record<string, unknown>): LineReplyMessage {
+  return jibaLicenseFlex(jibaProductKeyFromCollected(data));
+}
+
+function jibaBriefContinueMenu(productKey: JibaProductKey): LineReplyMessage {
+  const label = jibaBriefContinueLabel(productKey);
+  return buildButtonMenuFlex({
+    altText: '開始填資料',
+    theme: WORLD_THEME.chaos,
+    title: productKey === 'catnip' ? '可以請你先同意這次用途嗎？' : '看完了嗎？',
+    subtitle:
+      productKey === 'catnip'
+        ? '了解後再填收件資料。素材使用會在後面再請你按一次授權。'
+        : '準備好就開始填收件資料，零食才寄得出發喔。',
+    items: [
+      {
+        label,
+        action: { type: 'message', text: label },
+        style: 'primary',
       },
     ],
   });
@@ -246,17 +281,8 @@ function jibaStoreCandidatesFlex(
   });
 }
 
-function parseProductKey(text: string): JibaProductKey | null {
-  const t = text.trim();
-  if (/^(?:選雞霸兩片|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) return 'jiba';
-  if (/^(?:選青蛙凍乾|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
-  return null;
-}
-
 function productLabelFromCollected(data: Record<string, unknown>): string {
-  const key = data.productKey as JibaProductKey | undefined;
-  if (key && JIBA_PRODUCTS[key]) return JIBA_PRODUCTS[key].orderLabel;
-  return JIBA_PRODUCTS.jiba.orderLabel;
+  return jibaProductLabelFromCollected(data);
 }
 
 function isLicenseAccept(text: string): boolean {
@@ -325,7 +351,7 @@ function promptForState(state: FlowState): string {
     case FLOW_STATE.ASK_PRODUCT:
       return JIBA_ASK_PRODUCT;
     case FLOW_STATE.SHOW_BRIEF:
-      return '投稿事項跟免運說明剛說過喔。準備好就回「好，開始填資料」。';
+      return '投稿事項跟免運說明剛說過喔。準備好就點下面按鈕繼續。';
     case FLOW_STATE.ASK_RECIPIENT_NAME:
       return JIBA_ASK_NAME;
     case FLOW_STATE.ASK_RECIPIENT_PHONE:
@@ -537,10 +563,14 @@ async function beginEnrollment(
     // 先回使用者，對話紀錄／session 背景寫（縮短體感等待）
     if (existing && state !== FLOW_STATE.ASK_RECIPIENT_NAME && state !== FLOW_STATE.ASK_PRODUCT) {
       const prompt = promptForState(state);
+      const collected = parseCollected(app.conversationSession?.collectedDataJson ?? '{}');
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: '你上次還沒填完喔，我們接著繼續～' },
         { type: 'text', text: prompt },
-        ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [jibaLicenseFlex()] : []),
+        ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [licenseFlexFromCollected(collected)] : []),
+        ...(state === FLOW_STATE.SHOW_BRIEF
+          ? [jibaBriefContinueMenu(jibaProductKeyFromCollected(collected))]
+          : []),
       ]);
       runAfterReply(
         (async () => {
@@ -705,11 +735,15 @@ export async function handleJibaUnboxMessage(
       phase: 'resume',
     });
     const prompt = promptForState(state);
+    const collected = parseCollected(app.conversationSession.collectedDataJson);
     await replyJiba(replyToken, lineUserId, [
       { type: 'text', text: '好喔，我們接著上次繼續～' },
       { type: 'text', text: prompt },
-      ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [jibaLicenseFlex()] : []),
+      ...(state === FLOW_STATE.ASK_CONTENT_LICENSE ? [licenseFlexFromCollected(collected)] : []),
       ...(state === FLOW_STATE.ASK_PRODUCT ? [jibaProductChoiceMenu()] : []),
+      ...(state === FLOW_STATE.SHOW_BRIEF
+        ? [jibaBriefContinueMenu(jibaProductKeyFromCollected(collected))]
+        : []),
     ]);
     return true;
   }
@@ -922,7 +956,7 @@ export async function handleJibaUnboxMessage(
 
   switch (state) {
     case FLOW_STATE.ASK_PRODUCT: {
-      const productKey = parseProductKey(trimmed);
+      const productKey = parseJibaProductKey(trimmed);
       if (!productKey) {
         await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '請點下面按鈕選一種喔～' },
@@ -934,51 +968,36 @@ export async function handleJibaUnboxMessage(
       await setConversationState(sid, FLOW_STATE.SHOW_BRIEF, {
         productKey,
         productLabel: JIBA_PRODUCTS[productKey].orderLabel,
+        ...(productKey === 'catnip' ? { purposeUrl: CATNIP_CHICK_HOMEPAGE_URL } : {}),
       });
       await logBot(sid, brief);
       await replyJiba(replyToken, lineUserId, [
         { type: 'text', text: JIBA_PRODUCT_PICKED[productKey] },
         { type: 'text', text: brief },
-        buildButtonMenuFlex({
-          altText: '開始填資料',
-          theme: WORLD_THEME.chaos,
-          title: '看完了嗎？',
-          subtitle: '準備好就開始填收件資料，零食才寄得出發喔。',
-          items: [
-            {
-              label: '好，開始填資料',
-              action: { type: 'message', text: '好，開始填資料' },
-              style: 'primary',
-            },
-          ],
-        }),
+        jibaBriefContinueMenu(productKey),
       ]);
       return true;
     }
     case FLOW_STATE.SHOW_BRIEF: {
-      if (!/^(?:好，開始填資料|開始填資料|繼續|好)$/i.test(trimmed)) {
-        const sess = await prisma.conversationSession.findUnique({ where: { id: sid } });
-        const data = parseCollected(sess?.collectedDataJson ?? '{}');
-        const key = (data.productKey as JibaProductKey | undefined) ?? 'jiba';
+      const sessBrief = await prisma.conversationSession.findUnique({ where: { id: sid } });
+      const briefData = parseCollected(sessBrief?.collectedDataJson ?? '{}');
+      const briefKey = jibaProductKeyFromCollected(briefData);
+      if (!isJibaBriefContinue(trimmed)) {
         await replyJiba(replyToken, lineUserId, [
-          { type: 'text', text: jibaBriefAndUpsell(key) },
-          buildButtonMenuFlex({
-            altText: '開始填資料',
-            theme: WORLD_THEME.chaos,
-            title: '看完了嗎？',
-            subtitle: '點下面就可以繼續喔。',
-            items: [
-              {
-                label: '好，開始填資料',
-                action: { type: 'message', text: '好，開始填資料' },
-                style: 'primary',
-              },
-            ],
-          }),
+          { type: 'text', text: jibaBriefAndUpsell(briefKey) },
+          jibaBriefContinueMenu(briefKey),
         ]);
         return true;
       }
-      await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_NAME);
+      await setConversationState(sid, FLOW_STATE.ASK_RECIPIENT_NAME, {
+        ...(briefKey === 'catnip'
+          ? {
+              purposeAcknowledged: true,
+              purposeAcknowledgedAt: new Date().toISOString(),
+              purposeUrl: CATNIP_CHICK_HOMEPAGE_URL,
+            }
+          : {}),
+      });
       await logBot(sid, JIBA_START_WORK);
       await logBot(sid, JIBA_ASK_NAME);
       await replyJiba(replyToken, lineUserId, [
@@ -1218,12 +1237,17 @@ export async function handleJibaUnboxMessage(
         retries_pet: 0,
       });
       await logBot(sid, JIBA_LICENSE_ASK);
-      await replyJiba(replyToken, lineUserId, [jibaLicenseFlex()]);
+      const sessLicense = await prisma.conversationSession.findUnique({ where: { id: sid } });
+      await replyJiba(replyToken, lineUserId, [
+        licenseFlexFromCollected(parseCollected(sessLicense?.collectedDataJson ?? '{}')),
+      ]);
       return true;
     }
     case FLOW_STATE.ASK_CONTENT_LICENSE: {
+      const sessLicense = await prisma.conversationSession.findUnique({ where: { id: sid } });
+      const licenseCollected = parseCollected(sessLicense?.collectedDataJson ?? '{}');
       if (/^我想再看一次$/.test(trimmed)) {
-        await replyJiba(replyToken, lineUserId, [jibaLicenseFlex()]);
+        await replyJiba(replyToken, lineUserId, [licenseFlexFromCollected(licenseCollected)]);
         return true;
       }
       if (/^不同意$/.test(trimmed)) {
@@ -1250,7 +1274,7 @@ export async function handleJibaUnboxMessage(
       if (!isLicenseAccept(trimmed)) {
         await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '這格要請你點下面按鈕明示同意或不同意喔。' },
-          jibaLicenseFlex(),
+          licenseFlexFromCollected(licenseCollected),
         ]);
         return true;
       }
@@ -1320,9 +1344,10 @@ export async function handleJibaUnboxMessage(
       }
       if (!app.licenseAccepted) {
         await setConversationState(sid, FLOW_STATE.ASK_CONTENT_LICENSE);
+        const sessNeedLicense = await prisma.conversationSession.findUnique({ where: { id: sid } });
         await replyJiba(replyToken, lineUserId, [
           { type: 'text', text: '送出前還差授權同意喔。' },
-          jibaLicenseFlex(),
+          licenseFlexFromCollected(parseCollected(sessNeedLicense?.collectedDataJson ?? '{}')),
         ]);
         return true;
       }

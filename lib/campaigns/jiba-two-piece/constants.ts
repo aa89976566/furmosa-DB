@@ -28,7 +28,7 @@ export type AppStatus = (typeof APP_STATUS)[keyof typeof APP_STATUS];
 export const FLOW_STATE = {
   CAMPAIGN_INTRO: 'CAMPAIGN_INTRO',
   SHOW_RULES: 'SHOW_RULES',
-  /** 選開箱商品：雞霸兩片／青蛙凍乾一隻 */
+  /** 選開箱商品：雞霸兩片／青蛙凍乾一隻／貓草雞肉乾 30g */
   ASK_PRODUCT: 'ASK_PRODUCT',
   /** 選完商品：投稿事項＋加購免運說明 */
   SHOW_BRIEF: 'SHOW_BRIEF',
@@ -49,6 +49,9 @@ export const FLOW_STATE = {
 
 export type FlowState = (typeof FLOW_STATE)[keyof typeof FLOW_STATE];
 
+/** 貓草雞肉乾用途說明（僅文案；不改 catnip-chick 網站） */
+export const CATNIP_CHICK_HOMEPAGE_URL = 'https://catnip-chick.vercel.app/?cat=1';
+
 /** 開箱可選商品（存 collectedDataJson.productKey） */
 export const JIBA_PRODUCTS = {
   jiba: {
@@ -67,9 +70,54 @@ export const JIBA_PRODUCTS = {
     unit: '隻',
     orderLabel: '青蛙凍乾 × 1',
   },
+  catnip: {
+    key: 'catnip',
+    label: '貓草雞肉乾 30g',
+    shortLabel: '貓草雞肉乾',
+    quantity: 1,
+    unit: '包',
+    orderLabel: '貓草雞肉乾 30g',
+  },
 } as const;
 
 export type JibaProductKey = keyof typeof JIBA_PRODUCTS;
+
+export function isJibaProductKey(value: unknown): value is JibaProductKey {
+  return typeof value === 'string' && value in JIBA_PRODUCTS;
+}
+
+/** LINE 按鈕／打字選商品 */
+export function parseJibaProductKey(text: string): JibaProductKey | null {
+  const t = text.trim();
+  if (/^(?:選雞霸兩片|壕大大雞霸兩片|壕大大雞霸|雞霸兩片|雞霸)$/i.test(t)) return 'jiba';
+  if (/^(?:選青蛙凍乾|青蛙凍乾一隻|青蛙凍乾|青蛙)$/i.test(t)) return 'frog';
+  if (/^(?:選貓草雞肉乾|貓草雞肉乾\s*30g?|貓草雞肉乾|貓草)$/i.test(t)) return 'catnip';
+  return null;
+}
+
+export function parseCollectedDataJson(
+  json: string | null | undefined,
+): Record<string, unknown> {
+  try {
+    return JSON.parse(json || '{}') as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export function jibaProductKeyFromCollected(
+  data: Record<string, unknown> | string | null | undefined,
+): JibaProductKey {
+  const parsed = typeof data === 'string' || data == null ? parseCollectedDataJson(data) : data;
+  const key = parsed.productKey;
+  return isJibaProductKey(key) ? key : 'jiba';
+}
+
+export function jibaProductLabelFromCollected(
+  data: Record<string, unknown> | string | null | undefined,
+): string {
+  return JIBA_PRODUCTS[jibaProductKeyFromCollected(data)].orderLabel;
+}
 
 /** 限時加購免運門檻（說明用） */
 export const JIBA_FREE_SHIP = {
