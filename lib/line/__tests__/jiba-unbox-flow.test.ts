@@ -115,7 +115,8 @@ describe('jiba invite / product menus', () => {
     assert.match(raw, /399/);
     assert.match(raw, /886/);
     assert.match(raw, new RegExp(`${JIBA_SHIPPING_FEE}\\s*元物流處理費`));
-    assert.match(JIBA_UPSELL_BODY, /收件資訊齊了|要加購/);
+    assert.match(raw, /收件資訊齊了/);
+    assert.match(JIBA_UPSELL_BODY, /加購/);
   });
 });
 

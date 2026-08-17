@@ -43,9 +43,10 @@ describe('jiba validation', () => {
     assert.equal(validRecipientName('想加購'), null);
     assert.equal(validRecipientName('@furmosa'), null);
     assert.equal(validRecipientName('0912345678'), null);
-    assert.equal(checkRecipientName('我要參加').ok, false);
-    if (!checkRecipientName('我要參加').ok) {
-      assert.equal(checkRecipientName('我要參加').reason, 'command');
+    const joinName = checkRecipientName('我要參加');
+    assert.equal(joinName.ok, false);
+    if (!joinName.ok) {
+      assert.equal(joinName.reason, 'command');
     }
   });
 
