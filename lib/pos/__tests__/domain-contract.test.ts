@@ -80,6 +80,7 @@ import {
   refundableRemainder,
   requestVoucherCancellation,
   restockIncreasesStoreOnHand,
+  storeVoucherCancellationDecision,
   roundPercentCommission,
   safeIntegerMul,
   snapshotCompletedSaleLine,
@@ -545,6 +546,7 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
 
   it('approves an unlocked redeemed cancel as a positive merchant_owes_hq reversal', () => {
     const pending = requestVoucherCancellation({
+      requestId: 'req-1',
       voucherStatus: 'redeemed',
       actor: 'merchant_staff',
       voucherId: 'v1',
@@ -562,7 +564,7 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
           settlementStatus: null,
           reason: 'dispute',
           idempotencyKey: 'vc-1',
-          existingReversals: [],
+          existingResults: [],
         }),
       /必須等於被取消券/,
     );
@@ -577,7 +579,7 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
       settlementStatus: null,
       reason: 'dispute',
       idempotencyKey: 'vc-1',
-      existingReversals: [],
+      existingResults: [],
     });
     assert.equal(approved.voucherStatus, 'cancelled');
     assert.equal(approved.pointsLine?.pointsDelta, 10);
@@ -587,8 +589,9 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
     assert.equal(approved.duplicate, false);
   });
 
-  it('routes locked or paid subsidy cancels to the next period and is idempotent', () => {
+  it('routes locked or paid subsidy cancels to the next period and retries after projection is cancelled', () => {
     const pending = requestVoucherCancellation({
+      requestId: 'req-2',
       voucherStatus: 'redeemed',
       actor: 'merchant_owner',
       voucherId: 'v2',
@@ -604,31 +607,84 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
       settlementStatus: 'paid',
       reason: 'dispute',
       idempotencyKey: 'vc-2',
-      existingReversals: [],
+      existingResults: [],
     });
     assert.equal(approved.subsidyLine?.amountTwd, 250);
     assert.equal(approved.subsidyLine?.kind, 'next_period_adjustment');
     assert.equal(approved.subsidyLine?.direction, 'merchant_owes_hq');
+    const stored = [storeVoucherCancellationDecision('vc-2', approved)];
     const retry = decideVoucherCancellation({
       voucherId: 'v2',
-      voucherStatus: 'redeemed',
+      voucherStatus: 'cancelled',
       redemptionId: 'red-2',
-      request: pending,
+      request: { ...pending, status: 'approved' },
       actor: 'hq',
       decision: 'approved',
       voucherTier: 'zhuwo_250',
       settlementStatus: 'paid',
       reason: 'dispute',
       idempotencyKey: 'vc-2',
-      existingReversals: [approved.subsidyLine!],
+      existingResults: stored,
     });
     assert.equal(retry.duplicate, true);
+    assert.equal(retry.pointsLine, approved.pointsLine);
+    assert.equal(retry.subsidyLine, approved.subsidyLine);
     assert.equal(retry.pointsLine?.pointsDelta, 10);
     assert.equal(retry.subsidyLine?.idempotencyKey, 'vc-2');
+    assert.equal(stored.length, 1);
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v2',
+          voucherStatus: 'cancelled',
+          redemptionId: 'red-OTHER',
+          request: { ...pending, status: 'approved' },
+          actor: 'hq',
+          decision: 'approved',
+          voucherTier: 'zhuwo_250',
+          settlementStatus: 'paid',
+          reason: 'dispute',
+          idempotencyKey: 'vc-2',
+          existingResults: stored,
+        }),
+      /不可對應不同美容券取消內容/,
+    );
   });
 
-  it('keeps the voucher redeemed when HQ rejects the cancel request', () => {
+  it('rejects empty idempotency and identity fields before creating a new cancel decision', () => {
     const pending = requestVoucherCancellation({
+      requestId: 'req-empty',
+      voucherStatus: 'redeemed',
+      actor: 'merchant_owner',
+      voucherId: 'v-empty',
+    });
+    const base = {
+      voucherId: 'v-empty',
+      voucherStatus: 'redeemed' as const,
+      redemptionId: 'red-empty',
+      request: pending,
+      actor: 'hq',
+      decision: 'approved' as const,
+      voucherTier: 'standard_200' as const,
+      settlementStatus: null,
+      reason: 'dispute',
+      idempotencyKey: 'vc-empty',
+      existingResults: [] as const,
+    };
+    assert.throws(() => decideVoucherCancellation({ ...base, idempotencyKey: '' }), /idempotencyKey不可為空/);
+    assert.throws(() => decideVoucherCancellation({ ...base, idempotencyKey: '   ' }), /idempotencyKey不可為空/);
+    assert.throws(
+      () => decideVoucherCancellation({ ...base, request: { ...pending, requestId: '  ' } }),
+      /requestId不可為空/,
+    );
+    assert.throws(() => decideVoucherCancellation({ ...base, voucherId: '' }), /voucherId不可為空/);
+    assert.throws(() => decideVoucherCancellation({ ...base, redemptionId: '' }), /redemptionId不可為空/);
+    assert.throws(() => decideVoucherCancellation({ ...base, reason: ' ' }), /reason不可為空/);
+  });
+
+  it('keeps the voucher redeemed when HQ rejects and retries the same reject idempotently', () => {
+    const pending = requestVoucherCancellation({
+      requestId: 'req-3',
       voucherStatus: 'redeemed',
       actor: 'merchant_owner',
       voucherId: 'v3',
@@ -644,11 +700,48 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
       settlementStatus: null,
       reason: 'no',
       idempotencyKey: 'vc-3',
-      existingReversals: [],
+      existingResults: [],
     });
     assert.equal(rejected.voucherStatus, 'redeemed');
+    assert.equal(rejected.requestStatus, 'rejected');
     assert.equal(rejected.pointsLine, null);
     assert.equal(rejected.subsidyLine, null);
+    const stored = [storeVoucherCancellationDecision('vc-3', rejected)];
+    const retry = decideVoucherCancellation({
+      voucherId: 'v3',
+      voucherStatus: 'redeemed',
+      redemptionId: 'red-3',
+      request: { ...pending, status: 'rejected' },
+      actor: 'hq',
+      decision: 'rejected',
+      voucherTier: 'standard_200',
+      settlementStatus: null,
+      reason: 'no',
+      idempotencyKey: 'vc-3',
+      existingResults: stored,
+    });
+    assert.equal(retry.duplicate, true);
+    assert.equal(retry.voucherStatus, 'redeemed');
+    assert.equal(retry.requestStatus, 'rejected');
+    assert.equal(retry.pointsLine, null);
+    assert.equal(retry.subsidyLine, null);
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v3',
+          voucherStatus: 'redeemed',
+          redemptionId: 'red-3',
+          request: { ...pending, status: 'rejected' },
+          actor: 'hq',
+          decision: 'approved',
+          voucherTier: 'standard_200',
+          settlementStatus: null,
+          reason: 'no',
+          idempotencyKey: 'vc-3',
+          existingResults: stored,
+        }),
+      /不可對應不同美容券取消內容/,
+    );
     assert.equal(canRequestVoucherCancel('merchant_staff'), true);
     assert.equal(canApproveVoucherCancel('hq'), true);
     assert.equal(expiredVoucherRefundsPoints(), false);
@@ -798,6 +891,13 @@ describe('restock approved cannot be rejected; cancel matches allow-list', () =>
     assert.equal(canTransitionRestockRequest('approved', 'rejected'), false);
     assert.equal(canTransition(RESTOCK_REQUEST_TRANSITIONS, 'approved', 'converted_to_shipment'), true);
     assert.equal(canTransitionRestockRequest('approved', 'cancelled'), false);
+    assert.equal(canTransitionRestockRequest('converted_to_shipment', 'cancelled'), false);
+    assert.deepEqual(RESTOCK_REQUEST_TRANSITIONS.under_review, ['approved', 'rejected', 'cancelled']);
+    assert.equal(canTransitionRestockRequest('under_review', 'cancelled'), true);
+    const underReview = planRestockCancel('under_review', null);
+    assert.equal(underReview.mode, 'status_transition');
+    assert.equal(underReview.requestTo, 'cancelled');
+    assertRestockCancelPlanConsistent('under_review', underReview);
     const approved = planRestockCancel('approved', null);
     assert.equal(approved.mode, 'cancellation_event');
     assert.equal(approved.requestTo, null);
@@ -807,10 +907,40 @@ describe('restock approved cannot be rejected; cancel matches allow-list', () =>
     assert.equal(early.requestTo, 'cancelled');
     assert.equal(canTransitionRestockRequest('submitted', 'cancelled'), true);
     assertRestockCancelPlanConsistent('submitted', early);
+    const draft = planRestockCancel('draft', null);
+    assert.equal(draft.mode, 'status_transition');
+    assert.equal(draft.requestTo, 'cancelled');
+    assertRestockCancelPlanConsistent('draft', draft);
+    const converted = planRestockCancel('converted_to_shipment', 'pending');
+    assert.equal(converted.mode, 'cancellation_event');
+    assert.equal(converted.requestTo, null);
+    assertRestockCancelPlanConsistent('converted_to_shipment', converted);
     const shipped = planRestockCancel('converted_to_shipment', 'packed');
     assert.equal(shipped.mode, 'cancellation_event');
     assert.equal(shipped.shipmentAction, 'cancel_shipment');
     assert.equal(planRestockCancel('converted_to_shipment', 'delivered').allowed, false);
+    assert.throws(
+      () =>
+        assertRestockCancelPlanConsistent('approved', {
+          allowed: true,
+          mode: 'status_transition',
+          requestTo: 'cancelled',
+          shipmentAction: 'none',
+          reason: '不可改寫 approved',
+        }),
+      /不一致/,
+    );
+    assert.throws(
+      () =>
+        assertRestockCancelPlanConsistent('converted_to_shipment', {
+          allowed: true,
+          mode: 'status_transition',
+          requestTo: 'cancelled',
+          shipmentAction: 'cancel_shipment',
+          reason: '不可改寫 converted',
+        }),
+      /不一致/,
+    );
   });
 });
 

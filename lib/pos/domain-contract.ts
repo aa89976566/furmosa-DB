@@ -308,7 +308,7 @@ export const RESTOCK_REQUEST_TRANSITIONS: Record<
 > = {
   draft: ['submitted', 'cancelled'],
   submitted: ['under_review', 'cancelled', 'rejected'],
-  under_review: ['approved', 'rejected'],
+  under_review: ['approved', 'rejected', 'cancelled'],
   approved: ['converted_to_shipment'],
   rejected: [],
   converted_to_shipment: [],
@@ -432,6 +432,13 @@ export function assertPositiveTwdInteger(
   if (value === 0) {
     throw new Error(`${label}必須大於 0`);
   }
+}
+
+export function assertRequiredContractText(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${label}不可為空`);
+  }
+  return value;
 }
 
 export function assertNonNegativeIntegerUnits(
@@ -1087,6 +1094,7 @@ export type VoucherSubsidyLedger = {
 };
 
 export type VoucherCancellationRequest = {
+  requestId: string;
   voucherId: string;
   status: CancellationRequestStatus;
   requestedBy: PosActor;
@@ -1102,6 +1110,31 @@ export type VoucherSubsidyReversalLine = {
   actor: PosActor;
   reason: string;
   idempotencyKey: string;
+};
+
+export type VoucherCancellationPointsLine = {
+  pointsDelta: typeof GROOMING_VOUCHER_POINTS;
+  voucherId: string;
+  redemptionId: string;
+  idempotencyKey: string;
+};
+
+export type VoucherCancellationDecision = {
+  requestStatus: CancellationRequestStatus;
+  voucherStatus: VoucherStatus;
+  duplicate: boolean;
+  fingerprint: string;
+  pointsLine: VoucherCancellationPointsLine | null;
+  subsidyLine: VoucherSubsidyReversalLine | null;
+};
+
+export type StoredVoucherCancellationResult = {
+  idempotencyKey: string;
+  fingerprint: string;
+  requestStatus: CancellationRequestStatus;
+  voucherStatus: VoucherStatus;
+  pointsLine: VoucherCancellationPointsLine | null;
+  subsidyLine: VoucherSubsidyReversalLine | null;
 };
 
 export function groomingVoucherFaceTwd(tier: unknown): TwdInteger {
@@ -1159,10 +1192,13 @@ export function canApproveVoucherCancel(actor: unknown): boolean {
 }
 
 export function requestVoucherCancellation(input: {
+  requestId: string;
   voucherStatus: unknown;
   actor: unknown;
   voucherId: string;
 }): VoucherCancellationRequest {
+  const requestId = assertRequiredContractText(input.requestId, '取消申請 requestId');
+  const voucherId = assertRequiredContractText(input.voucherId, '取消申請 voucherId');
   const voucherStatus = parseVoucherStatus(input.voucherStatus);
   if (voucherStatus !== 'redeemed') {
     throw new Error('只有已核銷的美容券可由店家提出爭議取消');
@@ -1170,23 +1206,46 @@ export function requestVoucherCancellation(input: {
   if (!canRequestVoucherCancel(input.actor)) {
     throw new Error('只有店家可以提出美容券取消申請');
   }
-  if (!input.voucherId) {
-    throw new Error('取消申請必須有 voucherId');
-  }
   return {
-    voucherId: input.voucherId,
+    requestId,
+    voucherId,
     status: 'pending',
     requestedBy: parsePosActor(input.actor),
   };
 }
 
 export function voucherCancelFingerprint(input: {
+  requestId: string;
   voucherId: string;
   redemptionId: string;
-  decision: CancellationRequestStatus;
+  decision: Exclude<CancellationRequestStatus, 'pending'>;
   voucherTier: GroomingVoucherFaceTier;
+  settlementStatus: SettlementStatus | null;
+  reason: string;
 }): string {
-  return [input.voucherId, input.redemptionId, input.decision, input.voucherTier].join('|');
+  return [
+    input.requestId,
+    input.voucherId,
+    input.redemptionId,
+    input.decision,
+    input.voucherTier,
+    input.settlementStatus ?? '',
+    input.reason,
+  ].join('|');
+}
+
+export function storeVoucherCancellationDecision(
+  idempotencyKey: string,
+  decision: VoucherCancellationDecision,
+): StoredVoucherCancellationResult {
+  return {
+    idempotencyKey,
+    fingerprint: decision.fingerprint,
+    requestStatus: decision.requestStatus,
+    voucherStatus: decision.voucherStatus,
+    pointsLine: decision.pointsLine,
+    subsidyLine: decision.subsidyLine,
+  };
 }
 
 export function decideVoucherCancellation(input: {
@@ -1200,15 +1259,46 @@ export function decideVoucherCancellation(input: {
   settlementStatus: unknown | null;
   reason: string;
   idempotencyKey: string;
-  existingReversals: readonly VoucherSubsidyReversalLine[];
-}): {
-  requestStatus: CancellationRequestStatus;
-  voucherStatus: VoucherStatus;
-  duplicate: boolean;
-  pointsLine: { pointsDelta: 10; voucherId: string; redemptionId: string; idempotencyKey: string } | null;
-  subsidyLine: VoucherSubsidyReversalLine | null;
-} {
-  if (input.request.voucherId !== input.voucherId) {
+  existingResults: readonly StoredVoucherCancellationResult[];
+}): VoucherCancellationDecision {
+  const idempotencyKey = assertRequiredContractText(input.idempotencyKey, 'idempotencyKey');
+  const requestId = assertRequiredContractText(input.request.requestId, 'requestId');
+  const voucherId = assertRequiredContractText(input.voucherId, 'voucherId');
+  const redemptionId = assertRequiredContractText(input.redemptionId, 'redemptionId');
+  const reason = assertRequiredContractText(input.reason, 'reason');
+  const decision = parseCancellationRequestStatus(input.decision);
+  if (decision === 'pending') {
+    throw new Error('審核結果不可為 pending');
+  }
+  const tier = parseVoucherTier(input.voucherTier);
+  const settlementStatus =
+    input.settlementStatus == null ? null : parseSettlementStatus(input.settlementStatus);
+  const fingerprint = voucherCancelFingerprint({
+    requestId,
+    voucherId,
+    redemptionId,
+    decision,
+    voucherTier: tier,
+    settlementStatus,
+    reason,
+  });
+
+  const prior = input.existingResults.find((row) => row.idempotencyKey === idempotencyKey);
+  if (prior) {
+    if (prior.fingerprint !== fingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同美容券取消內容');
+    }
+    return {
+      requestStatus: prior.requestStatus,
+      voucherStatus: prior.voucherStatus,
+      duplicate: true,
+      fingerprint: prior.fingerprint,
+      pointsLine: prior.pointsLine,
+      subsidyLine: prior.subsidyLine,
+    };
+  }
+
+  if (input.request.voucherId !== voucherId) {
     throw new Error('取消申請的 voucherId 必須等於被取消券');
   }
   if (!canApproveVoucherCancel(input.actor)) {
@@ -1221,75 +1311,41 @@ export function decideVoucherCancellation(input: {
   if (input.request.status !== 'pending') {
     throw new Error('只能審核 pending 的取消申請');
   }
-  const decision = parseCancellationRequestStatus(input.decision);
-  if (decision === 'pending') {
-    throw new Error('審核結果不可為 pending');
-  }
+
   if (decision === 'rejected') {
     return {
       requestStatus: 'rejected',
       voucherStatus: 'redeemed',
       duplicate: false,
+      fingerprint,
       pointsLine: null,
       subsidyLine: null,
     };
   }
 
-  const tier = parseVoucherTier(input.voucherTier);
-  const fingerprint = voucherCancelFingerprint({
-    voucherId: input.voucherId,
-    redemptionId: input.redemptionId,
-    decision,
-    voucherTier: tier,
-  });
-  const prior = input.existingReversals.find((row) => row.idempotencyKey === input.idempotencyKey);
-  if (prior) {
-    const priorFp = voucherCancelFingerprint({
-      voucherId: prior.voucherId,
-      redemptionId: prior.originalRedemptionId,
-      decision: 'approved',
-      voucherTier: prior.amountTwd === 250 ? 'zhuwo_250' : 'standard_200',
-    });
-    if (priorFp !== fingerprint) {
-      throw new Error('同一 idempotencyKey 不可對應不同美容券沖銷內容');
-    }
-    return {
-      requestStatus: 'approved',
-      voucherStatus: 'cancelled',
-      duplicate: true,
-      pointsLine: {
-        pointsDelta: GROOMING_VOUCHER_POINTS,
-        voucherId: prior.voucherId,
-        redemptionId: prior.originalRedemptionId,
-        idempotencyKey: prior.idempotencyKey,
-      },
-      subsidyLine: prior,
-    };
-  }
-
   const face = groomingVoucherFaceTwd(tier);
-  const locked =
-    input.settlementStatus != null && isSettlementLocked(input.settlementStatus);
+  const locked = settlementStatus != null && isSettlementLocked(settlementStatus);
   const subsidyLine: VoucherSubsidyReversalLine = {
-    originalRedemptionId: input.redemptionId,
-    voucherId: input.voucherId,
+    originalRedemptionId: redemptionId,
+    voucherId,
     amountTwd: face,
     direction: 'merchant_owes_hq',
     kind: locked ? 'next_period_adjustment' : 'reversal',
     pointsDelta: GROOMING_VOUCHER_POINTS,
     actor: parsePosActor(input.actor),
-    reason: input.reason,
-    idempotencyKey: input.idempotencyKey,
+    reason,
+    idempotencyKey,
   };
   return {
     requestStatus: 'approved',
     voucherStatus: 'cancelled',
     duplicate: false,
+    fingerprint,
     pointsLine: {
       pointsDelta: GROOMING_VOUCHER_POINTS,
-      voucherId: input.voucherId,
-      redemptionId: input.redemptionId,
-      idempotencyKey: input.idempotencyKey,
+      voucherId,
+      redemptionId,
+      idempotencyKey,
     },
     subsidyLine,
   };

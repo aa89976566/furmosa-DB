@@ -1,7 +1,7 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.2
+> **版本：** v1.3
 > **日期：** 2026-08-17
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
@@ -31,7 +31,7 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
 | R7 | LINE／綠界由 Furmosa 收款的指定門市訂單，該店仍取得**普通佣金**；必須和店收現金使用**不同帳務方向**。退款／沖銷必須產生**相反方向**的債權與佣金回沖。 |
-| R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。重試不得重複退點或沖補貼。拒絕後券保持 `redeemed`。自然過期不退點。未知 tier throw。 |
+| R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 先驗 idempotencyKey 非空，再以 key 查既有 result；同 key＋完整相同 fingerprint 直接回 stored result／`duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`、HQ actor 並產生新 reversal。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
 | R9 | 未付款 checkout／payment intent **24 小時**失效；未付款**不** reserve。付款成功才進 `paid_reserved` 並原子 reserve。`paid_reserved` **不**自動 expire／退款／釋放；逾期未領轉客服。 |
 | R10 | 完成交易、核銷、結算**不可 update/delete 原事實**，只能 reversal／adjustment。原 `completed` sale **永不修改或刪除**。`amountTwd` 是財務 fully_reversed 的唯一完成條件；quantity 只表示實物／庫存，不阻擋金額全退。 |
 
@@ -157,13 +157,15 @@ consumed / released / expired → （終態）
 ```text
 draft → submitted | cancelled
 submitted → under_review | cancelled | rejected
-under_review → approved | rejected
+under_review → approved | rejected | cancelled
 approved → converted_to_shipment
 converted_to_shipment / rejected / cancelled → （終態）
 ```
 
-**`approved` 不可再 → `rejected`。**
-取消計畫必須與 canonical allow-list 一致：
+**`approved` 不可再 → `rejected`，也不可改寫為 `cancelled`。**
+`draft`／`submitted`／`under_review` 在尚未核准前都可轉 `cancelled`。
+`approved`／`converted_to_shipment` 只能另建 immutable cancellation／reversal plan，並視情況處理 shipment；不得把原 request 改成 `cancelled`。
+取消計畫必須與 canonical allow-list 完全一致：
 
 | 申請 | 出貨 | 模式 | 是否改寫原申請 |
 |------|------|------|----------------|
@@ -201,7 +203,10 @@ pending → approved | rejected
 - 申請的 `voucherId` 必須等於被取消券。
 - 只有 `redeemed` 可由店家提出。
 - HQ `approved`：不可變冪等 line；金額為正整數 200／250，方向 `merchant_owes_hq`；點數 +10。未鎖定直接 reversal；已鎖定進次期 adjustment。
-- HQ `rejected`：券保持 `redeemed`。
+- HQ `rejected`：券保持 `redeemed`；同樣使用 idempotency，重送不得再改狀態。
+- 冪等順序：先驗 key 非空 → 以 key 查 existing result → 同 fingerprint 回原結果；不同 fingerprint throw。**然後**才檢查目前券／申請狀態。
+- fingerprint 至少含 requestId、voucherId、redemptionId、decision、tier，以及會影響結果的必要欄位（settlement 路由、reason）。
+- 新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。
 - 自然過期：`issued`／`available` → `expired`，**不退點**。
 
 ### 3.11 結算 `SettlementStatus`
