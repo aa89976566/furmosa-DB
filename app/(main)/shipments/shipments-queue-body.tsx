@@ -16,6 +16,7 @@ import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
 import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
 import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
+import { resolveCampaignProductFallback } from '@/lib/shipment-queue-products';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,16 @@ const shipmentInclude = {
       cvsBrand: true,
       cvsStoreId: true,
       cvsStoreName: true,
+      items: {
+        select: {
+          id: true,
+          productName: true,
+          sku: true,
+          quantity: true,
+          weightGrams: true,
+          unit: true,
+        },
+      },
     },
   },
   items: {
@@ -84,13 +95,13 @@ const QUEUE_SECTIONS = [
   {
     status: 'pending',
     title: '待出貨',
-    description: '點列表在下方開啟訂單內容，下拉可標記已寄出',
+    description: '點列表或「查看」在右側開啟訂單內容；狀態變更請在抽屜內操作',
     tone: 'operations' as const,
   },
   {
     status: 'shipped',
     title: '在途',
-    description: '已寄出 — 下拉選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
+    description: '已寄出 — 於右側抽屜標記「貨物到達」後訂單狀態會同步更新',
     tone: 'logistics' as const,
   },
 ];
@@ -208,9 +219,48 @@ function FilterChip({
   );
 }
 
+type CampaignProductMap = Map<
+  string,
+  {
+    productName: string;
+    quantity: number;
+    unit: string | null;
+    sku: string | null;
+  }
+>;
+
 function toQueueRow(
   s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
+  campaignByOrderId: CampaignProductMap = new Map(),
 ): ShipmentQueueRow {
+  const shipmentItems = s.items.map((item) => ({
+    id: item.id,
+    productName: item.productName,
+    weightGrams: item.weightGrams,
+    quantity: item.quantity,
+    sku: item.sku,
+    unit: item.unit,
+  }));
+
+  // 出貨品項為空時，用訂單品項（含零價／贈品）填列表摘要；仍無則走活動 fallback
+  const orderFallbackItems =
+    shipmentItems.length === 0 && s.order?.items?.length
+      ? s.order.items.map((item) => ({
+          id: item.id,
+          productName: item.productName,
+          weightGrams: item.weightGrams,
+          quantity: item.quantity,
+          sku: item.sku,
+          unit: item.unit,
+        }))
+      : [];
+
+  const displayItems = shipmentItems.length > 0 ? shipmentItems : orderFallbackItems;
+  const campaignProduct =
+    displayItems.length === 0 && s.orderId
+      ? (campaignByOrderId.get(s.orderId) ?? null)
+      : null;
+
   return {
     id: s.id,
     shipmentNumber: s.shipmentNumber,
@@ -239,17 +289,15 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          source: s.order.source,
           shippingMethod: s.order.shippingMethod,
           cvsBrand: s.order.cvsBrand,
           cvsStoreId: s.order.cvsStoreId,
           cvsStoreName: s.order.cvsStoreName,
         }
       : null,
-    items: s.items.map((item) => ({
-      productName: item.productName,
-      weightGrams: item.weightGrams,
-      quantity: item.quantity,
-    })),
+    items: displayItems,
+    campaignProduct,
     subscriptionShipment: s.subscriptionShipment
       ? {
           shipmentNo: s.subscriptionShipment.shipmentNo,
@@ -270,6 +318,32 @@ function toQueueRow(
         }
       : null,
   };
+}
+
+async function loadCampaignProductsByOrderIds(orderIds: string[]): Promise<CampaignProductMap> {
+  const map: CampaignProductMap = new Map();
+  if (orderIds.length === 0) return map;
+
+  const applications = await prisma.campaignApplication.findMany({
+    where: { orderId: { in: orderIds } },
+    select: {
+      orderId: true,
+      campaign: { select: { productName: true, productQuantity: true } },
+      conversationSession: { select: { collectedDataJson: true } },
+    },
+  });
+
+  for (const app of applications) {
+    if (!app.orderId) continue;
+    const product = resolveCampaignProductFallback({
+      collectedDataJson: app.conversationSession?.collectedDataJson,
+      campaignProductName: app.campaign.productName,
+      campaignProductQuantity: app.campaign.productQuantity,
+    });
+    if (product) map.set(app.orderId, product);
+  }
+
+  return map;
 }
 
 export async function ShipmentsQueueBody({
@@ -324,6 +398,20 @@ export async function ShipmentsQueueBody({
   ]);
 
   const shipments = dedupeShipmentsByOrder(rawShipments);
+  const emptyItemOrderIds = [
+    ...new Set(
+      shipments
+        .filter((s) => s.items.length === 0 && s.orderId)
+        .map((s) => s.orderId as string),
+    ),
+  ];
+  // 僅在出貨品項與訂單品項皆可能為空時查活動；避免列表捏造、也避免多餘查詢
+  const needCampaignLookup = emptyItemOrderIds.filter((orderId) => {
+    const row = shipments.find((s) => s.orderId === orderId);
+    return !row?.order?.items?.length;
+  });
+  const campaignByOrderId = await loadCampaignProductsByOrderIds(needCampaignLookup);
+
   const { byStatus: countByStatus, pendingCount, total } = counts;
   const grouped = !status;
   const panelRefreshKey = shipments
@@ -336,7 +424,7 @@ export async function ShipmentsQueueBody({
     })
     .join('|');
 
-  const queueRows = shipments.map(toQueueRow);
+  const queueRows = shipments.map((s) => toQueueRow(s, campaignByOrderId));
 
   const subscriptionRows = queueRows
     .filter((s) => s.type === 'subscription' && (s.status === 'pending' || s.status === 'packed'))
@@ -382,7 +470,7 @@ export async function ShipmentsQueueBody({
         {
           key: status!,
           title: `${shipmentStatusLabel[status!]} (${queueRows.length})`,
-          description: '點列表任一筆，在下方開啟訂單內容；運輸狀態可直接在列表修改',
+          description: '點列表或「查看」在右側開啟訂單內容；狀態變更請在抽屜內操作',
           tone: 'logistics' as const,
           tableVariant: 'default' as const,
           shipments: queueRows,

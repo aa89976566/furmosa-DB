@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import {
   Table,
   TableBody,
@@ -8,16 +9,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ShipmentQueueStatusCell } from '@/components/shipments/shipment-queue-status-select';
+import { ShipmentProductSummary } from '@/components/shipments/shipment-product-summary';
 import { formatDate, formatRelative } from '@/lib/format';
+import { orderSourceLabel } from '@/lib/labels';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
-import { productLabel } from '@/lib/product-label';
 import { parsePlanContents } from '@/lib/plan-contents';
+import {
+  resolveShipmentProducts,
+  shouldOpenShipmentDrawerFromTarget,
+  type ProductSummaryModel,
+} from '@/lib/shipment-queue-products';
+import {
+  shipmentStatusLabel,
+  shipmentStatusVariant,
+  shipmentTypeLabel,
+} from '@/lib/shipment';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
-import { shipmentTypeLabel } from '@/lib/shipment';
-import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
+import { CalendarClock, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
 export type ShipmentQueueRow = {
   id: string;
@@ -44,16 +55,27 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    source?: string | null;
     shippingMethod: string;
     cvsBrand: string | null;
     cvsStoreId: string | null;
     cvsStoreName: string | null;
   } | null;
   items: Array<{
+    id?: string;
     productName: string;
     weightGrams: number | null;
     quantity: number;
+    sku?: string | null;
+    unit?: string | null;
   }>;
+  /** 活動零價贈品（唯讀 fallback，由 list mapper 填入） */
+  campaignProduct?: {
+    productName: string;
+    quantity: number;
+    unit?: string | null;
+    sku?: string | null;
+  } | null;
   subscriptionShipment: {
     shipmentNo: string;
     scheduledDate: Date | string | null;
@@ -68,13 +90,12 @@ type QueueRowView = {
   shipment: ShipmentQueueRow;
   label: string;
   shortNumber: string;
+  sourceLabel: string;
   logistics: ReturnType<typeof resolveLogisticsFromShipment>;
-  productLines: string[];
-  totalQty: number;
+  productSummary: ProductSummaryModel;
   isSub: boolean;
   planName: string;
   scheduledDate: Date | string | null;
-  itemCountLabel: string;
 };
 
 function shortShipmentNumber(value: string) {
@@ -95,8 +116,7 @@ function rowLabel(s: ShipmentQueueRow) {
   );
 }
 
-function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
-  const totalQty = s.items.reduce((sum, i) => sum + i.quantity, 0);
+export function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   const isSub = s.type === 'subscription';
   const planContents = isSub
     ? parsePlanContents(s.subscriptionShipment?.subscription?.plan?.contents)
@@ -112,41 +132,31 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   });
   const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
   const planName = s.subscriptionShipment?.subscription?.plan?.name ?? '訂閱方案';
-  const productLines =
-    isSub && planContents.length > 0
-      ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
-      : s.items.map((item) =>
-          `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`,
-        );
-  const itemTotal = isSub ? productLines.length : totalQty;
+  const source =
+    s.order?.source
+      ? (orderSourceLabel[s.order.source] ?? s.order.source)
+      : (shipmentTypeLabel[s.type] ?? s.type);
+  const productSummary = resolveShipmentProducts({
+    type: s.type,
+    items: s.items,
+    planContents,
+    campaignProduct: s.campaignProduct ?? null,
+  });
 
   return {
     shipment: s,
     label: rowLabel(s),
     shortNumber: shortShipmentNumber(s.shipmentNumber),
+    sourceLabel: source,
     logistics,
-    productLines,
-    totalQty,
+    productSummary,
     isSub,
     planName,
     scheduledDate,
-    itemCountLabel: `${productLines.length} 項 · 共 ${itemTotal} 件`,
   };
 }
 
-function ItemBulletList({ items }: { items: string[] }) {
-  return (
-    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-      {items.map((item, index) => (
-        <li key={`${index}-${item}`} className="break-words [overflow-wrap:anywhere]">
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function LogisticsBlock({
+function LogisticsCompact({
   view,
   variant,
 }: {
@@ -156,45 +166,27 @@ function LogisticsBlock({
   const { logistics, scheduledDate } = view;
 
   return (
-    <div className="space-y-1">
+    <div className="min-w-0 space-y-0.5">
       {variant === 'subscription' && scheduledDate ? (
-        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] font-medium text-info">
+        <div className="flex flex-wrap items-center gap-x-1 text-[11px] font-medium text-info">
           <CalendarClock className="h-3.5 w-3.5 shrink-0" />
           <span>預定 {formatDate(scheduledDate)}</span>
           <span className="text-muted-foreground">· {formatRelative(scheduledDate)}</span>
         </div>
       ) : null}
-      <div className="flex items-center gap-1 text-[11px] font-medium text-info">
-        <Truck className="h-3.5 w-3.5 shrink-0" />
-        <span>{logistics.carrierLabel}</span>
-      </div>
       <div className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
-        <span className="min-w-0 break-words [overflow-wrap:anywhere]">{logistics.destination}</span>
-      </div>
-      <div className="pl-5 text-xs text-muted-foreground">{logistics.contactName}</div>
-    </div>
-  );
-}
-
-function ProductsBlock({ view }: { view: QueueRowView }) {
-  if (view.productLines.length === 0) {
-    return <span className="text-xs text-muted-foreground">-</span>;
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
-          {view.itemCountLabel}
+        <span className="min-w-0 truncate" title={logistics.destination}>
+          {logistics.destination}
         </span>
-        {view.isSub ? (
-          <span className="inline-flex items-center rounded-md bg-violet-500/12 px-2 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">
-            {view.planName}
-          </span>
-        ) : null}
       </div>
-      <ItemBulletList items={view.productLines} />
+      <div className="truncate pl-5 text-xs text-muted-foreground" title={logistics.contactName}>
+        {logistics.contactName}
+      </div>
+      <div className="flex items-center gap-1 pl-5 text-[11px] text-muted-foreground">
+        <Truck className="h-3 w-3 shrink-0" />
+        <span className="truncate">{logistics.carrierLabel}</span>
+      </div>
     </div>
   );
 }
@@ -211,36 +203,55 @@ function EmptyQueueState() {
   );
 }
 
+function StatusBadge({ status }: { status: string }) {
+  return (
+    <Badge
+      variant={shipmentStatusVariant[status] ?? 'secondary'}
+      className="h-6 whitespace-nowrap px-2 text-[11px]"
+    >
+      {shipmentStatusLabel[status] ?? status}
+    </Badge>
+  );
+}
+
 function ShipmentQueueCard({
   view,
   variant,
   selected,
-  queueStatus,
-  queueType,
   onSelect,
+  rowRef,
 }: {
   view: QueueRowView;
   variant: 'default' | 'subscription';
   selected: boolean;
-  queueStatus?: string;
-  queueType?: string;
-  onSelect: () => void;
+  onSelect: (el: HTMLElement | null) => void;
+  rowRef?: (el: HTMLElement | null) => void;
 }) {
-  const { shipment, label, shortNumber, logistics } = view;
+  const { shipment, label, shortNumber, sourceLabel, logistics } = view;
+  const localRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <div
+      ref={(el) => {
+        localRef.current = el;
+        rowRef?.(el);
+      }}
       role="button"
       tabIndex={0}
-      onClick={onSelect}
+      data-shipment-row={shipment.id}
+      aria-label={`查看出貨單 ${label}`}
+      onClick={(event) => {
+        if (!shouldOpenShipmentDrawerFromTarget(event.target, event.currentTarget)) return;
+        onSelect(localRef.current);
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onSelect();
+          onSelect(localRef.current);
         }
       }}
       className={cn(
-        'relative w-full cursor-pointer rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-colors',
+        'relative w-full cursor-pointer rounded-2xl border border-border/70 bg-card p-3.5 text-left shadow-sm transition-colors',
         'active:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'border-primary/30 bg-primary/[0.06] ring-1 ring-primary/20',
       )}
@@ -257,32 +268,33 @@ function ShipmentQueueCard({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-semibold text-foreground">{label}</span>
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
-              {shipmentTypeLabel[shipment.type] ?? shipment.type}
+              {sourceLabel}
             </Badge>
+            <StatusBadge status={shipment.status} />
           </div>
           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{shortNumber}</p>
         </div>
-        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          data-shipment-open={shipment.id}
+          aria-label={`查看訂單 ${label}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(event.currentTarget);
+          }}
+        >
+          查看
+        </Button>
       </div>
 
-      <div className="mt-3" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          運輸狀態
-        </p>
-        <ShipmentQueueStatusCell
-          shipmentId={shipment.id}
-          status={shipment.status}
-          queueStatus={queueStatus}
-          queueType={queueType}
-          className="max-w-none"
-        />
-      </div>
-
-      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
-        <LogisticsBlock view={view} variant={variant} />
+      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2">
+        <LogisticsCompact view={view} variant={variant} />
         {logistics.phone && logistics.phone !== '—' ? (
           <a
             href={`tel:${logistics.phone.replace(/\s/g, '')}`}
+            data-stop-row-open="true"
             onClick={(event) => event.stopPropagation()}
             className="mt-2 inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums text-foreground"
           >
@@ -292,11 +304,12 @@ function ShipmentQueueCard({
         ) : null}
       </div>
 
-      {view.productLines.length > 0 ? (
-        <div className="mt-3 border-t border-border/60 pt-3">
-          <ProductsBlock view={view} />
-        </div>
-      ) : null}
+      <div className="mt-3 border-t border-border/60 pt-3">
+        <ShipmentProductSummary model={view.productSummary} />
+        {view.isSub ? (
+          <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">{view.planName}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -305,12 +318,10 @@ export function ShipmentQueueTable({
   shipments,
   onSelectShipment,
   selectedShipmentId,
-  queueStatus,
-  queueType,
   variant = 'default',
 }: {
   shipments: ShipmentQueueRow[];
-  onSelectShipment: (shipment: ShipmentQueueRow) => void;
+  onSelectShipment: (shipment: ShipmentQueueRow, triggerEl?: HTMLElement | null) => void;
   selectedShipmentId?: string | null;
   queueStatus?: string;
   queueType?: string;
@@ -327,16 +338,14 @@ export function ShipmentQueueTable({
       <div className="md:hidden">
         <VirtualCardList
           items={views}
-          estimateSize={156}
+          estimateSize={168}
           getKey={(view) => view.shipment.id}
           renderItem={(view) => (
             <ShipmentQueueCard
               view={view}
               variant={variant}
               selected={selectedShipmentId === view.shipment.id}
-              queueStatus={queueStatus}
-              queueType={queueType}
-              onSelect={() => onSelectShipment(view.shipment)}
+              onSelect={(el) => onSelectShipment(view.shipment, el)}
             />
           )}
         />
@@ -346,66 +355,98 @@ export function ShipmentQueueTable({
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[7.5rem]">單號</TableHead>
-              <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
-              <TableHead className="min-w-[12rem]">寄送地</TableHead>
-              <TableHead className="w-[9rem]">電話</TableHead>
-              <TableHead>商品 · 件數</TableHead>
+              <TableHead className="w-[9rem]">單號／來源</TableHead>
+              <TableHead className="w-[5.5rem]">狀態</TableHead>
+              <TableHead className="min-w-[10rem]">寄送地／收件</TableHead>
+              <TableHead className="w-[8.5rem]">電話</TableHead>
+              <TableHead className="min-w-[280px]">商品</TableHead>
+              <TableHead className="w-[4.5rem] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {views.map((view) => {
-              const { shipment, label, shortNumber, logistics } = view;
+              const { shipment, label, shortNumber, sourceLabel, logistics } = view;
 
               return (
                 <TableRow
                   key={shipment.id}
+                  data-shipment-row={shipment.id}
+                  tabIndex={0}
+                  aria-label={`查看出貨單 ${label}`}
                   className={cn(
-                    'relative cursor-pointer align-top transition-colors hover:bg-muted/40',
+                    'relative h-[68px] cursor-pointer align-middle transition-colors hover:bg-muted/40',
                     'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary before:opacity-0 before:transition-opacity',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                     selectedShipmentId === shipment.id &&
                       'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
                   )}
-                  onClick={() => onSelectShipment(shipment)}
+                  onClick={(event) => {
+                    if (!shouldOpenShipmentDrawerFromTarget(event.target, event.currentTarget)) {
+                      return;
+                    }
+                    onSelectShipment(shipment, event.currentTarget);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onSelectShipment(shipment, event.currentTarget);
+                    }
+                  }}
                   title={`${label} · ${shipment.shipmentNumber}`}
                 >
-                  <TableCell className="py-3">
+                  <TableCell className="py-2.5">
                     <span
-                      className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
+                      className="block truncate font-mono text-[11px] font-semibold leading-tight text-foreground"
                       title={shipment.shipmentNumber}
                     >
                       {label}
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
-                        {shipmentTypeLabel[shipment.type] ?? shipment.type}
+                        {sourceLabel}
                       </Badge>
-                      <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {shortNumber}
+                      </span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
-                    <ShipmentQueueStatusCell
-                      shipmentId={shipment.id}
-                      status={shipment.status}
-                      queueStatus={queueStatus}
-                      queueType={queueType}
-                    />
+                  <TableCell className="py-2.5">
+                    <StatusBadge status={shipment.status} />
                   </TableCell>
-                  <TableCell className="py-3">
-                    <LogisticsBlock view={view} variant={variant} />
+                  <TableCell className="py-2.5">
+                    <LogisticsCompact view={view} variant={variant} />
                   </TableCell>
-                  <TableCell className="py-3">
+                  <TableCell className="py-2.5" data-stop-row-open="true">
                     {logistics.phone && logistics.phone !== '—' ? (
-                      <div className="flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
+                      <a
+                        href={`tel:${logistics.phone.replace(/\s/g, '')}`}
+                        onClick={(event) => event.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums"
+                      >
                         <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="break-all">{logistics.phone}</span>
-                      </div>
+                      </a>
                     ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
+                      <span className="text-xs text-muted-foreground">無電話</span>
                     )}
                   </TableCell>
-                  <TableCell className="py-3">
-                    <ProductsBlock view={view} />
+                  <TableCell className="py-2.5">
+                    <ShipmentProductSummary model={view.productSummary} />
+                  </TableCell>
+                  <TableCell className="py-2.5 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      data-shipment-open={shipment.id}
+                      aria-label={`查看訂單 ${label}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelectShipment(shipment, event.currentTarget);
+                      }}
+                    >
+                      查看
+                    </Button>
                   </TableCell>
                 </TableRow>
               );

@@ -17,6 +17,8 @@ export function CarrierSelect({
   name = 'carrier',
   required = false,
   className,
+  /** Drawer 等窄欄：門市／姓名／電話一律單欄全寬，禁止姓名與電話並排 */
+  stackFields = false,
   onCarrierChange,
 }: {
   defaultValue?: string | null;
@@ -26,6 +28,7 @@ export function CarrierSelect({
   name?: string;
   required?: boolean;
   className?: string;
+  stackFields?: boolean;
   onCarrierChange?: (carrier: string) => void;
 }) {
   const initial = (defaultValue ?? '').trim();
@@ -61,12 +64,15 @@ export function CarrierSelect({
     onCarrierChange?.(finalValue);
   }, [finalValue, onCarrierChange]);
 
+  const fieldClass =
+    'block w-full min-w-0 rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring';
+
   return (
-    <div className={className}>
+    <div className={className} data-carrier-stack={stackFields ? 'true' : 'false'}>
       <select
         value={mode}
         onChange={(e) => setMode(e.target.value as Preset | 'other' | '')}
-        className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        className={fieldClass}
       >
         <option value="">請選擇物流</option>
         {PRESETS.map((p) => (
@@ -84,17 +90,17 @@ export function CarrierSelect({
           onChange={(e) => setOtherValue(e.target.value)}
           placeholder="請填寫物流名稱（例如：自送、順豐）"
           required={required}
-          className="mt-2 block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          className={`mt-2 ${fieldClass}`}
         />
       )}
 
       {show711Fields && (
         <div className="mt-3 space-y-3 rounded-md border border-dashed border-info/40 bg-info/5 p-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs leading-relaxed text-muted-foreground break-words">
             請填寫 <span className="font-medium text-foreground">7-11 取件門市</span> 與取件人聯絡方式
           </p>
-          <div className="space-y-1">
-            <label htmlFor={`${name}-pickupStore`} className="text-xs font-medium">
+          <div className="w-full min-w-0 space-y-1.5">
+            <label htmlFor={`${name}-pickupStore`} className="block text-xs font-medium">
               門市 <span className="text-destructive">*</span>
             </label>
             <input
@@ -106,12 +112,19 @@ export function CarrierSelect({
               placeholder="例：淡水復興門市"
               maxLength={80}
               required
-              className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className={`${fieldClass} break-words`}
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label htmlFor={`${name}-pickupName`} className="text-xs font-medium">
+          <div
+            className={
+              stackFields
+                ? 'flex w-full min-w-0 flex-col gap-3'
+                : 'grid gap-3 sm:grid-cols-2'
+            }
+            data-pickup-contact-layout={stackFields ? 'stack' : 'responsive'}
+          >
+            <div className="w-full min-w-0 space-y-1.5">
+              <label htmlFor={`${name}-pickupName`} className="block text-xs font-medium">
                 姓名 <span className="text-destructive">*</span>
               </label>
               <input
@@ -123,11 +136,11 @@ export function CarrierSelect({
                 placeholder="例：王小明"
                 maxLength={80}
                 required
-                className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={fieldClass}
               />
             </div>
-            <div className="space-y-1">
-              <label htmlFor={`${name}-pickupPhone`} className="text-xs font-medium">
+            <div className="w-full min-w-0 space-y-1.5">
+              <label htmlFor={`${name}-pickupPhone`} className="block text-xs font-medium">
                 電話 <span className="text-destructive">*</span>
               </label>
               <input
@@ -139,7 +152,7 @@ export function CarrierSelect({
                 placeholder="例：0912345678"
                 maxLength={20}
                 required
-                className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className={fieldClass}
               />
             </div>
           </div>
