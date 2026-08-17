@@ -1,7 +1,7 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.4
+> **版本：** v1.5
 > **日期：** 2026-08-17
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
@@ -26,12 +26,12 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 |----|------|
 | R1 | Phase 1 每個實體門市一個 **active** POS 帳號。schema **不必**封死未來多帳號。 |
 | R2 | 目前所有補貨均為**寄賣**；店內交易由**店家收款**。 |
-| R3 | 一般佣金率按**店家設定**，同店不同商品不使用不同百分比。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot rate／amount。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。全額退完時累計回沖必須精準等於原 snapshot，過程不可超退。月結**只加總 snapshot**。 |
+| R3 | 一般佣金率按**店家設定**，同店不同商品不使用不同百分比。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot rate／amount。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
 | R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；**只有出貨 `delivered` 才增加店庫存**。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
 | R7 | LINE／綠界由 Furmosa 收款的指定門市訂單，該店仍取得**普通佣金**；必須和店收現金使用**不同帳務方向**。退款／沖銷必須產生**相反方向**的債權與佣金回沖。 |
-| R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 先驗 idempotencyKey 非空，再以 key 查既有 result；同 key＋完整相同 fingerprint 直接回 stored result／`duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`、HQ actor 並產生新 reversal。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
+| R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 固定順序：先 parse／驗證 actor allow-list 且必須是 HQ → 再驗 request identity → 再驗 idempotency key → 再查 existing result／比 fingerprint。同內容回 `duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。**approve／reject 重送每次都必須重驗 HQ**，不可因已有結果跳過授權。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
 | R9 | 未付款 checkout／payment intent **24 小時**失效；未付款**不** reserve。付款成功才進 `paid_reserved` 並原子 reserve。`paid_reserved` **不**自動 expire／退款／釋放；逾期未領轉客服。 |
 | R10 | 完成交易、核銷、結算**不可 update/delete 原事實**，只能 reversal／adjustment。原 `completed` sale **永不修改或刪除**。`amountTwd` 是財務 fully_reversed 的唯一完成條件；quantity 只表示實物／庫存，不阻擋金額全退。 |
 
@@ -118,11 +118,15 @@ cancelled → （終態）
 | `originalCollectionChannel` | server 從原 sale；runtime 未知值一律 throw |
 | `originalCommissionRateSnapshot` | server 從原 sale snapshot |
 | `commissionReversalSnapshot` | server 用剩餘淨額算法寫入 |
-| `idempotencyKey` | 同 key＋完整相同 fingerprint → 回既有 line／`duplicate=true`。saleId／amount／quantity／channel／rate 任一不同 → throw |
+| `idempotencyKey` | 同 key＋完整相同 fingerprint → 回既有 line／`duplicate=true`。saleId／amount／quantity／channel／rate／`commissionReversalSnapshot` 任一不同 → throw |
 
 佣金回沖＝原 commission snapshot − `round(退後剩餘淨額 × 原 rate)` − 既有已回沖。
 累計金額不超原 gross；有提供 quantity 時不超原 quantity。
-`refundableRemainder`／退款驗證必須檢查既有 refund lines：`originalCollectionChannel`／`originalCommissionRateSnapshot` 與原 sale snapshot 一致，且 `commissionReversalSnapshot` 累計不超原 snapshot。異常歷史 line **fail closed**。
+既有 unique refund lines 的 fingerprint **必須含** `commissionReversalSnapshot`。先比完整 fingerprint 再去重；同 key 但 snapshot 不同必須 throw，不可靜默忽略壞 duplicate。
+`refundableRemainder`／既有 ledger 必須驗：
+`sum(commissionReversalSnapshot) === 原 commission snapshot − round((原成交 − sum(unique 退款金額)) × 原 rate)`。
+少回沖與超回沖都 **fail closed**，不是只驗 `<=`。
+`originalCollectionChannel`／`originalCommissionRateSnapshot` 也必須與原 sale snapshot 一致。
 已鎖結算上的 refund：**只能**進次期 adjustment。
 
 ### 3.5 退款申請 `RefundStatus`
@@ -206,7 +210,8 @@ pending → approved | rejected
 - 只有 `redeemed` 可由店家提出。
 - HQ `approved`：不可變冪等 line；金額為正整數 200／250，方向 `merchant_owes_hq`；點數 +10。未鎖定直接 reversal；已鎖定進次期 adjustment。
 - HQ `rejected`：券保持 `redeemed`；同樣使用 idempotency，重送不得再改狀態。
-- 冪等順序：先驗 key 非空 → 以 key 查 existing result → 同 fingerprint 回原結果；不同 fingerprint throw。**然後**才檢查目前券／申請狀態。
+- 固定順序：① parse／驗證 actor allow-list 且必須是 HQ ② 驗 request identity（`request.voucherId === voucherId`、requestId 等）③ 驗 idempotency key ④ 查 existing result／比 fingerprint ⑤ 同內容回 duplicate ⑥ 無 existing 才驗 voucher＝`redeemed`、request＝`pending`。
+- **duplicate approve／reject 每次都必須重驗 HQ**；`merchant_staff` 或未知 actor 即使同 key／fingerprint 也 throw。
 - fingerprint 至少含 requestId、voucherId、redemptionId、decision、tier，以及會影響結果的必要欄位（settlement 路由、reason）。
 - 新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。
 - 自然過期：`issued`／`available` → `expired`，**不退點**。

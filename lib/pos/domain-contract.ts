@@ -848,7 +848,7 @@ export function ordinarySaleLedger(
   };
 }
 
-export function refundFingerprint(input: {
+export function refundRequestFingerprint(input: {
   originalSaleId: string;
   amountTwd: TwdInteger;
   quantity?: NonNegativeIntegerUnits;
@@ -865,18 +865,37 @@ export function refundFingerprint(input: {
   ].join('|');
 }
 
+export function refundLineFingerprint(row: RefundReversalLine): string {
+  parseCollectionChannel(row.originalCollectionChannel);
+  assertIntegerPercent(row.originalCommissionRateSnapshot);
+  assertTwdInteger(row.amountTwd, '退款金額');
+  assertTwdInteger(row.commissionReversalSnapshot, '佣金回沖 snapshot');
+  return [
+    refundRequestFingerprint({
+      originalSaleId: row.originalSaleId,
+      amountTwd: row.amountTwd,
+      quantity: row.quantity,
+      originalCollectionChannel: row.originalCollectionChannel,
+      originalCommissionRateSnapshot: row.originalCommissionRateSnapshot,
+    }),
+    String(row.commissionReversalSnapshot),
+  ].join('|');
+}
+
+export function refundFingerprint(row: RefundReversalLine): string {
+  return refundLineFingerprint(row);
+}
+
 function uniqueRefundsByKey(refunds: readonly RefundReversalLine[]): RefundReversalLine[] {
   const seen = new Map<string, RefundReversalLine>();
   for (const row of refunds) {
-    parseCollectionChannel(row.originalCollectionChannel);
-    assertIntegerPercent(row.originalCommissionRateSnapshot);
-    assertTwdInteger(row.commissionReversalSnapshot, '佣金回沖 snapshot');
+    const fingerprint = refundLineFingerprint(row);
     const existing = seen.get(row.idempotencyKey);
     if (!existing) {
       seen.set(row.idempotencyKey, row);
       continue;
     }
-    if (refundFingerprint(existing) !== refundFingerprint(row)) {
+    if (refundLineFingerprint(existing) !== fingerprint) {
       throw new Error('同一 idempotencyKey 不可對應不同退款內容');
     }
   }
@@ -928,13 +947,32 @@ export function refundableRemainder(
   if (hasQty && sale.quantity != null && qty > sale.quantity) {
     throw new Error('累計退款數量不可超過原可退餘額');
   }
-  if (commission > sale.commissionAmountSnapshot) {
-    throw new Error('累計佣金回沖不可超過原 commission snapshot');
+  const expected = expectedCumulativeCommissionReversal(sale, amount);
+  if (commission !== expected) {
+    throw new Error('既有退款佣金回沖與剩餘淨額公式不一致');
   }
   return {
     amountTwd: sale.actualGrossTwd - amount,
     quantity: sale.quantity != null ? sale.quantity - qty : null,
   };
+}
+
+export function expectedCumulativeCommissionReversal(
+  sale: CompletedSaleLine,
+  refundedAmountTwd: TwdInteger,
+): TwdInteger {
+  assertSaleCommissionSnapshotConsistent(sale);
+  assertTwdInteger(refundedAmountTwd, '累計退款金額');
+  if (refundedAmountTwd > sale.actualGrossTwd) {
+    throw new Error('累計退款金額不可超過原可退餘額');
+  }
+  const remainingNet = sale.actualGrossTwd - refundedAmountTwd;
+  const deservedOnRemain = roundPercentCommission(remainingNet, sale.commissionRateSnapshot);
+  const expected = sale.commissionAmountSnapshot - deservedOnRemain;
+  if (!Number.isSafeInteger(expected) || expected < 0) {
+    throw new Error('既有退款佣金回沖與剩餘淨額公式不一致');
+  }
+  return expected;
 }
 
 export function sumCommissionReversals(refunds: readonly RefundReversalLine[]): TwdInteger {
@@ -1026,7 +1064,7 @@ export function applyRefundReversalLine(input: {
     throw new Error('server 必須從已驗證的退款金額建立 line');
   }
   const channel = parseCollectionChannel(input.sale.collectionChannel);
-  const candidateFingerprint = refundFingerprint({
+  const candidateRequestFingerprint = refundRequestFingerprint({
     originalSaleId: input.sale.id,
     amountTwd: parsed.requestedAmountTwd,
     quantity: parsed.requestedQuantity,
@@ -1038,7 +1076,7 @@ export function applyRefundReversalLine(input: {
   const prior = input.existingRefunds.find((row) => row.idempotencyKey === input.idempotencyKey);
   if (prior) {
     assertRefundLineMatchesSale(input.sale, prior);
-    if (refundFingerprint(prior) !== candidateFingerprint) {
+    if (refundRequestFingerprint(prior) !== candidateRequestFingerprint) {
       throw new Error('同一 idempotencyKey 不可對應不同退款內容');
     }
     return { line: prior, duplicate: true };
@@ -1301,10 +1339,20 @@ export function decideVoucherCancellation(input: {
   idempotencyKey: string;
   existingResults: readonly StoredVoucherCancellationResult[];
 }): VoucherCancellationDecision {
-  const idempotencyKey = assertRequiredContractText(input.idempotencyKey, 'idempotencyKey');
+  const actor = parsePosActor(input.actor);
+  if (actor !== 'hq') {
+    throw new Error('只有 HQ 才能核准或拒絕美容券取消');
+  }
+
   const requestId = assertRequiredContractText(input.request.requestId, 'requestId');
   const voucherId = assertRequiredContractText(input.voucherId, 'voucherId');
+  const requestVoucherId = assertRequiredContractText(input.request.voucherId, '取消申請 voucherId');
+  if (requestVoucherId !== voucherId) {
+    throw new Error('取消申請的 voucherId 必須等於被取消券');
+  }
   const redemptionId = assertRequiredContractText(input.redemptionId, 'redemptionId');
+
+  const idempotencyKey = assertRequiredContractText(input.idempotencyKey, 'idempotencyKey');
   const reason = assertRequiredContractText(input.reason, 'reason');
   const decision = parseCancellationRequestStatus(input.decision);
   if (decision === 'pending') {
@@ -1338,12 +1386,6 @@ export function decideVoucherCancellation(input: {
     };
   }
 
-  if (input.request.voucherId !== voucherId) {
-    throw new Error('取消申請的 voucherId 必須等於被取消券');
-  }
-  if (!canApproveVoucherCancel(input.actor)) {
-    throw new Error('只有 HQ 才能核准或拒絕美容券取消');
-  }
   const voucherStatus = parseVoucherStatus(input.voucherStatus);
   if (voucherStatus !== 'redeemed') {
     throw new Error('取消申請審核時券必須仍為 redeemed');
@@ -1372,7 +1414,7 @@ export function decideVoucherCancellation(input: {
     direction: 'merchant_owes_hq',
     kind: locked ? 'next_period_adjustment' : 'reversal',
     pointsDelta: GROOMING_VOUCHER_POINTS,
-    actor: parsePosActor(input.actor),
+    actor,
     reason,
     idempotencyKey,
   };

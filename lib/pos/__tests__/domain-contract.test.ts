@@ -500,7 +500,7 @@ describe('partial refund remainder commission and idempotency', () => {
         refundableRemainder(sale, [
           { ...baseLine, commissionReversalSnapshot: 301 },
         ]),
-      /累計佣金回沖不可超過原 commission snapshot/,
+      /既有退款佣金回沖與剩餘淨額公式不一致/,
     );
     assert.throws(
       () =>
@@ -513,6 +513,50 @@ describe('partial refund remainder commission and idempotency', () => {
           idempotencyKey: 'hist-1',
         }),
       /collection channel 與原 sale snapshot 不一致/,
+    );
+  });
+
+  it('requires existing commission reversals to match the remaining-net formula exactly', () => {
+    const sale = completedSale();
+    const line = (snapshot: number, key = 'r-100'): RefundReversalLine => ({
+      originalSaleId: 'sale-1',
+      amountTwd: 100,
+      originalCollectionChannel: 'merchant_collected',
+      originalCommissionRateSnapshot: 30,
+      commissionReversalSnapshot: snapshot,
+      idempotencyKey: key,
+    });
+    assert.throws(() => refundableRemainder(sale, [line(0)]), /既有退款佣金回沖與剩餘淨額公式不一致/);
+    assert.throws(() => refundableRemainder(sale, [line(29)]), /既有退款佣金回沖與剩餘淨額公式不一致/);
+    const exact = refundableRemainder(sale, [line(30)]);
+    assert.equal(exact.amountTwd, 900);
+    const first = applyRefundReversalLine({
+      sale,
+      existingRefunds: [],
+      clientInput: { requestedAmountTwd: 400, requestedQuantity: 4 },
+      idempotencyKey: 'split-1',
+    });
+    const second = applyRefundReversalLine({
+      sale,
+      existingRefunds: [first.line],
+      clientInput: { requestedAmountTwd: 600, requestedQuantity: 6 },
+      idempotencyKey: 'split-2',
+    });
+    assert.doesNotThrow(() => refundableRemainder(sale, [first.line, second.line]));
+    assert.equal(sumCommissionReversals([first.line, second.line]), 300);
+    assert.throws(
+      () => refundableRemainder(sale, [line(30), { ...line(29), amountTwd: 100 }]),
+      /同一 idempotencyKey 不可對應不同退款內容/,
+    );
+    assert.throws(
+      () =>
+        applyRefundReversalLine({
+          sale,
+          existingRefunds: [line(30), { ...line(29) }],
+          clientInput: { requestedAmountTwd: 100 },
+          idempotencyKey: 'r-100',
+        }),
+      /同一 idempotencyKey 不可對應不同退款內容/,
     );
   });
 
@@ -826,6 +870,140 @@ describe('grooming voucher — 200/250, not a product coupon', () => {
     assert.equal(canApproveVoucherCancel('hq'), true);
     assert.equal(expiredVoucherRefundsPoints(), false);
     assert.equal(canTransitionVoucher('issued', 'expired'), true);
+  });
+
+  it('re-checks HQ on persisted approve and reject retries and never skips auth', () => {
+    const pending = requestVoucherCancellation({
+      requestId: 'req-auth',
+      voucherStatus: 'redeemed',
+      actor: 'merchant_owner',
+      voucherId: 'v-auth',
+    });
+    const approved = decideVoucherCancellation({
+      voucherId: 'v-auth',
+      voucherStatus: 'redeemed',
+      redemptionId: 'red-auth',
+      request: pending,
+      actor: 'hq',
+      decision: 'approved',
+      voucherTier: 'standard_200',
+      settlementStatus: null,
+      reason: 'ok',
+      idempotencyKey: 'vc-auth-a',
+      existingResults: [],
+    });
+    const approvedStored = [storeVoucherCancellationDecision('vc-auth-a', approved)];
+    const approvedRetry = decideVoucherCancellation({
+      voucherId: 'v-auth',
+      voucherStatus: 'cancelled',
+      redemptionId: 'red-auth',
+      request: { ...pending, status: 'approved' },
+      actor: 'hq',
+      decision: 'approved',
+      voucherTier: 'standard_200',
+      settlementStatus: null,
+      reason: 'ok',
+      idempotencyKey: 'vc-auth-a',
+      existingResults: approvedStored,
+    });
+    assert.equal(approvedRetry.duplicate, true);
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v-auth',
+          voucherStatus: 'cancelled',
+          redemptionId: 'red-auth',
+          request: { ...pending, status: 'approved' },
+          actor: 'merchant_staff',
+          decision: 'approved',
+          voucherTier: 'standard_200',
+          settlementStatus: null,
+          reason: 'ok',
+          idempotencyKey: 'vc-auth-a',
+          existingResults: approvedStored,
+        }),
+      /只有 HQ/,
+    );
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v-auth',
+          voucherStatus: 'cancelled',
+          redemptionId: 'red-auth',
+          request: { ...pending, status: 'approved' },
+          actor: 'unknown',
+          decision: 'approved',
+          voucherTier: 'standard_200',
+          settlementStatus: null,
+          reason: 'ok',
+          idempotencyKey: 'vc-auth-a',
+          existingResults: approvedStored,
+        }),
+      /allow-list/,
+    );
+
+    const rejected = decideVoucherCancellation({
+      voucherId: 'v-auth',
+      voucherStatus: 'redeemed',
+      redemptionId: 'red-auth',
+      request: pending,
+      actor: 'hq',
+      decision: 'rejected',
+      voucherTier: 'standard_200',
+      settlementStatus: null,
+      reason: 'no',
+      idempotencyKey: 'vc-auth-r',
+      existingResults: [],
+    });
+    const rejectedStored = [storeVoucherCancellationDecision('vc-auth-r', rejected)];
+    const rejectedRetry = decideVoucherCancellation({
+      voucherId: 'v-auth',
+      voucherStatus: 'redeemed',
+      redemptionId: 'red-auth',
+      request: { ...pending, status: 'rejected' },
+      actor: 'hq',
+      decision: 'rejected',
+      voucherTier: 'standard_200',
+      settlementStatus: null,
+      reason: 'no',
+      idempotencyKey: 'vc-auth-r',
+      existingResults: rejectedStored,
+    });
+    assert.equal(rejectedRetry.duplicate, true);
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v-auth',
+          voucherStatus: 'redeemed',
+          redemptionId: 'red-auth',
+          request: { ...pending, status: 'rejected' },
+          actor: 'merchant_staff',
+          decision: 'rejected',
+          voucherTier: 'standard_200',
+          settlementStatus: null,
+          reason: 'no',
+          idempotencyKey: 'vc-auth-r',
+          existingResults: rejectedStored,
+        }),
+      /只有 HQ/,
+    );
+    assert.throws(
+      () =>
+        decideVoucherCancellation({
+          voucherId: 'v-auth',
+          voucherStatus: 'redeemed',
+          redemptionId: 'red-auth',
+          request: { ...pending, status: 'rejected' },
+          actor: 'HQ',
+          decision: 'rejected',
+          voucherTier: 'standard_200',
+          settlementStatus: null,
+          reason: 'no',
+          idempotencyKey: 'vc-auth-r',
+          existingResults: rejectedStored,
+        }),
+      /allow-list/,
+    );
   });
 
   it('freezes expiresAt at issue time and is usable only while now < expiresAt', () => {
