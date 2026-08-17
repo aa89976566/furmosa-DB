@@ -10,6 +10,7 @@ import {
   GROOMING_VOUCHER_VALIDITY_DAYS,
   PHASE_1_POS_ACCOUNT_POLICY,
   POS_01_OPEN_DECISIONS,
+  POS_01_REFUND_INVENTORY_POLICY,
   RESTOCK_MODEL,
   RESTOCK_REQUEST_TRANSITIONS,
   SALE_TRANSITIONS,
@@ -25,6 +26,7 @@ import {
   assertIntegerPercent,
   assertNonNegativeIntegerUnits,
   assertOriginalSaleImmutable,
+  assertPositiveUnits,
   assertRestockCancelPlanConsistent,
   assertServiceStrictlyExceedsVoucher,
   assertTwdInteger,
@@ -32,11 +34,13 @@ import {
   availableUnits,
   buildSettlementAdjustment,
   canApproveAdjustment,
+  canApproveRefund,
   canApproveVoucherCancel,
   canChangeCommissionRate,
   canEditSettlementDraftMetadata,
   canProposeExtraAdjustment,
   canReopenSettlement,
+  canRequestRefund,
   canRequestVoucherCancel,
   canRewriteSettlementFacts,
   canTransition,
@@ -51,6 +55,8 @@ import {
   canWriteSettlementPaymentMetadata,
   correctionForLockedSettlement,
   correctionModeForCompletedFact,
+  completeApprovedRefund,
+  decideRefundRequest,
   decideUnpaidPaymentExpiry,
   decideVoucherCancellation,
   expiredVoucherRefundsPoints,
@@ -68,18 +74,23 @@ import {
   paidReservationAutoReleases,
   parseAdjustmentKind,
   parseCollectionChannel,
+  parseRefundInventoryDisposition,
+  parseRefundReturnCondition,
+  parseRefundSourceKind,
   parseFulfillmentStatus,
   parseLedgerDirection,
   parseLedgerKind,
   parsePosActor,
   parseSaleStatus,
   parseVoucherTier,
+  planRefundInventoryEffect,
   planRestockCancel,
   projectSaleReversalState,
   refundReversalLedger,
   refundableRemainder,
   requestVoucherCancellation,
   restockIncreasesStoreOnHand,
+  storeRefundCompletion,
   storeVoucherCancellationDecision,
   roundPercentCommission,
   safeIntegerMul,
@@ -126,10 +137,12 @@ function stockOp(
 }
 
 describe('POS-01 open decisions must stay undecided', () => {
-  it('does not guess refund restock or Zhuwo IDs', () => {
-    assert.equal(POS_01_OPEN_DECISIONS.refundRestockReason.status, 'UNDECIDED');
+  it('freezes O1 refund inventory and keeps Zhuwo IDs open', () => {
+    assert.equal('refundRestockReason' in POS_01_OPEN_DECISIONS, false);
     assert.equal(POS_01_OPEN_DECISIONS.zhuwoOfficialImmutableIds.status, 'UNDECIDED');
-    assert.equal(inventoryEffectOfRefund(), 'undecided');
+    assert.equal(inventoryEffectOfRefund().id, 'O1');
+    assert.equal(inventoryEffectOfRefund().status, 'FROZEN');
+    assert.equal(POS_01_REFUND_INVENTORY_POLICY.unfulfilled, 'release_only');
     assert.match(POS_01_OPEN_DECISIONS.zhuwoOfficialImmutableIds.note, /禁止用中文店名/);
     assert.equal('linePaymentReservationTimeout' in POS_01_OPEN_DECISIONS, false);
   });
@@ -1221,6 +1234,354 @@ describe('uncollected pickup and untrusted client fields', () => {
       assert.ok(SERVER_MUST_RESOLVE_FIELDS.includes(field));
     }
     assert.ok(CLIENT_MAY_SUBMIT_BUSINESS_INPUT.includes('actualUnitPriceTwd'));
+  });
+});
+
+describe('O1 frozen refund inventory policy', () => {
+  function completeInput(
+    overrides: Record<string, unknown> = {},
+  ): Parameters<typeof completeApprovedRefund>[0] {
+    return {
+      refundRequestId: 'rr-1',
+      refundStatus: 'approved',
+      actor: 'hq',
+      sourceKind: 'pos_sale_line',
+      sourceLineId: 'sale-1',
+      sale: completedSale(),
+      existingRefunds: [],
+      clientInput: { requestedAmountTwd: 400, requestedQuantity: 3 },
+      idempotencyKey: 'rf-1',
+      inventoryAggregateId: 'merchant-stock-1',
+      qty: 3,
+      fulfillmentFact: 'unfulfilled',
+      physicalReturnFact: 'not_returned',
+      disposition: 'release_only',
+      reason: 'customer-cancel',
+      existingCompletions: [],
+      ...overrides,
+    };
+  }
+
+  it('releases only the reservation for unfulfilled cancels', () => {
+    const planned = planRefundInventoryEffect({
+      fulfillmentFact: 'unfulfilled',
+      physicalReturnFact: 'not_returned',
+      disposition: 'release_only',
+      qty: 3,
+      inventoryAggregateId: 'merchant-stock-1',
+    });
+    assert.equal(planned.disposition, 'release_only');
+    assert.equal(planned.effect?.reservedDelta, -3);
+    assert.equal(planned.effect?.onHandDelta, 0);
+    assert.equal(planned.effect?.loss, null);
+    const completed = completeApprovedRefund(completeInput());
+    assert.equal(completed.requestStatus, 'completed');
+    assert.equal(completed.inventoryEffect?.disposition, 'release_only');
+    assert.equal(completed.inventoryEffect?.reservedDelta, -3);
+    assert.equal(completed.inventoryEffect?.onHandDelta, 0);
+  });
+
+  it('rejects unfulfilled cancels that claim sellable, unsellable, or a physical return', () => {
+    assert.throws(
+      () =>
+        planRefundInventoryEffect({
+          fulfillmentFact: 'unfulfilled',
+          physicalReturnFact: 'returned',
+          disposition: 'release_only',
+          qty: 1,
+          inventoryAggregateId: 'merchant-stock-1',
+        }),
+      /未履約取消不可帶實物退回/,
+    );
+    assert.throws(
+      () =>
+        planRefundInventoryEffect({
+          fulfillmentFact: 'unfulfilled',
+          physicalReturnFact: 'not_returned',
+          disposition: 'restock_sellable',
+          condition: 'unopened_good_sellable',
+          qty: 1,
+          inventoryAggregateId: 'merchant-stock-1',
+        }),
+      /未履約取消不可帶實物退回|處置與履約/,
+    );
+    assert.throws(
+      () =>
+        planRefundInventoryEffect({
+          fulfillmentFact: 'unfulfilled',
+          physicalReturnFact: 'not_returned',
+          disposition: 'loss_unsellable',
+          condition: 'damaged',
+          qty: 1,
+          inventoryAggregateId: 'merchant-stock-1',
+        }),
+      /未履約取消不可帶實物退回|處置與履約/,
+    );
+    assert.throws(
+      () =>
+        planRefundInventoryEffect({
+          fulfillmentFact: 'unfulfilled',
+          physicalReturnFact: 'not_returned',
+          disposition: 'no_stock_effect',
+          qty: 1,
+          inventoryAggregateId: 'merchant-stock-1',
+        }),
+      /處置與履約/,
+    );
+  });
+
+  it('restocks sellable returned goods after fulfillment', () => {
+    const completed = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'restock_sellable',
+        condition: 'unopened_good_sellable',
+      }),
+    );
+    assert.equal(completed.inventoryEffect?.disposition, 'restock_sellable');
+    assert.equal(completed.inventoryEffect?.onHandDelta, 3);
+    assert.equal(completed.inventoryEffect?.reservedDelta, 0);
+    assert.equal(completed.inventoryEffect?.loss, null);
+  });
+
+  it('records unsellable returned goods as loss and requires a note for other_unsellable', () => {
+    const completed = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'loss_unsellable',
+        condition: 'damaged',
+      }),
+    );
+    assert.equal(completed.inventoryEffect?.disposition, 'loss_unsellable');
+    assert.equal(completed.inventoryEffect?.onHandDelta, 0);
+    assert.equal(completed.inventoryEffect?.loss?.qty, 3);
+    assert.throws(
+      () =>
+        planRefundInventoryEffect({
+          fulfillmentFact: 'fulfilled',
+          physicalReturnFact: 'returned',
+          disposition: 'loss_unsellable',
+          condition: 'other_unsellable',
+          note: '   ',
+          qty: 1,
+          inventoryAggregateId: 'merchant-stock-1',
+        }),
+      /OTHER_UNSELLABLE 說明不可為空/,
+    );
+  });
+
+  it('applies no stock effect when fulfilled goods are not returned', () => {
+    const completed = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'not_returned',
+        disposition: 'no_stock_effect',
+      }),
+    );
+    assert.equal(completed.inventoryEffect, null);
+    assert.equal(completed.financialReversal.line.amountTwd, 400);
+  });
+
+  it('throws on unknown or case-mismatched source, disposition, condition, and status', () => {
+    assert.throws(() => parseRefundSourceKind('POS_SALE_LINE'), /allow-list/);
+    assert.throws(() => parseRefundInventoryDisposition('Release_Only'), /allow-list/);
+    assert.throws(() => parseRefundReturnCondition('DAMAGED'), /allow-list/);
+    assert.throws(() => decideRefundRequest({ currentStatus: 'Approved', decision: 'rejected', actor: 'hq' }), /allow-list/);
+    assert.throws(
+      () => completeApprovedRefund(completeInput({ sourceKind: 'online' })),
+      /allow-list/,
+    );
+  });
+
+  it('rejects invalid refund inventory quantities', () => {
+    for (const qty of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, '3', Number.MAX_SAFE_INTEGER + 1]) {
+      assert.throws(
+        () =>
+          planRefundInventoryEffect({
+            fulfillmentFact: 'unfulfilled',
+            physicalReturnFact: 'not_returned',
+            disposition: 'release_only',
+            qty,
+            inventoryAggregateId: 'merchant-stock-1',
+          }),
+        /大於 0|安全整數|NaN|Infinity|負值/,
+      );
+    }
+    assert.throws(() => assertPositiveUnits(0, '退款庫存數量'), /大於 0/);
+  });
+
+  it('completes only from approved when both financial and inventory plans succeed', () => {
+    assert.throws(() => completeApprovedRefund(completeInput({ refundStatus: 'requested' })), /只有 approved/);
+    assert.throws(() => completeApprovedRefund(completeInput({ refundStatus: 'rejected' })), /只有 approved/);
+    assert.equal(decideRefundRequest({ currentStatus: 'requested', decision: 'approved', actor: 'hq' }).requestStatus, 'approved');
+    const completed = completeApprovedRefund(completeInput());
+    assert.equal(completed.requestStatus, 'completed');
+    assert.ok(completed.financialReversal.line);
+    assert.ok(completed.inventoryEffect);
+  });
+
+  it('treats rejected and completed refunds as terminal, including same-state', () => {
+    assert.equal(canTransitionRefund('rejected', 'approved'), false);
+    assert.equal(canTransitionRefund('rejected', 'completed'), false);
+    assert.equal(canTransitionRefund('rejected', 'rejected'), false);
+    assert.equal(canTransitionRefund('completed', 'approved'), false);
+    assert.equal(canTransitionRefund('completed', 'completed'), false);
+    assert.throws(
+      () => decideRefundRequest({ currentStatus: 'rejected', decision: 'approved', actor: 'hq' }),
+      /不可由/,
+    );
+    assert.throws(
+      () => decideRefundRequest({ currentStatus: 'completed', decision: 'rejected', actor: 'hq' }),
+      /不可由/,
+    );
+  });
+
+  it('returns the stored completion for the same key and fingerprint and conflicts on any identity change', () => {
+    const first = completeApprovedRefund(completeInput());
+    const stored = [storeRefundCompletion('rf-1', first)];
+    const retry = completeApprovedRefund(completeInput({ existingCompletions: stored, refundStatus: 'completed' }));
+    assert.equal(retry.duplicate, true);
+    assert.deepEqual(retry.inventoryEffect, first.inventoryEffect);
+    assert.deepEqual(retry.financialReversal, first.financialReversal);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({ existingCompletions: stored, sourceLineId: 'sale-OTHER', sale: completedSale({ id: 'sale-OTHER' }) }),
+        ),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(completeInput({ existingCompletions: stored, inventoryAggregateId: 'stock-OTHER' })),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () => completeApprovedRefund(completeInput({ existingCompletions: stored, qty: 2 })),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            existingCompletions: stored,
+            fulfillmentFact: 'fulfilled',
+            physicalReturnFact: 'not_returned',
+            disposition: 'no_stock_effect',
+          }),
+        ),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () => completeApprovedRefund(completeInput({ existingCompletions: stored, reason: 'other-reason' })),
+      /不同退款完成內容/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            existingCompletions: stored,
+            sale: completedSale({ collectionChannel: 'furmosa_collected_line_ecpay' }),
+          }),
+        ),
+      /不同退款完成內容/,
+    );
+  });
+
+  it('completes both POS and online snapshot sources without new payment or fulfillment statuses', () => {
+    const pos = completeApprovedRefund(completeInput());
+    assert.equal(pos.source.kind, 'pos_sale_line');
+    assert.equal(pos.source.sourceOrderId, null);
+    assert.equal('paymentStatus' in pos, false);
+    assert.equal('fulfillmentStatus' in pos, false);
+    const onlineSale = completedSale({ id: 'snap-1' });
+    const online = completeApprovedRefund(
+      completeInput({
+        sourceKind: 'online_sale_snapshot_line',
+        sourceLineId: 'snap-1',
+        sourceOrderId: 'order-9',
+        sourceSnapshotLineId: 'snap-1',
+        sale: onlineSale,
+        idempotencyKey: 'rf-online',
+      }),
+    );
+    assert.equal(online.source.kind, 'online_sale_snapshot_line');
+    assert.equal(online.source.sourceOrderId, 'order-9');
+    assert.equal(online.source.sourceSnapshotLineId, 'snap-1');
+    assert.equal('paymentStatus' in online, false);
+    assert.equal('fulfillmentStatus' in online, false);
+  });
+
+  it('throws when online identity is missing or the source kind does not match', () => {
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            sourceKind: 'online_sale_snapshot_line',
+            sourceLineId: 'sale-1',
+          }),
+        ),
+      /sourceOrderId不可為空/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            sourceKind: 'pos_sale_line',
+            sourceOrderId: 'order-9',
+            sourceSnapshotLineId: 'snap-1',
+          }),
+        ),
+      /不可帶線上/,
+    );
+  });
+
+  it('keeps locked settlement routing and opposite collection directions', () => {
+    const locked = completeApprovedRefund(
+      completeInput({
+        sale: completedSale({ settlementStatus: 'approved' }),
+        idempotencyKey: 'rf-locked',
+      }),
+    );
+    assert.equal(locked.financialReversal.ledger.kind, 'next_period_adjustment');
+    assert.equal(locked.financialReversal.ledger.settlementDestination, 'next_period_adjustment');
+    const open = completeApprovedRefund(completeInput({ idempotencyKey: 'rf-open' }));
+    assert.equal(open.financialReversal.ledger.kind, 'reversal');
+    const line = completeApprovedRefund(
+      completeInput({
+        sale: completedSale({ collectionChannel: 'furmosa_collected_line_ecpay' }),
+        idempotencyKey: 'rf-line',
+      }),
+    );
+    assert.equal(open.financialReversal.ledger.direction, 'hq_owes_merchant');
+    assert.equal(line.financialReversal.ledger.direction, 'merchant_owes_hq');
+  });
+
+  it('projects fully_reversed from amount only and does not let leftover quantity block it', () => {
+    const amountDone = completeApprovedRefund(
+      completeInput({
+        clientInput: { requestedAmountTwd: 1000, requestedQuantity: 3 },
+        qty: 3,
+        idempotencyKey: 'rf-amt',
+      }),
+    );
+    assert.equal(amountDone.financialReversal.saleReversal, 'fully_reversed');
+    assert.deepEqual(refundableRemainder(completedSale(), [amountDone.financialReversal.line]), {
+      amountTwd: 0,
+      quantity: 7,
+    });
+    const qtyDone = completeApprovedRefund(
+      completeInput({
+        clientInput: { requestedAmountTwd: 400, requestedQuantity: 10 },
+        qty: 10,
+        idempotencyKey: 'rf-qty',
+      }),
+    );
+    assert.equal(qtyDone.financialReversal.saleReversal, 'partially_reversed');
+    assert.equal(canRequestRefund('merchant_staff'), true);
+    assert.equal(canApproveRefund('hq'), true);
+    assert.equal(POS_01_REFUND_INVENTORY_POLICY.runtimeAuthNotImplemented, true);
   });
 });
 

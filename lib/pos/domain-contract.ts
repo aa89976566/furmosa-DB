@@ -9,16 +9,24 @@
 // ---------------------------------------------------------------------------
 
 export const POS_01_OPEN_DECISIONS = {
-  refundRestockReason: {
-    id: 'O1',
-    status: 'UNDECIDED',
-    note: '退款是否回庫、以及回庫原因尚未決定，不得猜測',
-  },
   zhuwoOfficialImmutableIds: {
     id: 'O3',
     status: 'UNDECIDED',
     note: '豬窩三店正式 immutable IDs 尚未決定；禁止用中文店名辨識',
   },
+} as const;
+
+export const POS_01_REFUND_INVENTORY_POLICY = {
+  id: 'O1',
+  status: 'FROZEN',
+  merchantRequestsHqApproves: true,
+  originalSaleAndCommissionSnapshotsImmutable: true,
+  unfulfilled: 'release_only',
+  fulfilledReturnedSellable: 'restock_sellable',
+  fulfilledReturnedUnsellable: 'loss_unsellable',
+  fulfilledNotReturned: 'no_stock_effect',
+  financialFullyReversedByAmountOnly: true,
+  runtimeAuthNotImplemented: true,
 } as const;
 
 export const PHASE_1_POS_ACCOUNT_POLICY = {
@@ -70,6 +78,10 @@ export const SERVER_MUST_RESOLVE_FIELDS = [
   'refundRemainder',
   'commissionReversalSnapshot',
   'inventoryAggregateId',
+  'refundSourceKind',
+  'fulfillmentFact',
+  'physicalReturnFact',
+  'refundDisposition',
 ] as const;
 
 export const CLIENT_MAY_SUBMIT_BUSINESS_INPUT = [
@@ -189,6 +201,41 @@ export const INVENTORY_OP_KINDS = [
 ] as const;
 export type InventoryOpKind = (typeof INVENTORY_OP_KINDS)[number];
 
+export const REFUND_SOURCE_KINDS = ['pos_sale_line', 'online_sale_snapshot_line'] as const;
+export type RefundSourceKind = (typeof REFUND_SOURCE_KINDS)[number];
+
+export const REFUND_FULFILLMENT_FACTS = ['unfulfilled', 'fulfilled'] as const;
+export type RefundFulfillmentFact = (typeof REFUND_FULFILLMENT_FACTS)[number];
+
+export const REFUND_PHYSICAL_RETURN_FACTS = ['not_returned', 'returned'] as const;
+export type RefundPhysicalReturnFact = (typeof REFUND_PHYSICAL_RETURN_FACTS)[number];
+
+export const REFUND_INVENTORY_DISPOSITIONS = [
+  'release_only',
+  'restock_sellable',
+  'loss_unsellable',
+  'no_stock_effect',
+] as const;
+export type RefundInventoryDisposition = (typeof REFUND_INVENTORY_DISPOSITIONS)[number];
+
+export const REFUND_RETURN_CONDITIONS = [
+  'unopened_good_sellable',
+  'opened',
+  'damaged',
+  'spoiled',
+  'contaminated',
+  'other_unsellable',
+] as const;
+export type RefundReturnCondition = (typeof REFUND_RETURN_CONDITIONS)[number];
+
+export const UNSELLABLE_RETURN_CONDITIONS = [
+  'opened',
+  'damaged',
+  'spoiled',
+  'contaminated',
+  'other_unsellable',
+] as const;
+
 export const SETTLEMENT_DRAFT_METADATA_FIELDS = [
   'note',
   'periodStart',
@@ -266,6 +313,21 @@ export function parseVoucherTier(value: unknown): GroomingVoucherFaceTier {
 }
 export function parseInventoryOpKind(value: unknown): InventoryOpKind {
   return parseAllowListValue(value, INVENTORY_OP_KINDS, '庫存操作');
+}
+export function parseRefundSourceKind(value: unknown): RefundSourceKind {
+  return parseAllowListValue(value, REFUND_SOURCE_KINDS, '退款來源');
+}
+export function parseRefundFulfillmentFact(value: unknown): RefundFulfillmentFact {
+  return parseAllowListValue(value, REFUND_FULFILLMENT_FACTS, '履約事實');
+}
+export function parseRefundPhysicalReturnFact(value: unknown): RefundPhysicalReturnFact {
+  return parseAllowListValue(value, REFUND_PHYSICAL_RETURN_FACTS, '實物退回事實');
+}
+export function parseRefundInventoryDisposition(value: unknown): RefundInventoryDisposition {
+  return parseAllowListValue(value, REFUND_INVENTORY_DISPOSITIONS, '退款庫存處置');
+}
+export function parseRefundReturnCondition(value: unknown): RefundReturnCondition {
+  return parseAllowListValue(value, REFUND_RETURN_CONDITIONS, '退貨狀態');
 }
 
 // ---------------------------------------------------------------------------
@@ -594,7 +656,7 @@ export function assertCanTakeFromAvailable(
   }
 }
 
-function assertPositiveUnits(qty: unknown, label = '數量'): NonNegativeIntegerUnits {
+export function assertPositiveUnits(qty: unknown, label = '數量'): NonNegativeIntegerUnits {
   assertNonNegativeIntegerUnits(qty, label);
   if (qty === 0) {
     throw new Error(`${label}必須大於 0`);
@@ -685,8 +747,8 @@ export function restockIncreasesStoreOnHand(status: unknown): boolean {
   return parseRestockShipmentStatus(status) === 'delivered';
 }
 
-export function inventoryEffectOfRefund(): 'undecided' {
-  return 'undecided';
+export function inventoryEffectOfRefund(): typeof POS_01_REFUND_INVENTORY_POLICY {
+  return POS_01_REFUND_INVENTORY_POLICY;
 }
 
 export function fulfillmentInventoryOp(
@@ -1545,6 +1607,15 @@ export function canApproveAdjustment(actor: unknown): boolean {
   return parsePosActor(actor) === 'hq';
 }
 
+export function canRequestRefund(actor: unknown): boolean {
+  const parsed = parsePosActor(actor);
+  return parsed === 'merchant_staff' || parsed === 'merchant_owner';
+}
+
+export function canApproveRefund(actor: unknown): boolean {
+  return parsePosActor(actor) === 'hq';
+}
+
 export type RestockCancelPlan = {
   allowed: boolean;
   mode: 'status_transition' | 'cancellation_event' | 'none';
@@ -1622,5 +1693,380 @@ export function assertRestockCancelPlanConsistent(
   if (plan.mode === 'cancellation_event' && plan.requestTo != null) {
     throw new Error('取消事件不得改寫原申請狀態');
   }
+}
+
+// ---------------------------------------------------------------------------
+// O1 退款庫存 — 唯一凍結政策；只回 immutable plan，不寫 DB
+// ---------------------------------------------------------------------------
+
+export type RefundInventoryEffectPlan = {
+  disposition: Exclude<RefundInventoryDisposition, 'no_stock_effect'>;
+  qty: NonNegativeIntegerUnits;
+  reservedDelta: number;
+  onHandDelta: number;
+  inventoryAggregateId: string;
+  loss: {
+    qty: NonNegativeIntegerUnits;
+    condition: RefundReturnCondition;
+    note: string | null;
+  } | null;
+};
+
+export type RefundCompletionSource = {
+  kind: RefundSourceKind;
+  sourceLineId: string;
+  sourceOrderId: string | null;
+  sourceSnapshotLineId: string | null;
+};
+
+export type RefundCompletionResult = {
+  requestStatus: 'completed';
+  financialReversal: {
+    line: RefundReversalLine;
+    ledger: RefundReversalLedger;
+    saleReversal: SaleReversalProjection;
+  };
+  inventoryEffect: RefundInventoryEffectPlan | null;
+  duplicate: boolean;
+  fingerprint: string;
+  source: RefundCompletionSource;
+};
+
+export type StoredRefundCompletion = {
+  idempotencyKey: string;
+  fingerprint: string;
+  requestStatus: 'completed';
+  financialReversal: RefundCompletionResult['financialReversal'];
+  inventoryEffect: RefundInventoryEffectPlan | null;
+  source: RefundCompletionSource;
+};
+
+export function decideRefundRequest(input: {
+  currentStatus: unknown;
+  decision: unknown;
+  actor: unknown;
+}): { requestStatus: 'approved' | 'rejected' } {
+  if (parsePosActor(input.actor) !== 'hq') {
+    throw new Error('只有 HQ 才能核准或拒絕退款');
+  }
+  const decision = parseRefundStatus(input.decision);
+  if (decision !== 'approved' && decision !== 'rejected') {
+    throw new Error('退款審核結果只能是 approved 或 rejected');
+  }
+  assertTransition(REFUND_TRANSITIONS, input.currentStatus, decision, '退款');
+  return { requestStatus: decision };
+}
+
+export function refundCompletionFingerprint(input: {
+  refundRequestId: string;
+  idempotencyKey: string;
+  sourceKind: RefundSourceKind;
+  sourceLineId: string;
+  sourceOrderId: string | null;
+  sourceSnapshotLineId: string | null;
+  inventoryAggregateId: string;
+  qty: NonNegativeIntegerUnits;
+  fulfillmentFact: RefundFulfillmentFact;
+  physicalReturnFact: RefundPhysicalReturnFact;
+  disposition: RefundInventoryDisposition;
+  condition: RefundReturnCondition | null;
+  reason: string;
+  note: string | null;
+  collectionChannel: CollectionChannel;
+}): string {
+  return [
+    input.refundRequestId,
+    input.idempotencyKey,
+    input.sourceKind,
+    input.sourceLineId,
+    input.sourceOrderId ?? '',
+    input.sourceSnapshotLineId ?? '',
+    input.inventoryAggregateId,
+    String(input.qty),
+    input.fulfillmentFact,
+    input.physicalReturnFact,
+    input.disposition,
+    input.condition ?? '',
+    input.reason,
+    input.note ?? '',
+    input.collectionChannel,
+  ].join('|');
+}
+
+function resolveRefundSource(input: {
+  sourceKind: unknown;
+  sourceLineId: string;
+  sourceOrderId?: string;
+  sourceSnapshotLineId?: string;
+  saleId: string;
+}): RefundCompletionSource {
+  const kind = parseRefundSourceKind(input.sourceKind);
+  const sourceLineId = assertRequiredContractText(input.sourceLineId, 'sourceLineId');
+  if (kind === 'pos_sale_line') {
+    if (input.sourceOrderId != null && input.sourceOrderId !== '') {
+      throw new Error('pos_sale_line 不可帶線上訂單身分');
+    }
+    if (input.sourceSnapshotLineId != null && input.sourceSnapshotLineId !== '') {
+      throw new Error('pos_sale_line 不可帶線上 snapshot 身分');
+    }
+    if (sourceLineId !== input.saleId) {
+      throw new Error('pos_sale_line 的 sourceLineId 必須等於原 line');
+    }
+    return {
+      kind,
+      sourceLineId,
+      sourceOrderId: null,
+      sourceSnapshotLineId: null,
+    };
+  }
+  const sourceOrderId = assertRequiredContractText(input.sourceOrderId, 'sourceOrderId');
+  const sourceSnapshotLineId = assertRequiredContractText(
+    input.sourceSnapshotLineId,
+    'sourceSnapshotLineId',
+  );
+  if (sourceLineId !== sourceSnapshotLineId || sourceSnapshotLineId !== input.saleId) {
+    throw new Error('online_sale_snapshot_line 身分必須一致');
+  }
+  return {
+    kind,
+    sourceLineId,
+    sourceOrderId,
+    sourceSnapshotLineId,
+  };
+}
+
+export function deriveRefundInventoryDisposition(input: {
+  fulfillmentFact: RefundFulfillmentFact;
+  physicalReturnFact: RefundPhysicalReturnFact;
+  condition: RefundReturnCondition | null;
+}): RefundInventoryDisposition {
+  if (input.fulfillmentFact === 'unfulfilled') {
+    if (input.physicalReturnFact === 'returned' || input.condition != null) {
+      throw new Error('未履約取消不可帶實物退回或可售／不可售狀態');
+    }
+    return 'release_only';
+  }
+  if (input.physicalReturnFact === 'not_returned') {
+    if (input.condition != null) {
+      throw new Error('已履約未退物不可帶退貨狀態');
+    }
+    return 'no_stock_effect';
+  }
+  if (input.condition == null) {
+    throw new Error('已履約且實物退回必須有退貨狀態');
+  }
+  if (input.condition === 'unopened_good_sellable') return 'restock_sellable';
+  return 'loss_unsellable';
+}
+
+export function planRefundInventoryEffect(input: {
+  fulfillmentFact: unknown;
+  physicalReturnFact: unknown;
+  disposition: unknown;
+  condition?: unknown;
+  note?: string;
+  qty: unknown;
+  inventoryAggregateId: string;
+}): {
+  disposition: RefundInventoryDisposition;
+  effect: RefundInventoryEffectPlan | null;
+} {
+  const fulfillmentFact = parseRefundFulfillmentFact(input.fulfillmentFact);
+  const physicalReturnFact = parseRefundPhysicalReturnFact(input.physicalReturnFact);
+  const claimed = parseRefundInventoryDisposition(input.disposition);
+  const qty = assertPositiveUnits(input.qty, '退款庫存數量');
+  const inventoryAggregateId = assertRequiredContractText(
+    input.inventoryAggregateId,
+    'inventoryAggregateId',
+  );
+  const condition =
+    input.condition == null || input.condition === ''
+      ? null
+      : parseRefundReturnCondition(input.condition);
+  const derived = deriveRefundInventoryDisposition({
+    fulfillmentFact,
+    physicalReturnFact,
+    condition,
+  });
+  if (claimed !== derived) {
+    throw new Error('退款庫存處置與履約／實物事實不一致');
+  }
+  if (derived === 'no_stock_effect') {
+    return { disposition: derived, effect: null };
+  }
+  if (derived === 'release_only') {
+    return {
+      disposition: derived,
+      effect: {
+        disposition: 'release_only',
+        qty,
+        reservedDelta: -qty,
+        onHandDelta: 0,
+        inventoryAggregateId,
+        loss: null,
+      },
+    };
+  }
+  if (derived === 'restock_sellable') {
+    return {
+      disposition: derived,
+      effect: {
+        disposition: 'restock_sellable',
+        qty,
+        reservedDelta: 0,
+        onHandDelta: qty,
+        inventoryAggregateId,
+        loss: null,
+      },
+    };
+  }
+  if (condition == null) {
+    throw new Error('不可售退貨必須有退貨狀態');
+  }
+  let note: string | null = null;
+  if (condition === 'other_unsellable') {
+    note = assertRequiredContractText(input.note, 'OTHER_UNSELLABLE 說明');
+  } else if (input.note != null && input.note.trim() !== '') {
+    note = input.note.trim();
+  }
+  return {
+    disposition: derived,
+    effect: {
+      disposition: 'loss_unsellable',
+      qty,
+      reservedDelta: 0,
+      onHandDelta: 0,
+      inventoryAggregateId,
+      loss: { qty, condition, note },
+    },
+  };
+}
+
+export function storeRefundCompletion(
+  idempotencyKey: string,
+  result: RefundCompletionResult,
+): StoredRefundCompletion {
+  return {
+    idempotencyKey,
+    fingerprint: result.fingerprint,
+    requestStatus: result.requestStatus,
+    financialReversal: result.financialReversal,
+    inventoryEffect: result.inventoryEffect,
+    source: result.source,
+  };
+}
+
+export function completeApprovedRefund(input: {
+  refundRequestId: string;
+  refundStatus: unknown;
+  actor: unknown;
+  sourceKind: unknown;
+  sourceLineId: string;
+  sourceOrderId?: string;
+  sourceSnapshotLineId?: string;
+  sale: CompletedSaleLine;
+  existingRefunds: readonly RefundReversalLine[];
+  clientInput: UntrustedClientRefundInput;
+  idempotencyKey: string;
+  inventoryAggregateId: string;
+  qty: unknown;
+  fulfillmentFact: unknown;
+  physicalReturnFact: unknown;
+  disposition: unknown;
+  condition?: unknown;
+  reason: string;
+  note?: string;
+  existingCompletions: readonly StoredRefundCompletion[];
+}): RefundCompletionResult {
+  if (parsePosActor(input.actor) !== 'hq') {
+    throw new Error('只有 HQ 才能完成退款');
+  }
+  const refundRequestId = assertRequiredContractText(input.refundRequestId, 'refundRequestId');
+  const source = resolveRefundSource({
+    sourceKind: input.sourceKind,
+    sourceLineId: input.sourceLineId,
+    sourceOrderId: input.sourceOrderId,
+    sourceSnapshotLineId: input.sourceSnapshotLineId,
+    saleId: input.sale.id,
+  });
+  const idempotencyKey = assertRequiredContractText(input.idempotencyKey, 'idempotencyKey');
+  const reason = assertRequiredContractText(input.reason, 'reason');
+  const inventory = planRefundInventoryEffect({
+    fulfillmentFact: input.fulfillmentFact,
+    physicalReturnFact: input.physicalReturnFact,
+    disposition: input.disposition,
+    condition: input.condition,
+    note: input.note,
+    qty: input.qty,
+    inventoryAggregateId: input.inventoryAggregateId,
+  });
+  const channel = parseCollectionChannel(input.sale.collectionChannel);
+  const fingerprint = refundCompletionFingerprint({
+    refundRequestId,
+    idempotencyKey,
+    sourceKind: source.kind,
+    sourceLineId: source.sourceLineId,
+    sourceOrderId: source.sourceOrderId,
+    sourceSnapshotLineId: source.sourceSnapshotLineId,
+    inventoryAggregateId: input.inventoryAggregateId,
+    qty: assertPositiveUnits(input.qty, '退款庫存數量'),
+    fulfillmentFact: parseRefundFulfillmentFact(input.fulfillmentFact),
+    physicalReturnFact: parseRefundPhysicalReturnFact(input.physicalReturnFact),
+    disposition: inventory.disposition,
+    condition:
+      input.condition == null || input.condition === ''
+        ? null
+        : parseRefundReturnCondition(input.condition),
+    reason,
+    note:
+      inventory.effect?.loss?.note ??
+      (input.note != null && input.note.trim() !== '' ? input.note.trim() : null),
+    collectionChannel: channel,
+  });
+
+  const prior = input.existingCompletions.find((row) => row.idempotencyKey === idempotencyKey);
+  if (prior) {
+    if (prior.fingerprint !== fingerprint) {
+      throw new Error('同一 idempotencyKey 不可對應不同退款完成內容');
+    }
+    return {
+      requestStatus: 'completed',
+      financialReversal: prior.financialReversal,
+      inventoryEffect: prior.inventoryEffect,
+      duplicate: true,
+      fingerprint: prior.fingerprint,
+      source: prior.source,
+    };
+  }
+
+  const currentStatus = parseRefundStatus(input.refundStatus);
+  if (currentStatus !== 'approved') {
+    throw new Error('只有 approved 的退款申請可 completed');
+  }
+
+  const financial = applyRefundReversalLine({
+    sale: input.sale,
+    existingRefunds: input.existingRefunds,
+    clientInput: input.clientInput,
+    idempotencyKey,
+  });
+  const ledger = refundReversalLedger(input.sale, financial.line);
+  const saleReversal = projectSaleReversalState(input.sale, [
+    ...input.existingRefunds,
+    financial.line,
+  ]);
+  assertTransition(REFUND_TRANSITIONS, 'approved', 'completed', '退款');
+  return {
+    requestStatus: 'completed',
+    financialReversal: {
+      line: financial.line,
+      ledger,
+      saleReversal,
+    },
+    inventoryEffect: inventory.effect,
+    duplicate: false,
+    fingerprint,
+    source,
+  };
 }
 

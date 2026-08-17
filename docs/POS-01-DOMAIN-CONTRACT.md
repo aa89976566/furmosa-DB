@@ -1,7 +1,7 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.5
+> **版本：** v1.6
 > **日期：** 2026-08-17
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
@@ -34,13 +34,15 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 固定順序：先 parse／驗證 actor allow-list 且必須是 HQ → 再驗 request identity → 再驗 idempotency key → 再查 existing result／比 fingerprint。同內容回 `duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。**approve／reject 重送每次都必須重驗 HQ**，不可因已有結果跳過授權。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
 | R9 | 未付款 checkout／payment intent **24 小時**失效；未付款**不** reserve。付款成功才進 `paid_reserved` 並原子 reserve。`paid_reserved` **不**自動 expire／退款／釋放；逾期未領轉客服。 |
 | R10 | 完成交易、核銷、結算**不可 update/delete 原事實**，只能 reversal／adjustment。原 `completed` sale **永不修改或刪除**。`amountTwd` 是財務 fully_reversed 的唯一完成條件；quantity 只表示實物／庫存，不阻擋金額全退。 |
+| R11 | **退款庫存（原 O1，已凍結）。** 店家只提出退款，HQ 核准。原 sale／online snapshot 與佣金 snapshot 永不修改；退款與庫存效果都是新的 immutable effects。未履約取消：只 `release` 該 reservation（`reserved -= qty`、`onHandDelta=0`），不得 restock。已履約且實物退回、HQ 核准：未拆封良好可再售 → `restock_sellable`（`onHand += qty`）；已拆封／破損／變質／污染／其他不可售 → `loss_unsellable`（`onHandDelta=0`＋loss intent；`other_unsellable` 必須有 trim 後非空說明）。已履約但沒有實物退回 → `no_stock_effect`，不 release、不增加 onHand、不假裝 restock／loss。已鎖結算的退款與佣金沖銷進次期 adjustment。`approved` 只是 HQ decision；`completed` 只有財務 reversal plan 與必要 inventory／loss plan 都成功形成時才成立，任一步失敗語意上仍 `approved`。權威來源只有 `pos_sale_line` 與 `online_sale_snapshot_line`；線上來源是既有 Order／Payment／Fulfillment 的 projection，不建立第二套 payment／fulfillment 狀態。 |
 
 ### 1.1 安全（實作時必須遵守，本階段只寫進合約）
 
 - **所有 client input 皆不可信。**
 - Client 可以提交 `actualUnitPriceTwd`、退款請求數量與金額，當**業務輸入**。
-- Server 必須重查／自行計算：商品、庫存、`inventoryAggregateId`（authoritative `merchantStockId`）、原交易、可退上限、`merchantId`、`collectionChannel`、`commission`／rate／amount、`direction`、`paymentStatus`、`voucherAmount`／tier／face、結算狀態與路由。完整清單見 `SERVER_MUST_RESOLVE_FIELDS`。
+- Server 必須重查／自行計算：商品、庫存、`inventoryAggregateId`（authoritative `merchantStockId`）、原交易、可退上限、`merchantId`、`collectionChannel`、`commission`／rate／amount、`direction`、`paymentStatus`、`voucherAmount`／tier／face、結算狀態與路由、退款來源、履約／實物退回事實與處置。完整清單見 `SERVER_MUST_RESOLVE_FIELDS`。
 - `inventoryAggregateId` 只代表 **server 已解析**的權威庫存聚合身分。client 值不可直接信任，也不可只靠 `source` 標記。
+- Client **不得自稱** server／HQ。本階段純函式只接受呼叫邊界已驗證的 canonical facts。**runtime auth 尚未實作。**
 - 佣金與帳務方向**只由 server 算**。
 - 不用 Float 建立新財務真相。中間值或結果超出 safe-integer 必須 throw。
 - 不按中文店名辨識豬窩。豬窩只能使用待確認的 immutable IDs（O3）。
@@ -54,11 +56,11 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 
 | ID | 項目 | 為什麼不能猜 |
 |----|------|----------------|
-| O1 | **退款是否回庫、以及回庫原因** | 回庫會改 `onHand`，猜錯會造成負庫存或重複入庫 |
 | O3 | **豬窩三店正式 immutable IDs** | 禁止用「豬窩」店名比對；正式 ID 未定前，券額只能用明確的面額層級（`standard_200`／`zhuwo_250`） |
 
+O1 退款庫存已凍結為 R11／`POS_01_REFUND_INVENTORY_POLICY`，**不再**列為 OPEN。
 未付款 24 小時失效、已付款不自動 expire，已凍結（R9），**不要**和逾期未領客服規則混為一談。
-這兩項 OPEN 在程式裡以 `POS_01_OPEN_DECISIONS` 標註。任何函式都**不得**假裝已決定。
+O3 在程式裡以 `POS_01_OPEN_DECISIONS` 標註。任何函式都**不得**假裝已決定豬窩正式 ID。
 
 ---
 
@@ -137,7 +139,13 @@ approved → completed
 rejected / completed → （終態）
 ```
 
-退款**是否回庫**＝O1，本合約不產生庫存異動。
+- 店家提出＝`requested`；HQ 核准／拒絕＝`approved`／`rejected`。
+- `approved` 只是 HQ decision，還不是完成。
+- `completed` 只有財務 reversal plan 與必要 inventory／loss plan 都成功形成時才成立。任一步失敗：語意上仍 `approved`，不寫 completed。
+- `rejected`／`completed` 為終態；同一狀態再轉一次也拒絕。
+- 權威來源：`pos_sale_line` 或 `online_sale_snapshot_line`。線上來源保留 `sourceOrderId`／`sourceSnapshotLineId`，是既有 Order／Payment／Fulfillment 的 projection，**不**產生新的 payment／fulfillment 狀態。
+- 庫存效果見 R11。completion fingerprint 至少含：refund request／idempotency identity、source kind、source line identity、server-resolved `inventoryAggregateId`、qty、履約／實物退回事實、disposition、condition／reason／note。同 key＋完整相同 fingerprint 回既有 duplicate；任一不同 throw。
+- `completeApprovedRefund` 只回 immutable execution plan（`financialReversal`、`inventoryEffect|null`、`duplicate`），不寫 DB。
 
 ### 3.6 LINE 到店取貨 `FulfillmentStatus`
 
@@ -325,6 +333,8 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 | 寫付款 metadata（approved→paid） | 否 | 否 | 是 |
 | 提出額外加減款 | 否 | 是 | 是 |
 | 核准加減款 | 否 | 否 | 是 |
+| 提出退款 | 是 | 是 | — |
+| 核准／拒絕／完成退款 | 否 | 否 | 是 |
 | 申請取消已核銷美容券 | 是 | 是 | — |
 | 核准／拒絕取消美容券 | 否 | 否 | 是 |
 
@@ -356,7 +366,7 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 | 付款成功 | 才進 `paid_reserved` 並原子 reserve |
 | 已付款待取逾期 | 不自動 expire／退款／釋放；顯示聯絡客服 |
 
-退款是否回庫仍見 O1。
+退款庫存效果見 R11。runtime auth 尚未實作。
 
 ---
 
