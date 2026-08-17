@@ -30,12 +30,14 @@ export const FLOW_STATE = {
   SHOW_RULES: 'SHOW_RULES',
   /** 選開箱商品：雞霸兩片／青蛙凍乾一隻／貓草雞肉乾 30g */
   ASK_PRODUCT: 'ASK_PRODUCT',
-  /** 選完商品：投稿事項＋加購免運說明 */
+  /** 選完商品：該品必要說明（不含加購） */
   SHOW_BRIEF: 'SHOW_BRIEF',
   ASK_RECIPIENT_NAME: 'ASK_RECIPIENT_NAME',
   ASK_RECIPIENT_PHONE: 'ASK_RECIPIENT_PHONE',
   ASK_STORE: 'ASK_STORE',
   CONFIRM_STORE: 'CONFIRM_STORE',
+  /** 運送資訊齊備後才問加購；舊 session 若提前停在加購，先補收件 */
+  ASK_UPSELL: 'ASK_UPSELL',
   ASK_INSTAGRAM: 'ASK_INSTAGRAM',
   ASK_PET_NAME: 'ASK_PET_NAME',
   ASK_CONTENT_LICENSE: 'ASK_CONTENT_LICENSE',
