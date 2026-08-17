@@ -1,7 +1,8 @@
 # POS-02 Persistence Proposal
 
-> **文件狀態：** 提案 v0.4 — 關閉 snapshot↔Order 一致性、refund header/line
-> 同一來源、fact 保存 authoritative binding，並修正 O1 回庫文字。
+> **文件狀態：** 提案 v0.5 — 關閉最後一個 binding gate：live INSERT 必須
+> active＋verified；pending 不得帶 verifiedAt；revoked 不可被 POS runtime
+> 建新 fact；歷史補建只走受控 HQ／migration 路徑。
 > **本輪禁止：** 修改 `schema.prisma`、建立 migration、執行 `db push` /
 > `migrate` / seed、改 runtime、操作正式資料庫或部署。
 > **本輪允許：** 只改本檔與 `docs/POS-02-MIGRATION-PLAN.md`。
@@ -11,7 +12,7 @@
 > **Stacked PR：** 本提案疊在 POS-01 PR #126
 > （`cursor/pos-01-domain-contract-aa87` @ `fc067be`），不是 `main`。
 > **目標 SHA：** 本輪只修 PR #128 head
-> `6dcb013b83d6a0553539aad6f31ba4269e004d65` 的兩份 docs。
+> `ad36f7dc3f1168e439cb6154ac37e76c39fd4441` 的兩份 docs。
 
 ---
 
@@ -20,7 +21,8 @@
 店內帳用 POS 自己的「店收＋店收明細」當真相。LINE／綠界帳仍以原本訂單、
 付款、履約當真相；POS 只建立「線上店收快照＋快照明細」，讓退款、回庫、
 佣金回沖、鎖帳都能逐行追溯。金額一律用整數元（BigInt），不再寫「或」。
-店與店家必須雙向一對一綁定；每筆店收／快照要記下當時那筆已驗證綁定。
+店與店家必須雙向一對一綁定；現場開單只能用「使用中且已驗證」的綁定。
+已撤銷的綁定不能拿來開新單，只能由總部受控補建歷史帳。
 未履約取消只釋放預約、不加可售庫存；已履約且實物退回、HQ 核准且可再售
 才加回 onHand。本輪只改這兩份文件，不建表、不搬資料。
 
@@ -30,16 +32,17 @@
 
 ### 1.1 本輪做什麼
 
-只修兩份文件，關閉最後 4 項（v0.3 的 9 項仍成立）：
+只修兩份文件，關閉最後一個 binding gate（v0.3／v0.4 已關項目仍成立）：
 
-1. Snapshot↔Order 一致性：line 自帶 `sourceOrderId`，必須等於 header 與
-   `OrderItem.orderId`；product／qty／price 來自該 OrderItem。
-2. Refund header／line 同一來源：kind 一致、parent sale／snapshot 一致；
-   禁止 header POS + line snapshot，也禁止同店不同單。
-3. Fact 保存 authoritative `bindingId`；reservation／refund 從 fact 追溯，
-   不接受 client 另傳 `storeId`。
-4. 修正 O1 文字：未履約取消只 release reserved；已履約且實物退回才可能
-   加回 onHand（可再售）或只記 loss（不可售）。
+1. 正常 live fact INSERT 的 trigger 必須**同時**驗
+   `binding.status = 'active'`、`verifiedAt` 非空、`soldAt` 在 effective
+   有效期、merchant／store 一致。
+2. 新 invariant：`pending_verify` ⇒ `verifiedAt IS NULL`（列 constraint
+   owner）。revoked **不能**被 POS runtime 用來建立新 fact。
+3. 歷史 revoked binding 僅可由獨立受控 HQ／migration backfill 重建歷史
+   fact，需 audit actor／batch／reason，且 `soldAt` 原本就在當時有效期。
+4. Preview negative：pending 卻誤填 `verifiedAt`、revoked live insert 均
+   fail；受控歷史 backfill 另測。
 
 ### 1.2 本輪不做什麼
 
@@ -530,6 +533,8 @@ model MerchantStoreBinding {
 | 期間方向 | `CHECK (effective_to IS NULL OR effective_to > effective_from)` |
 | revoked 與 effective 一致 | `CHECK (status <> 'revoked' OR effective_to IS NOT NULL)`；active 列 `effective_to IS NULL` 或 `effective_to > now()` 由寫入交易與 constraint trigger 維持 |
 | 狀態 allow-list | `CHECK (status IN ('pending_verify', 'active', 'revoked'))` |
+| pending 不得已驗證 | `CHECK (status <> 'pending_verify' OR verified_at IS NULL)`。**constraint owner：單列 CHECK**（夠）。若還要擋非法狀態轉移，另加 BEFORE UPDATE trigger：`pending_verify → active` 必須寫入 `verifiedAt`；其他轉移不得把 pending 列填上 `verifiedAt` |
+| active 必須已驗證 | `CHECK (status <> 'active' OR verified_at IS NOT NULL)`。**constraint owner：單列 CHECK** |
 
 「雙向 1:1 active」意思是：一個有效店家不能同時綁兩家店，一家有效店也不能
 同時綁兩個店家。歷史 revoked 列可以很多，不佔 active unique。
@@ -538,34 +543,80 @@ model MerchantStoreBinding {
 
 - `StoreMerchantBindingAudit` **只是候選**，不是 runtime 權威。
 - 只有 `status = 'active'` 且 `verifiedAt IS NOT NULL` 的 binding 才是
-  runtime 權威。
-- 未綁、pending、revoked、verifiedAt 為空 → **fail closed**。
+  **POS runtime** 權威。
+- 未綁、`pending_verify`、`revoked`、`verifiedAt` 為空 → POS runtime
+  **fail closed**，不得建立新 fact。
 - POS 開班、寫店收、發券、建 reservation 之前都必須讀到 verified active
   binding。找不到就拒絕，不得 fallback 店名或 audit 列。
+- **revoked 不能被 POS runtime 用來建立新 fact。** 已存在、指向後來才
+  revoked 之 binding 的歷史 fact 可以繼續讀；那不是「用 revoked 開新單」。
 
 ### 4.4 Fact 必須保存 authoritative binding
 
-`PosSale` 與 `MerchantSaleSnapshot` **寫入當下**就要存 `bindingId` snapshot：
+`PosSale` 與 `MerchantSaleSnapshot` 都要存 `bindingId` snapshot。
+composite FK：`[bindingId, merchantId] → MerchantStoreBinding[id, merchantId]`。
 
-- composite FK `[bindingId, merchantId] → MerchantStoreBinding[id, merchantId]`。
-- DEFERRABLE constraint trigger 再驗：
-  1. `binding.storeId = fact.storeId`
-  2. 成交／快照時間 `soldAt` 落在該 binding 的 verified／effective 有效期
-     （`verifiedAt IS NOT NULL`、`soldAt >= effectiveFrom`、
-     `effectiveTo IS NULL OR soldAt < effectiveTo`）。
-  3. 寫入當下該 binding 必須是 verified；**保存後即使後來 revoked，歷史
-     fact 仍指向那一列**，不得改寫或改掛新 binding。
-- Reservation／Refund **只從 fact header 的 `bindingId` 追溯**。
-  API **不接受** client 另傳 `storeId` 或 `bindingId` 覆寫。
-- 之後的 locked-period routing、券政策、佣金店別，都以 fact 上那筆
-  歷史 binding 為準，不是「現在 active 的那一筆」。
+有兩條**互斥**寫入路徑。一般 POS runtime **只能**走 A。
+
+#### A. 正常 live fact INSERT（POS／HQ 日常開單、建 snapshot）
+
+DEFERRABLE constraint trigger 必須**同一瞬間同時**全部成立，缺一即失敗：
+
+1. `binding.status = 'active'`
+2. `binding.verifiedAt IS NOT NULL`
+3. `soldAt` 在 effective 有效期：`soldAt >= effectiveFrom` 且
+   `effectiveTo IS NULL OR soldAt < effectiveTo`
+4. merchant／store 一致：`binding.merchantId = fact.merchantId` 且
+   `binding.storeId = fact.storeId`（merchant 已由 composite FK 帶；
+   store 必須 trigger 再驗）
+
+這條路徑**看見 revoked 或 pending 就失敗**。不得因為「這筆 binding
+以前有效」而讓 live POS 寫入。
+
+寫入成功後，fact 上的 `bindingId` **凍結**。之後 binding 被 revoked，
+歷史 fact 仍指向那一列，不得改掛新 binding。Reservation／Refund 只從
+fact header 追溯，不接受 client 另傳 `storeId`／`bindingId`。
+
+#### B. 受控歷史 backfill（唯一能指向已 revoked binding 的路徑）
+
+歷史 revoked binding **僅**可由獨立受控 HQ／migration backfill pathway
+重建**當時就已存在**的歷史 fact。不可由一般 POS runtime、店家畫面、
+或一般 API 觸發。
+
+這條路徑必須同時滿足：
+
+1. 明確 session／role／函式旗標（例如只給 HQ backfill job 的
+   `SET LOCAL pos.fact_write_path = 'hq_historical_backfill'`）。
+   一般 POS 連線設不了、或設了也被拒絕。
+2. 寫入 audit：`actorId`、`batchId`、`reason`（缺一不可）。
+3. `soldAt` **原本就在當時有效期**（對該 binding 的
+   `effectiveFrom`／`effectiveTo`，以及當時已 verified）。
+   不是「現在把一筆新單往回填」。
+4. merchant／store 仍須與該歷史 binding 一致。
+5. 通過後 fact 一樣凍結 `bindingId`；後續 live 更新仍走路徑 A 的規則。
+
+**constraint owner：**
+
+| 不變量 | owner |
+|---|---|
+| `pending_verify` ⇒ `verifiedAt IS NULL` | 單列 CHECK（§4.2）；可選狀態轉移 trigger 擋 UPDATE |
+| `active` ⇒ `verifiedAt IS NOT NULL` | 單列 CHECK |
+| live INSERT 四項同時成立 | fact 表 DEFERRABLE constraint trigger（路徑 A） |
+| revoked 不能被 POS runtime 建新 fact | 同一把路徑 A trigger（看見 `status <> 'active'` 就 RAISE） |
+| 歷史 revoked 只能走路徑 B | 路徑 A／B 分支 + 獨立 audit 表／欄；路徑 B 另測 |
 
 Preview **negative tests**（只定義，本輪不執行）：
 
 - A merchant + B store／B 的 binding → 失敗。
-- binding `verifiedAt` 為空或 `pending_verify` → 失敗。
-- `soldAt` 早於 `effectiveFrom`，或已過 `effectiveTo` → 失敗。
-- reservation／refund 帶與 fact 不同的 client `storeId` → 失敗（忽略或拒絕）。
+- `pending_verify` 卻誤填 `verifiedAt` → **binding 列本身失敗**（CHECK）。
+- live INSERT 指向 `pending_verify` binding → 失敗（路徑 A）。
+- live INSERT 指向 `revoked` binding → **失敗**（路徑 A；即使
+  `soldAt` 落在舊有效期也不准）。
+- live INSERT 的 `soldAt` 早於 `effectiveFrom` 或已過 `effectiveTo` → 失敗。
+- reservation／refund 帶與 fact 不同的 client `storeId` → 失敗。
+- 受控歷史 backfill：**另測**，不得與 live 測混在同一條 POS runtime
+  路徑。通過條件：有 actor／batch／reason、`soldAt` 在當時有效期、
+  指向已 revoked 的歷史 binding。缺 audit 或由一般 POS session 呼叫 → 失敗。
 
 ---
 
@@ -708,6 +759,9 @@ v0.2 若讀起來像「CHECK 能保證跨表累計」，那是錯的。改正如
 | snapshot line 與 Order／OrderItem 同單 | 普通 CHECK 不夠 | line.`sourceOrderId` composite FK + DEFERRABLE trigger（§2.3.1） |
 | refund header／line 同一張單 | 普通 CHECK 不夠 | DEFERRABLE trigger 或經 header 重構 FK（§2.5.1） |
 | fact.binding.storeId 與有效期 | 普通 CHECK 不夠 | composite FK + DEFERRABLE trigger（§4.4） |
+| pending ⇒ verifiedAt 空；active ⇒ verifiedAt 非空 | 夠 | 單列 CHECK（§4.2） |
+| live fact 必須 active＋verified＋有效期＋同店 | 普通 CHECK 不夠 | 路徑 A DEFERRABLE trigger 四項同時驗（§4.4） |
+| revoked 不得被 POS runtime 建新 fact | 普通 CHECK 不夠 | 路徑 A trigger；路徑 B 僅 HQ／migration + audit |
 
 能刪的冗餘值：若 child 的 `merchantId` 只是為了 CHECK 對上 parent，且已有
 `FOREIGN KEY (parent_id, merchant_id) REFERENCES parent(id, merchant_id)`，
@@ -932,7 +986,7 @@ POS-01 程式仍未凍結此規則；本節只修正文件，不覆蓋 POS-01 �
 | 9 | 仍只 2 docs | 本檔 + `docs/POS-02-MIGRATION-PLAN.md`。相對 POS-01 的 diff 不得含第三檔 |
 | 10 | Snapshot↔Order 一致性 | §2.3.1 line 自帶 `sourceOrderId`；`line.snapshot.sourceOrderId = line.sourceOrderId = OrderItem.orderId`；product／qty／price 來自該 item；能 FK 先 FK，其餘 DEFERRABLE trigger；Preview negative：Order B item 掛 Order A snapshot 必須失敗 |
 | 11 | Refund header／line 同一來源 | §2.5.1 kind 一致、parent sale／snapshot 一致；禁止 header POS + line snapshot 與同店不同單；累計／佣金／庫存 lock 真正來源 line；列 negative tests |
-| 12 | Fact 保存 authoritative binding | §4.4 `PosSale`／`MerchantSaleSnapshot` 存 `bindingId`；`[bindingId, merchantId]` composite FK；trigger 驗 `storeId` 與 verified／effective 期；歷史 binding 即使後來 revoked 仍保留；reservation／refund 不接受 client `storeId`；Preview negative：A+B、未 verified、超出有效期均 fail |
+| 12 | Fact 保存 authoritative binding | §4.4 路徑 A：live INSERT 同時驗 `status='active'`、`verifiedAt` 非空、`soldAt` 在有效期、merchant／store 一致。§4.2 CHECK：`pending_verify` ⇒ `verifiedAt IS NULL`。revoked 不能被 POS runtime 建新 fact。路徑 B：僅受控 HQ／migration backfill，需 actor／batch／reason，且 `soldAt` 在當時有效期。Preview：pending 誤填 verifiedAt、revoked live insert 均 fail；歷史 backfill 另測 |
 | 13 | O1 回庫文字 | §1.3、§6.2、§11.1.1：未履約取消只 release reserved、不加 onHand；已履約且實物退回、HQ 核准後可再售才 `onHand += qty`，不可售只寫 loss |
 
 ---
