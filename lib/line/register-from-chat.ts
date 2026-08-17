@@ -44,6 +44,8 @@ import type { RegisterResumeAfter } from '@/lib/line/chat-session';
 import { JAR_ENTER_HINT_REGISTERED } from '@/lib/line/brand-worlds';
 import { pauseJibaUnboxStoreConfirm } from '@/lib/line/campaigns/jiba-unbox/flow';
 import { isRegisterNavLeaveText } from '@/lib/line/session-leave';
+import { validateAndCleanName } from '@/lib/line/morning/name';
+import { startMorningPreferenceFlow } from '@/lib/line/morning/preference-flow';
 
 export { isRegisterNavLeaveText };
 
@@ -198,17 +200,18 @@ export async function handleRegisterFlowMessage(
   }
 
   if (session.step === 'name') {
-    if (!trimmed || trimmed.length > 80) {
+    const nameCheck = validateAndCleanName(trimmed);
+    if (!nameCheck.ok) {
       await replyRegisterStepPromptOnce(
         replyToken,
         lineUserId,
         'name',
         draft,
-        '暱稱請填 1–80 字。',
+        nameCheck.error,
       );
       return true;
     }
-    draft.name = trimmed;
+    draft.name = nameCheck.cleaned;
     await upsertLineChatSession(lineUserId, 'register', 'phone', draft);
     await replyLineText(replyToken, LINE_REGISTER_PHONE_PROMPT);
     return true;
@@ -403,16 +406,24 @@ export async function handleRegisterPostback(
         await replyLineMessage(replyToken, [
           { type: 'text', text: `${doneText}\n\n接下來可以這樣做～` },
           { type: 'text', text: nextHint },
+          { type: 'text', text: '另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。' },
         ]);
       } else {
+        const hub = buildWorldHubMessages('jar', { registered: true });
         await replyLineMessage(replyToken, [
           {
             type: 'text',
             text: `${doneText}\n\n${nextHint}`,
           },
-          ...buildWorldHubMessages('jar', { registered: true }),
+          ...hub.slice(0, 2),
+          { type: 'text', text: '另外想問：早上要不要收一則毛孩短訊？回「寵物笑話／全球寵物新鮮事／兩種交替／先不用」就好。' },
         ]);
       }
+      // 偏好收集不阻擋註冊；寫入 morning_prefs session 等下一則回覆
+      await startMorningPreferenceFlow(null, lineUserId, {
+        customerId: created.id,
+        reply: false,
+      });
     } catch (e) {
       await replyLineText(
         replyToken,

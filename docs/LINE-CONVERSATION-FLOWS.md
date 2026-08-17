@@ -3,9 +3,10 @@
 路由入口：`lib/line/handle-event.ts`  
 文字解析：`lib/line/parse-message.ts`  
 Postback：`lib/line/postback-actions.ts`  
-進行中流程優先序：**開戶 `register` > 開箱 `jiba_unbox` > 一般功能**
+進行中流程優先序：**開戶 `register` > 開箱 `jiba_unbox` > 早安偏好 `morning_prefs` > 一般功能**
 
-開戶進行中會把開箱標成 `pausedForRegister`，背景 upsert 也不可覆寫開戶 session。
+開戶進行中會把開箱標成 `pausedForRegister`，背景 upsert 也不可覆寫開戶 session。  
+早安偏好不可阻擋開戶／開箱／輸入序號；詳見 `docs/LINE-MORNING-MVP.md`。
 
 ---
 
