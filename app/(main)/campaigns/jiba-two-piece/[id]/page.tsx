@@ -8,9 +8,12 @@ import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
 import {
   APP_STATUS,
+  CATNIP_CHICK_HOMEPAGE_URL,
   JIBA_BANK_TRANSFER,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  jibaProductKeyFromCollected,
+  jibaProductLabelFromCollected,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import {
@@ -86,6 +89,17 @@ export default async function JibaReviewDetailPage({
 
   const canReview = app.status === APP_STATUS.PENDING_REVIEW;
   const session = app.conversationSession;
+  const collected = session?.collectedDataJson ?? '{}';
+  const productKey = jibaProductKeyFromCollected(collected);
+  const productLabel = jibaProductLabelFromCollected(collected);
+  const purposeAcknowledged = (() => {
+    try {
+      const data = JSON.parse(collected) as { purposeAcknowledged?: unknown };
+      return data.purposeAcknowledged === true;
+    } catch {
+      return false;
+    }
+  })();
 
   return (
     <>
@@ -130,10 +144,7 @@ export default async function JibaReviewDetailPage({
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <Row label="活動" value={app.campaign.name} />
-              <Row
-                label="商品"
-                value={`${app.campaign.productName} × ${app.campaign.productQuantity}`}
-              />
+              <Row label="商品" value={productLabel} />
               <Row label="商品金額" value={`NT$${app.campaign.productUnitPrice}`} />
               <Row label="運費" value={`NT$${app.campaign.shippingFee}`} />
               <Row label="申請時間" value={formatDateTime(app.createdAt)} />
@@ -149,6 +160,18 @@ export default async function JibaReviewDetailPage({
                     : '未同意'
                 }
               />
+              {productKey === 'catnip' ? (
+                <>
+                  <Row
+                    label="用途說明"
+                    value={
+                      purposeAcknowledged
+                        ? `已了解，可能用於 ${CATNIP_CHICK_HOMEPAGE_URL}`
+                        : '尚未確認用途'
+                    }
+                  />
+                </>
+              ) : null}
               <Row label="過往參加次數" value={String(previousCount)} />
               <Row
                 label="重複申請警示"

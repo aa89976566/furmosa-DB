@@ -7,6 +7,7 @@ import {
   JIBA_LICENSE_VERSION,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  jibaProductLabelFromCollected,
   type FlowState,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { recordStatusTransition } from '@/lib/campaigns/jiba-two-piece/audit';
@@ -253,6 +254,11 @@ export async function syncApplicationFields(
   });
 
   if (app.orderId) {
+    const session = await prisma.conversationSession.findUnique({
+      where: { campaignApplicationId: applicationId },
+      select: { collectedDataJson: true },
+    });
+    const productLabel = jibaProductLabelFromCollected(session?.collectedDataJson);
     await prisma.order.update({
       where: { id: app.orderId },
       data: {
@@ -265,6 +271,7 @@ export async function syncApplicationFields(
         shippingMethod: 'convenience',
         note: [
           '[雞霸兩片開箱]',
+          `商品：${productLabel}`,
           app.recipientName ? `收件：${app.recipientName}` : null,
           app.recipientPhone ? `手機：${app.recipientPhone}` : null,
           app.storeName ? `門市：${app.storeName}` : null,
@@ -404,6 +411,7 @@ async function nextShipmentNumber() {
 async function ensureQueuedShipment(applicationId: string) {
   const app = await prisma.campaignApplication.findUniqueOrThrow({
     where: { id: applicationId },
+    include: { conversationSession: { select: { collectedDataJson: true } } },
   });
   if (!app.orderId) return;
   const existing = await prisma.shipment.findFirst({
@@ -412,6 +420,9 @@ async function ensureQueuedShipment(applicationId: string) {
   if (existing) return existing;
 
   const storeLabel = app.storeName?.trim() || '7-11';
+  const productLabel = jibaProductLabelFromCollected(
+    app.conversationSession?.collectedDataJson,
+  );
   return prisma.shipment.create({
     data: {
       shipmentNumber: await nextShipmentNumber(),
@@ -428,7 +439,7 @@ async function ensureQueuedShipment(applicationId: string) {
         app.storeId ? `店號：${app.storeId}` : null,
         app.instagramHandle ? `IG：${app.instagramHandle}` : null,
         app.petName ? `毛孩：${app.petName}` : null,
-        '商品：雞霸 × 2（活動贈送）',
+        `商品：${productLabel}（活動贈送）`,
       ]
         .filter(Boolean)
         .join('\n'),

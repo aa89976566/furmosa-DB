@@ -5,7 +5,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
-import { APP_STATUS, JIBA_CAMPAIGN_SLUG } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  APP_STATUS,
+  JIBA_CAMPAIGN_SLUG,
+  jibaProductLabelFromCollected,
+} from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import { ensureJibaCampaign } from '@/lib/campaigns/jiba-two-piece/service';
 
@@ -59,7 +63,9 @@ export default async function JibaReviewListPage() {
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        conversationSession: { select: { id: true, currentState: true } },
+        conversationSession: {
+          select: { id: true, currentState: true, collectedDataJson: true },
+        },
       },
     });
 
@@ -87,6 +93,7 @@ export default async function JibaReviewListPage() {
                 <tr>
                   <th className="px-3 py-2">申請時間</th>
                   <th className="px-3 py-2">LINE</th>
+                  <th className="px-3 py-2">商品</th>
                   <th className="px-3 py-2">收件／門市</th>
                   <th className="px-3 py-2">IG／毛孩</th>
                   <th className="px-3 py-2">狀態</th>
@@ -97,7 +104,7 @@ export default async function JibaReviewListPage() {
               <tbody>
                 {apps.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
                       還沒有申請
                     </td>
                   </tr>
@@ -112,6 +119,11 @@ export default async function JibaReviewListPage() {
                         <div className="font-mono text-[11px] text-muted-foreground">
                           {a.lineUserId}
                         </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        {jibaProductLabelFromCollected(
+                          a.conversationSession?.collectedDataJson,
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <div>{a.recipientName || '—'}</div>

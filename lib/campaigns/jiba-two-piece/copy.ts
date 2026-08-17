@@ -1,4 +1,5 @@
 import {
+  CATNIP_CHICK_HOMEPAGE_URL,
   JIBA_BANK_TRANSFER,
   JIBA_FREE_SHIP,
   JIBA_PRODUCTS,
@@ -13,6 +14,7 @@ export const JIBA_INTRO = `汪！開箱任務來報到～
 可以選：
 ・壕大大雞霸兩片
 ・青蛙凍乾一隻
+・貓草雞肉乾 30g
 
 拍完發 Instagram Reels，記得標 @furmosa_food。
 零食我們準備好；7-11 運費 NT$${JIBA_SHIPPING_FEE} 請毛爸媽幫忙喔。
@@ -21,7 +23,7 @@ export const JIBA_INTRO = `汪！開箱任務來報到～
 
 export const JIBA_RULES = `規則很簡單，我們慢慢說：
 
-① 選一種開箱零食（雞霸兩片或青蛙一隻）
+① 選一種開箱零食（雞霸兩片、青蛙一隻或貓草雞肉乾 30g）
 ② 拍毛孩開箱／開吃的樣子
 ③ 發 Instagram Reels，標 @furmosa_food
 ④ 投稿內容可能經匠寵轉發、剪輯或用於活動分享
@@ -35,14 +37,40 @@ export const JIBA_ASK_PRODUCT = `汪！先選毛孩這次要開哪一包～`;
 export const JIBA_PRODUCT_PICKED = {
   jiba: `好喔，這次開「壕大大雞霸兩片」～`,
   frog: `好喔，這次開「青蛙凍乾一隻」～`,
+  catnip: `好喔，這次開「貓草雞肉乾 30g」～`,
 } as const;
+
+export const JIBA_BRIEF_CONTINUE = '好，開始填資料';
+export const JIBA_CATNIP_PURPOSE_CONTINUE = '我了解用途，開始填資料';
+
+export function jibaBriefContinueLabel(productKey: JibaProductKey): string {
+  return productKey === 'catnip' ? JIBA_CATNIP_PURPOSE_CONTINUE : JIBA_BRIEF_CONTINUE;
+}
+
+export function isJibaBriefContinue(text: string): boolean {
+  return /^(?:好，開始填資料|開始填資料|繼續|好|我了解用途，開始填資料|我了解，開始填資料)$/i.test(
+    text.trim(),
+  );
+}
 
 /** 選完商品後：投稿事項＋限時加購免運（bark） */
 export function jibaBriefAndUpsell(productKey: JibaProductKey): string {
   const p = JIBA_PRODUCTS[productKey];
-  return `投稿這樣就好，不複雜：
+  const purpose =
+    productKey === 'catnip'
+      ? `這次想請貓咪先試吃貓草雞肉乾，再拍下真實反應。
+經你授權後，素材可能用在正在製作的首頁：
+${CATNIP_CHICK_HOMEPAGE_URL}
 
-① 收到 ${p.orderLabel} 後，拍毛孩開箱或開吃
+`
+      : '';
+  const eatLine =
+    productKey === 'catnip'
+      ? `① 收到 ${p.orderLabel} 後，拍貓咪開箱或試吃的真實反應`
+      : `① 收到 ${p.orderLabel} 後，拍毛孩開箱或開吃`;
+  return `${purpose}投稿這樣就好，不複雜：
+
+${eatLine}
 ② 發一支 Instagram Reels
 ③ 標記 @furmosa_food
 ④ 影片可能被匠寵轉發／剪輯，用在官網、IG、LINE 或活動宣傳
@@ -115,6 +143,15 @@ export const JIBA_LICENSE_ASK = `投稿前，可以請你按下面按鈕同意�
 export const JIBA_LICENSE_BODY = `參加活動代表你同意：匠寵可以在官方網站、Instagram、LINE 與活動宣傳中，轉發、編輯或使用這次投稿的照片與影片。
 
 著作權還是屬於原創作者，我們只取得這次品牌宣傳需要的使用授權。`;
+
+/** 授權說明：貓草雞肉乾會補上首頁用途，仍寫入既有 licenseAccepted 欄位 */
+export function jibaLicenseBody(productKey?: JibaProductKey): string {
+  if (productKey !== 'catnip') return JIBA_LICENSE_BODY;
+  return `${JIBA_LICENSE_BODY}
+
+這次貓咪試吃貓草雞肉乾的真實反應，經你按「我同意」後，也可能用在這頁：
+${CATNIP_CHICK_HOMEPAGE_URL}`;
+}
 
 /** @deprecated 舊長文；改走 Flex 按鈕版 */
 export const JIBA_LICENSE = `投稿前，跟你確認一件事喔。

@@ -79,8 +79,8 @@ Postback：`lib/line/postback-actions.ts`
 | 狀態 | 問什麼 | 成功下一狀態 | 備註 |
 |------|--------|--------------|------|
 | CAMPAIGN_INTRO / SHOW_RULES | 參加／看規則／不要 | 報名或結束 | |
-| ASK_PRODUCT | 選雞霸兩片／青蛙凍乾 | SHOW_BRIEF | 按鈕選擇 |
-| SHOW_BRIEF | 投稿事項＋399/886 免運加購說明 | ASK_RECIPIENT_NAME | 「好，開始填資料」 |
+| ASK_PRODUCT | 選雞霸兩片／青蛙凍乾／貓草雞肉乾 30g | SHOW_BRIEF | 按鈕選擇 |
+| SHOW_BRIEF | 投稿事項＋399/886 免運加購說明（貓草雞肉乾會說明首頁用途） | ASK_RECIPIENT_NAME | 「好，開始填資料」或「我了解用途，開始填資料」 |
 | ASK_RECIPIENT_NAME | 收件人姓名 | ASK_RECIPIENT_PHONE | 開箱文，非開戶暱稱 |
 | ASK_RECIPIENT_PHONE | 收件手機 | ASK_STORE | |
 | ASK_STORE | 輸入 7-11 關鍵字／門市查詢 | CONFIRM_STORE | 候選 Flex 按鈕；選門市時「介紹」不當離開 |

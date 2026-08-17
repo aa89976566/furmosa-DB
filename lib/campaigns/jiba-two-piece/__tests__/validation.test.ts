@@ -31,6 +31,8 @@ describe('jiba validation', () => {
     assert.equal(validRecipientName('可以'), null);
     assert.equal(validRecipientName('開箱任務'), null);
     assert.equal(validRecipientName('先看看規則'), null);
+    assert.equal(validRecipientName('選貓草雞肉乾'), null);
+    assert.equal(validRecipientName('我了解用途，開始填資料'), null);
     assert.equal(validRecipientName('@furmosa'), null);
     assert.equal(validRecipientName('0912345678'), null);
     assert.equal(checkRecipientName('我要參加').ok, false);
