@@ -88,6 +88,7 @@ import {
   planRestockCancel,
   projectSaleReversalState,
   refundCompletionFingerprint,
+  refundLineFingerprint,
   refundReversalLedger,
   refundableRemainder,
   requestVoucherCancellation,
@@ -103,6 +104,7 @@ import {
   unpaidCheckoutReservesInventory,
   voucherRedemptionLedger,
   type CompletedSaleLine,
+  type CommittedEffectsProof,
   type RefundReversalLine,
 } from '@/lib/pos/domain-contract';
 
@@ -1264,6 +1266,87 @@ describe('O1 frozen refund inventory policy', () => {
     };
   }
 
+  function effectsProof(
+    first: ReturnType<typeof completeApprovedRefund>,
+    overrides: Partial<CommittedEffectsProof> = {},
+    identity: { refundRequestId?: string; reason?: string } = {},
+  ): CommittedEffectsProof {
+    const snapshot = first.committedOutcomeSnapshot;
+    assert.ok(snapshot);
+    const effect = snapshot.inventoryEffect;
+    const financial = snapshot.financialReversal;
+    const refundRequestId = identity.refundRequestId ?? 'rr-1';
+    const reason = identity.reason ?? 'merchant-cancel';
+    const condition =
+      effect == null
+        ? null
+        : effect.disposition === 'restock_sellable'
+          ? 'unopened_good_sellable'
+          : effect.loss?.condition ?? null;
+    return {
+      financialLedgerReceipt: {
+        reference: financial.line.idempotencyKey,
+        idempotencyKey: financial.line.idempotencyKey,
+        refundLineFingerprint: refundLineFingerprint(financial.line),
+        refundAmountTwd: financial.ledger.refundAmountTwd,
+        commissionTwd: financial.ledger.commissionTwd,
+        direction: financial.ledger.direction,
+        kind: financial.ledger.kind,
+        settlementDestination: financial.ledger.settlementDestination,
+        settlementStatusAtExecution: snapshot.settlementStatusAtExecution,
+        merchantOwesHqTwd: financial.ledger.merchantOwesHqTwd,
+        hqOwesMerchantTwd: financial.ledger.hqOwesMerchantTwd,
+      },
+      dispositionReceipt:
+        effect == null
+          ? null
+          : {
+              refundRequestId,
+              sourceKind: snapshot.source.kind,
+              sourceLineId: snapshot.source.sourceLineId,
+              inventoryAggregateId: effect.inventoryAggregateId,
+              qty: effect.qty,
+              disposition: effect.disposition,
+              condition,
+              reason,
+            },
+      lossReceipt:
+        effect?.loss == null
+          ? null
+          : {
+              inventoryAggregateId: effect.inventoryAggregateId,
+              qty: effect.loss.qty,
+              condition: effect.loss.condition,
+              note: effect.loss.note,
+            },
+      inventoryLedgerReceipt:
+        effect == null
+          ? null
+          : {
+              inventoryAggregateId: effect.inventoryAggregateId,
+              operation:
+                effect.disposition === 'release_only'
+                  ? 'release'
+                  : effect.disposition === 'restock_sellable'
+                    ? 'restock'
+                    : 'loss',
+              qty: effect.qty,
+              onHandDelta: effect.onHandDelta,
+              reservedDelta: effect.reservedDelta,
+            },
+      merchantStockDeltaReceipt:
+        effect == null
+          ? null
+          : {
+              inventoryAggregateId: effect.inventoryAggregateId,
+              onHandDelta: effect.onHandDelta,
+              reservedDelta: effect.reservedDelta,
+              applied: true,
+            },
+      ...overrides,
+    };
+  }
+
   function committedRetry(
     first: ReturnType<typeof completeApprovedRefund>,
     key = 'rf-1',
@@ -1272,6 +1355,7 @@ describe('O1 frozen refund inventory policy', () => {
       existingCompletions: [storeRefundCompletion(key, first)],
       existingRefunds: [first.financialReversal.line],
       refundStatus: 'completed' as const,
+      committedEffectsProof: effectsProof(first),
     };
   }
 
@@ -1901,6 +1985,254 @@ describe('O1 frozen refund inventory policy', () => {
           }),
         ),
       /已完成退款的財務 line 與 stored 不一致/,
+    );
+  });
+
+  it('returns stored effects only when committed effects proof is complete', () => {
+    const release = completeApprovedRefund(completeInput());
+    const releaseRetry = completeApprovedRefund(completeInput(committedRetry(release)));
+    assert.equal(releaseRetry.duplicate, true);
+    assert.deepEqual(releaseRetry.committedOutcomeSnapshot, release.committedOutcomeSnapshot);
+    const restock = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'restock_sellable',
+        condition: 'unopened_good_sellable',
+        idempotencyKey: 'rf-restock',
+      }),
+    );
+    const restockRetry = completeApprovedRefund(
+      completeInput({
+        ...committedRetry(restock, 'rf-restock'),
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'restock_sellable',
+        condition: 'unopened_good_sellable',
+        idempotencyKey: 'rf-restock',
+      }),
+    );
+    assert.equal(restockRetry.duplicate, true);
+    assert.equal(restockRetry.inventoryEffect?.disposition, 'restock_sellable');
+    const noStock = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'not_returned',
+        disposition: 'no_stock_effect',
+        idempotencyKey: 'rf-none',
+      }),
+    );
+    const noStockRetry = completeApprovedRefund(
+      completeInput({
+        ...committedRetry(noStock, 'rf-none'),
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'not_returned',
+        disposition: 'no_stock_effect',
+        idempotencyKey: 'rf-none',
+      }),
+    );
+    assert.equal(noStockRetry.duplicate, true);
+    assert.equal(noStockRetry.inventoryEffect, null);
+  });
+
+  it('fail-closes a completed retry that is missing the financial ledger receipt', () => {
+    const first = completeApprovedRefund(completeInput());
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: null,
+          }),
+        ),
+      /缺少 committed effects proof/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, { financialLedgerReceipt: null }),
+          }),
+        ),
+      /缺少 financial ledger receipt/,
+    );
+  });
+
+  it('fail-closes a restock retry that is missing the inventory ledger receipt', () => {
+    const first = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'restock_sellable',
+        condition: 'unopened_good_sellable',
+        idempotencyKey: 'rf-restock-gap',
+      }),
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first, 'rf-restock-gap'),
+            fulfillmentFact: 'fulfilled',
+            physicalReturnFact: 'returned',
+            disposition: 'restock_sellable',
+            condition: 'unopened_good_sellable',
+            idempotencyKey: 'rf-restock-gap',
+            committedEffectsProof: effectsProof(first, { inventoryLedgerReceipt: null }),
+          }),
+        ),
+      /缺少 inventory ledger receipt/,
+    );
+  });
+
+  it('fail-closes a loss retry that is missing the loss receipt', () => {
+    const first = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'returned',
+        disposition: 'loss_unsellable',
+        condition: 'damaged',
+        idempotencyKey: 'rf-loss-gap',
+      }),
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first, 'rf-loss-gap'),
+            fulfillmentFact: 'fulfilled',
+            physicalReturnFact: 'returned',
+            disposition: 'loss_unsellable',
+            condition: 'damaged',
+            idempotencyKey: 'rf-loss-gap',
+            committedEffectsProof: effectsProof(first, { lossReceipt: null }),
+          }),
+        ),
+      /缺少 loss receipt/,
+    );
+  });
+
+  it('fail-closes a release retry when persisted deltas do not match', () => {
+    const first = completeApprovedRefund(completeInput());
+    const proof = effectsProof(first);
+    assert.ok(proof.inventoryLedgerReceipt);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              inventoryLedgerReceipt: {
+                ...proof.inventoryLedgerReceipt,
+                reservedDelta: 0,
+              },
+            }),
+          }),
+        ),
+      /inventory ledger 與 stored 不一致/,
+    );
+  });
+
+  it('fail-closes when a receipt aggregate or qty does not match the stored effect', () => {
+    const first = completeApprovedRefund(completeInput());
+    const proof = effectsProof(first);
+    assert.ok(proof.dispositionReceipt);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              dispositionReceipt: {
+                ...proof.dispositionReceipt,
+                inventoryAggregateId: 'merchant-stock-OTHER',
+              },
+            }),
+          }),
+        ),
+      /disposition 與 stored 不一致/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              dispositionReceipt: {
+                ...proof.dispositionReceipt,
+                qty: 2,
+              },
+            }),
+          }),
+        ),
+      /disposition 與 stored 不一致/,
+    );
+  });
+
+  it('fail-closes no_stock_effect when any inventory receipt is present', () => {
+    const first = completeApprovedRefund(
+      completeInput({
+        fulfillmentFact: 'fulfilled',
+        physicalReturnFact: 'not_returned',
+        disposition: 'no_stock_effect',
+        idempotencyKey: 'rf-none-extra',
+      }),
+    );
+    const releaseProof = effectsProof(completeApprovedRefund(completeInput()));
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first, 'rf-none-extra'),
+            fulfillmentFact: 'fulfilled',
+            physicalReturnFact: 'not_returned',
+            disposition: 'no_stock_effect',
+            idempotencyKey: 'rf-none-extra',
+            committedEffectsProof: effectsProof(first, {
+              dispositionReceipt: releaseProof.dispositionReceipt,
+            }),
+          }),
+        ),
+      /不可有庫存 receipts/,
+    );
+  });
+
+  it('fail-closes extra or contradictory persisted receipts', () => {
+    const first = completeApprovedRefund(completeInput());
+    const proof = effectsProof(first);
+    assert.ok(proof.inventoryLedgerReceipt);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              lossReceipt: {
+                inventoryAggregateId: 'merchant-stock-1',
+                qty: 3,
+                condition: 'damaged',
+                note: null,
+              },
+            }),
+          }),
+        ),
+      /多餘或矛盾的 persisted receipts/,
+    );
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              inventoryLedgerReceipt: {
+                ...proof.inventoryLedgerReceipt,
+                operation: 'restock',
+              },
+            }),
+          }),
+        ),
+      /inventory ledger 與 stored 不一致/,
     );
   });
 });
