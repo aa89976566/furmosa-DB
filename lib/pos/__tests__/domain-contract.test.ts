@@ -106,6 +106,7 @@ import {
   voucherRedemptionLedger,
   type CompletedSaleLine,
   type CommittedEffectsProof,
+  type RefundReturnCondition,
   type RefundReversalLine,
 } from '@/lib/pos/domain-contract';
 
@@ -2046,6 +2047,28 @@ describe('O1 frozen refund inventory policy', () => {
     );
     assert.equal(noStockRetry.duplicate, true);
     assert.equal(noStockRetry.inventoryEffect, null);
+  });
+
+  it('fail-closes a completed retry when stored disposition condition is an empty string', () => {
+    const first = completeApprovedRefund(completeInput());
+    const proof = effectsProof(first);
+    assert.ok(proof.dispositionReceipt);
+    assert.equal(proof.dispositionReceipt.condition, null);
+    assert.throws(
+      () =>
+        completeApprovedRefund(
+          completeInput({
+            ...committedRetry(first),
+            committedEffectsProof: effectsProof(first, {
+              dispositionReceipt: {
+                ...proof.dispositionReceipt,
+                condition: '' as unknown as RefundReturnCondition,
+              },
+            }),
+          }),
+        ),
+      /allow-list/,
+    );
   });
 
   it('fail-closes a completed retry that is missing the financial ledger receipt', () => {

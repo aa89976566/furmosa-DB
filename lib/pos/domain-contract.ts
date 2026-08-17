@@ -1933,7 +1933,7 @@ export function assertCommittedEffectsProof(
   parseRefundSourceKind(dispositionReceipt.sourceKind);
   parseRefundInventoryDisposition(dispositionReceipt.disposition);
   const receiptCondition =
-    dispositionReceipt.condition == null || dispositionReceipt.condition === ''
+    dispositionReceipt.condition == null
       ? null
       : parseRefundReturnCondition(dispositionReceipt.condition);
   assertRequiredContractText(dispositionReceipt.refundRequestId, 'disposition refundRequestId');
