@@ -28,4 +28,4 @@ Seed：`camp_jiba_two_piece` / `jiba-two-piece`。
 
 ## 出貨門禁
 
-`shipping_queue_status` 預設 `NOT_READY`。審核通過後，若免運或顧客已申報轉帳（`payment_status=declared`，非財務核帳），改為 `QUEUED` 並建立 `Shipment(pending)`。尚未申報則留在 `AWAITING_SHIPPING_PAYMENT`，後台可見、不入出貨列。完整收款帳號只從 Vercel env 讀取，不寫進申請資料。
+`shipping_queue_status` 預設 `NOT_READY`。審核通過後一律建立 `Shipment(pending)` 並改為 `QUEUED`，出貨列表可查到。免運或已申報轉帳（`payment_status=declared`，非財務核帳）升為 `READY_TO_SHIP`；尚未申報則留在 `AWAITING_SHIPPING_PAYMENT`，不標已付。完整收款帳號只從 Vercel env 讀取，不寫進申請資料。

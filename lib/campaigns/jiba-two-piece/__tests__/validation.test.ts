@@ -94,7 +94,7 @@ describe('store search', () => {
 });
 
 describe('status machine constants', () => {
-  it('keeps shipping queue out until paid path', () => {
+  it('keeps review / await / ready statuses distinct', () => {
     assert.equal(APP_STATUS.PENDING_REVIEW, 'PENDING_REVIEW');
     assert.equal(APP_STATUS.AWAITING_SHIPPING_PAYMENT, 'AWAITING_SHIPPING_PAYMENT');
     assert.equal(APP_STATUS.READY_TO_SHIP, 'READY_TO_SHIP');

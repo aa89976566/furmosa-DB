@@ -7,7 +7,7 @@ import { decideJibaApproveTransition } from '../payment';
 import { activeShipmentQueueWhere } from '@/lib/shipment-queue-filters';
 
 /**
- * 重現：PENDING_REVIEW → approve（已申報）→ 出貨列表 where 可查到。
+ * 重現：PENDING_REVIEW → approve（已申報或未申報）→ 出貨列表 where 可查到。
  * 決策與 query 皆為純資料，不碰正式 DB。
  */
 describe('PENDING_REVIEW approve appears in shipment list', () => {
@@ -34,16 +34,25 @@ describe('PENDING_REVIEW approve appears in shipment list', () => {
     assert.equal(shipment.status, 'pending');
   });
 
-  it('unpaid approve does not create a shipment row', () => {
+  it('unpaid approve still creates a pending shipment visible in the list', () => {
     const decision = decideJibaApproveTransition({
       status: APP_STATUS.PENDING_REVIEW,
       paymentStatus: PAYMENT_STATUS.UNPAID,
     });
     assert.equal(decision.action, 'await_payment');
-    if (decision.action === 'await_payment') {
-      assert.equal(decision.createShipment, false);
-      assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
-    }
+    if (decision.action !== 'await_payment') return;
+
+    assert.equal(decision.createShipment, true);
+    assert.equal(decision.nextAppStatus, APP_STATUS.AWAITING_SHIPPING_PAYMENT);
+    const order = { status: decision.nextOrderStatus };
+    const where = activeShipmentQueueWhere;
+    const hidden = where.OR;
+    assert.ok(Array.isArray(hidden));
+    const orderClause = hidden.find(
+      (item) => item && typeof item === 'object' && 'order' in item,
+    ) as { order?: { status?: { notIn?: string[] } } };
+    assert.ok(orderClause?.order?.status?.notIn?.includes('cancelled'));
+    assert.equal(orderClause?.order?.status?.notIn?.includes(order.status), false);
   });
 
   it('approve service writes inside a transaction and is idempotent', () => {

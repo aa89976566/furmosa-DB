@@ -1676,7 +1676,7 @@ export async function handleJibaUnboxPostback(
   );
 }
 
-/** 壽司匠通過後：付款條件滿足則入出貨列；否則出示轉帳卡 */
+/** 壽司匠通過後一律入出貨列；未申報轉帳另出示轉帳卡，不當作已核帳 */
 export async function notifyJibaApproved(applicationId: string, note?: string) {
   const app = await approveAndCreatePayment({
     applicationId,

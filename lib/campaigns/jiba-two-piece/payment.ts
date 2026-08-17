@@ -180,8 +180,8 @@ export type JibaApproveDecision =
       action: 'await_payment';
       nextAppStatus: typeof APP_STATUS.AWAITING_SHIPPING_PAYMENT;
       nextOrderStatus: 'awaiting_shipping_payment';
-      shippingQueueStatus: 'NOT_READY';
-      createShipment: false;
+      shippingQueueStatus: 'QUEUED';
+      createShipment: true;
     }
   | { action: 'idempotent'; nextAppStatus: AppStatus; createShipment: boolean }
   | { action: 'reject'; reason: string };
@@ -215,7 +215,7 @@ export function decideJibaApproveTransition(input: {
     return {
       action: 'idempotent',
       nextAppStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
-      createShipment: false,
+      createShipment: true,
     };
   }
   if (input.status !== APP_STATUS.PENDING_REVIEW) {
@@ -234,8 +234,8 @@ export function decideJibaApproveTransition(input: {
     action: 'await_payment',
     nextAppStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
     nextOrderStatus: 'awaiting_shipping_payment',
-    shippingQueueStatus: 'NOT_READY',
-    createShipment: false,
+    shippingQueueStatus: 'QUEUED',
+    createShipment: true,
   };
 }
 
@@ -254,8 +254,12 @@ export function isJibaBackfillCandidate(input: {
   paymentStatus?: string | null;
   collected?: Record<string, unknown> | string | null;
   hasActiveShipment: boolean;
+  orderId?: string | null;
+  orderStatus?: string | null;
 }): boolean {
   if (input.hasActiveShipment) return false;
+  if (!input.orderId) return false;
+  if (input.orderStatus === 'cancelled') return false;
   if (
     input.appStatus !== APP_STATUS.APPROVED &&
     input.appStatus !== APP_STATUS.AWAITING_SHIPPING_PAYMENT &&
@@ -263,8 +267,23 @@ export function isJibaBackfillCandidate(input: {
   ) {
     return false;
   }
-  return isJibaPaymentSatisfied({
-    paymentStatus: input.paymentStatus,
-    collected: input.collected,
-  });
+  return true;
+}
+
+/** 已核准漏單：付款已滿足才升 READY；未申報只補出貨單、不改成已付 */
+export function jibaBackfillRepairKind(input: {
+  appStatus: string;
+  paymentStatus?: string | null;
+  collected?: Record<string, unknown> | string | null;
+}): 'queue_ready' | 'await_payment_shipment' {
+  if (input.appStatus === APP_STATUS.READY_TO_SHIP) return 'queue_ready';
+  if (
+    isJibaPaymentSatisfied({
+      paymentStatus: input.paymentStatus,
+      collected: input.collected,
+    })
+  ) {
+    return 'queue_ready';
+  }
+  return 'await_payment_shipment';
 }

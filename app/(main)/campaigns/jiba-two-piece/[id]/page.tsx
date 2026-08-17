@@ -339,7 +339,7 @@ export default async function JibaReviewDetailPage({
                   <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-foreground">
                     <p className="font-medium">
                       {app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT
-                        ? '等待轉帳申報／核對'
+                        ? '已進入出貨列表，等待轉帳申報／核對'
                         : '已排入出貨，待核對入帳'}
                     </p>
                     <p className="text-xs text-muted-foreground">
