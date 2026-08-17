@@ -1,6 +1,8 @@
 import {
   JIBA_PRODUCT_ACTION_TEXT,
   JIBA_PRODUCT_BUTTON_LABEL,
+  JIBA_TRANSFER_ACTION_TEXT,
+  JIBA_TRANSFER_POSTBACK,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
   JIBA_ASK_PRODUCT_ALT_TEXT,
@@ -11,12 +13,21 @@ import {
   JIBA_INVITE_DECLINE,
   JIBA_INVITE_JOIN,
   JIBA_INVITE_TITLE,
+  JIBA_TRANSFER_BUTTON,
+  JIBA_TRANSFER_TITLE,
+  JIBA_TRANSFER_UNAVAILABLE,
   JIBA_UPSELL_ACCEPT,
   JIBA_UPSELL_ALT_TEXT,
   JIBA_UPSELL_BODY,
   JIBA_UPSELL_SKIP,
   JIBA_UPSELL_TITLE,
+  jibaTransferAltText,
+  jibaTransferBody,
 } from '@/lib/campaigns/jiba-two-piece/copy';
+import {
+  requireJibaTransferAccount,
+  type JibaTransferAccount,
+} from '@/lib/campaigns/jiba-two-piece/transfer-env';
 import { WORLD_THEME } from '@/lib/line/card-theme';
 import { buildButtonMenuFlex } from '@/lib/line/flex-hubs';
 import type { LineReplyMessage } from '@/lib/line/reply';
@@ -102,4 +113,35 @@ export function jibaUpsellMenu(): LineReplyMessage {
 
 export function jibaUpsellMessages(): LineReplyMessage[] {
   return [jibaUpsellMenu()];
+}
+
+/** 加購後應付 60：單一 Flex 轉帳卡。缺 env 時 fail closed，不顯示錯誤帳號。 */
+export function jibaTransferMenu(account: JibaTransferAccount): LineReplyMessage {
+  return buildButtonMenuFlex({
+    altText: jibaTransferAltText(account),
+    theme: WORLD_THEME.chaos,
+    title: JIBA_TRANSFER_TITLE,
+    subtitle: jibaTransferBody(account),
+    items: [
+      {
+        label: JIBA_TRANSFER_BUTTON,
+        action: {
+          type: 'postback',
+          data: JIBA_TRANSFER_POSTBACK,
+          displayText: JIBA_TRANSFER_ACTION_TEXT,
+        },
+        style: 'primary',
+      },
+    ],
+  });
+}
+
+export function jibaTransferMessages(
+  account?: JibaTransferAccount | null,
+): LineReplyMessage[] {
+  const resolved = account ?? requireJibaTransferAccount();
+  if (!resolved) {
+    return [{ type: 'text', text: JIBA_TRANSFER_UNAVAILABLE }];
+  }
+  return [jibaTransferMenu(resolved)];
 }

@@ -10,7 +10,10 @@ import {
   BRAND_STORY,
   JAR_ENTER_BLOCKED_GUEST,
 } from '@/lib/line/brand-worlds';
-import { startJibaUnboxIntro } from '@/lib/line/campaigns/jiba-unbox/flow';
+import {
+  handleJibaUnboxPostback,
+  startJibaUnboxIntro,
+} from '@/lib/line/campaigns/jiba-unbox/flow';
 import {
   buildCouponListMessages,
   buildGroomingRedeemConfirmMessages,
@@ -145,6 +148,11 @@ export async function handleLinePostback(
   const action = params.get('jd');
 
   if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
+
+  if (action === 'jiba_xfer') {
+    await handleJibaUnboxPostback(replyToken, lineUserId, data, replyToken);
+    return;
+  }
 
   // Hub 選單不依開戶狀態：先回再不查會員，縮短感知延遲
   if (action === 'hub_jar') {

@@ -2,6 +2,8 @@
 
 export const orderStatusLabel: Record<string, string> = {
   draft: '草稿',
+  pending_review: '待審核',
+  awaiting_shipping_payment: '等運費核對',
   confirmed: '已確認',
   packed: '待出貨',
   shipped: '已出貨',
@@ -21,8 +23,12 @@ export const orderSourceLabel: Record<string, string> = {
 
 export const paymentStatusLabel: Record<string, string> = {
   unpaid: '未付款',
+  declared: '已申報待核對',
+  awaiting_verification: '已申報待核對',
+  waived: '免運',
   partial: '部分付款',
   paid: '已付款',
+  failed: '付款失敗',
   cod: '貨到付款',
   refunded: '已退款',
 };

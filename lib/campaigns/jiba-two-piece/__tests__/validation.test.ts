@@ -41,6 +41,8 @@ describe('jiba validation', () => {
     assert.equal(validRecipientName('好，開始填收件資訊'), null);
     assert.equal(validRecipientName('這次先不加'), null);
     assert.equal(validRecipientName('想加購'), null);
+    assert.equal(validRecipientName('我已轉帳'), null);
+    assert.equal(validRecipientName('選我已轉帳'), null);
     assert.equal(validRecipientName('@furmosa'), null);
     assert.equal(validRecipientName('0912345678'), null);
     const joinName = checkRecipientName('我要參加');

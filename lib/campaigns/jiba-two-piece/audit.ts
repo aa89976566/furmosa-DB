@@ -1,4 +1,7 @@
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 export async function recordStatusTransition(opts: {
   entityType: string;
@@ -9,8 +12,10 @@ export async function recordStatusTransition(opts: {
   actorId?: string | null;
   applicationId?: string | null;
   metadata?: Record<string, unknown>;
+  db?: Db;
 }) {
-  await prisma.statusAuditLog.create({
+  const db = opts.db ?? prisma;
+  await db.statusAuditLog.create({
     data: {
       entityType: opts.entityType,
       entityId: opts.entityId,

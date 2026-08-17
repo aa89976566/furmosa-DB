@@ -1,4 +1,5 @@
 import { FLOW_STATE, type FlowState } from '@/lib/campaigns/jiba-two-piece/constants';
+import { shouldRedirectToTransfer } from '@/lib/campaigns/jiba-two-piece/payment';
 
 /** 開箱既有運送欄位：收件人、手機、超商門市／地址 */
 export type JibaShippingSnapshot = {
@@ -49,14 +50,30 @@ export function shippingSnapshotFrom(
 
 /**
  * 舊 session 若停在提前的加購（舊 SHOW_BRIEF 混加購，或新 ASK_UPSELL 但收件未齊），
- * 先導回缺的運送欄位。其他 state 原步續接，不重設、不跳步。
+ * 先導回缺的運送欄位。已走過加購、應付 60 且尚未申報時，重播導向轉帳。
+ * 已送審／已通過的後續狀態不重設。
  */
 export function resolveJibaResumeState(
   state: FlowState,
   snapshot: JibaShippingSnapshot,
+  collected?: Record<string, unknown> | null,
+  paymentStatus?: string | null,
 ): FlowState {
-  if (state !== FLOW_STATE.ASK_UPSELL) return state;
-  return nextJibaShippingState(snapshot) ?? FLOW_STATE.ASK_UPSELL;
+  if (state === FLOW_STATE.ASK_UPSELL || state === FLOW_STATE.ASK_TRANSFER) {
+    const missing = nextJibaShippingState(snapshot);
+    if (missing) return missing;
+  }
+  if (
+    shouldRedirectToTransfer({
+      state,
+      collected,
+      paymentStatus,
+    })
+  ) {
+    return FLOW_STATE.ASK_TRANSFER;
+  }
+  if (state === FLOW_STATE.ASK_UPSELL) return FLOW_STATE.ASK_UPSELL;
+  return state;
 }
 
 /** 新申請快樂路徑：加購一定在運送資訊之後 */
@@ -69,6 +86,7 @@ export const JIBA_COLLECTING_SEQUENCE = [
   FLOW_STATE.ASK_STORE,
   FLOW_STATE.CONFIRM_STORE,
   FLOW_STATE.ASK_UPSELL,
+  FLOW_STATE.ASK_TRANSFER,
   FLOW_STATE.ASK_INSTAGRAM,
   FLOW_STATE.ASK_PET_NAME,
   FLOW_STATE.ASK_CONTENT_LICENSE,

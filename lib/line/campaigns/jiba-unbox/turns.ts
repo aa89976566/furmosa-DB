@@ -10,6 +10,7 @@ import {
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import {
   isJibaBriefContinue,
+  isJibaTransferDeclared,
   isJibaUpsellAccept,
   isJibaUpsellSkip,
 } from '@/lib/campaigns/jiba-two-piece/copy';
@@ -26,6 +27,8 @@ export type JibaTurnDecision =
   | { action: 'continue_brief' }
   | { action: 'accept_upsell' }
   | { action: 'skip_upsell' }
+  | { action: 'declare_transfer' }
+  | { action: 'reprompt_transfer' }
   | { action: 'reprompt_invite' }
   | { action: 'reprompt_product' }
   | { action: 'reprompt_upsell' }
@@ -102,6 +105,11 @@ export function decideJibaUnboxMessage(ctx: JibaTurnContext): JibaTurnDecision {
     if (isJibaUpsellSkip(trimmed)) return { action: 'skip_upsell' };
     if (isJibaUpsellAccept(trimmed)) return { action: 'accept_upsell' };
     return { action: 'reprompt_upsell' };
+  }
+
+  if (ctx.state === FLOW_STATE.ASK_TRANSFER) {
+    if (isJibaTransferDeclared(trimmed)) return { action: 'declare_transfer' };
+    return { action: 'reprompt_transfer' };
   }
 
   return { action: 'pass' };

@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import {
   ACTIVE_APP_STATUSES,
   APP_STATUS,
@@ -7,15 +8,28 @@ import {
   JIBA_LICENSE_VERSION,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  PAYMENT_STATUS,
   jibaProductLabelFromCollected,
+  parseCollectedDataJson,
   type FlowState,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 import { recordStatusTransition } from '@/lib/campaigns/jiba-two-piece/audit';
 import { ensureJibaCampaignSchema } from '@/lib/campaigns/jiba-two-piece/ensure-schema';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
+import {
+  assessJibaShippingFee,
+  buildPaymentDeclarationPatch,
+  decideJibaApproveTransition,
+  isJibaBackfillCandidate,
+  isJibaPaymentDeclared,
+  JIBA_PAYMENT_METHOD_BANK_TRANSFER,
+} from '@/lib/campaigns/jiba-two-piece/payment';
+import { requireJibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/transfer-env';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { lineAssetUrl } from '@/lib/line/flex-hubs';
 import { prisma } from '@/lib/prisma';
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 function ymd() {
   const d = new Date();
@@ -207,8 +221,9 @@ export async function setConversationState(
   sessionId: string,
   state: FlowState,
   collectedPatch?: Record<string, unknown>,
+  db: Db = prisma,
 ) {
-  const session = await prisma.conversationSession.findUniqueOrThrow({
+  const session = await db.conversationSession.findUniqueOrThrow({
     where: { id: sessionId },
   });
   let data: Record<string, unknown> = {};
@@ -218,7 +233,7 @@ export async function setConversationState(
     data = {};
   }
   if (collectedPatch) data = { ...data, ...collectedPatch };
-  return prisma.conversationSession.update({
+  return db.conversationSession.update({
     where: { id: sessionId },
     data: {
       currentState: state,
@@ -326,80 +341,138 @@ export async function approveAndCreatePayment(opts: {
   reviewerName?: string;
   note?: string;
 }) {
-  const token = randomBytes(24).toString('hex');
-  const app = await prisma.campaignApplication.findUniqueOrThrow({
-    where: { id: opts.applicationId },
-  });
-  if (
-    app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT ||
-    app.status === APP_STATUS.APPROVED
-  ) {
-    // 冪等：已通過則沿用既有 paymentToken
-    if (app.paymentToken) return app;
-  }
-  if (app.status !== APP_STATUS.PENDING_REVIEW) {
-    throw new Error(`申請狀態不可審核通過：${app.status}`);
-  }
-  const prev = app.status;
-  const updated = await prisma.campaignApplication.update({
-    where: { id: opts.applicationId },
-    data: {
-      // 審核通過後立刻進入等運費；application 以 AWAITING 為可操作狀態
-      status: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
-      shippingQueueStatus: 'NOT_READY',
-      reviewedBy: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
-      reviewedAt: new Date(),
-      reviewNote: opts.note ?? null,
-      paymentToken: token,
-      paymentStatus: 'unpaid',
-    },
-  });
-  if (app.orderId) {
-    await prisma.order.update({
-      where: { id: app.orderId },
-      data: { status: 'awaiting_shipping_payment', paymentStatus: 'unpaid' },
+  return prisma.$transaction(async (tx) => {
+    const app = await tx.campaignApplication.findUniqueOrThrow({
+      where: { id: opts.applicationId },
+      include: { conversationSession: { select: { id: true, collectedDataJson: true } } },
     });
-  }
-  await prisma.orderReview.create({
-    data: {
+    const decision = decideJibaApproveTransition({
+      status: app.status,
+      paymentStatus: app.paymentStatus,
+      collected: app.conversationSession?.collectedDataJson,
+    });
+    if (decision.action === 'reject') {
+      throw new Error(decision.reason);
+    }
+    if (decision.action === 'idempotent') {
+      if (decision.createShipment) {
+        await ensureQueuedShipment(opts.applicationId, tx);
+      }
+      return tx.campaignApplication.findUniqueOrThrow({
+        where: { id: opts.applicationId },
+      });
+    }
+
+    const token = app.paymentToken ?? randomBytes(24).toString('hex');
+    const reviewerName = opts.reviewerName ?? JIBA_SUPERVISOR_NAME;
+    const locked = await tx.campaignApplication.updateMany({
+      where: { id: opts.applicationId, status: app.status },
+      data: {
+        status: decision.nextAppStatus,
+        shippingQueueStatus: decision.shippingQueueStatus,
+        reviewedBy: reviewerName,
+        reviewedAt: new Date(),
+        reviewNote: opts.note ?? null,
+        paymentToken: token,
+      },
+    });
+    if (locked.count === 0) {
+      const again = await tx.campaignApplication.findUniqueOrThrow({
+        where: { id: opts.applicationId },
+        include: { conversationSession: { select: { collectedDataJson: true } } },
+      });
+      const againDecision = decideJibaApproveTransition({
+        status: again.status,
+        paymentStatus: again.paymentStatus,
+        collected: again.conversationSession?.collectedDataJson,
+      });
+      if (againDecision.action === 'queue' || again.status === APP_STATUS.READY_TO_SHIP) {
+        await ensureQueuedShipment(opts.applicationId, tx);
+      }
+      return tx.campaignApplication.findUniqueOrThrow({ where: { id: opts.applicationId } });
+    }
+
+    const fee = assessJibaShippingFee(app.conversationSession?.collectedDataJson);
+    if (app.orderId) {
+      await tx.order.update({
+        where: { id: app.orderId },
+        data: {
+          status: decision.nextOrderStatus,
+          paymentStatus:
+            app.paymentStatus === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.UNPAID,
+          shippingFeeType: !fee.due ? 'free' : decision.action === 'queue' ? 'prepaid' : 'unpaid',
+          shippingFee: fee.due ? JIBA_SHIPPING_FEE : 0,
+          total: fee.due ? JIBA_SHIPPING_FEE : 0,
+          fulfillmentStatus: 'pending',
+        },
+      });
+    }
+
+    const existingReview = await tx.orderReview.findFirst({
+      where: { applicationId: opts.applicationId, decision: 'APPROVED' },
+    });
+    if (!existingReview) {
+      await tx.orderReview.create({
+        data: {
+          applicationId: opts.applicationId,
+          orderId: app.orderId,
+          reviewerName,
+          decision: 'APPROVED',
+          note: opts.note ?? null,
+        },
+      });
+    }
+
+    if (decision.createShipment) {
+      await ensureQueuedShipment(opts.applicationId, tx);
+    }
+
+    if (app.conversationSession) {
+      await setConversationState(
+        app.conversationSession.id,
+        decision.nextAppStatus === APP_STATUS.READY_TO_SHIP
+          ? FLOW_STATE.READY_TO_SHIP
+          : FLOW_STATE.AWAITING_SHIPPING_PAYMENT,
+        undefined,
+        tx,
+      );
+    }
+
+    await recordStatusTransition({
+      entityType: 'campaign_application',
+      entityId: opts.applicationId,
+      previousStatus: app.status,
+      newStatus: APP_STATUS.APPROVED,
+      actorType: 'supervisor',
+      actorId: reviewerName,
       applicationId: opts.applicationId,
-      orderId: app.orderId,
-      reviewerName: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
-      decision: 'APPROVED',
-      note: opts.note ?? null,
-    },
+      db: tx,
+    });
+    await recordStatusTransition({
+      entityType: 'campaign_application',
+      entityId: opts.applicationId,
+      previousStatus: APP_STATUS.APPROVED,
+      newStatus: decision.nextAppStatus,
+      actorType: 'supervisor',
+      actorId: reviewerName,
+      applicationId: opts.applicationId,
+      metadata: {
+        paymentMethod: JIBA_PAYMENT_METHOD_BANK_TRANSFER,
+        paymentStatus: app.paymentStatus,
+        queued: decision.createShipment,
+      },
+      db: tx,
+    });
+
+    return tx.campaignApplication.findUniqueOrThrow({
+      where: { id: opts.applicationId },
+    });
   });
-  const session = await prisma.conversationSession.findUnique({
-    where: { campaignApplicationId: opts.applicationId },
-  });
-  if (session) {
-    await setConversationState(session.id, FLOW_STATE.AWAITING_SHIPPING_PAYMENT);
-  }
-  await recordStatusTransition({
-    entityType: 'campaign_application',
-    entityId: opts.applicationId,
-    previousStatus: prev,
-    newStatus: APP_STATUS.APPROVED,
-    actorType: 'supervisor',
-    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
-    applicationId: opts.applicationId,
-  });
-  await recordStatusTransition({
-    entityType: 'campaign_application',
-    entityId: opts.applicationId,
-    previousStatus: APP_STATUS.APPROVED,
-    newStatus: APP_STATUS.AWAITING_SHIPPING_PAYMENT,
-    actorType: 'supervisor',
-    actorId: opts.reviewerName ?? JIBA_SUPERVISOR_NAME,
-    applicationId: opts.applicationId,
-    metadata: { paymentMethod: 'bank_transfer' },
-  });
-  return updated;
 }
 
-async function nextShipmentNumber() {
+async function nextShipmentNumber(db: Db = prisma) {
   const prefix = `SHP-${ymd()}-`;
-  const last = await prisma.shipment.findFirst({
+  const last = await db.shipment.findFirst({
     where: { shipmentNumber: { startsWith: prefix } },
     orderBy: { shipmentNumber: 'desc' },
   });
@@ -407,14 +480,14 @@ async function nextShipmentNumber() {
   return `${prefix}${String(seq).padStart(4, '0')}`;
 }
 
-/** 付款成功後才建立出貨單；審核通過前絕不入列 */
-async function ensureQueuedShipment(applicationId: string) {
-  const app = await prisma.campaignApplication.findUniqueOrThrow({
+/** 審核通過且付款條件滿足後才建立出貨單；已存在則沿用 */
+async function ensureQueuedShipment(applicationId: string, db: Db = prisma) {
+  const app = await db.campaignApplication.findUniqueOrThrow({
     where: { id: applicationId },
     include: { conversationSession: { select: { collectedDataJson: true } } },
   });
   if (!app.orderId) return;
-  const existing = await prisma.shipment.findFirst({
+  const existing = await db.shipment.findFirst({
     where: { orderId: app.orderId, status: { not: 'cancelled' } },
   });
   if (existing) return existing;
@@ -423,9 +496,9 @@ async function ensureQueuedShipment(applicationId: string) {
   const productLabel = jibaProductLabelFromCollected(
     app.conversationSession?.collectedDataJson,
   );
-  return prisma.shipment.create({
+  return db.shipment.create({
     data: {
-      shipmentNumber: await nextShipmentNumber(),
+      shipmentNumber: await nextShipmentNumber(db),
       type: 'customer_order',
       status: 'pending',
       customerId: app.customerId,
@@ -447,17 +520,136 @@ async function ensureQueuedShipment(applicationId: string) {
   });
 }
 
+export async function declareJibaShippingPayment(opts: {
+  applicationId: string;
+  lineMessageId?: string | null;
+  actorType?: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const app = await tx.campaignApplication.findUniqueOrThrow({
+      where: { id: opts.applicationId },
+      include: { conversationSession: true },
+    });
+    const collected = parseCollectedDataJson(app.conversationSession?.collectedDataJson);
+    if (
+      opts.lineMessageId &&
+      collected.declarationSourceMsgId &&
+      collected.declarationSourceMsgId === opts.lineMessageId
+    ) {
+      return { app, alreadyDeclared: true as const };
+    }
+    if (isJibaPaymentDeclared(app.paymentStatus, collected)) {
+      return { app, alreadyDeclared: true as const };
+    }
+
+    const fee = assessJibaShippingFee(collected);
+    if (!fee.due) {
+      return { app, alreadyDeclared: true as const, waived: true as const };
+    }
+
+    const transfer = requireJibaTransferAccount();
+    const declaration = buildPaymentDeclarationPatch({
+      accountLast5: transfer?.accountLast5 ?? '',
+      amount: fee.amount,
+    });
+    const nextCollected = {
+      ...collected,
+      ...declaration,
+      declarationSourceMsgId: opts.lineMessageId ?? collected.declarationSourceMsgId ?? null,
+    };
+
+    const locked = await tx.campaignApplication.updateMany({
+      where: {
+        id: opts.applicationId,
+        paymentStatus: { in: [PAYMENT_STATUS.UNPAID, PAYMENT_STATUS.FAILED] },
+      },
+      data: { paymentStatus: PAYMENT_STATUS.DECLARED },
+    });
+    if (locked.count === 0 && isJibaPaymentDeclared(app.paymentStatus, collected)) {
+      return { app, alreadyDeclared: true as const };
+    }
+    if (locked.count === 0 && app.paymentStatus !== PAYMENT_STATUS.UNPAID) {
+      return { app, alreadyDeclared: true as const };
+    }
+
+    if (app.conversationSession) {
+      await tx.conversationSession.update({
+        where: { id: app.conversationSession.id },
+        data: { collectedDataJson: JSON.stringify(nextCollected) },
+      });
+    }
+
+    const approvedAlready =
+      app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT ||
+      app.status === APP_STATUS.APPROVED;
+    if (approvedAlready) {
+      await tx.campaignApplication.update({
+        where: { id: opts.applicationId },
+        data: {
+          status: APP_STATUS.READY_TO_SHIP,
+          shippingQueueStatus: 'QUEUED',
+          paymentStatus: PAYMENT_STATUS.DECLARED,
+        },
+      });
+      if (app.orderId) {
+        await tx.order.update({
+          where: { id: app.orderId },
+          data: {
+            status: 'confirmed',
+            paymentStatus: PAYMENT_STATUS.UNPAID,
+            shippingFeeType: 'prepaid',
+            fulfillmentStatus: 'pending',
+          },
+        });
+      }
+      await ensureQueuedShipment(opts.applicationId, tx);
+      if (app.conversationSession) {
+        await setConversationState(
+          app.conversationSession.id,
+          FLOW_STATE.READY_TO_SHIP,
+          undefined,
+          tx,
+        );
+      }
+    }
+
+    await recordStatusTransition({
+      entityType: 'campaign_application',
+      entityId: opts.applicationId,
+      previousStatus: app.paymentStatus,
+      newStatus: PAYMENT_STATUS.DECLARED,
+      actorType: opts.actorType ?? 'customer',
+      applicationId: opts.applicationId,
+      metadata: {
+        paymentMethod: declaration.paymentMethod,
+        declaredAmount: declaration.declaredAmount,
+        transferAccountLast5: declaration.transferAccountLast5,
+        queued: approvedAlready,
+      },
+      db: tx,
+    });
+
+    return {
+      app: await tx.campaignApplication.findUniqueOrThrow({
+        where: { id: opts.applicationId },
+      }),
+      alreadyDeclared: false as const,
+    };
+  });
+}
+
 export async function markShippingPaid(applicationId: string, actorType = 'payment') {
   const app = await prisma.campaignApplication.findUniqueOrThrow({
     where: { id: applicationId },
   });
-  if (app.paymentStatus === 'paid' && app.status === APP_STATUS.READY_TO_SHIP) {
+  if (app.paymentStatus === PAYMENT_STATUS.PAID && app.status === APP_STATUS.READY_TO_SHIP) {
     await ensureQueuedShipment(applicationId);
     return app; // idempotent
   }
   if (
     app.status !== APP_STATUS.AWAITING_SHIPPING_PAYMENT &&
-    app.status !== APP_STATUS.APPROVED
+    app.status !== APP_STATUS.APPROVED &&
+    app.status !== APP_STATUS.READY_TO_SHIP
   ) {
     throw new Error(`申請狀態不可標記付款：${app.status}`);
   }
@@ -467,7 +659,7 @@ export async function markShippingPaid(applicationId: string, actorType = 'payme
     data: {
       status: APP_STATUS.READY_TO_SHIP,
       shippingQueueStatus: 'QUEUED',
-      paymentStatus: 'paid',
+      paymentStatus: PAYMENT_STATUS.PAID,
       paidAt: new Date(),
     },
   });
@@ -476,7 +668,7 @@ export async function markShippingPaid(applicationId: string, actorType = 'payme
       where: { id: app.orderId },
       data: {
         status: 'confirmed',
-        paymentStatus: 'paid',
+        paymentStatus: PAYMENT_STATUS.PAID,
         shippingFeeType: 'prepaid',
         fulfillmentStatus: 'pending',
       },
@@ -624,4 +816,110 @@ export function paymentUrlForToken(token: string): string {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
     'https://furmosa-db.vercel.app';
   return `${base.replace(/\/$/, '')}/pay/jiba/${token}`;
+}
+
+export type JibaShippingBackfillResult = {
+  dryRun: boolean;
+  scanned: number;
+  candidates: Array<{
+    applicationId: string;
+    orderId: string | null;
+    status: string;
+    paymentStatus: string;
+    shippingQueueStatus: string;
+  }>;
+  repaired: number;
+};
+
+/** 已核准且付款條件已滿足、卻沒有出貨單的申請。預設 dry-run，不自動跑正式環境。 */
+export async function backfillJibaReadyToShip(opts?: {
+  dryRun?: boolean;
+  limit?: number;
+}): Promise<JibaShippingBackfillResult> {
+  const dryRun = opts?.dryRun !== false;
+  const campaign = await ensureJibaCampaign();
+  const rows = await prisma.campaignApplication.findMany({
+    where: {
+      campaignId: campaign.id,
+      status: {
+        in: [
+          APP_STATUS.APPROVED,
+          APP_STATUS.AWAITING_SHIPPING_PAYMENT,
+          APP_STATUS.READY_TO_SHIP,
+        ],
+      },
+    },
+    include: { conversationSession: { select: { collectedDataJson: true } } },
+    take: opts?.limit ?? 200,
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const candidates: JibaShippingBackfillResult['candidates'] = [];
+  for (const app of rows) {
+    const hasActiveShipment = app.orderId
+      ? Boolean(
+          await prisma.shipment.findFirst({
+            where: { orderId: app.orderId, status: { not: 'cancelled' } },
+            select: { id: true },
+          }),
+        )
+      : false;
+    if (
+      !isJibaBackfillCandidate({
+        appStatus: app.status,
+        paymentStatus: app.paymentStatus,
+        collected: app.conversationSession?.collectedDataJson,
+        hasActiveShipment,
+      })
+    ) {
+      continue;
+    }
+    candidates.push({
+      applicationId: app.id,
+      orderId: app.orderId,
+      status: app.status,
+      paymentStatus: app.paymentStatus,
+      shippingQueueStatus: app.shippingQueueStatus,
+    });
+  }
+
+  if (dryRun) {
+    return { dryRun: true, scanned: rows.length, candidates, repaired: 0 };
+  }
+
+  let repaired = 0;
+  for (const item of candidates) {
+    await prisma.$transaction(async (tx) => {
+      await tx.campaignApplication.update({
+        where: { id: item.applicationId },
+        data: {
+          status: APP_STATUS.READY_TO_SHIP,
+          shippingQueueStatus: 'QUEUED',
+        },
+      });
+      if (item.orderId) {
+        await tx.order.update({
+          where: { id: item.orderId },
+          data: {
+            status: 'confirmed',
+            fulfillmentStatus: 'pending',
+          },
+        });
+      }
+      await ensureQueuedShipment(item.applicationId, tx);
+      await recordStatusTransition({
+        entityType: 'campaign_application',
+        entityId: item.applicationId,
+        previousStatus: item.status,
+        newStatus: APP_STATUS.READY_TO_SHIP,
+        actorType: 'system',
+        applicationId: item.applicationId,
+        metadata: { repair: 'jiba_shipping_backfill' },
+        db: tx,
+      });
+    });
+    repaired += 1;
+  }
+
+  return { dryRun: false, scanned: rows.length, candidates, repaired };
 }

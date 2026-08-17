@@ -8,6 +8,7 @@ import {
   shipmentStatusVariant,
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
+import { SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES } from '@/lib/campaigns/jiba-two-piece/payment';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
@@ -288,12 +289,18 @@ export async function ShipmentsQueueBody({
     status === 'pending'
       ? {
           status: { in: ['pending', 'packed'] },
-          OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+          OR: [
+            { orderId: null },
+            { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
+          ],
         }
       : status && SHIPMENT_STATUSES.includes(status as never)
         ? {
             status,
-            OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+            OR: [
+              { orderId: null },
+              { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
+            ],
           }
         : activeShipmentQueueWhere;
 
@@ -308,7 +315,10 @@ export async function ShipmentsQueueBody({
   const countWhere = mergeShipmentWhere(
     {
       status: { in: ['pending', 'packed', 'shipped', 'delivered'] },
-      OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+      OR: [
+        { orderId: null },
+        { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
+      ],
     },
     kindFilter,
   );

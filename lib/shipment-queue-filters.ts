@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES } from '@/lib/campaigns/jiba-two-piece/payment';
 import { ensureOrdersForOrphanRestockShipments, migrateRestockOrdersToConsignment } from '@/lib/merchant-restock-order';
 import { prisma } from '@/lib/prisma';
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
@@ -15,10 +16,13 @@ export function shipmentItemsFingerprint(
     .join('|');
 }
 
-/** 出貨隊列預設：不含已送達／已取消，且排除已取消訂單的待出貨單 */
+/** 出貨隊列預設：不含已送達／已取消，且只排除已取消訂單（confirmed／awaiting 等一律可見） */
 export const activeShipmentQueueWhere: Prisma.ShipmentWhereInput = {
   status: { in: ['pending', 'packed', 'shipped'] },
-  OR: [{ orderId: null }, { order: { status: { not: 'cancelled' } } }],
+  OR: [
+    { orderId: null },
+    { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
+  ],
 };
 
 /** 取消同一訂單多張待出貨中的重複出貨單（保留最新一張） */

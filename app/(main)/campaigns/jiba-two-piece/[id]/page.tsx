@@ -9,12 +9,17 @@ import { formatDateTime } from '@/lib/format';
 import {
   APP_STATUS,
   CATNIP_CHICK_HOMEPAGE_URL,
-  JIBA_BANK_TRANSFER,
   JIBA_SHIPPING_FEE,
   JIBA_SUPERVISOR_NAME,
+  PAYMENT_STATUS,
   jibaProductKeyFromCollected,
   jibaProductLabelFromCollected,
 } from '@/lib/campaigns/jiba-two-piece/constants';
+import {
+  assessJibaShippingFee,
+  paymentDeclarationFromCollected,
+} from '@/lib/campaigns/jiba-two-piece/payment';
+import { paymentStatusLabel } from '@/lib/labels';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import {
   approveJibaApplicationAction,
@@ -104,6 +109,8 @@ export default async function JibaReviewDetailPage({
     }
   })();
   const purposeAcknowledged = collectedFlags.purposeAcknowledged === true;
+  const fee = assessJibaShippingFee(collected);
+  const declaration = paymentDeclarationFromCollected(collected);
 
   return (
     <>
@@ -150,7 +157,28 @@ export default async function JibaReviewDetailPage({
               <Row label="活動" value={app.campaign.name} />
               <Row label="商品" value={productLabel} />
               <Row label="商品金額" value={`NT$${app.campaign.productUnitPrice}`} />
-              <Row label="運費" value={`NT$${app.campaign.shippingFee}`} />
+              <Row
+                label="物流處理費"
+                value={fee.due ? `需付 NT$${fee.amount}` : '免運'}
+              />
+              <Row
+                label="付款申報"
+                value={
+                  paymentStatusLabel[app.paymentStatus] ?? app.paymentStatus
+                }
+              />
+              <Row
+                label="申報時間"
+                value={
+                  declaration?.declaredPaidAt
+                    ? formatDateTime(new Date(declaration.declaredPaidAt))
+                    : '—'
+                }
+              />
+              <Row
+                label="收款帳號末五碼"
+                value={declaration?.transferAccountLast5 || '—'}
+              />
               <Row label="申請時間" value={formatDateTime(app.createdAt)} />
               <Row
                 label="授權"
@@ -229,10 +257,10 @@ export default async function JibaReviewDetailPage({
                     placeholder="內部備註"
                   />
                   <Button type="submit" className="w-full">
-                    通過並詢問轉帳
+                    通過並進入出貨／等付款
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    通過後顧客可選「現在付款」看轉帳資訊，或「找{JIBA_SUPERVISOR_NAME}」。
+                    已申報或免運會直接排入出貨；尚未轉帳則留在等付款核對，不會消失。
                   </p>
                 </form>
 
@@ -305,17 +333,23 @@ export default async function JibaReviewDetailPage({
                     : '，不可再審核通過。'}
                 </p>
                 {app.reviewNote ? <p>上次備註：{app.reviewNote}</p> : null}
-                {app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT ? (
+                {app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT ||
+                (app.status === APP_STATUS.READY_TO_SHIP &&
+                  app.paymentStatus !== PAYMENT_STATUS.PAID) ? (
                   <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50/60 p-3 text-foreground">
-                    <p className="font-medium">等待轉帳入帳</p>
+                    <p className="font-medium">
+                      {app.status === APP_STATUS.AWAITING_SHIPPING_PAYMENT
+                        ? '等待轉帳申報／核對'
+                        : '已排入出貨，待核對入帳'}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {JIBA_BANK_TRANSFER.bankName}（{JIBA_BANK_TRANSFER.bankCode}）{' '}
-                      {JIBA_BANK_TRANSFER.account} · NT${JIBA_SHIPPING_FEE}
+                      收款帳號末五碼 {declaration?.transferAccountLast5 || '—'} · NT$
+                      {JIBA_SHIPPING_FEE}
                     </p>
                     <form action={markJibaTransferPaidAction}>
                       <input type="hidden" name="applicationId" value={app.id} />
                       <Button type="submit" className="w-full">
-                        確認已入帳並排入出貨
+                        確認已入帳
                       </Button>
                     </form>
                   </div>
