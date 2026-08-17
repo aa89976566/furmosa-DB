@@ -26,6 +26,8 @@ describe('jiba unbox products', () => {
   it('keeps existing jiba and frog keys and adds catnip', () => {
     assert.equal(CATNIP_CHICK_HOMEPAGE_URL, 'https://catnip-chick.vercel.app/?cat=1');
     assert.deepEqual(Object.keys(JIBA_PRODUCTS), ['jiba', 'frog', 'catnip']);
+    assert.equal(JIBA_PRODUCTS.jiba.label, '雞霸');
+    assert.equal(JIBA_PRODUCTS.frog.label, '青蛙');
     assert.equal(JIBA_PRODUCTS.jiba.orderLabel, '壕大大雞霸 × 2');
     assert.equal(JIBA_PRODUCTS.frog.orderLabel, '青蛙凍乾 × 1');
     assert.equal(JIBA_PRODUCTS.catnip.label, '貓草雞肉乾 30g');

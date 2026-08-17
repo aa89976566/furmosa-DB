@@ -8,6 +8,14 @@ import {
   type JibaProductKey,
 } from '@/lib/campaigns/jiba-two-piece/constants';
 
+export const JIBA_INVITE_TITLE = '開箱體驗募集';
+export const JIBA_INVITE_BODY =
+  '想邀請你和毛孩體驗 Furmosa 商品，分享真實開箱與試吃反應。完成申請後，我們會先審核，再安排寄送。';
+export const JIBA_INVITE_JOIN = '我要參加';
+export const JIBA_INVITE_DECLINE = '先不用';
+export const JIBA_INVITE_DECLINED = `好，這次先不用。
+之後想參加再跟我們說「開箱」就可以。`;
+
 export const JIBA_INTRO = `汪！開箱任務來報到～
 
 想請你家毛孩幫忙拍一支開箱小影片。

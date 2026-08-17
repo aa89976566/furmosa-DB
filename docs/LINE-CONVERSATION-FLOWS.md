@@ -74,12 +74,12 @@ Postback：`lib/line/postback-actions.ts`
 
 ## 4. 開箱任務（雞霸兩片，`jiba_unbox`）
 
-觸發：選單「開箱任務」→ 封面＋介紹 →「我要參加」等
+觸發：正規化後精確比對「開箱／開箱文／開箱任務／ugc／試吃開箱／開箱合作／合作開箱」等 → 只送參加邀請。進行中 session 重送 keyword 會重送當前步驟，不重設。
 
 | 狀態 | 問什麼 | 成功下一狀態 | 備註 |
 |------|--------|--------------|------|
-| CAMPAIGN_INTRO / SHOW_RULES | 參加／看規則／不要 | 報名或結束 | |
-| ASK_PRODUCT | 選雞霸兩片／青蛙凍乾／貓草雞肉乾 30g | SHOW_BRIEF | 按鈕選擇 |
+| CAMPAIGN_INTRO | 開箱體驗募集：我要參加／先不用 | ASK_PRODUCT 或結束 | 首則不選商品、不丟規則 |
+| ASK_PRODUCT | 雞霸／青蛙／貓草雞肉乾 30g | SHOW_BRIEF | Flex 按鈕；payload 為「選…」 |
 | SHOW_BRIEF | 投稿事項＋399/886 免運加購說明（貓草雞肉乾會說明首頁用途） | ASK_RECIPIENT_NAME | 「好，開始填資料」或「我了解用途，開始填資料」 |
 | ASK_RECIPIENT_NAME | 收件人姓名 | ASK_RECIPIENT_PHONE | 開箱文，非開戶暱稱 |
 | ASK_RECIPIENT_PHONE | 收件手機 | ASK_STORE | |

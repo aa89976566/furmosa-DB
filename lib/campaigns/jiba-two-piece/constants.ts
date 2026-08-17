@@ -56,16 +56,16 @@ export const CATNIP_CHICK_HOMEPAGE_URL = 'https://catnip-chick.vercel.app/?cat=1
 export const JIBA_PRODUCTS = {
   jiba: {
     key: 'jiba',
-    label: '壕大大雞霸兩片',
-    shortLabel: '壕大大雞霸',
+    label: '雞霸',
+    shortLabel: '雞霸',
     quantity: 2,
     unit: '片',
     orderLabel: '壕大大雞霸 × 2',
   },
   frog: {
     key: 'frog',
-    label: '青蛙凍乾一隻',
-    shortLabel: '青蛙凍乾',
+    label: '青蛙',
+    shortLabel: '青蛙',
     quantity: 1,
     unit: '隻',
     orderLabel: '青蛙凍乾 × 1',
