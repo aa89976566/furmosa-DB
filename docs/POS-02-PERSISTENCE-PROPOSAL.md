@@ -1,7 +1,7 @@
 # POS-02 Persistence Proposal
 
-> **文件狀態：** 提案 v0.6 — 關閉 binding 時間序、不可變欄位、以及 backfill
-> 不得只靠 GUC：必須 dedicated DB role 或 REVOKE 保護的 SECURITY DEFINER。
+> **文件狀態：** 提案 v0.7 — 關閉 revoke 嚴格上界、SECURITY DEFINER hardening、
+> 以及 fact 身分欄 INSERT 後不可 UPDATE。
 > **本輪禁止：** 修改 `schema.prisma`、建立 migration、執行 `db push` /
 > `migrate` / seed、改 runtime、操作正式資料庫或部署。
 > **本輪允許：** 只改本檔與 `docs/POS-02-MIGRATION-PLAN.md`。
@@ -11,7 +11,7 @@
 > **Stacked PR：** 本提案疊在 POS-01 PR #126
 > （`cursor/pos-01-domain-contract-aa87` @ `fc067be`），不是 `main`。
 > **目標 SHA：** 本輪只修 PR #128 head
-> `d00e5fad7f0f36687937b62337293ce3e5ab79ac` 的兩份 docs。
+> `42d78e3383c8c07b62a1c48947ad1aef9596eaf6` 的兩份 docs。
 
 ---
 
@@ -21,7 +21,8 @@
 付款、履約當真相；POS 只建立「線上店收快照＋快照明細」，讓退款、回庫、
 佣金回沖、鎖帳都能逐行追溯。金額一律用整數元（BigInt），不再寫「或」。
 店與店家必須雙向一對一綁定；現場開單只能用「使用中且已驗證」的綁定，
-而且驗證時間不能晚於成交時間。綁定一經啟用就不能改店家或門市。
+而且驗證時間不能晚於成交時間。綁定一經啟用就不能改店家或門市；撤銷結束日必須晚於最後一筆成交，不能剛好相等。
+店收／快照一經寫入，店家、門市、綁定、成交時間也不能改，只能另開沖銷。
 已撤銷的綁定不能拿來開新單；歷史補建必須用一般 POS 拿不到的資料庫權限。
 未履約取消只釋放預約、不加可售庫存；已履約且實物退回、HQ 核准且可再售
 才加回 onHand。本輪只改這兩份文件，不建表、不搬資料。
@@ -32,20 +33,18 @@
 
 ### 1.1 本輪做什麼
 
-只修兩份文件，關閉 binding 時間序／不可變／backfill 權限（先前 gate 仍成立）：
+只修兩份文件，關閉這 3 項（先前 gate 仍成立）：
 
-1. live 與受控 backfill **都**要求 `verifiedAt <= soldAt`。先後固定為
-   `effectiveFrom <= verifiedAt <= soldAt`。`soldAt` 早於 `verifiedAt` 必須失敗。
-2. Binding 不可變：一旦 `active` 或被 fact／policy 引用，`merchantId`／
-   `storeId`／`effectiveFrom`／`verifiedAt` 不可 UPDATE，DELETE Restrict。
-   只允許受控 `active → revoked` 並設定 `effectiveTo`／`revokedAt`；
-   `effectiveTo` 不得早於已引用 fact 的 `max(soldAt)`。例外只走
-   correction／reversal。
-3. backfill 安全**不能只信 custom GUC**。必須用一般 app／POS 無權取得的
-   dedicated DB role，或 REVOKE 保護的 SECURITY DEFINER 函式；函式內強制
-   actor／batch／reason 與歷史驗證。一般 role 無該路徑的直接 INSERT。
-   GUC 最多當附加 context，不是授權。
-4. 補 Preview mutation negative tests 與 checklist。
+1. revoke 嚴格上界：有 fact 時 `effectiveTo > max(soldAt)`，**不得等於**。
+   空 fact 集合另明確處理。同步 trigger、B10、monitor、checklist、negative。
+2. SECURITY DEFINER hardening：固定安全 `search_path`；函式內 table／
+   function／operator 皆 schema-qualified；owner 為 NOLOGIN／非 app role；
+   app／POS／PUBLIC 不得 CREATE trusted schema；預設 REVOKE EXECUTE 後只
+   grant dedicated role。加 object shadowing／role impersonation tests。
+3. Fact 身分不可變：`PosSale`／`MerchantSaleSnapshot` INSERT 後
+   `bindingId`、`merchantId`、`storeId`、`soldAt` 及 source identity 不可
+   UPDATE。Correction 只能 reversal／new adjustment。加 Preview mutation
+   negatives。
 
 ### 1.2 本輪不做什麼
 
@@ -582,7 +581,7 @@ DEFERRABLE constraint trigger 必須**同一瞬間同時**全部成立，缺一�
 這條路徑**看見 revoked 或 pending 就失敗**。不得因為「這筆 binding
 以前有效」而讓 live POS 寫入。
 
-寫入成功後，fact 上的 `bindingId` **凍結**。之後 binding 被 revoked，
+寫入成功後，fact 身分欄**凍結**（見 §4.7）。之後 binding 被 revoked，
 歷史 fact 仍指向那一列，不得改掛新 binding。Reservation／Refund 只從
 fact header 追溯，不接受 client 另傳 `storeId`／`bindingId`。
 
@@ -595,25 +594,35 @@ fact header 追溯，不接受 client 另傳 `storeId`／`bindingId`。
 這條路徑必須同時滿足：
 
 1. **授權不是 GUC。** 必須是一般 app／POS **無權取得** 的 dedicated DB
-   role，或對該 role 才 `GRANT EXECUTE`、對 PUBLIC／app／POS
-   `REVOKE EXECUTE` 的 `SECURITY DEFINER` 函式。函式擁有者與 app 連線
-   **不得是同一 role**（這與 §7.4「不要用 REVOKE 取代 settlement
-   immutability」不衝突：此處是**權限隔離**，不是對 table owner 自己
-   REVOKE）。
+   role，或對該 role 才 `GRANT EXECUTE` 的 `SECURITY DEFINER` 函式。
+   hardening 見 §4.4.1。
 2. 函式**內部**強制寫入 audit：`actorId`、`batchId`、`reason`（缺一
    不可），並重跑歷史驗證。呼叫端傳再完整，函式不驗仍算未關閉。
-3. 一般 app／POS role **無此路徑的直接 INSERT**（對「指向 revoked
-   binding 的 fact」無 INSERT 權，或 INSERT 一律被路徑 A trigger 擋下）。
-   只能呼叫上述函式；沒有 EXECUTE 就失敗。
-4. Custom GUC（例如 `SET LOCAL pos.fact_write_path`）**最多當附加
-   context**，**不是** authority。一般 role 自己 `SET` 之後直接 INSERT
-   revoked fact → 必須失敗。
-5. `soldAt` **原本就在當時有效期**，且同樣
+3. 一般 app／POS role **無此路徑的直接 INSERT**。只能呼叫上述函式；
+   沒有 EXECUTE 就失敗。
+4. Custom GUC **最多當附加 context**，**不是** authority。
+5. `soldAt` **原本就在當時有效期**，且
    `effectiveFrom <= verifiedAt <= soldAt`，以及
-   `soldAt < effectiveTo`（revoked 後 `effectiveTo` 已有值）。
-   不是「現在把一筆新單往回填」。
+   `soldAt < effectiveTo`（與 revoke 嚴格上界同一半開區間）。
 6. merchant／store 仍須與該歷史 binding 一致。
-7. 通過後 fact 一樣凍結 `bindingId`；後續 live 更新仍走路徑 A 的規則。
+7. 通過後 fact 身分欄凍結（§4.7）；後續 live 更新仍走路徑 A。
+
+#### 4.4.1 SECURITY DEFINER hardening
+
+函式若用 `SECURITY DEFINER`，必須同時滿足（缺一未關閉）：
+
+| 規則 | 落地 |
+|---|---|
+| 固定安全 `search_path` | `SET search_path = pg_catalog, <trusted_schema>` 或 `SET search_path = ''`（空）。寫在函式屬性，呼叫端改不了 |
+| 全部 schema-qualified | 函式體內每個 table、function、operator 都寫 `schema.object`，不靠 search_path 解析未限定名稱 |
+| owner | `NOLOGIN` 且**不是** app／POS role。與 §7.4 不衝突：這是權限隔離，不是對 table owner 自己 REVOKE |
+| trusted schema 鎖定 | app／POS／PUBLIC **不得** `CREATE` 物件到 trusted schema（無 `CREATE` privilege） |
+| EXECUTE 預設關掉 | 建函式後立刻 `REVOKE EXECUTE ON FUNCTION ... FROM PUBLIC`；只 `GRANT EXECUTE` 給 dedicated backfill role |
+
+Preview **必須**含：
+
+- **Object shadowing：** 攻擊者在自己可寫 schema 建同名 table／function／operator，再把該 schema 放到 `search_path` 前面或呼叫未限定名稱 → 函式仍只碰 `pg_catalog`／trusted 物件，或直接失敗；不得被影武者物件接管。
+- **Role impersonation：** 一般 role `SET ROLE`／`SET SESSION AUTHORIZATION` 成 DEFINER 或 dedicated role → 失敗（NOLOGIN、無權）。`SET ROLE` 成 app 後呼叫函式 → 仍無 EXECUTE。
 
 ### 4.5 Binding 欄位不可變
 
@@ -628,11 +637,18 @@ fact header 追溯，不接受 client 另傳 `storeId`／`bindingId`。
 **唯一允許的日常變更：** 受控 `active → revoked`，且**同時**設定
 `effectiveTo` 與 `revokedAt`。必須由 HQ 受控程序寫入，不是店家畫面。
 
-`effectiveTo` **不得早於** 已引用 fact 的 `max(soldAt)`。
+`effectiveTo` 與已引用 fact 的關係用**半開區間**，與 live／backfill 的
+`soldAt < effectiveTo` 同一把尺：
+
+| 引用 fact 集合 | revoke trigger 必須 |
+|---|---|
+| **非空** | lock 所有引用 `PosSale` ∪ `MerchantSaleSnapshot` 後，`effectiveTo > max(soldAt)`。**不得等於** `max(soldAt)`（等於會讓最後一筆成交變成 `soldAt < effectiveTo` 為假，等於把已存在 fact 踢出有效期） |
+| **空集合** | **不做** `max(soldAt)` 比較，也**不准**把空集合的 max 當成 0、epoch 或 NULL 去比。仍必須 `effectiveTo IS NOT NULL`、`revokedAt IS NOT NULL`、`effectiveTo > effectiveFrom`；若有 `verifiedAt` 則 `effectiveTo > verifiedAt`。空集合 revoke 後，路徑 A 仍因 `status = 'revoked'` 拒絕新 fact |
+
 constraint owner：revoke 交易內 `SELECT ... FOR UPDATE` 引用列 +
-constraint trigger。若要把結束日早於某筆已存在成交，只能走獨立的
-**correction／reversal** 流程（先處理那筆 fact，再 revoke），不得在
-revoke trigger 裡默默改 fact。
+constraint trigger。若要把結束日壓到 ≤ 某筆已存在 `soldAt`，只能走獨立
+**correction／reversal**（先處理那筆 fact，再 revoke），不得在 revoke
+trigger 裡默默改 fact。
 
 pending 且**尚未**被引用的列，仍可在驗證前修正 store／期間；一經
 `active` 或一經被引用，上述欄位立刻凍結。
@@ -647,10 +663,13 @@ pending 且**尚未**被引用的列，仍可在驗證前修正 store／期間�
 | `verifiedAt <= soldAt`（live 與 backfill） | fact DEFERRABLE trigger（路徑 A 與函式內路徑 B） |
 | live INSERT 同時成立 | 路徑 A trigger |
 | revoked 不能被 POS runtime 建新 fact | 路徑 A trigger |
-| 歷史 revoked 只能走路徑 B | dedicated role 或 SECURITY DEFINER；一般 role 無直接 INSERT |
+| 歷史 revoked 只能走路徑 B | dedicated role 或 hardening 後的 SECURITY DEFINER；一般 role 無直接 INSERT |
 | GUC 不是授權 | Preview：一般 role `SET` GUC 後 INSERT revoked fact 必須失敗 |
-| active／已引用後身份欄不可改 | BEFORE UPDATE trigger + FK ON DELETE RESTRICT |
-| revoke 的 `effectiveTo` ≥ 已引用 `max(soldAt)` | lock + constraint trigger；例外只走 correction／reversal |
+| DEFINER 不被 shadow／假冒 | 固定 search_path、schema-qualified、NOLOGIN owner、trusted schema 無 CREATE（§4.4.1） |
+| active／已引用後 binding 身份欄不可改 | BEFORE UPDATE trigger + FK ON DELETE RESTRICT |
+| revoke 有 fact：`effectiveTo > max(soldAt)` | lock + constraint trigger；**等於也失敗** |
+| revoke 空 fact 集合 | 跳過 max 比較；仍要 effectiveTo／revokedAt 與期間 CHECK |
+| fact 身分欄 INSERT 後不可改 | §4.7 BEFORE UPDATE trigger |
 
 ### 4.6 Preview mutation negative tests（只定義，本輪不執行）
 
@@ -671,14 +690,41 @@ pending 且**尚未**被引用的列，仍可在驗證前修正 store／期間�
 - DELETE 已被引用的 binding → 失敗（Restrict）。
 - DELETE 已 `active`、尚無引用的 binding → 失敗（只准 revoked）。
 - `active → revoked` 卻未同時寫 `effectiveTo`／`revokedAt` → 失敗。
-- `effectiveTo < max(soldAt)` of 引用 facts → 失敗（除非先走
-  correction／reversal）。
+- 有 fact 且 `effectiveTo < max(soldAt)` → 失敗。
+- 有 fact 且 `effectiveTo = max(soldAt)` → **失敗**（B10 嚴格上界）。
+- 空 fact 集合：`effectiveTo` 空、或 `effectiveTo <= effectiveFrom` → 失敗；
+  合格空集合 revoke（有 effectiveTo／revokedAt、期間合法）應通過，且
+  之後 live INSERT 仍失敗。
 - 一般 app／POS role 對 revoked binding **直接 INSERT** fact → 失敗。
 - 一般 role `SET` custom GUC 後再直接 INSERT revoked fact → **仍失敗**。
 - 一般 role `EXECUTE` backfill 函式 → 失敗（無 EXECUTE）。
 - dedicated／DEFINER 函式缺 `actor`／`batch`／`reason` → 失敗。
+- Object shadowing：可寫 schema 放同名物件後呼叫函式 → 不得打到影武者。
+- Role impersonation：`SET ROLE`／`SET SESSION AUTHORIZATION` 成
+  DEFINER／dedicated → 失敗。
+- UPDATE 已 INSERT 的 `PosSale`／`MerchantSaleSnapshot` 的 `bindingId`／
+  `merchantId`／`storeId`／`soldAt`／source identity → 失敗（§4.7）。
 - 受控歷史 backfill **另測**：合格（revoked＋`effectiveFrom <= verifiedAt
-  <= soldAt`＋當時有效期＋audit＋正確 role）才通過。
+  <= soldAt`＋`soldAt < effectiveTo`＋audit＋正確 role）才通過。
+
+### 4.7 Fact 身分欄 INSERT 後不可變
+
+`PosSale` 與 `MerchantSaleSnapshot` **一經 INSERT**，下列欄位不可 UPDATE。
+BEFORE UPDATE trigger 比對 OLD／NEW，任一不同就 RAISE：
+
+| 模型 | 凍結欄位 |
+|---|---|
+| `PosSale` | `bindingId`、`merchantId`、`storeId`、`soldAt` |
+| `MerchantSaleSnapshot` | 同上，加上 source identity：`sourceOrderId`（以及若有的 source 對等 key） |
+
+金額、狀態機允許的後續欄（例如退款後的衍生狀態）不在此列；但**不得**
+藉「改狀態」順便改身分欄。
+
+更正**只能**走 reversal／new adjustment（或新的 Refund／ledger 列）。
+**禁止**直接改已存在 fact 的身分或成交時間來「修錯單」。
+
+Preview mutation negatives：對已存在 fact `UPDATE soldAt`、`UPDATE bindingId`、
+`UPDATE merchantId`、`UPDATE storeId`、`UPDATE sourceOrderId` 均必須失敗。
 
 ---
 
@@ -826,7 +872,9 @@ v0.2 若讀起來像「CHECK 能保證跨表累計」，那是錯的。改正如
 | live fact 必須 active＋verified＋時間序＋同店 | 普通 CHECK 不夠 | 路徑 A DEFERRABLE trigger（§4.4） |
 | revoked 不得被 POS runtime 建新 fact | 普通 CHECK 不夠 | 路徑 A trigger；路徑 B 僅 dedicated role／SECURITY DEFINER，GUC 非授權 |
 | active／已引用 binding 身份欄不可改 | 普通 CHECK 不夠 | BEFORE UPDATE trigger + ON DELETE RESTRICT（§4.5） |
-| revoke 的 effectiveTo ≥ 已引用 max(soldAt) | 普通 CHECK 不夠 | lock + constraint trigger；例外只走 correction／reversal |
+| revoke 有 fact：effectiveTo > max(soldAt)，不得等於 | 普通 CHECK 不夠 | lock + constraint trigger（§4.5）；空集合跳過 max、仍要期間欄 |
+| DEFINER search_path／shadowing | 普通 CHECK 不夠 | 函式 SET search_path + schema-qualified + NOLOGIN + REVOKE EXECUTE（§4.4.1） |
+| fact 身分欄 INSERT 後不可改 | 普通 CHECK 不夠 | BEFORE UPDATE trigger（§4.7）；更正只走 reversal／adjustment |
 
 能刪的冗餘值：若 child 的 `merchantId` 只是為了 CHECK 對上 parent，且已有
 `FOREIGN KEY (parent_id, merchant_id) REFERENCES parent(id, merchant_id)`，
@@ -1051,9 +1099,10 @@ POS-01 程式仍未凍結此規則；本節只修正文件，不覆蓋 POS-01 �
 | 9 | 仍只 2 docs | 本檔 + `docs/POS-02-MIGRATION-PLAN.md`。相對 POS-01 的 diff 不得含第三檔 |
 | 10 | Snapshot↔Order 一致性 | §2.3.1 line 自帶 `sourceOrderId`；`line.snapshot.sourceOrderId = line.sourceOrderId = OrderItem.orderId`；product／qty／price 來自該 item；能 FK 先 FK，其餘 DEFERRABLE trigger；Preview negative：Order B item 掛 Order A snapshot 必須失敗 |
 | 11 | Refund header／line 同一來源 | §2.5.1 kind 一致、parent sale／snapshot 一致；禁止 header POS + line snapshot 與同店不同單；累計／佣金／庫存 lock 真正來源 line；列 negative tests |
-| 12 | Fact 保存 authoritative binding | §4.4–§4.6：live 與 backfill 皆 `effectiveFrom <= verifiedAt <= soldAt`；`soldAt < verifiedAt` fail。路徑 A 同時驗 active／verified／時間序／同店。路徑 B 用 dedicated role 或 REVOKE 保護的 SECURITY DEFINER，函式內強制 audit；GUC 非授權；一般 role 無直接 INSERT。§4.5 身份欄不可 UPDATE、DELETE Restrict；revoke 只准設 effectiveTo／revokedAt 且不得早於 max(soldAt)。Preview mutation negatives 已列 |
+| 12 | Fact 保存 authoritative binding | §4.4–§4.7：live 與 backfill 皆 `effectiveFrom <= verifiedAt <= soldAt`。路徑 B 用 hardening 後的 SECURITY DEFINER（§4.4.1）。§4.5 有 fact 時 `effectiveTo > max(soldAt)` 不得等於；空集合另處理。§4.7 fact 身分欄不可 UPDATE |
 | 13 | O1 回庫文字 | §1.3、§6.2、§11.1.1：未履約取消只 release reserved、不加 onHand；已履約且實物退回、HQ 核准後可再售才 `onHand += qty`，不可售只寫 loss |
-| 14 | Binding 時間序／不可變／backfill 權限 | §4.4–§4.6：live 與 backfill 皆 `verifiedAt <= soldAt`；身份欄不可 UPDATE、DELETE Restrict；路徑 B 非 GUC，而是 dedicated role 或 SECURITY DEFINER；Preview mutation B5／B8–B13 |
+| 14 | Binding 時間序／不可變／backfill 權限 | §4.4–§4.6：`verifiedAt <= soldAt`；路徑 B 非 GUC；§4.4.1 search_path／NOLOGIN／shadowing／impersonation；§4.5 `effectiveTo > max(soldAt)`；B10 含等於失敗 |
+| 15 | Fact 身分不可變 | §4.7：INSERT 後 `bindingId`／`merchantId`／`storeId`／`soldAt`／source identity 不可 UPDATE；更正只走 reversal／adjustment；Preview mutation negatives |
 
 ---
 
