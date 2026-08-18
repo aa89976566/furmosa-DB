@@ -148,7 +148,7 @@ export function visibleSales(session: MerchantPosSession): SaleSnapshot[] {
       canMerchantRequestRefund: false,
       refund: sale.refund ?? {
         status: 'requested',
-        statusLabel: '退款申請中',
+        statusLabel: '已提出退款申請',
         note: '門市已提出退款申請，等待總部審核。此頁沒有審核按鈕。',
         nextPeriodNote: null,
         inventoryNote: '庫存處置由總部結果決定。',

@@ -78,12 +78,19 @@ describe('merchant POS preview visible copy audit', () => {
   });
 
   it('does not leave engineering words in preview UI source strings', () => {
-    const root = path.join(process.cwd(), 'components/merchant-pos-preview');
-    const files = readdirSync(root).filter((name) => name.endsWith('.tsx'));
+    const roots = [
+      path.join(process.cwd(), 'components/merchant-pos-preview'),
+      path.join(process.cwd(), 'lib/merchant-pos-preview'),
+    ];
+    const files = roots.flatMap((root) =>
+      readdirSync(root)
+        .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes('.test.'))
+        .map((name) => path.join(root, name)),
+    );
     for (const file of files) {
-      const src = readFileSync(path.join(root, file), 'utf8');
-      assert.equal(src.includes('fixture-only'), false, file);
-      assert.equal(src.includes('伺服器快照'), false, file);
+      const src = readFileSync(file, 'utf8');
+      const visibleStrings = src.match(/['"`][^'"`]*(?:fixture-only|伺服器快照|不重算|server snapshot)[^'"`]*['"`]/gi) ?? [];
+      assert.equal(visibleStrings.length, 0, `${file} ${visibleStrings.join(',')}`);
       assert.equal(/['"`]HQ['"`]/.test(src), false, file);
     }
   });

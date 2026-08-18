@@ -24,6 +24,8 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(cart, /htmlFor=\{priceId\}/);
     assert.match(cart, /htmlFor=\{qtyId\}/);
     assert.match(cart, /inputMode="numeric"/);
+    assert.match(cart, /aria-describedby=\{result\.qtyError \? qtyErrorId : undefined\}/);
+    assert.match(cart, /min-h-\[44px\]/);
     assert.match(cart, /onQtyCommit/);
     assert.match(restock, /htmlFor=\{qtyId\}/);
   });
