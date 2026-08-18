@@ -57,3 +57,14 @@
   width: 100%;
   min-width: 0;
 }
+
+/* Short viewports (360/390/430) scroll this panel so 3+ cart lines can reach the last CTA. Source contract only; not a live viewport proof. */
+.dialogPanel {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+}

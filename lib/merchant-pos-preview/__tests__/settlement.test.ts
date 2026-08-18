@@ -2,45 +2,94 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { SETTLEMENT_LOCKED } from '../copy';
+import { SETTLEMENT_INTRO, SETTLEMENT_LOCKED } from '../copy';
 import { SETTLEMENTS } from '../fixtures';
 import {
-  expectedFurmosaNetTwd,
-  expectedMerchantNetTwd,
-  expectedNetDirection,
-  expectedTotalNetTwd,
+  netDirectionFromSignedSum,
   settlementViews,
+  sumHqPerspectiveSigned,
 } from '../selectors';
+import type { SettlementLedgerRow, SettlementSnapshot } from '../types';
+
+function read(rel: string): string {
+  return readFileSync(path.join(process.cwd(), rel), 'utf8');
+}
+
+function expectedSignedFromDirection(row: SettlementLedgerRow): number {
+  if (row.kind === 'audit' || row.periodRoute === 'next_period') return 0;
+  if (row.direction === 'hq_owes_merchant') return row.amountTwd;
+  if (row.direction === 'merchant_owes_hq') return -row.amountTwd;
+  return 0;
+}
+
+function assertLedgerRow(row: SettlementLedgerRow, settlementId: string) {
+  assert.equal(Number.isInteger(row.amountTwd) && row.amountTwd > 0, true, `${settlementId}:${row.rowId}`);
+  assert.ok(row.label, `${settlementId}:${row.rowId} label`);
+  assert.ok(row.source, `${settlementId}:${row.rowId} source`);
+  assert.ok(row.payer, `${settlementId}:${row.rowId} payer`);
+  assert.ok(row.payee, `${settlementId}:${row.rowId} payee`);
+  assert.ok(row.note, `${settlementId}:${row.rowId} note`);
+  assert.ok(row.periodRoute, `${settlementId}:${row.rowId} periodRoute`);
+  assert.equal(row.hqPerspectiveSignedTwd, expectedSignedFromDirection(row), `${settlementId}:${row.rowId}`);
+}
+
+function assertSnapshot(row: SettlementSnapshot) {
+  for (const item of row.ledger) {
+    assertLedgerRow(item, row.settlementId);
+  }
+  const signedSum = sumHqPerspectiveSigned(row.ledger);
+  assert.equal(signedSum, row.netAmountTwd, row.settlementId);
+  assert.equal(row.netDirection, netDirectionFromSignedSum(signedSum), row.settlementId);
+  if (signedSum > 0) {
+    assert.equal(row.netDirection, 'hq_owes_merchant', row.settlementId);
+    assert.equal(row.netDirectionLabel, '總部應付店家', row.settlementId);
+  } else if (signedSum < 0) {
+    assert.equal(row.netDirection, 'merchant_owes_hq', row.settlementId);
+    assert.equal(row.netDirectionLabel, '店家應付總部', row.settlementId);
+  }
+}
 
 describe('merchant POS preview settlement snapshot', () => {
-  it('keeps every snapshot internally consistent with the displayed equation', () => {
+  it('uses fixture signed ledger rows and a single HQ-perspective sum', () => {
     const views = settlementViews();
     assert.equal(views.length, SETTLEMENTS.length);
+    assert.equal(SETTLEMENT_INTRO, '伺服器快照；本頁不重算。');
 
     for (const row of views) {
-      assert.equal(Number.isInteger(row.merchantCollectedNetTwd), true, row.settlementId);
-      assert.equal(Number.isInteger(row.furmosaCollectedNetTwd), true, row.settlementId);
-      assert.equal(Number.isInteger(row.netAmountTwd), true, row.settlementId);
-      assert.equal(expectedMerchantNetTwd(row), row.merchantCollectedNetTwd, row.settlementId);
-      assert.equal(expectedFurmosaNetTwd(row), row.furmosaCollectedNetTwd, row.settlementId);
-      assert.equal(expectedTotalNetTwd(row), row.netAmountTwd, row.settlementId);
-      assert.equal(
-        row.ordinaryCommissionSnapshotTwd,
-        row.merchantCollectedCommissionTwd + row.furmosaCollectedCommissionTwd,
-        row.settlementId,
-      );
-      assert.equal(
-        row.voucherFixedSubsidyTwd,
-        row.merchantCollectedVoucherSubsidyTwd + row.furmosaCollectedVoucherSubsidyTwd,
-        row.settlementId,
-      );
-      assert.equal(
-        row.refundNextPeriodAdjustmentTwd,
-        row.merchantCollectedRefundAdjustmentTwd + row.furmosaCollectedRefundAdjustmentTwd,
-        row.settlementId,
-      );
-      assert.equal(row.netDirection, expectedNetDirection(row.netAmountTwd), row.settlementId);
+      assertSnapshot(row);
     }
+
+    const draft = views.find((row) => row.settlementId === 'stl-draft');
+    const reviewing = views.find((row) => row.settlementId === 'stl-reviewing');
+    const approved = views.find((row) => row.settlementId === 'stl-approved');
+    const paid = views.find((row) => row.settlementId === 'stl-paid');
+    assert.ok(draft && reviewing && approved && paid);
+
+    const draftRemit = draft.ledger.find((item) => item.rowId === 'stl-draft-remit');
+    const draftOfficialSales = draft.ledger.find((item) => item.rowId === 'stl-draft-audit-official-sales');
+    const draftOfficialCommission = draft.ledger.find((item) => item.rowId === 'stl-draft-official-commission');
+    const draftVoucher = draft.ledger.find((item) => item.rowId === 'stl-draft-voucher');
+    assert.ok(draftRemit && draftOfficialSales && draftOfficialCommission && draftVoucher);
+    assert.equal(draftRemit.direction, 'merchant_owes_hq');
+    assert.equal(draftRemit.kind, 'obligation');
+    assert.equal(draftOfficialSales.kind, 'audit');
+    assert.equal(draftOfficialSales.hqPerspectiveSignedTwd, 0);
+    assert.equal(draftOfficialCommission.direction, 'hq_owes_merchant');
+    assert.equal(draftVoucher.direction, 'hq_owes_merchant');
+    assert.equal(draft.netDirection, 'merchant_owes_hq');
+    assert.equal(draft.netAmountTwd, -9940);
+
+    const nextPeriod = reviewing.ledger.find((item) => item.periodRoute === 'next_period');
+    const thisRefund = reviewing.ledger.find((item) => item.rowId === 'stl-reviewing-refund-clawback');
+    assert.ok(nextPeriod && thisRefund);
+    assert.equal(nextPeriod.hqPerspectiveSignedTwd, 0);
+    assert.equal(thisRefund.direction, 'merchant_owes_hq');
+    assert.equal(reviewing.netDirection, 'merchant_owes_hq');
+
+    assert.equal(approved.netDirection, 'hq_owes_merchant');
+    assert.equal(approved.netAmountTwd, 2280);
+    assert.equal(paid.netDirection, 'merchant_owes_hq');
+    assert.equal(paid.netAmountTwd, -6480);
   });
 
   it('locks approved and paid periods without reopen or pay actions', () => {
@@ -51,16 +100,25 @@ describe('merchant POS preview settlement snapshot', () => {
     assert.equal(paid.locked, true);
     assert.equal(approved.lockNote, SETTLEMENT_LOCKED);
     assert.equal(paid.lockNote, SETTLEMENT_LOCKED);
+    assert.ok(approved.ledger.some((item) => item.periodRoute === 'next_period'));
+    assert.ok(paid.ledger.some((item) => item.periodRoute === 'next_period'));
 
-    const src = readFileSync(
-      path.join(process.cwd(), 'components/merchant-pos-preview/settlement-panel.tsx'),
-      'utf8',
-    );
+    const src = read('components/merchant-pos-preview/settlement-panel.tsx');
+    const copy = read('lib/merchant-pos-preview/copy.ts');
+    const selectors = read('lib/merchant-pos-preview/selectors.ts');
     assert.equal(src.includes('重開'), false);
     assert.equal(src.includes('付款'), false);
     assert.equal(src.includes('編輯'), false);
     assert.equal(src.includes('<Button'), false);
     assert.match(src, /SETTLEMENT_LOCKED/);
-    assert.match(src, /SETTLEMENT_EQ_MERCHANT/);
+    assert.match(src, /SETTLEMENT_INTRO/);
+    assert.match(src, /Math\.abs\(row\.netAmountTwd\)/);
+    assert.equal(src.includes('SETTLEMENT_EQ_'), false);
+    assert.equal(src.includes('ChannelBlock'), false);
+    assert.equal(src.includes('merchantCollectedSalesTwd'), false);
+    assert.equal(copy.includes('SETTLEMENT_EQ_'), false);
+    assert.equal(selectors.includes('expectedMerchantNetTwd'), false);
+    assert.equal(selectors.includes('expectedFurmosaNetTwd'), false);
+    assert.equal(selectors.includes('expectedTotalNetTwd'), false);
   });
 });

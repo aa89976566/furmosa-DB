@@ -100,24 +100,33 @@ export type SaleSnapshot = {
   canMerchantRequestRefund: boolean;
 };
 
+export type LedgerKind = 'audit' | 'obligation';
+
+export type LedgerDirection = 'hq_owes_merchant' | 'merchant_owes_hq';
+
+export type PeriodRoute = 'this_period' | 'next_period';
+
+export type SettlementLedgerRow = {
+  rowId: string;
+  label: string;
+  source: string;
+  kind: LedgerKind;
+  direction: LedgerDirection | null;
+  payer: string;
+  payee: string;
+  amountTwd: number;
+  hqPerspectiveSignedTwd: number;
+  note: string;
+  periodRoute: PeriodRoute;
+  periodRouteLabel: string;
+};
+
 export type SettlementSnapshot = {
   settlementId: string;
   status: SettlementStatus;
   statusLabel: string;
   periodLabel: string;
-  merchantCollectedSalesTwd: number;
-  merchantCollectedCommissionTwd: number;
-  merchantCollectedVoucherSubsidyTwd: number;
-  merchantCollectedRefundAdjustmentTwd: number;
-  merchantCollectedNetTwd: number;
-  furmosaCollectedSalesTwd: number;
-  furmosaCollectedCommissionTwd: number;
-  furmosaCollectedVoucherSubsidyTwd: number;
-  furmosaCollectedRefundAdjustmentTwd: number;
-  furmosaCollectedNetTwd: number;
-  ordinaryCommissionSnapshotTwd: number;
-  voucherFixedSubsidyTwd: number;
-  refundNextPeriodAdjustmentTwd: number;
+  ledger: SettlementLedgerRow[];
   netDirection: NetDirection;
   netDirectionLabel: string;
   netAmountTwd: number;

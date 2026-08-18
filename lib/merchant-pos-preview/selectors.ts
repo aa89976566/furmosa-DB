@@ -157,31 +157,13 @@ export function settlementViews(): SettlementSnapshot[] {
   return SETTLEMENTS;
 }
 
-export function expectedMerchantNetTwd(row: SettlementSnapshot): number {
-  return (
-    row.merchantCollectedSalesTwd -
-    row.merchantCollectedCommissionTwd +
-    row.merchantCollectedVoucherSubsidyTwd -
-    row.merchantCollectedRefundAdjustmentTwd
-  );
+export function sumHqPerspectiveSigned(rows: SettlementSnapshot['ledger']): number {
+  return rows.reduce((sum, row) => sum + row.hqPerspectiveSignedTwd, 0);
 }
 
-export function expectedFurmosaNetTwd(row: SettlementSnapshot): number {
-  return (
-    row.furmosaCollectedSalesTwd -
-    row.furmosaCollectedCommissionTwd +
-    row.furmosaCollectedVoucherSubsidyTwd -
-    row.furmosaCollectedRefundAdjustmentTwd
-  );
-}
-
-export function expectedTotalNetTwd(row: SettlementSnapshot): number {
-  return row.merchantCollectedNetTwd + row.furmosaCollectedNetTwd;
-}
-
-export function expectedNetDirection(netAmountTwd: number): SettlementSnapshot['netDirection'] {
-  if (netAmountTwd > 0) return 'hq_owes_merchant';
-  if (netAmountTwd < 0) return 'merchant_owes_hq';
+export function netDirectionFromSignedSum(sum: number): SettlementSnapshot['netDirection'] {
+  if (sum > 0) return 'hq_owes_merchant';
+  if (sum < 0) return 'merchant_owes_hq';
   return 'balanced';
 }
 

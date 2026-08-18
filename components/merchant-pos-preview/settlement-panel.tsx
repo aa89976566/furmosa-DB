@@ -3,28 +3,22 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  CHANNEL_COMMISSION_LABEL,
-  CHANNEL_NET_LABEL,
-  CHANNEL_REFUND_LABEL,
-  CHANNEL_SUBSIDY_LABEL,
-  FURMOSA_CHANNEL_LABEL,
-  FURMOSA_COLLECTED_LABEL,
-  MERCHANT_CHANNEL_LABEL,
-  MERCHANT_COLLECTED_LABEL,
+  AUDIT_ONLY_LABEL,
   NET_LABEL,
-  ORDINARY_COMMISSION_LABEL,
-  REFUND_ADJUSTMENT_LABEL,
-  SETTLEMENT_EQ_FURMOSA,
-  SETTLEMENT_EQ_MERCHANT,
-  SETTLEMENT_EQ_TOTAL,
   SETTLEMENT_INTRO,
   SETTLEMENT_LOCKED,
+  SETTLEMENT_ROW_AMOUNT,
+  SETTLEMENT_ROW_DIRECTION,
+  SETTLEMENT_ROW_NOTE,
+  SETTLEMENT_ROW_PAYEE,
+  SETTLEMENT_ROW_PAYER,
+  SETTLEMENT_ROW_ROUTE,
+  SETTLEMENT_ROW_SOURCE,
   SETTLEMENT_TITLE,
-  VOUCHER_SUBSIDY_LABEL,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { settlementViews } from '@/lib/merchant-pos-preview/selectors';
-import type { SettlementSnapshot } from '@/lib/merchant-pos-preview/types';
+import type { SettlementLedgerRow, SettlementSnapshot } from '@/lib/merchant-pos-preview/types';
 
 function statusVariant(status: string) {
   if (status === 'paid' || status === 'approved') return 'success' as const;
@@ -32,112 +26,63 @@ function statusVariant(status: string) {
   return 'secondary' as const;
 }
 
-function ChannelBlock({
-  title,
-  salesLabel,
-  sales,
-  commission,
-  subsidy,
-  refundAdj,
-  net,
-}: {
-  title: string;
-  salesLabel: string;
-  sales: number;
-  commission: number;
-  subsidy: number;
-  refundAdj: number;
-  net: number;
-}) {
+function LedgerRowView({ row }: { row: SettlementLedgerRow }) {
   return (
-    <div className="space-y-1 rounded-xl bg-muted/60 p-3 text-sm">
-      <p className="font-medium text-navy">{title}</p>
-      <dl className="space-y-1">
+    <li className="rounded-xl bg-muted/60 p-3 text-sm">
+      <p className="font-medium text-navy">{row.label}</p>
+      <dl className="mt-2 space-y-1">
         <div className="flex justify-between gap-3">
-          <dt>{salesLabel}</dt>
-          <dd>{formatTwd(sales)}</dd>
+          <dt>{SETTLEMENT_ROW_SOURCE}</dt>
+          <dd className="text-right">{row.source}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt>{CHANNEL_COMMISSION_LABEL}</dt>
-          <dd>{formatTwd(commission)}</dd>
+          <dt>{SETTLEMENT_ROW_PAYER}</dt>
+          <dd>{row.payer}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt>{CHANNEL_SUBSIDY_LABEL}</dt>
-          <dd>{formatTwd(subsidy)}</dd>
+          <dt>{SETTLEMENT_ROW_PAYEE}</dt>
+          <dd>{row.payee}</dd>
+        </div>
+        {row.direction ? (
+          <div className="flex justify-between gap-3">
+            <dt>{SETTLEMENT_ROW_DIRECTION}</dt>
+            <dd className="text-right">
+              {row.payer} → {row.payee}
+            </dd>
+          </div>
+        ) : null}
+        <div className="flex justify-between gap-3">
+          <dt>{SETTLEMENT_ROW_AMOUNT}</dt>
+          <dd>{formatTwd(row.amountTwd)}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt>{CHANNEL_REFUND_LABEL}</dt>
-          <dd>{formatTwd(refundAdj)}</dd>
+          <dt>{SETTLEMENT_ROW_ROUTE}</dt>
+          <dd>{row.periodRouteLabel}</dd>
         </div>
-        <div className="flex justify-between gap-3 font-medium">
-          <dt>{CHANNEL_NET_LABEL}</dt>
-          <dd>{formatTwd(net)}</dd>
+        <div className="flex justify-between gap-3">
+          <dt>{SETTLEMENT_ROW_NOTE}</dt>
+          <dd className="text-right text-muted-foreground">{row.note}</dd>
         </div>
       </dl>
-    </div>
+      {row.kind === 'audit' ? (
+        <p className="mt-2 text-xs text-muted-foreground">{AUDIT_ONLY_LABEL}</p>
+      ) : null}
+    </li>
   );
 }
 
-function SnapshotRows({ row }: { row: SettlementSnapshot }) {
+function SnapshotLedger({ row }: { row: SettlementSnapshot }) {
   return (
-    <>
-      <ChannelBlock
-        title={MERCHANT_CHANNEL_LABEL}
-        salesLabel={MERCHANT_COLLECTED_LABEL}
-        sales={row.merchantCollectedSalesTwd}
-        commission={row.merchantCollectedCommissionTwd}
-        subsidy={row.merchantCollectedVoucherSubsidyTwd}
-        refundAdj={row.merchantCollectedRefundAdjustmentTwd}
-        net={row.merchantCollectedNetTwd}
-      />
-      <ChannelBlock
-        title={FURMOSA_CHANNEL_LABEL}
-        salesLabel={FURMOSA_COLLECTED_LABEL}
-        sales={row.furmosaCollectedSalesTwd}
-        commission={row.furmosaCollectedCommissionTwd}
-        subsidy={row.furmosaCollectedVoucherSubsidyTwd}
-        refundAdj={row.furmosaCollectedRefundAdjustmentTwd}
-        net={row.furmosaCollectedNetTwd}
-      />
-      <dl className="space-y-1 text-sm">
-        <div className="flex justify-between gap-3">
-          <dt>{ORDINARY_COMMISSION_LABEL}</dt>
-          <dd>{formatTwd(row.ordinaryCommissionSnapshotTwd)}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt>{VOUCHER_SUBSIDY_LABEL}</dt>
-          <dd>{formatTwd(row.voucherFixedSubsidyTwd)}</dd>
-        </div>
-        <div className="flex justify-between gap-3">
-          <dt>{REFUND_ADJUSTMENT_LABEL}</dt>
-          <dd>{formatTwd(row.refundNextPeriodAdjustmentTwd)}</dd>
-        </div>
-        <div className="flex justify-between gap-3 font-medium text-navy">
-          <dt>{NET_LABEL}</dt>
-          <dd>
-            {row.netDirectionLabel} {formatTwd(row.netAmountTwd)}
-          </dd>
-        </div>
-      </dl>
-      <div className="space-y-1 text-xs text-muted-foreground">
-        <p>{SETTLEMENT_EQ_MERCHANT}</p>
-        <p>
-          {formatTwd(row.merchantCollectedSalesTwd)} − {formatTwd(row.merchantCollectedCommissionTwd)} +{' '}
-          {formatTwd(row.merchantCollectedVoucherSubsidyTwd)} − {formatTwd(row.merchantCollectedRefundAdjustmentTwd)} ={' '}
-          {formatTwd(row.merchantCollectedNetTwd)}
-        </p>
-        <p>{SETTLEMENT_EQ_FURMOSA}</p>
-        <p>
-          {formatTwd(row.furmosaCollectedSalesTwd)} − {formatTwd(row.furmosaCollectedCommissionTwd)} +{' '}
-          {formatTwd(row.furmosaCollectedVoucherSubsidyTwd)} − {formatTwd(row.furmosaCollectedRefundAdjustmentTwd)} ={' '}
-          {formatTwd(row.furmosaCollectedNetTwd)}
-        </p>
-        <p>{SETTLEMENT_EQ_TOTAL}</p>
-        <p>
-          {formatTwd(row.merchantCollectedNetTwd)} + {formatTwd(row.furmosaCollectedNetTwd)} = {formatTwd(row.netAmountTwd)}
-        </p>
-      </div>
-    </>
+    <div className="space-y-3">
+      <ul className="space-y-2">
+        {row.ledger.map((item) => (
+          <LedgerRowView key={item.rowId} row={item} />
+        ))}
+      </ul>
+      <p className="text-sm font-medium text-navy">
+        {NET_LABEL} {row.netDirectionLabel} {formatTwd(Math.abs(row.netAmountTwd))}
+      </p>
+    </div>
   );
 }
 
@@ -164,7 +109,7 @@ export function SettlementPanel() {
                   </div>
                   <Badge variant={statusVariant(row.status)}>{row.statusLabel}</Badge>
                 </div>
-                <SnapshotRows row={row} />
+                <SnapshotLedger row={row} />
                 {row.locked ? (
                   <p className="rounded-xl bg-muted/70 p-3 text-sm font-medium text-navy">
                     {row.lockNote ?? SETTLEMENT_LOCKED}

@@ -73,6 +73,24 @@ describe('merchant POS preview modal state invariants', () => {
     assert.equal(openPreviewDialogCount(session), 1);
   });
 
+  it('keeps one cart dialog when three lines stay on the lines step', () => {
+    let session = createSession();
+    session = selectVariant(session, 'prod-beef', 'sku-beef-80');
+    session = addSelectedToCart(session, 'prod-beef');
+    session = selectVariant(session, 'prod-beef', 'sku-beef-150');
+    session = addSelectedToCart(session, 'prod-beef');
+    session = selectVariant(session, 'prod-chicken', 'sku-chkn-50');
+    session = addSelectedToCart(session, 'prod-chicken');
+    session = setCartOpen(session, true);
+    assert.equal(session.cart.length, 3);
+    assert.equal(session.cartDialogStep, 'lines');
+    assert.equal(openPreviewDialogCount(session), 1);
+    session = openCompleteConfirm(session);
+    assert.equal(session.cartDialogStep, 'confirm');
+    assert.equal(session.cartOpen, true);
+    assert.equal(openPreviewDialogCount(session), 1);
+  });
+
   it('uses Escape to leave confirm then close cart', () => {
     let session = readyCart();
     session = openCompleteConfirm(session);

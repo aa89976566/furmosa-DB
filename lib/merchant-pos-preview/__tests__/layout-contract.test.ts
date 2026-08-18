@@ -26,6 +26,20 @@ describe('merchant POS preview layout static contract', () => {
     assert.match(nav, /styles\.bottomNav/);
   });
 
+  it('source keeps dialog panel scroll classes; this is not a live viewport proof', () => {
+    const css = read('app/preview/merchant-pos/merchant-pos.module.css');
+    const dialog = read('components/merchant-pos-preview/preview-dialog.tsx');
+    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    assert.match(css, /\.dialogPanel\s*\{[\s\S]*max-height:\s*calc\(100dvh - 2rem\)/);
+    assert.match(css, /\.dialogPanel\s*\{[\s\S]*overflow-y:\s*auto/);
+    assert.match(css, /\.dialogPanel\s*\{[\s\S]*overscroll-behavior:\s*contain/);
+    assert.match(css, /\.dialogPanel\s*\{[\s\S]*safe-area-inset-bottom/);
+    assert.match(dialog, /styles\.dialogPanel/);
+    assert.match(cart, /session\.cart\.map/);
+    assert.match(cart, /COMPLETE_SALE/);
+    assert.equal(css.includes('live viewport proof'), true);
+  });
+
   it('source still uses 44px touch target classes; this is not a live viewport proof', () => {
     const files = [
       'components/merchant-pos-preview/checkout-panel.tsx',

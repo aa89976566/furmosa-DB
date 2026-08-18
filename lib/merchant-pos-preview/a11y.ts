@@ -14,3 +14,32 @@ export function canRestoreDialogTrigger(
 ): boolean {
   return Boolean(trigger && trigger.isConnected);
 }
+
+export type DialogFocusSnapshot = {
+  open: boolean;
+  titleId: string;
+  triggerHeld: boolean;
+};
+
+export type DialogFocusPlan = {
+  captureTrigger: boolean;
+  restoreTrigger: boolean;
+  moveFocusToStep: boolean;
+  triggerHeld: boolean;
+};
+
+export function nextDialogFocusPlan(
+  prev: DialogFocusSnapshot,
+  next: Pick<DialogFocusSnapshot, 'open' | 'titleId'>,
+): DialogFocusPlan {
+  const opening = !prev.open && next.open;
+  const closing = prev.open && !next.open;
+  const stepChange = prev.open && next.open && prev.titleId !== next.titleId;
+
+  return {
+    captureTrigger: opening,
+    restoreTrigger: closing && prev.triggerHeld,
+    moveFocusToStep: opening || stepChange,
+    triggerHeld: opening ? true : closing ? false : prev.triggerHeld,
+  };
+}
