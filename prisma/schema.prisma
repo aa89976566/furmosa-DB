@@ -890,6 +890,9 @@ model Order {
   id                String    @id @default(cuid())
   orderNumber       String    @unique // ORD-202605-001
   source            String // website / line / consignment / subscription / manual
+  externalStore     String?   @map("external_store")
+  externalOrderId   String?   @map("external_order_id")
+  externalOrderName String?   @map("external_order_name")
   status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
   paymentStatus     String    @default("unpaid") // unpaid / partial / paid / cod / refunded
   shippingFeeType   String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款
@@ -930,6 +933,7 @@ model Order {
   @@index([merchantId])
   @@index([status, orderedAt])
   @@index([source, orderedAt])
+  @@unique([externalStore, externalOrderId])
 }
 
 model OrderItem {
