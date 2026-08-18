@@ -22,6 +22,7 @@ const FORBIDDEN = [
   /indexedDB/,
   /document\.cookie/,
   /lib\/pos\/domain-contract/,
+  /from\s+['"]@\/lib\/(?:auth|auth-edge|auth-secret|merchant-auth)(?:\/[^'"]*)?['"]/,
 ];
 
 function walk(dir: string): string[] {
