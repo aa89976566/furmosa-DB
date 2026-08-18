@@ -82,7 +82,13 @@ export function CartSheet({
               const priceErrorId = `${priceId}-error`;
               const qtyId = `cart-qty-${line.skuId}`;
               const qtyErrorId = `${qtyId}-error`;
-              const qtyLabel = `${CART_QTY_LABEL}，${product?.name ?? ''} ${result.variant?.specLabel ?? ''}`;
+              const productName = product?.name ?? '';
+              const specLabel = result.variant?.specLabel ?? '';
+              const lineContext = `${productName} ${specLabel}`.trim();
+              const qtyLabel = `${CART_QTY_LABEL}，${lineContext}`;
+              const decreaseLabel = `${DECREASE_QTY}，${lineContext}`;
+              const increaseLabel = `${INCREASE_QTY}，${lineContext}`;
+              const removeLabel = `${REMOVE_LINE}，${lineContext}`;
               return (
                 <li key={line.skuId} className="rounded-xl border border-border/70 p-3">
                   <p className="font-medium text-navy">{product?.name}</p>
@@ -95,19 +101,20 @@ export function CartSheet({
                       type="button"
                       variant="outline"
                       className="min-h-[44px] min-w-[44px]"
-                      aria-label={DECREASE_QTY}
+                      aria-label={decreaseLabel}
                       onClick={() => onQty(line.skuId, -1)}
                     >
                       −
                     </Button>
                     <div className="min-w-[5.5rem] space-y-1.5">
                       <label htmlFor={qtyId} className="text-sm font-medium">
-                        {qtyLabel}
+                        {CART_QTY_LABEL}
                       </label>
                       <Input
                         id={qtyId}
                         inputMode="numeric"
                         value={line.qtyInput}
+                        aria-label={qtyLabel}
                         aria-invalid={Boolean(result.qtyError)}
                         aria-describedby={result.qtyError ? qtyErrorId : undefined}
                         className="min-h-[44px] text-center"
@@ -125,7 +132,7 @@ export function CartSheet({
                       type="button"
                       variant="outline"
                       className="min-h-[44px] min-w-[44px]"
-                      aria-label={INCREASE_QTY}
+                      aria-label={increaseLabel}
                       onClick={() => onQty(line.skuId, 1)}
                     >
                       ＋
@@ -134,6 +141,7 @@ export function CartSheet({
                       type="button"
                       variant="ghost"
                       className="min-h-[44px]"
+                      aria-label={removeLabel}
                       onClick={() => onRemove(line.skuId)}
                     >
                       {REMOVE_LINE}

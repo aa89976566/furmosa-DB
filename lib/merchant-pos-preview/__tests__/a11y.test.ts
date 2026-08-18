@@ -30,6 +30,24 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(restock, /htmlFor=\{qtyId\}/);
   });
 
+  it('gives each cart line plus-minus and remove an accessible name with product and spec', () => {
+    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    assert.match(cart, /const productName = product\?\.name \?\? ''/);
+    assert.match(cart, /const specLabel = result\.variant\?\.specLabel \?\? ''/);
+    assert.match(cart, /const lineContext = `\$\{productName\} \$\{specLabel\}`\.trim\(\)/);
+    assert.match(cart, /const decreaseLabel = `\$\{DECREASE_QTY\}，\$\{lineContext\}`/);
+    assert.match(cart, /const increaseLabel = `\$\{INCREASE_QTY\}，\$\{lineContext\}`/);
+    assert.match(cart, /const removeLabel = `\$\{REMOVE_LINE\}，\$\{lineContext\}`/);
+    assert.match(cart, /aria-label=\{decreaseLabel\}/);
+    assert.match(cart, /aria-label=\{increaseLabel\}/);
+    assert.match(cart, /aria-label=\{removeLabel\}/);
+    assert.equal(cart.includes('aria-label={DECREASE_QTY}'), false);
+    assert.equal(cart.includes('aria-label={INCREASE_QTY}'), false);
+    assert.match(cart, /htmlFor=\{qtyId\}[\s\S]*?\{CART_QTY_LABEL\}/);
+    assert.match(cart, /const qtyLabel = `\$\{CART_QTY_LABEL\}，\$\{lineContext\}`/);
+    assert.match(cart, /aria-label=\{qtyLabel\}/);
+  });
+
   it('source still wires one dialog contract; this is not a live focus proof', () => {
     const dialog = read('components/merchant-pos-preview/preview-dialog.tsx');
     const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
