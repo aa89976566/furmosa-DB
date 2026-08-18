@@ -38,17 +38,3 @@ export function parsePositiveIntQty(raw: string): PriceParseResult {
   }
   return parsed;
 }
-
-/** Preview-only local rule. Service total must be strictly greater than face. */
-export function serviceTotalExceedsFace(
-  serviceTotalTwd: number,
-  faceTwd: number,
-): boolean {
-  return (
-    Number.isInteger(serviceTotalTwd) &&
-    Number.isInteger(faceTwd) &&
-    Number.isFinite(serviceTotalTwd) &&
-    Number.isFinite(faceTwd) &&
-    serviceTotalTwd > faceTwd
-  );
-}

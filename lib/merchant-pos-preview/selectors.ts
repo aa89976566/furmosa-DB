@@ -143,6 +143,11 @@ export function visibleSales(session: MerchantPosSession): SaleSnapshot[] {
         nextPeriodNote: null,
         inventoryNote: '庫存處置由總部結果決定，畫面只顯示快照。',
         commissionNote: '佣金回沖以伺服器結果為準，此頁不重算。',
+        inventoryDisposition: 'pending',
+        conditionLabel: null,
+        lossReason: null,
+        sellableStockReturned: false,
+        settledInLockedPeriod: false,
       },
     };
   });
@@ -150,6 +155,34 @@ export function visibleSales(session: MerchantPosSession): SaleSnapshot[] {
 
 export function settlementViews(): SettlementSnapshot[] {
   return SETTLEMENTS;
+}
+
+export function expectedMerchantNetTwd(row: SettlementSnapshot): number {
+  return (
+    row.merchantCollectedSalesTwd -
+    row.merchantCollectedCommissionTwd +
+    row.merchantCollectedVoucherSubsidyTwd -
+    row.merchantCollectedRefundAdjustmentTwd
+  );
+}
+
+export function expectedFurmosaNetTwd(row: SettlementSnapshot): number {
+  return (
+    row.furmosaCollectedSalesTwd -
+    row.furmosaCollectedCommissionTwd +
+    row.furmosaCollectedVoucherSubsidyTwd -
+    row.furmosaCollectedRefundAdjustmentTwd
+  );
+}
+
+export function expectedTotalNetTwd(row: SettlementSnapshot): number {
+  return row.merchantCollectedNetTwd + row.furmosaCollectedNetTwd;
+}
+
+export function expectedNetDirection(netAmountTwd: number): SettlementSnapshot['netDirection'] {
+  if (netAmountTwd > 0) return 'hq_owes_merchant';
+  if (netAmountTwd < 0) return 'merchant_owes_hq';
+  return 'balanced';
 }
 
 export function availableAfterCart(skuId: string, cart: CartLine[]): number {

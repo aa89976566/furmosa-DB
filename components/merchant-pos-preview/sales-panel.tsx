@@ -4,12 +4,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  LOSS_UNSELLABLE_LABEL,
   NEXT_PERIOD_NOTE,
+  REFUND_CONDITION_LABEL,
+  REFUND_DISPOSITION_LABEL,
+  REFUND_LOSS_REASON_LABEL,
   REQUEST_REFUND,
   REQUEST_REFUND_BODY,
   REQUEST_REFUND_CANCEL,
   REQUEST_REFUND_CONFIRM,
   REQUEST_REFUND_TITLE,
+  RESTOCK_SELLABLE_LABEL,
   SALES_INTRO,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
@@ -76,10 +81,28 @@ export function SalesPanel({
                     <p>{sale.refund.note}</p>
                     <p className="text-muted-foreground">{sale.refund.inventoryNote}</p>
                     <p className="text-muted-foreground">{sale.refund.commissionNote}</p>
-                    {sale.refund.nextPeriodNote ? (
-                      <p className="font-medium text-navy">
-                        {NEXT_PERIOD_NOTE}
+                    {sale.refund.conditionLabel ? (
+                      <p>
+                        {REFUND_CONDITION_LABEL}：{sale.refund.conditionLabel}
                       </p>
+                    ) : null}
+                    {sale.refund.inventoryDisposition === 'restock_sellable' ? (
+                      <p>
+                        {REFUND_DISPOSITION_LABEL}：{RESTOCK_SELLABLE_LABEL}
+                      </p>
+                    ) : null}
+                    {sale.refund.inventoryDisposition === 'loss_unsellable' ? (
+                      <p>
+                        {REFUND_DISPOSITION_LABEL}：{LOSS_UNSELLABLE_LABEL}
+                      </p>
+                    ) : null}
+                    {sale.refund.lossReason ? (
+                      <p>
+                        {REFUND_LOSS_REASON_LABEL}：{sale.refund.lossReason}
+                      </p>
+                    ) : null}
+                    {sale.refund.nextPeriodNote ? (
+                      <p className="font-medium text-navy">{NEXT_PERIOD_NOTE}</p>
                     ) : null}
                   </div>
                 ) : null}

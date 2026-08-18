@@ -17,3 +17,43 @@
   width: 100%;
   min-width: 0;
 }
+
+.main {
+  min-width: 0;
+  padding-inline: 1rem;
+  padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+}
+
+.mainWithCartDock {
+  padding-bottom: calc(11.5rem + env(safe-area-inset-bottom));
+}
+
+.bottomNav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+}
+
+.bottomNavInner {
+  max-width: 32rem;
+  margin-inline: auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.cartDock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(3.25rem + env(safe-area-inset-bottom));
+  z-index: 35;
+}
+
+.cartDockInner {
+  max-width: 32rem;
+  margin-inline: auto;
+  width: 100%;
+  min-width: 0;
+}

@@ -8,8 +8,8 @@ function read(rel: string): string {
   return readFileSync(path.join(process.cwd(), rel), 'utf8');
 }
 
-describe('merchant POS preview a11y', () => {
-  it('labels search, prices and restock quantity', () => {
+describe('merchant POS preview a11y static contract', () => {
+  it('source still wires labels; this is not a live a11y proof', () => {
     const checkout = read('components/merchant-pos-preview/checkout-panel.tsx');
     const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
     const restock = read('components/merchant-pos-preview/restock-panel.tsx');
@@ -20,15 +20,18 @@ describe('merchant POS preview a11y', () => {
     assert.match(restock, /htmlFor=\{qtyId\}/);
   });
 
-  it('uses dialog label, focus trap and Escape', () => {
+  it('source still wires one dialog contract; this is not a live focus proof', () => {
     const dialog = read('components/merchant-pos-preview/preview-dialog.tsx');
+    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
     assert.match(dialog, /role="dialog"/);
     assert.match(dialog, /aria-modal="true"/);
     assert.match(dialog, /aria-labelledby=\{titleId\}/);
     assert.match(dialog, /isEscapeKey\(event\.key\)/);
     assert.match(dialog, /nextTabIndex\(/);
     assert.match(dialog, /canRestoreDialogTrigger\(/);
-    assert.match(dialog, /inert:\s*true/);
+    assert.match(dialog, /onCloseRef/);
+    assert.match(dialog, /}, \[open\]\)/);
+    assert.equal((cart.match(/<PreviewDialog/g) ?? []).length, 1);
     assert.equal(isEscapeKey('Escape'), true);
     assert.equal(isEscapeKey('Esc'), false);
     assert.equal(nextTabIndex(0, 3, false), 1);
@@ -37,7 +40,7 @@ describe('merchant POS preview a11y', () => {
     assert.equal(canRestoreDialogTrigger({ isConnected: false }), false);
   });
 
-  it('marks the current bottom tab with aria-current', () => {
+  it('source still marks the current tab; this is not a live a11y proof', () => {
     const nav = read('components/merchant-pos-preview/bottom-nav.tsx');
     assert.match(nav, /aria-current=\{current \? 'page' : undefined\}/);
     assert.match(nav, /focus-visible:ring-2/);

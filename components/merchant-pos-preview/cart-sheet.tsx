@@ -44,10 +44,29 @@ export function CartSheet({
   onComplete: () => void;
 }) {
   const totals = cartTotals(session.cart);
+  const confirming = session.cartDialogStep === 'confirm';
 
   return (
-    <>
-      <PreviewDialog open={session.cartOpen} titleId="cart-title" title={CART_TITLE} onClose={onClose}>
+    <PreviewDialog
+      open={session.cartOpen}
+      titleId={confirming ? 'complete-sale-title' : 'cart-title'}
+      title={confirming ? COMPLETE_SALE_CONFIRM_TITLE : CART_TITLE}
+      onClose={confirming ? onCancelComplete : onClose}
+    >
+      {confirming ? (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">{COMPLETE_SALE_CONFIRM_BODY}</p>
+          <p className="text-xs text-muted-foreground">按 Escape 會回到購物車，不會送出。</p>
+          <div className="flex flex-col gap-2">
+            <Button type="button" className="min-h-[44px] w-full" onClick={onComplete}>
+              {COMPLETE_SALE_CONFIRM}
+            </Button>
+            <Button type="button" variant="outline" className="min-h-[44px] w-full" onClick={onCancelComplete}>
+              {COMPLETE_SALE_CANCEL}
+            </Button>
+          </div>
+        </div>
+      ) : (
         <div className="space-y-4">
           <ul className="space-y-3">
             {session.cart.map((line) => {
@@ -144,24 +163,7 @@ export function CartSheet({
             {COMPLETE_SALE}
           </Button>
         </div>
-      </PreviewDialog>
-
-      <PreviewDialog
-        open={session.completeConfirmOpen}
-        titleId="complete-sale-title"
-        title={COMPLETE_SALE_CONFIRM_TITLE}
-        onClose={onCancelComplete}
-      >
-        <p className="text-sm text-muted-foreground">{COMPLETE_SALE_CONFIRM_BODY}</p>
-        <div className="mt-4 flex flex-col gap-2">
-          <Button type="button" className="min-h-[44px] w-full" onClick={onComplete}>
-            {COMPLETE_SALE_CONFIRM}
-          </Button>
-          <Button type="button" variant="outline" className="min-h-[44px] w-full" onClick={onCancelComplete}>
-            {COMPLETE_SALE_CANCEL}
-          </Button>
-        </div>
-      </PreviewDialog>
-    </>
+      )}
+    </PreviewDialog>
   );
 }

@@ -4,34 +4,54 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { SETTLEMENT_LOCKED } from '../copy';
 import { SETTLEMENTS } from '../fixtures';
-import { settlementViews } from '../selectors';
+import {
+  expectedFurmosaNetTwd,
+  expectedMerchantNetTwd,
+  expectedNetDirection,
+  expectedTotalNetTwd,
+  settlementViews,
+} from '../selectors';
 
 describe('merchant POS preview settlement snapshot', () => {
-  it('exposes fixture snapshots without recalculating', () => {
+  it('keeps every snapshot internally consistent with the displayed equation', () => {
     const views = settlementViews();
-    assert.deepEqual(
-      views.map((row) => row.settlementId),
-      SETTLEMENTS.map((row) => row.settlementId),
-    );
-    const draft = views.find((row) => row.status === 'draft');
-    const reviewing = views.find((row) => row.status === 'reviewing');
-    const approved = views.find((row) => row.status === 'approved');
-    const paid = views.find((row) => row.status === 'paid');
-    assert.ok(draft && reviewing && approved && paid);
-    assert.equal(draft.netAmountTwd, 1540);
+    assert.equal(views.length, SETTLEMENTS.length);
+
+    for (const row of views) {
+      assert.equal(Number.isInteger(row.merchantCollectedNetTwd), true, row.settlementId);
+      assert.equal(Number.isInteger(row.furmosaCollectedNetTwd), true, row.settlementId);
+      assert.equal(Number.isInteger(row.netAmountTwd), true, row.settlementId);
+      assert.equal(expectedMerchantNetTwd(row), row.merchantCollectedNetTwd, row.settlementId);
+      assert.equal(expectedFurmosaNetTwd(row), row.furmosaCollectedNetTwd, row.settlementId);
+      assert.equal(expectedTotalNetTwd(row), row.netAmountTwd, row.settlementId);
+      assert.equal(
+        row.ordinaryCommissionSnapshotTwd,
+        row.merchantCollectedCommissionTwd + row.furmosaCollectedCommissionTwd,
+        row.settlementId,
+      );
+      assert.equal(
+        row.voucherFixedSubsidyTwd,
+        row.merchantCollectedVoucherSubsidyTwd + row.furmosaCollectedVoucherSubsidyTwd,
+        row.settlementId,
+      );
+      assert.equal(
+        row.refundNextPeriodAdjustmentTwd,
+        row.merchantCollectedRefundAdjustmentTwd + row.furmosaCollectedRefundAdjustmentTwd,
+        row.settlementId,
+      );
+      assert.equal(row.netDirection, expectedNetDirection(row.netAmountTwd), row.settlementId);
+    }
+  });
+
+  it('locks approved and paid periods without reopen or pay actions', () => {
+    const approved = settlementViews().find((row) => row.status === 'approved');
+    const paid = settlementViews().find((row) => row.status === 'paid');
+    assert.ok(approved && paid);
     assert.equal(approved.locked, true);
     assert.equal(paid.locked, true);
     assert.equal(approved.lockNote, SETTLEMENT_LOCKED);
     assert.equal(paid.lockNote, SETTLEMENT_LOCKED);
-    assert.notEqual(
-      draft.merchantCollectedSalesTwd +
-        draft.furmosaCollectedSalesTwd -
-        draft.ordinaryCommissionSnapshotTwd,
-      draft.netAmountTwd,
-    );
-  });
 
-  it('has no edit, pay or reopen actions', () => {
     const src = readFileSync(
       path.join(process.cwd(), 'components/merchant-pos-preview/settlement-panel.tsx'),
       'utf8',
@@ -41,5 +61,6 @@ describe('merchant POS preview settlement snapshot', () => {
     assert.equal(src.includes('編輯'), false);
     assert.equal(src.includes('<Button'), false);
     assert.match(src, /SETTLEMENT_LOCKED/);
+    assert.match(src, /SETTLEMENT_EQ_MERCHANT/);
   });
 });

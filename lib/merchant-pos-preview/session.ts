@@ -32,7 +32,7 @@ export function createSession(): MerchantPosSession {
     selectedSkuByProductId: {},
     cart: [],
     cartOpen: false,
-    completeConfirmOpen: false,
+    cartDialogStep: 'lines',
     refundConfirmSaleId: null,
     demoReceipts: [],
     receiptSeq: 0,
@@ -48,7 +48,8 @@ export function createSession(): MerchantPosSession {
 }
 
 export function setTab(session: MerchantPosSession, tab: TabId): MerchantPosSession {
-  return { ...session, tab, cartOpen: tab === 'checkout' ? session.cartOpen : false };
+  if (tab === 'checkout') return { ...session, tab };
+  return { ...session, tab, cartOpen: false, cartDialogStep: 'lines' };
 }
 
 export function setQuery(session: MerchantPosSession, query: string): MerchantPosSession {
@@ -113,7 +114,13 @@ export function addCartQty(
     ? session.cart.map((line) => (line.skuId === skuId ? nextLine : line))
     : [...session.cart, nextLine];
 
-  return { ...session, cart, saleNotice: null };
+  return {
+    ...session,
+    cart,
+    saleNotice: null,
+    cartOpen: session.cartOpen,
+    cartDialogStep: session.cartDialogStep,
+  };
 }
 
 export function removeCartLine(session: MerchantPosSession, skuId: string): MerchantPosSession {
@@ -130,21 +137,47 @@ export function setActualUnitPrice(
     cart: session.cart.map((line) =>
       line.skuId === skuId ? { ...line, actualUnitPriceInput } : line,
     ),
+    cartOpen: session.cartOpen,
+    cartDialogStep: session.cartDialogStep,
   };
 }
 
 export function setCartOpen(session: MerchantPosSession, cartOpen: boolean): MerchantPosSession {
-  return { ...session, cartOpen, completeConfirmOpen: cartOpen ? session.completeConfirmOpen : false };
+  return {
+    ...session,
+    cartOpen,
+    cartDialogStep: 'lines',
+    refundConfirmSaleId: cartOpen ? null : session.refundConfirmSaleId,
+  };
 }
 
 export function openCompleteConfirm(session: MerchantPosSession): MerchantPosSession {
   const totals = cartTotals(session.cart);
-  if (totals.blocked) return session;
-  return { ...session, completeConfirmOpen: true };
+  if (totals.blocked || !session.cartOpen) return session;
+  return { ...session, cartOpen: true, cartDialogStep: 'confirm', refundConfirmSaleId: null };
 }
 
 export function closeCompleteConfirm(session: MerchantPosSession): MerchantPosSession {
-  return { ...session, completeConfirmOpen: false };
+  if (!session.cartOpen) return session;
+  return { ...session, cartOpen: true, cartDialogStep: 'lines' };
+}
+
+export function escapeActiveDialog(session: MerchantPosSession): MerchantPosSession {
+  if (session.refundConfirmSaleId) return closeRefundConfirm(session);
+  if (session.cartOpen && session.cartDialogStep === 'confirm') return closeCompleteConfirm(session);
+  if (session.cartOpen) return setCartOpen(session, false);
+  return session;
+}
+
+export function openPreviewDialogCount(session: MerchantPosSession): number {
+  return Number(session.cartOpen) + Number(Boolean(session.refundConfirmSaleId));
+}
+
+export function activePreviewDialog(session: MerchantPosSession): 'none' | 'cart' | 'refund' {
+  if (session.cartOpen && session.refundConfirmSaleId) return 'cart';
+  if (session.cartOpen) return 'cart';
+  if (session.refundConfirmSaleId) return 'refund';
+  return 'none';
 }
 
 export function completeDemoSale(session: MerchantPosSession): MerchantPosSession {
@@ -183,7 +216,7 @@ export function completeDemoSale(session: MerchantPosSession): MerchantPosSessio
     ...session,
     cart: [],
     cartOpen: false,
-    completeConfirmOpen: false,
+    cartDialogStep: 'lines',
     demoReceipts: [receipt, ...session.demoReceipts],
     receiptSeq,
     saleNotice: SALE_SUCCESS,
@@ -258,7 +291,12 @@ export function openRefundConfirm(
   }
   const sale = sessionHasRequestableSale(saleId);
   if (!sale) return session;
-  return { ...session, refundConfirmSaleId: saleId };
+  return {
+    ...session,
+    refundConfirmSaleId: saleId,
+    cartOpen: false,
+    cartDialogStep: 'lines',
+  };
 }
 
 export function closeRefundConfirm(session: MerchantPosSession): MerchantPosSession {

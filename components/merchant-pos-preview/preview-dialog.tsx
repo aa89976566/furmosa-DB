@@ -27,6 +27,8 @@ export function PreviewDialog({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +40,7 @@ export function PreviewDialog({
     function onKeyDown(event: KeyboardEvent) {
       if (isEscapeKey(event.key)) {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panel) return;
@@ -57,7 +59,7 @@ export function PreviewDialog({
         triggerRef.current?.focus();
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -65,7 +67,7 @@ export function PreviewDialog({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <div
         className="absolute inset-0 bg-navy/40"
-        onClick={onClose}
+        onClick={() => onCloseRef.current()}
         {...{ inert: true, 'aria-hidden': true }}
       />
       <div
@@ -83,7 +85,7 @@ export function PreviewDialog({
             type="button"
             variant="ghost"
             className="min-h-[44px] min-w-[44px]"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
           >
             {CLOSE_DIALOG}
           </Button>

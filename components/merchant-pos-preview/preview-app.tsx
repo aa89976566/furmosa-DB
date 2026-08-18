@@ -3,12 +3,17 @@
 import { useMemo, useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   FIXTURE_ONLY_BADGE,
+  ITEM_COUNT_LABEL,
+  OPEN_CART,
   PREVIEW_TITLE,
   STORE_NAME,
 } from '@/lib/merchant-pos-preview/copy';
+import { formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
+import { cartTotals } from '@/lib/merchant-pos-preview/selectors';
 import {
   addAllRestockCandidates,
   addRestockLine,
@@ -42,6 +47,8 @@ import { SalesPanel } from './sales-panel';
 export function MerchantPosPreviewApp() {
   const [session, setSession] = useState<MerchantPosSession>(() => createSession());
   const latestReceipt = session.demoReceipts[0];
+  const totals = cartTotals(session.cart);
+  const showCartDock = session.tab === 'checkout' && session.cart.length > 0;
 
   const body = useMemo(() => {
     if (session.tab === 'checkout') {
@@ -53,7 +60,6 @@ export function MerchantPosPreviewApp() {
             setSession((current) => selectVariant(current, productId, skuId))
           }
           onAdd={(productId) => setSession((current) => addSelectedToCart(current, productId))}
-          onOpenCart={() => setSession((current) => setCartOpen(current, true))}
           onViewRestock={() => setSession((current) => setTab(current, 'restock'))}
         />
       );
@@ -102,7 +108,7 @@ export function MerchantPosPreviewApp() {
           <Badge variant="outline">{FIXTURE_ONLY_BADGE}</Badge>
         </header>
 
-        <main className="min-w-0 space-y-4 px-4 pb-6">
+        <main className={`${styles.main} ${showCartDock ? styles.mainWithCartDock : ''} space-y-4`}>
           {session.saleNotice ? (
             <Card>
               <CardContent className="p-4 text-sm" role="status">
@@ -134,6 +140,26 @@ export function MerchantPosPreviewApp() {
           ) : null}
           {body}
         </main>
+
+        {showCartDock ? (
+          <div className={styles.cartDock}>
+            <div className={`${styles.cartDockInner} border-t border-border/80 bg-card/95 p-3 shadow-card backdrop-blur`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 text-sm font-medium text-navy">
+                  {ITEM_COUNT_LABEL} {formatQty(totals.itemCount)}
+                  {totals.blocked ? '' : ` · 成交 ${formatTwd(totals.actualSubtotalTwd)}`}
+                </p>
+                <Button
+                  type="button"
+                  className="min-h-[44px] shrink-0"
+                  onClick={() => setSession((current) => setCartOpen(current, true))}
+                >
+                  {OPEN_CART}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <CartSheet
           session={session}

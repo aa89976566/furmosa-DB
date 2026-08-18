@@ -47,7 +47,7 @@ describe('merchant POS preview cart', () => {
     let session = beef80Cart();
     session = setActualUnitPrice(session, 'sku-beef-80', '');
     assert.equal(cartTotals(session.cart).blocked, true);
-    assert.equal(openCompleteConfirm(session).completeConfirmOpen, false);
+    assert.equal(openCompleteConfirm(session).cartDialogStep, 'lines');
     assert.equal(completeDemoSale(session).demoReceipts.length, 0);
   });
 

@@ -77,14 +77,29 @@ export const GROOMING_ENTRY_CTA = '開啟美容服務券預覽';
 export const GROOMING_PREVIEW_HREF = '/preview/grooming-voucher';
 
 export const SETTLEMENT_TITLE = '結算摘要';
-export const SETTLEMENT_INTRO = '下列數字都是示意快照，畫面不會重算。';
+export const SETTLEMENT_INTRO = '下列數字都是示意快照，畫面不會重算。核對用固定等式：銷售 − 普通佣金 + 固定補貼 − 退款調整 = 該通道淨額；兩通道淨額相加 = 合計。';
 export const SETTLEMENT_LOCKED = '已鎖定，不可重開；差異走次期調整';
+export const MERCHANT_CHANNEL_LABEL = '店收';
+export const FURMOSA_CHANNEL_LABEL = '官方代收';
 export const MERCHANT_COLLECTED_LABEL = '店收銷售';
 export const FURMOSA_COLLECTED_LABEL = '官方代收銷售';
-export const ORDINARY_COMMISSION_LABEL = '普通佣金（快照）';
-export const VOUCHER_SUBSIDY_LABEL = '美容券固定補貼';
-export const REFUND_ADJUSTMENT_LABEL = '退款／次期調整';
+export const CHANNEL_COMMISSION_LABEL = '普通佣金（快照）';
+export const CHANNEL_SUBSIDY_LABEL = '固定補貼（快照）';
+export const CHANNEL_REFUND_LABEL = '退款調整（快照）';
+export const CHANNEL_NET_LABEL = '通道淨額';
+export const ORDINARY_COMMISSION_LABEL = '普通佣金合計（快照）';
+export const VOUCHER_SUBSIDY_LABEL = '美容券固定補貼合計';
+export const REFUND_ADJUSTMENT_LABEL = '退款／次期調整合計';
 export const NET_LABEL = '淨應收／應付';
+export const SETTLEMENT_EQ_MERCHANT = '店收：銷售 − 普通佣金 + 固定補貼 − 退款調整 = 店收淨額';
+export const SETTLEMENT_EQ_FURMOSA = '官方代收：銷售 − 普通佣金 + 固定補貼 − 退款調整 = 官方淨額';
+export const SETTLEMENT_EQ_TOTAL = '合計：店收淨額 + 官方淨額 = 淨應收／應付';
+
+export const REFUND_CONDITION_LABEL = '實物狀況';
+export const REFUND_DISPOSITION_LABEL = '庫存處置';
+export const REFUND_LOSS_REASON_LABEL = '損耗原因';
+export const RESTOCK_SELLABLE_LABEL = '已回可售庫存';
+export const LOSS_UNSELLABLE_LABEL = '不回可售庫存';
 
 export const PRICE_ERROR_EMPTY = '請輸入正整數台幣。';
 export const PRICE_ERROR_INVALID = '成交單價只接受正整數台幣。';

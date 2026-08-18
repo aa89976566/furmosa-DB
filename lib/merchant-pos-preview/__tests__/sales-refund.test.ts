@@ -16,9 +16,6 @@ describe('merchant POS preview sales and refunds', () => {
     assert.ok(statuses.includes('rejected'));
     assert.ok(statuses.includes('completed'));
 
-    const completed = SALES.find((sale) => sale.refund?.status === 'completed');
-    assert.equal(completed?.refund?.nextPeriodNote, NEXT_PERIOD_NOTE);
-
     const src = readFileSync(
       path.join(process.cwd(), 'components/merchant-pos-preview/sales-panel.tsx'),
       'utf8',
@@ -29,6 +26,26 @@ describe('merchant POS preview sales and refunds', () => {
     assert.equal(src.includes('完成退款'), false);
     assert.equal(src.includes('approveRefund'), false);
     assert.equal(src.includes('completeRefund'), false);
+  });
+
+  it('shows O1 restock and loss outcomes plus a locked next-period refund', () => {
+    const restock = SALES.find((sale) => sale.saleId === 'sale-o1-restock')?.refund;
+    const loss = SALES.find((sale) => sale.saleId === 'sale-o1-loss')?.refund;
+    const settled = SALES.find((sale) => sale.saleId === 'sale-refund-completed')?.refund;
+    assert.equal(restock?.status, 'completed');
+    assert.equal(restock?.inventoryDisposition, 'restock_sellable');
+    assert.equal(restock?.sellableStockReturned, true);
+    assert.match(restock?.conditionLabel ?? '', /未拆封/);
+    assert.equal(restock?.settledInLockedPeriod, false);
+
+    assert.equal(loss?.status, 'completed');
+    assert.equal(loss?.inventoryDisposition, 'loss_unsellable');
+    assert.equal(loss?.sellableStockReturned, false);
+    assert.match(loss?.lossReason ?? '', /受潮|破損|拆封/);
+
+    assert.equal(settled?.settledInLockedPeriod, true);
+    assert.equal(settled?.nextPeriodNote, NEXT_PERIOD_NOTE);
+    assert.match(settled?.commissionNote ?? '', /次期/);
   });
 
   it('dedupes a local requested refund', () => {

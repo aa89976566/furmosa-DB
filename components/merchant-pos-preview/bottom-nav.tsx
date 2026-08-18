@@ -1,5 +1,6 @@
 'use client';
 
+import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import { DIALOG_NAV_LABEL, TABS } from '@/lib/merchant-pos-preview/copy';
 import type { TabId } from '@/lib/merchant-pos-preview/types';
 
@@ -19,10 +20,10 @@ export function PreviewBottomNav({
 }) {
   return (
     <nav
-      className="sticky bottom-0 z-40 border-t border-border/80 bg-card/95 backdrop-blur"
+      className={`${styles.bottomNav} border-t border-border/80 bg-card/95 backdrop-blur`}
       aria-label={DIALOG_NAV_LABEL}
     >
-      <div className="flex">
+      <div className={`${styles.bottomNavInner} flex`}>
         {ITEMS.map((item) => {
           const current = item.id === tab;
           return (

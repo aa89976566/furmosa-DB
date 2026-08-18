@@ -8,7 +8,9 @@ export type RefundStatus = 'requested' | 'approved' | 'rejected' | 'completed';
 
 export type SettlementStatus = 'draft' | 'reviewing' | 'approved' | 'paid';
 
-export type VoucherFaceTier = 'standard_200' | 'zhuwo_250';
+export type NetDirection = 'hq_owes_merchant' | 'merchant_owes_hq' | 'balanced';
+
+export type RefundInventoryDisposition = 'pending' | 'restock_sellable' | 'loss_unsellable' | 'none';
 
 export type ProductVariant = {
   skuId: string;
@@ -78,6 +80,11 @@ export type RefundOutcomeSnapshot = {
   nextPeriodNote: string | null;
   inventoryNote: string;
   commissionNote: string;
+  inventoryDisposition: RefundInventoryDisposition;
+  conditionLabel: string | null;
+  lossReason: string | null;
+  sellableStockReturned: boolean;
+  settledInLockedPeriod: boolean;
 };
 
 export type SaleSnapshot = {
@@ -99,10 +106,19 @@ export type SettlementSnapshot = {
   statusLabel: string;
   periodLabel: string;
   merchantCollectedSalesTwd: number;
+  merchantCollectedCommissionTwd: number;
+  merchantCollectedVoucherSubsidyTwd: number;
+  merchantCollectedRefundAdjustmentTwd: number;
+  merchantCollectedNetTwd: number;
   furmosaCollectedSalesTwd: number;
+  furmosaCollectedCommissionTwd: number;
+  furmosaCollectedVoucherSubsidyTwd: number;
+  furmosaCollectedRefundAdjustmentTwd: number;
+  furmosaCollectedNetTwd: number;
   ordinaryCommissionSnapshotTwd: number;
   voucherFixedSubsidyTwd: number;
   refundNextPeriodAdjustmentTwd: number;
+  netDirection: NetDirection;
   netDirectionLabel: string;
   netAmountTwd: number;
   locked: boolean;
@@ -126,7 +142,7 @@ export type MerchantPosSession = {
   selectedSkuByProductId: Record<string, string>;
   cart: CartLine[];
   cartOpen: boolean;
-  completeConfirmOpen: boolean;
+  cartDialogStep: 'lines' | 'confirm';
   refundConfirmSaleId: string | null;
   demoReceipts: DemoReceipt[];
   receiptSeq: number;
