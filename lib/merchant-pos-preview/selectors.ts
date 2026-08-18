@@ -10,7 +10,7 @@ import type {
   SettlementSnapshot,
   StockLevel,
 } from './types';
-import { parsePositiveIntTwd } from './validators';
+import { parseCartQtyInput, parsePositiveIntTwd } from './validators';
 
 export function listProducts(): Product[] {
   return PRODUCTS;
@@ -78,18 +78,28 @@ export function cartLineTotals(line: CartLine): {
   listLineTwd: number | null;
   actualLineTwd: number | null;
   priceError: string | null;
+  qtyError: string | null;
   variant: ProductVariant | null;
 } {
   const variant = findVariant(line.skuId);
   if (!variant) {
-    return { listLineTwd: null, actualLineTwd: null, priceError: '找不到示意規格。', variant: null };
+    return {
+      listLineTwd: null,
+      actualLineTwd: null,
+      priceError: '找不到示意規格。',
+      qtyError: null,
+      variant: null,
+    };
   }
-  const parsed = parsePositiveIntTwd(line.actualUnitPriceInput);
+  const parsedPrice = parsePositiveIntTwd(line.actualUnitPriceInput);
+  const parsedQty = parseCartQtyInput(line.qtyInput, variant.availableQty);
+  const qty = parsedQty.ok ? parsedQty.value : line.qty;
   return {
     variant,
-    listLineTwd: variant.listPriceTwd * line.qty,
-    actualLineTwd: parsed.ok ? parsed.value * line.qty : null,
-    priceError: parsed.ok ? null : parsed.error,
+    listLineTwd: variant.listPriceTwd * qty,
+    actualLineTwd: parsedPrice.ok && parsedQty.ok ? parsedPrice.value * qty : null,
+    priceError: parsedPrice.ok ? null : parsedPrice.error,
+    qtyError: parsedQty.ok ? null : parsedQty.error,
   };
 }
 
@@ -104,9 +114,9 @@ export function cartTotals(cart: CartLine[]): CartTotals & { blocked: boolean; f
     const result = cartLineTotals(line);
     itemCount += line.qty;
     if (result.listLineTwd != null) listSubtotalTwd += result.listLineTwd;
-    if (result.actualLineTwd == null || result.priceError) {
+    if (result.actualLineTwd == null || result.priceError || result.qtyError) {
       blocked = true;
-      if (!firstError) firstError = result.priceError;
+      if (!firstError) firstError = result.qtyError ?? result.priceError;
     } else {
       actualSubtotalTwd += result.actualLineTwd;
     }
@@ -139,10 +149,10 @@ export function visibleSales(session: MerchantPosSession): SaleSnapshot[] {
       refund: sale.refund ?? {
         status: 'requested',
         statusLabel: '退款申請中',
-        note: '店家已申請，等待總部處理。此頁沒有核准按鈕。',
+        note: '門市已提出退款申請，等待總部審核。此頁沒有審核按鈕。',
         nextPeriodNote: null,
-        inventoryNote: '庫存處置由總部結果決定，畫面只顯示快照。',
-        commissionNote: '佣金回沖以伺服器結果為準，此頁不重算。',
+        inventoryNote: '庫存處置由總部結果決定。',
+        commissionNote: '佣金回沖以總部結算結果為準。',
         inventoryDisposition: 'pending',
         conditionLabel: null,
         lossReason: null,

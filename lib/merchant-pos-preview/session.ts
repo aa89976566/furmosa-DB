@@ -6,7 +6,6 @@ import {
   RESTOCK_EMPTY_DRAFT,
   RESTOCK_SUCCESS,
   SALE_SUCCESS,
-  STOCK_CAP_ERROR,
 } from './copy';
 import { PRODUCTS } from './fixtures';
 import {
@@ -18,7 +17,16 @@ import {
   restockCandidates,
 } from './selectors';
 import type { CartLine, DemoReceipt, MerchantPosSession, TabId } from './types';
-import { parsePositiveIntQty } from './validators';
+import { parseCartQtyInput, parsePositiveIntQty } from './validators';
+
+function makeCartLine(skuId: string, qty: number, listPriceTwd: number): CartLine {
+  return {
+    skuId,
+    qty,
+    qtyInput: String(qty),
+    actualUnitPriceInput: String(listPriceTwd),
+  };
+}
 
 export function createSession(): MerchantPosSession {
   const restockQtyBySkuId: Record<string, string> = {};
@@ -99,25 +107,62 @@ export function addCartQty(
       cart: session.cart.filter((line) => line.skuId !== skuId),
     };
   }
-  if (nextQty > variant.availableQty) {
+  return applyCartQty(session, skuId, String(nextQty));
+}
+
+export function setCartQtyInput(
+  session: MerchantPosSession,
+  skuId: string,
+  raw: string,
+): MerchantPosSession {
+  return applyCartQty(session, skuId, raw, { draft: true });
+}
+
+export function commitCartQty(session: MerchantPosSession, skuId: string): MerchantPosSession {
+  const current = session.cart.find((line) => line.skuId === skuId);
+  if (!current) return session;
+  return applyCartQty(session, skuId, current.qtyInput);
+}
+
+function applyCartQty(
+  session: MerchantPosSession,
+  skuId: string,
+  raw: string,
+  opts: { draft?: boolean } = {},
+): MerchantPosSession {
+  const variant = findVariant(skuId);
+  if (!variant) return session;
+  const current = session.cart.find((line) => line.skuId === skuId);
+  const parsed = parseCartQtyInput(raw, variant.availableQty);
+
+  if (parsed.ok) {
+    const nextLine: CartLine = current
+      ? { ...current, qty: parsed.value, qtyInput: String(parsed.value) }
+      : makeCartLine(skuId, parsed.value, variant.listPriceTwd);
+    const cart = current
+      ? session.cart.map((line) => (line.skuId === skuId ? nextLine : line))
+      : [...session.cart, nextLine];
     return {
       ...session,
-      saleNotice: STOCK_CAP_ERROR,
+      cart,
+      saleNotice: null,
+      cartOpen: session.cartOpen,
+      cartDialogStep: session.cartDialogStep,
     };
   }
 
-  const nextLine: CartLine = current
-    ? { ...current, qty: nextQty }
-    : { skuId, qty: nextQty, actualUnitPriceInput: String(variant.listPriceTwd) };
-
-  const cart = current
-    ? session.cart.map((line) => (line.skuId === skuId ? nextLine : line))
-    : [...session.cart, nextLine];
+  if (opts.draft && current) {
+    return {
+      ...session,
+      cart: session.cart.map((line) => (line.skuId === skuId ? { ...line, qtyInput: raw } : line)),
+      cartOpen: session.cartOpen,
+      cartDialogStep: session.cartDialogStep,
+    };
+  }
 
   return {
     ...session,
-    cart,
-    saleNotice: null,
+    saleNotice: parsed.error,
     cartOpen: session.cartOpen,
     cartDialogStep: session.cartDialogStep,
   };

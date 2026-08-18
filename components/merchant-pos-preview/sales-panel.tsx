@@ -16,6 +16,7 @@ import {
   REQUEST_REFUND_TITLE,
   RESTOCK_SELLABLE_LABEL,
   SALES_INTRO,
+  SALES_TITLE,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { visibleSales } from '@/lib/merchant-pos-preview/selectors';
@@ -45,7 +46,7 @@ export function SalesPanel({
     <section aria-labelledby="sales-title" className="min-w-0 space-y-4">
       <div>
         <h2 id="sales-title" className="text-xl font-semibold text-navy">
-          銷售與退款
+          {SALES_TITLE}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">{SALES_INTRO}</p>
       </div>

@@ -42,10 +42,10 @@ function assertSnapshot(row: SettlementSnapshot) {
   assert.equal(row.netDirection, netDirectionFromSignedSum(signedSum), row.settlementId);
   if (signedSum > 0) {
     assert.equal(row.netDirection, 'hq_owes_merchant', row.settlementId);
-    assert.equal(row.netDirectionLabel, '總部應付店家', row.settlementId);
+    assert.equal(row.netDirectionLabel, '總部應付門市', row.settlementId);
   } else if (signedSum < 0) {
     assert.equal(row.netDirection, 'merchant_owes_hq', row.settlementId);
-    assert.equal(row.netDirectionLabel, '店家應付總部', row.settlementId);
+    assert.equal(row.netDirectionLabel, '門市應匯總部', row.settlementId);
   }
 }
 
@@ -53,7 +53,7 @@ describe('merchant POS preview settlement snapshot', () => {
   it('uses fixture signed ledger rows and a single HQ-perspective sum', () => {
     const views = settlementViews();
     assert.equal(views.length, SETTLEMENTS.length);
-    assert.equal(SETTLEMENT_INTRO, '伺服器快照；本頁不重算。');
+    assert.equal(SETTLEMENT_INTRO, '金額以總部結算結果為準。');
 
     for (const row of views) {
       assertSnapshot(row);

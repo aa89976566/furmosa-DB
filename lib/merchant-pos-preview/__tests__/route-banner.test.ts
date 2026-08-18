@@ -44,6 +44,6 @@ describe('merchant POS preview route and banner', () => {
     assert.match(app, /STORE_NAME/);
     assert.match(app, /FIXTURE_ONLY_BADGE/);
     assert.equal(STORE_NAME, '測試門市');
-    assert.equal(FIXTURE_ONLY_BADGE, 'fixture-only');
+    assert.equal(FIXTURE_ONLY_BADGE, '示意資料');
   });
 });

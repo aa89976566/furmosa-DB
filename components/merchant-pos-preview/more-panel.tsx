@@ -9,6 +9,7 @@ import {
   GROOMING_ENTRY_HINT,
   GROOMING_ENTRY_TITLE,
   GROOMING_PREVIEW_HREF,
+  MORE_INTRO,
 } from '@/lib/merchant-pos-preview/copy';
 import { SettlementPanel } from './settlement-panel';
 
@@ -19,7 +20,7 @@ export function MorePanel() {
         <h2 id="more-title" className="text-xl font-semibold text-navy">
           更多
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">美容服務券與結算摘要都在這裡。</p>
+        <p className="mt-1 text-sm text-muted-foreground">{MORE_INTRO}</p>
       </div>
 
       <Card>

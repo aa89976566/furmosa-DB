@@ -1,4 +1,10 @@
-import { PRICE_ERROR_EMPTY, PRICE_ERROR_INVALID, QTY_ERROR_INVALID } from './copy';
+import {
+  PRICE_ERROR_EMPTY,
+  PRICE_ERROR_INVALID,
+  QTY_ERROR_INVALID,
+  qtyOverStockError,
+  qtyRangeHint,
+} from './copy';
 import type { PriceParseResult } from './types';
 
 const POSITIVE_INT = /^[1-9][0-9]*$/;
@@ -35,6 +41,23 @@ export function parsePositiveIntQty(raw: string): PriceParseResult {
   const parsed = parsePositiveIntTwd(raw);
   if (!parsed.ok) {
     return { ok: false, error: QTY_ERROR_INVALID };
+  }
+  return parsed;
+}
+
+export function parseCartQtyInput(raw: string, maxQty: number): PriceParseResult {
+  if (!Number.isInteger(maxQty) || maxQty <= 0) {
+    return { ok: false, error: qtyRangeHint(1) };
+  }
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return { ok: false, error: qtyRangeHint(maxQty) };
+  }
+  const parsed = parsePositiveIntQty(raw);
+  if (!parsed.ok) {
+    return { ok: false, error: qtyRangeHint(maxQty) };
+  }
+  if (parsed.value > maxQty) {
+    return { ok: false, error: qtyOverStockError(maxQty) };
   }
   return parsed;
 }

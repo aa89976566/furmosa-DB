@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
+  DEAL_LABEL,
   FIXTURE_ONLY_BADGE,
   ITEM_COUNT_LABEL,
   OPEN_CART,
   PREVIEW_TITLE,
+  RECEIPT_LABEL,
   STORE_NAME,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
@@ -34,6 +36,8 @@ import {
   setTab,
   submitRestockDraft,
   addCartQty,
+  commitCartQty,
+  setCartQtyInput,
 } from '@/lib/merchant-pos-preview/session';
 import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types';
 import { PreviewBanner } from './preview-banner';
@@ -133,7 +137,9 @@ export function MerchantPosPreviewApp() {
           {latestReceipt ? (
             <Card>
               <CardContent className="space-y-1 p-4 text-sm">
-                <p className="font-medium text-navy">示意收據 {latestReceipt.receiptId}</p>
+                <p className="font-medium text-navy">
+                  {RECEIPT_LABEL} {latestReceipt.receiptId}
+                </p>
                 <p>{latestReceipt.notice}</p>
               </CardContent>
             </Card>
@@ -147,7 +153,7 @@ export function MerchantPosPreviewApp() {
               <div className="flex items-center justify-between gap-3">
                 <p className="min-w-0 text-sm font-medium text-navy">
                   {ITEM_COUNT_LABEL} {formatQty(totals.itemCount)}
-                  {totals.blocked ? '' : ` · 成交 ${formatTwd(totals.actualSubtotalTwd)}`}
+                  {totals.blocked ? '' : ` · ${DEAL_LABEL} ${formatTwd(totals.actualSubtotalTwd)}`}
                 </p>
                 <Button
                   type="button"
@@ -165,6 +171,8 @@ export function MerchantPosPreviewApp() {
           session={session}
           onClose={() => setSession((current) => setCartOpen(current, false))}
           onQty={(skuId, delta) => setSession((current) => addCartQty(current, skuId, delta))}
+          onQtyInput={(skuId, value) => setSession((current) => setCartQtyInput(current, skuId, value))}
+          onQtyCommit={(skuId) => setSession((current) => commitCartQty(current, skuId))}
           onRemove={(skuId) => setSession((current) => removeCartLine(current, skuId))}
           onPrice={(skuId, value) => setSession((current) => setActualUnitPrice(current, skuId, value))}
           onAskComplete={() => setSession((current) => openCompleteConfirm(current))}

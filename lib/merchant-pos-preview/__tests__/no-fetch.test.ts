@@ -33,7 +33,7 @@ describe('merchant POS preview never calls remote write', () => {
       session = addSelectedToCart(session, 'prod-beef');
       session = completeDemoSale(session);
       assert.equal(session.demoReceipts.length, 1);
-      assert.match(session.demoReceipts[0]?.notice ?? '', /並未建立真實訂單/);
+      assert.match(session.demoReceipts[0]?.notice ?? '', /不會建立真實訂單/);
     });
     assert.equal(calls, 0);
   });

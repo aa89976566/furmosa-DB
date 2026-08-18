@@ -28,7 +28,7 @@ describe('merchant POS preview restock', () => {
     session = addAllRestockCandidates(session);
     assert.ok(session.restockDraft.length > 0);
     session = submitRestockDraft(session);
-    assert.match(session.restockNotice ?? '', /示意/);
+    assert.match(session.restockNotice ?? '', /預覽/);
     assert.match(session.restockNotice ?? '', /庫存不會增加/);
     assert.equal(session.restockSubmitted, true);
     assert.deepEqual(stockSnapshot(), before);

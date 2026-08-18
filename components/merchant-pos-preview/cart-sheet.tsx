@@ -6,6 +6,8 @@ import {
   ACTUAL_PRICE_HINT,
   ACTUAL_PRICE_LABEL,
   ACTUAL_SUBTOTAL_LABEL,
+  CART_ESCAPE_HINT,
+  CART_QTY_LABEL,
   CART_TITLE,
   COMPLETE_SALE,
   COMPLETE_SALE_CANCEL,
@@ -28,6 +30,8 @@ export function CartSheet({
   session,
   onClose,
   onQty,
+  onQtyInput,
+  onQtyCommit,
   onRemove,
   onPrice,
   onAskComplete,
@@ -37,6 +41,8 @@ export function CartSheet({
   session: MerchantPosSession;
   onClose: () => void;
   onQty: (skuId: string, delta: number) => void;
+  onQtyInput: (skuId: string, value: string) => void;
+  onQtyCommit: (skuId: string) => void;
   onRemove: (skuId: string) => void;
   onPrice: (skuId: string, value: string) => void;
   onAskComplete: () => void;
@@ -56,7 +62,7 @@ export function CartSheet({
       {confirming ? (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{COMPLETE_SALE_CONFIRM_BODY}</p>
-          <p className="text-xs text-muted-foreground">按 Escape 會回到購物車，不會送出。</p>
+          <p className="text-xs text-muted-foreground">{CART_ESCAPE_HINT}</p>
           <div className="flex flex-col gap-2">
             <Button type="button" className="min-h-[44px] w-full" onClick={onComplete}>
               {COMPLETE_SALE_CONFIRM}
@@ -73,7 +79,10 @@ export function CartSheet({
               const product = findProductBySku(line.skuId);
               const result = cartLineTotals(line);
               const priceId = `actual-price-${line.skuId}`;
-              const errorId = `${priceId}-error`;
+              const priceErrorId = `${priceId}-error`;
+              const qtyId = `cart-qty-${line.skuId}`;
+              const qtyErrorId = `${qtyId}-error`;
+              const qtyLabel = `${CART_QTY_LABEL}，${product?.name ?? ''} ${result.variant?.specLabel ?? ''}`;
               return (
                 <li key={line.skuId} className="rounded-xl border border-border/70 p-3">
                   <p className="font-medium text-navy">{product?.name}</p>
@@ -81,7 +90,7 @@ export function CartSheet({
                   <p className="mt-1 text-sm">
                     {LIST_PRICE_LABEL} {result.variant ? formatTwd(result.variant.listPriceTwd) : '—'}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-end gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -91,7 +100,27 @@ export function CartSheet({
                     >
                       −
                     </Button>
-                    <span className="min-w-[3rem] text-center text-sm font-medium">{line.qty}</span>
+                    <div className="min-w-[5.5rem] space-y-1.5">
+                      <label htmlFor={qtyId} className="text-sm font-medium">
+                        {qtyLabel}
+                      </label>
+                      <Input
+                        id={qtyId}
+                        inputMode="numeric"
+                        value={line.qtyInput}
+                        aria-invalid={Boolean(result.qtyError)}
+                        aria-describedby={result.qtyError ? qtyErrorId : undefined}
+                        className="min-h-[44px] text-center"
+                        onChange={(event) => onQtyInput(line.skuId, event.target.value)}
+                        onBlur={() => onQtyCommit(line.skuId)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            onQtyCommit(line.skuId);
+                          }
+                        }}
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
@@ -110,6 +139,11 @@ export function CartSheet({
                       {REMOVE_LINE}
                     </Button>
                   </div>
+                  {result.qtyError ? (
+                    <p id={qtyErrorId} role="alert" className="mt-2 text-sm text-destructive">
+                      {result.qtyError}
+                    </p>
+                  ) : null}
                   <div className="mt-3 space-y-1.5">
                     <label htmlFor={priceId} className="text-sm font-medium">
                       {ACTUAL_PRICE_LABEL}
@@ -119,13 +153,13 @@ export function CartSheet({
                       inputMode="numeric"
                       value={line.actualUnitPriceInput}
                       aria-invalid={Boolean(result.priceError)}
-                      aria-describedby={result.priceError ? errorId : undefined}
+                      aria-describedby={result.priceError ? priceErrorId : undefined}
                       className="min-h-[44px]"
                       onChange={(event) => onPrice(line.skuId, event.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">{ACTUAL_PRICE_HINT}</p>
                     {result.priceError ? (
-                      <p id={errorId} role="alert" className="text-sm text-destructive">
+                      <p id={priceErrorId} role="alert" className="text-sm text-destructive">
                         {result.priceError}
                       </p>
                     ) : null}

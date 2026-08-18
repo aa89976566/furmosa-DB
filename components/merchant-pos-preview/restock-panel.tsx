@@ -7,13 +7,15 @@ import { Input } from '@/components/ui/input';
 import {
   ADD_ALL_RESTOCK,
   ADD_RESTOCK_LINE,
+  AVAILABLE_QTY_LABEL,
+  RESTOCK_DRAFT_TITLE,
   RESTOCK_INTRO,
   RESTOCK_QTY_LABEL,
   RESTOCK_SUBMITTED,
   RESTOCK_SUGGESTED_LABEL,
   SUBMIT_RESTOCK,
 } from '@/lib/merchant-pos-preview/copy';
-import { formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
+import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
 import { findVariant, restockCandidates } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 
@@ -56,7 +58,8 @@ export function RestockPanel({
                         {row.variant.specLabel} · {row.variant.sku}
                       </p>
                       <p className="text-sm">
-                        可售 {row.variant.availableQty} · {formatTwd(row.variant.listPriceTwd)}
+                        {AVAILABLE_QTY_LABEL} {formatQty(row.variant.availableQty)} ·{' '}
+                        {formatTwd(row.variant.listPriceTwd)}
                       </p>
                     </div>
                     {badge ? (
@@ -100,7 +103,7 @@ export function RestockPanel({
       {session.restockDraft.length > 0 ? (
         <Card>
           <CardContent className="space-y-2 p-4 text-sm">
-            <p className="font-medium text-navy">補貨草稿</p>
+            <p className="font-medium text-navy">{RESTOCK_DRAFT_TITLE}</p>
             <ul className="space-y-1">
               {session.restockDraft.map((line) => {
                 const variant = findVariant(line.skuId);

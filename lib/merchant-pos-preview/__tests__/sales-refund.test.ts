@@ -21,7 +21,7 @@ describe('merchant POS preview sales and refunds', () => {
       'utf8',
     );
     assert.match(src, /REQUEST_REFUND/);
-    assert.equal(REQUEST_REFUND, '申請退款（示意）');
+    assert.equal(REQUEST_REFUND, '提出退款申請');
     assert.equal(src.includes('核准退款'), false);
     assert.equal(src.includes('完成退款'), false);
     assert.equal(src.includes('approveRefund'), false);
@@ -45,7 +45,7 @@ describe('merchant POS preview sales and refunds', () => {
 
     assert.equal(settled?.settledInLockedPeriod, true);
     assert.equal(settled?.nextPeriodNote, NEXT_PERIOD_NOTE);
-    assert.match(settled?.commissionNote ?? '', /次期/);
+    assert.match(settled?.commissionNote ?? '', /下期/);
   });
 
   it('dedupes a local requested refund', () => {

@@ -31,6 +31,7 @@ export type Product = {
 export type CartLine = {
   skuId: string;
   qty: number;
+  qtyInput: string;
   actualUnitPriceInput: string;
 };
 

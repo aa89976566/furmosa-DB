@@ -8,6 +8,7 @@ import {
   ADD_TO_CART,
   AVAILABLE_QTY_LABEL,
   CART_EMPTY,
+  CHECKOUT_INTRO,
   LIST_PRICE_LABEL,
   SEARCH_EMPTY,
   SEARCH_LABEL,
@@ -15,7 +16,7 @@ import {
   SELECT_SPEC_HINT,
   VIEW_RESTOCK,
 } from '@/lib/merchant-pos-preview/copy';
-import { formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
+import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
 import { catalogRows } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 
@@ -40,7 +41,7 @@ export function CheckoutPanel({
         <h2 id="checkout-title" className="text-xl font-semibold text-navy">
           收銀
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">先選規格，再加入購物車。</p>
+        <p className="mt-1 text-sm text-muted-foreground">{CHECKOUT_INTRO}</p>
       </div>
 
       <div className="space-y-2">
@@ -99,7 +100,7 @@ export function CheckoutPanel({
                           {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)}
                         </span>
                         <span>
-                          {AVAILABLE_QTY_LABEL} {selected.availableQty}
+                          {AVAILABLE_QTY_LABEL} {formatQty(selected.availableQty)}
                         </span>
                         {badge ? (
                           <Badge variant={soldOut ? 'destructive' : 'warning'}>{badge}</Badge>

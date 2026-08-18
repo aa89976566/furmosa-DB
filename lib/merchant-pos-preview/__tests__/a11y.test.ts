@@ -22,6 +22,9 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(checkout, /id="product-search"/);
     assert.match(cart, /ACTUAL_PRICE_LABEL/);
     assert.match(cart, /htmlFor=\{priceId\}/);
+    assert.match(cart, /htmlFor=\{qtyId\}/);
+    assert.match(cart, /inputMode="numeric"/);
+    assert.match(cart, /onQtyCommit/);
     assert.match(restock, /htmlFor=\{qtyId\}/);
   });
 
