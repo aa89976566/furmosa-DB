@@ -9,6 +9,17 @@ import {
 
 const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
 
+/** Fixture-only Merchant POS preview. Exact match only — never prefix /preview. */
+const MERCHANT_POS_PREVIEW_PATH = '/preview/merchant-pos';
+
+/**
+ * Next.js 未開 trailingSlash。尾斜線只當同一頁等價路徑，
+ * 不用 startsWith，避免 /preview/merchant-pos/extra 被誤開。
+ */
+function isExactPublicMerchantPosPreviewPath(pathname: string): boolean {
+  return pathname === MERCHANT_POS_PREVIEW_PATH || pathname === `${MERCHANT_POS_PREVIEW_PATH}/`;
+}
+
 const RETIRED_STORE_REDEEM_DESTINATION = '/pos/login';
 
 /** Exact /store-redeem, or /store/<one segment> (legacy /store/[access] only). */
@@ -87,7 +98,9 @@ export async function middleware(req: NextRequest) {
   // ----- HQ admin -----
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = await verifySessionEdge(token);
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+  const isPublic =
+    isExactPublicMerchantPosPreviewPath(pathname) ||
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
   const decision = decideHqAccess({
     pathname,
     hasHqSession: Boolean(session),
