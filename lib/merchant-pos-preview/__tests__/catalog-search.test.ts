@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { PRODUCTS } from '../fixtures';
-import { catalogRows, filterCatalog, stockLevelOf } from '../selectors';
+import { catalogRows, filterCatalog, skuAvailability, stockLevelOf } from '../selectors';
 import { addSelectedToCart, createSession, selectVariant, setQuery } from '../session';
 
 describe('merchant POS preview catalog search', () => {
@@ -30,8 +30,8 @@ describe('merchant POS preview catalog search', () => {
     assert.equal(session.cart.length, 0);
 
     session = selectVariant(session, 'prod-beef', 'sku-beef-300');
-    const soldOutRow = catalogRows(session).find((row) => row.product.productId === 'prod-beef');
-    assert.equal(soldOutRow?.stockLevel, 'sold_out');
+    assert.equal(session.selectedSkuByProductId['prod-beef'], undefined);
+    assert.equal(skuAvailability('sku-beef-300', session.cart).canSelect, false);
     session = addSelectedToCart(session, 'prod-beef');
     assert.equal(session.cart.length, 0);
 

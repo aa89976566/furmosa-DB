@@ -28,6 +28,14 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(cart, /min-h-\[44px\]/);
     assert.match(cart, /onQtyCommit/);
     assert.match(restock, /htmlFor=\{qtyId\}/);
+    assert.match(checkout, /skuAvailability\(/);
+    assert.match(checkout, /disabled=\{!row\.add\.canAdd\}/);
+    assert.match(checkout, /aria-describedby=\{row\.add\.hint \? addHintId : undefined\}/);
+    assert.match(checkout, /disabled=\{!variantAvail\.canSelect\}/);
+    assert.equal(checkout.includes('availableQty === 0'), false);
+    assert.equal(checkout.includes("role=\"alert\""), false);
+    assert.match(cart, /skuAvailability\(/);
+    assert.match(cart, /disabled=\{!availability\.canAdd\}/);
   });
 
   it('gives each cart line plus-minus and remove an accessible name with product and spec', () => {

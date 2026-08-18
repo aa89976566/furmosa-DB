@@ -6,6 +6,7 @@ import {
   RESTOCK_EMPTY_DRAFT,
   RESTOCK_SUCCESS,
   SALE_SUCCESS,
+  qtyOverStockError,
 } from './copy';
 import { PRODUCTS } from './fixtures';
 import {
@@ -15,6 +16,7 @@ import {
   findProductBySku,
   findVariant,
   restockCandidates,
+  skuAvailability,
 } from './selectors';
 import type { CartLine, DemoReceipt, MerchantPosSession, TabId } from './types';
 import { parseCartQtyInput, parsePositiveIntQty } from './validators';
@@ -70,7 +72,9 @@ export function selectVariant(
   skuId: string,
 ): MerchantPosSession {
   const product = PRODUCTS.find((item) => item.productId === productId);
-  if (!product?.variants.some((variant) => variant.skuId === skuId)) return session;
+  const variant = product?.variants.find((item) => item.skuId === skuId);
+  if (!variant) return session;
+  if (!skuAvailability(variant.skuId, session.cart).canSelect) return session;
   return {
     ...session,
     selectedSkuByProductId: {
@@ -86,8 +90,7 @@ export function addSelectedToCart(
 ): MerchantPosSession {
   const skuId = session.selectedSkuByProductId[productId];
   if (!skuId) return session;
-  const variant = findVariant(skuId);
-  if (!variant || variant.availableQty <= 0) return session;
+  if (!skuAvailability(skuId, session.cart).canAdd) return session;
   return addCartQty(session, skuId, 1);
 }
 
@@ -98,6 +101,19 @@ export function addCartQty(
 ): MerchantPosSession {
   const variant = findVariant(skuId);
   if (!variant) return session;
+
+  if (delta > 0) {
+    const availability = skuAvailability(skuId, session.cart);
+    if (!availability.canAdd) {
+      if (availability.reason === 'at_cap' || availability.reason === 'sold_out') {
+        return {
+          ...session,
+          saleNotice: qtyOverStockError(Math.max(availability.availableQty, 1)),
+        };
+      }
+      return session;
+    }
+  }
 
   const current = session.cart.find((line) => line.skuId === skuId);
   const nextQty = (current?.qty ?? 0) + delta;

@@ -24,7 +24,14 @@ export const SOLD_OUT_BADGE = '售罄';
 export const SELECT_SPEC_HINT = '請先選規格，再加入購物車。';
 export const ADD_TO_CART = '加入購物車';
 export const VIEW_RESTOCK = '查看補貨';
+export const AT_STOCK_CAP = '已達庫存上限';
+export const FIX_CART_QTY = '請先修正購物車數量';
+export const CART_HAS_QTY_PREFIX = '購物車已有';
 export const CART_EMPTY = '購物車是空的。選規格後即可加入。';
+
+export function cartHasQtyLabel(qty: number): string {
+  return `${CART_HAS_QTY_PREFIX} ${qty} 件`;
+}
 
 export const ACTUAL_PRICE_LABEL = '實際成交單價';
 export const ACTUAL_PRICE_HINT = '只接受正整數台幣。';

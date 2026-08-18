@@ -32,6 +32,9 @@ const REQUIRED = [
   '總部應付門市',
   '已鎖定，不可重新開啟',
   '金額以總部結算結果為準',
+  '已達庫存上限',
+  '請先修正購物車數量',
+  '購物車已有',
 ];
 
 function visibleCopyValues(): string[] {

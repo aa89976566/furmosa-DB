@@ -1,13 +1,23 @@
+import {
+  ADD_TO_CART,
+  AT_STOCK_CAP,
+  FIX_CART_QTY,
+  SELECT_SPEC_HINT,
+  VIEW_RESTOCK,
+  cartHasQtyLabel,
+} from './copy';
 import { PRODUCTS, SALES, SETTLEMENTS } from './fixtures';
 import type {
   CartLine,
   CartTotals,
+  CatalogAddState,
   CatalogRow,
   MerchantPosSession,
   Product,
   ProductVariant,
   SaleSnapshot,
   SettlementSnapshot,
+  SkuAvailability,
   StockLevel,
 } from './types';
 import { parseCartQtyInput, parsePositiveIntTwd } from './validators';
@@ -58,18 +68,144 @@ export function filterCatalog(query: string): CatalogRow[] {
       selected: null,
       stockLevel: null,
       matches: matchingVariants.length > 0,
+      add: catalogAddAvailability(product, null, []),
     };
   }).filter((row) => row.matches);
+}
+
+export function skuAvailability(skuId: string, cart: CartLine[]): SkuAvailability {
+  const variant = findVariant(skuId);
+  if (!variant) {
+    return {
+      skuId,
+      availableQty: 0,
+      cartQty: 0,
+      qtyInputValid: true,
+      canSelect: false,
+      canAdd: false,
+      reason: 'unknown_sku',
+    };
+  }
+  if (variant.availableQty <= 0) {
+    return {
+      skuId,
+      availableQty: variant.availableQty,
+      cartQty: 0,
+      qtyInputValid: true,
+      canSelect: false,
+      canAdd: false,
+      reason: 'sold_out',
+    };
+  }
+
+  const line = cart.find((item) => item.skuId === skuId);
+  if (!line) {
+    return {
+      skuId,
+      availableQty: variant.availableQty,
+      cartQty: 0,
+      qtyInputValid: true,
+      canSelect: true,
+      canAdd: true,
+      reason: null,
+    };
+  }
+
+  const parsed = parseCartQtyInput(line.qtyInput, variant.availableQty);
+  if (!parsed.ok) {
+    return {
+      skuId,
+      availableQty: variant.availableQty,
+      cartQty: 0,
+      qtyInputValid: false,
+      canSelect: true,
+      canAdd: false,
+      reason: 'invalid_qty',
+    };
+  }
+
+  const atCap = parsed.value >= variant.availableQty;
+  return {
+    skuId,
+    availableQty: variant.availableQty,
+    cartQty: parsed.value,
+    qtyInputValid: true,
+    canSelect: true,
+    canAdd: !atCap,
+    reason: atCap ? 'at_cap' : null,
+  };
+}
+
+export function catalogAddAvailability(
+  product: Product,
+  selected: ProductVariant | null,
+  cart: CartLine[],
+): CatalogAddState {
+  const allSoldOut = product.variants.every((variant) => !skuAvailability(variant.skuId, cart).canSelect);
+  if (allSoldOut || (selected && !skuAvailability(selected.skuId, cart).canSelect)) {
+    return {
+      canAdd: false,
+      showRestock: true,
+      reason: 'sold_out',
+      cartQty: 0,
+      buttonLabel: VIEW_RESTOCK,
+      hint: null,
+    };
+  }
+  if (!selected) {
+    return {
+      canAdd: false,
+      showRestock: false,
+      reason: 'select_spec',
+      cartQty: 0,
+      buttonLabel: ADD_TO_CART,
+      hint: SELECT_SPEC_HINT,
+    };
+  }
+
+  const availability = skuAvailability(selected.skuId, cart);
+  if (availability.reason === 'invalid_qty') {
+    return {
+      canAdd: false,
+      showRestock: false,
+      reason: 'invalid_qty',
+      cartQty: 0,
+      buttonLabel: FIX_CART_QTY,
+      hint: FIX_CART_QTY,
+    };
+  }
+  if (availability.reason === 'at_cap') {
+    return {
+      canAdd: false,
+      showRestock: false,
+      reason: 'at_cap',
+      cartQty: availability.cartQty,
+      buttonLabel: AT_STOCK_CAP,
+      hint: cartHasQtyLabel(availability.cartQty),
+    };
+  }
+
+  return {
+    canAdd: true,
+    showRestock: false,
+    reason: null,
+    cartQty: availability.cartQty,
+    buttonLabel: ADD_TO_CART,
+    hint: availability.cartQty > 0 ? cartHasQtyLabel(availability.cartQty) : null,
+  };
 }
 
 export function catalogRows(session: MerchantPosSession): CatalogRow[] {
   return filterCatalog(session.query).map((row) => {
     const selectedId = session.selectedSkuByProductId[row.product.productId];
     const selected = row.product.variants.find((variant) => variant.skuId === selectedId) ?? null;
+    const displayVariant =
+      selected ?? (row.product.variants.length === 1 ? row.product.variants[0] : null);
     return {
       ...row,
       selected,
-      stockLevel: selected ? stockLevelOf(selected) : null,
+      stockLevel: displayVariant ? stockLevelOf(displayVariant) : null,
+      add: catalogAddAvailability(row.product, selected, session.cart),
     };
   });
 }
@@ -93,11 +229,11 @@ export function cartLineTotals(line: CartLine): {
   }
   const parsedPrice = parsePositiveIntTwd(line.actualUnitPriceInput);
   const parsedQty = parseCartQtyInput(line.qtyInput, variant.availableQty);
-  const qty = parsedQty.ok ? parsedQty.value : line.qty;
+  const qty = parsedQty.ok ? parsedQty.value : null;
   return {
     variant,
-    listLineTwd: variant.listPriceTwd * qty,
-    actualLineTwd: parsedPrice.ok && parsedQty.ok ? parsedPrice.value * qty : null,
+    listLineTwd: qty != null ? variant.listPriceTwd * qty : null,
+    actualLineTwd: parsedPrice.ok && qty != null ? parsedPrice.value * qty : null,
     priceError: parsedPrice.ok ? null : parsedPrice.error,
     qtyError: parsedQty.ok ? null : parsedQty.error,
   };
@@ -112,7 +248,7 @@ export function cartTotals(cart: CartLine[]): CartTotals & { blocked: boolean; f
 
   for (const line of cart) {
     const result = cartLineTotals(line);
-    itemCount += line.qty;
+    if (!result.qtyError) itemCount += line.qty;
     if (result.listLineTwd != null) listSubtotalTwd += result.listLineTwd;
     if (result.actualLineTwd == null || result.priceError || result.qtyError) {
       blocked = true;
@@ -178,8 +314,7 @@ export function netDirectionFromSignedSum(sum: number): SettlementSnapshot['netD
 }
 
 export function availableAfterCart(skuId: string, cart: CartLine[]): number {
-  const variant = findVariant(skuId);
-  if (!variant) return 0;
-  const inCart = cart.find((line) => line.skuId === skuId)?.qty ?? 0;
-  return variant.availableQty - inCart;
+  const availability = skuAvailability(skuId, cart);
+  if (!availability.canAdd) return 0;
+  return availability.availableQty - availability.cartQty;
 }

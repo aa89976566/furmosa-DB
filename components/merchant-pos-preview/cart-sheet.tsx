@@ -22,7 +22,7 @@ import {
   REMOVE_LINE,
 } from '@/lib/merchant-pos-preview/copy';
 import { allowanceLabel, formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
-import { cartLineTotals, cartTotals, findProductBySku } from '@/lib/merchant-pos-preview/selectors';
+import { cartLineTotals, cartTotals, findProductBySku, skuAvailability } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 import { PreviewDialog } from './preview-dialog';
 
@@ -89,6 +89,7 @@ export function CartSheet({
               const decreaseLabel = `${DECREASE_QTY}，${lineContext}`;
               const increaseLabel = `${INCREASE_QTY}，${lineContext}`;
               const removeLabel = `${REMOVE_LINE}，${lineContext}`;
+              const availability = skuAvailability(line.skuId, session.cart);
               return (
                 <li key={line.skuId} className="rounded-xl border border-border/70 p-3">
                   <p className="font-medium text-navy">{product?.name}</p>
@@ -133,6 +134,8 @@ export function CartSheet({
                       variant="outline"
                       className="min-h-[44px] min-w-[44px]"
                       aria-label={increaseLabel}
+                      disabled={!availability.canAdd}
+                      aria-disabled={!availability.canAdd}
                       onClick={() => onQty(line.skuId, 1)}
                     >
                       ＋

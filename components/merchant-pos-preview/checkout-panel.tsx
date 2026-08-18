@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
-  ADD_TO_CART,
   AVAILABLE_QTY_LABEL,
   CART_EMPTY,
   CHECKOUT_INTRO,
@@ -13,11 +12,10 @@ import {
   SEARCH_EMPTY,
   SEARCH_LABEL,
   SEARCH_PLACEHOLDER,
-  SELECT_SPEC_HINT,
-  VIEW_RESTOCK,
+  SOLD_OUT_BADGE,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
-import { catalogRows } from '@/lib/merchant-pos-preview/selectors';
+import { catalogRows, skuAvailability } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 
 export function CheckoutPanel({
@@ -65,8 +63,8 @@ export function CheckoutPanel({
         <ul className="space-y-3">
           {rows.map((row) => {
             const selected = row.selected;
-            const soldOut = selected?.availableQty === 0;
-            const badge = selected ? stockLevelLabel(row.stockLevel ?? 'normal') : null;
+            const badge = row.stockLevel ? stockLevelLabel(row.stockLevel) : null;
+            const addHintId = `add-hint-${row.product.productId}`;
             return (
               <li key={row.product.productId}>
                 <Card>
@@ -80,52 +78,70 @@ export function CheckoutPanel({
                     <div className="flex flex-wrap gap-2">
                       {row.product.variants.map((variant) => {
                         const pressed = selected?.skuId === variant.skuId;
+                        const variantAvail = skuAvailability(variant.skuId, session.cart);
+                        const variantLabel = variantAvail.canSelect
+                          ? variant.specLabel
+                          : `${variant.specLabel}，${SOLD_OUT_BADGE}`;
                         return (
                           <Button
                             key={variant.skuId}
                             type="button"
                             variant={pressed ? 'default' : 'outline'}
                             className="min-h-[44px]"
+                            disabled={!variantAvail.canSelect}
+                            aria-disabled={!variantAvail.canSelect}
                             aria-pressed={pressed}
+                            aria-label={variantLabel}
                             onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
                           >
-                            {variant.specLabel}
+                            {variantAvail.canSelect ? variant.specLabel : `${variant.specLabel} ${SOLD_OUT_BADGE}`}
                           </Button>
                         );
                       })}
                     </div>
-                    {selected ? (
+                    {selected || row.add.showRestock ? (
                       <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <span>
-                          {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)}
-                        </span>
-                        <span>
-                          {AVAILABLE_QTY_LABEL} {formatQty(selected.availableQty)}
-                        </span>
+                        {selected ? (
+                          <>
+                            <span>
+                              {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)}
+                            </span>
+                            <span>
+                              {AVAILABLE_QTY_LABEL} {formatQty(selected.availableQty)}
+                            </span>
+                          </>
+                        ) : null}
                         {badge ? (
-                          <Badge variant={soldOut ? 'destructive' : 'warning'}>{badge}</Badge>
+                          <Badge variant={row.stockLevel === 'sold_out' ? 'destructive' : 'warning'}>
+                            {badge}
+                          </Badge>
                         ) : null}
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{SELECT_SPEC_HINT}</p>
-                    )}
-                    {soldOut ? (
+                    ) : null}
+                    {row.add.hint ? (
+                      <p id={addHintId} className="text-sm text-muted-foreground">
+                        {row.add.hint}
+                      </p>
+                    ) : null}
+                    {row.add.showRestock ? (
                       <Button
                         type="button"
                         variant="outline"
                         className="min-h-[44px] w-full"
                         onClick={onViewRestock}
                       >
-                        {VIEW_RESTOCK}
+                        {row.add.buttonLabel}
                       </Button>
                     ) : (
                       <Button
                         type="button"
                         className="min-h-[44px] w-full"
-                        disabled={!selected}
+                        disabled={!row.add.canAdd}
+                        aria-disabled={!row.add.canAdd}
+                        aria-describedby={row.add.hint ? addHintId : undefined}
                         onClick={() => onAdd(row.product.productId)}
                       >
-                        {ADD_TO_CART}
+                        {row.add.buttonLabel}
                       </Button>
                     )}
                   </CardContent>

@@ -166,9 +166,33 @@ export type MerchantPosSession = {
   refundNotice: string | null;
 };
 
+export type CatalogAddReason = 'select_spec' | 'sold_out' | 'at_cap' | 'invalid_qty' | null;
+
+export type SkuAvailabilityReason = 'unknown_sku' | 'sold_out' | 'at_cap' | 'invalid_qty' | null;
+
+export type SkuAvailability = {
+  skuId: string;
+  availableQty: number;
+  cartQty: number;
+  qtyInputValid: boolean;
+  canSelect: boolean;
+  canAdd: boolean;
+  reason: SkuAvailabilityReason;
+};
+
+export type CatalogAddState = {
+  canAdd: boolean;
+  showRestock: boolean;
+  reason: CatalogAddReason;
+  cartQty: number;
+  buttonLabel: string;
+  hint: string | null;
+};
+
 export type CatalogRow = {
   product: Product;
   selected: ProductVariant | null;
   stockLevel: StockLevel | null;
   matches: boolean;
+  add: CatalogAddState;
 };
