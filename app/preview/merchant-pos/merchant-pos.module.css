@@ -1,0 +1,19 @@
+.shell {
+  overflow-x: hidden;
+  max-width: 32rem;
+  margin-inline: auto;
+  min-height: 100vh;
+  width: 100%;
+}
+
+@media (min-width: 1440px) {
+  .shell {
+    max-width: 32rem;
+  }
+}
+
+.frame {
+  overflow-x: hidden;
+  width: 100%;
+  min-width: 0;
+}

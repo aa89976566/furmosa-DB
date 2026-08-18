@@ -1,0 +1,148 @@
+export type TabId = 'checkout' | 'sales' | 'restock' | 'more';
+
+export type StockLevel = 'normal' | 'low' | 'sold_out';
+
+export type CollectionChannel = 'merchant_collected' | 'furmosa_collected_line_ecpay';
+
+export type RefundStatus = 'requested' | 'approved' | 'rejected' | 'completed';
+
+export type SettlementStatus = 'draft' | 'reviewing' | 'approved' | 'paid';
+
+export type VoucherFaceTier = 'standard_200' | 'zhuwo_250';
+
+export type ProductVariant = {
+  skuId: string;
+  sku: string;
+  specLabel: string;
+  listPriceTwd: number;
+  availableQty: number;
+  lowStockAt: number;
+  suggestedRestockQty: number;
+};
+
+export type Product = {
+  productId: string;
+  name: string;
+  variants: ProductVariant[];
+};
+
+export type CartLine = {
+  skuId: string;
+  qty: number;
+  actualUnitPriceInput: string;
+};
+
+export type DemoReceiptLine = {
+  skuId: string;
+  name: string;
+  specLabel: string;
+  qty: number;
+  listPriceTwd: number;
+  actualUnitPriceTwd: number;
+  listLineTwd: number;
+  actualLineTwd: number;
+};
+
+export type DemoReceipt = {
+  receiptId: string;
+  notice: string;
+  itemCount: number;
+  listSubtotalTwd: number;
+  actualSubtotalTwd: number;
+  allowanceTwd: number;
+  lines: DemoReceiptLine[];
+};
+
+export type RestockDraftLine = {
+  skuId: string;
+  qty: number;
+};
+
+export type RestockSubmission = {
+  submissionId: string;
+  statusLabel: string;
+  notice: string;
+};
+
+export type SaleItemSnapshot = {
+  name: string;
+  specLabel: string;
+  qty: number;
+  actualLineTwd: number;
+};
+
+export type RefundOutcomeSnapshot = {
+  status: RefundStatus;
+  statusLabel: string;
+  note: string;
+  nextPeriodNote: string | null;
+  inventoryNote: string;
+  commissionNote: string;
+};
+
+export type SaleSnapshot = {
+  saleId: string;
+  soldAtLabel: string;
+  channel: CollectionChannel;
+  channelLabel: string;
+  pickupLabel: string | null;
+  statusLabel: string;
+  actualTotalTwd: number;
+  items: SaleItemSnapshot[];
+  refund: RefundOutcomeSnapshot | null;
+  canMerchantRequestRefund: boolean;
+};
+
+export type SettlementSnapshot = {
+  settlementId: string;
+  status: SettlementStatus;
+  statusLabel: string;
+  periodLabel: string;
+  merchantCollectedSalesTwd: number;
+  furmosaCollectedSalesTwd: number;
+  ordinaryCommissionSnapshotTwd: number;
+  voucherFixedSubsidyTwd: number;
+  refundNextPeriodAdjustmentTwd: number;
+  netDirectionLabel: string;
+  netAmountTwd: number;
+  locked: boolean;
+  lockNote: string | null;
+};
+
+export type PriceParseResult =
+  | { ok: true; value: number }
+  | { ok: false; error: string };
+
+export type CartTotals = {
+  itemCount: number;
+  listSubtotalTwd: number;
+  actualSubtotalTwd: number;
+  allowanceTwd: number;
+};
+
+export type MerchantPosSession = {
+  tab: TabId;
+  query: string;
+  selectedSkuByProductId: Record<string, string>;
+  cart: CartLine[];
+  cartOpen: boolean;
+  completeConfirmOpen: boolean;
+  refundConfirmSaleId: string | null;
+  demoReceipts: DemoReceipt[];
+  receiptSeq: number;
+  saleNotice: string | null;
+  restockQtyBySkuId: Record<string, string>;
+  restockDraft: RestockDraftLine[];
+  restockSubmitting: boolean;
+  restockSubmitted: boolean;
+  restockNotice: string | null;
+  localRefunds: Record<string, true>;
+  refundNotice: string | null;
+};
+
+export type CatalogRow = {
+  product: Product;
+  selected: ProductVariant | null;
+  stockLevel: StockLevel | null;
+  matches: boolean;
+};
