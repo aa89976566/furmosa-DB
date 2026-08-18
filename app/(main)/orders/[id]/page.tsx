@@ -43,6 +43,7 @@ import {
   Clock,
   Package,
   ClipboardList,
+  CheckCircle2,
   Pencil,
 } from 'lucide-react';
 import {
@@ -50,6 +51,7 @@ import {
   OrderStatusToggles,
 } from '@/components/orders/order-status-toggles';
 import { updateOrderShippingFeeType } from '../actions';
+import { approveOrderForShipment } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,13 +113,35 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">訂單狀態（可調整）</p>
-              <OrderStatusToggles orderId={order.id} status={order.status} />
+              {order.status === 'pending_review' ? (
+                <p className="text-xs text-muted-foreground">
+                  待審核訂單必須使用下方的專用核准按鈕，不能直接變更狀態。
+                </p>
+              ) : (
+                <OrderStatusToggles orderId={order.id} status={order.status} />
+              )}
               {order.status === 'cancelled' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   此訂單目前為「已取消」，不會出現在訂單列表。改為其他狀態即可回到列表。
                 </p>
               ) : null}
             </div>
+
+            {order.status === 'pending_review' ? (
+              <div className="mb-3 rounded-lg border border-warning/40 bg-warning/10 p-3">
+                <p className="text-sm font-medium">待客服審核</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  付款已成功；審核通過後才會建立出貨單並進入出貨隊列。
+                </p>
+                <form action={approveOrderForShipment} className="mt-3">
+                  <input type="hidden" name="orderId" value={order.id} />
+                  <Button type="submit" size="sm">
+                    <CheckCircle2 className="mr-1 h-4 w-4" />
+                    審核通過並建立出貨單
+                  </Button>
+                </form>
+              </div>
+            ) : null}
 
             <DetailStrip
               columns={1}
