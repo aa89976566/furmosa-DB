@@ -26,6 +26,7 @@ import {
 } from '@/lib/order-form-search';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
+import { getCurrentUser } from '@/lib/auth';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -391,6 +392,77 @@ export async function updateOrderShippingFeeType(formData: FormData) {
       data: { carrier },
     }),
   ]);
+
+  await revalidateOrderPaths(orderId);
+}
+
+export async function approveOrderForShipment(formData: FormData) {
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!orderId) throw new Error('缺少訂單');
+  const reviewer = await getCurrentUser();
+  if (!reviewer) throw new Error('請先登入客服帳號');
+
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true, items: true, shipments: { where: { status: { not: 'cancelled' } } } },
+    });
+    if (!order) throw new Error('訂單不存在');
+    if (!order.externalStore || !order.externalOrderId) {
+      throw new Error('只有 Shopify 匯入訂單可使用此審核流程');
+    }
+    if (order.paymentStatus !== 'paid') throw new Error('訂單尚未付款，不能通過出貨審核');
+    if (order.status !== 'pending_review') {
+      if (order.status === 'confirmed' && order.shipments.length > 0) return;
+      throw new Error('訂單不在待審核狀態');
+    }
+    if (order.shipments.length > 0) throw new Error('此訂單已有出貨單，請先檢查重複資料');
+
+    const prefix = `SHP-${ymd()}-`;
+    const last = await tx.shipment.findFirst({
+      where: { shipmentNumber: { startsWith: prefix } },
+      orderBy: { shipmentNumber: 'desc' },
+      select: { shipmentNumber: true },
+    });
+    const seq = last ? Number(last.shipmentNumber.slice(prefix.length)) + 1 : 1;
+
+    await tx.shipment.create({
+      data: {
+        shipmentNumber: `${prefix}${pad(seq, 4)}`,
+        type: 'customer_order',
+        status: 'pending',
+        customerId: order.customerId,
+        orderId: order.id,
+        recipientName: order.customer?.name ?? null,
+        recipientPhone: order.customer?.phone ?? null,
+        recipientAddress: order.shippingAddress,
+        carrier: shipmentCarrierFromOrder(order),
+        notes: `客服 ${reviewer.name} 審核通過`,
+        items: {
+          create: order.items.map((item) => ({
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            weightGrams: item.weightGrams,
+            unit: item.unit,
+          })),
+        },
+      },
+    });
+    await tx.order.update({ where: { id: order.id }, data: { status: 'confirmed' } });
+    await tx.statusAuditLog.create({
+      data: {
+        entityType: 'order',
+        entityId: order.id,
+        previousStatus: 'pending_review',
+        newStatus: 'confirmed',
+        actorType: 'supervisor',
+        actorId: reviewer.userId,
+        metadataJson: JSON.stringify({ reviewerName: reviewer.name, reviewerEmail: reviewer.email }),
+      },
+    });
+  });
 
   await revalidateOrderPaths(orderId);
 }
