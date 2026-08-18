@@ -67,6 +67,7 @@ async function OrdersTableSection({
   }
   const activeStatuses = [
     'draft',
+    'pending_review',
     'confirmed',
     'packed',
     'shipped',
