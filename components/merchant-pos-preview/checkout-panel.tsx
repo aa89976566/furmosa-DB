@@ -72,29 +72,28 @@ export function CheckoutPanel({
                     <div>
                       <p className="font-semibold text-navy">{row.product.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        貨號 {row.product.variants.map((variant) => variant.sku).join('／')}
+                        貨號 {row.visibleVariants.map((variant) => variant.sku).join('／')}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {row.product.variants.map((variant) => {
+                      {row.visibleVariants.map((variant) => {
                         const pressed = selected?.skuId === variant.skuId;
                         const variantAvail = skuAvailability(variant.skuId, session.cart);
-                        const variantLabel = variantAvail.canSelect
-                          ? variant.specLabel
-                          : `${variant.specLabel}，${SOLD_OUT_BADGE}`;
+                        const soldOut = variantAvail.reason === 'sold_out';
+                        const variantLabel = soldOut
+                          ? `${variant.specLabel}，${SOLD_OUT_BADGE}`
+                          : variant.specLabel;
                         return (
                           <Button
                             key={variant.skuId}
                             type="button"
                             variant={pressed ? 'default' : 'outline'}
                             className="min-h-[44px]"
-                            disabled={!variantAvail.canSelect}
-                            aria-disabled={!variantAvail.canSelect}
                             aria-pressed={pressed}
                             aria-label={variantLabel}
                             onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
                           >
-                            {variantAvail.canSelect ? variant.specLabel : `${variant.specLabel} ${SOLD_OUT_BADGE}`}
+                            {soldOut ? `${variant.specLabel} ${SOLD_OUT_BADGE}` : variant.specLabel}
                           </Button>
                         );
                       })}

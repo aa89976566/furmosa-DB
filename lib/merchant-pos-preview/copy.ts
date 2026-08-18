@@ -45,10 +45,11 @@ export const CART_QTY_LABEL = '數量';
 export const COMPLETE_SALE = '完成銷售（預覽）';
 export const COMPLETE_SALE_CONFIRM_TITLE = '確認完成這筆銷售？';
 export const COMPLETE_SALE_CONFIRM_BODY =
-  '只會留在這個畫面。重新整理後會消失，不會建立真實訂單。';
+  '這是操作預覽，完成後不會扣減示意庫存；重新整理會重置。不會建立真實訂單。';
 export const COMPLETE_SALE_CONFIRM = '完成銷售';
 export const COMPLETE_SALE_CANCEL = '先不要';
-export const SALE_SUCCESS = '已完成示意銷售。重新整理後會消失，不會建立真實訂單。';
+export const SALE_SUCCESS =
+  '已完成示意銷售。這是操作預覽，完成後不會扣減示意庫存；重新整理會重置。不會建立真實訂單。';
 export const RECEIPT_LABEL = '示意收據';
 export const CART_ESCAPE_HINT = '按 Escape 會回到購物車，不會送出。';
 

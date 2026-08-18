@@ -58,16 +58,32 @@ export function variantMatchesQuery(product: Product, variant: ProductVariant, q
   );
 }
 
+export function visibleVariantsForProduct(product: Product, query: string): ProductVariant[] {
+  const q = normalizeQuery(query);
+  if (!q) return product.variants;
+  if (product.name.toLowerCase().includes(q)) return product.variants;
+  return product.variants.filter(
+    (variant) => variant.sku.toLowerCase().includes(q) || variant.specLabel.toLowerCase().includes(q),
+  );
+}
+
+function makeSkuAvailability(partial: Omit<SkuAvailability, 'cartQty' | 'qtyInputValid'>): SkuAvailability {
+  return {
+    ...partial,
+    cartQty: partial.committedCartQty,
+    qtyInputValid: partial.qtyDraftValid,
+  };
+}
+
 export function filterCatalog(query: string): CatalogRow[] {
   return PRODUCTS.map((product) => {
-    const matchingVariants = product.variants.filter((variant) =>
-      variantMatchesQuery(product, variant, query),
-    );
+    const visibleVariants = visibleVariantsForProduct(product, query);
     return {
       product,
+      visibleVariants,
       selected: null,
       stockLevel: null,
-      matches: matchingVariants.length > 0,
+      matches: visibleVariants.length > 0,
       add: catalogAddAvailability(product, null, []),
     };
   }).filter((row) => row.matches);
@@ -75,65 +91,74 @@ export function filterCatalog(query: string): CatalogRow[] {
 
 export function skuAvailability(skuId: string, cart: CartLine[]): SkuAvailability {
   const variant = findVariant(skuId);
+  const line = cart.find((item) => item.skuId === skuId);
+  const committedCartQty = line?.qty ?? 0;
+
   if (!variant) {
-    return {
+    return makeSkuAvailability({
       skuId,
       availableQty: 0,
-      cartQty: 0,
-      qtyInputValid: true,
+      committedCartQty,
+      availableToAdd: 0,
+      qtyDraftValid: true,
       canSelect: false,
       canAdd: false,
       reason: 'unknown_sku',
-    };
-  }
-  if (variant.availableQty <= 0) {
-    return {
-      skuId,
-      availableQty: variant.availableQty,
-      cartQty: 0,
-      qtyInputValid: true,
-      canSelect: false,
-      canAdd: false,
-      reason: 'sold_out',
-    };
+    });
   }
 
-  const line = cart.find((item) => item.skuId === skuId);
-  if (!line) {
-    return {
+  const availableToAdd = Math.max(0, variant.availableQty - committedCartQty);
+  if (variant.availableQty <= 0) {
+    return makeSkuAvailability({
       skuId,
       availableQty: variant.availableQty,
-      cartQty: 0,
-      qtyInputValid: true,
+      committedCartQty,
+      availableToAdd: 0,
+      qtyDraftValid: true,
       canSelect: true,
-      canAdd: true,
+      canAdd: false,
+      reason: 'sold_out',
+    });
+  }
+
+  if (!line) {
+    return makeSkuAvailability({
+      skuId,
+      availableQty: variant.availableQty,
+      committedCartQty: 0,
+      availableToAdd,
+      qtyDraftValid: true,
+      canSelect: true,
+      canAdd: availableToAdd > 0,
       reason: null,
-    };
+    });
   }
 
   const parsed = parseCartQtyInput(line.qtyInput, variant.availableQty);
   if (!parsed.ok) {
-    return {
+    return makeSkuAvailability({
       skuId,
       availableQty: variant.availableQty,
-      cartQty: 0,
-      qtyInputValid: false,
+      committedCartQty,
+      availableToAdd,
+      qtyDraftValid: false,
       canSelect: true,
       canAdd: false,
       reason: 'invalid_qty',
-    };
+    });
   }
 
-  const atCap = parsed.value >= variant.availableQty;
-  return {
+  const atCap = availableToAdd <= 0;
+  return makeSkuAvailability({
     skuId,
     availableQty: variant.availableQty,
-    cartQty: parsed.value,
-    qtyInputValid: true,
+    committedCartQty,
+    availableToAdd,
+    qtyDraftValid: true,
     canSelect: true,
     canAdd: !atCap,
     reason: atCap ? 'at_cap' : null,
-  };
+  });
 }
 
 export function catalogAddAvailability(
@@ -141,13 +166,16 @@ export function catalogAddAvailability(
   selected: ProductVariant | null,
   cart: CartLine[],
 ): CatalogAddState {
-  const allSoldOut = product.variants.every((variant) => !skuAvailability(variant.skuId, cart).canSelect);
-  if (allSoldOut || (selected && !skuAvailability(selected.skuId, cart).canSelect)) {
+  const allSoldOut = product.variants.every(
+    (variant) => skuAvailability(variant.skuId, cart).reason === 'sold_out',
+  );
+  if (allSoldOut || (selected && skuAvailability(selected.skuId, cart).reason === 'sold_out')) {
+    const committed = selected ? skuAvailability(selected.skuId, cart).committedCartQty : 0;
     return {
       canAdd: false,
       showRestock: true,
       reason: 'sold_out',
-      cartQty: 0,
+      cartQty: committed,
       buttonLabel: VIEW_RESTOCK,
       hint: null,
     };
@@ -169,7 +197,7 @@ export function catalogAddAvailability(
       canAdd: false,
       showRestock: false,
       reason: 'invalid_qty',
-      cartQty: 0,
+      cartQty: availability.committedCartQty,
       buttonLabel: FIX_CART_QTY,
       hint: FIX_CART_QTY,
     };
@@ -179,9 +207,9 @@ export function catalogAddAvailability(
       canAdd: false,
       showRestock: false,
       reason: 'at_cap',
-      cartQty: availability.cartQty,
+      cartQty: availability.committedCartQty,
       buttonLabel: AT_STOCK_CAP,
-      hint: cartHasQtyLabel(availability.cartQty),
+      hint: cartHasQtyLabel(availability.committedCartQty),
     };
   }
 
@@ -189,23 +217,29 @@ export function catalogAddAvailability(
     canAdd: true,
     showRestock: false,
     reason: null,
-    cartQty: availability.cartQty,
+    cartQty: availability.committedCartQty,
     buttonLabel: ADD_TO_CART,
-    hint: availability.cartQty > 0 ? cartHasQtyLabel(availability.cartQty) : null,
+    hint: availability.committedCartQty > 0 ? cartHasQtyLabel(availability.committedCartQty) : null,
   };
 }
 
 export function catalogRows(session: MerchantPosSession): CatalogRow[] {
   return filterCatalog(session.query).map((row) => {
+    const visibleVariants = visibleVariantsForProduct(row.product, session.query);
     const selectedId = session.selectedSkuByProductId[row.product.productId];
-    const selected = row.product.variants.find((variant) => variant.skuId === selectedId) ?? null;
-    const displayVariant =
-      selected ?? (row.product.variants.length === 1 ? row.product.variants[0] : null);
+    const sessionSelected = row.product.variants.find((variant) => variant.skuId === selectedId) ?? null;
+    const selected =
+      sessionSelected && visibleVariants.some((variant) => variant.skuId === sessionSelected.skuId)
+        ? sessionSelected
+        : null;
+    const add = catalogAddAvailability(row.product, selected, session.cart);
+    const displayVariant = selected ?? (add.showRestock && visibleVariants.length === 1 ? visibleVariants[0] : null);
     return {
       ...row,
+      visibleVariants,
       selected,
       stockLevel: displayVariant ? stockLevelOf(displayVariant) : null,
-      add: catalogAddAvailability(row.product, selected, session.cart),
+      add,
     };
   });
 }
@@ -248,7 +282,7 @@ export function cartTotals(cart: CartLine[]): CartTotals & { blocked: boolean; f
 
   for (const line of cart) {
     const result = cartLineTotals(line);
-    if (!result.qtyError) itemCount += line.qty;
+    itemCount += line.qty;
     if (result.listLineTwd != null) listSubtotalTwd += result.listLineTwd;
     if (result.actualLineTwd == null || result.priceError || result.qtyError) {
       blocked = true;
@@ -314,7 +348,21 @@ export function netDirectionFromSignedSum(sum: number): SettlementSnapshot['netD
 }
 
 export function availableAfterCart(skuId: string, cart: CartLine[]): number {
-  const availability = skuAvailability(skuId, cart);
-  if (!availability.canAdd) return 0;
-  return availability.availableQty - availability.cartQty;
+  return skuAvailability(skuId, cart).availableToAdd;
+}
+
+export function cartDockState(cart: CartLine[]): {
+  itemCount: number;
+  blocked: boolean;
+  dealTwd: number | null;
+  notice: string | null;
+} {
+  const totals = cartTotals(cart);
+  const hasInvalidQty = cart.some((line) => Boolean(cartLineTotals(line).qtyError));
+  return {
+    itemCount: totals.itemCount,
+    blocked: totals.blocked,
+    dealTwd: totals.blocked ? null : totals.actualSubtotalTwd,
+    notice: hasInvalidQty ? FIX_CART_QTY : null,
+  };
 }

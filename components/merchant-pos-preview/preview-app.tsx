@@ -15,7 +15,7 @@ import {
   STORE_NAME,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
-import { cartTotals } from '@/lib/merchant-pos-preview/selectors';
+import { cartDockState } from '@/lib/merchant-pos-preview/selectors';
 import {
   addAllRestockCandidates,
   addRestockLine,
@@ -51,7 +51,7 @@ import { SalesPanel } from './sales-panel';
 export function MerchantPosPreviewApp() {
   const [session, setSession] = useState<MerchantPosSession>(() => createSession());
   const latestReceipt = session.demoReceipts[0];
-  const totals = cartTotals(session.cart);
+  const dock = cartDockState(session.cart);
   const showCartDock = session.tab === 'checkout' && session.cart.length > 0;
 
   const body = useMemo(() => {
@@ -152,8 +152,9 @@ export function MerchantPosPreviewApp() {
             <div className={`${styles.cartDockInner} border-t border-border/80 bg-card/95 p-3 shadow-card backdrop-blur`}>
               <div className="flex items-center justify-between gap-3">
                 <p className="min-w-0 text-sm font-medium text-navy">
-                  {ITEM_COUNT_LABEL} {formatQty(totals.itemCount)}
-                  {totals.blocked ? '' : ` · ${DEAL_LABEL} ${formatTwd(totals.actualSubtotalTwd)}`}
+                  {ITEM_COUNT_LABEL} {formatQty(dock.itemCount)}
+                  {dock.notice ? ` · ${dock.notice}` : null}
+                  {dock.dealTwd == null ? '' : ` · ${DEAL_LABEL} ${formatTwd(dock.dealTwd)}`}
                 </p>
                 <Button
                   type="button"

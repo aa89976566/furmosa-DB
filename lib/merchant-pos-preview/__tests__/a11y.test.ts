@@ -31,7 +31,7 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(checkout, /skuAvailability\(/);
     assert.match(checkout, /disabled=\{!row\.add\.canAdd\}/);
     assert.match(checkout, /aria-describedby=\{row\.add\.hint \? addHintId : undefined\}/);
-    assert.match(checkout, /disabled=\{!variantAvail\.canSelect\}/);
+    assert.match(checkout, /row\.visibleVariants\.map/);
     assert.equal(checkout.includes('availableQty === 0'), false);
     assert.equal(checkout.includes("role=\"alert\""), false);
     assert.match(cart, /skuAvailability\(/);

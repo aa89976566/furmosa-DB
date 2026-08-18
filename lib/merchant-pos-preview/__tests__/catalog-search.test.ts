@@ -30,8 +30,11 @@ describe('merchant POS preview catalog search', () => {
     assert.equal(session.cart.length, 0);
 
     session = selectVariant(session, 'prod-beef', 'sku-beef-300');
-    assert.equal(session.selectedSkuByProductId['prod-beef'], undefined);
-    assert.equal(skuAvailability('sku-beef-300', session.cart).canSelect, false);
+    assert.equal(session.selectedSkuByProductId['prod-beef'], 'sku-beef-300');
+    assert.equal(skuAvailability('sku-beef-300', session.cart).canSelect, true);
+    assert.equal(skuAvailability('sku-beef-300', session.cart).canAdd, false);
+    const soldOutRow = catalogRows(session).find((row) => row.product.productId === 'prod-beef');
+    assert.equal(soldOutRow?.add.showRestock, true);
     session = addSelectedToCart(session, 'prod-beef');
     assert.equal(session.cart.length, 0);
 

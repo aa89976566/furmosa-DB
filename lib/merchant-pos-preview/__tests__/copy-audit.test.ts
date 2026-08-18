@@ -35,6 +35,7 @@ const REQUIRED = [
   '已達庫存上限',
   '請先修正購物車數量',
   '購物車已有',
+  '不會扣減示意庫存',
 ];
 
 function visibleCopyValues(): string[] {

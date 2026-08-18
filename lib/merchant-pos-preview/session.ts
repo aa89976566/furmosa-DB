@@ -13,6 +13,7 @@ import {
   availableAfterCart,
   cartLineTotals,
   cartTotals,
+  catalogRows,
   findProductBySku,
   findVariant,
   restockCandidates,
@@ -74,7 +75,6 @@ export function selectVariant(
   const product = PRODUCTS.find((item) => item.productId === productId);
   const variant = product?.variants.find((item) => item.skuId === skuId);
   if (!variant) return session;
-  if (!skuAvailability(variant.skuId, session.cart).canSelect) return session;
   return {
     ...session,
     selectedSkuByProductId: {
@@ -88,10 +88,9 @@ export function addSelectedToCart(
   session: MerchantPosSession,
   productId: string,
 ): MerchantPosSession {
-  const skuId = session.selectedSkuByProductId[productId];
-  if (!skuId) return session;
-  if (!skuAvailability(skuId, session.cart).canAdd) return session;
-  return addCartQty(session, skuId, 1);
+  const row = catalogRows(session).find((item) => item.product.productId === productId);
+  if (!row?.selected || !row.add.canAdd) return session;
+  return addCartQty(session, row.selected.skuId, 1);
 }
 
 export function addCartQty(

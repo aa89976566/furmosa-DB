@@ -173,7 +173,10 @@ export type SkuAvailabilityReason = 'unknown_sku' | 'sold_out' | 'at_cap' | 'inv
 export type SkuAvailability = {
   skuId: string;
   availableQty: number;
+  committedCartQty: number;
+  availableToAdd: number;
   cartQty: number;
+  qtyDraftValid: boolean;
   qtyInputValid: boolean;
   canSelect: boolean;
   canAdd: boolean;
@@ -191,6 +194,7 @@ export type CatalogAddState = {
 
 export type CatalogRow = {
   product: Product;
+  visibleVariants: ProductVariant[];
   selected: ProductVariant | null;
   stockLevel: StockLevel | null;
   matches: boolean;
