@@ -22,6 +22,7 @@ import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
+import { PreviewDisclosure } from './preview-disclosure';
 
 export function SalesPanel({
   session,
@@ -135,8 +136,7 @@ export function SalesPanel({
         title={REQUEST_REFUND_TITLE}
         onClose={onCancelRefund}
       >
-        <p className={styles.hint}>{REQUEST_REFUND_BODY}</p>
-        <div className={`${styles.stack} mt-4`}>
+        <div className={styles.stack}>
           <PreviewAction
             tone={PREVIEW_ACTION_TONES.refundConfirm}
             className={`${styles.actionBlock} min-h-[44px]`}
@@ -151,6 +151,11 @@ export function SalesPanel({
           >
             {REQUEST_REFUND_CANCEL}
           </PreviewAction>
+        </div>
+        <div className="mt-4">
+          <PreviewDisclosure summary="查看退款說明">
+            <p>{REQUEST_REFUND_BODY}</p>
+          </PreviewDisclosure>
         </div>
       </PreviewDialog>
     </section>

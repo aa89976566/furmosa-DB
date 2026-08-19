@@ -17,6 +17,7 @@ import { findVariant, restockCandidates } from '@/lib/merchant-pos-preview/selec
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
+import { PreviewDisclosure } from './preview-disclosure';
 
 export function RestockPanel({
   session,
@@ -39,7 +40,9 @@ export function RestockPanel({
         <h2 id="restock-title" className={styles.sectionTitle}>
           補貨
         </h2>
-        <p className={styles.sectionIntro}>{RESTOCK_INTRO}</p>
+        <PreviewDisclosure summary="查看補貨流程">
+          <p>{RESTOCK_INTRO}</p>
+        </PreviewDisclosure>
       </div>
 
       <ul className={styles.workspaceList}>

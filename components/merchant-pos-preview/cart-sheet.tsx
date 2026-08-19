@@ -10,7 +10,10 @@ import {
   COMPLETE_SALE_CONFIRM_TITLE,
 } from '@/lib/merchant-pos-preview/copy';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import { formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
+import { cartTotals } from '@/lib/merchant-pos-preview/selectors';
 import { CartWorkspace } from './cart-workspace';
+import { PreviewDisclosure } from './preview-disclosure';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
@@ -42,6 +45,7 @@ export function CartSheet({
 }) {
   const confirming = session.cartDialogStep === 'confirm';
   const open = session.cartOpen && (confirming || showEditor);
+  const totals = cartTotals(session.cart);
 
   return (
     <PreviewDialog
@@ -52,8 +56,9 @@ export function CartSheet({
     >
       {confirming ? (
         <div className="space-y-4">
-          <p className={styles.hint}>{COMPLETE_SALE_CONFIRM_BODY}</p>
-          <p className={styles.quietNote}>{CART_ESCAPE_HINT}</p>
+          <p className={styles.confirmSummary}>
+            {formatQty(totals.itemCount)}・成交 {formatTwd(totals.actualSubtotalTwd)}
+          </p>
           <div className={styles.stack}>
             <PreviewAction
               tone={PREVIEW_ACTION_TONES.completeSaleConfirm}
@@ -70,6 +75,10 @@ export function CartSheet({
               {COMPLETE_SALE_CANCEL}
             </PreviewAction>
           </div>
+          <PreviewDisclosure summary="查看操作說明">
+            <p>{COMPLETE_SALE_CONFIRM_BODY}</p>
+            <p className="mt-1">{CART_ESCAPE_HINT}</p>
+          </PreviewDisclosure>
         </div>
       ) : showEditor ? (
         <CartWorkspace

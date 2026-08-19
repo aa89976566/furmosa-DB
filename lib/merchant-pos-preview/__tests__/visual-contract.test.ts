@@ -126,8 +126,20 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(cart, /COMPLETE_SALE_CONFIRM_BODY/);
     assert.equal(PREVIEW_BANNER_PRIMARY, '操作預覽｜資料不會儲存');
     assert.equal(PREVIEW_BANNER_SECONDARY, '以下為示意商品與訂單，不是正式店家資料');
-    assert.match(COMPLETE_SALE_CONFIRM_BODY, /這是操作預覽，完成後不會扣減示意庫存；重新整理會重置/);
+    assert.match(COMPLETE_SALE_CONFIRM_BODY, /操作預覽，不建立訂單、不扣除庫存/);
     assert.match(SALE_SUCCESS, /這是操作預覽，完成後不會扣減示意庫存；重新整理會重置/);
+  });
+
+  it('keeps secondary guidance behind native progressive disclosure', () => {
+    const disclosure = read('components/merchant-pos-preview/preview-disclosure.tsx');
+    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    const refund = read('components/merchant-pos-preview/sales-panel.tsx');
+    assert.match(disclosure, /<details/);
+    assert.match(disclosure, /<summary/);
+    assert.match(cart, /summary="查看操作說明"/);
+    assert.match(refund, /summary="查看退款說明"/);
+    assert.match(cart, /formatQty\(totals\.itemCount\)/);
+    assert.match(cart, /formatTwd\(totals\.actualSubtotalTwd\)/);
   });
 
   it('does not import global button, card, or badge in preview presenters', () => {
@@ -138,6 +150,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
       'components/merchant-pos-preview/cart-workspace.tsx',
       'components/merchant-pos-preview/cart-layout-transition.ts',
       'components/merchant-pos-preview/cart-focus-handoff.ts',
+      'components/merchant-pos-preview/preview-disclosure.tsx',
       'components/merchant-pos-preview/use-desktop-checkout-layout.ts',
       'components/merchant-pos-preview/sales-panel.tsx',
       'components/merchant-pos-preview/restock-panel.tsx',

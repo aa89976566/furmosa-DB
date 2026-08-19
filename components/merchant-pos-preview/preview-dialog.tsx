@@ -109,9 +109,10 @@ export function PreviewDialog({
           <PreviewAction
             tone={PREVIEW_ACTION_TONES.dialogClose}
             className="min-h-[44px] min-w-[44px]"
+            aria-label={CLOSE_DIALOG}
             onClick={() => onCloseRef.current()}
           >
-            {CLOSE_DIALOG}
+            <span aria-hidden="true">×</span>
           </PreviewAction>
         </div>
         {children}

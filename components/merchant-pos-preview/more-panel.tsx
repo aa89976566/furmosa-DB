@@ -12,6 +12,7 @@ import {
 import { PreviewActionLink } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { SettlementPanel } from './settlement-panel';
+import { PreviewDisclosure } from './preview-disclosure';
 
 export function MorePanel() {
   return (
@@ -26,8 +27,7 @@ export function MorePanel() {
       <div className={styles.workspaceList}>
         <div className={styles.workspaceRow}>
           <h3 className={styles.productName}>{GROOMING_ENTRY_TITLE}</h3>
-          <p className={`${styles.productSpec} mt-2`}>{GROOMING_ENTRY_BODY}</p>
-          <p className={`${styles.hint} mt-2`}>{GROOMING_ENTRY_HINT}</p>
+          <p className={`${styles.productSpec} mt-2`}>10 點美容服務券核銷</p>
           <PreviewActionLink
             tone={PREVIEW_ACTION_TONES.openGroomingVoucher}
             href={GROOMING_PREVIEW_HREF}
@@ -35,6 +35,12 @@ export function MorePanel() {
           >
             {GROOMING_ENTRY_CTA}
           </PreviewActionLink>
+          <div className="mt-3">
+            <PreviewDisclosure summary="查看使用說明">
+              <p>{GROOMING_ENTRY_BODY}</p>
+              <p className="mt-1">{GROOMING_ENTRY_HINT}</p>
+            </PreviewDisclosure>
+          </div>
         </div>
       </div>
 

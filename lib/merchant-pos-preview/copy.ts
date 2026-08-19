@@ -46,13 +46,13 @@ export const CART_QTY_LABEL = '數量';
 export const COMPLETE_SALE = '完成銷售（預覽）';
 export const COMPLETE_SALE_CONFIRM_TITLE = '確認完成這筆銷售？';
 export const COMPLETE_SALE_CONFIRM_BODY =
-  '這是操作預覽，完成後不會扣減示意庫存；重新整理會重置。不會建立真實訂單。';
+  '此為操作預覽，不建立訂單、不扣除庫存。重新整理後會重置。';
 export const COMPLETE_SALE_CONFIRM = '完成銷售';
-export const COMPLETE_SALE_CANCEL = '先不要';
+export const COMPLETE_SALE_CANCEL = '返回購物車';
 export const SALE_SUCCESS =
   '已完成示意銷售。這是操作預覽，完成後不會扣減示意庫存；重新整理會重置。不會建立真實訂單。';
 export const RECEIPT_LABEL = '示意收據';
-export const CART_ESCAPE_HINT = '按 Escape 會回到購物車，不會送出。';
+export const CART_ESCAPE_HINT = '按 Esc 也可以返回購物車。';
 
 export const RESTOCK_INTRO =
   '只列出低庫存與售罄的示意貨號。送出後不會增加庫存。正式流程是門市送出 → 總部核准 → 出貨 → 到貨後才入庫。';
@@ -73,9 +73,9 @@ export const SALES_INTRO = '以下是示意訂單，不是正式店家資料。'
 export const REQUEST_REFUND = '提出退款申請';
 export const REQUEST_REFUND_TITLE = '提出退款申請？';
 export const REQUEST_REFUND_BODY =
-  '只會把這筆標成已提出申請。這個畫面沒有總部審核或退款完成的按鈕，也不會動到庫存或佣金。';
+  '送出後僅建立退款申請；須由總部審核，不會立即退款或異動庫存。';
 export const REQUEST_REFUND_CONFIRM = '提出申請';
-export const REQUEST_REFUND_CANCEL = '先不要';
+export const REQUEST_REFUND_CANCEL = '返回';
 export const REFUND_SUCCESS = '已提出退款申請。總部尚未審核；此頁不會審核或完成退款。';
 export const REFUND_ALREADY = '這筆已經提出過申請，不能重複送出。';
 export const NEXT_PERIOD_NOTE = '將列入下期調整';

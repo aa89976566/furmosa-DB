@@ -212,7 +212,7 @@ describe('merchant POS preview catalog/cart inventory consistency', () => {
   });
 
   it('clears the cart after a demo sale without deducting fixture stock', () => {
-    assert.match(COMPLETE_SALE_CONFIRM_BODY, /這是操作預覽，完成後不會扣減示意庫存；重新整理會重置/);
+    assert.match(COMPLETE_SALE_CONFIRM_BODY, /操作預覽，不建立訂單、不扣除庫存/);
     assert.match(SALE_SUCCESS, /這是操作預覽，完成後不會扣減示意庫存；重新整理會重置/);
 
     let session = selectAndAdd('prod-beef', 'sku-beef-150', 3);
