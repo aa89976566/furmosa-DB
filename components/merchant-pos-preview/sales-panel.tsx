@@ -44,9 +44,9 @@ export function SalesPanel({
         </h2>
       </div>
 
-      <ul className={styles.workspaceList}>
+      <ul className={styles.workspaceGrid}>
         {sales.map((sale) => (
-          <li key={sale.saleId} className={`${styles.workspaceRow} ${styles.compactRow}`}>
+          <li key={sale.saleId} className={`${styles.workspaceCard} ${styles.compactRow}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className={styles.productName}>{sale.soldAtLabel}</p>

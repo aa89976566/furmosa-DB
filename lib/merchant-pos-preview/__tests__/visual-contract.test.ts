@@ -106,14 +106,17 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
   it('keeps restock controls in the same responsive card frame as checkout', () => {
     const css = read('app/preview/merchant-pos/merchant-pos.module.css');
     const restock = read('components/merchant-pos-preview/restock-panel.tsx');
-    assert.match(restock, /styles\.restockGrid/);
-    assert.match(restock, /styles\.restockCard/);
+    const sales = read('components/merchant-pos-preview/sales-panel.tsx');
+    assert.match(restock, /styles\.workspaceGrid/);
+    assert.match(restock, /styles\.workspaceCard/);
+    assert.match(sales, /styles\.workspaceGrid/);
+    assert.match(sales, /styles\.workspaceCard/);
     assert.match(restock, /styles\.restockControls/);
     assert.equal(PREVIEW_ACTION_TONES.addRestockLine, 'primary');
     assert.match(css, /\.restockControls\s*\{[\s\S]*max-width:\s*26rem/);
-    assert.match(css, /\.restockGrid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
-    assert.match(css, /@media \(min-width:\s*768px\)[\s\S]*\.restockGrid\s*\{[\s\S]*repeat\(2,/);
-    assert.match(css, /@media \(min-width:\s*1280px\)[\s\S]*\.restockGrid\s*\{[\s\S]*repeat\(3,/);
+    assert.match(css, /\.workspaceGrid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+    assert.match(css, /@media \(min-width:\s*768px\)[\s\S]*\.workspaceGrid\s*\{[\s\S]*repeat\(2,/);
+    assert.match(css, /@media \(min-width:\s*1280px\)[\s\S]*\.workspaceGrid\s*\{[\s\S]*repeat\(3,/);
   });
 
   it('keeps safe-area, fixed layers, 100dvh dialog, and z-index in source CSS', () => {

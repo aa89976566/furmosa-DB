@@ -45,12 +45,12 @@ export function RestockPanel({
         </PreviewDisclosure>
       </div>
 
-      <ul className={styles.restockGrid}>
+      <ul className={styles.workspaceGrid}>
         {rows.map((row) => {
           const badge = stockLevelLabel(row.stockLevel);
           const qtyId = `restock-qty-${row.variant.skuId}`;
           return (
-            <li key={row.variant.skuId} className={styles.restockCard}>
+            <li key={row.variant.skuId} className={styles.workspaceCard}>
               <p className={styles.productName}>{row.product.name}</p>
               <p className={styles.productSpec}>
                 {row.variant.specLabel} · {row.variant.sku}
