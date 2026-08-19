@@ -48,7 +48,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     const app = read('components/merchant-pos-preview/preview-app.tsx');
     const dialog = read('components/merchant-pos-preview/preview-dialog.tsx');
 
-    assert.match(checkout, /tone=\{PREVIEW_ACTION_TONES\.addToCart\}/);
+    assert.match(checkout, /CatalogQuantityStepper/);
     assert.match(checkout, /tone=\{PREVIEW_ACTION_TONES\.viewRestock\}/);
     assert.match(checkout, /selected=\{pressed\}/);
     assert.match(checkout, /soldOut=\{soldOut\}/);
@@ -148,6 +148,8 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
       'components/merchant-pos-preview/bottom-nav.tsx',
       'components/merchant-pos-preview/preview-action.tsx',
       'components/merchant-pos-preview/preview-spec-chip.tsx',
+      'components/merchant-pos-preview/catalog-quantity-stepper.tsx',
+      'components/merchant-pos-preview/catalog-quantity-stepper-command.ts',
     ];
     for (const file of files) {
       const src = read(file);

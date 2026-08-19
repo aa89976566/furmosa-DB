@@ -143,6 +143,7 @@ export function MerchantPosPreviewApp() {
           setSession((current) => selectVariant(current, productId, skuId))
         }
         onAdd={(productId) => setSession((current) => addSelectedToCart(current, productId))}
+        onStepQty={(skuId, delta) => setSession((current) => addCartQty(current, skuId, delta))}
         onViewRestock={() => setSession((current) => setTab(current, 'restock'))}
       />
     );

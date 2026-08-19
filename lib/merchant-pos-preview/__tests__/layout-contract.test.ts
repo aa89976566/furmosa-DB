@@ -45,6 +45,7 @@ describe('merchant POS preview layout static contract', () => {
   it('source still uses 44px touch target classes; this is not a live viewport proof', () => {
     const files = [
       'components/merchant-pos-preview/checkout-panel.tsx',
+      'components/merchant-pos-preview/catalog-quantity-stepper.tsx',
       'components/merchant-pos-preview/cart-sheet.tsx',
       'components/merchant-pos-preview/cart-workspace.tsx',
       'components/merchant-pos-preview/restock-panel.tsx',

@@ -14,6 +14,8 @@ import {
 import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
 import { catalogRows, skuAvailability } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import { nextCatalogStepperCommand } from './catalog-quantity-stepper-command';
+import { CatalogQuantityStepper } from './catalog-quantity-stepper';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewSpecChip } from './preview-spec-chip';
@@ -24,6 +26,7 @@ export function CheckoutPanel({
   onQuery,
   onSelectVariant,
   onAdd,
+  onStepQty,
   onViewRestock,
 }: {
   session: MerchantPosSession;
@@ -31,6 +34,7 @@ export function CheckoutPanel({
   onQuery: (query: string) => void;
   onSelectVariant: (productId: string, skuId: string) => void;
   onAdd: (productId: string) => void;
+  onStepQty: (skuId: string, delta: number) => void;
   onViewRestock: () => void;
 }) {
   const rows = catalogRows(session);
@@ -108,11 +112,6 @@ export function CheckoutPanel({
                     ) : null}
                   </div>
                 ) : null}
-                {row.add.hint ? (
-                  <p id={addHintId} className={`${styles.hint} mt-2`}>
-                    {row.add.hint}
-                  </p>
-                ) : null}
                 {row.add.showRestock ? (
                   <PreviewAction
                     tone={PREVIEW_ACTION_TONES.viewRestock}
@@ -121,17 +120,33 @@ export function CheckoutPanel({
                   >
                     {row.add.buttonLabel}
                   </PreviewAction>
-                ) : (
-                  <PreviewAction
-                    tone={PREVIEW_ACTION_TONES.addToCart}
-                    className={`${styles.actionBlock} min-h-[44px] mt-3`}
-                    disabled={!row.add.canAdd}
-                    aria-describedby={row.add.hint ? addHintId : undefined}
-                    onClick={() => onAdd(row.product.productId)}
-                  >
-                    {row.add.buttonLabel}
-                  </PreviewAction>
-                )}
+                ) : selected ? (
+                  <CatalogQuantityStepper
+                    productName={row.product.name}
+                    specLabel={selected.specLabel}
+                    availability={skuAvailability(selected.skuId, session.cart)}
+                    hintId={addHintId}
+                    onIncrease={() => {
+                      const command = nextCatalogStepperCommand(
+                        skuAvailability(selected.skuId, session.cart),
+                        'increase',
+                      );
+                      if (command.type === 'add-selected') onAdd(row.product.productId);
+                      if (command.type === 'add-cart-qty') onStepQty(selected.skuId, command.delta);
+                    }}
+                    onDecrease={() => {
+                      const command = nextCatalogStepperCommand(
+                        skuAvailability(selected.skuId, session.cart),
+                        'decrease',
+                      );
+                      if (command.type === 'add-cart-qty') onStepQty(selected.skuId, command.delta);
+                    }}
+                  />
+                ) : row.add.hint ? (
+                  <p id={addHintId} className={`${styles.hint} mt-2`}>
+                    {row.add.hint}
+                  </p>
+                ) : null}
               </li>
             );
           })}

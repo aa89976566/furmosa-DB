@@ -358,6 +358,37 @@
   color: var(--preview-danger);
 }
 
+.catalogQtyStepper {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.catalogQtyRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.catalogQtyValue {
+  margin: 0;
+  min-width: 2.5rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--preview-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.catalogQtyStatus {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--preview-text);
+}
+
 .hint {
   margin: 0;
   font-size: 0.875rem;
