@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   DEAL_LABEL,
@@ -37,6 +37,7 @@ import {
   setCartQtyInput,
 } from '@/lib/merchant-pos-preview/session';
 import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types';
+import { CartWorkspace } from './cart-workspace';
 import { PreviewBanner } from './preview-banner';
 import { PreviewBottomNav } from './bottom-nav';
 import { CartSheet } from './cart-sheet';
@@ -46,56 +47,85 @@ import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { RestockPanel } from './restock-panel';
 import { SalesPanel } from './sales-panel';
+import { useDesktopCheckoutLayout } from './use-desktop-checkout-layout';
+
+const CART_ASIDE_LABEL = '目前購物車';
 
 export function MerchantPosPreviewApp() {
   const [session, setSession] = useState<MerchantPosSession>(() => createSession());
+  const isDesktop = useDesktopCheckoutLayout();
+  const isDesktopCheckout = isDesktop && session.tab === 'checkout';
   const latestReceipt = session.demoReceipts[0];
   const dock = cartDockState(session.cart);
-  const showCartDock = session.tab === 'checkout' && session.cart.length > 0;
+  const showCartDock = !isDesktop && session.tab === 'checkout' && session.cart.length > 0;
 
-  const body = useMemo(() => {
-    if (session.tab === 'checkout') {
-      return (
-        <CheckoutPanel
-          session={session}
-          onQuery={(query) => setSession((current) => setQuery(current, query))}
-          onSelectVariant={(productId, skuId) =>
-            setSession((current) => selectVariant(current, productId, skuId))
-          }
-          onAdd={(productId) => setSession((current) => addSelectedToCart(current, productId))}
-          onViewRestock={() => setSession((current) => setTab(current, 'restock'))}
-        />
-      );
-    }
-    if (session.tab === 'sales') {
-      return (
-        <SalesPanel
-          session={session}
-          onAskRefund={(saleId) => setSession((current) => openRefundConfirm(current, saleId))}
-          onCancelRefund={() => setSession((current) => closeRefundConfirm(current))}
-          onConfirmRefund={() =>
-            setSession((current) =>
-              current.refundConfirmSaleId
-                ? requestDemoRefund(current, current.refundConfirmSaleId)
-                : current,
-            )
-          }
-        />
-      );
-    }
-    if (session.tab === 'restock') {
-      return (
-        <RestockPanel
-          session={session}
-          onQty={(skuId, value) => setSession((current) => setRestockQty(current, skuId, value))}
-          onAddLine={(skuId) => setSession((current) => addRestockLine(current, skuId))}
-          onAddAll={() => setSession((current) => addAllRestockCandidates(current))}
-          onSubmit={() => setSession((current) => submitRestockDraft(current))}
-        />
-      );
-    }
-    return <MorePanel />;
-  }, [session]);
+  const cartHandlers = {
+    onQty: (skuId: string, delta: number) => setSession((current) => addCartQty(current, skuId, delta)),
+    onQtyInput: (skuId: string, value: string) =>
+      setSession((current) => setCartQtyInput(current, skuId, value)),
+    onQtyCommit: (skuId: string) => setSession((current) => commitCartQty(current, skuId)),
+    onRemove: (skuId: string) => setSession((current) => removeCartLine(current, skuId)),
+    onPrice: (skuId: string, value: string) =>
+      setSession((current) => setActualUnitPrice(current, skuId, value)),
+    onAskComplete: () =>
+      setSession((current) => {
+        const opened = current.cartOpen ? current : setCartOpen(current, true);
+        return openCompleteConfirm(opened);
+      }),
+  };
+
+  let body;
+  if (session.tab === 'checkout') {
+    const catalog = (
+      <CheckoutPanel
+        session={session}
+        showInlineCartEmpty={!isDesktopCheckout}
+        onQuery={(query) => setSession((current) => setQuery(current, query))}
+        onSelectVariant={(productId, skuId) =>
+          setSession((current) => selectVariant(current, productId, skuId))
+        }
+        onAdd={(productId) => setSession((current) => addSelectedToCart(current, productId))}
+        onViewRestock={() => setSession((current) => setTab(current, 'restock'))}
+      />
+    );
+    body = isDesktopCheckout ? (
+      <div className={styles.checkoutSplit}>
+        <div className={styles.checkoutCatalog}>{catalog}</div>
+        <aside className={styles.cartAside} aria-label={CART_ASIDE_LABEL}>
+          <CartWorkspace session={session} {...cartHandlers} />
+        </aside>
+      </div>
+    ) : (
+      catalog
+    );
+  } else if (session.tab === 'sales') {
+    body = (
+      <SalesPanel
+        session={session}
+        onAskRefund={(saleId) => setSession((current) => openRefundConfirm(current, saleId))}
+        onCancelRefund={() => setSession((current) => closeRefundConfirm(current))}
+        onConfirmRefund={() =>
+          setSession((current) =>
+            current.refundConfirmSaleId
+              ? requestDemoRefund(current, current.refundConfirmSaleId)
+              : current,
+          )
+        }
+      />
+    );
+  } else if (session.tab === 'restock') {
+    body = (
+      <RestockPanel
+        session={session}
+        onQty={(skuId, value) => setSession((current) => setRestockQty(current, skuId, value))}
+        onAddLine={(skuId) => setSession((current) => addRestockLine(current, skuId))}
+        onAddAll={() => setSession((current) => addAllRestockCandidates(current))}
+        onSubmit={() => setSession((current) => submitRestockDraft(current))}
+      />
+    );
+  } else {
+    body = <MorePanel />;
+  }
 
   return (
     <div className={styles.shell}>
@@ -159,13 +189,14 @@ export function MerchantPosPreviewApp() {
 
         <CartSheet
           session={session}
+          showEditor={!isDesktop}
           onClose={() => setSession((current) => setCartOpen(current, false))}
-          onQty={(skuId, delta) => setSession((current) => addCartQty(current, skuId, delta))}
-          onQtyInput={(skuId, value) => setSession((current) => setCartQtyInput(current, skuId, value))}
-          onQtyCommit={(skuId) => setSession((current) => commitCartQty(current, skuId))}
-          onRemove={(skuId) => setSession((current) => removeCartLine(current, skuId))}
-          onPrice={(skuId, value) => setSession((current) => setActualUnitPrice(current, skuId, value))}
-          onAskComplete={() => setSession((current) => openCompleteConfirm(current))}
+          onQty={cartHandlers.onQty}
+          onQtyInput={cartHandlers.onQtyInput}
+          onQtyCommit={cartHandlers.onQtyCommit}
+          onRemove={cartHandlers.onRemove}
+          onPrice={cartHandlers.onPrice}
+          onAskComplete={cartHandlers.onAskComplete}
           onCancelComplete={() => setSession((current) => closeCompleteConfirm(current))}
           onComplete={() => setSession((current) => completeDemoSale(current))}
         />

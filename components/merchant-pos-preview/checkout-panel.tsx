@@ -20,12 +20,14 @@ import { PreviewSpecChip } from './preview-spec-chip';
 
 export function CheckoutPanel({
   session,
+  showInlineCartEmpty,
   onQuery,
   onSelectVariant,
   onAdd,
   onViewRestock,
 }: {
   session: MerchantPosSession;
+  showInlineCartEmpty: boolean;
   onQuery: (query: string) => void;
   onSelectVariant: (productId: string, skuId: string) => void;
   onAdd: (productId: string) => void;
@@ -58,13 +60,13 @@ export function CheckoutPanel({
       {rows.length === 0 ? (
         <p className={styles.notice}>{SEARCH_EMPTY}</p>
       ) : (
-        <ul className={styles.workspaceList}>
+        <ul className={styles.productGrid}>
           {rows.map((row) => {
             const selected = row.selected;
             const badge = row.stockLevel ? stockLevelLabel(row.stockLevel) : null;
             const addHintId = `add-hint-${row.product.productId}`;
             return (
-              <li key={row.product.productId} className={styles.workspaceRow}>
+              <li key={row.product.productId} className={styles.productTile}>
                 <p className={styles.productName}>{row.product.name}</p>
                 <div className={`${styles.specRow} mt-3`}>
                   {row.visibleVariants.map((variant) => {
@@ -87,7 +89,7 @@ export function CheckoutPanel({
                     );
                   })}
                 </div>
-                {selected || row.add.showRestock ? (
+                {selected || row.stockLevel || row.add.showRestock ? (
                   <div className={`${styles.productMeta} mt-3`}>
                     {selected ? (
                       <p>
@@ -136,7 +138,9 @@ export function CheckoutPanel({
         </ul>
       )}
 
-      {session.cart.length === 0 ? <p className={styles.hint}>{CART_EMPTY}</p> : null}
+      {showInlineCartEmpty && session.cart.length === 0 ? (
+        <p className={styles.hint}>{CART_EMPTY}</p>
+      ) : null}
     </section>
   );
 }

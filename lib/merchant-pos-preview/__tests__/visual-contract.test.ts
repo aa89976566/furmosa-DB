@@ -40,7 +40,8 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.deepEqual(PREVIEW_ACTION_TONES, expected);
 
     const checkout = read('components/merchant-pos-preview/checkout-panel.tsx');
-    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    const cart = read('components/merchant-pos-preview/cart-workspace.tsx');
+    const sheet = read('components/merchant-pos-preview/cart-sheet.tsx');
     const sales = read('components/merchant-pos-preview/sales-panel.tsx');
     const restock = read('components/merchant-pos-preview/restock-panel.tsx');
     const more = read('components/merchant-pos-preview/more-panel.tsx');
@@ -53,8 +54,8 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(checkout, /soldOut=\{soldOut\}/);
     assert.match(app, /tone=\{PREVIEW_ACTION_TONES\.openCart\}/);
     assert.match(cart, /tone=\{PREVIEW_ACTION_TONES\.completeSalePreview\}/);
-    assert.match(cart, /tone=\{PREVIEW_ACTION_TONES\.completeSaleConfirm\}/);
-    assert.match(cart, /tone=\{PREVIEW_ACTION_TONES\.completeSaleCancel\}/);
+    assert.match(sheet, /tone=\{PREVIEW_ACTION_TONES\.completeSaleConfirm\}/);
+    assert.match(sheet, /tone=\{PREVIEW_ACTION_TONES\.completeSaleCancel\}/);
     assert.match(cart, /tone=\{PREVIEW_ACTION_TONES\.cartQtyStep\}/);
     assert.match(cart, /tone=\{PREVIEW_ACTION_TONES\.removeCartLine\}/);
     assert.match(dialog, /tone=\{PREVIEW_ACTION_TONES\.dialogClose\}/);
@@ -134,6 +135,8 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
       'components/merchant-pos-preview/preview-app.tsx',
       'components/merchant-pos-preview/checkout-panel.tsx',
       'components/merchant-pos-preview/cart-sheet.tsx',
+      'components/merchant-pos-preview/cart-workspace.tsx',
+      'components/merchant-pos-preview/use-desktop-checkout-layout.ts',
       'components/merchant-pos-preview/sales-panel.tsx',
       'components/merchant-pos-preview/restock-panel.tsx',
       'components/merchant-pos-preview/more-panel.tsx',

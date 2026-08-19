@@ -19,9 +19,15 @@
   color: var(--preview-text);
 }
 
+@media (min-width: 768px) {
+  .shell {
+    max-width: 72rem;
+  }
+}
+
 @media (min-width: 1440px) {
   .shell {
-    max-width: 32rem;
+    max-width: 80rem;
   }
 }
 
@@ -158,6 +164,94 @@
 .qtyField {
   width: 5.5rem;
   text-align: center;
+}
+
+.checkoutSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.checkoutCatalog {
+  min-width: 0;
+}
+
+.cartAside {
+  position: sticky;
+  top: 1rem;
+  z-index: 1;
+  min-width: 0;
+  max-height: calc(100dvh - 8rem - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius-lg);
+  background: var(--preview-surface);
+  padding: 1rem;
+}
+
+.cartAside .cartWorkspace {
+  flex: 1 1 auto;
+}
+
+.cartWorkspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.cartWorkspaceTitle {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--preview-text);
+}
+
+.cartWorkspaceLines {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.cartWorkspaceSummary {
+  flex-shrink: 0;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--preview-border);
+}
+
+.productGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.checkoutSplit .productGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 1280px) {
+  .checkoutSplit .productGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.productTile {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-surface);
 }
 
 .workspaceList {
@@ -423,6 +517,18 @@
   display: flex;
 }
 
+@media (min-width: 768px) {
+  .bottomNavInner {
+    max-width: 72rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .bottomNavInner {
+    max-width: 80rem;
+  }
+}
+
 .navBtn {
   flex: 1;
   display: flex;
@@ -461,6 +567,12 @@
   right: 0;
   bottom: calc(3.25rem + env(safe-area-inset-bottom));
   z-index: 35;
+}
+
+@media (min-width: 768px) {
+  .cartDock {
+    display: none;
+  }
 }
 
 .cartDockInner {

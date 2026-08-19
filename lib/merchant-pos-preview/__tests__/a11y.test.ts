@@ -16,7 +16,7 @@ function read(rel: string): string {
 describe('merchant POS preview a11y static contract', () => {
   it('source still wires labels; this is not a live a11y proof', () => {
     const checkout = read('components/merchant-pos-preview/checkout-panel.tsx');
-    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    const cart = read('components/merchant-pos-preview/cart-workspace.tsx');
     const restock = read('components/merchant-pos-preview/restock-panel.tsx');
     assert.match(checkout, /htmlFor="product-search"/);
     assert.match(checkout, /id="product-search"/);
@@ -31,6 +31,7 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(checkout, /skuAvailability\(/);
     assert.match(checkout, /disabled=\{!row\.add\.canAdd\}/);
     assert.match(checkout, /aria-describedby=\{row\.add\.hint \? addHintId : undefined\}/);
+    assert.match(checkout, /styles\.productGrid/);
     assert.match(checkout, /row\.visibleVariants\.map/);
     assert.equal(checkout.includes('availableQty === 0'), false);
     assert.equal(checkout.includes("role=\"alert\""), false);
@@ -39,7 +40,7 @@ describe('merchant POS preview a11y static contract', () => {
   });
 
   it('gives each cart line plus-minus and remove an accessible name with product and spec', () => {
-    const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
+    const cart = read('components/merchant-pos-preview/cart-workspace.tsx');
     assert.match(cart, /const productName = product\?\.name \?\? ''/);
     assert.match(cart, /const specLabel = result\.variant\?\.specLabel \?\? ''/);
     assert.match(cart, /const lineContext = `\$\{productName\} \$\{specLabel\}`\.trim\(\)/);
