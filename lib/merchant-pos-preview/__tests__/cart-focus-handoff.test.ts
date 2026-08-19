@@ -5,10 +5,12 @@ import { describe, it } from 'node:test';
 import {
   applyCheckoutFocusHandoff,
   consumeDesktopCartHadFocus,
+  createDesktopCartFocusCaptureState,
   isRelatedTargetInsideRegion,
   nextCheckoutFocusIntent,
   nextDesktopCartFocusCapture,
   resolveConnectedFocusIntent,
+  resolveNullBlurSnapshot,
 } from '../../../components/merchant-pos-preview/cart-focus-handoff';
 import {
   applyCheckoutLayoutTransition,
@@ -216,61 +218,32 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
     );
   });
 
-  it('captures cart focus before unmount and docks when the cart still has items', () => {
-    let hadFocus = nextDesktopCartFocusCapture(false, { type: 'focus-inside' });
-    assert.equal(hadFocus, true);
-    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
-      type: 'blur',
-      relatedTargetInside: null,
+  it('clears a null-related blur when the aside is still connected and activeElement is body', () => {
+    const body = { id: 'body' };
+    const aside = {
+      isConnected: true,
+      contains(node: unknown) {
+        return node !== body;
+      },
+    };
+    let state = nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), {
+      type: 'focus-inside',
     });
-    assert.equal(hadFocus, true);
-    const captured = consumeDesktopCartHadFocus(hadFocus);
-    assert.equal(captured.desktopCartHadFocus, true);
-    assert.equal(captured.nextHadFocus, false);
-    assert.equal(
-      nextCheckoutFocusIntent({
-        fromDesktop: true,
-        toDesktop: false,
-        editorLinesOpen: false,
-        confirmOpen: false,
-        cartItemCount: 2,
-        desktopCartHadFocus: captured.desktopCartHadFocus,
-        reason: 'layout-change',
-      }),
-      'mobile-open-cart-cta',
-    );
-  });
-
-  it('targets the checkout heading when captured cart focus unmounts with an empty cart', () => {
-    let hadFocus = nextDesktopCartFocusCapture(false, { type: 'focus-inside' });
-    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
-      type: 'blur',
-      relatedTargetInside: null,
+    state = nextDesktopCartFocusCapture(state, { type: 'null-blur', token: 1 });
+    assert.equal(state.hadFocus, true);
+    assert.equal(state.pendingNullBlurToken, 1);
+    const snapshot = resolveNullBlurSnapshot({
+      blurRegion: aside,
+      currentRegion: aside,
+      activeElement: body as EventTarget,
     });
-    const captured = consumeDesktopCartHadFocus(hadFocus);
-    assert.equal(captured.desktopCartHadFocus, true);
-    assert.equal(
-      nextCheckoutFocusIntent({
-        fromDesktop: true,
-        toDesktop: false,
-        editorLinesOpen: false,
-        confirmOpen: false,
-        cartItemCount: 0,
-        desktopCartHadFocus: captured.desktopCartHadFocus,
-        reason: 'layout-change',
-      }),
-      'checkout-heading',
-    );
-  });
-
-  it('does not hand off when catalog focus never enters the cart region', () => {
-    let hadFocus = false;
-    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
-      type: 'blur',
-      relatedTargetInside: false,
-    });
-    assert.equal(hadFocus, false);
-    const captured = consumeDesktopCartHadFocus(hadFocus);
+    assert.equal(snapshot.regionConnected, true);
+    assert.equal(snapshot.sameRegion, true);
+    assert.equal(snapshot.activeElementInside, false);
+    state = nextDesktopCartFocusCapture(state, { type: 'resolve-null-blur', token: 1, ...snapshot });
+    assert.equal(state.hadFocus, false);
+    assert.equal(state.pendingNullBlurToken, null);
+    const captured = consumeDesktopCartHadFocus(state);
     assert.equal(captured.desktopCartHadFocus, false);
     assert.equal(
       nextCheckoutFocusIntent({
@@ -286,14 +259,75 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
     );
   });
 
-  it('clears the capture flag after consume so a later layout change cannot steal focus', () => {
-    const first = consumeDesktopCartHadFocus(
-      nextDesktopCartFocusCapture(false, { type: 'focus-inside' }),
+  it('keeps captured cart focus when a null-related blur is resolved after the region is gone', () => {
+    const body = { id: 'body' };
+    const goneAside = {
+      isConnected: false,
+      contains() {
+        return false;
+      },
+    };
+    let state = nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), {
+      type: 'focus-inside',
+    });
+    state = nextDesktopCartFocusCapture(state, { type: 'null-blur', token: 4 });
+    const snapshot = resolveNullBlurSnapshot({
+      blurRegion: goneAside,
+      currentRegion: null,
+      activeElement: body as EventTarget,
+    });
+    assert.equal(snapshot.regionConnected, false);
+    assert.equal(snapshot.sameRegion, false);
+    state = nextDesktopCartFocusCapture(state, { type: 'resolve-null-blur', token: 4, ...snapshot });
+    assert.equal(state.hadFocus, true);
+    const captured = consumeDesktopCartHadFocus(state);
+    assert.equal(captured.desktopCartHadFocus, true);
+    assert.equal(captured.next.hadFocus, false);
+    assert.equal(captured.next.pendingNullBlurToken, null);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'mobile-open-cart-cta',
     );
-    assert.equal(first.desktopCartHadFocus, true);
-    const leftover = consumeDesktopCartHadFocus(first.nextHadFocus);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 0,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'checkout-heading',
+    );
+  });
+
+  it('lets a layout transition consume pending null-blur before a late resolve can clear it', () => {
+    let state = nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), {
+      type: 'focus-inside',
+    });
+    state = nextDesktopCartFocusCapture(state, { type: 'null-blur', token: 8 });
+    const captured = consumeDesktopCartHadFocus(state);
+    assert.equal(captured.desktopCartHadFocus, true);
+    state = nextDesktopCartFocusCapture(captured.next, {
+      type: 'resolve-null-blur',
+      token: 8,
+      regionConnected: true,
+      sameRegion: true,
+      activeElementInside: false,
+    });
+    assert.equal(state.hadFocus, false);
+    assert.equal(state.pendingNullBlurToken, null);
+    const leftover = consumeDesktopCartHadFocus(state);
     assert.equal(leftover.desktopCartHadFocus, false);
-    assert.equal(leftover.nextHadFocus, false);
     assert.equal(
       nextCheckoutFocusIntent({
         fromDesktop: true,
@@ -308,9 +342,77 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
     );
   });
 
-  it('keeps the flag when blur stays inside, and treats a missing relatedTarget as unmount', () => {
+  it('does not hand off when catalog focus never enters the cart region', () => {
+    const state = nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), {
+      type: 'related-blur',
+      relatedTargetInside: false,
+    });
+    assert.equal(state.hadFocus, false);
+    const captured = consumeDesktopCartHadFocus(state);
+    assert.equal(captured.desktopCartHadFocus, false);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'none',
+    );
+  });
+
+  it('clears the capture flag and pending token when leaving checkout', () => {
+    let state = nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), {
+      type: 'focus-inside',
+    });
+    state = nextDesktopCartFocusCapture(state, { type: 'null-blur', token: 3 });
+    state = nextDesktopCartFocusCapture(state, { type: 'leave-checkout' });
+    assert.equal(state.hadFocus, false);
+    assert.equal(state.pendingNullBlurToken, null);
+    state = nextDesktopCartFocusCapture(state, {
+      type: 'resolve-null-blur',
+      token: 3,
+      regionConnected: false,
+      sameRegion: false,
+      activeElementInside: false,
+    });
+    assert.equal(state.hadFocus, false);
+    const leftover = consumeDesktopCartHadFocus(state);
+    assert.equal(leftover.desktopCartHadFocus, false);
+    assert.equal(leftover.next.hadFocus, false);
+    assert.equal(leftover.next.pendingNullBlurToken, null);
+  });
+
+  it('clears the capture flag after consume so a later layout change cannot steal focus', () => {
+    const first = consumeDesktopCartHadFocus(
+      nextDesktopCartFocusCapture(createDesktopCartFocusCaptureState(), { type: 'focus-inside' }),
+    );
+    assert.equal(first.desktopCartHadFocus, true);
+    const leftover = consumeDesktopCartHadFocus(first.next);
+    assert.equal(leftover.desktopCartHadFocus, false);
+    assert.equal(leftover.next.hadFocus, false);
+    assert.equal(leftover.next.pendingNullBlurToken, null);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: leftover.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'none',
+    );
+  });
+
+  it('keeps the flag when relatedTarget stays inside, and does not treat a missing relatedTarget as gone', () => {
     const inside = { id: 'qty' };
     const region = {
+      isConnected: true,
       contains(node: unknown) {
         return node === inside;
       },
@@ -318,23 +420,31 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
     assert.equal(isRelatedTargetInsideRegion(region, null), null);
     assert.equal(isRelatedTargetInsideRegion(region, inside as EventTarget), true);
     assert.equal(isRelatedTargetInsideRegion(region, { id: 'search' } as EventTarget), false);
-    assert.equal(
-      nextDesktopCartFocusCapture(true, {
-        type: 'blur',
-        relatedTargetInside: isRelatedTargetInsideRegion(region, inside as EventTarget),
-      }),
-      true,
+    const insideState = nextDesktopCartFocusCapture(
+      { hadFocus: true, pendingNullBlurToken: null },
+      {
+        type: 'related-blur',
+        relatedTargetInside: Boolean(isRelatedTargetInsideRegion(region, inside as EventTarget)),
+      },
     );
+    assert.equal(insideState.hadFocus, true);
+    const pending = nextDesktopCartFocusCapture(insideState, { type: 'null-blur', token: 2 });
+    assert.equal(pending.hadFocus, true);
+    assert.equal(pending.pendingNullBlurToken, 2);
+    const stillInside = resolveNullBlurSnapshot({
+      blurRegion: region,
+      currentRegion: region,
+      activeElement: inside as EventTarget,
+    });
+    assert.equal(stillInside.activeElementInside, true);
     assert.equal(
-      nextDesktopCartFocusCapture(true, {
-        type: 'blur',
-        relatedTargetInside: isRelatedTargetInsideRegion(region, null),
-      }),
+      nextDesktopCartFocusCapture(pending, { type: 'resolve-null-blur', token: 2, ...stillInside })
+        .hadFocus,
       true,
     );
   });
 
-  it('wires capture before unmount, consumes the flag, and makes the checkout heading focusable', () => {
+  it('wires deferred null-blur resolution, checkout leave clear, and checkout heading focusability', () => {
     const app = readFileSync(
       path.join(process.cwd(), 'components/merchant-pos-preview/preview-app.tsx'),
       'utf8',
@@ -347,12 +457,22 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
       path.join(process.cwd(), 'app/preview/merchant-pos/merchant-pos.module.css'),
       'utf8',
     );
+    const capture = readFileSync(
+      path.join(process.cwd(), 'components/merchant-pos-preview/cart-focus-handoff.ts'),
+      'utf8',
+    );
     assert.match(app, /onFocusCapture=/);
     assert.match(app, /onBlurCapture=/);
     assert.match(app, /nextDesktopCartFocusCapture/);
     assert.match(app, /consumeDesktopCartHadFocus/);
     assert.match(app, /isRelatedTargetInsideRegion/);
+    assert.match(app, /queueMicrotask/);
+    assert.match(app, /useLayoutEffect/);
+    assert.match(app, /resolveNullBlurSnapshot/);
+    assert.match(app, /leave-checkout/);
     assert.equal(app.includes('desktopCartRef.current?.contains(document.activeElement)'), false);
+    assert.equal(/relatedTargetInside:\s*null/.test(capture), false);
+    assert.equal(capture.includes("type: 'blur'"), false);
     assert.match(checkout, /id="checkout-title"/);
     assert.match(checkout, /tabIndex=\{-1\}/);
     assert.match(checkout, /styles\.checkoutTitle/);

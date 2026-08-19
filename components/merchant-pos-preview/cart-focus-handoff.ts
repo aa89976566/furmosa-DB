@@ -73,24 +73,65 @@ export function applyCheckoutFocusHandoff(
   return resolved;
 }
 
+export type DesktopCartFocusCaptureState = {
+  hadFocus: boolean;
+  pendingNullBlurToken: number | null;
+};
+
 export type DesktopCartFocusCaptureEvent =
   | { type: 'focus-inside' }
-  | { type: 'blur'; relatedTargetInside: boolean | null };
+  | { type: 'related-blur'; relatedTargetInside: boolean }
+  | { type: 'null-blur'; token: number }
+  | {
+      type: 'resolve-null-blur';
+      token: number;
+      regionConnected: boolean;
+      sameRegion: boolean;
+      activeElementInside: boolean;
+    }
+  | { type: 'leave-checkout' };
 
-export function nextDesktopCartFocusCapture(
-  hadFocus: boolean,
-  event: DesktopCartFocusCaptureEvent,
-): boolean {
-  if (event.type === 'focus-inside') return true;
-  if (event.relatedTargetInside == null) return hadFocus;
-  return event.relatedTargetInside;
+export type NullBlurRegionSnapshot = {
+  regionConnected: boolean;
+  sameRegion: boolean;
+  activeElementInside: boolean;
+};
+
+export function createDesktopCartFocusCaptureState(): DesktopCartFocusCaptureState {
+  return { hadFocus: false, pendingNullBlurToken: null };
 }
 
-export function consumeDesktopCartHadFocus(hadFocus: boolean): {
+export function nextDesktopCartFocusCapture(
+  state: DesktopCartFocusCaptureState,
+  event: DesktopCartFocusCaptureEvent,
+): DesktopCartFocusCaptureState {
+  if (event.type === 'focus-inside') {
+    return { hadFocus: true, pendingNullBlurToken: null };
+  }
+  if (event.type === 'related-blur') {
+    return { hadFocus: event.relatedTargetInside, pendingNullBlurToken: null };
+  }
+  if (event.type === 'null-blur') {
+    return { hadFocus: state.hadFocus, pendingNullBlurToken: event.token };
+  }
+  if (event.type === 'resolve-null-blur') {
+    if (state.pendingNullBlurToken !== event.token) return state;
+    if (event.regionConnected && event.sameRegion) {
+      return { hadFocus: event.activeElementInside, pendingNullBlurToken: null };
+    }
+    return { hadFocus: state.hadFocus, pendingNullBlurToken: null };
+  }
+  return createDesktopCartFocusCaptureState();
+}
+
+export function consumeDesktopCartHadFocus(state: DesktopCartFocusCaptureState): {
   desktopCartHadFocus: boolean;
-  nextHadFocus: false;
+  next: DesktopCartFocusCaptureState;
 } {
-  return { desktopCartHadFocus: hadFocus, nextHadFocus: false };
+  return {
+    desktopCartHadFocus: state.hadFocus,
+    next: createDesktopCartFocusCaptureState(),
+  };
 }
 
 export function isRelatedTargetInsideRegion(
@@ -100,4 +141,23 @@ export function isRelatedTargetInsideRegion(
   if (relatedTarget == null) return null;
   if (region == null || typeof region.contains !== 'function') return false;
   return Boolean(region.contains(relatedTarget as never));
+}
+
+export function resolveNullBlurSnapshot(input: {
+  blurRegion: { isConnected?: boolean; contains?: (node: never) => boolean } | null;
+  currentRegion: { isConnected?: boolean; contains?: (node: never) => boolean } | null;
+  activeElement: EventTarget | null;
+}): NullBlurRegionSnapshot {
+  const sameRegion = input.blurRegion != null && input.blurRegion === input.currentRegion;
+  const regionConnected = Boolean(
+    sameRegion && input.blurRegion != null && input.blurRegion.isConnected !== false,
+  );
+  const activeElementInside = Boolean(
+    regionConnected &&
+      input.currentRegion != null &&
+      typeof input.currentRegion.contains === 'function' &&
+      input.activeElement != null &&
+      input.currentRegion.contains(input.activeElement as never),
+  );
+  return { regionConnected, sameRegion, activeElementInside };
 }

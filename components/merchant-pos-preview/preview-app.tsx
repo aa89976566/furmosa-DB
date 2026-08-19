@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   DEAL_LABEL,
@@ -39,10 +39,12 @@ import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types
 import {
   applyCheckoutFocusHandoff,
   consumeDesktopCartHadFocus,
+  createDesktopCartFocusCaptureState,
   DESKTOP_CART_TITLE_ID,
   isRelatedTargetInsideRegion,
   nextCheckoutFocusIntent,
   nextDesktopCartFocusCapture,
+  resolveNullBlurSnapshot,
   type CheckoutFocusIntent,
 } from './cart-focus-handoff';
 import {
@@ -70,18 +72,25 @@ export function MerchantPosPreviewApp() {
   const sessionRef = useRef(session);
   const pendingFocusIntentRef = useRef<CheckoutFocusIntent>('none');
   const desktopCartRef = useRef<HTMLElement | null>(null);
-  const desktopCartHadFocusRef = useRef(false);
+  const desktopCartFocusRef = useRef(createDesktopCartFocusCaptureState());
+  const nullBlurTokenRef = useRef(0);
   const openCartCtaRef = useRef<HTMLButtonElement | null>(null);
   sessionRef.current = session;
   const isDesktopCheckout = isDesktop && session.tab === 'checkout';
 
-  useEffect(() => {
+  if (session.tab !== 'checkout') {
+    desktopCartFocusRef.current = nextDesktopCartFocusCapture(desktopCartFocusRef.current, {
+      type: 'leave-checkout',
+    });
+  }
+
+  useLayoutEffect(() => {
     const previous = previousDesktopRef.current;
     previousDesktopRef.current = isDesktop;
     if (previous === null || previous === isDesktop) return;
     const current = sessionRef.current;
-    const captured = consumeDesktopCartHadFocus(desktopCartHadFocusRef.current);
-    desktopCartHadFocusRef.current = captured.nextHadFocus;
+    const captured = consumeDesktopCartHadFocus(desktopCartFocusRef.current);
+    desktopCartFocusRef.current = captured.next;
     pendingFocusIntentRef.current = nextCheckoutFocusIntent({
       fromDesktop: previous,
       toDesktop: isDesktop,
@@ -146,22 +155,40 @@ export function MerchantPosPreviewApp() {
           tabIndex={-1}
           aria-labelledby={DESKTOP_CART_TITLE_ID}
           onFocusCapture={() => {
-            desktopCartHadFocusRef.current = nextDesktopCartFocusCapture(
-              desktopCartHadFocusRef.current,
-              { type: 'focus-inside' },
-            );
+            desktopCartFocusRef.current = nextDesktopCartFocusCapture(desktopCartFocusRef.current, {
+              type: 'focus-inside',
+            });
           }}
           onBlurCapture={(event) => {
-            desktopCartHadFocusRef.current = nextDesktopCartFocusCapture(
-              desktopCartHadFocusRef.current,
-              {
-                type: 'blur',
-                relatedTargetInside: isRelatedTargetInsideRegion(
-                  event.currentTarget,
-                  event.relatedTarget,
-                ),
-              },
+            const relatedTargetInside = isRelatedTargetInsideRegion(
+              event.currentTarget,
+              event.relatedTarget,
             );
+            if (relatedTargetInside !== null) {
+              desktopCartFocusRef.current = nextDesktopCartFocusCapture(
+                desktopCartFocusRef.current,
+                { type: 'related-blur', relatedTargetInside },
+              );
+              return;
+            }
+            const token = nullBlurTokenRef.current + 1;
+            nullBlurTokenRef.current = token;
+            const blurRegion = event.currentTarget;
+            desktopCartFocusRef.current = nextDesktopCartFocusCapture(desktopCartFocusRef.current, {
+              type: 'null-blur',
+              token,
+            });
+            queueMicrotask(() => {
+              const snapshot = resolveNullBlurSnapshot({
+                blurRegion,
+                currentRegion: desktopCartRef.current,
+                activeElement: document.activeElement,
+              });
+              desktopCartFocusRef.current = nextDesktopCartFocusCapture(
+                desktopCartFocusRef.current,
+                { type: 'resolve-null-blur', token, ...snapshot },
+              );
+            });
           }}
         >
           <CartWorkspace
