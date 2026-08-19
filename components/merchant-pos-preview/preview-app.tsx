@@ -9,6 +9,7 @@ import {
   OPEN_CART,
   PREVIEW_TITLE,
   RECEIPT_LABEL,
+  SALE_SUCCESS_SUMMARY,
   STORE_NAME,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
@@ -60,6 +61,7 @@ import { CartSheet } from './cart-sheet';
 import { CheckoutPanel } from './checkout-panel';
 import { MorePanel } from './more-panel';
 import { PreviewAction } from './preview-action';
+import { PreviewDisclosure } from './preview-disclosure';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { RestockPanel } from './restock-panel';
 import { SalesPanel } from './sales-panel';
@@ -247,7 +249,7 @@ export function MerchantPosPreviewApp() {
         <main className={`${styles.main} ${showCartDock ? styles.mainWithCartDock : ''} space-y-4`}>
           {session.saleNotice ? (
             <p className={styles.notice} role="status">
-              {session.saleNotice}
+              {SALE_SUCCESS_SUMMARY}
             </p>
           ) : null}
           {session.restockNotice ? (
@@ -261,12 +263,18 @@ export function MerchantPosPreviewApp() {
             </p>
           ) : null}
           {latestReceipt ? (
-            <div className={styles.notice}>
-              <p className={styles.productName}>
-                {RECEIPT_LABEL} {latestReceipt.receiptId}
-              </p>
-              <p className={`${styles.hint} mt-1`}>{latestReceipt.notice}</p>
-            </div>
+            <PreviewDisclosure
+              summary={`${RECEIPT_LABEL} ${latestReceipt.receiptId} · ${formatQty(latestReceipt.itemCount)} · ${formatTwd(latestReceipt.actualSubtotalTwd)}`}
+            >
+              <ul className={styles.itemList}>
+                {latestReceipt.lines.map((line) => (
+                  <li key={line.skuId}>
+                    {line.name} {line.specLabel} × {line.qty} · {formatTwd(line.actualLineTwd)}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">此為示意收據，不建立訂單、不扣除庫存。</p>
+            </PreviewDisclosure>
           ) : null}
           {body}
         </main>

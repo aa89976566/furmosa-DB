@@ -18,6 +18,7 @@ import {
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { settlementViews } from '@/lib/merchant-pos-preview/selectors';
 import type { SettlementLedgerRow, SettlementSnapshot } from '@/lib/merchant-pos-preview/types';
+import { PreviewDisclosure } from './preview-disclosure';
 
 function LedgerRowView({ row }: { row: SettlementLedgerRow }) {
   return (
@@ -68,9 +69,6 @@ function SnapshotLedger({ row }: { row: SettlementSnapshot }) {
       {row.ledger.map((item) => (
         <LedgerRowView key={item.rowId} row={item} />
       ))}
-      <p className={`${styles.productMeta} mt-3`}>
-        {NET_LABEL} {row.netDirectionLabel} {formatTwd(Math.abs(row.netAmountTwd))}
-      </p>
     </div>
   );
 }
@@ -96,12 +94,17 @@ export function SettlementPanel() {
               </div>
               <p className={styles.statusText}>{row.statusLabel}</p>
             </div>
-            <div className="mt-3">
-              <SnapshotLedger row={row} />
-            </div>
+            <p className={`${styles.settlementNet} mt-3`}>
+              {NET_LABEL} {row.netDirectionLabel} {formatTwd(Math.abs(row.netAmountTwd))}
+            </p>
             {row.locked ? (
               <p className={`${styles.notice} mt-3`}>{row.lockNote ?? SETTLEMENT_LOCKED}</p>
             ) : null}
+            <div className="mt-3">
+              <PreviewDisclosure summary="查看結算明細">
+                <SnapshotLedger row={row} />
+              </PreviewDisclosure>
+            </div>
           </li>
         ))}
       </ul>

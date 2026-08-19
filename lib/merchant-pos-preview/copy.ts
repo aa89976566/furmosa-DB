@@ -51,6 +51,7 @@ export const COMPLETE_SALE_CONFIRM = '完成銷售';
 export const COMPLETE_SALE_CANCEL = '返回購物車';
 export const SALE_SUCCESS =
   '已完成示意銷售。這是操作預覽，完成後不會扣減示意庫存；重新整理會重置。不會建立真實訂單。';
+export const SALE_SUCCESS_SUMMARY = '已完成示意銷售。';
 export const RECEIPT_LABEL = '示意收據';
 export const CART_ESCAPE_HINT = '按 Esc 也可以返回購物車。';
 

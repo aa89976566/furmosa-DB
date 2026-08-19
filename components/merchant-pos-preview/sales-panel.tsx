@@ -13,7 +13,6 @@ import {
   REQUEST_REFUND_CONFIRM,
   REQUEST_REFUND_TITLE,
   RESTOCK_SELLABLE_LABEL,
-  SALES_INTRO,
   SALES_TITLE,
 } from '@/lib/merchant-pos-preview/copy';
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
@@ -43,12 +42,11 @@ export function SalesPanel({
         <h2 id="sales-title" className={styles.sectionTitle}>
           {SALES_TITLE}
         </h2>
-        <p className={styles.sectionIntro}>{SALES_INTRO}</p>
       </div>
 
       <ul className={styles.workspaceList}>
         {sales.map((sale) => (
-          <li key={sale.saleId} className={styles.workspaceRow}>
+          <li key={sale.saleId} className={`${styles.workspaceRow} ${styles.compactRow}`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className={styles.productName}>{sale.soldAtLabel}</p>
@@ -68,7 +66,20 @@ export function SalesPanel({
               {sale.pickupLabel ? ` · ${sale.pickupLabel}` : ''}
             </p>
             {sale.refund ? (
-              <dl className={`${styles.defList} mt-3`}>
+              <>
+                <p className={`${styles.refundSummary} mt-3`}>
+                  {sale.refund.statusLabel}
+                  {sale.refund.inventoryDisposition === 'restock_sellable'
+                    ? ` · ${RESTOCK_SELLABLE_LABEL}`
+                    : ''}
+                  {sale.refund.inventoryDisposition === 'loss_unsellable'
+                    ? ` · ${LOSS_UNSELLABLE_LABEL}`
+                    : ''}
+                  {sale.refund.nextPeriodNote ? ` · ${NEXT_PERIOD_NOTE}` : ''}
+                </p>
+                <div className="mt-2">
+                  <PreviewDisclosure summary="查看退款明細">
+                    <dl className={styles.defList}>
                 <div className={styles.defRow}>
                   <dt>退款狀態</dt>
                   <dd>{sale.refund.statusLabel}</dd>
@@ -115,12 +126,15 @@ export function SalesPanel({
                     <dd>{sale.refund.nextPeriodNote}</dd>
                   </div>
                 ) : null}
-              </dl>
+                    </dl>
+                  </PreviewDisclosure>
+                </div>
+              </>
             ) : null}
             {sale.canMerchantRequestRefund ? (
               <PreviewAction
                 tone={PREVIEW_ACTION_TONES.requestRefund}
-                className={`${styles.actionBlock} min-h-[44px] mt-3`}
+                className={`${styles.actionInline} min-h-[44px] mt-3`}
                 onClick={() => onAskRefund(sale.saleId)}
               >
                 {REQUEST_REFUND}

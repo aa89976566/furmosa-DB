@@ -208,6 +208,22 @@
   line-height: 1.55;
 }
 
+.compactRow {
+  padding-block: 1rem;
+}
+
+.refundSummary,
+.settlementNet {
+  font-weight: 650;
+  color: var(--preview-text);
+}
+
+.actionInline {
+  width: auto;
+  min-width: 10rem;
+  padding-inline: 1rem;
+}
+
 .checkoutSplit {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);

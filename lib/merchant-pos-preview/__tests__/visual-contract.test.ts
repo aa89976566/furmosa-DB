@@ -134,10 +134,16 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     const disclosure = read('components/merchant-pos-preview/preview-disclosure.tsx');
     const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
     const refund = read('components/merchant-pos-preview/sales-panel.tsx');
+    const settlement = read('components/merchant-pos-preview/settlement-panel.tsx');
+    const app = read('components/merchant-pos-preview/preview-app.tsx');
     assert.match(disclosure, /<details/);
     assert.match(disclosure, /<summary/);
     assert.match(cart, /summary="查看操作說明"/);
     assert.match(refund, /summary="查看退款說明"/);
+    assert.match(refund, /summary="查看退款明細"/);
+    assert.match(settlement, /summary="查看結算明細"/);
+    assert.match(app, /<PreviewDisclosure/);
+    assert.match(refund, /styles\.actionInline/);
     assert.match(cart, /formatQty\(totals\.itemCount\)/);
     assert.match(cart, /formatTwd\(totals\.actualSubtotalTwd\)/);
   });
