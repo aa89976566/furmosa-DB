@@ -16,6 +16,7 @@ describe('session-leave', () => {
     assert.equal(isRegisterNavLeaveText('介紹'), true);
     assert.equal(isJarMenuLeaveText('毛爸媽常問'), true);
     assert.equal(isJarMenuLeaveText('Q&A'), true);
+    assert.equal(isJarMenuLeaveText('換罐規則'), true);
     assert.equal(isJarMenuLeaveText('點數換折價'), true);
     assert.equal(isJarMenuLeaveText('兌換優惠券'), true);
     assert.equal(isJarMenuLeaveText('幫毛孩開戶'), true);

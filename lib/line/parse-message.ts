@@ -60,7 +60,7 @@ const COMIC_HOME_RE = /^(?:回家|還有很多故事)$/;
 const JAR_EXPLAIN_MENU_RE = /^換罐計劃是什麼$/;
 const JAR_EXPLAIN_INTRO_RE = /^(?:什麼是換罐計劃？|什麼是換罐計劃|介紹)$/;
 const JAR_EXPLAIN_FLOW_RE = /^流程$/;
-const JAR_EXPLAIN_FAQ_RE = /^(?:毛爸媽常問|常見問題|Q&A|QA)$/i;
+const JAR_EXPLAIN_FAQ_RE = /^(?:毛爸媽常問|常見問題|Q&A|QA|換罐規則)$/i;
 const JAR_ENTER_RE = /^(?:兌換序號|輸入序號)$/;
 /** 介紹卡主 CTA：點擊後依當下開戶狀態分流 */
 const JAR_START_RE = /^開始換罐$/;
