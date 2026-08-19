@@ -36,8 +36,12 @@ describe('merchant POS preview responsive checkout (source/static; not a live vi
     assert.equal((app.match(/<CartWorkspace/g) ?? []).length, 1);
     assert.equal((sheet.match(/<CartWorkspace/g) ?? []).length, 1);
     assert.match(sheet, /showEditor \? \(/);
+    assert.match(sheet, /showTitle=\{false\}/);
     assert.match(sheet, /open = session\.cartOpen && \(confirming \|\| showEditor\)/);
     assert.equal((sheet.match(/<PreviewDialog/g) ?? []).length, 1);
+    assert.match(app, /applyCheckoutLayoutTransition/);
+    assert.match(app, /cancelCompleteConfirmForLayout/);
+    assert.match(app, /showTitle \{\.\.\.cartHandlers\}/);
   });
 
   it('keeps desktop cart sticky, 100dvh, and dialog above the aside', () => {
@@ -57,6 +61,7 @@ describe('merchant POS preview responsive checkout (source/static; not a live vi
   it('does not put a cart column on other tabs and does not invent stock math', () => {
     const app = read('components/merchant-pos-preview/preview-app.tsx');
     const workspace = read('components/merchant-pos-preview/cart-workspace.tsx');
+    assert.match(workspace, /showTitle \? <h3 className=\{styles\.cartWorkspaceTitle\}>\{CART_TITLE\}<\/h3> : null/);
     const helper = read('components/merchant-pos-preview/use-desktop-checkout-layout.ts');
     assert.match(app, /isDesktop && session\.tab === 'checkout'/);
     assert.match(app, /<SalesPanel/);

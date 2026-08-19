@@ -74,6 +74,7 @@ export function CartSheet({
       ) : showEditor ? (
         <CartWorkspace
           session={session}
+          showTitle={false}
           onQty={onQty}
           onQtyInput={onQtyInput}
           onQtyCommit={onQtyCommit}

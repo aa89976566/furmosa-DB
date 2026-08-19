@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   DEAL_LABEL,
@@ -17,7 +17,6 @@ import {
   addAllRestockCandidates,
   addRestockLine,
   addSelectedToCart,
-  closeCompleteConfirm,
   closeRefundConfirm,
   completeDemoSale,
   createSession,
@@ -37,6 +36,10 @@ import {
   setCartQtyInput,
 } from '@/lib/merchant-pos-preview/session';
 import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types';
+import {
+  applyCheckoutLayoutTransition,
+  cancelCompleteConfirmForLayout,
+} from './cart-layout-transition';
 import { CartWorkspace } from './cart-workspace';
 import { PreviewBanner } from './preview-banner';
 import { PreviewBottomNav } from './bottom-nav';
@@ -54,7 +57,15 @@ const CART_ASIDE_LABEL = '目前購物車';
 export function MerchantPosPreviewApp() {
   const [session, setSession] = useState<MerchantPosSession>(() => createSession());
   const isDesktop = useDesktopCheckoutLayout();
+  const previousDesktopRef = useRef<boolean | null>(null);
   const isDesktopCheckout = isDesktop && session.tab === 'checkout';
+
+  useEffect(() => {
+    const previous = previousDesktopRef.current;
+    previousDesktopRef.current = isDesktop;
+    if (previous === null || previous === isDesktop) return;
+    setSession((current) => applyCheckoutLayoutTransition(current, previous, isDesktop));
+  }, [isDesktop]);
   const latestReceipt = session.demoReceipts[0];
   const dock = cartDockState(session.cart);
   const showCartDock = !isDesktop && session.tab === 'checkout' && session.cart.length > 0;
@@ -92,7 +103,7 @@ export function MerchantPosPreviewApp() {
       <div className={styles.checkoutSplit}>
         <div className={styles.checkoutCatalog}>{catalog}</div>
         <aside className={styles.cartAside} aria-label={CART_ASIDE_LABEL}>
-          <CartWorkspace session={session} {...cartHandlers} />
+          <CartWorkspace session={session} showTitle {...cartHandlers} />
         </aside>
       </div>
     ) : (
@@ -197,7 +208,9 @@ export function MerchantPosPreviewApp() {
           onRemove={cartHandlers.onRemove}
           onPrice={cartHandlers.onPrice}
           onAskComplete={cartHandlers.onAskComplete}
-          onCancelComplete={() => setSession((current) => closeCompleteConfirm(current))}
+          onCancelComplete={() =>
+            setSession((current) => cancelCompleteConfirmForLayout(current, isDesktop))
+          }
           onComplete={() => setSession((current) => completeDemoSale(current))}
         />
 
