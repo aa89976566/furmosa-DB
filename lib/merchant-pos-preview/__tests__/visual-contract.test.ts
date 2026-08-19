@@ -137,6 +137,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
       'components/merchant-pos-preview/cart-sheet.tsx',
       'components/merchant-pos-preview/cart-workspace.tsx',
       'components/merchant-pos-preview/cart-layout-transition.ts',
+      'components/merchant-pos-preview/cart-focus-handoff.ts',
       'components/merchant-pos-preview/use-desktop-checkout-layout.ts',
       'components/merchant-pos-preview/sales-panel.tsx',
       'components/merchant-pos-preview/restock-panel.tsx',

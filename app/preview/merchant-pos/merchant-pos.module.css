@@ -191,6 +191,12 @@
   border-radius: var(--preview-radius-lg);
   background: var(--preview-surface);
   padding: 1rem;
+  outline: none;
+}
+
+.cartAside:focus-visible {
+  outline: 2px solid #191919;
+  outline-offset: 2px;
 }
 
 .cartAside .cartWorkspace {

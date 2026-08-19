@@ -22,6 +22,8 @@ export function PreviewAction({
   onClick,
   children,
   className,
+  id,
+  buttonRef,
   'aria-label': ariaLabel,
   'aria-describedby': ariaDescribedBy,
 }: {
@@ -31,11 +33,15 @@ export function PreviewAction({
   onClick?: () => void;
   children: React.ReactNode;
   className?: string;
+  id?: string;
+  buttonRef?: React.Ref<HTMLButtonElement>;
   'aria-label'?: string;
   'aria-describedby'?: string;
 }) {
   return (
     <button
+      id={id}
+      ref={buttonRef}
       type={type}
       disabled={disabled}
       aria-disabled={disabled || undefined}

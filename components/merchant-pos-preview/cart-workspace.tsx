@@ -25,6 +25,7 @@ import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 export function CartWorkspace({
   session,
   showTitle,
+  titleId,
   onQty,
   onQtyInput,
   onQtyCommit,
@@ -34,6 +35,7 @@ export function CartWorkspace({
 }: {
   session: MerchantPosSession;
   showTitle: boolean;
+  titleId?: string;
   onQty: (skuId: string, delta: number) => void;
   onQtyInput: (skuId: string, value: string) => void;
   onQtyCommit: (skuId: string) => void;
@@ -45,7 +47,11 @@ export function CartWorkspace({
 
   return (
     <div className={styles.cartWorkspace}>
-      {showTitle ? <h3 className={styles.cartWorkspaceTitle}>{CART_TITLE}</h3> : null}
+      {showTitle ? (
+        <h3 id={titleId} className={styles.cartWorkspaceTitle}>
+          {CART_TITLE}
+        </h3>
+      ) : null}
       {session.cart.length === 0 ? (
         <p className={styles.hint}>{CART_EMPTY}</p>
       ) : (

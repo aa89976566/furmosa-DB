@@ -37,8 +37,16 @@ import {
 } from '@/lib/merchant-pos-preview/session';
 import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types';
 import {
+  applyCheckoutFocusHandoff,
+  DESKTOP_CART_TITLE_ID,
+  nextCheckoutFocusIntent,
+  type CheckoutFocusIntent,
+} from './cart-focus-handoff';
+import {
   applyCheckoutLayoutTransition,
   cancelCompleteConfirmForLayout,
+  isCheckoutConfirmOpen,
+  wouldOpenMobileCartEditor,
 } from './cart-layout-transition';
 import { CartWorkspace } from './cart-workspace';
 import { PreviewBanner } from './preview-banner';
@@ -52,20 +60,46 @@ import { RestockPanel } from './restock-panel';
 import { SalesPanel } from './sales-panel';
 import { useDesktopCheckoutLayout } from './use-desktop-checkout-layout';
 
-const CART_ASIDE_LABEL = '目前購物車';
-
 export function MerchantPosPreviewApp() {
   const [session, setSession] = useState<MerchantPosSession>(() => createSession());
   const isDesktop = useDesktopCheckoutLayout();
   const previousDesktopRef = useRef<boolean | null>(null);
+  const sessionRef = useRef(session);
+  const pendingFocusIntentRef = useRef<CheckoutFocusIntent>('none');
+  const desktopCartRef = useRef<HTMLElement | null>(null);
+  const openCartCtaRef = useRef<HTMLButtonElement | null>(null);
+  sessionRef.current = session;
   const isDesktopCheckout = isDesktop && session.tab === 'checkout';
 
   useEffect(() => {
     const previous = previousDesktopRef.current;
     previousDesktopRef.current = isDesktop;
     if (previous === null || previous === isDesktop) return;
-    setSession((current) => applyCheckoutLayoutTransition(current, previous, isDesktop));
+    const current = sessionRef.current;
+    pendingFocusIntentRef.current = nextCheckoutFocusIntent({
+      fromDesktop: previous,
+      toDesktop: isDesktop,
+      editorLinesOpen: wouldOpenMobileCartEditor(current),
+      confirmOpen: isCheckoutConfirmOpen(current),
+      cartItemCount: current.cart.length,
+      desktopCartHadFocus: Boolean(
+        desktopCartRef.current?.contains(document.activeElement),
+      ),
+      reason: 'layout-change',
+    });
+    setSession((latest) => applyCheckoutLayoutTransition(latest, previous, isDesktop));
   }, [isDesktop]);
+
+  useEffect(() => {
+    const intent = pendingFocusIntentRef.current;
+    if (intent === 'none') return;
+    pendingFocusIntentRef.current = 'none';
+    applyCheckoutFocusHandoff(intent, {
+      'desktop-cart-region': desktopCartRef.current,
+      'mobile-open-cart-cta': openCartCtaRef.current,
+      'checkout-heading': document.getElementById('checkout-title'),
+    });
+  }, [isDesktop, isDesktopCheckout, session.cartOpen, session.cartDialogStep]);
   const latestReceipt = session.demoReceipts[0];
   const dock = cartDockState(session.cart);
   const showCartDock = !isDesktop && session.tab === 'checkout' && session.cart.length > 0;
@@ -102,8 +136,18 @@ export function MerchantPosPreviewApp() {
     body = isDesktopCheckout ? (
       <div className={styles.checkoutSplit}>
         <div className={styles.checkoutCatalog}>{catalog}</div>
-        <aside className={styles.cartAside} aria-label={CART_ASIDE_LABEL}>
-          <CartWorkspace session={session} showTitle {...cartHandlers} />
+        <aside
+          ref={desktopCartRef}
+          className={styles.cartAside}
+          tabIndex={-1}
+          aria-labelledby={DESKTOP_CART_TITLE_ID}
+        >
+          <CartWorkspace
+            session={session}
+            showTitle
+            titleId={DESKTOP_CART_TITLE_ID}
+            {...cartHandlers}
+          />
         </aside>
       </div>
     ) : (
@@ -189,6 +233,7 @@ export function MerchantPosPreviewApp() {
                 <PreviewAction
                   tone={PREVIEW_ACTION_TONES.openCart}
                   className="min-h-[44px] shrink-0"
+                  buttonRef={openCartCtaRef}
                   onClick={() => setSession((current) => setCartOpen(current, true))}
                 >
                   {OPEN_CART}
@@ -208,9 +253,18 @@ export function MerchantPosPreviewApp() {
           onRemove={cartHandlers.onRemove}
           onPrice={cartHandlers.onPrice}
           onAskComplete={cartHandlers.onAskComplete}
-          onCancelComplete={() =>
-            setSession((current) => cancelCompleteConfirmForLayout(current, isDesktop))
-          }
+          onCancelComplete={() => {
+            pendingFocusIntentRef.current = nextCheckoutFocusIntent({
+              fromDesktop: isDesktop,
+              toDesktop: isDesktop,
+              editorLinesOpen: false,
+              confirmOpen: true,
+              cartItemCount: session.cart.length,
+              desktopCartHadFocus: false,
+              reason: isDesktop ? 'desktop-confirm-cancel' : 'mobile-confirm-cancel',
+            });
+            setSession((current) => cancelCompleteConfirmForLayout(current, isDesktop));
+          }}
           onComplete={() => setSession((current) => completeDemoSale(current))}
         />
 
