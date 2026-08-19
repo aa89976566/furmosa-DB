@@ -18,6 +18,7 @@ type Variant = 'default' | 'secondary' | 'success' | 'warning' | 'info' | 'destr
 
 const orderStatusVariant: Record<string, Variant> = {
   draft: 'muted',
+  pending_review: 'warning',
   confirmed: 'info',
   packed: 'warning',
   shipped: 'info',
