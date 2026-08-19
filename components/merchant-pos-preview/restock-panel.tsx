@@ -45,12 +45,12 @@ export function RestockPanel({
         </PreviewDisclosure>
       </div>
 
-      <ul className={styles.workspaceList}>
+      <ul className={styles.restockGrid}>
         {rows.map((row) => {
           const badge = stockLevelLabel(row.stockLevel);
           const qtyId = `restock-qty-${row.variant.skuId}`;
           return (
-            <li key={row.variant.skuId} className={styles.workspaceRow}>
+            <li key={row.variant.skuId} className={styles.restockCard}>
               <p className={styles.productName}>{row.product.name}</p>
               <p className={styles.productSpec}>
                 {row.variant.specLabel} · {row.variant.sku}
@@ -71,7 +71,7 @@ export function RestockPanel({
               <p className={`${styles.productMeta} mt-2`}>
                 {RESTOCK_SUGGESTED_LABEL} {row.variant.suggestedRestockQty}
               </p>
-              <div className="mt-3 space-y-1.5">
+              <div className={`${styles.restockControls} mt-3 space-y-1.5`}>
                 <label htmlFor={qtyId} className={styles.fieldLabel}>
                   {RESTOCK_QTY_LABEL}
                 </label>
@@ -83,15 +83,15 @@ export function RestockPanel({
                   disabled={session.restockSubmitted}
                   onChange={(event) => onQty(row.variant.skuId, event.target.value)}
                 />
+                <PreviewAction
+                  tone={PREVIEW_ACTION_TONES.addRestockLine}
+                  className={`${styles.actionBlock} min-h-[44px] mt-3`}
+                  disabled={session.restockSubmitted}
+                  onClick={() => onAddLine(row.variant.skuId)}
+                >
+                  {ADD_RESTOCK_LINE}
+                </PreviewAction>
               </div>
-              <PreviewAction
-                tone={PREVIEW_ACTION_TONES.addRestockLine}
-                className={`${styles.actionBlock} min-h-[44px] mt-3`}
-                disabled={session.restockSubmitted}
-                onClick={() => onAddLine(row.variant.skuId)}
-              >
-                {ADD_RESTOCK_LINE}
-              </PreviewAction>
             </li>
           );
         })}

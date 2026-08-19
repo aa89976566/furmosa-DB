@@ -338,6 +338,40 @@
   border-bottom: 0;
 }
 
+.restockGrid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.restockCard {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-surface);
+}
+
+.restockControls {
+  width: 100%;
+  max-width: 26rem;
+}
+
+@media (min-width: 768px) {
+  .restockGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .restockGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .productName {
   margin: 0;
   font-size: 1rem;

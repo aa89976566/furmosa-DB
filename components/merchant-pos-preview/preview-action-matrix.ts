@@ -11,7 +11,7 @@ export const PREVIEW_ACTION_TONES = {
   requestRefund: 'secondary',
   refundConfirm: 'primary',
   refundCancel: 'secondary',
-  addRestockLine: 'secondary',
+  addRestockLine: 'primary',
   addAllRestock: 'secondary',
   submitRestock: 'primary',
   openGroomingVoucher: 'primary',
