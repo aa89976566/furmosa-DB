@@ -4,7 +4,10 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   applyCheckoutFocusHandoff,
+  consumeDesktopCartHadFocus,
+  isRelatedTargetInsideRegion,
   nextCheckoutFocusIntent,
+  nextDesktopCartFocusCapture,
   resolveConnectedFocusIntent,
 } from '../../../components/merchant-pos-preview/cart-focus-handoff';
 import {
@@ -211,6 +214,149 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
       }),
       'none',
     );
+  });
+
+  it('captures cart focus before unmount and docks when the cart still has items', () => {
+    let hadFocus = nextDesktopCartFocusCapture(false, { type: 'focus-inside' });
+    assert.equal(hadFocus, true);
+    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
+      type: 'blur',
+      relatedTargetInside: null,
+    });
+    assert.equal(hadFocus, true);
+    const captured = consumeDesktopCartHadFocus(hadFocus);
+    assert.equal(captured.desktopCartHadFocus, true);
+    assert.equal(captured.nextHadFocus, false);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'mobile-open-cart-cta',
+    );
+  });
+
+  it('targets the checkout heading when captured cart focus unmounts with an empty cart', () => {
+    let hadFocus = nextDesktopCartFocusCapture(false, { type: 'focus-inside' });
+    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
+      type: 'blur',
+      relatedTargetInside: null,
+    });
+    const captured = consumeDesktopCartHadFocus(hadFocus);
+    assert.equal(captured.desktopCartHadFocus, true);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 0,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'checkout-heading',
+    );
+  });
+
+  it('does not hand off when catalog focus never enters the cart region', () => {
+    let hadFocus = false;
+    hadFocus = nextDesktopCartFocusCapture(hadFocus, {
+      type: 'blur',
+      relatedTargetInside: false,
+    });
+    assert.equal(hadFocus, false);
+    const captured = consumeDesktopCartHadFocus(hadFocus);
+    assert.equal(captured.desktopCartHadFocus, false);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: captured.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'none',
+    );
+  });
+
+  it('clears the capture flag after consume so a later layout change cannot steal focus', () => {
+    const first = consumeDesktopCartHadFocus(
+      nextDesktopCartFocusCapture(false, { type: 'focus-inside' }),
+    );
+    assert.equal(first.desktopCartHadFocus, true);
+    const leftover = consumeDesktopCartHadFocus(first.nextHadFocus);
+    assert.equal(leftover.desktopCartHadFocus, false);
+    assert.equal(leftover.nextHadFocus, false);
+    assert.equal(
+      nextCheckoutFocusIntent({
+        fromDesktop: true,
+        toDesktop: false,
+        editorLinesOpen: false,
+        confirmOpen: false,
+        cartItemCount: 2,
+        desktopCartHadFocus: leftover.desktopCartHadFocus,
+        reason: 'layout-change',
+      }),
+      'none',
+    );
+  });
+
+  it('keeps the flag when blur stays inside, and treats a missing relatedTarget as unmount', () => {
+    const inside = { id: 'qty' };
+    const region = {
+      contains(node: EventTarget | null) {
+        return node === inside;
+      },
+    };
+    assert.equal(isRelatedTargetInsideRegion(region, null), null);
+    assert.equal(isRelatedTargetInsideRegion(region, inside as EventTarget), true);
+    assert.equal(isRelatedTargetInsideRegion(region, { id: 'search' } as EventTarget), false);
+    assert.equal(
+      nextDesktopCartFocusCapture(true, {
+        type: 'blur',
+        relatedTargetInside: isRelatedTargetInsideRegion(region, inside as EventTarget),
+      }),
+      true,
+    );
+    assert.equal(
+      nextDesktopCartFocusCapture(true, {
+        type: 'blur',
+        relatedTargetInside: isRelatedTargetInsideRegion(region, null),
+      }),
+      true,
+    );
+  });
+
+  it('wires capture before unmount, consumes the flag, and makes the checkout heading focusable', () => {
+    const app = readFileSync(
+      path.join(process.cwd(), 'components/merchant-pos-preview/preview-app.tsx'),
+      'utf8',
+    );
+    const checkout = readFileSync(
+      path.join(process.cwd(), 'components/merchant-pos-preview/checkout-panel.tsx'),
+      'utf8',
+    );
+    const css = readFileSync(
+      path.join(process.cwd(), 'app/preview/merchant-pos/merchant-pos.module.css'),
+      'utf8',
+    );
+    assert.match(app, /onFocusCapture=/);
+    assert.match(app, /onBlurCapture=/);
+    assert.match(app, /nextDesktopCartFocusCapture/);
+    assert.match(app, /consumeDesktopCartHadFocus/);
+    assert.match(app, /isRelatedTargetInsideRegion/);
+    assert.equal(app.includes('desktopCartRef.current?.contains(document.activeElement)'), false);
+    assert.match(checkout, /id="checkout-title"/);
+    assert.match(checkout, /tabIndex=\{-1\}/);
+    assert.match(checkout, /styles\.checkoutTitle/);
+    assert.match(css, /\.checkoutTitle:focus-visible/);
   });
 
   it('keeps cart data deep-equal and does not import domain session', () => {

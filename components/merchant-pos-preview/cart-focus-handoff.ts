@@ -72,3 +72,32 @@ export function applyCheckoutFocusHandoff(
   nodes[resolved]?.focus?.();
   return resolved;
 }
+
+export type DesktopCartFocusCaptureEvent =
+  | { type: 'focus-inside' }
+  | { type: 'blur'; relatedTargetInside: boolean | null };
+
+export function nextDesktopCartFocusCapture(
+  hadFocus: boolean,
+  event: DesktopCartFocusCaptureEvent,
+): boolean {
+  if (event.type === 'focus-inside') return true;
+  if (event.relatedTargetInside == null) return hadFocus;
+  return event.relatedTargetInside;
+}
+
+export function consumeDesktopCartHadFocus(hadFocus: boolean): {
+  desktopCartHadFocus: boolean;
+  nextHadFocus: false;
+} {
+  return { desktopCartHadFocus: hadFocus, nextHadFocus: false };
+}
+
+export function isRelatedTargetInsideRegion(
+  region: { contains?: (node: EventTarget | null) => boolean } | null,
+  relatedTarget: EventTarget | null,
+): boolean | null {
+  if (relatedTarget == null) return null;
+  if (region == null || typeof region.contains !== 'function') return false;
+  return Boolean(region.contains(relatedTarget));
+}

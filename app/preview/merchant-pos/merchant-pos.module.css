@@ -121,6 +121,15 @@
   color: var(--preview-text);
 }
 
+.checkoutTitle {
+  outline: none;
+}
+
+.checkoutTitle:focus-visible {
+  outline: 2px solid #191919;
+  outline-offset: 2px;
+}
+
 .sectionIntro {
   margin: 0.25rem 0 0;
   font-size: 0.875rem;

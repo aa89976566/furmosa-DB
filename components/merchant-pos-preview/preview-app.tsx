@@ -38,8 +38,11 @@ import {
 import type { MerchantPosSession, TabId } from '@/lib/merchant-pos-preview/types';
 import {
   applyCheckoutFocusHandoff,
+  consumeDesktopCartHadFocus,
   DESKTOP_CART_TITLE_ID,
+  isRelatedTargetInsideRegion,
   nextCheckoutFocusIntent,
+  nextDesktopCartFocusCapture,
   type CheckoutFocusIntent,
 } from './cart-focus-handoff';
 import {
@@ -67,6 +70,7 @@ export function MerchantPosPreviewApp() {
   const sessionRef = useRef(session);
   const pendingFocusIntentRef = useRef<CheckoutFocusIntent>('none');
   const desktopCartRef = useRef<HTMLElement | null>(null);
+  const desktopCartHadFocusRef = useRef(false);
   const openCartCtaRef = useRef<HTMLButtonElement | null>(null);
   sessionRef.current = session;
   const isDesktopCheckout = isDesktop && session.tab === 'checkout';
@@ -76,15 +80,15 @@ export function MerchantPosPreviewApp() {
     previousDesktopRef.current = isDesktop;
     if (previous === null || previous === isDesktop) return;
     const current = sessionRef.current;
+    const captured = consumeDesktopCartHadFocus(desktopCartHadFocusRef.current);
+    desktopCartHadFocusRef.current = captured.nextHadFocus;
     pendingFocusIntentRef.current = nextCheckoutFocusIntent({
       fromDesktop: previous,
       toDesktop: isDesktop,
       editorLinesOpen: wouldOpenMobileCartEditor(current),
       confirmOpen: isCheckoutConfirmOpen(current),
       cartItemCount: current.cart.length,
-      desktopCartHadFocus: Boolean(
-        desktopCartRef.current?.contains(document.activeElement),
-      ),
+      desktopCartHadFocus: captured.desktopCartHadFocus,
       reason: 'layout-change',
     });
     setSession((latest) => applyCheckoutLayoutTransition(latest, previous, isDesktop));
@@ -141,6 +145,24 @@ export function MerchantPosPreviewApp() {
           className={styles.cartAside}
           tabIndex={-1}
           aria-labelledby={DESKTOP_CART_TITLE_ID}
+          onFocusCapture={() => {
+            desktopCartHadFocusRef.current = nextDesktopCartFocusCapture(
+              desktopCartHadFocusRef.current,
+              { type: 'focus-inside' },
+            );
+          }}
+          onBlurCapture={(event) => {
+            desktopCartHadFocusRef.current = nextDesktopCartFocusCapture(
+              desktopCartHadFocusRef.current,
+              {
+                type: 'blur',
+                relatedTargetInside: isRelatedTargetInsideRegion(
+                  event.currentTarget,
+                  event.relatedTarget,
+                ),
+              },
+            );
+          }}
         >
           <CartWorkspace
             session={session}
