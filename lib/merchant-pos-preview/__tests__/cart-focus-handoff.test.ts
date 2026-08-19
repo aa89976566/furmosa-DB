@@ -311,7 +311,7 @@ describe('merchant POS preview cart focus handoff (pure contract; not a live DOM
   it('keeps the flag when blur stays inside, and treats a missing relatedTarget as unmount', () => {
     const inside = { id: 'qty' };
     const region = {
-      contains(node: EventTarget | null) {
+      contains(node: unknown) {
         return node === inside;
       },
     };

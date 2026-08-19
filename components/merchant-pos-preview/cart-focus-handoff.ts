@@ -94,10 +94,10 @@ export function consumeDesktopCartHadFocus(hadFocus: boolean): {
 }
 
 export function isRelatedTargetInsideRegion(
-  region: { contains?: (node: EventTarget | null) => boolean } | null,
+  region: { contains?: (node: never) => boolean } | null,
   relatedTarget: EventTarget | null,
 ): boolean | null {
   if (relatedTarget == null) return null;
   if (region == null || typeof region.contains !== 'function') return false;
-  return Boolean(region.contains(relatedTarget));
+  return Boolean(region.contains(relatedTarget as never));
 }
