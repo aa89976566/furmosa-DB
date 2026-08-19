@@ -29,8 +29,8 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
       cartQtyStep: 'quiet',
       removeCartLine: 'danger',
       dialogClose: 'secondary',
-      requestRefund: 'danger',
-      refundConfirm: 'danger',
+      requestRefund: 'secondary',
+      refundConfirm: 'primary',
       refundCancel: 'secondary',
       addRestockLine: 'secondary',
       addAllRestock: 'secondary',
@@ -86,6 +86,9 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(css, /\.actionSecondary\s*\{[\s\S]*border:\s*1px solid #e7e5e4/i);
     assert.match(css, /\.actionSecondary\s*\{[\s\S]*color:\s*#191919/i);
     assert.match(css, /\.actionDanger\s*\{[\s\S]*background:\s*#c53030/i);
+    assert.equal(PREVIEW_ACTION_TONES.requestRefund, 'secondary');
+    assert.equal(PREVIEW_ACTION_TONES.refundConfirm, 'primary');
+    assert.equal(PREVIEW_ACTION_TONES.removeCartLine, 'danger');
     assert.match(css, /\.action:disabled[\s\S]*background:\s*#e7e5e4/i);
     assert.match(css, /\.action:disabled[\s\S]*color:\s*#9b9a97/i);
     assert.match(css, /\.action:disabled[\s\S]*opacity:\s*1/);
