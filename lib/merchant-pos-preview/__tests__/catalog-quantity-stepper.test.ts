@@ -185,6 +185,61 @@ describe('merchant POS preview catalog quantity stepper (session-backed; not a l
     assert.equal(session.cart[0]?.qty, 1);
   });
 
+  it('announces the selected SKU qty through one status live region', () => {
+    const stepper = read('components/merchant-pos-preview/catalog-quantity-stepper.tsx');
+    assert.equal((stepper.match(/role="status"/g) ?? []).length, 1);
+    assert.equal((stepper.match(/aria-live="polite"/g) ?? []).length, 1);
+    assert.equal((stepper.match(/aria-atomic="true"/g) ?? []).length, 1);
+    assert.match(
+      stepper,
+      /role="status"[\s\S]*aria-live="polite"[\s\S]*aria-atomic="true"[\s\S]*\{cartHasQtyLabel\(controls\.committedCartQty\)\}/,
+    );
+    assert.match(stepper, /<p className=\{styles\.catalogQtyValue\} aria-hidden="true">/);
+    assert.match(stepper, /<p id=\{capHintId\} className=\{styles\.hint\}>/);
+    assert.match(stepper, /<p id=\{invalidHintId\} className=\{styles\.hint\}>/);
+    assert.equal((stepper.match(/aria-live=/g) ?? []).length, 1);
+    assert.equal((stepper.match(/role="status"/g) ?? []).length, 1);
+
+    const statusFor = (session: MerchantPosSession, skuId: string) =>
+      cartHasQtyLabel(skuAvailability(skuId, session.cart).committedCartQty);
+
+    let session = selectSku('prod-beef', 'sku-beef-150');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 0 件');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'increase');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 1 件');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'increase');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 2 件');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'decrease');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 1 件');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'decrease');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 0 件');
+    assert.equal(session.cart.length, 0);
+
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'increase');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'increase');
+    session = selectVariant(session, 'prod-beef', 'sku-beef-80');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 2 件');
+    assert.equal(statusFor(session, 'sku-beef-80'), '購物車內 0 件');
+    session = applyCatalogStepper(session, 'prod-beef', 'sku-beef-80', 'increase');
+    assert.equal(statusFor(session, 'sku-beef-80'), '購物車內 1 件');
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 2 件');
+
+    session = setCartQtyInput(session, 'sku-beef-150', '');
+    const invalid = skuAvailability('sku-beef-150', session.cart);
+    assert.equal(invalid.committedCartQty, 2);
+    assert.equal(statusFor(session, 'sku-beef-150'), '購物車內 2 件');
+    assert.deepEqual(catalogStepperControls(invalid), {
+      committedCartQty: 2,
+      canIncrease: false,
+      canDecrease: false,
+    });
+    assert.deepEqual(nextCatalogStepperCommand(invalid, 'increase'), { type: 'none' });
+    assert.deepEqual(nextCatalogStepperCommand(invalid, 'decrease'), { type: 'none' });
+    const unchanged = applyCatalogStepper(session, 'prod-beef', 'sku-beef-150', 'increase');
+    assert.equal(unchanged, session);
+    assert.equal(statusFor(unchanged, 'sku-beef-150'), '購物車內 2 件');
+  });
+
   it('keeps one session-backed stepper and no second catalog qty input or duplicate ids', () => {
     const app = read('components/merchant-pos-preview/preview-app.tsx');
     const checkout = read('components/merchant-pos-preview/checkout-panel.tsx');

@@ -73,7 +73,13 @@ export function CatalogQuantityStepper({
           ＋
         </PreviewAction>
       </div>
-      <p id={statusId} className={styles.catalogQtyStatus}>
+      <p
+        id={statusId}
+        className={styles.catalogQtyStatus}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {cartHasQtyLabel(controls.committedCartQty)}
       </p>
       {availability.reason === 'at_cap' ? (

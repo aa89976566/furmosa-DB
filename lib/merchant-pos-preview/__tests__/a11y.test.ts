@@ -40,6 +40,10 @@ describe('merchant POS preview a11y static contract', () => {
     assert.match(stepper, /disabled=\{!controls\.canDecrease\}/);
     assert.match(stepper, /disabled=\{!controls\.canIncrease\}/);
     assert.match(stepper, /committedCartQty/);
+    assert.match(stepper, /aria-hidden="true"/);
+    assert.equal((stepper.match(/role="status"/g) ?? []).length, 1);
+    assert.equal((stepper.match(/aria-live="polite"/g) ?? []).length, 1);
+    assert.equal((stepper.match(/aria-atomic="true"/g) ?? []).length, 1);
     assert.equal(stepper.includes('<input'), false);
     assert.match(checkout, /row\.visibleVariants\.map/);
     assert.equal(checkout.includes('availableQty === 0'), false);
