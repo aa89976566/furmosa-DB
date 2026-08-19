@@ -2,9 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   DEAL_LABEL,
   FIXTURE_ONLY_BADGE,
@@ -45,6 +42,8 @@ import { PreviewBottomNav } from './bottom-nav';
 import { CartSheet } from './cart-sheet';
 import { CheckoutPanel } from './checkout-panel';
 import { MorePanel } from './more-panel';
+import { PreviewAction } from './preview-action';
+import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { RestockPanel } from './restock-panel';
 import { SalesPanel } from './sales-panel';
 
@@ -102,67 +101,57 @@ export function MerchantPosPreviewApp() {
     <div className={styles.shell}>
       <div className={styles.frame}>
         <PreviewBanner />
-        <header className="flex items-start justify-between gap-3 px-4 py-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-              {PREVIEW_TITLE}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-navy">{STORE_NAME}</h1>
+        <header className={styles.header}>
+          <div className={styles.headerCopy}>
+            <p className={styles.headerKicker}>{PREVIEW_TITLE}</p>
+            <h1 className={styles.headerTitle}>{STORE_NAME}</h1>
           </div>
-          <Badge variant="outline">{FIXTURE_ONLY_BADGE}</Badge>
+          <p className={styles.headerMark}>{FIXTURE_ONLY_BADGE}</p>
         </header>
 
         <main className={`${styles.main} ${showCartDock ? styles.mainWithCartDock : ''} space-y-4`}>
           {session.saleNotice ? (
-            <Card>
-              <CardContent className="p-4 text-sm" role="status">
-                {session.saleNotice}
-              </CardContent>
-            </Card>
+            <p className={styles.notice} role="status">
+              {session.saleNotice}
+            </p>
           ) : null}
           {session.restockNotice ? (
-            <Card>
-              <CardContent className="p-4 text-sm" role="status">
-                {session.restockNotice}
-              </CardContent>
-            </Card>
+            <p className={styles.notice} role="status">
+              {session.restockNotice}
+            </p>
           ) : null}
           {session.refundNotice ? (
-            <Card>
-              <CardContent className="p-4 text-sm" role="status">
-                {session.refundNotice}
-              </CardContent>
-            </Card>
+            <p className={styles.notice} role="status">
+              {session.refundNotice}
+            </p>
           ) : null}
           {latestReceipt ? (
-            <Card>
-              <CardContent className="space-y-1 p-4 text-sm">
-                <p className="font-medium text-navy">
-                  {RECEIPT_LABEL} {latestReceipt.receiptId}
-                </p>
-                <p>{latestReceipt.notice}</p>
-              </CardContent>
-            </Card>
+            <div className={styles.notice}>
+              <p className={styles.productName}>
+                {RECEIPT_LABEL} {latestReceipt.receiptId}
+              </p>
+              <p className={`${styles.hint} mt-1`}>{latestReceipt.notice}</p>
+            </div>
           ) : null}
           {body}
         </main>
 
         {showCartDock ? (
           <div className={styles.cartDock}>
-            <div className={`${styles.cartDockInner} border-t border-border/80 bg-card/95 p-3 shadow-card backdrop-blur`}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 text-sm font-medium text-navy">
+            <div className={styles.cartDockInner}>
+              <div className={styles.cartDockRow}>
+                <p className={styles.cartDockMeta}>
                   {ITEM_COUNT_LABEL} {formatQty(dock.itemCount)}
                   {dock.notice ? ` · ${dock.notice}` : null}
                   {dock.dealTwd == null ? '' : ` · ${DEAL_LABEL} ${formatTwd(dock.dealTwd)}`}
                 </p>
-                <Button
-                  type="button"
+                <PreviewAction
+                  tone={PREVIEW_ACTION_TONES.openCart}
                   className="min-h-[44px] shrink-0"
                   onClick={() => setSession((current) => setCartOpen(current, true))}
                 >
                   {OPEN_CART}
-                </Button>
+                </PreviewAction>
               </div>
             </div>
           </div>

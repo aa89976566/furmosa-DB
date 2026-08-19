@@ -9,7 +9,8 @@ import {
   nextDialogFocusPlan,
   nextTabIndex,
 } from '@/lib/merchant-pos-preview/a11y';
-import { Button } from '@/components/ui/button';
+import { PreviewAction } from './preview-action';
+import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -83,9 +84,9 @@ export function PreviewDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+    <div className={styles.dialogRoot}>
       <div
-        className="absolute inset-0 bg-navy/40"
+        className={styles.dialogOverlay}
         onClick={() => onCloseRef.current()}
         {...{ inert: true, 'aria-hidden': true }}
       />
@@ -94,25 +95,24 @@ export function PreviewDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative z-10 w-full max-w-md rounded-2xl border border-border/70 bg-card shadow-card ${styles.dialogPanel}`}
+        className={styles.dialogPanel}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className={styles.dialogHead}>
           <h2
             id={titleId}
             tabIndex={-1}
             data-preview-dialog-title=""
-            className="text-lg font-semibold text-navy outline-none focus-visible:ring-2 focus-visible:ring-navy/40"
+            className={`${styles.dialogTitle} focus-visible:ring-2`}
           >
             {title}
           </h2>
-          <Button
-            type="button"
-            variant="ghost"
+          <PreviewAction
+            tone={PREVIEW_ACTION_TONES.dialogClose}
             className="min-h-[44px] min-w-[44px]"
             onClick={() => onCloseRef.current()}
           >
             {CLOSE_DIALOG}
-          </Button>
+          </PreviewAction>
         </div>
         {children}
       </div>

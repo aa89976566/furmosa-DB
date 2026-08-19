@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   ACTUAL_PRICE_HINT,
   ACTUAL_PRICE_LABEL,
@@ -24,6 +23,8 @@ import {
 import { allowanceLabel, formatQty, formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { cartLineTotals, cartTotals, findProductBySku, skuAvailability } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import { PreviewAction } from './preview-action';
+import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
 
 export function CartSheet({
@@ -61,20 +62,28 @@ export function CartSheet({
     >
       {confirming ? (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">{COMPLETE_SALE_CONFIRM_BODY}</p>
-          <p className="text-xs text-muted-foreground">{CART_ESCAPE_HINT}</p>
-          <div className="flex flex-col gap-2">
-            <Button type="button" className="min-h-[44px] w-full" onClick={onComplete}>
+          <p className={styles.hint}>{COMPLETE_SALE_CONFIRM_BODY}</p>
+          <p className={styles.quietNote}>{CART_ESCAPE_HINT}</p>
+          <div className={styles.stack}>
+            <PreviewAction
+              tone={PREVIEW_ACTION_TONES.completeSaleConfirm}
+              className={`${styles.actionBlock} min-h-[44px]`}
+              onClick={onComplete}
+            >
               {COMPLETE_SALE_CONFIRM}
-            </Button>
-            <Button type="button" variant="outline" className="min-h-[44px] w-full" onClick={onCancelComplete}>
+            </PreviewAction>
+            <PreviewAction
+              tone={PREVIEW_ACTION_TONES.completeSaleCancel}
+              className={`${styles.actionBlock} min-h-[44px]`}
+              onClick={onCancelComplete}
+            >
               {COMPLETE_SALE_CANCEL}
-            </Button>
+            </PreviewAction>
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          <ul className="space-y-3">
+          <ul className={styles.workspaceList}>
             {session.cart.map((line) => {
               const product = findProductBySku(line.skuId);
               const result = cartLineTotals(line);
@@ -91,34 +100,33 @@ export function CartSheet({
               const removeLabel = `${REMOVE_LINE}，${lineContext}`;
               const availability = skuAvailability(line.skuId, session.cart);
               return (
-                <li key={line.skuId} className="rounded-xl border border-border/70 p-3">
-                  <p className="font-medium text-navy">{product?.name}</p>
-                  <p className="text-sm text-muted-foreground">{result.variant?.specLabel}</p>
-                  <p className="mt-1 text-sm">
+                <li key={line.skuId} className={styles.workspaceRow}>
+                  <p className={styles.productName}>{product?.name}</p>
+                  <p className={styles.productSpec}>{result.variant?.specLabel}</p>
+                  <p className={`${styles.productMeta} mt-1`}>
                     {LIST_PRICE_LABEL} {result.variant ? formatTwd(result.variant.listPriceTwd) : '—'}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
+                  <div className={`${styles.inlineActions} mt-3`}>
+                    <PreviewAction
+                      tone={PREVIEW_ACTION_TONES.cartQtyStep}
                       className="min-h-[44px] min-w-[44px]"
                       aria-label={decreaseLabel}
                       onClick={() => onQty(line.skuId, -1)}
                     >
                       −
-                    </Button>
+                    </PreviewAction>
                     <div className="min-w-[5.5rem] space-y-1.5">
-                      <label htmlFor={qtyId} className="text-sm font-medium">
+                      <label htmlFor={qtyId} className={styles.fieldLabel}>
                         {CART_QTY_LABEL}
                       </label>
-                      <Input
+                      <input
                         id={qtyId}
                         inputMode="numeric"
                         value={line.qtyInput}
                         aria-label={qtyLabel}
                         aria-invalid={Boolean(result.qtyError)}
                         aria-describedby={result.qtyError ? qtyErrorId : undefined}
-                        className="min-h-[44px] text-center"
+                        className={`${styles.field} ${styles.qtyField} min-h-[44px]`}
                         onChange={(event) => onQtyInput(line.skuId, event.target.value)}
                         onBlur={() => onQtyCommit(line.skuId)}
                         onKeyDown={(event) => {
@@ -129,48 +137,45 @@ export function CartSheet({
                         }}
                       />
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
+                    <PreviewAction
+                      tone={PREVIEW_ACTION_TONES.cartQtyStep}
                       className="min-h-[44px] min-w-[44px]"
                       aria-label={increaseLabel}
                       disabled={!availability.canAdd}
-                      aria-disabled={!availability.canAdd}
                       onClick={() => onQty(line.skuId, 1)}
                     >
                       ＋
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
+                    </PreviewAction>
+                    <PreviewAction
+                      tone={PREVIEW_ACTION_TONES.removeCartLine}
                       className="min-h-[44px]"
                       aria-label={removeLabel}
                       onClick={() => onRemove(line.skuId)}
                     >
                       {REMOVE_LINE}
-                    </Button>
+                    </PreviewAction>
                   </div>
                   {result.qtyError ? (
-                    <p id={qtyErrorId} role="alert" className="mt-2 text-sm text-destructive">
+                    <p id={qtyErrorId} role="alert" className={styles.errorText}>
                       {result.qtyError}
                     </p>
                   ) : null}
                   <div className="mt-3 space-y-1.5">
-                    <label htmlFor={priceId} className="text-sm font-medium">
+                    <label htmlFor={priceId} className={styles.fieldLabel}>
                       {ACTUAL_PRICE_LABEL}
                     </label>
-                    <Input
+                    <input
                       id={priceId}
                       inputMode="numeric"
                       value={line.actualUnitPriceInput}
                       aria-invalid={Boolean(result.priceError)}
                       aria-describedby={result.priceError ? priceErrorId : undefined}
-                      className="min-h-[44px]"
+                      className={`${styles.field} min-h-[44px]`}
                       onChange={(event) => onPrice(line.skuId, event.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">{ACTUAL_PRICE_HINT}</p>
+                    <p className={styles.quietNote}>{ACTUAL_PRICE_HINT}</p>
                     {result.priceError ? (
-                      <p id={priceErrorId} role="alert" className="text-sm text-destructive">
+                      <p id={priceErrorId} role="alert" className={styles.errorText}>
                         {result.priceError}
                       </p>
                     ) : null}
@@ -180,33 +185,33 @@ export function CartSheet({
             })}
           </ul>
 
-          <dl className="space-y-1 text-sm">
-            <div className="flex justify-between gap-3">
+          <dl className={styles.defList}>
+            <div className={styles.defRow}>
               <dt>{LIST_SUBTOTAL_LABEL}</dt>
               <dd>{formatTwd(totals.listSubtotalTwd)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className={styles.defRow}>
               <dt>{ACTUAL_SUBTOTAL_LABEL}</dt>
               <dd>{totals.blocked ? '—' : formatTwd(totals.actualSubtotalTwd)}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className={styles.defRow}>
               <dt>{allowanceLabel(totals.allowanceTwd)}</dt>
               <dd>{totals.blocked ? '—' : formatTwd(Math.abs(totals.allowanceTwd))}</dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className={styles.defRow}>
               <dt>{ITEM_COUNT_LABEL}</dt>
               <dd>{formatQty(totals.itemCount)}</dd>
             </div>
           </dl>
 
-          <Button
-            type="button"
-            className="min-h-[44px] w-full"
+          <PreviewAction
+            tone={PREVIEW_ACTION_TONES.completeSalePreview}
+            className={`${styles.actionBlock} min-h-[44px]`}
             disabled={totals.blocked}
             onClick={onAskComplete}
           >
             {COMPLETE_SALE}
-          </Button>
+          </PreviewAction>
         </div>
       )}
     </PreviewDialog>

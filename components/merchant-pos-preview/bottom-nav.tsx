@@ -19,20 +19,15 @@ export function PreviewBottomNav({
   onChange: (next: TabId) => void;
 }) {
   return (
-    <nav
-      className={`${styles.bottomNav} border-t border-border/80 bg-card/95 backdrop-blur`}
-      aria-label={DIALOG_NAV_LABEL}
-    >
-      <div className={`${styles.bottomNavInner} flex`}>
+    <nav className={styles.bottomNav} aria-label={DIALOG_NAV_LABEL}>
+      <div className={styles.bottomNavInner}>
         {ITEMS.map((item) => {
           const current = item.id === tab;
           return (
             <button
               key={item.id}
               type="button"
-              className={`flex min-h-[52px] min-w-[44px] flex-1 items-center justify-center px-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                current ? 'text-primary' : 'text-muted-foreground'
-              }`}
+              className={`${styles.navBtn} ${current ? styles.navBtnCurrent : ''} min-h-[52px] min-w-[44px] focus-visible:ring-2`}
               aria-current={current ? 'page' : undefined}
               onClick={() => onChange(item.id)}
             >
@@ -41,7 +36,7 @@ export function PreviewBottomNav({
           );
         })}
       </div>
-      <div className="h-[env(safe-area-inset-bottom)]" />
+      <div className={styles.navSafe} />
     </nav>
   );
 }

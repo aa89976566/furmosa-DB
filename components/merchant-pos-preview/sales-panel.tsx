@@ -1,8 +1,6 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   LOSS_UNSELLABLE_LABEL,
   NEXT_PERIOD_NOTE,
@@ -21,13 +19,9 @@ import {
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { visibleSales } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import { PreviewAction } from './preview-action';
+import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
-
-function refundBadgeVariant(status: string) {
-  if (status === 'rejected') return 'destructive' as const;
-  if (status === 'completed' || status === 'approved') return 'success' as const;
-  return 'warning' as const;
-}
 
 export function SalesPanel({
   session,
@@ -45,80 +39,92 @@ export function SalesPanel({
   return (
     <section aria-labelledby="sales-title" className="min-w-0 space-y-4">
       <div>
-        <h2 id="sales-title" className="text-xl font-semibold text-navy">
+        <h2 id="sales-title" className={styles.sectionTitle}>
           {SALES_TITLE}
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">{SALES_INTRO}</p>
+        <p className={styles.sectionIntro}>{SALES_INTRO}</p>
       </div>
 
-      <ul className="space-y-3">
+      <ul className={styles.workspaceList}>
         {sales.map((sale) => (
-          <li key={sale.saleId}>
-            <Card>
-              <CardContent className="space-y-3 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-navy">{sale.soldAtLabel}</p>
-                    <p className="text-sm text-muted-foreground">{sale.channelLabel}</p>
-                  </div>
-                  <Badge variant="secondary">{sale.statusLabel}</Badge>
+          <li key={sale.saleId} className={styles.workspaceRow}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className={styles.productName}>{sale.soldAtLabel}</p>
+                <p className={styles.productSpec}>{sale.channelLabel}</p>
+              </div>
+              <p className={styles.statusText}>{sale.statusLabel}</p>
+            </div>
+            <ul className={`${styles.itemList} mt-3 space-y-1`}>
+              {sale.items.map((item) => (
+                <li key={`${sale.saleId}-${item.name}-${item.specLabel}`}>
+                  {item.name} {item.specLabel} × {item.qty} · {formatTwd(item.actualLineTwd)}
+                </li>
+              ))}
+            </ul>
+            <p className={`${styles.productMeta} mt-2`}>
+              實際成交額 {formatTwd(sale.actualTotalTwd)}
+              {sale.pickupLabel ? ` · ${sale.pickupLabel}` : ''}
+            </p>
+            {sale.refund ? (
+              <dl className={`${styles.defList} mt-3`}>
+                <div className={styles.defRow}>
+                  <dt>退款狀態</dt>
+                  <dd>{sale.refund.statusLabel}</dd>
                 </div>
-                <ul className="space-y-1 text-sm">
-                  {sale.items.map((item) => (
-                    <li key={`${sale.saleId}-${item.name}-${item.specLabel}`}>
-                      {item.name} {item.specLabel} × {item.qty} · {formatTwd(item.actualLineTwd)}
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-sm font-medium">
-                  實際成交額 {formatTwd(sale.actualTotalTwd)}
-                  {sale.pickupLabel ? ` · ${sale.pickupLabel}` : ''}
-                </p>
-                {sale.refund ? (
-                  <div className="space-y-1 rounded-xl bg-muted/70 p-3 text-sm">
-                    <Badge variant={refundBadgeVariant(sale.refund.status)}>
-                      {sale.refund.statusLabel}
-                    </Badge>
-                    <p>{sale.refund.note}</p>
-                    <p className="text-muted-foreground">{sale.refund.inventoryNote}</p>
-                    <p className="text-muted-foreground">{sale.refund.commissionNote}</p>
-                    {sale.refund.conditionLabel ? (
-                      <p>
-                        {REFUND_CONDITION_LABEL}：{sale.refund.conditionLabel}
-                      </p>
-                    ) : null}
-                    {sale.refund.inventoryDisposition === 'restock_sellable' ? (
-                      <p>
-                        {REFUND_DISPOSITION_LABEL}：{RESTOCK_SELLABLE_LABEL}
-                      </p>
-                    ) : null}
-                    {sale.refund.inventoryDisposition === 'loss_unsellable' ? (
-                      <p>
-                        {REFUND_DISPOSITION_LABEL}：{LOSS_UNSELLABLE_LABEL}
-                      </p>
-                    ) : null}
-                    {sale.refund.lossReason ? (
-                      <p>
-                        {REFUND_LOSS_REASON_LABEL}：{sale.refund.lossReason}
-                      </p>
-                    ) : null}
-                    {sale.refund.nextPeriodNote ? (
-                      <p className="font-medium text-navy">{NEXT_PERIOD_NOTE}</p>
-                    ) : null}
+                <div className={styles.defRow}>
+                  <dt>說明</dt>
+                  <dd>{sale.refund.note}</dd>
+                </div>
+                <div className={styles.defRow}>
+                  <dt>庫存說明</dt>
+                  <dd>{sale.refund.inventoryNote}</dd>
+                </div>
+                <div className={styles.defRow}>
+                  <dt>佣金說明</dt>
+                  <dd>{sale.refund.commissionNote}</dd>
+                </div>
+                {sale.refund.conditionLabel ? (
+                  <div className={styles.defRow}>
+                    <dt>{REFUND_CONDITION_LABEL}</dt>
+                    <dd>{sale.refund.conditionLabel}</dd>
                   </div>
                 ) : null}
-                {sale.canMerchantRequestRefund ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="min-h-[44px] w-full"
-                    onClick={() => onAskRefund(sale.saleId)}
-                  >
-                    {REQUEST_REFUND}
-                  </Button>
+                {sale.refund.inventoryDisposition === 'restock_sellable' ? (
+                  <div className={styles.defRow}>
+                    <dt>{REFUND_DISPOSITION_LABEL}</dt>
+                    <dd>{RESTOCK_SELLABLE_LABEL}</dd>
+                  </div>
                 ) : null}
-              </CardContent>
-            </Card>
+                {sale.refund.inventoryDisposition === 'loss_unsellable' ? (
+                  <div className={styles.defRow}>
+                    <dt>{REFUND_DISPOSITION_LABEL}</dt>
+                    <dd>{LOSS_UNSELLABLE_LABEL}</dd>
+                  </div>
+                ) : null}
+                {sale.refund.lossReason ? (
+                  <div className={styles.defRow}>
+                    <dt>{REFUND_LOSS_REASON_LABEL}</dt>
+                    <dd>{sale.refund.lossReason}</dd>
+                  </div>
+                ) : null}
+                {sale.refund.nextPeriodNote ? (
+                  <div className={styles.defRow}>
+                    <dt>{NEXT_PERIOD_NOTE}</dt>
+                    <dd>{sale.refund.nextPeriodNote}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+            {sale.canMerchantRequestRefund ? (
+              <PreviewAction
+                tone={PREVIEW_ACTION_TONES.requestRefund}
+                className={`${styles.actionBlock} min-h-[44px] mt-3`}
+                onClick={() => onAskRefund(sale.saleId)}
+              >
+                {REQUEST_REFUND}
+              </PreviewAction>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -129,14 +135,22 @@ export function SalesPanel({
         title={REQUEST_REFUND_TITLE}
         onClose={onCancelRefund}
       >
-        <p className="text-sm text-muted-foreground">{REQUEST_REFUND_BODY}</p>
-        <div className="mt-4 flex flex-col gap-2">
-          <Button type="button" className="min-h-[44px] w-full" onClick={onConfirmRefund}>
+        <p className={styles.hint}>{REQUEST_REFUND_BODY}</p>
+        <div className={`${styles.stack} mt-4`}>
+          <PreviewAction
+            tone={PREVIEW_ACTION_TONES.refundConfirm}
+            className={`${styles.actionBlock} min-h-[44px]`}
+            onClick={onConfirmRefund}
+          >
             {REQUEST_REFUND_CONFIRM}
-          </Button>
-          <Button type="button" variant="outline" className="min-h-[44px] w-full" onClick={onCancelRefund}>
+          </PreviewAction>
+          <PreviewAction
+            tone={PREVIEW_ACTION_TONES.refundCancel}
+            className={`${styles.actionBlock} min-h-[44px]`}
+            onClick={onCancelRefund}
+          >
             {REQUEST_REFUND_CANCEL}
-          </Button>
+          </PreviewAction>
         </div>
       </PreviewDialog>
     </section>

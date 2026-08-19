@@ -1,9 +1,6 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   AVAILABLE_QTY_LABEL,
   CART_EMPTY,
@@ -17,6 +14,9 @@ import {
 import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
 import { catalogRows, skuAvailability } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import { PreviewAction } from './preview-action';
+import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
+import { PreviewSpecChip } from './preview-spec-chip';
 
 export function CheckoutPanel({
   session,
@@ -36,124 +36,107 @@ export function CheckoutPanel({
   return (
     <section aria-labelledby="checkout-title" className="min-w-0 space-y-4">
       <div>
-        <h2 id="checkout-title" className="text-xl font-semibold text-navy">
+        <h2 id="checkout-title" className={styles.sectionTitle}>
           收銀
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">{CHECKOUT_INTRO}</p>
+        <p className={styles.sectionIntro}>{CHECKOUT_INTRO}</p>
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="product-search" className="text-sm font-medium text-navy">
+        <label htmlFor="product-search" className={styles.fieldLabel}>
           {SEARCH_LABEL}
         </label>
-        <Input
+        <input
           id="product-search"
           value={session.query}
           onChange={(event) => onQuery(event.target.value)}
           placeholder={SEARCH_PLACEHOLDER}
-          className="min-h-[44px]"
+          className={`${styles.field} min-h-[44px]`}
         />
       </div>
 
       {rows.length === 0 ? (
-        <Card>
-          <CardContent className="p-5 text-sm text-muted-foreground">{SEARCH_EMPTY}</CardContent>
-        </Card>
+        <p className={styles.notice}>{SEARCH_EMPTY}</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className={styles.workspaceList}>
           {rows.map((row) => {
             const selected = row.selected;
             const badge = row.stockLevel ? stockLevelLabel(row.stockLevel) : null;
             const addHintId = `add-hint-${row.product.productId}`;
             return (
-              <li key={row.product.productId}>
-                <Card>
-                  <CardContent className="space-y-3 p-4">
-                    <div>
-                      <p className="font-semibold text-navy">{row.product.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        貨號 {row.visibleVariants.map((variant) => variant.sku).join('／')}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {row.visibleVariants.map((variant) => {
-                        const pressed = selected?.skuId === variant.skuId;
-                        const variantAvail = skuAvailability(variant.skuId, session.cart);
-                        const soldOut = variantAvail.reason === 'sold_out';
-                        const variantLabel = soldOut
-                          ? `${variant.specLabel}，${SOLD_OUT_BADGE}`
-                          : variant.specLabel;
-                        return (
-                          <Button
-                            key={variant.skuId}
-                            type="button"
-                            variant={pressed ? 'default' : 'outline'}
-                            className="min-h-[44px]"
-                            aria-pressed={pressed}
-                            aria-label={variantLabel}
-                            onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
-                          >
-                            {soldOut ? `${variant.specLabel} ${SOLD_OUT_BADGE}` : variant.specLabel}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                    {selected || row.add.showRestock ? (
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                        {selected ? (
-                          <>
-                            <span>
-                              {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)}
-                            </span>
-                            <span>
-                              {AVAILABLE_QTY_LABEL} {formatQty(selected.availableQty)}
-                            </span>
-                          </>
-                        ) : null}
-                        {badge ? (
-                          <Badge variant={row.stockLevel === 'sold_out' ? 'destructive' : 'warning'}>
-                            {badge}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {row.add.hint ? (
-                      <p id={addHintId} className="text-sm text-muted-foreground">
-                        {row.add.hint}
+              <li key={row.product.productId} className={styles.workspaceRow}>
+                <p className={styles.productName}>{row.product.name}</p>
+                <div className={`${styles.specRow} mt-3`}>
+                  {row.visibleVariants.map((variant) => {
+                    const pressed = selected?.skuId === variant.skuId;
+                    const variantAvail = skuAvailability(variant.skuId, session.cart);
+                    const soldOut = variantAvail.reason === 'sold_out';
+                    const variantLabel = soldOut
+                      ? `${variant.specLabel}，${SOLD_OUT_BADGE}`
+                      : variant.specLabel;
+                    return (
+                      <PreviewSpecChip
+                        key={variant.skuId}
+                        selected={pressed}
+                        soldOut={soldOut}
+                        aria-label={variantLabel}
+                        onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
+                      >
+                        {soldOut ? `${variant.specLabel} ${SOLD_OUT_BADGE}` : variant.specLabel}
+                      </PreviewSpecChip>
+                    );
+                  })}
+                </div>
+                {selected || row.add.showRestock ? (
+                  <div className={`${styles.productMeta} mt-3`}>
+                    {selected ? (
+                      <p>
+                        {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)} · {AVAILABLE_QTY_LABEL}{' '}
+                        {formatQty(selected.availableQty)}
                       </p>
                     ) : null}
-                    {row.add.showRestock ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="min-h-[44px] w-full"
-                        onClick={onViewRestock}
+                    {badge ? (
+                      <p
+                        className={
+                          row.stockLevel === 'sold_out' ? styles.stockMarkSoldOut : styles.stockMark
+                        }
                       >
-                        {row.add.buttonLabel}
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        className="min-h-[44px] w-full"
-                        disabled={!row.add.canAdd}
-                        aria-disabled={!row.add.canAdd}
-                        aria-describedby={row.add.hint ? addHintId : undefined}
-                        onClick={() => onAdd(row.product.productId)}
-                      >
-                        {row.add.buttonLabel}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
+                        {badge}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {row.add.hint ? (
+                  <p id={addHintId} className={`${styles.hint} mt-2`}>
+                    {row.add.hint}
+                  </p>
+                ) : null}
+                {row.add.showRestock ? (
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.viewRestock}
+                    className={`${styles.actionBlock} min-h-[44px] mt-3`}
+                    onClick={onViewRestock}
+                  >
+                    {row.add.buttonLabel}
+                  </PreviewAction>
+                ) : (
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.addToCart}
+                    className={`${styles.actionBlock} min-h-[44px] mt-3`}
+                    disabled={!row.add.canAdd}
+                    aria-describedby={row.add.hint ? addHintId : undefined}
+                    onClick={() => onAdd(row.product.productId)}
+                  >
+                    {row.add.buttonLabel}
+                  </PreviewAction>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
-      {session.cart.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{CART_EMPTY}</p>
-      ) : null}
+      {session.cart.length === 0 ? <p className={styles.hint}>{CART_EMPTY}</p> : null}
     </section>
   );
 }
