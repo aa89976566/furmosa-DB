@@ -170,3 +170,18 @@ describe('retired store-redeem middleware redirect', () => {
     assert.equal(src.includes('FALLBACK_STORE_TOKENS'), false);
   });
 });
+
+
+describe('public webhook middleware paths', () => {
+  it('allows Shopify webhooks through without reading auth cookies', async () => {
+    const res = await invoke(
+      `${ORIGIN}/api/shopify/webhooks/orders-paid`,
+      true,
+    );
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-middleware-next'), '1');
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+});
