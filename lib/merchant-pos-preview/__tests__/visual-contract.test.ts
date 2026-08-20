@@ -73,7 +73,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
   it('defines preview-local black primary, secondary, danger, and disabled styles', () => {
     const css = read('app/preview/merchant-pos/merchant-pos.module.css');
     const action = read('components/merchant-pos-preview/preview-action.tsx');
-    assert.match(css, /--preview-bg:\s*#f7f7f5/i);
+    assert.match(css, /--preview-bg:\s*#f6f6f7/i);
     assert.match(css, /--preview-surface:\s*#ffffff/i);
     assert.match(css, /--preview-text:\s*#191919/i);
     assert.match(css, /--preview-secondary:\s*#6b6b6b/i);
@@ -117,6 +117,25 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(css, /\.workspaceGrid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
     assert.match(css, /@media \(min-width:\s*768px\)[\s\S]*\.workspaceGrid\s*\{[\s\S]*repeat\(2,/);
     assert.match(css, /@media \(min-width:\s*1280px\)[\s\S]*\.workspaceGrid\s*\{[\s\S]*repeat\(3,/);
+  });
+
+  it('uses one Shopify-inspired workspace shell across every POS tab without brand assets', () => {
+    const css = read('app/preview/merchant-pos/merchant-pos.module.css');
+    const app = read('components/merchant-pos-preview/preview-app.tsx');
+    const sales = read('components/merchant-pos-preview/sales-panel.tsx');
+    const restock = read('components/merchant-pos-preview/restock-panel.tsx');
+    const more = read('components/merchant-pos-preview/more-panel.tsx');
+    const settlement = read('components/merchant-pos-preview/settlement-panel.tsx');
+    assert.match(app, /styles\.workspaceShell/);
+    assert.match(css, /@media \(min-width:\s*1024px\)[\s\S]*\.workspaceShell\s*\{[\s\S]*grid-template-columns:\s*12rem/);
+    assert.match(css, /@media \(min-width:\s*1024px\)[\s\S]*\.bottomNav\s*\{[\s\S]*position:\s*sticky/);
+    assert.match(css, /\.statusPill\s*\{/);
+    assert.match(sales, /styles\.pageHeader/);
+    assert.match(restock, /styles\.pageHeader/);
+    assert.match(more, /styles\.pageHeader/);
+    assert.match(settlement, /styles\.workspaceGrid/);
+    assert.equal(/shopify/i.test(css), false);
+    assert.equal(/shopify/i.test(app), false);
   });
 
   it('keeps safe-area, fixed layers, 100dvh dialog, and z-index in source CSS', () => {

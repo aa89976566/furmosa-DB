@@ -38,7 +38,7 @@ export function SalesPanel({
 
   return (
     <section aria-labelledby="sales-title" className="min-w-0 space-y-4">
-      <div>
+      <div className={styles.pageHeader}>
         <h2 id="sales-title" className={styles.sectionTitle}>
           {SALES_TITLE}
         </h2>
@@ -52,7 +52,7 @@ export function SalesPanel({
                 <p className={styles.productName}>{sale.soldAtLabel}</p>
                 <p className={styles.productSpec}>{sale.channelLabel}</p>
               </div>
-              <p className={styles.statusText}>{sale.statusLabel}</p>
+              <p className={styles.statusPill}>{sale.statusLabel}</p>
             </div>
             <ul className={`${styles.itemList} mt-3 space-y-1`}>
               {sale.items.map((item) => (

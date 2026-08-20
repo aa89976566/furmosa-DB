@@ -36,7 +36,7 @@ export function RestockPanel({
 
   return (
     <section aria-labelledby="restock-title" className="min-w-0 space-y-4">
-      <div>
+      <div className={styles.pageHeader}>
         <h2 id="restock-title" className={styles.sectionTitle}>
           補貨
         </h2>
@@ -113,22 +113,24 @@ export function RestockPanel({
         </div>
       ) : null}
 
-      <PreviewAction
-        tone={PREVIEW_ACTION_TONES.addAllRestock}
-        className={`${styles.actionBlock} min-h-[44px]`}
-        disabled={session.restockSubmitted}
-        onClick={onAddAll}
-      >
-        {ADD_ALL_RESTOCK}
-      </PreviewAction>
-      <PreviewAction
-        tone={PREVIEW_ACTION_TONES.submitRestock}
-        className={`${styles.actionBlock} min-h-[44px]`}
-        disabled={session.restockSubmitted || session.restockSubmitting}
-        onClick={onSubmit}
-      >
-        {session.restockSubmitted ? RESTOCK_SUBMITTED : SUBMIT_RESTOCK}
-      </PreviewAction>
+      <div className={styles.pageActions}>
+        <PreviewAction
+          tone={PREVIEW_ACTION_TONES.addAllRestock}
+          className={`${styles.actionBlock} min-h-[44px]`}
+          disabled={session.restockSubmitted}
+          onClick={onAddAll}
+        >
+          {ADD_ALL_RESTOCK}
+        </PreviewAction>
+        <PreviewAction
+          tone={PREVIEW_ACTION_TONES.submitRestock}
+          className={`${styles.actionBlock} min-h-[44px]`}
+          disabled={session.restockSubmitted || session.restockSubmitting}
+          onClick={onSubmit}
+        >
+          {session.restockSubmitted ? RESTOCK_SUBMITTED : SUBMIT_RESTOCK}
+        </PreviewAction>
+      </div>
     </section>
   );
 }

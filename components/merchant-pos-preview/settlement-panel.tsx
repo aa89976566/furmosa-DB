@@ -78,21 +78,21 @@ export function SettlementPanel() {
 
   return (
     <section aria-labelledby="settlement-title" className="min-w-0 space-y-4">
-      <div>
+      <div className={styles.subsectionHeader}>
         <h3 id="settlement-title" className={styles.sectionTitle}>
           {SETTLEMENT_TITLE}
         </h3>
         <p className={styles.sectionIntro}>{SETTLEMENT_INTRO}</p>
       </div>
-      <ul className={styles.workspaceList}>
+      <ul className={styles.workspaceGrid}>
         {rows.map((row) => (
-          <li key={row.settlementId} className={styles.workspaceRow}>
+          <li key={row.settlementId} className={styles.workspaceCard}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className={styles.productName}>{row.periodLabel}</p>
                 <p className={styles.productSpec}>{row.netDirectionLabel}</p>
               </div>
-              <p className={styles.statusText}>{row.statusLabel}</p>
+              <p className={styles.statusPill}>{row.statusLabel}</p>
             </div>
             <p className={`${styles.settlementNet} mt-3`}>
               {NET_LABEL} {row.netDirectionLabel} {formatTwd(Math.abs(row.netAmountTwd))}

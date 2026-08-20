@@ -41,7 +41,7 @@ export function CheckoutPanel({
 
   return (
     <section aria-labelledby="checkout-title" className="min-w-0 space-y-4">
-      <div>
+      <div className={styles.pageHeader}>
         <h2 id="checkout-title" className={`${styles.sectionTitle} ${styles.checkoutTitle}`} tabIndex={-1}>
           收銀
         </h2>

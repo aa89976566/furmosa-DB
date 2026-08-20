@@ -1,10 +1,11 @@
 /* Preview-local workspace tokens. Workbench/document feel, not a Notion brand copy. Source contract only; not a live viewport proof. */
 .shell {
-  --preview-bg: #f7f7f5;
+  --preview-bg: #f6f6f7;
   --preview-surface: #ffffff;
   --preview-text: #191919;
   --preview-secondary: #6b6b6b;
   --preview-border: #e7e5e4;
+  --preview-subtle: #fafafa;
   --preview-disabled-bg: #e7e5e4;
   --preview-disabled-text: #9b9a97;
   --preview-danger: #c53030;
@@ -37,9 +38,14 @@
   min-width: 0;
 }
 
+.workspaceShell {
+  min-width: 0;
+}
+
 .main {
   min-width: 0;
   padding-inline: 1rem;
+  padding-top: 1rem;
   padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
 }
 
@@ -74,6 +80,8 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem;
+  background: var(--preview-surface);
+  border-bottom: 1px solid var(--preview-border);
 }
 
 .headerCopy {
@@ -112,6 +120,31 @@
   font-size: 0.875rem;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.pageHeader {
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.subsectionHeader {
+  padding-top: 0.25rem;
+}
+
+.pageActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius-lg);
+  background: var(--preview-surface);
+}
+
+.utilityGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
 }
 
 .sectionTitle {
@@ -247,7 +280,7 @@
   overflow: hidden;
   border: 1px solid var(--preview-border);
   border-radius: var(--preview-radius-lg);
-  background: var(--preview-surface);
+  background: var(--preview-subtle);
   padding: 1rem;
   outline: none;
 }
@@ -316,6 +349,7 @@
   border: 1px solid var(--preview-border);
   border-radius: var(--preview-radius);
   background: var(--preview-surface);
+  box-shadow: 0 1px 2px rgba(25, 25, 25, 0.04);
 }
 
 .workspaceList {
@@ -353,6 +387,7 @@
   border: 1px solid var(--preview-border);
   border-radius: var(--preview-radius);
   background: var(--preview-surface);
+  box-shadow: 0 1px 2px rgba(25, 25, 25, 0.04);
 }
 
 .restockControls {
@@ -362,6 +397,14 @@
 
 @media (min-width: 768px) {
   .workspaceGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .utilityGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pageActions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -488,6 +531,20 @@
   margin: 0;
   font-size: 0.75rem;
   color: var(--preview-secondary);
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--preview-border);
+  border-radius: 999px;
+  background: var(--preview-subtle);
+  color: var(--preview-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .action {
@@ -655,6 +712,61 @@
 @media (min-width: 1440px) {
   .bottomNavInner {
     max-width: 80rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspaceShell {
+    display: grid;
+    grid-template-columns: 12rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .main {
+    padding: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  .bottomNav {
+    position: sticky;
+    top: 0;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    z-index: 5;
+    min-height: calc(100dvh - 5.5rem);
+    padding: 1rem 0.75rem;
+    border-top: 0;
+    border-right: 1px solid var(--preview-border);
+    background: var(--preview-surface);
+  }
+
+  .bottomNavInner {
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .navBtn {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.625rem 0.75rem;
+    border: 0;
+    border-radius: var(--preview-radius);
+    text-align: left;
+  }
+
+  .navBtnCurrent {
+    border-top-color: transparent;
+    background: #eeeeee;
+  }
+
+  .navSafe {
+    display: none;
   }
 }
 

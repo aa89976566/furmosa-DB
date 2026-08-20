@@ -21,9 +21,11 @@ describe('merchant POS preview layout static contract', () => {
     assert.match(css, /safe-area-inset-bottom/);
     assert.match(app, /styles\.shell/);
     assert.match(app, /styles\.frame/);
+    assert.match(app, /styles\.workspaceShell/);
     assert.match(app, /styles\.mainWithCartDock/);
     assert.match(app, /styles\.cartDock/);
     assert.match(nav, /styles\.bottomNav/);
+    assert.match(css, /@media \(min-width:\s*1024px\)[\s\S]*\.bottomNav\s*\{[\s\S]*position:\s*sticky/);
   });
 
   it('source keeps dialog panel scroll classes; this is not a live viewport proof', () => {

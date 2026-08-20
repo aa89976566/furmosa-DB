@@ -246,7 +246,13 @@ export function MerchantPosPreviewApp() {
           <p className={styles.headerMark}>{FIXTURE_ONLY_BADGE}</p>
         </header>
 
-        <main className={`${styles.main} ${showCartDock ? styles.mainWithCartDock : ''} space-y-4`}>
+        <div className={styles.workspaceShell}>
+          <PreviewBottomNav
+            tab={session.tab}
+            onChange={(tab: TabId) => setSession((current) => setTab(current, tab))}
+          />
+
+          <main className={`${styles.main} ${showCartDock ? styles.mainWithCartDock : ''} space-y-4`}>
           {session.saleNotice ? (
             <p className={styles.notice} role="status">
               {SALE_SUCCESS_SUMMARY}
@@ -276,8 +282,9 @@ export function MerchantPosPreviewApp() {
               <p className="mt-2">此為示意收據，不建立訂單、不扣除庫存。</p>
             </PreviewDisclosure>
           ) : null}
-          {body}
-        </main>
+            {body}
+          </main>
+        </div>
 
         {showCartDock ? (
           <div className={styles.cartDock}>
@@ -324,11 +331,6 @@ export function MerchantPosPreviewApp() {
             setSession((current) => cancelCompleteConfirmForLayout(current, isDesktop));
           }}
           onComplete={() => setSession((current) => completeDemoSale(current))}
-        />
-
-        <PreviewBottomNav
-          tab={session.tab}
-          onChange={(tab: TabId) => setSession((current) => setTab(current, tab))}
         />
       </div>
     </div>

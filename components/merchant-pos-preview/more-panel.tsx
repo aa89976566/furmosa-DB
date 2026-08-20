@@ -17,15 +17,15 @@ import { PreviewDisclosure } from './preview-disclosure';
 export function MorePanel() {
   return (
     <section aria-labelledby="more-title" className="min-w-0 space-y-6">
-      <div>
+      <div className={styles.pageHeader}>
         <h2 id="more-title" className={styles.sectionTitle}>
           更多
         </h2>
         <p className={styles.sectionIntro}>{MORE_INTRO}</p>
       </div>
 
-      <div className={styles.workspaceList}>
-        <div className={styles.workspaceRow}>
+      <div className={styles.utilityGrid}>
+        <div className={styles.workspaceCard}>
           <h3 className={styles.productName}>{GROOMING_ENTRY_TITLE}</h3>
           <p className={`${styles.productSpec} mt-2`}>10 點美容服務券核銷</p>
           <PreviewActionLink
