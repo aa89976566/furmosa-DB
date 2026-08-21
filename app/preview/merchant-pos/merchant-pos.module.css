@@ -1048,9 +1048,136 @@
 
 .drawerSummary {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.35rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--preview-border);
+}
+
+.settlementSummaryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.settlementResultLabel {
+  margin: 0.5rem 0 0;
+  color: var(--preview-secondary);
+  font-size: 0.8125rem;
+}
+
+.settlementResult {
+  margin: 0;
+  color: var(--preview-text);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.settlementResultAmount {
+  margin: 0;
+  color: var(--preview-text);
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.settlementEquation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-subtle);
+  font-size: 0.75rem;
+  color: var(--preview-secondary);
+}
+
+.settlementEquation span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.settlementEquation span:last-child {
+  grid-column: 1 / -1;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--preview-border);
+}
+
+.settlementEquation strong {
+  color: var(--preview-text);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.settlementSections {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.settlementGroupTitle {
+  margin: 0 0 0.25rem;
+  color: var(--preview-text);
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.settlementDetailRow {
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.settlementDetailSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+  padding-block: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--preview-text);
+  font-size: 0.875rem;
+}
+
+.settlementDetailSummary::-webkit-details-marker {
+  display: none;
+}
+
+.settlementDetailSummary::after {
+  content: '⌄';
+  grid-column: 2;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+}
+
+.settlementDetailSummary strong {
+  grid-column: 2;
+  grid-row: 1;
+  padding-right: 1.25rem;
+}
+
+.settlementDetailRow[open] .settlementDetailSummary::after {
+  transform: rotate(180deg);
+}
+
+.settlementDetailSummary:focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: 2px;
+}
+
+.settlementDetailRow .defList,
+.settlementDetailRow .quietNote {
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 420px) {
+  .settlementEquation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
 }
 
 @media (max-width: 479px) {
