@@ -23,9 +23,12 @@ import { PreviewDialog } from './preview-dialog';
 
 function LedgerRowView({ row }: { row: SettlementLedgerRow }) {
   return (
-    <div className="mt-3">
-      <p className={styles.productName}>{row.label}</p>
-      <dl className={`${styles.defList} mt-2`}>
+    <details className={styles.settlementDetailRow}>
+      <summary className={styles.settlementDetailSummary}>
+        <span>{row.label}</span>
+        <strong>{formatTwd(row.amountTwd)}</strong>
+      </summary>
+      <dl className={styles.defList}>
         <div className={styles.defRow}>
           <dt>{SETTLEMENT_ROW_SOURCE}</dt>
           <dd>{row.source}</dd>
@@ -60,16 +63,35 @@ function LedgerRowView({ row }: { row: SettlementLedgerRow }) {
         </div>
       </dl>
       {row.kind === 'audit' ? <p className={`${styles.quietNote} mt-2`}>{AUDIT_ONLY_LABEL}</p> : null}
-    </div>
+    </details>
   );
 }
 
 function SnapshotLedger({ row }: { row: SettlementSnapshot }) {
+  const currentObligations = row.ledger.filter(
+    (item) => item.kind === 'obligation' && item.periodRoute === 'this_period',
+  );
+  const nextPeriod = row.ledger.filter((item) => item.periodRoute === 'next_period');
+  const auditRows = row.ledger.filter((item) => item.kind === 'audit');
+
   return (
-    <div>
-      {row.ledger.map((item) => (
-        <LedgerRowView key={item.rowId} row={item} />
-      ))}
+    <div className={styles.settlementSections}>
+      <section aria-labelledby="current-obligations-title">
+        <h3 id="current-obligations-title" className={styles.settlementGroupTitle}>本期款項</h3>
+        {currentObligations.map((item) => <LedgerRowView key={item.rowId} row={item} />)}
+      </section>
+      {nextPeriod.length ? (
+        <section aria-labelledby="next-period-title">
+          <h3 id="next-period-title" className={styles.settlementGroupTitle}>下期調整</h3>
+          <p className={styles.sectionIntro}>本期不計入，將在下一期處理。</p>
+          {nextPeriod.map((item) => <LedgerRowView key={item.rowId} row={item} />)}
+        </section>
+      ) : null}
+      <section aria-labelledby="audit-rows-title">
+        <h3 id="audit-rows-title" className={styles.settlementGroupTitle}>銷售對帳</h3>
+        <p className={styles.sectionIntro}>只供核對收款，不影響本期應付金額。</p>
+        {auditRows.map((item) => <LedgerRowView key={item.rowId} row={item} />)}
+      </section>
     </div>
   );
 }
@@ -78,6 +100,17 @@ export function SettlementPanel() {
   const rows = settlementViews();
   const [detailId, setDetailId] = useState<string | null>(null);
   const detail = rows.find((row) => row.settlementId === detailId) ?? null;
+  const detailAmounts = detail
+    ? detail.ledger.reduce(
+        (result, item) => {
+          if (item.kind !== 'obligation' || item.periodRoute !== 'this_period') return result;
+          if (item.direction === 'merchant_owes_hq') result.merchantPays += item.amountTwd;
+          if (item.direction === 'hq_owes_merchant') result.hqPays += item.amountTwd;
+          return result;
+        },
+        { merchantPays: 0, hqPays: 0 },
+      )
+    : null;
 
   return (
     <section aria-labelledby="settlement-title" className="min-w-0 space-y-4">
@@ -101,9 +134,20 @@ export function SettlementPanel() {
       <PreviewDialog open={Boolean(detail)} titleId="settlement-detail-title" title="結算明細" presentation="drawer" onClose={() => setDetailId(null)}>
         {detail ? <div className={styles.drawerBody}>
           <div className={styles.drawerSummary}>
-            <p className={styles.productName}>{detail.periodLabel}</p>
-            <p className={styles.settlementNet}>{NET_LABEL} {detail.netDirectionLabel} {formatTwd(Math.abs(detail.netAmountTwd))}</p>
-            <p className={styles.statusPill}>{detail.statusLabel}</p>
+            <div className={styles.settlementSummaryHeader}>
+              <p className={styles.productName}>{detail.periodLabel}</p>
+              <p className={styles.statusPill}>{detail.statusLabel}</p>
+            </div>
+            <p className={styles.settlementResultLabel}>本期結算結果</p>
+            <p className={styles.settlementResult}>{detail.netDirectionLabel}</p>
+            <p className={styles.settlementResultAmount}>{formatTwd(Math.abs(detail.netAmountTwd))}</p>
+            {detailAmounts ? (
+              <div className={styles.settlementEquation} aria-label="本期結算計算方式">
+                <span>門市本期應付<strong>{formatTwd(detailAmounts.merchantPays)}</strong></span>
+                <span>總部本期應付<strong>{formatTwd(detailAmounts.hqPays)}</strong></span>
+                <span>互抵後<strong>{detail.netDirectionLabel} {formatTwd(Math.abs(detail.netAmountTwd))}</strong></span>
+              </div>
+            ) : null}
           </div>
           {detail.locked ? <p className={styles.notice}>{detail.lockNote ?? SETTLEMENT_LOCKED}</p> : null}
           <SnapshotLedger row={detail} />
