@@ -6,6 +6,7 @@ import {
   addAllRestockCandidates,
   addRestockLine,
   createSession,
+  removeRestockLine,
   submitRestockDraft,
 } from '../session';
 
@@ -41,5 +42,26 @@ describe('merchant POS preview restock', () => {
     const again = submitRestockDraft(session);
     assert.match(again.restockNotice ?? '', /已經送出/);
     assert.equal(again.restockDraft.length, session.restockDraft.length);
+  });
+
+  it('uses one line per SKU, updates its quantity, and allows removal before submit', () => {
+    let session = createSession();
+    session = addRestockLine(session, 'sku-beef-150');
+    assert.equal(session.restockDraft.length, 1);
+    session = {
+      ...session,
+      restockQtyBySkuId: { ...session.restockQtyBySkuId, 'sku-beef-150': '12' },
+    };
+    session = addRestockLine(session, 'sku-beef-150');
+    assert.deepEqual(session.restockDraft, [{ skuId: 'sku-beef-150', qty: 12 }]);
+    session = removeRestockLine(session, 'sku-beef-150');
+    assert.deepEqual(session.restockDraft, []);
+  });
+
+  it('keeps submitted lines immutable in the preview session', () => {
+    let session = createSession();
+    session = addRestockLine(session, 'sku-beef-300');
+    session = submitRestockDraft(session);
+    assert.strictEqual(removeRestockLine(session, 'sku-beef-300'), session);
   });
 });

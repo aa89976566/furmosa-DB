@@ -321,6 +321,16 @@ export function addAllRestockCandidates(session: MerchantPosSession): MerchantPo
   return next;
 }
 
+export function removeRestockLine(session: MerchantPosSession, skuId: string): MerchantPosSession {
+  if (session.restockSubmitted) return session;
+  if (!session.restockDraft.some((line) => line.skuId === skuId)) return session;
+  return {
+    ...session,
+    restockDraft: session.restockDraft.filter((line) => line.skuId !== skuId),
+    restockNotice: null,
+  };
+}
+
 export function submitRestockDraft(session: MerchantPosSession): MerchantPosSession {
   if (session.restockSubmitted || session.restockSubmitting) {
     return { ...session, restockNotice: RESTOCK_ALREADY_SENT };

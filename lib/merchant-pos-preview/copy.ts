@@ -59,17 +59,20 @@ export const CART_ESCAPE_HINT = '按 Esc 也可以返回購物車。';
 
 export const RESTOCK_INTRO =
   '只列出低庫存與售罄的示意貨號。送出後不會增加庫存。正式流程是門市送出 → 總部核准 → 出貨 → 到貨後才入庫。';
-export const RESTOCK_QTY_LABEL = '補貨數量';
-export const RESTOCK_SUGGESTED_LABEL = '建議量';
-export const ADD_RESTOCK_LINE = '加入補貨單草稿';
-export const ADD_ALL_RESTOCK = '全部加入補貨單';
-export const SUBMIT_RESTOCK = '送出補貨申請（預覽）';
-export const RESTOCK_SUBMITTED = '已送出補貨申請（預覽）';
+export const RESTOCK_QTY_LABEL = '本次補貨';
+export const RESTOCK_SUGGESTED_LABEL = '建議補貨';
+export const ADD_RESTOCK_LINE = '加入';
+export const UPDATE_RESTOCK_LINE = '更新';
+export const REMOVE_RESTOCK_LINE = '移除';
+export const ADD_ALL_RESTOCK = '加入全部建議品項';
+export const VIEW_RESTOCK_ORDER = '查看補貨單';
+export const SUBMIT_RESTOCK = '送出補貨申請';
+export const RESTOCK_SUBMITTED = '補貨申請已送出';
 export const RESTOCK_SUCCESS =
-  '補貨單草稿已送出（預覽）。庫存不會增加。正式流程是門市送出 → 總部核准 → 出貨 → 到貨後才入庫。';
-export const RESTOCK_EMPTY_DRAFT = '補貨單草稿還是空的。請先加入低庫存或售罄貨號。';
+  '補貨申請已送出｜待總部確認。這是操作預覽，不會增加庫存或建立正式申請。';
+export const RESTOCK_EMPTY_DRAFT = '補貨單是空的，請先加入需要補貨的商品。';
 export const RESTOCK_ALREADY_SENT = '這次補貨申請已經送出，請勿重複送出。';
-export const RESTOCK_DRAFT_TITLE = '補貨單草稿';
+export const RESTOCK_DRAFT_TITLE = '補貨單';
 
 export const SALES_TITLE = '銷售與退款';
 export const SALES_INTRO = '以下是示意訂單，不是正式店家資料。';

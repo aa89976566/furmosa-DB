@@ -456,7 +456,133 @@
   max-width: 26rem;
 }
 
+.restockSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.875rem;
+  font-size: 0.875rem;
+}
+
+.restockSummary span,
+.restockSku,
+.restockOrderSummary p,
+.restockOrderLines p,
+.restockDock p {
+  margin: 0;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+}
+
+.textAction,
+.dangerTextAction {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  padding: 0.5rem;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.textAction { color: var(--preview-text); }
+.dangerTextAction { color: #a61b1b; }
+.textAction:disabled,
+.dangerTextAction:disabled { color: var(--preview-disabled-text); cursor: not-allowed; }
+.textAction:focus-visible,
+.dangerTextAction:focus-visible { outline: 2px solid #005bd3; outline-offset: 2px; }
+
+.restockList,
+.restockOrderLines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius-lg);
+  background: var(--preview-surface);
+  overflow: hidden;
+}
+
+.restockRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  padding: 1rem;
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.restockRow:last-child,
+.restockOrderLines li:last-child { border-bottom: 0; }
+
+.restockIdentity,
+.restockMetric,
+.restockQtyControl { min-width: 0; }
+
+.restockMetric {
+  display: grid;
+  gap: 0.125rem;
+  font-size: 0.875rem;
+}
+
+.restockMetric span,
+.restockQtyControl label { color: var(--preview-secondary); font-size: 0.75rem; }
+.restockMetric small { color: var(--preview-secondary); }
+.restockQtyControl { display: grid; gap: 0.25rem; }
+.restockRowAction { width: 100%; }
+
+.restockDock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius-lg);
+  background: var(--preview-surface);
+  box-shadow: 0 8px 24px rgba(25, 25, 25, 0.08);
+}
+
+.restockOrderSummary {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem 0;
+}
+
+.restockOrderLines li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem;
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.dialogActions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
 @media (min-width: 768px) {
+  .restockRow {
+    grid-template-columns: minmax(12rem, 2fr) minmax(6rem, 0.75fr) minmax(7rem, 0.8fr) minmax(8rem, 0.85fr) auto;
+  }
+
+  .restockRowAction { min-width: 6rem; }
+
+  .restockDock {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .dialogActions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .workspaceGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

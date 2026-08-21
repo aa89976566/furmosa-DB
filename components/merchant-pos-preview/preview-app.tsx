@@ -25,6 +25,7 @@ import {
   openRefundConfirm,
   removeCartLine,
   requestDemoRefund,
+  removeRestockLine,
   selectVariant,
   setActualUnitPrice,
   setCartOpen,
@@ -231,6 +232,7 @@ export function MerchantPosPreviewApp() {
         onQty={(skuId, value) => setSession((current) => setRestockQty(current, skuId, value))}
         onAddLine={(skuId) => setSession((current) => addRestockLine(current, skuId))}
         onAddAll={() => setSession((current) => addAllRestockCandidates(current))}
+        onRemoveLine={(skuId) => setSession((current) => removeRestockLine(current, skuId))}
         onSubmit={() => setSession((current) => submitRestockDraft(current))}
       />
     );
