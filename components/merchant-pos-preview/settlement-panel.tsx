@@ -81,10 +81,10 @@ export function SettlementPanel() {
 
   return (
     <section aria-labelledby="settlement-title" className="min-w-0 space-y-4">
-      <div className={styles.subsectionHeader}>
-        <h3 id="settlement-title" className={styles.sectionTitle}>
+      <div className={styles.pageHeader}>
+        <h2 id="settlement-title" className={styles.sectionTitle}>
           {SETTLEMENT_TITLE}
-        </h3>
+        </h2>
         <p className={styles.sectionIntro}>{SETTLEMENT_INTRO}</p>
       </div>
       <ul className={styles.recordList}>

@@ -9,7 +9,8 @@ export const TABS = {
   checkout: '收銀',
   sales: '銷售',
   restock: '補貨',
-  more: '更多',
+  points: '點數核銷',
+  settlement: '結算',
 } as const;
 
 export const CHECKOUT_INTRO = '先選規格，再加入購物車。';
@@ -89,7 +90,7 @@ export const GROOMING_ENTRY_HINT =
 export const GROOMING_ENTRY_CTA = '開啟美容服務券預覽';
 export const GROOMING_PREVIEW_HREF = '/preview/grooming-voucher';
 
-export const MORE_INTRO = '美容服務券與結算摘要都在這裡。';
+export const POINTS_REDEMPTION_INTRO = '使用點數兌換美容服務券。';
 export const SETTLEMENT_TITLE = '本期結算';
 export const SETTLEMENT_INTRO = '金額以總部結算結果為準。';
 export const SETTLEMENT_LOCKED = '已鎖定，不可重新開啟';

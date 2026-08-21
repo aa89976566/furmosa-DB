@@ -7,21 +7,20 @@ import {
   GROOMING_ENTRY_HINT,
   GROOMING_ENTRY_TITLE,
   GROOMING_PREVIEW_HREF,
-  MORE_INTRO,
+  POINTS_REDEMPTION_INTRO,
 } from '@/lib/merchant-pos-preview/copy';
 import { PreviewActionLink } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
-import { SettlementPanel } from './settlement-panel';
 import { PreviewDisclosure } from './preview-disclosure';
 
-export function MorePanel() {
+export function PointsRedemptionPanel() {
   return (
-    <section aria-labelledby="more-title" className="min-w-0 space-y-6">
+    <section aria-labelledby="points-title" className="min-w-0 space-y-6">
       <div className={styles.pageHeader}>
-        <h2 id="more-title" className={styles.sectionTitle}>
-          更多
+        <h2 id="points-title" className={styles.sectionTitle}>
+          點數核銷
         </h2>
-        <p className={styles.sectionIntro}>{MORE_INTRO}</p>
+        <p className={styles.sectionIntro}>{POINTS_REDEMPTION_INTRO}</p>
       </div>
 
       <div className={styles.utilityGrid}>
@@ -43,8 +42,6 @@ export function MorePanel() {
           </div>
         </div>
       </div>
-
-      <SettlementPanel />
     </section>
   );
 }

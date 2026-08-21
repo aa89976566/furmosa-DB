@@ -59,12 +59,13 @@ import { PreviewBanner } from './preview-banner';
 import { PreviewBottomNav } from './bottom-nav';
 import { CartSheet } from './cart-sheet';
 import { CheckoutPanel } from './checkout-panel';
-import { MorePanel } from './more-panel';
+import { PointsRedemptionPanel } from './more-panel';
 import { PreviewAction } from './preview-action';
 import { PreviewDisclosure } from './preview-disclosure';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { RestockPanel } from './restock-panel';
 import { SalesPanel } from './sales-panel';
+import { SettlementPanel } from './settlement-panel';
 import { useDesktopCheckoutLayout } from './use-desktop-checkout-layout';
 
 export function MerchantPosPreviewApp() {
@@ -230,8 +231,10 @@ export function MerchantPosPreviewApp() {
         onSubmit={() => setSession((current) => submitRestockDraft(current))}
       />
     );
+  } else if (session.tab === 'points') {
+    body = <PointsRedemptionPanel />;
   } else {
-    body = <MorePanel />;
+    body = <SettlementPanel />;
   }
 
   return (

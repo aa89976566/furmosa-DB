@@ -15,7 +15,7 @@ function read(rel: string): string {
 }
 
 describe('merchant POS preview route and banner', () => {
-  it('exposes /preview/merchant-pos and the four main areas', () => {
+  it('exposes /preview/merchant-pos and the five main areas without a more section', () => {
     const page = read('app/preview/merchant-pos/page.tsx');
     const app = read('components/merchant-pos-preview/preview-app.tsx');
     const nav = read('components/merchant-pos-preview/bottom-nav.tsx');
@@ -23,15 +23,19 @@ describe('merchant POS preview route and banner', () => {
     assert.match(app, /CheckoutPanel/);
     assert.match(app, /SalesPanel/);
     assert.match(app, /RestockPanel/);
-    assert.match(app, /MorePanel/);
+    assert.match(app, /PointsRedemptionPanel/);
+    assert.match(app, /SettlementPanel/);
     assert.match(nav, /TABS\.checkout/);
     assert.match(nav, /TABS\.sales/);
     assert.match(nav, /TABS\.restock/);
-    assert.match(nav, /TABS\.more/);
+    assert.match(nav, /TABS\.points/);
+    assert.match(nav, /TABS\.settlement/);
     assert.equal(TABS.checkout, '收銀');
     assert.equal(TABS.sales, '銷售');
     assert.equal(TABS.restock, '補貨');
-    assert.equal(TABS.more, '更多');
+    assert.equal(TABS.points, '點數核銷');
+    assert.equal(TABS.settlement, '結算');
+    assert.equal(nav.includes("id: 'more'"), false);
   });
 
   it('keeps the fixture-only banner and dummy store name', () => {

@@ -863,6 +863,13 @@
   outline-offset: 2px;
 }
 
+@media (max-width: 479px) {
+  .navBtn {
+    padding-inline: 0.2rem;
+    font-size: 0.75rem;
+  }
+}
+
 .navSafe {
   height: env(safe-area-inset-bottom);
 }

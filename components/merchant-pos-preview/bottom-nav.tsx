@@ -8,7 +8,8 @@ const ITEMS: Array<{ id: TabId; label: string }> = [
   { id: 'checkout', label: TABS.checkout },
   { id: 'sales', label: TABS.sales },
   { id: 'restock', label: TABS.restock },
-  { id: 'more', label: TABS.more },
+  { id: 'points', label: TABS.points },
+  { id: 'settlement', label: TABS.settlement },
 ];
 
 export function PreviewBottomNav({

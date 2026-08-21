@@ -1,4 +1,4 @@
-export type TabId = 'checkout' | 'sales' | 'restock' | 'more';
+export type TabId = 'checkout' | 'sales' | 'restock' | 'points' | 'settlement';
 
 export type StockLevel = 'normal' | 'low' | 'sold_out';
 
