@@ -13,9 +13,12 @@ import {
   RESTOCK_SUGGESTED_LABEL,
   SUBMIT_RESTOCK,
   UPDATE_RESTOCK_LINE,
+  VIEW_INVENTORY_HISTORY,
+  INVENTORY_HISTORY_TITLE,
   VIEW_RESTOCK_ORDER,
 } from '@/lib/merchant-pos-preview/copy';
-import { formatQty, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
+import { INVENTORY_HISTORY } from '@/lib/merchant-pos-preview/fixtures';
+import { formatQty, formatTwd, stockLevelLabel } from '@/lib/merchant-pos-preview/formatters';
 import { findProductBySku, findVariant, restockCandidates } from '@/lib/merchant-pos-preview/selectors';
 import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 import { PreviewAction } from './preview-action';
@@ -38,6 +41,7 @@ export function RestockPanel({
   onSubmit: () => void;
 }) {
   const [orderOpen, setOrderOpen] = useState(false);
+  const [historySkuId, setHistorySkuId] = useState<string | null>(null);
   const rows = restockCandidates();
   const draftBySku = useMemo(
     () => new Map(session.restockDraft.map((line) => [line.skuId, line.qty])),
@@ -45,6 +49,9 @@ export function RestockPanel({
   );
   const suggestedTotal = rows.reduce((sum, row) => sum + row.variant.suggestedRestockQty, 0);
   const draftTotal = session.restockDraft.reduce((sum, line) => sum + line.qty, 0);
+  const historyVariant = historySkuId ? findVariant(historySkuId) : null;
+  const historyProduct = historySkuId ? findProductBySku(historySkuId) : null;
+  const history = historySkuId ? INVENTORY_HISTORY[historySkuId] : null;
 
   return (
     <section aria-labelledby="restock-title" className="min-w-0 space-y-4">
@@ -78,6 +85,14 @@ export function RestockPanel({
                 <p className={styles.restockSku}>{row.variant.sku}</p>
               </div>
               <div className={styles.restockMetric}>
+                <span>建議售價</span>
+                <strong>{formatTwd(row.variant.listPriceTwd)}</strong>
+              </div>
+              <div className={styles.restockMetric}>
+                <span>保存期限</span>
+                <strong>{row.variant.shelfLifeLabel}</strong>
+              </div>
+              <div className={styles.restockMetric}>
                 <span>目前庫存</span>
                 <strong>{formatQty(row.variant.availableQty)}</strong>
                 <small>{badge}</small>
@@ -97,6 +112,13 @@ export function RestockPanel({
                   onChange={(event) => onQty(row.variant.skuId, event.target.value)}
                 />
               </div>
+              <button
+                type="button"
+                className={styles.textAction}
+                onClick={() => setHistorySkuId(row.variant.skuId)}
+              >
+                {VIEW_INVENTORY_HISTORY}
+              </button>
               <PreviewAction
                 tone={selectedQty ? 'secondary' : PREVIEW_ACTION_TONES.addRestockLine}
                 className={styles.restockRowAction}
@@ -118,6 +140,20 @@ export function RestockPanel({
         <div>
           <strong>{RESTOCK_DRAFT_TITLE}</strong>
           <p>{session.restockDraft.length} 項・共 {draftTotal} 件</p>
+          {session.restockDraft.length > 0 ? (
+            <ul className={styles.restockDockLines} aria-label="補貨單品項明細">
+              {session.restockDraft.map((line) => {
+                const product = findProductBySku(line.skuId);
+                const variant = findVariant(line.skuId);
+                return (
+                  <li key={line.skuId}>
+                    <span>{product?.name}・{variant?.specLabel}</span>
+                    <span>{formatTwd(variant?.listPriceTwd ?? 0)}・{line.qty} 件</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
         <PreviewAction
           tone="secondary"
@@ -155,6 +191,7 @@ export function RestockPanel({
                 <div>
                   <strong>{product?.name}</strong>
                   <p>{variant?.specLabel}・{line.qty} 件</p>
+                  <p>建議售價 {formatTwd(variant?.listPriceTwd ?? 0)}・保存期限 {variant?.shelfLifeLabel}</p>
                 </div>
                 <button
                   type="button"
@@ -178,6 +215,50 @@ export function RestockPanel({
             {SUBMIT_RESTOCK}
           </PreviewAction>
         </div>
+      </PreviewDialog>
+
+      <PreviewDialog
+        open={Boolean(historySkuId)}
+        titleId="inventory-history-title"
+        title={INVENTORY_HISTORY_TITLE}
+        presentation="drawer"
+        onClose={() => setHistorySkuId(null)}
+      >
+        {history && historyVariant ? (
+          <>
+            <div className={styles.historyProductHeader}>
+              <div>
+                <strong>{historyProduct?.name}</strong>
+                <p>{historyVariant.specLabel}・{historyVariant.sku}</p>
+              </div>
+              <dl>
+                <div><dt>建議售價</dt><dd>{formatTwd(historyVariant.listPriceTwd)}</dd></div>
+                <div><dt>保存期限</dt><dd>{historyVariant.shelfLifeLabel}</dd></div>
+                <div><dt>目前庫存</dt><dd>{formatQty(historyVariant.availableQty)}</dd></div>
+              </dl>
+            </div>
+            <div className={styles.historySummary} aria-label={`${history.periodLabel}進銷摘要`}>
+              <div><span>統計期間</span><strong>{history.periodLabel}</strong></div>
+              <div><span>進貨</span><strong>{history.inboundQty} 件</strong></div>
+              <div><span>銷售</span><strong>{history.soldQty} 件</strong></div>
+            </div>
+            <ol className={styles.historyList} aria-label="進銷明細">
+              {history.movements.map((movement) => (
+                <li key={movement.movementId}>
+                  <time>{movement.occurredAtLabel}</time>
+                  <strong>{movement.kindLabel}</strong>
+                  <span className={movement.kind === 'inbound' ? styles.historyInbound : styles.historySale}>
+                    {movement.kind === 'inbound' ? '+' : '−'}{movement.qty} 件
+                  </span>
+                  <small>{movement.note}</small>
+                </li>
+              ))}
+            </ol>
+            <div className={styles.dialogActions}>
+              <PreviewAction tone="secondary" onClick={() => setHistorySkuId(null)}>{CLOSE_DIALOG}</PreviewAction>
+            </div>
+          </>
+        ) : null}
       </PreviewDialog>
     </section>
   );

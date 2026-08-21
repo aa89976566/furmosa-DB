@@ -73,6 +73,8 @@ export const RESTOCK_SUCCESS =
 export const RESTOCK_EMPTY_DRAFT = '補貨單是空的，請先加入需要補貨的商品。';
 export const RESTOCK_ALREADY_SENT = '這次補貨申請已經送出，請勿重複送出。';
 export const RESTOCK_DRAFT_TITLE = '補貨單';
+export const VIEW_INVENTORY_HISTORY = '查看進銷紀錄';
+export const INVENTORY_HISTORY_TITLE = '進貨與銷售紀錄';
 
 export const SALES_TITLE = '銷售與退款';
 export const SALES_INTRO = '以下是示意訂單，不是正式店家資料。';

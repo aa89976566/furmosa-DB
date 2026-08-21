@@ -20,6 +20,24 @@ export type ProductVariant = {
   availableQty: number;
   lowStockAt: number;
   suggestedRestockQty: number;
+  shelfLifeLabel: string;
+};
+
+export type InventoryMovementSnapshot = {
+  movementId: string;
+  occurredAtLabel: string;
+  kind: 'inbound' | 'sale';
+  kindLabel: string;
+  qty: number;
+  note: string;
+};
+
+export type InventoryHistorySnapshot = {
+  skuId: string;
+  periodLabel: string;
+  inboundQty: number;
+  soldQty: number;
+  movements: InventoryMovementSnapshot[];
 };
 
 export type Product = {

@@ -1,4 +1,4 @@
-import type { Product, SaleSnapshot, SettlementSnapshot } from './types';
+import type { InventoryHistorySnapshot, Product, SaleSnapshot, SettlementSnapshot } from './types';
 
 export const LOW_STOCK_AT = 3;
 
@@ -15,6 +15,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 12,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 6,
+        shelfLifeLabel: '未開封 12 個月',
       },
       {
         skuId: 'sku-beef-150',
@@ -24,6 +25,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 3,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 8,
+        shelfLifeLabel: '未開封 12 個月',
       },
       {
         skuId: 'sku-beef-300',
@@ -33,6 +35,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 0,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 4,
+        shelfLifeLabel: '未開封 12 個月',
       },
     ],
   },
@@ -48,6 +51,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 8,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 6,
+        shelfLifeLabel: '未開封 10 個月',
       },
       {
         skuId: 'sku-chkn-100',
@@ -57,6 +61,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 2,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 5,
+        shelfLifeLabel: '未開封 10 個月',
       },
     ],
   },
@@ -72,6 +77,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 0,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 10,
+        shelfLifeLabel: '未開封 8 個月',
       },
     ],
   },
@@ -87,6 +93,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 15,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 4,
+        shelfLifeLabel: '未開封 18 個月',
       },
       {
         skuId: 'sku-chee-m',
@@ -96,6 +103,7 @@ export const PRODUCTS: Product[] = [
         availableQty: 1,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 6,
+        shelfLifeLabel: '未開封 18 個月',
       },
       {
         skuId: 'sku-chee-l',
@@ -105,10 +113,60 @@ export const PRODUCTS: Product[] = [
         availableQty: 6,
         lowStockAt: LOW_STOCK_AT,
         suggestedRestockQty: 4,
+        shelfLifeLabel: '未開封 18 個月',
       },
     ],
   },
 ];
+
+export const INVENTORY_HISTORY: Record<string, InventoryHistorySnapshot> = {
+  'sku-beef-150': {
+    skuId: 'sku-beef-150', periodLabel: '近 90 天', inboundQty: 24, soldQty: 21,
+    movements: [
+      { movementId: 'mv-b150-1', occurredAtLabel: '2026-08-12', kind: 'sale', kindLabel: '銷售', qty: 4, note: '門市銷售' },
+      { movementId: 'mv-b150-2', occurredAtLabel: '2026-08-05', kind: 'inbound', kindLabel: '進貨', qty: 12, note: '補貨到店' },
+      { movementId: 'mv-b150-3', occurredAtLabel: '2026-07-24', kind: 'sale', kindLabel: '銷售', qty: 7, note: '門市與取貨訂單' },
+      { movementId: 'mv-b150-4', occurredAtLabel: '2026-07-08', kind: 'inbound', kindLabel: '進貨', qty: 12, note: '補貨到店' },
+      { movementId: 'mv-b150-5', occurredAtLabel: '2026-06-30', kind: 'sale', kindLabel: '銷售', qty: 10, note: '門市銷售' },
+    ],
+  },
+  'sku-beef-300': {
+    skuId: 'sku-beef-300', periodLabel: '近 90 天', inboundQty: 8, soldQty: 8,
+    movements: [
+      { movementId: 'mv-b300-1', occurredAtLabel: '2026-08-10', kind: 'sale', kindLabel: '銷售', qty: 3, note: '門市銷售' },
+      { movementId: 'mv-b300-2', occurredAtLabel: '2026-07-20', kind: 'inbound', kindLabel: '進貨', qty: 4, note: '補貨到店' },
+      { movementId: 'mv-b300-3', occurredAtLabel: '2026-07-04', kind: 'sale', kindLabel: '銷售', qty: 5, note: '門市與取貨訂單' },
+      { movementId: 'mv-b300-4', occurredAtLabel: '2026-06-18', kind: 'inbound', kindLabel: '進貨', qty: 4, note: '補貨到店' },
+    ],
+  },
+  'sku-chkn-100': {
+    skuId: 'sku-chkn-100', periodLabel: '近 90 天', inboundQty: 18, soldQty: 16,
+    movements: [
+      { movementId: 'mv-c100-1', occurredAtLabel: '2026-08-14', kind: 'sale', kindLabel: '銷售', qty: 5, note: '門市與取貨訂單' },
+      { movementId: 'mv-c100-2', occurredAtLabel: '2026-08-01', kind: 'inbound', kindLabel: '進貨', qty: 10, note: '補貨到店' },
+      { movementId: 'mv-c100-3', occurredAtLabel: '2026-07-15', kind: 'sale', kindLabel: '銷售', qty: 11, note: '門市銷售' },
+      { movementId: 'mv-c100-4', occurredAtLabel: '2026-06-22', kind: 'inbound', kindLabel: '進貨', qty: 8, note: '補貨到店' },
+    ],
+  },
+  'sku-slmn-1': {
+    skuId: 'sku-slmn-1', periodLabel: '近 90 天', inboundQty: 20, soldQty: 20,
+    movements: [
+      { movementId: 'mv-s1-1', occurredAtLabel: '2026-08-15', kind: 'sale', kindLabel: '銷售', qty: 6, note: '門市銷售' },
+      { movementId: 'mv-s1-2', occurredAtLabel: '2026-07-28', kind: 'inbound', kindLabel: '進貨', qty: 10, note: '補貨到店' },
+      { movementId: 'mv-s1-3', occurredAtLabel: '2026-07-09', kind: 'sale', kindLabel: '銷售', qty: 14, note: '門市與取貨訂單' },
+      { movementId: 'mv-s1-4', occurredAtLabel: '2026-06-20', kind: 'inbound', kindLabel: '進貨', qty: 10, note: '補貨到店' },
+    ],
+  },
+  'sku-chee-m': {
+    skuId: 'sku-chee-m', periodLabel: '近 90 天', inboundQty: 15, soldQty: 14,
+    movements: [
+      { movementId: 'mv-cm-1', occurredAtLabel: '2026-08-11', kind: 'sale', kindLabel: '銷售', qty: 5, note: '門市銷售' },
+      { movementId: 'mv-cm-2', occurredAtLabel: '2026-07-30', kind: 'inbound', kindLabel: '進貨', qty: 8, note: '補貨到店' },
+      { movementId: 'mv-cm-3', occurredAtLabel: '2026-07-12', kind: 'sale', kindLabel: '銷售', qty: 9, note: '門市與取貨訂單' },
+      { movementId: 'mv-cm-4', occurredAtLabel: '2026-06-25', kind: 'inbound', kindLabel: '進貨', qty: 7, note: '補貨到店' },
+    ],
+  },
+};
 
 export const SALES: SaleSnapshot[] = [
   {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { PRODUCTS } from '../fixtures';
+import { INVENTORY_HISTORY, PRODUCTS } from '../fixtures';
 import { restockCandidates, stockLevelOf } from '../selectors';
 import {
   addAllRestockCandidates,
@@ -17,6 +17,23 @@ function stockSnapshot() {
 }
 
 describe('merchant POS preview restock', () => {
+  it('provides price, shelf life, and internally consistent 90-day inventory history', () => {
+    for (const row of restockCandidates()) {
+      assert.ok(row.variant.listPriceTwd > 0);
+      assert.match(row.variant.shelfLifeLabel, /未開封/);
+      const history = INVENTORY_HISTORY[row.variant.skuId];
+      assert.ok(history);
+      assert.equal(
+        history.movements.filter((item) => item.kind === 'inbound').reduce((sum, item) => sum + item.qty, 0),
+        history.inboundQty,
+      );
+      assert.equal(
+        history.movements.filter((item) => item.kind === 'sale').reduce((sum, item) => sum + item.qty, 0),
+        history.soldQty,
+      );
+    }
+  });
+
   it('lists only low and sold-out SKUs and stays local', () => {
     const rows = restockCandidates();
     assert.ok(rows.length >= 4);
