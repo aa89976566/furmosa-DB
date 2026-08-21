@@ -8,6 +8,7 @@ export const STORE_NAME = '測試門市';
 export const TABS = {
   checkout: '收銀',
   sales: '銷售',
+  refill: '待換罐',
   restock: '補貨',
   points: '點數核銷',
   settlement: '結算',
@@ -82,17 +83,17 @@ export const REFUND_SUCCESS = '已提出退款申請。總部尚未審核；此�
 export const REFUND_ALREADY = '這筆已經提出過申請，不能重複送出。';
 export const NEXT_PERIOD_NOTE = '將列入下期調整';
 
-export const GROOMING_ENTRY_TITLE = '美容服務券';
-export const GROOMING_ENTRY_BODY =
-  '這是美容服務券，不是商品折價券。正式門市編號尚未接入，不能用中文店名判斷 200 或 250。核銷仍是預覽操作。';
+export const GROOMING_ENTRY_TITLE = '美容服務券核銷';
 export const GROOMING_ENTRY_HINT =
-  '此處只示範門市操作，不會扣除真實點數、建立核銷紀錄或寫入結算。';
-export const GROOMING_ENTRY_CTA = '開始點數核銷';
+  '此處只示範門市核銷，不會扣除真實點數、建立核銷紀錄或寫入結算。';
+export const GROOMING_ENTRY_CTA = '輸入美容券碼';
 export const POINTS_REDEMPTION_CONFIRM = '確認核銷（預覽）';
 export const POINTS_REDEMPTION_CANCEL = '返回';
-export const POINTS_REDEMPTION_SUCCESS = '已完成點數核銷預覽；沒有扣除真實點數。';
+export const POINTS_REDEMPTION_SUCCESS = '美容服務券已完成核銷預覽；沒有寫入正式紀錄。';
 
-export const POINTS_REDEMPTION_INTRO = '使用點數兌換美容服務券。';
+export const POINTS_REDEMPTION_INTRO = '驗證並核銷會員已用 10 點兌換的美容服務券。';
+export const REFILL_TITLE = '待換罐';
+export const REFILL_INTRO = '處理已付款且已保留庫存的換罐訂單。';
 export const SETTLEMENT_TITLE = '本期結算';
 export const SETTLEMENT_INTRO = '金額以總部結算結果為準。';
 export const SETTLEMENT_LOCKED = '已鎖定，不可重新開啟';

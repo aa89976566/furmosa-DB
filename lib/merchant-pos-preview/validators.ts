@@ -61,3 +61,23 @@ export function parseCartQtyInput(raw: string, maxQty: number): PriceParseResult
   }
   return parsed;
 }
+
+export type PreviewTextParseResult =
+  | { ok: true; value: string }
+  | { ok: false; error: string };
+
+export function parsePreviewCouponCode(raw: string): PreviewTextParseResult {
+  const value = typeof raw === 'string' ? raw.trim().toUpperCase().replace(/\s+/g, '') : '';
+  if (!/^FURMOSA-\d{4}$/.test(value)) {
+    return { ok: false, error: '請輸入 FURMOSA- 加 4 位數字的美容券碼' };
+  }
+  return { ok: true, value };
+}
+
+export function parsePreviewOldJarSerial(raw: string): PreviewTextParseResult {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!/^\d{8}$/.test(value)) {
+    return { ok: false, error: '請輸入瓶底 8 位數字序號' };
+  }
+  return { ok: true, value };
+}

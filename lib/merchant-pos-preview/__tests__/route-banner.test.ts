@@ -15,7 +15,7 @@ function read(rel: string): string {
 }
 
 describe('merchant POS preview route and banner', () => {
-  it('exposes /preview/merchant-pos and the five main areas without a more section', () => {
+  it('exposes /preview/merchant-pos and the six main areas without a more section', () => {
     const page = read('app/preview/merchant-pos/page.tsx');
     const app = read('components/merchant-pos-preview/preview-app.tsx');
     const nav = read('components/merchant-pos-preview/bottom-nav.tsx');
@@ -32,6 +32,7 @@ describe('merchant POS preview route and banner', () => {
     assert.match(nav, /TABS\.settlement/);
     assert.equal(TABS.checkout, '收銀');
     assert.equal(TABS.sales, '銷售');
+    assert.equal(TABS.refill, '待換罐');
     assert.equal(TABS.restock, '補貨');
     assert.equal(TABS.points, '點數核銷');
     assert.equal(TABS.settlement, '結算');

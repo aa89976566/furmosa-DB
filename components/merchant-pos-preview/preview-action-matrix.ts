@@ -15,6 +15,9 @@ export const PREVIEW_ACTION_TONES = {
   addAllRestock: 'secondary',
   submitRestock: 'primary',
   openGroomingVoucher: 'primary',
+  verifyVoucher: 'primary',
+  verifyOldJar: 'primary',
+  completeRefill: 'primary',
 } as const;
 
 export type PreviewActionId = keyof typeof PREVIEW_ACTION_TONES;

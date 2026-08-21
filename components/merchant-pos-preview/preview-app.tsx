@@ -64,6 +64,7 @@ import { PreviewAction } from './preview-action';
 import { PreviewDisclosure } from './preview-disclosure';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { RestockPanel } from './restock-panel';
+import { RefillPanel } from './refill-panel';
 import { SalesPanel } from './sales-panel';
 import { SettlementPanel } from './settlement-panel';
 import { useDesktopCheckoutLayout } from './use-desktop-checkout-layout';
@@ -221,6 +222,8 @@ export function MerchantPosPreviewApp() {
         }
       />
     );
+  } else if (session.tab === 'refill') {
+    body = <RefillPanel />;
   } else if (session.tab === 'restock') {
     body = (
       <RestockPanel

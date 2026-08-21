@@ -211,6 +211,41 @@
   cursor: not-allowed;
 }
 
+.fieldHint {
+  margin: 0.35rem 0 0;
+  color: var(--preview-muted);
+  font-size: 0.75rem;
+}
+
+.errorText {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  color: var(--preview-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkRow input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: #191919;
+}
+
+.checkRow input:focus-visible {
+  outline: 2px solid #005bd3;
+  outline-offset: 2px;
+}
+
 .qtyField {
   width: 5.5rem;
   text-align: center;
@@ -1008,6 +1043,16 @@
   z-index: 1;
   outline: 2px solid #005bd3;
   outline-offset: -2px;
+}
+
+.recordStaticRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 76px;
+  padding: 1rem;
+  color: var(--preview-text);
 }
 
 .recordMain,
