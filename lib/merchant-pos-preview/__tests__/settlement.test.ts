@@ -121,4 +121,24 @@ describe('merchant POS preview settlement snapshot', () => {
     assert.equal(selectors.includes('expectedFurmosaNetTwd'), false);
     assert.equal(selectors.includes('expectedTotalNetTwd'), false);
   });
+
+  it('presents one clear result before collapsible payment and audit details', () => {
+    const src = read('components/merchant-pos-preview/settlement-panel.tsx');
+    const css = read('app/preview/merchant-pos/merchant-pos.module.css');
+
+    assert.match(src, /本期結算結果/);
+    assert.match(src, /門市應付/);
+    assert.match(src, /總部應付/);
+    assert.match(src, /本期款項/);
+    assert.match(src, /下期調整/);
+    assert.match(src, /銷售對帳/);
+    assert.match(src, /只供核對收款，不影響本期應付金額/);
+    assert.match(src, /<details className=\{styles\.settlementDetailRow\}>/);
+    assert.match(src, /item\.kind === 'obligation' && item\.periodRoute === 'this_period'/);
+    assert.equal(src.includes('row.amountTwd -'), false);
+    assert.equal(src.includes('commission'), false);
+    assert.match(css, /\.settlementResultAmount\s*\{/);
+    assert.match(css, /\.settlementEquation\s*\{/);
+    assert.match(css, /\.settlementDetailSummary:focus-visible\s*\{/);
+  });
 });
