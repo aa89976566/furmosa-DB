@@ -241,6 +241,7 @@ export function RestockPanel({
               <div><span>統計期間</span><strong>{history.periodLabel}</strong></div>
               <div><span>進貨</span><strong>{history.inboundQty} 件</strong></div>
               <div><span>銷售</span><strong>{history.soldQty} 件</strong></div>
+              <div><span>銷售額</span><strong>{formatTwd(history.salesAmountTwd)}</strong></div>
             </div>
             <ol className={styles.historyList} aria-label="進銷明細">
               {history.movements.map((movement) => (
@@ -250,6 +251,7 @@ export function RestockPanel({
                   <span className={movement.kind === 'inbound' ? styles.historyInbound : styles.historySale}>
                     {movement.kind === 'inbound' ? '+' : '−'}{movement.qty} 件
                   </span>
+                  <span>{movement.salesAmountTwd == null ? '—' : formatTwd(movement.salesAmountTwd)}</span>
                   <small>{movement.note}</small>
                 </li>
               ))}

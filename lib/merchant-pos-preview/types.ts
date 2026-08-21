@@ -29,6 +29,7 @@ export type InventoryMovementSnapshot = {
   kind: 'inbound' | 'sale';
   kindLabel: string;
   qty: number;
+  salesAmountTwd: number | null;
   note: string;
 };
 
@@ -37,6 +38,7 @@ export type InventoryHistorySnapshot = {
   periodLabel: string;
   inboundQty: number;
   soldQty: number;
+  salesAmountTwd: number;
   movements: InventoryMovementSnapshot[];
 };
 

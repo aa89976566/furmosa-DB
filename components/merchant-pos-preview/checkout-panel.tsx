@@ -77,9 +77,10 @@ export function CheckoutPanel({
                     const pressed = selected?.skuId === variant.skuId;
                     const variantAvail = skuAvailability(variant.skuId, session.cart);
                     const soldOut = variantAvail.reason === 'sold_out';
+                    const priceLabel = formatTwd(variant.listPriceTwd);
                     const variantLabel = soldOut
-                      ? `${variant.specLabel}，${SOLD_OUT_BADGE}`
-                      : variant.specLabel;
+                      ? `${variant.specLabel}，${priceLabel}，${SOLD_OUT_BADGE}`
+                      : `${variant.specLabel}，${priceLabel}`;
                     return (
                       <PreviewSpecChip
                         key={variant.skuId}
@@ -88,7 +89,9 @@ export function CheckoutPanel({
                         aria-label={variantLabel}
                         onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
                       >
-                        {soldOut ? `${variant.specLabel} ${SOLD_OUT_BADGE}` : variant.specLabel}
+                        {soldOut
+                          ? `${variant.specLabel} · ${priceLabel} · ${SOLD_OUT_BADGE}`
+                          : `${variant.specLabel} · ${priceLabel}`}
                       </PreviewSpecChip>
                     );
                   })}

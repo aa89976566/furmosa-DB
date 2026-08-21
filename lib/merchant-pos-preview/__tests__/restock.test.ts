@@ -31,6 +31,14 @@ describe('merchant POS preview restock', () => {
         history.movements.filter((item) => item.kind === 'sale').reduce((sum, item) => sum + item.qty, 0),
         history.soldQty,
       );
+      assert.equal(
+        history.movements
+          .filter((item) => item.kind === 'sale')
+          .reduce((sum, item) => sum + (item.salesAmountTwd ?? 0), 0),
+        history.salesAmountTwd,
+      );
+      assert.ok(history.movements.filter((item) => item.kind === 'sale').every((item) => item.salesAmountTwd != null));
+      assert.ok(history.movements.filter((item) => item.kind === 'inbound').every((item) => item.salesAmountTwd == null));
     }
   });
 
