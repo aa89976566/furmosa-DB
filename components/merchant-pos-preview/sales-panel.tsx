@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   LOSS_UNSELLABLE_LABEL,
@@ -21,7 +22,6 @@ import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
-import { PreviewDisclosure } from './preview-disclosure';
 
 export function SalesPanel({
   session,
@@ -35,6 +35,8 @@ export function SalesPanel({
   onConfirmRefund: () => void;
 }) {
   const sales = visibleSales(session);
+  const [detailSaleId, setDetailSaleId] = useState<string | null>(null);
+  const detailSale = sales.find((sale) => sale.saleId === detailSaleId) ?? null;
 
   return (
     <section aria-labelledby="sales-title" className="min-w-0 space-y-4">
@@ -44,105 +46,58 @@ export function SalesPanel({
         </h2>
       </div>
 
-      <ul className={styles.workspaceGrid}>
+      <ul className={styles.recordList}>
         {sales.map((sale) => (
-          <li key={sale.saleId} className={`${styles.workspaceCard} ${styles.compactRow}`}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className={styles.productName}>{sale.soldAtLabel}</p>
-                <p className={styles.productSpec}>{sale.channelLabel}</p>
-              </div>
-              <p className={styles.statusPill}>{sale.statusLabel}</p>
-            </div>
-            <ul className={`${styles.itemList} mt-3 space-y-1`}>
-              {sale.items.map((item) => (
-                <li key={`${sale.saleId}-${item.name}-${item.specLabel}`}>
-                  {item.name} {item.specLabel} × {item.qty} · {formatTwd(item.actualLineTwd)}
-                </li>
-              ))}
-            </ul>
-            <p className={`${styles.productMeta} mt-2`}>
-              實際成交額 {formatTwd(sale.actualTotalTwd)}
-              {sale.pickupLabel ? ` · ${sale.pickupLabel}` : ''}
-            </p>
-            {sale.refund ? (
-              <>
-                <p className={`${styles.refundSummary} mt-3`}>
-                  {sale.refund.statusLabel}
-                  {sale.refund.inventoryDisposition === 'restock_sellable'
-                    ? ` · ${RESTOCK_SELLABLE_LABEL}`
-                    : ''}
-                  {sale.refund.inventoryDisposition === 'loss_unsellable'
-                    ? ` · ${LOSS_UNSELLABLE_LABEL}`
-                    : ''}
-                  {sale.refund.nextPeriodNote ? ` · ${NEXT_PERIOD_NOTE}` : ''}
-                </p>
-                <div className="mt-2">
-                  <PreviewDisclosure summary="查看退款明細">
-                    <dl className={styles.defList}>
-                <div className={styles.defRow}>
-                  <dt>退款狀態</dt>
-                  <dd>{sale.refund.statusLabel}</dd>
-                </div>
-                <div className={styles.defRow}>
-                  <dt>說明</dt>
-                  <dd>{sale.refund.note}</dd>
-                </div>
-                <div className={styles.defRow}>
-                  <dt>庫存說明</dt>
-                  <dd>{sale.refund.inventoryNote}</dd>
-                </div>
-                <div className={styles.defRow}>
-                  <dt>佣金說明</dt>
-                  <dd>{sale.refund.commissionNote}</dd>
-                </div>
-                {sale.refund.conditionLabel ? (
-                  <div className={styles.defRow}>
-                    <dt>{REFUND_CONDITION_LABEL}</dt>
-                    <dd>{sale.refund.conditionLabel}</dd>
-                  </div>
-                ) : null}
-                {sale.refund.inventoryDisposition === 'restock_sellable' ? (
-                  <div className={styles.defRow}>
-                    <dt>{REFUND_DISPOSITION_LABEL}</dt>
-                    <dd>{RESTOCK_SELLABLE_LABEL}</dd>
-                  </div>
-                ) : null}
-                {sale.refund.inventoryDisposition === 'loss_unsellable' ? (
-                  <div className={styles.defRow}>
-                    <dt>{REFUND_DISPOSITION_LABEL}</dt>
-                    <dd>{LOSS_UNSELLABLE_LABEL}</dd>
-                  </div>
-                ) : null}
-                {sale.refund.lossReason ? (
-                  <div className={styles.defRow}>
-                    <dt>{REFUND_LOSS_REASON_LABEL}</dt>
-                    <dd>{sale.refund.lossReason}</dd>
-                  </div>
-                ) : null}
-                {sale.refund.nextPeriodNote ? (
-                  <div className={styles.defRow}>
-                    <dt>{NEXT_PERIOD_NOTE}</dt>
-                    <dd>{sale.refund.nextPeriodNote}</dd>
-                  </div>
-                ) : null}
-                    </dl>
-                  </PreviewDisclosure>
-                </div>
-              </>
-            ) : null}
-            {sale.canMerchantRequestRefund ? (
-              <PreviewAction
-                tone={PREVIEW_ACTION_TONES.requestRefund}
-                className={`${styles.actionInline} min-h-[44px] mt-3`}
-                onClick={() => onAskRefund(sale.saleId)}
-              >
-                {REQUEST_REFUND}
-              </PreviewAction>
-            ) : null}
+          <li key={sale.saleId} className={styles.recordListItem}>
+            <button className={styles.recordRowButton} onClick={() => setDetailSaleId(sale.saleId)}>
+              <span className={styles.recordMain}>
+                <strong>{sale.soldAtLabel}</strong>
+                <span>{sale.channelLabel}</span>
+              </span>
+              <span className={styles.recordSummary}>
+                <strong>{formatTwd(sale.actualTotalTwd)}</strong>
+                <span>{sale.refund?.statusLabel ?? sale.statusLabel}</span>
+              </span>
+              <span className={styles.recordChevron} aria-hidden="true">›</span>
+            </button>
           </li>
         ))}
       </ul>
+
+      <PreviewDialog
+        open={Boolean(detailSale)}
+        titleId="sale-detail-title"
+        title="銷售明細"
+        presentation="drawer"
+        onClose={() => setDetailSaleId(null)}
+      >
+        {detailSale ? (
+          <div className={styles.drawerBody}>
+            <div className={styles.drawerSummary}>
+              <p className={styles.productName}>{detailSale.soldAtLabel}</p>
+              <p className={styles.productSpec}>{detailSale.channelLabel}</p>
+              <p className={styles.settlementNet}>{formatTwd(detailSale.actualTotalTwd)}</p>
+              <p className={styles.statusPill}>{detailSale.refund?.statusLabel ?? detailSale.statusLabel}</p>
+            </div>
+            <dl className={styles.defList}>
+              <div className={styles.defRow}><dt>商品</dt><dd>{detailSale.items.map((item) => `${item.name} ${item.specLabel} × ${item.qty}`).join('、')}</dd></div>
+              <div className={styles.defRow}><dt>實際成交額</dt><dd>{formatTwd(detailSale.actualTotalTwd)}</dd></div>
+              {detailSale.pickupLabel ? <div className={styles.defRow}><dt>取貨方式</dt><dd>{detailSale.pickupLabel}</dd></div> : null}
+              {detailSale.refund ? <>
+                <div className={styles.defRow}><dt>退款狀態</dt><dd>{detailSale.refund.statusLabel}</dd></div>
+                <div className={styles.defRow}><dt>說明</dt><dd>{detailSale.refund.note}</dd></div>
+                <div className={styles.defRow}><dt>庫存說明</dt><dd>{detailSale.refund.inventoryNote}</dd></div>
+                <div className={styles.defRow}><dt>佣金說明</dt><dd>{detailSale.refund.commissionNote}</dd></div>
+                {detailSale.refund.conditionLabel ? <div className={styles.defRow}><dt>{REFUND_CONDITION_LABEL}</dt><dd>{detailSale.refund.conditionLabel}</dd></div> : null}
+                {detailSale.refund.inventoryDisposition ? <div className={styles.defRow}><dt>{REFUND_DISPOSITION_LABEL}</dt><dd>{detailSale.refund.inventoryDisposition === 'restock_sellable' ? RESTOCK_SELLABLE_LABEL : LOSS_UNSELLABLE_LABEL}</dd></div> : null}
+                {detailSale.refund.lossReason ? <div className={styles.defRow}><dt>{REFUND_LOSS_REASON_LABEL}</dt><dd>{detailSale.refund.lossReason}</dd></div> : null}
+                {detailSale.refund.nextPeriodNote ? <div className={styles.defRow}><dt>{NEXT_PERIOD_NOTE}</dt><dd>{detailSale.refund.nextPeriodNote}</dd></div> : null}
+              </> : null}
+            </dl>
+            {detailSale.canMerchantRequestRefund ? <PreviewAction tone={PREVIEW_ACTION_TONES.requestRefund} className={styles.actionBlock} onClick={() => { setDetailSaleId(null); onAskRefund(detailSale.saleId); }}>{REQUEST_REFUND}</PreviewAction> : null}
+          </div>
+        ) : null}
+      </PreviewDialog>
 
       <PreviewDialog
         open={Boolean(session.refundConfirmSaleId)}
@@ -166,11 +121,7 @@ export function SalesPanel({
             {REQUEST_REFUND_CANCEL}
           </PreviewAction>
         </div>
-        <div className="mt-4">
-          <PreviewDisclosure summary="查看退款說明">
-            <p>{REQUEST_REFUND_BODY}</p>
-          </PreviewDisclosure>
-        </div>
+        <p className={`${styles.quietNote} mt-4`}>{REQUEST_REFUND_BODY}</p>
       </PreviewDialog>
     </section>
   );

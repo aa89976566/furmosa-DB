@@ -113,7 +113,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     const sales = read('components/merchant-pos-preview/sales-panel.tsx');
     assert.match(restock, /styles\.workspaceGrid/);
     assert.match(restock, /styles\.workspaceCard/);
-    assert.match(sales, /styles\.workspaceGrid/);
+    assert.match(sales, /styles\.recordList/);
     assert.match(sales, /styles\.workspaceCard/);
     assert.match(restock, /styles\.restockControls/);
     assert.equal(PREVIEW_ACTION_TONES.addRestockLine, 'primary');
@@ -137,7 +137,11 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(sales, /styles\.pageHeader/);
     assert.match(restock, /styles\.pageHeader/);
     assert.match(more, /styles\.pageHeader/);
-    assert.match(settlement, /styles\.workspaceGrid/);
+    assert.match(settlement, /styles\.recordList/);
+    assert.match(sales, /presentation="drawer"/);
+    assert.match(settlement, /presentation="drawer"/);
+    assert.match(css, /\.recordRowButton\s*\{[\s\S]*grid-template-columns/);
+    assert.match(css, /@media \(min-width:\s*640px\)[\s\S]*\.drawerPanel\s*\{[\s\S]*height:\s*100dvh/);
     assert.equal(/shopify/i.test(css), false);
     assert.equal(/shopify/i.test(app), false);
   });
@@ -172,7 +176,7 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(SALE_SUCCESS, /這是操作預覽，完成後不會扣減示意庫存；重新整理會重置/);
   });
 
-  it('keeps secondary guidance behind native progressive disclosure', () => {
+  it('keeps brief guidance collapsed and record details in one drawer', () => {
     const disclosure = read('components/merchant-pos-preview/preview-disclosure.tsx');
     const cart = read('components/merchant-pos-preview/cart-sheet.tsx');
     const refund = read('components/merchant-pos-preview/sales-panel.tsx');
@@ -181,11 +185,11 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(disclosure, /<details/);
     assert.match(disclosure, /<summary/);
     assert.match(cart, /summary="查看操作說明"/);
-    assert.match(refund, /summary="查看退款說明"/);
-    assert.match(refund, /summary="查看退款明細"/);
-    assert.match(settlement, /summary="查看結算明細"/);
+    assert.match(refund, /title="銷售明細"/);
+    assert.match(settlement, /title="結算明細"/);
+    assert.match(refund, /presentation="drawer"/);
+    assert.match(settlement, /presentation="drawer"/);
     assert.match(app, /<PreviewDisclosure/);
-    assert.match(refund, /styles\.actionInline/);
     assert.match(cart, /formatQty\(totals\.itemCount\)/);
     assert.match(cart, /formatTwd\(totals\.actualSubtotalTwd\)/);
   });

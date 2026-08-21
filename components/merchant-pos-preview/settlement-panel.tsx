@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import styles from '@/app/preview/merchant-pos/merchant-pos.module.css';
 import {
   AUDIT_ONLY_LABEL,
@@ -18,7 +19,7 @@ import {
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { settlementViews } from '@/lib/merchant-pos-preview/selectors';
 import type { SettlementLedgerRow, SettlementSnapshot } from '@/lib/merchant-pos-preview/types';
-import { PreviewDisclosure } from './preview-disclosure';
+import { PreviewDialog } from './preview-dialog';
 
 function LedgerRowView({ row }: { row: SettlementLedgerRow }) {
   return (
@@ -75,6 +76,8 @@ function SnapshotLedger({ row }: { row: SettlementSnapshot }) {
 
 export function SettlementPanel() {
   const rows = settlementViews();
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = rows.find((row) => row.settlementId === detailId) ?? null;
 
   return (
     <section aria-labelledby="settlement-title" className="min-w-0 space-y-4">
@@ -84,30 +87,28 @@ export function SettlementPanel() {
         </h3>
         <p className={styles.sectionIntro}>{SETTLEMENT_INTRO}</p>
       </div>
-      <ul className={styles.workspaceGrid}>
+      <ul className={styles.recordList}>
         {rows.map((row) => (
-          <li key={row.settlementId} className={styles.workspaceCard}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className={styles.productName}>{row.periodLabel}</p>
-                <p className={styles.productSpec}>{row.netDirectionLabel}</p>
-              </div>
-              <p className={styles.statusPill}>{row.statusLabel}</p>
-            </div>
-            <p className={`${styles.settlementNet} mt-3`}>
-              {NET_LABEL} {row.netDirectionLabel} {formatTwd(Math.abs(row.netAmountTwd))}
-            </p>
-            {row.locked ? (
-              <p className={`${styles.notice} mt-3`}>{row.lockNote ?? SETTLEMENT_LOCKED}</p>
-            ) : null}
-            <div className="mt-3">
-              <PreviewDisclosure summary="查看結算明細">
-                <SnapshotLedger row={row} />
-              </PreviewDisclosure>
-            </div>
+          <li key={row.settlementId} className={styles.recordListItem}>
+            <button className={styles.recordRowButton} onClick={() => setDetailId(row.settlementId)}>
+              <span className={styles.recordMain}><strong>{row.periodLabel}</strong><span>{row.netDirectionLabel}</span></span>
+              <span className={styles.recordSummary}><strong>{formatTwd(Math.abs(row.netAmountTwd))}</strong><span>{row.statusLabel}</span></span>
+              <span className={styles.recordChevron} aria-hidden="true">›</span>
+            </button>
           </li>
         ))}
       </ul>
+      <PreviewDialog open={Boolean(detail)} titleId="settlement-detail-title" title="結算明細" presentation="drawer" onClose={() => setDetailId(null)}>
+        {detail ? <div className={styles.drawerBody}>
+          <div className={styles.drawerSummary}>
+            <p className={styles.productName}>{detail.periodLabel}</p>
+            <p className={styles.settlementNet}>{NET_LABEL} {detail.netDirectionLabel} {formatTwd(Math.abs(detail.netAmountTwd))}</p>
+            <p className={styles.statusPill}>{detail.statusLabel}</p>
+          </div>
+          {detail.locked ? <p className={styles.notice}>{detail.lockNote ?? SETTLEMENT_LOCKED}</p> : null}
+          <SnapshotLedger row={detail} />
+        </div> : null}
+      </PreviewDialog>
     </section>
   );
 }

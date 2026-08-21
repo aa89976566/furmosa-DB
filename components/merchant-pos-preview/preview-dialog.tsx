@@ -20,12 +20,14 @@ export function PreviewDialog({
   titleId,
   title,
   onClose,
+  presentation = 'dialog',
   children,
 }: {
   open: boolean;
   titleId: string;
   title: string;
   onClose: () => void;
+  presentation?: 'dialog' | 'drawer';
   children: React.ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,7 @@ export function PreviewDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={styles.dialogPanel}
+        className={presentation === 'drawer' ? styles.drawerPanel : styles.dialogPanel}
       >
         <div className={styles.dialogHead}>
           <h2
