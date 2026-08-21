@@ -86,9 +86,11 @@ export const GROOMING_ENTRY_TITLE = '美容服務券';
 export const GROOMING_ENTRY_BODY =
   '這是美容服務券，不是商品折價券。正式門市編號尚未接入，不能用中文店名判斷 200 或 250。核銷仍是預覽操作。';
 export const GROOMING_ENTRY_HINT =
-  '沿用既有美容服務券預覽。服務總額必須嚴格大於券額；固定補貼券面額、不再計普通佣金、不需收據。';
-export const GROOMING_ENTRY_CTA = '開啟美容服務券預覽';
-export const GROOMING_PREVIEW_HREF = '/preview/grooming-voucher';
+  '此處只示範門市操作，不會扣除真實點數、建立核銷紀錄或寫入結算。';
+export const GROOMING_ENTRY_CTA = '開始點數核銷';
+export const POINTS_REDEMPTION_CONFIRM = '確認核銷（預覽）';
+export const POINTS_REDEMPTION_CANCEL = '返回';
+export const POINTS_REDEMPTION_SUCCESS = '已完成點數核銷預覽；沒有扣除真實點數。';
 
 export const POINTS_REDEMPTION_INTRO = '使用點數兌換美容服務券。';
 export const SETTLEMENT_TITLE = '本期結算';

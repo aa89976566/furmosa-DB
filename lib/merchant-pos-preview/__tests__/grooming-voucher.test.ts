@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { GROOMING_ENTRY_BODY, GROOMING_ENTRY_TITLE, GROOMING_PREVIEW_HREF } from '../copy';
+import { GROOMING_ENTRY_BODY, GROOMING_ENTRY_TITLE, GROOMING_ENTRY_CTA } from '../copy';
 
 describe('merchant POS preview grooming voucher entry', () => {
-  it('keeps a single link to the existing grooming voucher preview', () => {
+  it('keeps point redemption inside the merchant POS preview without an auth redirect', () => {
     const src = readFileSync(
       path.join(process.cwd(), 'components/merchant-pos-preview/more-panel.tsx'),
       'utf8',
@@ -16,8 +16,11 @@ describe('merchant POS preview grooming voucher entry', () => {
       path.join(process.cwd(), 'lib/merchant-pos-preview/validators.ts'),
       'utf8',
     );
-    assert.match(src, /GROOMING_PREVIEW_HREF/);
-    assert.equal(GROOMING_PREVIEW_HREF, '/preview/grooming-voucher');
+    assert.match(src, /PreviewDialog/);
+    assert.match(src, /presentation="drawer"/);
+    assert.equal(src.includes('PreviewActionLink'), false);
+    assert.equal(src.includes('/preview/grooming-voucher'), false);
+    assert.equal(GROOMING_ENTRY_CTA, '開始點數核銷');
     assert.equal(GROOMING_ENTRY_TITLE, '美容服務券');
     assert.match(GROOMING_ENTRY_BODY, /美容服務券/);
     assert.match(GROOMING_ENTRY_BODY, /不是商品折價券/);
