@@ -36,6 +36,7 @@ export function RefillPanel() {
   const [topUpPaid, setTopUpPaid] = useState(false);
   const [pickupQuantity, setPickupQuantity] = useState(1);
   const [returnedJarQuantity, setReturnedJarQuantity] = useState<number | null>(null);
+  const [linePaymentRequested, setLinePaymentRequested] = useState(false);
 
   function openOrder(order: RefillPreviewOrder) {
     setSelectedOrder(order);
@@ -43,6 +44,7 @@ export function RefillPanel() {
     setReturnedJarQuantity(null);
     setEntries([]);
     setTopUpPaid(false);
+    setLinePaymentRequested(false);
     setStage(completedOrderIds.has(order.orderId) ? 'completed' : initialRefillStage(order));
   }
 
@@ -51,12 +53,14 @@ export function RefillPanel() {
     setReturnedJarQuantity(null);
     setEntries([]);
     setTopUpPaid(false);
+    setLinePaymentRequested(false);
   }
 
   function changeReturnedJarQuantity(quantity: number) {
     setReturnedJarQuantity(quantity);
     setEntries(serialEntries(quantity));
     setTopUpPaid(false);
+    setLinePaymentRequested(false);
     if (quantity === 0) setStage('awaiting_top_up');
   }
 
@@ -296,8 +300,8 @@ export function RefillPanel() {
             {stage === 'awaiting_top_up' ? (
               <>
                 <div className={styles.refillDecisionCard} role="status">
-                  <strong>還要收 {formatTwd(pricing?.topUpAmountTwd ?? 0)}</strong>
-                  <span>今天拿 {pickupQuantity} 罐，但只帶 {verifiedCount} 個空罐。</span>
+                  <strong>需要在線上補 {formatTwd(pricing?.topUpAmountTwd ?? 0)}</strong>
+                  <span>請客人到官方 LINE 付款。付款成功前，先不要交付商品。</span>
                 </div>
                 <details className={styles.disclosure}>
                   <summary className={styles.disclosureSummary}>查看計價明細</summary>
@@ -311,13 +315,28 @@ export function RefillPanel() {
                     </dl>
                   </div>
                 </details>
-                <PreviewAction
-                  tone={PREVIEW_ACTION_TONES.completeRefill}
-                  className={styles.actionBlock}
-                  onClick={() => { setTopUpPaid(true); setStage('confirm'); }}
-                >
-                  收 {formatTwd(pricing?.topUpAmountTwd ?? 0)}，再交給客人 {pickupQuantity} 罐
-                </PreviewAction>
+                {!linePaymentRequested ? (
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.completeRefill}
+                    className={styles.actionBlock}
+                    onClick={() => setLinePaymentRequested(true)}
+                  >
+                    請客人到官方 LINE 付款
+                  </PreviewAction>
+                ) : (
+                  <>
+                    <div className={styles.notice} role="status">
+                      等待官方 LINE 回傳付款成功。收到通知前不能交付商品。
+                    </div>
+                    <PreviewAction
+                      tone={PREVIEW_ACTION_TONES.completeRefill}
+                      className={styles.actionBlock}
+                      onClick={() => { setTopUpPaid(true); setStage('confirm'); }}
+                    >
+                      模擬收到 LINE 付款成功（預覽）
+                    </PreviewAction>
+                  </>
+                )}
                 <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>
                   回去重選
                 </PreviewAction>
