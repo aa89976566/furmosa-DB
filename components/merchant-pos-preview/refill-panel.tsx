@@ -22,8 +22,8 @@ import {
 
 type SerialEntry = { value: string; verified: boolean; error: string | null };
 
-function serialEntries(order: RefillPreviewOrder): SerialEntry[] {
-  return Array.from({ length: order.quantity }, () => ({ value: '', verified: false, error: null }));
+function serialEntries(quantity: number): SerialEntry[] {
+  return Array.from({ length: quantity }, () => ({ value: '', verified: false, error: null }));
 }
 
 export function RefillPanel() {
@@ -34,12 +34,20 @@ export function RefillPanel() {
   const [stage, setStage] = useState<RefillDeliveryStage>('verify');
   const [completedOrderIds, setCompletedOrderIds] = useState<Set<string>>(new Set());
   const [topUpPaid, setTopUpPaid] = useState(false);
+  const [pickupQuantity, setPickupQuantity] = useState(1);
 
   function openOrder(order: RefillPreviewOrder) {
     setSelectedOrder(order);
-    setEntries(serialEntries(order));
+    setPickupQuantity(order.quantity);
+    setEntries(serialEntries(order.quantity));
     setTopUpPaid(false);
     setStage(completedOrderIds.has(order.orderId) ? 'completed' : initialRefillStage(order));
+  }
+
+  function changePickupQuantity(quantity: number) {
+    setPickupQuantity(quantity);
+    setEntries(serialEntries(quantity));
+    setTopUpPaid(false);
   }
 
   function closeOrder() {
@@ -84,7 +92,7 @@ export function RefillPanel() {
   }
 
   function completeDelivery() {
-    if (!selectedOrder || !canConfirmRefillDelivery(selectedOrder, entries.map((entry) => entry.verified), topUpPaid)) return;
+    if (!selectedOrder || !canConfirmRefillDelivery(selectedOrder, entries.map((entry) => entry.verified), topUpPaid, pickupQuantity)) return;
     setCompletedOrderIds((current) => new Set(current).add(selectedOrder.orderId));
     setStage('completed');
   }
@@ -97,9 +105,9 @@ export function RefillPanel() {
   }
 
   const verifiedCount = entries.filter((entry) => entry.verified).length;
-  const pricing = selectedOrder ? refillPriceBreakdown(selectedOrder, verifiedCount) : null;
+  const pricing = selectedOrder ? refillPriceBreakdown(selectedOrder, verifiedCount, pickupQuantity) : null;
   const readyToConfirm = selectedOrder
-    ? canConfirmRefillDelivery(selectedOrder, entries.map((entry) => entry.verified))
+    ? canConfirmRefillDelivery(selectedOrder, entries.map((entry) => entry.verified), false, pickupQuantity)
     : false;
   const nextOrder = selectedOrder
     ? nextActionableRefillOrder(REFILL_PREVIEW_ORDERS, selectedOrder.orderId, completedOrderIds)
@@ -166,7 +174,8 @@ export function RefillPanel() {
               <div className={styles.defRow}><dt>訂單</dt><dd>{selectedOrder.orderId}</dd></div>
               <div className={styles.defRow}><dt>預約時間</dt><dd>{selectedOrder.appointmentTime}</dd></div>
               <div className={styles.defRow}><dt>會員／寵物</dt><dd>{selectedOrder.customerLabel}／{selectedOrder.petLabel}</dd></div>
-              <div className={styles.defRow}><dt>商品</dt><dd>{selectedOrder.productLabel} × {selectedOrder.quantity}</dd></div>
+              <div className={styles.defRow}><dt>商品</dt><dd>{selectedOrder.productLabel}</dd></div>
+              <div className={styles.defRow}><dt>訂單剩餘</dt><dd>{selectedOrder.quantity} 罐</dd></div>
               <div className={styles.defRow}><dt>訂單狀態</dt><dd>訂單已付款</dd></div>
               <div className={styles.defRow}><dt>取貨方式</dt><dd>門市取貨 · 已保留 {selectedOrder.quantity} 罐</dd></div>
             </dl>
@@ -174,10 +183,25 @@ export function RefillPanel() {
             {stage === 'verify' ? (
               <>
                 <div className={styles.refillStageHeader}>
-                  <strong>1. 確認空罐</strong>
-                  <span>已確認 {verifiedCount}／{selectedOrder.quantity}</span>
+                  <strong>1. 本次領幾罐？</strong>
+                  <span>最多 {selectedOrder.quantity} 罐</span>
                 </div>
-                <p className={styles.hint}>本筆訂單需要 {selectedOrder.quantity} 個有效空罐，請逐一輸入瓶底序號。</p>
+                <div className={styles.refillExceptionActions} aria-label="本次領取數量">
+                  {Array.from({ length: selectedOrder.quantity }, (_, index) => index + 1).map((quantity) => (
+                    <PreviewAction
+                      key={quantity}
+                      tone={quantity === pickupQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
+                      onClick={() => changePickupQuantity(quantity)}
+                    >
+                      領 {quantity} 罐
+                    </PreviewAction>
+                  ))}
+                </div>
+                <div className={styles.refillStageHeader}>
+                  <strong>2. 確認空罐</strong>
+                  <span>已確認 {verifiedCount}／{pickupQuantity}</span>
+                </div>
+                <p className={styles.hint}>本次領取 {pickupQuantity} 罐；每領 1 罐需交回 1 個有效空罐。</p>
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
                     const hintId = `old-jar-hint-${index}`;
@@ -211,10 +235,10 @@ export function RefillPanel() {
                   <>
                     <div className={styles.refillDecisionCard} role="status">
                       <strong>空罐數量已確認</strong>
-                      <span>已收到 {selectedOrder.quantity} 個空罐，本次不需補款。</span>
+                      <span>領 {pickupQuantity} 罐、收到 {pickupQuantity} 個空罐，本次不需補款。</span>
                     </div>
                     <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
-                      確認交付 {selectedOrder.quantity} 罐
+                      確認交付 {pickupQuantity} 罐
                     </PreviewAction>
                   </>
                 ) : (
@@ -232,7 +256,8 @@ export function RefillPanel() {
               <>
                 <div className={styles.confirmCard}>
                   <dl className={styles.refillConfirmList}>
-                    <div><dt>交付數量</dt><dd>{selectedOrder.quantity} 罐</dd></div>
+                    <div><dt>本次交付</dt><dd>{pickupQuantity} 罐</dd></div>
+                    <div><dt>下次可領</dt><dd>{selectedOrder.quantity - pickupQuantity} 罐</dd></div>
                     <div><dt>收到空罐</dt><dd>{verifiedCount} 個</dd></div>
                     <div><dt>補款</dt><dd>{pricing?.topUpAmountTwd ? `${formatTwd(pricing.topUpAmountTwd)}（已收款）` : '不需補款'}</dd></div>
                   </dl>
@@ -254,14 +279,14 @@ export function RefillPanel() {
             {stage === 'awaiting_top_up' ? (
               <>
                 <div className={styles.refillDecisionCard} role="status">
-                  <strong>尚缺 {pricing?.originalPriceQuantity ?? 0} 個空罐</strong>
-                  <span>需補款 {formatTwd(pricing?.topUpAmountTwd ?? 0)}，完成收款後才能交付商品。</span>
+                  <strong>本次領 {pickupQuantity} 罐，收到 {verifiedCount} 個空罐</strong>
+                  <span>少 {pricing?.originalPriceQuantity ?? 0} 個空罐，需補款 {formatTwd(pricing?.topUpAmountTwd ?? 0)}。</span>
                 </div>
                 <details className={styles.disclosure}>
                   <summary className={styles.disclosureSummary}>查看計價明細</summary>
                   <div className={styles.disclosureBody}>
                     <dl className={styles.refillConfirmList}>
-                      <div><dt>預訂數量</dt><dd>{selectedOrder.quantity} 罐</dd></div>
+                      <div><dt>本次領取</dt><dd>{pickupQuantity} 罐</dd></div>
                       <div><dt>已收到空罐</dt><dd>{verifiedCount} 個</dd></div>
                       <div><dt>未提供空罐</dt><dd>{pricing?.originalPriceQuantity ?? 0} 個</dd></div>
                       <div><dt>每缺 1 個空罐</dt><dd>補款 {formatTwd(30)}</dd></div>
