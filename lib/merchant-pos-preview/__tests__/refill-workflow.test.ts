@@ -75,7 +75,7 @@ describe('merchant POS preview refill workflow', () => {
     assert.match(refill, /完成換罐/);
     assert.match(refill, /處理下一筆/);
     assert.match(refill, /不在此處增加點數/);
-    assert.match(refill, /LINE 登錄，屆時才增加點數/);
+    assert.match(refill, /LINE 登記新罐時加入/);
     assert.doesNotMatch(refill, /新罐瓶底序號/);
     assert.doesNotMatch(refill, /fetch\s*\(/);
     assert.doesNotMatch(refill, /prisma/i);
