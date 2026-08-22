@@ -18,7 +18,7 @@ import {
 } from '@/lib/merchant-pos-preview/copy';
 import { formatTwd } from '@/lib/merchant-pos-preview/formatters';
 import { visibleSales } from '@/lib/merchant-pos-preview/selectors';
-import type { MerchantPosSession } from '@/lib/merchant-pos-preview/types';
+import type { MerchantPosSession, RefundRequestInput } from '@/lib/merchant-pos-preview/types';
 import { PreviewAction } from './preview-action';
 import { PREVIEW_ACTION_TONES } from './preview-action-matrix';
 import { PreviewDialog } from './preview-dialog';
@@ -32,11 +32,15 @@ export function SalesPanel({
   session: MerchantPosSession;
   onAskRefund: (saleId: string) => void;
   onCancelRefund: () => void;
-  onConfirmRefund: () => void;
+  onConfirmRefund: (input: RefundRequestInput) => void;
 }) {
   const sales = visibleSales(session);
   const [detailSaleId, setDetailSaleId] = useState<string | null>(null);
+  const [refundCondition, setRefundCondition] = useState<RefundRequestInput['condition']>('sellable_unopened');
+  const [refundReason, setRefundReason] = useState('');
+  const [lossReason, setLossReason] = useState('');
   const detailSale = sales.find((sale) => sale.saleId === detailSaleId) ?? null;
+  const refundFormValid = refundReason.trim().length > 0 && (refundCondition === 'sellable_unopened' || lossReason.trim().length > 0);
 
   return (
     <section aria-labelledby="sales-title" className="min-w-0 space-y-4">
@@ -89,12 +93,12 @@ export function SalesPanel({
                 <div className={styles.defRow}><dt>庫存說明</dt><dd>{detailSale.refund.inventoryNote}</dd></div>
                 <div className={styles.defRow}><dt>佣金說明</dt><dd>{detailSale.refund.commissionNote}</dd></div>
                 {detailSale.refund.conditionLabel ? <div className={styles.defRow}><dt>{REFUND_CONDITION_LABEL}</dt><dd>{detailSale.refund.conditionLabel}</dd></div> : null}
-                {detailSale.refund.inventoryDisposition ? <div className={styles.defRow}><dt>{REFUND_DISPOSITION_LABEL}</dt><dd>{detailSale.refund.inventoryDisposition === 'restock_sellable' ? RESTOCK_SELLABLE_LABEL : LOSS_UNSELLABLE_LABEL}</dd></div> : null}
+                {detailSale.refund.inventoryDisposition ? <div className={styles.defRow}><dt>{REFUND_DISPOSITION_LABEL}</dt><dd>{detailSale.refund.inventoryDisposition === 'restock_sellable' ? RESTOCK_SELLABLE_LABEL : detailSale.refund.inventoryDisposition === 'loss_unsellable' ? LOSS_UNSELLABLE_LABEL : '等待總部審核'}</dd></div> : null}
                 {detailSale.refund.lossReason ? <div className={styles.defRow}><dt>{REFUND_LOSS_REASON_LABEL}</dt><dd>{detailSale.refund.lossReason}</dd></div> : null}
                 {detailSale.refund.nextPeriodNote ? <div className={styles.defRow}><dt>{NEXT_PERIOD_NOTE}</dt><dd>{detailSale.refund.nextPeriodNote}</dd></div> : null}
               </> : null}
             </dl>
-            {detailSale.canMerchantRequestRefund ? <PreviewAction tone={PREVIEW_ACTION_TONES.requestRefund} className={styles.actionBlock} onClick={() => { setDetailSaleId(null); onAskRefund(detailSale.saleId); }}>{REQUEST_REFUND}</PreviewAction> : null}
+            {detailSale.canMerchantRequestRefund ? <PreviewAction tone={PREVIEW_ACTION_TONES.requestRefund} className={styles.actionBlock} onClick={() => { setRefundCondition('sellable_unopened'); setRefundReason(''); setLossReason(''); setDetailSaleId(null); onAskRefund(detailSale.saleId); }}>{REQUEST_REFUND}</PreviewAction> : null}
           </div>
         ) : null}
       </PreviewDialog>
@@ -106,10 +110,27 @@ export function SalesPanel({
         onClose={onCancelRefund}
       >
         <div className={styles.stack}>
+          <label className={styles.fieldLabel} htmlFor="refund-reason">退款原因</label>
+          <input id="refund-reason" className={styles.field} value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="例如：客人買錯規格" />
+          <label className={styles.fieldLabel} htmlFor="refund-condition">商品狀況</label>
+          <select id="refund-condition" className={styles.field} value={refundCondition} onChange={(event) => setRefundCondition(event.target.value as RefundRequestInput['condition'])}>
+            <option value="sellable_unopened">未拆封、狀況良好、可再販售</option>
+            <option value="unsellable">已拆封、破損、變質或不可再販售</option>
+          </select>
+          {refundCondition === 'unsellable' ? <>
+            <label className={styles.fieldLabel} htmlFor="refund-loss-reason">損耗原因</label>
+            <input id="refund-loss-reason" className={styles.field} value={lossReason} onChange={(event) => setLossReason(event.target.value)} placeholder="例如：包裝破損" />
+          </> : null}
+          <div className={styles.notice} role="status">
+            {refundCondition === 'sellable_unopened'
+              ? '總部核准退款後，商品才會加回可售庫存。'
+              : '總部核准退款後，商品不會加回可售庫存，並會留下損耗原因。'}
+          </div>
           <PreviewAction
             tone={PREVIEW_ACTION_TONES.refundConfirm}
             className={`${styles.actionBlock} min-h-[44px]`}
-            onClick={onConfirmRefund}
+            disabled={!refundFormValid}
+            onClick={() => onConfirmRefund({ condition: refundCondition, reason: refundReason.trim(), lossReason: refundCondition === 'unsellable' ? lossReason.trim() : null })}
           >
             {REQUEST_REFUND_CONFIRM}
           </PreviewAction>
