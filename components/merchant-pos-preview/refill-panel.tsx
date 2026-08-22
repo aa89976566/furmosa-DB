@@ -154,6 +154,12 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
   const availableReturnJarCount = selectedOrder
     ? selectedOrder.expectedOldSerials.filter((serial) => !returnedOldSerials.has(serial)).length
     : 0;
+  const selectedReturnCount = returnedJarQuantity ?? 0;
+  const estimatedExchangeCount = Math.min(pickupQuantity, selectedReturnCount);
+  const estimatedOriginalCount = Math.max(0, pickupQuantity - estimatedExchangeCount);
+  const estimatedExtraReturnCount = Math.max(0, selectedReturnCount - pickupQuantity);
+  const remainingCustomerJarCount = Math.max(0, availableReturnJarCount - verifiedCount);
+  const extraVerifiedReturnCount = Math.max(0, verifiedCount - pickupQuantity);
 
   return (
     <section aria-labelledby="refill-title" className="min-w-0 space-y-6">
@@ -247,6 +253,18 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
                   <span>本次領取 <strong>{pickupQuantity} 罐</strong></span>
                   <span>歸還 <strong>{returnedJarQuantity ?? 0} 個空罐</strong></span>
                 </div>
+                <div className={styles.refillEstimateCard} aria-label="預估處理結果">
+                  <div className={styles.refillEstimateHeader}>
+                    <strong>預估處理結果</strong>
+                    <span>空罐驗證後確認</span>
+                  </div>
+                  <dl className={styles.refillEstimateGrid}>
+                    <div><dt>換罐價</dt><dd>{estimatedExchangeCount} 罐</dd></div>
+                    <div><dt>原價</dt><dd>{estimatedOriginalCount} 罐</dd></div>
+                    <div><dt>額外回收</dt><dd>{estimatedExtraReturnCount} 個</dd></div>
+                    <div><dt>預估補款</dt><dd>{formatTwd(estimatedOriginalCount * 30)}</dd></div>
+                  </dl>
+                </div>
                 <PreviewAction
                   tone={PREVIEW_ACTION_TONES.completeRefill}
                   className={styles.actionBlock}
@@ -270,9 +288,9 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
             {stage === 'verify' ? (
               <>
                 <div className={styles.refillStepIntro}>
-                  <span>步驟 2／3</span>
-                  <strong>確認 {(returnedJarQuantity ?? 0)} 個空罐</strong>
-                  <p>依序輸入罐底 8 位數字。</p>
+                  <span>步驟 2／3 · 已確認 {verifiedCount}/{returnedJarQuantity ?? 0}</span>
+                  <strong>驗證空罐序號</strong>
+                  <p>每個序號只能使用一次；異常罐體不列入折抵。</p>
                 </div>
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
@@ -320,17 +338,30 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
 
             {stage === 'confirm' ? (
               <>
+                <div className={styles.refillStepIntro}>
+                  <span>步驟 3／3</span>
+                  <strong>確認交付與罐體紀錄</strong>
+                  <p>完成後會建立交付、舊罐回收及新罐待登記紀錄。</p>
+                </div>
                 <div className={styles.confirmCard}>
                   <dl className={styles.refillConfirmList}>
                     <div><dt>本次交付</dt><dd>{pickupQuantity} 罐</dd></div>
-                    <div><dt>下次可領</dt><dd>{selectedOrder.quantity - pickupQuantity} 罐</dd></div>
-                    <div><dt>收到空罐</dt><dd>{verifiedCount} 個</dd></div>
-                    <div><dt>補款</dt><dd>{pricing?.topUpAmountTwd ? `${formatTwd(pricing.topUpAmountTwd)}（已收款）` : '不需補款'}</dd></div>
+                    <div><dt>換罐價</dt><dd>{pricing?.exchangeQuantity ?? 0} 罐</dd></div>
+                    <div><dt>原價</dt><dd>{pricing?.originalPriceQuantity ?? 0} 罐</dd></div>
+                    <div><dt>有效回收</dt><dd>{verifiedCount} 個</dd></div>
+                    <div><dt>額外回收</dt><dd>{extraVerifiedReturnCount} 個</dd></div>
+                    <div><dt>補款</dt><dd>{pricing?.topUpAmountTwd ? `${formatTwd(pricing.topUpAmountTwd)}（已由 LINE 付款）` : '不需補款'}</dd></div>
                   </dl>
                 </div>
-                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={completeDelivery}>完成換罐（預覽）</PreviewAction>
+                <div className={styles.refillLedgerPreview}>
+                  <strong>完成後的會員罐體</strong>
+                  <span>仍在會員手上：{remainingCustomerJarCount} 個舊罐</span>
+                  <span>本次新罐：{pickupQuantity} 個，待官方 LINE 登記</span>
+                  {remainingAfterDelivery > 0 ? <span>訂單尚有 {remainingAfterDelivery} 罐保留下次領取</span> : null}
+                </div>
+                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={completeDelivery}>確認交付 {pickupQuantity} 罐</PreviewAction>
                 {selectedOrder.purchaseMode === 'exchange' ? (
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>返回修改序號</PreviewAction>
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>返回檢查序號</PreviewAction>
                 ) : null}
               </>
             ) : null}
