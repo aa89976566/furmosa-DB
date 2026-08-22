@@ -17,6 +17,7 @@ export type RefillPreviewOrder = {
 };
 
 export type RefillDeliveryStage =
+  | 'quantity'
   | 'verify'
   | 'confirm'
   | 'completed'
@@ -136,7 +137,7 @@ export function blockedRefillOrders(
 }
 
 export function initialRefillStage(order: RefillPreviewOrder): RefillDeliveryStage {
-  return order.purchaseMode === 'first' ? 'confirm' : 'verify';
+  return order.purchaseMode === 'first' ? 'confirm' : 'quantity';
 }
 
 export function canConfirmRefillDelivery(
