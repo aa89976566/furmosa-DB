@@ -61,10 +61,12 @@ describe('merchant POS preview refill workflow', () => {
     assert.match(refill, /這個序號已在本次交付中使用/);
     assert.match(refill, /前往確認交付/);
     assert.match(refill, /確認完成交付（預覽）/);
-    assert.match(refill, /依目前空罐數量計算差額/);
-    assert.match(refill, /改天再領取/);
-    assert.match(refill, /原價/);
-    assert.match(refill, /顯示補款成功結果/);
+    assert.match(refill, /沒有其他空罐/);
+    assert.match(refill, /稍後取貨/);
+    assert.match(refill, /尚缺/);
+    assert.match(refill, /收取/);
+    assert.match(refill, /查看計價明細/);
+    assert.match(refill, /完成換罐/);
     assert.match(refill, /處理下一筆/);
     assert.match(refill, /不在此處增加點數/);
     assert.match(refill, /LINE 登錄，屆時才增加點數/);
