@@ -338,8 +338,8 @@ export function RefillPanel() {
 
             <p className={styles.quietNote}>
               {selectedOrder.purchaseMode === 'exchange'
-                ? '門市只驗證舊罐並確認交付；新罐由會員領取後在 LINE 登錄，屆時才增加點數。'
-                : '首罐不需要驗證舊罐；會員領取後在 LINE 登錄新罐，屆時才增加點數。'}
+                ? '這裡只處理拿商品和收空罐。點數會在客人之後用 LINE 登記新罐時加入。'
+                : '這次不用收空罐。點數會在客人之後用 LINE 登記新罐時加入。'}
             </p>
             {stage !== 'completed' ? (
               <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={closeOrder}>返回待換罐</PreviewAction>
