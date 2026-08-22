@@ -1428,6 +1428,42 @@
   font-size: 0.875rem;
 }
 
+.refillPriceCard {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-surface);
+}
+
+.refillPriceCard > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--preview-border);
+  font-size: 0.875rem;
+}
+
+.refillPriceCard > div:last-child {
+  border-bottom: 0;
+}
+
+.refillPriceCard span {
+  color: var(--preview-secondary);
+}
+
+.refillPriceCard strong {
+  color: var(--preview-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.refillPriceCard .refillPriceTotal {
+  background: var(--preview-subtle);
+  font-size: 1rem;
+}
+
 .confirmCard,
 .refillSuccess {
   display: grid;
