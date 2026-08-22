@@ -26,7 +26,7 @@ function serialEntries(quantity: number): SerialEntry[] {
   return Array.from({ length: quantity }, () => ({ value: '', verified: false, error: null }));
 }
 
-export function RefillPanel() {
+export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
   const actionable = useMemo(() => actionableRefillOrders(REFILL_PREVIEW_ORDERS), []);
   const blocked = useMemo(() => blockedRefillOrders(REFILL_PREVIEW_ORDERS), []);
   const [selectedOrder, setSelectedOrder] = useState<RefillPreviewOrder | null>(null);
@@ -295,6 +295,18 @@ export function RefillPanel() {
                 <div className={styles.refillExceptionActions}>
                   <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>今天先不領</PreviewAction>
                 </div>
+                <div className={styles.refillStageHeader}>
+                  <strong>需要另外購買商品？</strong>
+                  <span>另開一筆交易</span>
+                </div>
+                <PreviewAction
+                  tone={PREVIEW_ACTION_TONES.refundCancel}
+                  className={styles.actionBlock}
+                  onClick={onAddOn}
+                >
+                  前往收銀加購
+                </PreviewAction>
+                <p className={styles.quietNote}>加購商品會建立新的購物車，不會更改這筆換罐訂單。</p>
               </>
             ) : null}
 
