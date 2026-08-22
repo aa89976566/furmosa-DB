@@ -152,6 +152,9 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
     .map((order) => ({ ...order, quantity: remainingQuantities[order.orderId] ?? order.quantity }))
     .filter((order) => order.quantity > 0);
   const remainingAfterDelivery = selectedOrder ? Math.max(0, selectedOrder.quantity - pickupQuantity) : 0;
+  const availableReturnJarCount = selectedOrder
+    ? selectedOrder.expectedOldSerials.filter((serial) => !returnedOldSerials.has(serial)).length
+    : 0;
 
   return (
     <section aria-labelledby="refill-title" className="min-w-0 space-y-6">
@@ -221,32 +224,45 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
                   <strong>1. 本次領取幾罐？</strong>
                   <span>尚可領取 {selectedOrder.quantity} 罐</span>
                 </div>
-                <div className={styles.refillExceptionActions} aria-label="本次領取數量">
-                  {Array.from({ length: selectedOrder.quantity }, (_, index) => index + 1).map((quantity) => (
-                    <PreviewAction
-                      key={quantity}
-                      tone={quantity === pickupQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
-                      onClick={() => changePickupQuantity(quantity)}
-                    >
-                      領取 {quantity} 罐
-                    </PreviewAction>
-                  ))}
+                <div className={styles.refillQuantityStepper} aria-label="本次領取數量">
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.refundCancel}
+                    disabled={pickupQuantity <= 1}
+                    onClick={() => changePickupQuantity(pickupQuantity - 1)}
+                  >
+                    −
+                  </PreviewAction>
+                  <strong aria-live="polite">{pickupQuantity} 罐</strong>
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.refundCancel}
+                    disabled={pickupQuantity >= selectedOrder.quantity}
+                    onClick={() => changePickupQuantity(pickupQuantity + 1)}
+                  >
+                    ＋
+                  </PreviewAction>
                 </div>
                 <div className={styles.refillStageHeader}>
                   <strong>2. 本次歸還幾個空罐？</strong>
                   <span>{returnedJarQuantity === null ? '尚未選擇' : `已選 ${returnedJarQuantity} 個`}</span>
                 </div>
-                <div className={styles.refillExceptionActions} aria-label="帶來的空罐數量">
-                  {Array.from({ length: pickupQuantity + 1 }, (_, index) => index).map((quantity) => (
-                    <PreviewAction
-                      key={quantity}
-                      tone={quantity === returnedJarQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
-                      onClick={() => changeReturnedJarQuantity(quantity)}
-                    >
-                      {quantity === 0 ? '沒有歸還' : `歸還 ${quantity} 個`}
-                    </PreviewAction>
-                  ))}
+                <div className={styles.refillQuantityStepper} aria-label="本次歸還空罐數量">
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.refundCancel}
+                    disabled={(returnedJarQuantity ?? 0) <= 0}
+                    onClick={() => changeReturnedJarQuantity(Math.max(0, (returnedJarQuantity ?? 0) - 1))}
+                  >
+                    −
+                  </PreviewAction>
+                  <strong aria-live="polite">{returnedJarQuantity ?? 0} 個</strong>
+                  <PreviewAction
+                    tone={PREVIEW_ACTION_TONES.refundCancel}
+                    disabled={(returnedJarQuantity ?? 0) >= availableReturnJarCount}
+                    onClick={() => changeReturnedJarQuantity(Math.min(availableReturnJarCount, (returnedJarQuantity ?? 0) + 1))}
+                  >
+                    ＋
+                  </PreviewAction>
                 </div>
+                <p className={styles.hint}>最多可歸還 {availableReturnJarCount} 個會員名下的有效空罐；多歸還不會增加本次折抵。</p>
                 {returnedJarQuantity ? <p className={styles.hint}>請輸入每個空罐底下的 8 位數字。</p> : null}
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
