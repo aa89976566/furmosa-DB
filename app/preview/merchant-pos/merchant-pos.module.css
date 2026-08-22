@@ -1813,3 +1813,45 @@
   .refillCompactStepper { grid-template-columns: 1fr 3rem 1fr; }
   .refillSelectionSummary { flex-direction: column; gap: 0.25rem; }
 }
+
+.refillEstimateCard,
+.refillLedgerPreview {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: 12px;
+  background: var(--preview-subtle);
+}
+.refillEstimateHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+.refillEstimateHeader span {
+  color: var(--preview-secondary);
+  font-size: 0.75rem;
+}
+.refillEstimateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+.refillEstimateGrid > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-top: 1px solid var(--preview-border);
+}
+.refillEstimateGrid > div:nth-child(odd) { padding-right: 1rem; }
+.refillEstimateGrid > div:nth-child(even) { padding-left: 1rem; border-left: 1px solid var(--preview-border); }
+.refillEstimateGrid dt { color: var(--preview-secondary); }
+.refillEstimateGrid dd { margin: 0; font-weight: 650; }
+.refillLedgerPreview span { color: var(--preview-secondary); font-size: 0.875rem; }
+@media (max-width: 520px) {
+  .refillEstimateGrid { grid-template-columns: 1fr; }
+  .refillEstimateGrid > div:nth-child(odd),
+  .refillEstimateGrid > div:nth-child(even) { padding-inline: 0; border-left: 0; }
+}
