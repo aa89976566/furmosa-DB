@@ -214,10 +214,10 @@ export function MerchantPosPreviewApp() {
         session={session}
         onAskRefund={(saleId) => setSession((current) => openRefundConfirm(current, saleId))}
         onCancelRefund={() => setSession((current) => closeRefundConfirm(current))}
-        onConfirmRefund={() =>
+        onConfirmRefund={(input) =>
           setSession((current) =>
             current.refundConfirmSaleId
-              ? requestDemoRefund(current, current.refundConfirmSaleId)
+              ? requestDemoRefund(current, current.refundConfirmSaleId, input)
               : current,
           )
         }
