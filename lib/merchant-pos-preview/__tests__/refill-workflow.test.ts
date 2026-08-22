@@ -30,6 +30,7 @@ describe('merchant POS preview refill workflow', () => {
     assert.equal(initialRefillStage(exchange), 'verify');
     assert.equal(canConfirmRefillDelivery(exchange, [true, false]), false);
     assert.equal(canConfirmRefillDelivery(exchange, [true, true]), true);
+    assert.equal(canConfirmRefillDelivery(exchange, [true], false, 1), true);
     assert.equal(initialRefillStage(first), 'confirm');
     assert.equal(canConfirmRefillDelivery(first, []), true);
   });
@@ -51,21 +52,24 @@ describe('merchant POS preview refill workflow', () => {
     });
     assert.equal(refillPriceBreakdown(order, 1).topUpAmountTwd, 30);
     assert.equal(refillPriceBreakdown(order, 0).topUpAmountTwd, 60);
+    assert.equal(refillPriceBreakdown(order, 1, 1).topUpAmountTwd, 0);
+    assert.equal(refillPriceBreakdown(order, 0, 1).topUpAmountTwd, 30);
     assert.equal(canConfirmRefillDelivery(order, [true, false]), false);
     assert.equal(canConfirmRefillDelivery(order, [true, false], true), true);
   });
 
   it('renders multi-jar, final confirmation, forgot-jar, success, and LINE-only point rules', () => {
     const refill = readFileSync(path.join(process.cwd(), 'components/merchant-pos-preview/refill-panel.tsx'), 'utf8');
-    assert.match(refill, /逐罐驗證空罐/);
+    assert.match(refill, /確認空罐/);
     assert.match(refill, /這個序號已在本次交付中使用/);
-    assert.match(refill, /前往確認交付/);
-    assert.match(refill, /確認完成交付（預覽）/);
+    assert.match(refill, /確認交付/);
     assert.match(refill, /沒有其他空罐/);
     assert.match(refill, /稍後取貨/);
     assert.match(refill, /尚缺/);
     assert.match(refill, /收取/);
     assert.match(refill, /查看計價明細/);
+    assert.match(refill, /本次領幾罐/);
+    assert.match(refill, /訂單剩餘/);
     assert.match(refill, /完成換罐/);
     assert.match(refill, /處理下一筆/);
     assert.match(refill, /不在此處增加點數/);
