@@ -31,7 +31,7 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
   const blocked = useMemo(() => blockedRefillOrders(REFILL_PREVIEW_ORDERS), []);
   const [selectedOrder, setSelectedOrder] = useState<RefillPreviewOrder | null>(null);
   const [entries, setEntries] = useState<SerialEntry[]>([]);
-  const [stage, setStage] = useState<RefillDeliveryStage>('verify');
+  const [stage, setStage] = useState<RefillDeliveryStage>('quantity');
   const [completedOrderIds, setCompletedOrderIds] = useState<Set<string>>(new Set());
   const [topUpPaid, setTopUpPaid] = useState(false);
   const [pickupQuantity, setPickupQuantity] = useState(1);
@@ -45,7 +45,7 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
     const effectiveOrder = { ...order, quantity: remainingQuantity };
     setSelectedOrder(effectiveOrder);
     setPickupQuantity(remainingQuantity);
-    setReturnedJarQuantity(null);
+    setReturnedJarQuantity(0);
     setEntries([]);
     setTopUpPaid(false);
     setLinePaymentRequested(false);
@@ -54,7 +54,7 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
 
   function changePickupQuantity(quantity: number) {
     setPickupQuantity(quantity);
-    setReturnedJarQuantity(null);
+    setReturnedJarQuantity(0);
     setEntries([]);
     setTopUpPaid(false);
     setLinePaymentRequested(false);
@@ -65,7 +65,6 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
     setEntries(serialEntries(quantity));
     setTopUpPaid(false);
     setLinePaymentRequested(false);
-    if (quantity === 0) setStage('awaiting_top_up');
   }
 
   function closeOrder() {
@@ -218,59 +217,70 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
               <div className={styles.defRow}><dt>尚可領取</dt><dd>{selectedOrder.quantity} 罐</dd></div>
             </dl>
 
+            {stage === 'quantity' ? (
+              <>
+                <div className={styles.refillTaskCard}>
+                  <div className={styles.refillTaskRow}>
+                    <div>
+                      <strong>本次領取</strong>
+                      <span>尚可領取 {selectedOrder.quantity} 罐</span>
+                    </div>
+                    <div className={styles.refillCompactStepper} aria-label="本次領取數量">
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} disabled={pickupQuantity <= 1} onClick={() => changePickupQuantity(pickupQuantity - 1)}>−</PreviewAction>
+                      <strong aria-live="polite">{pickupQuantity}</strong>
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} disabled={pickupQuantity >= selectedOrder.quantity} onClick={() => changePickupQuantity(pickupQuantity + 1)}>＋</PreviewAction>
+                    </div>
+                  </div>
+                  <div className={styles.refillTaskRow}>
+                    <div>
+                      <strong>歸還空罐</strong>
+                      <span>最多 {availableReturnJarCount} 個有效空罐</span>
+                    </div>
+                    <div className={styles.refillCompactStepper} aria-label="本次歸還空罐數量">
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} disabled={(returnedJarQuantity ?? 0) <= 0} onClick={() => changeReturnedJarQuantity(Math.max(0, (returnedJarQuantity ?? 0) - 1))}>−</PreviewAction>
+                      <strong aria-live="polite">{returnedJarQuantity ?? 0}</strong>
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} disabled={(returnedJarQuantity ?? 0) >= availableReturnJarCount} onClick={() => changeReturnedJarQuantity(Math.min(availableReturnJarCount, (returnedJarQuantity ?? 0) + 1))}>＋</PreviewAction>
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.refillSelectionSummary}>
+                  <span>本次領取 <strong>{pickupQuantity} 罐</strong></span>
+                  <span>歸還 <strong>{returnedJarQuantity ?? 0} 個空罐</strong></span>
+                </div>
+                <PreviewAction
+                  tone={PREVIEW_ACTION_TONES.completeRefill}
+                  className={styles.actionBlock}
+                  onClick={() => setStage((returnedJarQuantity ?? 0) > 0 ? 'verify' : 'awaiting_top_up')}
+                >
+                  {(returnedJarQuantity ?? 0) > 0 ? '下一步：確認空罐' : '下一步：查看補款'}
+                </PreviewAction>
+                <details className={styles.disclosure}>
+                  <summary className={styles.disclosureSummary}>其他操作</summary>
+                  <div className={styles.disclosureBody}>
+                    <div className={styles.refillExceptionActions}>
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>今天先不領</PreviewAction>
+                      <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={onAddOn}>前往收銀加購</PreviewAction>
+                    </div>
+                    <p className={styles.quietNote}>加購會建立另一筆交易，不會更改這筆換罐訂單。</p>
+                  </div>
+                </details>
+              </>
+            ) : null}
+
             {stage === 'verify' ? (
               <>
-                <div className={styles.refillStageHeader}>
-                  <strong>1. 本次領取幾罐？</strong>
-                  <span>尚可領取 {selectedOrder.quantity} 罐</span>
+                <div className={styles.refillStepIntro}>
+                  <span>步驟 2／3</span>
+                  <strong>確認 {(returnedJarQuantity ?? 0)} 個空罐</strong>
+                  <p>依序輸入罐底 8 位數字。</p>
                 </div>
-                <div className={styles.refillQuantityStepper} aria-label="本次領取數量">
-                  <PreviewAction
-                    tone={PREVIEW_ACTION_TONES.refundCancel}
-                    disabled={pickupQuantity <= 1}
-                    onClick={() => changePickupQuantity(pickupQuantity - 1)}
-                  >
-                    −
-                  </PreviewAction>
-                  <strong aria-live="polite">{pickupQuantity} 罐</strong>
-                  <PreviewAction
-                    tone={PREVIEW_ACTION_TONES.refundCancel}
-                    disabled={pickupQuantity >= selectedOrder.quantity}
-                    onClick={() => changePickupQuantity(pickupQuantity + 1)}
-                  >
-                    ＋
-                  </PreviewAction>
-                </div>
-                <div className={styles.refillStageHeader}>
-                  <strong>2. 本次歸還幾個空罐？</strong>
-                  <span>{returnedJarQuantity === null ? '尚未選擇' : `已選 ${returnedJarQuantity} 個`}</span>
-                </div>
-                <div className={styles.refillQuantityStepper} aria-label="本次歸還空罐數量">
-                  <PreviewAction
-                    tone={PREVIEW_ACTION_TONES.refundCancel}
-                    disabled={(returnedJarQuantity ?? 0) <= 0}
-                    onClick={() => changeReturnedJarQuantity(Math.max(0, (returnedJarQuantity ?? 0) - 1))}
-                  >
-                    −
-                  </PreviewAction>
-                  <strong aria-live="polite">{returnedJarQuantity ?? 0} 個</strong>
-                  <PreviewAction
-                    tone={PREVIEW_ACTION_TONES.refundCancel}
-                    disabled={(returnedJarQuantity ?? 0) >= availableReturnJarCount}
-                    onClick={() => changeReturnedJarQuantity(Math.min(availableReturnJarCount, (returnedJarQuantity ?? 0) + 1))}
-                  >
-                    ＋
-                  </PreviewAction>
-                </div>
-                <p className={styles.hint}>最多可歸還 {availableReturnJarCount} 個會員名下的有效空罐；多歸還不會增加本次折抵。</p>
-                {returnedJarQuantity ? <p className={styles.hint}>請輸入每個空罐底下的 8 位數字。</p> : null}
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
                     const hintId = `old-jar-hint-${index}`;
                     const errorId = `old-jar-error-${index}`;
                     return (
                       <li key={index} className={styles.refillJarCard}>
-                        <label className={styles.fieldLabel} htmlFor={`preview-old-jar-serial-${index}`}>第 {index + 1} 個空罐</label>
+                        <label className={styles.fieldLabel} htmlFor={`preview-old-jar-serial-${index}`}>空罐 {index + 1}</label>
                         <div className={styles.refillJarControls}>
                           <input
                             id={`preview-old-jar-serial-${index}`}
@@ -280,14 +290,14 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
                             value={entry.value}
                             disabled={entry.verified}
                             onChange={(event) => updateSerial(index, event.target.value)}
-                            placeholder="輸入 8 位瓶底序號"
+                            placeholder="輸入罐底 8 位數字"
                             aria-describedby={entry.error ? errorId : hintId}
                           />
                           <PreviewAction tone={PREVIEW_ACTION_TONES.verifyOldJar} disabled={entry.verified} onClick={() => verifySerial(index)}>
-                            {entry.verified ? '已確認' : '確認這個空罐'}
+                            {entry.verified ? '已確認' : '確認'}
                           </PreviewAction>
                         </div>
-                        <p id={hintId} className={styles.fieldHint}>示意序號：{selectedOrder.expectedOldSerials[index]}</p>
+                        <p id={hintId} className={styles.fieldHint}>測試序號：{selectedOrder.expectedOldSerials[index]}</p>
                         {entry.error ? <p id={errorId} className={styles.errorText} role="alert">{entry.error}</p> : null}
                       </li>
                     );
@@ -296,33 +306,15 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
                 {returnedJarQuantity !== null && returnedJarQuantity > 0 && verifiedCount === returnedJarQuantity && readyToConfirm ? (
                   <>
                     <div className={styles.refillDecisionCard} role="status">
-                      <strong>不用再付錢</strong>
-                      <span>本次領取 {pickupQuantity} 罐，已歸還 {verifiedCount} 個空罐；其中 {Math.min(pickupQuantity, verifiedCount)} 個用於本次換罐{verifiedCount > pickupQuantity ? `，另回收 ${verifiedCount - pickupQuantity} 個` : ''}。</span>
+                      <strong>不需補款</strong>
+                      <span>領取 {pickupQuantity} 罐；歸還 {verifiedCount} 個空罐，其中 {Math.min(pickupQuantity, verifiedCount)} 個用於本次換罐{verifiedCount > pickupQuantity ? `，另回收 ${verifiedCount - pickupQuantity} 個` : ''}。</span>
                     </div>
-                    <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
-                      交給客人 {pickupQuantity} 罐
-                    </PreviewAction>
+                    <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>下一步：確認交付</PreviewAction>
                   </>
                 ) : returnedJarQuantity !== null && returnedJarQuantity > 0 && verifiedCount === returnedJarQuantity ? (
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>
-                    看結果
-                  </PreviewAction>
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>下一步：查看補款</PreviewAction>
                 ) : null}
-                <div className={styles.refillExceptionActions}>
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>今天先不領</PreviewAction>
-                </div>
-                <div className={styles.refillStageHeader}>
-                  <strong>需要另外購買商品？</strong>
-                  <span>另開一筆交易</span>
-                </div>
-                <PreviewAction
-                  tone={PREVIEW_ACTION_TONES.refundCancel}
-                  className={styles.actionBlock}
-                  onClick={onAddOn}
-                >
-                  前往收銀加購
-                </PreviewAction>
-                <p className={styles.quietNote}>加購商品會建立新的購物車，不會更改這筆換罐訂單。</p>
+                <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('quantity')}>返回修改數量</PreviewAction>
               </>
             ) : null}
 
