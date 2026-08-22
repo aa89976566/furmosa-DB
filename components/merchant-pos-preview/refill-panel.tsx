@@ -37,10 +37,14 @@ export function RefillPanel() {
   const [pickupQuantity, setPickupQuantity] = useState(1);
   const [returnedJarQuantity, setReturnedJarQuantity] = useState<number | null>(null);
   const [linePaymentRequested, setLinePaymentRequested] = useState(false);
+  const [remainingQuantities, setRemainingQuantities] = useState<Record<string, number>>({});
+  const [returnedOldSerials, setReturnedOldSerials] = useState<Set<string>>(new Set());
 
   function openOrder(order: RefillPreviewOrder) {
-    setSelectedOrder(order);
-    setPickupQuantity(order.quantity);
+    const remainingQuantity = remainingQuantities[order.orderId] ?? order.quantity;
+    const effectiveOrder = { ...order, quantity: remainingQuantity };
+    setSelectedOrder(effectiveOrder);
+    setPickupQuantity(remainingQuantity);
     setReturnedJarQuantity(null);
     setEntries([]);
     setTopUpPaid(false);
@@ -92,10 +96,17 @@ export function RefillPanel() {
           itemIndex === index ? { ...item, verified: false, error: '這個序號已在本次交付中使用' } : item,
         );
       }
-      if (selectedOrder.expectedOldSerials[index] !== parsed.value) {
+      if (returnedOldSerials.has(parsed.value)) {
         return current.map((item, itemIndex) =>
           itemIndex === index
-            ? { ...item, verified: false, error: '找不到可用資格，或序號不屬於此會員' }
+            ? { ...item, verified: false, error: '這個空罐已經退回過，不能重複使用' }
+            : item,
+        );
+      }
+      if (!selectedOrder.expectedOldSerials.includes(parsed.value)) {
+        return current.map((item, itemIndex) =>
+          itemIndex === index
+            ? { ...item, verified: false, error: '這不是這位會員可使用的空罐' }
             : item,
         );
       }
@@ -107,7 +118,17 @@ export function RefillPanel() {
 
   function completeDelivery() {
     if (!selectedOrder || !canConfirmRefillDelivery(selectedOrder, entries.map((entry) => entry.verified), topUpPaid, pickupQuantity)) return;
-    setCompletedOrderIds((current) => new Set(current).add(selectedOrder.orderId));
+    const remaining = selectedOrder.quantity - pickupQuantity;
+    setReturnedOldSerials((current) => {
+      const next = new Set(current);
+      entries.filter((entry) => entry.verified).forEach((entry) => next.add(entry.value));
+      return next;
+    });
+    if (remaining > 0) {
+      setRemainingQuantities((current) => ({ ...current, [selectedOrder.orderId]: remaining }));
+    } else {
+      setCompletedOrderIds((current) => new Set(current).add(selectedOrder.orderId));
+    }
     setStage('completed');
   }
 
@@ -126,7 +147,11 @@ export function RefillPanel() {
   const nextOrder = selectedOrder
     ? nextActionableRefillOrder(REFILL_PREVIEW_ORDERS, selectedOrder.orderId, completedOrderIds)
     : null;
-  const pendingOrders = actionable.filter((order) => !completedOrderIds.has(order.orderId));
+  const pendingOrders = actionable
+    .filter((order) => !completedOrderIds.has(order.orderId))
+    .map((order) => ({ ...order, quantity: remainingQuantities[order.orderId] ?? order.quantity }))
+    .filter((order) => order.quantity > 0);
+  const remainingAfterDelivery = selectedOrder ? Math.max(0, selectedOrder.quantity - pickupQuantity) : 0;
 
   return (
     <section aria-labelledby="refill-title" className="min-w-0 space-y-6">
@@ -346,11 +371,11 @@ export function RefillPanel() {
             {stage === 'completed' ? (
               <>
                 <div className={styles.refillSuccess} role="status">
-                  <strong>已完成換罐 ✓</strong>
-                  <p>預覽已完成；未扣除正式庫存、未使用真實序號，也沒有增加點數。</p>
+                  <strong>{remainingAfterDelivery > 0 ? '本次領取完成 ✓' : '已完成換罐 ✓'}</strong>
+                  <p>{remainingAfterDelivery > 0 ? `還有 ${remainingAfterDelivery} 罐保留下次領取，訂單會繼續留在待換罐清單。` : '這張訂單已全部領取完成。'}</p>
                 </div>
-                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={openNextOrder}>
-                  {nextOrder ? `處理下一筆（${nextOrder.appointmentTime}）` : '返回待換罐'}
+                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={remainingAfterDelivery > 0 ? closeOrder : openNextOrder}>
+                  {remainingAfterDelivery > 0 ? '返回待換罐' : nextOrder ? `處理下一筆（${nextOrder.appointmentTime}）` : '返回待換罐'}
                 </PreviewAction>
               </>
             ) : null}
