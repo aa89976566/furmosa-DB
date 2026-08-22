@@ -12,6 +12,12 @@ export type NetDirection = 'hq_owes_merchant' | 'merchant_owes_hq' | 'balanced';
 
 export type RefundInventoryDisposition = 'pending' | 'restock_sellable' | 'loss_unsellable' | 'none';
 
+export type RefundRequestInput = {
+  condition: 'sellable_unopened' | 'unsellable';
+  reason: string;
+  lossReason: string | null;
+};
+
 export type ProductVariant = {
   skuId: string;
   sku: string;
@@ -182,7 +188,7 @@ export type MerchantPosSession = {
   restockSubmitting: boolean;
   restockSubmitted: boolean;
   restockNotice: string | null;
-  localRefunds: Record<string, true>;
+  localRefunds: Record<string, RefundRequestInput>;
   refundNotice: string | null;
 };
 
