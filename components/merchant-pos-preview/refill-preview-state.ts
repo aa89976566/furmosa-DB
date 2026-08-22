@@ -69,7 +69,7 @@ export const REFILL_PREVIEW_ORDERS: readonly RefillPreviewOrder[] = [
     arrived: true,
     paidAmountTwd: 99,
     paymentMethod: 'LINE／綠界線上付款',
-    expectedOldSerials: ['12345678'],
+    expectedOldSerials: ['12345678', '23456789'],
   },
   {
     orderId: 'REFILL-DEMO-003',
@@ -147,7 +147,7 @@ export function canConfirmRefillDelivery(
 ): boolean {
   if (!order.paid || !order.reserved) return false;
   if (order.purchaseMode === 'first') return true;
-  if (verifiedSerials.length > pickupQuantity || order.expectedOldSerials.length < verifiedSerials.length) return false;
+  if (order.expectedOldSerials.length < verifiedSerials.length) return false;
   const verifiedCount = verifiedSerials.filter(Boolean).length;
   const pricing = refillPriceBreakdown(order, verifiedCount, pickupQuantity);
   return pricing.topUpAmountTwd === 0 ? verifiedSerials.every(Boolean) : topUpPaid;
