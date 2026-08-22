@@ -297,7 +297,7 @@ export function RefillPanel({ onAddOn }: { onAddOn: () => void }) {
                   <>
                     <div className={styles.refillDecisionCard} role="status">
                       <strong>不用再付錢</strong>
-                      <span>今天拿 {pickupQuantity} 罐，也帶了 {pickupQuantity} 個空罐。</span>
+                      <span>本次領取 {pickupQuantity} 罐，已歸還 {verifiedCount} 個空罐；其中 {Math.min(pickupQuantity, verifiedCount)} 個用於本次換罐{verifiedCount > pickupQuantity ? `，另回收 ${verifiedCount - pickupQuantity} 個` : ''}。</span>
                     </div>
                     <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
                       交給客人 {pickupQuantity} 罐
