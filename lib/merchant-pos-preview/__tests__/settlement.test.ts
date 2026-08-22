@@ -77,6 +77,16 @@ describe('merchant POS preview settlement snapshot', () => {
     assert.equal(draftOfficialCommission.direction, 'hq_owes_merchant');
     assert.equal(draftVoucher.direction, 'hq_owes_merchant');
     assert.equal(draft.netDirection, 'merchant_owes_hq');
+    const draftNextRefund = draft.ledger.find((item) => item.rowId === 'stl-draft-next-refund');
+    const draftNextCommission = draft.ledger.find((item) => item.rowId === 'stl-draft-next-commission-reversal');
+    assert.ok(draftNextRefund && draftNextCommission);
+    assert.equal(draftNextRefund.amountTwd, 480);
+    assert.equal(draftNextRefund.direction, 'hq_owes_merchant');
+    assert.equal(draftNextRefund.periodRoute, 'next_period');
+    assert.equal(draftNextCommission.amountTwd, 72);
+    assert.equal(draftNextCommission.direction, 'merchant_owes_hq');
+    assert.equal(draftNextCommission.periodRoute, 'next_period');
+    assert.match(draftNextCommission.note, /淨調整.*408/);
     assert.equal(draft.netAmountTwd, -9940);
 
     const nextPeriod = reviewing.ledger.find((item) => item.periodRoute === 'next_period');
