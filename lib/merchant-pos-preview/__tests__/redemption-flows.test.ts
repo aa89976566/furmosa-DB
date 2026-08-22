@@ -33,7 +33,7 @@ describe('merchant POS preview redemption flows', () => {
     assert.match(refill, /舊罐瓶底序號/);
     assert.match(refill, /已付款/);
     assert.match(refill, /已保留門市庫存/);
-    assert.match(refill, /門市只驗證舊罐/);
+    assert.match(refill, /門市只驗證舊罐並確認交付/);
     assert.doesNotMatch(refill, /新罐瓶底/);
   });
 });
