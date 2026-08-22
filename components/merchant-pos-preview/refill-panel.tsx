@@ -210,16 +210,16 @@ export function RefillPanel() {
         {selectedOrder ? (
           <div className={styles.drawerBody}>
             <dl className={styles.defList}>
-              <div className={styles.defRow}><dt>客人</dt><dd>{selectedOrder.petLabel} 的家人</dd></div>
+              <div className={styles.defRow}><dt>顧客</dt><dd>{selectedOrder.petLabel} 的家人</dd></div>
               <div className={styles.defRow}><dt>商品</dt><dd>{selectedOrder.productLabel}</dd></div>
-              <div className={styles.defRow}><dt>還能領</dt><dd>{selectedOrder.quantity} 罐</dd></div>
+              <div className={styles.defRow}><dt>尚可領取</dt><dd>{selectedOrder.quantity} 罐</dd></div>
             </dl>
 
             {stage === 'verify' ? (
               <>
                 <div className={styles.refillStageHeader}>
-                  <strong>1. 客人今天要拿幾罐？</strong>
-                  <span>最多 {selectedOrder.quantity} 罐</span>
+                  <strong>1. 本次領取幾罐？</strong>
+                  <span>尚可領取 {selectedOrder.quantity} 罐</span>
                 </div>
                 <div className={styles.refillExceptionActions} aria-label="本次領取數量">
                   {Array.from({ length: selectedOrder.quantity }, (_, index) => index + 1).map((quantity) => (
@@ -228,13 +228,13 @@ export function RefillPanel() {
                       tone={quantity === pickupQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
                       onClick={() => changePickupQuantity(quantity)}
                     >
-                      拿 {quantity} 罐
+                      領取 {quantity} 罐
                     </PreviewAction>
                   ))}
                 </div>
                 <div className={styles.refillStageHeader}>
-                  <strong>2. 客人今天帶幾個空罐？</strong>
-                  <span>{returnedJarQuantity === null ? '請選擇' : `${returnedJarQuantity} 個`}</span>
+                  <strong>2. 本次歸還幾個空罐？</strong>
+                  <span>{returnedJarQuantity === null ? '尚未選擇' : `已選 ${returnedJarQuantity} 個`}</span>
                 </div>
                 <div className={styles.refillExceptionActions} aria-label="帶來的空罐數量">
                   {Array.from({ length: pickupQuantity + 1 }, (_, index) => index).map((quantity) => (
@@ -243,7 +243,7 @@ export function RefillPanel() {
                       tone={quantity === returnedJarQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
                       onClick={() => changeReturnedJarQuantity(quantity)}
                     >
-                      {quantity} 個
+                      {quantity === 0 ? '沒有歸還' : `歸還 ${quantity} 個`}
                     </PreviewAction>
                   ))}
                 </div>
@@ -293,7 +293,7 @@ export function RefillPanel() {
                   </PreviewAction>
                 ) : null}
                 <div className={styles.refillExceptionActions}>
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>稍後取貨</PreviewAction>
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>今天先不領</PreviewAction>
                 </div>
               </>
             ) : null}
@@ -317,8 +317,8 @@ export function RefillPanel() {
 
             {stage === 'held_for_next_visit' ? (
               <div className={styles.confirmCard} role="status">
-                <strong>已保留下次領取（預覽）</strong>
-                <p>本次不交付、不扣除保留庫存、不改付款；正式系統需由受控流程處理保留期限。</p>
+                <strong>本次未領取（預覽）</strong>
+                <p>商品仍保留在這筆訂單中，今天不交付，也不變更付款狀態。</p>
               </div>
             ) : null}
 
@@ -375,18 +375,18 @@ export function RefillPanel() {
                   <p>{remainingAfterDelivery > 0 ? `還有 ${remainingAfterDelivery} 罐保留下次領取，訂單會繼續留在待換罐清單。` : '這張訂單已全部領取完成。'}</p>
                 </div>
                 <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={remainingAfterDelivery > 0 ? closeOrder : openNextOrder}>
-                  {remainingAfterDelivery > 0 ? '返回待換罐' : nextOrder ? `處理下一筆（${nextOrder.appointmentTime}）` : '返回待換罐'}
+                  {remainingAfterDelivery > 0 ? '返回待換罐清單' : nextOrder ? `處理下一筆（${nextOrder.appointmentTime}）` : '返回待換罐清單'}
                 </PreviewAction>
               </>
             ) : null}
 
             <p className={styles.quietNote}>
               {selectedOrder.purchaseMode === 'exchange'
-                ? '這裡只處理拿商品和收空罐。點數會在客人之後用 LINE 登記新罐時加入。'
-                : '這次不用收空罐。點數會在客人之後用 LINE 登記新罐時加入。'}
+                ? '此頁只確認本次交付與空罐回收。新罐點數會在顧客透過官方 LINE 完成登記後入帳。'
+                : '首罐不需歸還空罐。新罐點數會在顧客透過官方 LINE 完成登記後入帳。'}
             </p>
             {stage !== 'completed' ? (
-              <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={closeOrder}>返回待換罐</PreviewAction>
+              <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={closeOrder}>返回待換罐清單</PreviewAction>
             ) : null}
           </div>
         ) : null}
