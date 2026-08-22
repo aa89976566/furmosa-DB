@@ -35,19 +35,29 @@ export function RefillPanel() {
   const [completedOrderIds, setCompletedOrderIds] = useState<Set<string>>(new Set());
   const [topUpPaid, setTopUpPaid] = useState(false);
   const [pickupQuantity, setPickupQuantity] = useState(1);
+  const [returnedJarQuantity, setReturnedJarQuantity] = useState<number | null>(null);
 
   function openOrder(order: RefillPreviewOrder) {
     setSelectedOrder(order);
     setPickupQuantity(order.quantity);
-    setEntries(serialEntries(order.quantity));
+    setReturnedJarQuantity(null);
+    setEntries([]);
     setTopUpPaid(false);
     setStage(completedOrderIds.has(order.orderId) ? 'completed' : initialRefillStage(order));
   }
 
   function changePickupQuantity(quantity: number) {
     setPickupQuantity(quantity);
+    setReturnedJarQuantity(null);
+    setEntries([]);
+    setTopUpPaid(false);
+  }
+
+  function changeReturnedJarQuantity(quantity: number) {
+    setReturnedJarQuantity(quantity);
     setEntries(serialEntries(quantity));
     setTopUpPaid(false);
+    if (quantity === 0) setStage('awaiting_top_up');
   }
 
   function closeOrder() {
@@ -171,19 +181,15 @@ export function RefillPanel() {
         {selectedOrder ? (
           <div className={styles.drawerBody}>
             <dl className={styles.defList}>
-              <div className={styles.defRow}><dt>訂單</dt><dd>{selectedOrder.orderId}</dd></div>
-              <div className={styles.defRow}><dt>預約時間</dt><dd>{selectedOrder.appointmentTime}</dd></div>
-              <div className={styles.defRow}><dt>會員／寵物</dt><dd>{selectedOrder.customerLabel}／{selectedOrder.petLabel}</dd></div>
+              <div className={styles.defRow}><dt>客人</dt><dd>{selectedOrder.petLabel} 的家人</dd></div>
               <div className={styles.defRow}><dt>商品</dt><dd>{selectedOrder.productLabel}</dd></div>
-              <div className={styles.defRow}><dt>訂單剩餘</dt><dd>{selectedOrder.quantity} 罐</dd></div>
-              <div className={styles.defRow}><dt>訂單狀態</dt><dd>訂單已付款</dd></div>
-              <div className={styles.defRow}><dt>取貨方式</dt><dd>門市取貨 · 已保留 {selectedOrder.quantity} 罐</dd></div>
+              <div className={styles.defRow}><dt>還能領</dt><dd>{selectedOrder.quantity} 罐</dd></div>
             </dl>
 
             {stage === 'verify' ? (
               <>
                 <div className={styles.refillStageHeader}>
-                  <strong>1. 本次領幾罐？</strong>
+                  <strong>1. 客人今天要拿幾罐？</strong>
                   <span>最多 {selectedOrder.quantity} 罐</span>
                 </div>
                 <div className={styles.refillExceptionActions} aria-label="本次領取數量">
@@ -193,22 +199,33 @@ export function RefillPanel() {
                       tone={quantity === pickupQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
                       onClick={() => changePickupQuantity(quantity)}
                     >
-                      領 {quantity} 罐
+                      拿 {quantity} 罐
                     </PreviewAction>
                   ))}
                 </div>
                 <div className={styles.refillStageHeader}>
-                  <strong>2. 確認空罐</strong>
-                  <span>已確認 {verifiedCount}／{pickupQuantity}</span>
+                  <strong>2. 客人今天帶幾個空罐？</strong>
+                  <span>{returnedJarQuantity === null ? '請選擇' : `${returnedJarQuantity} 個`}</span>
                 </div>
-                <p className={styles.hint}>本次領取 {pickupQuantity} 罐；每領 1 罐需交回 1 個有效空罐。</p>
+                <div className={styles.refillExceptionActions} aria-label="帶來的空罐數量">
+                  {Array.from({ length: pickupQuantity + 1 }, (_, index) => index).map((quantity) => (
+                    <PreviewAction
+                      key={quantity}
+                      tone={quantity === returnedJarQuantity ? PREVIEW_ACTION_TONES.completeRefill : PREVIEW_ACTION_TONES.refundCancel}
+                      onClick={() => changeReturnedJarQuantity(quantity)}
+                    >
+                      {quantity} 個
+                    </PreviewAction>
+                  ))}
+                </div>
+                {returnedJarQuantity ? <p className={styles.hint}>請輸入每個空罐底下的 8 位數字。</p> : null}
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
                     const hintId = `old-jar-hint-${index}`;
                     const errorId = `old-jar-error-${index}`;
                     return (
                       <li key={index} className={styles.refillJarCard}>
-                        <label className={styles.fieldLabel} htmlFor={`preview-old-jar-serial-${index}`}>空罐 {index + 1}</label>
+                        <label className={styles.fieldLabel} htmlFor={`preview-old-jar-serial-${index}`}>第 {index + 1} 個空罐</label>
                         <div className={styles.refillJarControls}>
                           <input
                             id={`preview-old-jar-serial-${index}`}
@@ -222,7 +239,7 @@ export function RefillPanel() {
                             aria-describedby={entry.error ? errorId : hintId}
                           />
                           <PreviewAction tone={PREVIEW_ACTION_TONES.verifyOldJar} disabled={entry.verified} onClick={() => verifySerial(index)}>
-                            {entry.verified ? '已確認' : '驗證'}
+                            {entry.verified ? '已確認' : '確認這個空罐'}
                           </PreviewAction>
                         </div>
                         <p id={hintId} className={styles.fieldHint}>示意序號：{selectedOrder.expectedOldSerials[index]}</p>
@@ -231,21 +248,21 @@ export function RefillPanel() {
                     );
                   })}
                 </ol>
-                {readyToConfirm ? (
+                {returnedJarQuantity !== null && returnedJarQuantity > 0 && verifiedCount === returnedJarQuantity && readyToConfirm ? (
                   <>
                     <div className={styles.refillDecisionCard} role="status">
-                      <strong>空罐數量已確認</strong>
-                      <span>領 {pickupQuantity} 罐、收到 {pickupQuantity} 個空罐，本次不需補款。</span>
+                      <strong>不用再付錢</strong>
+                      <span>今天拿 {pickupQuantity} 罐，也帶了 {pickupQuantity} 個空罐。</span>
                     </div>
                     <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
-                      確認交付 {pickupQuantity} 罐
+                      交給客人 {pickupQuantity} 罐
                     </PreviewAction>
                   </>
-                ) : (
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>
-                    沒有其他空罐
+                ) : returnedJarQuantity !== null && returnedJarQuantity > 0 && verifiedCount === returnedJarQuantity ? (
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>
+                    看結果
                   </PreviewAction>
-                )}
+                ) : null}
                 <div className={styles.refillExceptionActions}>
                   <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>稍後取貨</PreviewAction>
                 </div>
@@ -279,8 +296,8 @@ export function RefillPanel() {
             {stage === 'awaiting_top_up' ? (
               <>
                 <div className={styles.refillDecisionCard} role="status">
-                  <strong>本次領 {pickupQuantity} 罐，收到 {verifiedCount} 個空罐</strong>
-                  <span>少 {pricing?.originalPriceQuantity ?? 0} 個空罐，需補款 {formatTwd(pricing?.topUpAmountTwd ?? 0)}。</span>
+                  <strong>還要收 {formatTwd(pricing?.topUpAmountTwd ?? 0)}</strong>
+                  <span>今天拿 {pickupQuantity} 罐，但只帶 {verifiedCount} 個空罐。</span>
                 </div>
                 <details className={styles.disclosure}>
                   <summary className={styles.disclosureSummary}>查看計價明細</summary>
@@ -299,10 +316,10 @@ export function RefillPanel() {
                   className={styles.actionBlock}
                   onClick={() => { setTopUpPaid(true); setStage('confirm'); }}
                 >
-                  收取 {formatTwd(pricing?.topUpAmountTwd ?? 0)}（預覽）
+                  收 {formatTwd(pricing?.topUpAmountTwd ?? 0)}，再交給客人 {pickupQuantity} 罐
                 </PreviewAction>
                 <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>
-                  返回確認空罐
+                  回去重選
                 </PreviewAction>
               </>
             ) : null}
