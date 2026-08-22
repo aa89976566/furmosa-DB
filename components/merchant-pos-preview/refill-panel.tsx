@@ -156,7 +156,7 @@ export function RefillPanel() {
       <PreviewDialog
         open={Boolean(selectedOrder)}
         titleId={`refill-order-title-${stage}`}
-        title={stage === 'completed' ? '交付完成' : stage === 'confirm' ? '確認交付' : '換罐交付'}
+        title={stage === 'completed' ? '換罐完成' : stage === 'confirm' ? '確認商品已交付？' : '辦理換罐'}
         presentation="drawer"
         onClose={closeOrder}
       >
@@ -167,17 +167,17 @@ export function RefillPanel() {
               <div className={styles.defRow}><dt>預約時間</dt><dd>{selectedOrder.appointmentTime}</dd></div>
               <div className={styles.defRow}><dt>會員／寵物</dt><dd>{selectedOrder.customerLabel}／{selectedOrder.petLabel}</dd></div>
               <div className={styles.defRow}><dt>商品</dt><dd>{selectedOrder.productLabel} × {selectedOrder.quantity}</dd></div>
-              <div className={styles.defRow}><dt>類型</dt><dd>{selectedOrder.purchaseMode === 'exchange' ? `換罐 ${formatTwd(99)}／罐` : `首罐 ${formatTwd(129)}／罐`}</dd></div>
-              <div className={styles.defRow}><dt>付款</dt><dd>{selectedOrder.paymentMethod} · 已付款 {formatTwd(selectedOrder.paidAmountTwd)}</dd></div>
-              <div className={styles.defRow}><dt>庫存</dt><dd>測試門市已保留 {selectedOrder.quantity} 罐</dd></div>
+              <div className={styles.defRow}><dt>訂單狀態</dt><dd>訂單已付款</dd></div>
+              <div className={styles.defRow}><dt>取貨方式</dt><dd>門市取貨 · 已保留 {selectedOrder.quantity} 罐</dd></div>
             </dl>
 
             {stage === 'verify' ? (
               <>
                 <div className={styles.refillStageHeader}>
-                  <strong>逐罐驗證空罐</strong>
+                  <strong>1. 確認空罐</strong>
                   <span>已確認 {verifiedCount}／{selectedOrder.quantity}</span>
                 </div>
+                <p className={styles.hint}>本筆訂單需要 {selectedOrder.quantity} 個有效空罐，請逐一輸入瓶底序號。</p>
                 <ol className={styles.refillJarList}>
                   {entries.map((entry, index) => {
                     const hintId = `old-jar-hint-${index}`;
@@ -207,27 +207,23 @@ export function RefillPanel() {
                     );
                   })}
                 </ol>
-                {pricing ? (
-                  <div className={styles.refillPriceCard} aria-label="本次價格明細">
-                    <div><span>換罐價 {formatTwd(99)} × {pricing.exchangeQuantity}</span><strong>{formatTwd(pricing.exchangeQuantity * 99)}</strong></div>
-                    <div><span>原價 {formatTwd(129)} × {pricing.originalPriceQuantity}</span><strong>{formatTwd(pricing.originalPriceQuantity * 129)}</strong></div>
-                    <div><span>本次應收</span><strong>{formatTwd(pricing.finalAmountTwd)}</strong></div>
-                    <div><span>已線上付款</span><strong>− {formatTwd(pricing.prepaidAmountTwd)}</strong></div>
-                    <div className={styles.refillPriceTotal}><span>還需補款</span><strong>{formatTwd(pricing.topUpAmountTwd)}</strong></div>
-                  </div>
-                ) : null}
                 {readyToConfirm ? (
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
-                    前往確認交付
-                  </PreviewAction>
+                  <>
+                    <div className={styles.refillDecisionCard} role="status">
+                      <strong>空罐數量已確認</strong>
+                      <span>已收到 {selectedOrder.quantity} 個空罐，本次不需補款。</span>
+                    </div>
+                    <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('confirm')}>
+                      確認交付 {selectedOrder.quantity} 罐
+                    </PreviewAction>
+                  </>
                 ) : (
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>
-                    依目前空罐數量計算差額
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('awaiting_top_up')}>
+                    沒有其他空罐
                   </PreviewAction>
                 )}
                 <div className={styles.refillExceptionActions}>
-                  <span>今天不完成交付</span>
-                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>改天再領取</PreviewAction>
+                  <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} onClick={() => setStage('held_for_next_visit')}>稍後取貨</PreviewAction>
                 </div>
               </>
             ) : null}
@@ -235,17 +231,13 @@ export function RefillPanel() {
             {stage === 'confirm' ? (
               <>
                 <div className={styles.confirmCard}>
-                  <strong>
-                    {selectedOrder.purchaseMode === 'exchange'
-                      ? `已收到 ${verifiedCount} 個空罐；${pricing?.exchangeQuantity ?? 0} 罐採換罐價、${pricing?.originalPriceQuantity ?? 0} 罐採原價。確認交付 ${selectedOrder.quantity} 罐商品？`
-                      : `確認將 ${selectedOrder.quantity} 罐商品交給 ${selectedOrder.petLabel} 的主人？`}
-                  </strong>
-                  <p>
-                    {topUpPaid ? `已顯示補款 ${formatTwd(pricing?.topUpAmountTwd ?? 0)} 成功（預覽）。` : ''}
-                    完成後代表商品已交付；門市不重複收款，也不在此處增加點數。
-                  </p>
+                  <dl className={styles.refillConfirmList}>
+                    <div><dt>交付數量</dt><dd>{selectedOrder.quantity} 罐</dd></div>
+                    <div><dt>收到空罐</dt><dd>{verifiedCount} 個</dd></div>
+                    <div><dt>補款</dt><dd>{pricing?.topUpAmountTwd ? `${formatTwd(pricing.topUpAmountTwd)}（已收款）` : '不需補款'}</dd></div>
+                  </dl>
                 </div>
-                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={completeDelivery}>確認完成交付（預覽）</PreviewAction>
+                <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={completeDelivery}>完成換罐（預覽）</PreviewAction>
                 {selectedOrder.purchaseMode === 'exchange' ? (
                   <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>返回修改序號</PreviewAction>
                 ) : null}
@@ -261,23 +253,31 @@ export function RefillPanel() {
 
             {stage === 'awaiting_top_up' ? (
               <>
-                <div className={styles.confirmCard} role="status">
-                  <strong>需補款 {formatTwd(pricing?.topUpAmountTwd ?? 0)}</strong>
-                  <p>
-                    已帶 {verifiedCount} 個空罐，其中 {pricing?.exchangeQuantity ?? 0} 罐適用換罐價；
-                    其餘 {pricing?.originalPriceQuantity ?? 0} 罐改以原價 {formatTwd(129)} 計算。
-                  </p>
-                  <p>補款成功前不可交付；正式系統須收到 LINE／綠界付款成功結果。</p>
+                <div className={styles.refillDecisionCard} role="status">
+                  <strong>尚缺 {pricing?.originalPriceQuantity ?? 0} 個空罐</strong>
+                  <span>需補款 {formatTwd(pricing?.topUpAmountTwd ?? 0)}，完成收款後才能交付商品。</span>
                 </div>
+                <details className={styles.disclosure}>
+                  <summary className={styles.disclosureSummary}>查看計價明細</summary>
+                  <div className={styles.disclosureBody}>
+                    <dl className={styles.refillConfirmList}>
+                      <div><dt>預訂數量</dt><dd>{selectedOrder.quantity} 罐</dd></div>
+                      <div><dt>已收到空罐</dt><dd>{verifiedCount} 個</dd></div>
+                      <div><dt>未提供空罐</dt><dd>{pricing?.originalPriceQuantity ?? 0} 個</dd></div>
+                      <div><dt>每缺 1 個空罐</dt><dd>補款 {formatTwd(30)}</dd></div>
+                      <div><dt>本次補款</dt><dd>{formatTwd(pricing?.topUpAmountTwd ?? 0)}</dd></div>
+                    </dl>
+                  </div>
+                </details>
                 <PreviewAction
                   tone={PREVIEW_ACTION_TONES.completeRefill}
                   className={styles.actionBlock}
                   onClick={() => { setTopUpPaid(true); setStage('confirm'); }}
                 >
-                  顯示補款成功結果（預覽）
+                  收取 {formatTwd(pricing?.topUpAmountTwd ?? 0)}（預覽）
                 </PreviewAction>
                 <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={() => setStage('verify')}>
-                  返回修改空罐數量
+                  返回確認空罐
                 </PreviewAction>
               </>
             ) : null}
@@ -285,7 +285,7 @@ export function RefillPanel() {
             {stage === 'completed' ? (
               <>
                 <div className={styles.refillSuccess} role="status">
-                  <strong>已交付 ✓</strong>
+                  <strong>已完成換罐 ✓</strong>
                   <p>預覽已完成；未扣除正式庫存、未使用真實序號，也沒有增加點數。</p>
                 </div>
                 <PreviewAction tone={PREVIEW_ACTION_TONES.completeRefill} className={styles.actionBlock} onClick={openNextOrder}>
