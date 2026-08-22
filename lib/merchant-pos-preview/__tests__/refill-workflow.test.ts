@@ -71,7 +71,9 @@ describe('merchant POS preview refill workflow', () => {
     assert.match(refill, /客人今天要拿幾罐/);
     assert.match(refill, /還能領/);
     assert.match(refill, /不用再付錢/);
-    assert.match(refill, /還要收/);
+    assert.match(refill, /需要在線上補/);
+    assert.match(refill, /請客人到官方 LINE 付款/);
+    assert.match(refill, /等待官方 LINE 回傳付款成功/);
     assert.match(refill, /完成換罐/);
     assert.match(refill, /處理下一筆/);
     assert.match(refill, /不在此處增加點數/);
