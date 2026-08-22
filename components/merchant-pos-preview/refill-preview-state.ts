@@ -23,6 +23,33 @@ export type RefillDeliveryStage =
   | 'held_for_next_visit'
   | 'awaiting_top_up';
 
+export type RefillPriceBreakdown = {
+  exchangeQuantity: number;
+  originalPriceQuantity: number;
+  finalAmountTwd: number;
+  prepaidAmountTwd: number;
+  topUpAmountTwd: number;
+};
+
+export function refillPriceBreakdown(
+  order: RefillPreviewOrder,
+  verifiedOldJarCount: number,
+): RefillPriceBreakdown {
+  const exchangeQuantity = order.purchaseMode === 'exchange'
+    ? Math.min(order.quantity, Math.max(0, verifiedOldJarCount))
+    : 0;
+  const originalPriceQuantity = order.quantity - exchangeQuantity;
+  const finalAmountTwd = exchangeQuantity * 99 + originalPriceQuantity * 129;
+
+  return {
+    exchangeQuantity,
+    originalPriceQuantity,
+    finalAmountTwd,
+    prepaidAmountTwd: order.paidAmountTwd,
+    topUpAmountTwd: Math.max(0, finalAmountTwd - order.paidAmountTwd),
+  };
+}
+
 export const REFILL_PREVIEW_ORDERS: readonly RefillPreviewOrder[] = [
   {
     orderId: 'REFILL-DEMO-001',
@@ -110,14 +137,14 @@ export function initialRefillStage(order: RefillPreviewOrder): RefillDeliverySta
 export function canConfirmRefillDelivery(
   order: RefillPreviewOrder,
   verifiedSerials: readonly boolean[],
+  topUpPaid = false,
 ): boolean {
   if (!order.paid || !order.reserved) return false;
   if (order.purchaseMode === 'first') return true;
-  return (
-    verifiedSerials.length === order.quantity &&
-    verifiedSerials.every(Boolean) &&
-    order.expectedOldSerials.length === order.quantity
-  );
+  if (verifiedSerials.length !== order.quantity || order.expectedOldSerials.length !== order.quantity) return false;
+  const verifiedCount = verifiedSerials.filter(Boolean).length;
+  const pricing = refillPriceBreakdown(order, verifiedCount);
+  return pricing.topUpAmountTwd === 0 ? verifiedSerials.every(Boolean) : topUpPaid;
 }
 
 export function nextActionableRefillOrder(
