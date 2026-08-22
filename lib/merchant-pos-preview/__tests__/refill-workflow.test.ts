@@ -60,7 +60,7 @@ describe('merchant POS preview refill workflow', () => {
 
   it('renders multi-jar, final confirmation, forgot-jar, success, and LINE-only point rules', () => {
     const refill = readFileSync(path.join(process.cwd(), 'components/merchant-pos-preview/refill-panel.tsx'), 'utf8');
-    assert.match(refill, /確認空罐/);
+    assert.match(refill, /客人今天帶幾個空罐/);
     assert.match(refill, /這個序號已在本次交付中使用/);
     assert.match(refill, /確認交付/);
     assert.match(refill, /沒有其他空罐/);
@@ -68,8 +68,10 @@ describe('merchant POS preview refill workflow', () => {
     assert.match(refill, /尚缺/);
     assert.match(refill, /收取/);
     assert.match(refill, /查看計價明細/);
-    assert.match(refill, /本次領幾罐/);
-    assert.match(refill, /訂單剩餘/);
+    assert.match(refill, /客人今天要拿幾罐/);
+    assert.match(refill, /還能領/);
+    assert.match(refill, /不用再付錢/);
+    assert.match(refill, /還要收/);
     assert.match(refill, /完成換罐/);
     assert.match(refill, /處理下一筆/);
     assert.match(refill, /不在此處增加點數/);
