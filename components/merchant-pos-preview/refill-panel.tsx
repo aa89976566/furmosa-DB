@@ -99,6 +99,7 @@ export function RefillPanel() {
   const nextOrder = selectedOrder
     ? nextActionableRefillOrder(REFILL_PREVIEW_ORDERS, selectedOrder.orderId, completedOrderIds)
     : null;
+  const pendingOrders = actionable.filter((order) => !completedOrderIds.has(order.orderId));
 
   return (
     <section aria-labelledby="refill-title" className="min-w-0 space-y-6">
@@ -108,14 +109,14 @@ export function RefillPanel() {
       </div>
 
       <div className={styles.refillQueueSummary} aria-label="待換罐摘要">
-        <span><strong>{actionable.length}</strong> 筆可處理</span>
+        <span><strong>{pendingOrders.length}</strong> 筆可處理</span>
+        {completedOrderIds.size > 0 ? <span>本次已完成 {completedOrderIds.size} 筆</span> : null}
         <span>{blocked.length} 筆付款或庫存尚未完成</span>
       </div>
 
-      <ul className={styles.recordList}>
-        {actionable.map((order) => {
-          const completed = completedOrderIds.has(order.orderId);
-          return (
+      {pendingOrders.length > 0 ? (
+        <ul className={styles.recordList}>
+          {pendingOrders.map((order) => (
             <li key={order.orderId} className={styles.recordListItem}>
               <button type="button" className={styles.recordRowButton} onClick={() => openOrder(order)}>
                 <span className={styles.recordMain}>
@@ -124,15 +125,15 @@ export function RefillPanel() {
                   <span>{order.purchaseMode === 'exchange' ? `換罐 · 需收回 ${order.quantity} 個空罐` : '首罐 · 不需回收空罐'}</span>
                 </span>
                 <span className={styles.recordSummary}>
-                  <strong>{completed ? '已交付（預覽）' : order.arrived ? '已到店' : '已付款'}</strong>
-                  <span>{completed ? '流程完成' : '已保留門市庫存'}</span>
+                  <strong>{order.arrived ? '已到店' : '已付款'}</strong>
+                  <span>已保留門市庫存</span>
                 </span>
                 <span className={styles.recordChevron} aria-hidden="true">›</span>
               </button>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      ) : <p className={styles.notice}>目前沒有待交付的首罐或換罐訂單。</p>}
 
       {blocked.length > 0 ? (
         <details className={styles.disclosure}>
@@ -255,7 +256,11 @@ export function RefillPanel() {
               </>
             ) : null}
 
-            <p className={styles.quietNote}>門市只驗證舊罐並確認交付；新罐由會員領取後在 LINE 登錄，屆時才增加點數。</p>
+            <p className={styles.quietNote}>
+              {selectedOrder.purchaseMode === 'exchange'
+                ? '門市只驗證舊罐並確認交付；新罐由會員領取後在 LINE 登錄，屆時才增加點數。'
+                : '首罐不需要驗證舊罐；會員領取後在 LINE 登錄新罐，屆時才增加點數。'}
+            </p>
             {stage !== 'completed' ? (
               <PreviewAction tone={PREVIEW_ACTION_TONES.refundCancel} className={styles.actionBlock} onClick={closeOrder}>返回待換罐</PreviewAction>
             ) : null}
