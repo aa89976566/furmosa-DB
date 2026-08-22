@@ -224,7 +224,7 @@ export function MerchantPosPreviewApp() {
       />
     );
   } else if (session.tab === 'refill') {
-    body = <RefillPanel />;
+    body = <RefillPanel onAddOn={() => setSession((current) => setTab(current, 'checkout'))} />;
   } else if (session.tab === 'restock') {
     body = (
       <RestockPanel
