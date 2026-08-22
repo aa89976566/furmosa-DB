@@ -1464,6 +1464,55 @@
   font-size: 1rem;
 }
 
+.refillDecisionCard {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-subtle);
+}
+
+.refillDecisionCard strong {
+  color: var(--preview-text);
+  font-size: 1rem;
+}
+
+.refillDecisionCard span {
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.refillConfirmList {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.refillConfirmList > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.refillConfirmList > div:last-child {
+  border-bottom: 0;
+}
+
+.refillConfirmList dt {
+  color: var(--preview-secondary);
+}
+
+.refillConfirmList dd {
+  margin: 0;
+  color: var(--preview-text);
+  font-weight: 600;
+  text-align: right;
+}
+
 .confirmCard,
 .refillSuccess {
   display: grid;
