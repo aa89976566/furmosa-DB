@@ -704,6 +704,21 @@
   overflow-wrap: anywhere;
 }
 
+.productHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.productPriceRange {
+  margin: 0;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .productSpec {
   margin: 0.2rem 0 0;
   font-size: 0.875rem;
@@ -718,17 +733,37 @@
   overflow-wrap: anywhere;
 }
 
+.selectedPriceBlock {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.125rem 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: #fafafa;
+}
+
+.selectedPriceBlock span,
+.selectedPriceBlock small { color: var(--preview-secondary); }
+.selectedPriceBlock strong {
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+.selectedPriceBlock small { grid-column: 1 / -1; }
+
 .specRow {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.5rem;
   min-width: 0;
 }
 
 .specChip {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
   min-height: 44px;
   min-width: 44px;
   padding: 0.5rem 0.75rem;
@@ -796,11 +831,30 @@
 .catalogQtyValue {
   margin: 0;
   min-width: 2.5rem;
-  text-align: center;
+  text-align: left;
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--preview-text);
   font-variant-numeric: tabular-nums;
+}
+
+.specChipLabel { min-width: 0; font-weight: 600; }
+.specChipPrice {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.specChipStatus {
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  background: #eeeeec;
+  color: var(--preview-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.specChipSelected .specChipStatus {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
 }
 
 .catalogQtyStatus {

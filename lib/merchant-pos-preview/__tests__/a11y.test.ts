@@ -46,6 +46,10 @@ describe('merchant POS preview a11y static contract', () => {
     assert.equal((stepper.match(/aria-atomic="true"/g) ?? []).length, 1);
     assert.equal(stepper.includes('<input'), false);
     assert.match(checkout, /row\.visibleVariants\.map/);
+    assert.match(checkout, /priceRange/);
+    assert.match(checkout, /specLabel=\{variant\.specLabel\}/);
+    assert.match(checkout, /priceLabel=\{priceLabel\}/);
+    assert.match(checkout, /soldOutLabel=\{SOLD_OUT_BADGE\}/);
     assert.equal(checkout.includes('availableQty === 0'), false);
     assert.equal(checkout.includes("role=\"alert\""), false);
     assert.match(cart, /skuAvailability\(/);

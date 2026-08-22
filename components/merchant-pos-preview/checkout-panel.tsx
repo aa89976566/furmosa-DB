@@ -69,9 +69,18 @@ export function CheckoutPanel({
             const selected = row.selected;
             const badge = row.stockLevel ? stockLevelLabel(row.stockLevel) : null;
             const addHintId = `add-hint-${row.product.productId}`;
+            const visiblePrices = row.visibleVariants.map((variant) => variant.listPriceTwd);
+            const lowestPrice = Math.min(...visiblePrices);
+            const highestPrice = Math.max(...visiblePrices);
+            const priceRange = lowestPrice === highestPrice
+              ? formatTwd(lowestPrice)
+              : `${formatTwd(lowestPrice)}–${formatTwd(highestPrice)}`;
             return (
               <li key={row.product.productId} className={styles.productTile}>
-                <p className={styles.productName}>{row.product.name}</p>
+                <div className={styles.productHeading}>
+                  <p className={styles.productName}>{row.product.name}</p>
+                  <p className={styles.productPriceRange} aria-label={`價格 ${priceRange}`}>{priceRange}</p>
+                </div>
                 <div className={`${styles.specRow} mt-3`}>
                   {row.visibleVariants.map((variant) => {
                     const pressed = selected?.skuId === variant.skuId;
@@ -88,21 +97,21 @@ export function CheckoutPanel({
                         soldOut={soldOut}
                         aria-label={variantLabel}
                         onClick={() => onSelectVariant(row.product.productId, variant.skuId)}
-                      >
-                        {soldOut
-                          ? `${variant.specLabel} · ${priceLabel} · ${SOLD_OUT_BADGE}`
-                          : `${variant.specLabel} · ${priceLabel}`}
-                      </PreviewSpecChip>
+                        specLabel={variant.specLabel}
+                        priceLabel={priceLabel}
+                        soldOutLabel={SOLD_OUT_BADGE}
+                      />
                     );
                   })}
                 </div>
                 {selected || row.stockLevel || row.add.showRestock ? (
                   <div className={`${styles.productMeta} mt-3`}>
                     {selected ? (
-                      <p>
-                        {LIST_PRICE_LABEL} {formatTwd(selected.listPriceTwd)} · {AVAILABLE_QTY_LABEL}{' '}
-                        {formatQty(selected.availableQty)}
-                      </p>
+                      <div className={styles.selectedPriceBlock}>
+                        <span>{LIST_PRICE_LABEL}</span>
+                        <strong>{formatTwd(selected.listPriceTwd)}</strong>
+                        <small>{AVAILABLE_QTY_LABEL} {formatQty(selected.availableQty)}</small>
+                      </div>
                     ) : null}
                     {badge ? (
                       <p

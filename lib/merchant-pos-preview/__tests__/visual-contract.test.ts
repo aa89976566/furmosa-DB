@@ -97,6 +97,10 @@ describe('merchant POS preview visual contract (source/static; not a live viewpo
     assert.match(css, /\.action\s*\{[\s\S]*min-height:\s*44px/);
     assert.match(css, /\.specChip\s*\{[\s\S]*background:\s*var\(--preview-surface\)|#ffffff/i);
     assert.match(css, /\.specChipSelected\s*\{[\s\S]*background:\s*#303030/i);
+    assert.match(css, /\.specRow\s*\{[\s\S]*display:\s*grid/i);
+    assert.match(css, /\.specChip\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto auto/i);
+    assert.match(css, /\.specChipPrice\s*\{[\s\S]*font-variant-numeric:\s*tabular-nums/i);
+    assert.match(css, /\.productPriceRange\s*\{[\s\S]*white-space:\s*nowrap/i);
     assert.match(css, /\.field\s*\{[\s\S]*border:\s*1px solid #8a8a8a/i);
     assert.match(css, /\.field:focus-visible\s*\{[\s\S]*border-color:\s*#005bd3/i);
     assert.match(css, /\.disclosureSummary::after\s*\{[\s\S]*content:\s*'⌄'/i);

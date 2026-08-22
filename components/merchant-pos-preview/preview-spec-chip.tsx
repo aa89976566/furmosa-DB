@@ -6,13 +6,17 @@ export function PreviewSpecChip({
   selected,
   soldOut,
   onClick,
-  children,
+  specLabel,
+  priceLabel,
+  soldOutLabel,
   'aria-label': ariaLabel,
 }: {
   selected: boolean;
   soldOut: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  specLabel: string;
+  priceLabel: string;
+  soldOutLabel: string;
   'aria-label'?: string;
 }) {
   return (
@@ -30,7 +34,9 @@ export function PreviewSpecChip({
         .join(' ')}
       onClick={onClick}
     >
-      {children}
+      <span className={styles.specChipLabel}>{specLabel}</span>
+      {soldOut ? <span className={styles.specChipStatus}>{soldOutLabel}</span> : null}
+      <span className={styles.specChipPrice}>{priceLabel}</span>
     </button>
   );
 }
