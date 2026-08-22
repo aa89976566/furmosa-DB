@@ -73,8 +73,8 @@ export function CheckoutPanel({
             const lowestPrice = Math.min(...visiblePrices);
             const highestPrice = Math.max(...visiblePrices);
             const priceRange = lowestPrice === highestPrice
-              ? formatTwd(lowestPrice)
-              : `${formatTwd(lowestPrice)}–${formatTwd(highestPrice)}`;
+              ? `售價 ${formatTwd(lowestPrice)}`
+              : `售價 ${formatTwd(lowestPrice)} 起`;
             return (
               <li key={row.product.productId} className={styles.productTile}>
                 <div className={styles.productHeading}>
