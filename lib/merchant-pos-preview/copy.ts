@@ -98,7 +98,7 @@ export const POINTS_REDEMPTION_SUCCESS = '美容服務券已完成核銷預覽�
 
 export const POINTS_REDEMPTION_INTRO = '驗證並核銷會員已用 10 點兌換的美容服務券。';
 export const REFILL_TITLE = '待換罐';
-export const REFILL_INTRO = '處理已付款且已保留庫存的換罐訂單。';
+export const REFILL_INTRO = '處理已付款且已保留門市庫存的首罐與換罐訂單。';
 export const SETTLEMENT_TITLE = '本期結算';
 export const SETTLEMENT_INTRO = '金額以總部結算結果為準。';
 export const SETTLEMENT_LOCKED = '已鎖定，不可重新開啟';
