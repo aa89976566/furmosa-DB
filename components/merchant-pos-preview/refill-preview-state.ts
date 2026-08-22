@@ -34,19 +34,24 @@ export type RefillPriceBreakdown = {
 export function refillPriceBreakdown(
   order: RefillPreviewOrder,
   verifiedOldJarCount: number,
+  pickupQuantity = order.quantity,
 ): RefillPriceBreakdown {
+  const quantity = Math.min(order.quantity, Math.max(1, pickupQuantity));
   const exchangeQuantity = order.purchaseMode === 'exchange'
-    ? Math.min(order.quantity, Math.max(0, verifiedOldJarCount))
+    ? Math.min(quantity, Math.max(0, verifiedOldJarCount))
     : 0;
-  const originalPriceQuantity = order.quantity - exchangeQuantity;
+  const originalPriceQuantity = quantity - exchangeQuantity;
   const finalAmountTwd = exchangeQuantity * 99 + originalPriceQuantity * 129;
+  const prepaidAmountTwd = order.purchaseMode === 'exchange'
+    ? Math.min(order.paidAmountTwd, quantity * 99)
+    : Math.min(order.paidAmountTwd, quantity * 129);
 
   return {
     exchangeQuantity,
     originalPriceQuantity,
     finalAmountTwd,
-    prepaidAmountTwd: order.paidAmountTwd,
-    topUpAmountTwd: Math.max(0, finalAmountTwd - order.paidAmountTwd),
+    prepaidAmountTwd,
+    topUpAmountTwd: Math.max(0, finalAmountTwd - prepaidAmountTwd),
   };
 }
 
@@ -138,12 +143,13 @@ export function canConfirmRefillDelivery(
   order: RefillPreviewOrder,
   verifiedSerials: readonly boolean[],
   topUpPaid = false,
+  pickupQuantity = order.quantity,
 ): boolean {
   if (!order.paid || !order.reserved) return false;
   if (order.purchaseMode === 'first') return true;
-  if (verifiedSerials.length !== order.quantity || order.expectedOldSerials.length !== order.quantity) return false;
+  if (verifiedSerials.length !== pickupQuantity || order.expectedOldSerials.length < pickupQuantity) return false;
   const verifiedCount = verifiedSerials.filter(Boolean).length;
-  const pricing = refillPriceBreakdown(order, verifiedCount);
+  const pricing = refillPriceBreakdown(order, verifiedCount, pickupQuantity);
   return pricing.topUpAmountTwd === 0 ? verifiedSerials.every(Boolean) : topUpPaid;
 }
 
