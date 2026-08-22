@@ -312,20 +312,24 @@ export function restockCandidates() {
 
 export function visibleSales(session: MerchantPosSession): SaleSnapshot[] {
   return SALES.map((sale) => {
-    if (!session.localRefunds[sale.saleId]) return sale;
+    const request = session.localRefunds[sale.saleId];
+    if (!request) return sale;
+    const sellable = request.condition === 'sellable_unopened';
     return {
       ...sale,
       canMerchantRequestRefund: false,
       refund: sale.refund ?? {
         status: 'requested',
         statusLabel: '已提出退款申請',
-        note: '門市已提出退款申請，等待總部審核。此頁沒有審核按鈕。',
+        note: `退款原因：${request.reason}。門市已送總部審核，不能自行完成退款。`,
         nextPeriodNote: null,
-        inventoryNote: '庫存處置由總部結果決定。',
+        inventoryNote: sellable
+          ? '門市回報未拆封且可再販售；須總部核准後才加回可售庫存。'
+          : '門市回報不可再販售；退款後不加回可售庫存。',
         commissionNote: '佣金回沖以總部結算結果為準。',
         inventoryDisposition: 'pending',
-        conditionLabel: null,
-        lossReason: null,
+        conditionLabel: sellable ? '未拆封、狀況良好、可再販售' : '已拆封、破損、變質或不可再販售',
+        lossReason: request.lossReason,
         sellableStockReturned: false,
         settledInLockedPeriod: false,
       },
