@@ -1364,6 +1364,92 @@
   gap: 1rem;
 }
 
+.refillQueueSummary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+}
+
+.refillQueueSummary strong {
+  color: var(--preview-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.refillStageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+
+.refillStageHeader span {
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.refillJarList {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refillJarCard {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.875rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-subtle);
+}
+
+.refillJarControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.5rem;
+}
+
+.refillExceptionActions {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--preview-border);
+}
+
+.refillExceptionActions > span {
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+}
+
+.confirmCard,
+.refillSuccess {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--preview-border);
+  border-radius: var(--preview-radius);
+  background: var(--preview-subtle);
+}
+
+.confirmCard p,
+.refillSuccess p {
+  margin: 0;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.refillSuccess strong {
+  font-size: 1.125rem;
+}
+
 .drawerSummary {
   display: grid;
   gap: 0.35rem;
