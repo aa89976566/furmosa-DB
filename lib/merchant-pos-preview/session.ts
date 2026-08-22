@@ -19,7 +19,7 @@ import {
   restockCandidates,
   skuAvailability,
 } from './selectors';
-import type { CartLine, DemoReceipt, MerchantPosSession, TabId } from './types';
+import type { CartLine, DemoReceipt, MerchantPosSession, RefundRequestInput, TabId } from './types';
 import { parseCartQtyInput, parsePositiveIntQty } from './validators';
 
 function makeCartLine(skuId: string, qty: number, listPriceTwd: number): CartLine {
@@ -373,7 +373,7 @@ export function closeRefundConfirm(session: MerchantPosSession): MerchantPosSess
   return { ...session, refundConfirmSaleId: null };
 }
 
-export function requestDemoRefund(session: MerchantPosSession, saleId: string): MerchantPosSession {
+export function requestDemoRefund(session: MerchantPosSession, saleId: string, input: RefundRequestInput): MerchantPosSession {
   if (session.localRefunds[saleId]) {
     return { ...session, refundConfirmSaleId: null, refundNotice: REFUND_ALREADY };
   }
@@ -381,7 +381,7 @@ export function requestDemoRefund(session: MerchantPosSession, saleId: string): 
   return {
     ...session,
     refundConfirmSaleId: null,
-    localRefunds: { ...session.localRefunds, [saleId]: true },
+    localRefunds: { ...session.localRefunds, [saleId]: input },
     refundNotice: REFUND_SUCCESS,
   };
 }
