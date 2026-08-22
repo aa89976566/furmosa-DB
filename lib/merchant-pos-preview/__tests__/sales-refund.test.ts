@@ -50,12 +50,24 @@ describe('merchant POS preview sales and refunds', () => {
 
   it('dedupes a local requested refund', () => {
     let session = createSession();
-    session = requestDemoRefund(session, 'sale-cash-open');
+    session = requestDemoRefund(session, 'sale-cash-open', {
+      condition: 'unsellable',
+      reason: '顧客反映商品變質',
+      lossReason: '內容受潮，不可再販售',
+    });
     const first = visibleSales(session).find((sale) => sale.saleId === 'sale-cash-open');
     assert.equal(first?.refund?.status, 'requested');
     assert.equal(first?.canMerchantRequestRefund, false);
 
-    const again = requestDemoRefund(session, 'sale-cash-open');
+    assert.equal(session.localRefunds['sale-cash-open']?.condition, 'unsellable');
+    assert.equal(session.localRefunds['sale-cash-open']?.lossReason, '內容受潮，不可再販售');
+    assert.match(first?.refund?.inventoryNote ?? '', /不加回可售庫存/);
+
+    const again = requestDemoRefund(session, 'sale-cash-open', {
+      condition: 'sellable_unopened',
+      reason: '重複申請',
+      lossReason: null,
+    });
     assert.match(again.refundNotice ?? '', /不能重複送出/);
     assert.equal(Object.keys(again.localRefunds).length, 1);
   });
