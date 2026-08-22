@@ -1764,3 +1764,52 @@
   font-size: 1.25rem;
   font-variant-numeric: tabular-nums;
 }
+
+.refillTaskCard {
+  overflow: hidden;
+  border: 1px solid var(--preview-border);
+  border-radius: 12px;
+  background: var(--preview-surface);
+}
+.refillTaskRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+.refillTaskRow + .refillTaskRow { border-top: 1px solid var(--preview-border); }
+.refillTaskRow > div:first-child { display: grid; gap: 0.25rem; }
+.refillTaskRow span { color: var(--preview-secondary); font-size: 0.875rem; }
+.refillCompactStepper {
+  display: grid;
+  grid-template-columns: 2.75rem 2.5rem 2.75rem;
+  align-items: center;
+  gap: 0.375rem;
+}
+.refillCompactStepper > strong {
+  text-align: center;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+.refillSelectionSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 0.25rem;
+  color: var(--preview-secondary);
+  font-size: 0.875rem;
+}
+.refillStepIntro { display: grid; gap: 0.25rem; }
+.refillStepIntro > span {
+  color: var(--preview-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.refillStepIntro > strong { font-size: 1.125rem; }
+.refillStepIntro > p { margin: 0; color: var(--preview-secondary); font-size: 0.875rem; }
+@media (max-width: 520px) {
+  .refillTaskRow { grid-template-columns: minmax(0, 1fr); }
+  .refillCompactStepper { grid-template-columns: 1fr 3rem 1fr; }
+  .refillSelectionSummary { flex-direction: column; gap: 0.25rem; }
+}
