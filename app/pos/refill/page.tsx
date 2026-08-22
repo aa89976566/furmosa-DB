@@ -64,6 +64,9 @@ export default async function PosRefillListPage() {
                           <p className="text-sm text-muted-foreground">
                             {o.productLabel} · {statusLabel(o.status, o.paid)}
                           </p>
+                          <p className="text-xs text-muted-foreground">
+                            尚可領取 {o.remainingQuantity}／{o.quantity} 罐
+                          </p>
                           {o.missingContainerNote ? (
                             <p className="mt-1 text-xs text-amber-700">{o.missingContainerNote}</p>
                           ) : null}

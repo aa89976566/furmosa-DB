@@ -177,6 +177,21 @@ export async function handleEcpayCallback(
           },
         });
       }
+    } else if (payment.purpose === 'fulfillment_topup') {
+      if (refill.status === 'awaiting_extra_payment') {
+        assertTransition('awaiting_extra_payment', 'paid_waiting_return');
+        await tx.refillOrder.update({
+          where: { id: refill.id },
+          data: {
+            status: 'paid_waiting_return',
+            extraAmount: { increment: payment.amount },
+            totalAmount: { increment: payment.amount },
+            missingContainerNote: refill.missingContainerNote
+              ? `${refill.missingContainerNote}；官方 LINE 已完成補款`
+              : `官方 LINE 已補款 NT$${payment.amount}`,
+          },
+        });
+      }
     }
 
     await writeRefillAudit(tx, {

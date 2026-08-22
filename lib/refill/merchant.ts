@@ -31,6 +31,20 @@ export async function listMerchantRefillOrders(merchantId: string) {
         where: { status: 'paid' },
         select: { amount: true, purpose: true },
       },
+      fulfillments: {
+        where: { status: 'completed' },
+        orderBy: { completedAt: 'desc' },
+        select: {
+          id: true,
+          pickupQuantity: true,
+          returnedQuantity: true,
+          exchangeQuantity: true,
+          originalPriceQuantity: true,
+          extraReturnQuantity: true,
+          finalAmount: true,
+          completedAt: true,
+        },
+      },
     },
   });
 
@@ -46,6 +60,10 @@ export async function listMerchantRefillOrders(merchantId: string) {
     time: formatLocalTime(o.appointment.startsAt),
     startsAt: o.appointment.startsAt.toISOString(),
     paid: Boolean(o.paidAt) || o.payments.length > 0,
+    quantity: o.quantity,
+    fulfilledQuantity: o.fulfilledQuantity,
+    remainingQuantity: Math.max(0, o.quantity - o.fulfilledQuantity),
+    fulfillments: o.fulfillments,
     oldContainerSerial: o.oldContainerSerial,
     newContainerSerial: o.newContainerSerial,
     missingContainerNote: o.missingContainerNote,

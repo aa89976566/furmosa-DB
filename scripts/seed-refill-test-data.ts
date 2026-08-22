@@ -14,7 +14,7 @@
  *   - 會員 B（小花，無空罐 → NT$129）
  *   - 未來已確認預約 ×2
  *   - 固定序號：已發出／倉庫未使用
- *   - 一筆已付款待收空罐訂單（方便直接測 POS）
+ *   - 一筆 2 罐、已付款待收空罐訂單（方便測部分領取與額外回收）
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -328,7 +328,7 @@ async function ensurePaidWaitingOrder(
     productId: string;
   },
 ) {
-  const idem = `refill-test-paid:${input.customerId}:${input.appointmentId}`;
+  const idem = `refill-test-paid-v2:${input.customerId}:${input.appointmentId}`;
   const existing = await prisma.refillOrder.findUnique({
     where: { idempotencyKey: idem },
   });
@@ -339,9 +339,10 @@ async function ensurePaidWaitingOrder(
         status: 'paid_waiting_return',
         orderType: 'exchange',
         deliveryMode: 'exchange',
-        baseAmount: 99,
+        baseAmount: 198,
         extraAmount: 0,
-        totalAmount: 99,
+        totalAmount: 198,
+        quantity: 2,
         paidAt: new Date(),
         oldContainerSerial: null,
         newContainerSerial: null,
@@ -363,9 +364,10 @@ async function ensurePaidWaitingOrder(
       productId: input.productId,
       orderType: 'exchange',
       deliveryMode: 'exchange',
-      baseAmount: 99,
+      baseAmount: 198,
       extraAmount: 0,
-      totalAmount: 99,
+      totalAmount: 198,
+      quantity: 2,
       status: 'paid_waiting_return',
       paidAt: new Date(),
       idempotencyKey: idem,
@@ -378,7 +380,7 @@ async function ensurePaidWaitingOrder(
       purpose: 'refill',
       provider: 'ecpay',
       merchantTradeNo: `TEST${Date.now().toString(36).toUpperCase()}`.slice(0, 20),
-      amount: 99,
+      amount: 198,
       status: 'paid',
       paidAt: new Date(),
       providerTradeNo: 'SEED-TEST',
@@ -559,8 +561,9 @@ async function main() {
     console.log(`  ${CODES.unused1} ${CODES.unused2} ${CODES.unused3} ${CODES.unused4}`);
     console.log('');
     console.log('—— POS 可直接測 ——');
-    console.log(`  已付款待收空罐訂單：${paidOrder.id}`);
-    console.log(`  建議流程：輸舊罐 ${CODES.issuedA1} → 新罐 ${CODES.unused1} → 完成`);
+    console.log(`  已付款待交付 2 罐訂單：${paidOrder.id}`);
+    console.log(`  情境 A：領 1、還 1（${CODES.issuedA1}）→ 不需補款，剩 1 罐待領`);
+    console.log(`  情境 B：領 1、還 2（${CODES.issuedA1}、${CODES.issuedA2}）→ 額外回收 1，不需補款`);
     console.log('');
     console.log('—— LIFF ——');
     console.log('  /liff/refill 需 LINE 綁定會員。可：');

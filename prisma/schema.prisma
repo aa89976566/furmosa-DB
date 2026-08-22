@@ -103,12 +103,12 @@ model Customer {
   gender   String? // female / male / other / unknown
 
   // 毛孩（與主檔會員一對一；選填，見 lib/customers/pet-fields.ts）
-  petSpecies       String?   @map("pet_species") // dog / cat / rabbit / … / other
-  petSpeciesOther  String?   @map("pet_species_other")
-  petName          String?   @map("pet_name")
-  petBreed         String?   @map("pet_breed")
-  petAgeYears      Int?      @map("pet_age_years")
-  petBirthday      DateTime? @map("pet_birthday")
+  petSpecies      String?   @map("pet_species") // dog / cat / rabbit / … / other
+  petSpeciesOther String?   @map("pet_species_other")
+  petName         String?   @map("pet_name")
+  petBreed        String?   @map("pet_breed")
+  petAgeYears     Int?      @map("pet_age_years")
+  petBirthday     DateTime? @map("pet_birthday")
 
   // 換罐計畫開戶店家（LINE 開戶時選填，永久綁定）
   signupStore String? @map("signup_store")
@@ -132,15 +132,15 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders              Order[]
-  subscriptions       Subscription[]
-  shipments           Shipment[]
-  services            CustomerService[]
-  jarCodesRedeemed    JarCode[]              @relation("JarCodesRedeemed")
-  pointsLedger        MemberPointsLedger[]
-  rewardRedemptions   RewardRedemption[]
-  marketingCosts      MarketingCostRecord[]
-  groomingCoupons     GroomingCoupon[]
+  orders            Order[]
+  subscriptions     Subscription[]
+  shipments         Shipment[]
+  services          CustomerService[]
+  jarCodesRedeemed  JarCode[]             @relation("JarCodesRedeemed")
+  pointsLedger      MemberPointsLedger[]
+  rewardRedemptions RewardRedemption[]
+  marketingCosts    MarketingCostRecord[]
+  groomingCoupons   GroomingCoupon[]
 
   @@index([hasActiveSubscription])
   @@index([lastOrderAt])
@@ -162,13 +162,13 @@ model LineChatSession {
 
 // 記錄每個 LINE 用戶最後一次收到主選單的時間，用來在 24 小時內避免重複洗版選單
 model LineMenuState {
-  lineUserId            String    @id
-  lastMenuSentAt        DateTime  @default(now())
-  lastRegisterPromptAt  DateTime?
-  lastJarPromptAt       DateTime?
-  lastUnknownReplyAt    DateTime?
-  triggerReplyAt        Json?
-  updatedAt             DateTime  @updatedAt
+  lineUserId           String    @id
+  lastMenuSentAt       DateTime  @default(now())
+  lastRegisterPromptAt DateTime?
+  lastJarPromptAt      DateTime?
+  lastUnknownReplyAt   DateTime?
+  triggerReplyAt       Json?
+  updatedAt            DateTime  @updatedAt
 }
 
 // =====================================================
@@ -200,27 +200,28 @@ model CustomerService {
 /// - unused → issued → returned：換罐交付生命週期（NT$99 資格看 issued）
 /// - expired：作廢
 model JarCode {
-  id                   String    @id @default(cuid())
-  code                 String    @unique
-  batchNo              String?   @map("batch_no")
-  productSku           String?   @map("product_sku")
-  pointValue           Int       @default(1) @map("point_value")
+  id                    String    @id @default(cuid())
+  code                  String    @unique
+  batchNo               String?   @map("batch_no")
+  productSku            String?   @map("product_sku")
+  pointValue            Int       @default(1) @map("point_value")
   /// unused | issued | returned | used | expired
-  status               String    @default("unused")
-  redeemedByCustomerId String?   @map("redeemed_by_customer_id")
-  redeemedAt           DateTime? @map("redeemed_at")
-  issuedAt             DateTime? @map("issued_at")
-  returnedAt           DateTime? @map("returned_at")
-  issuedMerchantId     String?   @map("issued_merchant_id")
-  returnedMerchantId   String?   @map("returned_merchant_id")
+  status                String    @default("unused")
+  redeemedByCustomerId  String?   @map("redeemed_by_customer_id")
+  redeemedAt            DateTime? @map("redeemed_at")
+  issuedAt              DateTime? @map("issued_at")
+  returnedAt            DateTime? @map("returned_at")
+  issuedMerchantId      String?   @map("issued_merchant_id")
+  returnedMerchantId    String?   @map("returned_merchant_id")
   /// 進行中／已占用此舊罐的換罐訂單
-  lockedByRefillOrderId String?  @map("locked_by_refill_order_id")
-  createdAt            DateTime  @default(now()) @map("created_at")
+  lockedByRefillOrderId String?   @map("locked_by_refill_order_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
-  redeemedByCustomer Customer?    @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
-  issuedMerchant     Merchant?    @relation("JarCodesIssuedAt", fields: [issuedMerchantId], references: [id], onDelete: SetNull)
-  returnedMerchant   Merchant?    @relation("JarCodesReturnedAt", fields: [returnedMerchantId], references: [id], onDelete: SetNull)
-  lockedByRefillOrder RefillOrder? @relation("JarCodeLockedByRefill", fields: [lockedByRefillOrderId], references: [id], onDelete: SetNull)
+  redeemedByCustomer  Customer?              @relation("JarCodesRedeemed", fields: [redeemedByCustomerId], references: [id], onDelete: SetNull)
+  issuedMerchant      Merchant?              @relation("JarCodesIssuedAt", fields: [issuedMerchantId], references: [id], onDelete: SetNull)
+  returnedMerchant    Merchant?              @relation("JarCodesReturnedAt", fields: [returnedMerchantId], references: [id], onDelete: SetNull)
+  lockedByRefillOrder RefillOrder?           @relation("JarCodeLockedByRefill", fields: [lockedByRefillOrderId], references: [id], onDelete: SetNull)
+  fulfillmentEntries  RefillFulfillmentJar[]
 
   @@index([status])
   @@index([batchNo])
@@ -267,6 +268,10 @@ model RefillOrder {
   baseAmount             Int       @map("base_amount")
   extraAmount            Int       @default(0) @map("extra_amount")
   totalAmount            Int       @map("total_amount")
+  /// 訂單可交付總數；舊資料預設 1
+  quantity               Int       @default(1)
+  /// 已完成交付數，可支援分次領取
+  fulfilledQuantity      Int       @default(0) @map("fulfilled_quantity")
   /// draft | payment_pending | paid_waiting_return | old_container_verified | completed | payment_failed | cancelled | expired | awaiting_extra_payment
   status                 String
   /// exchange | first（補差額後改 first，可不驗舊罐）
@@ -283,19 +288,79 @@ model RefillOrder {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
-  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  appointment Appointment    @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  merchant    Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  product     Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
-  payments    PaymentOrder[]
-  auditLogs   RefillAuditLog[]
-  lockedJarCodes JarCode[]   @relation("JarCodeLockedByRefill")
+  customer       Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  appointment    Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  merchant       Merchant            @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  product        Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payments       PaymentOrder[]
+  auditLogs      RefillAuditLog[]
+  fulfillments   RefillFulfillment[]
+  lockedJarCodes JarCode[]           @relation("JarCodeLockedByRefill")
 
   @@index([customerId, status])
   @@index([merchantId, status])
   @@index([appointmentId])
   @@index([status, createdAt])
   @@map("refill_orders")
+}
+
+/// POS 每次實際交付；一筆訂單可分多次領取。
+/// 金額一律使用新台幣整數，避免 Float 精度影響結算。
+model RefillFulfillment {
+  id                     String   @id @default(cuid())
+  refillOrderId          String   @map("refill_order_id")
+  merchantId             String   @map("merchant_id")
+  operatorMerchantUserId String   @map("operator_merchant_user_id")
+  idempotencyKey         String   @unique @map("idempotency_key")
+  pickupQuantity         Int      @map("pickup_quantity")
+  returnedQuantity       Int      @map("returned_quantity")
+  exchangeQuantity       Int      @map("exchange_quantity")
+  originalPriceQuantity  Int      @map("original_price_quantity")
+  extraReturnQuantity    Int      @map("extra_return_quantity")
+  exchangeUnitPrice      Int      @default(99) @map("exchange_unit_price")
+  originalUnitPrice      Int      @default(129) @map("original_unit_price")
+  finalAmount            Int      @map("final_amount")
+  prepaidAmount          Int      @map("prepaid_amount")
+  topUpAmount            Int      @default(0) @map("top_up_amount")
+  /// completed | cancelled
+  status                 String   @default("completed")
+  completedAt            DateTime @default(now()) @map("completed_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  refillOrder RefillOrder            @relation(fields: [refillOrderId], references: [id], onDelete: Restrict)
+  merchant    Merchant               @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  operator    MerchantUser           @relation(fields: [operatorMerchantUserId], references: [id], onDelete: Restrict)
+  jars        RefillFulfillmentJar[]
+  stockTxns   MerchantStockTxn[]
+
+  @@index([refillOrderId, createdAt])
+  @@index([merchantId, completedAt])
+  @@index([operatorMerchantUserId, completedAt])
+  @@map("refill_fulfillments")
+}
+
+/// 每次交付的逐罐紀錄。
+/// 舊罐必須有序號；新罐先記 pending_line_registration，由顧客在官方 LINE 登記。
+model RefillFulfillmentJar {
+  id            String   @id @default(cuid())
+  fulfillmentId String   @map("fulfillment_id")
+  jarCodeId     String?  @map("jar_code_id")
+  /// returned_old | issued_new
+  role          String
+  sequence      Int
+  serial        String?
+  /// accepted | pending_line_registration | registered
+  status        String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  fulfillment RefillFulfillment @relation(fields: [fulfillmentId], references: [id], onDelete: Cascade)
+  jarCode     JarCode?          @relation(fields: [jarCodeId], references: [id], onDelete: SetNull)
+
+  @@unique([fulfillmentId, role, sequence])
+  @@unique([fulfillmentId, serial])
+  @@index([jarCodeId])
+  @@index([status, createdAt])
+  @@map("refill_fulfillment_jars")
 }
 
 model PaymentOrder {
@@ -346,21 +411,21 @@ model RefillAuditLog {
 }
 
 model RewardCatalog {
-  id                  String    @id @default(cuid())
-  rewardCode          String    @unique @map("reward_code")
-  rewardName          String    @map("reward_name")
-  rewardType          String    @default("grooming_coupon") @map("reward_type")
-  pointsRequired      Int       @map("points_required")
-  couponFaceValue     Float     @map("coupon_face_value")
-  internalCost        Float     @map("internal_cost")
-  partnerMerchantId   String?   @map("partner_merchant_id")
-  activeStatus        String    @default("active") @map("active_status") // active | inactive
-  startAt             DateTime? @map("start_at")
-  endAt               DateTime? @map("end_at")
-  description         String?
-  sortOrder           Int       @default(0) @map("sort_order")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(cuid())
+  rewardCode        String    @unique @map("reward_code")
+  rewardName        String    @map("reward_name")
+  rewardType        String    @default("grooming_coupon") @map("reward_type")
+  pointsRequired    Int       @map("points_required")
+  couponFaceValue   Float     @map("coupon_face_value")
+  internalCost      Float     @map("internal_cost")
+  partnerMerchantId String?   @map("partner_merchant_id")
+  activeStatus      String    @default("active") @map("active_status") // active | inactive
+  startAt           DateTime? @map("start_at")
+  endAt             DateTime? @map("end_at")
+  description       String?
+  sortOrder         Int       @default(0) @map("sort_order")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   partnerMerchant Merchant?          @relation("RewardPartnerMerchant", fields: [partnerMerchantId], references: [id], onDelete: SetNull)
   redemptions     RewardRedemption[]
@@ -370,19 +435,19 @@ model RewardCatalog {
 }
 
 model RewardRedemption {
-  id                  String    @id @default(cuid())
-  redemptionCode      String    @unique @map("redemption_code")
-  customerId          String    @map("customer_id")
-  rewardId            String    @map("reward_id")
-  pointsSpent         Int       @map("points_spent")
-  couponCode          String?   @map("coupon_code")
-  couponStatus        String    @default("issued") @map("coupon_status") // issued | used | cancelled
-  issuedAt            DateTime  @default(now()) @map("issued_at")
-  usedAt              DateTime? @map("used_at")
-  partnerMerchantId   String?   @map("partner_merchant_id")
-  costBookedStatus    String    @default("booked") @map("cost_booked_status") // pending | booked | void
-  note                String?
-  createdAt           DateTime  @default(now()) @map("created_at")
+  id                String    @id @default(cuid())
+  redemptionCode    String    @unique @map("redemption_code")
+  customerId        String    @map("customer_id")
+  rewardId          String    @map("reward_id")
+  pointsSpent       Int       @map("points_spent")
+  couponCode        String?   @map("coupon_code")
+  couponStatus      String    @default("issued") @map("coupon_status") // issued | used | cancelled
+  issuedAt          DateTime  @default(now()) @map("issued_at")
+  usedAt            DateTime? @map("used_at")
+  partnerMerchantId String?   @map("partner_merchant_id")
+  costBookedStatus  String    @default("booked") @map("cost_booked_status") // pending | booked | void
+  note              String?
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   customer        Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
   reward          RewardCatalog        @relation(fields: [rewardId], references: [id], onDelete: Restrict)
@@ -455,41 +520,42 @@ model GroomingCoupon {
 }
 
 model Merchant {
-  id             String   @id @default(cuid())
-  merchantId     String   @unique // MER-0001
-  name           String
-  type           String   @default("consignment") // 主要類型（複選時取第一項）
-  types          String[] @default(["consignment"]) // consignment / pop_up / flagship / partner / jar_exchange
-  industry       String? // beauty / restaurant / cafe / hypermarket
-  contactName    String?
-  phone          String?
-  email          String?
-  address        String? // 黑貓／宅配收件地址
-  city           String?
+  id               String   @id @default(cuid())
+  merchantId       String   @unique // MER-0001
+  name             String
+  type             String   @default("consignment") // 主要類型（複選時取第一項）
+  types            String[] @default(["consignment"]) // consignment / pop_up / flagship / partner / jar_exchange
+  industry         String? // beauty / restaurant / cafe / hypermarket
+  contactName      String?
+  phone            String?
+  email            String?
+  address          String? // 黑貓／宅配收件地址
+  city             String?
   // 進貨預設運輸（建立出貨單時自動帶入）
   preferredCarrier String? // 7-11 / 黑貓 / 送貨
   pickupStoreName  String? // 7-11 取件門市名稱
-  commissionRate Float    @default(0.30) // fallback；個別商品仍以 MerchantProductRule 為準
-  notes          String?
-  status         String   @default("active")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  commissionRate   Float    @default(0.30) // fallback；個別商品仍以 MerchantProductRule 為準
+  notes            String?
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  orders                 Order[]
-  settlements            Settlement[]
-  productRules           MerchantProductRule[]
-  partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
-  partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
-  stocks       MerchantStock[]
-  stockTxns    MerchantStockTxn[]
-  shipments    Shipment[]
-  users        MerchantUser[]
-  settings     MerchantSettings?
-  restockRequests RestockRequest[]
-  appointments Appointment[]
-  refillOrders RefillOrder[]
-  jarCodesIssued   JarCode[] @relation("JarCodesIssuedAt")
-  jarCodesReturned JarCode[] @relation("JarCodesReturnedAt")
+  orders             Order[]
+  settlements        Settlement[]
+  productRules       MerchantProductRule[]
+  partnerRewards     RewardCatalog[]       @relation("RewardPartnerMerchant")
+  partnerRedemptions RewardRedemption[]    @relation("RedemptionPartnerMerchant")
+  stocks             MerchantStock[]
+  stockTxns          MerchantStockTxn[]
+  shipments          Shipment[]
+  users              MerchantUser[]
+  settings           MerchantSettings?
+  restockRequests    RestockRequest[]
+  appointments       Appointment[]
+  refillOrders       RefillOrder[]
+  refillFulfillments RefillFulfillment[]
+  jarCodesIssued     JarCode[]             @relation("JarCodesIssuedAt")
+  jarCodesReturned   JarCode[]             @relation("JarCodesReturnedAt")
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
@@ -521,39 +587,39 @@ model MerchantSettings {
 
 /// Booking MVP：顧客預約店（Merchant），不是預約某位美容師
 model Appointment {
-  id                 String    @id @default(cuid())
-  merchantId         String    @map("merchant_id")
-  customerId         String    @map("customer_id")
-  serviceProductId   String?   @map("service_product_id")
-  serviceName        String    @map("service_name")
-  petName            String?   @map("pet_name")
-  startsAt           DateTime  @map("starts_at")
-  endsAt             DateTime  @map("ends_at")
+  id                      String    @id @default(cuid())
+  merchantId              String    @map("merchant_id")
+  customerId              String    @map("customer_id")
+  serviceProductId        String?   @map("service_product_id")
+  serviceName             String    @map("service_name")
+  petName                 String?   @map("pet_name")
+  startsAt                DateTime  @map("starts_at")
+  endsAt                  DateTime  @map("ends_at")
   /// requested | confirmed | reschedule_proposed | cancelled
-  status             String    @default("requested")
-  customerNote       String?   @map("customer_note")
-  merchantNote       String?   @map("merchant_note")
-  proposedStartsAt   DateTime? @map("proposed_starts_at")
-  proposedEndsAt     DateTime? @map("proposed_ends_at")
+  status                  String    @default("requested")
+  customerNote            String?   @map("customer_note")
+  merchantNote            String?   @map("merchant_note")
+  proposedStartsAt        DateTime? @map("proposed_starts_at")
+  proposedEndsAt          DateTime? @map("proposed_ends_at")
   /// customer | merchant | hq
-  createdBy          String    @map("created_by")
+  createdBy               String    @map("created_by")
   /// 店家／HQ 手動寫入已滿時段時為 true（顧客端永不因此看到該格）
-  isOverbooked       Boolean   @default(false) @map("is_overbooked")
-  confirmedAt        DateTime? @map("confirmed_at")
-  cancelledAt        DateTime? @map("cancelled_at")
+  isOverbooked            Boolean   @default(false) @map("is_overbooked")
+  confirmedAt             DateTime? @map("confirmed_at")
+  cancelledAt             DateTime? @map("cancelled_at")
   /// LINE 通知冪等：已處理（成功或略過無收件人）後寫入，避免 cron／重試重送
   lineNotifyReceivedAt    DateTime? @map("line_notify_received_at")
   lineNotifyMerchantNewAt DateTime? @map("line_notify_merchant_new_at")
   lineNotifyConfirmedAt   DateTime? @map("line_notify_confirmed_at")
   lineReminder1dAt        DateTime? @map("line_reminder_1d_at")
   lineReminder2hAt        DateTime? @map("line_reminder_2h_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  serviceProduct Product? @relation(fields: [serviceProductId], references: [id], onDelete: SetNull)
-  refillOrders RefillOrder[]
+  merchant       Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  serviceProduct Product?      @relation(fields: [serviceProductId], references: [id], onDelete: SetNull)
+  refillOrders   RefillOrder[]
 
   @@index([merchantId, startsAt])
   @@index([merchantId, status])
@@ -574,8 +640,9 @@ model MerchantUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  merchant        Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  restockRequests RestockRequest[]
+  merchant           Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  restockRequests    RestockRequest[]
+  refillFulfillments RefillFulfillment[]
 
   @@index([merchantId])
   @@map("merchant_users")
@@ -595,26 +662,26 @@ model Warehouse {
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  productId    String   @unique // PROD-0001
-  sku          String   @unique
-  sourceSku    String? // 使用者單價表的 SKU（DK-01 / FD-04 / PF-02 ...）
-  name         String
-  category     String   @default("other") // staple_food / treats / health / freeze_dried / toys / accessories / other
+  id              String   @id @default(cuid())
+  productId       String   @unique // PROD-0001
+  sku             String   @unique
+  sourceSku       String? // 使用者單價表的 SKU（DK-01 / FD-04 / PF-02 ...）
+  name            String
+  category        String   @default("other") // staple_food / treats / health / freeze_dried / toys / accessories / other
   /// 平台商品類型（非零食子類）：STANDARD / JAR_EXCHANGE / SERVICE / VOUCHER / DONATION
-  productCategory String @default("STANDARD") @map("product_category")
-  style        String? // 款式（凍肉 / 蔬果 ...）
-  description  String?
-  imageUrl     String?
-  unit         String   @default("件") // 克 / 隻 / 片 / 包...
-  price        Float // 基礎售價（最小重量級距，方便舊 UI 顯示）
-  cost         Float    @default(0) // 進貨成本（每包/隻/片）
-  reorderPoint Int      @default(10)
-  status       String   @default("active") // active / inactive / draft
-  vendorId     String?
-  notes        String? // 備註（單價表手寫欄位）
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  productCategory String   @default("STANDARD") @map("product_category")
+  style           String? // 款式（凍肉 / 蔬果 ...）
+  description     String?
+  imageUrl        String?
+  unit            String   @default("件") // 克 / 隻 / 片 / 包...
+  price           Float // 基礎售價（最小重量級距，方便舊 UI 顯示）
+  cost            Float    @default(0) // 進貨成本（每包/隻/片）
+  reorderPoint    Int      @default(10)
+  status          String   @default("active") // active / inactive / draft
+  vendorId        String?
+  notes           String? // 備註（單價表手寫欄位）
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   vendor                Vendor?                @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   priceTiers            ProductPriceTier[]
@@ -744,10 +811,10 @@ model RestockRequest {
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
-  merchant    Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  requestedBy MerchantUser @relation(fields: [requestedByMerchantUserId], references: [id], onDelete: Restrict)
-  approvedBy  User?        @relation("RestockApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  shipment    Shipment?    @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  requestedBy MerchantUser         @relation(fields: [requestedByMerchantUserId], references: [id], onDelete: Restrict)
+  approvedBy  User?                @relation("RestockApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  shipment    Shipment?            @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
   items       RestockRequestItem[]
 
   @@index([merchantId, status])
@@ -813,25 +880,27 @@ model MerchantStock {
 
 // 寄賣動作流水帳：進貨 / 銷售 / 盤點 / 退回
 model MerchantStockTxn {
-  id               String   @id @default(cuid())
-  txnNumber        String   @unique // MTXN-202605-0001
-  merchantId       String
-  productId        String
-  type             String // restock / sale / adjust / return
-  quantity         Int // 進貨正、銷售/退回負；adjust 為 「異動量」（balanceAfter - 之前）
-  balanceAfter     Int // 異動後該店該商品庫存
-  unitPrice        Float? // 銷售時的售價
-  commissionAmount Float? // 銷售時店家抽成總額
-  companyRevenue   Float? // 銷售時公司實收總額
-  orderId          String? // 對應的訂單
-  settlementId     String? // 已被某筆結算 lock；結算時填入，避免重複結清
-  note             String?
-  createdAt        DateTime @default(now())
+  id                  String   @id @default(cuid())
+  txnNumber           String   @unique // MTXN-202605-0001
+  merchantId          String
+  productId           String
+  type                String // restock / sale / adjust / return
+  quantity            Int // 進貨正、銷售/退回負；adjust 為 「異動量」（balanceAfter - 之前）
+  balanceAfter        Int // 異動後該店該商品庫存
+  unitPrice           Float? // 銷售時的售價
+  commissionAmount    Float? // 銷售時店家抽成總額
+  companyRevenue      Float? // 銷售時公司實收總額
+  orderId             String? // 對應的訂單
+  settlementId        String? // 已被某筆結算 lock；結算時填入，避免重複結清
+  refillFulfillmentId String?  @map("refill_fulfillment_id")
+  note                String?
+  createdAt           DateTime @default(now())
 
-  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  order      Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  settlement Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order             Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  settlement        Settlement?        @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  refillFulfillment RefillFulfillment? @relation(fields: [refillFulfillmentId], references: [id], onDelete: SetNull)
 
   @@index([merchantId])
   @@index([productId])
@@ -840,6 +909,7 @@ model MerchantStockTxn {
   @@index([settlementId])
   @@index([type, createdAt])
   @@index([merchantId, type, createdAt])
+  @@index([refillFulfillmentId])
 }
 
 // =====================================================
@@ -887,33 +957,33 @@ model InventoryTransaction {
 // =====================================================
 
 model Order {
-  id                String    @id @default(cuid())
-  orderNumber       String    @unique // ORD-202605-001
-  source            String // website / line / consignment / subscription / manual
-  status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
-  paymentStatus     String    @default("unpaid") // unpaid / partial / paid / cod / refunded
-  shippingFeeType   String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款
-  fulfillmentStatus String    @default("pending") // pending / packed / shipped / delivered / returned
-  customerId        String?
-  merchantId        String?
-  subscriptionId    String? // 若為訂閱衍生的訂單
-  subtotal          Float
-  discount          Float     @default(0)
-  shippingFee           Float @default(0) // 買家於此單支付的運費（不包郵／貨到付時為標準運費）
-  companyShippingCost   Float @default(0) // 公司負擔的運費成本（包郵時為 711/黑貓 標準運費）
-  giftCost              Float @default(0) // 贈品進貨成本合計（不計入買家應付）
-  total                 Float
-  shippingMethod    String    @default("home") // home / convenience / delivery
-  shippingAddress   String? // 宅配：家用地址；超商：可填門市地址
-  cvsBrand          String? // 711 / familymart / hilife（僅 shippingMethod=convenience 時使用）
-  cvsStoreId        String? // 門市店號
-  cvsStoreName      String? // 門市名稱
-  note              String?
-  orderedAt         DateTime  @default(now())
-  shippedAt         DateTime?
-  completedAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  orderNumber         String    @unique // ORD-202605-001
+  source              String // website / line / consignment / subscription / manual
+  status              String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
+  paymentStatus       String    @default("unpaid") // unpaid / partial / paid / cod / refunded
+  shippingFeeType     String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款
+  fulfillmentStatus   String    @default("pending") // pending / packed / shipped / delivered / returned
+  customerId          String?
+  merchantId          String?
+  subscriptionId      String? // 若為訂閱衍生的訂單
+  subtotal            Float
+  discount            Float     @default(0)
+  shippingFee         Float     @default(0) // 買家於此單支付的運費（不包郵／貨到付時為標準運費）
+  companyShippingCost Float     @default(0) // 公司負擔的運費成本（包郵時為 711/黑貓 標準運費）
+  giftCost            Float     @default(0) // 贈品進貨成本合計（不計入買家應付）
+  total               Float
+  shippingMethod      String    @default("home") // home / convenience / delivery
+  shippingAddress     String? // 宅配：家用地址；超商：可填門市地址
+  cvsBrand            String? // 711 / familymart / hilife（僅 shippingMethod=convenience 時使用）
+  cvsStoreId          String? // 門市店號
+  cvsStoreName        String? // 門市名稱
+  note                String?
+  orderedAt           DateTime  @default(now())
+  shippedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
   merchant          Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
@@ -1132,38 +1202,38 @@ model Campaign {
 }
 
 model CampaignApplication {
-  id                    String    @id @default(cuid())
-  campaignId            String    @map("campaign_id")
-  customerId            String?   @map("customer_id")
-  lineUserId            String    @map("line_user_id")
-  lineDisplayName       String?   @map("line_display_name")
-  orderId               String?   @unique @map("order_id")
-  instagramHandle       String?   @map("instagram_handle")
-  petName               String?   @map("pet_name")
-  recipientName         String?   @map("recipient_name")
-  recipientPhone        String?   @map("recipient_phone")
-  storeId               String?   @map("store_id")
-  storeName             String?   @map("store_name")
-  storeAddress          String?   @map("store_address")
-  status                String    @default("COLLECTING_INFO")
+  id                  String    @id @default(cuid())
+  campaignId          String    @map("campaign_id")
+  customerId          String?   @map("customer_id")
+  lineUserId          String    @map("line_user_id")
+  lineDisplayName     String?   @map("line_display_name")
+  orderId             String?   @unique @map("order_id")
+  instagramHandle     String?   @map("instagram_handle")
+  petName             String?   @map("pet_name")
+  recipientName       String?   @map("recipient_name")
+  recipientPhone      String?   @map("recipient_phone")
+  storeId             String?   @map("store_id")
+  storeName           String?   @map("store_name")
+  storeAddress        String?   @map("store_address")
+  status              String    @default("COLLECTING_INFO")
   // COLLECTING_INFO / PENDING_REVIEW / APPROVED / AWAITING_SHIPPING_PAYMENT /
   // READY_TO_SHIP / REJECTED / CANCELLED_BY_USER / CANCELLED
-  shippingQueueStatus   String    @default("NOT_READY") @map("shipping_queue_status")
+  shippingQueueStatus String    @default("NOT_READY") @map("shipping_queue_status")
   // NOT_READY / QUEUED
-  licenseAccepted       Boolean   @default(false) @map("license_accepted")
-  licenseVersion        String?   @map("license_version")
-  licenseAcceptedAt     DateTime? @map("license_accepted_at")
-  licenseSourceMsgId    String?   @map("license_source_message_id")
-  reviewedBy            String?   @map("reviewed_by")
-  reviewedAt            DateTime? @map("reviewed_at")
-  reviewNote            String?   @map("review_note")
-  returnFields          String?   @map("return_fields") // JSON string array
-  paymentToken          String?   @unique @map("payment_token")
-  paymentStatus         String    @default("unpaid") @map("payment_status")
+  licenseAccepted     Boolean   @default(false) @map("license_accepted")
+  licenseVersion      String?   @map("license_version")
+  licenseAcceptedAt   DateTime? @map("license_accepted_at")
+  licenseSourceMsgId  String?   @map("license_source_message_id")
+  reviewedBy          String?   @map("reviewed_by")
+  reviewedAt          DateTime? @map("reviewed_at")
+  reviewNote          String?   @map("review_note")
+  returnFields        String?   @map("return_fields") // JSON string array
+  paymentToken        String?   @unique @map("payment_token")
+  paymentStatus       String    @default("unpaid") @map("payment_status")
   // unpaid / paid / failed
-  paidAt                DateTime? @map("paid_at")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
+  paidAt              DateTime? @map("paid_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   campaign            Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   conversationSession ConversationSession?
@@ -1311,17 +1381,17 @@ model RefillStockTxn {
 
 /// 換罐計劃全域設定（主視覺、價格重點）
 model RefillPlanSettings {
-  id                 String   @id @default("default")
-  heroImageUrl       String?  @map("hero_image_url")
-  firstJarPrice      Int      @default(129) @map("first_jar_price")
-  exchangePrice      Int      @default(99) @map("exchange_price")
-  pointsPerJar       Int      @default(1) @map("points_per_jar")
-  pointsForDiscount  Int      @default(10) @map("points_for_discount")
-  discountAmount     Int      @default(200) @map("discount_amount")
-  flavourUpdateNote  String   @default("每兩週更新") @map("flavour_update_note")
-  periodStartedAt    DateTime? @map("period_started_at")
-  periodEndedAt      DateTime? @map("period_ended_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                String    @id @default("default")
+  heroImageUrl      String?   @map("hero_image_url")
+  firstJarPrice     Int       @default(129) @map("first_jar_price")
+  exchangePrice     Int       @default(99) @map("exchange_price")
+  pointsPerJar      Int       @default(1) @map("points_per_jar")
+  pointsForDiscount Int       @default(10) @map("points_for_discount")
+  discountAmount    Int       @default(200) @map("discount_amount")
+  flavourUpdateNote String    @default("每兩週更新") @map("flavour_update_note")
+  periodStartedAt   DateTime? @map("period_started_at")
+  periodEndedAt     DateTime? @map("period_ended_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@map("refill_plan_settings")
 }

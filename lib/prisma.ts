@@ -18,7 +18,7 @@ function getPrismaGeneratedPackageName(): string {
 }
 
 /** 變更 schema 時遞增，開發模式會丟棄快取的 PrismaClient（含 companyShippingCost） */
-const PRISMA_CLIENT_SCHEMA_REV = 16;
+const PRISMA_CLIENT_SCHEMA_REV = 17;
 
 const PRISMA_STALE_MSG =
   'Prisma Client 過期：請先關閉所有終端機的 npm run dev（含 localhost:3000/3001/3002），再執行 npx prisma migrate deploy && npx prisma generate && npm run dev';
@@ -30,6 +30,7 @@ function assertPrismaSchemaFields() {
   if (!('giftCost' in orderFields)) missing.push('Order.giftCost');
   if (!('JarCode' in Prisma.ModelName)) missing.push('JarCode');
   if (!('MemberPointsLedger' in Prisma.ModelName)) missing.push('MemberPointsLedger');
+  if (!('RefillFulfillment' in Prisma.ModelName)) missing.push('RefillFulfillment');
   if (missing.length > 0) {
     throw new Error(`${PRISMA_STALE_MSG}\n缺少：${missing.join(', ')}`);
   }

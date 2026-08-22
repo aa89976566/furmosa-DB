@@ -41,7 +41,7 @@ export const REFILL_PAID_OPEN_STATUSES: RefillOrderStatus[] = [
   'awaiting_extra_payment',
 ];
 
-export const PAYMENT_PURPOSES = ['refill', 'extra_topup'] as const;
+export const PAYMENT_PURPOSES = ['refill', 'extra_topup', 'fulfillment_topup'] as const;
 export type PaymentPurpose = (typeof PAYMENT_PURPOSES)[number];
 
 export const PAYMENT_ORDER_STATUSES = ['pending', 'paid', 'failed'] as const;

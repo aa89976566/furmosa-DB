@@ -36,6 +36,17 @@ export default async function PosRefillDetailPage({
   const payQrUrl = liffBase
     ? `${liffBase}?storeId=${encodeURIComponent(order.merchant.merchantId)}`
     : null;
+  const availableReturnQuantity = await prisma.jarCode.count({
+    where: {
+      redeemedByCustomerId: order.customerId,
+      status: 'issued',
+      OR: [
+        { lockedByRefillOrderId: null },
+        { lockedByRefillOrderId: order.id },
+      ],
+    },
+  });
+  const remainingQuantity = Math.max(0, order.quantity - order.fulfilledQuantity);
 
   return (
     <PosShell>
@@ -60,6 +71,7 @@ export default async function PosRefillDetailPage({
           <Row label="商品" value={order.orderType === 'first' ? '首罐' : '換罐'} />
           <Row label="指定店家" value={order.merchant.name} />
           <Row label="付款" value={paid ? `已付款 NT$${order.totalAmount}` : '尚未付款'} />
+          <Row label="待領取" value={`${remainingQuantity}／${order.quantity} 罐`} />
           <Row
             label="空罐"
             value={
@@ -87,8 +99,9 @@ export default async function PosRefillDetailPage({
           orderId={order.id}
           status={order.status}
           paid={paid}
-          deliveryMode={order.deliveryMode}
           payQrUrl={payQrUrl}
+          remainingQuantity={remainingQuantity}
+          availableReturnQuantity={availableReturnQuantity}
         />
       </div>
     </PosShell>

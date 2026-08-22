@@ -63,8 +63,21 @@ export async function initiateRefillPayment(input: {
     }
   }
 
-  const amount =
-    purpose === 'extra_topup' ? REFILL_PRICES.extraTopup : order.baseAmount;
+  const preparedTopUp = purpose !== 'refill'
+    ? await prisma.paymentOrder.findFirst({
+        where: {
+          refillOrderId: order.id,
+          purpose,
+          status: 'pending',
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    : null;
+  // 多罐交付的補款可能是 30 的倍數；金額必須先由 POS 後端依已驗證數量建立。
+  // 沒有預先建立時保留舊版單罐 NT$30 相容行為。
+  const amount = purpose !== 'refill'
+    ? preparedTopUp?.amount ?? REFILL_PRICES.extraTopup
+    : order.baseAmount;
 
   // Reuse pending payment of same purpose/amount
   const pending = await prisma.paymentOrder.findFirst({
@@ -77,7 +90,7 @@ export async function initiateRefillPayment(input: {
     orderBy: { createdAt: 'desc' },
   });
 
-  let payment = pending;
+  let payment = pending ?? preparedTopUp;
   if (!payment) {
     payment = await prisma.$transaction(async (tx) => {
       const created = await tx.paymentOrder.create({
@@ -85,7 +98,7 @@ export async function initiateRefillPayment(input: {
           refillOrderId: order.id,
           purpose,
           provider: 'ecpay',
-          merchantTradeNo: buildMerchantTradeNo(purpose === 'extra_topup' ? 'XT' : 'RF'),
+          merchantTradeNo: buildMerchantTradeNo(purpose === 'refill' ? 'RF' : 'XT'),
           amount,
           status: 'pending',
         },
@@ -113,8 +126,8 @@ export async function initiateRefillPayment(input: {
   }
 
   const itemName =
-    purpose === 'extra_topup'
-      ? '換罐補差額（忘帶空罐）'
+    purpose !== 'refill'
+      ? '換罐交付補差額'
       : order.orderType === 'exchange'
         ? '換罐計畫 NT$99'
         : '首罐 NT$129';
