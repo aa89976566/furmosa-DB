@@ -31,11 +31,14 @@ export default async function PosRestockNewPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <Link href="/pos/restock" className="text-xs text-muted-foreground">
-          ← 叫貨
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <Link href="/pos/restock" className="text-sm text-muted-foreground">
+          ← 補貨
         </Link>
-        <h1 className="mb-4 text-xl font-semibold text-navy">新增叫貨</h1>
+        <header className="mb-5 border-b border-[#e7e5e4] pb-5">
+          <h1 className="mt-2 text-2xl font-semibold">建立補貨單</h1>
+          <p className="mt-1 text-sm text-muted-foreground">選擇補貨方式與商品數量，送出後可在進度中查看。</p>
+        </header>
         <Suspense fallback={<p className="text-sm text-muted-foreground">載入中…</p>}>
           <NewRestockForm
             products={products.map((p) => ({
