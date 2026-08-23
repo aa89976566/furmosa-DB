@@ -95,8 +95,8 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
   if (input.pendingConfirmCount > 0) {
     rows.push({
       kind: 'pending_confirm',
-      title: '待確認預約',
-      subtitle: '客人在等你回覆',
+      title: '確認新預約',
+      subtitle: '請回覆客人是否接受預約',
       href: '/pos/appointments',
       badge: String(input.pendingConfirmCount),
     });
@@ -105,7 +105,7 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
   if (input.nextGuest) {
     rows.push({
       kind: 'next_guest',
-      title: '下一筆預約',
+      title: '最近的預約',
       subtitle: formatGuestSubtitle(input.nextGuest),
       href: `/pos/appointments/${input.nextGuest.id}`,
     });
@@ -115,8 +115,8 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
   if (input.pendingRefillCount > 0) {
     rows.push({
       kind: 'pending_refill',
-      title: '待換罐',
-      subtitle: '已付款、等待收空罐或交付',
+      title: '交付換罐商品',
+      subtitle: '客人已付款，請收空罐並交付商品',
       href: '/pos/refill',
       badge: String(input.pendingRefillCount),
     });
@@ -132,7 +132,7 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
         : `${first.productName}剩 ${first.quantity}`;
     rows.push({
       kind: 'low_stock',
-      title: '缺貨提醒',
+      title: '需要補貨',
       subtitle,
       href: '/pos/restock/new?mode=AUTO_REPLENISH',
       badge: String(input.lowStock.length),
@@ -146,8 +146,8 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
       : '/pos/restock/progress';
     rows.push({
       kind: 'restock_progress',
-      title: '補貨進度',
-      subtitle: `${input.openRestockCount} 張處理中`,
+      title: '追蹤補貨單',
+      subtitle: `${input.openRestockCount} 張尚未完成`,
       href,
       badge: String(input.openRestockCount),
     });
