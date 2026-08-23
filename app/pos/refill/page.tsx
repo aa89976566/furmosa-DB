@@ -30,21 +30,22 @@ export default async function PosRefillListPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6 space-y-4">
-        <header className="flex items-center justify-between gap-3">
+      <div className="mx-auto max-w-4xl space-y-5 px-4 py-6 sm:px-6">
+        <header className="flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
           <div>
-            <p className="text-xs text-muted-foreground">Furmosa 店家</p>
-            <h1 className="text-xl font-semibold">待換罐</h1>
+            <p className="text-sm text-muted-foreground">門市工作</p>
+            <h1 className="mt-1 text-2xl font-semibold">待換罐</h1>
+            <p className="mt-1 text-sm text-muted-foreground">只顯示需要收空罐、補款或交付的訂單。</p>
           </div>
           <Button asChild variant="ghost" className="min-h-[44px]">
-            <Link href="/pos">今天</Link>
+            <Link href="/pos">工作台</Link>
           </Button>
         </header>
 
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : pending.length === 0 ? (
-          <Card>
+          <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="p-5 text-sm text-muted-foreground">
               目前沒有待處理的換罐。
             </CardContent>
@@ -54,7 +55,7 @@ export default async function PosRefillListPage() {
             {pending.map((o) => (
               <li key={o.id}>
                 <Link href={`/pos/refill/${o.id}`}>
-                  <Card className="shadow-card transition hover:border-primary/40">
+                  <Card className="border-[#e7e5e4] bg-white shadow-none transition hover:border-[#8a8a8a]">
                     <CardContent className="p-4 min-h-[72px]">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -71,7 +72,7 @@ export default async function PosRefillListPage() {
                             <p className="mt-1 text-xs text-amber-700">{o.missingContainerNote}</p>
                           ) : null}
                         </div>
-                        <span className="text-sm text-primary shrink-0">處理</span>
+                        <span className="shrink-0 text-sm font-medium">處理 ›</span>
                       </div>
                     </CardContent>
                   </Card>
