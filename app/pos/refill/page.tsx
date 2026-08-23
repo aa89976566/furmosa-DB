@@ -5,7 +5,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-export const metadata = { title: '待換罐 · Furmosa 店家' };
+export const metadata = { title: '換罐訂單 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
 const OPEN = new Set([
@@ -34,8 +34,8 @@ export default async function PosRefillListPage() {
         <header className="flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
           <div>
             <p className="text-sm text-muted-foreground">門市工作</p>
-            <h1 className="mt-1 text-2xl font-semibold">待換罐</h1>
-            <p className="mt-1 text-sm text-muted-foreground">只顯示需要收空罐、補款或交付的訂單。</p>
+            <h1 className="mt-1 text-2xl font-semibold">換罐訂單</h1>
+            <p className="mt-1 text-sm text-muted-foreground">選擇一筆訂單，確認空罐與本次要交付的數量。</p>
           </div>
           <Button asChild variant="ghost" className="min-h-[44px]">
             <Link href="/pos">工作台</Link>
@@ -47,7 +47,7 @@ export default async function PosRefillListPage() {
         ) : pending.length === 0 ? (
           <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="p-5 text-sm text-muted-foreground">
-              目前沒有待處理的換罐。
+              目前沒有需要處理的換罐訂單。
             </CardContent>
           </Card>
         ) : (
@@ -66,13 +66,13 @@ export default async function PosRefillListPage() {
                             {o.productLabel} · {statusLabel(o.status, o.paid)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            尚可領取 {o.remainingQuantity}／{o.quantity} 罐
+                            客人還可領 {o.remainingQuantity} 罐（共買 {o.quantity} 罐）
                           </p>
                           {o.missingContainerNote ? (
                             <p className="mt-1 text-xs text-amber-700">{o.missingContainerNote}</p>
                           ) : null}
                         </div>
-                        <span className="shrink-0 text-sm font-medium">處理 ›</span>
+                        <span className="shrink-0 text-sm font-medium">開始處理 ›</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -90,11 +90,11 @@ function statusLabel(status: string, paid: boolean): string {
   if (!paid && status === 'payment_pending') return '尚未付款';
   switch (status) {
     case 'paid_waiting_return':
-      return '已付款 · 等待收空罐';
+      return '已付款 · 請確認空罐';
     case 'old_container_verified':
-      return '已收空罐 · 待交付';
+      return '空罐已收 · 可以交付';
     case 'awaiting_extra_payment':
-      return '等待補付差額';
+      return '等待客人補款';
     case 'completed':
       return '已完成';
     default:
