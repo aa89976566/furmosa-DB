@@ -37,7 +37,7 @@ export default async function PosAppointmentsPage() {
               ← 今日工作台
             </Link>
             <h1 className="mt-2 text-2xl font-semibold text-[#191919]">預約</h1>
-            <p className="mt-1 text-sm text-muted-foreground">查看、確認或調整門市預約。</p>
+            <p className="mt-1 text-sm text-muted-foreground">確認新預約，或調整已接受的預約時間。</p>
           </div>
           <div className="flex flex-col gap-2">
             <Button asChild className="min-h-[44px] bg-[#191919] hover:bg-black">
@@ -67,7 +67,7 @@ export default async function PosAppointmentsPage() {
         <section className="space-y-2">
           <h2 className="text-base font-semibold">所有預約</h2>
           {others.length === 0 ? (
-            <p className="text-sm text-muted-foreground">尚無其他預約。</p>
+            <p className="text-sm text-muted-foreground">目前沒有其他預約。</p>
           ) : (
             others.map((r) => <AppointmentRow key={r.id} r={r} />)
           )}
@@ -102,7 +102,7 @@ function AppointmentRow({
             </p>
             <p className="text-xs text-muted-foreground">
               {r.serviceName}
-              {r.isOverbooked ? ' · 超約' : ''}
+              {r.isOverbooked ? ' · 門市加開' : ''}
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
