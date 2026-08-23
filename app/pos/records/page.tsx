@@ -50,10 +50,10 @@ export default async function PosRecordsPage() {
         {rows.length === 0 ? (
           <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-              <p>今天還沒有叫貨紀錄。</p>
+              <p>今天還沒有補貨紀錄。</p>
               <p>美容與換罐紀錄會在對應功能上線後再顯示，不會先放假資料。</p>
               <Button asChild variant="outline" className="min-h-[44px] w-full">
-                <Link href="/pos/restock">去叫貨</Link>
+                <Link href="/pos/restock">建立補貨單</Link>
               </Button>
             </CardContent>
           </Card>
