@@ -7,7 +7,7 @@ import { getAuthenticatedMerchantId } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
 import { PosShell } from '@/components/pos/pos-shell';
 
-export const metadata = { title: '新增叫貨 · Furmosa 店家' };
+export const metadata = { title: '建立補貨單 · Furmosa 店家' };
 
 export default async function PosRestockNewPage() {
   await requireMerchantSession();
@@ -37,7 +37,7 @@ export default async function PosRestockNewPage() {
         </Link>
         <header className="mb-5 border-b border-[#e7e5e4] pb-5">
           <h1 className="mt-2 text-2xl font-semibold">建立補貨單</h1>
-          <p className="mt-1 text-sm text-muted-foreground">選擇補貨方式與商品數量，送出後可在進度中查看。</p>
+          <p className="mt-1 text-sm text-muted-foreground">選擇補貨方式與數量。送出後可在「追蹤補貨單」確認進度。</p>
         </header>
         <Suspense fallback={<p className="text-sm text-muted-foreground">載入中…</p>}>
           <NewRestockForm
