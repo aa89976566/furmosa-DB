@@ -8,18 +8,18 @@ export const metadata = { title: '補貨 · Furmosa 店家' };
 const ENTRIES = [
   {
     href: '/pos/restock/new?mode=SELF_SELECT',
-    title: '我要自己選',
-    hint: '選商品、填數量，送出申請',
+    title: '自己選商品',
+    hint: '選擇商品與數量後送出',
   },
   {
     href: '/pos/restock/new?mode=AUTO_REPLENISH',
-    title: '請幫我配',
-    hint: '告訴公司需求，由公司幫你配',
+    title: '請公司建議數量',
+    hint: '填寫需求，由公司確認商品與數量',
   },
   {
     href: '/pos/restock/progress',
-    title: '申請進度',
-    hint: '看公司確認到哪、預計何時到貨',
+    title: '追蹤補貨單',
+    hint: '確認處理狀態與預計到貨日',
   },
 ] as const;
 
@@ -42,7 +42,7 @@ export default async function PosRestockHubPage() {
                 <CardContent className="flex min-h-[80px] items-center justify-between gap-3 p-4">
                   <div><p className="text-base font-semibold text-foreground">{item.title}</p>
                   <p className="text-sm text-muted-foreground">{item.hint}</p></div>
-                  <span className="text-sm font-medium">查看 ›</span>
+                  <span className="text-lg font-medium" aria-hidden="true">›</span>
                 </CardContent>
               </Card>
             </Link>
