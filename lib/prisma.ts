@@ -2,6 +2,11 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
+// Vercel 的 Supabase 整合使用 POSTGRES_* 命名；既有正式環境仍使用
+// DATABASE_URL / DIRECT_URL。只在舊名稱缺少時補上，避免改動正式連線。
+process.env.DATABASE_URL ||= process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL;
+process.env.DIRECT_URL ||= process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+
 /**
  * `prisma generate` 後 `.prisma/client/package.json` 的 `name` 會變（內含 schema hash）。
  * 開發時若仍快取舊的 `PrismaClient`，會出現 Unknown field — 用此 id 偵測並重建實例。
