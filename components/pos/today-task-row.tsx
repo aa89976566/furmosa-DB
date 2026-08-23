@@ -12,9 +12,9 @@ export function TodayTaskRowLink({ row }: { row: TodayTaskRow }) {
             <p className="truncate text-sm text-muted-foreground">{row.subtitle}</p>
           </div>
           {'badge' in row && row.badge ? (
-            <span className="shrink-0 text-lg font-semibold text-primary">{row.badge}</span>
+            <span className="flex min-h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-[#191919] px-2 text-sm font-semibold text-white">{row.badge}</span>
           ) : (
-            <span className="shrink-0 text-sm text-primary">查看</span>
+            <span className="shrink-0 text-sm font-medium text-[#191919]">查看 ›</span>
           )}
         </CardContent>
       </Card>
