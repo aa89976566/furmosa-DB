@@ -50,24 +50,27 @@ export default async function PosRefillDetailPage({
 
   return (
     <PosShell>
-      <div className="px-4 py-6 space-y-5">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between">
           <Button asChild variant="ghost" className="min-h-[44px] px-2">
             <Link href="/pos/refill">← 待換罐</Link>
           </Button>
         </div>
 
-        <header>
-          <h1 className="text-xl font-semibold">
+        <header className="border-b border-[#e7e5e4] pb-5">
+          <p className="text-sm text-muted-foreground">換罐交付</p>
+          <h1 className="mt-1 text-2xl font-semibold">
             {order.petName ?? order.appointment.petName ?? '毛孩'}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {order.customer.name} · {formatLocalDate(order.appointment.startsAt)}{' '}
             {formatLocalTime(order.appointment.startsAt)}
           </p>
         </header>
 
-        <dl className="space-y-2 text-sm rounded-xl border p-4">
+        <section aria-labelledby="refill-order-title">
+          <h2 id="refill-order-title" className="mb-3 text-base font-semibold">訂單資料</h2>
+          <dl className="divide-y divide-[#e7e5e4] rounded-xl border border-[#e7e5e4] bg-white px-4 text-sm">
           <Row label="商品" value={order.orderType === 'first' ? '首罐' : '換罐'} />
           <Row label="指定店家" value={order.merchant.name} />
           <Row label="付款" value={paid ? `已付款 NT$${order.totalAmount}` : '尚未付款'} />
@@ -95,16 +98,23 @@ export default async function PosRefillDetailPage({
           {order.missingContainerNote ? (
             <Row label="備註" value={order.missingContainerNote} />
           ) : null}
-        </dl>
+          </dl>
+        </section>
 
-        <RefillOrderActions
-          orderId={order.id}
-          status={order.status}
-          paid={paid}
-          payQrUrl={payQrUrl}
-          remainingQuantity={remainingQuantity}
-          availableReturnQuantity={availableReturnQuantity}
-        />
+        <section aria-labelledby="refill-action-title">
+          <div className="mb-3">
+            <h2 id="refill-action-title" className="text-base font-semibold">本次交付</h2>
+            <p className="text-sm text-muted-foreground">選擇領取與歸還數量，確認結果後才會更新庫存。</p>
+          </div>
+          <RefillOrderActions
+            orderId={order.id}
+            status={order.status}
+            paid={paid}
+            payQrUrl={payQrUrl}
+            remainingQuantity={remainingQuantity}
+            availableReturnQuantity={availableReturnQuantity}
+          />
+        </section>
       </div>
     </PosShell>
   );
@@ -112,7 +122,7 @@ export default async function PosRefillDetailPage({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 py-1">
+    <div className="flex min-h-[52px] items-center justify-between gap-3 py-3">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-medium text-right">{value}</dd>
     </div>
