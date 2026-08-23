@@ -14,7 +14,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 
-export const metadata = { title: '叫貨詳情 · Furmosa 店家' };
+export const metadata = { title: '補貨詳情 · Furmosa 店家' };
 
 export default async function PosRestockDetailPage({
   params,
@@ -34,14 +34,14 @@ export default async function PosRestockDetailPage({
 
   return (
     <PosShell>
-      <div className="space-y-4 px-4 py-6">
+      <div className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {justSubmitted ? <ClearDraftOnSuccess /> : null}
-        <Link href="/pos/restock/progress" className="text-xs text-muted-foreground">
+        <Link href="/pos/restock/progress" className="text-sm text-muted-foreground">
           ← 申請進度
         </Link>
 
         {justSubmitted ? (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
             <p className="font-medium text-foreground">申請已送出</p>
             <p className="text-muted-foreground">
               編號 {shortId} · {req.createdAt.toLocaleString('zh-TW')}
@@ -49,9 +49,10 @@ export default async function PosRestockDetailPage({
           </div>
         ) : null}
 
-        <div className="flex items-start justify-between gap-3">
+        <header className="flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-navy">叫貨申請</h1>
+            <p className="text-sm text-muted-foreground">補貨資料</p>
+            <h1 className="mt-1 text-2xl font-semibold">補貨申請</h1>
             <p className="text-sm text-muted-foreground">
               {restockRequestTypeLabel(req.requestType)} · 編號 {shortId}
             </p>
@@ -62,9 +63,9 @@ export default async function PosRestockDetailPage({
           <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
             {restockStatusLabelForMerchant(req.status)}
           </span>
-        </div>
+        </header>
 
-        <Card>
+        <Card className="border-[#e7e5e4] bg-white shadow-none">
           <CardContent className="space-y-3 p-4 text-sm">
             {req.expectedArrivalDate ? (
               <p>
@@ -96,7 +97,7 @@ export default async function PosRestockDetailPage({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-[#e7e5e4] bg-white shadow-none">
           <CardContent className="space-y-2 p-4">
             <p className="text-sm font-medium">申請品項</p>
             {req.items.length === 0 ? (
@@ -118,7 +119,7 @@ export default async function PosRestockDetailPage({
 
         {(snapshot && snapshot.length > 0) ||
         req.items.some((it) => (it.approvedQuantity ?? 0) > 0 && req.status !== 'submitted') ? (
-          <Card>
+          <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="space-y-2 p-4">
               <p className="text-sm font-medium">已確認品項</p>
               <ul className="space-y-2 text-sm">
