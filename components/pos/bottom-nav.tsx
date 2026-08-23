@@ -2,9 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardList, House, PackagePlus, Repeat2 } from 'lucide-react';
+import { ClipboardList, House, PackagePlus, Repeat2, ShoppingCart } from 'lucide-react';
 
 const TABS = [
+  {
+    href: '/pos/checkout',
+    label: '收銀',
+    icon: ShoppingCart,
+    match: (p: string) => p === '/pos/checkout' || p.startsWith('/pos/checkout/'),
+  },
   {
     href: '/pos',
     label: '工作台',
@@ -76,7 +82,7 @@ export function PosBottomNav() {
         className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e7e5e4] bg-white/95 backdrop-blur md:hidden"
         aria-label="店家導航"
       >
-        <div className="mx-auto flex max-w-lg">
+        <div className="mx-auto flex max-w-xl">
         {TABS.map((tab) => {
           const active = tab.match(pathname);
           const Icon = tab.icon;
