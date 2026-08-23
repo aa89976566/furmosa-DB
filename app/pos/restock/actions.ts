@@ -26,7 +26,7 @@ function toMerchantError(e: unknown): string {
     return '請寫一下你需要什麼，再送出。';
   }
   if (msg.includes('換罐計畫')) {
-    return '這項商品目前不能用叫貨申請，請聯繫 Furmosa。';
+    return '這項商品目前不能加入補貨單，請聯繫 Furmosa。';
   }
   if (msg.includes('不存在')) {
     return '有商品找不到了，請重新整理後再試。';
