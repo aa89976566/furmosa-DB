@@ -161,8 +161,8 @@ export async function loadTodayDashboard(
       failures.length === 0
         ? null
         : failures.some((f) => isMissingRelationError(f.reason))
-          ? '部分資料表尚未就緒。今天仍可從下方叫貨。'
-          : '部分今日資料暫時讀取失敗，可先從下方叫貨或稍後再試。';
+          ? '部分資料尚未準備完成。你仍可使用下方的補貨功能。'
+          : '部分資料暫時無法載入。你可以先建立補貨單，或稍後再試。';
 
     return { rows: buildTodayTaskRows(input), warning };
   } catch (err) {
@@ -170,7 +170,7 @@ export async function loadTodayDashboard(
     return {
       rows: [],
       warning: isMissingRelationError(err)
-        ? '部分資料表尚未就緒。今天仍可從下方叫貨。'
+        ? '部分資料尚未準備完成。你仍可使用下方的補貨功能。'
         : '資料暫時載不進來，請稍後再試。',
     };
   }
