@@ -85,9 +85,11 @@ export default async function PosRefillDetailPage({
           <Row
             label="交付"
             value={
-              order.status === 'completed'
-                ? `已交付 ${order.newContainerSerial ?? ''}`
-                : '尚未交付'
+              order.fulfilledQuantity >= order.quantity
+                ? `已全數交付 ${order.quantity}／${order.quantity} 罐`
+                : order.fulfilledQuantity > 0
+                  ? `已交付 ${order.fulfilledQuantity}／${order.quantity} 罐`
+                  : '尚未交付'
             }
           />
           {order.missingContainerNote ? (
