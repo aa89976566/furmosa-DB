@@ -16,14 +16,14 @@ export default async function PosBookingSchedulePage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <Link href="/pos/appointments" className="text-xs text-muted-foreground">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <Link href="/pos/appointments" className="text-sm text-muted-foreground">
           ← 預約
         </Link>
-        <h1 className="mb-1 text-xl font-semibold text-navy">共用班表</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          設定本店可預約時段。不是設定 Amy／Tony 個人班。
-        </p>
+        <header className="mb-5 border-b border-[#e7e5e4] pb-5">
+          <h1 className="mt-2 text-2xl font-semibold">門市預約時段</h1>
+          <p className="mt-1 text-sm text-muted-foreground">設定本店可接受預約的時間與每個時段容量。</p>
+        </header>
         <ScheduleForm
           openTime={settings.bookingOpenTime}
           closeTime={settings.bookingCloseTime}
