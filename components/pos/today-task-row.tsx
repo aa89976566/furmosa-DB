@@ -14,7 +14,7 @@ export function TodayTaskRowLink({ row }: { row: TodayTaskRow }) {
           {'badge' in row && row.badge ? (
             <span className="flex min-h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-[#191919] px-2 text-sm font-semibold text-white">{row.badge}</span>
           ) : (
-            <span className="shrink-0 text-sm font-medium text-[#191919]">查看 ›</span>
+            <span className="shrink-0 text-lg font-medium text-[#191919]" aria-hidden="true">›</span>
           )}
         </CardContent>
       </Card>
