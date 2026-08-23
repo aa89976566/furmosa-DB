@@ -22,6 +22,7 @@ export default async function PosRefillDetailPage({
       merchant: { select: { id: true, name: true, merchantId: true } },
       appointment: { select: { startsAt: true, petName: true } },
       customer: { select: { name: true } },
+      product: { select: { name: true } },
       payments: { orderBy: { createdAt: 'desc' }, take: 3 },
     },
   });
@@ -53,12 +54,12 @@ export default async function PosRefillDetailPage({
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between">
           <Button asChild variant="ghost" className="min-h-[44px] px-2">
-            <Link href="/pos/refill">← 待換罐</Link>
+            <Link href="/pos/refill">← 換罐訂單</Link>
           </Button>
         </div>
 
         <header className="border-b border-[#e7e5e4] pb-5">
-          <p className="text-sm text-muted-foreground">換罐交付</p>
+          <p className="text-sm text-muted-foreground">處理換罐訂單</p>
           <h1 className="mt-1 text-2xl font-semibold">
             {order.petName ?? order.appointment.petName ?? '毛孩'}
           </h1>
@@ -69,30 +70,31 @@ export default async function PosRefillDetailPage({
         </header>
 
         <section aria-labelledby="refill-order-title">
-          <h2 id="refill-order-title" className="mb-3 text-base font-semibold">訂單資料</h2>
+          <h2 id="refill-order-title" className="mb-3 text-base font-semibold">客人買了什麼</h2>
           <dl className="divide-y divide-[#e7e5e4] rounded-xl border border-[#e7e5e4] bg-white px-4 text-sm">
-          <Row label="商品" value={order.orderType === 'first' ? '首罐' : '換罐'} />
-          <Row label="指定店家" value={order.merchant.name} />
-          <Row label="付款" value={paid ? `已付款 NT$${order.totalAmount}` : '尚未付款'} />
-          <Row label="待領取" value={`${remainingQuantity}／${order.quantity} 罐`} />
+          <Row label="商品" value={order.product?.name ?? (order.orderType === 'first' ? '首罐商品' : '換罐商品')} />
+          <Row label="購買數量" value={`${order.quantity} 罐`} />
+          <Row label="已領數量" value={`${order.fulfilledQuantity} 罐`} />
+          <Row label="還可領取" value={`${remainingQuantity} 罐`} strong />
+          <Row label="付款狀態" value={paid ? `已付 NT$${order.totalAmount}` : '尚未付款'} />
           <Row
-            label="空罐"
+            label="空罐狀態"
             value={
               order.deliveryMode === 'first'
-                ? '不需回收（首罐／補差額）'
+                ? '這筆不用收空罐'
                 : order.oldContainerSerial
-                  ? `已收 ${order.oldContainerSerial}`
-                  : '等待收空罐'
+                  ? `已收 1 個（${order.oldContainerSerial}）`
+                  : '這筆還沒收空罐'
             }
           />
           <Row
-            label="交付"
+            label="交付狀態"
             value={
               order.fulfilledQuantity >= order.quantity
-                ? `已全數交付 ${order.quantity}／${order.quantity} 罐`
+                ? `已全部交付，共 ${order.quantity} 罐`
                 : order.fulfilledQuantity > 0
-                  ? `已交付 ${order.fulfilledQuantity}／${order.quantity} 罐`
-                  : '尚未交付'
+                  ? `已交付 ${order.fulfilledQuantity} 罐，剩 ${remainingQuantity} 罐`
+                  : '還沒交付商品'
             }
           />
           {order.missingContainerNote ? (
@@ -103,8 +105,8 @@ export default async function PosRefillDetailPage({
 
         <section aria-labelledby="refill-action-title">
           <div className="mb-3">
-            <h2 id="refill-action-title" className="text-base font-semibold">本次交付</h2>
-            <p className="text-sm text-muted-foreground">選擇領取與歸還數量，確認結果後才會更新庫存。</p>
+            <h2 id="refill-action-title" className="text-base font-semibold">這次怎麼交付</h2>
+            <p className="text-sm text-muted-foreground">先填這次給客人的商品數量，再填收到的空罐數量。</p>
           </div>
           <RefillOrderActions
             orderId={order.id}
@@ -120,11 +122,11 @@ export default async function PosRefillDetailPage({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex min-h-[52px] items-center justify-between gap-3 py-3">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-right">{value}</dd>
+      <dd className={`text-right ${strong ? 'text-base font-semibold' : 'font-medium'}`}>{value}</dd>
     </div>
   );
 }
