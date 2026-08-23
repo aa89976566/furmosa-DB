@@ -362,7 +362,11 @@ export async function completeRefillFulfillment(input: FulfillmentRequest) {
         where: { id: created.id },
         include: { jars: { orderBy: [{ role: 'asc' }, { sequence: 'asc' }] } },
       });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 10_000,
+      timeout: 30_000,
+    });
 
     return { fulfillment, reused: false as const };
   } catch (error) {
