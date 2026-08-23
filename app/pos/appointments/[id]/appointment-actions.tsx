@@ -42,16 +42,16 @@ export function AppointmentActions({
         </form>
       ) : null}
 
-      <form action={rescheduleAction} className="space-y-3 rounded-xl border p-4">
+      <form action={rescheduleAction} className="space-y-3 rounded-xl border border-[#e7e5e4] bg-white p-4">
         <input type="hidden" name="appointmentId" value={appointmentId} />
         <p className="text-sm font-medium">改到其他時間並確認</p>
         <p className="text-xs text-muted-foreground">
-          店家可改到已滿時段（超約）。顧客端看不到已滿格。
+          如需加開已滿時段，系統會清楚標記為門市加開。
         </p>
         <select
           name="startsAt"
           required
-          className="min-h-[44px] w-full rounded-xl border bg-card px-3 text-base"
+          className="min-h-[44px] w-full rounded-lg border border-[#8a8a8a] bg-white px-3 text-base"
           defaultValue=""
         >
           <option value="" disabled>
@@ -95,7 +95,7 @@ function Submit({
     <Button
       type="submit"
       variant={variant}
-      className="min-h-[48px] w-full text-base"
+      className={`min-h-[48px] w-full text-base ${variant === 'default' ? 'bg-[#191919] hover:bg-black' : 'bg-white'}`}
       disabled={pending}
     >
       {pending ? '處理中…' : label}
