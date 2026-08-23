@@ -97,23 +97,23 @@ export function RefillOrderActions({
       idempotencyKey: crypto.randomUUID(),
     });
     if (data) {
-      setMessage(`已完成交付 ${pickupQuantity} 罐；新罐等待顧客透過官方 LINE 登記。`);
+      setMessage(`完成：已交給客人 ${pickupQuantity} 罐。請提醒客人到官方 LINE 登記新罐。`);
       router.refresh();
     }
   }
 
   if (!paid) {
-    return <p className="rounded-xl border border-[#e7e5e4] bg-white p-4 text-sm">尚未付款，不可交付。請顧客先從官方 LINE 完成付款。</p>;
+    return <p className="rounded-xl border border-[#e7e5e4] bg-white p-4 text-sm">客人還沒付款。請客人先到官方 LINE 付款，付款成功後才能交付商品。</p>;
   }
   if (status === 'completed' || remainingQuantity === 0) {
-    return <p className="rounded-xl border border-[#e7e5e4] bg-white p-4 text-sm">這筆訂單已全部交付。</p>;
+    return <p className="rounded-xl border border-[#e7e5e4] bg-white p-4 text-sm">這筆訂單已全部交付，不需要再操作。</p>;
   }
   if (status === 'awaiting_extra_payment') {
     return (
       <div className="space-y-3 rounded-xl border border-[#e7e5e4] bg-white p-4">
-        <p className="font-medium">等待顧客透過官方 LINE 完成補款</p>
-        <p className="text-sm text-muted-foreground">付款完成前，系統不會扣庫存或完成交付。</p>
-        {payQrUrl ? <Button asChild className="w-full"><a href={payQrUrl}>開啟官方 LINE 付款</a></Button> : null}
+        <p className="font-medium">客人還需要補款</p>
+        <p className="text-sm text-muted-foreground">請客人到官方 LINE 付款。付款成功後，再回來交付商品。</p>
+        {payQrUrl ? <Button asChild className="w-full"><a href={payQrUrl}>開啟 LINE 付款頁</a></Button> : null}
       </div>
     );
   }
@@ -122,7 +122,7 @@ export function RefillOrderActions({
     <div className="space-y-5">
       <section className="space-y-4 rounded-xl border border-[#e7e5e4] bg-white p-4">
         <div className="flex items-center justify-between gap-4">
-          <div><p className="font-medium">本次領取</p><p className="text-sm text-muted-foreground">尚可領取 {remainingQuantity} 罐</p></div>
+          <div><p className="font-medium">1. 這次給客人幾罐？</p><p className="text-sm text-muted-foreground">最多可以給 {remainingQuantity} 罐</p></div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" disabled={pickupQuantity <= 1} onClick={() => { setPickupQuantity((n) => n - 1); setQuote(null); }}>−</Button>
             <strong>{pickupQuantity}</strong>
@@ -130,7 +130,7 @@ export function RefillOrderActions({
           </div>
         </div>
         <div className="flex items-center justify-between gap-4 border-t pt-4">
-          <div><p className="font-medium">本次歸還空罐</p><p className="text-sm text-muted-foreground">會員最多有 {availableReturnQuantity} 個可歸還</p></div>
+          <div><p className="font-medium">2. 這次收到幾個空罐？</p><p className="text-sm text-muted-foreground">這位客人最多可歸還 {availableReturnQuantity} 個</p></div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="icon" disabled={returnQuantity <= 0} onClick={() => changeReturnQuantity(returnQuantity - 1)}>−</Button>
             <strong>{returnQuantity}</strong>
@@ -141,7 +141,7 @@ export function RefillOrderActions({
 
       {serials.map((serial, index) => (
         <div key={index} className="space-y-2">
-          <label className="text-sm font-medium">空罐 {index + 1} 的瓶底 8 碼</label>
+          <label className="text-sm font-medium">第 {index + 1} 個空罐的瓶底號碼</label>
           <Input
             inputMode="numeric"
             maxLength={8}
@@ -152,26 +152,26 @@ export function RefillOrderActions({
               setSerials(next);
               setQuote(null);
             }}
-            placeholder="輸入 8 位數字"
+            placeholder="輸入瓶底 8 位數字"
           />
         </div>
       ))}
 
       {!quote ? (
-        <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy || !serialsReady} onClick={review}>查看本次交付結果</Button>
+        <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy || !serialsReady} onClick={review}>下一步：確認交付內容</Button>
       ) : (
         <section className="space-y-4 rounded-xl border border-[#e7e5e4] bg-white p-4">
-          <h2 className="font-semibold">交付確認</h2>
+          <h2 className="font-semibold">請確認這次的內容</h2>
           <dl className="grid grid-cols-2 gap-3 text-sm">
-            <div><dt className="text-muted-foreground">換罐價</dt><dd className="font-medium">{quote.exchangeQuantity} 罐</dd></div>
-            <div><dt className="text-muted-foreground">原價</dt><dd className="font-medium">{quote.originalPriceQuantity} 罐</dd></div>
-            <div><dt className="text-muted-foreground">額外回收</dt><dd className="font-medium">{quote.extraReturnQuantity} 個</dd></div>
-            <div><dt className="text-muted-foreground">還需補款</dt><dd className="font-medium">NT${quote.topUpAmount}</dd></div>
+            <div><dt className="text-muted-foreground">換罐價商品</dt><dd className="font-medium">{quote.exchangeQuantity} 罐</dd></div>
+            <div><dt className="text-muted-foreground">原價商品</dt><dd className="font-medium">{quote.originalPriceQuantity} 罐</dd></div>
+            <div><dt className="text-muted-foreground">多收的空罐</dt><dd className="font-medium">{quote.extraReturnQuantity} 個</dd></div>
+            <div><dt className="text-muted-foreground">客人要補款</dt><dd className="font-medium">NT${quote.topUpAmount}</dd></div>
           </dl>
           {quote.topUpAmount > 0 ? (
-            <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy} onClick={requestTopUp}>建立官方 LINE 補款 NT${quote.topUpAmount}</Button>
+            <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy} onClick={requestTopUp}>通知客人到 LINE 補款 NT${quote.topUpAmount}</Button>
           ) : (
-            <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy} onClick={fulfill}>確認交付 {pickupQuantity} 罐</Button>
+            <Button className="min-h-[52px] w-full bg-[#191919] hover:bg-black" disabled={busy} onClick={fulfill}>確認交付並扣除庫存</Button>
           )}
         </section>
       )}
