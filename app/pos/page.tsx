@@ -129,8 +129,11 @@ export default async function PosHomePage() {
                 <h2 id="quick-actions-title" className="text-base font-semibold">快速操作</h2>
                 <p className="text-sm text-muted-foreground">直接進入門市常用功能</p>
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-4">
                 <Button asChild className="min-h-[48px] bg-[#191919] hover:bg-black">
+                  <Link href="/pos/checkout">開始收銀</Link>
+                </Button>
+                <Button asChild variant="outline" className="min-h-[48px] bg-white">
                   <Link href="/pos/appointments/new">新增預約</Link>
                 </Button>
                 <Button asChild variant="outline" className="min-h-[48px] bg-white">
