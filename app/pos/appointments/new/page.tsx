@@ -33,19 +33,19 @@ export default async function PosAppointmentNewPage({
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <Link href="/pos/appointments" className="text-xs text-muted-foreground">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <Link href="/pos/appointments" className="text-sm text-muted-foreground">
           ← 預約
         </Link>
-        <h1 className="mb-1 text-xl font-semibold text-navy">手動新增</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          可寫入已滿時段（超約）。顧客公開頁看不到已滿格。
-        </p>
+        <header className="mb-5 border-b border-[#e7e5e4] pb-5">
+          <h1 className="mt-2 text-2xl font-semibold">新增預約</h1>
+          <p className="mt-1 text-sm text-muted-foreground">已滿時段仍可由門市加開，並會清楚標記。</p>
+        </header>
         <ManualAppointmentForm
           dateStr={dateStr}
           slots={slots.map((s) => ({
             value: s.startsAt.toISOString(),
-            label: `${formatLocalTime(s.startsAt)}${s.isFull ? '（已滿・超約）' : ''}`,
+            label: `${formatLocalTime(s.startsAt)}${s.isFull ? '（已滿・可加開）' : ''}`,
           }))}
           services={services.map((s) => ({
             id: s.id ?? '',
