@@ -3,7 +3,7 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 
-export const metadata = { title: '叫貨 · Furmosa 店家' };
+export const metadata = { title: '補貨 · Furmosa 店家' };
 
 const ENTRIES = [
   {
@@ -28,17 +28,21 @@ export default async function PosRestockHubPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold text-navy">叫貨</h1>
-        <p className="mb-5 text-sm text-muted-foreground">補貨申請，不用再傳 LINE。</p>
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        <header className="mb-6 border-b border-[#e7e5e4] pb-5">
+          <p className="text-sm text-muted-foreground">門市工作</p>
+          <h1 className="mt-1 text-2xl font-semibold">補貨</h1>
+          <p className="mt-1 text-sm text-muted-foreground">建立補貨申請，並追蹤公司的確認與到貨進度。</p>
+        </header>
 
         <div className="grid gap-3">
           {ENTRIES.map((item) => (
             <Link key={item.href} href={item.href}>
-              <Card className="shadow-card transition hover:border-primary/40">
-                <CardContent className="flex min-h-[72px] flex-col justify-center gap-1 p-4">
-                  <p className="text-base font-semibold text-foreground">{item.title}</p>
-                  <p className="text-sm text-muted-foreground">{item.hint}</p>
+              <Card className="border-[#e7e5e4] bg-white shadow-none transition hover:border-[#8a8a8a]">
+                <CardContent className="flex min-h-[80px] items-center justify-between gap-3 p-4">
+                  <div><p className="text-base font-semibold text-foreground">{item.title}</p>
+                  <p className="text-sm text-muted-foreground">{item.hint}</p></div>
+                  <span className="text-sm font-medium">查看 ›</span>
                 </CardContent>
               </Card>
             </Link>
