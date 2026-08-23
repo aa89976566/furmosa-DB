@@ -105,7 +105,7 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
   if (input.nextGuest) {
     rows.push({
       kind: 'next_guest',
-      title: '下一位客人',
+      title: '下一筆預約',
       subtitle: formatGuestSubtitle(input.nextGuest),
       href: `/pos/appointments/${input.nextGuest.id}`,
     });
