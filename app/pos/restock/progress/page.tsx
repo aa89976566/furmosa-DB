@@ -48,7 +48,7 @@ export default async function PosRestockProgressPage() {
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>還沒有補貨申請。</p>
               <Button asChild className="min-h-[44px] w-full">
-                <Link href="/pos/restock/new">去叫貨</Link>
+                <Link href="/pos/restock/new">建立補貨單</Link>
               </Button>
             </CardContent>
           </Card>
