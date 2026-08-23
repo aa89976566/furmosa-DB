@@ -30,19 +30,17 @@ export default async function PosAppointmentsPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        <div className="mb-6 flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
           <div>
-            <Link href="/pos" className="text-xs text-muted-foreground">
-              ← 今天
+            <Link href="/pos" className="text-sm text-muted-foreground">
+              ← 今日工作台
             </Link>
-            <h1 className="text-xl font-semibold text-navy">預約</h1>
-            <p className="text-sm text-muted-foreground">
-              顧客預約的是本店，不是某位美容師。
-            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-[#191919]">預約</h1>
+            <p className="mt-1 text-sm text-muted-foreground">查看、確認或調整門市預約。</p>
           </div>
           <div className="flex flex-col gap-2">
-            <Button asChild className="min-h-[44px]">
+            <Button asChild className="min-h-[44px] bg-[#191919] hover:bg-black">
               <Link href="/pos/appointments/new">手動新增</Link>
             </Button>
             <Button asChild variant="outline" className="min-h-[44px]">
@@ -52,7 +50,7 @@ export default async function PosAppointmentsPage() {
         </div>
 
         <section className="mb-6 space-y-2">
-          <h2 className="text-sm font-medium">待確認（{pending.length}）</h2>
+          <h2 className="text-base font-semibold">待確認（{pending.length}）</h2>
           {pending.length === 0 ? (
             <Card>
               <CardContent className="p-4 text-sm text-muted-foreground">
@@ -67,7 +65,7 @@ export default async function PosAppointmentsPage() {
         </section>
 
         <section className="space-y-2">
-          <h2 className="text-sm font-medium">其他</h2>
+          <h2 className="text-base font-semibold">所有預約</h2>
           {others.length === 0 ? (
             <p className="text-sm text-muted-foreground">尚無其他預約。</p>
           ) : (
@@ -94,7 +92,7 @@ function AppointmentRow({
 }) {
   return (
     <Link href={`/pos/appointments/${r.id}`}>
-      <Card className="shadow-card transition hover:border-primary/30">
+      <Card className="border-[#e7e5e4] bg-white shadow-none transition hover:border-[#8a8a8a]">
         <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
           <div className="min-w-0">
             <p className="truncate font-medium">
