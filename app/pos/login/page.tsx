@@ -17,7 +17,7 @@ export default function PosLoginPage({
           <Store className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-navy">Furmosa 店家登入</h1>
+          <h1 className="text-2xl font-semibold">Furmosa 店家登入</h1>
           <p className="text-sm text-muted-foreground">請使用總部提供的店家帳號</p>
         </div>
       </div>
