@@ -8,9 +8,10 @@ import { TodayTaskRowLink } from '@/components/pos/today-task-row';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { loadTodayDashboard } from '@/lib/pos/load-today-dashboard';
+import type { TodayTaskRow } from '@/lib/pos/today-dashboard';
 
 export const metadata = {
-  title: '今天 · Furmosa 店家',
+  title: '今日工作台 · Furmosa 店家',
 };
 
 export const dynamic = 'force-dynamic';
@@ -73,15 +74,14 @@ export default async function PosHomePage() {
     }
 
     const { rows, warning } = await loadTodayDashboard(session.merchantId);
-    const empty = rows.length === 0 && !warning;
-
     return (
       <PosShell>
-        <div className="px-4 py-6">
-          <header className="mb-6 flex items-start justify-between gap-3">
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <header className="mb-6 flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
             <div>
-              <h1 className="text-xl font-semibold text-navy">{merchant.name}</h1>
-              <p className="text-sm text-muted-foreground">今天</p>
+              <p className="text-sm text-muted-foreground">{merchant.name}</p>
+              <h1 className="mt-1 text-2xl font-semibold text-[#191919]">今日工作台</h1>
+              <p className="mt-1 text-sm text-muted-foreground">先處理待辦，再查看今天的預約與庫存。</p>
             </div>
             <form action={posLogoutAction}>
               <Button type="submit" variant="ghost" className="min-h-[44px] px-3 text-sm">
@@ -96,29 +96,51 @@ export default async function PosHomePage() {
             </Card>
           ) : null}
 
-          <div className="grid gap-3">
-            {empty ? (
-              <Card className="shadow-card">
-                <CardContent className="space-y-3 p-5">
-                  <p className="font-medium text-foreground">今天都處理好了。</p>
-                  <p className="text-sm text-muted-foreground">
-                    需要時可看換罐或叫貨。
-                  </p>
-                  <div className="grid gap-2">
-                    <Button asChild className="min-h-[44px] w-full">
-                      <Link href="/pos/refill">看換罐</Link>
-                    </Button>
-                    <Button asChild variant="outline" className="min-h-[44px] w-full">
-                      <Link href="/pos/restock">去叫貨</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
+          <div className="space-y-7">
+            <DashboardSection
+              title="待處理"
+              description="需要門市立即確認或交付的事項"
+              rows={rows.filter((row) =>
+                ['pending_confirm', 'pending_refill'].includes(row.kind),
+              )}
+              emptyText="目前沒有待處理事項。"
+            />
 
-            {rows.map((row) => (
-              <TodayTaskRowLink key={`${row.kind}-${row.href}`} row={row} />
-            ))}
+            <DashboardSection
+              title="今日預約"
+              description="依時間顯示最近一筆即將到店的預約"
+              rows={rows.filter((row) => row.kind === 'next_guest')}
+              emptyText="目前沒有即將到店的預約。"
+              action={{ href: '/pos/appointments', label: '查看全部預約' }}
+            />
+
+            <DashboardSection
+              title="庫存與補貨"
+              description="低庫存提醒及進行中的補貨單"
+              rows={rows.filter((row) =>
+                ['low_stock', 'restock_progress'].includes(row.kind),
+              )}
+              emptyText="目前沒有庫存或補貨提醒。"
+              action={{ href: '/pos/restock', label: '前往補貨' }}
+            />
+
+            <section aria-labelledby="quick-actions-title">
+              <div className="mb-3">
+                <h2 id="quick-actions-title" className="text-base font-semibold">快速操作</h2>
+                <p className="text-sm text-muted-foreground">直接進入門市常用功能</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <Button asChild className="min-h-[48px] bg-[#191919] hover:bg-black">
+                  <Link href="/pos/appointments/new">新增預約</Link>
+                </Button>
+                <Button asChild variant="outline" className="min-h-[48px] bg-white">
+                  <Link href="/pos/refill">處理換罐</Link>
+                </Button>
+                <Button asChild variant="outline" className="min-h-[48px] bg-white">
+                  <Link href="/pos/restock/new">建立補貨單</Link>
+                </Button>
+              </div>
+            </section>
 
             {warning ? (
               <Button asChild variant="outline" className="min-h-[44px] w-full">
@@ -136,4 +158,43 @@ export default async function PosHomePage() {
       <PosHomeFallback message="伺服器渲染時發生錯誤。" />
     );
   }
+}
+
+function DashboardSection({
+  title,
+  description,
+  rows,
+  emptyText,
+  action,
+}: {
+  title: string;
+  description: string;
+  rows: TodayTaskRow[];
+  emptyText: string;
+  action?: { href: string; label: string };
+}) {
+  return (
+    <section aria-labelledby={`section-${title}`}>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          <h2 id={`section-${title}`} className="text-base font-semibold">{title}</h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+        {action ? (
+          <Link href={action.href} className="shrink-0 text-sm font-medium underline underline-offset-4">
+            {action.label}
+          </Link>
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        {rows.length > 0 ? rows.map((row) => (
+          <TodayTaskRowLink key={`${row.kind}-${row.href}`} row={row} />
+        )) : (
+          <Card className="border-[#e7e5e4] bg-white shadow-none">
+            <CardContent className="p-4 text-sm text-muted-foreground">{emptyText}</CardContent>
+          </Card>
+        )}
+      </div>
+    </section>
+  );
 }
