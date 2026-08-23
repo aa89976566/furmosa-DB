@@ -30,11 +30,11 @@ function PosHomeFallback({
         <h1 className="text-lg font-semibold text-navy">今天暫時無法載入</h1>
         <p className="text-sm text-muted-foreground">
           {message}
-          {showRetryHint ? ' 請稍後再試，或先前往叫貨。' : null}
+          {showRetryHint ? ' 請稍後再試，或先建立補貨單。' : null}
         </p>
         <div className="flex flex-col gap-2">
           <Button asChild className="min-h-[44px] w-full">
-            <Link href="/pos/restock">前往叫貨</Link>
+            <Link href="/pos/restock">開啟補貨</Link>
           </Button>
           <form action={posLogoutAction}>
             <Button type="submit" variant="outline" className="min-h-[44px] w-full">
@@ -81,7 +81,7 @@ export default async function PosHomePage() {
             <div>
               <p className="text-sm text-muted-foreground">{merchant.name}</p>
               <h1 className="mt-1 text-2xl font-semibold text-[#191919]">今日工作台</h1>
-              <p className="mt-1 text-sm text-muted-foreground">先處理待辦，再查看今天的預約與庫存。</p>
+              <p className="mt-1 text-sm text-muted-foreground">這裡只顯示門市現在需要完成的工作。</p>
             </div>
             <form action={posLogoutAction}>
               <Button type="submit" variant="ghost" className="min-h-[44px] px-3 text-sm">
@@ -99,7 +99,7 @@ export default async function PosHomePage() {
           <div className="space-y-7">
             <DashboardSection
               title="待處理"
-              description="需要門市立即確認或交付的事項"
+              description="請先完成這些工作"
               rows={rows.filter((row) =>
                 ['pending_confirm', 'pending_refill'].includes(row.kind),
               )}
@@ -108,20 +108,20 @@ export default async function PosHomePage() {
 
             <DashboardSection
               title="今日預約"
-              description="依時間顯示最近一筆即將到店的預約"
+              description="最近一筆即將到店的預約"
               rows={rows.filter((row) => row.kind === 'next_guest')}
               emptyText="目前沒有即將到店的預約。"
-              action={{ href: '/pos/appointments', label: '查看全部預約' }}
+              action={{ href: '/pos/appointments', label: '全部預約' }}
             />
 
             <DashboardSection
               title="庫存與補貨"
-              description="低庫存提醒及進行中的補貨單"
+              description="需要補貨的商品與尚未完成的補貨單"
               rows={rows.filter((row) =>
                 ['low_stock', 'restock_progress'].includes(row.kind),
               )}
               emptyText="目前沒有庫存或補貨提醒。"
-              action={{ href: '/pos/restock', label: '前往補貨' }}
+              action={{ href: '/pos/restock', label: '補貨首頁' }}
             />
 
             <section aria-labelledby="quick-actions-title">
@@ -134,7 +134,7 @@ export default async function PosHomePage() {
                   <Link href="/pos/appointments/new">新增預約</Link>
                 </Button>
                 <Button asChild variant="outline" className="min-h-[48px] bg-white">
-                  <Link href="/pos/refill">處理換罐</Link>
+                  <Link href="/pos/refill">交付換罐商品</Link>
                 </Button>
                 <Button asChild variant="outline" className="min-h-[48px] bg-white">
                   <Link href="/pos/restock/new">建立補貨單</Link>
@@ -144,7 +144,7 @@ export default async function PosHomePage() {
 
             {warning ? (
               <Button asChild variant="outline" className="min-h-[44px] w-full">
-                <Link href="/pos/restock">前往叫貨</Link>
+                <Link href="/pos/restock">開啟補貨</Link>
               </Button>
             ) : null}
           </div>
