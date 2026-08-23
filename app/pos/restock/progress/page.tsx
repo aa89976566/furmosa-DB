@@ -30,21 +30,21 @@ export default async function PosRestockProgressPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        <div className="mb-6 flex items-center justify-between gap-3 border-b border-[#e7e5e4] pb-5">
           <div>
-            <Link href="/pos/restock" className="text-xs text-muted-foreground">
-              ← 叫貨
+            <Link href="/pos/restock" className="text-sm text-muted-foreground">
+              ← 補貨
             </Link>
-            <h1 className="text-xl font-semibold text-navy">申請進度</h1>
+            <h1 className="mt-2 text-2xl font-semibold">申請進度</h1>
           </div>
-          <Button asChild className="min-h-[44px]">
+          <Button asChild className="min-h-[44px] bg-[#191919] hover:bg-black">
             <Link href="/pos/restock/new">新增申請</Link>
           </Button>
         </div>
 
         {rows.length === 0 ? (
-          <Card>
+          <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>還沒有補貨申請。</p>
               <Button asChild className="min-h-[44px] w-full">
@@ -56,7 +56,7 @@ export default async function PosRestockProgressPage() {
           <div className="grid gap-3">
             {rows.map((r) => (
               <Link key={r.id} href={`/pos/restock/${r.id}`}>
-                <Card className="shadow-card transition hover:border-primary/30">
+                <Card className="border-[#e7e5e4] bg-white shadow-none transition hover:border-[#8a8a8a]">
                   <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
                     <div className="min-w-0">
                       <p className="truncate font-medium">
