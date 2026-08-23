@@ -22,7 +22,11 @@ const TABS = [
   {
     href: '/pos/records',
     label: '紀錄',
-    match: (p: string) => p === '/pos/records' || p.startsWith('/pos/records/'),
+    match: (p: string) =>
+      p === '/pos/records' ||
+      p.startsWith('/pos/records/') ||
+      p.startsWith('/pos/sales') ||
+      p.startsWith('/pos/settlements'),
   },
 ] as const;
 
