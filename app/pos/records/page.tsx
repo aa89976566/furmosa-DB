@@ -40,12 +40,15 @@ export default async function PosRecordsPage() {
 
   return (
     <PosShell>
-      <div className="px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold text-navy">紀錄</h1>
-        <p className="mb-5 text-sm text-muted-foreground">今天的叫貨紀錄</p>
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        <header className="mb-6 border-b border-[#e7e5e4] pb-5">
+          <p className="text-sm text-muted-foreground">門市工作</p>
+          <h1 className="mt-1 text-2xl font-semibold">紀錄</h1>
+          <p className="mt-1 text-sm text-muted-foreground">今天的補貨操作紀錄。</p>
+        </header>
 
         {rows.length === 0 ? (
-          <Card>
+          <Card className="border-[#e7e5e4] bg-white shadow-none">
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>今天還沒有叫貨紀錄。</p>
               <p>美容與換罐紀錄會在對應功能上線後再顯示，不會先放假資料。</p>
@@ -58,7 +61,7 @@ export default async function PosRecordsPage() {
           <div className="grid gap-3">
             {rows.map((r) => (
               <Link key={r.id} href={`/pos/restock/${r.id}`}>
-                <Card className="shadow-card transition hover:border-primary/30">
+                <Card className="border-[#e7e5e4] bg-white shadow-none transition hover:border-[#8a8a8a]">
                   <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
                     <div className="min-w-0">
                       <p className="truncate font-medium">
