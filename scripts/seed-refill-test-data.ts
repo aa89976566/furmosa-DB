@@ -50,7 +50,12 @@ const CODES = {
 } as const;
 
 function createPrisma() {
-  const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  const url =
+    process.env.DIRECT_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL;
   if (!url) {
     throw new Error('缺少 DATABASE_URL / DIRECT_URL，無法灌測試資料');
   }
