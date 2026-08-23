@@ -7,16 +7,16 @@ import { ClipboardList, House, PackagePlus, Repeat2, ShoppingCart } from 'lucide
 // 門市所有頁面共用同一組主要導覽。
 const TABS = [
   {
-    href: '/pos/checkout',
-    label: '收銀',
-    icon: ShoppingCart,
-    match: (p: string) => p === '/pos/checkout' || p.startsWith('/pos/checkout/'),
-  },
-  {
     href: '/pos',
     label: '首頁',
     icon: House,
     match: (p: string) => p === '/pos' || p.startsWith('/pos/appointments'),
+  },
+  {
+    href: '/pos/checkout',
+    label: '收銀',
+    icon: ShoppingCart,
+    match: (p: string) => p === '/pos/checkout' || p.startsWith('/pos/checkout/'),
   },
   {
     href: '/pos/refill',
