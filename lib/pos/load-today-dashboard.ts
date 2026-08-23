@@ -5,6 +5,7 @@ import {
   type TodayDashboardInput,
   type TodayTaskRow,
 } from '@/lib/pos/today-dashboard';
+import { taipeiTodayRange } from '@/lib/taipei-date';
 
 const OPEN_RESTOCK_STATUSES = [
   'submitted',
@@ -16,6 +17,11 @@ const OPEN_RESTOCK_STATUSES = [
 export type LoadedTodayDashboard = {
   rows: TodayTaskRow[];
   warning: string | null;
+  metrics: {
+    salesTotal: number;
+    completedOrders: number;
+    actionCount: number;
+  };
 };
 
 function isMissingRelationError(error: unknown): boolean {
@@ -58,7 +64,8 @@ export async function loadTodayDashboard(
   merchantId: string,
 ): Promise<LoadedTodayDashboard> {
   try {
-    const [pendingResult, nextResult, restockResult, stockResult, refillResult] =
+    const { start: todayStart, end: todayEnd } = taipeiTodayRange();
+    const [pendingResult, nextResult, restockResult, stockResult, refillResult, salesResult] =
       await Promise.allSettled([
         prisma.appointment.count({
           where: { merchantId, status: 'requested' },
@@ -67,7 +74,7 @@ export async function loadTodayDashboard(
           where: {
             merchantId,
             status: { in: ['confirmed', 'requested', 'reschedule_proposed'] },
-            startsAt: { gte: new Date() },
+            startsAt: { gte: new Date(), lte: todayEnd },
           },
           orderBy: { startsAt: 'asc' },
           select: {
@@ -107,6 +114,16 @@ export async function loadTodayDashboard(
             },
           },
         }),
+        prisma.order.aggregate({
+          where: {
+            merchantId,
+            source: 'consignment',
+            status: 'completed',
+            orderedAt: { gte: todayStart, lte: todayEnd },
+          },
+          _sum: { total: true },
+          _count: { id: true },
+        }),
       ]);
 
     const failures = [
@@ -114,12 +131,15 @@ export async function loadTodayDashboard(
       nextResult,
       restockResult,
       stockResult,
+      refillResult,
+      salesResult,
     ].filter((r) => r.status === 'rejected');
     const pendingConfirmCount = settledValue(pendingResult, 'pending') ?? 0;
     const nextAppt = settledValue(nextResult, 'next');
     const openRestocks = settledValue(restockResult, 'restock') ?? [];
     const stockRows = settledValue(stockResult, 'stock');
     const pendingRefillCount = settledValue(refillResult, 'refill') ?? 0;
+    const sales = settledValue(salesResult, 'sales');
 
     let lowStock: TodayDashboardInput['lowStock'] = null;
     if (stockRows && isInventoryReliable(stockRows.length)) {
@@ -164,7 +184,20 @@ export async function loadTodayDashboard(
           ? '部分資料尚未準備完成。你仍可使用下方的補貨功能。'
           : '部分資料暫時無法載入。你可以先建立補貨單，或稍後再試。';
 
-    return { rows: buildTodayTaskRows(input), warning };
+    const rows = buildTodayTaskRows(input);
+    return {
+      rows,
+      warning,
+      metrics: {
+        salesTotal: sales?._sum.total ?? 0,
+        completedOrders: sales?._count.id ?? 0,
+        actionCount:
+          pendingConfirmCount +
+          pendingRefillCount +
+          (lowStock?.length ?? 0) +
+          openRestocks.length,
+      },
+    };
   } catch (err) {
     console.error('[pos] loadTodayDashboard', err);
     return {
@@ -172,6 +205,7 @@ export async function loadTodayDashboard(
       warning: isMissingRelationError(err)
         ? '部分資料尚未準備完成。你仍可使用下方的補貨功能。'
         : '資料暫時載不進來，請稍後再試。',
+      metrics: { salesTotal: 0, completedOrders: 0, actionCount: 0 },
     };
   }
 }
