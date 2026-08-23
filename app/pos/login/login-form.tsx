@@ -12,7 +12,7 @@ export function PosLoginForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState(posLoginAction, initialState);
 
   return (
-    <Card>
+    <Card className="border-[#e7e5e4] bg-white shadow-none">
       <CardContent className="p-6">
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next ?? ''} />
@@ -58,7 +58,7 @@ export function PosLoginForm({ next }: { next?: string }) {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="h-11 w-full min-h-[44px]" disabled={pending}>
+    <Button type="submit" className="h-11 min-h-[44px] w-full bg-[#191919] hover:bg-black" disabled={pending}>
       {pending ? '登入中…' : '登入'}
     </Button>
   );
