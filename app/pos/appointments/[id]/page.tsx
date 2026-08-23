@@ -101,8 +101,8 @@ export default async function PosAppointmentDetailPage({
         {(refillOrder || row.serviceName.includes('換罐')) ? (
           <section aria-labelledby="refill-task-title">
             <div className="mb-3">
-              <h2 id="refill-task-title" className="text-base font-semibold">換罐處理</h2>
-              <p className="text-sm text-muted-foreground">換罐的付款、空罐與交付會獨立記錄。</p>
+              <h2 id="refill-task-title" className="text-base font-semibold">換罐商品</h2>
+              <p className="text-sm text-muted-foreground">確認付款後，再收空罐並交付商品。</p>
             </div>
             <Card className="border-[#e7e5e4] bg-white shadow-none">
               <CardContent className="space-y-4 p-4">
@@ -111,11 +111,11 @@ export default async function PosAppointmentDetailPage({
                     <div className="grid gap-3 text-sm sm:grid-cols-3">
                       <SummaryItem label="商品" value={refillOrder.product?.name ?? '換罐商品'} />
                       <SummaryItem label="付款" value={refillOrder.paidAt ? `已付款 NT$${refillOrder.totalAmount}` : '等待官方 LINE 付款'} />
-                      <SummaryItem label="待領取" value={`${refillRemaining}／${refillOrder.quantity} 罐`} />
+                      <SummaryItem label="還可領取" value={`${refillRemaining} 罐（共買 ${refillOrder.quantity} 罐）`} />
                     </div>
                     <Button asChild className="min-h-[48px] w-full bg-[#191919] hover:bg-black">
                       <Link href={`/pos/refill/${refillOrder.id}`}>
-                        {refillRemaining > 0 ? '處理換罐交付' : '查看換罐紀錄'}
+                        {refillRemaining > 0 ? '開始交付' : '開啟交付紀錄'}
                       </Link>
                     </Button>
                   </>
