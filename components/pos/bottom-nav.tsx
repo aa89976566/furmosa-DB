@@ -13,7 +13,7 @@ const TABS = [
   },
   {
     href: '/pos',
-    label: '工作台',
+    label: '首頁',
     icon: House,
     match: (p: string) => p === '/pos' || p.startsWith('/pos/appointments'),
   },
