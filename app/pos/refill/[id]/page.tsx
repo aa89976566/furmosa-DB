@@ -51,16 +51,16 @@ export default async function PosRefillDetailPage({
 
   return (
     <PosShell>
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <div className="flex items-center justify-between">
           <Button asChild variant="ghost" className="min-h-[44px] px-2">
             <Link href="/pos/refill">← 換罐訂單</Link>
           </Button>
         </div>
 
-        <header className="border-b border-[#e7e5e4] pb-5">
+        <header className="border-b border-[#dedede] pb-6">
           <p className="text-sm text-muted-foreground">處理換罐訂單</p>
-          <h1 className="mt-1 text-2xl font-semibold">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
             {order.petName ?? order.appointment.petName ?? '毛孩'}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -69,9 +69,10 @@ export default async function PosRefillDetailPage({
           </p>
         </header>
 
-        <section aria-labelledby="refill-order-title">
-          <h2 id="refill-order-title" className="mb-3 text-base font-semibold">客人買了什麼</h2>
-          <dl className="divide-y divide-[#e7e5e4] rounded-xl border border-[#e7e5e4] bg-white px-4 text-sm">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]">
+        <section aria-labelledby="refill-order-title" className="lg:sticky lg:top-8">
+          <h2 id="refill-order-title" className="mb-3 text-base font-semibold">訂單摘要</h2>
+          <dl className="divide-y divide-[#e7e5e4] rounded-2xl border border-[#e7e5e4] bg-white px-5 text-sm">
           <Row label="商品" value={order.product?.name ?? (order.orderType === 'first' ? '首罐商品' : '換罐商品')} />
           <Row label="購買數量" value={`${order.quantity} 罐`} />
           <Row label="已領數量" value={`${order.fulfilledQuantity} 罐`} />
@@ -103,9 +104,10 @@ export default async function PosRefillDetailPage({
           </dl>
         </section>
 
-        <section aria-labelledby="refill-action-title">
-          <div className="mb-3">
-            <h2 id="refill-action-title" className="text-base font-semibold">這次怎麼交付</h2>
+        <section aria-labelledby="refill-action-title" className="rounded-2xl border border-[#e7e5e4] bg-white p-5 sm:p-6">
+          <div className="mb-5 border-b border-[#e7e5e4] pb-4">
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">交付流程</p>
+            <h2 id="refill-action-title" className="mt-1 text-xl font-semibold">這次怎麼交付</h2>
             <p className="text-sm text-muted-foreground">先填這次給客人的商品數量，再填收到的空罐數量。</p>
           </div>
           <RefillOrderActions
@@ -117,6 +119,7 @@ export default async function PosRefillDetailPage({
             availableReturnQuantity={availableReturnQuantity}
           />
         </section>
+        </div>
       </div>
     </PosShell>
   );
