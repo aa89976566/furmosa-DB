@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ClipboardList, House, PackagePlus, Repeat2, ShoppingCart } from 'lucide-react';
 
+// 門市所有頁面共用同一組主要導覽。
 const TABS = [
   {
     href: '/pos/checkout',
