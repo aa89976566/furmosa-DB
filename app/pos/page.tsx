@@ -8,10 +8,10 @@ import { TodayTaskRowLink } from '@/components/pos/today-task-row';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { loadTodayDashboard } from '@/lib/pos/load-today-dashboard';
-import type { TodayTaskRow } from '@/lib/pos/today-dashboard';
+import { formatCurrency } from '@/lib/format';
 
 export const metadata = {
-  title: '今日工作台 · Furmosa 店家',
+  title: '門市首頁 · Furmosa 店家',
 };
 
 export const dynamic = 'force-dynamic';
@@ -73,15 +73,14 @@ export default async function PosHomePage() {
       );
     }
 
-    const { rows, warning } = await loadTodayDashboard(session.merchantId);
+    const { rows, warning, metrics } = await loadTodayDashboard(session.merchantId);
     return (
       <PosShell>
-        <div className="px-4 py-6 sm:px-6 lg:px-8">
-          <header className="mb-6 flex items-start justify-between gap-3 border-b border-[#e7e5e4] pb-5">
+        <div className="mx-auto max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8">
+          <header className="mb-6 flex items-center justify-between gap-4 border-b border-[#e7e5e4] pb-5">
             <div>
               <p className="text-sm text-muted-foreground">{merchant.name}</p>
-              <h1 className="mt-1 text-2xl font-semibold text-[#191919]">今日工作台</h1>
-              <p className="mt-1 text-sm text-muted-foreground">這裡只顯示門市現在需要完成的工作。</p>
+              <h1 className="mt-1 text-2xl font-semibold text-[#191919]">門市首頁</h1>
             </div>
             <form action={posLogoutAction}>
               <Button type="submit" variant="ghost" className="min-h-[44px] px-3 text-sm">
@@ -96,52 +95,43 @@ export default async function PosHomePage() {
             </Card>
           ) : null}
 
-          <div className="space-y-7">
-            <DashboardSection
-              title="待處理"
-              description="請先完成這些工作"
-              rows={rows.filter((row) =>
-                ['pending_confirm', 'pending_refill'].includes(row.kind),
-              )}
-              emptyText="目前沒有待處理事項。"
-            />
-
-            <DashboardSection
-              title="今日預約"
-              description="最近一筆即將到店的預約"
-              rows={rows.filter((row) => row.kind === 'next_guest')}
-              emptyText="目前沒有即將到店的預約。"
-              action={{ href: '/pos/appointments', label: '全部預約' }}
-            />
-
-            <DashboardSection
-              title="庫存與補貨"
-              description="需要補貨的商品與尚未完成的補貨單"
-              rows={rows.filter((row) =>
-                ['low_stock', 'restock_progress'].includes(row.kind),
-              )}
-              emptyText="目前沒有庫存或補貨提醒。"
-              action={{ href: '/pos/restock', label: '補貨首頁' }}
-            />
-
-            <section aria-labelledby="quick-actions-title">
-              <div className="mb-3">
-                <h2 id="quick-actions-title" className="text-base font-semibold">快速操作</h2>
-                <p className="text-sm text-muted-foreground">直接進入門市常用功能</p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-4">
-                <Button asChild className="min-h-[48px] bg-[#191919] hover:bg-black">
+          <div className="space-y-6">
+            <section className="grid overflow-hidden rounded-2xl border border-[#e7e5e4] bg-white shadow-sm lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+              <div className="flex flex-col justify-between p-6 sm:p-8">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">主要操作</p>
+                  <h2 className="mt-2 text-2xl font-semibold">準備好就開始下一筆銷售</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">選商品、確認收款，系統會同步建立訂單與更新庫存。</p>
+                </div>
+                <Button asChild className="mt-7 min-h-[54px] w-full bg-[#191919] text-base font-semibold hover:bg-black sm:w-56">
                   <Link href="/pos/checkout">開始收銀</Link>
                 </Button>
-                <Button asChild variant="outline" className="min-h-[48px] bg-white">
-                  <Link href="/pos/appointments/new">新增預約</Link>
-                </Button>
-                <Button asChild variant="outline" className="min-h-[48px] bg-white">
-                  <Link href="/pos/refill">交付換罐商品</Link>
-                </Button>
-                <Button asChild variant="outline" className="min-h-[48px] bg-white">
-                  <Link href="/pos/restock/new">建立補貨單</Link>
-                </Button>
+              </div>
+              <div className="grid grid-cols-3 border-t border-[#e7e5e4] bg-[#fafafa] lg:grid-cols-1 lg:border-l lg:border-t-0">
+                <Metric label="今日銷售" value={formatCurrency(metrics.salesTotal)} />
+                <Metric label="完成訂單" value={`${metrics.completedOrders} 筆`} />
+                <Metric label="待處理" value={`${metrics.actionCount} 件`} />
+              </div>
+            </section>
+
+            <section aria-labelledby="now-title">
+              <div className="mb-3">
+                <h2 id="now-title" className="text-lg font-semibold">現在要處理</h2>
+                <p className="text-sm text-muted-foreground">只顯示需要留意或接續處理的事情</p>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-[#e7e5e4] bg-white shadow-sm">
+                {rows.length > 0 ? (
+                  <div className="divide-y divide-[#eee]">
+                    {rows.map((row) => (
+                      <TodayTaskRowLink key={`${row.kind}-${row.href}`} row={row} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-5 py-10 text-center">
+                    <p className="font-medium">目前沒有待處理事項</p>
+                    <p className="mt-1 text-sm text-muted-foreground">有新的預約、換罐或庫存提醒時會顯示在這裡。</p>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -163,41 +153,11 @@ export default async function PosHomePage() {
   }
 }
 
-function DashboardSection({
-  title,
-  description,
-  rows,
-  emptyText,
-  action,
-}: {
-  title: string;
-  description: string;
-  rows: TodayTaskRow[];
-  emptyText: string;
-  action?: { href: string; label: string };
-}) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <section aria-labelledby={`section-${title}`}>
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <h2 id={`section-${title}`} className="text-base font-semibold">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-        {action ? (
-          <Link href={action.href} className="shrink-0 text-sm font-medium underline underline-offset-4">
-            {action.label}
-          </Link>
-        ) : null}
-      </div>
-      <div className="grid gap-2">
-        {rows.length > 0 ? rows.map((row) => (
-          <TodayTaskRowLink key={`${row.kind}-${row.href}`} row={row} />
-        )) : (
-          <Card className="border-[#e7e5e4] bg-white shadow-none">
-            <CardContent className="p-4 text-sm text-muted-foreground">{emptyText}</CardContent>
-          </Card>
-        )}
-      </div>
-    </section>
+    <div className="border-r border-[#e7e5e4] px-4 py-5 last:border-r-0 lg:border-b lg:border-r-0 lg:px-6 lg:last:border-b-0">
+      <p className="text-xs text-muted-foreground sm:text-sm">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums sm:text-xl">{value}</p>
+    </div>
   );
 }
