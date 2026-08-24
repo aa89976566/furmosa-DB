@@ -412,11 +412,22 @@ export async function approveOrderForShipment(formData: FormData) {
       throw new Error('只有 Shopify 匯入訂單可使用此審核流程');
     }
     if (order.paymentStatus !== 'paid') throw new Error('訂單尚未付款，不能通過出貨審核');
-    if (
-      order.shippingMethod === 'convenience' &&
-      (!order.cvsBrand || !order.cvsStoreName || !order.shippingAddress)
-    ) {
-      throw new Error('超商門市資料尚未確認，請先補齊超商、門市名稱與所在區域');
+    const recipientNameMissing =
+      !order.customer?.name?.trim() || order.customer.name.trim() === 'Shopify 客戶';
+    const shippingMissingFields = [
+      ...(recipientNameMissing ? ['收件人'] : []),
+      ...(!order.customer?.phone?.trim() ? ['電話'] : []),
+      ...(order.shippingMethod === 'home' && !order.shippingAddress?.trim() ? ['地址'] : []),
+      ...(order.shippingMethod === 'convenience' && !order.cvsBrand?.trim() ? ['超商'] : []),
+      ...(order.shippingMethod === 'convenience' && !order.cvsStoreName?.trim()
+        ? ['門市名稱']
+        : []),
+      ...(order.shippingMethod === 'convenience' && !order.shippingAddress?.trim()
+        ? ['門市所在地']
+        : []),
+    ];
+    if (shippingMissingFields.length > 0) {
+      throw new Error(`配送資料尚未確認，請先補齊${shippingMissingFields.join('、')}`);
     }
     if (order.status !== 'pending_review') {
       if (order.status === 'confirmed' && order.shipments.length > 0) return;
