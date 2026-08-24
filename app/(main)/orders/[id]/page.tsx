@@ -68,6 +68,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   if (!order) notFound();
 
   const editable = isOrderEditable(order);
+  const pickupIncomplete =
+    order.shippingMethod === 'convenience' &&
+    (!order.cvsBrand || !order.cvsStoreName || !order.shippingAddress);
   const logistics = resolveLogisticsForOrderList(order);
   const jibaSources = await loadJibaChargeSourcesByOrderIds([order.id]);
   const fulfillmentFee = resolveShipmentFulfillmentFee({
@@ -133,11 +136,20 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                   {order.paymentStatus === 'paid' ? '待客服審核' : '等待顧客付款'}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {order.paymentStatus === 'paid'
+                  {pickupIncomplete
+                    ? '超商、門市名稱或所在區域不完整；補齊前不會建立出貨單。'
+                    : order.paymentStatus === 'paid'
                     ? '款項已確認；審核通過後才會建立出貨單並進入出貨隊列。'
                     : '此訂單尚未付款。收到 Shopify 付款通知後，才能審核並建立出貨單。'}
                 </p>
-                {order.paymentStatus === 'paid' ? (
+                {pickupIncomplete ? (
+                  <Button className="mt-3" type="button" size="sm" variant="outline" asChild>
+                    <Link href={`/orders/${order.id}/edit`}>
+                      <MapPin className="mr-1 h-4 w-4" />
+                      補齊門市資料
+                    </Link>
+                  </Button>
+                ) : order.paymentStatus === 'paid' ? (
                   <form action={approveOrderForShipment} className="mt-3">
                     <input type="hidden" name="orderId" value={order.id} />
                     <Button type="submit" size="sm">

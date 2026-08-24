@@ -412,6 +412,12 @@ export async function approveOrderForShipment(formData: FormData) {
       throw new Error('只有 Shopify 匯入訂單可使用此審核流程');
     }
     if (order.paymentStatus !== 'paid') throw new Error('訂單尚未付款，不能通過出貨審核');
+    if (
+      order.shippingMethod === 'convenience' &&
+      (!order.cvsBrand || !order.cvsStoreName || !order.shippingAddress)
+    ) {
+      throw new Error('超商門市資料尚未確認，請先補齊超商、門市名稱與所在區域');
+    }
     if (order.status !== 'pending_review') {
       if (order.status === 'confirmed' && order.shipments.length > 0) return;
       throw new Error('訂單不在待審核狀態');

@@ -6,6 +6,7 @@ import { formatCustomerId, maxCustomerIdSeq } from '@/lib/customers/customer-id-
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type ShopifyMoney = { amount?: string | null };
+type ShopifyAttribute = { name?: string | null; value?: string | null };
 
 export type ShopifyPaidOrder = {
   id: number | string;
@@ -20,6 +21,7 @@ export type ShopifyPaidOrder = {
   total_discounts?: string | null;
   total_price?: string | null;
   total_shipping_price_set?: { shop_money?: ShopifyMoney | null } | null;
+  note_attributes?: ShopifyAttribute[] | null;
   customer?: {
     first_name?: string | null;
     last_name?: string | null;
@@ -49,6 +51,14 @@ export type ShopifyPaidOrder = {
   }> | null;
 };
 
+export type ShopifyPickupInfo = {
+  brand: string | null;
+  city: string | null;
+  district: string | null;
+  storeName: string | null;
+  storeId: string | null;
+};
+
 function money(value: string | null | undefined): number {
   const parsed = Number(value ?? 0);
   if (!Number.isFinite(parsed) || parsed < 0) throw new Error('Shopify 金額格式錯誤');
@@ -57,6 +67,39 @@ function money(value: string | null | undefined): number {
 
 function clean(value: string | null | undefined): string | null {
   return value?.trim() || null;
+}
+
+function attribute(order: ShopifyPaidOrder, ...names: string[]): string | null {
+  const accepted = new Set(names.map((name) => name.toLowerCase()));
+  const row = (order.note_attributes ?? []).find((item) =>
+    accepted.has(clean(item.name)?.toLowerCase() ?? ''),
+  );
+  return clean(row?.value);
+}
+
+export function shopifyPickupInfo(order: ShopifyPaidOrder): ShopifyPickupInfo {
+  const brandValue = attribute(order, '超商品牌', '取貨超商', 'cvs_brand');
+  const brandText = brandValue?.toLowerCase() ?? '';
+  const brand = /全家|family/.test(brandText)
+    ? 'familymart'
+    : /萊爾富|hilife/.test(brandText)
+      ? 'hilife'
+      : /7-?11|7-eleven|統一/.test(brandText)
+        ? '711'
+        : clean(brandValue);
+
+  return {
+    brand,
+    city: attribute(order, '取貨縣市', '門市縣市', 'cvs_city'),
+    district: attribute(order, '取貨區域', '門市區域', 'cvs_district'),
+    storeName: attribute(order, '取貨門市名稱', '門市名稱', 'cvs_store_name'),
+    storeId: attribute(order, '取貨門市店號', '門市店號', 'cvs_store_id'),
+  };
+}
+
+export function hasCompleteShopifyPickupInfo(order: ShopifyPaidOrder): boolean {
+  const pickup = shopifyPickupInfo(order);
+  return Boolean(pickup.brand && pickup.city && pickup.district && pickup.storeName);
 }
 
 function fullName(order: ShopifyPaidOrder): string {
@@ -79,6 +122,7 @@ function addressText(order: ShopifyPaidOrder): string | null {
 }
 
 function isConveniencePickup(order: ShopifyPaidOrder): boolean {
+  const pickup = shopifyPickupInfo(order);
   const text = [
     ...(order.shipping_lines ?? []).map((line) => line.title),
     order.shipping_address?.company,
@@ -89,7 +133,16 @@ function isConveniencePickup(order: ShopifyPaidOrder): boolean {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  return /7-?11|7-eleven|超商|店到店/.test(text);
+  return Boolean(pickup.brand || pickup.storeName) ||
+    /7-?11|7-eleven|全家|超商|店到店/.test(text);
+}
+
+function convenienceAddress(order: ShopifyPaidOrder): string | null {
+  const pickup = shopifyPickupInfo(order);
+  if (!pickup.storeName) return addressText(order);
+  return [pickup.city, pickup.district, pickup.storeName]
+    .filter(Boolean)
+    .join(' ');
 }
 
 export function verifyShopifyWebhookHmac(rawBody: string, received: string, secret: string) {
@@ -195,12 +248,31 @@ export async function importShopifyOrder(
   });
   if (existing) {
     const nextPaymentStatus = paymentStatus(order.financial_status);
-    if (existing.paymentStatus === nextPaymentStatus) {
+    const pickup = shopifyPickupInfo(order);
+    const convenience = isConveniencePickup(order);
+    const pickupAddress = convenienceAddress(order);
+    const pickupUpdate = convenience
+      ? {
+          shippingMethod: 'convenience',
+          shippingAddress: pickupAddress,
+          cvsBrand: pickup.brand,
+          cvsStoreId: pickup.storeId,
+          cvsStoreName: pickup.storeName,
+        }
+      : {};
+    const pickupChanged = convenience && (
+      existing.shippingMethod !== 'convenience' ||
+      existing.shippingAddress !== pickupAddress ||
+      existing.cvsBrand !== pickup.brand ||
+      existing.cvsStoreId !== pickup.storeId ||
+      existing.cvsStoreName !== pickup.storeName
+    );
+    if (existing.paymentStatus === nextPaymentStatus && !pickupChanged) {
       return { order: existing, created: false as const, updated: false as const };
     }
     const updated = await prisma.order.update({
       where: { id: existing.id },
-      data: { paymentStatus: nextPaymentStatus },
+      data: { paymentStatus: nextPaymentStatus, ...pickupUpdate },
     });
     return { order: updated, created: false as const, updated: true as const };
   }
@@ -226,6 +298,7 @@ export async function importShopifyOrder(
     const shippingFee = money(order.total_shipping_price_set?.shop_money?.amount);
     const total = money(order.total_price);
     const convenience = isConveniencePickup(order);
+    const pickup = shopifyPickupInfo(order);
 
     const created = await tx.order.create({
       data: {
@@ -245,12 +318,13 @@ export async function importShopifyOrder(
         companyShippingCost: shippingFee > 0 ? 0 : shippingFee,
         total,
         shippingMethod: convenience ? 'convenience' : 'home',
-        shippingAddress: addressText(order),
-        cvsBrand: convenience ? '711' : null,
+        shippingAddress: convenience ? convenienceAddress(order) : addressText(order),
+        cvsBrand: convenience ? pickup.brand ?? '711' : null,
+        cvsStoreId: convenience ? pickup.storeId : null,
         cvsStoreName: convenience
-          ? clean(order.shipping_address?.company) ?? clean(order.shipping_address?.address1)
+          ? pickup.storeName ?? clean(order.shipping_address?.company) ?? clean(order.shipping_address?.address1)
           : null,
-        note: `Shopify ${clean(order.name) ?? externalOrderId}\n訂單已同步，待客服審核`,
+        note: `Shopify ${clean(order.name) ?? externalOrderId}\n訂單已同步，${convenience && !hasCompleteShopifyPickupInfo(order) ? '門市資料待確認' : '待客服審核'}`,
         orderedAt: new Date(order.processed_at ?? order.created_at ?? Date.now()),
         items: {
           create: (order.line_items ?? []).map((item) => {

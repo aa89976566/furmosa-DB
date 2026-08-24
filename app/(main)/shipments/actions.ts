@@ -76,7 +76,16 @@ async function markShipmentStatusInner(formData: FormData) {
     where: { id: shipmentId },
     include: {
       items: true,
-      order: { select: { status: true, paymentStatus: true } },
+      order: {
+        select: {
+          status: true,
+          paymentStatus: true,
+          shippingMethod: true,
+          shippingAddress: true,
+          cvsBrand: true,
+          cvsStoreName: true,
+        },
+      },
       merchant: {
         select: {
           id: true,
@@ -95,6 +104,15 @@ async function markShipmentStatusInner(formData: FormData) {
   const allowed = TRANSITIONS[shipment.status] ?? [];
   if (!allowed.includes(next)) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
+  }
+  if (
+    (next === 'shipped' || next === 'delivered') &&
+    shipment.order?.shippingMethod === 'convenience' &&
+    (!shipment.order.cvsBrand ||
+      !shipment.order.cvsStoreName ||
+      !shipment.order.shippingAddress)
+  ) {
+    throw new Error('門市資料待確認：請先補齊超商、門市名稱與所在區域');
   }
   const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
   const jiba = shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null;
