@@ -339,18 +339,34 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           description={`${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
         >
           {(() => {
-            const incomplete = order.items.filter(
-              (it) =>
-                !it.isGift &&
-                (Number(it.unitPrice) === 0 || !it.sku || it.sku.startsWith('FUR-')),
-            );
+            const incomplete = order.items
+              .filter((it) => !it.isGift)
+              .map((it) => ({
+                item: it,
+                missing: [
+                  ...(!it.sku?.trim() ? ['SKU'] : []),
+                  ...(Number(it.unitPrice) <= 0 ? ['單價'] : []),
+                  ...(!it.weightGrams || Number(it.weightGrams) <= 0 ? ['重量'] : []),
+                ],
+              }))
+              .filter(({ missing }) => missing.length > 0);
             return incomplete.length > 0 ? (
               <div className="mb-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
-                <span>
-                  有 <span className="font-semibold">{incomplete.length}</span> 個品項缺欄位（SKU
-                  自動帶入或單價未填）— 請出貨前回試算表 / 系統補完。
-                </span>
+                <div>
+                  <p className="font-medium">
+                    有 <span className="font-semibold">{incomplete.length}</span> 個品項資料未完整
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {incomplete.map(({ item, missing }) => (
+                      <li key={item.id}>
+                        {replaceJibaLegacyCatnipName(item.productName)}：缺少
+                        {missing.join('、')}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-muted-foreground">請在出貨前補齊商品資料。</p>
+                </div>
               </div>
             ) : null;
           })()}
@@ -369,8 +385,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             </TableHeader>
             <TableBody>
               {order.items.map((it) => {
-                const skuMissing = !it.sku || it.sku.startsWith('FUR-');
-                const priceMissing = !it.isGift && Number(it.unitPrice) === 0;
+                const skuMissing = !it.sku?.trim();
+                const priceMissing = !it.isGift && Number(it.unitPrice) <= 0;
+                const weightMissing = !it.isGift && (!it.weightGrams || Number(it.weightGrams) <= 0);
                 return (
                   <TableRow key={it.id}>
                     <TableCell>
@@ -399,7 +416,16 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono text-sm">
-                      {it.weightGrams ? `${it.weightGrams}g` : '-'}
+                      {weightMissing ? (
+                        <span className="inline-flex items-center gap-1 rounded bg-warning/10 px-1.5 py-0.5 text-xs text-warning">
+                          <AlertTriangle className="h-3 w-3" />
+                          未填
+                        </span>
+                      ) : it.weightGrams ? (
+                        `${it.weightGrams}g`
+                      ) : (
+                        '-'
+                      )}
                     </TableCell>
                     <TableCell className="text-center text-sm text-muted-foreground">
                       {it.unit ?? '-'}
