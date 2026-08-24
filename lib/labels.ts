@@ -13,6 +13,7 @@ export const orderStatusLabel: Record<string, string> = {
 };
 
 export const orderSourceLabel: Record<string, string> = {
+  shopify: 'Shopify',
   website: '官網',
   line: 'LINE',
   consignment: '寄賣',

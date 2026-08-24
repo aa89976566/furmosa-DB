@@ -104,11 +104,8 @@ export function verifyShopifyWebhookHmac(rawBody: string, received: string, secr
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-export function validatePaidOrderPayload(order: ShopifyPaidOrder) {
+export function validateShopifyOrderPayload(order: ShopifyPaidOrder) {
   if (!order?.id) throw new Error('缺少 Shopify order id');
-  if (order.financial_status && order.financial_status !== 'paid') {
-    throw new Error(`Shopify 訂單尚未付款：${order.financial_status}`);
-  }
   const items = order.line_items ?? [];
   if (items.length === 0) throw new Error('Shopify 訂單沒有商品');
   for (const item of items) {
@@ -116,6 +113,28 @@ export function validatePaidOrderPayload(order: ShopifyPaidOrder) {
     if (!Number.isInteger(item.quantity) || Number(item.quantity) <= 0) {
       throw new Error(`Shopify 商品數量錯誤：${item.sku}`);
     }
+  }
+}
+
+export function validatePaidOrderPayload(order: ShopifyPaidOrder) {
+  validateShopifyOrderPayload(order);
+  if (order.financial_status && order.financial_status !== 'paid') {
+    throw new Error(`Shopify 訂單尚未付款：${order.financial_status}`);
+  }
+}
+
+function paymentStatus(status?: string | null) {
+  switch (status) {
+    case 'paid':
+      return 'paid';
+    case 'partially_paid':
+    case 'partially_refunded':
+      return 'partial';
+    case 'refunded':
+    case 'voided':
+      return 'refunded';
+    default:
+      return 'unpaid';
   }
 }
 
@@ -157,11 +176,11 @@ function internalOrderNumber(order: ShopifyPaidOrder): string {
   return `SHOP-${visible}-${suffix}`;
 }
 
-export async function importShopifyPaidOrder(
+export async function importShopifyOrder(
   shopDomain: string,
   order: ShopifyPaidOrder,
 ) {
-  validatePaidOrderPayload(order);
+  validateShopifyOrderPayload(order);
   const externalStore = shopDomain.trim().toLowerCase();
   if (!externalStore) throw new Error('缺少 Shopify shop domain');
   const externalOrderId = String(order.id);
@@ -169,12 +188,30 @@ export async function importShopifyPaidOrder(
   const existing = await prisma.order.findUnique({
     where: { externalStore_externalOrderId: { externalStore, externalOrderId } },
   });
-  if (existing) return { order: existing, created: false as const };
+  if (existing) {
+    const nextPaymentStatus = paymentStatus(order.financial_status);
+    if (existing.paymentStatus === nextPaymentStatus) {
+      return { order: existing, created: false as const, updated: false as const };
+    }
+    const updated = await prisma.order.update({
+      where: { id: existing.id },
+      data: { paymentStatus: nextPaymentStatus },
+    });
+    return { order: updated, created: false as const, updated: true as const };
+  }
 
   return prisma.$transaction(async (tx) => {
     const skus = [...new Set((order.line_items ?? []).map((item) => clean(item.sku) as string))];
-    const products = await tx.product.findMany({ where: { sku: { in: skus } } });
-    const bySku = new Map(products.map((product) => [product.sku, product]));
+    const products = await tx.product.findMany({
+      where: { OR: [{ sku: { in: skus } }, { sourceSku: { in: skus } }] },
+    });
+    const bySku = new Map(
+      products.flatMap((product) =>
+        [product.sku, product.sourceSku]
+          .filter((value): value is string => Boolean(value))
+          .map((value) => [value, product] as const),
+      ),
+    );
     const missing = skus.filter((sku) => !bySku.has(sku));
     if (missing.length) throw new Error(`Furmosa 找不到 Shopify SKU：${missing.join(', ')}`);
 
@@ -188,12 +225,12 @@ export async function importShopifyPaidOrder(
     const created = await tx.order.create({
       data: {
         orderNumber: internalOrderNumber(order),
-        source: 'website',
+        source: 'shopify',
         externalStore,
         externalOrderId,
         externalOrderName: clean(order.name),
         status: 'pending_review',
-        paymentStatus: 'paid',
+        paymentStatus: paymentStatus(order.financial_status),
         fulfillmentStatus: 'pending',
         shippingFeeType: shippingFee > 0 ? 'prepaid' : 'free',
         customerId: customer.id,
@@ -208,7 +245,7 @@ export async function importShopifyPaidOrder(
         cvsStoreName: convenience
           ? clean(order.shipping_address?.company) ?? clean(order.shipping_address?.address1)
           : null,
-        note: `Shopify ${clean(order.name) ?? externalOrderId}\n付款成功，待客服審核`,
+        note: `Shopify ${clean(order.name) ?? externalOrderId}\n訂單已同步，待客服審核`,
         orderedAt: new Date(order.processed_at ?? order.created_at ?? Date.now()),
         items: {
           create: (order.line_items ?? []).map((item) => {
@@ -242,6 +279,14 @@ export async function importShopifyPaidOrder(
       },
     });
 
-    return { order: created, created: true as const };
+    return { order: created, created: true as const, updated: false as const };
   });
+}
+
+export async function importShopifyPaidOrder(
+  shopDomain: string,
+  order: ShopifyPaidOrder,
+) {
+  validatePaidOrderPayload(order);
+  return importShopifyOrder(shopDomain, order);
 }
