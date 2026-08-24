@@ -154,7 +154,7 @@ export default function OrdersPage({
       <PageHeader
         tone="orders"
         title="訂單 Order Hub"
-        description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
+        description="統一訂單工作台 — 可依 Shopify、官網、LINE、寄賣與手動建立來源篩選"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">

@@ -25,7 +25,7 @@ export default function ShipmentsPage({
       <PageHeader
         tone="logistics"
         title="出貨隊列"
-        description="統一出貨工作台 — 寄賣店成交與進貨請看「寄賣」；官網/LINE 請看「直客訂單」"
+        description="統一出貨工作台 — 寄賣店成交與進貨請看「寄賣」；Shopify、官網與 LINE 請看「直客訂單」"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>

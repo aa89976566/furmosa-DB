@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
+import { orderSourceLabel } from '@/lib/labels';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 
@@ -45,6 +46,7 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    source: string;
     status: string;
     paymentStatus: string;
     shippingFeeType?: string;
@@ -99,6 +101,13 @@ function rowLabel(s: ShipmentQueueRow) {
     s.subscriptionShipment?.shipmentNo ??
     s.shipmentNumber
   );
+}
+
+function shipmentSourceLabel(s: ShipmentQueueRow) {
+  if (s.order?.source) {
+    return `來源：${orderSourceLabel[s.order.source] ?? s.order.source}`;
+  }
+  return shipmentTypeLabel[s.type] ?? s.type;
 }
 
 function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
@@ -263,7 +272,7 @@ function ShipmentQueueCard({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-semibold text-foreground">{label}</span>
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
-              {shipmentTypeLabel[shipment.type] ?? shipment.type}
+              {shipmentSourceLabel(shipment)}
             </Badge>
             {shipment.fulfillmentFeeLabel ? (
               <Badge
@@ -397,7 +406,7 @@ export function ShipmentQueueTable({
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
-                        {shipmentTypeLabel[shipment.type] ?? shipment.type}
+                        {shipmentSourceLabel(shipment)}
                       </Badge>
                       {shipment.fulfillmentFeeLabel ? (
                         <Badge

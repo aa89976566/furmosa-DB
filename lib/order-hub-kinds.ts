@@ -3,18 +3,19 @@ import type { Prisma } from '@prisma/client';
 /** 訂單列表：依 Order.source 分類 */
 export const ORDER_SOURCE_TABS = [
   { key: '', label: '全部' },
+  { key: 'shopify', label: 'Shopify' },
   { key: 'website', label: '官網' },
   { key: 'line', label: 'LINE' },
   { key: 'consignment', label: '寄賣' },
   { key: 'manual', label: '手動' },
 ] as const;
 
-export const ORDER_SOURCE_KEYS = ['website', 'line', 'consignment', 'manual'] as const;
+export const ORDER_SOURCE_KEYS = ['shopify', 'website', 'line', 'consignment', 'manual'] as const;
 
 /** 出貨隊列種類（consignment 為邏輯分類，含進貨與寄賣成交） */
 export const SHIPMENT_KIND_TABS = [
   { key: '', label: '全部' },
-  { key: 'customer_order', label: '直客訂單', hint: '官網 / LINE / 手動，不含寄賣店成交' },
+  { key: 'customer_order', label: '直客訂單', hint: 'Shopify / 官網 / LINE / 手動，不含寄賣店成交' },
   { key: 'subscription', label: '訂閱', hint: '訂閱制定期出貨' },
   { key: 'consignment', label: '寄賣', hint: '寄賣店進貨與店內成交（如淡水妞妞）' },
 ] as const;

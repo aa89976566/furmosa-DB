@@ -64,6 +64,7 @@ const taskPriorityVariant: Record<string, Variant> = {
 };
 
 const sourceVariant: Record<string, Variant> = {
+  shopify: 'success',
   website: 'info',
   line: 'success',
   consignment: 'warning',
