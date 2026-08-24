@@ -138,6 +138,11 @@ function paymentStatus(status?: string | null) {
   }
 }
 
+/** Shopify 結帳內收取的運費屬於本張訂單，不能標成「已在別處付費」。 */
+export function shopifyShippingFeeType(shippingFee: number) {
+  return shippingFee > 0 ? 'unpaid' : 'free';
+}
+
 async function findOrCreateCustomer(tx: DbClient, order: ShopifyPaidOrder) {
   const email = clean(order.email) ?? clean(order.customer?.email);
   const phone = clean(order.shipping_address?.phone) ?? clean(order.phone) ?? clean(order.customer?.phone);
@@ -232,7 +237,7 @@ export async function importShopifyOrder(
         status: 'pending_review',
         paymentStatus: paymentStatus(order.financial_status),
         fulfillmentStatus: 'pending',
-        shippingFeeType: shippingFee > 0 ? 'prepaid' : 'free',
+        shippingFeeType: shopifyShippingFeeType(shippingFee),
         customerId: customer.id,
         subtotal,
         discount,

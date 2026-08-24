@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   validateShopifyOrderPayload,
   validatePaidOrderPayload,
+  shopifyShippingFeeType,
   verifyShopifyWebhookHmac,
   type ShopifyPaidOrder,
 } from '@/lib/shopify/orders-paid';
@@ -39,5 +40,10 @@ describe('Shopify orders/paid webhook', () => {
     assert.doesNotThrow(() =>
       validateShopifyOrderPayload({ ...paidOrder, financial_status: 'pending' }),
     );
+  });
+
+  it('keeps Shopify checkout shipping inside the order total', () => {
+    assert.equal(shopifyShippingFeeType(60), 'unpaid');
+    assert.equal(shopifyShippingFeeType(0), 'free');
   });
 });
