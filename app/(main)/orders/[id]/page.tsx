@@ -68,9 +68,21 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   if (!order) notFound();
 
   const editable = isOrderEditable(order);
-  const pickupIncomplete =
-    order.shippingMethod === 'convenience' &&
-    (!order.cvsBrand || !order.cvsStoreName || !order.shippingAddress);
+  const recipientNameMissing =
+    !order.customer?.name?.trim() || order.customer.name.trim() === 'Shopify 客戶';
+  const shippingMissingFields = [
+    ...(recipientNameMissing ? ['收件人'] : []),
+    ...(!order.customer?.phone?.trim() ? ['電話'] : []),
+    ...(order.shippingMethod === 'home' && !order.shippingAddress?.trim() ? ['地址'] : []),
+    ...(order.shippingMethod === 'convenience' && !order.cvsBrand?.trim() ? ['超商'] : []),
+    ...(order.shippingMethod === 'convenience' && !order.cvsStoreName?.trim()
+      ? ['門市名稱']
+      : []),
+    ...(order.shippingMethod === 'convenience' && !order.shippingAddress?.trim()
+      ? ['門市所在地']
+      : []),
+  ];
+  const shippingIncomplete = shippingMissingFields.length > 0;
   const logistics = resolveLogisticsForOrderList(order);
   const jibaSources = await loadJibaChargeSourcesByOrderIds([order.id]);
   const fulfillmentFee = resolveShipmentFulfillmentFee({
@@ -136,17 +148,17 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                   {order.paymentStatus === 'paid' ? '待客服審核' : '等待顧客付款'}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {pickupIncomplete
-                    ? '超商、門市名稱或所在區域不完整；補齊前不會建立出貨單。'
+                  {shippingIncomplete
+                    ? `配送資料不完整：缺少${shippingMissingFields.join('、')}。補齊前不會建立出貨單。`
                     : order.paymentStatus === 'paid'
                     ? '款項已確認；審核通過後才會建立出貨單並進入出貨隊列。'
                     : '此訂單尚未付款。收到 Shopify 付款通知後，才能審核並建立出貨單。'}
                 </p>
-                {pickupIncomplete ? (
+                {shippingIncomplete ? (
                   <Button className="mt-3" type="button" size="sm" variant="outline" asChild>
                     <Link href={`/orders/${order.id}/edit`}>
                       <MapPin className="mr-1 h-4 w-4" />
-                      補齊門市資料
+                      補齊配送資料
                     </Link>
                   </Button>
                 ) : order.paymentStatus === 'paid' ? (
@@ -217,6 +229,17 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
           <HorizontalSectionPane tone="logistics" icon={Truck} title="運輸資訊">
             <LogisticsSummary logistics={logistics} />
+            {shippingIncomplete ? (
+              <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <div>
+                  <p className="font-medium">待補配送資料</p>
+                  <p className="mt-0.5 text-muted-foreground">
+                    缺少{shippingMissingFields.join('、')}，目前不能建立出貨單。
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {order.shippingAddress &&
             order.shippingMethod === 'convenience' &&
             !logistics.destination.includes(order.shippingAddress.trim()) ? (
