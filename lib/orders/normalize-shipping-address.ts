@@ -2,7 +2,7 @@
 
 export const SHIPPING_NORMALIZE_MARKER = '[shipping_normalize:v1]';
 
-export const CUSTOMER_ORDER_SOURCES = ['website', 'line', 'manual'] as const;
+export const CUSTOMER_ORDER_SOURCES = ['shopify', 'website', 'line', 'manual'] as const;
 
 export type NormalizeSkipReason =
   | 'empty'

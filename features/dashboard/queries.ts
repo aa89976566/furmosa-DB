@@ -21,7 +21,7 @@ import {
   taipeiWeekRangeSunday,
 } from '@/lib/taipei-date';
 
-const ORDER_SOURCES = ['website', 'line', 'consignment', 'subscription', 'manual', 'jar_exchange'] as const;
+const ORDER_SOURCES = ['shopify', 'website', 'line', 'consignment', 'subscription', 'manual', 'jar_exchange'] as const;
 
 export type DashboardData = Awaited<ReturnType<typeof loadDashboardData>>;
 

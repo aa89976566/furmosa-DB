@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { describe, it } from 'node:test';
 import {
+  validateShopifyOrderPayload,
   validatePaidOrderPayload,
   verifyShopifyWebhookHmac,
   type ShopifyPaidOrder,
@@ -31,6 +32,12 @@ describe('Shopify orders/paid webhook', () => {
     assert.throws(
       () => validatePaidOrderPayload({ ...paidOrder, line_items: [{ quantity: 1 }] }),
       /缺少 SKU/,
+    );
+  });
+
+  it('accepts an unpaid order at creation time', () => {
+    assert.doesNotThrow(() =>
+      validateShopifyOrderPayload({ ...paidOrder, financial_status: 'pending' }),
     );
   });
 });
