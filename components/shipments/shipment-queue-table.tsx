@@ -236,18 +236,10 @@ function ShipmentQueueCard({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
       onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
         'relative w-full cursor-pointer rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-colors',
-        'active:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'active:bg-muted/40',
         selected && 'border-primary/30 bg-primary/[0.06] ring-1 ring-primary/20',
       )}
     >
@@ -283,7 +275,13 @@ function ShipmentQueueCard({
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </div>
 
-      <div className="mt-3" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+      {/* 勿把 button 放進 role=button；並擋掉列點擊，避免手機點「已寄出」無效 */}
+      <div
+        className="mt-3"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           運輸狀態
         </p>
@@ -303,6 +301,7 @@ function ShipmentQueueCard({
           <a
             href={`tel:${logistics.phone.replace(/\s/g, '')}`}
             onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
             className="mt-2 inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums text-foreground"
           >
             <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -346,7 +345,7 @@ export function ShipmentQueueTable({
       <div className="md:hidden">
         <VirtualCardList
           items={views}
-          estimateSize={156}
+          estimateSize={320}
           getKey={(view) => view.shipment.id}
           renderItem={(view) => (
             <ShipmentQueueCard
@@ -414,7 +413,11 @@ export function ShipmentQueueTable({
                       <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3" onClick={(event) => event.stopPropagation()}>
+                  <TableCell
+                    className="py-3"
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
                     <ShipmentQueueStatusCell
                       shipmentId={shipment.id}
                       status={shipment.status}

@@ -76,6 +76,7 @@ export function ShipmentQueueStatusSelect({
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
   const [displayValue, setDisplayValue] = useState(serverValue);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -97,6 +98,7 @@ export function ShipmentQueueStatusSelect({
 
   function submitNext(next: string) {
     if (next === displayValue || isPending) return;
+    setActionError(null);
     setDisplayValue(next);
     const fd = new FormData();
     fd.set('shipmentId', shipmentId);
@@ -105,44 +107,57 @@ export function ShipmentQueueStatusSelect({
     if (queueStatus) fd.set('queueStatus', queueStatus);
     if (queueType) fd.set('queueType', queueType);
     startTransition(() => {
-      void markShipmentStatus(fd);
+      void (async () => {
+        const result = await markShipmentStatus(fd);
+        if (result && result.ok === false) {
+          setDisplayValue(serverValue);
+          setActionError(result.error);
+        }
+      })();
     });
   }
 
   return (
-    <div
-      role="group"
-      aria-label="運輸狀態"
-      aria-busy={isPending}
-      onClick={(event) => event.stopPropagation()}
-      className={cn(
-        'inline-flex w-full max-w-full gap-0.5 rounded-xl border border-border/60 bg-muted/40 p-0.5',
-        isPending && 'pointer-events-none opacity-70',
-        className,
-      )}
-    >
-      {options.map((option) => {
-        const active = displayValue === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            disabled={isPending}
-            aria-pressed={active}
-            onClick={() => submitNext(option.value)}
-            className={cn(
-              'min-h-[32px] flex-1 rounded-[10px] border px-2.5 py-1.5',
-              'text-[11px] font-medium tracking-wide',
-              'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
-              'disabled:cursor-not-allowed',
-              statusChipClass(option.value, active),
-            )}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+    <div className={cn('space-y-1.5', className)}>
+      <div
+        role="group"
+        aria-label="運輸狀態"
+        aria-busy={isPending}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        className={cn(
+          'inline-flex w-full max-w-full gap-0.5 rounded-xl border border-border/60 bg-muted/40 p-0.5',
+          isPending && 'pointer-events-none opacity-70',
+        )}
+      >
+        {options.map((option) => {
+          const active = displayValue === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={isPending}
+              aria-pressed={active}
+              onClick={() => submitNext(option.value)}
+              className={cn(
+                'min-h-[32px] flex-1 rounded-[10px] border px-2.5 py-1.5',
+                'text-[11px] font-medium tracking-wide',
+                'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
+                'disabled:cursor-not-allowed',
+                statusChipClass(option.value, active),
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      {actionError ? (
+        <p className="text-[11px] leading-snug text-destructive" role="alert">
+          {actionError}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { has711PickupInfo, is711Carrier, tryResolve711PickupFromForm } from '@/lib/carrier-cvs';
+import {
+  has711PickupInfo,
+  hasConveniencePickupReady,
+  is711Carrier,
+  tryResolve711PickupFromForm,
+} from '@/lib/carrier-cvs';
 import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
@@ -40,22 +45,30 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-export async function markShipmentStatus(formData: FormData) {
+export type MarkShipmentStatusResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export async function markShipmentStatus(
+  formData: FormData,
+): Promise<MarkShipmentStatusResult | void> {
+  const inline = formData.get('inline') === '1';
   try {
     await markShipmentStatusInner(formData);
+    return { ok: true };
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     console.error('[markShipmentStatus]', error);
     const shipmentId = String(formData.get('shipmentId') ?? '').trim();
-    const inline = formData.get('inline') === '1';
     const message =
       error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
+    // 列表內聯操作：把錯誤回給按鈕旁顯示，避免只跳到頁面頂端、以為按鈕壞了
+    if (inline) {
+      return { ok: false, error: message.slice(0, 120) };
+    }
     const params = new URLSearchParams();
     params.set('error', message.slice(0, 120));
     if (shipmentId) params.set('s', shipmentId);
-    if (inline) {
-      redirect(`/shipments?${params.toString()}`);
-    }
     redirect(`/shipments/${shipmentId}?${params.toString()}`);
   }
 }
@@ -107,12 +120,12 @@ async function markShipmentStatusInner(formData: FormData) {
   }
   if (
     (next === 'shipped' || next === 'delivered') &&
-    shipment.order?.shippingMethod === 'convenience' &&
-    (!shipment.order.cvsBrand ||
-      !shipment.order.cvsStoreName ||
-      !shipment.order.shippingAddress)
+    !hasConveniencePickupReady({
+      order: shipment.order,
+      shipment,
+    })
   ) {
-    throw new Error('門市資料待確認：請先補齊超商、門市名稱與所在區域');
+    throw new Error('門市資料待確認：請先補齊超商與門市名稱');
   }
   const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
   const jiba = shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null;
