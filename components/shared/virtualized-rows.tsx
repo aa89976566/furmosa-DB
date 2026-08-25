@@ -28,6 +28,10 @@ export function VirtualCardList<T>({
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimateSize,
     overscan,
+    measureElement:
+      typeof window !== 'undefined'
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
   });
 
   if (items.length <= 24) {
@@ -55,9 +59,10 @@ export function VirtualCardList<T>({
           return (
             <div
               key={getKey ? getKey(item, row.index) : row.key}
+              data-index={row.index}
+              ref={virtualizer.measureElement}
               className="absolute left-0 top-0 w-full pb-3"
               style={{
-                height: row.size,
                 transform: `translateY(${row.start}px)`,
               }}
             >

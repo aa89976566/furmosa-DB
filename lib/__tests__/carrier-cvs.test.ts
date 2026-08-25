@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   has711PickupInfo,
+  hasConveniencePickupReady,
   tryResolve711PickupFromForm,
 } from '../carrier-cvs';
 
@@ -49,6 +50,71 @@ describe('has711PickupInfo', () => {
         recipientAddress: '7-11 · 淡水復興門市',
       }),
       true,
+    );
+  });
+});
+
+describe('hasConveniencePickupReady', () => {
+  it('allows non-convenience orders', () => {
+    assert.equal(
+      hasConveniencePickupReady({
+        order: { shippingMethod: 'home' },
+      }),
+      true,
+    );
+  });
+
+  it('allows convenience when brand and store name exist without region', () => {
+    assert.equal(
+      hasConveniencePickupReady({
+        order: {
+          shippingMethod: 'convenience',
+          cvsBrand: '711',
+          cvsStoreName: '薇閣門市',
+          shippingAddress: null,
+        },
+      }),
+      true,
+    );
+  });
+
+  it('allows convenience when shipment already has 7-11 pickup', () => {
+    assert.equal(
+      hasConveniencePickupReady({
+        order: {
+          shippingMethod: 'convenience',
+          cvsBrand: null,
+          cvsStoreName: null,
+          shippingAddress: null,
+        },
+        shipment: {
+          carrier: '7-11',
+          recipientName: '李宏需',
+          recipientPhone: '0932661030',
+          recipientAddress: '7-11 · 薇閣門市',
+        },
+      }),
+      true,
+    );
+  });
+
+  it('blocks convenience when neither order nor shipment has store info', () => {
+    assert.equal(
+      hasConveniencePickupReady({
+        order: {
+          shippingMethod: 'convenience',
+          cvsBrand: null,
+          cvsStoreName: null,
+          shippingAddress: null,
+        },
+        shipment: {
+          carrier: null,
+          recipientName: '李宏需',
+          recipientPhone: '0932661030',
+          recipientAddress: null,
+        },
+      }),
+      false,
     );
   });
 });

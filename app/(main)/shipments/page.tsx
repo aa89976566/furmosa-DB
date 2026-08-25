@@ -12,11 +12,19 @@ export const dynamic = 'force-dynamic';
 export default function ShipmentsPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; type?: string; s?: string; q?: string; error?: string };
+  searchParams?: {
+    status?: string;
+    type?: string;
+    s?: string;
+    q?: string;
+    error?: string;
+    delivered?: string;
+  };
 }) {
   const status = searchParams?.status;
   const rawType = searchParams?.type;
   const actionError = (searchParams?.error ?? '').trim();
+  const deliveredOk = searchParams?.delivered === '1';
   const type =
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
 
@@ -95,8 +103,14 @@ export default function ShipmentsPage({
           </div>
         ) : null}
 
+        {deliveredOk ? (
+          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            已標記貨物到達，該單已離開「在途」。
+          </div>
+        ) : null}
+
         <Suspense
-          key={`${status ?? ''}|${type ?? ''}|${searchParams?.q ?? ''}|${searchParams?.s ?? ''}`}
+          key={`${status ?? ''}|${type ?? ''}|${searchParams?.q ?? ''}|${searchParams?.s ?? ''}|${searchParams?.delivered ?? ''}`}
           fallback={<PageSkeleton variant="workspace" className="p-0" />}
         >
           <ShipmentsQueueBody searchParams={searchParams} />

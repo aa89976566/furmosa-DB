@@ -65,3 +65,54 @@ export function has711PickupInfo(shipment: {
     hasStore && !!(shipment.recipientName?.trim() && shipment.recipientPhone?.trim())
   );
 }
+
+function looksLikeCvsStoreAddress(address: string | null | undefined): boolean {
+  const addr = (address ?? '').trim();
+  if (!addr) return false;
+  return (
+    addr.startsWith('7-11') ||
+    addr.startsWith('7-ELEVEN') ||
+    addr.includes('門市') ||
+    addr.includes('全家') ||
+    addr.includes('萊爾富')
+  );
+}
+
+/**
+ * 超商取貨是否已足以標記寄出。
+ * 訂單有品牌＋門市名即可；或出貨單上已有完整 7-11／門市收件資料。
+ * 「所在區域」(shippingAddress) 為加分項，缺了不應擋住寄出。
+ */
+export function hasConveniencePickupReady(input: {
+  order?: {
+    shippingMethod?: string | null;
+    cvsBrand?: string | null;
+    cvsStoreName?: string | null;
+    shippingAddress?: string | null;
+  } | null;
+  shipment?: {
+    carrier?: string | null;
+    recipientName?: string | null;
+    recipientPhone?: string | null;
+    recipientAddress?: string | null;
+  } | null;
+}): boolean {
+  const order = input.order;
+  if (!order || order.shippingMethod !== 'convenience') return true;
+
+  if (order.cvsBrand?.trim() && order.cvsStoreName?.trim()) return true;
+
+  const shipment = input.shipment;
+  if (!shipment) return false;
+  if (has711PickupInfo(shipment)) return true;
+
+  const hasContact =
+    Boolean(shipment.recipientName?.trim()) && Boolean(shipment.recipientPhone?.trim());
+  if (!hasContact) return false;
+
+  if (order.cvsStoreName?.trim()) return true;
+  if (looksLikeCvsStoreAddress(shipment.recipientAddress)) return true;
+  if (looksLikeCvsStoreAddress(order.shippingAddress)) return true;
+
+  return false;
+}

@@ -1,7 +1,12 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { has711PickupInfo, is711Carrier, tryResolve711PickupFromForm } from '@/lib/carrier-cvs';
+import {
+  has711PickupInfo,
+  hasConveniencePickupReady,
+  is711Carrier,
+  tryResolve711PickupFromForm,
+} from '@/lib/carrier-cvs';
 import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
@@ -40,14 +45,37 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-export async function markShipmentStatus(formData: FormData) {
+export type MarkShipmentStatusResult =
+  | { ok: true; next: string; shipmentId: string }
+  | { ok: false; error: string };
+
+/** 詳情頁／面板表單用（必須回傳 void，才能當 form action） */
+export async function markShipmentStatus(formData: FormData): Promise<void> {
+  const inline = formData.get('inline') === '1';
   try {
-    await markShipmentStatusInner(formData);
+    const result = await markShipmentStatusInner(formData);
+    if (inline) {
+      const params = new URLSearchParams();
+      if (result.next === 'shipped') {
+        params.set('s', result.shipmentId);
+        params.set('status', 'shipped');
+        redirect(`/shipments?${params.toString()}`);
+      }
+      if (result.next === 'delivered') {
+        redirect('/shipments?delivered=1');
+      }
+      const queueStatus = String(formData.get('queueStatus') ?? '').trim();
+      const queueType = String(formData.get('queueType') ?? '').trim();
+      params.set('s', result.shipmentId);
+      if (queueStatus) params.set('status', queueStatus);
+      if (queueType) params.set('type', queueType);
+      redirect(`/shipments?${params.toString()}`);
+    }
+    redirect(`/shipments/${result.shipmentId}`);
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     console.error('[markShipmentStatus]', error);
     const shipmentId = String(formData.get('shipmentId') ?? '').trim();
-    const inline = formData.get('inline') === '1';
     const message =
       error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
     const params = new URLSearchParams();
@@ -60,7 +88,25 @@ export async function markShipmentStatus(formData: FormData) {
   }
 }
 
-async function markShipmentStatusInner(formData: FormData) {
+/** 出貨隊列分段按鈕用：回傳結果給前端導向／顯示錯誤 */
+export async function markShipmentStatusFromQueue(
+  formData: FormData,
+): Promise<MarkShipmentStatusResult> {
+  try {
+    const result = await markShipmentStatusInner(formData);
+    return { ok: true, next: result.next, shipmentId: result.shipmentId };
+  } catch (error) {
+    if (isNextRedirect(error)) throw error;
+    console.error('[markShipmentStatusFromQueue]', error);
+    const message =
+      error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
+    return { ok: false, error: message.slice(0, 120) };
+  }
+}
+
+async function markShipmentStatusInner(
+  formData: FormData,
+): Promise<{ next: string; shipmentId: string }> {
   const shipmentId = String(formData.get('shipmentId') ?? '');
   const next = String(formData.get('next') ?? '');
   let carrier = String(formData.get('carrier') ?? '').trim() || null;
@@ -106,18 +152,19 @@ async function markShipmentStatusInner(formData: FormData) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
   }
   if (
-    (next === 'shipped' || next === 'delivered') &&
-    shipment.order?.shippingMethod === 'convenience' &&
-    (!shipment.order.cvsBrand ||
-      !shipment.order.cvsStoreName ||
-      !shipment.order.shippingAddress)
+    next === 'shipped' &&
+    !hasConveniencePickupReady({
+      order: shipment.order,
+      shipment,
+    })
   ) {
-    throw new Error('門市資料待確認：請先補齊超商、門市名稱與所在區域');
+    throw new Error('門市資料待確認：請先補齊超商與門市名稱');
   }
+  // 已在途（shipped）再標「貨物到達」：不再重驗門市，避免舊單缺區域地址卡死
   const jibaSources = await loadJibaChargeSourcesByOrderIds([shipment.orderId]);
   const jiba = shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null;
   if (
-    (next === 'shipped' || next === 'delivered') &&
+    next === 'shipped' &&
     !canMarkJibaShipmentShipped({
       status: shipment.order?.status,
       paymentStatus: jiba?.paymentStatus ?? shipment.order?.paymentStatus,
@@ -338,29 +385,7 @@ async function markShipmentStatusInner(formData: FormData) {
     CACHE_TAGS.merchantsPortfolio,
   );
 
-  const inline = formData.get('inline') === '1';
-  const queueStatus = String(formData.get('queueStatus') ?? '').trim();
-  const queueType = String(formData.get('queueType') ?? '').trim();
-  if (inline) {
-    const params = new URLSearchParams();
-    if (next === 'shipped') {
-      params.set('s', shipmentId);
-      params.set('status', 'shipped');
-      redirect(`/shipments?${params.toString()}`);
-      return;
-    }
-    if (next === 'delivered') {
-      redirect('/shipments');
-      return;
-    }
-    params.set('s', shipmentId);
-    if (queueStatus) params.set('status', queueStatus);
-    if (queueType) params.set('type', queueType);
-    redirect(`/shipments?${params.toString()}`);
-    return;
-  }
-
-  redirect(`/shipments/${shipmentId}`);
+  return { next, shipmentId };
 }
 
 export type ShipmentPanelData = {
