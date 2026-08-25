@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { markShipmentStatus } from '@/app/(main)/shipments/actions';
+import { useRouter } from 'next/navigation';
+import { markShipmentStatusFromQueue } from '@/app/(main)/shipments/actions';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
 
@@ -58,6 +59,31 @@ function statusChipClass(value: string, active: boolean) {
   }
 }
 
+function buildInlineSuccessHref(input: {
+  next: string;
+  shipmentId: string;
+  queueStatus?: string;
+  queueType?: string;
+}) {
+  const params = new URLSearchParams();
+  if (input.next === 'shipped') {
+    params.set('status', 'shipped');
+    params.set('s', input.shipmentId);
+    if (input.queueType) params.set('type', input.queueType);
+    return `/shipments?${params.toString()}`;
+  }
+  if (input.next === 'delivered') {
+    // 已送達會離開「在途」；回待出貨列表並帶成功提示
+    params.set('delivered', '1');
+    if (input.queueType) params.set('type', input.queueType);
+    return `/shipments?${params.toString()}`;
+  }
+  params.set('s', input.shipmentId);
+  if (input.queueStatus) params.set('status', input.queueStatus);
+  if (input.queueType) params.set('type', input.queueType);
+  return `/shipments?${params.toString()}`;
+}
+
 export function ShipmentQueueStatusSelect({
   shipmentId,
   status,
@@ -73,6 +99,7 @@ export function ShipmentQueueStatusSelect({
   paymentReviewHold?: boolean;
   className?: string;
 }) {
+  const router = useRouter();
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
   const [displayValue, setDisplayValue] = useState(serverValue);
@@ -108,10 +135,26 @@ export function ShipmentQueueStatusSelect({
     if (queueType) fd.set('queueType', queueType);
     startTransition(() => {
       void (async () => {
-        const result = await markShipmentStatus(fd);
-        if (result && result.ok === false) {
+        try {
+          const result = await markShipmentStatusFromQueue(fd);
+          if (!result || result.ok === false) {
+            setDisplayValue(serverValue);
+            setActionError(result?.error ?? '更新出貨狀態失敗，請稍後再試');
+            return;
+          }
+          const href = buildInlineSuccessHref({
+            next: result.next,
+            shipmentId: result.shipmentId,
+            queueStatus,
+            queueType,
+          });
+          router.push(href);
+          router.refresh();
+        } catch (error) {
           setDisplayValue(serverValue);
-          setActionError(result.error);
+          setActionError(
+            error instanceof Error ? error.message.slice(0, 120) : '更新出貨狀態失敗，請稍後再試',
+          );
         }
       })();
     });
@@ -140,7 +183,7 @@ export function ShipmentQueueStatusSelect({
               aria-pressed={active}
               onClick={() => submitNext(option.value)}
               className={cn(
-                'min-h-[32px] flex-1 rounded-[10px] border px-2.5 py-1.5',
+                'min-h-[44px] flex-1 touch-manipulation rounded-[10px] border px-2.5 py-1.5',
                 'text-[11px] font-medium tracking-wide',
                 'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
