@@ -48,6 +48,7 @@ export type ShopifyPaidOrder = {
     sku?: string | null;
     quantity?: number | null;
     price?: string | null;
+    grams?: number | null;
   }> | null;
 };
 
@@ -133,14 +134,13 @@ function isConveniencePickup(order: ShopifyPaidOrder): boolean {
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
-  return Boolean(pickup.brand || pickup.storeName) ||
-    /7-?11|7-eleven|全家|超商|店到店/.test(text);
+  return Boolean(pickup.brand || pickup.storeName) || /7-?11|7-eleven|全家|超商|店到店/.test(text);
 }
 
 function convenienceAddress(order: ShopifyPaidOrder): string | null {
   const pickup = shopifyPickupInfo(order);
   if (!pickup.storeName) return addressText(order);
-  return [pickup.city, pickup.district, pickup.storeName]
+  return [pickup.city, pickup.district, `${pickup.storeName}門市`]
     .filter(Boolean)
     .join(' ');
 }
@@ -189,6 +189,26 @@ function paymentStatus(status?: string | null) {
     default:
       return 'unpaid';
   }
+}
+
+type WeightTier = { weightGrams: number | null; price: number };
+
+export function resolveShopifyItemWeight(
+  item: NonNullable<ShopifyPaidOrder['line_items']>[number],
+  tiers: WeightTier[],
+): number | null {
+  const grams = Number(item.grams);
+  if (Number.isInteger(grams) && grams > 0) return grams;
+
+  const label = [clean(item.variant_title), clean(item.title)].filter(Boolean).join(' ');
+  const labelMatch = label.match(/(?:^|\D)(\d{1,4})\s*g(?:\D|$)/i);
+  if (labelMatch) return Number(labelMatch[1]);
+
+  const unitPrice = money(item.price);
+  const priceMatches = tiers.filter(
+    (tier) => tier.weightGrams != null && tier.weightGrams > 0 && tier.price === unitPrice,
+  );
+  return priceMatches.length === 1 ? priceMatches[0].weightGrams : null;
 }
 
 /** Shopify 結帳內收取的運費屬於本張訂單，不能標成「已在別處付費」。 */
@@ -250,11 +270,10 @@ export async function importShopifyOrder(
     const nextPaymentStatus = paymentStatus(order.financial_status);
     const pickup = shopifyPickupInfo(order);
     const convenience = isConveniencePickup(order);
-    const pickupAddress = convenienceAddress(order);
     const pickupUpdate = convenience
       ? {
           shippingMethod: 'convenience',
-          shippingAddress: pickupAddress,
+          shippingAddress: convenienceAddress(order),
           cvsBrand: pickup.brand,
           cvsStoreId: pickup.storeId,
           cvsStoreName: pickup.storeName,
@@ -262,7 +281,7 @@ export async function importShopifyOrder(
       : {};
     const pickupChanged = convenience && (
       existing.shippingMethod !== 'convenience' ||
-      existing.shippingAddress !== pickupAddress ||
+      existing.shippingAddress !== convenienceAddress(order) ||
       existing.cvsBrand !== pickup.brand ||
       existing.cvsStoreId !== pickup.storeId ||
       existing.cvsStoreName !== pickup.storeName
@@ -281,6 +300,7 @@ export async function importShopifyOrder(
     const skus = [...new Set((order.line_items ?? []).map((item) => clean(item.sku) as string))];
     const products = await tx.product.findMany({
       where: { OR: [{ sku: { in: skus } }, { sourceSku: { in: skus } }] },
+      include: { priceTiers: { select: { weightGrams: true, price: true } } },
     });
     const bySku = new Map(
       products.flatMap((product) =>
@@ -332,6 +352,7 @@ export async function importShopifyOrder(
             const product = bySku.get(sku)!;
             const quantity = Number(item.quantity);
             const unitPrice = money(item.price);
+            const weightGrams = resolveShopifyItemWeight(item, product.priceTiers);
             return {
               productId: product.id,
               productName: [clean(item.title), clean(item.variant_title)].filter(Boolean).join(' · ') || product.name,
@@ -339,8 +360,8 @@ export async function importShopifyOrder(
               quantity,
               unitPrice,
               subtotal: unitPrice * quantity,
-              weightGrams: null,
-              unit: product.unit,
+              weightGrams,
+              unit: weightGrams ? 'g' : product.unit,
             };
           }),
         },
