@@ -8,7 +8,14 @@ import { loginFailureMessage } from '@/lib/auth-errors';
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
 
-const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168');
+/** 店家平板預設保持登入 30 天；總部 HQ 仍用 SESSION_HOURS。 */
+const DEFAULT_POS_SESSION_HOURS = 720;
+
+export function merchantSessionHours() {
+  const pos = Number(process.env.POS_SESSION_HOURS);
+  if (Number.isFinite(pos) && pos > 0) return pos;
+  return DEFAULT_POS_SESSION_HOURS;
+}
 
 function secretKey() {
   return getAuthSecretKey();
@@ -32,7 +39,7 @@ export type MerchantCredentialsLookup = {
 };
 
 export function merchantSessionMaxAgeSeconds() {
-  return SESSION_HOURS * 60 * 60;
+  return merchantSessionHours() * 60 * 60;
 }
 
 export function buildMerchantSessionClaims(input: {
@@ -43,7 +50,7 @@ export function buildMerchantSessionClaims(input: {
   hours?: number;
 }): MerchantSessionPayload {
   const now = input.now ?? new Date();
-  const hours = input.hours ?? SESSION_HOURS;
+  const hours = input.hours ?? merchantSessionHours();
   const issuedAt = Math.floor(now.getTime() / 1000);
   const expiresAt = issuedAt + hours * 60 * 60;
   return {
@@ -114,12 +121,14 @@ export async function readMerchantSession(
 }
 
 export async function setMerchantSessionCookie(token: string) {
+  const maxAge = merchantSessionMaxAgeSeconds();
   cookies().set(MERCHANT_SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: merchantSessionMaxAgeSeconds(),
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000),
   });
 }
 
