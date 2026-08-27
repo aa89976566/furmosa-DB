@@ -70,6 +70,94 @@ export default async function JibaReviewListPage() {
     });
 
     const pending = apps.filter((a) => a.status === APP_STATUS.PENDING_REVIEW);
+    const orders = apps.filter((a) => a.status !== APP_STATUS.PENDING_REVIEW);
+
+    const renderApplicationTable = (
+      applications: typeof apps,
+      emptyMessage: string,
+    ) => (
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2">申請時間</th>
+              <th className="px-3 py-2">LINE</th>
+              <th className="px-3 py-2">商品</th>
+              <th className="px-3 py-2">收件／門市</th>
+              <th className="px-3 py-2">IG／毛孩</th>
+              <th className="px-3 py-2">狀態</th>
+              <th className="px-3 py-2">付款</th>
+              <th className="px-3 py-2">出貨列</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {applications.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={9}
+                  className="px-3 py-8 text-center text-muted-foreground"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : (
+              applications.map((a) => (
+                <tr key={a.id} className="border-t">
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {formatDateTime(a.createdAt)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="font-medium">{a.lineDisplayName || '—'}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground">
+                      {a.lineUserId}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {jibaProductLabelFromCollected(
+                      a.conversationSession?.collectedDataJson,
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div>{a.recipientName || '—'}</div>
+                    <div className="text-muted-foreground">
+                      {a.storeName || '—'}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div>{a.instagramHandle || '—'}</div>
+                    <div className="text-muted-foreground">{a.petName || '—'}</div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <Badge
+                      variant={
+                        a.status === APP_STATUS.PENDING_REVIEW ? 'default' : 'muted'
+                      }
+                    >
+                      {STATUS_LABEL[a.status] ?? a.status}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {a.paymentStatus}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {a.shippingQueueStatus}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Link
+                      href={`/campaigns/jiba-two-piece/${a.id}`}
+                      className="text-sm font-medium text-navy underline-offset-2 hover:underline"
+                    >
+                      {a.status === APP_STATUS.PENDING_REVIEW ? '審核' : '查看'}
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
 
     return (
       <>
@@ -87,82 +175,29 @@ export default async function JibaReviewListPage() {
             </CardContent>
           </Card>
 
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2">申請時間</th>
-                  <th className="px-3 py-2">LINE</th>
-                  <th className="px-3 py-2">商品</th>
-                  <th className="px-3 py-2">收件／門市</th>
-                  <th className="px-3 py-2">IG／毛孩</th>
-                  <th className="px-3 py-2">狀態</th>
-                  <th className="px-3 py-2">付款</th>
-                  <th className="px-3 py-2">出貨列</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {apps.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
-                      還沒有申請
-                    </td>
-                  </tr>
-                ) : (
-                  apps.map((a) => (
-                    <tr key={a.id} className="border-t">
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {formatDateTime(a.createdAt)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="font-medium">{a.lineDisplayName || '—'}</div>
-                        <div className="font-mono text-[11px] text-muted-foreground">
-                          {a.lineUserId}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        {jibaProductLabelFromCollected(
-                          a.conversationSession?.collectedDataJson,
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div>{a.recipientName || '—'}</div>
-                        <div className="text-muted-foreground">{a.storeName || '—'}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div>{a.instagramHandle || '—'}</div>
-                        <div className="text-muted-foreground">{a.petName || '—'}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge
-                          variant={
-                            a.status === APP_STATUS.PENDING_REVIEW ? 'default' : 'muted'
-                          }
-                        >
-                          {STATUS_LABEL[a.status] ?? a.status}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {a.paymentStatus}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs">
-                        {a.shippingQueueStatus}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <Link
-                          href={`/campaigns/jiba-two-piece/${a.id}`}
-                          className="text-sm font-medium text-navy underline-offset-2 hover:underline"
-                        >
-                          審核
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <section className="space-y-3" aria-labelledby="pending-review-heading">
+            <div>
+              <h2 id="pending-review-heading" className="text-lg font-semibold">
+                待審核
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                資料已收齊，等待壽司匠確認的申請。
+              </p>
+            </div>
+            {renderApplicationTable(pending, '目前沒有待審核申請')}
+          </section>
+
+          <section className="space-y-3" aria-labelledby="orders-heading">
+            <div>
+              <h2 id="orders-heading" className="text-lg font-semibold">
+                訂單
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                顯示收集中、已處理與後續付款／出貨中的申請。
+              </p>
+            </div>
+            {renderApplicationTable(orders, '目前沒有其他訂單')}
+          </section>
         </div>
       </>
     );
