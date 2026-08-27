@@ -8,6 +8,7 @@ import {
   hasCompleteShopifyPickupInfo,
   shopifyPickupInfo,
   verifyShopifyWebhookHmac,
+  resolveShopifyItemWeight,
   type ShopifyPaidOrder,
 } from '@/lib/shopify/orders-paid';
 
@@ -80,5 +81,25 @@ describe('Shopify orders/paid webhook', () => {
     };
     assert.equal(shopifyPickupInfo(order).brand, 'familymart');
     assert.equal(hasCompleteShopifyPickupInfo(order), false);
+  });
+
+  it('reads mooncake weight from Shopify grams or 50g title', () => {
+    const tiers = [{ weightGrams: 50, price: 129 }];
+    assert.equal(
+      resolveShopifyItemWeight({ sku: 'CK-08', quantity: 1, price: '129', grams: 50 }, tiers),
+      50,
+    );
+    assert.equal(
+      resolveShopifyItemWeight(
+        {
+          sku: 'CK-08',
+          quantity: 1,
+          price: '129',
+          title: '牠的月餅｜地瓜山藥雞肉月餅 50g',
+        },
+        tiers,
+      ),
+      50,
+    );
   });
 });
