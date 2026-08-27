@@ -2,7 +2,7 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { PosShell } from '@/components/pos/pos-shell';
 import { QueryBoard } from '@/components/pos/query-board';
 import { loadPosAccount } from '@/lib/pos/account';
-import { loadQueryFeed } from '@/lib/pos/query-feed';
+import { loadQueryFeed } from '@/lib/pos/load-query-feed';
 
 export const metadata = { title: '查詢 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
