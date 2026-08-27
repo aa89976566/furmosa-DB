@@ -7,7 +7,7 @@ import { getAuthenticatedMerchantId } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
 import { PosShell } from '@/components/pos/pos-shell';
 
-export const metadata = { title: '新增叫貨 · Furmosa 店家' };
+export const metadata = { title: '補口味 · Furmosa 店家' };
 
 export default async function PosRestockNewPage() {
   await requireMerchantSession();
@@ -32,10 +32,10 @@ export default async function PosRestockNewPage() {
   return (
     <PosShell>
       <div className="px-4 py-6">
-        <Link href="/pos/restock" className="text-xs text-muted-foreground">
-          ← 叫貨
+        <Link href="/pos/refill" className="text-xs text-muted-foreground">
+          ← 換罐
         </Link>
-        <h1 className="mb-4 text-xl font-semibold text-navy">新增叫貨</h1>
+        <h1 className="mb-4 text-xl font-semibold text-navy">補口味</h1>
         <Suspense fallback={<p className="text-sm text-muted-foreground">載入中…</p>}>
           <NewRestockForm
             products={products.map((p) => ({

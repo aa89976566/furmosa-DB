@@ -46,6 +46,7 @@ describe('buildTodayTaskRows (F-03)', () => {
       ],
     );
     assert.equal(rows[2]?.href, '/pos/refill');
+    assert.equal(rows[3]?.href, '/pos/restock');
     assert.equal(rows[4]?.href, '/pos/restock/r1');
   });
 

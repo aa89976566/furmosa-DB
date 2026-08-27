@@ -1,4 +1,4 @@
-export type PosNavId = 'sell' | 'today' | 'restock' | 'records';
+export type PosNavId = 'sell' | 'today' | 'restock' | 'refill' | 'records';
 
 export type PosNavItem = {
   id: PosNavId;
@@ -18,16 +18,22 @@ export const POS_NAV: readonly PosNavItem[] = [
     id: 'today',
     href: '/pos/today',
     label: '今天',
-    match: (p) =>
-      p === '/pos/today' ||
-      p.startsWith('/pos/appointments') ||
-      p.startsWith('/pos/refill'),
+    match: (p) => p === '/pos/today' || p.startsWith('/pos/appointments'),
   },
   {
     id: 'restock',
     href: '/pos/restock',
     label: '叫貨',
-    match: (p) => p === '/pos/restock' || p.startsWith('/pos/restock/'),
+    match: (p) => p === '/pos/restock' && !p.startsWith('/pos/restock/'),
+  },
+  {
+    id: 'refill',
+    href: '/pos/refill',
+    label: '換罐',
+    match: (p) =>
+      p === '/pos/refill' ||
+      p.startsWith('/pos/refill/') ||
+      p.startsWith('/pos/restock/'),
   },
   {
     id: 'records',

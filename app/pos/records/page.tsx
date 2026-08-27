@@ -42,15 +42,15 @@ export default async function PosRecordsPage() {
     <PosShell>
       <div className="px-4 py-6">
         <h1 className="mb-1 text-xl font-semibold text-navy">紀錄</h1>
-        <p className="mb-5 text-sm text-muted-foreground">今天的叫貨紀錄</p>
+        <p className="mb-5 text-sm text-muted-foreground">今天的補貨紀錄</p>
 
         {rows.length === 0 ? (
           <Card>
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
-              <p>今天還沒有叫貨紀錄。</p>
-              <p>美容與換罐紀錄會在對應功能上線後再顯示，不會先放假資料。</p>
+              <p>今天還沒有補貨紀錄。</p>
+              <p>美容與換罐客人紀錄會在對應功能上線後再顯示，不會先放假資料。</p>
               <Button asChild variant="outline" className="min-h-[44px] w-full">
-                <Link href="/pos/restock">去叫貨</Link>
+                <Link href="/pos/refill">去換罐</Link>
               </Button>
             </CardContent>
           </Card>

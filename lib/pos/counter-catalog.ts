@@ -12,6 +12,7 @@ import {
   type MerchantProductTierOption,
 } from '@/lib/merchant-product-tier';
 import { counterLineKey } from '@/lib/pos/counter-cart';
+import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import type { PricedCounterProduct } from '@/lib/pos/counter-sale-plan';
 import {
   resolveCounterSellStock,
@@ -146,7 +147,7 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
         categoryLabel,
         unitPrice,
         stock,
-        imageUrl: product.imageUrl,
+        imageUrl: resolveFurmosaProductImage(product.name, product.imageUrl),
         unit: tier?.unit ?? product.unit,
       });
       priced.push({

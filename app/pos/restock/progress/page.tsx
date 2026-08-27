@@ -33,8 +33,8 @@ export default async function PosRestockProgressPage() {
       <div className="px-4 py-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <Link href="/pos/restock" className="text-xs text-muted-foreground">
-              ← 叫貨
+            <Link href="/pos/refill" className="text-xs text-muted-foreground">
+              ← 換罐
             </Link>
             <h1 className="text-xl font-semibold text-navy">申請進度</h1>
           </div>
@@ -48,7 +48,7 @@ export default async function PosRestockProgressPage() {
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>還沒有補貨申請。</p>
               <Button asChild className="min-h-[44px] w-full">
-                <Link href="/pos/restock/new">去叫貨</Link>
+                <Link href="/pos/restock/new">去補口味</Link>
               </Button>
             </CardContent>
           </Card>
