@@ -54,6 +54,81 @@ export async function listMerchantRefillOrders(merchantId: string) {
   }));
 }
 
+const LOOKUP_STATUSES = [...REFILL_PAID_OPEN_STATUSES, 'payment_pending'] as const;
+
+export async function lookupRefillBySerial(merchantId: string, serialRaw: string) {
+  const serial = normalizeJarCode(serialRaw);
+  if (!isValidJarCodeFormat(serial)) {
+    throw new RefillError('序號須為 8 位數字。', 'INVALID_SERIAL', 400);
+  }
+
+  const jar = await prisma.jarCode.findUnique({
+    where: { code: serial },
+    select: {
+      code: true,
+      status: true,
+      redeemedByCustomerId: true,
+      lockedByRefillOrderId: true,
+    },
+  });
+  if (!jar) {
+    throw new RefillError('找不到這個序號。', 'SERIAL_NOT_FOUND', 404);
+  }
+
+  const selectOrder = {
+    id: true,
+    status: true,
+    deliveryMode: true,
+    paidAt: true,
+    oldContainerSerial: true,
+    newContainerSerial: true,
+    missingContainerNote: true,
+    customer: { select: { name: true } },
+    petName: true,
+  };
+
+  let order =
+    jar.lockedByRefillOrderId != null
+      ? await prisma.refillOrder.findFirst({
+          where: { id: jar.lockedByRefillOrderId, merchantId },
+          select: selectOrder,
+        })
+      : null;
+
+  if (!order && jar.redeemedByCustomerId) {
+    order = await prisma.refillOrder.findFirst({
+      where: {
+        merchantId,
+        customerId: jar.redeemedByCustomerId,
+        status: { in: [...LOOKUP_STATUSES] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: selectOrder,
+    });
+  }
+
+  if (!order) {
+    throw new RefillError(
+      '這個罐子目前沒有待換罐訂單。請改從下面待換罐列表點進去。',
+      'NO_OPEN_ORDER',
+      404,
+    );
+  }
+
+  return {
+    orderId: order.id,
+    serial,
+    status: order.status,
+    customerName: order.customer.name,
+    petName: order.petName,
+    paid: Boolean(order.paidAt),
+    oldContainerSerial: order.oldContainerSerial,
+    newContainerSerial: order.newContainerSerial,
+    missingContainerNote: order.missingContainerNote,
+    deliveryMode: order.deliveryMode,
+  };
+}
+
 async function loadMerchantOrder(orderId: string, merchantId: string) {
   const order = await prisma.refillOrder.findUnique({
     where: { id: orderId },

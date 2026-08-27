@@ -1,4 +1,4 @@
-export type PosNavId = 'sell' | 'today' | 'restock' | 'refill' | 'records';
+export type PosNavId = 'sell' | 'stock' | 'refill' | 'restock' | 'records';
 
 export type PosNavItem = {
   id: PosNavId;
@@ -10,35 +10,32 @@ export type PosNavItem = {
 export const POS_NAV: readonly PosNavItem[] = [
   {
     id: 'sell',
-    href: '/pos',
-    label: '收銀',
-    match: (p) => p === '/pos',
+    href: '/pos/sell',
+    label: '結帳',
+    match: (p) => p === '/pos/sell' || p.startsWith('/pos/sell/'),
   },
   {
-    id: 'today',
-    href: '/pos/today',
-    label: '今天',
-    match: (p) => p === '/pos/today' || p.startsWith('/pos/appointments'),
-  },
-  {
-    id: 'restock',
-    href: '/pos/restock',
-    label: '叫貨',
-    match: (p) => p === '/pos/restock' && !p.startsWith('/pos/restock/'),
+    id: 'stock',
+    href: '/pos/stock',
+    label: '庫存',
+    match: (p) => p === '/pos/stock' || p.startsWith('/pos/stock/'),
   },
   {
     id: 'refill',
     href: '/pos/refill',
     label: '換罐',
-    match: (p) =>
-      p === '/pos/refill' ||
-      p.startsWith('/pos/refill/') ||
-      p.startsWith('/pos/restock/'),
+    match: (p) => p === '/pos/refill' || p.startsWith('/pos/refill/'),
+  },
+  {
+    id: 'restock',
+    href: '/pos/restock',
+    label: '補貨',
+    match: (p) => p === '/pos/restock' || p.startsWith('/pos/restock/'),
   },
   {
     id: 'records',
     href: '/pos/records',
-    label: '紀錄',
+    label: '查詢',
     match: (p) => p === '/pos/records' || p.startsWith('/pos/records/'),
   },
 ] as const;

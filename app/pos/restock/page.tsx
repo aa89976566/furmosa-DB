@@ -1,33 +1,25 @@
-import Link from 'next/link';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { PosShell } from '@/components/pos/pos-shell';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { RestockPicker } from '@/components/pos/restock-picker';
+import { listMerchantRestockCatalog } from '@/lib/restock-request/service';
+import { loadPosAccount } from '@/lib/pos/account';
 
-export const metadata = { title: '叫貨 · Furmosa 店家' };
+export const metadata = { title: '補貨 · Furmosa 店家' };
+export const dynamic = 'force-dynamic';
 
-export default async function PosRestockHubPage() {
-  await requireMerchantSession();
+export default async function PosRestockPage() {
+  const session = await requireMerchantSession();
+  const [account, products] = await Promise.all([
+    loadPosAccount(session.merchantId, session.username),
+    listMerchantRestockCatalog(session.merchantId),
+  ]);
 
   return (
-    <PosShell>
-      <div className="px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold text-navy">叫貨</h1>
-        <p className="mb-5 text-sm text-muted-foreground">
-          寄賣零食補貨。換罐口味請到「換罐」。
-        </p>
-
-        <Card className="shadow-card">
-          <CardContent className="space-y-3 p-5">
-            <p className="font-medium text-foreground">零食補貨請聯繫 Furmosa</p>
-            <p className="text-sm text-muted-foreground">
-              店家自己申請寄賣零食補貨還在整理。現在若缺貨，請直接聯絡總部。
-            </p>
-            <Button asChild className="min-h-[44px] w-full">
-              <Link href="/pos/refill">去換罐計畫</Link>
-            </Button>
-          </CardContent>
-        </Card>
+    <PosShell storeName={account.storeName} account={account}>
+      <div className="px-4 py-6 pr-16">
+        <h1 className="mb-1 text-xl font-semibold text-navy">補貨</h1>
+        <p className="mb-5 text-sm text-muted-foreground">選要補的數量，再送出給匠寵。</p>
+        <RestockPicker products={products} />
       </div>
     </PosShell>
   );

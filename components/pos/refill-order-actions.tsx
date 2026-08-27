@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { POS_BUTTON_LABELS } from '@/lib/config/product-settings';
+import { JarSerialPanel } from '@/components/pos/jar-serial-panel';
 
 type Props = {
   orderId: string;
@@ -12,6 +11,10 @@ type Props = {
   paid: boolean;
   deliveryMode: string;
   payQrUrl: string | null;
+  customerName: string;
+  oldSerial: string | null;
+  newSerial: string | null;
+  missingContainerNote: string | null;
 };
 
 export function RefillOrderActions({
@@ -20,13 +23,18 @@ export function RefillOrderActions({
   paid,
   deliveryMode,
   payQrUrl,
+  customerName,
+  oldSerial,
+  newSerial,
+  missingContainerNote,
 }: Props) {
   const router = useRouter();
-  const [oldSerial, setOldSerial] = useState('');
-  const [newSerial, setNewSerial] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [scannedOld, setScannedOld] = useState(oldSerial ?? '');
+  const [scannedNew, setScannedNew] = useState(newSerial ?? '');
+  const [missingOpen, setMissingOpen] = useState(Boolean(missingContainerNote));
 
   async function post(path: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -54,21 +62,21 @@ export function RefillOrderActions({
   if (!paid) {
     return (
       <div className="space-y-3">
-        <p className="text-sm font-medium text-amber-800">尚未付款 — 不可交付，也不可代收現金。</p>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+          <p className="font-semibold text-amber-950">尚未付款</p>
+          <p className="mt-1 text-sm text-amber-900">換罐款由匠寵線上收。店內不用收款。</p>
+        </div>
         {payQrUrl ? (
-          <div className="rounded-xl border p-4 space-y-2">
-            <p className="text-sm">請客人用 LINE 掃碼自行付款給匠寵：</p>
-            <a
-              href={payQrUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="block break-all text-sm text-primary underline"
-            >
-              {payQrUrl}
-            </a>
-          </div>
+          <a
+            href={payQrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex min-h-[48px] items-center justify-center rounded-2xl border text-sm text-primary"
+          >
+            請客人用 LINE 自己付款
+          </a>
         ) : (
-          <p className="text-sm text-muted-foreground">請客人從 LINE「我要換罐」付款。</p>
+          <p className="text-sm text-muted-foreground">請客人從 LINE「我要換罐」完成付款。</p>
         )}
       </div>
     );
@@ -81,10 +89,20 @@ export function RefillOrderActions({
   if (status === 'awaiting_extra_payment') {
     return (
       <div className="space-y-3">
-        <p className="text-sm">等待客人線上補付 NT$30。店家不收現金。</p>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+          <p className="font-semibold text-amber-950">尚未帶回空罐</p>
+          <p className="mt-1 text-sm text-amber-900">
+            請客人先完成補差額，或下次帶空罐再領。店內不用代收現金。
+          </p>
+        </div>
         {payQrUrl ? (
-          <a href={payQrUrl} className="text-sm text-primary underline" target="_blank" rel="noreferrer">
-            打開補付連結
+          <a
+            href={payQrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex min-h-[48px] items-center justify-center rounded-2xl border text-sm text-primary"
+          >
+            請客人線上補差額
           </a>
         ) : null}
       </div>
@@ -92,110 +110,135 @@ export function RefillOrderActions({
   }
 
   const isFirst = deliveryMode === 'first';
+  const waitingOld = !isFirst && status === 'paid_waiting_return';
+  const readyForNew = status === 'old_container_verified' || isFirst;
 
   return (
     <div className="space-y-4">
-      {!isFirst && status === 'paid_waiting_return' ? (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">舊罐瓶底 8 碼</label>
-          <Input
-            inputMode="numeric"
-            maxLength={8}
-            value={oldSerial}
-            onChange={(e) => setOldSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="輸入空罐序號"
-            className="min-h-[48px] text-lg tracking-widest"
-          />
-        </div>
-      ) : null}
+      <div className="rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+        <p className="font-semibold">已付款</p>
+        <p className="mt-1 text-sm">店內不用收款</p>
+      </div>
 
-      {(status === 'old_container_verified' || isFirst) && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">新罐瓶底 8 碼</label>
-          <Input
-            inputMode="numeric"
-            maxLength={8}
-            value={newSerial}
-            onChange={(e) => setNewSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="輸入新罐序號"
-            className="min-h-[48px] text-lg tracking-widest"
-          />
-        </div>
-      )}
+      <dl className="space-y-2 rounded-2xl border bg-card p-4 text-sm">
+        <Row label="客人" value={customerName} />
+        <Row label="舊罐" value={scannedOld ? `#${scannedOld}` : waitingOld ? '還沒掃' : '不用回收'} />
+        <Row
+          label="狀態"
+          value={readyForNew ? '可以換罐' : waitingOld ? '等待回收空罐' : status}
+        />
+        <Row label="付款" value="已完成" />
+      </dl>
 
-      {err ? <p className="text-sm text-destructive">{err}</p> : null}
-      {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
-
-      {!isFirst && status === 'paid_waiting_return' ? (
+      {waitingOld && !missingOpen ? (
         <>
-          <Button
-            className="w-full min-h-[52px]"
-            disabled={busy || oldSerial.length !== 8}
-            onClick={() =>
-              post(`/api/merchant/refill-orders/${orderId}/verify-old-container`, {
-                serial: oldSerial,
-              })
-            }
-          >
-            確認收到空罐
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full min-h-[48px]"
-            disabled={busy}
-            onClick={async () => {
-              const choice = window.confirm(
-                '客人沒帶空罐？\n按「確定」= 線上補付 NT$30\n按「取消」後可再選保留下次',
-              );
-              if (choice) {
-                await post(`/api/merchant/refill-orders/${orderId}/mark-missing-container`, {
-                  choice: 'topup',
-                });
-              } else if (window.confirm('改為保留下次領取？（不交付、不加點）')) {
-                await post(`/api/merchant/refill-orders/${orderId}/mark-missing-container`, {
-                  choice: 'keep',
-                });
+          {!scannedOld ? (
+            <JarSerialPanel
+              title="掃客人帶來的空罐"
+              primaryLabel="掃描罐底"
+              secondaryLabel="手動輸入序號"
+              onSerial={(value) => setScannedOld(value)}
+              busy={busy}
+            />
+          ) : (
+            <Button
+              className="w-full min-h-[52px] text-base"
+              disabled={busy}
+              onClick={() =>
+                post(`/api/merchant/refill-orders/${orderId}/verify-old-container`, {
+                  serial: scannedOld,
+                })
               }
-            }}
+            >
+              確認回收
+            </Button>
+          )}
+          <button
+            type="button"
+            className="min-h-[48px] w-full text-sm text-muted-foreground"
+            onClick={() => setMissingOpen(true)}
           >
-            顧客沒帶空罐
-          </Button>
+            客人忘記帶空罐
+          </button>
         </>
       ) : null}
 
-      {status === 'old_container_verified' || isFirst ? (
-        <Button
-          className="w-full min-h-[52px]"
-          disabled={busy || newSerial.length !== 8}
-          onClick={() =>
-            post(`/api/merchant/refill-orders/${orderId}/complete`, {
-              newSerial,
-              oldSerial: oldSerial || undefined,
-            })
-          }
-        >
-          {isFirst
-            ? POS_BUTTON_LABELS.confirmDeliverProduct
-            : POS_BUTTON_LABELS.confirmEmptyJarAndDeliver}
-        </Button>
+      {waitingOld && missingOpen ? (
+        <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-semibold text-amber-950">尚未帶回空罐</p>
+          <p className="text-sm text-amber-900">
+            請客人先完成補差額，或下次帶空罐再領。不能直接把新罐拿走。
+          </p>
+          <Button
+            className="min-h-[48px] w-full"
+            disabled={busy}
+            onClick={() =>
+              post(`/api/merchant/refill-orders/${orderId}/mark-missing-container`, {
+                choice: 'topup',
+              })
+            }
+          >
+            請客人線上補差額
+          </Button>
+          <Button
+            variant="outline"
+            className="min-h-[48px] w-full"
+            disabled={busy}
+            onClick={() =>
+              post(`/api/merchant/refill-orders/${orderId}/mark-missing-container`, {
+                choice: 'keep',
+              })
+            }
+          >
+            下次帶空罐再領
+          </Button>
+        </div>
       ) : null}
 
-      {/* One-shot: verify old + assign new */}
-      {!isFirst && status === 'paid_waiting_return' ? (
-        <Button
-          variant="secondary"
-          className="w-full min-h-[48px]"
-          disabled={busy || oldSerial.length !== 8 || newSerial.length !== 8}
-          onClick={() =>
-            post(`/api/merchant/refill-orders/${orderId}/complete`, {
-              newSerial,
-              oldSerial,
-            })
-          }
-        >
-          一次完成：收空罐並交付
-        </Button>
+      {readyForNew ? (
+        <>
+          {!scannedNew ? (
+            <JarSerialPanel
+              title="掃要交給客人的新罐"
+              primaryLabel="掃描新罐"
+              secondaryLabel="手動輸入新罐序號"
+              onSerial={(value) => setScannedNew(value)}
+              busy={busy}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-2xl border bg-card px-4 py-3 text-sm">
+                <p className="text-muted-foreground">新罐</p>
+                <p className="text-lg font-semibold text-navy">#{scannedNew}</p>
+              </div>
+              <Button
+                className="w-full min-h-[52px] text-base"
+                disabled={busy}
+                onClick={() =>
+                  post(`/api/merchant/refill-orders/${orderId}/complete`, {
+                    newSerial: scannedNew,
+                    oldSerial: scannedOld || undefined,
+                  })
+                }
+              >
+                完成換罐
+              </Button>
+            </div>
+          )}
+        </>
       ) : null}
+
+      {err ? <p className="text-sm text-destructive">{err}</p> : null}
+      {msg ? <p className="text-sm text-emerald-700">{msg}</p> : null}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 py-1">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-right">{value}</dd>
     </div>
   );
 }

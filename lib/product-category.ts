@@ -18,3 +18,10 @@ export function isJarExchangeProductCategory(
 ): boolean {
   return category === 'JAR_EXCHANGE';
 }
+
+/** 店家補貨單可申請的商品：寄賣零食與換罐口味。 */
+export function isRestockableProductCategory(
+  category: string | null | undefined,
+): boolean {
+  return category === 'JAR_EXCHANGE' || category === 'STANDARD';
+}
