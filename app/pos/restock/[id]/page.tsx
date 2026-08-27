@@ -14,7 +14,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 
-export const metadata = { title: '叫貨詳情 · Furmosa 店家' };
+export const metadata = { title: '補口味申請 · Furmosa 店家' };
 
 export default async function PosRestockDetailPage({
   params,
@@ -51,7 +51,7 @@ export default async function PosRestockDetailPage({
 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-navy">叫貨申請</h1>
+            <h1 className="text-xl font-semibold text-navy">補口味申請</h1>
             <p className="text-sm text-muted-foreground">
               {restockRequestTypeLabel(req.requestType)} · 編號 {shortId}
             </p>

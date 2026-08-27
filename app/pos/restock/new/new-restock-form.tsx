@@ -164,7 +164,7 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
         </button>
         {products.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            目前沒有可叫貨的商品，請聯繫 Furmosa。
+            目前沒有可申請的換罐口味，請聯繫 Furmosa。
           </p>
         ) : (
           <form action={action} className="space-y-4">

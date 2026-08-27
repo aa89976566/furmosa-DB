@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   LogOut,
   Package,
+  Recycle,
 } from 'lucide-react';
 import { POS_NAV, activePosNavId, type PosNavId } from '@/lib/pos/pos-nav';
 import { posLogoutAction } from '@/app/pos/actions';
@@ -16,6 +17,7 @@ const ICONS: Record<PosNavId, typeof LayoutGrid> = {
   sell: LayoutGrid,
   today: CalendarDays,
   restock: Package,
+  refill: Recycle,
   records: ClipboardList,
 };
 
@@ -36,7 +38,7 @@ export function PosBottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
+              className={`flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium ${
                 isActive ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
@@ -67,7 +69,7 @@ export function PosSideRail({ storeName }: { storeName?: string }) {
         >
           F
         </div>
-        <div className="mt-8 flex flex-1 flex-col items-center gap-2">
+        <div className="mt-6 flex flex-1 flex-col items-center gap-2">
           {POS_NAV.map((tab) => {
             const Icon = ICONS[tab.id];
             const isActive = active === tab.id;

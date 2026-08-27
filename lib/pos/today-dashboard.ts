@@ -134,7 +134,7 @@ export function buildTodayTaskRows(input: TodayDashboardInput): TodayTaskRow[] {
       kind: 'low_stock',
       title: '缺貨提醒',
       subtitle,
-      href: '/pos/restock/new?mode=AUTO_REPLENISH',
+      href: '/pos/restock',
       badge: String(input.lowStock.length),
     });
   }

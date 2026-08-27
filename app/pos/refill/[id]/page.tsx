@@ -42,7 +42,7 @@ export default async function PosRefillDetailPage({
       <div className="px-4 py-6 space-y-5">
         <div className="flex items-center justify-between">
           <Button asChild variant="ghost" className="min-h-[44px] px-2">
-            <Link href="/pos/refill">← 待換罐</Link>
+            <Link href="/pos/refill">← 換罐</Link>
           </Button>
         </div>
 
