@@ -20,24 +20,31 @@ export function PosAccountMenu({
   variant = 'icon',
 }: {
   account: PosAccount;
-  variant?: 'icon' | 'dots';
+  variant?: 'icon' | 'dots' | 'store';
 }) {
   const heading = storeHeading({ name: account.storeName, city: account.storeCity });
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-navy shadow-card"
-          aria-label="店家選單"
-        >
-          {variant === 'dots' ? (
-            <MoreHorizontal className="h-5 w-5" />
-          ) : (
-            <UserRound className="h-5 w-5" />
-          )}
-        </button>
+        {variant === 'store' ? (
+          <button type="button" className="w-full rounded-xl px-1 py-1 text-left">
+            <p className="truncate text-sm font-medium text-zinc-900">{heading.combined}</p>
+            <p className="truncate text-sm text-zinc-500">店員 {account.staffName}</p>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-navy shadow-card"
+            aria-label="店家選單"
+          >
+            {variant === 'dots' ? (
+              <MoreHorizontal className="h-5 w-5" />
+            ) : (
+              <UserRound className="h-5 w-5" />
+            )}
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
         <DropdownMenuLabel className="px-2 py-2 font-normal">
@@ -51,7 +58,7 @@ export function PosAccountMenu({
           <Link href="/pos/account">店家資料</Link>
         </DropdownMenuItem>
         <DropdownMenuItem disabled className="min-h-[44px] rounded-xl">
-          店員帳號 {account.username}
+          店員 {account.staffName}
         </DropdownMenuItem>
         <DropdownMenuItem asChild className="min-h-[44px] rounded-xl">
           <a href={FURMOSA_CONTACT.lineUrl} target="_blank" rel="noreferrer">
