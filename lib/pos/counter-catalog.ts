@@ -67,6 +67,7 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
     select: {
       id: true,
       name: true,
+      sku: true,
       category: true,
       unit: true,
       price: true,
