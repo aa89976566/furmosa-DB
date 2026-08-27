@@ -1,10 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown, Info, X } from 'lucide-react';
 import { JarSerialPanel } from '@/components/pos/jar-serial-panel';
 import { mapRefillStaffError } from '@/lib/pos/refill-staff-errors';
-import { refillStaffView, type PosRefillOrderCard } from '@/lib/pos/refill-view';
+import {
+  customerInitial,
+  formatRefillDateTime,
+  refillStaffView,
+  type PosRefillOrderCard,
+} from '@/lib/pos/refill-view';
 
 type Step = 1 | 2 | 3;
 
@@ -117,6 +122,7 @@ export function RefillOrderPanel({
     onOrderPatch({
       status: 'old_container_verified',
       oldContainerSerial: pendingOld,
+      oldContainerReturnedAt: new Date().toISOString(),
     });
   }
 
@@ -154,16 +160,45 @@ export function RefillOrderPanel({
     setMissingOpen(false);
   }
 
-  if (view.unpaidBlock) {
-    return (
-      <PanelShell title="訂單詳情" onClose={onClose}>
-        <p className="text-lg font-semibold">{order.customerName}</p>
-        <p className="mt-1 text-sm text-zinc-500">訂單 {view.orderNo}</p>
-        <div className="mt-6 rounded-2xl bg-neutral-50 px-4 py-5">
+  return (
+    <PanelShell title="訂單詳情" onClose={onClose} stickyCta={currentStep === 3 && !view.unpaidBlock}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold">
+          {customerInitial(order.customerName)}
+        </span>
+        <div>
+          <p className="text-lg font-semibold">{order.customerName}</p>
+          <p className="text-sm text-zinc-500">訂單 {view.orderNo}</p>
+        </div>
+      </div>
+
+      {view.unpaidBlock ? (
+        <div className="mt-5 rounded-2xl bg-rose-50 px-4 py-4">
           <p className="font-semibold text-zinc-900">尚未完成付款</p>
           <p className="mt-1 text-sm text-zinc-600">目前無法換罐</p>
         </div>
-        {order.status === 'awaiting_extra_payment' && payQrUrl ? (
+      ) : (
+        <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-4">
+          <div className="flex items-start gap-2">
+            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <Check className="h-3 w-3" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">{view.paymentLabel}</p>
+              <p className="mt-1 text-sm text-emerald-900">
+                換罐費 NT${order.totalAmount} 已由客人線上付款
+              </p>
+              <p className="mt-1 text-sm font-medium text-emerald-950">店內不用收款</p>
+              {view.extraPaid ? (
+                <p className="mt-1 text-sm text-emerald-900">已補差額，可直接交付新罐</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {view.unpaidBlock ? (
+        order.status === 'awaiting_extra_payment' && payQrUrl ? (
           <a
             href={payQrUrl}
             target="_blank"
@@ -172,138 +207,133 @@ export function RefillOrderPanel({
           >
             請客人線上補 NT$30
           </a>
-        ) : null}
-      </PanelShell>
-    );
-  }
+        ) : null
+      ) : (
+        <>
+          <p className="mt-6 text-sm font-semibold text-zinc-900">換罐流程</p>
+          <ol className="mt-3 space-y-5">
+            <StepBlock
+              n={1}
+              title="掃描舊罐"
+              doneLabel="已完成"
+              state={oldDone ? 'done' : currentStep === 1 ? 'active' : 'locked'}
+            >
+              {oldDone ? (
+                <div className="rounded-2xl bg-neutral-50 px-3 py-3">
+                  <p className="text-xs text-zinc-500">舊罐</p>
+                  <p className="mt-1 text-base font-semibold tracking-wide">
+                    {view.skipOldJar ? '這筆不用回收空罐' : order.oldContainerSerial ?? pendingOld}
+                  </p>
+                  {order.oldContainerReturnedAt ? (
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {formatRefillDateTime(order.oldContainerReturnedAt)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : pendingOld ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-zinc-500">舊罐</p>
+                  <p className="text-xl font-semibold tracking-wide">{pendingOld}</p>
+                  <p className="text-sm text-zinc-600">確認這是客人帶回的罐子</p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60"
+                    onClick={() => void confirmOld()}
+                  >
+                    {busy ? '確認中...' : '確認回收'}
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full text-sm text-zinc-500"
+                    onClick={() => {
+                      setPendingOld('');
+                      setError(null);
+                      setRetryAction(null);
+                    }}
+                  >
+                    重新掃描
+                  </button>
+                </div>
+              ) : (
+                <JarSerialPanel
+                  variant="tile"
+                  primaryLabel="掃描舊罐"
+                  primaryHint="掃描空罐底部 QR Code"
+                  secondaryLabel="手動輸入序號"
+                  submitLabel="查詢"
+                  busy={busy}
+                  onSerial={takeOldSerial}
+                />
+              )}
+            </StepBlock>
 
-  return (
-    <PanelShell title="訂單詳情" onClose={onClose}>
-      <p className="text-lg font-semibold">{order.customerName}</p>
-      <p className="mt-1 text-sm text-zinc-500">訂單 {view.orderNo}</p>
-      <div className="mt-4 flex items-center gap-2 text-sm">
-        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-          {view.paymentLabel}
-        </span>
-      </div>
-      <p className="mt-3 text-sm text-zinc-700">
-        換罐費 NT${order.totalAmount} 已由客人線上付款
-      </p>
-      <p className="mt-1 text-sm font-medium text-zinc-900">店內不用收款</p>
-      {view.extraPaid ? (
-        <p className="mt-2 text-sm text-zinc-600">已補差額，可直接交付新罐</p>
-      ) : null}
+            <StepBlock
+              n={2}
+              title="掃描新罐"
+              state={newReady ? 'done' : currentStep === 2 ? 'active' : 'locked'}
+            >
+              {currentStep >= 2 ? (
+                newReady ? (
+                  <div className="rounded-2xl bg-neutral-50 px-3 py-3">
+                    <p className="text-xs text-zinc-500">新罐</p>
+                    <p className="mt-1 text-base font-semibold tracking-wide">{pendingNew}</p>
+                  </div>
+                ) : pendingNew ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-zinc-500">新罐</p>
+                    <p className="text-xl font-semibold tracking-wide">{pendingNew}</p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60"
+                      onClick={() => setNewConfirmed(true)}
+                    >
+                      確認這個新罐
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full text-sm text-zinc-500"
+                      onClick={() => {
+                        setPendingNew('');
+                        setNewConfirmed(false);
+                        setError(null);
+                      }}
+                    >
+                      重新掃描
+                    </button>
+                  </div>
+                ) : (
+                  <JarSerialPanel
+                    variant="tile"
+                    primaryLabel="掃描新罐"
+                    primaryHint="掃描要給客人的新罐"
+                    secondaryLabel="手動輸入序號"
+                    submitLabel="確認"
+                    busy={busy}
+                    onSerial={takeNewSerial}
+                  />
+                )
+              ) : (
+                <p className="text-sm text-zinc-400">請先完成上一步</p>
+              )}
+            </StepBlock>
 
-      <ol className="mt-6 space-y-5">
-        <StepBlock
-          n={1}
-          title="驗舊罐"
-          state={oldDone ? 'done' : currentStep === 1 ? 'active' : 'locked'}
-        >
-          {oldDone ? (
-            <p className="text-sm text-zinc-600">
-              {view.skipOldJar
-                ? '這筆不用回收空罐'
-                : `舊罐 ${order.oldContainerSerial ?? pendingOld}`}
-            </p>
-          ) : pendingOld ? (
-            <div className="space-y-3">
-              <p className="text-xs text-zinc-500">舊罐</p>
-              <p className="text-xl font-semibold tracking-wide">{pendingOld}</p>
-              <p className="text-sm text-zinc-600">確認這是客人帶回的罐子</p>
-              <button
-                type="button"
-                disabled={busy}
-                className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60"
-                onClick={() => void confirmOld()}
-              >
-                {busy ? '確認中...' : '確認回收'}
-              </button>
-              <button
-                type="button"
-                className="w-full text-sm text-zinc-500"
-                onClick={() => {
-                  setPendingOld('');
-                  setError(null);
-                  setRetryAction(null);
-                }}
-              >
-                重新掃描
-              </button>
-            </div>
-          ) : (
-            <JarSerialPanel
-              primaryLabel="掃描舊罐"
-              secondaryLabel="手動輸入序號"
-              submitLabel="查詢"
-              busy={busy}
-              onSerial={takeOldSerial}
-            />
-          )}
-        </StepBlock>
-
-        <StepBlock
-          n={2}
-          title="綁新罐"
-          state={newReady ? 'done' : currentStep === 2 ? 'active' : 'locked'}
-        >
-          {currentStep >= 2 ? (
-            newReady ? (
-              <p className="text-sm text-zinc-600">新罐 {pendingNew}</p>
-            ) : pendingNew ? (
-              <div className="space-y-3">
-                <p className="text-xs text-zinc-500">新罐</p>
-                <p className="text-xl font-semibold tracking-wide">{pendingNew}</p>
+            <StepBlock n={3} title="完成換罐" state={currentStep === 3 ? 'active' : 'locked'}>
+              <div className="sticky bottom-0 bg-white py-1">
                 <button
                   type="button"
-                  disabled={busy}
-                  className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60"
-                  onClick={() => setNewConfirmed(true)}
+                  disabled={busy || currentStep !== 3}
+                  className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:bg-neutral-200 disabled:text-zinc-400"
+                  onClick={() => void completeRefill()}
                 >
-                  確認這個新罐
-                </button>
-                <button
-                  type="button"
-                  className="w-full text-sm text-zinc-500"
-                  onClick={() => {
-                    setPendingNew('');
-                    setNewConfirmed(false);
-                    setError(null);
-                  }}
-                >
-                  重新掃描
+                  {busy && currentStep === 3 ? '完成中...' : '完成換罐'}
                 </button>
               </div>
-            ) : (
-              <JarSerialPanel
-                title="掃描新罐"
-                primaryLabel="掃描新罐"
-                secondaryLabel="手動輸入序號"
-                submitLabel="確認"
-                busy={busy}
-                onSerial={takeNewSerial}
-              />
-            )
-          ) : (
-            <p className="text-sm text-zinc-400">請先完成上一步</p>
-          )}
-        </StepBlock>
-
-        <StepBlock n={3} title="完成交付" state={currentStep === 3 ? 'active' : 'locked'}>
-          {currentStep === 3 ? (
-            <button
-              type="button"
-              disabled={busy}
-              className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60"
-              onClick={() => void completeRefill()}
-            >
-              {busy ? '完成中...' : '完成換罐'}
-            </button>
-          ) : (
-            <p className="text-sm text-zinc-400">舊罐與新罐都確認後才能交付</p>
-          )}
-        </StepBlock>
-      </ol>
+            </StepBlock>
+          </ol>
+        </>
+      )}
 
       {error ? (
         <div className="mt-4 space-y-2">
@@ -322,7 +352,7 @@ export function RefillOrderPanel({
                 setRetryAction(null);
               }}
             >
-              {retryAction === 'new' ? '重新掃描' : '重新掃描'}
+              重新掃描
             </button>
           ) : (
             <p className="text-xs text-zinc-400">如果仍失敗，請聯絡匠寵</p>
@@ -330,21 +360,27 @@ export function RefillOrderPanel({
         </div>
       ) : null}
 
-      {!oldDone && !view.skipOldJar ? (
-        <div className="mt-6 border-t border-neutral-200 pt-3">
+      {!view.unpaidBlock && !oldDone && !view.skipOldJar ? (
+        <div className="mt-6 rounded-2xl bg-neutral-50 px-4 py-3">
           <button
             type="button"
-            className="flex w-full items-center justify-between py-2 text-sm text-zinc-500"
+            className="flex w-full items-start gap-2 text-left"
             onClick={() => setMissingOpen((open) => !open)}
           >
-            客人忘記帶空罐？
-            <ChevronDown className={`h-4 w-4 transition ${missingOpen ? 'rotate-180' : ''}`} />
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+            <span className="flex-1">
+              <span className="flex items-center justify-between text-sm font-medium text-zinc-700">
+                客人忘記帶空罐？
+                <ChevronDown className={`h-4 w-4 text-zinc-400 transition ${missingOpen ? 'rotate-180' : ''}`} />
+              </span>
+              <span className="mt-1 block text-xs text-zinc-500">
+                請客人先補差額 $30，或下次帶空罐再領取。
+              </span>
+            </span>
           </button>
           {missingOpen ? (
-            <div className="space-y-3 pt-2">
-              <p className="text-sm text-zinc-600">
-                沒有舊罐就不能直接交付。請客人線上補 NT$30，或下次帶空罐再領。店內不能代收現金。
-              </p>
+            <div className="space-y-3 pt-3">
+              <p className="text-sm text-zinc-600">店內不能代收現金，也不能略過舊罐直接交新罐。</p>
               <button
                 type="button"
                 disabled={busy}
@@ -379,7 +415,7 @@ export function RefillSuccessPanel({
   onDone: () => void;
 }) {
   return (
-    <PanelShell title="換罐完成" onClose={onDone}>
+    <PanelShell title="換罐完成" onClose={onDone} stickyCta>
       <p className="text-xs text-zinc-500">新罐</p>
       <p className="mt-1 text-2xl font-semibold tracking-wide">{newSerial}</p>
       <p className="mt-4 text-sm text-zinc-700">已交付給{customerName}</p>
@@ -398,13 +434,15 @@ function PanelShell({
   title,
   onClose,
   children,
+  stickyCta = false,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  stickyCta?: boolean;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className={`flex h-full min-h-0 flex-col ${stickyCta ? 'pb-2' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
         <button
@@ -424,11 +462,13 @@ function PanelShell({
 function StepBlock({
   n,
   title,
+  doneLabel,
   state,
   children,
 }: {
   n: number;
   title: string;
+  doneLabel?: string;
   state: 'done' | 'active' | 'locked';
   children: React.ReactNode;
 }) {
@@ -437,13 +477,18 @@ function StepBlock({
       <div className="mb-2 flex items-center gap-2">
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-            state === 'done' ? 'bg-zinc-900 text-white' : 'border border-zinc-300 text-zinc-700'
+            state === 'done' || state === 'active'
+              ? 'bg-zinc-900 text-white'
+              : 'border border-zinc-300 text-zinc-700'
           }`}
         >
           {state === 'done' ? <Check className="h-3 w-3" /> : n}
         </span>
         <p className="text-sm font-semibold text-zinc-900">
           {n}. {title}
+          {state === 'done' && doneLabel ? (
+            <span className="ml-2 text-xs font-normal text-zinc-500">{doneLabel}</span>
+          ) : null}
         </p>
       </div>
       <div className="pl-8">{children}</div>

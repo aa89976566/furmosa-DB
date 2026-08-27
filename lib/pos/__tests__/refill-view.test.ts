@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  customerInitial,
   formatRefillOrderNo,
   parseRefillLookupQuery,
+  refillListHint,
   refillStaffView,
 } from '@/lib/pos/refill-view';
 import { mapRefillStaffError } from '@/lib/pos/refill-staff-errors';
@@ -79,6 +81,17 @@ describe('refill staff view', () => {
       formatRefillOrderNo('cuidxxxx0012', new Date(2024, 3, 28)),
       '#RFP-240428-0012',
     );
+  });
+
+  it('uses a short unpaid hint in the waiting list', () => {
+    const unpaid = refillStaffView({
+      id: 'abc12345',
+      status: 'payment_pending',
+      paid: false,
+      deliveryMode: 'exchange',
+    });
+    assert.equal(refillListHint(unpaid), '尚未完成付款');
+    assert.equal(customerInitial('王小姐'), '王');
   });
 });
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { PencilLine, ScanLine } from 'lucide-react';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 
 type BarcodeDetectorLike = {
@@ -23,21 +24,26 @@ export function JarSerialPanel({
   title,
   primaryLabel,
   secondaryLabel,
+  primaryHint,
+  secondaryHint,
   submitLabel = '查詢',
   busyLabel = '查詢中...',
   onSerial,
   busy = false,
   allowAnyQuery = false,
+  variant = 'stack',
 }: {
   title?: string;
   primaryLabel: string;
   secondaryLabel: string;
+  primaryHint?: string;
+  secondaryHint?: string;
   submitLabel?: string;
   busyLabel?: string;
   onSerial: (serial: string) => void;
   busy?: boolean;
-  /** 手動輸入可接受訂單編號，不只 8 碼罐序 */
   allowAnyQuery?: boolean;
+  variant?: 'stack' | 'cards' | 'tile';
 }) {
   const [mode, setMode] = useState<'idle' | 'scan' | 'manual'>('idle');
   const [serial, setSerial] = useState('');
@@ -129,35 +135,94 @@ export function JarSerialPanel({
     onSerial(code);
   }
 
+  const actions =
+    variant === 'cards' ? (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={busy}
+          className="flex min-h-[120px] flex-col items-start justify-center rounded-2xl bg-zinc-900 px-5 py-4 text-left text-white disabled:opacity-60"
+          onClick={() => {
+            setHint(null);
+            setMode('scan');
+          }}
+        >
+          <ScanLine className="mb-3 h-6 w-6" />
+          <span className="text-base font-semibold">{busy ? busyLabel : primaryLabel}</span>
+          <span className="mt-1 text-sm text-white/70">{primaryHint ?? '掃描空罐底部 QR Code'}</span>
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="flex min-h-[120px] flex-col items-start justify-center rounded-2xl border border-zinc-900 bg-white px-5 py-4 text-left disabled:opacity-60"
+          onClick={() => {
+            setHint(null);
+            setMode('manual');
+          }}
+        >
+          <PencilLine className="mb-3 h-6 w-6" />
+          <span className="text-base font-semibold">{secondaryLabel}</span>
+          <span className="mt-1 text-sm text-zinc-500">{secondaryHint ?? '輸入罐底序號查詢訂單'}</span>
+        </button>
+      </div>
+    ) : variant === 'tile' ? (
+      <div className="space-y-2">
+        <button
+          type="button"
+          disabled={busy}
+          className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-7 text-center disabled:opacity-60"
+          onClick={() => {
+            setHint(null);
+            setMode('scan');
+          }}
+        >
+          <ScanLine className="mb-2 h-6 w-6 text-zinc-500" />
+          <span className="text-sm font-semibold text-zinc-900">{busy ? busyLabel : primaryLabel}</span>
+          <span className="mt-1 text-xs text-zinc-500">{primaryHint ?? '掃描要給客人的新罐'}</span>
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className={ghostClass}
+          onClick={() => {
+            setHint(null);
+            setMode('manual');
+          }}
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    ) : (
+      <div className="grid gap-2">
+        <button
+          type="button"
+          className={primaryClass}
+          disabled={busy}
+          onClick={() => {
+            setHint(null);
+            setMode('scan');
+          }}
+        >
+          {busy ? busyLabel : primaryLabel}
+        </button>
+        <button
+          type="button"
+          className={secondaryClass}
+          disabled={busy}
+          onClick={() => {
+            setHint(null);
+            setMode('manual');
+          }}
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    );
+
   return (
     <div className="space-y-3">
       {title ? <p className="text-sm font-medium text-zinc-900">{title}</p> : null}
-      {mode === 'idle' ? (
-        <div className="grid gap-2">
-          <button
-            type="button"
-            className={primaryClass}
-            disabled={busy}
-            onClick={() => {
-              setHint(null);
-              setMode('scan');
-            }}
-          >
-            {busy ? busyLabel : primaryLabel}
-          </button>
-          <button
-            type="button"
-            className={secondaryClass}
-            disabled={busy}
-            onClick={() => {
-              setHint(null);
-              setMode('manual');
-            }}
-          >
-            {secondaryLabel}
-          </button>
-        </div>
-      ) : null}
+      {mode === 'idle' ? actions : null}
 
       {mode === 'scan' ? (
         <div className="space-y-3">
@@ -199,9 +264,7 @@ export function JarSerialPanel({
         </div>
       ) : null}
 
-      {hint ? (
-        <p className="whitespace-pre-line text-sm text-red-600">{hint}</p>
-      ) : null}
+      {hint ? <p className="whitespace-pre-line text-sm text-red-600">{hint}</p> : null}
     </div>
   );
 }

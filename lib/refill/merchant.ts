@@ -51,6 +51,7 @@ export async function listMerchantRefillOrders(merchantId: string) {
     oldContainerSerial: o.oldContainerSerial,
     newContainerSerial: o.newContainerSerial,
     missingContainerNote: o.missingContainerNote,
+    oldContainerReturnedAt: o.oldContainerReturnedAt?.toISOString() ?? null,
     productLabel:
       o.deliveryMode === 'first' || o.orderType === 'first' ? '首罐' : '雞肉換罐',
   }));

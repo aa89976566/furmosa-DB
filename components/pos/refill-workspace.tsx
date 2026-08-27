@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
 import { PosAccountMenu } from '@/components/pos/account-menu';
@@ -8,7 +9,15 @@ import { JarSerialPanel } from '@/components/pos/jar-serial-panel';
 import { RefillOrderPanel, RefillSuccessPanel } from '@/components/pos/refill-order-panel';
 import type { PosAccount } from '@/lib/pos/account';
 import { mapRefillStaffError } from '@/lib/pos/refill-staff-errors';
-import { refillStaffView, toPosRefillOrderCard, type PosRefillOrderCard } from '@/lib/pos/refill-view';
+import {
+  customerInitial,
+  refillListHint,
+  refillStaffView,
+  toPosRefillOrderCard,
+  type PosRefillOrderCard,
+} from '@/lib/pos/refill-view';
+
+const LIST_PREVIEW = 4;
 
 function showToast(setToast: (value: string | null) => void, text: string) {
   setToast(text);
@@ -35,16 +44,21 @@ function RefillWorkspaceInner({
   const [success, setSuccess] = useState<{ newSerial: string; customerName: string } | null>(
     null,
   );
+  const [showAll, setShowAll] = useState(false);
 
-  const pending = useMemo(
-    () =>
-      orders.filter((order) => {
-        const view = refillStaffView(order);
-        return view.canFulfill;
-      }),
-    [orders],
-  );
+  const { processable, unpaid, visible } = useMemo(() => {
+    const processableOrders = orders.filter((order) => refillStaffView(order).canFulfill);
+    const unpaidOrders = orders.filter((order) => refillStaffView(order).unpaidBlock);
+    const combined = [...processableOrders, ...unpaidOrders];
+    return {
+      processable: processableOrders,
+      unpaid: unpaidOrders,
+      visible: showAll ? combined : combined.slice(0, LIST_PREVIEW),
+    };
+  }, [orders, showAll]);
+
   const selected = orders.find((order) => order.id === selectedId) ?? null;
+  const totalCount = processable.length + unpaid.length;
 
   async function reloadOrders() {
     try {
@@ -142,12 +156,15 @@ function RefillWorkspaceInner({
             </div>
           </header>
 
-          <div className="flex-1 space-y-6 px-4 pb-28 md:overflow-y-auto md:px-6 md:pb-8">
-            <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex-1 space-y-8 px-4 pb-28 md:overflow-y-auto md:px-6 md:pb-8">
+            <section>
               <p className="mb-3 text-sm font-semibold">1. 找到客人的訂單</p>
               <JarSerialPanel
+                variant="cards"
                 primaryLabel="掃描罐底"
                 secondaryLabel="手動輸入序號"
+                primaryHint="掃描空罐底部 QR Code"
+                secondaryHint="輸入罐底序號查詢訂單"
                 submitLabel="查詢"
                 busyLabel="查詢中..."
                 busy={busy}
@@ -169,14 +186,18 @@ function RefillWorkspaceInner({
             </section>
 
             <section>
-              <h2 className="text-sm font-semibold text-zinc-900">待換罐</h2>
-              {pending.length === 0 ? (
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-sm font-semibold text-zinc-900">待換罐客人</h2>
+                <p className="text-xs text-zinc-500">共 {totalCount} 筆</p>
+              </div>
+              {totalCount === 0 ? (
                 <p className="mt-3 text-sm text-zinc-500">目前沒有待換罐的客人。</p>
               ) : (
                 <ul className="mt-3 space-y-2">
-                  {pending.map((order) => {
+                  {visible.map((order) => {
                     const view = refillStaffView(order);
                     const active = selectedId === order.id;
+                    const unpaid = view.unpaidBlock;
                     return (
                       <li key={order.id}>
                         <button
@@ -187,17 +208,32 @@ function RefillWorkspaceInner({
                             setSuccess(null);
                             setLookupError(null);
                           }}
-                          className={`flex min-h-[72px] w-full items-start justify-between rounded-2xl bg-white px-4 py-3 text-left shadow-sm ${
+                          className={`flex min-h-[76px] w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-sm ${
                             active ? 'ring-1 ring-zinc-900' : ''
                           }`}
                         >
-                          <div>
-                            <p className="font-medium">{order.customerName}</p>
-                            <p className="mt-0.5 text-sm text-zinc-500">訂單 {view.orderNo}</p>
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-zinc-700">
+                            {customerInitial(order.customerName)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate font-medium">{order.customerName}</p>
+                            <p className="mt-0.5 truncate text-sm text-zinc-500">
+                              訂單 {view.orderNo}
+                            </p>
                           </div>
-                          <div className="text-right text-sm">
-                            <p className="font-medium text-zinc-900">{view.paymentLabel}</p>
-                            <p className="mt-0.5 text-zinc-500">{view.progressLabel}</p>
+                          <div className="shrink-0 text-right text-sm">
+                            <p
+                              className={
+                                unpaid
+                                  ? 'font-medium text-rose-500'
+                                  : 'font-medium text-zinc-700'
+                              }
+                            >
+                              {view.paymentLabel}
+                            </p>
+                            <p className={`mt-0.5 ${unpaid ? 'text-rose-400' : 'text-zinc-500'}`}>
+                              {refillListHint(view)}
+                            </p>
                           </div>
                         </button>
                       </li>
@@ -205,25 +241,38 @@ function RefillWorkspaceInner({
                   })}
                 </ul>
               )}
+              {totalCount > LIST_PREVIEW && !showAll ? (
+                <button
+                  type="button"
+                  className="mt-3 flex w-full items-center justify-center gap-1 py-2 text-sm text-zinc-500"
+                  onClick={() => setShowAll(true)}
+                >
+                  查看更多
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              ) : null}
             </section>
           </div>
         </main>
 
-        <aside className="hidden w-[360px] shrink-0 border-l border-neutral-200 bg-white px-5 py-5 md:block">
+        <aside className="hidden w-[380px] shrink-0 border-l border-neutral-200 bg-white px-5 py-5 md:block">
           {detail}
         </aside>
       </div>
 
       {selectedId || success ? (
-        <div className="fixed inset-x-0 top-0 z-50 md:hidden" style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}>
+        <div
+          className="fixed inset-x-0 top-0 z-50 md:hidden"
+          style={{ bottom: 'calc(56px + env(safe-area-inset-bottom))' }}
+        >
           <button
             type="button"
             className="absolute inset-0 bg-black/30"
             aria-label="關閉"
             onClick={closeDetail}
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[92%] overflow-y-auto rounded-t-3xl bg-white px-5 py-5">
-            {detail}
+          <div className="absolute inset-x-0 bottom-0 flex max-h-[92%] flex-col overflow-hidden rounded-t-3xl bg-white">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">{detail}</div>
           </div>
         </div>
       ) : null}

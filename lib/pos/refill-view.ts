@@ -22,6 +22,7 @@ export type PosRefillOrderCard = {
   oldContainerSerial: string | null;
   newContainerSerial: string | null;
   missingContainerNote: string | null;
+  oldContainerReturnedAt: string | null;
 };
 
 export type RefillViewInput = {
@@ -59,6 +60,7 @@ export function toPosRefillOrderCard(row: {
   oldContainerSerial: string | null;
   newContainerSerial: string | null;
   missingContainerNote: string | null;
+  oldContainerReturnedAt?: string | null;
 }): PosRefillOrderCard {
   return {
     id: row.id,
@@ -74,7 +76,31 @@ export function toPosRefillOrderCard(row: {
     oldContainerSerial: row.oldContainerSerial,
     newContainerSerial: row.newContainerSerial,
     missingContainerNote: row.missingContainerNote,
+    oldContainerReturnedAt: row.oldContainerReturnedAt ?? null,
   };
+}
+
+export function customerInitial(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? trimmed.slice(0, 1) : '客';
+}
+
+export function formatRefillDateTime(value?: string | Date | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}/${m}/${d} ${hh}:${mm}`;
+}
+
+export function refillListHint(view: RefillStaffView): string {
+  if (view.unpaidBlock) return '尚未完成付款';
+  if (view.progressLabel === '待帶空罐') return '待客人帶空罐';
+  return view.progressLabel;
 }
 
 export function formatRefillOrderNo(id: string, createdAt?: string | Date | null): string {
