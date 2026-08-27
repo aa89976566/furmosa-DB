@@ -2,16 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardList, LayoutGrid, Package, Recycle, Warehouse } from 'lucide-react';
-import { POS_NAV, activePosNavId, type PosNavId } from '@/lib/pos/pos-nav';
+import { POS_NAV, activePosNavId } from '@/lib/pos/pos-nav';
 
-const ICONS: Record<PosNavId, typeof LayoutGrid> = {
-  sell: LayoutGrid,
-  stock: Warehouse,
-  refill: Recycle,
-  restock: Package,
-  records: ClipboardList,
-};
+function navItemClass(isActive: boolean, isRefill: boolean) {
+  if (isRefill) {
+    return isActive
+      ? 'bg-primary text-primary-foreground'
+      : 'bg-primary/15 text-primary';
+  }
+  return isActive
+    ? 'bg-primary text-primary-foreground'
+    : 'text-muted-foreground hover:bg-muted hover:text-foreground';
+}
 
 export function PosBottomNav() {
   const pathname = usePathname() || '/pos';
@@ -24,7 +26,6 @@ export function PosBottomNav() {
     >
       <div className="mx-auto flex max-w-lg items-end">
         {POS_NAV.map((tab) => {
-          const Icon = ICONS[tab.id];
           const isActive = active === tab.id;
           const isRefill = tab.id === 'refill';
           return (
@@ -32,24 +33,23 @@ export function PosBottomNav() {
               key={tab.href}
               href={tab.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
+              className={`flex min-h-[56px] flex-1 items-center justify-center text-sm font-medium ${
                 isRefill ? '-mt-3' : ''
               } ${isActive || isRefill ? 'text-primary' : 'text-muted-foreground'}`}
             >
-              <span
-                className={
-                  isRefill
-                    ? `flex h-14 w-14 items-center justify-center rounded-full shadow-card ${
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-primary/90 text-primary-foreground'
-                      }`
-                    : 'flex h-6 w-6 items-center justify-center'
-                }
-              >
-                <Icon className={isRefill ? 'h-6 w-6' : 'h-4 w-4'} aria-hidden />
-              </span>
-              {tab.label}
+              {isRefill ? (
+                <span
+                  className={`flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold shadow-card ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-primary/90 text-primary-foreground'
+                  }`}
+                >
+                  {tab.label}
+                </span>
+              ) : (
+                tab.label
+              )}
             </Link>
           );
         })}
@@ -66,7 +66,7 @@ export function PosSideRail({ storeName }: { storeName?: string }) {
   return (
     <aside className="hidden md:flex md:flex-col md:items-center md:py-5">
       <nav
-        className="flex h-full w-[72px] flex-col items-center rounded-[28px] bg-card py-5 shadow-card"
+        className="flex h-full w-[96px] flex-col items-center rounded-[28px] bg-card py-5 shadow-card"
         aria-label="店家導航"
       >
         <Link
@@ -77,35 +77,26 @@ export function PosSideRail({ storeName }: { storeName?: string }) {
           F
           <span className="sr-only">回首頁</span>
         </Link>
-        <div className="mt-6 flex flex-1 flex-col items-center gap-2">
+        <div className="mt-6 flex w-full flex-1 flex-col items-stretch gap-1 px-2">
           {POS_NAV.map((tab) => {
-            const Icon = ICONS[tab.id];
             const isActive = active === tab.id;
             const isRefill = tab.id === 'refill';
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                title={tab.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl transition ${
-                  isRefill
-                    ? isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-primary/15 text-primary'
-                    : isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
+                className={`flex min-h-[48px] items-center justify-center text-sm font-medium leading-none ${
+                  isRefill ? 'mx-auto h-14 w-14 rounded-full' : 'rounded-2xl'
+                } ${navItemClass(isActive, isRefill)}`}
               >
-                <Icon className="h-5 w-5" />
-                <span className="sr-only">{tab.label}</span>
+                {tab.label}
               </Link>
             );
           })}
         </div>
         {storeName ? (
-          <p className="mb-3 max-w-[64px] truncate text-center text-[10px] text-muted-foreground">
+          <p className="mb-3 max-w-[80px] truncate px-1 text-center text-[10px] text-muted-foreground">
             {storeName}
           </p>
         ) : null}
