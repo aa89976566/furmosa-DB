@@ -10,6 +10,7 @@ import {
   setCartLineQty,
   type CounterCartLine,
 } from '@/lib/pos/counter-cart';
+import { ProductCover } from '@/components/pos/product-cover';
 
 type Phase = 'edit' | 'confirm' | 'done';
 
@@ -61,12 +62,12 @@ export function CounterTicket({
             {lines.map((line) => (
               <li key={line.key} className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted">
-                  {line.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={line.imageUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-lg font-semibold text-navy/50">{line.name.slice(0, 1)}</span>
-                  )}
+                  <ProductCover
+                    name={line.name}
+                    imageUrl={line.imageUrl}
+                    imgClassName="h-full w-full object-cover"
+                    markClassName="text-lg font-semibold text-navy/50"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-navy">{line.name}</p>

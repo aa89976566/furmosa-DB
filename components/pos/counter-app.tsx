@@ -20,6 +20,7 @@ import {
   type CounterCheckoutState,
 } from '@/app/pos/actions';
 import { CounterTicket } from '@/components/pos/counter-ticket';
+import { ProductCover } from '@/components/pos/product-cover';
 import styles from './counter.module.css';
 
 type Phase = 'edit' | 'confirm' | 'done';
@@ -188,12 +189,11 @@ function CounterWorkspace({
                   className={`${styles.card} ${item.stock <= 0 ? styles.sold : ''}`}
                 >
                   <div className={styles.photo}>
-                    {item.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.imageUrl} alt="" />
-                    ) : (
-                      <span className={styles.mark}>{item.name.slice(0, 1)}</span>
-                    )}
+                    <ProductCover
+                      name={item.name}
+                      imageUrl={item.imageUrl}
+                      markClassName={styles.mark}
+                    />
                   </div>
                   <div className={styles.body}>
                     <h2 className={styles.name}>{item.name}</h2>
