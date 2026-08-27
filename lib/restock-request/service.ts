@@ -6,6 +6,8 @@ import {
   type ApprovedSnapshotLine,
   type RestockRequestType,
 } from '@/lib/restock-request/constants';
+import { isRestockableProductCategory } from '@/lib/product-category';
+import { suggestedRestockQty } from '@/lib/pos/stock-status';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -38,6 +40,63 @@ export async function listJarExchangeProductsForRestock() {
   });
 }
 
+export type MerchantRestockProduct = {
+  id: string;
+  name: string;
+  unit: string;
+  productCategory: string;
+  stockQty: number;
+  suggestedQty: number;
+};
+
+export async function listMerchantRestockCatalog(
+  merchantId: string,
+): Promise<MerchantRestockProduct[]> {
+  const [jarProducts, stocks, rules] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        status: 'active',
+        productCategory: { in: ['JAR_EXCHANGE', 'STANDARD'] },
+      },
+      select: {
+        id: true,
+        name: true,
+        unit: true,
+        productCategory: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.merchantStock.findMany({
+      where: { merchantId },
+      select: { productId: true, quantity: true },
+    }),
+    prisma.merchantProductRule.findMany({
+      where: { merchantId },
+      select: { productId: true },
+    }),
+  ]);
+
+  const qtyByProduct = new Map<string, number>();
+  for (const s of stocks) {
+    qtyByProduct.set(s.productId, (qtyByProduct.get(s.productId) ?? 0) + s.quantity);
+  }
+  const inStore = new Set([...qtyByProduct.keys(), ...rules.map((r) => r.productId)]);
+
+  return jarProducts
+    .filter((p) => p.productCategory === 'JAR_EXCHANGE' || inStore.has(p.id))
+    .map((p) => {
+      const stockQty = qtyByProduct.get(p.id) ?? 0;
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit,
+        productCategory: p.productCategory,
+        stockQty,
+        suggestedQty: suggestedRestockQty(stockQty),
+      };
+    });
+}
+
 export async function assertJarExchangeProducts(productIds: string[]) {
   if (productIds.length === 0) return;
   const rows = await prisma.product.findMany({
@@ -47,9 +106,9 @@ export async function assertJarExchangeProducts(productIds: string[]) {
   if (rows.length !== productIds.length) {
     throw new Error('有商品不存在');
   }
-  const bad = rows.filter((r) => r.productCategory !== 'JAR_EXCHANGE');
+  const bad = rows.filter((r) => !isRestockableProductCategory(r.productCategory));
   if (bad.length > 0) {
-    throw new Error('只能申請換罐計畫商品');
+    throw new Error('這項商品目前不能補貨');
   }
 }
 

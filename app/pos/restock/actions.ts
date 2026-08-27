@@ -25,8 +25,8 @@ function toMerchantError(e: unknown): string {
   if (msg.includes('補貨需求') || msg.includes('填寫')) {
     return '請寫一下你需要什麼，再送出。';
   }
-  if (msg.includes('換罐計畫')) {
-    return '這項商品目前不能用叫貨申請，請聯繫 Furmosa。';
+  if (msg.includes('換罐計畫') || msg.includes('不能補貨')) {
+    return '這項商品目前不能補貨，請聯絡匠寵。';
   }
   if (msg.includes('不存在')) {
     return '有商品找不到了，請重新整理後再試。';
@@ -60,7 +60,7 @@ export async function submitSelfSelectRestockAction(
       items,
     });
     revalidatePath('/pos');
-    revalidatePath('/pos/today');
+    revalidatePath('/pos/stock');
     revalidatePath('/pos/refill');
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
@@ -87,7 +87,7 @@ export async function submitAutoReplenishRestockAction(
       merchantNote,
     });
     revalidatePath('/pos');
-    revalidatePath('/pos/today');
+    revalidatePath('/pos/stock');
     revalidatePath('/pos/refill');
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');

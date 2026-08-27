@@ -134,10 +134,10 @@ function CounterWorkspace({
         )}
       />
       <section className={styles.catalog}>
-        <div className={styles.top}>
+        <div className={`${styles.top} pr-14`}>
           <div>
-            <p className={styles.kicker}>收銀</p>
-            <h1 className={styles.heading}>寄賣零食</h1>
+            <p className={styles.kicker}>結帳</p>
+            <h1 className={styles.heading}>店內商品</h1>
           </div>
           <div className={styles.search}>
             <div className="relative">
@@ -146,10 +146,13 @@ function CounterWorkspace({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜尋商品"
-                className="h-11 rounded-full border-0 bg-card pl-10 shadow-card"
+                className="h-12 rounded-full border-0 bg-card pl-10 shadow-card"
                 aria-label="搜尋商品"
               />
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              掃商品還沒接掃碼槍，請用搜尋找商品。換罐請走「換罐」，不要混進這張帳單。
+            </p>
           </div>
         </div>
         <div className={styles.chips} role="tablist" aria-label="商品分類">
@@ -175,7 +178,7 @@ function CounterWorkspace({
         {visible.length === 0 ? (
           <p className="mt-10 text-sm text-muted-foreground">
             {items.length === 0
-              ? '這間店還沒有可收銀的寄賣商品。'
+              ? '這間店還沒有可結帳的寄賣商品。'
               : '沒有符合的商品，試試別的分類或關鍵字。'}
           </p>
         ) : (
@@ -231,7 +234,7 @@ function CounterWorkspace({
           className="min-h-[52px] w-full rounded-full text-base shadow-card"
           onClick={() => setSheetOpen(true)}
         >
-          本單 {cartItemCount(lines)} 件 · {formatCurrency(cartSubtotal(lines))}
+          合計 {cartItemCount(lines)} 件 · {formatCurrency(cartSubtotal(lines))}
         </Button>
       </div>
 

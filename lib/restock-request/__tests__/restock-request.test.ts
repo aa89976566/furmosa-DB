@@ -8,6 +8,7 @@ import {
 import {
   isJarExchangeProductCategory,
   isProductCategory,
+  isRestockableProductCategory,
 } from '@/lib/product-category';
 import { resolveMerchantIdForQuery } from '@/lib/merchant-auth/access';
 
@@ -15,6 +16,9 @@ describe('product category', () => {
   it('recognizes JAR_EXCHANGE category', () => {
     assert.equal(isJarExchangeProductCategory('JAR_EXCHANGE'), true);
     assert.equal(isJarExchangeProductCategory('STANDARD'), false);
+    assert.equal(isRestockableProductCategory('STANDARD'), true);
+    assert.equal(isRestockableProductCategory('JAR_EXCHANGE'), true);
+    assert.equal(isRestockableProductCategory('SERVICE'), false);
     assert.equal(isProductCategory('VOUCHER'), true);
     assert.equal(isProductCategory('snack'), false);
   });
