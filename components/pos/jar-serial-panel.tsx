@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 
 type BarcodeDetectorLike = {
@@ -15,18 +13,31 @@ function getBarcodeDetector(): (new (opts: { formats: string[] }) => BarcodeDete
   return ctor ?? null;
 }
 
+const primaryClass =
+  'flex min-h-[48px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-60';
+const secondaryClass =
+  'flex min-h-[48px] w-full items-center justify-center rounded-xl border border-zinc-900 bg-white text-sm font-semibold text-zinc-900 disabled:opacity-60';
+const ghostClass = 'flex min-h-[44px] w-full items-center justify-center text-sm text-zinc-500';
+
 export function JarSerialPanel({
   title,
   primaryLabel,
   secondaryLabel,
+  submitLabel = '查詢',
+  busyLabel = '查詢中...',
   onSerial,
   busy = false,
+  allowAnyQuery = false,
 }: {
-  title: string;
+  title?: string;
   primaryLabel: string;
   secondaryLabel: string;
+  submitLabel?: string;
+  busyLabel?: string;
   onSerial: (serial: string) => void;
   busy?: boolean;
+  /** 手動輸入可接受訂單編號，不只 8 碼罐序 */
+  allowAnyQuery?: boolean;
 }) {
   const [mode, setMode] = useState<'idle' | 'scan' | 'manual'>('idle');
   const [serial, setSerial] = useState('');
@@ -42,7 +53,7 @@ export function JarSerialPanel({
     let cancelled = false;
     const Detector = getBarcodeDetector();
     if (!Detector || !navigator.mediaDevices?.getUserMedia) {
-      setHint('這台手機還沒辦法直接掃罐底，請改用手打 8 碼。');
+      setHint('無法開啟相機\n請改用手動輸入序號');
       setMode('manual');
       return;
     }
@@ -70,6 +81,10 @@ export function JarSerialPanel({
               .map((c) => normalizeJarCode(c.rawValue))
               .find((value) => isValidJarCodeFormat(value));
             if (found) {
+              cancelled = true;
+              streamRef.current?.getTracks().forEach((t) => t.stop());
+              streamRef.current = null;
+              setMode('idle');
               onSerialRef.current(found);
               return;
             }
@@ -82,7 +97,7 @@ export function JarSerialPanel({
         };
         void tick();
       } catch {
-        setHint('相機打不開，請改用手打 8 碼。');
+        setHint('無法開啟相機\n請改用手動輸入序號');
         setMode('manual');
       }
     })();
@@ -95,34 +110,44 @@ export function JarSerialPanel({
   }, [mode]);
 
   function submitManual() {
-    const value = normalizeJarCode(serial);
-    if (!isValidJarCodeFormat(value)) {
-      setHint('請輸入罐底 8 位數字。');
+    const value = serial.trim();
+    if (allowAnyQuery) {
+      if (!value) {
+        setHint('請輸入罐底序號或訂單編號');
+        return;
+      }
+      setMode('idle');
+      onSerial(value);
       return;
     }
-    onSerial(value);
+    const code = normalizeJarCode(value);
+    if (!isValidJarCodeFormat(code)) {
+      setHint('請輸入罐底 8 位數字');
+      return;
+    }
+    setMode('idle');
+    onSerial(code);
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-navy">{title}</p>
+      {title ? <p className="text-sm font-medium text-zinc-900">{title}</p> : null}
       {mode === 'idle' ? (
         <div className="grid gap-2">
-          <Button
+          <button
             type="button"
-            className="min-h-[52px] w-full text-base"
+            className={primaryClass}
             disabled={busy}
             onClick={() => {
               setHint(null);
               setMode('scan');
             }}
           >
-            {primaryLabel}
-          </Button>
-          <Button
+            {busy ? busyLabel : primaryLabel}
+          </button>
+          <button
             type="button"
-            variant="outline"
-            className="min-h-[48px] w-full text-base"
+            className={secondaryClass}
             disabled={busy}
             onClick={() => {
               setHint(null);
@@ -130,44 +155,53 @@ export function JarSerialPanel({
             }}
           >
             {secondaryLabel}
-          </Button>
+          </button>
         </div>
       ) : null}
 
       {mode === 'scan' ? (
         <div className="space-y-3">
-          <video ref={videoRef} className="h-48 w-full rounded-2xl bg-navy/80 object-cover" playsInline muted />
-          <Button type="button" variant="ghost" className="min-h-[48px] w-full" onClick={() => setMode('manual')}>
-            改用手打
-          </Button>
+          <video ref={videoRef} className="h-48 w-full rounded-2xl bg-zinc-900 object-cover" playsInline muted />
+          <button type="button" className={ghostClass} onClick={() => setMode('manual')}>
+            改用手動輸入序號
+          </button>
         </div>
       ) : null}
 
       {mode === 'manual' ? (
         <div className="space-y-3">
-          <Input
-            inputMode="numeric"
-            maxLength={8}
+          <label className="text-sm text-zinc-500">罐底序號</label>
+          <input
+            inputMode={allowAnyQuery ? 'text' : 'numeric'}
+            maxLength={allowAnyQuery ? 40 : 8}
             value={serial}
-            onChange={(e) => setSerial(e.target.value.replace(/\D/g, '').slice(0, 8))}
-            placeholder="罐底 8 碼"
-            className="min-h-[52px] text-center text-xl tracking-[0.3em]"
+            onChange={(e) =>
+              setSerial(
+                allowAnyQuery
+                  ? e.target.value
+                  : e.target.value.replace(/\D/g, '').slice(0, 8),
+              )
+            }
+            placeholder={allowAnyQuery ? '罐底序號或訂單編號' : '罐底 8 碼'}
+            className="h-12 w-full rounded-xl border border-neutral-200 bg-white text-center text-lg tracking-[0.2em] outline-none focus:border-zinc-900"
           />
-          <Button
+          <button
             type="button"
-            className="min-h-[52px] w-full text-base"
-            disabled={busy || serial.length !== 8}
+            className={primaryClass}
+            disabled={busy || (!allowAnyQuery && serial.length !== 8)}
             onClick={submitManual}
           >
-            確認序號
-          </Button>
-          <Button type="button" variant="ghost" className="min-h-[48px] w-full" onClick={() => setMode('idle')}>
+            {busy ? busyLabel : submitLabel}
+          </button>
+          <button type="button" className={ghostClass} onClick={() => setMode('idle')}>
             返回
-          </Button>
+          </button>
         </div>
       ) : null}
 
-      {hint ? <p className="text-sm text-muted-foreground">{hint}</p> : null}
+      {hint ? (
+        <p className="whitespace-pre-line text-sm text-red-600">{hint}</p>
+      ) : null}
     </div>
   );
 }
