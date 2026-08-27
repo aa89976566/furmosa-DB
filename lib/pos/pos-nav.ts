@@ -1,4 +1,4 @@
-export type PosNavId = 'sell' | 'stock' | 'refill' | 'restock' | 'records';
+export type PosNavId = 'home' | 'stock' | 'refill' | 'records' | 'settle';
 
 export type PosNavItem = {
   id: PosNavId;
@@ -9,10 +9,10 @@ export type PosNavItem = {
 
 export const POS_NAV: readonly PosNavItem[] = [
   {
-    id: 'sell',
-    href: '/pos/sell',
-    label: '結帳',
-    match: (p) => p === '/pos/sell' || p.startsWith('/pos/sell/'),
+    id: 'home',
+    href: '/pos',
+    label: '首頁',
+    match: (p) => p === '/pos',
   },
   {
     id: 'stock',
@@ -27,16 +27,16 @@ export const POS_NAV: readonly PosNavItem[] = [
     match: (p) => p === '/pos/refill' || p.startsWith('/pos/refill/'),
   },
   {
-    id: 'restock',
-    href: '/pos/restock',
-    label: '補貨',
-    match: (p) => p === '/pos/restock' || p.startsWith('/pos/restock/'),
-  },
-  {
     id: 'records',
     href: '/pos/records',
     label: '查詢',
     match: (p) => p === '/pos/records' || p.startsWith('/pos/records/'),
+  },
+  {
+    id: 'settle',
+    href: '/pos/settle',
+    label: '結帳',
+    match: (p) => p === '/pos/settle' || p.startsWith('/pos/settle/'),
   },
 ] as const;
 

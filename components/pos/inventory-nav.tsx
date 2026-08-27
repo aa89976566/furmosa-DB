@@ -2,29 +2,43 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardList, LayoutGrid, Package, Recycle, Warehouse } from 'lucide-react';
+import { ClipboardList, Home, Recycle, Wallet, Warehouse } from 'lucide-react';
 import { POS_NAV, activePosNavId, type PosNavId } from '@/lib/pos/pos-nav';
 import type { PosAccount } from '@/lib/pos/account';
 import { PosAccountMenu } from '@/components/pos/account-menu';
 import { useRestockCart } from '@/components/pos/restock-cart-provider';
 
-const ICONS: Record<PosNavId, typeof LayoutGrid> = {
-  sell: LayoutGrid,
+const ICONS: Record<PosNavId, typeof Home> = {
+  home: Home,
   stock: Warehouse,
   refill: Recycle,
-  restock: Package,
   records: ClipboardList,
+  settle: Wallet,
 };
+
+function RestockBadge({ active }: { active: boolean }) {
+  const { itemCount } = useRestockCart();
+  if (itemCount <= 0) return null;
+  return (
+    <span
+      className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
+        active ? 'bg-white text-zinc-900' : 'bg-zinc-900 text-white'
+      }`}
+    >
+      {itemCount}
+    </span>
+  );
+}
 
 export function InventorySideNav({ account }: { account: PosAccount }) {
   const pathname = usePathname() || '/pos/stock';
   const active = activePosNavId(pathname);
-  const { itemCount } = useRestockCart();
 
   return (
     <aside className="hidden h-full w-[220px] shrink-0 flex-col border-r border-neutral-200 bg-white md:flex">
       <div className="px-5 pb-6 pt-6">
         <p className="text-lg font-semibold tracking-[0.18em] text-zinc-900">FURMOSA</p>
+        <p className="mt-1 text-xs tracking-[0.14em] text-zinc-400">STORE POS</p>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="店家導航">
         {POS_NAV.map((tab) => {
@@ -41,15 +55,7 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
               <span>{tab.label}</span>
-              {tab.id === 'restock' && itemCount > 0 ? (
-                <span
-                  className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                    isActive ? 'bg-white text-zinc-900' : 'bg-zinc-900 text-white'
-                  }`}
-                >
-                  {itemCount}
-                </span>
-              ) : null}
+              {tab.id === 'stock' ? <RestockBadge active={isActive} /> : null}
             </Link>
           );
         })}
@@ -88,7 +94,7 @@ export function InventoryBottomNav() {
               ) : (
                 tab.label
               )}
-              {tab.id === 'restock' && itemCount > 0 ? (
+              {tab.id === 'stock' && itemCount > 0 ? (
                 <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[10px] font-semibold text-white">
                   {itemCount}
                 </span>

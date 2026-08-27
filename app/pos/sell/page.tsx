@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export const metadata = {
-  title: '結帳 · Furmosa 店家',
+  title: '收銀 · Furmosa 店家',
 };
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ function CounterFallback({
   return (
     <PosShell wide>
       <div className="space-y-4 px-4 py-10">
-        <h1 className="text-lg font-semibold text-navy">結帳暫時無法載入</h1>
+        <h1 className="text-lg font-semibold text-navy">收銀暫時無法載入</h1>
         <p className="text-sm text-muted-foreground">
           {message}
           {showRetryHint ? ' 請稍後再試，或先去看庫存。' : null}
