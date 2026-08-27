@@ -33,7 +33,7 @@ export default async function PosAppointmentsPage() {
       <div className="px-4 py-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <Link href="/pos" className="text-xs text-muted-foreground">
+            <Link href="/pos/today" className="text-xs text-muted-foreground">
               ← 今天
             </Link>
             <h1 className="text-xl font-semibold text-navy">預約</h1>

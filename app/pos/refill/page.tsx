@@ -37,7 +37,7 @@ export default async function PosRefillListPage() {
             <h1 className="text-xl font-semibold">待換罐</h1>
           </div>
           <Button asChild variant="ghost" className="min-h-[44px]">
-            <Link href="/pos">今天</Link>
+            <Link href="/pos/today">今天</Link>
           </Button>
         </header>
 

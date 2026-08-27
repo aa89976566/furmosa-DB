@@ -1,0 +1,230 @@
+.workspace {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.catalog {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 20px 16px 108px;
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kicker {
+  color: hsl(var(--coral));
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.heading {
+  color: hsl(var(--navy));
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.search {
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.chip {
+  flex: none;
+  min-height: 36px;
+  border-radius: 999px;
+  border: 0;
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 14px;
+}
+
+.chipActive {
+  background: hsl(var(--navy));
+  color: white;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px;
+  background: hsl(var(--card));
+  box-shadow:
+    0 1px 2px hsl(215 44% 14% / 0.04),
+    0 10px 28px hsl(215 44% 14% / 0.06);
+}
+
+.photo {
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(circle at 30% 20%, hsl(var(--coral) / 0.22), transparent 46%),
+    hsl(var(--muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mark {
+  color: hsl(var(--navy) / 0.55);
+  font-size: 36px;
+  font-weight: 650;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.name {
+  color: hsl(var(--navy));
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.spec {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+
+.priceRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.price {
+  color: hsl(var(--navy));
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.add {
+  display: flex;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: hsl(var(--navy));
+  color: white;
+}
+
+.add:disabled {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.sold {
+  opacity: 0.55;
+}
+
+.dock {
+  position: sticky;
+  bottom: calc(52px + env(safe-area-inset-bottom));
+  z-index: 30;
+  margin: 0 16px 12px;
+}
+
+.ticket {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    height: 100%;
+    gap: 12px;
+  }
+
+  .catalog {
+    padding: 12px 12px 20px 8px;
+    overflow: auto;
+  }
+
+  .top {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .search {
+    width: min(420px, 46%);
+  }
+
+  .heading {
+    font-size: 32px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dock {
+    display: none;
+  }
+
+  .ticket {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 28px;
+    background: hsl(var(--card));
+    box-shadow:
+      0 1px 2px hsl(215 44% 14% / 0.04),
+      0 10px 28px hsl(215 44% 14% / 0.06);
+  }
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}

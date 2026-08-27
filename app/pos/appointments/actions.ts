@@ -33,6 +33,7 @@ export async function confirmAppointmentAction(
   try {
     await confirmAppointment({ appointmentId: id, merchantId });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/appointments');
     redirect(`/pos/appointments/${id}`);
   } catch (e) {
@@ -56,6 +57,7 @@ export async function rescheduleAppointmentAction(
       newStartsAt: startsAt,
     });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/appointments');
     redirect(`/pos/appointments/${id}`);
   } catch (e) {
@@ -74,6 +76,7 @@ export async function cancelAppointmentAction(
   try {
     await cancelAppointment({ appointmentId: id, merchantId });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/appointments');
     redirect('/pos/appointments');
   } catch (e) {
@@ -104,6 +107,7 @@ export async function createManualAppointmentAction(
       createdBy: 'merchant',
     });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/appointments');
     redirect(`/pos/appointments/${row.id}`);
   } catch (e) {

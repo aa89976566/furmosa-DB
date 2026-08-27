@@ -60,6 +60,7 @@ export async function submitSelfSelectRestockAction(
       items,
     });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
@@ -85,6 +86,7 @@ export async function submitAutoReplenishRestockAction(
       merchantNote,
     });
     revalidatePath('/pos');
+    revalidatePath('/pos/today');
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');

@@ -32,7 +32,7 @@ export default function PosError({
           再試一次
         </Button>
         <Button variant="outline" asChild>
-          <Link href="/pos">返回今天</Link>
+          <Link href="/pos">返回收銀</Link>
         </Button>
         <Button variant="ghost" asChild>
           <Link href="/pos/login">重新登入</Link>
