@@ -99,6 +99,7 @@ function InventoryWorkspaceInner({
   const [mobilePanel, setMobilePanel] = useState<'detail' | 'cart' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
+  const [expandedCartId, setExpandedCartId] = useState<string | null>(null);
 
   useEffect(() => {
     setItems(initialItems);
@@ -289,8 +290,10 @@ function InventoryWorkspaceInner({
         <h2 className="text-base font-semibold text-zinc-900">
           {cart.itemCount > 0 ? `補貨單 (${cart.itemCount})` : '補貨單'}
         </h2>
-        {cart.itemCount > 3 ? (
-          <span className="text-sm text-zinc-500">查看全部</span>
+        {cart.itemCount > 0 ? (
+          <Link href="/pos/restock" className="text-sm text-zinc-500">
+            查看全部
+          </Link>
         ) : null}
       </div>
       {cart.lines.length === 0 ? (
@@ -308,7 +311,17 @@ function InventoryWorkspaceInner({
                 />
               </div>
               <p className="min-w-0 flex-1 truncate text-sm text-zinc-900">{line.name}</p>
-              <QtyStepper value={line.quantity} onChange={(next) => cart.setQty(line.productId, next)} />
+              {expandedCartId === line.productId ? (
+                <QtyStepper value={line.quantity} onChange={(next) => cart.setQty(line.productId, next)} />
+              ) : (
+                <button
+                  type="button"
+                  className="shrink-0 text-sm tabular-nums text-zinc-700"
+                  onClick={() => setExpandedCartId(line.productId)}
+                >
+                  × {line.quantity}
+                </button>
+              )}
               <button
                 type="button"
                 className="text-zinc-400"
@@ -411,7 +424,7 @@ function InventoryWorkspaceInner({
                         }`}
                       >
                         {isSelected ? (
-                          <span className="absolute right-10 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-white">
+                          <span className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-white">
                             <Check className="h-3 w-3" />
                           </span>
                         ) : null}
@@ -431,15 +444,20 @@ function InventoryWorkspaceInner({
                           </span>
                         </div>
                       </button>
-                      <button
-                        type="button"
-                        className={`absolute right-2 top-2 z-10 flex h-7 items-center rounded-full px-2 text-xs font-medium ${
-                          plusQuiet ? 'bg-neutral-100 text-zinc-400' : 'bg-neutral-100 text-zinc-700'
-                        }`}
-                        onClick={() => addProductToCart(item)}
-                      >
-                        ＋ 補
-                      </button>
+                      {isSelected ? null : (
+                        <button
+                          type="button"
+                          className={`absolute right-2 top-2 z-10 flex h-7 items-center rounded-full px-2 text-xs font-medium ${
+                            plusQuiet ? 'bg-neutral-100 text-zinc-400' : 'bg-neutral-100 text-zinc-700'
+                          }`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            addProductToCart(item);
+                          }}
+                        >
+                          ＋ 補
+                        </button>
+                      )}
                     </li>
                   );
                 })}
@@ -455,16 +473,18 @@ function InventoryWorkspaceInner({
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
-        <button
-          type="button"
-          className="flex min-h-[48px] w-full items-center justify-between rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white shadow-lg"
-          onClick={() => setMobilePanel('cart')}
-        >
-          <span>補貨單 {cart.itemCount} 項</span>
-          <span>共 {cart.pieceCount} 件</span>
-        </button>
-      </div>
+      {cart.itemCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
+          <button
+            type="button"
+            className="flex min-h-[48px] w-full items-center justify-between rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white shadow-lg"
+            onClick={() => setMobilePanel('cart')}
+          >
+            <span>補貨單 {cart.itemCount} 項</span>
+            <span>共 {cart.pieceCount} 件</span>
+          </button>
+        </div>
+      ) : null}
 
       {mobilePanel ? (
         <div className="fixed inset-0 z-50 md:hidden">
