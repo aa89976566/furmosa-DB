@@ -12,7 +12,8 @@ describe('mooncake catalog', () => {
     assert.equal(MOONCAKE_CATALOG.name, '地瓜山藥雞肉月餅');
     assert.equal(MOONCAKE_CATALOG.sourceSku, 'CK-08');
     assert.equal(MOONCAKE_CATALOG.weightGrams, 50);
-    assert.equal(MOONCAKE_CATALOG.price, 129);
+    assert.equal(MOONCAKE_CATALOG.price, 79);
+    assert.equal(MOONCAKE_CATALOG.cost, 30);
     assert.equal(MOONCAKE_CATALOG.vendor, '匠寵');
     assert.equal(MOONCAKE_CATALOG.unit, '顆');
     assert.match(MOONCAKE_CATALOG.shopifyTitle, /牠的月餅/);
@@ -27,7 +28,8 @@ describe('mooncake catalog', () => {
   it('exports a price-list row the importer can upsert', () => {
     const row = mooncakePriceListRow();
     assert.equal(row.sourceSku, 'CK-08');
-    assert.deepEqual(row.prices, [{ weightGrams: 50, unitQty: 1, price: 129 }]);
+    assert.equal(row.cost, 30);
+    assert.deepEqual(row.prices, [{ weightGrams: 50, unitQty: 1, price: 79, cost: 30 }]);
   });
 
   it('recognizes HQ and Shopify search names', () => {

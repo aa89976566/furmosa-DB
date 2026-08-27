@@ -92,6 +92,7 @@ async function main() {
       category: MOONCAKE_CATALOG.category,
       unit: MOONCAKE_CATALOG.unit,
       price: MOONCAKE_CATALOG.price,
+      cost: MOONCAKE_CATALOG.cost,
       imageUrl: MOONCAKE_CATALOG.imageUrl,
       notes: MOONCAKE_CATALOG.notes,
       status: 'active',
@@ -107,6 +108,7 @@ async function main() {
           name: productData.name,
           unit: productData.unit,
           price: productData.price,
+          cost: productData.cost,
           weightGrams: MOONCAKE_CATALOG.weightGrams,
           existingProductId: existing?.productId ?? null,
           existingSku: existing?.sku ?? null,
@@ -133,7 +135,6 @@ async function main() {
             data: {
               productId,
               sku,
-              cost: 0,
               reorderPoint: 10,
               ...productData,
             },
@@ -151,6 +152,7 @@ async function main() {
       },
       update: {
         price: MOONCAKE_CATALOG.price,
+        cost: MOONCAKE_CATALOG.cost,
       },
       create: {
         productId: product.id,
@@ -158,6 +160,7 @@ async function main() {
         unit: MOONCAKE_CATALOG.unit,
         unitQty: 1,
         price: MOONCAKE_CATALOG.price,
+        cost: MOONCAKE_CATALOG.cost,
       },
     });
 

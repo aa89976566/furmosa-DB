@@ -1,6 +1,6 @@
 /**
  * 中秋「牠的月餅」商品主檔（與 Shopify 官網同一款）。
- * 成本尚未進單價表，先不填，避免影響結算。
+ * SKU CK-08 必須與官網變體 SKU 相同，訂單才能對到。
  */
 export const MOONCAKE_CATALOG = {
   vendor: '匠寵',
@@ -10,11 +10,11 @@ export const MOONCAKE_CATALOG = {
   category: 'treats',
   unit: '顆',
   weightGrams: 50,
-  price: 129,
+  price: 79,
+  cost: 30,
   imageUrl:
     'https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-sweet-potato-yam-chicken-mooncake-hero_7d329749-9210-4775-9927-88083c45dfa3.jpg?v=1787834174',
-  notes:
-    '官網「牠的月餅」50g；每售出一顆捐 NT$10 給巴克幫浪犬之家。Shopify 變體 SKU 請設為 CK-08，否則訂單無法對到 Furmosa 商品。成本待補。',
+  notes: '官網「牠的月餅」50g；每售出一顆捐 NT$10 給巴克幫浪犬之家。Shopify 變體 SKU：CK-08。',
 } as const;
 
 export function mooncakePriceListRow() {
@@ -24,11 +24,13 @@ export function mooncakePriceListRow() {
     name: MOONCAKE_CATALOG.name,
     category: MOONCAKE_CATALOG.category,
     unit: MOONCAKE_CATALOG.unit,
+    cost: MOONCAKE_CATALOG.cost,
     prices: [
       {
         weightGrams: MOONCAKE_CATALOG.weightGrams,
         unitQty: 1,
         price: MOONCAKE_CATALOG.price,
+        cost: MOONCAKE_CATALOG.cost,
       },
     ],
     notes: MOONCAKE_CATALOG.notes,

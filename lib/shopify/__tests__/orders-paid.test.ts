@@ -84,9 +84,9 @@ describe('Shopify orders/paid webhook', () => {
   });
 
   it('reads mooncake weight from Shopify grams or 50g title', () => {
-    const tiers = [{ weightGrams: 50, price: 129 }];
+    const tiers = [{ weightGrams: 50, price: 79 }];
     assert.equal(
-      resolveShopifyItemWeight({ sku: 'CK-08', quantity: 1, price: '129', grams: 50 }, tiers),
+      resolveShopifyItemWeight({ sku: 'CK-08', quantity: 1, price: '79', grams: 50 }, tiers),
       50,
     );
     assert.equal(
@@ -94,7 +94,7 @@ describe('Shopify orders/paid webhook', () => {
         {
           sku: 'CK-08',
           quantity: 1,
-          price: '129',
+          price: '79',
           title: '牠的月餅｜地瓜山藥雞肉月餅 50g',
         },
         tiers,
