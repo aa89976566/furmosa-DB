@@ -6,6 +6,7 @@ import {
   partnerStoreDirectoryStats,
   partnerStoreSourceKind,
   partnerStoreSourceLabel,
+  partnerStoreStatusCopy,
 } from '@/lib/jar-exchange/partner-store-directory';
 import { GROOMING_COUPON_DISCOUNT_DEFAULT, GROOMING_COUPON_DISCOUNT_ZHUWO } from '@/lib/coupons/store-discount';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
@@ -58,6 +59,10 @@ describe('mergePartnerStoreDirectory', () => {
     assert.deepEqual(rows[0].types, []);
     assert.equal(partnerStoreSourceKind(rows[0]), 'redeem_only');
     assert.equal(partnerStoreSourceLabel.redeem_only, '僅核銷清單');
+    assert.deepEqual(partnerStoreStatusCopy(rows[0]), {
+      label: '可核銷 · 未標記後台',
+      tone: 'gap',
+    });
   });
 
   it('keeps a jar-exchange-only merchant and marks it as not redeemable', () => {
@@ -82,6 +87,10 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(rows[0].merchantRecordId, 'merchant_MER-0099');
     assert.equal(partnerStoreSourceKind(rows[0]), 'backend_only');
     assert.equal(partnerStoreSourceLabel.backend_only, '僅換罐後台');
+    assert.deepEqual(partnerStoreStatusCopy(rows[0]), {
+      label: '未開放核銷',
+      tone: 'blocked',
+    });
   });
 
   it('merges by merchantToStoreSlug even when names differ', () => {
@@ -115,6 +124,7 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(rows[0].merchantRecordId, 'm_murphy');
     assert.equal(partnerStoreSourceKind(rows[0]), 'both');
     assert.equal(partnerStoreSourceLabel.both, '核銷＋後台');
+    assert.deepEqual(partnerStoreStatusCopy(rows[0]), { label: '可核銷', tone: 'ok' });
   });
 
   it('does not treat spacing-only name differences as a mismatch', () => {

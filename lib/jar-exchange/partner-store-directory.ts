@@ -41,6 +41,18 @@ export function partnerStoreSourceKind(
   return 'backend_only';
 }
 
+export type PartnerStoreStatusTone = 'ok' | 'gap' | 'blocked';
+
+/** 一顆狀態：完整店家只標「可核銷」，單邊資料才補說明 */
+export function partnerStoreStatusCopy(
+  row: Pick<PartnerStoreDirectoryRow, 'canRedeem' | 'hasJarExchangeMerchant'>,
+): { label: string; tone: PartnerStoreStatusTone } {
+  const kind = partnerStoreSourceKind(row);
+  if (kind === 'both') return { label: '可核銷', tone: 'ok' };
+  if (kind === 'redeem_only') return { label: '可核銷 · 未標記後台', tone: 'gap' };
+  return { label: '未開放核銷', tone: 'blocked' };
+}
+
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
