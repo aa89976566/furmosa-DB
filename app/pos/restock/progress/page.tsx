@@ -8,12 +8,14 @@ import {
 import { PosShell } from '@/components/pos/pos-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { loadPosAccount } from '@/lib/pos/account';
 
-export const metadata = { title: '申請進度 · Furmosa 店家' };
+export const metadata = { title: '補貨單 · Furmosa 店家' };
 
 export default async function PosRestockProgressPage() {
-  await requireMerchantSession();
+  const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
+  const account = await loadPosAccount(session.merchantId, session.username);
 
   const rows = await prisma.restockRequest.findMany({
     where: { merchantId },
@@ -29,17 +31,17 @@ export default async function PosRestockProgressPage() {
   });
 
   return (
-    <PosShell>
+    <PosShell storeName={account.storeName} account={account}>
       <div className="px-4 py-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <Link href="/pos/refill" className="text-xs text-muted-foreground">
-              ← 換罐
+            <Link href="/pos/restock" className="text-xs text-muted-foreground">
+              ← 補貨
             </Link>
-            <h1 className="text-xl font-semibold text-navy">申請進度</h1>
+            <h1 className="text-xl font-semibold text-navy">補貨單</h1>
           </div>
           <Button asChild className="min-h-[44px]">
-            <Link href="/pos/restock/new">新增申請</Link>
+            <Link href="/pos/restock">新增補貨</Link>
           </Button>
         </div>
 
@@ -48,7 +50,7 @@ export default async function PosRestockProgressPage() {
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>還沒有補貨申請。</p>
               <Button asChild className="min-h-[44px] w-full">
-                <Link href="/pos/restock/new">去補口味</Link>
+                <Link href="/pos/restock">去補貨</Link>
               </Button>
             </CardContent>
           </Card>

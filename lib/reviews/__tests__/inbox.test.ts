@@ -5,7 +5,7 @@ import { reviewInboxTotal, reviewKindLabel } from '@/lib/reviews/inbox';
 describe('review inbox labels', () => {
   it('names the three review kinds for HQ staff', () => {
     assert.equal(reviewKindLabel('shopify_order'), 'Shopify 訂單');
-    assert.equal(reviewKindLabel('ugc'), '開箱申請');
+    assert.equal(reviewKindLabel('ugc'), 'UGC 審核');
     assert.equal(reviewKindLabel('restock'), '補貨申請');
   });
 

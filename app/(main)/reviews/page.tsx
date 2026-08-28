@@ -17,7 +17,7 @@ export default async function ReviewInboxPage() {
       <PageHeader
         tone="operations"
         title="待審核"
-        description="Shopify 訂單、開箱申請與補貨申請，只要還需要人工確認，都會出現在這裡。核准後才會進入出貨。"
+        description="Shopify 訂單、UGC 審核與補貨申請，只要還需要人工確認，都會出現在這裡。核准後才會進入出貨。"
       />
       <div className="space-y-6 p-6">
         <Card>
@@ -26,7 +26,7 @@ export default async function ReviewInboxPage() {
               全部待審核 <span className="font-semibold">{total}</span>
             </div>
             <div className="text-muted-foreground">訂單 {counts.shopify_order}</div>
-            <div className="text-muted-foreground">開箱申請 {counts.ugc}</div>
+            <div className="text-muted-foreground">UGC 審核 {counts.ugc}</div>
             <div className="text-muted-foreground">補貨申請 {counts.restock}</div>
           </CardContent>
         </Card>

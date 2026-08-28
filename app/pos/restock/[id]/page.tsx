@@ -14,7 +14,9 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 
-export const metadata = { title: '補口味申請 · Furmosa 店家' };
+import { loadPosAccount } from '@/lib/pos/account';
+
+export const metadata = { title: '補貨單 · Furmosa 店家' };
 
 export default async function PosRestockDetailPage({
   params,
@@ -23,9 +25,12 @@ export default async function PosRestockDetailPage({
   params: { id: string };
   searchParams?: { ok?: string };
 }) {
-  await requireMerchantSession();
+  const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
-  const req = await getRestockRequestForMerchant(params.id, merchantId);
+  const [account, req] = await Promise.all([
+    loadPosAccount(session.merchantId, session.username),
+    getRestockRequestForMerchant(params.id, merchantId),
+  ]);
   if (!req) notFound();
 
   const snapshot = (req.approvedSnapshot as ApprovedSnapshotLine[] | null) ?? null;
@@ -33,11 +38,11 @@ export default async function PosRestockDetailPage({
   const justSubmitted = searchParams?.ok === '1';
 
   return (
-    <PosShell>
+    <PosShell storeName={account.storeName} account={account}>
       <div className="space-y-4 px-4 py-6">
         {justSubmitted ? <ClearDraftOnSuccess /> : null}
-        <Link href="/pos/restock/progress" className="text-xs text-muted-foreground">
-          ← 申請進度
+        <Link href="/pos/restock" className="text-xs text-muted-foreground">
+          ← 補貨
         </Link>
 
         {justSubmitted ? (
@@ -51,7 +56,7 @@ export default async function PosRestockDetailPage({
 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-navy">補口味申請</h1>
+            <h1 className="text-xl font-semibold text-navy">補貨單</h1>
             <p className="text-sm text-muted-foreground">
               {restockRequestTypeLabel(req.requestType)} · 編號 {shortId}
             </p>

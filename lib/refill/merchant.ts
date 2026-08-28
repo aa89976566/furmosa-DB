@@ -40,18 +40,118 @@ export async function listMerchantRefillOrders(merchantId: string) {
     orderType: o.orderType,
     deliveryMode: o.deliveryMode,
     totalAmount: o.totalAmount,
+    extraAmount: o.extraAmount,
     petName: o.petName ?? o.appointment.petName,
     customerName: o.customer.name,
     date: formatLocalDate(o.appointment.startsAt),
     time: formatLocalTime(o.appointment.startsAt),
     startsAt: o.appointment.startsAt.toISOString(),
+    createdAt: o.createdAt.toISOString(),
     paid: Boolean(o.paidAt) || o.payments.length > 0,
     oldContainerSerial: o.oldContainerSerial,
     newContainerSerial: o.newContainerSerial,
     missingContainerNote: o.missingContainerNote,
+    oldContainerReturnedAt: o.oldContainerReturnedAt?.toISOString() ?? null,
     productLabel:
       o.deliveryMode === 'first' || o.orderType === 'first' ? '首罐' : '雞肉換罐',
   }));
+}
+
+const LOOKUP_STATUSES = [...REFILL_PAID_OPEN_STATUSES, 'payment_pending'] as const;
+
+export async function lookupRefillBySerial(merchantId: string, serialRaw: string) {
+  const serial = normalizeJarCode(serialRaw);
+  if (!isValidJarCodeFormat(serial)) {
+    throw new RefillError('找不到這個罐子的換罐資料', 'INVALID_SERIAL', 400);
+  }
+
+  const jar = await prisma.jarCode.findUnique({
+    where: { code: serial },
+    select: {
+      code: true,
+      status: true,
+      redeemedByCustomerId: true,
+      lockedByRefillOrderId: true,
+    },
+  });
+  if (!jar) {
+    throw new RefillError('找不到這個罐子的換罐資料', 'SERIAL_NOT_FOUND', 404);
+  }
+
+  const selectOrder = {
+    id: true,
+    status: true,
+    deliveryMode: true,
+    paidAt: true,
+    oldContainerSerial: true,
+    newContainerSerial: true,
+    missingContainerNote: true,
+    extraAmount: true,
+    orderType: true,
+    customer: { select: { name: true } },
+    petName: true,
+  };
+
+  if (jar.lockedByRefillOrderId) {
+    const locked = await prisma.refillOrder.findUnique({
+      where: { id: jar.lockedByRefillOrderId },
+      select: { ...selectOrder, merchantId: true },
+    });
+    if (locked && locked.merchantId !== merchantId) {
+      throw new RefillError('這筆換罐不是在本店領取', 'WRONG_STORE', 403);
+    }
+  }
+
+  let order =
+    jar.lockedByRefillOrderId != null
+      ? await prisma.refillOrder.findFirst({
+          where: { id: jar.lockedByRefillOrderId, merchantId },
+          select: selectOrder,
+        })
+      : null;
+
+  if (!order && jar.redeemedByCustomerId) {
+    order = await prisma.refillOrder.findFirst({
+      where: {
+        merchantId,
+        customerId: jar.redeemedByCustomerId,
+        status: { in: [...LOOKUP_STATUSES] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: selectOrder,
+    });
+  }
+
+  if (!order && jar.redeemedByCustomerId) {
+    const elsewhere = await prisma.refillOrder.findFirst({
+      where: {
+        customerId: jar.redeemedByCustomerId,
+        status: { in: [...LOOKUP_STATUSES] },
+        merchantId: { not: merchantId },
+      },
+      select: { id: true },
+    });
+    if (elsewhere) {
+      throw new RefillError('這筆換罐不是在本店領取', 'WRONG_STORE', 403);
+    }
+  }
+
+  if (!order) {
+    throw new RefillError('找不到這個罐子的換罐資料', 'NO_OPEN_ORDER', 404);
+  }
+
+  return {
+    orderId: order.id,
+    serial,
+    status: order.status,
+    customerName: order.customer.name,
+    petName: order.petName,
+    paid: Boolean(order.paidAt),
+    oldContainerSerial: order.oldContainerSerial,
+    newContainerSerial: order.newContainerSerial,
+    missingContainerNote: order.missingContainerNote,
+    deliveryMode: order.deliveryMode,
+  };
 }
 
 async function loadMerchantOrder(orderId: string, merchantId: string) {
@@ -65,13 +165,54 @@ async function loadMerchantOrder(orderId: string, merchantId: string) {
   });
   if (!order) throw new RefillError('找不到訂單。', 'ORDER_NOT_FOUND', 404);
   if (order.merchantId !== merchantId) {
-    throw new RefillError(
-      `這筆訂單只能在${order.merchant.name}領取。`,
-      'WRONG_STORE',
-      403,
-    );
+    throw new RefillError('這筆換罐不是在本店領取', 'WRONG_STORE', 403);
   }
   return order;
+}
+
+export async function lookupRefillByOrderId(merchantId: string, orderIdRaw: string) {
+  const orderId = orderIdRaw.trim();
+  if (!orderId) {
+    throw new RefillError('找不到這個罐子的換罐資料', 'ORDER_NOT_FOUND', 404);
+  }
+
+  const found = await prisma.refillOrder.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      merchantId: true,
+      status: true,
+      deliveryMode: true,
+      paidAt: true,
+      oldContainerSerial: true,
+      newContainerSerial: true,
+      missingContainerNote: true,
+      extraAmount: true,
+      orderType: true,
+      customer: { select: { name: true } },
+      petName: true,
+    },
+  });
+
+  if (!found) {
+    throw new RefillError('找不到這個罐子的換罐資料', 'ORDER_NOT_FOUND', 404);
+  }
+  if (found.merchantId !== merchantId) {
+    throw new RefillError('這筆換罐不是在本店領取', 'WRONG_STORE', 403);
+  }
+
+  return {
+    orderId: found.id,
+    serial: found.oldContainerSerial ?? '',
+    status: found.status,
+    customerName: found.customer.name,
+    petName: found.petName,
+    paid: Boolean(found.paidAt),
+    oldContainerSerial: found.oldContainerSerial,
+    newContainerSerial: found.newContainerSerial,
+    missingContainerNote: found.missingContainerNote,
+    deliveryMode: found.deliveryMode,
+  };
 }
 
 export async function verifyOldContainer(input: {

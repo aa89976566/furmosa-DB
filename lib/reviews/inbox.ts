@@ -20,7 +20,7 @@ export type ReviewInboxItem = {
 
 const KIND_LABEL: Record<ReviewKind, string> = {
   shopify_order: 'Shopify 訂單',
-  ugc: '開箱申請',
+  ugc: 'UGC 審核',
   restock: '補貨申請',
 };
 

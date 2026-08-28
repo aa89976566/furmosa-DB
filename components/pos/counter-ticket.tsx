@@ -79,7 +79,7 @@ export function CounterTicket({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-muted"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"
                     onClick={() => onChangeLines(setCartLineQty(lines, line.key, line.qty - 1))}
                     aria-label={`減少 ${line.name}`}
                   >
@@ -88,7 +88,7 @@ export function CounterTicket({
                   <span className="w-5 text-center text-sm font-semibold">{line.qty}</span>
                   <button
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-navy text-white disabled:bg-muted disabled:text-muted-foreground"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-navy text-white disabled:bg-muted disabled:text-muted-foreground"
                     onClick={() => onChangeLines(setCartLineQty(lines, line.key, line.qty + 1))}
                     disabled={line.qty >= line.stock}
                     aria-label={`增加 ${line.name}`}
@@ -139,6 +139,10 @@ export function CounterTicket({
                 <span className="text-muted-foreground">小計</span>
                 <span className="text-navy">{formatCurrency(total)}</span>
               </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">付款方式</span>
+                <span className="font-medium text-navy">現金</span>
+              </div>
               <div className="flex items-end justify-between pt-1">
                 <span className="text-sm font-semibold text-navy">
                   合計
@@ -155,7 +159,7 @@ export function CounterTicket({
               disabled={lines.length === 0}
               onClick={onAskConfirm}
             >
-              確認收款
+              結帳
             </Button>
           </div>
         )}

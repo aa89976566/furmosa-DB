@@ -40,7 +40,8 @@ export async function checkoutCounterSaleAction(
     }));
     const result = await recordCounterSale(session.merchantId, requested);
     revalidatePath('/pos');
-    revalidatePath('/pos/today');
+    revalidatePath('/pos/sell');
+    revalidatePath('/pos/stock');
     revalidatePath('/pos/records');
     return { ok: true, total: result.total };
   } catch (err) {

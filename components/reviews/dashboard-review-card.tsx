@@ -14,7 +14,7 @@ export async function DashboardReviewCard() {
           <p className="text-sm font-medium text-navy">待審核</p>
           <p className="text-sm text-muted-foreground">
             {total > 0
-              ? `有 ${total} 筆需要確認（訂單 ${counts.shopify_order}、開箱 ${counts.ugc}、補貨 ${counts.restock}）`
+              ? `有 ${total} 筆需要確認（訂單 ${counts.shopify_order}、UGC ${counts.ugc}、補貨 ${counts.restock}）`
               : '目前沒有需要確認的項目'}
           </p>
         </div>
