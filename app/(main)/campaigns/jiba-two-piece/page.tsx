@@ -30,7 +30,7 @@ function SchemaNotReady({ detail }: { detail?: string }) {
   return (
     <>
       <PageHeader
-        title="雞霸兩片開箱審核"
+        title="UGC 審核"
         description="活動資料表尚未就緒，無法載入申請列表。"
       />
       <div className="space-y-4 p-6">
@@ -74,7 +74,7 @@ export default async function JibaReviewListPage() {
     return (
       <>
         <PageHeader
-          title="雞霸兩片開箱審核"
+          title="UGC 審核"
           description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 審核通過且免運／已申報轉帳後進入出貨列表；尚未轉帳會留在等付款，不會消失。`}
         />
         <div className="space-y-6 p-6">
