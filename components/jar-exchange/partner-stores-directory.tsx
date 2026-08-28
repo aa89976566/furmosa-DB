@@ -1,41 +1,28 @@
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatGroomingCouponDiscountAmount } from '@/lib/coupons/constants';
 import {
-  partnerStoreStatusCopy,
+  partnerStoreExceptionLabel,
+  partnerStoreNeedsIdentityNote,
   type PartnerStoreDirectoryRow,
-  type PartnerStoreStatusTone,
 } from '@/lib/jar-exchange/partner-store-directory';
-import { merchantTypeDisplay } from '@/lib/merchant-types';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
-
-const statusVariant: Record<PartnerStoreStatusTone, 'success' | 'warning' | 'muted'> = {
-  ok: 'success',
-  gap: 'warning',
-  blocked: 'muted',
-};
+import { cn } from '@/lib/utils';
 
 function StoreIdentity({ row }: { row: PartnerStoreDirectoryRow }) {
-  const types = merchantTypeDisplay(row.types);
+  const exception = partnerStoreExceptionLabel(row);
+  const showSlug = partnerStoreNeedsIdentityNote(row);
+
   return (
     <div className="min-w-0">
       <p className="font-medium text-navy">{row.name}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        <span className="font-mono">{row.slug}</span>
-        {row.city ? ` · ${row.city}` : ''}
-        {types !== '—' ? ` · ${types}` : ''}
-      </p>
+      {exception ? <p className="mt-1 text-xs text-muted-foreground">{exception}</p> : null}
+      {showSlug ? <p className="mt-1 font-mono text-xs text-muted-foreground">{row.slug}</p> : null}
       {row.namesDiffer && row.merchantName ? (
         <p className="mt-1 text-xs text-muted-foreground">後台店名 {row.merchantName}</p>
       ) : null}
     </div>
   );
-}
-
-function StatusBadge({ row }: { row: PartnerStoreDirectoryRow }) {
-  const status = partnerStoreStatusCopy(row);
-  return <Badge variant={statusVariant[status.tone]}>{status.label}</Badge>;
 }
 
 function StoreActions({
@@ -50,6 +37,7 @@ function StoreActions({
     ? `/admin/store-report?store=${encodeURIComponent(row.slug)}`
     : null;
   const detailHref = row.merchantRecordId ? `/merchants/${row.merchantRecordId}` : null;
+  const linkClass = 'underline-offset-4 hover:underline';
 
   if (layout === 'mobile') {
     return (
@@ -61,14 +49,14 @@ function StoreActions({
             </a>
           </Button>
         ) : null}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+        <div className="flex flex-wrap gap-x-4 text-sm">
           {settleHref ? (
-            <Link href={settleHref} className="text-navy underline-offset-4 hover:underline">
+            <Link href={settleHref} className={cn(linkClass, 'text-navy')}>
               結帳
             </Link>
           ) : null}
           {detailHref ? (
-            <Link href={detailHref} className="text-navy underline-offset-4 hover:underline">
+            <Link href={detailHref} className={cn(linkClass, 'text-muted-foreground')}>
               店家詳情
             </Link>
           ) : null}
@@ -78,24 +66,24 @@ function StoreActions({
   }
 
   return (
-    <div className="flex flex-wrap justify-end gap-x-3 text-sm">
+    <div className="flex flex-wrap justify-end gap-x-4 text-sm">
       {redeemHref ? (
         <a
           href={redeemHref}
           target="_blank"
           rel="noreferrer"
-          className="text-navy underline-offset-4 hover:underline"
+          className={cn(linkClass, 'font-medium text-navy')}
         >
           核銷
         </a>
       ) : null}
       {settleHref ? (
-        <Link href={settleHref} className="text-navy underline-offset-4 hover:underline">
+        <Link href={settleHref} className={cn(linkClass, 'text-navy')}>
           結帳
         </Link>
       ) : null}
       {detailHref ? (
-        <Link href={detailHref} className="text-muted-foreground underline-offset-4 hover:underline">
+        <Link href={detailHref} className={cn(linkClass, 'text-muted-foreground')}>
           詳情
         </Link>
       ) : null}
@@ -105,15 +93,12 @@ function StoreActions({
 
 function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
   return (
-    <article className="border-b border-border/60 px-1 py-4 last:border-b-0">
-      <div className="flex items-start justify-between gap-3">
+    <article className="border-b border-border/60 py-4 last:border-b-0">
+      <div className="flex items-start justify-between gap-4">
         <StoreIdentity row={row} />
-        <p className="shrink-0 text-sm tabular-nums text-navy">
+        <p className="shrink-0 text-sm tabular-nums text-muted-foreground">
           {formatGroomingCouponDiscountAmount(row.groomingDiscountAmount)}
         </p>
-      </div>
-      <div className="mt-3">
-        <StatusBadge row={row} />
       </div>
       <StoreActions row={row} layout="mobile" />
     </article>
@@ -122,16 +107,12 @@ function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
 
 export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRow[] }) {
   if (rows.length === 0) {
-    return (
-      <p className="px-5 py-12 text-center text-sm text-muted-foreground">
-        目前沒有合作店家。
-      </p>
-    );
+    return <p className="px-5 py-12 text-center text-sm text-muted-foreground">目前沒有合作店家。</p>;
   }
 
   return (
     <>
-      <div className="divide-y md:hidden">
+      <div className="divide-y px-5 md:hidden">
         {rows.map((row) => (
           <StoreCard key={row.key} row={row} />
         ))}
@@ -141,7 +122,6 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
         <thead>
           <tr className="border-b text-left text-xs text-muted-foreground">
             <th className="px-5 py-3 font-medium">店家</th>
-            <th className="px-5 py-3 font-medium">狀態</th>
             <th className="px-5 py-3 font-medium">折價</th>
             <th className="px-5 py-3 text-right font-medium">操作</th>
           </tr>
@@ -152,10 +132,7 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
               <td className="px-5 py-3">
                 <StoreIdentity row={row} />
               </td>
-              <td className="px-5 py-3">
-                <StatusBadge row={row} />
-              </td>
-              <td className="px-5 py-3 tabular-nums">
+              <td className="px-5 py-3 tabular-nums text-muted-foreground">
                 {formatGroomingCouponDiscountAmount(row.groomingDiscountAmount)}
               </td>
               <td className="px-5 py-3">

@@ -53,6 +53,22 @@ export function partnerStoreStatusCopy(
   return { label: '未開放核銷', tone: 'blocked' };
 }
 
+/** 清單上只在有缺口時寫例外，完整店家不重複寫「可核銷」 */
+export function partnerStoreExceptionLabel(
+  row: Pick<PartnerStoreDirectoryRow, 'canRedeem' | 'hasJarExchangeMerchant'>,
+): string | null {
+  const kind = partnerStoreSourceKind(row);
+  if (kind === 'redeem_only') return '未標記後台';
+  if (kind === 'backend_only') return '未開放核銷';
+  return null;
+}
+
+export function partnerStoreNeedsIdentityNote(
+  row: Pick<PartnerStoreDirectoryRow, 'canRedeem' | 'hasJarExchangeMerchant' | 'namesDiffer'>,
+): boolean {
+  return partnerStoreSourceKind(row) !== 'both' || row.namesDiffer;
+}
+
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
