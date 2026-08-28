@@ -84,7 +84,7 @@ export default async function JarExchangeMembersPage({
     points: c.pointsLedger[0]?.balanceAfter ?? 0,
   }));
   const reminderCandidates = reminderCandidatesRaw
-    .filter((customer) => customer.lineUserId && customer.name.trim().toLowerCase() !== 'test')
+    .filter((customer) => customer.name.trim().toLowerCase() !== 'test')
     .map((customer) => ({ id: customer.id, name: customer.name }));
 
   return (
