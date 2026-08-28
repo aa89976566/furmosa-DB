@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClipboardList, Home, Recycle, Wallet, Warehouse } from 'lucide-react';
+import { ClipboardList, Recycle, Wallet, Warehouse } from 'lucide-react';
 import { POS_NAV, activePosNavId, type PosNavId } from '@/lib/pos/pos-nav';
 import type { PosAccount } from '@/lib/pos/account';
 import { PosAccountMenu } from '@/components/pos/account-menu';
 import { useRestockCart } from '@/components/pos/restock-cart-provider';
 
-const ICONS: Record<PosNavId, typeof Home> = {
-  home: Home,
+const ICONS: Record<PosNavId, typeof Warehouse> = {
   stock: Warehouse,
   refill: Recycle,
   records: ClipboardList,
@@ -37,9 +36,11 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
   return (
     <aside className="hidden h-full w-[220px] shrink-0 flex-col border-r border-neutral-200 bg-white md:flex">
       <div className="px-5 pb-6 pt-6">
-        <p className="text-lg font-semibold tracking-[0.18em] text-zinc-900">FURMOSA</p>
-        <p className="text-sm font-medium text-zinc-900">匠寵</p>
-        <p className="mt-0.5 text-xs tracking-[0.14em] text-zinc-400">STORE POS</p>
+        <Link href="/pos/stock" className="block" aria-label="回到庫存">
+          <p className="text-lg font-semibold tracking-[0.18em] text-zinc-900">FURMOSA</p>
+          <p className="text-sm font-medium text-zinc-900">匠寵</p>
+          <p className="mt-0.5 text-xs tracking-[0.14em] text-zinc-400">STORE POS</p>
+        </Link>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="店家導航">
         {POS_NAV.map((tab) => {
@@ -50,8 +51,10 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
               key={tab.href}
               href={tab.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-medium ${
-                isActive ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-neutral-100 hover:text-zinc-900'
+              className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-zinc-900 text-white'
+                  : 'text-zinc-600 hover:bg-neutral-100 hover:text-zinc-900'
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden />
@@ -78,7 +81,7 @@ export function InventoryBottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 backdrop-blur md:hidden"
       aria-label="店家導航"
     >
-      <div className="flex items-stretch">
+      <div className="grid grid-cols-4">
         {POS_NAV.map((tab) => {
           const isActive = active === tab.id;
           return (
@@ -86,15 +89,15 @@ export function InventoryBottomNav() {
               key={tab.href}
               href={tab.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`relative flex min-h-[56px] flex-1 items-center justify-center text-sm font-medium ${
-                isActive ? 'text-zinc-900' : 'text-zinc-500'
-              }`}
+              className="relative flex min-h-[60px] items-center justify-center px-1 text-sm font-medium"
             >
-              {isActive ? (
-                <span className="rounded-full bg-zinc-900 px-3 py-2 text-white">{tab.label}</span>
-              ) : (
-                tab.label
-              )}
+              <span
+                className={`rounded-full px-3 py-2 transition-colors ${
+                  isActive ? 'bg-zinc-900 text-white' : 'text-zinc-500'
+                }`}
+              >
+                {tab.label}
+              </span>
               {tab.id === 'stock' && itemCount > 0 ? (
                 <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[10px] font-semibold text-white">
                   {itemCount}
