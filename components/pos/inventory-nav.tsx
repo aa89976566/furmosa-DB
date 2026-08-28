@@ -138,7 +138,10 @@ export function InventoryBottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 backdrop-blur md:hidden"
       aria-label="店家導航"
     >
-      <div className="grid grid-cols-5">
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${POS_NAV.length}, minmax(0, 1fr))` }}
+      >
         {POS_NAV.map((tab) => {
           const Icon = ICONS[tab.id];
           const isActive = active === tab.id;
