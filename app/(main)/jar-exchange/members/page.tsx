@@ -35,7 +35,7 @@ export default async function JarExchangeMembersPage({
       : {}),
   };
 
-  const [customers, rewards] = await Promise.all([
+  const [customers, rewards, reminderCandidatesRaw] = await Promise.all([
     prisma.customer.findMany({
     where,
     include: {
@@ -67,17 +67,30 @@ export default async function JarExchangeMembersPage({
         couponFaceValue: true,
       },
     }),
+    prisma.customer.findMany({
+      where: {
+        services: {
+          some: { serviceType: 'jar_exchange', serviceStatus: 'active' },
+        },
+        lineUserId: { not: null },
+      },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const rows = customers.map((c) => ({
     ...c,
     points: c.pointsLedger[0]?.balanceAfter ?? 0,
   }));
+  const reminderCandidates = reminderCandidatesRaw
+    .filter((customer) => customer.name.trim().toLowerCase() !== 'test')
+    .map((customer) => ({ id: customer.id, name: customer.name }));
 
   return (
     <JarShell pathname="/jar-exchange/members" title="換罐會員" description="可同時擁有個人、訂閱、換罐等多種服務類型">
       <JarExchangeAddMemberPanel />
-      <JarReturnReminder20260828Panel />
+      <JarReturnReminder20260828Panel candidates={reminderCandidates} />
 
       <form className="mb-4 flex gap-2" method="get">
         <input
