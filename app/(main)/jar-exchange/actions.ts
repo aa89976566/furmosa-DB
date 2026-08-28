@@ -21,6 +21,12 @@ import {
   type CustomerCreateInput,
 } from '@/lib/customers/create-customer';
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
+import { createHash } from 'node:crypto';
+import {
+  isTestJarMember,
+  JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+  JAR_LINE_CAMPAIGN_RUN_ENTITY,
+} from '@/lib/jar-exchange/member-campaign';
 
 function revalidateJar() {
   revalidatePath('/jar-exchange/members');
@@ -433,119 +439,158 @@ export async function syncCustomerServicesAction(customerId: string) {
   revalidatePath(`/customers/${customerId}`);
 }
 
-const JAR_RETURN_REMINDER_ENTITY_TYPE = 'jar-return-reminder-2026-08-28';
-const JAR_RETURN_REMINDER_DORMANT_CUTOFF = new Date('2026-08-10T00:00:00+08:00');
-
-const JAR_RETURN_REMINDER_COPY_DORMANT = `你家的空罐是不是放到快長灰塵了 👀
-
-換罐最近補了新口味，有一陣子沒看到你回來了。
-
-把空罐帶回原本的合作店，一個空罐換一罐，換罐價 $99。
-
-這次別再忘了它。`;
-
-const JAR_RETURN_REMINDER_COPY_RECENT = `換罐最近補了新口味 👀
-
-下次空罐吃完，記得再帶回原本的合作店。一個空罐換一罐，換罐價 $99。
-
-來看看這次要帶哪一味回家。`;
-
-export type JarReturnReminder20260828Result =
-  | { ok: true; sent: number; skipped: number; failed: number }
+export type JarLineCampaignResult =
+  | {
+      ok: true;
+      sent: number;
+      skipped: number;
+      failed: number;
+      sentNames: string[];
+      skippedNames: string[];
+      failedNames: string[];
+    }
   | { ok: false; error: string };
 
-/**
- * 2026-08-28 一次性行政動作：提醒換罐會員把空罐帶回合作店。
- * 僅發送給管理員明確選取、且再次通過資格檢查的 6 位會員。
- * 透過 StatusAuditLog 記錄成功送出，重試時會略過已送成功者。
- */
-export async function sendJarReturnReminder20260828(
-  selectedCustomerIds: string[],
-): Promise<JarReturnReminder20260828Result> {
+export type JarLineCampaignInput = {
+  campaignName: string;
+  selectedCustomerIds: string[];
+  audienceConditions: string;
+  exclusionConditions: string;
+  message: string;
+  preventDuplicates: boolean;
+};
+
+export async function sendJarLineCampaign(
+  input: JarLineCampaignInput,
+): Promise<JarLineCampaignResult> {
   try {
+    const campaignName = input.campaignName.trim();
+    const message = input.message.trim();
+    const audienceConditions = input.audienceConditions.trim();
+    const exclusionConditions = input.exclusionConditions.trim();
     const uniqueCustomerIds = [
-      ...new Set(selectedCustomerIds.map((id) => id.trim()).filter(Boolean)),
+      ...new Set(input.selectedCustomerIds.map((id) => id.trim()).filter(Boolean)),
     ];
-    if (uniqueCustomerIds.length !== 6) {
-      return { ok: false, error: `請剛好選擇 6 位會員，目前選擇 ${uniqueCustomerIds.length} 位` };
+    if (campaignName.length < 2 || campaignName.length > 80) {
+      return { ok: false, error: '活動名稱需為 2–80 個字' };
     }
+    if (!message || message.length > 2000) {
+      return { ok: false, error: '訊息內容需為 1–2,000 個字' };
+    }
+    if (uniqueCustomerIds.length < 1 || uniqueCustomerIds.length > 200) {
+      return { ok: false, error: '每次請選擇 1–200 位會員' };
+    }
+
+    const campaignKey = createHash('sha256')
+      .update(campaignName.toLocaleLowerCase('zh-TW'))
+      .digest('hex')
+      .slice(0, 16);
 
     const members = await prisma.customer.findMany({
       where: {
         id: { in: uniqueCustomerIds },
         services: {
-          some: { serviceType: 'jar_exchange', serviceStatus: 'active' },
+          some: { serviceType: 'jar_exchange' },
         },
-        lineUserId: { not: null },
       },
       select: {
         id: true,
+        customerId: true,
         name: true,
+        tags: true,
         lineUserId: true,
-        pointsLedger: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
       },
     });
-
-    const audience = members.filter((m) => m.name.trim().toLowerCase() !== 'test');
-
-    if (audience.length !== 6) {
-      return {
-        ok: false,
-        error: '選取名單中含有不符合資格、測試或無 LINE 帳號的會員，已中止',
-      };
-    }
 
     let sent = 0;
     let skipped = 0;
     let failed = 0;
+    const sentNames: string[] = [];
+    const skippedNames: string[] = [];
+    const failedNames: string[] = [];
+    const outcomes: Array<{ customerId: string; name: string; status: string; reason?: string }> = [];
 
-    for (const m of audience) {
+    for (const m of members) {
       const lineUserId = m.lineUserId;
-      if (!lineUserId) {
+      if (!lineUserId || isTestJarMember(m)) {
         skipped += 1;
+        skippedNames.push(m.name);
+        outcomes.push({
+          customerId: m.id,
+          name: m.name,
+          status: 'skipped',
+          reason: !lineUserId ? '未綁定 LINE' : '測試會員',
+        });
         continue;
       }
 
-      const already = await prisma.statusAuditLog.findFirst({
-        where: {
-          entityType: JAR_RETURN_REMINDER_ENTITY_TYPE,
-          entityId: lineUserId,
-          newStatus: 'sent',
-        },
-        select: { id: true },
-      });
+      const already = input.preventDuplicates
+        ? await prisma.statusAuditLog.findFirst({
+            where: {
+              entityType: JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+              entityId: m.id,
+              newStatus: 'sent',
+              metadataJson: { contains: `\"campaignKey\":\"${campaignKey}\"` },
+            },
+            select: { id: true },
+          })
+        : null;
       if (already) {
         skipped += 1;
+        skippedNames.push(m.name);
+        outcomes.push({ customerId: m.id, name: m.name, status: 'skipped', reason: '避免重複發送' });
         continue;
       }
 
-      const lastActivityAt = m.pointsLedger[0]?.createdAt ?? null;
-      const isDormant =
-        !lastActivityAt || lastActivityAt < JAR_RETURN_REMINDER_DORMANT_CUTOFF;
-      const text = isDormant
-        ? JAR_RETURN_REMINDER_COPY_DORMANT
-        : JAR_RETURN_REMINDER_COPY_RECENT;
-
-      const res = await pushLineText(lineUserId, text);
+      const res = await pushLineText(lineUserId, message);
       if (!res.ok) {
         failed += 1;
+        failedNames.push(m.name);
+        outcomes.push({ customerId: m.id, name: m.name, status: 'failed', reason: res.error });
         continue;
       }
 
       await prisma.statusAuditLog.create({
         data: {
-          entityType: JAR_RETURN_REMINDER_ENTITY_TYPE,
-          entityId: lineUserId,
+          entityType: JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+          entityId: m.id,
           newStatus: 'sent',
           actorType: 'supervisor',
+          metadataJson: JSON.stringify({ campaignKey, campaignName }),
         },
       });
       sent += 1;
+      sentNames.push(m.name);
+      outcomes.push({ customerId: m.id, name: m.name, status: 'sent' });
     }
 
-    return { ok: true, sent, skipped, failed };
+    skipped += uniqueCustomerIds.length - members.length;
+    await prisma.statusAuditLog.create({
+      data: {
+        entityType: JAR_LINE_CAMPAIGN_RUN_ENTITY,
+        entityId: campaignKey,
+        newStatus: failed > 0 ? 'completed_with_errors' : 'completed',
+        actorType: 'supervisor',
+        metadataJson: JSON.stringify({
+          campaignKey,
+          campaignName,
+          audienceConditions,
+          exclusionConditions,
+          message,
+          preventDuplicates: input.preventDuplicates,
+          selectedCount: uniqueCustomerIds.length,
+          sent,
+          skipped,
+          failed,
+          outcomes,
+        }),
+      },
+    });
+
+    revalidatePath('/jar-exchange/members');
+    return { ok: true, sent, skipped, failed, sentNames, skippedNames, failedNames };
   } catch (e) {
-    console.error('sendJarReturnReminder20260828', e);
+    console.error('sendJarLineCampaign', e);
     return {
       ok: false,
       error: e instanceof Error ? e.message : '發送失敗，請稍後再試',
