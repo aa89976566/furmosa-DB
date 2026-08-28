@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { JarShell, JarPanel } from '@/components/jar-exchange/jar-shell';
 import { JarExchangeAddMemberPanel } from '@/components/jar-exchange/add-member-panel';
+import { JarReturnReminder20260828Panel } from '@/components/jar-exchange/jar-return-reminder-20260828-panel';
 import { JarMemberRedeemMenu } from '@/components/jar-exchange/jar-member-redeem-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -76,6 +77,7 @@ export default async function JarExchangeMembersPage({
   return (
     <JarShell pathname="/jar-exchange/members" title="換罐會員" description="可同時擁有個人、訂閱、換罐等多種服務類型">
       <JarExchangeAddMemberPanel />
+      <JarReturnReminder20260828Panel />
 
       <form className="mb-4 flex gap-2" method="get">
         <input
