@@ -174,6 +174,37 @@ describe('settlement item mapping', () => {
     assert.equal(mapLedgerEntryToSettlementItemDraft(failed, SCOPE), null);
   });
 
+  it('does not create an item for cancelled payment, including unpaid store-cash extra', () => {
+    const cancelledOnline = classifyPaymentOrder(
+      refillPayment({ id: 'pay-cancel', status: 'cancelled', paidAt: null }),
+    )!;
+    const cancelledCashExtra = classifyPaymentOrder(
+      refillPayment({
+        id: 'pay-30-cash-cancel',
+        purpose: 'extra_topup',
+        amount: 30,
+        provider: 'cash',
+        status: 'cancelled',
+        paidAt: null,
+      }),
+    )!;
+    const cancelledUnpaid = classifyUnpaidRefill({
+      id: 'refill-cancelled',
+      createdAt: at('2024-05-18T10:00:00'),
+      amount: 99,
+      refillDisplay: 'RFP-240518-0002',
+      customerId: 'cust-li',
+      customerName: '李先生',
+      jarSerial: null,
+      storeId: MERCHANT_ID,
+      paymentStatus: 'cancelled',
+    });
+    assert.equal(mapLedgerEntryToSettlementItemDraft(cancelledOnline, SCOPE), null);
+    assert.equal(cancelledCashExtra.fundDirection, 'NO_SETTLEMENT');
+    assert.equal(mapLedgerEntryToSettlementItemDraft(cancelledCashExtra, SCOPE), null);
+    assert.equal(mapLedgerEntryToSettlementItemDraft(cancelledUnpaid, SCOPE), null);
+  });
+
   it('does not create an item for unpaid refill', () => {
     const unpaid = classifyUnpaidRefill({
       id: 'refill-unpaid',
