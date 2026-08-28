@@ -5,9 +5,9 @@ import {
   classifyCouponReversal,
   classifyCouponSubsidy,
   classifyPaymentOrder,
+  classifyRewardRedemption,
   classifyRestockCost,
   classifyUnpaidRefill,
-  type LedgerEntry,
   type PaidPaymentSource,
 } from '@/lib/pos/store-ledger';
 import {
@@ -59,15 +59,17 @@ function couponEntry(overrides: Partial<Parameters<typeof classifyCouponSubsidy>
   });
 }
 
-function rewardEntry(overrides: Partial<LedgerEntry> = {}): LedgerEntry {
-  const coupon = couponEntry({ id: 'rwd-1', couponId: 'reward-row-1', couponCode: 'RWD-200' });
-  return {
-    ...coupon,
-    id: 'reward:rwd-1',
-    sourceKind: 'reward',
-    sourceId: 'rwd-1',
+function rewardEntry(overrides: Partial<Parameters<typeof classifyRewardRedemption>[0]> = {}) {
+  return classifyRewardRedemption({
+    id: 'rwd-1',
+    customerId: 'cust-wang',
+    customerName: '王小姐',
+    couponCode: 'RWD-200',
+    discountAmount: 200,
+    storeId: MERCHANT_ID,
+    usedAt: at('2024-05-19T15:00:00'),
     ...overrides,
-  };
+  });
 }
 
 function restockEntry(overrides: Partial<Parameters<typeof classifyRestockCost>[0]> = {}) {
