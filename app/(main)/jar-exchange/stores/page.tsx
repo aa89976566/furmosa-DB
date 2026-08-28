@@ -74,7 +74,10 @@ export default async function JarExchangeStoresPage() {
           <div className="border-b border-border/60 px-5 py-4">
             <h2 className="text-base font-semibold text-navy">店家清單</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              同一家店只會出現一次。若核銷店名與後台店名不同，會一併標示。
+              同一家店只會出現一次。編號對不上的店會分開顯示，並標成「僅核銷清單」或「僅換罐後台」。
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              結帳只出現在可核銷店家，因為結帳報表是依核銷清單計算。
             </p>
           </div>
           <PartnerStoresDirectory rows={rows} />

@@ -6,41 +6,69 @@ import {
   GROOMING_COUPON_DISCOUNT_ZHUWO,
   formatGroomingCouponDiscountAmount,
 } from '@/lib/coupons/constants';
-import type { PartnerStoreDirectoryRow } from '@/lib/jar-exchange/partner-store-directory';
+import {
+  partnerStoreSourceKind,
+  partnerStoreSourceLabel,
+  type PartnerStoreDirectoryRow,
+  type PartnerStoreSourceKind,
+} from '@/lib/jar-exchange/partner-store-directory';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
+import { cn } from '@/lib/utils';
 import { ExternalLink, Receipt, Store } from 'lucide-react';
 
-function sourceHint(row: PartnerStoreDirectoryRow): string | null {
-  if (row.canRedeem && row.hasJarExchangeMerchant) return null;
-  if (row.canRedeem) return '尚未標記為換罐後台店家';
-  if (row.hasJarExchangeMerchant) return '尚未加入核銷清單';
-  return null;
+const sourceBadgeVariant: Record<PartnerStoreSourceKind, 'info' | 'warning' | 'muted'> = {
+  both: 'info',
+  redeem_only: 'warning',
+  backend_only: 'muted',
+};
+
+function StatusBadges({ row }: { row: PartnerStoreDirectoryRow }) {
+  const source = partnerStoreSourceKind(row);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {row.canRedeem ? (
+        <Badge variant="success">可核銷</Badge>
+      ) : (
+        <Badge variant="muted">未開放核銷</Badge>
+      )}
+      <Badge variant={sourceBadgeVariant[source]}>{partnerStoreSourceLabel[source]}</Badge>
+    </div>
+  );
 }
 
-function StoreActions({ row }: { row: PartnerStoreDirectoryRow }) {
+function StoreActions({
+  row,
+  layout,
+}: {
+  row: PartnerStoreDirectoryRow;
+  layout: 'desktop' | 'mobile';
+}) {
+  const mobile = layout === 'mobile';
+  const buttonClass = mobile ? 'h-11 w-full justify-center' : 'h-7 px-2';
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={cn(mobile ? 'grid gap-2' : 'flex flex-col items-end gap-1')}>
       {row.canRedeem ? (
-        <Button variant="outline" size="sm" asChild>
+        <Button variant={mobile ? 'outline' : 'ghost'} size="sm" className={buttonClass} asChild>
           <a href={buildUnifiedStoreRedeemUrl(row.slug)} target="_blank" rel="noreferrer">
-            <ExternalLink className="mr-1 h-3.5 w-3.5" />
-            開啟核銷
+            {mobile ? <ExternalLink className="mr-1 h-4 w-4" /> : null}
+            {mobile ? '開啟核銷' : '核銷'}
           </a>
         </Button>
       ) : null}
       {row.canRedeem ? (
-        <Button variant="ghost" size="sm" asChild>
+        <Button variant="ghost" size="sm" className={buttonClass} asChild>
           <Link href={`/admin/store-report?store=${encodeURIComponent(row.slug)}`}>
-            <Receipt className="mr-1 h-3.5 w-3.5" />
+            {mobile ? <Receipt className="mr-1 h-4 w-4" /> : null}
             結帳
           </Link>
         </Button>
       ) : null}
       {row.merchantRecordId ? (
-        <Button variant="ghost" size="sm" asChild>
+        <Button variant="ghost" size="sm" className={buttonClass} asChild>
           <Link href={`/merchants/${row.merchantRecordId}`}>
-            <Store className="mr-1 h-3.5 w-3.5" />
-            店家詳情
+            {mobile ? <Store className="mr-1 h-4 w-4" /> : null}
+            {mobile ? '店家詳情' : '詳情'}
           </Link>
         </Button>
       ) : null}
@@ -49,7 +77,6 @@ function StoreActions({ row }: { row: PartnerStoreDirectoryRow }) {
 }
 
 function StoreIdentity({ row }: { row: PartnerStoreDirectoryRow }) {
-  const hint = sourceHint(row);
   return (
     <div className="min-w-0">
       <p className="font-medium text-navy">{row.name}</p>
@@ -57,16 +84,7 @@ function StoreIdentity({ row }: { row: PartnerStoreDirectoryRow }) {
       {row.namesDiffer && row.merchantName ? (
         <p className="mt-1 text-xs text-muted-foreground">後台店名：{row.merchantName}</p>
       ) : null}
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
-  );
-}
-
-function RedeemStatusBadge({ canRedeem }: { canRedeem: boolean }) {
-  return canRedeem ? (
-    <Badge variant="success">可核銷</Badge>
-  ) : (
-    <Badge variant="muted">未開放核銷</Badge>
   );
 }
 
@@ -81,9 +99,9 @@ function DiscountBadge({ amount }: { amount: number }) {
 function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
   return (
     <article className="rounded-2xl border border-border/70 bg-card p-4 shadow-card">
-      <div className="flex items-start justify-between gap-3">
+      <div className="space-y-3">
         <StoreIdentity row={row} />
-        <RedeemStatusBadge canRedeem={row.canRedeem} />
+        <StatusBadges row={row} />
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -104,7 +122,7 @@ function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
         </div>
       </dl>
       <div className="mt-4">
-        <StoreActions row={row} />
+        <StoreActions row={row} layout="mobile" />
       </div>
     </article>
   );
@@ -128,37 +146,43 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
       </div>
 
       <div className="hidden md:block">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[28%]" />
+            <col className="w-[10%]" />
+            <col className="w-[22%]" />
+            <col className="w-[20%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+          </colgroup>
           <thead>
             <tr className="border-b bg-muted/20 text-left text-xs text-muted-foreground">
-              <th className="px-5 py-3 font-medium">店家</th>
-              <th className="px-5 py-3 font-medium">城市</th>
-              <th className="px-5 py-3 font-medium">身分類型</th>
-              <th className="px-5 py-3 font-medium">功能狀態</th>
-              <th className="px-5 py-3 font-medium">美容折價</th>
-              <th className="px-5 py-3 text-right font-medium">操作</th>
+              <th className="px-4 py-3 font-medium">店家</th>
+              <th className="px-4 py-3 font-medium">城市</th>
+              <th className="px-4 py-3 font-medium">身分類型</th>
+              <th className="px-4 py-3 font-medium">狀態</th>
+              <th className="px-4 py-3 font-medium">美容折價</th>
+              <th className="px-4 py-3 text-right font-medium">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {rows.map((row) => (
               <tr key={row.key} className="hover:bg-muted/10">
-                <td className="px-5 py-3">
+                <td className="px-4 py-3">
                   <StoreIdentity row={row} />
                 </td>
-                <td className="px-5 py-3 text-muted-foreground">{row.city ?? '—'}</td>
-                <td className="px-5 py-3">
+                <td className="px-4 py-3 text-muted-foreground">{row.city ?? '—'}</td>
+                <td className="px-4 py-3">
                   <MerchantTypeBadges types={row.types} />
                 </td>
-                <td className="px-5 py-3">
-                  <RedeemStatusBadge canRedeem={row.canRedeem} />
+                <td className="px-4 py-3">
+                  <StatusBadges row={row} />
                 </td>
-                <td className="px-5 py-3">
+                <td className="px-4 py-3">
                   <DiscountBadge amount={row.groomingDiscountAmount} />
                 </td>
-                <td className="px-5 py-3">
-                  <div className="flex justify-end">
-                    <StoreActions row={row} />
-                  </div>
+                <td className="px-4 py-3">
+                  <StoreActions row={row} layout="desktop" />
                 </td>
               </tr>
             ))}

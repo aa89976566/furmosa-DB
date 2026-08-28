@@ -25,6 +25,22 @@ export type PartnerStoreDirectoryStats = {
   jarExchangeCount: number;
 };
 
+export type PartnerStoreSourceKind = 'both' | 'redeem_only' | 'backend_only';
+
+export const partnerStoreSourceLabel: Record<PartnerStoreSourceKind, string> = {
+  both: '核銷＋後台',
+  redeem_only: '僅核銷清單',
+  backend_only: '僅換罐後台',
+};
+
+export function partnerStoreSourceKind(
+  row: Pick<PartnerStoreDirectoryRow, 'canRedeem' | 'hasJarExchangeMerchant'>,
+): PartnerStoreSourceKind {
+  if (row.canRedeem && row.hasJarExchangeMerchant) return 'both';
+  if (row.canRedeem) return 'redeem_only';
+  return 'backend_only';
+}
+
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
