@@ -15,6 +15,7 @@ import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { ensureJarExchangeService, syncCustomerServices } from '@/lib/jar-exchange/services';
 import { DEFAULT_BATCH_SIZE } from '@/lib/jar-exchange/print-labels';
+import { pushLineText } from '@/lib/line/push';
 import {
   createCustomerRecord,
   type CustomerCreateInput,
@@ -430,4 +431,114 @@ export async function createJarExchangeMemberFromForm(formData: FormData) {
 export async function syncCustomerServicesAction(customerId: string) {
   await syncCustomerServices(prisma, customerId);
   revalidatePath(`/customers/${customerId}`);
+}
+
+const JAR_RETURN_REMINDER_ENTITY_TYPE = 'jar-return-reminder-2026-08-28';
+const JAR_RETURN_REMINDER_DORMANT_CUTOFF = new Date('2026-08-10T00:00:00+08:00');
+
+const JAR_RETURN_REMINDER_COPY_DORMANT = `你家的空罐是不是放到快長灰塵了 👀
+
+換罐最近補了新口味，有一陣子沒看到你回來了。
+
+把空罐帶回原本的合作店，一個空罐換一罐，換罐價 $99。
+
+這次別再忘了它。`;
+
+const JAR_RETURN_REMINDER_COPY_RECENT = `換罐最近補了新口味 👀
+
+下次空罐吃完，記得再帶回原本的合作店。一個空罐換一罐，換罐價 $99。
+
+來看看這次要帶哪一味回家。`;
+
+export type JarReturnReminder20260828Result =
+  | { ok: true; sent: number; skipped: number; failed: number }
+  | { ok: false; error: string };
+
+/**
+ * 2026-08-28 一次性行政動作：提醒換罐會員把空罐帶回合作店。
+ * 僅在符合條件的會員「剛好 6 位」時才會送出，避免名單異動後誤發。
+ * 透過 StatusAuditLog 記錄成功送出，重試時會略過已送成功者。
+ */
+export async function sendJarReturnReminder20260828(): Promise<JarReturnReminder20260828Result> {
+  try {
+    const members = await prisma.customer.findMany({
+      where: {
+        services: {
+          some: { serviceType: 'jar_exchange', serviceStatus: 'active' },
+        },
+        lineUserId: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        lineUserId: true,
+        pointsLedger: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
+      },
+    });
+
+    const audience = members.filter((m) => m.name.trim().toLowerCase() !== 'test');
+
+    if (audience.length !== 6) {
+      return {
+        ok: false,
+        error: `名單人數為 ${audience.length} 人，須剛好 6 人才會送出，已中止`,
+      };
+    }
+
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const m of audience) {
+      const lineUserId = m.lineUserId;
+      if (!lineUserId) {
+        skipped += 1;
+        continue;
+      }
+
+      const already = await prisma.statusAuditLog.findFirst({
+        where: {
+          entityType: JAR_RETURN_REMINDER_ENTITY_TYPE,
+          entityId: lineUserId,
+          newStatus: 'sent',
+        },
+        select: { id: true },
+      });
+      if (already) {
+        skipped += 1;
+        continue;
+      }
+
+      const lastActivityAt = m.pointsLedger[0]?.createdAt ?? null;
+      const isDormant =
+        !lastActivityAt || lastActivityAt < JAR_RETURN_REMINDER_DORMANT_CUTOFF;
+      const text = isDormant
+        ? JAR_RETURN_REMINDER_COPY_DORMANT
+        : JAR_RETURN_REMINDER_COPY_RECENT;
+
+      const res = await pushLineText(lineUserId, text);
+      if (!res.ok) {
+        failed += 1;
+        continue;
+      }
+
+      await prisma.statusAuditLog.create({
+        data: {
+          entityType: JAR_RETURN_REMINDER_ENTITY_TYPE,
+          entityId: lineUserId,
+          newStatus: 'sent',
+          actorType: 'supervisor',
+        },
+      });
+      sent += 1;
+    }
+
+    return { ok: true, sent, skipped, failed };
+  } catch (e) {
+    console.error('sendJarReturnReminder20260828', e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '發送失敗，請稍後再試',
+    };
+  }
 }
