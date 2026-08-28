@@ -133,13 +133,26 @@ describe('store ledger subsidy projection → SettlementItem draft', () => {
     const foreign = couponRow({
       id: 'foreign-coupon',
       storeId: 'other-store-id',
-      storeName: '別家店',
+      storeName: MERCHANT.name,
     });
     assert.equal(couponRowBelongsToMerchant(foreign, MERCHANT, STORE), false);
     const entries = project({ coupons: [foreign, couponRow()] });
     assert.equal(entries.every((entry) => entry.sourceId !== 'foreign-coupon'), true);
     const items = mapLedgerEntriesToSettlementItemDrafts(entries, SCOPE);
     assert.equal(items.every((item) => item.sourceId !== 'foreign-coupon'), true);
+  });
+
+  it('excludes name-only coupons from ledger and SettlementItem drafts', () => {
+    const nameOnly = couponRow({
+      id: 'name-only-coupon',
+      storeId: '',
+      storeName: MERCHANT.name,
+    });
+    const entries = project({ coupons: [nameOnly, couponRow()] });
+    assert.equal(entries.some((entry) => entry.sourceId === 'name-only-coupon'), false);
+    assert.equal(entries[0]?.sourceId, 'grooming-coupon-row');
+    const items = mapLedgerEntriesToSettlementItemDrafts(entries, SCOPE);
+    assert.equal(items.some((item) => item.sourceId === 'name-only-coupon'), false);
   });
 
   it('still rejects a cross-store fact at the mapping guard', () => {

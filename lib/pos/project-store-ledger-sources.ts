@@ -1,6 +1,8 @@
 /**
  * 把已查到的 POS 補貼來源轉成 ledger fact。
  * 在載入階段正規化店家身分與 reward identity；不讀寫資料庫。
+ *
+ * GroomingCoupon 店家歸屬只認伺服器查得的唯一識別，不靠店名。
  */
 
 import {
@@ -41,8 +43,45 @@ export type RewardRedemptionSourceRow = {
   reward: { couponFaceValue: number };
 };
 
-function sameText(left: string | null | undefined, right: string | null | undefined): boolean {
-  return Boolean(left && right && left === right);
+export const GROOMING_COUPON_SCOPE_RESOLUTIONS = ['owned', 'foreign', 'unresolved'] as const;
+export type GroomingCouponScopeResolution = (typeof GROOMING_COUPON_SCOPE_RESOLUTIONS)[number];
+
+function uniqueNonEmptyIds(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const value of values) {
+    const id = typeof value === 'string' ? value.trim() : '';
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+/** 伺服器查得、可安全拿來比對 GroomingCoupon.storeId 的唯一識別。不含店名。 */
+export function authoritativeGroomingCouponStoreIds(
+  merchant: StoreLedgerMerchantContext,
+  store: StoreLedgerStoreContext,
+): string[] {
+  return uniqueNonEmptyIds([merchant.id, merchant.merchantId, store.id, store.slug]);
+}
+
+/**
+ * 只依 legacy storeId 與目前 merchant 的唯一識別判斷歸屬。
+ * storeName 即使同名也不得納入。
+ */
+export function resolveGroomingCouponMerchantScope(
+  coupon: Pick<GroomingCouponSourceRow, 'storeId' | 'storeName'>,
+  merchant: StoreLedgerMerchantContext,
+  store: StoreLedgerStoreContext,
+): GroomingCouponScopeResolution {
+  void coupon.storeName;
+  const storeId = typeof coupon.storeId === 'string' ? coupon.storeId.trim() : '';
+  if (!storeId) return 'unresolved';
+  const aliases = authoritativeGroomingCouponStoreIds(merchant, store);
+  if (aliases.length === 0) return 'unresolved';
+  if (aliases.includes(storeId)) return 'owned';
+  return 'foreign';
 }
 
 export function couponRowBelongsToMerchant(
@@ -50,16 +89,7 @@ export function couponRowBelongsToMerchant(
   merchant: StoreLedgerMerchantContext,
   store: StoreLedgerStoreContext,
 ): boolean {
-  const storeId = coupon.storeId.trim();
-  if (
-    sameText(storeId, merchant.id) ||
-    sameText(storeId, merchant.merchantId) ||
-    sameText(storeId, store.id) ||
-    sameText(storeId, store.slug)
-  ) {
-    return true;
-  }
-  return sameText(coupon.storeName.trim(), merchant.name);
+  return resolveGroomingCouponMerchantScope(coupon, merchant, store) === 'owned';
 }
 
 export function redemptionRowBelongsToMerchant(

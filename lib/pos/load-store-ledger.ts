@@ -2,7 +2,10 @@ import { prisma } from '@/lib/prisma';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { formatRefillOrderNo } from '@/lib/pos/refill-view';
 import { storeHeading } from '@/lib/pos/store-display';
-import { projectSubsidyFactsToLedgerEntries } from '@/lib/pos/project-store-ledger-sources';
+import {
+  authoritativeGroomingCouponStoreIds,
+  projectSubsidyFactsToLedgerEntries,
+} from '@/lib/pos/project-store-ledger-sources';
 import {
   classifyPaymentOrder,
   classifyRestockCost,
@@ -129,12 +132,12 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       where: {
         status: 'redeemed',
         redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
-        OR: [
-          { storeId: storeSlug },
-          { storeId: merchant.merchantId },
-          ...(store ? [{ storeId: store.id }] : []),
-          { storeName: merchant.name },
-        ],
+        storeId: {
+          in: authoritativeGroomingCouponStoreIds(
+            { id: merchant.id, merchantId: merchant.merchantId, name: merchant.name },
+            { id: store?.id ?? null, slug: storeSlug },
+          ),
+        },
       },
       select: {
         id: true,
