@@ -33,6 +33,18 @@ export type NavGroup = {
 
 export const navGroups: NavGroup[] = [
   {
+    label: '營運任務',
+    tone: 'operations',
+    items: [
+      { href: '/tasks', label: '任務看板', icon: CheckSquare },
+      {
+        href: '/campaigns/jiba-two-piece',
+        label: 'UGC 審核',
+        icon: PackageOpen,
+      },
+    ],
+  },
+  {
     label: '總覽',
     tone: 'overview',
     items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
@@ -84,18 +96,6 @@ export const navGroups: NavGroup[] = [
       { href: '/jar-exchange/manage?tab=ledger', label: '點數帳本', icon: Rocket },
       { href: '/jar-exchange/manage?tab=rewards', label: '禮品兌換', icon: Gift },
       { href: '/admin/store-report', label: '店家核銷報表', icon: BarChart3 },
-    ],
-  },
-  {
-    label: '營運任務',
-    tone: 'operations',
-    items: [
-      { href: '/tasks', label: '任務看板', icon: CheckSquare },
-      {
-        href: '/campaigns/jiba-two-piece',
-        label: '雞霸開箱審核',
-        icon: PackageOpen,
-      },
     ],
   },
 ];
