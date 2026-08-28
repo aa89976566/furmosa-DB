@@ -128,6 +128,9 @@ describe('store ledger classification', () => {
     assert.equal(view.customerName, '王小姐');
     assert.equal(view.couponCode, 'PT10-200');
     assert.equal(view.relatedOrderDisplay, 'RFP-240428-0012');
+    assert.equal(view.typeLabel, '優惠券補貼');
+    assert.equal(view.amountLabel, '+NT$200');
+    assert.equal(view.fundDirectionLabel, '匠寵應付店家');
   });
 
   it('puts restock NT$3,450 into store payables', () => {

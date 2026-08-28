@@ -38,7 +38,8 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
     <aside className="hidden h-full w-[220px] shrink-0 flex-col border-r border-neutral-200 bg-white md:flex">
       <div className="px-5 pb-6 pt-6">
         <p className="text-lg font-semibold tracking-[0.18em] text-zinc-900">FURMOSA</p>
-        <p className="mt-1 text-xs tracking-[0.14em] text-zinc-400">STORE POS</p>
+        <p className="text-sm font-medium text-zinc-900">匠寵</p>
+        <p className="mt-0.5 text-xs tracking-[0.14em] text-zinc-400">STORE POS</p>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="店家導航">
         {POS_NAV.map((tab) => {
