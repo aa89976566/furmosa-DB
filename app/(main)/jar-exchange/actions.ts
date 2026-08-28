@@ -456,13 +456,23 @@ export type JarReturnReminder20260828Result =
 
 /**
  * 2026-08-28 一次性行政動作：提醒換罐會員把空罐帶回合作店。
- * 僅在符合條件的會員「剛好 6 位」時才會送出，避免名單異動後誤發。
+ * 僅發送給管理員明確選取、且再次通過資格檢查的 6 位會員。
  * 透過 StatusAuditLog 記錄成功送出，重試時會略過已送成功者。
  */
-export async function sendJarReturnReminder20260828(): Promise<JarReturnReminder20260828Result> {
+export async function sendJarReturnReminder20260828(
+  selectedCustomerIds: string[],
+): Promise<JarReturnReminder20260828Result> {
   try {
+    const uniqueCustomerIds = [
+      ...new Set(selectedCustomerIds.map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (uniqueCustomerIds.length !== 6) {
+      return { ok: false, error: `請剛好選擇 6 位會員，目前選擇 ${uniqueCustomerIds.length} 位` };
+    }
+
     const members = await prisma.customer.findMany({
       where: {
+        id: { in: uniqueCustomerIds },
         services: {
           some: { serviceType: 'jar_exchange', serviceStatus: 'active' },
         },
@@ -481,7 +491,7 @@ export async function sendJarReturnReminder20260828(): Promise<JarReturnReminder
     if (audience.length !== 6) {
       return {
         ok: false,
-        error: `名單人數為 ${audience.length} 人，須剛好 6 人才會送出，已中止`,
+        error: '選取名單中含有不符合資格、測試或無 LINE 帳號的會員，已中止',
       };
     }
 
