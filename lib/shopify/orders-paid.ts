@@ -2,6 +2,14 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { formatCustomerId, maxCustomerIdSeq } from '@/lib/customers/customer-id-format';
+import { ensureMooncakeProduct } from '@/lib/products/ensure-mooncake';
+import {
+  isMooncakeShopifyItem,
+  matchShopifyItemToProduct,
+  resolvedShopifyItemSku,
+  shopifyLineItemHasIdentity,
+  type MatchableProduct,
+} from '@/lib/shopify/match-line-item';
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -162,9 +170,11 @@ export function validateShopifyOrderPayload(order: ShopifyPaidOrder) {
   const items = order.line_items ?? [];
   if (items.length === 0) throw new Error('Shopify 訂單沒有商品');
   for (const item of items) {
-    if (!clean(item.sku)) throw new Error(`Shopify 商品缺少 SKU：${item.title ?? '未命名商品'}`);
+    if (!shopifyLineItemHasIdentity(item)) {
+      throw new Error(`Shopify 商品缺少 SKU 或品名：${item.title ?? '未命名商品'}`);
+    }
     if (!Number.isInteger(item.quantity) || Number(item.quantity) <= 0) {
-      throw new Error(`Shopify 商品數量錯誤：${item.sku}`);
+      throw new Error(`Shopify 商品數量錯誤：${item.sku ?? item.title ?? '未命名商品'}`);
     }
   }
 }
@@ -297,20 +307,37 @@ export async function importShopifyOrder(
   }
 
   return prisma.$transaction(async (tx) => {
-    const skus = [...new Set((order.line_items ?? []).map((item) => clean(item.sku) as string))];
-    const products = await tx.product.findMany({
-      where: { OR: [{ sku: { in: skus } }, { sourceSku: { in: skus } }] },
+    const lineItems = order.line_items ?? [];
+    const skus = [...new Set(lineItems.map((item) => clean(item.sku)).filter((sku): sku is string => Boolean(sku)))];
+    let products: MatchableProduct[] = await tx.product.findMany({
+      where: skus.length
+        ? { OR: [{ sku: { in: skus } }, { sourceSku: { in: skus } }] }
+        : { status: 'active' },
       include: { priceTiers: { select: { weightGrams: true, price: true } } },
     });
-    const bySku = new Map(
-      products.flatMap((product) =>
-        [product.sku, product.sourceSku]
-          .filter((value): value is string => Boolean(value))
-          .map((value) => [value, product] as const),
-      ),
-    );
-    const missing = skus.filter((sku) => !bySku.has(sku));
-    if (missing.length) throw new Error(`Furmosa 找不到 Shopify SKU：${missing.join(', ')}`);
+    if (skus.length && lineItems.some((item) => !matchShopifyItemToProduct(item, products))) {
+      const extras = await tx.product.findMany({
+        where: { status: 'active' },
+        include: { priceTiers: { select: { weightGrams: true, price: true } } },
+      });
+      const seen = new Set(products.map((product) => product.id));
+      products = [...products, ...extras.filter((product) => !seen.has(product.id))];
+    }
+
+    const resolved = [];
+    for (const item of lineItems) {
+      let product = matchShopifyItemToProduct(item, products);
+      if (!product && isMooncakeShopifyItem(item)) {
+        product = await ensureMooncakeProduct(tx);
+        products = [...products, product];
+      }
+      if (!product) {
+        throw new Error(
+          `Furmosa 找不到 Shopify 商品：${clean(item.sku) ?? clean(item.title) ?? '未命名商品'}`,
+        );
+      }
+      resolved.push({ item, product });
+    }
 
     const customer = await findOrCreateCustomer(tx, order);
     const subtotal = money(order.subtotal_price);
@@ -347,9 +374,8 @@ export async function importShopifyOrder(
         note: `Shopify ${clean(order.name) ?? externalOrderId}\n訂單已同步，${convenience && !hasCompleteShopifyPickupInfo(order) ? '門市資料待確認' : '待客服審核'}`,
         orderedAt: new Date(order.processed_at ?? order.created_at ?? Date.now()),
         items: {
-          create: (order.line_items ?? []).map((item) => {
-            const sku = clean(item.sku) as string;
-            const product = bySku.get(sku)!;
+          create: resolved.map(({ item, product }) => {
+            const sku = resolvedShopifyItemSku(item, product);
             const quantity = Number(item.quantity);
             const unitPrice = money(item.price);
             const weightGrams = resolveShopifyItemWeight(item, product.priceTiers);

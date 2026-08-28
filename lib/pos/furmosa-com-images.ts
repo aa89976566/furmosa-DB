@@ -29,6 +29,8 @@ const ALIASES: Record<string, string> = {
   貓草雞肉薄片: '貓草雞肉乾薄片',
   貓草雞肉乾: '貓草雞肉乾薄片',
   雞丁凍乾: '雞肉丁凍乾',
+  牠的月餅: '地瓜山藥雞肉月餅',
+  月餅: '地瓜山藥雞肉月餅',
 };
 
 export function normalizeFurmosaProductName(name: string) {

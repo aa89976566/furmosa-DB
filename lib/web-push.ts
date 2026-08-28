@@ -1,7 +1,9 @@
 import webpush from 'web-push';
 import { prisma } from '@/lib/prisma';
-import { orderSourceLabel } from '@/lib/labels';
-import { formatCurrency } from '@/lib/format';
+import {
+  newOrderNotifyCopy,
+  type NewOrderNotifyInput,
+} from '@/lib/notifications/new-order-copy';
 
 let configured = false;
 
@@ -27,12 +29,7 @@ export function isWebPushConfigured() {
   return Boolean(getVapidPublicKey() && process.env.VAPID_PRIVATE_KEY?.trim());
 }
 
-type NewOrderPushInput = {
-  id: string;
-  orderNumber: string;
-  total: number;
-  source: string;
-};
+type NewOrderPushInput = NewOrderNotifyInput;
 
 export async function sendNewOrderPush(order: NewOrderPushInput) {
   if (!ensureWebPushConfigured()) return;
@@ -40,12 +37,12 @@ export async function sendNewOrderPush(order: NewOrderPushInput) {
   const subscriptions = await prisma.userPushSubscription.findMany();
   if (subscriptions.length === 0) return;
 
-  const source = orderSourceLabel[order.source] ?? order.source;
+  const copy = newOrderNotifyCopy(order);
   const payload = JSON.stringify({
-    title: `新訂單 ${order.orderNumber}`,
-    body: `${source} · ${formatCurrency(order.total)}`,
+    title: copy.title,
+    body: copy.body,
     tag: order.id,
-    url: `/orders/${order.id}`,
+    url: copy.url,
     icon: '/icons/icon.svg',
   });
 

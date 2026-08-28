@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { isMooncakeSearchTerm } from '@/lib/products/mooncake-catalog';
 
 /** 去除電話常見格式字元，方便比對 0983… / 983… */
 export function normalizePhoneDigits(raw: string): string {
@@ -186,6 +187,9 @@ export function expandProductSearchTerms(term: string): string[] {
   const compact = q.replace(/\s+/g, '');
   const extras: string[] = [];
   if (compact.includes('貓草雞肉乾')) extras.push('貓草雞肉薄片');
+  if (isMooncakeSearchTerm(compact) && !compact.includes('地瓜山藥雞肉月餅')) {
+    extras.push('地瓜山藥雞肉月餅');
+  }
   return extras.length ? [q, ...extras] : [q];
 }
 

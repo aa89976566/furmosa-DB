@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { Menu, X, PawPrint } from 'lucide-react';
@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { cn } from '@/lib/utils';
 
-export function MobileNav() {
+export function MobileNav({ reviewBadge }: { reviewBadge?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -70,7 +70,7 @@ export function MobileNav() {
         <ScrollArea className="min-h-0 flex-1 px-3 py-4">
           <div onClick={() => setOpen(false)}>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
-              <SidebarNav />
+              <SidebarNav itemExtras={{ '/reviews': reviewBadge }} />
             </Suspense>
           </div>
         </ScrollArea>

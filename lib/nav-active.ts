@@ -7,6 +7,9 @@ export function isNavItemActive(
   if (href === '/dashboard') {
     return pathname === '/' || pathname === '/dashboard';
   }
+  if (href === '/reviews') {
+    return pathname === '/reviews' || pathname.startsWith('/campaigns/');
+  }
 
   const qIdx = href.indexOf('?');
   const path = qIdx >= 0 ? href.slice(0, qIdx) : href;
