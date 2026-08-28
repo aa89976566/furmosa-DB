@@ -2,7 +2,7 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { loadPosAccount } from '@/lib/pos/account';
 import { loadStoreLedgerPageData } from '@/lib/pos/load-store-ledger';
 import { defaultTaipeiMonthToTodayInputs, parseTaipeiDateRange } from '@/lib/taipei-date';
-import { SettleWorkspace } from '@/components/pos/settle-workspace';
+import { SettleWorkspaceV2 } from '@/components/pos/settle-workspace-v2';
 
 export const metadata = { title: '結帳 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
@@ -10,7 +10,6 @@ export const dynamic = 'force-dynamic';
 type SearchParams = {
   from?: string;
   to?: string;
-  tab?: string;
 };
 
 export default async function PosSettlePage({
@@ -33,13 +32,5 @@ export default async function PosSettlePage({
     }),
   ]);
 
-  return (
-    <SettleWorkspace
-      account={account}
-      ledger={ledger}
-      from={from}
-      to={to}
-      initialTab={searchParams?.tab ?? 'overview'}
-    />
-  );
+  return <SettleWorkspaceV2 account={account} ledger={ledger} />;
 }
