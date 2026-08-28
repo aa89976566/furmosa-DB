@@ -1,4 +1,4 @@
-export type PosNavId = 'home' | 'stock' | 'refill' | 'records' | 'settle';
+export type PosNavId = 'stock' | 'refill' | 'records' | 'settle';
 
 export type PosNavItem = {
   id: PosNavId;
@@ -8,12 +8,6 @@ export type PosNavItem = {
 };
 
 export const POS_NAV: readonly PosNavItem[] = [
-  {
-    id: 'home',
-    href: '/pos',
-    label: '首頁',
-    match: (p) => p === '/pos',
-  },
   {
     id: 'stock',
     href: '/pos/stock',
