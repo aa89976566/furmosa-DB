@@ -16,6 +16,7 @@ export type ConfirmSettleResult =
 
 const METHOD_MAP: Record<string, StoreSettlementPaymentMethod> = {
   銀行轉帳: 'BANK_TRANSFER',
+  '銀行轉帳（店家匯回匠寵）': 'BANK_TRANSFER',
   匠寵餘額折抵: 'FURMOSA_BALANCE',
   其他已核准方式: 'OTHER_APPROVED',
   匠寵匯款至店家帳戶: 'FURMOSA_TO_STORE_TRANSFER',

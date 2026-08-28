@@ -632,13 +632,27 @@ export function txnTypeLabel(type: LedgerTxnType): string {
   }
 }
 
+/** 交易流水表顯示用，比對帳內部名稱更接近店家說法 */
+export function tableTypeLabel(type: LedgerTxnType): string {
+  switch (type) {
+    case 'REFILL_FEE':
+      return '換罐費收入';
+    case 'EMPTY_JAR_SURCHARGE':
+      return '補差額代收';
+    case 'STORE_COLLECTION':
+      return '店家代收現金';
+    default:
+      return txnTypeLabel(type);
+  }
+}
+
 export function paymentMethodLabel(entry: LedgerEntry): string {
   if (entry.transactionType === 'RESTOCK_COST') return '匠寵出貨';
   if (entry.transactionType === 'COUPON_SUBSIDY' || entry.transactionType === 'COUPON_REVERSAL') {
     return '匠寵補貼';
   }
   if (entry.transactionType === 'REBATE') return '匠寵補貼';
-  if (entry.paymentCollector === 'STORE') return '店家收現金';
+  if (entry.paymentCollector === 'STORE') return '店家代收現金';
   if (entry.paymentCollector === 'FURMOSA') return '客人線上付款';
   return '不需收款';
 }
@@ -656,9 +670,9 @@ export function fundDirectionLabel(entry: LedgerEntry): string {
   }
   if (entry.fundDirection === 'NO_SETTLEMENT') return '匠寵已收';
   if (entry.fundDirection === 'STORE_TO_FURMOSA') {
-    return entry.transactionType === 'RESTOCK_COST' ? '店家應付' : '待回匠寵';
+    return entry.transactionType === 'RESTOCK_COST' ? '店家應付匠寵' : '待匯回匠寵';
   }
-  return '待補給店家';
+  return '匠寵應付店家';
 }
 
 export function settlementStatusLabel(entry: LedgerEntry): string {
@@ -699,15 +713,24 @@ export type LedgerEntryView = {
   settlementStatus: SettlementStatus;
 };
 
+export function signedLedgerAmount(entry: Pick<LedgerEntry, 'amount' | 'transactionType'>): number {
+  const abs = Math.abs(entry.amount);
+  if (entry.transactionType === 'RESTOCK_COST' || entry.transactionType === 'COUPON_REVERSAL') {
+    return -abs;
+  }
+  return abs;
+}
+
 export function toLedgerEntryView(entry: LedgerEntry): LedgerEntryView {
   const statusLabel = settlementStatusLabel(entry);
+  const signed = signedLedgerAmount(entry);
   return {
     id: entry.id,
     occurredAt: entry.occurredAt.toISOString(),
-    typeLabel: txnTypeLabel(entry.transactionType),
+    typeLabel: tableTypeLabel(entry.transactionType),
     content: entry.content,
     amount: entry.amount,
-    amountLabel: formatNtd(entry.amount, entry.transactionType === 'COUPON_REVERSAL' ? 'negative' : 'auto'),
+    amountLabel: `${signed < 0 ? '-' : '+'}${formatNtd(Math.abs(signed))}`,
     paymentMethodLabel: paymentMethodLabel(entry),
     fundDirectionLabel: fundDirectionLabel(entry),
     statusLabel,
