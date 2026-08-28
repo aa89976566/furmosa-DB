@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import {
   importShopifyPaidOrder,
   type ShopifyPaidOrder,
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
   try {
     const payload = JSON.parse(rawBody) as ShopifyPaidOrder;
     const result = await importShopifyPaidOrder(shopDomain, payload);
+    revalidatePath('/orders');
+    revalidatePath('/reviews');
+    revalidatePath('/dashboard');
     return NextResponse.json(
       { ok: true, created: result.created, orderId: result.order.id },
       { status: result.created ? 201 : 200 },

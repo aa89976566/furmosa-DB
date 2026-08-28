@@ -75,6 +75,7 @@ async function revalidateOrderPaths(
   revalidatePath('/orders');
   revalidatePath(`/orders/${orderId}`);
   revalidatePath(`/orders/${orderId}/edit`);
+  revalidatePath('/reviews');
   revalidatePath('/shipments');
   revalidatePath('/dashboard');
   if (merchantId) revalidatePath(`/merchants/${merchantId}`);

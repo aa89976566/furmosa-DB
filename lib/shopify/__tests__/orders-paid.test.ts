@@ -35,7 +35,13 @@ describe('Shopify orders/paid webhook', () => {
     );
     assert.throws(
       () => validatePaidOrderPayload({ ...paidOrder, line_items: [{ quantity: 1 }] }),
-      /缺少 SKU/,
+      /缺少 SKU 或品名/,
+    );
+    assert.doesNotThrow(() =>
+      validateShopifyOrderPayload({
+        ...paidOrder,
+        line_items: [{ title: '牠的月餅｜地瓜山藥雞肉月餅 50g', quantity: 1, price: '79' }],
+      }),
     );
   });
 

@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     const payload = JSON.parse(rawBody) as ShopifyPaidOrder;
     const result = await importShopifyOrder(shopDomain, payload);
     revalidatePath('/orders');
+    revalidatePath('/reviews');
+    revalidatePath('/dashboard');
     revalidatePath('/shipments');
     return NextResponse.json({
       ok: true,

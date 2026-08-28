@@ -2,6 +2,7 @@ import Link from 'next/link';
 import nextDynamic from 'next/dynamic';
 import { DashboardKpiOverview } from '@/components/dashboard/dashboard-kpi-overview';
 import { DashboardTodayTasks } from '@/components/dashboard/dashboard-today-tasks';
+import { DashboardReviewCard } from '@/components/reviews/dashboard-review-card';
 import { SectionBlock } from '@/components/shared/section-block';
 import { SectionCard } from '@/components/shared/section-card';
 import { SectionSkeleton } from '@/components/shared/page-skeleton';
@@ -71,6 +72,8 @@ export async function DashboardBodySection() {
 
   return (
     <>
+      <DashboardReviewCard />
+
       <SectionBlock
         tone="overview"
         title="營運概覽"

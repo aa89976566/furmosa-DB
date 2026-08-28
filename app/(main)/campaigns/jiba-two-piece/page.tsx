@@ -74,8 +74,13 @@ export default async function JibaReviewListPage() {
     return (
       <>
         <PageHeader
-          title="雞霸兩片開箱審核"
-          description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 審核通過且免運／已申報轉帳後進入出貨列表；尚未轉帳會留在等付款，不會消失。`}
+        title="雞霸兩片開箱審核"
+        description={`${campaign.name}（${JIBA_CAMPAIGN_SLUG}）— 審核通過且免運／已申報轉帳後進入出貨列表；尚未轉帳會留在等付款，不會消失。`}
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/reviews">返回待審核</Link>
+          </Button>
+        }
         />
         <div className="space-y-6 p-6">
           <Card>

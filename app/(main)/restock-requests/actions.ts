@@ -10,6 +10,13 @@ import {
   updateRestockRequestAsHq,
 } from '@/lib/restock-request/service';
 
+function revalidateRestock(requestId: string) {
+  revalidatePath('/restock-requests');
+  revalidatePath(`/restock-requests/${requestId}`);
+  revalidatePath('/reviews');
+  revalidatePath('/dashboard');
+}
+
 async function requireHqUser() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
@@ -47,8 +54,7 @@ export async function saveRestockRequestHqAction(
       expectedArrivalDate,
       items,
     });
-    revalidatePath('/restock-requests');
-    revalidatePath(`/restock-requests/${requestId}`);
+    revalidateRestock(requestId);
     return { ok: '已儲存' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '儲存失敗' };
@@ -94,8 +100,7 @@ export async function approveRestockRequestAction(
       expectedArrivalDate,
       hqNote,
     });
-    revalidatePath('/restock-requests');
-    revalidatePath(`/restock-requests/${requestId}`);
+    revalidateRestock(requestId);
     revalidatePath('/shipments');
     revalidatePath('/orders');
     redirect(`/shipments?s=${result.shipmentId}`);
@@ -118,8 +123,7 @@ export async function rejectRestockRequestAction(
       hqUserId: user.userId,
       hqNote,
     });
-    revalidatePath('/restock-requests');
-    revalidatePath(`/restock-requests/${requestId}`);
+    revalidateRestock(requestId);
     return { ok: '已拒絕此申請' };
   } catch (e) {
     return { error: e instanceof Error ? e.message : '拒絕失敗' };
