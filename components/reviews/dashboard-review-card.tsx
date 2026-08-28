@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { loadReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
+import { countReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
 
 export async function DashboardReviewCard() {
-  const { counts } = await loadReviewInbox();
+  const counts = await countReviewInbox();
   const total = reviewInboxTotal(counts);
 
   return (

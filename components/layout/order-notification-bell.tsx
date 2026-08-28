@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { formatCurrency } from '@/lib/format';
-import { orderSourceLabel } from '@/lib/labels';
+import { newOrderNotifyCopy } from '@/lib/notifications/new-order-copy';
 import {
   isStandaloneDisplayMode,
   subscribeToPush,
@@ -73,16 +73,16 @@ function writeLastCheck(iso: string) {
 function notifyOrder(order: NewOrder) {
   if (!supportsBrowserNotifications() || Notification.permission !== 'granted') return;
 
-  const source = orderSourceLabel[order.source] ?? order.source;
-  const notification = new Notification(`新訂單 ${order.orderNumber}`, {
-    body: `${source} · ${formatCurrency(order.total)}`,
+  const copy = newOrderNotifyCopy(order);
+  const notification = new Notification(copy.title, {
+    body: copy.body,
     tag: order.id,
     icon: '/icons/icon.svg',
   });
 
   notification.onclick = () => {
     window.focus();
-    window.location.href = `/orders/${order.id}`;
+    window.location.href = copy.url;
     notification.close();
   };
 }

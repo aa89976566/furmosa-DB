@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { navGroups } from '@/lib/nav';
@@ -18,7 +19,11 @@ const HOT_PREFETCH = new Set([
   '/products',
 ]);
 
-export function SidebarNav() {
+export function SidebarNav({
+  itemExtras,
+}: {
+  itemExtras?: Partial<Record<string, ReactNode>>;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -58,7 +63,8 @@ export function SidebarNav() {
                         active ? groupStyles.eyebrow : 'text-muted-foreground',
                       )}
                     />
-                    <span>{item.label}</span>
+                    <span className="flex-1">{item.label}</span>
+                    {itemExtras?.[item.href]}
                   </Link>
                 );
               })}

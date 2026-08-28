@@ -5,6 +5,7 @@ import {
   type ShopifyPaidOrder,
   verifyShopifyWebhookHmac,
 } from '@/lib/shopify/orders-paid';
+import { sendNewOrderPush } from '@/lib/web-push';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,6 +27,15 @@ export async function POST(req: Request) {
   try {
     const payload = JSON.parse(rawBody) as ShopifyPaidOrder;
     const result = await importShopifyPaidOrder(shopDomain, payload);
+    if (result.created) {
+      void sendNewOrderPush({
+        id: result.order.id,
+        orderNumber: result.order.orderNumber,
+        total: Number(result.order.total),
+        source: result.order.source,
+        needsReview: true,
+      });
+    }
     revalidatePath('/orders');
     revalidatePath('/reviews');
     revalidatePath('/dashboard');

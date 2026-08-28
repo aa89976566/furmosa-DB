@@ -9,7 +9,7 @@ describe('review inbox labels', () => {
     assert.equal(reviewKindLabel('restock'), '補貨申請');
   });
 
-  it('adds pending counts together', () => {
+  it('adds pending counts together so the sidebar badge can show one number', () => {
     assert.equal(reviewInboxTotal({ shopify_order: 2, ugc: 1, restock: 3 }), 6);
     assert.equal(reviewInboxTotal({ shopify_order: 0, ugc: 0, restock: 0 }), 0);
   });

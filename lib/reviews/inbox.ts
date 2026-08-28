@@ -134,26 +134,48 @@ async function loadPendingUgc(): Promise<ReviewInboxItem[]> {
   }
 }
 
+async function countPendingUgc() {
+  try {
+    return await prisma.campaignApplication.count({
+      where: { status: APP_STATUS.PENDING_REVIEW },
+    });
+  } catch (error) {
+    if (isMissingCampaignTableError(error)) return 0;
+    throw error;
+  }
+}
+
+/** 側欄／首頁用的待審核筆數，不載入明細。 */
+export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
+  const [shopify_order, restock, ugc] = await Promise.all([
+    prisma.order.count({
+      where: {
+        ...activeOrderWhere,
+        status: 'pending_review',
+      },
+    }),
+    prisma.restockRequest.count({
+      where: { status: { in: ['submitted', 'under_review'] } },
+    }),
+    countPendingUgc(),
+  ]);
+  return { shopify_order, restock, ugc };
+}
+
 export async function loadReviewInbox(): Promise<{
   items: ReviewInboxItem[];
   counts: Record<ReviewKind, number>;
 }> {
-  const [orders, restocks, ugc] = await Promise.all([
+  const [orders, restocks, ugc, counts] = await Promise.all([
     loadPendingOrders(),
     loadPendingRestocks(),
     loadPendingUgc(),
+    countReviewInbox(),
   ]);
   const items = [...orders, ...restocks, ...ugc].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
-  return {
-    items,
-    counts: {
-      shopify_order: orders.length,
-      restock: restocks.length,
-      ugc: ugc.length,
-    },
-  };
+  return { items, counts };
 }
 
 export function reviewInboxTotal(counts: Record<ReviewKind, number>) {

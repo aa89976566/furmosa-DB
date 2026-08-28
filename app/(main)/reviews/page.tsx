@@ -31,49 +31,74 @@ export default async function ReviewInboxPage() {
           </CardContent>
         </Card>
 
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">時間</th>
-                <th className="px-3 py-2">種類</th>
-                <th className="px-3 py-2">內容</th>
-                <th className="px-3 py-2">狀態</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                    目前沒有待審核項目
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={`${item.kind}-${item.id}`} className="border-t">
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
-                    <td className="px-3 py-2">
+        {items.length === 0 ? (
+          <Card>
+            <CardContent className="px-3 py-8 text-center text-sm text-muted-foreground">
+              目前沒有待審核項目
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {items.map((item) => (
+                <Card key={`${item.kind}-${item.id}`}>
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="muted">{item.kindLabel}</Badge>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{item.title}</div>
-                      <div className="text-muted-foreground">{item.subtitle || '—'}</div>
-                    </td>
-                    <td className="px-3 py-2">
                       <Badge variant="default">{item.statusLabel}</Badge>
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={item.href}>審核</Link>
-                      </Button>
-                    </td>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="font-medium">{item.title}</div>
+                      <div className="text-sm text-muted-foreground">{item.subtitle || '—'}</div>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={item.href}>審核</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-xl border md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">時間</th>
+                    <th className="px-3 py-2">種類</th>
+                    <th className="px-3 py-2">內容</th>
+                    <th className="px-3 py-2">狀態</th>
+                    <th className="px-3 py-2" />
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={`${item.kind}-${item.id}`} className="border-t">
+                      <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
+                      <td className="px-3 py-2">
+                        <Badge variant="muted">{item.kindLabel}</Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{item.title}</div>
+                        <div className="text-muted-foreground">{item.subtitle || '—'}</div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant="default">{item.statusLabel}</Badge>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={item.href}>審核</Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
