@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { PosPageHeader } from '@/components/pos/pos-page-header';
 import type { PosAccount } from '@/lib/pos/account';
 import type { StoreLedgerPageData } from '@/lib/pos/load-store-ledger';
 import { formatNtd, type LedgerEntryView } from '@/lib/pos/store-ledger';
@@ -152,18 +152,14 @@ function SettleWorkspaceInner({
       <InventorySideNav account={account} />
 
       <main className="min-w-0 flex-1 md:flex md:h-full md:flex-col md:overflow-hidden">
-        <header className="border-b border-neutral-200/80 px-4 pb-0 pt-5 md:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-semibold">結帳</h1>
-              <p className="mt-1 text-sm text-zinc-500">匠寵與店家的對帳、流水與款項去向</p>
-            </div>
-            <div className="md:hidden">
-              <PosAccountMenu account={account} />
-            </div>
-          </div>
+        <header className="border-b border-neutral-200/80 pb-0">
+          <PosPageHeader
+            title="結帳"
+            description="查看這期要跟匠寵對的帳。"
+            account={account}
+          />
 
-          <div className="mt-5 flex gap-5 overflow-x-auto">
+          <div className="mt-2 flex gap-5 overflow-x-auto px-4 md:px-6">
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -271,8 +267,8 @@ function SettleWorkspaceInner({
 
                 <div className="rounded-2xl border border-dashed border-neutral-300 bg-white/50 p-4">
                   <p className="text-sm font-medium text-zinc-700">正式結帳尚未開放</p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">
-                    目前可以先核對真實流水與應收應付；StoreSettlement 寫入表尚未落 DB，因此這版 UI 不提供假的完成結帳按鈕。
+                  <p className="mt-1 text-sm leading-5 text-zinc-600">
+                    目前可以先核對流水與應收應付。確認結帳還沒開放，這個畫面不會送出結帳。
                   </p>
                 </div>
               </div>

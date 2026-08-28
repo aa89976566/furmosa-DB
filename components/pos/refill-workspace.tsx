@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { PosPageHeader } from '@/components/pos/pos-page-header';
 import { JarSerialPanel } from '@/components/pos/jar-serial-panel';
 import { RefillOrderPanel, RefillSuccessPanel } from '@/components/pos/refill-order-panel';
 import type { PosAccount } from '@/lib/pos/account';
@@ -146,15 +146,11 @@ function RefillWorkspaceInner({
         <InventorySideNav account={account} />
 
         <main className="min-w-0 flex-1 md:flex md:h-full md:flex-col md:overflow-hidden">
-          <header className="flex items-center justify-between px-4 pb-3 pt-5 md:px-6">
-            <div>
-              <h1 className="text-2xl font-semibold">換罐</h1>
-              <p className="mt-1 text-sm text-zinc-500">掃罐底就能找到客人的訂單</p>
-            </div>
-            <div className="md:hidden">
-              <PosAccountMenu account={account} />
-            </div>
-          </header>
+          <PosPageHeader
+            title="換罐"
+            description="掃描空罐，幫客人換成新的。"
+            account={account}
+          />
 
           <div className="flex-1 space-y-8 px-4 pb-28 md:overflow-y-auto md:px-6 md:pb-8">
             <section>

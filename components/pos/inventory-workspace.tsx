@@ -6,7 +6,7 @@ import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { ProductCover } from '@/components/pos/product-cover';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider, useRestockCart } from '@/components/pos/restock-cart-provider';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { PosPageHeader } from '@/components/pos/pos-page-header';
 import type { PosAccount } from '@/lib/pos/account';
 import type { InventoryProduct } from '@/lib/pos/load-inventory';
 import {
@@ -354,12 +354,11 @@ function InventoryWorkspaceInner({
         <InventorySideNav account={account} />
 
         <main className="min-w-0 flex-1 md:flex md:h-full md:flex-col md:overflow-hidden">
-          <header className="flex items-center justify-between px-4 pb-3 pt-5 md:px-6">
-            <h1 className="text-2xl font-semibold">庫存</h1>
-            <div className="md:hidden">
-              <PosAccountMenu account={account} />
-            </div>
-          </header>
+          <PosPageHeader
+            title="庫存"
+            description="查看店裡還有哪些商品、數量夠不夠。"
+            account={account}
+          />
           <div className="px-4 md:px-6">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
