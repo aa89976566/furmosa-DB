@@ -19,7 +19,10 @@ export default async function JarExchangeStoresPage() {
     listJarExchangeMerchants(),
   ]);
   const rows = mergePartnerStoreDirectory({ stores, merchants });
-  const stats = partnerStoreDirectoryStats(rows);
+  const stats = partnerStoreDirectoryStats(rows, {
+    storeSlugs: stores.map((store) => store.slug),
+    merchantIds: merchants.map((merchant) => merchant.merchantId),
+  });
 
   return (
     <JarShell
@@ -45,8 +48,9 @@ export default async function JarExchangeStoresPage() {
             {formatNumber(stats.total)} 家合作店家
             <span className="text-muted-foreground">
               {' '}
-              · {formatNumber(stats.redeemableCount)} 家可核銷 ·{' '}
-              {formatNumber(stats.jarExchangeCount)} 家換罐後台
+              · {formatNumber(stats.officialOneToOneCount)} 家已確認一對一 ·{' '}
+              {formatNumber(stats.needsReviewCount)} 家待確認 ·{' '}
+              {formatNumber(stats.redeemableCount)} 家可核銷
             </span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">

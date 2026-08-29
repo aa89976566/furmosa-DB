@@ -9,11 +9,11 @@ export const INTERNAL_PARTNER_STORE_SLUGS = new Set([
   'mer_refill',
 ]);
 
-/** 已知內部 merchantId（同步時跳過） */
-export const INTERNAL_MERCHANT_IDS = new Set(['MER-OTHER', 'MER-REFILL']);
+/** 已知內部 merchantId（同步時跳過；含總部標記的示範店） */
+export const INTERNAL_MERCHANT_IDS = new Set(['MER-OTHER', 'MER-REFILL', 'MER-DEMO']);
 
 const INTERNAL_PARTNER_NAME_RE =
-  /錯誤店家|勿交付|換罐測試店|（測試）|\[測試\]|test\s*store/i;
+  /錯誤店家|勿交付|換罐測試店|（測試）|\[測試\]|test\s*store|Preview 店/i;
 
 export function isCustomerFacingPartnerStore(store: {
   slug: string;
