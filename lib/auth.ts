@@ -51,12 +51,14 @@ export async function readSession(token?: string): Promise<SessionPayload | null
 }
 
 export async function setSessionCookie(token: string) {
+  const maxAge = SESSION_HOURS * 60 * 60;
   cookies().set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_HOURS * 60 * 60,
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000),
   });
 }
 

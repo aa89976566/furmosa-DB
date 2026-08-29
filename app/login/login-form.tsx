@@ -1,20 +1,46 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { loginAction, type LoginState } from './actions';
+import { readRememberedHqEmail, writeRememberedHqEmail } from '@/lib/hq/remembered-email';
 
-const initialState: LoginState = {};
+export function LoginForm({
+  next,
+  error,
+  email,
+}: {
+  next?: string;
+  error?: string;
+  email?: string;
+}) {
+  const [emailValue, setEmailValue] = useState(email ?? '');
 
-export function LoginForm({ next }: { next?: string }) {
-  const [state, formAction] = useFormState(loginAction, initialState);
+  useEffect(() => {
+    if (email) {
+      writeRememberedHqEmail(email, window.localStorage);
+      setEmailValue(email);
+      return;
+    }
+    const saved = readRememberedHqEmail(window.localStorage);
+    if (saved) setEmailValue(saved);
+  }, [email]);
 
   return (
     <Card>
       <CardContent className="p-6">
-        <form action={formAction} className="space-y-4">
+        <form
+          action="/login/submit"
+          method="post"
+          autoComplete="on"
+          className="space-y-4"
+          onSubmit={(event) => {
+            const form = event.currentTarget;
+            const value = String(new FormData(form).get('email') ?? '');
+            writeRememberedHqEmail(value, window.localStorage);
+          }}
+        >
           <input type="hidden" name="next" value={next ?? ''} />
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-sm font-medium">
@@ -25,7 +51,8 @@ export function LoginForm({ next }: { next?: string }) {
               name="email"
               type="email"
               autoComplete="email"
-              defaultValue={state.values?.email ?? ''}
+              value={emailValue}
+              onChange={(event) => setEmailValue(event.target.value)}
               required
             />
           </div>
@@ -41,23 +68,19 @@ export function LoginForm({ next }: { next?: string }) {
               required
             />
           </div>
-          {state.error ? (
+          {error ? (
             <p className="whitespace-pre-line rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {state.error}
+              {error}
             </p>
           ) : null}
-          <SubmitButton />
+          <p className="text-xs text-muted-foreground">
+            登入後這台電腦會保持登入。下次若回到這一頁，Email 會自動填好；密碼請讓瀏覽器記住。
+          </p>
+          <Button type="submit" className="w-full">
+            登入
+          </Button>
         </form>
       </CardContent>
     </Card>
-  );
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? '登入中…' : '登入'}
-    </Button>
   );
 }
