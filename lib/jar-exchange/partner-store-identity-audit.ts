@@ -782,6 +782,16 @@ export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditRepor
       .concat('\n');
   }
 
+  if (!report.environment.queriedLiveData) {
+    return [
+      ...header,
+      '**尚未查到正式資料，不輸出可供決策的正式數字。**',
+      '',
+      '對帳規則已就緒，但 0 筆不代表正式庫是空的。',
+      '',
+    ].join('\n').concat('\n');
+  }
+
   const { storeIdentity: identity } = report;
   const lines = [
     ...header,

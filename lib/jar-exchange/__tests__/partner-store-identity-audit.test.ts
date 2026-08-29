@@ -109,9 +109,10 @@ describe('partner store identity read-only audit units', () => {
     const report = summarizePartnerStoreIdentityAudit(sixPairedStores(), {
       ...meta,
       checkedAt: new Date('2026-08-29T16:00:00.000Z'),
+      queriedLiveData: true,
     });
     assert.equal(report.valid, true);
-    assert.equal(report.decisionReady, false);
+    assert.equal(report.decisionReady, true);
     assert.equal(report.totals.merchantMasterCount, 6);
     assert.equal(report.totals.redeemStoreCount, 6);
     assert.equal(report.storeIdentity.byClass.one_to_one, 12);
@@ -129,7 +130,10 @@ describe('partner store identity read-only audit units', () => {
   });
 
   it('keeps mixed rows reconcilable and never prints PII', () => {
-    const report = summarizePartnerStoreIdentityAudit(snapshot(), meta);
+    const report = summarizePartnerStoreIdentityAudit(snapshot(), {
+      ...meta,
+      queriedLiveData: true,
+    });
     assert.equal(report.valid, true);
     assert.equal(report.storeIdentity.oneToOnePairCount, 1);
     assert.equal(report.storeIdentity.confirmedStores, 1);
@@ -138,7 +142,12 @@ describe('partner store identity read-only audit units', () => {
     assert.equal(report.membersAndLine.separateFromStoreIdentity, true);
 
     const markdown = formatAuditReportMarkdown(report);
-    assert.match(markdown, /對帳通過，但不是正式決策數字/);
+    assert.match(markdown, /已確認一對一門市：1 間/);
+    assert.match(markdown, /報告是否完整通過對帳：是，可供判斷/);
+
+    const notLive = formatAuditReportMarkdown(summarizePartnerStoreIdentityAudit(snapshot(), meta));
+    assert.match(notLive, /尚未查到正式資料，不輸出可供決策的正式數字/);
+    assert.doesNotMatch(notLive, /店家主檔：2 筆/);
     assert.doesNotMatch(markdown, /0900|U[0-9a-f]{32}|淡水妞妞/);
     assert.match(markdown, /furmosa-0002|MER-0018|niuniu/);
   });
