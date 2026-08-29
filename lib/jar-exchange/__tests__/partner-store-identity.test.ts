@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import type { MerchantType } from '@/lib/merchant-types';
 import {
-  canReissueStoreNumber,
   classifyPartnerStoreIdentity,
-  evaluateCooperationChange,
-  hasConsignment,
-  issueStoreNumber,
-  recordHumanIdentityDecision,
-  resolveNumberForSiteEvent,
+  HUMAN_DECISION_REQUIRED_FIELDS,
+  missingHumanDecisionFields,
+  pendingRestriction,
   storeNumberFromRedeemSlug,
+  typesImplyConsignment,
   type IdentityMerchant,
   type IdentityStore,
 } from '@/lib/jar-exchange/partner-store-identity';
+
+const SOURCE = readFileSync(new URL('../partner-store-identity.ts', import.meta.url), 'utf8');
 
 function store(slug: string, name: string, id = `store_${slug}`): IdentityStore {
   return { id, slug, name };
@@ -35,27 +36,28 @@ function merchant(
   };
 }
 
-describe('1. 只做換罐也可取得編號，不會被開通寄賣', () => {
-  it('issues MER-xxxx with jar_exchange only', () => {
-    const issued = issueStoreNumber({
-      requestedTypes: ['jar_exchange'],
-      existingNumbers: ['MER-0001', 'MER-0018'],
-    });
-    assert.equal(issued.merchantId, 'MER-0019');
-    assert.deepEqual(issued.types, ['jar_exchange']);
-    assert.equal(hasConsignment(issued.types), false);
-  });
-
-  it('does not add consignment when HQ only asked for jar exchange', () => {
-    const issued = issueStoreNumber({
-      requestedTypes: ['jar_exchange'],
-      existingNumbers: [],
-    });
-    assert.equal(issued.types.includes('consignment'), false);
+describe('判定層邊界：不發號、不改功能、不改資料、不存檔', () => {
+  it('does not contain issuing, type switching, or persistence helpers', () => {
+    assert.doesNotMatch(SOURCE, /function issueStoreNumber|function nextStoreNumber|function resolveNumberForSiteEvent/);
+    assert.doesNotMatch(SOURCE, /function recordHumanIdentityDecision|prisma\.|insertMerchant|update\(/);
+    assert.doesNotMatch(SOURCE, /types\.push\(|requestedTypes/);
   });
 });
 
-describe('2–3. 唯一對應才是一對一；重複與一對多是衝突', () => {
+describe('換罐與寄賣：不因換罐身分自動判定為寄賣；不發號', () => {
+  it('keeps jar_exchange-only types unchanged and does not imply consignment', () => {
+    const result = classifyPartnerStoreIdentity({
+      stores: [store('mer_0018', '墨菲寵物美學')],
+      merchants: [merchant('MER-0018', '墨菲寵物美學', ['jar_exchange'])],
+    });
+    assert.deepEqual(result.merchants[0]?.types, ['jar_exchange']);
+    assert.equal(typesImplyConsignment(result.merchants[0]?.types ?? []), false);
+    assert.equal(result.stores.length, 1);
+    assert.equal(result.merchants.length, 1);
+  });
+});
+
+describe('唯一編號與 slug → 一對一', () => {
   it('classifies mer_0018 + MER-0018 as one_to_one', () => {
     const result = classifyPartnerStoreIdentity({
       stores: [store('mer_0018', '墨菲寵物美學（核銷）')],
@@ -66,7 +68,9 @@ describe('2–3. 唯一對應才是一對一；重複與一對多是衝突', () 
     assert.equal(storeNumberFromRedeemSlug('mer_0018'), 'MER-0018');
     assert.equal(storeNumberFromRedeemSlug('niuniu'), null);
   });
+});
 
+describe('一對多或多對一 → 衝突', () => {
   it('treats two numbers that share a slug as conflict', () => {
     const result = classifyPartnerStoreIdentity({
       stores: [store('mer_0018', '墨菲')],
@@ -86,8 +90,8 @@ describe('2–3. 唯一對應才是一對一；重複與一對多是衝突', () 
   });
 });
 
-describe('4. 店名地址相似只列待確認，不得自動合併', () => {
-  it('keeps same-name store and merchant as needs_review', () => {
+describe('店名、地址、分店相似 → 待確認', () => {
+  it('keeps same-name custom slug as needs_review with candidates', () => {
     const result = classifyPartnerStoreIdentity({
       stores: [store('niuniu', '淡水妞妞')],
       merchants: [merchant('MER-0001', '淡水妞妞')],
@@ -97,142 +101,78 @@ describe('4. 店名地址相似只列待確認，不得自動合併', () => {
     assert.deepEqual(result.stores[0]?.candidateIds, ['MER-0001']);
   });
 
-  it('does not auto-merge 豬窩 branches', () => {
+  it('lists 豬窩 branch clues as needs_review, not a new number', () => {
     const result = classifyPartnerStoreIdentity({
       stores: [store('zhuwo_zhonghe', '豬窩 中和店')],
-      merchants: [merchant('MER-0020', '豬窩板橋店', ['jar_exchange'], { city: '新北', address: '板橋區' })],
+      merchants: [
+        merchant('MER-0020', '豬窩板橋店', ['jar_exchange'], { city: '新北', address: '板橋區' }),
+      ],
     });
-    assert.notEqual(result.stores[0]?.class, 'one_to_one');
-    assert.ok(['needs_review', 'orphan'].includes(result.stores[0]?.class ?? ''));
-  });
-});
-
-describe('5. 分店各自編號；搬家或改名不得長出新店', () => {
-  it('issues a new number for a new branch', () => {
-    const resolved = resolveNumberForSiteEvent({
-      event: 'new_branch',
-      existingNumbers: ['MER-0020'],
-    });
-    assert.equal(resolved.action, 'issue_new');
-    assert.equal(resolved.merchantId, 'MER-0021');
-  });
-
-  it('keeps the same number when relocating or renaming', () => {
-    assert.deepEqual(
-      resolveNumberForSiteEvent({
-        event: 'relocate',
-        existingMerchantId: 'MER-0020',
-        existingNumbers: ['MER-0020'],
-      }),
-      { merchantId: 'MER-0020', action: 'keep' },
-    );
-    assert.deepEqual(
-      resolveNumberForSiteEvent({
-        event: 'rename',
-        existingMerchantId: 'MER-0020',
-        existingNumbers: ['MER-0020'],
-      }),
-      { merchantId: 'MER-0020', action: 'keep' },
-    );
-  });
-
-  it('refuses relocate without an existing number', () => {
-    assert.throws(
-      () =>
-        resolveNumberForSiteEvent({
-          event: 'relocate',
-          existingNumbers: ['MER-0020'],
-        }),
-      /不得另開新店/,
-    );
-  });
-
-  it('never reissues a retired number', () => {
-    const issued = issueStoreNumber({
-      requestedTypes: ['jar_exchange'],
-      existingNumbers: ['MER-0001'],
-      retiredNumbers: ['MER-0002'],
-    });
-    assert.equal(issued.merchantId, 'MER-0003');
-    assert.equal(canReissueStoreNumber('MER-0002', ['MER-0002']), false);
-  });
-});
-
-describe('6. 待確認不新增功能，但不打斷既有服務', () => {
-  it('keeps current types and rejects adding consignment', () => {
-    const denied = evaluateCooperationChange({
-      identityClass: 'needs_review',
-      currentTypes: ['jar_exchange'],
-      requestedTypes: ['jar_exchange', 'consignment'],
-    });
-    assert.equal(denied.allowed, false);
-    assert.deepEqual(denied.preservedTypes, ['jar_exchange']);
-
-    const unchanged = evaluateCooperationChange({
-      identityClass: 'needs_review',
-      currentTypes: ['jar_exchange'],
-      requestedTypes: ['jar_exchange'],
-    });
-    assert.equal(unchanged.allowed, true);
-    assert.deepEqual(unchanged.preservedTypes, ['jar_exchange']);
-  });
-
-  it('lets a one_to_one store change types later', () => {
-    const allowed = evaluateCooperationChange({
-      identityClass: 'one_to_one',
-      currentTypes: ['jar_exchange'],
-      requestedTypes: ['jar_exchange', 'consignment'],
-    });
-    assert.equal(allowed.allowed, true);
-  });
-});
-
-describe('7. 人工確認必須留下完整判定紀錄', () => {
-  it('records reviewer, time, rationale, kept number and the other record', () => {
-    const decision = recordHumanIdentityDecision({
-      decidedBy: 'hq-staff-01',
-      decidedAt: new Date('2026-08-29T12:00:00.000Z'),
-      rationale: '同一門市，核銷 slug 是舊自訂名稱',
-      keptMerchantId: 'mer-0001',
-      otherRecordId: 'store_niuniu',
-      otherRecordDisposition: 'merge_into_kept',
-    });
-    assert.equal(decision.decidedBy, 'hq-staff-01');
-    assert.equal(decision.decidedAt, '2026-08-29T12:00:00.000Z');
-    assert.equal(decision.rationale, '同一門市，核銷 slug 是舊自訂名稱');
-    assert.equal(decision.keptMerchantId, 'MER-0001');
-    assert.equal(decision.otherRecordId, 'store_niuniu');
-    assert.equal(decision.otherRecordDisposition, 'merge_into_kept');
-  });
-
-  it('rejects an incomplete confirmation', () => {
-    assert.throws(
-      () =>
-        recordHumanIdentityDecision({
-          decidedBy: '',
-          rationale: 'ok',
-          keptMerchantId: 'MER-0001',
-          otherRecordId: 'store_niuniu',
-          otherRecordDisposition: 'merge_into_kept',
-        }),
-      /確認人/,
-    );
-  });
-});
-
-describe('8. 這一圈不修資料、不合併', () => {
-  it('classification never invents a merged store', () => {
-    const result = classifyPartnerStoreIdentity({
-      stores: [store('niuniu', '淡水妞妞'), store('mer_0001', '淡水妞妞')],
-      merchants: [merchant('MER-0001', '淡水妞妞')],
-    });
-    assert.equal(result.stores.length, 2);
+    assert.equal(result.stores[0]?.class, 'needs_review');
     assert.equal(result.merchants.length, 1);
+    assert.equal(result.merchants[0]?.merchantId, 'MER-0020');
+  });
+});
+
+describe('搬家或改名 → 待總部確認，不自行換號', () => {
+  it('does not invent a second merchant number when names look like a move', () => {
+    const result = classifyPartnerStoreIdentity({
+      stores: [store('niuniu', '淡水妞妞')],
+      merchants: [
+        merchant('MER-0001', '淡水妞妞', ['jar_exchange'], {
+          city: '新北',
+          address: '新地址文化路1號',
+        }),
+      ],
+    });
+    assert.equal(result.stores[0]?.class, 'needs_review');
+    assert.equal(result.merchants[0]?.merchantId, 'MER-0001');
+    assert.match(result.stores[0]?.reasons.join(' ') ?? '', /不自行換號/);
+  });
+});
+
+describe('待確認：回傳禁止新增功能的原因，尚未接入流程', () => {
+  it('returns a restriction description without wiring it to onboarding', () => {
+    const restriction = pendingRestriction('needs_review');
+    assert.equal(restriction.blocksNewFeatures, true);
+    assert.equal(restriction.wiredToOnboarding, false);
+    assert.match(restriction.reason, /尚未接入開通流程/);
+  });
+});
+
+describe('人工確認：定義必填欄位，尚未保存', () => {
+  it('lists required fields and only reports what is missing', () => {
+    assert.deepEqual(HUMAN_DECISION_REQUIRED_FIELDS, [
+      'decidedBy',
+      'decidedAt',
+      'rationale',
+      'keptMerchantId',
+      'otherRecordId',
+      'otherRecordDisposition',
+    ]);
+    assert.deepEqual(
+      missingHumanDecisionFields({
+        decidedBy: 'hq-staff-01',
+        rationale: '',
+        keptMerchantId: 'MER-0001',
+      }),
+      ['decidedAt', 'rationale', 'otherRecordId', 'otherRecordDisposition'],
+    );
+  });
+});
+
+describe('資料處理：不修改、不合併、不發號', () => {
+  it('returns the same number of input rows and never merges them', () => {
+    const stores = [store('niuniu', '淡水妞妞'), store('mer_0001', '淡水妞妞')];
+    const merchants = [merchant('MER-0001', '淡水妞妞')];
+    const result = classifyPartnerStoreIdentity({ stores, merchants });
+    assert.equal(result.stores.length, stores.length);
+    assert.equal(result.merchants.length, merchants.length);
     assert.ok(result.stores.some((row) => row.class === 'one_to_one'));
     assert.ok(result.stores.some((row) => row.class === 'needs_review'));
   });
 
-  it('orphan when a mer_ slug points at a missing number', () => {
+  it('marks a mer_ slug that points at a missing number as orphan', () => {
     const result = classifyPartnerStoreIdentity({
       stores: [store('mer_0999', '幽靈店')],
       merchants: [merchant('MER-0018', '墨菲')],

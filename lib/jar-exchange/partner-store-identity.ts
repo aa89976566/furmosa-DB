@@ -2,7 +2,9 @@ import type { MerchantType } from '@/lib/merchant-types';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
 /**
- * 店家身分判定（不連資料庫、不寫入、不合併）。
+ * 店家身分判定層。
+ * 只回傳分類、原因與候選關係。
+ * 不發號、不切換合作功能、不改店家或 slug、不保存人工確認。
  * 依據：docs/PARTNER-STORE-IDENTITY.md（2026-08-29 鎖定）
  */
 
@@ -46,18 +48,30 @@ export type ClassifiedStore = ClassifiedRecord & {
 export type ClassifiedMerchant = ClassifiedRecord & {
   merchantRecordId: string;
   merchantId: string;
+  types: MerchantType[];
 };
 
-export type OtherRecordDisposition = 'merge_into_kept' | 'mark_as_branch' | 'retire_and_keep_number';
+export const HUMAN_DECISION_REQUIRED_FIELDS = [
+  'decidedBy',
+  'decidedAt',
+  'rationale',
+  'keptMerchantId',
+  'otherRecordId',
+  'otherRecordDisposition',
+] as const;
 
-export type HumanIdentityDecision = {
-  decidedBy: string;
-  decidedAt: string;
-  rationale: string;
-  keptMerchantId: string;
-  otherRecordId: string;
-  otherRecordDisposition: OtherRecordDisposition;
-};
+export type HumanDecisionRequiredField = (typeof HUMAN_DECISION_REQUIRED_FIELDS)[number];
+
+export const OTHER_RECORD_DISPOSITIONS = [
+  'merge_into_kept',
+  'mark_as_branch',
+  'retire_and_keep_number',
+] as const;
+
+export type OtherRecordDisposition = (typeof OTHER_RECORD_DISPOSITIONS)[number];
+
+export const PENDING_NO_NEW_FEATURES_REASON =
+  '待確認期間不得新增功能、改變連結或合併資料；既有服務維持。此限制尚未接入開通流程。';
 
 const MER_SLUG_RE = /^mer_(\d+)$/;
 const LEGAL_SUFFIX_RE = /股份有限公司|有限公司|工作室/g;
@@ -71,7 +85,7 @@ export function redeemSlugFromStoreNumber(merchantId: string): string {
   return merchantToStoreSlug(merchantId);
 }
 
-/** 只有 mer_數字 才能轉回 MER-數字。自訂 slug 不轉。 */
+/** 只有 mer_數字 才能讀成 MER-數字。這是對應線索，不是發號。 */
 export function storeNumberFromRedeemSlug(slug: string): string | null {
   const match = slug.trim().toLowerCase().match(MER_SLUG_RE);
   if (!match) return null;
@@ -100,131 +114,40 @@ export function namesLookSimilar(a: string, b: string): boolean {
   return shorter.length >= 4 && longer.includes(shorter);
 }
 
-export function nextStoreNumber(existingNumbers: string[], retiredNumbers: string[] = []): string {
-  const taken = new Set(
-    [...existingNumbers, ...retiredNumbers].map((value) => canonicalStoreNumber(value)),
-  );
-  let seq = 1;
-  for (const value of taken) {
-    const match = value.match(/^MER-(\d+)$/);
-    if (match) seq = Math.max(seq, Number(match[1]) + 1);
-  }
-  let candidate = `MER-${String(seq).padStart(4, '0')}`;
-  while (taken.has(candidate)) {
-    seq += 1;
-    candidate = `MER-${String(seq).padStart(4, '0')}`;
-  }
-  return candidate;
-}
-
-/** 發號：只寫請求的合作功能，不會自動加上寄賣。 */
-export function issueStoreNumber(input: {
-  requestedTypes: MerchantType[];
-  existingNumbers: string[];
-  retiredNumbers?: string[];
-}): { merchantId: string; types: MerchantType[] } {
-  const types = [...new Set(input.requestedTypes)];
-  if (types.length === 0) {
-    throw new Error('請至少選擇一種合作功能');
-  }
-  return {
-    merchantId: nextStoreNumber(input.existingNumbers, input.retiredNumbers ?? []),
-    types,
-  };
-}
-
-export function hasConsignment(types: MerchantType[]): boolean {
+/** 換罐不是寄賣。判定層不改 types，只讀既有值。 */
+export function typesImplyConsignment(types: MerchantType[]): boolean {
   return types.includes('consignment');
 }
 
-export type SiteEvent = 'new_branch' | 'relocate' | 'rename' | 'retire';
-
-export function resolveNumberForSiteEvent(input: {
-  event: SiteEvent;
-  existingMerchantId?: string;
-  existingNumbers: string[];
-  retiredNumbers?: string[];
-}): { merchantId: string; action: 'issue_new' | 'keep' | 'retire' } {
-  const retired = input.retiredNumbers ?? [];
-  if (input.event === 'new_branch') {
+export function pendingRestriction(identityClass: IdentityClass): {
+  blocksNewFeatures: boolean;
+  wiredToOnboarding: false;
+  reason: string;
+} {
+  if (identityClass === 'needs_review' || identityClass === 'conflict') {
     return {
-      merchantId: nextStoreNumber(input.existingNumbers, retired),
-      action: 'issue_new',
+      blocksNewFeatures: true,
+      wiredToOnboarding: false,
+      reason: PENDING_NO_NEW_FEATURES_REASON,
     };
   }
-  const existing = input.existingMerchantId?.trim();
-  if (!existing) {
-    throw new Error('搬家、改名或停用必須沿用既有門市編號，不得另開新店');
-  }
-  const merchantId = canonicalStoreNumber(existing);
-  if (input.event === 'retire') {
-    return { merchantId, action: 'retire' };
-  }
-  return { merchantId, action: 'keep' };
-}
-
-export function canReissueStoreNumber(
-  merchantId: string,
-  retiredNumbers: string[],
-): boolean {
-  return !retiredNumbers.map(canonicalStoreNumber).includes(canonicalStoreNumber(merchantId));
-}
-
-export function evaluateCooperationChange(input: {
-  identityClass: IdentityClass;
-  currentTypes: MerchantType[];
-  requestedTypes: MerchantType[];
-}): { allowed: boolean; preservedTypes: MerchantType[]; reason: string } {
-  const current = [...input.currentTypes].sort();
-  const requested = [...new Set(input.requestedTypes)].sort();
-  const same =
-    current.length === requested.length && current.every((type, index) => type === requested[index]);
-
-  if (input.identityClass === 'one_to_one') {
-    return { allowed: true, preservedTypes: requested, reason: '一對一門市可以調整合作功能' };
-  }
-
-  if (same) {
-    return {
-      allowed: true,
-      preservedTypes: input.currentTypes,
-      reason: '待確認或衝突期間維持既有服務，不改變合作功能',
-    };
-  }
-
   return {
-    allowed: false,
-    preservedTypes: input.currentTypes,
-    reason: '待確認或衝突期間不得新增功能、改變連結或合併資料；既有服務維持',
+    blocksNewFeatures: false,
+    wiredToOnboarding: false,
+    reason: '不是待確認或衝突，判定層不提出新增功能限制',
   };
 }
 
-export function recordHumanIdentityDecision(input: {
-  decidedBy: string;
-  decidedAt?: Date;
-  rationale: string;
-  keptMerchantId: string;
-  otherRecordId: string;
-  otherRecordDisposition: OtherRecordDisposition;
-}): HumanIdentityDecision {
-  const decidedBy = input.decidedBy.trim();
-  const rationale = input.rationale.trim();
-  const keptMerchantId = canonicalStoreNumber(input.keptMerchantId);
-  const otherRecordId = input.otherRecordId.trim();
-  if (!decidedBy) throw new Error('人工確認必須記錄確認人');
-  if (!rationale) throw new Error('人工確認必須記錄判定依據');
-  if (!keptMerchantId) throw new Error('人工確認必須記錄保留編號');
-  if (!otherRecordId) throw new Error('人工確認必須記錄另一筆資料');
-  if (!input.otherRecordDisposition) throw new Error('人工確認必須記錄另一筆資料的處理方式');
-
-  return {
-    decidedBy,
-    decidedAt: (input.decidedAt ?? new Date()).toISOString(),
-    rationale,
-    keptMerchantId,
-    otherRecordId,
-    otherRecordDisposition: input.otherRecordDisposition,
-  };
+export function missingHumanDecisionFields(
+  input: Partial<Record<HumanDecisionRequiredField, string | undefined>>,
+): HumanDecisionRequiredField[] {
+  return HUMAN_DECISION_REQUIRED_FIELDS.filter((field) => {
+    const value = input[field];
+    if (field === 'otherRecordDisposition') {
+      return !OTHER_RECORD_DISPOSITIONS.includes(value as OtherRecordDisposition);
+    }
+    return typeof value !== 'string' || value.trim() === '';
+  });
 }
 
 function addReason(
@@ -282,7 +205,10 @@ export function classifyPartnerStoreIdentity(input: {
   const merchantsByDerivedSlug = groupKeys(input.merchants, (row) =>
     redeemSlugFromStoreNumber(row.merchantId),
   );
-  const storesByReversedNumber = groupKeys(input.stores, (row) => storeNumberFromRedeemSlug(row.slug) ?? '');
+  const storesByReversedNumber = groupKeys(
+    input.stores,
+    (row) => storeNumberFromRedeemSlug(row.slug) ?? '',
+  );
 
   for (const [slug, rows] of storesBySlug) {
     if (rows.length < 2) continue;
@@ -332,14 +258,14 @@ export function classifyPartnerStoreIdentity(input: {
             storeState,
             store.id,
             'needs_review',
-            'slug 轉出的編號不存在，但店名有候選門市',
+            'slug 轉出的編號不存在，但店名有候選門市，待總部確認，不自行換號',
             canonicalStoreNumber(merchant.merchantId),
           );
           addReason(
             merchantState,
             merchant.id,
             'needs_review',
-            '店名與一筆找不到編號的核銷店相似，不得自動合併',
+            '店名相似，待總部確認，不自行換號',
             store.slug,
           );
         }
@@ -372,7 +298,13 @@ export function classifyPartnerStoreIdentity(input: {
         addReason(storeState, store.id, 'conflict', '對應關係有衝突，不能算一對一');
         addReason(merchantState, merchant.id, 'conflict', '對應關係有衝突，不能算一對一', store.slug);
       } else {
-        addReason(storeState, store.id, 'one_to_one', '編號與 slug 唯一對應', canonicalStoreNumber(merchant.merchantId));
+        addReason(
+          storeState,
+          store.id,
+          'one_to_one',
+          '編號與 slug 唯一對應',
+          canonicalStoreNumber(merchant.merchantId),
+        );
         addReason(merchantState, merchant.id, 'one_to_one', '編號與 slug 唯一對應', store.slug);
       }
       continue;
@@ -382,11 +314,23 @@ export function classifyPartnerStoreIdentity(input: {
       const nameHits = input.merchants.filter((merchant) => namesLookSimilar(store.name, merchant.name));
       if (nameHits.length > 0) {
         for (const merchant of nameHits) {
-          addReason(storeState, store.id, 'needs_review', '自訂 slug 或店名相似，不得自動合併', canonicalStoreNumber(merchant.merchantId));
-          addReason(merchantState, merchant.id, 'needs_review', '店名相似，不得自動合併', store.slug);
+          addReason(
+            storeState,
+            store.id,
+            'needs_review',
+            '店名、地址或分店相似，待總部確認，不自行換號',
+            canonicalStoreNumber(merchant.merchantId),
+          );
+          addReason(
+            merchantState,
+            merchant.id,
+            'needs_review',
+            '店名、地址或分店相似，待總部確認，不自行換號',
+            store.slug,
+          );
         }
       } else {
-        addReason(storeState, store.id, 'needs_review', '自訂 slug 轉不回門市編號，需總部確認');
+        addReason(storeState, store.id, 'needs_review', '自訂 slug 轉不回門市編號，待總部確認');
       }
     }
   }
@@ -396,17 +340,29 @@ export function classifyPartnerStoreIdentity(input: {
     const nameHits = input.stores.filter((store) => namesLookSimilar(store.name, merchant.name));
     if (nameHits.length > 0) {
       for (const store of nameHits) {
-        addReason(merchantState, merchant.id, 'needs_review', '店名或地址相似，不得自動合併', store.slug);
-        addReason(storeState, store.id, 'needs_review', '店名或地址相似，不得自動合併', canonicalStoreNumber(merchant.merchantId));
+        addReason(
+          merchantState,
+          merchant.id,
+          'needs_review',
+          '店名、地址或分店相似，待總部確認，不自行換號',
+          store.slug,
+        );
+        addReason(
+          storeState,
+          store.id,
+          'needs_review',
+          '店名、地址或分店相似，待總部確認，不自行換號',
+          canonicalStoreNumber(merchant.merchantId),
+        );
       }
       continue;
     }
-    addReason(merchantState, merchant.id, 'needs_review', '店家主檔尚無安全核銷連結，需總部確認');
+    addReason(merchantState, merchant.id, 'needs_review', '店家主檔尚無安全核銷連結，待總部確認');
   }
 
   for (const store of input.stores) {
     if (!storeState.has(store.id)) {
-      addReason(storeState, store.id, 'needs_review', '無法安全對應，需總部確認');
+      addReason(storeState, store.id, 'needs_review', '無法安全對應，待總部確認');
     }
   }
 
@@ -414,11 +370,16 @@ export function classifyPartnerStoreIdentity(input: {
     stores: input.stores.map((store) => ({
       storeId: store.id,
       slug: store.slug,
-      ...(storeState.get(store.id) ?? { class: 'needs_review', reasons: ['無法安全對應'], candidateIds: [] }),
+      ...(storeState.get(store.id) ?? {
+        class: 'needs_review',
+        reasons: ['無法安全對應'],
+        candidateIds: [],
+      }),
     })),
     merchants: input.merchants.map((merchant) => ({
       merchantRecordId: merchant.id,
       merchantId: canonicalStoreNumber(merchant.merchantId),
+      types: [...merchant.types],
       ...(merchantState.get(merchant.id) ?? {
         class: 'needs_review',
         reasons: ['無法安全對應'],
