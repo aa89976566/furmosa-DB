@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
 import { PartnerStoreIdentityHistory } from '@/components/jar-exchange/partner-store-identity-history';
 import { PartnerStoresDirectory } from '@/components/jar-exchange/partner-stores-directory';
+import { PreviewAcceptanceSeedPanel } from '@/components/jar-exchange/preview-acceptance-seed-panel';
 import { Button } from '@/components/ui/button';
-import { getCurrentUser } from '@/lib/auth';
 import { formatNumber } from '@/lib/format';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
 import {
@@ -11,10 +11,8 @@ import {
   partnerStoreDirectoryStats,
 } from '@/lib/jar-exchange/partner-store-directory';
 import { isPreviewIdentityEnv } from '@/lib/jar-exchange/partner-store-identity-decisions';
-import {
-  ensurePreviewIdentityTable,
-  seedPreviewIdentityDecisions,
-} from '@/lib/jar-exchange/partner-store-identity-preview';
+import { decidePreviewIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-isolation';
+import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-preview';
 import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
@@ -22,12 +20,6 @@ import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 export const dynamic = 'force-dynamic';
 
 export default async function JarExchangeStoresPage() {
-  const user = await getCurrentUser();
-  if (isPreviewIdentityEnv() && user) {
-    await ensurePreviewIdentityTable();
-    await seedPreviewIdentityDecisions({ userId: user.userId, email: user.email });
-  }
-
   const [stores, merchants, records] = await Promise.all([
     listPartnerStoresFromDb(),
     listJarExchangeMerchants(),
@@ -39,6 +31,8 @@ export default async function JarExchangeStoresPage() {
     merchantIds: merchants.map((merchant) => merchant.merchantId),
     decisions: records,
   });
+  const showPreviewSeed = isPreviewIdentityEnv();
+  const isolation = showPreviewSeed ? decidePreviewIdentityWrite() : null;
 
   return (
     <JarShell
@@ -75,12 +69,20 @@ export default async function JarExchangeStoresPage() {
         </div>
         <PartnerStoresDirectory rows={rows} />
       </JarPanel>
+      {showPreviewSeed ? (
+        <div className="mt-6">
+          <JarPanel>
+            <PreviewAcceptanceSeedPanel
+              rows={PREVIEW_ACCEPTANCE_ROWS}
+              isolated={isolation?.isolated === true}
+              isolationReason={isolation && !isolation.isolated ? isolation.reason : null}
+            />
+          </JarPanel>
+        </div>
+      ) : null}
       <div className="mt-6">
         <JarPanel>
-          <PartnerStoreIdentityHistory
-            records={records}
-            merchantIds={merchants.map((merchant) => merchant.merchantId)}
-          />
+          <PartnerStoreIdentityHistory records={records} />
         </JarPanel>
       </div>
     </JarShell>

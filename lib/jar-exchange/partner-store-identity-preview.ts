@@ -4,18 +4,17 @@ import {
   createIdentityDecision,
   listIdentityDecisions,
 } from '@/lib/jar-exchange/partner-store-identity-store';
+import { canWritePreviewIdentityData } from '@/lib/jar-exchange/partner-store-identity-isolation';
 import {
-  isPreviewIdentityEnv,
   shouldInsertBootstrapDecision,
   type PartnerStoreIdentityVerdict,
 } from '@/lib/jar-exchange/partner-store-identity-decisions';
 
 /**
- * Preview 才允許寫入的初始確認。
- * 這不是清單資料來源；清單只讀資料庫有效列。
- * 已有歷史（含已撤銷）的組合不會再自動插入。
+ * Preview 驗收資料清單。這不是清單讀取來源。
+ * 只有獨立的「建立驗收資料」動作、且資料庫已隔離時才可寫入。
  */
-const PREVIEW_BOOTSTRAP: Array<{
+export const PREVIEW_ACCEPTANCE_ROWS: Array<{
   merchantId: string;
   legacySlug: string | null;
   verdict: PartnerStoreIdentityVerdict;
@@ -71,6 +70,8 @@ const PREVIEW_BOOTSTRAP: Array<{
     rationale: '總部人工判斷：Furmosa Preview 示範店。不刪除、不新增核銷 slug。',
   },
 ];
+
+const PREVIEW_BOOTSTRAP = PREVIEW_ACCEPTANCE_ROWS;
 
 const DDL_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS "partner_store_identity_decisions" (
@@ -148,7 +149,7 @@ async function withDdlClient<T>(fn: (db: PrismaClient) => Promise<T>): Promise<T
 let schemaReady: Promise<void> | null = null;
 
 async function runEnsurePreviewTable() {
-  if (!isPreviewIdentityEnv()) return;
+  if (!canWritePreviewIdentityData()) return;
   await withDdlClient(async (db) => {
     for (const sql of DDL_STATEMENTS) {
       try {
@@ -172,7 +173,7 @@ async function runEnsurePreviewTable() {
 }
 
 export async function ensurePreviewIdentityTable(): Promise<void> {
-  if (!isPreviewIdentityEnv()) return;
+  if (!canWritePreviewIdentityData()) return;
   if (!schemaReady) {
     schemaReady = runEnsurePreviewTable().catch((error) => {
       schemaReady = null;
@@ -186,7 +187,7 @@ export async function seedPreviewIdentityDecisions(actor: {
   userId: string;
   email: string;
 }): Promise<number> {
-  if (!isPreviewIdentityEnv()) return 0;
+  if (!canWritePreviewIdentityData()) return 0;
   await ensurePreviewIdentityTable();
   const existing = await listIdentityDecisions('preview');
   let inserted = 0;

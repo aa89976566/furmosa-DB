@@ -1,4 +1,3 @@
-import { AddIdentityDecisionForm } from '@/components/jar-exchange/partner-store-identity-forms';
 import { VERDICT_LABEL, type PartnerStoreHumanDecision } from '@/lib/jar-exchange/partner-store-identity-decisions';
 
 function formatWhen(value: string | null): string {
@@ -8,20 +7,13 @@ function formatWhen(value: string | null): string {
 
 export function PartnerStoreIdentityHistory({
   records,
-  merchantIds,
 }: {
   records: PartnerStoreHumanDecision[];
-  merchantIds: string[];
 }) {
   return (
     <div className="px-5 py-4">
       <p className="text-sm text-navy">人工確認紀錄</p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        新增一筆不必改程式。撤銷不會刪除原紀錄。
-      </p>
-      <div className="mt-4">
-        <AddIdentityDecisionForm merchantIds={merchantIds} />
-      </div>
+      <p className="mt-1 text-sm text-muted-foreground">此區只讀，開頁不會新增或覆寫紀錄。</p>
       {records.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">目前沒有確認紀錄。</p>
       ) : (
