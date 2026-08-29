@@ -13,6 +13,7 @@ import {
 import { GROOMING_COUPON_DISCOUNT_DEFAULT, GROOMING_COUPON_DISCOUNT_ZHUWO } from '@/lib/coupons/store-discount';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
+import { previewBootstrapDecisions } from './identity-decision-fixture';
 
 function store(partial: Partial<PartnerStoreView> & Pick<PartnerStoreView, 'slug' | 'name'>): PartnerStoreView {
   return {
@@ -225,7 +226,17 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(rows[0].groomingDiscountAmount, GROOMING_COUPON_DISCOUNT_ZHUWO);
   });
 
+  it('does not merge custom slugs until an active confirmation record is provided', () => {
+    const rows = mergePartnerStoreDirectory({
+      stores: [store({ slug: 'niuniu', name: '淡水妞妞' })],
+      merchants: [merchant({ merchantId: 'MER-0010', name: '淡水妞妞', city: '新北' })],
+    });
+    assert.equal(rows.length, 2);
+    assert.equal(partnerStoreExceptionLabel(rows.find((row) => row.slug === 'niuniu')!), '待確認');
+  });
+
   it('merges HQ-confirmed slug and MER into one row and keeps Zhuwo as three stores', () => {
+    const decisions = previewBootstrapDecisions();
     const rows = mergePartnerStoreDirectory({
       stores: [
         store({ slug: 'zhuwo_banqiao', name: '豬窩 板橋店', groomingDiscountAmount: GROOMING_COUPON_DISCOUNT_ZHUWO }),
@@ -251,7 +262,7 @@ describe('mergePartnerStoreDirectory', () => {
         merchant({ merchantId: 'MER-REFILL', name: '匠寵換罐測試店' }),
         merchant({ merchantId: 'MER-DEMO', name: 'Furmosa Preview 店', types: ['flagship'] }),
       ],
-    });
+    }, decisions);
     const bySlug = Object.fromEntries(rows.map((row) => [row.slug, row]));
     assert.equal(rows.length, 9);
     assert.equal(bySlug.zhuwo_banqiao.merchantId, 'MER-0019');
@@ -266,8 +277,10 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(Boolean(bySlug.mer_refill), false);
     assert.equal(Boolean(bySlug.mer_demo), false);
     assert.equal(partnerStoreExceptionLabel(bySlug.pet99), '待確認');
+    assert.equal(bySlug.niuniu.confirmation?.decidedByAccount, 'admin@furmosa.com');
     assert.deepEqual(
       partnerStoreDirectoryStats(rows, {
+        decisions,
         storeSlugs: [
           'zhuwo_banqiao',
           'zhuwo_tucheng',

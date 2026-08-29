@@ -1,7 +1,7 @@
 /**
- * 總部人工確認與測試標記（2026-08-29）。
- * 只保存判定，不改 slug、MER、會員、折價券、訂單、點數或店員歸屬。
- * 不寫入正式資料庫。
+ * 店家身分人工確認：純判定規則。
+ * 配對與測試店名單不寫死在此；呼叫端必須傳入資料庫紀錄。
+ * 不改 slug、MER、會員、折價券、訂單、點數或店員歸屬。
  */
 
 export const OTHER_RECORD_DISPOSITIONS = [
@@ -13,207 +13,130 @@ export const OTHER_RECORD_DISPOSITIONS = [
 
 export type OtherRecordDisposition = (typeof OTHER_RECORD_DISPOSITIONS)[number];
 
+export const IDENTITY_VERDICTS = ['same_store', 'test', 'demo'] as const;
+export type PartnerStoreIdentityVerdict = (typeof IDENTITY_VERDICTS)[number];
+
+export const IDENTITY_SCOPES = ['preview', 'production'] as const;
+export type PartnerStoreIdentityScope = (typeof IDENTITY_SCOPES)[number];
+
 export const HUMAN_DECISION_REQUIRED_FIELDS = [
-  'decidedBy',
+  'merchantId',
+  'verdict',
+  'decidedByUserId',
+  'decidedByAccount',
   'decidedAt',
   'rationale',
-  'keptMerchantId',
-  'otherRecordId',
   'otherRecordDisposition',
-  'revocable',
+  'createdAt',
 ] as const;
 
 export type HumanDecisionRequiredField = (typeof HUMAN_DECISION_REQUIRED_FIELDS)[number];
 
-export type PartnerStoreDecisionKind =
-  | 'confirmed_same_store'
-  | 'test_system'
-  | 'test'
-  | 'demo';
-
 export type PartnerStoreHumanDecision = {
   id: string;
-  kind: PartnerStoreDecisionKind;
-  decidedBy: string;
+  merchantId: string;
+  legacySlug: string | null;
+  verdict: PartnerStoreIdentityVerdict;
+  decidedByUserId: string;
+  decidedByAccount: string;
+  decidedByName: string;
   decidedAt: string;
   rationale: string;
-  keptMerchantId: string;
-  legacySlug: string | null;
-  otherRecordId: string;
   otherRecordDisposition: OtherRecordDisposition;
-  revocable: true;
+  createdAt: string;
   revokedAt: string | null;
-  revokedBy: string | null;
+  revokedByUserId: string | null;
+  revokedByAccount: string | null;
+  revokeReason: string | null;
+  scope: PartnerStoreIdentityScope;
 };
 
-const HQ = '匠寵總部';
-const DECIDED_AT = '2026-08-29T21:15:00.000Z';
-
-function confirmedSameStore(
-  id: string,
-  slug: string,
-  merchantId: string,
-  rationale: string,
-): PartnerStoreHumanDecision {
-  return {
-    id,
-    kind: 'confirmed_same_store',
-    decidedBy: HQ,
-    decidedAt: DECIDED_AT,
-    rationale,
-    keptMerchantId: merchantId,
-    legacySlug: slug,
-    otherRecordId: slug,
-    otherRecordDisposition: 'keep_legacy_link',
-    revocable: true,
-    revokedAt: null,
-    revokedBy: null,
-  };
+export function identityDecisionScope(
+  env: string | undefined = process.env.VERCEL_ENV,
+): PartnerStoreIdentityScope {
+  return env === 'preview' ? 'preview' : 'production';
 }
 
-function testFlag(
-  id: string,
-  kind: Exclude<PartnerStoreDecisionKind, 'confirmed_same_store'>,
-  merchantId: string,
-  slug: string | null,
-  rationale: string,
-): PartnerStoreHumanDecision {
-  return {
-    id,
-    kind,
-    decidedBy: HQ,
-    decidedAt: DECIDED_AT,
-    rationale,
-    keptMerchantId: merchantId,
-    legacySlug: slug,
-    otherRecordId: slug ?? merchantId,
-    otherRecordDisposition: 'keep_legacy_link',
-    revocable: true,
-    revokedAt: null,
-    revokedBy: null,
-  };
+export function isPreviewIdentityEnv(
+  env: string | undefined = process.env.VERCEL_ENV,
+): boolean {
+  return env === 'preview';
 }
-
-/** 已保存的總部判定。撤銷時請用 revokeHumanDecision，不要刪列。 */
-export const SAVED_PARTNER_STORE_DECISIONS: PartnerStoreHumanDecision[] = [
-  confirmedSameStore(
-    'confirm-zhuwo-banqiao',
-    'zhuwo_banqiao',
-    'MER-0019',
-    '總部人工判斷：豬窩板橋門市。舊核銷 zhuwo_banqiao 與 MER-0019 為同一家；與土城、中和分開。',
-  ),
-  confirmedSameStore(
-    'confirm-zhuwo-tucheng',
-    'zhuwo_tucheng',
-    'MER-0020',
-    '總部人工判斷：豬窩土城門市。舊核銷 zhuwo_tucheng 與 MER-0020 為同一家；與板橋、中和分開。',
-  ),
-  confirmedSameStore(
-    'confirm-zhuwo-zhonghe',
-    'zhuwo_zhonghe',
-    'MER-0016',
-    '總部人工判斷：豬窩中和門市。舊核銷 zhuwo_zhonghe 與 MER-0016 為同一家；與板橋、土城分開。',
-  ),
-  confirmedSameStore(
-    'confirm-manlisa',
-    'manlisa',
-    'MER-0017',
-    '總部人工判斷：曼利莎寵物美容。舊核銷 manlisa 與 MER-0017 為同一家。',
-  ),
-  confirmedSameStore(
-    'confirm-niuniu',
-    'niuniu',
-    'MER-0010',
-    '總部人工判斷：淡水妞妞。舊核銷 niuniu 與 MER-0010 為同一家。',
-  ),
-  testFlag(
-    'flag-mer-other',
-    'test_system',
-    'MER-OTHER',
-    'mer_other',
-    '總部人工判斷：錯誤店家對照，系統／測試資料。不刪除。',
-  ),
-  testFlag(
-    'flag-mer-refill',
-    'test',
-    'MER-REFILL',
-    'mer_refill',
-    '總部人工判斷：匠寵換罐測試店。不刪除。測試換罐 #RFP-260729-12Z5 不計正式合作門市與營運 KPI。',
-  ),
-  testFlag(
-    'flag-mer-demo',
-    'demo',
-    'MER-DEMO',
-    null,
-    '總部人工判斷：Furmosa Preview 示範店。不刪除、不新增核銷 slug。',
-  ),
-];
 
 export function missingHumanDecisionFields(
-  input: Partial<Record<HumanDecisionRequiredField, string | boolean | undefined>>,
+  input: Partial<Record<HumanDecisionRequiredField, string | undefined>>,
 ): HumanDecisionRequiredField[] {
   return HUMAN_DECISION_REQUIRED_FIELDS.filter((field) => {
     const value = input[field];
     if (field === 'otherRecordDisposition') {
       return !OTHER_RECORD_DISPOSITIONS.includes(value as OtherRecordDisposition);
     }
-    if (field === 'revocable') return value !== true;
+    if (field === 'verdict') {
+      return !IDENTITY_VERDICTS.includes(value as PartnerStoreIdentityVerdict);
+    }
     return typeof value !== 'string' || value.trim() === '';
   });
 }
 
 export function activeHumanDecisions(
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[],
 ): PartnerStoreHumanDecision[] {
   return decisions.filter((decision) => decision.revokedAt == null);
 }
 
-/** 撤銷一筆確認：回傳新陣列，不改正式資料列。 */
+/** 撤銷一筆確認：回傳新陣列，不刪原列、不改正式店家資料。 */
 export function revokeHumanDecision(
   decisions: PartnerStoreHumanDecision[],
   id: string,
-  revokedAt: string,
-  revokedBy: string,
+  input: { revokedAt: string; revokedByUserId: string; revokedByAccount: string; revokeReason: string },
 ): PartnerStoreHumanDecision[] {
+  const reason = input.revokeReason.trim();
+  if (!reason) return decisions;
   return decisions.map((decision) => {
-    if (decision.id !== id || !decision.revocable) return decision;
-    return { ...decision, revokedAt, revokedBy };
+    if (decision.id !== id || decision.revokedAt) return decision;
+    return {
+      ...decision,
+      revokedAt: input.revokedAt,
+      revokedByUserId: input.revokedByUserId,
+      revokedByAccount: input.revokedByAccount,
+      revokeReason: reason,
+    };
   });
 }
 
 export function isOfficialExcludedMerchantId(
   merchantId: string,
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[],
 ): boolean {
   const number = merchantId.trim().toUpperCase();
   return activeHumanDecisions(decisions).some(
     (decision) =>
-      decision.keptMerchantId.toUpperCase() === number &&
-      (decision.kind === 'test' || decision.kind === 'test_system' || decision.kind === 'demo'),
+      decision.merchantId.toUpperCase() === number &&
+      (decision.verdict === 'test' || decision.verdict === 'demo'),
   );
 }
 
 export function isOfficialExcludedStoreSlug(
   slug: string,
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[],
 ): boolean {
   const key = slug.trim().toLowerCase();
   return activeHumanDecisions(decisions).some(
     (decision) =>
       decision.legacySlug?.toLowerCase() === key &&
-      (decision.kind === 'test' || decision.kind === 'test_system' || decision.kind === 'demo'),
+      (decision.verdict === 'test' || decision.verdict === 'demo'),
   );
 }
 
 export function confirmedSlugForMerchantId(
   merchantId: string,
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[],
 ): string | null {
   const number = merchantId.trim().toUpperCase();
   const hit = activeHumanDecisions(decisions).find(
     (decision) =>
-      decision.kind === 'confirmed_same_store' &&
-      decision.keptMerchantId.toUpperCase() === number &&
+      decision.verdict === 'same_store' &&
+      decision.merchantId.toUpperCase() === number &&
       decision.legacySlug,
   );
   return hit?.legacySlug ?? null;
@@ -221,14 +144,27 @@ export function confirmedSlugForMerchantId(
 
 export function confirmedMerchantIdForSlug(
   slug: string,
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[],
 ): string | null {
   const key = slug.trim().toLowerCase();
   const hit = activeHumanDecisions(decisions).find(
     (decision) =>
-      decision.kind === 'confirmed_same_store' && decision.legacySlug?.toLowerCase() === key,
+      decision.verdict === 'same_store' && decision.legacySlug?.toLowerCase() === key,
   );
-  return hit?.keptMerchantId ?? null;
+  return hit?.merchantId ?? null;
+}
+
+export function activeSameStoreDecisionForSlug(
+  slug: string,
+  decisions: PartnerStoreHumanDecision[],
+): PartnerStoreHumanDecision | null {
+  const key = slug.trim().toLowerCase();
+  return (
+    activeHumanDecisions(decisions).find(
+      (decision) =>
+        decision.verdict === 'same_store' && decision.legacySlug?.toLowerCase() === key,
+    ) ?? null
+  );
 }
 
 const MER_SLUG_RE = /^mer_(\d+)$/;
@@ -249,9 +185,9 @@ export type OfficialIdentityPair = {
 export function listOfficialOneToOnePairs(input: {
   storeSlugs: string[];
   merchantIds: string[];
-  decisions?: PartnerStoreHumanDecision[];
+  decisions: PartnerStoreHumanDecision[];
 }): OfficialIdentityPair[] {
-  const decisions = input.decisions ?? SAVED_PARTNER_STORE_DECISIONS;
+  const decisions = input.decisions;
   const slugs = new Set(input.storeSlugs.map((slug) => slug.trim().toLowerCase()));
   const numbers = new Set(input.merchantIds.map((id) => id.trim().toUpperCase()));
   const pairs: OfficialIdentityPair[] = [];
@@ -270,9 +206,9 @@ export function listOfficialOneToOnePairs(input: {
   }
 
   for (const decision of activeHumanDecisions(decisions)) {
-    if (decision.kind !== 'confirmed_same_store' || !decision.legacySlug) continue;
+    if (decision.verdict !== 'same_store' || !decision.legacySlug) continue;
     const slug = decision.legacySlug.toLowerCase();
-    const merchantId = decision.keptMerchantId.toUpperCase();
+    const merchantId = decision.merchantId.toUpperCase();
     if (!slugs.has(slug) || !numbers.has(merchantId)) continue;
     if (usedSlugs.has(slug) || usedNumbers.has(merchantId)) continue;
     if (isOfficialExcludedMerchantId(merchantId, decisions)) continue;
@@ -306,3 +242,21 @@ export function isTestOperatingRefill(input: {
   const trade = (input.providerTradeNo ?? '').trim().toUpperCase();
   return trade === 'SEED-TEST' || trade.startsWith('SEED');
 }
+
+export function shouldInsertBootstrapDecision(
+  existing: Array<Pick<PartnerStoreHumanDecision, 'merchantId' | 'legacySlug' | 'scope'>>,
+  candidate: Pick<PartnerStoreHumanDecision, 'merchantId' | 'legacySlug' | 'scope'>,
+): boolean {
+  return !existing.some(
+    (row) =>
+      row.scope === candidate.scope &&
+      row.merchantId.toUpperCase() === candidate.merchantId.toUpperCase() &&
+      (row.legacySlug ?? '').toLowerCase() === (candidate.legacySlug ?? '').toLowerCase(),
+  );
+}
+
+export const VERDICT_LABEL: Record<PartnerStoreIdentityVerdict, string> = {
+  same_store: '同一門市',
+  test: '測試',
+  demo: '示範',
+};

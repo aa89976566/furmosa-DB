@@ -1,27 +1,43 @@
 import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
+import { PartnerStoreIdentityHistory } from '@/components/jar-exchange/partner-store-identity-history';
 import { PartnerStoresDirectory } from '@/components/jar-exchange/partner-stores-directory';
 import { Button } from '@/components/ui/button';
+import { getCurrentUser } from '@/lib/auth';
+import { formatNumber } from '@/lib/format';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
 import {
   mergePartnerStoreDirectory,
   partnerStoreDirectoryStats,
 } from '@/lib/jar-exchange/partner-store-directory';
-import { formatNumber } from '@/lib/format';
+import { isPreviewIdentityEnv } from '@/lib/jar-exchange/partner-store-identity-decisions';
+import {
+  ensurePreviewIdentityTable,
+  seedPreviewIdentityDecisions,
+} from '@/lib/jar-exchange/partner-store-identity-preview';
+import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 
 export const dynamic = 'force-dynamic';
 
 export default async function JarExchangeStoresPage() {
-  const [stores, merchants] = await Promise.all([
+  const user = await getCurrentUser();
+  if (isPreviewIdentityEnv() && user) {
+    await ensurePreviewIdentityTable();
+    await seedPreviewIdentityDecisions({ userId: user.userId, email: user.email });
+  }
+
+  const [stores, merchants, records] = await Promise.all([
     listPartnerStoresFromDb(),
     listJarExchangeMerchants(),
+    listIdentityDecisions(),
   ]);
-  const rows = mergePartnerStoreDirectory({ stores, merchants });
+  const rows = mergePartnerStoreDirectory({ stores, merchants }, records);
   const stats = partnerStoreDirectoryStats(rows, {
     storeSlugs: stores.map((store) => store.slug),
     merchantIds: merchants.map((merchant) => merchant.merchantId),
+    decisions: records,
   });
 
   return (
@@ -54,11 +70,19 @@ export default async function JarExchangeStoresPage() {
             </span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            編號對不上會分開顯示。結帳只出現在可核銷店家。
+            清單只讀有效的人工確認。編號對不上會分開顯示。結帳只出現在可核銷店家。
           </p>
         </div>
         <PartnerStoresDirectory rows={rows} />
       </JarPanel>
+      <div className="mt-6">
+        <JarPanel>
+          <PartnerStoreIdentityHistory
+            records={records}
+            merchantIds={merchants.map((merchant) => merchant.merchantId)}
+          />
+        </JarPanel>
+      </div>
     </JarShell>
   );
 }

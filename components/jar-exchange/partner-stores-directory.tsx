@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { formatGroomingCouponDiscountAmount } from '@/lib/coupons/constants';
+import { RevokeIdentityDecisionForm } from '@/components/jar-exchange/partner-store-identity-forms';
 import {
   partnerStoreExceptionLabel,
   partnerStoreNeedsIdentityNote,
@@ -20,6 +21,11 @@ function StoreIdentity({ row }: { row: PartnerStoreDirectoryRow }) {
       {showSlug ? <p className="mt-1 font-mono text-xs text-muted-foreground">{row.slug}</p> : null}
       {row.namesDiffer && row.merchantName ? (
         <p className="mt-1 text-xs text-muted-foreground">後台店名 {row.merchantName}</p>
+      ) : null}
+      {row.confirmation ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          確認人 {row.confirmation.decidedByAccount}
+        </p>
       ) : null}
     </div>
   );
@@ -101,6 +107,9 @@ function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
         </p>
       </div>
       <StoreActions row={row} layout="mobile" />
+      {row.confirmation ? (
+        <RevokeIdentityDecisionForm decisionId={row.confirmation.decisionId} storeName={row.name} />
+      ) : null}
     </article>
   );
 }
@@ -137,6 +146,12 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
               </td>
               <td className="px-5 py-3">
                 <StoreActions row={row} layout="desktop" />
+                {row.confirmation ? (
+                  <RevokeIdentityDecisionForm
+                    decisionId={row.confirmation.decisionId}
+                    storeName={row.name}
+                  />
+                ) : null}
               </td>
             </tr>
           ))}

@@ -1,12 +1,12 @@
 import type { JarExchangeMerchantRow } from '@/lib/jar-exchange/partner-merchants';
 import {
+  activeSameStoreDecisionForSlug,
   confirmedMerchantIdForSlug,
   confirmedSlugForMerchantId,
   isOfficialExcludedMerchantId,
   isOfficialExcludedStoreSlug,
   listOfficialOneToOnePairs,
   type PartnerStoreHumanDecision,
-  SAVED_PARTNER_STORE_DECISIONS,
 } from '@/lib/jar-exchange/partner-store-identity-decisions';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 import type { MerchantType } from '@/lib/merchant-types';
@@ -29,6 +29,13 @@ export type PartnerStoreDirectoryRow = {
   merchantRecordId: string | null;
   merchantId: string | null;
   identityNote: PartnerStoreIdentityNote;
+  confirmation: PartnerStoreRowConfirmation | null;
+};
+
+export type PartnerStoreRowConfirmation = {
+  decisionId: string;
+  decidedByAccount: string;
+  decidedAt: string;
 };
 
 export type PartnerStoreDirectoryStats = {
@@ -116,6 +123,20 @@ function attachMerchant(
     merchantRecordId: merchant.id,
     merchantId: merchant.merchantId,
     identityNote: null,
+    confirmation: row.confirmation,
+  };
+}
+
+function rowConfirmation(
+  slug: string,
+  decisions: PartnerStoreHumanDecision[],
+): PartnerStoreRowConfirmation | null {
+  const decision = activeSameStoreDecisionForSlug(slug, decisions);
+  if (!decision) return null;
+  return {
+    decisionId: decision.id,
+    decidedByAccount: decision.decidedByAccount,
+    decidedAt: decision.decidedAt,
   };
 }
 
@@ -125,7 +146,7 @@ export function mergePartnerStoreDirectory(
     stores: PartnerStoreView[];
     merchants: JarExchangeMerchantRow[];
   },
-  decisions: PartnerStoreHumanDecision[] = SAVED_PARTNER_STORE_DECISIONS,
+  decisions: PartnerStoreHumanDecision[] = [],
 ): PartnerStoreDirectoryRow[] {
   const rows = new Map<string, PartnerStoreDirectoryRow>();
 
@@ -147,6 +168,7 @@ export function mergePartnerStoreDirectory(
       merchantRecordId: null,
       merchantId: confirmedMerchantId,
       identityNote: confirmedMerchantId ? null : 'needs_review',
+      confirmation: rowConfirmation(slug, decisions),
     });
   }
 
@@ -175,6 +197,7 @@ export function mergePartnerStoreDirectory(
       merchantRecordId: merchant.id,
       merchantId: merchant.merchantId,
       identityNote: null,
+      confirmation: null,
     });
   }
 
@@ -196,7 +219,11 @@ export function partnerStoreDirectoryStats(
   },
 ): PartnerStoreDirectoryStats {
   const officialOneToOneCount = input
-    ? listOfficialOneToOnePairs(input).length
+    ? listOfficialOneToOnePairs({
+        storeSlugs: input.storeSlugs,
+        merchantIds: input.merchantIds,
+        decisions: input.decisions ?? [],
+      }).length
     : rows.filter((row) => row.canRedeem && row.hasJarExchangeMerchant).length;
   return {
     total: rows.length,
