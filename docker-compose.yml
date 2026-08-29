@@ -1,0 +1,18 @@
+# 本機測試 Postgres。不要接到 Vercel，也不要填正式 Supabase 網址。
+# 若 Docker Desktop 已有容器 furmosa-pos-se 在跑，不要再執行 docker compose up。
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: furmosa-pos-se
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: furmosa
+    volumes:
+      - furmosa_pos_pgdata:/var/lib/postgresql/data
+
+volumes:
+  furmosa_pos_pgdata:
