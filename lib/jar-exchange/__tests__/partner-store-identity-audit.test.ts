@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  findRecordsInMultipleClasses,
   formatAuditReportMarkdown,
   summarizePartnerStoreIdentityAudit,
   type PartnerStoreIdentityAuditSnapshot,
 } from '@/lib/jar-exchange/partner-store-identity-audit';
+
+const meta = {
+  environmentName: 'unit-test',
+  dataSource: 'unit-test' as const,
+  databaseConfigured: false,
+  queriedLiveData: false,
+};
 
 function snapshot(partial: Partial<PartnerStoreIdentityAuditSnapshot> = {}): PartnerStoreIdentityAuditSnapshot {
   return {
@@ -72,51 +80,97 @@ function snapshot(partial: Partial<PartnerStoreIdentityAuditSnapshot> = {}): Par
   };
 }
 
-describe('partner store identity read-only audit', () => {
-  it('reconciles all records into four mutually exclusive classes', () => {
-    const report = summarizePartnerStoreIdentityAudit(snapshot(), {
-      checkedAt: new Date('2026-08-29T16:00:00.000Z'),
-      environmentName: 'unit-test',
-      databaseConfigured: false,
-      queriedLiveData: false,
-    });
-
-    assert.equal(report.totals.redeemStoreCount, 3);
-    assert.equal(report.totals.merchantMasterCount, 2);
-    assert.equal(report.totals.allRecordCount, 5);
-    assert.equal(report.storeIdentity.exclusive, true);
-    assert.equal(report.storeIdentity.recordsCountedInMultipleClasses, 0);
-    assert.equal(report.storeIdentity.reconcilable, true);
-    const { byClass } = report.storeIdentity;
-    assert.equal(
-      byClass.one_to_one + byClass.needs_review + byClass.conflict + byClass.orphan,
-      report.totals.allRecordCount,
-    );
-    assert.equal(report.storeIdentity.storeByClass.one_to_one, 1);
-    assert.equal(report.storeIdentity.storeByClass.needs_review, 1);
-    assert.equal(report.storeIdentity.storeByClass.orphan, 1);
+function sixPairedStores(): PartnerStoreIdentityAuditSnapshot {
+  const stores = Array.from({ length: 6 }, (_, index) => {
+    const n = String(index + 1).padStart(4, '0');
+    return { id: `s${n}`, slug: `mer_${n}`, name: `門市${n}` };
   });
+  const merchants = stores.map((store, index) => ({
+    id: `m${index + 1}`,
+    merchantId: `MER-${String(index + 1).padStart(4, '0')}`,
+    name: store.name,
+    city: null,
+    address: null,
+    status: 'active' as const,
+    types: ['jar_exchange' as const],
+  }));
+  return {
+    stores,
+    merchants,
+    merchantUsers: [],
+    refillOrders: [],
+    coupons: [],
+    customers: [],
+  };
+}
 
-  it('keeps member/LINE stats separate and never prints PII', () => {
-    const report = summarizePartnerStoreIdentityAudit(snapshot(), {
-      environmentName: 'unit-test',
-      databaseConfigured: false,
-      queriedLiveData: false,
+describe('partner store identity read-only audit units', () => {
+  it('separates records, pairs, isolated rows, and confirmed stores', () => {
+    const report = summarizePartnerStoreIdentityAudit(sixPairedStores(), {
+      ...meta,
+      checkedAt: new Date('2026-08-29T16:00:00.000Z'),
     });
-    assert.equal(report.membersAndLine.separateFromStoreIdentity, true);
-    assert.equal(report.membersAndLine.duplicatePhoneGroups, 1);
-    assert.equal(report.membersAndLine.duplicateLineGroups, 1);
-    assert.equal(report.supplementalSeven.overlapping, true);
-    assert.ok(report.supplementalSeven.items.every((item) => item.key !== '4'));
+    assert.equal(report.valid, true);
+    assert.equal(report.decisionReady, false);
+    assert.equal(report.totals.merchantMasterCount, 6);
+    assert.equal(report.totals.redeemStoreCount, 6);
+    assert.equal(report.storeIdentity.byClass.one_to_one, 12);
+    assert.equal(report.storeIdentity.oneToOnePairCount, 6);
+    assert.equal(report.storeIdentity.oneToOneCanDivideByTwo, true);
+    assert.equal(report.storeIdentity.confirmedStores, 6);
+    assert.equal(report.storeIdentity.orphanMasters, 0);
+    assert.equal(report.storeIdentity.orphanRedeemStores, 0);
 
     const markdown = formatAuditReportMarkdown(report);
-    assert.match(markdown, /全部資料＝一對一＋待確認＋衝突＋孤立/);
-    assert.match(markdown, /會員／LINE（獨立/);
+    assert.match(markdown, /原始資料總筆數＝一對一資料筆數＋待確認資料筆數＋衝突資料筆數＋孤立資料筆數/);
+    assert.match(markdown, /一對一門市組數＝一對一資料筆數 ÷ 2/);
+    assert.match(markdown, /已確認一對一門市：6 間/);
+    assert.doesNotMatch(markdown, /一對一 12 間/);
+  });
+
+  it('keeps mixed rows reconcilable and never prints PII', () => {
+    const report = summarizePartnerStoreIdentityAudit(snapshot(), meta);
+    assert.equal(report.valid, true);
+    assert.equal(report.storeIdentity.oneToOnePairCount, 1);
+    assert.equal(report.storeIdentity.confirmedStores, 1);
+    assert.equal(report.storeIdentity.needsReviewGroupCount, 1);
+    assert.equal(report.storeIdentity.orphanRedeemStores, 1);
+    assert.equal(report.membersAndLine.separateFromStoreIdentity, true);
+
+    const markdown = formatAuditReportMarkdown(report);
+    assert.match(markdown, /對帳通過，但不是正式決策數字/);
     assert.doesNotMatch(markdown, /0900|U[0-9a-f]{32}|淡水妞妞/);
     assert.match(markdown, /furmosa-0002|MER-0018|niuniu/);
   });
 
-  it('marks conflict subtypes that can exceed the exclusive conflict count', () => {
+  it('invalidates the whole report when one record has two main classes', () => {
+    const dups = findRecordsInMultipleClasses(
+      [
+        { storeId: 's1', slug: 'mer_0018', class: 'one_to_one', reasons: [], candidateIds: ['MER-0018'] },
+        { storeId: 's1', slug: 'mer_0018', class: 'conflict', reasons: [], candidateIds: [] },
+      ],
+      [],
+    );
+    assert.equal(dups.length, 1);
+    const markdown = formatAuditReportMarkdown(
+      summarizePartnerStoreIdentityAudit(snapshot(), meta),
+    );
+    assert.doesNotMatch(markdown, /報告無效/);
+    const invalidMarkdown = formatAuditReportMarkdown({
+      ...summarizePartnerStoreIdentityAudit(snapshot(), meta),
+      valid: false,
+      decisionReady: false,
+      invalidReasons: ['主分類重複：同一筆資料進入兩個主分類'],
+      storeIdentity: {
+        ...summarizePartnerStoreIdentityAudit(snapshot(), meta).storeIdentity,
+        duplicateClassRefs: [{ kind: 'store', id: 'mer_0018' }],
+      },
+    });
+    assert.match(invalidMarkdown, /報告無效，不輸出可供決策的正式數字/);
+    assert.doesNotMatch(invalidMarkdown, /已確認一對一門市：/);
+  });
+
+  it('allows conflict-reason overlap without invalidating exclusive classes', () => {
     const report = summarizePartnerStoreIdentityAudit(
       snapshot({
         stores: [
@@ -144,14 +198,10 @@ describe('partner store identity read-only audit', () => {
           },
         ],
       }),
-      {
-        environmentName: 'unit-test',
-        databaseConfigured: false,
-        queriedLiveData: false,
-      },
+      meta,
     );
-    assert.ok(report.conflictSubtypes.duplicateSlug >= 2);
-    assert.ok(report.conflictSubtypes.twoNumbersOneSlug >= 2);
-    assert.equal(report.conflictSubtypes.mayExceedConflictCount, true);
+    assert.equal(report.valid, true);
+    assert.ok(report.conflictSubtypes.mayExceedConflictCount);
+    assert.ok(report.conflictSubtypes.subtypeSum > report.storeIdentity.byClass.conflict);
   });
 });

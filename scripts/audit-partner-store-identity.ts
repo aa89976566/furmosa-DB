@@ -75,6 +75,7 @@ async function main() {
       },
       {
         environmentName,
+        dataSource: 'unavailable',
         databaseConfigured: false,
         queriedLiveData: false,
       },
@@ -179,6 +180,10 @@ async function main() {
       },
       {
         environmentName,
+        dataSource:
+          process.env.AUDIT_DATA_SOURCE === 'replica'
+            ? 'production_readonly_replica'
+            : 'production',
         databaseConfigured: true,
         queriedLiveData: true,
       },
@@ -186,9 +191,12 @@ async function main() {
 
     if (process.argv.includes('--json')) {
       process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-      return;
+    } else {
+      process.stdout.write(formatAuditReportMarkdown(report));
     }
-    process.stdout.write(formatAuditReportMarkdown(report));
+    if (!report.valid) {
+      process.exitCode = 3;
+    }
   } finally {
     await prisma.$disconnect();
   }

@@ -51,13 +51,28 @@ export type PartnerStoreIdentityAuditSnapshot = {
   }>;
 };
 
+export type DataSourceKind =
+  | 'production'
+  | 'production_readonly_replica'
+  | 'unavailable'
+  | 'unit-test';
+
+export type IdentityPair = {
+  slug: string;
+  merchantId: string;
+};
+
 export type PartnerStoreIdentityAuditReport = {
   checkedAt: string;
   environment: {
     name: string;
+    dataSource: DataSourceKind;
     databaseConfigured: boolean;
     queriedLiveData: boolean;
   };
+  valid: boolean;
+  decisionReady: boolean;
+  invalidReasons: string[];
   totals: {
     merchantMasterCount: number;
     redeemStoreCount: number;
@@ -66,11 +81,21 @@ export type PartnerStoreIdentityAuditReport = {
   storeIdentity: {
     exclusive: boolean;
     recordsCountedInMultipleClasses: number;
+    duplicateClassRefs: AnonymousRef[];
     byClass: ClassCount;
     storeByClass: ClassCount;
     merchantByClass: ClassCount;
     reconcilable: boolean;
-    formula: string;
+    recordFormula: string;
+    pairFormula: string;
+    oneToOnePairs: IdentityPair[];
+    oneToOnePairCount: number;
+    oneToOneCanDivideByTwo: boolean;
+    needsReviewGroupCount: number;
+    conflictGroupCount: number;
+    orphanMasters: number;
+    orphanRedeemStores: number;
+    confirmedStores: number;
   };
   conflictSubtypes: ConflictSubtypeCount & {
     note: string;
@@ -128,6 +153,96 @@ function countByClass<T extends { class: IdentityClass; storeId?: string; mercha
     addClass(byClass, row.class);
   }
   return { byClass, recordsCountedInMultipleClasses };
+}
+
+export function findRecordsInMultipleClasses(
+  stores: ClassifiedStore[],
+  merchants: ClassifiedMerchant[],
+): AnonymousRef[] {
+  const storeSeen = new Map<string, IdentityClass>();
+  const merchantSeen = new Map<string, IdentityClass>();
+  const dups: AnonymousRef[] = [];
+  for (const row of stores) {
+    const previous = storeSeen.get(row.storeId);
+    if (previous && previous !== row.class) {
+      dups.push({ kind: 'store', id: row.slug });
+    }
+    storeSeen.set(row.storeId, row.class);
+  }
+  for (const row of merchants) {
+    const previous = merchantSeen.get(row.merchantRecordId);
+    if (previous && previous !== row.class) {
+      dups.push({ kind: 'merchant', id: row.merchantId });
+    }
+    merchantSeen.set(row.merchantRecordId, row.class);
+  }
+  return dups;
+}
+
+export function buildOneToOnePairs(
+  stores: ClassifiedStore[],
+  merchants: ClassifiedMerchant[],
+): IdentityPair[] {
+  const merchantsByNumber = new Map(
+    merchants.filter((row) => row.class === 'one_to_one').map((row) => [row.merchantId, row]),
+  );
+  const pairs: IdentityPair[] = [];
+  const usedMerchants = new Set<string>();
+  for (const store of stores) {
+    if (store.class !== 'one_to_one') continue;
+    const merchantId = store.candidateIds[0];
+    if (!merchantId) continue;
+    const merchant = merchantsByNumber.get(merchantId);
+    if (!merchant || usedMerchants.has(merchant.merchantId)) continue;
+    if (!merchant.candidateIds.includes(store.slug)) continue;
+    usedMerchants.add(merchant.merchantId);
+    pairs.push({ slug: store.slug, merchantId: merchant.merchantId });
+  }
+  return pairs;
+}
+
+function countLinkedGroups(
+  stores: ClassifiedStore[],
+  merchants: ClassifiedMerchant[],
+  identityClass: IdentityClass,
+): number {
+  const storeNodes = stores.filter((row) => row.class === identityClass);
+  const merchantNodes = merchants.filter((row) => row.class === identityClass);
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    const current = parent.get(id) ?? id;
+    if (current === id) return id;
+    const root = find(current);
+    parent.set(id, root);
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  for (const store of storeNodes) parent.set(`s:${store.storeId}`, `s:${store.storeId}`);
+  for (const merchant of merchantNodes) {
+    parent.set(`m:${merchant.merchantRecordId}`, `m:${merchant.merchantRecordId}`);
+  }
+  for (const store of storeNodes) {
+    for (const merchantId of store.candidateIds) {
+      const merchant = merchantNodes.find((row) => row.merchantId === merchantId);
+      if (merchant) union(`s:${store.storeId}`, `m:${merchant.merchantRecordId}`);
+    }
+  }
+  for (const merchant of merchantNodes) {
+    for (const slug of merchant.candidateIds) {
+      const store = storeNodes.find((row) => row.slug === slug);
+      if (store) union(`m:${merchant.merchantRecordId}`, `s:${store.storeId}`);
+    }
+  }
+  const sizes = new Map<string, number>();
+  for (const id of parent.keys()) {
+    const root = find(id);
+    sizes.set(root, (sizes.get(root) ?? 0) + 1);
+  }
+  return [...sizes.values()].filter((size) => size >= 2).length;
 }
 
 function groupBy<T>(rows: T[], keyOf: (row: T) => string): Map<string, T[]> {
@@ -473,6 +588,7 @@ export function summarizePartnerStoreIdentityAudit(
   meta: {
     checkedAt?: Date;
     environmentName: string;
+    dataSource: DataSourceKind;
     databaseConfigured: boolean;
     queriedLiveData: boolean;
   },
@@ -490,8 +606,31 @@ export function summarizePartnerStoreIdentityAudit(
     orphan: storeCount.byClass.orphan + merchantCount.byClass.orphan,
   };
   const allRecordCount = snapshot.stores.length + snapshot.merchants.length;
-  const recordsCountedInMultipleClasses =
-    storeCount.recordsCountedInMultipleClasses + merchantCount.recordsCountedInMultipleClasses;
+  const duplicateClassRefs = findRecordsInMultipleClasses(
+    classified.stores,
+    classified.merchants,
+  );
+  const recordsCountedInMultipleClasses = duplicateClassRefs.length;
+  const oneToOnePairs = buildOneToOnePairs(classified.stores, classified.merchants);
+  const oneToOneRecordCount = combined.one_to_one;
+  const oneToOneCanDivideByTwo =
+    oneToOnePairs.length * 2 === oneToOneRecordCount &&
+    storeCount.byClass.one_to_one === oneToOnePairs.length &&
+    merchantCount.byClass.one_to_one === oneToOnePairs.length;
+  const unpairedOneToOne =
+    storeCount.byClass.one_to_one !== oneToOnePairs.length ||
+    merchantCount.byClass.one_to_one !== oneToOnePairs.length;
+  const invalidReasons: string[] = [];
+  if (recordsCountedInMultipleClasses > 0) {
+    invalidReasons.push('主分類重複：同一筆資料進入兩個主分類');
+  }
+  if (unpairedOneToOne) {
+    invalidReasons.push('一對一資料無法配成「一筆主檔＋一筆核銷店」');
+  }
+  if (sumClassCount(combined) !== allRecordCount) {
+    invalidReasons.push('四類資料筆數加總不等於原始資料總筆數');
+  }
+  const valid = invalidReasons.length === 0;
   const subtypes = countConflictSubtypes(snapshot);
   const subtypeSum =
     subtypes.duplicateSlug +
@@ -544,9 +683,13 @@ export function summarizePartnerStoreIdentityAudit(
     checkedAt: (meta.checkedAt ?? new Date()).toISOString(),
     environment: {
       name: meta.environmentName,
+      dataSource: meta.dataSource,
       databaseConfigured: meta.databaseConfigured,
       queriedLiveData: meta.queriedLiveData,
     },
+    valid,
+    decisionReady: valid && meta.queriedLiveData && meta.dataSource !== 'unavailable',
+    invalidReasons,
     totals: {
       merchantMasterCount: snapshot.merchants.length,
       redeemStoreCount: snapshot.stores.length,
@@ -555,11 +698,25 @@ export function summarizePartnerStoreIdentityAudit(
     storeIdentity: {
       exclusive: recordsCountedInMultipleClasses === 0,
       recordsCountedInMultipleClasses,
+      duplicateClassRefs,
       byClass: combined,
       storeByClass: storeCount.byClass,
       merchantByClass: merchantCount.byClass,
-      reconcilable: sumClassCount(combined) === allRecordCount && recordsCountedInMultipleClasses === 0,
-      formula: '全部資料＝一對一＋待確認＋衝突＋孤立',
+      reconcilable: valid && sumClassCount(combined) === allRecordCount,
+      recordFormula: '原始資料總筆數＝一對一資料筆數＋待確認資料筆數＋衝突資料筆數＋孤立資料筆數',
+      pairFormula: '一對一門市組數＝一對一資料筆數 ÷ 2（僅當每組是一筆主檔加一筆核銷店）',
+      oneToOnePairs,
+      oneToOnePairCount: oneToOnePairs.length,
+      oneToOneCanDivideByTwo,
+      needsReviewGroupCount: countLinkedGroups(
+        classified.stores,
+        classified.merchants,
+        'needs_review',
+      ),
+      conflictGroupCount: countLinkedGroups(classified.stores, classified.merchants, 'conflict'),
+      orphanMasters: merchantCount.byClass.orphan,
+      orphanRedeemStores: storeCount.byClass.orphan,
+      confirmedStores: oneToOnePairs.length,
     },
     conflictSubtypes: {
       ...subtypes,
@@ -586,32 +743,85 @@ function classLine(count: ClassCount): string {
   return `${identityClassLabel.one_to_one} ${count.one_to_one}、${identityClassLabel.needs_review} ${count.needs_review}、${identityClassLabel.conflict} ${count.conflict}、${identityClassLabel.orphan} ${count.orphan}`;
 }
 
+function dataSourceLabel(source: DataSourceKind): string {
+  if (source === 'production') return '正式庫';
+  if (source === 'production_readonly_replica') return '正式唯讀副本';
+  if (source === 'unit-test') return '單元測試資料';
+  return '無法使用正式連線';
+}
+
 export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditReport): string {
-  const lines = [
+  const header = [
     '# 店家身分只讀統計',
     '',
-    `檢查時間：${report.checkedAt}`,
+    `檢查時間／資料快照：${report.checkedAt}`,
     `檢查環境：${report.environment.name}`,
-    `資料庫：${report.environment.databaseConfigured ? '已設定 PostgreSQL' : '未設定可用連線'}`,
+    `資料來源：${dataSourceLabel(report.environment.dataSource)}`,
     `是否查到正式資料：${report.environment.queriedLiveData ? '是' : '否'}`,
     '',
     '判定層只分類，不執行。待確認的「禁止新增功能」只是原因文字，尚未接入開通流程。',
     '',
-    '## 對帳（店家身分，互斥）',
+  ];
+
+  if (!report.valid) {
+    return [
+      ...header,
+      '**報告無效，不輸出可供決策的正式數字。**',
+      '',
+      ...report.invalidReasons.map((reason) => `- ${reason}`),
+      '',
+      report.storeIdentity.duplicateClassRefs.length > 0
+        ? `主分類重複的匿名編號：${report.storeIdentity.duplicateClassRefs
+            .map((ref) => `${ref.kind}:${ref.id}`)
+            .join(', ')}`
+        : '',
+      '',
+    ]
+      .filter((line, index, rows) => line !== '' || rows[index - 1] !== '')
+      .join('\n')
+      .concat('\n');
+  }
+
+  const { storeIdentity: identity } = report;
+  const lines = [
+    ...header,
+    `報告是否完整通過對帳：${report.decisionReady ? '是，可供判斷' : '對帳通過，但不是正式決策數字'}`,
     '',
-    `- 店家主檔：${report.totals.merchantMasterCount}`,
-    `- 舊核銷店：${report.totals.redeemStoreCount}`,
-    `- 全部資料：${report.totals.allRecordCount}`,
-    `- 主分類：${classLine(report.storeIdentity.byClass)}`,
-    `- 公式：${report.storeIdentity.formula}`,
-    `- 對得上：${report.storeIdentity.reconcilable ? '是' : '否'}`,
-    `- 分類互斥：${report.storeIdentity.exclusive ? '是' : '否'}`,
-    `- 同一筆被算進多個主分類：${report.storeIdentity.recordsCountedInMultipleClasses}`,
+    '## 原始資料（筆）',
     '',
-    `核銷店：${classLine(report.storeIdentity.storeByClass)}`,
-    `店家主檔：${classLine(report.storeIdentity.merchantByClass)}`,
+    `- 店家主檔：${report.totals.merchantMasterCount} 筆`,
+    `- 舊核銷店：${report.totals.redeemStoreCount} 筆`,
+    `- 原始資料總筆數：${report.totals.allRecordCount} 筆`,
     '',
-    '## 衝突分項',
+    '## 四類資料筆數（互斥）',
+    '',
+    `- 一對一資料：${identity.byClass.one_to_one} 筆`,
+    `- 待確認資料：${identity.byClass.needs_review} 筆`,
+    `- 衝突資料：${identity.byClass.conflict} 筆`,
+    `- 孤立資料：${identity.byClass.orphan} 筆`,
+    `- 公式：${identity.recordFormula}`,
+    `- 對得上：${identity.reconcilable ? '是' : '否'}`,
+    `- 主分類重複：${identity.recordsCountedInMultipleClasses}（必須為 0）`,
+    '',
+    '## 對應關係（組）',
+    '',
+    `- 一對一：${identity.oneToOnePairCount} 組`,
+    `- 待確認：${identity.needsReviewGroupCount} 組`,
+    `- 衝突：${identity.conflictGroupCount} 組`,
+    `- ${identity.pairFormula}`,
+    `- 可除以二：${identity.oneToOneCanDivideByTwo ? '是' : '否'}`,
+    '',
+    '## 單獨資料（筆）',
+    '',
+    `- 孤立主檔：${identity.orphanMasters} 筆`,
+    `- 孤立核銷店：${identity.orphanRedeemStores} 筆`,
+    '',
+    '## 實際門市（間）',
+    '',
+    `- 已確認一對一門市：${identity.confirmedStores} 間`,
+    '- 待確認與衝突不計入實際門市，也不猜測。',
+    '',
+    '## 衝突原因分項（可重複計數）',
     '',
     report.conflictSubtypes.note,
     '',
@@ -620,7 +830,7 @@ export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditRepor
     `- 兩個編號對同一 slug：${report.conflictSubtypes.twoNumbersOneSlug}`,
     `- 兩個 slug 對同一編號：${report.conflictSubtypes.twoSlugsOneNumber}`,
     `- 一對多／多對一：${report.conflictSubtypes.oneToMany}`,
-    `- 分項合計：${report.conflictSubtypes.subtypeSum}${report.conflictSubtypes.mayExceedConflictCount ? '（大於衝突數，已標示）' : ''}`,
+    `- 分項合計：${report.conflictSubtypes.subtypeSum}${report.conflictSubtypes.mayExceedConflictCount ? '（大於衝突資料筆數，已標示）' : ''}`,
     '',
     '## 七項補充（可重複計數，不列入對帳）',
     '',
