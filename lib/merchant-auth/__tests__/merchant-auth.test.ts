@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   authenticateMerchantCredentials,
   buildMerchantSessionClaims,
+  merchantSessionHours,
+  merchantSessionMaxAgeSeconds,
   readMerchantSession,
   signMerchantSession,
   MERCHANT_SESSION_TYPE,
@@ -64,6 +66,11 @@ describe('merchant session JWT', () => {
       hours: 2,
     });
     assert.equal(claims.expiresAt - claims.issuedAt, 2 * 60 * 60);
+  });
+
+  it('keeps POS sessions for 30 days by default, independent of HQ', () => {
+    assert.equal(merchantSessionHours(), 720);
+    assert.equal(merchantSessionMaxAgeSeconds(), 720 * 60 * 60);
   });
 });
 
@@ -174,6 +181,14 @@ describe('middleware guards (HQ vs POS cookies do not elevate)', () => {
     if (d.action === 'redirect') assert.equal(d.pathname, '/pos');
   });
 
+  it('lets unauthenticated POS login submit through', () => {
+    const d = decidePosAccess({
+      pathname: '/pos/login/submit',
+      hasMerchantSession: false,
+    });
+    assert.equal(d.action, 'next');
+  });
+
   it('12. HQ login still redirects authenticated HQ to dashboard', () => {
     const d = decideHqAccess({
       pathname: '/login',
@@ -182,6 +197,15 @@ describe('middleware guards (HQ vs POS cookies do not elevate)', () => {
     });
     assert.equal(d.action, 'redirect');
     if (d.action === 'redirect') assert.equal(d.pathname, '/dashboard');
+  });
+
+  it('lets unauthenticated HQ login submit through when public', () => {
+    const d = decideHqAccess({
+      pathname: '/login/submit',
+      hasHqSession: false,
+      isPublic: true,
+    });
+    assert.equal(d.action, 'next');
   });
 });
 

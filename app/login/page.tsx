@@ -8,7 +8,7 @@ export const metadata = {
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams: { next?: string };
+  searchParams: { next?: string; error?: string; email?: string };
 }) {
   return (
     <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[1.05fr_0.95fr]">
@@ -44,7 +44,11 @@ export default function LoginPage({
               <p className="text-sm text-muted-foreground">總部管理系統</p>
             </div>
           </div>
-          <LoginForm next={searchParams.next} />
+          <LoginForm
+            next={searchParams.next}
+            error={searchParams.error}
+            email={searchParams.email}
+          />
           <div className="rounded-2xl border border-border/70 bg-card p-4 text-xs text-muted-foreground shadow-card">
             <p className="font-medium text-foreground">
               請使用管理員提供的帳號登入；無法登入請聯絡系統管理員。

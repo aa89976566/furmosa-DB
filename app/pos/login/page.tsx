@@ -7,7 +7,7 @@ export const metadata = {
 export default function PosLoginPage({
   searchParams,
 }: {
-  searchParams: { next?: string };
+  searchParams: { next?: string; error?: string; username?: string };
 }) {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10">
@@ -21,7 +21,11 @@ export default function PosLoginPage({
           <p className="mt-1 text-sm text-muted-foreground">請使用總部提供的店家帳號</p>
         </div>
       </div>
-      <PosLoginForm next={searchParams.next} />
+      <PosLoginForm
+        next={searchParams.next}
+        error={searchParams.error}
+        username={searchParams.username}
+      />
       <p className="mt-6 text-center text-xs text-muted-foreground">
         問題請聯繫 Furmosa 總部
       </p>
