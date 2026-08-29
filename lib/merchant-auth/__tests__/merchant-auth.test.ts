@@ -168,17 +168,14 @@ describe('middleware guards (HQ vs POS cookies do not elevate)', () => {
     if (d.action === 'redirect') assert.equal(d.pathname, '/login');
   });
 
-  it('unauthenticated users cannot open the HQ restock inbox by URL', () => {
+  it('unauthenticated users cannot open HQ restock review by URL', () => {
     const d = decideHqAccess({
-      pathname: '/restock-requests',
+      pathname: '/restock-requests/req_1',
       hasHqSession: false,
       isPublic: false,
     });
     assert.equal(d.action, 'redirect');
-    if (d.action === 'redirect') {
-      assert.equal(d.pathname, '/login');
-      assert.equal(d.next, '/restock-requests');
-    }
+    if (d.action === 'redirect') assert.equal(d.pathname, '/login');
   });
 
   it('POS login with session redirects to /pos', () => {

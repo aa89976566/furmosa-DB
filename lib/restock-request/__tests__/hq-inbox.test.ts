@@ -20,6 +20,7 @@ import {
   hqRestockInboxEmptyMessage,
   hqRestockInboxListWhere,
   hqRestockInboxRevalidatePaths,
+  hqRestockReviewRevalidatePaths,
   hqRestockInboxSearchWhere,
   hqRestockInboxStatusesForFilter,
   hqRestockRequestDetailHref,
@@ -169,6 +170,16 @@ describe('HQ restock inbox list presentation', () => {
     assert.equal(hqRestockInboxEmptyMessage('pending'), '目前沒有待處理的補貨申請。');
     assert.equal(HQ_RESTOCK_INBOX_PATH, '/restock-requests');
     assert.deepEqual(hqRestockInboxRevalidatePaths(), ['/restock-requests']);
+  });
+
+  it('review success refreshes inbox, detail, and POS progress without a site-wide purge', () => {
+    assert.deepEqual(hqRestockReviewRevalidatePaths('abc123'), [
+      '/restock-requests',
+      '/restock-requests/abc123',
+      '/pos/restock',
+      '/pos/restock/progress',
+      '/pos/restock/abc123',
+    ]);
   });
 });
 

@@ -242,6 +242,18 @@ export function hqRestockInboxRevalidatePaths(): string[] {
   return [HQ_RESTOCK_INBOX_PATH];
 }
 
+/** 審核成功後精準刷新：收件匣、詳情、店家進度。不含全站 purge。 */
+export function hqRestockReviewRevalidatePaths(requestId: string): string[] {
+  const id = requestId.trim();
+  return [
+    HQ_RESTOCK_INBOX_PATH,
+    `${HQ_RESTOCK_INBOX_PATH}/${id}`,
+    '/pos/restock',
+    '/pos/restock/progress',
+    `/pos/restock/${id}`,
+  ];
+}
+
 export function hqRestockInboxEmptyMessage(filter: HqRestockInboxFilter): string {
   if (filter === 'pending') return '目前沒有待處理的補貨申請。';
   if (filter === 'processing') return '目前沒有處理中的補貨申請。';
