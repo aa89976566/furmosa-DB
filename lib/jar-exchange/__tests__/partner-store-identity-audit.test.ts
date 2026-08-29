@@ -118,14 +118,16 @@ describe('partner store identity read-only audit units', () => {
     assert.equal(report.storeIdentity.byClass.one_to_one, 12);
     assert.equal(report.storeIdentity.oneToOnePairCount, 6);
     assert.equal(report.storeIdentity.oneToOneCanDivideByTwo, true);
-    assert.equal(report.storeIdentity.confirmedStores, 6);
+    assert.equal(report.storeIdentity.confirmedOneToOneStores, 6);
     assert.equal(report.storeIdentity.orphanMasters, 0);
     assert.equal(report.storeIdentity.orphanRedeemStores, 0);
 
     const markdown = formatAuditReportMarkdown(report);
     assert.match(markdown, /原始資料總筆數＝一對一資料筆數＋待確認資料筆數＋衝突資料筆數＋孤立資料筆數/);
     assert.match(markdown, /一對一門市組數＝一對一資料筆數 ÷ 2/);
-    assert.match(markdown, /已確認一對一門市：6 間/);
+    assert.match(markdown, /已確認一對一門市：6 間（可直接確認）/);
+    assert.match(markdown, /實際合作門市總數：暫時未知/);
+    assert.doesNotMatch(markdown, /## 實際門市/);
     assert.doesNotMatch(markdown, /一對一 12 間/);
   });
 
@@ -136,13 +138,15 @@ describe('partner store identity read-only audit units', () => {
     });
     assert.equal(report.valid, true);
     assert.equal(report.storeIdentity.oneToOnePairCount, 1);
-    assert.equal(report.storeIdentity.confirmedStores, 1);
+    assert.equal(report.storeIdentity.confirmedOneToOneStores, 1);
     assert.equal(report.storeIdentity.needsReviewGroupCount, 1);
     assert.equal(report.storeIdentity.orphanRedeemStores, 1);
     assert.equal(report.membersAndLine.separateFromStoreIdentity, true);
 
     const markdown = formatAuditReportMarkdown(report);
-    assert.match(markdown, /已確認一對一門市：1 間/);
+    assert.match(markdown, /已確認一對一門市：1 間（可直接確認）/);
+    assert.match(markdown, /待確認門市關係：1 組（尚需總部判斷）/);
+    assert.match(markdown, /實際合作門市總數：暫時未知/);
     assert.match(markdown, /報告是否完整通過對帳：是，可供判斷/);
 
     const notLive = formatAuditReportMarkdown(summarizePartnerStoreIdentityAudit(snapshot(), meta));

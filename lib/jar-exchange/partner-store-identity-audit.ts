@@ -95,7 +95,7 @@ export type PartnerStoreIdentityAuditReport = {
     conflictGroupCount: number;
     orphanMasters: number;
     orphanRedeemStores: number;
-    confirmedStores: number;
+    confirmedOneToOneStores: number;
   };
   conflictSubtypes: ConflictSubtypeCount & {
     note: string;
@@ -716,7 +716,7 @@ export function summarizePartnerStoreIdentityAudit(
       conflictGroupCount: countLinkedGroups(classified.stores, classified.merchants, 'conflict'),
       orphanMasters: merchantCount.byClass.orphan,
       orphanRedeemStores: storeCount.byClass.orphan,
-      confirmedStores: oneToOnePairs.length,
+      confirmedOneToOneStores: oneToOnePairs.length,
     },
     conflictSubtypes: {
       ...subtypes,
@@ -826,10 +826,12 @@ export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditRepor
     `- 孤立主檔：${identity.orphanMasters} 筆`,
     `- 孤立核銷店：${identity.orphanRedeemStores} 筆`,
     '',
-    '## 實際門市（間）',
+    '## 已確認一對一門市',
     '',
-    `- 已確認一對一門市：${identity.confirmedStores} 間`,
-    '- 待確認與衝突不計入實際門市，也不猜測。',
+    `- 已確認一對一門市：${identity.confirmedOneToOneStores} 間（可直接確認）`,
+    `- 待確認門市關係：${identity.needsReviewGroupCount} 組（尚需總部判斷）`,
+    `- 衝突關係：${identity.conflictGroupCount} 組（資料結構互相打架）`,
+    '- 實際合作門市總數：暫時未知',
     '',
     '## 衝突原因分項（可重複計數）',
     '',
