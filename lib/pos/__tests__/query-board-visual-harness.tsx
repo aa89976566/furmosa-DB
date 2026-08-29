@@ -15,13 +15,15 @@ function measureOverflowX(): boolean {
 }
 
 function measureLastRowVsBottomNav(): string {
-  const nav = document.querySelector('nav[aria-label="店家導航"]');
+  const nav = [...document.querySelectorAll('nav[aria-label="店家導航"]')].find((node) => {
+    const style = window.getComputedStyle(node);
+    const box = node.getBoundingClientRect();
+    return style.position === 'fixed' && style.display !== 'none' && box.height > 0;
+  });
   const mobileCards = document.querySelectorAll('ul.space-y-3.md\\:hidden li');
   const last = mobileCards[mobileCards.length - 1];
-  if (!nav || !last) return 'NOT RUN：找不到底部導航或最後一張卡片';
-  const navStyle = window.getComputedStyle(nav);
-  if (navStyle.display === 'none') return 'NOT RUN：此寬度不顯示手機底部導航';
-  last.scrollIntoView({ block: 'end' });
+  if (!nav || !last) return 'NOT RUN：此寬度沒有可見的手機底部導航或最後一張卡片';
+  window.scrollTo(0, document.documentElement.scrollHeight);
   const lastBox = last.getBoundingClientRect();
   const navBox = nav.getBoundingClientRect();
   const hidden = lastBox.bottom > navBox.top + 1;
