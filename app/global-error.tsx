@@ -11,7 +11,7 @@ export default function GlobalError({
     <html lang="zh-Hant">
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 480, margin: '0 auto' }}>
         <h1 style={{ fontSize: '1.125rem', fontWeight: 600 }}>系統錯誤</h1>
-        <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.75rem', whiteSpace: 'pre-wrap' }}>
+        <p style={{ fontSize: '0.875rem', color: '#737373', marginTop: '0.75rem', whiteSpace: 'pre-wrap' }}>
           {error.message}
         </p>
         <button

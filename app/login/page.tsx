@@ -15,7 +15,7 @@ export default function LoginPage({
       <div className="relative hidden overflow-hidden bg-navy px-10 py-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.35),transparent_42%),radial-gradient(circle_at_bottom_right,hsl(var(--info)/0.22),transparent_36%)]" />
         <div className="relative flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-card">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-navy shadow-card">
             <PawPrint className="h-6 w-6" />
           </div>
           <div>
@@ -24,10 +24,10 @@ export default function LoginPage({
           </div>
         </div>
         <div className="relative max-w-md space-y-4">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Operations</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/70">Operations</p>
           <h1 className="text-4xl font-semibold tracking-tight">清楚掌握訂單、庫存與出貨狀態</h1>
           <p className="text-sm leading-relaxed text-white/72">
-            以清楚分色與卡片式資訊層級，讓營運、財務與物流在同一套後台快速協作。
+            以黑白層級與卡片式資訊結構，讓營運、財務與物流在同一套後台快速協作。
           </p>
         </div>
         <p className="relative text-xs text-white/50">© Furmosa 2026</p>
