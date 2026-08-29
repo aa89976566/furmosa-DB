@@ -6,7 +6,7 @@ import { RefillWorkspace } from '@/components/pos/refill-workspace';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { toPosRefillOrderCard } from '@/lib/pos/refill-view';
 
-export const metadata = { title: '換罐 · Furmosa 店家' };
+export const metadata = { title: '幫客人換罐 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
 export default async function PosRefillHubPage({

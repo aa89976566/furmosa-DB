@@ -23,6 +23,7 @@ export type PosRefillOrderCard = {
   newContainerSerial: string | null;
   missingContainerNote: string | null;
   oldContainerReturnedAt: string | null;
+  productLabel: string | null;
 };
 
 export type RefillViewInput = {
@@ -61,6 +62,7 @@ export function toPosRefillOrderCard(row: {
   newContainerSerial: string | null;
   missingContainerNote: string | null;
   oldContainerReturnedAt?: string | null;
+  productLabel?: string | null;
 }): PosRefillOrderCard {
   return {
     id: row.id,
@@ -77,6 +79,7 @@ export function toPosRefillOrderCard(row: {
     newContainerSerial: row.newContainerSerial,
     missingContainerNote: row.missingContainerNote,
     oldContainerReturnedAt: row.oldContainerReturnedAt ?? null,
+    productLabel: row.productLabel ?? null,
   };
 }
 
@@ -192,4 +195,121 @@ export function isProcessableRefillStatus(status: string, paid: boolean): boolea
     paid,
     deliveryMode: 'exchange',
   }).canFulfill;
+}
+
+export function refillKindLabel(input: {
+  deliveryMode: string;
+  orderType?: string;
+  productLabel?: string | null;
+}): string {
+  if (input.productLabel?.trim()) return input.productLabel.trim();
+  return input.deliveryMode === 'first' || input.orderType === 'first' ? '首罐' : '換罐';
+}
+
+export type RefillPaymentCopyKind = 'unpaid' | 'failed' | 'extra_unpaid' | 'online_paid';
+
+export type RefillPaymentStaffCopy = {
+  kind: RefillPaymentCopyKind;
+  title: string;
+  detail: string;
+  staffNeed: string;
+};
+
+/** 店員看的付款說明。只依既有 status/paid/amount，不改 collector 或付款結果。 */
+export function refillPaymentStaffCopy(input: {
+  status: string;
+  paid: boolean;
+  totalAmount?: number;
+  extraAmount?: number;
+}): RefillPaymentStaffCopy {
+  const amount = Number.isFinite(input.totalAmount) ? Math.trunc(input.totalAmount as number) : null;
+
+  if (input.status === 'payment_failed') {
+    return {
+      kind: 'failed',
+      title: '付款沒有成功',
+      detail: '客人這次沒有付成功，現在不能換成新罐。',
+      staffNeed: '店員現在不用收款。請客人重新用 LINE 付款，或聯絡匠寵。',
+    };
+  }
+
+  if (input.status === 'awaiting_extra_payment') {
+    return {
+      kind: 'extra_unpaid',
+      title: '尚未補差額',
+      detail: '客人還沒完成補差額，現在不能換成新罐。',
+      staffNeed: '店員現在不用代收現金。請客人在線上補差額後再換罐。',
+    };
+  }
+
+  if (!input.paid || input.status === 'payment_pending') {
+    return {
+      kind: 'unpaid',
+      title: '尚未付款',
+      detail: '客人還沒完成線上付款，現在不能換成新罐。',
+      staffNeed: '店員現在不用收款。請客人用 LINE 完成付款後再換罐。',
+    };
+  }
+
+  return {
+    kind: 'online_paid',
+    title: '匠寵已收款',
+    detail:
+      amount != null
+        ? `換罐費 NT$${amount} 已由客人線上付給匠寵，不列入店家結帳。`
+        : '換罐費已由客人線上付給匠寵，不列入店家結帳。',
+    staffNeed: '店員現在不用收款，只要幫客人換罐。',
+  };
+}
+
+export const REFILL_FLOW_STAGES = [
+  { id: 'find', label: '找到客人' },
+  { id: 'old', label: '確認空罐' },
+  { id: 'new', label: '選擇新罐' },
+  { id: 'confirm', label: '確認完成' },
+] as const;
+
+export type RefillFlowStageId = (typeof REFILL_FLOW_STAGES)[number]['id'];
+
+export type RefillFlowStageState = 'done' | 'current' | 'upcoming';
+
+export function refillFlowStageState(
+  stage: RefillFlowStageId,
+  current: RefillFlowStageId,
+): RefillFlowStageState {
+  const order = REFILL_FLOW_STAGES.map((item) => item.id);
+  const stageIndex = order.indexOf(stage);
+  const currentIndex = order.indexOf(current);
+  if (stageIndex < currentIndex) return 'done';
+  if (stageIndex === currentIndex) return 'current';
+  return 'upcoming';
+}
+
+export function refillCurrentFlowStage(input: {
+  hasSelection: boolean;
+  success: boolean;
+  unpaidBlock: boolean;
+  skipOldJar: boolean;
+  oldVerified: boolean;
+  hasNewSerial: boolean;
+  newConfirmed: boolean;
+}): RefillFlowStageId {
+  if (input.success) return 'confirm';
+  if (!input.hasSelection || input.unpaidBlock) return 'find';
+  if (!input.skipOldJar && !input.oldVerified) return 'old';
+  if (!input.hasNewSerial || !input.newConfirmed) return 'new';
+  return 'confirm';
+}
+
+export function refillCompleteBlockedReason(input: {
+  unpaidBlock: boolean;
+  oldReady: boolean;
+  hasNewSerial: boolean;
+  newConfirmed: boolean;
+}): string | null {
+  if (input.unpaidBlock) return '客人還沒完成付款，現在不能完成換罐。';
+  if (!input.oldReady) return '請先確認收到空罐。';
+  if (!input.hasNewSerial) return '請先掃描或輸入要交給客人的新罐。';
+  if (!input.newConfirmed) return '請先確認這是要交給客人的新罐。';
+  return null;
 }

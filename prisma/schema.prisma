@@ -477,6 +477,7 @@ model Merchant {
 
   orders                 Order[]
   settlements            Settlement[]
+  settlementItems        SettlementItem[]
   productRules           MerchantProductRule[]
   partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
   partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
@@ -981,9 +982,35 @@ model Settlement {
 
   merchant Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   txns     MerchantStockTxn[]
+  items    SettlementItem[]
 
   @@index([merchantId])
   @@index([status])
+}
+
+model SettlementItem {
+  id             String   @id @default(cuid())
+  settlementId   String   @map("settlement_id")
+  merchantId     String   @map("merchant_id")
+  sourceKind     String   @map("source_kind")
+  sourceId       String   @map("source_id")
+  occurredAt     DateTime @map("occurred_at")
+  amountTwd      Int      @map("amount_twd")
+  direction      String
+  collector      String
+  kind           String
+  relatedOrderId String?  @map("related_order_id")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceKind, sourceId])
+  @@index([settlementId])
+  @@index([merchantId, occurredAt])
+  @@index([sourceKind, sourceId])
+  @@map("settlement_items")
 }
 
 // =====================================================
