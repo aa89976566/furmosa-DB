@@ -141,6 +141,7 @@ model Customer {
   rewardRedemptions   RewardRedemption[]
   marketingCosts      MarketingCostRecord[]
   groomingCoupons     GroomingCoupon[]
+  refillExchangeEntitlements RefillExchangeEntitlement[]
 
   @@index([hasActiveSubscription])
   @@index([lastOrderAt])
@@ -221,12 +222,42 @@ model JarCode {
   issuedMerchant     Merchant?    @relation("JarCodesIssuedAt", fields: [issuedMerchantId], references: [id], onDelete: SetNull)
   returnedMerchant   Merchant?    @relation("JarCodesReturnedAt", fields: [returnedMerchantId], references: [id], onDelete: SetNull)
   lockedByRefillOrder RefillOrder? @relation("JarCodeLockedByRefill", fields: [lockedByRefillOrderId], references: [id], onDelete: SetNull)
+  /// 一空瓶最多一個 NT$99 換購資格（第二階段才建立寫入）
+  exchangeEntitlement RefillExchangeEntitlement?
 
   @@index([status])
   @@index([batchNo])
   @@index([redeemedByCustomerId])
   @@index([lockedByRefillOrderId])
   @@map("jar_codes")
+}
+
+/// NT$99 換購資格：一個已歸還舊罐（空瓶）對應一筆。
+/// 狀態由 activatedAt／expiresAt／redeemedAt 派生，不存 stored status。
+/// Phase 1 僅建表；建立／核銷／提醒留第二階段。
+model RefillExchangeEntitlement {
+  id                String    @id @default(cuid())
+  customerId        String    @map("customer_id")
+  /// 歸還的空瓶 JarCode；唯一＝一空瓶最多一個資格
+  returnedJarCodeId String    @unique @map("returned_jar_code_id")
+  /// 原店快照（建立時取 JarCode.issuedMerchantId）；第一階段限原店核銷
+  merchantId        String    @map("merchant_id")
+  activatedAt       DateTime  @map("activated_at")
+  expiresAt         DateTime  @map("expires_at")
+  redeemedAt        DateTime? @map("redeemed_at")
+  /// 到期前 7 天提醒冪等戳記（第二階段 cron／push 使用）
+  reminderSentAt    DateTime? @map("reminder_sent_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  returnedJarCode JarCode  @relation(fields: [returnedJarCodeId], references: [id], onDelete: Restrict)
+  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, expiresAt])
+  @@index([merchantId, expiresAt])
+  @@index([expiresAt, reminderSentAt])
+  @@map("refill_exchange_entitlements")
 }
 
 model MemberPointsLedger {
@@ -490,6 +521,7 @@ model Merchant {
   refillOrders RefillOrder[]
   jarCodesIssued   JarCode[] @relation("JarCodesIssuedAt")
   jarCodesReturned JarCode[] @relation("JarCodesReturnedAt")
+  refillExchangeEntitlements RefillExchangeEntitlement[]
 }
 
 /// 店家營運設定（勿把 feature flags 繼續塞進 Merchant）
