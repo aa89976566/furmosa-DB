@@ -32,7 +32,7 @@ export function PosShell({
           <div
             className={
               wide
-                ? 'min-h-0 flex-1 overflow-y-auto pb-24 md:pb-0'
+                ? 'flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 md:pb-0'
                 : 'mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto pb-24 md:pb-6'
             }
           >
