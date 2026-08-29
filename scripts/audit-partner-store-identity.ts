@@ -8,6 +8,8 @@
  * 執行：npx tsx scripts/audit-partner-store-identity.ts
  */
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import {
   formatAuditReportMarkdown,
@@ -31,14 +33,42 @@ function assertReadOnlyArgs(argv: string[]) {
   }
 }
 
+function loadLocalEnvIfPresent() {
+  const path = join(process.cwd(), '.env');
+  if (!existsSync(path)) return;
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) continue;
+    const eq = trimmed.indexOf('=');
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1);
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] == null || process.env[key] === '') {
+      process.env[key] = value;
+    }
+  }
+}
+
+function assertPostgresUrlConfigured() {
+  const raw = process.env.DATABASE_URL?.trim() ?? '';
+  if (!/^postgres(?:ql)?:\/\//i.test(raw)) {
+    throw new Error(
+      '只讀檢查需要可用的 PostgreSQL 連線。目前這個環境沒有有效的 DATABASE_URL，因此沒有查正式資料。請在有正式資料庫連線的環境執行：npx tsx scripts/audit-partner-store-identity.ts',
+    );
+  }
+}
+
 async function main() {
   assertReadOnlyArgs(process.argv.slice(2));
+  loadLocalEnvIfPresent();
+  assertPostgresUrlConfigured();
 
-  const prisma = new PrismaClient({
-    datasources: {
-      db: { url: process.env.DATABASE_URL },
-    },
-  });
+  const prisma = new PrismaClient();
 
   try {
     const [stores, merchants, merchantUsers, refillOrders, coupons, customers] =

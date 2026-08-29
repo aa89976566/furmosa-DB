@@ -165,7 +165,7 @@ function collectDuplicateStores(
 ): AuditFinding[] {
   const findings: AuditFinding[] = [];
 
-  for (const [nameKey, group] of groupByName(stores)) {
+  for (const [, group] of groupByName(stores)) {
     if (group.length < 2) continue;
     const branchSplit = group.some((left, index) =>
       group.slice(index + 1).some((right) => looksLikeDifferentBranches(left.name, right.name)),
@@ -175,7 +175,6 @@ function collectDuplicateStores(
       confidence: branchSplit ? 'auto' : 'needs_review',
       refs: group.map((row) => ({ kind: 'store', id: row.slug })),
     });
-    void nameKey;
   }
 
   for (const [, group] of groupByName(merchants)) {
@@ -506,7 +505,6 @@ export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditRepor
   lines.push('', '## 匿名編號（不含姓名、電話、LINE）', '');
 
   for (const [label, metric] of rows) {
-    const key = label.slice(3);
     lines.push(`### ${label}`);
     if (metric.findings.length === 0) {
       lines.push('', '無', '');
@@ -518,7 +516,6 @@ export function formatAuditReportMarkdown(report: PartnerStoreIdentityAuditRepor
       lines.push(`- [${finding.confidence}] ${finding.type} — ${refs}`);
     }
     lines.push('');
-    void key;
   }
 
   return `${lines.join('\n')}\n`;
