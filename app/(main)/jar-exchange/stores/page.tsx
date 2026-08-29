@@ -12,7 +12,7 @@ import {
 } from '@/lib/jar-exchange/partner-store-directory';
 import { isPreviewIdentityEnv } from '@/lib/jar-exchange/partner-store-identity-decisions';
 import { decidePreviewIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-isolation';
-import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-preview';
+import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-acceptance-rows';
 import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';

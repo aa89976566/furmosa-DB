@@ -17,7 +17,14 @@ export type IsolationDecision =
   | { isolated: true; fingerprint: DatabaseFingerprint }
   | { isolated: false; reason: string; fingerprint: DatabaseFingerprint | null };
 
-function runtimeDatabaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+export type IsolationEnv = {
+  VERCEL_ENV?: string;
+  DATABASE_URL?: string;
+  POSTGRES_PRISMA_URL?: string;
+  POSTGRES_URL?: string;
+};
+
+function runtimeDatabaseUrl(env: IsolationEnv): string {
   return (
     env.DATABASE_URL?.trim() ||
     env.POSTGRES_PRISMA_URL?.trim() ||
@@ -57,19 +64,24 @@ export function describeDatabaseFingerprint(url: string): DatabaseFingerprint | 
   };
 }
 
-export function decidePreviewIdentityWrite(env: {
-  VERCEL_ENV?: string;
-  DATABASE_URL?: string;
-  POSTGRES_PRISMA_URL?: string;
-  POSTGRES_URL?: string;
-} = process.env): IsolationDecision {
-  if (env.VERCEL_ENV === 'production') {
+function isolationEnvFrom(env?: IsolationEnv): IsolationEnv {
+  return {
+    VERCEL_ENV: env?.VERCEL_ENV ?? process.env.VERCEL_ENV,
+    DATABASE_URL: env?.DATABASE_URL ?? process.env.DATABASE_URL,
+    POSTGRES_PRISMA_URL: env?.POSTGRES_PRISMA_URL ?? process.env.POSTGRES_PRISMA_URL,
+    POSTGRES_URL: env?.POSTGRES_URL ?? process.env.POSTGRES_URL,
+  };
+}
+
+export function decidePreviewIdentityWrite(env?: IsolationEnv): IsolationDecision {
+  const source = isolationEnvFrom(env);
+  if (source.VERCEL_ENV === 'production') {
     return { isolated: false, reason: 'production_forbidden', fingerprint: null };
   }
-  if (env.VERCEL_ENV !== 'preview') {
+  if (source.VERCEL_ENV !== 'preview') {
     return { isolated: false, reason: 'not_vercel_preview', fingerprint: null };
   }
-  const url = runtimeDatabaseUrl(env);
+  const url = runtimeDatabaseUrl(source);
   const fingerprint = describeDatabaseFingerprint(url);
   if (!fingerprint) {
     return { isolated: false, reason: 'missing_database_url', fingerprint: null };
@@ -83,8 +95,6 @@ export function decidePreviewIdentityWrite(env: {
   return { isolated: true, fingerprint };
 }
 
-export function canWritePreviewIdentityData(
-  env: Parameters<typeof decidePreviewIdentityWrite>[0] = process.env,
-): boolean {
+export function canWritePreviewIdentityData(env?: IsolationEnv): boolean {
   return decidePreviewIdentityWrite(env).isolated;
 }

@@ -8,7 +8,7 @@ import {
   decidePreviewIdentityWrite,
   describeDatabaseFingerprint,
 } from '@/lib/jar-exchange/partner-store-identity-isolation';
-import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-preview';
+import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-acceptance-rows';
 
 describe('partner store identity isolation', () => {
   it('fingerprints supabase URLs without keeping the password', () => {

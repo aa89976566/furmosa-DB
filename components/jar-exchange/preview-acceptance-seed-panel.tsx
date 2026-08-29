@@ -3,15 +3,15 @@
 import { useState } from 'react';
 import { createPreviewAcceptanceIdentityData } from '@/app/(main)/jar-exchange/stores/actions';
 import { Button } from '@/components/ui/button';
+import type { PreviewAcceptanceRow } from '@/lib/jar-exchange/partner-store-identity-acceptance-rows';
 import { VERDICT_LABEL } from '@/lib/jar-exchange/partner-store-identity-decisions';
-import type { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-preview';
 
 export function PreviewAcceptanceSeedPanel({
   rows,
   isolated,
   isolationReason,
 }: {
-  rows: typeof PREVIEW_ACCEPTANCE_ROWS;
+  rows: PreviewAcceptanceRow[];
   isolated: boolean;
   isolationReason: string | null;
 }) {
