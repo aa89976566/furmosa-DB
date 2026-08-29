@@ -79,4 +79,13 @@ describe('partner store identity isolation', () => {
     assert.equal(src.includes('getCurrentUser'), false);
     assert.match(src, /listIdentityDecisions/);
   });
+
+  it('preview seed panel does not import the Prisma preview module', () => {
+    const src = readFileSync(
+      path.join(process.cwd(), 'components/jar-exchange/preview-acceptance-seed-panel.tsx'),
+      'utf8',
+    );
+    assert.equal(src.includes('partner-store-identity-preview'), false);
+    assert.equal(src.includes('@prisma/client'), false);
+  });
 });
