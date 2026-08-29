@@ -17,7 +17,11 @@ const HOT_PREFETCH = new Set([
   '/products',
 ]);
 
-export function SidebarNav() {
+export function SidebarNav({
+  badges = {},
+}: {
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -58,6 +62,14 @@ export function SidebarNav() {
                       )}
                     />
                     <span>{item.label}</span>
+                    {(badges[item.href] ?? 0) > 0 ? (
+                      <span
+                        className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                        aria-label={`${badges[item.href]} 筆待處理`}
+                      >
+                        {badges[item.href]}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

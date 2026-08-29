@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { SidebarNav } from '@/components/layout/sidebar-nav';
+import { HqSidebarNav } from '@/components/layout/hq-sidebar-nav';
 import { PawPrint } from 'lucide-react';
 
 export function Sidebar() {
@@ -17,7 +17,7 @@ export function Sidebar() {
       </div>
       <ScrollArea className="min-h-0 flex-1 px-3 py-4">
         <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
-          <SidebarNav />
+          <HqSidebarNav />
         </Suspense>
       </ScrollArea>
       <div className="border-t border-border/70 px-5 py-4 text-[11px] text-muted-foreground">

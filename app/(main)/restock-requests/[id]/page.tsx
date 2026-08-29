@@ -1,20 +1,36 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 import { listJarExchangeProductsForRestock } from '@/lib/restock-request/service';
 import {
   restockRequestTypeLabel,
   restockStatusLabelForHq,
 } from '@/lib/restock-request/constants';
+import {
+  canAccessHqRestockInbox,
+  restockRequestNumber,
+} from '@/lib/restock-request/hq-inbox';
 import { HqRestockDetailForm } from './hq-restock-form';
 
 export const metadata = { title: '補貨申請詳情 · Furmosa HQ' };
+export const dynamic = 'force-dynamic';
 
 export default async function HqRestockRequestDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const user = await getCurrentUser();
+  if (
+    !canAccessHqRestockInbox({
+      hasHqSession: Boolean(user),
+      hasMerchantSession: false,
+    })
+  ) {
+    redirect('/login');
+  }
+
   const req = await prisma.restockRequest.findUnique({
     where: { id: params.id },
     include: {
@@ -41,9 +57,15 @@ export default async function HqRestockRequestDetailPage({
       <div>
         <h1 className="text-2xl font-semibold text-navy">{req.merchant.name}</h1>
         <p className="text-sm text-muted-foreground">
-          {restockRequestTypeLabel(req.requestType)} ·{' '}
-          {restockStatusLabelForHq(req.status)} · 店家帳號{' '}
-          {req.requestedBy.username}
+          申請編號 {restockRequestNumber(req.id)} · {restockRequestTypeLabel(req.requestType)} ·{' '}
+          {restockStatusLabelForHq(req.status)}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          店家編號 {req.merchant.merchantId}
+          {req.requestedBy.username ? ` · 送出帳號 ${req.requestedBy.username}` : ''}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          送出 {req.createdAt.toLocaleString('zh-TW')} · 更新 {req.updatedAt.toLocaleString('zh-TW')}
         </p>
         {req.shipment ? (
           <p className="mt-1 text-sm">

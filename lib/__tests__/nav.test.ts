@@ -19,4 +19,10 @@ describe('HQ 側欄', () => {
     assert.equal(labels.includes('雞霸開箱審核'), false);
     assert.equal(labels.includes('UGC 審核'), true);
   });
+
+  it('訂單區有補貨申請入口，路徑為 /restock-requests', () => {
+    const orderHub = navGroups.find((group) => group.label.startsWith('訂單'));
+    const restock = orderHub?.items.find((item) => item.href === '/restock-requests');
+    assert.equal(restock?.label, '補貨申請');
+  });
 });
