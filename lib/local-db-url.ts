@@ -1,4 +1,4 @@
-export const LOCAL_POSTGRES_PORT = 55432;
+export const LOCAL_POSTGRES_PORTS = [5432, 55432] as const;
 export const LOCAL_POSTGRES_HOSTS = ["127.0.0.1", "localhost"] as const;
 
 export type LocalDbUrlCheck =
@@ -24,7 +24,7 @@ export function checkLocalDbUrl(raw: string | undefined): LocalDbUrlCheck {
   if (!(LOCAL_POSTGRES_HOSTS as readonly string[]).includes(host)) {
     return { ok: false, reason: "not_local_host" };
   }
-  if (port !== LOCAL_POSTGRES_PORT) {
+  if (!(LOCAL_POSTGRES_PORTS as readonly number[]).includes(port)) {
     return { ok: false, reason: "wrong_port" };
   }
   return { ok: true };

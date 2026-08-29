@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { checkLocalDbUrl } from "@/lib/local-db-url";
 
 /**
- * 確認目前環境連的是本機 Docker Postgres（埠 55432）。
+ * 確認目前環境連的是本機 Postgres（127.0.0.1 / localhost，埠 5432 或 55432）。
  * 正式 / Preview / Supabase 網址一律拒絕。不印出連線字串。
  */
 
@@ -50,7 +50,7 @@ function assertLocal(name: "DATABASE_URL" | "DIRECT_URL") {
   const result = checkLocalDbUrl(readUrl(name));
   if (result.ok) return;
   if (result.reason === "missing") {
-    fail(`${name} 未設定。請在本機 .env.local 填本機 Docker 網址。`);
+    fail(`${name} 未設定。請在本機 .env.local 填本機 Postgres 網址。`);
   }
   if (result.reason === "cloud") {
     fail(`${name} 指向雲端資料庫。已停止，以免碰到正式資料。`);
@@ -59,11 +59,11 @@ function assertLocal(name: "DATABASE_URL" | "DIRECT_URL") {
     fail(`${name} 不是本機。本機測試只能用 127.0.0.1 或 localhost。`);
   }
   if (result.reason === "wrong_port") {
-    fail(`${name} 埠號不是 55432。本機 Docker 容器 furmosa-pos-se 使用 55432。`);
+    fail(`${name} 埠號不是 5432 或 55432。本機測試只能用這兩個埠。`);
   }
   fail(`${name} 不是合法網址。`);
 }
 
 assertLocal("DATABASE_URL");
 assertLocal("DIRECT_URL");
-console.log("本機資料庫網址檢查通過（furmosa-pos-se / 55432）。");
+console.log("本機資料庫網址檢查通過。");

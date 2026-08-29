@@ -3,13 +3,13 @@ import { describe, it } from "node:test";
 import { checkLocalDbUrl } from "@/lib/local-db-url";
 
 describe("checkLocalDbUrl", () => {
-  it("accepts local docker postgres on 55432", () => {
+  it("accepts local postgres on 5432 or 55432", () => {
     assert.equal(
       checkLocalDbUrl("postgresql://postgres:postgres@127.0.0.1:55432/furmosa").ok,
       true,
     );
     assert.equal(
-      checkLocalDbUrl("postgresql://postgres:postgres@localhost:55432/furmosa").ok,
+      checkLocalDbUrl("postgresql://postgres:postgres@localhost:5432/furmosa").ok,
       true,
     );
   });
@@ -24,7 +24,7 @@ describe("checkLocalDbUrl", () => {
       false,
     );
     assert.equal(
-      checkLocalDbUrl("postgresql://postgres:postgres@127.0.0.1:5432/furmosa").ok,
+      checkLocalDbUrl("postgresql://postgres:postgres@127.0.0.1:5555/furmosa").ok,
       false,
     );
   });
