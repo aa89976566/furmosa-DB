@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { navGroups } from '@/lib/nav';
@@ -11,6 +12,8 @@ import { cn } from '@/lib/utils';
 const HOT_PREFETCH = new Set([
   '/dashboard',
   '/orders',
+  '/reviews',
+  '/restock-requests',
   '/shipments',
   '/merchants',
   '/customers',
@@ -19,8 +22,10 @@ const HOT_PREFETCH = new Set([
 
 export function SidebarNav({
   badges = {},
+  itemExtras,
 }: {
   badges?: Record<string, number>;
+  itemExtras?: Partial<Record<string, ReactNode>>;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -61,15 +66,16 @@ export function SidebarNav({
                         active ? groupStyles.eyebrow : 'text-muted-foreground',
                       )}
                     />
-                    <span>{item.label}</span>
+                    <span className="flex-1">{item.label}</span>
                     {(badges[item.href] ?? 0) > 0 ? (
                       <span
-                        className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                        className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
                         aria-label={`${badges[item.href]} 筆待處理`}
                       >
                         {badges[item.href]}
                       </span>
                     ) : null}
+                    {itemExtras?.[item.href]}
                   </Link>
                 );
               })}

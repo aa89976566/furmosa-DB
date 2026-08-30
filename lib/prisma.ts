@@ -46,6 +46,15 @@ const g = globalThis as unknown as GlobalPrisma;
 
 const generatedName = getPrismaGeneratedPackageName();
 
+// Vercel Postgres integrations commonly expose POSTGRES_PRISMA_URL/POSTGRES_URL
+// in Preview environments. Keep DATABASE_URL first so Production behaviour is
+// unchanged, while allowing previews to use the integration without copying a
+// protected production secret.
+const runtimeDatabaseUrl =
+  process.env.DATABASE_URL?.trim() ||
+  process.env.POSTGRES_PRISMA_URL?.trim() ||
+  process.env.POSTGRES_URL?.trim();
+
 const cacheStale =
   !g.prisma ||
   g.prismaGeneratedName !== generatedName ||
@@ -58,6 +67,9 @@ if (g.prisma && cacheStale) {
 
 const prismaClient = cacheStale
   ? new PrismaClient({
+      ...(runtimeDatabaseUrl
+        ? { datasources: { db: { url: runtimeDatabaseUrl } } }
+        : {}),
       log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     })
   : g.prisma!;

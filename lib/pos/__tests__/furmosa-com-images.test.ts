@@ -23,6 +23,9 @@ describe('matchFurmosaComImage', () => {
     assert.match(matchFurmosaComImage('壕大大雞霸*原味') ?? '', /cdn\.shopify\.com/);
     assert.match(matchFurmosaComImage('蔬果凍乾') ?? '', /cdn\.shopify\.com/);
     assert.match(matchFurmosaComImage('雞丁凍乾') ?? '', /cdn\.shopify\.com/);
+    assert.match(matchFurmosaComImage('地瓜山藥雞肉月餅') ?? '', /mooncake/);
+    assert.match(matchFurmosaComImage('牠的月餅') ?? '', /mooncake/);
+    assert.match(matchFurmosaComImage('月餅') ?? '', /mooncake/);
   });
 
   it('does not invent a photo for unknown names', () => {

@@ -38,8 +38,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: '/tasks', label: '任務看板', icon: CheckSquare },
       {
-        href: '/campaigns/jiba-two-piece',
-        label: 'UGC 審核',
+        href: '/reviews',
+        label: '待審核',
         icon: PackageOpen,
       },
     ],

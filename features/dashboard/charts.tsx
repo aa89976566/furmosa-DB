@@ -20,10 +20,10 @@ import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel } from '@/lib/labels';
 
 const sourceColors: Record<string, string> = {
-  website: '#3b82f6',
-  line: '#10b981',
-  consignment: '#f59e0b',
-  manual: '#94a3b8',
+  website: '#171717',
+  line: '#525252',
+  consignment: '#a3a3a3',
+  manual: '#d4d4d4',
 };
 
 export function RevenueTrendChart({
@@ -94,7 +94,7 @@ export function SourcePieChart({
           paddingAngle={2}
         >
           {filtered.map((d) => (
-            <Cell key={d.source} fill={sourceColors[d.source] ?? '#94a3b8'} />
+            <Cell key={d.source} fill={sourceColors[d.source] ?? '#a3a3a3'} />
           ))}
         </Pie>
         <Tooltip

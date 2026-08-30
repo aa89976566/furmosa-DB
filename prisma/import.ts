@@ -20,6 +20,7 @@ import {
   resolveTierIdFromWeightGrams,
 } from '../lib/merchant-stock-key';
 import { appendFishStripTierIfMissing } from '../lib/fish-freeze-dried';
+import { mooncakePriceListRow } from '../lib/products/mooncake-catalog';
 import { ZHUWO_CONSIGNMENT_BRANCHES } from '../lib/stores/zhuwo-branches';
 
 // 本機 import 走 DIRECT_URL（5432，不經 PgBouncer），避免 connection_limit=1 把大量 upsert 排隊
@@ -954,6 +955,7 @@ const PRICE_LIST: PriceRow[] = [
     unit: '片',
     prices: [{ unitQty: 1, price: 89 }],
   },
+  mooncakePriceListRow(),
 
   // ── 凍乾系列 (FD) ──
   {
@@ -1124,6 +1126,7 @@ const PRICE_LIST: PriceRow[] = [
 
 // 不同名字但指同個產品（系統現有名 → 單價表名）
 const PRICE_NAME_ALIASES: Record<string, string> = {
+  牠的月餅: '地瓜山藥雞肉月餅',
   簡記牛肉地瓜: '牛肉地瓜乾',
   鴨肉蘋果: '鴨肉蘋果乾',
   '壕大大雞霸*原味': '原味雞霸',

@@ -33,6 +33,7 @@ async function requireHqReviewer() {
 
 function revalidateHqReviewSurfaces(requestId: string, extra: string[] = []) {
   revalidateAfterHqRestockReview(requestId);
+  revalidatePath('/reviews');
   for (const path of extra) {
     revalidatePath(path);
   }

@@ -15,11 +15,18 @@ import { redeemJarCode } from '@/lib/jar-exchange/redeem-code';
 import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { ensureJarExchangeService, syncCustomerServices } from '@/lib/jar-exchange/services';
 import { DEFAULT_BATCH_SIZE } from '@/lib/jar-exchange/print-labels';
+import { pushLineText } from '@/lib/line/push';
 import {
   createCustomerRecord,
   type CustomerCreateInput,
 } from '@/lib/customers/create-customer';
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
+import { createHash } from 'node:crypto';
+import {
+  isTestJarMember,
+  JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+  JAR_LINE_CAMPAIGN_RUN_ENTITY,
+} from '@/lib/jar-exchange/member-campaign';
 
 function revalidateJar() {
   revalidatePath('/jar-exchange/members');
@@ -430,4 +437,163 @@ export async function createJarExchangeMemberFromForm(formData: FormData) {
 export async function syncCustomerServicesAction(customerId: string) {
   await syncCustomerServices(prisma, customerId);
   revalidatePath(`/customers/${customerId}`);
+}
+
+export type JarLineCampaignResult =
+  | {
+      ok: true;
+      sent: number;
+      skipped: number;
+      failed: number;
+      sentNames: string[];
+      skippedNames: string[];
+      failedNames: string[];
+    }
+  | { ok: false; error: string };
+
+export type JarLineCampaignInput = {
+  campaignName: string;
+  selectedCustomerIds: string[];
+  audienceConditions: string;
+  exclusionConditions: string;
+  message: string;
+  preventDuplicates: boolean;
+};
+
+export async function sendJarLineCampaign(
+  input: JarLineCampaignInput,
+): Promise<JarLineCampaignResult> {
+  try {
+    const campaignName = input.campaignName.trim();
+    const message = input.message.trim();
+    const audienceConditions = input.audienceConditions.trim();
+    const exclusionConditions = input.exclusionConditions.trim();
+    const uniqueCustomerIds = [
+      ...new Set(input.selectedCustomerIds.map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (campaignName.length < 2 || campaignName.length > 80) {
+      return { ok: false, error: '活動名稱需為 2–80 個字' };
+    }
+    if (!message || message.length > 2000) {
+      return { ok: false, error: '訊息內容需為 1–2,000 個字' };
+    }
+    if (uniqueCustomerIds.length < 1 || uniqueCustomerIds.length > 200) {
+      return { ok: false, error: '每次請選擇 1–200 位會員' };
+    }
+
+    const campaignKey = createHash('sha256')
+      .update(campaignName.toLocaleLowerCase('zh-TW'))
+      .digest('hex')
+      .slice(0, 16);
+
+    const members = await prisma.customer.findMany({
+      where: {
+        id: { in: uniqueCustomerIds },
+        services: {
+          some: { serviceType: 'jar_exchange' },
+        },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        name: true,
+        tags: true,
+        lineUserId: true,
+      },
+    });
+
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+    const sentNames: string[] = [];
+    const skippedNames: string[] = [];
+    const failedNames: string[] = [];
+    const outcomes: Array<{ customerId: string; name: string; status: string; reason?: string }> = [];
+
+    for (const m of members) {
+      const lineUserId = m.lineUserId;
+      if (!lineUserId || isTestJarMember(m)) {
+        skipped += 1;
+        skippedNames.push(m.name);
+        outcomes.push({
+          customerId: m.id,
+          name: m.name,
+          status: 'skipped',
+          reason: !lineUserId ? '未綁定 LINE' : '測試會員',
+        });
+        continue;
+      }
+
+      const already = input.preventDuplicates
+        ? await prisma.statusAuditLog.findFirst({
+            where: {
+              entityType: JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+              entityId: m.id,
+              newStatus: 'sent',
+              metadataJson: { contains: `\"campaignKey\":\"${campaignKey}\"` },
+            },
+            select: { id: true },
+          })
+        : null;
+      if (already) {
+        skipped += 1;
+        skippedNames.push(m.name);
+        outcomes.push({ customerId: m.id, name: m.name, status: 'skipped', reason: '避免重複發送' });
+        continue;
+      }
+
+      const res = await pushLineText(lineUserId, message);
+      if (!res.ok) {
+        failed += 1;
+        failedNames.push(m.name);
+        outcomes.push({ customerId: m.id, name: m.name, status: 'failed', reason: res.error });
+        continue;
+      }
+
+      await prisma.statusAuditLog.create({
+        data: {
+          entityType: JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
+          entityId: m.id,
+          newStatus: 'sent',
+          actorType: 'supervisor',
+          metadataJson: JSON.stringify({ campaignKey, campaignName }),
+        },
+      });
+      sent += 1;
+      sentNames.push(m.name);
+      outcomes.push({ customerId: m.id, name: m.name, status: 'sent' });
+    }
+
+    skipped += uniqueCustomerIds.length - members.length;
+    await prisma.statusAuditLog.create({
+      data: {
+        entityType: JAR_LINE_CAMPAIGN_RUN_ENTITY,
+        entityId: campaignKey,
+        newStatus: failed > 0 ? 'completed_with_errors' : 'completed',
+        actorType: 'supervisor',
+        metadataJson: JSON.stringify({
+          campaignKey,
+          campaignName,
+          audienceConditions,
+          exclusionConditions,
+          message,
+          preventDuplicates: input.preventDuplicates,
+          selectedCount: uniqueCustomerIds.length,
+          sent,
+          skipped,
+          failed,
+          outcomes,
+        }),
+      },
+    });
+
+    revalidatePath('/jar-exchange/members');
+    return { ok: true, sent, skipped, failed, sentNames, skippedNames, failedNames };
+  } catch (e) {
+    console.error('sendJarLineCampaign', e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '發送失敗，請稍後再試',
+    };
+  }
 }

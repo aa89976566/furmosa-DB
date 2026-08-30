@@ -27,4 +27,10 @@ describe('order-form search where helpers', () => {
     assert.match(raw, /貓草雞肉薄片/);
     assert.doesNotMatch(raw, /蝶豆花雞肉薄片/);
   });
+
+  it('expands 月餅 search to the catalog name', () => {
+    assert.deepEqual(expandProductSearchTerms('月餅'), ['月餅', '地瓜山藥雞肉月餅']);
+    assert.deepEqual(expandProductSearchTerms('牠的月餅'), ['牠的月餅', '地瓜山藥雞肉月餅']);
+    assert.deepEqual(expandProductSearchTerms('地瓜山藥雞肉月餅'), ['地瓜山藥雞肉月餅']);
+  });
 });

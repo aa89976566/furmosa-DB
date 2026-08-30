@@ -12,6 +12,8 @@ import { pushLineMessages } from '@/lib/line/push';
 
 function revalidateReview(id?: string) {
   revalidatePath('/campaigns/jiba-two-piece');
+  revalidatePath('/reviews');
+  revalidatePath('/dashboard');
   if (id) revalidatePath(`/campaigns/jiba-two-piece/${id}`);
 }
 

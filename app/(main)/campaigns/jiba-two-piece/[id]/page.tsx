@@ -122,7 +122,7 @@ export default async function JibaReviewDetailPage({
         description={`${app.campaign.name} · ${app.lineDisplayName || app.lineUserId}`}
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link href="/campaigns/jiba-two-piece">返回列表</Link>
+            <Link href="/reviews">返回待審核</Link>
           </Button>
         }
       />
