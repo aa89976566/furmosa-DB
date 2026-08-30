@@ -9,6 +9,14 @@ export type IdentityWriteOperation = (typeof IDENTITY_WRITE_OPERATIONS)[number];
 
 export const LIMITED_ROLLOUT_MERCHANT_ID = 'MER-DEMO';
 
+/** 總部指定可寫入的 HQ 帳號（與 seed 系統帳號相同）。POS 不含在內。 */
+export const DESIGNATED_HQ_WRITER_EMAILS = [
+  'admin@furmosa.com',
+  'finance@furmosa.com',
+  'ops@furmosa.com',
+  'wh@furmosa.com',
+] as const;
+
 export const BLOCKED_REAL_STORE_MERCHANT_IDS = [
   'MER-0019',
   'MER-0020',
@@ -44,15 +52,17 @@ export type IdentityWriteDecision =
   | { allowed: false; reason: IdentityWriteDeniedReason; error: string };
 
 export function parseAllowlistedHqEmails(raw?: string): string[] {
-  return (raw ?? '')
+  const fromEnv = (raw ?? '')
     .split(',')
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
+  if (fromEnv.length > 0) return fromEnv;
+  return DESIGNATED_HQ_WRITER_EMAILS.map((email) => email.toLowerCase());
 }
 
 export function isAllowlistedHqEmail(email: string | undefined, env: IdentityWriteEnv = process.env): boolean {
   const allowlist = parseAllowlistedHqEmails(env.PARTNER_STORE_IDENTITY_WRITERS);
-  if (!email || allowlist.length === 0) return false;
+  if (!email) return false;
   return allowlist.includes(email.trim().toLowerCase());
 }
 
@@ -80,10 +90,6 @@ export function decideIdentityWrite(
   if (env.VERCEL_ENV === 'production') {
     if (env.PARTNER_STORE_IDENTITY_WRITES !== 'enabled') {
       return { allowed: false, reason: 'feature_off', error: PRODUCTION_FEATURE_OFF_MESSAGE };
-    }
-    const allowlist = parseAllowlistedHqEmails(env.PARTNER_STORE_IDENTITY_WRITERS);
-    if (allowlist.length === 0) {
-      return { allowed: false, reason: 'no_allowlist', error: NO_ALLOWLIST_MESSAGE };
     }
     if (!isAllowlistedHqEmail(actorEmail, env)) {
       return { allowed: false, reason: 'forbidden_actor', error: FORBIDDEN_ACTOR_MESSAGE };

@@ -52,6 +52,18 @@ describe('limited rollout write guard', () => {
     assert.equal(denyIdentityWrite('revoke', env, 'other@example.test')?.error, FORBIDDEN_ACTOR_MESSAGE);
   });
 
+  it('fills Furmosa HQ emails when no writer list is provided', () => {
+    const env = {
+      VERCEL_ENV: 'production',
+      PARTNER_STORE_IDENTITY_WRITES: 'enabled',
+    };
+    assert.equal(decideIdentityWrite('confirm', env, 'admin@furmosa.com').allowed, true);
+    assert.equal(decideIdentityWrite('confirm', env, 'finance@furmosa.com').allowed, true);
+    assert.equal(decideIdentityWrite('confirm', env, 'ops@furmosa.com').allowed, true);
+    assert.equal(decideIdentityWrite('confirm', env, 'wh@furmosa.com').allowed, true);
+    assert.equal(decideIdentityWrite('confirm', env, 'other@example.test').allowed, false);
+  });
+
   it('never allows the five real stores and only allows MER-DEMO in Production', () => {
     const production = { VERCEL_ENV: 'production' };
     assert.equal(denyMerchantWrite('MER-0019', production)?.error, BLOCKED_REAL_STORE_MESSAGE);

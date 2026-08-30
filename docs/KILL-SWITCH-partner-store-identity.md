@@ -12,4 +12,4 @@
 - Preview 本來就不能寫入
 - 已寫入的 MER-DEMO 紀錄不會被刪除
 
-指定 HQ 帳號請只放在 Production 的 `PARTNER_STORE_IDENTITY_WRITERS`，不要寫進程式或 Git。
+未另填 `PARTNER_STORE_IDENTITY_WRITERS` 時，只允許總部 HQ：admin、finance、ops、wh（@furmosa.com）。POS 不能寫入。
