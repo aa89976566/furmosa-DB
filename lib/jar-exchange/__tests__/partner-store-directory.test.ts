@@ -226,6 +226,23 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(rows[0].groomingDiscountAmount, GROOMING_COUPON_DISCOUNT_ZHUWO);
   });
 
+  it('hides known test merchants from the official list without a confirmation record', () => {
+    const rows = mergePartnerStoreDirectory({
+      stores: [
+        store({ slug: 'mer_other', name: '錯誤店家對照（勿交付）' }),
+        store({ slug: 'pet99', name: '99寵物美容' }),
+      ],
+      merchants: [
+        merchant({ merchantId: 'MER-OTHER', name: '錯誤店家對照（勿交付）' }),
+        merchant({ merchantId: 'MER-REFILL', name: '匠寵換罐測試店' }),
+        merchant({ merchantId: 'MER-DEMO', name: 'Furmosa Preview 店', types: ['flagship'] }),
+      ],
+    });
+    assert.equal(rows.some((row) => row.slug === 'pet99'), true);
+    assert.equal(rows.some((row) => /other|refill|demo/i.test(row.slug)), false);
+    assert.equal(rows.some((row) => row.merchantId === 'MER-OTHER'), false);
+  });
+
   it('does not merge custom slugs until an active confirmation record is provided', () => {
     const rows = mergePartnerStoreDirectory({
       stores: [store({ slug: 'niuniu', name: '淡水妞妞' })],

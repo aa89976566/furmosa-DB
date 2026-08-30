@@ -11,6 +11,10 @@ import {
   type PartnerStoreIdentityScope,
   type PartnerStoreIdentityVerdict,
 } from '@/lib/jar-exchange/partner-store-identity-decisions';
+import {
+  denyIdentityWrite,
+  type IdentityWriteEnv,
+} from '@/lib/jar-exchange/partner-store-identity-write-guard';
 
 const decisionInclude = {
   decidedBy: { select: { id: true, email: true, name: true } },
@@ -86,7 +90,11 @@ export async function createIdentityDecision(input: {
   rationale: string;
   otherRecordDisposition: OtherRecordDisposition;
   scope?: PartnerStoreIdentityScope;
+  env?: IdentityWriteEnv;
 }): Promise<{ ok: true; decision: PartnerStoreHumanDecision } | { ok: false; error: string }> {
+  const blocked = denyIdentityWrite('confirm', input.env);
+  if (blocked) return { ok: false, error: blocked.error };
+
   const merchantId = input.merchantId.trim().toUpperCase();
   const legacySlug = input.legacySlug?.trim().toLowerCase() || null;
   const rationale = input.rationale.trim();
@@ -157,7 +165,11 @@ export async function revokeIdentityDecision(input: {
   revokedByAccount: string;
   revokeReason: string;
   revokedAt?: Date;
+  env?: IdentityWriteEnv;
 }): Promise<{ ok: true; decision: PartnerStoreHumanDecision } | { ok: false; error: string }> {
+  const blocked = denyIdentityWrite('revoke', input.env);
+  if (blocked) return { ok: false, error: blocked.error };
+
   const reason = input.revokeReason.trim();
   if (!reason) return { ok: false, error: '撤銷必須填原因' };
 

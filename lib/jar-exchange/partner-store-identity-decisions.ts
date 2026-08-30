@@ -49,6 +49,8 @@ export type PartnerStoreHumanDecision = {
   revokedByAccount: string | null;
   revokeReason: string | null;
   scope: PartnerStoreIdentityScope;
+  /** Preview 只讀對照，不是資料庫列 */
+  displayOnly?: boolean;
 };
 
 export function identityDecisionScope(

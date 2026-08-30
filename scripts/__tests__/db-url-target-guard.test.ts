@@ -65,6 +65,15 @@ describe('db-url-target-guard', () => {
     assert.match(src, /POSTGRES_URL/);
   });
 
+  it('persist script refuses the official supabase project and deletes the temp container', () => {
+    const src = readFileSync(path.join(root, 'scripts/test-identity-persist.sh'), 'utf8');
+    assert.match(src, /ukjjopridghvwzobrsus/);
+    assert.match(src, /docker rm -f/);
+    assert.match(src, /LINE_CHANNEL_SECRET/);
+    assert.match(src, /ECPAY_HASH_KEY/);
+    assert.equal(src.includes('Redeploy Production'), false);
+  });
+
   it('old production-repair doc no longer tells operators to copy the official URL into Preview', () => {
     const src = readFileSync(path.join(root, 'docs/FIX-VERCEL-DB-AUTH.md'), 'utf8');
     assert.equal(src.includes('建議 Preview 一併更新'), false);

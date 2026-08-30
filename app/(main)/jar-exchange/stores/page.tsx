@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
 import { PartnerStoreIdentityHistory } from '@/components/jar-exchange/partner-store-identity-history';
 import { PartnerStoresDirectory } from '@/components/jar-exchange/partner-stores-directory';
-import { PreviewAcceptanceSeedPanel } from '@/components/jar-exchange/preview-acceptance-seed-panel';
+import { PreviewModeBanner } from '@/components/jar-exchange/preview-mode-banner';
+import { PreviewReadonlyNotice } from '@/components/jar-exchange/preview-readonly-notice';
 import { Button } from '@/components/ui/button';
 import { formatNumber } from '@/lib/format';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
@@ -11,8 +12,7 @@ import {
   partnerStoreDirectoryStats,
 } from '@/lib/jar-exchange/partner-store-directory';
 import { isPreviewIdentityEnv } from '@/lib/jar-exchange/partner-store-identity-decisions';
-import { decidePreviewIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-isolation';
-import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-acceptance-rows';
+import { withPreviewReadOnlyOverlay } from '@/lib/jar-exchange/partner-store-identity-preview-overlay';
 import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
@@ -20,19 +20,21 @@ import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 export const dynamic = 'force-dynamic';
 
 export default async function JarExchangeStoresPage() {
-  const [stores, merchants, records] = await Promise.all([
+  const preview = isPreviewIdentityEnv();
+  const [stores, merchants, officialRecords] = await Promise.all([
     listPartnerStoresFromDb(),
     listJarExchangeMerchants(),
-    listIdentityDecisions(),
+    listIdentityDecisions('production'),
   ]);
-  const rows = mergePartnerStoreDirectory({ stores, merchants }, records);
+  const directoryRecords = preview
+    ? withPreviewReadOnlyOverlay(officialRecords)
+    : officialRecords;
+  const rows = mergePartnerStoreDirectory({ stores, merchants }, directoryRecords);
   const stats = partnerStoreDirectoryStats(rows, {
     storeSlugs: stores.map((store) => store.slug),
     merchantIds: merchants.map((merchant) => merchant.merchantId),
-    decisions: records,
+    decisions: directoryRecords,
   });
-  const showPreviewSeed = isPreviewIdentityEnv();
-  const isolation = showPreviewSeed ? decidePreviewIdentityWrite() : null;
 
   return (
     <JarShell
@@ -52,6 +54,7 @@ export default async function JarExchangeStoresPage() {
         </>
       }
     >
+      {preview ? <PreviewModeBanner /> : null}
       <JarPanel>
         <div className="border-b border-border/60 px-5 py-4">
           <p className="text-sm text-navy">
@@ -64,25 +67,23 @@ export default async function JarExchangeStoresPage() {
             </span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            清單只讀有效的人工確認。編號對不上會分開顯示。結帳只出現在可核銷店家。
+            {preview
+              ? '預覽清單依總部已鎖定對照顯示五家確認店；測試店不進正式清單。這些對照不會寫入資料庫。'
+              : '清單只讀有效的人工確認。編號對不上會分開顯示。結帳只出現在可核銷店家。'}
           </p>
         </div>
-        <PartnerStoresDirectory rows={rows} />
+        <PartnerStoresDirectory rows={rows} writesDisabled={preview} />
       </JarPanel>
-      {showPreviewSeed ? (
+      {preview ? (
         <div className="mt-6">
           <JarPanel>
-            <PreviewAcceptanceSeedPanel
-              rows={PREVIEW_ACCEPTANCE_ROWS}
-              isolated={isolation?.isolated === true}
-              isolationReason={isolation && !isolation.isolated ? isolation.reason : null}
-            />
+            <PreviewReadonlyNotice />
           </JarPanel>
         </div>
       ) : null}
       <div className="mt-6">
         <JarPanel>
-          <PartnerStoreIdentityHistory records={records} />
+          <PartnerStoreIdentityHistory records={officialRecords} />
         </JarPanel>
       </div>
     </JarShell>

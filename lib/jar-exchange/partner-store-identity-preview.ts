@@ -7,6 +7,7 @@ import {
 import { PREVIEW_ACCEPTANCE_ROWS } from '@/lib/jar-exchange/partner-store-identity-acceptance-rows';
 import { canWritePreviewIdentityData } from '@/lib/jar-exchange/partner-store-identity-isolation';
 import { shouldInsertBootstrapDecision } from '@/lib/jar-exchange/partner-store-identity-decisions';
+import { denyIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-write-guard';
 
 const PREVIEW_BOOTSTRAP = PREVIEW_ACCEPTANCE_ROWS;
 
@@ -110,6 +111,7 @@ async function runEnsurePreviewTable() {
 }
 
 export async function ensurePreviewIdentityTable(): Promise<void> {
+  if (denyIdentityWrite('create_acceptance')) return;
   if (!canWritePreviewIdentityData()) return;
   if (!schemaReady) {
     schemaReady = runEnsurePreviewTable().catch((error) => {
@@ -124,6 +126,7 @@ export async function seedPreviewIdentityDecisions(actor: {
   userId: string;
   email: string;
 }): Promise<number> {
+  if (denyIdentityWrite('create_acceptance')) return 0;
   if (!canWritePreviewIdentityData()) return 0;
   await ensurePreviewIdentityTable();
   const existing = await listIdentityDecisions('preview');

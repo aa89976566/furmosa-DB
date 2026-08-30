@@ -1,0 +1,44 @@
+name: partner-store-identity-persist
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - cursor/partner-store-human-decisions-f590
+
+jobs:
+  persist:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: persist
+          POSTGRES_PASSWORD: persist-only
+          POSTGRES_DB: persist
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U persist -d persist"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://persist:persist-only@127.0.0.1:5432/persist
+      DIRECT_URL: postgresql://persist:persist-only@127.0.0.1:5432/persist
+      IDENTITY_PERSIST_TEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Refuse official database
+        run: |
+          if echo "$DATABASE_URL$DIRECT_URL" | grep -q ukjjopridghvwzobrsus; then
+            echo "正式庫代號出現，停止。"
+            exit 1
+          fi
+      - run: bash scripts/test-identity-persist.sh --no-docker

@@ -80,12 +80,14 @@ describe('partner store identity isolation', () => {
     assert.match(src, /listIdentityDecisions/);
   });
 
-  it('preview seed panel does not import the Prisma preview module', () => {
+  it('preview seed panel is now a read-only notice without Prisma', () => {
     const src = readFileSync(
       path.join(process.cwd(), 'components/jar-exchange/preview-acceptance-seed-panel.tsx'),
       'utf8',
     );
     assert.equal(src.includes('partner-store-identity-preview'), false);
     assert.equal(src.includes('@prisma/client'), false);
+    assert.equal(src.includes('createPreviewAcceptanceIdentityData'), false);
+    assert.match(src, /PreviewReadonlyNotice/);
   });
 });

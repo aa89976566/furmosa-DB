@@ -10,6 +10,10 @@ import {
 } from '@/lib/jar-exchange/partner-store-identity-decisions';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 import type { MerchantType } from '@/lib/merchant-types';
+import {
+  INTERNAL_PARTNER_STORE_SLUGS,
+  isInternalMerchantId,
+} from '@/lib/stores/partner-store-visibility';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
@@ -36,6 +40,7 @@ export type PartnerStoreRowConfirmation = {
   decisionId: string;
   decidedByAccount: string;
   decidedAt: string;
+  displayOnly: boolean;
 };
 
 export type PartnerStoreDirectoryStats = {
@@ -137,6 +142,7 @@ function rowConfirmation(
     decisionId: decision.id,
     decidedByAccount: decision.decidedByAccount,
     decidedAt: decision.decidedAt,
+    displayOnly: decision.displayOnly === true,
   };
 }
 
@@ -152,7 +158,8 @@ export function mergePartnerStoreDirectory(
 
   for (const store of input.stores) {
     const slug = store.slug.trim();
-    if (!slug || isOfficialExcludedStoreSlug(slug, decisions)) continue;
+    if (!slug || INTERNAL_PARTNER_STORE_SLUGS.has(slug.toLowerCase())) continue;
+    if (isOfficialExcludedStoreSlug(slug, decisions)) continue;
     const confirmedMerchantId = confirmedMerchantIdForSlug(slug, decisions);
     rows.set(slug, {
       key: slug,
@@ -173,6 +180,7 @@ export function mergePartnerStoreDirectory(
   }
 
   for (const merchant of input.merchants) {
+    if (isInternalMerchantId(merchant.merchantId)) continue;
     if (isOfficialExcludedMerchantId(merchant.merchantId, decisions)) continue;
     const confirmedSlug = confirmedSlugForMerchantId(merchant.merchantId, decisions);
     const derivedSlug = merchantToStoreSlug(merchant.merchantId);
