@@ -1,25 +1,38 @@
 import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
+import { LimitedRolloutDemoPanel } from '@/components/jar-exchange/limited-rollout-demo-panel';
+import { PartnerStoreIdentityHistory } from '@/components/jar-exchange/partner-store-identity-history';
 import { PartnerStoresDirectory } from '@/components/jar-exchange/partner-stores-directory';
 import { Button } from '@/components/ui/button';
+import { getCurrentUser } from '@/lib/auth';
+import { formatNumber } from '@/lib/format';
 import { listJarExchangeMerchants } from '@/lib/jar-exchange/partner-merchants';
 import {
   mergePartnerStoreDirectory,
   partnerStoreDirectoryStats,
 } from '@/lib/jar-exchange/partner-store-directory';
-import { formatNumber } from '@/lib/format';
+import { LIMITED_ROLLOUT_MERCHANT_ID, decideIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-write-guard';
+import { activeHumanDecisions } from '@/lib/jar-exchange/partner-store-identity-decisions';
+import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { buildUnifiedStoreRedeemUrl } from '@/lib/stores/redeem-url';
 
 export const dynamic = 'force-dynamic';
 
 export default async function JarExchangeStoresPage() {
-  const [stores, merchants] = await Promise.all([
+  const [stores, merchants, records, user] = await Promise.all([
     listPartnerStoresFromDb(),
     listJarExchangeMerchants(),
+    listIdentityDecisions('production'),
+    getCurrentUser(),
   ]);
-  const rows = mergePartnerStoreDirectory({ stores, merchants });
+  const rows = mergePartnerStoreDirectory({ stores, merchants }, records);
   const stats = partnerStoreDirectoryStats(rows);
+  const canWrite =
+    decideIdentityWrite('confirm', process.env, user?.email).allowed === true;
+  const activeDemo = activeHumanDecisions(records).find(
+    (row) => row.merchantId.toUpperCase() === LIMITED_ROLLOUT_MERCHANT_ID,
+  );
 
   return (
     <JarShell
@@ -50,11 +63,23 @@ export default async function JarExchangeStoresPage() {
             </span>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            編號對不上會分開顯示。結帳只出現在可核銷店家。
+            編號對不上會分開顯示。測試／示範店不進正式清單。結帳只出現在可核銷店家。
           </p>
         </div>
         <PartnerStoresDirectory rows={rows} />
       </JarPanel>
+      {canWrite ? (
+        <div className="mt-6">
+          <JarPanel>
+            <LimitedRolloutDemoPanel activeDemoId={activeDemo?.id ?? null} />
+          </JarPanel>
+        </div>
+      ) : null}
+      <div className="mt-6">
+        <JarPanel>
+          <PartnerStoreIdentityHistory records={records} />
+        </JarPanel>
+      </div>
     </JarShell>
   );
 }

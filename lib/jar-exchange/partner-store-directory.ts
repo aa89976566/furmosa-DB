@@ -1,6 +1,13 @@
 import type { JarExchangeMerchantRow } from '@/lib/jar-exchange/partner-merchants';
 import { getGroomingCouponDiscountForStore } from '@/lib/coupons/store-discount';
 import type { MerchantType } from '@/lib/merchant-types';
+import {
+  confirmedMerchantIdForSlug,
+  confirmedSlugForMerchantId,
+  isOfficialExcludedMerchantId,
+  isOfficialExcludedStoreSlug,
+  type PartnerStoreHumanDecision,
+} from '@/lib/jar-exchange/partner-store-identity-decisions';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
@@ -85,16 +92,19 @@ function compareDirectoryRows(a: PartnerStoreDirectoryRow, b: PartnerStoreDirect
   return a.slug.localeCompare(b.slug, 'en');
 }
 
-/** 以 slug 對應核銷店家與換罐後台店家，合成一份顯示清單 */
-export function mergePartnerStoreDirectory(input: {
-  stores: PartnerStoreView[];
-  merchants: JarExchangeMerchantRow[];
-}): PartnerStoreDirectoryRow[] {
+/** 以 slug 與人工確認對應核銷店家與換罐後台店家。測試／示範店不進正式清單。 */
+export function mergePartnerStoreDirectory(
+  input: {
+    stores: PartnerStoreView[];
+    merchants: JarExchangeMerchantRow[];
+  },
+  decisions: PartnerStoreHumanDecision[] = [],
+): PartnerStoreDirectoryRow[] {
   const rows = new Map<string, PartnerStoreDirectoryRow>();
 
   for (const store of input.stores) {
     const slug = store.slug.trim();
-    if (!slug) continue;
+    if (!slug || isOfficialExcludedStoreSlug(slug, decisions)) continue;
     rows.set(slug, {
       key: slug,
       slug,
@@ -107,12 +117,15 @@ export function mergePartnerStoreDirectory(input: {
       hasJarExchangeMerchant: false,
       groomingDiscountAmount: store.groomingDiscountAmount,
       merchantRecordId: null,
-      merchantId: null,
+      merchantId: confirmedMerchantIdForSlug(slug, decisions),
     });
   }
 
   for (const merchant of input.merchants) {
-    const slug = merchantToStoreSlug(merchant.merchantId);
+    if (isOfficialExcludedMerchantId(merchant.merchantId, decisions)) continue;
+    const confirmedSlug = confirmedSlugForMerchantId(merchant.merchantId, decisions);
+    const derivedSlug = merchantToStoreSlug(merchant.merchantId);
+    const slug = confirmedSlug || derivedSlug;
     if (!slug) continue;
     const existing = rows.get(slug);
     if (existing) {
