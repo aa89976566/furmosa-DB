@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { formatCurrency } from '@/lib/format';
 import {
   Banknote,
   CheckCircle2,
+  ChevronRight,
   Coins,
   CreditCard,
   HandCoins,
@@ -44,7 +46,6 @@ import { CustomerSearchSelect } from '@/components/customers/customer-search-sel
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
 import { OrderDiscountField } from '@/components/shared/order-discount-field';
-import { SegmentedControl } from '@/components/ui/segmented-control';
 import { variationLabel } from '@/lib/product-variations';
 import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
@@ -340,19 +341,26 @@ export function OrderForm({
   customers: initialCustomers,
   products,
   edit,
+  initialMerchantId,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
   products: ProductOption[];
   edit?: OrderEditInitial;
+  initialMerchantId?: string;
 }) {
   const isEdit = Boolean(edit);
-  const [orderType, setOrderType] = useState<OrderType>(edit?.orderType ?? 'customer');
+  const [formStep, setFormStep] = useState(initialMerchantId ? 2 : 1);
+  const [orderType, setOrderType] = useState<OrderType>(
+    edit?.orderType ?? (initialMerchantId ? 'merchant' : 'customer'),
+  );
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     edit?.customerSource ?? 'social',
   );
   const [customerId, setCustomerId] = useState<string>(edit?.customerId ?? '');
-  const [merchantId, setMerchantId] = useState<string>(edit?.merchantId ?? '');
+  const [merchantId, setMerchantId] = useState<string>(
+    edit?.merchantId ?? initialMerchantId ?? '',
+  );
   const selectedMerchant = useMemo(
     () => merchants.find((m) => m.id === merchantId),
     [merchants, merchantId],
@@ -482,6 +490,7 @@ export function OrderForm({
 
   const showMerchantOptional =
     orderType === 'customer' && customerSource === 'consignment';
+  const buyerSelected = orderType === 'customer' ? Boolean(customerId) : Boolean(merchantId);
 
   function updateItem(key: string, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
@@ -627,7 +636,7 @@ export function OrderForm({
       applyMerchantShipping(selectedMerchant);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderType, isEdit]);
+  }, [orderType, isEdit, selectedMerchant]);
 
   function onCustomerChange(id: string) {
     setCustomerId(id);
@@ -720,9 +729,14 @@ export function OrderForm({
       <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
       {isEdit && edit ? <input type="hidden" name="orderId" value={edit.orderId} /> : null}
+
+      <OrderProgress step={formStep} />
+
       {/* Step 1: 訂單類型 */}
-      <section className="space-y-2">
-        <div className="text-sm font-medium">① 訂單類型</div>
+      <section hidden={formStep !== 1} className="space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+          選擇訂單對象
+        </h2>
         {isEdit ? (
           <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             編輯模式無法變更訂單類型（
@@ -733,46 +747,50 @@ export function OrderForm({
             <TypeCard
               active={orderType === 'customer'}
               icon={<User className="h-5 w-5" />}
-              title="客戶訂單"
-              desc="一般消費者下單"
+              title="個人客戶"
+              desc="一般消費者訂單"
               onClick={() => setOrderType('customer')}
             />
             <TypeCard
               active={orderType === 'merchant'}
               icon={<Store className="h-5 w-5" />}
-              title="寄賣店家訂單"
-              desc="寄賣店進貨或代收"
+              title="合作店家"
+              desc="店家進貨或寄賣補貨"
               onClick={() => setOrderType('merchant')}
             />
           </div>
         )}
+        <WizardActions onNext={() => setFormStep(2)} />
       </section>
 
       {/* Step 2A: 客戶模式 */}
       {orderType === 'customer' && (
-        <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="text-sm font-medium">② 客戶資訊</div>
+        <section hidden={formStep !== 2} className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+            選擇客戶
+          </h2>
 
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
-              本張訂單的客戶來源 <span className="text-destructive">*</span>
-              <span className="font-normal text-muted-foreground/80">
-                （記在訂單上，不是客戶主檔）
-              </span>
+              訂單來源 <span className="text-destructive">*</span>
             </label>
-            <SegmentedControl
-              value={customerSource}
-              onChange={setCustomerSource}
-              disabled={isEdit}
-              options={CUSTOMER_SOURCES.map((cs) => ({
-                value: cs.value,
-                label: cs.label,
-                title: cs.hint,
-              }))}
-            />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {CUSTOMER_SOURCES.find((s) => s.value === customerSource)?.hint}
-            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {CUSTOMER_SOURCES.map((source) => (
+                <button
+                  key={source.value}
+                  type="button"
+                  disabled={isEdit}
+                  onClick={() => setCustomerSource(source.value)}
+                  className={`min-h-10 rounded-lg border px-3 text-sm font-medium ${
+                    customerSource === source.value
+                      ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950'
+                      : 'border-neutral-200 bg-white text-neutral-700 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300'
+                  }`}
+                >
+                  {source.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -790,7 +808,6 @@ export function OrderForm({
               <>
                 <input type="hidden" name="customerId" value={customerId} />
                 <NewCustomerPanel
-                  customerSource={customerSource}
                   value={newCustomer}
                   onChange={(v) => setNewCustomer(v)}
                   onSubmit={submitNewCustomer}
@@ -806,11 +823,6 @@ export function OrderForm({
                 onSearch={handleSearchCustomers}
                 required
               />
-            )}
-            {!showNewCustomer && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                輸入姓名／編號／電話搜尋客戶，或點「新增客戶」。
-              </p>
             )}
           </div>
 
@@ -834,13 +846,20 @@ export function OrderForm({
               </select>
             </div>
           )}
+          <WizardActions
+            onBack={() => setFormStep(1)}
+            onNext={() => setFormStep(3)}
+            nextDisabled={!buyerSelected}
+          />
         </section>
       )}
 
       {/* Step 2B: 寄賣店家模式 */}
       {orderType === 'merchant' && (
-        <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="text-sm font-medium">② 寄賣店家</div>
+        <section hidden={formStep !== 2} className="space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+            選擇合作店家
+          </h2>
 
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
@@ -861,6 +880,13 @@ export function OrderForm({
               ))}
             </select>
           </div>
+
+          <Button variant="outline" asChild className="w-full border-neutral-300 text-neutral-950 hover:bg-neutral-100 dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-900">
+            <Link href="/merchants/new?returnTo=/orders/new">
+              <Store className="mr-2 h-4 w-4" />
+              新增合作店家
+            </Link>
+          </Button>
 
           <div>
             <div className="mb-1 flex items-center justify-between">
@@ -895,28 +921,41 @@ export function OrderForm({
               />
             )}
           </div>
+          <WizardActions
+            onBack={() => setFormStep(1)}
+            onNext={() => setFormStep(3)}
+            nextDisabled={!buyerSelected}
+          />
         </section>
       )}
 
       {/* Step 3: 商品明細 */}
-      <OrderLineItemsTable
-        title="③ 商品明細"
-        hint="勾選「贈品」的品項不計入買家應付，進貨成本計入公司開銷。"
-        items={items}
-        products={productCatalog}
-        productMap={productMap}
-        onSearchProducts={handleSearchProducts}
-        onSelectProduct={onSelectProduct}
-        onSelectTier={onSelectTier}
-        onToggleGift={onToggleGift}
-        updateItem={updateItem}
-        addItem={addItem}
-        removeItem={removeItem}
-      />
+      <div hidden={formStep !== 3} className="space-y-4">
+        <OrderLineItemsTable
+          title="新增商品"
+          items={items}
+          products={productCatalog}
+          productMap={productMap}
+          onSearchProducts={handleSearchProducts}
+          onSelectProduct={onSelectProduct}
+          onSelectTier={onSelectTier}
+          onToggleGift={onToggleGift}
+          updateItem={updateItem}
+          addItem={addItem}
+          removeItem={removeItem}
+        />
+        <WizardActions
+          onBack={() => setFormStep(2)}
+          onNext={() => setFormStep(4)}
+          nextDisabled={!hasValidLines}
+        />
+      </div>
 
       {/* Step 4: 金額 + 出貨資訊 */}
-      <section className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="text-sm font-medium">④ 金額與出貨</div>
+      <section hidden={formStep !== 4} className="space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+          確認訂單
+        </h2>
 
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1027,11 +1066,6 @@ export function OrderForm({
 
         <FieldInline label="出貨與收件">
           <div className="space-y-3">
-            {selectedMerchant ? (
-              <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
-                已依店家「{selectedMerchant.name}」帶入下方運送欄位，送出前可再修改。
-              </p>
-            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-[11px] text-muted-foreground">
@@ -1061,16 +1095,13 @@ export function OrderForm({
                 />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              選客戶或寄賣店家會自動帶入姓名；可改為實際收件人。
-            </p>
             <div className="inline-flex flex-wrap gap-1 rounded-md border bg-background p-0.5">
               <button
                 type="button"
                 onClick={() => setShippingMethod('home')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'home'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
@@ -1081,7 +1112,7 @@ export function OrderForm({
                 onClick={() => setShippingMethod('convenience')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'convenience'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
@@ -1092,16 +1123,13 @@ export function OrderForm({
                 onClick={() => setShippingMethod('delivery')}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'delivery'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-neutral-950 text-white dark:bg-white dark:text-neutral-950'
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
                 送貨
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              運費依運送方式自動帶入：7-11 {SHIPPING_FEE_CVS_711} 元、黑貓宅配 {SHIPPING_FEE_HOME_BLACK_CAT} 元；送貨為公司派人直送，運費 0 元。
-            </p>
 
             {shippingMethod === 'convenience' ? (
               <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-3">
@@ -1148,9 +1176,6 @@ export function OrderForm({
                     placeholder="可貼門市完整地址或 711 簡訊／電子地圖上的取件說明"
                     className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    選寄賣店家後會自動帶入 7-11 門市與取件資訊。
-                  </p>
                 </div>
               </div>
             ) : (
@@ -1171,11 +1196,6 @@ export function OrderForm({
                   }
                   className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {shippingMethod === 'delivery'
-                    ? '選寄賣店家後可帶入店家地址；公司派人直送至此地址。'
-                    : '選客戶會帶入客戶地址；選寄賣店家會帶入店家運送資料，可再修改。'}
-                </p>
               </div>
             )}
           </div>
@@ -1193,7 +1213,7 @@ export function OrderForm({
         </FieldInline>
       </section>
 
-      <div className="flex items-center justify-end gap-2 border-t pt-4">
+      <div hidden={formStep !== 4} className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
         <div className="mr-auto flex items-center gap-2 text-sm">
           {isEdit && edit ? (
             <>
@@ -1213,6 +1233,9 @@ export function OrderForm({
             </>
           )}
         </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setFormStep(3)}>
+          返回
+        </Button>
         <SaveButton isEdit={isEdit} />
       </div>
     </form>
@@ -1232,22 +1255,13 @@ type NewCustomerValue = {
   preferredCvsStoreName: string;
 };
 
-const CUSTOMER_SOURCE_ORDER_LABEL: Record<CustomerSource, string> = {
-  social: '社群（官網）',
-  line: 'LINE',
-  consignment: '寄賣',
-};
-
 function NewCustomerPanel({
-  customerSource,
   value,
   onChange,
   onSubmit,
   onCancel,
   pending,
 }: {
-  /** 客戶訂單模式才傳；用來提示「來源」在虛線框上方選 */
-  customerSource?: CustomerSource;
   value: NewCustomerValue;
   onChange: (v: NewCustomerValue) => void;
   onSubmit: () => void;
@@ -1255,29 +1269,14 @@ function NewCustomerPanel({
   pending: boolean;
 }) {
   return (
-    <div className="space-y-3 rounded-md border border-dashed border-info/50 bg-info/5 p-3">
-      <div className="flex items-center gap-2 text-xs font-medium text-info">
+    <div className="space-y-3 rounded-xl border border-neutral-300 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="flex items-center gap-2 text-sm font-medium text-neutral-950 dark:text-white">
         <UserPlus className="h-3.5 w-3.5" />
-        新增客戶（建立後自動帶入此訂單）
+        新增個人客戶
       </div>
-      {customerSource ? (
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          「本張訂單的客戶來源」請在<strong className="text-foreground">上方虛線框外</strong>
-          先選（目前：
-          <span className="font-medium text-primary">
-            {' '}
-            {CUSTOMER_SOURCE_ORDER_LABEL[customerSource]}
-          </span>
-          ）。此處只建立客戶主檔；LINE 顯示名稱可填在下方。
-        </p>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">
-          僅建立客戶主檔並帶入此訂單；寄賣店訂單的來源固定為「寄賣」。
-        </p>
-      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
+        <div className="sm:col-span-2">
           <label className="mb-1 block text-[11px] text-muted-foreground">
             姓名 <span className="text-destructive">*</span>
           </label>
@@ -1288,19 +1287,6 @@ function NewCustomerPanel({
             maxLength={60}
             autoFocus
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] text-muted-foreground">類型</label>
-          <select
-            value={value.type}
-            onChange={(e) =>
-              onChange({ ...value, type: e.target.value as 'individual' | 'business' })
-            }
-            className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="individual">個人</option>
-            <option value="business">企業</option>
-          </select>
         </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">電話</label>
@@ -1345,27 +1331,37 @@ function NewCustomerPanel({
       </div>
 
       {/* 預設運輸偏好 — 之後該客戶下單會自動帶入 */}
-      <div className="space-y-2 rounded-md border border-info/30 bg-background/60 p-3">
-        <div className="text-[11px] font-medium text-info">預設運輸方式（選填）</div>
-        <SegmentedControl
-          value={value.preferredShippingMethod || 'none'}
-          onChange={(method) => {
-            if (method === 'none') {
-              onChange({ ...value, preferredShippingMethod: '' });
-              return;
-            }
-            if (method === 'convenience') {
-              onChange({ ...value, preferredShippingMethod: 'convenience', address: '' });
-              return;
-            }
-            onChange({ ...value, preferredShippingMethod: 'home' });
-          }}
-          options={[
-            { value: 'none', label: '不設定' },
-            { value: 'home', label: '宅配' },
-            { value: 'convenience', label: '超商取貨' },
-          ]}
-        />
+      <div className="space-y-2 rounded-md border border-neutral-200 bg-background/60 p-3 dark:border-neutral-800">
+        <div className="text-[11px] font-medium text-neutral-600 dark:text-neutral-300">預設運輸方式（選填）</div>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            ['none', '不設定'],
+            ['home', '宅配'],
+            ['convenience', '超商取貨'],
+          ] as const).map(([method, label]) => {
+            const selected = (value.preferredShippingMethod || 'none') === method;
+            return (
+              <button
+                key={method}
+                type="button"
+                onClick={() => {
+                  if (method === 'none') onChange({ ...value, preferredShippingMethod: '' });
+                  if (method === 'home') onChange({ ...value, preferredShippingMethod: 'home' });
+                  if (method === 'convenience') {
+                    onChange({ ...value, preferredShippingMethod: 'convenience', address: '' });
+                  }
+                }}
+                className={`min-h-9 rounded-lg border px-2 text-xs font-medium ${
+                  selected
+                    ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950'
+                    : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
         {value.preferredShippingMethod === 'home' && (
           <div className="space-y-2">
             <div>
@@ -1413,7 +1409,7 @@ function NewCustomerPanel({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-info/20 pt-2">
+      <div className="flex items-center justify-end gap-2 border-t border-neutral-200 pt-2 dark:border-neutral-800">
         <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={pending}>
           取消
         </Button>
@@ -1466,22 +1462,77 @@ function TypeCard({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-start gap-3 rounded-lg border p-4 text-left transition ${
-        active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+      className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+        active
+          ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950'
+          : 'border-neutral-200 bg-white text-neutral-950 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white dark:hover:bg-neutral-900'
       }`}
     >
       <div
-        className={`flex h-10 w-10 items-center justify-center rounded-md ${
-          active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+        className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+          active
+            ? 'bg-white/15 text-white dark:bg-black/10 dark:text-neutral-950'
+            : 'bg-neutral-100 text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
         }`}
       >
         {icon}
       </div>
-      <div>
+      <div className="min-w-0 flex-1">
         <div className="text-sm font-medium">{title}</div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{desc}</div>
+        <div className={`mt-0.5 text-xs ${active ? 'text-white/70 dark:text-black/60' : 'text-muted-foreground'}`}>
+          {desc}
+        </div>
       </div>
+      <ChevronRight className="h-4 w-4 shrink-0" />
     </button>
+  );
+}
+
+function OrderProgress({ step }: { step: number }) {
+  return (
+    <div aria-label={`建立訂單，第 ${step} 步，共 4 步`} className="space-y-2">
+      <div className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        建立訂單 · {step}／4
+      </div>
+      <div className="grid grid-cols-4 gap-1.5" aria-hidden>
+        {[1, 2, 3, 4].map((item) => (
+          <span
+            key={item}
+            className={`h-1 rounded-full ${
+              item <= step ? 'bg-neutral-950 dark:bg-white' : 'bg-neutral-200 dark:bg-neutral-800'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WizardActions({
+  onBack,
+  onNext,
+  nextDisabled = false,
+}: {
+  onBack?: () => void;
+  onNext: () => void;
+  nextDisabled?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+      {onBack ? (
+        <Button type="button" variant="outline" onClick={onBack}>
+          返回
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        onClick={onNext}
+        disabled={nextDisabled}
+        className="bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
+      >
+        繼續
+      </Button>
+    </div>
   );
 }
 
@@ -1489,7 +1540,6 @@ function FeeTypeCard({
   active,
   icon,
   title,
-  desc,
   onClick,
 }: {
   active: boolean;
@@ -1503,12 +1553,16 @@ function FeeTypeCard({
       type="button"
       onClick={onClick}
       className={`flex items-center gap-2 rounded-md border px-3 py-2 text-left transition ${
-        active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+        active
+          ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950'
+          : 'border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:bg-neutral-900'
       }`}
     >
       <div
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded ${
-          active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+          active
+            ? 'bg-white/15 text-white dark:bg-black/10 dark:text-neutral-950'
+            : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300'
         }`}
       >
         {icon}
@@ -1555,13 +1609,15 @@ function Stat({
   return (
     <div
       className={`rounded-md border p-3 ${
-        highlight ? 'border-primary bg-primary/5' : 'bg-muted/20'
+        highlight
+          ? 'border-neutral-950 bg-neutral-950 text-white dark:border-white dark:bg-white dark:text-neutral-950'
+          : 'border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900'
       }`}
     >
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div
         className={`mt-0.5 text-lg font-semibold tabular-nums ${
-          highlight ? 'text-primary' : ''
+          highlight ? 'text-current' : ''
         }`}
       >
         {value}
@@ -1573,7 +1629,12 @@ function Stat({
 function SaveButton({ isEdit }: { isEdit?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button
+      type="submit"
+      size="sm"
+      disabled={pending}
+      className="bg-neutral-950 text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
+    >
       <Save className="mr-1 h-4 w-4" />
       {pending ? (isEdit ? '儲存中…' : '建立中…') : isEdit ? '儲存修改' : '建立訂單'}
     </Button>
