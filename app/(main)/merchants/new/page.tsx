@@ -7,12 +7,17 @@ import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default function NewMerchantPage() {
+export default function NewMerchantPage({
+  searchParams,
+}: {
+  searchParams?: { returnTo?: string };
+}) {
+  const returnTo = searchParams?.returnTo === '/orders/new' ? '/orders/new' : undefined;
+
   return (
     <>
       <PageHeader
-        title="新增店家"
-        description="建立寄賣／快閃／旗艦等通路店家"
+        title="新增合作店家"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchants">
@@ -23,7 +28,7 @@ export default function NewMerchantPage() {
         }
       />
       <MerchantWorkspace narrow>
-        <MerchantCreateForm />
+        <MerchantCreateForm returnTo={returnTo} />
       </MerchantWorkspace>
     </>
   );
