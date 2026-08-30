@@ -43,6 +43,7 @@ export async function createMerchantAction(
   try {
     const name = String(formData.get('name') ?? '').trim();
     if (!name) return { error: '店家名稱為必填' };
+    const returnTo = String(formData.get('returnTo') ?? '').trim();
 
     const types = parseMerchantTypesFromForm(formData);
     if (types.length === 0) return { error: '請至少選擇一種類型' };
@@ -86,7 +87,11 @@ export async function createMerchantAction(
     revalidatePath('/jar-exchange/stores');
     revalidatePath('/store-redeem');
     await bustCacheTags(CACHE_TAGS.merchantsPortfolio, CACHE_TAGS.dashboard);
-    redirect(`/merchants/${merchant.id}`);
+    redirect(
+      returnTo === '/orders/new'
+        ? `/orders/new?merchantId=${encodeURIComponent(merchant.id)}`
+        : `/merchants/${merchant.id}`,
+    );
   } catch (e) {
     if (isRedirectError(e)) throw e;
     return { error: e instanceof Error ? e.message : '建立失敗' };
