@@ -17,9 +17,10 @@
    - **Session** pooler（port **5432**）→ 給 `DIRECT_URL`
 3. 帳號必須是 `postgres.ukjjopridghvwzobrsus`（不是單純 `postgres`）
 4. 打開 [Vercel → furmosa-db → Settings → Environment Variables](https://vercel.com/aa89976566s-projects/furmosa-db/settings/environment-variables)
-5. 更新 **Production**（建議 Preview 一併更新）：
+5. 只更新 **Production**。不得把正式庫連線寫進 Preview。
    - `DATABASE_URL`＝Transaction 字串，並加：`?pgbouncer=true&connection_limit=5&pool_timeout=30`（若尚未有）
    - `DIRECT_URL`＝Session 字串
+   - 若 Preview 另有 `POSTGRES_PRISMA_URL`／`POSTGRES_URL`，也不得指向正式專案 `ukjjopridghvwzobrsus`
 6. **Redeploy** Production（Env 變更不會自動套到舊部署）
 7. 再開 `https://furmosa-db.vercel.app/api/health` → 應 `ok: true`
 
@@ -38,8 +39,9 @@ DIRECT_URL=postgresql://postgres.ukjjopridghvwzobrsus:[PASSWORD]@aws-1-ap-northe
 ```bash
 export VERCEL_TOKEN=...   # https://vercel.com/account/tokens
 export VERCEL_PROJECT_ID=prj_eDlebDCQOJp9wl65O5zpASoLj1f9
-# DATABASE_URL / DIRECT_URL 使用目前可用的連線
+export TARGET=production   # Preview 必須另給獨立庫，且 TARGET=preview
+# DATABASE_URL / DIRECT_URL 必須對應 TARGET；兩者專案代號相同會立刻停止
 bash scripts/sync-vercel-db-env.sh
 ```
 
-然後開 `https://furmosa-db.vercel.app/api/health` 確認 `ok: true`。
+然後開 `https://furmosa-db.vercel.app/api/health` 確認 `ok: true`。此腳本一次只寫一個環境，不會把同一條連線同時寫入 Production 與 Preview。
