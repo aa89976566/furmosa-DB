@@ -8,14 +8,20 @@ import { OrderForm } from './order-form';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewOrderPage() {
+export default async function NewOrderPage({
+  searchParams,
+}: {
+  searchParams?: { merchantId?: string };
+}) {
   const [merchants, customers, products] = await loadOrderFormOptions();
+  const initialMerchantId = merchants.some((merchant) => merchant.id === searchParams?.merchantId)
+    ? searchParams?.merchantId
+    : undefined;
 
   return (
     <>
       <PageHeader
-        title="新增訂單"
-        description="支援寄賣店家進貨／代收 與 客戶訂單（社群、LINE、寄賣）"
+        title="建立訂單"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/orders">
@@ -25,12 +31,14 @@ export default async function NewOrderPage() {
           </Button>
         }
       />
-      <div className="p-6">
-        <SectionCard title="訂單資訊" className="max-w-5xl">
-          <OrderForm merchants={merchants} customers={customers} products={products} />
-          <p className="mt-4 text-[11px] text-muted-foreground">
-            訂單編號（ORD-YYYYMM-XXX）會在儲存時自動產生。
-          </p>
+      <div className="min-h-[calc(100vh-8rem)] bg-[#f4f4f1] p-4 sm:p-6 dark:bg-neutral-950">
+        <SectionCard title="訂單" className="mx-auto max-w-4xl border-neutral-200 shadow-none dark:border-neutral-800">
+          <OrderForm
+            merchants={merchants}
+            customers={customers}
+            products={products}
+            initialMerchantId={initialMerchantId}
+          />
         </SectionCard>
       </div>
     </>
