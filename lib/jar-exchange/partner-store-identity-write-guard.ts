@@ -21,14 +21,17 @@ export const PREVIEW_READONLY_MESSAGE = '預覽模式不會儲存變更';
 export const PRODUCTION_FEATURE_OFF_MESSAGE = '正式環境尚未開放寫入店家身分';
 export const WRITE_NOT_IMPLEMENTED_MESSAGE = '這個寫入動作尚未開放';
 
+export type IdentityWriteDeniedReason = 'preview_readonly' | 'feature_off' | 'not_implemented';
+
 export type IdentityWriteEnv = {
-  VERCEL_ENV?: string;
-  PARTNER_STORE_IDENTITY_WRITES?: string;
+  VERCEL_ENV?: string | undefined;
+  PARTNER_STORE_IDENTITY_WRITES?: string | undefined;
+  [key: string]: string | undefined;
 };
 
 export type IdentityWriteDecision =
   | { allowed: true }
-  | { allowed: false; reason: 'preview_readonly' | 'feature_off' | 'not_implemented'; error: string };
+  | { allowed: false; reason: IdentityWriteDeniedReason; error: string };
 
 const LOCAL_PERSIST_OPS = new Set<IdentityWriteOperation>(['confirm', 'revoke']);
 
@@ -60,8 +63,10 @@ export function decideIdentityWrite(
 export function denyIdentityWrite(
   operation: IdentityWriteOperation,
   env: IdentityWriteEnv = process.env,
-): { ok: false; error: string; reason: IdentityWriteDecision['reason'] } | null {
+): { ok: false; error: string; reason: IdentityWriteDeniedReason } | null {
   const decision = decideIdentityWrite(operation, env);
-  if (decision.allowed) return null;
-  return { ok: false, error: decision.error, reason: decision.reason };
+  if (!decision.allowed) {
+    return { ok: false, error: decision.error, reason: decision.reason };
+  }
+  return null;
 }
