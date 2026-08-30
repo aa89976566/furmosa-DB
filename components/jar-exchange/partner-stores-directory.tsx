@@ -21,16 +21,40 @@ function StoreIdentity({ row }: { row: PartnerStoreDirectoryRow }) {
       {row.namesDiffer && row.merchantName ? (
         <p className="mt-1 text-xs text-muted-foreground">後台店名 {row.merchantName}</p>
       ) : null}
+      {row.confirmation?.displayOnly ? (
+        <p className="mt-1 text-xs text-muted-foreground">預覽對照：總部已鎖定，尚未寫入正式庫</p>
+      ) : row.confirmation ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          確認人 {row.confirmation.decidedByAccount}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+function DisabledWriteAction({
+  row,
+  className,
+}: {
+  row: PartnerStoreDirectoryRow;
+  className?: string;
+}) {
+  const label = row.identityNote === 'needs_review' ? '確認' : row.confirmation ? '撤銷' : '開通';
+  return (
+    <Button type="button" variant="outline" size="sm" disabled className={className}>
+      {label}
+    </Button>
   );
 }
 
 function StoreActions({
   row,
   layout,
+  writesDisabled,
 }: {
   row: PartnerStoreDirectoryRow;
   layout: 'desktop' | 'mobile';
+  writesDisabled: boolean;
 }) {
   const redeemHref = row.canRedeem ? buildUnifiedStoreRedeemUrl(row.slug) : null;
   const settleHref = row.canRedeem
@@ -42,6 +66,7 @@ function StoreActions({
   if (layout === 'mobile') {
     return (
       <div className="mt-4 space-y-2">
+        {writesDisabled ? <DisabledWriteAction row={row} className="h-11 w-full" /> : null}
         {redeemHref ? (
           <Button variant="outline" className="h-11 w-full" asChild>
             <a href={redeemHref} target="_blank" rel="noreferrer">
@@ -66,7 +91,8 @@ function StoreActions({
   }
 
   return (
-    <div className="flex flex-wrap justify-end gap-x-4 text-sm">
+    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm">
+      {writesDisabled ? <DisabledWriteAction row={row} /> : null}
       {redeemHref ? (
         <a
           href={redeemHref}
@@ -91,7 +117,13 @@ function StoreActions({
   );
 }
 
-function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
+function StoreCard({
+  row,
+  writesDisabled,
+}: {
+  row: PartnerStoreDirectoryRow;
+  writesDisabled: boolean;
+}) {
   return (
     <article className="border-b border-border/60 py-4 last:border-b-0">
       <div className="flex items-start justify-between gap-4">
@@ -100,12 +132,18 @@ function StoreCard({ row }: { row: PartnerStoreDirectoryRow }) {
           {formatGroomingCouponDiscountAmount(row.groomingDiscountAmount)}
         </p>
       </div>
-      <StoreActions row={row} layout="mobile" />
+      <StoreActions row={row} layout="mobile" writesDisabled={writesDisabled} />
     </article>
   );
 }
 
-export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRow[] }) {
+export function PartnerStoresDirectory({
+  rows,
+  writesDisabled = false,
+}: {
+  rows: PartnerStoreDirectoryRow[];
+  writesDisabled?: boolean;
+}) {
   if (rows.length === 0) {
     return <p className="px-5 py-12 text-center text-sm text-muted-foreground">目前沒有合作店家。</p>;
   }
@@ -114,7 +152,7 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
     <>
       <div className="divide-y px-5 md:hidden">
         {rows.map((row) => (
-          <StoreCard key={row.key} row={row} />
+          <StoreCard key={row.key} row={row} writesDisabled={writesDisabled} />
         ))}
       </div>
 
@@ -136,7 +174,7 @@ export function PartnerStoresDirectory({ rows }: { rows: PartnerStoreDirectoryRo
                 {formatGroomingCouponDiscountAmount(row.groomingDiscountAmount)}
               </td>
               <td className="px-5 py-3">
-                <StoreActions row={row} layout="desktop" />
+                <StoreActions row={row} layout="desktop" writesDisabled={writesDisabled} />
               </td>
             </tr>
           ))}

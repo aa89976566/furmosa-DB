@@ -37,6 +37,8 @@ model User {
   pointsLedgerCreated MemberPointsLedger[]   @relation("PointsLedgerCreatedBy")
   pushSubscriptions   UserPushSubscription[]
   restockApprovals    RestockRequest[]       @relation("RestockApprovedBy")
+  partnerStoreDecisionsDecided PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityDecidedBy")
+  partnerStoreDecisionsRevoked PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
 }
 
 model UserPushSubscription {
@@ -1328,4 +1330,32 @@ model RefillPlanSettings {
   updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("refill_plan_settings")
+}
+
+/// 店家身分人工確認／測試標記。只存判定，不改 MER、slug、會員、訂單或店員。
+/// 撤銷不是刪除：原列保留，另寫撤銷人／時間／原因。重新確認必須新增一列。
+model PartnerStoreIdentityDecision {
+  id                     String    @id @default(cuid())
+  merchantId             String    @map("merchant_id")
+  legacySlug             String?   @map("legacy_slug")
+  /// same_store | test | demo
+  verdict                String
+  decidedByUserId        String    @map("decided_by_user_id")
+  decidedAt              DateTime  @map("decided_at")
+  rationale              String
+  otherRecordDisposition String    @map("other_record_disposition")
+  /// preview | production — Preview 種子只寫 preview，正式環境不讀
+  scope                  String    @default("production")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  revokedAt              DateTime? @map("revoked_at")
+  revokedByUserId        String?   @map("revoked_by_user_id")
+  revokeReason           String?   @map("revoke_reason")
+
+  decidedBy User  @relation("PartnerStoreIdentityDecidedBy", fields: [decidedByUserId], references: [id])
+  revokedBy User? @relation("PartnerStoreIdentityRevokedBy", fields: [revokedByUserId], references: [id])
+
+  @@index([scope, revokedAt])
+  @@index([merchantId, scope])
+  @@index([legacySlug, scope])
+  @@map("partner_store_identity_decisions")
 }

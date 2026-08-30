@@ -56,6 +56,7 @@ async function reset() {
   await prisma.merchant.deleteMany();
   await prisma.customer.deleteMany();
   await prisma.vendor.deleteMany();
+  await prisma.partnerStoreIdentityDecision.deleteMany();
   await prisma.user.deleteMany();
 }
 

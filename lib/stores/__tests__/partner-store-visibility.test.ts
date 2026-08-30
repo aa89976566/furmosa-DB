@@ -46,7 +46,9 @@ describe('partner-store-visibility', () => {
   it('內部 merchantId 可辨識', () => {
     assert.equal(isInternalMerchantId('MER-OTHER'), true);
     assert.equal(isInternalMerchantId('mer-refill'), true);
+    assert.equal(isInternalMerchantId('MER-DEMO'), true);
     assert.equal(isInternalMerchantId('MER-0014'), false);
+    assert.equal(isInternalMerchantId('MER-0015'), false);
   });
 
   it('店名可粗分區域', () => {

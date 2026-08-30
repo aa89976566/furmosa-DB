@@ -13,6 +13,7 @@ import {
 import { GROOMING_COUPON_DISCOUNT_DEFAULT, GROOMING_COUPON_DISCOUNT_ZHUWO } from '@/lib/coupons/store-discount';
 import type { PartnerStoreView } from '@/lib/stores/partner-stores';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
+import { previewBootstrapDecisions } from './identity-decision-fixture';
 
 function store(partial: Partial<PartnerStoreView> & Pick<PartnerStoreView, 'slug' | 'name'>): PartnerStoreView {
   return {
@@ -43,6 +44,8 @@ describe('mergePartnerStoreDirectory', () => {
       total: 0,
       redeemableCount: 0,
       jarExchangeCount: 0,
+      officialOneToOneCount: 0,
+      needsReviewCount: 0,
     });
   });
 
@@ -62,10 +65,11 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(partnerStoreSourceKind(rows[0]), 'redeem_only');
     assert.equal(partnerStoreSourceLabel.redeem_only, '僅核銷清單');
     assert.deepEqual(partnerStoreStatusCopy(rows[0]), {
-      label: '可核銷 · 未標記後台',
+      label: '可核銷 · 待確認',
       tone: 'gap',
     });
-    assert.equal(partnerStoreExceptionLabel(rows[0]), '未標記後台');
+    assert.equal(partnerStoreExceptionLabel(rows[0]), '待確認');
+    assert.equal(rows[0].identityNote, 'needs_review');
     assert.equal(partnerStoreNeedsIdentityNote(rows[0]), true);
   });
 
@@ -182,11 +186,17 @@ describe('mergePartnerStoreDirectory', () => {
     assert.equal(bySlug.pet99.hasJarExchangeMerchant, false);
     assert.equal(bySlug.mer_0022.canRedeem, false);
     assert.equal(bySlug.mer_0022.hasJarExchangeMerchant, true);
-    assert.deepEqual(partnerStoreDirectoryStats(rows), {
+    assert.deepEqual(partnerStoreDirectoryStats(rows, {
+      storeSlugs: ['mer_0014', 'pet99'],
+      merchantIds: ['MER-0014', 'MER-0022'],
+    }), {
       total: 3,
       redeemableCount: 2,
       jarExchangeCount: 2,
+      officialOneToOneCount: 1,
+      needsReviewCount: 1,
     });
+    assert.equal(partnerStoreExceptionLabel(bySlug.pet99), '待確認');
   });
 
   it('does not duplicate merchants that map to the same slug', () => {
@@ -214,6 +224,113 @@ describe('mergePartnerStoreDirectory', () => {
       merchants: [merchant({ merchantId: 'ZHUWO-BANQIAO', name: '豬窩板橋店' })],
     });
     assert.equal(rows[0].groomingDiscountAmount, GROOMING_COUPON_DISCOUNT_ZHUWO);
+  });
+
+  it('hides known test merchants from the official list without a confirmation record', () => {
+    const rows = mergePartnerStoreDirectory({
+      stores: [
+        store({ slug: 'mer_other', name: '錯誤店家對照（勿交付）' }),
+        store({ slug: 'pet99', name: '99寵物美容' }),
+      ],
+      merchants: [
+        merchant({ merchantId: 'MER-OTHER', name: '錯誤店家對照（勿交付）' }),
+        merchant({ merchantId: 'MER-REFILL', name: '匠寵換罐測試店' }),
+        merchant({ merchantId: 'MER-DEMO', name: 'Furmosa Preview 店', types: ['flagship'] }),
+      ],
+    });
+    assert.equal(rows.some((row) => row.slug === 'pet99'), true);
+    assert.equal(rows.some((row) => /other|refill|demo/i.test(row.slug)), false);
+    assert.equal(rows.some((row) => row.merchantId === 'MER-OTHER'), false);
+  });
+
+  it('does not merge custom slugs until an active confirmation record is provided', () => {
+    const rows = mergePartnerStoreDirectory({
+      stores: [store({ slug: 'niuniu', name: '淡水妞妞' })],
+      merchants: [merchant({ merchantId: 'MER-0010', name: '淡水妞妞', city: '新北' })],
+    });
+    assert.equal(rows.length, 2);
+    assert.equal(partnerStoreExceptionLabel(rows.find((row) => row.slug === 'niuniu')!), '待確認');
+  });
+
+  it('merges HQ-confirmed slug and MER into one row and keeps Zhuwo as three stores', () => {
+    const decisions = previewBootstrapDecisions();
+    const rows = mergePartnerStoreDirectory({
+      stores: [
+        store({ slug: 'zhuwo_banqiao', name: '豬窩 板橋店', groomingDiscountAmount: GROOMING_COUPON_DISCOUNT_ZHUWO }),
+        store({ slug: 'zhuwo_tucheng', name: '豬窩 土城店', groomingDiscountAmount: GROOMING_COUPON_DISCOUNT_ZHUWO }),
+        store({ slug: 'zhuwo_zhonghe', name: '豬窩 中和店', groomingDiscountAmount: GROOMING_COUPON_DISCOUNT_ZHUWO }),
+        store({ slug: 'niuniu', name: '淡水妞妞' }),
+        store({ slug: 'manlisa', name: '曼利莎寵物美容' }),
+        store({ slug: 'pet99', name: '99寵物美容' }),
+        store({ slug: 'mer_0013', name: '泡泡堂' }),
+        store({ slug: 'mer_0014', name: '柒沐寵物美容' }),
+        store({ slug: 'mer_0018', name: '墨菲寵物美學' }),
+      ],
+      merchants: [
+        merchant({ merchantId: 'MER-0019', name: '豬窩 板橋店', city: '新北' }),
+        merchant({ merchantId: 'MER-0020', name: '豬窩 土城店', city: '新北' }),
+        merchant({ merchantId: 'MER-0016', name: '豬窩 中和店', city: '新北' }),
+        merchant({ merchantId: 'MER-0010', name: '淡水妞妞', city: '新北' }),
+        merchant({ merchantId: 'MER-0017', name: '曼利莎寵物美容', city: '桃園' }),
+        merchant({ merchantId: 'MER-0013', name: '泡泡堂' }),
+        merchant({ merchantId: 'MER-0014', name: '柒沐寵物美容' }),
+        merchant({ merchantId: 'MER-0018', name: '墨菲寵物美學' }),
+        merchant({ merchantId: 'MER-OTHER', name: '錯誤店家對照（勿交付）' }),
+        merchant({ merchantId: 'MER-REFILL', name: '匠寵換罐測試店' }),
+        merchant({ merchantId: 'MER-DEMO', name: 'Furmosa Preview 店', types: ['flagship'] }),
+      ],
+    }, decisions);
+    const bySlug = Object.fromEntries(rows.map((row) => [row.slug, row]));
+    assert.equal(rows.length, 9);
+    assert.equal(bySlug.zhuwo_banqiao.merchantId, 'MER-0019');
+    assert.equal(bySlug.zhuwo_tucheng.merchantId, 'MER-0020');
+    assert.equal(bySlug.zhuwo_zhonghe.merchantId, 'MER-0016');
+    assert.equal(bySlug.niuniu.merchantId, 'MER-0010');
+    assert.equal(bySlug.manlisa.merchantId, 'MER-0017');
+    assert.equal(bySlug.zhuwo_banqiao.canRedeem, true);
+    assert.equal(bySlug.zhuwo_banqiao.hasJarExchangeMerchant, true);
+    assert.equal(Boolean(bySlug.mer_0019), false);
+    assert.equal(Boolean(bySlug.mer_other), false);
+    assert.equal(Boolean(bySlug.mer_refill), false);
+    assert.equal(Boolean(bySlug.mer_demo), false);
+    assert.equal(partnerStoreExceptionLabel(bySlug.pet99), '待確認');
+    assert.equal(bySlug.niuniu.confirmation?.decidedByAccount, 'admin@furmosa.com');
+    assert.deepEqual(
+      partnerStoreDirectoryStats(rows, {
+        decisions,
+        storeSlugs: [
+          'zhuwo_banqiao',
+          'zhuwo_tucheng',
+          'zhuwo_zhonghe',
+          'niuniu',
+          'manlisa',
+          'pet99',
+          'mer_0013',
+          'mer_0014',
+          'mer_0018',
+        ],
+        merchantIds: [
+          'MER-0019',
+          'MER-0020',
+          'MER-0016',
+          'MER-0010',
+          'MER-0017',
+          'MER-0013',
+          'MER-0014',
+          'MER-0018',
+          'MER-OTHER',
+          'MER-REFILL',
+          'MER-DEMO',
+        ],
+      }),
+      {
+        total: 9,
+        redeemableCount: 9,
+        jarExchangeCount: 8,
+        officialOneToOneCount: 8,
+        needsReviewCount: 1,
+      },
+    );
   });
 
   it('infers Zhuwo discount for a backend-only 豬窩 merchant', () => {
