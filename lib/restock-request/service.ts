@@ -310,7 +310,12 @@ function resolvedHqItemLines(input: {
 
 export type HqReviewDb = Pick<
   typeof prisma,
-  '$transaction' | 'restockRequest' | 'restockRequestItem' | 'product'
+  | '$transaction'
+  | 'restockRequest'
+  | 'restockRequestItem'
+  | 'product'
+  | 'merchantStock'
+  | 'merchantProductRule'
 >;
 
 export async function updateRestockRequestAsHq(
@@ -465,7 +470,8 @@ export async function approveAndConvertRestockRequest(
         payload: input.items,
       });
       assertApproveHasPositiveQty(lines);
-      await assertJarExchangeProducts(
+      await assertMerchantRestockCatalogProducts(
+        current.merchantId,
         lines.map((line) => line.productId),
         tx,
       );
@@ -518,12 +524,14 @@ export async function approveAndConvertRestockRequest(
     const products = await tx.product.findMany({
       where: { id: { in: lines.map((l) => l.productId) } },
     });
-    if (products.some((p) => p.productCategory !== 'JAR_EXCHANGE')) {
-      throw new RestockRequestReviewError('只能核准換罐計畫商品');
-    }
     if (products.length !== lines.length) {
       throw new RestockRequestReviewError('商品資料不完整');
     }
+    await assertMerchantRestockCatalogProducts(
+      current.merchantId,
+      lines.map((line) => line.productId),
+      tx,
+    );
 
     const productById = new Map(products.map((p) => [p.id, p]));
     const snapshot: ApprovedSnapshotLine[] = lines.map((l) => {

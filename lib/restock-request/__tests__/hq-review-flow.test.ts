@@ -16,6 +16,7 @@ import {
   type HqReviewDb,
 } from '@/lib/restock-request/service';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
+import type { CreateRestockOrderInput } from '@/lib/merchant-restock-order';
 
 type ItemRow = {
   id: string;
@@ -53,17 +54,30 @@ type ProductRow = {
   sku: string;
   unit: string | null;
   productCategory: string;
+  status: string;
 };
+
+type StockRow = { merchantId: string; productId: string };
+type RuleRow = { merchantId: string; productId: string };
 
 type MemoryOptions = {
   failItemProductId?: string;
   failClaim?: boolean;
+  stocks?: StockRow[];
+  rules?: RuleRow[];
 };
 
-function cloneState(rows: RequestRow[], products: ProductRow[]) {
+function cloneState(
+  rows: RequestRow[],
+  products: ProductRow[],
+  stocks: StockRow[] = [],
+  rules: RuleRow[] = [],
+) {
   return {
     rows: structuredClone(rows),
     products: structuredClone(products),
+    stocks: structuredClone(stocks),
+    rules: structuredClone(rules),
   };
 }
 
@@ -72,7 +86,7 @@ function createMemoryHqReviewDb(
   products: ProductRow[],
   options: MemoryOptions = {},
 ): HqReviewDb & { snapshot: () => { rows: RequestRow[]; products: ProductRow[] } } {
-  let state = cloneState(seed, products);
+  let state = cloneState(seed, products, options.stocks ?? [], options.rules ?? []);
 
   const api = {
     restockRequest: {
@@ -169,8 +183,34 @@ function createMemoryHqReviewDb(
         return state.products.filter((p) => ids.has(p.id));
       },
     },
+    merchantStock: {
+      async findMany({
+        where,
+      }: {
+        where: { merchantId: string; productId?: { in: string[] } };
+      }) {
+        return state.stocks.filter((row) => {
+          if (row.merchantId !== where.merchantId) return false;
+          if (where.productId?.in && !where.productId.in.includes(row.productId)) return false;
+          return true;
+        });
+      },
+    },
+    merchantProductRule: {
+      async findMany({
+        where,
+      }: {
+        where: { merchantId: string; productId?: { in: string[] } };
+      }) {
+        return state.rules.filter((row) => {
+          if (row.merchantId !== where.merchantId) return false;
+          if (where.productId?.in && !where.productId.in.includes(row.productId)) return false;
+          return true;
+        });
+      },
+    },
     async $transaction<T>(fn: (tx: typeof api) => Promise<T>): Promise<T> {
-      const previous = cloneState(state.rows, state.products);
+      const previous = cloneState(state.rows, state.products, state.stocks, state.rules);
       try {
         return await fn(api);
       } catch (error) {
@@ -179,7 +219,7 @@ function createMemoryHqReviewDb(
       }
     },
     snapshot() {
-      return cloneState(state.rows, state.products);
+      return cloneState(state.rows, state.products, state.stocks, state.rules);
     },
   };
 
@@ -229,9 +269,30 @@ function sampleRequest(overrides: Partial<RequestRow> = {}): RequestRow {
 }
 
 const catalog: ProductRow[] = [
-  { id: 'p1', name: '雞胸', sku: 'A1', unit: '包', productCategory: 'JAR_EXCHANGE' },
-  { id: 'p2', name: '牛肉', sku: 'A2', unit: '包', productCategory: 'JAR_EXCHANGE' },
-  { id: 'p3', name: '注入商品', sku: 'X', unit: '包', productCategory: 'JAR_EXCHANGE' },
+  {
+    id: 'p1',
+    name: '雞胸',
+    sku: 'A1',
+    unit: '包',
+    productCategory: 'JAR_EXCHANGE',
+    status: 'active',
+  },
+  {
+    id: 'p2',
+    name: '牛肉',
+    sku: 'A2',
+    unit: '包',
+    productCategory: 'JAR_EXCHANGE',
+    status: 'active',
+  },
+  {
+    id: 'p3',
+    name: '注入商品',
+    sku: 'X',
+    unit: '包',
+    productCategory: 'JAR_EXCHANGE',
+    status: 'active',
+  },
 ];
 
 const arrival = new Date('2026-09-01T00:00:00.000Z');
@@ -584,3 +645,386 @@ describe('HQ restock review service hardening', () => {
     ]);
   });
 });
+
+const standardProduct: ProductRow = {
+  id: 'std-1',
+  name: '寄賣零食',
+  sku: 'STD-1',
+  unit: '包',
+  productCategory: 'STANDARD',
+  status: 'active',
+};
+
+const serviceProduct: ProductRow = {
+  id: 'svc-1',
+  name: '美容',
+  sku: 'SVC-1',
+  unit: '次',
+  productCategory: 'SERVICE',
+  status: 'active',
+};
+
+function standardRequest(): RequestRow {
+  return sampleRequest({
+    items: [
+      {
+        id: 'it_std',
+        restockRequestId: 'req_1',
+        productId: 'std-1',
+        requestedQuantity: 2,
+        approvedQuantity: 2,
+      },
+    ],
+  });
+}
+
+describe('HQ approve converts eligible STANDARD and JAR_EXCHANGE', () => {
+  it('converts an eligible STANDARD request with server merchant, qty, and restock price fields', async () => {
+    const db = createMemoryHqReviewDb([standardRequest()], [standardProduct], {
+      stocks: [{ merchantId: 'm_1', productId: 'std-1' }],
+    });
+    let captured: CreateRestockOrderInput | null = null;
+    const result = await approveAndConvertRestockRequest(
+      {
+        requestId: 'req_1',
+        hqUserId: 'hq_session',
+        expectedArrivalDate: arrival,
+        items: [{ productId: 'std-1', approvedQuantity: 2 }],
+      },
+      {
+        db,
+        createShipment: async (input) => {
+          captured = input;
+          return { shipment: { id: 'shp_std' }, order: { id: 'ord_std' } };
+        },
+      },
+    );
+    assert.equal(result.idempotent, false);
+    assert.equal(result.shipmentId, 'shp_std');
+    assert.equal(captured?.merchantId, 'm_1');
+    assert.deepEqual(
+      captured?.items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unit: item.unit,
+      })),
+      [{ productId: 'std-1', quantity: 2, unit: '包' }],
+    );
+    assert.deepEqual(captured?.products, [
+      { id: 'std-1', name: '寄賣零食', sku: 'STD-1' },
+    ]);
+    assert.equal('unitPrice' in (captured?.items[0] ?? {}), false);
+    assert.equal(captured?.total, undefined);
+    assert.equal(captured?.paymentStatus, undefined);
+    const row = db.snapshot().rows[0];
+    assert.equal(row?.status, 'converted_to_shipment');
+    assert.equal(row?.shipmentId, 'shp_std');
+    assert.equal(row?.approvedByUserId, 'hq_session');
+    assert.equal(row?.items[0]?.approvedQuantity, 2);
+    assert.equal(row?.items[0]?.requestedQuantity, 2);
+  });
+
+  it('still converts JAR_EXCHANGE without this store stock', async () => {
+    const db = createMemoryHqReviewDb([sampleRequest()], catalog);
+    let captured: CreateRestockOrderInput | null = null;
+    await approveAndConvertRestockRequest(
+      {
+        requestId: 'req_1',
+        hqUserId: 'hq_session',
+        expectedArrivalDate: arrival,
+        items: [
+          { productId: 'p1', approvedQuantity: 3 },
+          { productId: 'p2', approvedQuantity: 1 },
+        ],
+      },
+      {
+        db,
+        createShipment: async (input) => {
+          captured = input;
+          return { shipment: { id: 'shp_jar' }, order: { id: 'ord_jar' } };
+        },
+      },
+    );
+    assert.equal(captured?.merchantId, 'm_1');
+    assert.deepEqual(
+      captured?.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      [
+        { productId: 'p1', quantity: 3 },
+        { productId: 'p2', quantity: 1 },
+      ],
+    );
+    assert.equal('unitPrice' in (captured?.items[0] ?? {}), false);
+  });
+
+  it('converts a mixed eligible JAR_EXCHANGE and STANDARD ticket', async () => {
+    const db = createMemoryHqReviewDb(
+      [
+        sampleRequest({
+          items: [
+            {
+              id: 'it_p1',
+              restockRequestId: 'req_1',
+              productId: 'p1',
+              requestedQuantity: 4,
+              approvedQuantity: 4,
+            },
+            {
+              id: 'it_std',
+              restockRequestId: 'req_1',
+              productId: 'std-1',
+              requestedQuantity: 2,
+              approvedQuantity: 2,
+            },
+          ],
+        }),
+      ],
+      [...catalog, standardProduct],
+      { stocks: [{ merchantId: 'm_1', productId: 'std-1' }] },
+    );
+    let captured: CreateRestockOrderInput | null = null;
+    await approveAndConvertRestockRequest(
+      {
+        requestId: 'req_1',
+        hqUserId: 'hq_session',
+        expectedArrivalDate: arrival,
+        items: [
+          { productId: 'p1', approvedQuantity: 4 },
+          { productId: 'std-1', approvedQuantity: 2 },
+        ],
+      },
+      {
+        db,
+        createShipment: async (input) => {
+          captured = input;
+          return { shipment: { id: 'shp_mix' }, order: { id: 'ord_mix' } };
+        },
+      },
+    );
+    assert.deepEqual(
+      captured?.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      [
+        { productId: 'p1', quantity: 4 },
+        { productId: 'std-1', quantity: 2 },
+      ],
+    );
+    assert.equal(db.snapshot().rows[0]?.shipmentId, 'shp_mix');
+  });
+
+  it('rejects inactive, unknown, unsupported, and other-store STANDARD without converting', async () => {
+    const inactive = createMemoryHqReviewDb(
+      [standardRequest()],
+      [{ ...standardProduct, status: 'inactive' }],
+      { stocks: [{ merchantId: 'm_1', productId: 'std-1' }] },
+    );
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'std-1', approvedQuantity: 2 }],
+          },
+          {
+            db: inactive,
+            createShipment: async () => {
+              throw new Error('must not convert');
+            },
+          },
+        ),
+      /這項商品目前不能補貨/,
+    );
+    assert.equal(inactive.snapshot().rows[0]?.status, 'submitted');
+    assert.equal(inactive.snapshot().rows[0]?.shipmentId, null);
+
+    const unknown = createMemoryHqReviewDb([standardRequest()], catalog);
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'std-1', approvedQuantity: 2 }],
+          },
+          { db: unknown, createShipment: async () => ({ shipment: { id: 'x' }, order: { id: 'y' } }) },
+        ),
+      /有商品不存在/,
+    );
+
+    const serviceReq = sampleRequest({
+      items: [
+        {
+          id: 'it_svc',
+          restockRequestId: 'req_1',
+          productId: 'svc-1',
+          requestedQuantity: 1,
+          approvedQuantity: 1,
+        },
+      ],
+    });
+    const unsupported = createMemoryHqReviewDb([serviceReq], [serviceProduct]);
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'svc-1', approvedQuantity: 1 }],
+          },
+          {
+            db: unsupported,
+            createShipment: async () => ({ shipment: { id: 'x' }, order: { id: 'y' } }),
+          },
+        ),
+      /這項商品目前不能補貨/,
+    );
+
+    const otherStore = createMemoryHqReviewDb([standardRequest()], [standardProduct], {
+      stocks: [{ merchantId: 'm_other', productId: 'std-1' }],
+      rules: [{ merchantId: 'm_other', productId: 'std-1' }],
+    });
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'std-1', approvedQuantity: 2 }],
+          },
+          {
+            db: otherStore,
+            createShipment: async () => ({ shipment: { id: 'x' }, order: { id: 'y' } }),
+          },
+        ),
+      /這項商品目前不能補貨/,
+    );
+    assert.equal(otherStore.snapshot().rows[0]?.status, 'submitted');
+  });
+
+  it('rolls back a mixed illegal ticket and a mid-convert failure', async () => {
+    const mixed = createMemoryHqReviewDb(
+      [
+        sampleRequest({
+          items: [
+            {
+              id: 'it_p1',
+              restockRequestId: 'req_1',
+              productId: 'p1',
+              requestedQuantity: 4,
+              approvedQuantity: 4,
+            },
+            {
+              id: 'it_std',
+              restockRequestId: 'req_1',
+              productId: 'std-1',
+              requestedQuantity: 2,
+              approvedQuantity: 2,
+            },
+          ],
+        }),
+      ],
+      [...catalog, standardProduct],
+    );
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [
+              { productId: 'p1', approvedQuantity: 4 },
+              { productId: 'std-1', approvedQuantity: 2 },
+            ],
+          },
+          {
+            db: mixed,
+            createShipment: async () => {
+              throw new Error('must not convert mixed ineligible');
+            },
+          },
+        ),
+      /這項商品目前不能補貨/,
+    );
+    assert.equal(mixed.snapshot().rows[0]?.status, 'submitted');
+    assert.equal(mixed.snapshot().rows[0]?.shipmentId, null);
+
+    const midFail = createMemoryHqReviewDb([standardRequest()], [standardProduct], {
+      stocks: [{ merchantId: 'm_1', productId: 'std-1' }],
+    });
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'std-1', approvedQuantity: 2 }],
+          },
+          {
+            db: midFail,
+            createShipment: async () => {
+              throw new Error('shipment boom');
+            },
+          },
+        ),
+      /shipment boom/,
+    );
+    assert.equal(midFail.snapshot().rows[0]?.status, 'submitted');
+    assert.equal(midFail.snapshot().rows[0]?.shipmentId, null);
+  });
+
+  it('returns the same shipment on retry even if the product is later inactive', async () => {
+    const db = createMemoryHqReviewDb(
+      [sampleRequest({ status: 'converted_to_shipment', shipmentId: 'shp_old' })],
+      catalog.map((product) => ({ ...product, status: 'inactive' })),
+    );
+    const again = await approveAndConvertRestockRequest(
+      {
+        requestId: 'req_1',
+        hqUserId: 'other',
+        expectedArrivalDate: arrival,
+        items: [
+          { productId: 'p1', approvedQuantity: 1 },
+          { productId: 'p2', approvedQuantity: 1 },
+        ],
+      },
+      {
+        db,
+        createShipment: async () => {
+          throw new Error('must not create another shipment');
+        },
+      },
+    );
+    assert.equal(again.idempotent, true);
+    assert.equal(again.shipmentId, 'shp_old');
+    assert.equal(db.snapshot().rows[0]?.shipmentId, 'shp_old');
+  });
+
+  it('still rejects over-requested quantities on STANDARD convert', async () => {
+    const db = createMemoryHqReviewDb([standardRequest()], [standardProduct], {
+      stocks: [{ merchantId: 'm_1', productId: 'std-1' }],
+    });
+    await assert.rejects(
+      () =>
+        approveAndConvertRestockRequest(
+          {
+            requestId: 'req_1',
+            hqUserId: 'hq_session',
+            expectedArrivalDate: arrival,
+            items: [{ productId: 'std-1', approvedQuantity: 9 }],
+          },
+          {
+            db,
+            createShipment: async () => ({ shipment: { id: 'x' }, order: { id: 'y' } }),
+          },
+        ),
+      /不能超過店家申請數量/,
+    );
+    assert.equal(db.snapshot().rows[0]?.status, 'submitted');
+  });
+});
+
