@@ -1,4 +1,5 @@
 'use server';
+import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 
 import { prisma } from '@/lib/prisma';
 import {
@@ -125,6 +126,7 @@ async function markShipmentStatusInner(
       items: true,
       order: {
         select: {
+          omsStatus: true,
           status: true,
           paymentStatus: true,
           shippingMethod: true,
@@ -147,6 +149,9 @@ async function markShipmentStatusInner(
     },
   });
   if (!shipment) throw new Error('出貨單不存在');
+  if (shipment.order?.omsStatus) {
+    throw new Error('OMS 訂單尚未完成專用審核與物流流程，不可使用舊出貨操作');
+  }
 
   const allowed = TRANSITIONS[shipment.status] ?? [];
   if (!allowed.includes(next)) {
@@ -281,6 +286,7 @@ async function markShipmentStatusInner(
 
   // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
   await prisma.$transaction(async (tx) => {
+    if (shipment.orderId) await guardLegacyOrderTx(tx, shipment.orderId);
     await tx.shipment.update({ where: { id: shipmentId }, data });
 
     if (shipment.orderId) {

@@ -1,0 +1,35 @@
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { reviewDraft } from '@/lib/orders/review-policy';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { OmsReviewForm } from './oms-review-form';
+
+export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
+  if (!status || !['NEW', 'REVIEW', 'READY'].includes(status) || !snapshotView(snapshot)) return null;
+  const session = await getCurrentUser();
+  const actor = session ? await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } }) : null;
+  if (!actor || !['admin', 'staff'].includes(actor.role)) return <p>需要 HQ 審核人員確認此訂單。</p>;
+  const source = snapshot as Snapshot;
+  const hash = snapshotHash(source);
+  const [products, audit] = await Promise.all([
+    prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true }, orderBy: { sku: 'asc' } }),
+    prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
+  ]);
+  let saved: Record<string, unknown> = {};
+  try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* use fresh draft */ }
+  const view = snapshotView(snapshot)!;
+  const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
+  const draft = saved.sourceHash === hash ? reviewDraft(saved.draft) : reviewDraft({
+    lines: rows.map(row => {
+      const sku = string(row.sku);
+      const matches = sku ? products.filter(p => p.sku === sku || p.sourceSku === sku) : [];
+      return { productId: matches.length === 1 ? matches[0].id : '', temperature: '' };
+    }), recipient: view.recipient, phone: view.phone, address: view.address,
+  });
+  return <section className="space-y-3 rounded-lg border p-4" aria-label="OMS 訂單審核">
+    <h2 className="font-medium">訂單審核</h2>
+    <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
+      draft={draft} products={products} titles={rows.map(r => string(r.title) || '未命名商品')} />
+  </section>;
+}

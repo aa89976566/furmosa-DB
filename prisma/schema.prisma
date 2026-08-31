@@ -39,6 +39,7 @@ model User {
   restockApprovals    RestockRequest[]       @relation("RestockApprovedBy")
   partnerStoreDecisionsDecided PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityDecidedBy")
   partnerStoreDecisionsRevoked PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
+  omsReviewedOrders  Order[]                @relation("OmsReviewedBy")
 }
 
 model UserPushSubscription {
@@ -909,6 +910,48 @@ model InventoryTransaction {
 // Order Hub
 // =====================================================
 
+enum OmsStatus {
+  NEW
+  REVIEW
+  READY
+  FULFILLMENT_PENDING
+  FULFILLED
+}
+
+enum ShopifyWebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+// Durable inbox foundation; the receiver/worker will be connected in the next stage.
+// Payloads may contain personal data: restrict access and purge by payloadExpiresAt.
+model ShopifyWebhookEvent {
+  id               String               @id @default(cuid())
+  shopDomain       String
+  topic            String
+  eventId          String
+  externalOrderId  String?
+  sourceUpdatedAt  DateTime?
+  payload          Json?
+  payloadHash      String
+  payloadExpiresAt DateTime?
+  status           ShopifyWebhookStatus @default(RECEIVED)
+  attempts         Int                  @default(0)
+  nextAttemptAt    DateTime?
+  lockedUntil      DateTime?
+  receivedAt       DateTime             @default(now())
+  processedAt      DateTime?
+  lastErrorCode    String?
+
+  @@unique([shopDomain, topic, eventId])
+  @@index([status, nextAttemptAt])
+  @@index([shopDomain, externalOrderId])
+  @@index([payloadExpiresAt])
+}
+
 model Order {
   id                String    @id @default(cuid())
   orderNumber       String    @unique // ORD-202605-001
@@ -916,6 +959,17 @@ model Order {
   externalStore     String?   @map("external_store")
   externalOrderId   String?   @map("external_order_id")
   externalOrderName String?   @map("external_order_name")
+  // Null means not enrolled in OMS; never default legacy/non-Shopify orders to NEW.
+  omsStatus         OmsStatus? @map("oms_status")
+  // Null means not checked; [] means checked with no issues. Shape: lib/orders/oms.ts.
+  omsIssueFlags     Json?      @map("oms_issue_flags")
+  omsCheckedAt      DateTime?  @map("oms_checked_at")
+  omsCheckedSourceUpdatedAt DateTime? @map("oms_checked_source_updated_at")
+  shopifySnapshot   Json?      @map("shopify_snapshot")
+  shopifySourceUpdatedAt DateTime? @map("shopify_source_updated_at")
+  shopifyLastEventId String?   @map("shopify_last_event_id")
+  omsReviewedById   String?    @map("oms_reviewed_by_id")
+  omsReviewedAt     DateTime?  @map("oms_reviewed_at")
   status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
   paymentStatus     String    @default("unpaid") // unpaid / partial / paid / cod / refunded
   shippingFeeType   String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款
@@ -942,6 +996,7 @@ model Order {
   updatedAt         DateTime  @updatedAt
 
   customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  omsReviewedBy     User?              @relation("OmsReviewedBy", fields: [omsReviewedById], references: [id], onDelete: SetNull)
   merchant          Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
   subscription      Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   items             OrderItem[]
@@ -957,6 +1012,8 @@ model Order {
   @@index([status, orderedAt])
   @@index([source, orderedAt])
   @@unique([externalStore, externalOrderId])
+  @@index([omsStatus, orderedAt])
+  @@index([omsReviewedById])
 }
 
 model OrderItem {
