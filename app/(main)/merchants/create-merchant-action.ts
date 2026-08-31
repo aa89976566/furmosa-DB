@@ -19,6 +19,12 @@ import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
+import { getCurrentUser } from '@/lib/auth';
+import {
+  isLikelyDuplicateMerchant,
+  normalizeMerchantName,
+  normalizePhone,
+} from '@/lib/merchants/onboarding';
 
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
@@ -41,6 +47,9 @@ export async function createMerchantAction(
   formData: FormData,
 ): Promise<CreateMerchantState> {
   try {
+    const user = await getCurrentUser();
+    if (!user) return { error: '請先登入總部帳號' };
+
     const name = String(formData.get('name') ?? '').trim();
     if (!name) return { error: '店家名稱為必填' };
 
@@ -62,6 +71,30 @@ export async function createMerchantAction(
     const shipping = parseMerchantShippingFromForm(formData);
     if (shipping.error) return { error: shipping.error };
 
+    const phone = toNullableField(formData.get('phone'));
+    const normalizedName = normalizeMerchantName(name);
+    const normalizedPhone = normalizePhone(phone);
+    const possibleDuplicates = await prisma.$queryRaw<
+      { merchantId: string; name: string; phone: string | null }[]
+    >`
+      SELECT "merchantId", "name", "phone"
+      FROM "Merchant"
+      WHERE regexp_replace(lower("name"), '[[:space:]]', '', 'g') = ${normalizedName}
+         OR (
+           ${normalizedPhone} <> ''
+           AND regexp_replace(COALESCE("phone", ''), '[^0-9]', '', 'g') = ${normalizedPhone}
+         )
+      LIMIT 5
+    `;
+    const duplicate = possibleDuplicates.find((existing) =>
+      isLikelyDuplicateMerchant({ name, phone }, existing),
+    );
+    if (duplicate) {
+      return {
+        error: `「${duplicate.name}」（${duplicate.merchantId}）可能已存在，請返回搜尋後直接開通合作方式。`,
+      };
+    }
+
     const merchant = await insertMerchantRecord(prisma, {
       merchantId: await nextMerchantId(),
       name,
@@ -69,7 +102,7 @@ export async function createMerchantAction(
       types,
       industry,
       contactName: toNullableField(formData.get('contactName')),
-      phone: toNullableField(formData.get('phone')),
+      phone,
       email,
       city: toNullableField(formData.get('city')),
       notes: toNullableField(formData.get('notes')),
@@ -86,7 +119,7 @@ export async function createMerchantAction(
     revalidatePath('/jar-exchange/stores');
     revalidatePath('/store-redeem');
     await bustCacheTags(CACHE_TAGS.merchantsPortfolio, CACHE_TAGS.dashboard);
-    redirect(`/merchants/${merchant.id}`);
+    redirect(`/merchants/${merchant.id}/pos-access`);
   } catch (e) {
     if (isRedirectError(e)) throw e;
     return { error: e instanceof Error ? e.message : '建立失敗' };
