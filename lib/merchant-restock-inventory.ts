@@ -4,6 +4,9 @@ import {
   merchantStockUniqueWhere,
   resolveTierIdFromWeightGrams,
 } from '@/lib/merchant-stock-key';
+import { restockIncreasesStoreOnHand } from '@/lib/pos/domain-contract';
+
+export const MERCHANT_RESTOCK_SHIPMENT_TYPE = 'merchant_restock';
 
 export type RestockShipmentForInventory = {
   shipmentNumber: string;
@@ -15,7 +18,52 @@ export type RestockShipmentForInventory = {
   }>;
 };
 
-/** 是否已依出貨單寫入店家進貨庫存 */
+export type MerchantRestockStatusChange = {
+  nextStatus: string;
+  shipmentType: string;
+  shipmentNumber: string;
+  merchantId: string | null | undefined;
+  items: RestockShipmentForInventory['items'];
+};
+
+/**
+ * 寄賣補貨只在 delivered 入店家庫存。
+ * MerchantStock.quantity 是店內可賣實體量，不是在途。
+ * 非寄賣出貨（客戶單、訂閱）不走這條入庫。
+ */
+export function shouldApplyMerchantRestockInventory(
+  nextStatus: string,
+  shipmentType: string,
+): boolean {
+  if (shipmentType !== MERCHANT_RESTOCK_SHIPMENT_TYPE) return false;
+  return restockIncreasesStoreOnHand(nextStatus);
+}
+
+/**
+ * 依出貨狀態決定是否入庫。shipped 不寫庫存；delivered 才呼叫既有入庫函式。
+ * 必須與出貨狀態更新放在同一個 DB transaction，失敗才不會留下半套。
+ */
+export async function applyMerchantRestockInventoryForStatusChange(
+  tx: Prisma.TransactionClient,
+  input: MerchantRestockStatusChange,
+  now: Date,
+): Promise<boolean> {
+  if (!shouldApplyMerchantRestockInventory(input.nextStatus, input.shipmentType)) {
+    return false;
+  }
+  if (!input.merchantId) return false;
+  return applyMerchantRestockFromShipment(
+    tx,
+    {
+      shipmentNumber: input.shipmentNumber,
+      merchantId: input.merchantId,
+      items: input.items,
+    },
+    now,
+  );
+}
+
+/** 是否已依出貨單寫入店家進貨庫存（note 含出貨單號；含舊程式在 shipped 時寫入的流水） */
 export async function merchantRestockAlreadyPosted(
   tx: Prisma.TransactionClient,
   merchantId: string,

@@ -215,7 +215,10 @@ describe('inventory — available = onHand - reserved, never negative', () => {
 
   it('increases store on-hand only when restock shipment is delivered', () => {
     assert.equal(restockIncreasesStoreOnHand('pending'), false);
+    assert.equal(restockIncreasesStoreOnHand('packed'), false);
+    assert.equal(restockIncreasesStoreOnHand('shipped'), false);
     assert.equal(restockIncreasesStoreOnHand('delivered'), true);
+    assert.equal(restockIncreasesStoreOnHand('cancelled'), false);
     assert.equal(canTransitionRestockShipment('shipped', 'delivered'), true);
     assert.equal(canTransitionRestockShipment('delivered', 'pending'), false);
   });
