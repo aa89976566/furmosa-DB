@@ -947,6 +947,9 @@ model Order {
   shopifyLastEventId String?   @map("shopify_last_event_id")
   omsReviewedById   String?    @map("oms_reviewed_by_id")
   omsReviewedAt     DateTime?  @map("oms_reviewed_at")
+  deletedAt         DateTime?  @map("deleted_at")
+  deletedById       String?    @map("deleted_by_id")
+  deletionReason    String?    @map("deletion_reason")
   status            String    @default("draft") // draft / confirmed / packed / shipped / delivered / completed / cancelled
   paymentStatus     String    @default("unpaid") // unpaid / partial / paid / cod / refunded
   shippingFeeType   String    @default("unpaid") // free 包郵 / prepaid 已付費 / unpaid 不包郵 / cod 運費貨到付款

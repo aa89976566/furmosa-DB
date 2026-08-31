@@ -10,11 +10,11 @@ import { formatCurrency } from '@/lib/format';
 
 export async function OmsDashboard() {
   const [today, review, issues, pending, needsAttention] = await Promise.all([
-    prisma.order.count({ where: { omsStatus: { not: null }, orderedAt: taiwanToday() } }),
-    prisma.order.count({ where: { omsStatus: { in: ['NEW', 'REVIEW'] } } }),
+    prisma.order.count({ where: { deletedAt: null, omsStatus: { not: null }, orderedAt: taiwanToday() } }),
+    prisma.order.count({ where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW'] } } }),
     prisma.order.count({ where: omsProblemsWhere }),
-    prisma.order.count({ where: { omsStatus: 'FULFILLMENT_PENDING' } }),
-    prisma.order.findMany({ where: { OR: [{ omsStatus: { in: ['NEW', 'REVIEW', 'READY'] } }, omsProblemsWhere] },
+    prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLMENT_PENDING' } }),
+    prisma.order.findMany({ where: { deletedAt: null, OR: [{ omsStatus: { in: ['NEW', 'REVIEW', 'READY'] } }, omsProblemsWhere] },
       orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 10,
       select: { id: true, orderNumber: true, externalOrderName: true, total: true, omsStatus: true, omsIssueFlags: true, shopifySnapshot: true } }),
   ]);

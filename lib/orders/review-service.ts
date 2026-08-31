@@ -17,6 +17,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0))`;
     const order = await tx.order.findUniqueOrThrow({ where: { id: key.id }, include: { shipments: true } });
     const snapshot = order.shopifySnapshot as Snapshot | null;
+    if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核');
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核');
     if (command.action === 'ship' && order.omsStatus === 'FULFILLMENT_PENDING' && order.shipments.some(s => s.shipmentNumber === `OMS-${order.id}`)) {
       return { message: '出貨單已存在，沒有重複建立' };

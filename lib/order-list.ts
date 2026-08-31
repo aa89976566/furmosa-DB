@@ -41,10 +41,12 @@ export function isHistoricalOrder(order: {
 }
 
 export const historicalOrderWhere = {
+  deletedAt: null,
   OR: [{ fulfillmentStatus: 'returned' as const }, { status: 'cancelled' as const }],
 };
 
 export const activeOrderWhere = {
+  deletedAt: null,
   fulfillmentStatus: { not: 'returned' as const },
   status: { not: 'cancelled' as const },
 };

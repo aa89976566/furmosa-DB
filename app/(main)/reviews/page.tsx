@@ -51,7 +51,9 @@ export default async function ReviewInboxPage() {
                       </span>
                     </div>
                     <div>
-                      <div className="font-medium">{item.title}</div>
+                      <Link href={item.href} className="font-medium text-info hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                        {item.title}
+                      </Link>
                       <div className="text-sm text-muted-foreground">{item.subtitle || '—'}</div>
                     </div>
                     <Button asChild variant="outline" size="sm">
@@ -81,7 +83,9 @@ export default async function ReviewInboxPage() {
                         <Badge variant="muted">{item.kindLabel}</Badge>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="font-medium">{item.title}</div>
+                        <Link href={item.href} className="font-medium text-info hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+                          {item.title}
+                        </Link>
                         <div className="text-muted-foreground">{item.subtitle || '—'}</div>
                       </td>
                       <td className="px-3 py-2">

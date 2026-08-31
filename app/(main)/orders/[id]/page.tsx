@@ -57,6 +57,7 @@ import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
 import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { OMS_LABELS } from '@/lib/orders/oms';
+import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,8 +133,10 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       />
 
       <div className="space-y-6 p-6">
+        {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
+        {order.omsStatus && <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />}
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
-        <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />
+        {!order.deletedAt && <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />}
         <HorizontalSectionBand>
           <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
             <DetailBadgeRow className="mb-3">
@@ -400,7 +403,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           icon={Package}
           title="訂單品項"
           description={order.omsStatus && !order.items.length
-            ? '尚未轉成 HQ 出貨品項；原始商品請見上方 Shopify 收單快照'
+            ? `Shopify 原始品項 ${sourceView?.items.length ?? 0} 項；尚未建立 HQ 出貨品項`
             : `${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
         >
           {(() => {
@@ -449,6 +452,14 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               </TableRow>
             </TableHeader>
             <TableBody>
+              {order.omsStatus && !order.items.length && sourceView?.items.map((item, index) => (
+                <TableRow key={`source-${index}`}>
+                  <TableCell>{item.title}</TableCell><TableCell>{item.sku || '待對應 SKU'}</TableCell>
+                  <TableCell>待確認</TableCell><TableCell>—</TableCell><TableCell>{item.quantity ?? '待確認'}</TableCell>
+                  <TableCell>{sourceView.currency} {item.price || '待確認'}</TableCell>
+                  <TableCell>{sourceView.currency} {item.lineTotal ?? '待確認'}</TableCell>
+                </TableRow>
+              ))}
               {order.items.map((it) => {
                 const skuMissing = !it.sku?.trim();
                 const priceMissing = !it.isGift && Number(it.unitPrice) <= 0;
