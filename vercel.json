@@ -1,9 +1,5 @@
 {
   "ignoreCommand": "exit 1",
-  "env": {
-    "PARTNER_STORE_IDENTITY_WRITES": "enabled",
-    "PARTNER_STORE_IDENTITY_TARGET": "approved-five"
-  },
   "crons": [
     {
       "path": "/api/cron/expire-coupons",
