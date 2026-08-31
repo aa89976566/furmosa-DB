@@ -8,10 +8,18 @@ import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { OrderForm } from '../../new/order-form';
+import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditOrderPage({ params }: { params: { id: string } }) {
+export default async function EditOrderPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { returnTo?: string };
+}) {
+  const returnTo = safeOrderEditReturnTo(searchParams?.returnTo);
   const order = await prisma.order.findUnique({
     where: { id: params.id },
     include: {
@@ -30,7 +38,7 @@ export default async function EditOrderPage({ params }: { params: { id: string }
           title={`修改訂單 · ${order.orderNumber}`}
           actions={
             <Button variant="outline" size="sm" asChild>
-              <Link href={`/orders/${order.id}`}>
+              <Link href={returnTo ?? `/orders/${order.id}`}>
                 <ArrowLeft className="mr-1 h-4 w-4" />
                 返回詳情
               </Link>
@@ -61,7 +69,7 @@ export default async function EditOrderPage({ params }: { params: { id: string }
         description="可調整客戶、品項、運送、備註與金額；儲存後同步出貨單"
         actions={
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/orders/${order.id}`}>
+            <Link href={returnTo ?? `/orders/${order.id}`}>
               <ArrowLeft className="mr-1 h-4 w-4" />
               返回詳情
             </Link>
@@ -75,6 +83,7 @@ export default async function EditOrderPage({ params }: { params: { id: string }
             customers={customers}
             products={products}
             edit={edit}
+            returnTo={returnTo ?? undefined}
           />
         </SectionCard>
       </div>
