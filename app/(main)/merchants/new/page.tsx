@@ -12,7 +12,7 @@ export default function NewMerchantPage() {
     <>
       <PageHeader
         title="新增店家"
-        description="建立寄賣／快閃／旗艦等通路店家"
+        description="店家只需建立一次，之後下單、補貨與對帳都直接選用。"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchants">
