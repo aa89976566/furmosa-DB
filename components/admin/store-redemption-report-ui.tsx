@@ -336,30 +336,25 @@ export function StoreRedemptionDetailTable({
 
 export function StoreRedemptionLinkPanel({ storeSlug }: { storeSlug: string | null }) {
   const unifiedUrl = buildUnifiedStoreRedeemUrl();
-  const storeUrl = storeSlug ? buildUnifiedStoreRedeemUrl(storeSlug) : null;
 
   return (
     <SectionCard
       tone="supply"
       icon={Link2}
       title="店家核銷入口"
-      description="提供給合作店家的統一核銷網址"
+      description="店員登入 POS 後，系統會依帳號認定門市"
       contentClassName="pt-6"
     >
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3">
         <LinkCard
-          label="統一入口"
-          hint="所有店家共用，店員自行選擇分店"
+          label="POS 核銷入口"
+          hint={
+            storeSlug
+              ? '目前報表店家不會透過網址預選，避免交易掛錯門市'
+              : '所有店家共用，各自使用店員帳號登入'
+          }
           url={unifiedUrl}
         />
-        {storeUrl ? (
-          <LinkCard
-            label="目前店家專用"
-            hint="開啟後自動帶入所選分店"
-            url={storeUrl}
-            highlighted
-          />
-        ) : null}
       </div>
     </SectionCard>
   );
