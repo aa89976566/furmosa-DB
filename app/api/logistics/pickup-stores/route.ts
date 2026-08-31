@@ -7,16 +7,20 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Authenticated HQ preview only. Do not whitelist this path in middleware.
-// Production and live logistics access are intentionally disabled in this version.
+// Production deployment stays disabled. Live directory reads require explicit opt-in.
+function liveDirectory() {
+  return process.env.PICKUP_DIRECTORY_SOURCE === 'live-readonly';
+}
 const search = createSearchService({
   now: Date.now,
-  enabled: () => process.env.VERCEL_ENV === 'preview' && process.env.PICKUP_SEARCH_PREVIEW_ENABLED === 'true',
+  enabled: () => process.env.VERCEL_ENV === 'preview' && process.env.PICKUP_SEARCH_PREVIEW_ENABLED === 'true' &&
+    (!process.env.PICKUP_DIRECTORY_SOURCE || ['stage', 'live-readonly'].includes(process.env.PICKUP_DIRECTORY_SOURCE)),
   frozenConfirmed: () => false,
   load: service => fetchDirectory({
-    merchantId: process.env.ECPAY_LOGISTICS_TEST_MERCHANT_ID ?? '',
-    hashKey: process.env.ECPAY_LOGISTICS_TEST_HASH_KEY ?? '',
-    hashIV: process.env.ECPAY_LOGISTICS_TEST_HASH_IV ?? '',
-    environment: 'stage',
+    merchantId: (liveDirectory() ? process.env.ECPAY_LOGISTICS_LIVE_MERCHANT_ID : process.env.ECPAY_LOGISTICS_TEST_MERCHANT_ID) ?? '',
+    hashKey: (liveDirectory() ? process.env.ECPAY_LOGISTICS_LIVE_HASH_KEY : process.env.ECPAY_LOGISTICS_TEST_HASH_KEY) ?? '',
+    hashIV: (liveDirectory() ? process.env.ECPAY_LOGISTICS_LIVE_HASH_IV : process.env.ECPAY_LOGISTICS_TEST_HASH_IV) ?? '',
+    environment: liveDirectory() ? 'production' : 'stage',
   }, service, { fetch, now: Date.now }),
 });
 

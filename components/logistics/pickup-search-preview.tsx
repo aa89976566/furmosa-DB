@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { initialSearchState, readSearchResponse, searchReducer } from '@/lib/logistics/pickup-search-ui';
 
-export function PickupSearchPreview({ enabled }: { enabled: boolean }) {
+export function PickupSearchPreview({ enabled, liveDirectory = false }: { enabled: boolean; liveDirectory?: boolean }) {
   const [query, setQuery] = useState('');
   const [state, dispatch] = useReducer(searchReducer, initialSearchState);
   const sequence = useRef(0);
@@ -56,7 +56,7 @@ export function PickupSearchPreview({ enabled }: { enabled: boolean }) {
         <p className="text-sm text-muted-foreground">輸入門市名稱或附近地址就能找，不用記店號。</p>
       </div>
       <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-        HQ 測試專用：目前僅查詢常溫測試資料。選取不會存入訂單，也不會產生運費或付款。
+        {liveDirectory ? 'HQ 驗收專用：僅查詢綠界正式常溫門市清單。' : 'HQ 測試專用：目前僅查詢常溫測試資料。'}選取不會存入訂單，不建立物流單，也不會產生運費或付款。
       </p>
       {!enabled && <p role="status" className="text-sm text-muted-foreground">門市搜尋尚未啟用，請先完成預覽環境設定。</p>}
       <form onSubmit={search} className="space-y-2">

@@ -16,8 +16,13 @@ function harness(user: unknown, env: Record<string, string>) {
     if (name === 'next/server') return { NextResponse: { json: (body: unknown, init: ResponseInit) => Response.json(body, init) } };
     if (name === '@/lib/auth') return { getCurrentUser: async () => user };
     if (name === '@/lib/logistics/search-service') return { createSearchService };
-    if (name === '@/lib/logistics/ecpay-directory') return { fetchDirectory: async (config: { environment: string }) => {
-      providerCalls++; assert.equal(config.environment, 'stage');
+    if (name === '@/lib/logistics/ecpay-directory') return { fetchDirectory: async (config: { environment: string; merchantId: string; hashKey: string; hashIV: string }) => {
+      providerCalls++; assert.equal(config.environment, env.PICKUP_DIRECTORY_SOURCE === 'live-readonly' ? 'production' : 'stage');
+      const credentials = config;
+      const prefix = env.PICKUP_DIRECTORY_SOURCE === 'live-readonly' ? 'ECPAY_LOGISTICS_LIVE_' : 'ECPAY_LOGISTICS_TEST_';
+      assert.equal(credentials.merchantId, env[prefix + 'MERCHANT_ID'] ?? '');
+      assert.equal(credentials.hashKey, env[prefix + 'HASH_KEY'] ?? '');
+      assert.equal(credentials.hashIV, env[prefix + 'HASH_IV'] ?? '');
       return { fetchedAt: Date.now(), stores: [{ id: '001', name: '示範店', address: '示範地址', serviceType: 'UNIMART' }] };
     } };
     throw new Error('Unexpected dependency: ' + name);
@@ -29,6 +34,26 @@ test('route denies unauthenticated HQ access without provider calls', async () =
   const h = harness(null, { VERCEL_ENV: 'preview', PICKUP_SEARCH_PREVIEW_ENABLED: 'true' });
   const response = await h.get(); assert.equal(response.status, 401); assert.equal(h.calls(), 0);
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
+});
+test('live read-only uses dedicated live credentials, never test credentials', async () => {
+  const h = harness({ userId: 'fixture' }, {
+    VERCEL_ENV: 'preview', PICKUP_SEARCH_PREVIEW_ENABLED: 'true', PICKUP_DIRECTORY_SOURCE: 'live-readonly',
+    ECPAY_LOGISTICS_LIVE_MERCHANT_ID: '1111111', ECPAY_LOGISTICS_LIVE_HASH_KEY: 'fixture-live-key', ECPAY_LOGISTICS_LIVE_HASH_IV: 'fixture-live-iv',
+    ECPAY_LOGISTICS_TEST_MERCHANT_ID: '2222222', ECPAY_LOGISTICS_TEST_HASH_KEY: 'fixture-test-key', ECPAY_LOGISTICS_TEST_HASH_IV: 'fixture-test-iv',
+  });
+  assert.equal((await h.get()).status, 200);
+  assert.equal(h.calls(), 1);
+  assert.equal((await h.get('q=示範&temperature=frozen')).status, 503);
+});
+test('production deployment and invalid source cannot enable live queries', async () => {
+  for (const env of [
+    { VERCEL_ENV: 'production', PICKUP_DIRECTORY_SOURCE: 'live-readonly' },
+    { VERCEL_ENV: 'preview', PICKUP_DIRECTORY_SOURCE: 'production' },
+  ]) {
+    const h = harness({ userId: 'fixture' }, { ...env, PICKUP_SEARCH_PREVIEW_ENABLED: 'true' });
+    assert.equal((await h.get()).status, 503);
+    assert.equal(h.calls(), 0);
+  }
 });
 test('production and unenabled previews cannot query provider', async () => {
   for (const env of [{ VERCEL_ENV: 'production', PICKUP_SEARCH_PREVIEW_ENABLED: 'true' }, { VERCEL_ENV: 'preview', PICKUP_SEARCH_PREVIEW_ENABLED: 'false' }]) {
