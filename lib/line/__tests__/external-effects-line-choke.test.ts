@@ -24,7 +24,7 @@ const originalFetch = globalThis.fetch;
 const originalEnv: Partial<Record<(typeof TOUCHED_ENV_KEYS)[number], string | undefined>> =
   {};
 
-let fetchCalls: RequestInfo[] = [];
+let fetchCalls: string[] = [];
 let consoleChunks: string[] = [];
 const originalConsole = {
   log: console.log,

@@ -2052,8 +2052,9 @@ describe('O1 frozen refund inventory policy', () => {
   it('fail-closes a completed retry when stored disposition condition is an empty string', () => {
     const first = completeApprovedRefund(completeInput());
     const proof = effectsProof(first);
-    assert.ok(proof.dispositionReceipt);
-    assert.equal(proof.dispositionReceipt.condition, null);
+    const dispositionReceipt = proof.dispositionReceipt;
+    assert.ok(dispositionReceipt);
+    assert.equal(dispositionReceipt.condition, null);
     assert.throws(
       () =>
         completeApprovedRefund(
@@ -2061,7 +2062,7 @@ describe('O1 frozen refund inventory policy', () => {
             ...committedRetry(first),
             committedEffectsProof: effectsProof(first, {
               dispositionReceipt: {
-                ...proof.dispositionReceipt,
+                ...dispositionReceipt,
                 condition: '' as unknown as RefundReturnCondition,
               },
             }),
@@ -2152,7 +2153,8 @@ describe('O1 frozen refund inventory policy', () => {
   it('fail-closes a release retry when persisted deltas do not match', () => {
     const first = completeApprovedRefund(completeInput());
     const proof = effectsProof(first);
-    assert.ok(proof.inventoryLedgerReceipt);
+    const inventoryLedgerReceipt = proof.inventoryLedgerReceipt;
+    assert.ok(inventoryLedgerReceipt);
     assert.throws(
       () =>
         completeApprovedRefund(
@@ -2160,7 +2162,7 @@ describe('O1 frozen refund inventory policy', () => {
             ...committedRetry(first),
             committedEffectsProof: effectsProof(first, {
               inventoryLedgerReceipt: {
-                ...proof.inventoryLedgerReceipt,
+                ...inventoryLedgerReceipt,
                 reservedDelta: 0,
               },
             }),
@@ -2173,7 +2175,8 @@ describe('O1 frozen refund inventory policy', () => {
   it('fail-closes when a receipt aggregate or qty does not match the stored effect', () => {
     const first = completeApprovedRefund(completeInput());
     const proof = effectsProof(first);
-    assert.ok(proof.dispositionReceipt);
+    const dispositionReceipt = proof.dispositionReceipt;
+    assert.ok(dispositionReceipt);
     assert.throws(
       () =>
         completeApprovedRefund(
@@ -2181,7 +2184,7 @@ describe('O1 frozen refund inventory policy', () => {
             ...committedRetry(first),
             committedEffectsProof: effectsProof(first, {
               dispositionReceipt: {
-                ...proof.dispositionReceipt,
+                ...dispositionReceipt,
                 inventoryAggregateId: 'merchant-stock-OTHER',
               },
             }),
@@ -2196,7 +2199,7 @@ describe('O1 frozen refund inventory policy', () => {
             ...committedRetry(first),
             committedEffectsProof: effectsProof(first, {
               dispositionReceipt: {
-                ...proof.dispositionReceipt,
+                ...dispositionReceipt,
                 qty: 2,
               },
             }),
@@ -2237,7 +2240,8 @@ describe('O1 frozen refund inventory policy', () => {
   it('fail-closes extra or contradictory persisted receipts', () => {
     const first = completeApprovedRefund(completeInput());
     const proof = effectsProof(first);
-    assert.ok(proof.inventoryLedgerReceipt);
+    const inventoryLedgerReceipt = proof.inventoryLedgerReceipt;
+    assert.ok(inventoryLedgerReceipt);
     assert.throws(
       () =>
         completeApprovedRefund(
@@ -2262,7 +2266,7 @@ describe('O1 frozen refund inventory policy', () => {
             ...committedRetry(first),
             committedEffectsProof: effectsProof(first, {
               inventoryLedgerReceipt: {
-                ...proof.inventoryLedgerReceipt,
+                ...inventoryLedgerReceipt,
                 operation: 'restock',
               },
             }),
@@ -2272,4 +2276,3 @@ describe('O1 frozen refund inventory policy', () => {
     );
   });
 });
-

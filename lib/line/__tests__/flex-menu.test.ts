@@ -59,6 +59,7 @@ describe('buildMainMenuMessages', () => {
     const msgs = buildMainMenuMessages({ body: '測試內文', registered: false });
     const flex = flexFrom(msgs);
     assert.ok(flex);
+    assert.ok(flex.type === 'flex');
     assert.equal(flex.contents.type, 'bubble');
     assert.equal(countButtons(flex), 3);
     const raw = JSON.stringify(flex.contents);
@@ -85,6 +86,7 @@ describe('垂直按鈕選單', () => {
         },
       ],
     });
+    assert.ok(flex.type === 'flex');
     assert.equal(flex.contents.type, 'bubble');
     assert.match(JSON.stringify(flex), /"type":"button"/);
     assert.doesNotMatch(JSON.stringify(flex), /carousel/);

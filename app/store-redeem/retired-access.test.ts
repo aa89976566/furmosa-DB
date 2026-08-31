@@ -106,9 +106,9 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = '__LEAK_STORE_REDEEM_QUERY__';
     await assertRetiredRedirect(
       () =>
-        StoreRedeemPage({
+        Reflect.apply(StoreRedeemPage, undefined, [{
           searchParams: trappedBox('searchParams', marker),
-        } as never),
+        }]),
       marker,
     );
   });
@@ -117,14 +117,14 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = 'https://evil.example/phish';
     await assertRetiredRedirect(
       () =>
-        StoreRedeemPage({
+        Reflect.apply(StoreRedeemPage, undefined, [{
           searchParams: {
             store: marker,
             token: marker,
             next: marker,
             access: `zhuwo_zhonghe-${marker}`,
           },
-        } as never),
+        }]),
       marker,
     );
   });
@@ -133,9 +133,9 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = '__LEAK_STORE_ACCESS_PATH__';
     await assertRetiredRedirect(
       () =>
-        StoreAccessRedeemPage({
+        Reflect.apply(StoreAccessRedeemPage, undefined, [{
           params: trappedBox('params', marker),
-        } as never),
+        }]),
       marker,
     );
   });
@@ -153,7 +153,7 @@ describe('legacy public store redeem pages are retired', () => {
 
     for (const access of cases) {
       await assertRetiredRedirect(
-        () => StoreAccessRedeemPage({ params: { access } } as never),
+        () => Reflect.apply(StoreAccessRedeemPage, undefined, [{ params: { access } }]),
         access,
       );
     }
