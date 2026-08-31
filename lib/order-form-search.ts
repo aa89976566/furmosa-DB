@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { customerSearchWhere, productSearchWhere } from '@/lib/site-search';
+import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
+import type { MerchantWholesalePriceRow } from '@/lib/orders/merchant-wholesale-price';
 
 export type OrderFormCustomerHit = {
   id: string;
@@ -17,6 +19,8 @@ export type OrderFormProductHit = {
   id: string;
   name: string;
   sku: string;
+  productCategory: string;
+  availableStock: number;
   price: number;
   cost: number;
   unit: string;
@@ -29,6 +33,7 @@ export type OrderFormProductHit = {
     cost: number | null;
     notes: string | null;
   }[];
+  wholesalePrices: MerchantWholesalePriceRow[];
 };
 
 const customerSelect = {
@@ -47,9 +52,13 @@ const productSelect = {
   id: true,
   name: true,
   sku: true,
+  productCategory: true,
   price: true,
   cost: true,
   unit: true,
+  inventoryBalances: {
+    select: { quantity: true },
+  },
   priceTiers: {
     orderBy: [{ weightGrams: 'asc' as const }, { unitQty: 'asc' as const }],
     select: {
@@ -63,6 +72,59 @@ const productSelect = {
     },
   },
 };
+
+export type OrderFormProductScope =
+  | 'all'
+  | 'customer_in_stock'
+  | 'merchant_standard'
+  | 'merchant_jar_exchange';
+
+function toOrderFormProductHit(
+  row: Awaited<ReturnType<typeof findProductsForOrderForm>>[number],
+  wholesalePrices: MerchantWholesalePriceRow[] = [],
+): OrderFormProductHit {
+  return {
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    productCategory: row.productCategory,
+    availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    price: row.price,
+    cost: row.cost,
+    unit: row.unit,
+    priceTiers: row.priceTiers,
+    wholesalePrices: wholesalePrices.filter((price) => price.productId === row.id),
+  };
+}
+
+function findProductsForOrderForm(
+  q: string,
+  take: number,
+  scope: OrderFormProductScope,
+) {
+  const term = q.trim();
+  const search = term ? productSearchWhere(term) : undefined;
+
+  return prisma.product.findMany({
+    where: {
+      status: 'active',
+      ...(scope === 'customer_in_stock'
+        ? {
+            productCategory: 'STANDARD',
+            inventoryBalances: { some: { quantity: { gt: 0 } } },
+          }
+        : scope === 'merchant_standard'
+          ? { productCategory: 'STANDARD' }
+          : scope === 'merchant_jar_exchange'
+            ? { productCategory: 'JAR_EXCHANGE' }
+        : {}),
+      ...(search ?? {}),
+    },
+    orderBy: { name: 'asc' },
+    select: productSelect,
+    take,
+  });
+}
 
 /** 訂單／訂閱表單：客戶 typeahead（空字串回傳近期客戶） */
 export async function searchCustomersForOrderForm(
@@ -88,19 +150,19 @@ export async function searchCustomersForOrderForm(
 export async function searchProductsForOrderForm(
   q: string,
   take = 40,
+  scope: OrderFormProductScope = 'all',
+  merchantId?: string,
 ): Promise<OrderFormProductHit[]> {
-  const term = q.trim();
-  const search = term ? productSearchWhere(term) : undefined;
+  const rows = await findProductsForOrderForm(q, take, scope);
+  if (scope !== 'merchant_standard' || !merchantId) {
+    return rows.map((row) => toOrderFormProductHit(row));
+  }
 
-  return prisma.product.findMany({
-    where: {
-      status: 'active',
-      ...(search ?? {}),
-    },
-    orderBy: { name: 'asc' },
-    select: productSelect,
-    take,
-  });
+  const wholesalePrices = await loadMerchantWholesalePrices(merchantId);
+  const configuredProductIds = new Set(wholesalePrices.map((price) => price.productId));
+  return rows
+    .filter((row) => configuredProductIds.has(row.id))
+    .map((row) => toOrderFormProductHit(row, wholesalePrices));
 }
 
 export async function getCustomersByIdsForOrderForm(
@@ -117,8 +179,20 @@ export async function getProductsByIdsForOrderForm(
   ids: string[],
 ): Promise<OrderFormProductHit[]> {
   if (ids.length === 0) return [];
-  return prisma.product.findMany({
+  const rows = await prisma.product.findMany({
     where: { id: { in: ids } },
     select: productSelect,
   });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    sku: row.sku,
+    productCategory: row.productCategory,
+    availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    price: row.price,
+    cost: row.cost,
+    unit: row.unit,
+    priceTiers: row.priceTiers,
+    wholesalePrices: [],
+  }));
 }
