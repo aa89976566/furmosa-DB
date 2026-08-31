@@ -20,8 +20,21 @@ import {
 } from '@/lib/restock-request/review-policy';
 import { isRestockableProductCategory } from '@/lib/product-category';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
+import {
+  buildMerchantRestockInStoreIds,
+  isMerchantRestockCatalogEligible,
+  merchantRestockSubmitEligibility,
+} from '@/lib/restock-request/catalog-eligibility';
 
 type Db = Prisma.TransactionClient | typeof prisma;
+
+export type MerchantRestockCatalogDb = Pick<
+  typeof prisma,
+  'product' | 'merchantStock' | 'merchantProductRule'
+>;
+
+export type SubmitSelfSelectDb = MerchantRestockCatalogDb &
+  Pick<typeof prisma, 'restockRequest'>;
 
 export type SubmitSelfSelectInput = {
   merchantId: string;
@@ -63,9 +76,10 @@ export type MerchantRestockProduct = {
 
 export async function listMerchantRestockCatalog(
   merchantId: string,
+  db: MerchantRestockCatalogDb = prisma,
 ): Promise<MerchantRestockProduct[]> {
-  const [jarProducts, stocks, rules] = await Promise.all([
-    prisma.product.findMany({
+  const [catalogProducts, stocks, rules] = await Promise.all([
+    db.product.findMany({
       where: {
         status: 'active',
         productCategory: { in: ['JAR_EXCHANGE', 'STANDARD'] },
@@ -75,14 +89,15 @@ export async function listMerchantRestockCatalog(
         name: true,
         unit: true,
         productCategory: true,
+        status: true,
       },
       orderBy: { name: 'asc' },
     }),
-    prisma.merchantStock.findMany({
+    db.merchantStock.findMany({
       where: { merchantId },
       select: { productId: true, quantity: true },
     }),
-    prisma.merchantProductRule.findMany({
+    db.merchantProductRule.findMany({
       where: { merchantId },
       select: { productId: true },
     }),
@@ -92,10 +107,10 @@ export async function listMerchantRestockCatalog(
   for (const s of stocks) {
     qtyByProduct.set(s.productId, (qtyByProduct.get(s.productId) ?? 0) + s.quantity);
   }
-  const inStore = new Set([...qtyByProduct.keys(), ...rules.map((r) => r.productId)]);
+  const inStore = buildMerchantRestockInStoreIds(stocks, rules);
 
-  return jarProducts
-    .filter((p) => p.productCategory === 'JAR_EXCHANGE' || inStore.has(p.id))
+  return catalogProducts
+    .filter((p) => isMerchantRestockCatalogEligible(p, inStore))
     .map((p) => {
       const stockQty = qtyByProduct.get(p.id) ?? 0;
       return {
@@ -107,6 +122,35 @@ export async function listMerchantRestockCatalog(
         suggestedQty: suggestedRestockQty(stockQty),
       };
     });
+}
+
+async function assertMerchantRestockCatalogProducts(
+  merchantId: string,
+  productIds: string[],
+  db: MerchantRestockCatalogDb,
+) {
+  const uniqueIds = [...new Set(productIds)];
+  const [products, stocks, rules] = await Promise.all([
+    db.product.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, status: true, productCategory: true },
+    }),
+    db.merchantStock.findMany({
+      where: { merchantId, productId: { in: uniqueIds } },
+      select: { productId: true },
+    }),
+    db.merchantProductRule.findMany({
+      where: { merchantId, productId: { in: uniqueIds } },
+      select: { productId: true },
+    }),
+  ]);
+  const inStore = buildMerchantRestockInStoreIds(stocks, rules);
+  const result = merchantRestockSubmitEligibility(uniqueIds, products, inStore);
+  if (result.ok) return;
+  if (result.reason === 'missing') {
+    throw new RestockRequestReviewError('有商品不存在');
+  }
+  throw new RestockRequestReviewError('這項商品目前不能補貨');
 }
 
 export async function assertJarExchangeProducts(
@@ -127,7 +171,10 @@ export async function assertJarExchangeProducts(
   }
 }
 
-export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInput) {
+export async function submitSelfSelectRestockRequest(
+  input: SubmitSelfSelectInput,
+  db: SubmitSelfSelectDb = prisma,
+) {
   const cleaned = input.items
     .map((it) => ({
       productId: it.productId,
@@ -139,9 +186,13 @@ export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInpu
     throw new Error('請至少選一個商品。數量需要大於 0。');
   }
 
-  await assertJarExchangeProducts(cleaned.map((c) => c.productId));
+  await assertMerchantRestockCatalogProducts(
+    input.merchantId,
+    cleaned.map((c) => c.productId),
+    db,
+  );
 
-  return prisma.restockRequest.create({
+  return db.restockRequest.create({
     data: {
       merchantId: input.merchantId,
       requestedByMerchantUserId: input.merchantUserId,
