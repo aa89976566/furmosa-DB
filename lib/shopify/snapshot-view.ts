@@ -3,6 +3,14 @@ function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 const text = (value: unknown) => typeof value === 'string' ? value : '';
+
+/** OMS approval and physical shipment creation are separate milestones. */
+export function omsShipmentNotice(status: string | null, shipmentCount: number): string | null {
+  if (!status || shipmentCount > 0) return null;
+  if (status === 'NEW' || status === 'REVIEW') return '尚未審核出貨';
+  if (status === 'READY') return '已審核，尚未建立出貨單';
+  return '尚無 HQ 出貨單，請核對物流';
+}
 export function snapshotView(value: unknown) {
   const snapshot = object(value);
   if (snapshot.schemaVersion !== 1) return null;

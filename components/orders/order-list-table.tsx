@@ -19,7 +19,7 @@ import { shipmentStatusLabel } from '@/lib/shipment';
 import type { Prisma } from '@prisma/client';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { ChevronRight, Package } from 'lucide-react';
-import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { OMS_LABELS, omsIssueTone } from '@/lib/orders/oms';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
@@ -40,6 +40,12 @@ function fulfillmentDisplay(order: OrderListRow): string {
   if (shipment.status === 'delivered') return 'delivered';
   if (shipment.status === 'cancelled') return 'returned';
   return order.fulfillmentStatus;
+}
+
+function OrderFulfillmentBadge({ order }: { order: OrderListRow }) {
+  const notice = omsShipmentNotice(order.omsStatus, order.shipments.length);
+  return notice ? <span className="text-xs text-muted-foreground">{notice}</span>
+    : <StatusBadge kind="fulfillment" value={fulfillmentDisplay(order)} />;
 }
 
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
@@ -119,7 +125,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
+                      <OrderFulfillmentBadge order={o} />
                       {o.shipments[0] ? (
                         <Link
                           href={`/shipments/${o.shipments[0].id}`}
@@ -184,7 +190,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <OmsOrderBadge order={o} />
         <StatusBadge kind="payment" value={o.paymentStatus} />
-        <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
+        <OrderFulfillmentBadge order={o} />
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">

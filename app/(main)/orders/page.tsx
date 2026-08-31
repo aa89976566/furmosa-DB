@@ -42,6 +42,8 @@ function OrdersTotalsFallback() {
 async function OrdersTotalsSection() {
   const totals = await getOrderSourceTotals();
   return (
+    <section aria-label="全部訂單來源彙總">
+    <p className="mb-2 text-xs text-muted-foreground">全部訂單來源彙總（不隨下方篩選變動；不是目前清單的筆數與金額）</p>
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {totals.map((t) => (
         <Card key={t.source}>
@@ -55,6 +57,7 @@ async function OrdersTotalsSection() {
         </Card>
       ))}
     </div>
+    </section>
   );
 }
 
