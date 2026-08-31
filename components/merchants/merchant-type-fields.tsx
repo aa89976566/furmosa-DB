@@ -16,7 +16,7 @@ const cooperationDescription: Record<(typeof MERCHANT_COOPERATION_TYPES)[number]
 };
 
 export function MerchantTypeFields({
-  defaultTypes = ['consignment'],
+  defaultTypes = [],
   className,
 }: {
   defaultTypes?: MerchantType[];
