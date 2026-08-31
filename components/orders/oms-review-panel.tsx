@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { reviewDraft } from '@/lib/orders/review-policy';
+import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
 
@@ -16,11 +17,9 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
     prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true }, orderBy: { sku: 'asc' } }),
     prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
   ]);
-  let saved: Record<string, unknown> = {};
-  try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* use fresh draft */ }
   const view = snapshotView(snapshot)!;
   const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
-  const draft = saved.sourceHash === hash ? reviewDraft(saved.draft) : reviewDraft({
+  const draft = currentReviewDraft(snapshot, audit?.metadataJson) ?? reviewDraft({
     lines: rows.map(row => {
       const sku = string(row.sku);
       const matches = sku ? products.filter(p => p.sku === sku || p.sourceSku === sku) : [];
