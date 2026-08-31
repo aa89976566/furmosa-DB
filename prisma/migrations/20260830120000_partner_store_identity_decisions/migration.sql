@@ -17,6 +17,9 @@ CREATE TABLE "partner_store_identity_decisions" (
     CONSTRAINT "partner_store_identity_decisions_pkey" PRIMARY KEY ("id")
 );
 
+-- 正式表預設不開放 Supabase anon/authenticated API 存取。
+ALTER TABLE "partner_store_identity_decisions" ENABLE ROW LEVEL SECURITY;
+
 CREATE INDEX "partner_store_identity_decisions_scope_revoked_at_idx"
 ON "partner_store_identity_decisions"("scope", "revoked_at");
 
