@@ -68,6 +68,7 @@ const sourceVariant: Record<string, Variant> = {
   website: 'info',
   line: 'success',
   consignment: 'warning',
+  wholesale: 'info',
   subscription: 'default',
   manual: 'secondary',
   restock: 'warning',
