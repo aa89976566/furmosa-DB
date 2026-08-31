@@ -90,6 +90,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     shippingFeeType: order.shippingFeeType,
     jiba: jibaSources.get(order.id) ?? null,
   });
+  const isMerchantRestock = Boolean(order.merchantId && !order.customerId);
   return (
     <>
       <PageHeader
@@ -201,7 +202,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                   ),
                 },
                 {
-                  label: '寄賣店家',
+                  label: '合作店家',
                   value: order.merchant ? (
                     <Link
                       href={`/merchants/${order.merchant.id}`}
@@ -250,7 +251,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             ) : null}
             {order.merchant && !order.shippingMethod ? (
               <p className="mt-2 text-xs text-muted-foreground">
-                顯示寄賣店家檔案中的預設運輸資料。
+                顯示合作店家檔案中的預設運輸資料。
                 <Link
                   href={`/merchants/${order.merchant.id}`}
                   className="ml-1 text-info hover:underline"
@@ -274,7 +275,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                       >
                         <Link
                           href={
-                            order.source === 'consignment'
+                            isMerchantRestock
                               ? `/shipments?type=consignment&s=${encodeURIComponent(s.id)}`
                               : `/shipments?s=${encodeURIComponent(s.id)}`
                           }
@@ -291,14 +292,14 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                       </li>
                     ))}
                   </ul>
-                  {order.source === 'consignment' ? (
+                  {isMerchantRestock ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      此為寄賣店訂單，請至出貨隊列{' '}
+                      此為店家補貨單，請至出貨隊列{' '}
                       <Link
                         href={`/shipments?type=consignment&s=${encodeURIComponent(order.shipments[0]!.id)}`}
                         className="text-info hover:underline"
                       >
-                        「寄賣」分類
+                        「店家補貨」分類
                       </Link>{' '}
                       查看（不在「直客訂單」）。
                     </p>
