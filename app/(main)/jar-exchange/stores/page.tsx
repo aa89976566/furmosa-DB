@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { JarPanel, JarShell } from '@/components/jar-exchange/jar-shell';
 import { LimitedRolloutDemoPanel } from '@/components/jar-exchange/limited-rollout-demo-panel';
+import { ApprovedFiveRolloutPanel } from '@/components/jar-exchange/approved-five-rollout-panel';
 import { PartnerStoreIdentityHistory } from '@/components/jar-exchange/partner-store-identity-history';
 import { PartnerStoresDirectory } from '@/components/jar-exchange/partner-stores-directory';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,12 @@ import {
   mergePartnerStoreDirectory,
   partnerStoreDirectoryStats,
 } from '@/lib/jar-exchange/partner-store-directory';
-import { LIMITED_ROLLOUT_MERCHANT_ID, decideIdentityWrite } from '@/lib/jar-exchange/partner-store-identity-write-guard';
+import {
+  BLOCKED_REAL_STORE_MERCHANT_IDS,
+  LIMITED_ROLLOUT_MERCHANT_ID,
+  decideIdentityWrite,
+  isApprovedFiveWriteTarget,
+} from '@/lib/jar-exchange/partner-store-identity-write-guard';
 import { activeHumanDecisions } from '@/lib/jar-exchange/partner-store-identity-decisions';
 import { listIdentityDecisions } from '@/lib/jar-exchange/partner-store-identity-store';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
@@ -33,6 +39,12 @@ export default async function JarExchangeStoresPage() {
   const activeDemo = activeHumanDecisions(records).find(
     (row) => row.merchantId.toUpperCase() === LIMITED_ROLLOUT_MERCHANT_ID,
   );
+  const approvedFiveMode = isApprovedFiveWriteTarget(process.env);
+  const approvedFiveActiveCount = activeHumanDecisions(records).filter((row) =>
+    BLOCKED_REAL_STORE_MERCHANT_IDS.includes(
+      row.merchantId.toUpperCase() as (typeof BLOCKED_REAL_STORE_MERCHANT_IDS)[number],
+    ),
+  ).length;
 
   return (
     <JarShell
@@ -71,7 +83,11 @@ export default async function JarExchangeStoresPage() {
       {canWrite ? (
         <div className="mt-6">
           <JarPanel>
-            <LimitedRolloutDemoPanel activeDemoId={activeDemo?.id ?? null} />
+            {approvedFiveMode ? (
+              <ApprovedFiveRolloutPanel activeCount={approvedFiveActiveCount} />
+            ) : (
+              <LimitedRolloutDemoPanel activeDemoId={activeDemo?.id ?? null} />
+            )}
           </JarPanel>
         </div>
       ) : null}

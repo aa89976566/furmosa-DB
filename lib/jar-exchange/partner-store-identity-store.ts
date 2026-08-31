@@ -139,6 +139,100 @@ export async function createIdentityDecision(input: {
   }
 }
 
+export async function createApprovedIdentityDecisionsAtomically(input: {
+  decisions: ReadonlyArray<{
+    merchantId: string;
+    legacySlug: string;
+    rationale: string;
+  }>;
+  decidedByUserId: string;
+  decidedByAccount: string;
+  decidedAt?: Date;
+  env?: IdentityWriteEnv;
+}): Promise<{ ok: true; decisions: PartnerStoreHumanDecision[] } | { ok: false; error: string }> {
+  const blocked = denyIdentityWrite('confirm', input.env, input.decidedByAccount);
+  if (blocked) return { ok: false, error: blocked.error };
+  if (input.decisions.length === 0) return { ok: false, error: '沒有要確認的店家' };
+
+  const normalized = input.decisions.map((decision) => ({
+    merchantId: decision.merchantId.trim().toUpperCase(),
+    legacySlug: decision.legacySlug.trim().toLowerCase(),
+    rationale: decision.rationale.trim(),
+  }));
+  const merchantIds = normalized.map((decision) => decision.merchantId);
+  const legacySlugs = normalized.map((decision) => decision.legacySlug);
+  if (
+    new Set(merchantIds).size !== normalized.length ||
+    new Set(legacySlugs).size !== normalized.length
+  ) {
+    return { ok: false, error: '批次內的 MER 或 slug 重複' };
+  }
+  if (normalized.some((decision) => !decision.rationale)) {
+    return { ok: false, error: '每家店都必須留下確認依據' };
+  }
+  for (const merchantId of merchantIds) {
+    const targetBlocked = denyMerchantWrite(merchantId, input.env);
+    if (targetBlocked) return { ok: false, error: targetBlocked.error };
+  }
+
+  const scope: PartnerStoreIdentityScope = 'production';
+  const decidedAt = input.decidedAt ?? new Date();
+
+  try {
+    const rows = await prisma.$transaction(async (tx) => {
+      const [merchants, stores, conflicts] = await Promise.all([
+        tx.merchant.findMany({
+          where: { merchantId: { in: merchantIds } },
+          select: { merchantId: true },
+        }),
+        tx.store.findMany({
+          where: { slug: { in: legacySlugs } },
+          select: { slug: true },
+        }),
+        tx.partnerStoreIdentityDecision.findMany({
+          where: {
+            scope,
+            revokedAt: null,
+            OR: [
+              { merchantId: { in: merchantIds } },
+              { legacySlug: { in: legacySlugs } },
+            ],
+          },
+          select: { merchantId: true, legacySlug: true },
+        }),
+      ]);
+      if (merchants.length !== normalized.length || stores.length !== normalized.length) {
+        throw new Error('正式主檔或舊核銷店缺少，整批未寫入');
+      }
+      if (conflicts.length > 0) throw new Error('已有有效判定或對應衝突，整批未寫入');
+
+      const created: DecisionRow[] = [];
+      for (const decision of normalized) {
+        created.push(
+          await tx.partnerStoreIdentityDecision.create({
+            data: {
+              merchantId: decision.merchantId,
+              legacySlug: decision.legacySlug,
+              verdict: 'same_store',
+              decidedByUserId: input.decidedByUserId,
+              decidedAt,
+              rationale: decision.rationale,
+              otherRecordDisposition: 'keep_legacy_link',
+              scope,
+            },
+            include: decisionInclude,
+          }),
+        );
+      }
+      return created;
+    });
+    return { ok: true, decisions: rows.map(mapIdentityDecisionRow) };
+  } catch (error) {
+    if (isMissingIdentityTableError(error)) return { ok: false, error: '確認紀錄表尚未建立' };
+    return { ok: false, error: error instanceof Error ? error.message : '五家店整批寫入失敗' };
+  }
+}
+
 export async function revokeIdentityDecision(input: {
   id: string;
   revokedByUserId: string;
