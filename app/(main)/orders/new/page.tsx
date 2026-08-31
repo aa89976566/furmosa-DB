@@ -15,7 +15,7 @@ export default async function NewOrderPage() {
     <>
       <PageHeader
         title="新增訂單"
-        description="支援寄賣店家進貨／代收 與 客戶訂單（社群、LINE、寄賣）"
+        description="先選客戶或合作店家，系統會依合作方式顯示適用商品。"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/orders">
