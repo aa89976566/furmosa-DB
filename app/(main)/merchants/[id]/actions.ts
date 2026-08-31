@@ -30,6 +30,7 @@ import { nextStockTxnNumber, reserveStockTxnNumbers } from '@/lib/merchant-stock
 import { revalidatePath } from 'next/cache';
 import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
 import { createRestockOrderWithShipment } from '@/lib/merchant-restock-order';
 import { parseRestockShippingFromForm } from '@/lib/orders/parse-restock-form';
 import { shipmentItemsFingerprint } from '@/lib/shipment-queue-filters';
@@ -39,6 +40,11 @@ import {
 } from '@/lib/merchant-types';
 import { redirect } from 'next/navigation';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
+import {
+  BASE_VARIANT_KEY,
+  normalizeWholesaleUnitPrice,
+} from '@/lib/orders/merchant-wholesale-price';
+import { randomUUID } from 'node:crypto';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -728,6 +734,77 @@ export async function deleteMerchantRule(formData: FormData) {
   revalidatePath(`/merchants/${merchantId}/products`);
   revalidatePath(`/merchants/${merchantId}/rule`);
   redirect(`/merchants/${merchantId}/products`);
+}
+
+export async function saveMerchantWholesalePrices(formData: FormData) {
+  const merchantId = String(formData.get('merchantId') ?? '').trim();
+  const productId = String(formData.get('productId') ?? '').trim();
+  if (!merchantId || !productId) throw new Error('缺少店家或商品');
+
+  const [merchant, product] = await Promise.all([
+    prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true, type: true, status: true },
+    }),
+    prisma.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        productCategory: true,
+        priceTiers: { select: { id: true } },
+      },
+    }),
+  ]);
+  if (!merchant || merchant.status !== 'active') throw new Error('店家不存在或已停用');
+  if (!product || product.status !== 'active' || product.productCategory !== 'STANDARD') {
+    throw new Error('商品不存在或不適用販售合作');
+  }
+  const merchantTypes = await getMerchantTypes(prisma, merchant.id, merchant.type);
+  if (!merchantTypes.includes('wholesale')) throw new Error('此店家尚未登記「販售」合作');
+
+  const validVariantKeys = new Set(
+    product.priceTiers.length > 0
+      ? product.priceTiers.map((tier) => tier.id)
+      : [BASE_VARIANT_KEY],
+  );
+  const variantKeys = formData.getAll('variantKey').map((value) => String(value).trim());
+  const rawPrices = formData.getAll('unitPrice').map((value) => String(value).trim());
+  if (variantKeys.length !== rawPrices.length || new Set(variantKeys).size !== variantKeys.length) {
+    throw new Error('進貨價資料不完整');
+  }
+  if (variantKeys.some((key) => !validVariantKeys.has(key))) {
+    throw new Error('包含不屬於此商品的規格');
+  }
+
+  const operations = variantKeys.map((variantKey, index) => {
+    const rawPrice = rawPrices[index] ?? '';
+    if (!rawPrice) {
+      return prisma.$executeRaw`
+        DELETE FROM "MerchantWholesalePrice"
+        WHERE "merchantId" = ${merchantId}
+          AND "productId" = ${productId}
+          AND "variantKey" = ${variantKey}
+      `;
+    }
+    const unitPrice = normalizeWholesaleUnitPrice(rawPrice);
+    if (unitPrice == null) throw new Error('進貨價必須大於 0');
+    return prisma.$executeRaw`
+      INSERT INTO "MerchantWholesalePrice"
+        ("id", "merchantId", "productId", "variantKey", "unitPrice", "createdAt", "updatedAt")
+      VALUES
+        (${randomUUID()}, ${merchantId}, ${productId}, ${variantKey}, ${unitPrice}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT ("merchantId", "productId", "variantKey")
+      DO UPDATE SET
+        "unitPrice" = EXCLUDED."unitPrice",
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+  });
+
+  await prisma.$transaction(operations);
+  revalidatePath(`/merchants/${merchantId}/wholesale-prices`);
+  revalidatePath('/orders/new');
 }
 
 // ============================================================
