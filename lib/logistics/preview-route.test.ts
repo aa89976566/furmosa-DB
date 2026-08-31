@@ -35,6 +35,23 @@ test('route denies unauthenticated HQ access without provider calls', async () =
   const response = await h.get(); assert.equal(response.status, 401); assert.equal(h.calls(), 0);
   assert.equal(response.headers.get('cache-control'), 'private, no-store');
 });
+test('selection route resolves canonical data and ignores submitted names and addresses', async () => {
+  const env = { VERCEL_ENV: 'preview', PICKUP_SEARCH_PREVIEW_ENABLED: 'true' };
+  const h = harness({ userId: 'fixture' }, env);
+  const response = await h.get('storeId=001&temperature=ambient&name=fake&address=fake');
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).store, { id: '001', name: '示範店', address: '示範地址', serviceType: 'UNIMART' });
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal((await h.get('storeId=missing')).status, 409);
+  assert.equal((await h.get('storeId=')).status, 400);
+  assert.equal((await h.get('storeId=001&temperature=frozen')).status, 503);
+  const denied = harness(null, env);
+  assert.equal((await denied.get('storeId=001')).status, 401);
+  assert.equal(denied.calls(), 0);
+  const production = harness({ userId: 'fixture' }, { ...env, VERCEL_ENV: 'production' });
+  assert.equal((await production.get('storeId=001')).status, 503);
+  assert.equal(production.calls(), 0);
+});
 test('live read-only uses dedicated live credentials, never test credentials', async () => {
   const h = harness({ userId: 'fixture' }, {
     VERCEL_ENV: 'preview', PICKUP_SEARCH_PREVIEW_ENABLED: 'true', PICKUP_DIRECTORY_SOURCE: 'live-readonly',

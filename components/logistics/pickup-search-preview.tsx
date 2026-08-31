@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { initialSearchState, readSearchResponse, searchReducer } from '@/lib/logistics/pickup-search-ui';
+import { initialSearchState, readSearchResponse, readSelectionResponse, searchReducer } from '@/lib/logistics/pickup-search-ui';
 
 export function PickupSearchPreview({ enabled, liveDirectory = false }: { enabled: boolean; liveDirectory?: boolean }) {
   const [query, setQuery] = useState('');
@@ -18,6 +18,12 @@ export function PickupSearchPreview({ enabled, liveDirectory = false }: { enable
     active.current = null;
     return sequence.current;
   }
+  function selectStore(id: string) {
+    if (!enabled || !state.stores.some(store => store.id === id)) return;
+    const request = clearRequest();
+    dispatch({ type: 'verify', request, id });
+    sendRequest(request, `storeId=${encodeURIComponent(id)}`, id);
+  }
   function search(event: FormEvent) {
     event.preventDefault();
     const request = clearRequest();
@@ -26,20 +32,29 @@ export function PickupSearchPreview({ enabled, liveDirectory = false }: { enable
       return;
     }
     dispatch({ type: 'start', request });
+    sendRequest(request, `q=${encodeURIComponent(query.trim())}`);
+  }
+  function sendRequest(request: number, parameters: string, selectedId?: string) {
     const xhr = new XMLHttpRequest();
     active.current = xhr;
     const fail = (message: string) => {
       if (sequence.current === request) dispatch({ type: 'error', request, message });
     };
-    xhr.open('GET', `/api/logistics/pickup-stores?temperature=ambient&q=${encodeURIComponent(query.trim())}`);
+    xhr.open('GET', `/api/logistics/pickup-stores?temperature=ambient&${parameters}`);
     xhr.timeout = 15000;
     xhr.onload = () => {
       if (sequence.current !== request) return;
       try {
         // Check the status before parsing so expired-session HTML cannot masquerade as an empty list.
-        if (xhr.status !== 200) readSearchResponse(xhr.status, null);
-        const stores = readSearchResponse(xhr.status, JSON.parse(xhr.responseText));
-        dispatch({ type: 'result', request, stores });
+        if (selectedId !== undefined) {
+          if (xhr.status !== 200) readSelectionResponse(xhr.status, null, selectedId);
+          const store = readSelectionResponse(xhr.status, JSON.parse(xhr.responseText), selectedId);
+          dispatch({ type: 'verified', request, store });
+        } else {
+          if (xhr.status !== 200) readSearchResponse(xhr.status, null);
+          const stores = readSearchResponse(xhr.status, JSON.parse(xhr.responseText));
+          dispatch({ type: 'result', request, stores });
+        }
       } catch (error) {
         fail(error instanceof SyntaxError ? '門市資料無法讀取，請重新登入或稍後再試。' : error instanceof Error ? error.message : '門市資料無法讀取，請稍後再試。');
       }
@@ -77,6 +92,7 @@ export function PickupSearchPreview({ enabled, liveDirectory = false }: { enable
       </form>
       <div role="status" aria-live="polite" aria-atomic="true" className="text-sm">
         {state.status === 'loading' && '正在查詢門市…'}
+        {state.status === 'verifying' && '正在確認門市資料…'}
         {state.status === 'error' && state.message}
         {state.status === 'ready' && (state.stores.length ? `找到 ${state.stores.length} 間門市${state.stores.length === 20 ? '，最多顯示 20 間，可加上路名縮小範圍' : ''}。` : '沒有找到符合的門市，試試附近路名或其他關鍵字。')}
         {state.selected && ` 已選擇 ${state.selected.name}。`}
@@ -84,8 +100,8 @@ export function PickupSearchPreview({ enabled, liveDirectory = false }: { enable
       {state.stores.length > 0 && <fieldset className="space-y-3">
         <legend className="mb-3 text-sm font-medium">選擇方便取貨的門市</legend>
         {state.stores.map(store => <label key={store.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 ${state.selected?.id === store.id ? 'border-primary bg-accent' : 'border-border'}`}>
-          <input type="radio" name="pickup-store" value={store.id} checked={state.selected?.id === store.id}
-            className="mt-1 h-5 w-5 shrink-0 accent-primary" onChange={() => dispatch({ type: 'select', id: store.id })} />
+          <input type="radio" name="pickup-store" value={store.id} checked={(state.pendingId ?? state.selected?.id) === store.id}
+            className="mt-1 h-5 w-5 shrink-0 accent-primary" onChange={() => selectStore(store.id)} />
           <span className="min-w-0 space-y-1 break-words">
             <span className="block font-medium">{store.name}</span>
             <span className="block text-sm text-muted-foreground">{store.address}</span>

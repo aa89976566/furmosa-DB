@@ -26,6 +26,6 @@ const search = createSearchService({
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
-  const result = await search(Boolean(user), request.nextUrl.searchParams.get('q') ?? '', request.nextUrl.searchParams.get('temperature') ?? 'ambient');
+  const result = await search(Boolean(user), request.nextUrl.searchParams.get('q') ?? '', request.nextUrl.searchParams.get('temperature') ?? 'ambient', request.nextUrl.searchParams.get('storeId') ?? undefined);
   return NextResponse.json(result.body, { status: result.status, headers: { 'Cache-Control': 'private, no-store' } });
 }

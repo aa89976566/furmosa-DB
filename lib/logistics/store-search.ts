@@ -6,6 +6,21 @@ export type Store = {
   serviceType: 'UNIMART' | 'UNIMARTFREEZE';
 };
 export type Directory = { stores: Store[]; fetchedAt: number };
+/** Resolve only from the server directory; never accept the client's name/address. */
+export function resolveStore(directory: Directory, id: string, options: {
+  temperature: 'ambient' | 'frozen'; now: number; frozenServiceConfirmed: boolean;
+}): Store | null {
+  if (!/^[A-Za-z0-9]{1,10}$/.test(id)) throw new Error('門市代碼格式錯誤');
+  if (!Number.isFinite(directory.fetchedAt) || !Number.isFinite(options.now) ||
+      directory.fetchedAt > options.now || options.now - directory.fetchedAt >= 60 * 60 * 1000) {
+    throw new Error('門市資料待更新');
+  }
+  if (options.temperature === 'frozen' && !options.frozenServiceConfirmed) throw new Error('冷凍取貨服務尚未確認');
+  const service = options.temperature === 'frozen' ? 'UNIMARTFREEZE' : 'UNIMART';
+  const matches = directory.stores.filter(store => store.id === id && store.serviceType === service);
+  if (matches.length > 1) throw new Error('門市資料不一致');
+  return matches.length === 1 ? { ...matches[0] } : null;
+}
 export function normalizeSearch(value: string): string {
   return value.normalize('NFKC').replace(/臺/g, '台').toLowerCase().replace(/\s+/g, ' ').trim();
 }
