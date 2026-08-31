@@ -87,6 +87,11 @@ test('production requires its explicit flag and the live read-only directory', a
   assert.equal(stage.calls(), 0);
 });
 
+test('Next.js does not redirect Shopify trailing-slash proxy requests', () => {
+  const config = readFileSync('next.config.mjs', 'utf8');
+  assert.match(config, /skipTrailingSlashRedirect:\s*true/);
+});
+
 test('server resolves canonical store and frozen service remains blocked', async () => {
   const h = harness();
   const selected = await h.get(valid({ storeId: '001', q: '', name: 'fake', address: 'fake' }));
