@@ -55,6 +55,8 @@ import { approveOrderForShipment } from '../actions';
 import { ShopifyIntakePanel } from '@/components/orders/shopify-intake-panel';
 import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
 import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
+import { currentReviewDraft } from '@/lib/orders/review-display';
+import { OMS_LABELS } from '@/lib/orders/oms';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +65,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     where: { id: params.id },
     include: {
       customer: true,
+      omsReviewedBy: { select: { name: true } },
       merchant: true,
       items: { include: { product: true } },
       shipments: { orderBy: { createdAt: 'desc' } },
@@ -72,6 +75,12 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
   const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
   const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
+  const reviewAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({
+    where: { entityType: 'oms_review', entityId: order.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { metadataJson: true },
+  }) : null;
+  const savedReview = order.omsStatus ? currentReviewDraft(order.shopifySnapshot, reviewAudit?.metadataJson) : null;
 
   const editable = isOrderEditable(order);
   const recipientNameMissing =
@@ -129,15 +138,18 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
             <DetailBadgeRow className="mb-3">
               <StatusBadge kind="orderSource" value={order.source} />
-              <StatusBadge kind="order" value={order.status} />
+              {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
+                : <StatusBadge kind="order" value={order.status} />}
               <StatusBadge kind="payment" value={order.paymentStatus} />
               {shipmentNotice ? <span className="text-xs text-muted-foreground">{shipmentNotice}</span>
                 : <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />}
             </DetailBadgeRow>
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
-              <p className="mb-1.5 text-xs font-medium text-muted-foreground">訂單狀態（可調整）</p>
-              {order.status === 'pending_review' || order.omsStatus ? (
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">{order.omsStatus ? 'OMS 審核進度' : '訂單狀態（可調整）'}</p>
+              {order.omsStatus ? (
+                <p className="text-xs text-muted-foreground">目前：{OMS_LABELS[order.omsStatus]}。請使用上方訂單審核區操作；確認訂單與建立出貨單是兩個不同步驟。</p>
+              ) : order.status === 'pending_review' ? (
                 <p className="text-xs text-muted-foreground">
                   待審核訂單必須使用下方的專用核准按鈕，不能直接變更狀態。
                 </p>
@@ -237,6 +249,16 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </HorizontalSectionPane>
 
           <HorizontalSectionPane tone="logistics" icon={Truck} title="運輸資訊">
+            {order.omsStatus ? (
+              savedReview ? <div className="space-y-2 text-sm break-words">
+                <p className="text-xs text-muted-foreground">目前來源版本已儲存的審核資料（尚未儲存的表單修改不會顯示於此）</p>
+                <p>配送：{savedReview.method === 'home' ? '黑貓宅配' : savedReview.method === 'convenience' ? '7-11 取貨' : '待確認'} · 溫層：{({ ambient: '常溫', chilled: '冷藏', frozen: '冷凍' } as Record<string, string>)[savedReview.temperature] || '待確認'}</p>
+                <p>收件人：{savedReview.recipient || '待補'} · 電話：{savedReview.phone || '待補'}</p>
+                <p>地址：{savedReview.address || '待補'}</p>
+                {savedReview.method === 'convenience' && <p>門市：{savedReview.storeId || '店號待補'} · {savedReview.storeName || '名稱待補'}</p>}
+                <p className="text-xs text-muted-foreground">是否可出貨仍以系統檢查與人工審核結果為準；資料顯示完整不代表物流已接單。</p>
+              </div> : <p className="text-sm text-warning">目前來源版本尚無有效審核資料，請在上方填寫並「儲存並檢查」。</p>
+            ) : <>
             <LogisticsSummary logistics={logistics} />
             {shippingIncomplete ? (
               <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
@@ -269,6 +291,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               </p>
             ) : null}
 
+            </>}
             <div className="mt-3 border-t pt-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">出貨單</p>
               {order.shipments.length === 0 ? (
@@ -538,7 +561,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               title="訂單建立"
               description={`來源：${order.source}`}
             />
-            {order.status !== 'draft' ? (
+            {order.omsStatus && order.omsReviewedAt ? (
+              <TimelineItem time={order.omsReviewedAt} title="OMS 人工確認"
+                description={`審核者：${order.omsReviewedBy?.name || '原審核者帳號已不存在'}；確認不代表已出貨`} />
+            ) : null}
+            {!order.omsStatus && order.status !== 'draft' ? (
               <TimelineItem
                 time={order.orderedAt}
                 title="訂單確認"
