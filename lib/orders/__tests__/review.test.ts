@@ -79,6 +79,11 @@ function fakeDb() {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('deleted orders cannot be checked, approved or shipped', async () => {
+    const f = fakeDb(); f.order.deletedAt = new Date();
+    for (const action of ['check', 'approve', 'ship'] as const) await assert.rejects(f.run(action), /已從 HQ 刪除/);
+    assert.equal(f.shipmentCreates, 0);
+  });
   it('check and approval never create shipment; separate ship is idempotent', async () => {
     const f = fakeDb(); await f.run('check'); assert.equal(f.order.omsStatus, 'REVIEW');
     await f.run('approve'); assert.equal(f.order.omsStatus, 'READY'); assert.equal(f.order.omsReviewedById, 'u1');

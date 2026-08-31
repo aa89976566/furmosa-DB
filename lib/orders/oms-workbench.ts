@@ -12,10 +12,12 @@ export const OMS_FILTERS = [
 
 /** Every enrolled order stays visible, including cancelled/refunded exceptions. Legacy behavior is unchanged. */
 export const workbenchVisibleWhere: Prisma.OrderWhereInput = {
+  deletedAt: null,
   OR: [{ omsStatus: { not: null } }, { AND: [{ omsStatus: null }, activeOrderWhere] }],
 };
 /** Conservative problem bucket includes warnings and incomplete checks, not only red blockers. */
 export const omsProblemsWhere: Prisma.OrderWhereInput = {
+  deletedAt: null,
   omsStatus: { not: null },
   OR: [ { omsCheckedAt: null }, { omsIssueFlags: { equals: Prisma.DbNull } },
     { omsIssueFlags: { equals: Prisma.JsonNull } }, { NOT: { omsIssueFlags: { equals: [] } } } ],

@@ -77,6 +77,17 @@ function fakeDb() {
 }
 
 describe('Shopify intake', () => {
+  it('deleted HQ orders stay deleted on webhook and reconcile updates', async () => {
+    const fake = fakeDb(); await persistShopifyIntake(fake.db, input());
+    const order = [...fake.orders.values()][0];
+    order.deletedAt = new Date('2026-08-30T02:00:00Z'); order.deletedById = 'admin'; order.deletionReason = 'test';
+    for (const [index, origin] of [undefined, 'reconcile' as const].entries()) {
+      await persistShopifyIntake(fake.db, { ...input({ updated_at: `2026-08-30T0${index + 3}:00:00Z`, financial_status: 'paid' }, `deleted-${index}`), origin });
+      const updated = [...fake.orders.values()][0];
+      assert.ok(updated.deletedAt); assert.equal(updated.deletedById, 'admin'); assert.equal(updated.deletionReason, 'test');
+      assert.equal(fake.orders.size, 1); assert.equal(updated.paymentStatus, 'paid');
+    }
+  });
   it('reconcile leaves pre-existing legacy orders unchanged under the order lock', async () => {
     const fake = fakeDb();
     await persistShopifyIntake(fake.db, input());

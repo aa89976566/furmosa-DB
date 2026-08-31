@@ -24,7 +24,7 @@ import { Plus } from 'lucide-react';
 import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
-type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; day?: string; queue?: string };
+type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; day?: string; queue?: string; deleted?: string };
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -66,7 +66,7 @@ async function OrdersTableSection({
 }: {
   searchParams: SearchParams;
 }) {
-  const where: Record<string, unknown> = { AND: [workbenchVisibleWhere, omsFilterWhere(searchParams.oms),
+  const where: Record<string, unknown> = { AND: [searchParams.deleted === 'true' ? { deletedAt: { not: null } } : workbenchVisibleWhere, omsFilterWhere(searchParams.oms),
     ...(searchParams.day === 'today' ? [{ omsStatus: { not: null }, orderedAt: taiwanToday() }] : []),
     ...(searchParams.queue === 'review' ? [{ omsStatus: { in: ['NEW', 'REVIEW'] } }] : []),
   ] };
@@ -115,7 +115,7 @@ async function OrdersTableSection({
     source: searchParams.source,
     status: searchParams.status,
     q: searchParams.q,
-    oms: searchParams.oms, day: searchParams.day, queue: searchParams.queue,
+    oms: searchParams.oms, day: searchParams.day, queue: searchParams.queue, deleted: searchParams.deleted,
   };
 
   return (
@@ -176,9 +176,10 @@ export default function OrdersPage({
 
       <div className="space-y-4 p-4 sm:p-6">
         <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+        <div className="flex gap-3 text-sm"><Link className="text-info hover:underline" href="/orders?deleted=true">已刪除（可還原）</Link>{searchParams.deleted === 'true' && <><span>目前顯示已刪除訂單，點入詳情可還原</span><Link href="/orders">返回一般清單</Link></>}</div>
         <nav aria-label="OMS 訂單階段" className="flex flex-wrap gap-2">
           {OMS_FILTERS.map(filter => <Button key={filter.key} size="sm" variant={(searchParams.oms ?? '') === filter.key ? 'default' : 'outline'} asChild>
-            <Link href={workbenchHref(searchParams, { oms: filter.key, status: undefined, day: undefined, queue: undefined })}>{filter.label}</Link>
+            <Link href={workbenchHref(searchParams, { oms: filter.key, status: undefined, day: undefined, queue: undefined, deleted: undefined })}>{filter.label}</Link>
           </Button>)}
         </nav>
         <p className="text-xs text-muted-foreground">OMS 篩選只包含已納入新流程的訂單；舊流程訂單仍可在「所有訂單」查看。「有問題」包含提醒及尚未檢查。</p>

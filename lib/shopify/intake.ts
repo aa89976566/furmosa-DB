@@ -84,6 +84,7 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
         await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id,
           newStatus: 'NEW', actorType: 'system', metadataJson: JSON.stringify({ topic, eventId }) } });
       } else {
+        // Soft deletion is HQ-owned: never clear deletedAt/deletedById/deletionReason on source updates.
         await tx.order.update({ where: { id: existing.id }, data: { ...common,
           ...(preserveOperationalOrder(existing) ? {} : { ...amounts, omsStatus: 'NEW',
             status: snapshot.order.cancelled_at ? 'cancelled' : 'pending_review',
