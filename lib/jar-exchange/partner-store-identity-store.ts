@@ -206,26 +206,26 @@ export async function createApprovedIdentityDecisionsAtomically(input: {
       }
       if (conflicts.length > 0) throw new Error('已有有效判定或對應衝突，整批未寫入');
 
-      const created: DecisionRow[] = [];
-      for (const decision of normalized) {
-        created.push(
-          await tx.partnerStoreIdentityDecision.create({
-            data: {
-              merchantId: decision.merchantId,
-              legacySlug: decision.legacySlug,
-              verdict: 'same_store',
-              decidedByUserId: input.decidedByUserId,
-              decidedAt,
-              rationale: decision.rationale,
-              otherRecordDisposition: 'keep_legacy_link',
-              scope,
-            },
-            include: decisionInclude,
-          }),
-        );
-      }
-      return created;
-    });
+      const created = await tx.partnerStoreIdentityDecision.createMany({
+        data: normalized.map((decision) => ({
+          merchantId: decision.merchantId,
+          legacySlug: decision.legacySlug,
+          verdict: 'same_store',
+          decidedByUserId: input.decidedByUserId,
+          decidedAt,
+          rationale: decision.rationale,
+          otherRecordDisposition: 'keep_legacy_link',
+          scope,
+        })),
+      });
+      if (created.count !== normalized.length) throw new Error('五家店未完整建立，整批未寫入');
+
+      return tx.partnerStoreIdentityDecision.findMany({
+        where: { scope, revokedAt: null, merchantId: { in: merchantIds } },
+        include: decisionInclude,
+        orderBy: { merchantId: 'asc' },
+      });
+    }, { maxWait: 10_000, timeout: 30_000 });
     return { ok: true, decisions: rows.map(mapIdentityDecisionRow) };
   } catch (error) {
     if (isMissingIdentityTableError(error)) return { ok: false, error: '確認紀錄表尚未建立' };

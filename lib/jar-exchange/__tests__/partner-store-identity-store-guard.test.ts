@@ -48,5 +48,12 @@ describe('identity store write refusals', () => {
     assert.match(page, /LimitedRolloutDemoPanel/);
     assert.match(page, /ApprovedFiveRolloutPanel/);
     assert.match(page, /isApprovedFiveWriteTarget/);
+
+    const store = readFileSync(
+      path.join(process.cwd(), 'lib/jar-exchange/partner-store-identity-store.ts'),
+      'utf8',
+    );
+    assert.match(store, /partnerStoreIdentityDecision\.createMany/);
+    assert.match(store, /timeout: 30_000/);
   });
 });
