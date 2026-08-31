@@ -38,8 +38,8 @@ export function MerchantCreateForm() {
 
       <MerchantSection
         step={1}
-        title="基本資料"
-        description="店家名稱與類型（可複選）；編號 MER-XXXX 會自動產生。"
+        title="店家資料"
+        description="填寫店名並選擇合作方式；店家編號會自動產生。"
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <MerchantField label="店家名稱" required className="sm:col-span-2">
@@ -60,7 +60,7 @@ export function MerchantCreateForm() {
               ))}
             </select>
           </MerchantField>
-          <MerchantField label="城市">
+          <MerchantField label="縣市">
             <Input name="city" maxLength={40} placeholder="例：新北" />
           </MerchantField>
         </div>
