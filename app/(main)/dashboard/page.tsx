@@ -5,6 +5,7 @@ import { SectionBlock } from '@/components/shared/section-block';
 import { DashboardSearch } from '@/components/dashboard/dashboard-search';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { OmsDashboard } from '@/components/orders/oms-dashboard';
 import {
   DashboardBodyFallback,
   DashboardBodySection,
@@ -37,6 +38,7 @@ export default function DashboardPage() {
       />
 
       <div className="space-y-8 p-6">
+        <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>
         <SectionBlock
           tone="orders"
           title="搜尋與今日任務"

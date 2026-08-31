@@ -52,6 +52,8 @@ import {
 } from '@/components/orders/order-status-toggles';
 import { updateOrderShippingFeeType } from '../actions';
 import { approveOrderForShipment } from '../actions';
+import { ShopifyIntakePanel } from '@/components/orders/shopify-intake-panel';
+import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +100,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         description={`下單時間 ${formatDateTime(order.orderedAt)}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            {editable.ok ? (
+            {editable.ok && !order.omsStatus ? (
               <Button variant="default" size="sm" asChild>
                 <Link href={`/orders/${order.id}/edit`}>
                   <Pencil className="mr-1 h-4 w-4" />
@@ -117,6 +119,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       />
 
       <div className="space-y-6 p-6">
+        <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
+        <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />
         <HorizontalSectionBand>
           <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
             <DetailBadgeRow className="mb-3">
@@ -128,7 +132,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">訂單狀態（可調整）</p>
-              {order.status === 'pending_review' ? (
+              {order.status === 'pending_review' || order.omsStatus ? (
                 <p className="text-xs text-muted-foreground">
                   待審核訂單必須使用下方的專用核准按鈕，不能直接變更狀態。
                 </p>
@@ -142,7 +146,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               ) : null}
             </div>
 
-            {order.status === 'pending_review' ? (
+            {order.status === 'pending_review' && !order.omsStatus ? (
               <div className="mb-3 rounded-lg border border-warning/40 bg-warning/10 p-3">
                 <p className="text-sm font-medium">
                   {order.paymentStatus === 'paid' ? '待客服審核' : '等待顧客付款'}

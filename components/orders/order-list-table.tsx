@@ -19,8 +19,18 @@ import { shipmentStatusLabel } from '@/lib/shipment';
 import type { Prisma } from '@prisma/client';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { ChevronRight, Package } from 'lucide-react';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { OMS_LABELS, omsIssueTone } from '@/lib/orders/oms';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
+
+function OmsOrderBadge({ order }: { order: OrderListRow }) {
+  if (!order.omsStatus) return <StatusBadge kind="order" value={order.status} />;
+  const tone = omsIssueTone(order.omsIssueFlags, order.omsCheckedAt ? new Date(order.omsCheckedAt) : null);
+  return <span className={`text-xs ${tone === 'red' ? 'text-destructive' : tone === 'green' ? 'text-green-700' : 'text-warning'}`}>
+    {OMS_LABELS[order.omsStatus]} · {tone === 'green' ? '檢查通過' : tone === 'red' ? '需處理' : '待確認'}
+  </span>;
+}
 
 function fulfillmentDisplay(order: OrderListRow): string {
   const shipment = order.shipments[0];
@@ -78,13 +88,13 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                 <TableRow key={o.id}>
                   <TableCell>
                     <Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">
-                      {o.orderNumber}
+                      {o.externalOrderName || o.orderNumber}
                     </Link>
                   </TableCell>
                   <TableCell>
                     <StatusBadge kind="orderSource" value={o.source} />
                   </TableCell>
-                  <TableCell className="text-sm">{o.customer?.name ?? '-'}</TableCell>
+                  <TableCell className="text-sm">{o.customer?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '-')}</TableCell>
                   <TableCell className="text-sm">
                     {o.merchant ? (
                       <Link
@@ -100,7 +110,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                   <TableCell className="align-top">
                     <LogisticsSummary logistics={logistics} compact />
                   </TableCell>
-                  <TableCell className="text-right">{o._count.items}</TableCell>
+                  <TableCell className="text-right">{snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items}</TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(Number(o.total))}
                   </TableCell>
@@ -122,7 +132,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge kind="order" value={o.status} />
+                    <OmsOrderBadge order={o} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDateTime(o.orderedAt)}
@@ -139,7 +149,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
 
 function OrderCard({ order: o }: { order: OrderListRow }) {
   const logistics = resolveLogisticsForOrderList(o);
-  const counterparty = o.customer?.name ?? o.merchant?.name ?? '—';
+  const counterparty = o.customer?.name ?? o.merchant?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '—');
   const shipment = o.shipments[0];
 
   return (
@@ -150,7 +160,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{o.orderNumber}</span>
+            <span className="font-mono text-sm font-semibold text-foreground">{o.externalOrderName || o.orderNumber}</span>
             <StatusBadge kind="orderSource" value={o.source} />
           </div>
           <p className="mt-1 truncate text-sm font-medium text-foreground">{counterparty}</p>
@@ -160,7 +170,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
             <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
             <p className="text-[11px] text-muted-foreground">
               <Package className="mr-0.5 inline h-3 w-3 align-[-1px]" />
-              {o._count.items} 項
+              {snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items} 項
             </p>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
@@ -172,7 +182,7 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <StatusBadge kind="order" value={o.status} />
+        <OmsOrderBadge order={o} />
         <StatusBadge kind="payment" value={o.paymentStatus} />
         <StatusBadge kind="fulfillment" value={fulfillmentDisplay(o)} />
       </div>

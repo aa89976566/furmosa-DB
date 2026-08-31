@@ -16,14 +16,18 @@ import {
   parsePage,
   totalPages,
 } from '@/lib/list-pagination';
-import { activeOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { OMS_FILTERS, omsFilterWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
+import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
+type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; day?: string; queue?: string };
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
@@ -57,9 +61,12 @@ async function OrdersTotalsSection() {
 async function OrdersTableSection({
   searchParams,
 }: {
-  searchParams: { source?: string; status?: string; q?: string; page?: string };
+  searchParams: SearchParams;
 }) {
-  const where: Record<string, unknown> = { ...activeOrderWhere };
+  const where: Record<string, unknown> = { AND: [workbenchVisibleWhere, omsFilterWhere(searchParams.oms),
+    ...(searchParams.day === 'today' ? [{ omsStatus: { not: null }, orderedAt: taiwanToday() }] : []),
+    ...(searchParams.queue === 'review' ? [{ omsStatus: { in: ['NEW', 'REVIEW'] } }] : []),
+  ] };
   const sourceFilter =
     searchParams.source === 'restock' ? 'consignment' : searchParams.source;
   if (sourceFilter && (ORDER_SOURCES as readonly string[]).includes(sourceFilter)) {
@@ -85,29 +92,27 @@ async function OrdersTableSection({
   const q = (searchParams.q ?? '').trim();
   const searchClause = orderSearchWhere(q);
   if (searchClause) {
-    Object.assign(where, mergeSearchWhere(where, searchClause));
+    Object.assign(where, mergeSearchWhere(where, { OR: [searchClause, omsSourceSearchWhere(q)] }));
   }
 
   const page = parsePage(searchParams.page);
   const pageSize = ORDER_PAGE_SIZE;
 
-  const [orders, totalCount] = await Promise.all([
-    prisma.order.findMany({
-      where,
-      include: ORDER_LIST_INCLUDE,
-      orderBy: { orderedAt: 'desc' },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.order.count({ where }),
-  ]);
-
+  const totalCount = await prisma.order.count({ where });
   const pages = totalPages(totalCount, pageSize);
   const safePage = Math.min(page, pages);
+  const orders = await prisma.order.findMany({
+      where,
+      include: ORDER_LIST_INCLUDE,
+      orderBy: [{ orderedAt: 'desc' }, { id: 'desc' }],
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    });
   const filterState = {
     source: searchParams.source,
     status: searchParams.status,
     q: searchParams.q,
+    oms: searchParams.oms, day: searchParams.day, queue: searchParams.queue,
   };
 
   return (
@@ -148,7 +153,7 @@ async function OrdersTableSection({
 export default function OrdersPage({
   searchParams,
 }: {
-  searchParams: { source?: string; status?: string; q?: string; page?: string };
+  searchParams: SearchParams;
 }) {
   return (
     <>
@@ -167,6 +172,16 @@ export default function OrdersPage({
       />
 
       <div className="space-y-4 p-4 sm:p-6">
+        <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+        <nav aria-label="OMS 訂單階段" className="flex flex-wrap gap-2">
+          {OMS_FILTERS.map(filter => <Button key={filter.key} size="sm" variant={(searchParams.oms ?? '') === filter.key ? 'default' : 'outline'} asChild>
+            <Link href={workbenchHref(searchParams, { oms: filter.key, status: undefined, day: undefined, queue: undefined })}>{filter.label}</Link>
+          </Button>)}
+        </nav>
+        <p className="text-xs text-muted-foreground">OMS 篩選只包含已納入新流程的訂單；舊流程訂單仍可在「所有訂單」查看。「有問題」包含提醒及尚未檢查。</p>
+        {(searchParams.day === 'today' || searchParams.queue === 'review') && <p className="text-sm">
+          目前篩選：{searchParams.day === 'today' ? '台灣時間今日下單' : '新訂單＋待審核'} · <Link className="underline" href={workbenchHref(searchParams, { day: undefined, queue: undefined })}>清除</Link>
+        </p>}
         <Suspense fallback={<OrdersTotalsFallback />}>
           <OrdersTotalsSection />
         </Suspense>
@@ -177,7 +192,7 @@ export default function OrdersPage({
             const active =
               (searchParams.source ?? '') === s.key ||
               (s.key === 'consignment' && searchParams.source === 'restock');
-            const href = s.key ? `/orders?source=${s.key}` : '/orders';
+            const href = workbenchHref(searchParams, { source: s.key });
             return (
               <Button
                 key={s.key || 'all'}
@@ -194,7 +209,7 @@ export default function OrdersPage({
         </div>
 
         <Suspense
-          key={`${searchParams.source ?? ''}|${searchParams.status ?? ''}|${searchParams.q ?? ''}|${searchParams.page ?? '1'}`}
+          key={JSON.stringify(searchParams)}
           fallback={<SectionSkeleton rows={8} />}
         >
           <OrdersTableSection searchParams={searchParams} />

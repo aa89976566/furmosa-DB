@@ -27,6 +27,7 @@ import {
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { getCurrentUser } from '@/lib/auth';
+import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -185,6 +186,7 @@ export async function createOrder(formData: FormData) {
 export async function updateOrder(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '').trim();
   if (!orderId) throw new Error('缺少訂單');
+  await assertLegacyOrderActionAllowed(orderId);
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
@@ -206,6 +208,7 @@ export async function updateOrder(formData: FormData) {
   });
 
   await prisma.$transaction(async (tx) => {
+    await guardLegacyOrderTx(tx, orderId);
     await tx.orderItem.deleteMany({ where: { orderId } });
 
     const order = await tx.order.update({
@@ -287,6 +290,7 @@ export async function updateOrderStatus(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
   const next = String(formData.get('status') ?? '');
   if (!orderId) throw new Error('缺少訂單');
+  await assertLegacyOrderActionAllowed(orderId);
   if (!(VALID_ORDER_STATUSES as readonly string[]).includes(next)) {
     throw new Error('訂單狀態錯誤');
   }
@@ -318,6 +322,7 @@ export async function updateOrderStatus(formData: FormData) {
   const shipmentUpdate = buildShipmentUpdateFromOrderStatus(next);
 
   await prisma.$transaction(async (tx) => {
+    await guardLegacyOrderTx(tx, orderId);
     await tx.order.update({ where: { id: orderId }, data });
 
     if (shipmentUpdate) {
@@ -339,12 +344,13 @@ export async function updateOrderPaymentStatus(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
   const next = String(formData.get('paymentStatus') ?? '');
   if (!orderId) throw new Error('缺少訂單');
+  await assertLegacyOrderActionAllowed(orderId);
   if (!(VALID_PAYMENT_STATUSES as readonly string[]).includes(next)) {
     throw new Error('付款狀態錯誤');
   }
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { paymentStatus: next },
+  await prisma.$transaction(async tx => {
+    await guardLegacyOrderTx(tx, orderId);
+    await tx.order.update({ where: { id: orderId }, data: { paymentStatus: next } });
   });
   await revalidateOrderPaths(orderId);
 }
@@ -353,6 +359,7 @@ export async function updateOrderShippingFeeType(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
   const next = String(formData.get('shippingFeeType') ?? '');
   if (!orderId) throw new Error('缺少訂單');
+  await assertLegacyOrderActionAllowed(orderId);
   if (!(VALID_SHIPPING_FEE_TYPES as readonly string[]).includes(next)) {
     throw new Error('運費類型錯誤');
   }
@@ -383,16 +390,17 @@ export async function updateOrderShippingFeeType(formData: FormData) {
     cvsBrand: order.cvsBrand,
   });
 
-  await prisma.$transaction([
-    prisma.order.update({
+  await prisma.$transaction(async tx => {
+    await guardLegacyOrderTx(tx, orderId);
+    await tx.order.update({
       where: { id: orderId },
       data: { shippingFeeType: next, shippingFee, companyShippingCost, total },
-    }),
-    prisma.shipment.updateMany({
+    });
+    await tx.shipment.updateMany({
       where: { orderId },
       data: { carrier },
-    }),
-  ]);
+    });
+  });
 
   await revalidateOrderPaths(orderId);
 }
@@ -400,15 +408,18 @@ export async function updateOrderShippingFeeType(formData: FormData) {
 export async function approveOrderForShipment(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '').trim();
   if (!orderId) throw new Error('缺少訂單');
+  await assertLegacyOrderActionAllowed(orderId);
   const reviewer = await getCurrentUser();
   if (!reviewer) throw new Error('請先登入客服帳號');
 
   await prisma.$transaction(async (tx) => {
+    await guardLegacyOrderTx(tx, orderId);
     const order = await tx.order.findUnique({
       where: { id: orderId },
       include: { customer: true, items: true, shipments: { where: { status: { not: 'cancelled' } } } },
     });
     if (!order) throw new Error('訂單不存在');
+    if (order.omsStatus) throw new Error('OMS 訂單必須完成專用檢查與審核，不可使用舊出貨操作');
     if (!order.externalStore || !order.externalOrderId) {
       throw new Error('只有 Shopify 匯入訂單可使用此審核流程');
     }
@@ -487,6 +498,13 @@ export async function approveOrderForShipment(formData: FormData) {
 
 export async function searchCustomersForOrder(q: string, take = 40) {
   return searchCustomersForOrderForm(q, take);
+}
+
+async function assertLegacyOrderActionAllowed(orderId: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('請先登入 HQ');
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { omsStatus: true } });
+  if (order?.omsStatus) throw new Error('OMS 訂單正在收單與檢查階段，不可使用舊的修改或出貨操作');
 }
 
 export async function searchProductsForOrder(q: string, take = 40) {
