@@ -18,11 +18,11 @@ import { redirect } from 'next/navigation';
 import { sendNewOrderPush } from '@/lib/web-push';
 import {
   applyJarExchangeConsignmentPricing,
-  isJarExchangeConsignmentDelivery,
 } from '@/lib/jar-exchange/revenue';
 import {
   searchCustomersForOrderForm,
   searchProductsForOrderForm,
+  type OrderFormProductScope,
 } from '@/lib/order-form-search';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
@@ -91,13 +91,7 @@ async function revalidateOrderPaths(
 export async function createOrder(formData: FormData) {
   const rawPayload = await parseOrderFormData(formData);
   const payload = applyJarExchangeConsignmentPricing(rawPayload);
-  const isJarRestock = isJarExchangeConsignmentDelivery({
-    orderType: rawPayload.orderType,
-    source: payload.source,
-    merchantId: payload.merchantId,
-    customerId: payload.customerId,
-    items: payload.items,
-  });
+  const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
   const orderNumber = await nextOrderNumber();
   const shipmentNumber = await nextShipmentNumber();
 
@@ -146,7 +140,7 @@ export async function createOrder(formData: FormData) {
     await tx.shipment.create({
       data: {
         shipmentNumber,
-        type: isJarRestock ? 'merchant_restock' : 'customer_order',
+        type: isMerchantRestock ? 'merchant_restock' : 'customer_order',
         status: 'pending',
         merchantId: payload.merchantId,
         customerId: payload.customerId,
@@ -197,13 +191,7 @@ export async function updateOrder(formData: FormData) {
 
   const rawPayload = await parseOrderFormData(formData, { extendedPayment: true });
   const payload = applyJarExchangeConsignmentPricing(rawPayload);
-  const isJarRestock = isJarExchangeConsignmentDelivery({
-    orderType: rawPayload.orderType,
-    source: payload.source,
-    merchantId: payload.merchantId,
-    customerId: payload.customerId,
-    items: payload.items,
-  });
+  const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
 
   await prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId } });
@@ -256,7 +244,7 @@ export async function updateOrder(formData: FormData) {
       await tx.shipment.update({
         where: { id: shipment.id },
         data: {
-          type: isJarRestock ? 'merchant_restock' : 'customer_order',
+          type: isMerchantRestock ? 'merchant_restock' : 'customer_order',
           merchantId: payload.merchantId,
           customerId: payload.customerId,
           recipientName: payload.recipientName,
@@ -489,6 +477,11 @@ export async function searchCustomersForOrder(q: string, take = 40) {
   return searchCustomersForOrderForm(q, take);
 }
 
-export async function searchProductsForOrder(q: string, take = 40) {
-  return searchProductsForOrderForm(q, take);
+export async function searchProductsForOrder(
+  q: string,
+  take = 40,
+  scope: OrderFormProductScope = 'all',
+  merchantId?: string,
+) {
+  return searchProductsForOrderForm(q, take, scope, merchantId);
 }

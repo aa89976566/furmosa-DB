@@ -480,6 +480,7 @@ model Merchant {
   orders                 Order[]
   settlements            Settlement[]
   productRules           MerchantProductRule[]
+  wholesalePrices        MerchantWholesalePrice[]
   partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
   partnerRedemptions     RewardRedemption[]   @relation("RedemptionPartnerMerchant")
   stocks       MerchantStock[]
@@ -624,6 +625,7 @@ model Product {
   inventoryBalances     InventoryBalance[]
   inventoryTransactions InventoryTransaction[]
   merchantRules         MerchantProductRule[]
+  merchantWholesalePrices MerchantWholesalePrice[]
   merchantStocks        MerchantStock[]
   merchantStockTxns     MerchantStockTxn[]
   shipmentItems         ShipmentItem[]
@@ -672,6 +674,25 @@ model MerchantProductRule {
   @@unique([merchantId, productId])
   @@index([productId])
   @@index([merchantId])
+}
+
+// 販售合作：店家 × 商品 × 規格 的專屬進貨價。
+// variantKey 使用 ProductPriceTier.id；無規格商品固定使用 "base"。
+model MerchantWholesalePrice {
+  id         String   @id @default(cuid())
+  merchantId String
+  productId  String
+  variantKey String   @default("base")
+  unitPrice  Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, productId, variantKey])
+  @@index([merchantId])
+  @@index([productId])
 }
 
 // =====================================================

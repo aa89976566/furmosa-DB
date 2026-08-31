@@ -6,6 +6,15 @@ import {
   shipmentCarrierFromOrder,
   SHIPPING_FEE_TYPES,
 } from '@/lib/shipping-policy';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
+import {
+  isMerchantOrderMode,
+  merchantOrderProductCategory,
+  merchantOrderSource,
+  type MerchantOrderMode,
+} from '@/lib/orders/merchant-order-mode';
+import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
+import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
@@ -143,12 +152,30 @@ export async function parseOrderFormData(
   let source: string;
   let customerId: string | null = null;
   let merchantId: string | null = null;
+  let merchantOrderMode: MerchantOrderMode | null = null;
 
   if (orderType === 'merchant') {
-    source = 'consignment';
     merchantId = String(formData.get('merchantId') ?? '').trim();
-    if (!merchantId) throw new Error('請選擇寄賣店家');
-    customerId = toNullableString(formData.get('customerId'));
+    if (!merchantId) throw new Error('請選擇合作店家');
+
+    const modeRaw = String(formData.get('merchantOrderMode') ?? '').trim();
+    if (!isMerchantOrderMode(modeRaw)) throw new Error('請選擇店家合作方式');
+    merchantOrderMode = modeRaw;
+
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true, type: true, status: true },
+    });
+    if (!merchant || merchant.status !== 'active') throw new Error('店家不存在或已停用');
+    const merchantTypes = await getMerchantTypes(prisma, merchant.id, merchant.type);
+    if (!merchantTypes.includes(merchantOrderMode)) {
+      throw new Error('此店家尚未登記這項合作方式');
+    }
+
+    source = merchantOrderSource(merchantOrderMode);
+    customerId = merchantOrderMode === 'consignment'
+      ? toNullableString(formData.get('customerId'))
+      : null;
   } else {
     const cs = String(formData.get('customerSource') ?? '');
     if (!CUSTOMER_SOURCE_MAP[cs]) throw new Error('請選擇客戶來源（社群／LINE／寄賣）');
@@ -206,6 +233,10 @@ export async function parseOrderFormData(
     },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const wholesalePrices =
+    merchantOrderMode === 'wholesale' && merchantId
+      ? await loadMerchantWholesalePrices(merchantId)
+      : [];
 
   let giftCost = 0;
   const items: ParsedOrderLine[] = [];
@@ -214,6 +245,32 @@ export async function parseOrderFormData(
     const prod = productMap.get(it.productId);
     if (!prod) throw new Error('包含不存在的商品');
     if (it.unitPrice < 0) throw new Error('單價不可為負數');
+    if (
+      merchantOrderMode &&
+      prod.productCategory !== merchantOrderProductCategory(merchantOrderMode)
+    ) {
+      throw new Error(
+        merchantOrderMode === 'jar_exchange'
+          ? '換罐補貨只能選擇換罐計畫商品'
+          : '寄賣或販售只能選擇一般商品',
+      );
+    }
+    if (merchantOrderMode === 'wholesale' && merchantId) {
+      const hasTiers = prod.priceTiers.length > 0;
+      if (hasTiers && !prod.priceTiers.some((tier) => tier.id === it.tierId)) {
+        throw new Error('請選擇有效的商品規格');
+      }
+      const configuredPrice = findMerchantWholesalePrice(
+        wholesalePrices,
+        merchantId,
+        prod.id,
+        hasTiers ? it.tierId : null,
+      );
+      if (configuredPrice == null) {
+        throw new Error(`「${prod.name}」尚未設定此規格的店家進貨價`);
+      }
+      it.unitPrice = it.isGift ? 0 : configuredPrice;
+    }
     let unitCost = 0;
     if (it.isGift) {
       unitCost = resolveOrderItemUnitCost(prod, it.tierId || null);

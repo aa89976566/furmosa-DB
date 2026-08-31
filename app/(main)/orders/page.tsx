@@ -155,7 +155,7 @@ export default function OrdersPage({
       <PageHeader
         tone="orders"
         title="訂單 Order Hub"
-        description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
+        description="統一管理客戶訂單與店家寄賣、販售、換罐補貨。"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">

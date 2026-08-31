@@ -7,17 +7,18 @@ export const ORDER_SOURCE_TABS = [
   { key: 'website', label: '官網' },
   { key: 'line', label: 'LINE' },
   { key: 'consignment', label: '寄賣' },
+  { key: 'wholesale', label: '販售' },
   { key: 'manual', label: '手動' },
 ] as const;
 
-export const ORDER_SOURCE_KEYS = ['shopify', 'website', 'line', 'consignment', 'manual'] as const;
+export const ORDER_SOURCE_KEYS = ['shopify', 'website', 'line', 'consignment', 'wholesale', 'manual'] as const;
 
-/** 出貨隊列種類（consignment 為邏輯分類，含進貨與寄賣成交） */
+/** 出貨隊列種類（consignment key 為相容舊網址，畫面顯示店家補貨）。 */
 export const SHIPMENT_KIND_TABS = [
   { key: '', label: '全部' },
   { key: 'customer_order', label: '直客訂單', hint: 'Shopify / 官網 / LINE / 手動，不含寄賣店成交' },
   { key: 'subscription', label: '訂閱', hint: '訂閱制定期出貨' },
-  { key: 'consignment', label: '寄賣', hint: '寄賣店進貨與店內成交（如淡水妞妞）' },
+  { key: 'consignment', label: '店家補貨', hint: '寄賣、販售與換罐計畫的店家補貨' },
 ] as const;
 
 export const SHIPMENT_KIND_KEYS = ['customer_order', 'subscription', 'consignment'] as const;
@@ -28,7 +29,7 @@ export function isShipmentKindKey(value: string): value is ShipmentKindKey {
   return (SHIPMENT_KIND_KEYS as readonly string[]).includes(value);
 }
 
-/** 出貨隊列「寄賣」= 店家進貨 + 寄賣成交訂單 */
+/** 出貨隊列「店家補貨」= 店家進貨 + 寄賣成交訂單。 */
 export const consignmentShipmentWhere: Prisma.ShipmentWhereInput = {
   OR: [
     { type: 'merchant_restock' },

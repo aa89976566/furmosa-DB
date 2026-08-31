@@ -48,6 +48,18 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { variationLabel } from '@/lib/product-variations';
 import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
+import type { MerchantType } from '@/lib/merchant-types';
+import {
+  findMerchantWholesalePrice,
+  type MerchantWholesalePriceRow,
+} from '@/lib/orders/merchant-wholesale-price';
+import {
+  merchantOrderModeDescription,
+  merchantOrderModeLabel,
+  merchantOrderModesForTypes,
+  merchantOrderProductCategory,
+  type MerchantOrderMode,
+} from '@/lib/orders/merchant-order-mode';
 
 export type ProductTierOption = {
   id: string;
@@ -62,10 +74,13 @@ export type ProductOption = {
   id: string;
   name: string;
   sku: string;
+  productCategory: string;
+  availableStock: number;
   price: number;
   cost: number;
   unit: string;
   priceTiers: ProductTierOption[];
+  wholesalePrices: MerchantWholesalePriceRow[];
 };
 
 function tierLabel(t: ProductTierOption): string {
@@ -81,6 +96,7 @@ export type MerchantOption = {
   city: string | null;
   preferredCarrier: string | null;
   pickupStoreName: string | null;
+  types: MerchantType[];
 };
 export type CustomerOption = {
   id: string;
@@ -132,6 +148,7 @@ function OrderLineItemsTable({
   onSelectProduct,
   onSelectTier,
   onToggleGift,
+  unitPriceReadOnly,
   updateItem,
   addItem,
   removeItem,
@@ -145,6 +162,7 @@ function OrderLineItemsTable({
   onSelectProduct: (key: string, productId: string) => void;
   onSelectTier: (key: string, productId: string, tierId: string) => void;
   onToggleGift: (key: string, isGift: boolean) => void;
+  unitPriceReadOnly?: boolean;
   updateItem: (key: string, patch: Partial<LineItem>) => void;
   addItem: () => void;
   removeItem: (key: string) => void;
@@ -207,7 +225,8 @@ function OrderLineItemsTable({
                   />
                   {prod ? (
                     <div className="mt-1 text-[11px] text-muted-foreground">
-                      基礎單位：{prod.unit} · 售價 {formatCurrency(prod.price)}
+                      基礎單位：{prod.unit} · 售價 {formatCurrency(prod.price)} · 總部庫存{' '}
+                      {prod.availableStock}
                       {prod.cost > 0 ? ` · 成本 ${formatCurrency(prod.cost)}` : ''}
                     </div>
                   ) : null}
@@ -274,7 +293,7 @@ function OrderLineItemsTable({
                     min={0}
                     step="0.01"
                     value={it.isGift ? 0 : it.unitPrice}
-                    readOnly={it.isGift}
+                    readOnly={it.isGift || unitPriceReadOnly}
                     onChange={(e) =>
                       updateItem(it.key, {
                         unitPrice: Math.max(0, Number(e.target.value) || 0),
@@ -282,7 +301,7 @@ function OrderLineItemsTable({
                       })
                     }
                     required={rowRequired && Boolean(it.productId) && !it.isGift}
-                    className="h-9 min-w-[5.5rem] text-right tabular-nums disabled:opacity-60"
+                    className="h-9 min-w-[5.5rem] text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60"
                   />
                   {it.isGift && it.retailUnitPrice > 0 ? (
                     <p className="mt-0.5 text-[10px] text-muted-foreground line-through">
@@ -353,6 +372,9 @@ export function OrderForm({
   );
   const [customerId, setCustomerId] = useState<string>(edit?.customerId ?? '');
   const [merchantId, setMerchantId] = useState<string>(edit?.merchantId ?? '');
+  const [merchantOrderMode, setMerchantOrderMode] = useState<MerchantOrderMode>(
+    edit?.merchantOrderMode ?? 'consignment',
+  );
   const selectedMerchant = useMemo(
     () => merchants.find((m) => m.id === merchantId),
     [merchants, merchantId],
@@ -410,8 +432,46 @@ export function OrderForm({
   const [creatingCustomer, startCreateCustomer] = useTransition();
 
   const productMap = useMemo(
-    () => new Map(productCatalog.map((p) => [p.id, p])),
-    [productCatalog],
+    () =>
+      new Map(
+        productCatalog.map((product) => {
+          if (orderType !== 'merchant' || merchantOrderMode !== 'wholesale') {
+            return [product.id, product] as const;
+          }
+          return [
+            product.id,
+            {
+              ...product,
+              priceTiers: product.priceTiers.filter((tier) =>
+                product.wholesalePrices.some(
+                  (price) =>
+                    price.merchantId === merchantId &&
+                    price.variantKey === tier.id,
+                ),
+              ),
+            },
+          ] as const;
+        }),
+      ),
+    [merchantId, merchantOrderMode, orderType, productCatalog],
+  );
+  const visibleProducts = useMemo(
+    () => {
+      if (isEdit) return productCatalog;
+      if (orderType === 'customer') {
+        return productCatalog.filter(
+          (product) => product.productCategory === 'STANDARD' && product.availableStock > 0,
+        );
+      }
+      const category = merchantOrderProductCategory(merchantOrderMode);
+      return productCatalog.filter(
+        (product) =>
+          product.productCategory === category &&
+          (merchantOrderMode !== 'wholesale' ||
+            product.wholesalePrices.some((price) => price.merchantId === merchantId)),
+      );
+    },
+    [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
   );
 
   const mergeCustomers = useCallback((rows: CustomerOption[]) => {
@@ -441,11 +501,26 @@ export function OrderForm({
 
   const handleSearchProducts = useCallback(
     async (query: string) => {
-      const rows = await searchProductsForOrder(query);
+      if (orderType === 'merchant' && merchantOrderMode === 'wholesale' && !merchantId) {
+        return [];
+      }
+      const scope = !isEdit
+        ? orderType === 'customer'
+          ? 'customer_in_stock'
+          : merchantOrderMode === 'jar_exchange'
+            ? 'merchant_jar_exchange'
+            : 'merchant_standard'
+        : 'all';
+      const rows = await searchProductsForOrder(
+        query,
+        40,
+        scope,
+        orderType === 'merchant' && merchantOrderMode === 'wholesale' ? merchantId : undefined,
+      );
       mergeProducts(rows);
       return rows;
     },
-    [mergeProducts],
+    [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType],
   );
 
   const hasValidLines = useMemo(
@@ -490,11 +565,16 @@ export function OrderForm({
     p: ProductOption,
     tierId: string,
   ): { unitPrice: number; unitCost: number; weightGrams: number | null; unit: string | null; tierId: string } {
+    const useCatalogPrice = orderType === 'customer';
+    const wholesalePrice = (tierId: string) =>
+      merchantOrderMode === 'wholesale'
+        ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ?? 0
+        : 0;
     if (p.priceTiers.length > 0) {
       const t = p.priceTiers.find((x) => x.id === tierId) ?? p.priceTiers[0];
       return {
         tierId: t.id,
-        unitPrice: t.price,
+        unitPrice: useCatalogPrice ? t.price : wholesalePrice(t.id),
         unitCost: resolveOrderItemUnitCost(p, t.id),
         weightGrams: t.weightGrams,
         unit: t.unit,
@@ -502,7 +582,7 @@ export function OrderForm({
     }
     return {
       tierId: '',
-      unitPrice: p.price,
+      unitPrice: useCatalogPrice ? p.price : wholesalePrice(''),
       unitCost: resolveOrderItemUnitCost(p),
       weightGrams: null,
       unit: p.unit,
@@ -618,7 +698,53 @@ export function OrderForm({
   function onMerchantChange(id: string) {
     setMerchantId(id);
     const m = merchants.find((x) => x.id === id);
-    if (m) applyMerchantShipping(m);
+    if (m) {
+      applyMerchantShipping(m);
+      const availableModes = merchantOrderModesForTypes(m.types);
+      const nextMode = availableModes.includes(merchantOrderMode)
+        ? merchantOrderMode
+        : (availableModes[0] ?? 'consignment');
+      if (nextMode !== merchantOrderMode) {
+        setMerchantOrderMode(nextMode);
+        setItems((current) => current.map((item) => ({
+          ...item,
+          productId: '',
+          tierId: '',
+          unitPrice: 0,
+          retailUnitPrice: 0,
+          weightGrams: null,
+          unit: null,
+        })));
+      }
+    }
+  }
+
+  function changeMerchantOrderMode(mode: MerchantOrderMode) {
+    setMerchantOrderMode(mode);
+    setItems((current) => current.map((item) => ({
+      ...item,
+      productId: '',
+      tierId: '',
+      unitPrice: 0,
+      retailUnitPrice: 0,
+      weightGrams: null,
+      unit: null,
+    })));
+    if (mode !== 'consignment') setCustomerId('');
+  }
+
+  function changeOrderType(nextType: OrderType) {
+    if (nextType === orderType) return;
+    setOrderType(nextType);
+    setItems((current) => current.map((item) => ({
+      ...item,
+      productId: '',
+      tierId: '',
+      unitPrice: 0,
+      retailUnitPrice: 0,
+      weightGrams: null,
+      unit: null,
+    })));
   }
 
   useEffect(() => {
@@ -716,6 +842,7 @@ export function OrderForm({
       <input type="hidden" name="shippingMethod" value={shippingMethod} />
       <input type="hidden" name="orderType" value={orderType} />
       <input type="hidden" name="customerSource" value={customerSource} />
+      <input type="hidden" name="merchantOrderMode" value={merchantOrderMode} />
       <input type="hidden" name="shippingFeeType" value={shippingFeeType} />
       <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
@@ -726,7 +853,7 @@ export function OrderForm({
         {isEdit ? (
           <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             編輯模式無法變更訂單類型（
-            {orderType === 'customer' ? '客戶訂單' : '寄賣店家訂單'}）
+            {orderType === 'customer' ? '客戶訂單' : '店家訂單'}）
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -735,14 +862,14 @@ export function OrderForm({
               icon={<User className="h-5 w-5" />}
               title="客戶訂單"
               desc="一般消費者下單"
-              onClick={() => setOrderType('customer')}
+              onClick={() => changeOrderType('customer')}
             />
             <TypeCard
               active={orderType === 'merchant'}
               icon={<Store className="h-5 w-5" />}
-              title="寄賣店家訂單"
-              desc="寄賣店進貨或代收"
-              onClick={() => setOrderType('merchant')}
+              title="店家訂單"
+              desc="寄賣、販售或換罐補貨"
+              onClick={() => changeOrderType('merchant')}
             />
           </div>
         )}
@@ -837,14 +964,14 @@ export function OrderForm({
         </section>
       )}
 
-      {/* Step 2B: 寄賣店家模式 */}
+      {/* Step 2B: 合作店家模式 */}
       {orderType === 'merchant' && (
         <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="text-sm font-medium">② 寄賣店家</div>
+          <div className="text-sm font-medium">② 合作店家</div>
 
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
-              寄賣店家 <span className="text-destructive">*</span>
+              店家 <span className="text-destructive">*</span>
             </label>
             <select
               name="merchantId"
@@ -853,7 +980,7 @@ export function OrderForm({
               required
               className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="">— 選擇寄賣店 —</option>
+              <option value="">— 選擇店家 —</option>
               {merchants.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.merchantId})
@@ -862,7 +989,44 @@ export function OrderForm({
             </select>
           </div>
 
-          <div>
+          {selectedMerchant ? (
+            <div>
+              <label className="mb-2 block text-[11px] text-muted-foreground">
+                這次要做什麼？ <span className="text-destructive">*</span>
+              </label>
+              {merchantOrderModesForTypes(selectedMerchant.types).length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {merchantOrderModesForTypes(selectedMerchant.types).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => changeMerchantOrderMode(mode)}
+                      className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                        merchantOrderMode === mode
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background hover:border-primary/50'
+                      }`}
+                    >
+                      <strong className="block text-sm">{merchantOrderModeLabel[mode]}</strong>
+                      <span className={`mt-1 block text-xs leading-5 ${
+                        merchantOrderMode === mode
+                          ? 'text-primary-foreground/75'
+                          : 'text-muted-foreground'
+                      }`}>
+                        {merchantOrderModeDescription[mode]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+                  此店家尚未設定合作方式，請先到店家主檔補上。
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {merchantOrderMode === 'consignment' && <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="block text-[11px] text-muted-foreground">
                 買家客戶（選填，若知道誰買的）
@@ -894,21 +1058,30 @@ export function OrderForm({
                 placeholder="搜尋買家（選填）…"
               />
             )}
-          </div>
+          </div>}
         </section>
       )}
 
       {/* Step 3: 商品明細 */}
       <OrderLineItemsTable
         title="③ 商品明細"
-        hint="勾選「贈品」的品項不計入買家應付，進貨成本計入公司開銷。"
+        hint={
+          orderType === 'customer'
+            ? '只顯示目前有庫存的一般商品。'
+            : merchantOrderMode === 'jar_exchange'
+              ? '只顯示換罐計畫商品；本張補貨單不計營收。'
+              : merchantOrderMode === 'wholesale'
+                ? '只顯示已設定店家進貨價的商品；選擇規格後會自動帶入。'
+                : '只顯示一般商品；寄賣補貨於售出後再對帳。'
+        }
         items={items}
-        products={productCatalog}
+        products={visibleProducts}
         productMap={productMap}
         onSearchProducts={handleSearchProducts}
         onSelectProduct={onSelectProduct}
         onSelectTier={onSelectTier}
         onToggleGift={onToggleGift}
+        unitPriceReadOnly={orderType === 'merchant' && merchantOrderMode === 'wholesale'}
         updateItem={updateItem}
         addItem={addItem}
         removeItem={removeItem}
@@ -1208,7 +1381,7 @@ export function OrderForm({
               <span className="text-muted-foreground">
                 {orderType === 'customer'
                   ? '建立後會自動產生一張待出貨單，可於〈出貨隊列〉看到。'
-                  : '寄賣店家訂單不會自動產生客戶出貨單。'}
+                  : '建立後會產生店家補貨單，可於〈出貨隊列〉查看。'}
               </span>
             </>
           )}

@@ -1,5 +1,6 @@
 import type { Order, OrderItem, Shipment } from '@prisma/client';
 import type { ProductOption } from '@/app/(main)/orders/new/order-form';
+import type { MerchantOrderMode } from '@/lib/orders/merchant-order-mode';
 
 export type OrderEditInitial = {
   orderId: string;
@@ -8,6 +9,7 @@ export type OrderEditInitial = {
   customerSource: 'social' | 'line' | 'consignment';
   customerId: string;
   merchantId: string;
+  merchantOrderMode: MerchantOrderMode;
   items: Array<{
     key: string;
     productId: string;
@@ -37,7 +39,11 @@ function genKey() {
 }
 
 function deriveOrderType(order: Pick<Order, 'source' | 'merchantId' | 'customerId'>) {
-  if (order.source === 'consignment' && order.merchantId && !order.customerId) {
+  if (
+    (order.source === 'consignment' || order.source === 'wholesale') &&
+    order.merchantId &&
+    !order.customerId
+  ) {
     return 'merchant' as const;
   }
   return 'customer' as const;
@@ -47,6 +53,23 @@ function deriveCustomerSource(order: Pick<Order, 'source'>) {
   if (order.source === 'line') return 'line' as const;
   if (order.source === 'consignment') return 'consignment' as const;
   return 'social' as const;
+}
+
+function deriveMerchantOrderMode(
+  order: Pick<Order, 'source'>,
+  items: OrderItem[],
+  products: ProductOption[],
+): MerchantOrderMode {
+  if (order.source === 'wholesale') return 'wholesale';
+  if (
+    items.length > 0 &&
+    items.every((item) =>
+      products.find((product) => product.id === item.productId)?.productCategory === 'JAR_EXCHANGE',
+    )
+  ) {
+    return 'jar_exchange';
+  }
+  return 'consignment';
 }
 
 function resolveTierId(
@@ -74,6 +97,7 @@ export function buildOrderEditInitial(
 ): OrderEditInitial {
   const orderType = deriveOrderType(order);
   const customerSource = deriveCustomerSource(order);
+  const merchantOrderMode = deriveMerchantOrderMode(order, order.items, products);
 
   const items = order.items.map((item) => {
     const retailUnitPrice = item.isGift ? item.unitCost ?? 0 : item.unitPrice;
@@ -110,6 +134,7 @@ export function buildOrderEditInitial(
     customerSource,
     customerId: order.customerId ?? '',
     merchantId: order.merchantId ?? '',
+    merchantOrderMode,
     items: items.length > 0 ? items : [
       {
         key: genKey(),
