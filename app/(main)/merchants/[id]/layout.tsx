@@ -39,6 +39,9 @@ export default async function MerchantLayout({
         tabs={[
           { href: '', label: '總覽' },
           { href: 'products', label: '商品與庫存' },
+          ...(shell.types.includes('wholesale')
+            ? [{ href: 'wholesale-prices', label: '進貨價' }]
+            : []),
           { href: 'shipments', label: '運送', badge: shell.shipmentsInTransit },
           { href: 'sales', label: '訂單' },
           { href: 'settlement', label: '結算', badge: shell.draftSettlements },
