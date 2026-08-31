@@ -7,9 +7,12 @@ import {
 import { getRestockRequestForMerchant } from '@/lib/restock-request/service';
 import {
   restockRequestTypeLabel,
-  restockStatusLabelForMerchant,
   type ApprovedSnapshotLine,
 } from '@/lib/restock-request/constants';
+import {
+  merchantRestockProgressLabel,
+  shipmentStatusForMerchant,
+} from '@/lib/pos/restock-progress';
 import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
@@ -65,7 +68,10 @@ export default async function PosRestockDetailPage({
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-            {restockStatusLabelForMerchant(req.status)}
+            {merchantRestockProgressLabel(
+              req.status,
+              shipmentStatusForMerchant(req.shipment, merchantId),
+            )}
           </span>
         </div>
 

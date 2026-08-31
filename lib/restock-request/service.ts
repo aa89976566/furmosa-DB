@@ -242,7 +242,7 @@ export async function getRestockRequestForMerchant(
           product: { select: { id: true, name: true, sku: true, unit: true } },
         },
       },
-      shipment: { select: { id: true, shipmentNumber: true, status: true } },
+      shipment: { select: { id: true, shipmentNumber: true, status: true, merchantId: true } },
     },
   });
 }

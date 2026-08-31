@@ -7,8 +7,10 @@ describe('buildHomeTaskCards', () => {
     const cards = buildHomeTaskCards({
       pendingRefillCount: 0,
       lowStock: null,
-      openRestockCount: 0,
-      firstOpenRestockId: null,
+      waitingToShipCount: 0,
+      inTransitRestockCount: 0,
+      firstWaitingRestockId: null,
+      firstInTransitRestockId: null,
     });
     assert.equal(cards.length, 0);
   });
@@ -20,8 +22,10 @@ describe('buildHomeTaskCards', () => {
         { productName: '柳葉魚凍乾', quantity: 0 },
         { productName: '水晶魚', quantity: 2 },
       ],
-      openRestockCount: 2,
-      firstOpenRestockId: 'r1',
+      waitingToShipCount: 2,
+      inTransitRestockCount: 0,
+      firstWaitingRestockId: 'r1',
+      firstInTransitRestockId: null,
     });
     assert.deepEqual(
       cards.map((c) => c.kind),
@@ -42,8 +46,10 @@ describe('buildHomeTaskCards', () => {
     const cards = buildHomeTaskCards({
       pendingRefillCount: 0,
       lowStock: null,
-      openRestockCount: 1,
-      firstOpenRestockId: 'r1',
+      waitingToShipCount: 1,
+      inTransitRestockCount: 0,
+      firstWaitingRestockId: 'r1',
+      firstInTransitRestockId: null,
     });
     assert.equal(cards.length, 1);
     assert.equal(cards[0]?.kind, 'restock_progress');

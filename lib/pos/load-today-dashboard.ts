@@ -6,13 +6,12 @@ import {
   type HomeTasksInput,
 } from '@/lib/pos/home-tasks';
 import { isLowOrSoldOut } from '@/lib/pos/stock-status';
-
-const OPEN_RESTOCK_STATUSES = [
-  'submitted',
-  'under_review',
-  'approved',
-  'converted_to_shipment',
-] as const;
+import {
+  HOME_WAITING_REQUEST_STATUSES,
+  RESTOCK_PROGRESS_SHIPMENT_SELECT,
+  restockHomeFromSettled,
+} from '@/lib/pos/restock-progress';
+import { PRE_SHIP_STATUSES } from '@/lib/shipment';
 
 export type LoadedHomeTasks = {
   cards: HomeTaskCard[];
@@ -45,11 +44,24 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       prisma.restockRequest.findMany({
         where: {
           merchantId,
-          status: { in: [...OPEN_RESTOCK_STATUSES] },
+          OR: [
+            { status: { in: [...HOME_WAITING_REQUEST_STATUSES] } },
+            {
+              status: 'converted_to_shipment',
+              shipment: {
+                merchantId,
+                status: { in: [...PRE_SHIP_STATUSES, 'shipped'] },
+              },
+            },
+          ],
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
-        select: { id: true },
+        select: {
+          id: true,
+          status: true,
+          shipment: { select: RESTOCK_PROGRESS_SHIPMENT_SELECT },
+        },
       }),
       prisma.merchantStock.findMany({
         where: { merchantId },
@@ -74,9 +86,13 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
     ]);
 
     const failures = [restockResult, stockResult].filter((r) => r.status === 'rejected');
-    const openRestocks = settledValue(restockResult, 'restock') ?? [];
+    if (restockResult.status === 'rejected') {
+      console.error('[pos] loadHomeTasks:restock', restockResult.reason);
+    }
+    const restockHome = restockHomeFromSettled(restockResult, merchantId);
     const stockRows = settledValue(stockResult, 'stock');
     const pendingRefillCount = settledValue(refillResult, 'refill') ?? 0;
+    const restockNotice = restockHome.kind === 'ok' ? restockHome.notice : null;
 
     let lowStock: HomeTasksInput['lowStock'] = null;
     if (stockRows && isInventoryReliable(stockRows.length)) {
@@ -95,8 +111,10 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
     const input: HomeTasksInput = {
       pendingRefillCount,
       lowStock,
-      openRestockCount: openRestocks.length,
-      firstOpenRestockId: openRestocks[0]?.id ?? null,
+      waitingToShipCount: restockNotice?.waitingToShipCount ?? 0,
+      inTransitRestockCount: restockNotice?.inTransitCount ?? 0,
+      firstWaitingRestockId: restockNotice?.firstWaitingRestockId ?? null,
+      firstInTransitRestockId: restockNotice?.firstInTransitRestockId ?? null,
     };
 
     const warning =

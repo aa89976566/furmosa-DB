@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
 import { groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import {
+  RESTOCK_PROGRESS_SHIPMENT_SELECT,
+  merchantRestockQueryFeedStatus,
+  shipmentStatusForMerchant,
+} from '@/lib/pos/restock-progress';
 
 function stockTypeLabel(type: string): string {
   switch (type) {
@@ -55,6 +59,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         id: true,
         createdAt: true,
         status: true,
+        shipment: { select: RESTOCK_PROGRESS_SHIPMENT_SELECT },
         items: {
           take: 3,
           select: {
@@ -117,8 +122,9 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const names = r.items
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
-    const submitted = ['submitted', 'under_review', 'approved', 'converted_to_shipment'].includes(
+    const progressLabel = merchantRestockQueryFeedStatus(
       r.status,
+      shipmentStatusForMerchant(r.shipment, merchantId),
     );
     return {
       id: `restock-${r.id}`,
@@ -126,9 +132,9 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       at: r.createdAt.toISOString(),
       title: '補貨',
       subtitle: names || '補貨單',
-      status: submitted && r.status !== 'converted_to_shipment' ? '已送出' : restockStatusLabelForMerchant(r.status),
+      status: progressLabel,
       href: `/pos/restock/${r.id}`,
-      searchText: `補貨 ${names} ${r.id}`.toLowerCase(),
+      searchText: `補貨 ${names} ${r.id} ${progressLabel}`.toLowerCase(),
     };
   });
 
