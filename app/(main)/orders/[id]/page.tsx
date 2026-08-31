@@ -54,6 +54,7 @@ import { updateOrderShippingFeeType } from '../actions';
 import { approveOrderForShipment } from '../actions';
 import { ShopifyIntakePanel } from '@/components/orders/shopify-intake-panel';
 import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
+import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     },
   });
   if (!order) notFound();
+
+  const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
+  const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
 
   const editable = isOrderEditable(order);
   const recipientNameMissing =
@@ -127,7 +131,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               <StatusBadge kind="orderSource" value={order.source} />
               <StatusBadge kind="order" value={order.status} />
               <StatusBadge kind="payment" value={order.paymentStatus} />
-              <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
+              {shipmentNotice ? <span className="text-xs text-muted-foreground">{shipmentNotice}</span>
+                : <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />}
             </DetailBadgeRow>
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
@@ -316,8 +321,15 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             tone="finance"
             icon={CreditCard}
             title="付款與運費"
-            description="可隨時調整"
+            description={order.omsStatus ? '付款與金額由 Shopify 同步' : '可隨時調整'}
           >
+            {order.omsStatus ? (
+              <div className="space-y-3">
+                <StatusBadge kind="payment" value={order.paymentStatus} />
+                <p className="text-sm">Shopify 原始總額：{sourceView?.currency} {sourceView?.total || '待重新同步'}</p>
+                <p className="text-xs text-muted-foreground">請在 Shopify 處理付款或金額變更後重新同步；HQ 不套用手動訂單運費試算。</p>
+              </div>
+            ) : (
             <div className="space-y-3">
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">付款狀態</p>
@@ -356,6 +368,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 </p>
               </div>
             </div>
+            )}
           </HorizontalSectionPane>
         </HorizontalSectionBand>
 
@@ -363,7 +376,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           tone="orders"
           icon={Package}
           title="訂單品項"
-          description={`${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
+          description={order.omsStatus && !order.items.length
+            ? '尚未轉成 HQ 出貨品項；原始商品請見上方 Shopify 收單快照'
+            : `${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
         >
           {(() => {
             const incomplete = order.items
@@ -488,6 +503,12 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </Table>
 
           <div className="mt-6 ml-auto w-full max-w-xs">
+            {order.omsStatus ? (
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold">Shopify 原始總額：{sourceView?.currency} {sourceView?.total || '待重新同步'}</p>
+                <p className="text-xs text-muted-foreground">以來源訂單金額為準，不重新計算運費或稅費。</p>
+              </div>
+            ) : (
             <OrderAmountSummary
               order={{
                 subtotal: Number(order.subtotal),
@@ -501,6 +522,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 total: Number(order.total),
               }}
             />
+            )}
           </div>
         </SectionCard>
 
