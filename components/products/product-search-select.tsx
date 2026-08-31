@@ -21,6 +21,7 @@ export type ProductSearchOption = {
   sku: string;
   price: number;
   unit: string;
+  availableStock?: number;
 };
 
 function productLabel(p: ProductSearchOption) {
@@ -175,6 +176,9 @@ export function ProductSearchSelect({
                       </div>
                       <div className="pl-6 font-mono text-[11px] text-muted-foreground">
                         {p.sku} · {formatCurrency(p.price)} / {p.unit}
+                        {typeof p.availableStock === 'number'
+                          ? ` · 總部庫存 ${p.availableStock}`
+                          : ''}
                       </div>
                     </CommandItem>
                   ))}
