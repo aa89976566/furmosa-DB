@@ -36,6 +36,7 @@ import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
+import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['shipped', 'cancelled'],
@@ -422,6 +423,8 @@ export type ShipmentPanelData = {
     shippingFeeType: string;
     total: string;
     shippingFee: string;
+    editable: boolean;
+    editBlockedReason: string | null;
   } | null;
   fulfillmentFeeLabel: string | null;
   paymentReviewHold: boolean;
@@ -475,6 +478,7 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
     shippingFeeType: shipment.order?.shippingFeeType,
     jiba: shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null,
   });
+  const orderEditable = shipment.order ? isOrderEditable(shipment.order) : null;
 
   return {
     id: shipment.id,
@@ -502,6 +506,8 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           shippingFeeType: shipment.order.shippingFeeType,
           total: String(shipment.order.total),
           shippingFee: String(shipment.order.shippingFee),
+          editable: orderEditable?.ok ?? false,
+          editBlockedReason: orderEditable?.ok ? null : (orderEditable?.reason ?? null),
         }
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,

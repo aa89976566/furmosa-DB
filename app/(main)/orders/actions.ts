@@ -27,6 +27,7 @@ import {
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { getCurrentUser } from '@/lib/auth';
+import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -268,7 +269,8 @@ export async function updateOrder(formData: FormData) {
   });
 
   await revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
-  redirect(`/orders/${orderId}`);
+  const returnTo = safeOrderEditReturnTo(String(formData.get('returnTo') ?? ''));
+  redirect(returnTo ?? `/orders/${orderId}`);
 }
 
 export async function updateOrderStatus(formData: FormData) {

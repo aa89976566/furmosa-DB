@@ -359,11 +359,13 @@ export function OrderForm({
   customers: initialCustomers,
   products,
   edit,
+  returnTo,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
   products: ProductOption[];
   edit?: OrderEditInitial;
+  returnTo?: string;
 }) {
   const isEdit = Boolean(edit);
   const [orderType, setOrderType] = useState<OrderType>(edit?.orderType ?? 'customer');
@@ -847,6 +849,7 @@ export function OrderForm({
       <input type="hidden" name="shippingFee" value={shippingResolved.shippingFee} />
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
       {isEdit && edit ? <input type="hidden" name="orderId" value={edit.orderId} /> : null}
+      {isEdit && returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>

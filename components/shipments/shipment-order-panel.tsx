@@ -7,6 +7,7 @@ import {
 } from '@/app/(main)/shipments/actions';
 import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -28,7 +29,8 @@ import {
   shipmentTypeLabel,
   type ShipmentStatus,
 } from '@/lib/shipment';
-import { Loader2, MapPin, Package, Phone, Truck } from 'lucide-react';
+import { Loader2, MapPin, Package, Pencil, Phone, Truck } from 'lucide-react';
+import Link from 'next/link';
 
 export function ShipmentOrderPanel({
   shipmentId,
@@ -159,14 +161,26 @@ export function ShipmentOrderPanel({
             </p>
           ) : null}
         </div>
-        {data.carrier || data.trackingNumber ? (
-          <div className="text-right text-xs text-muted-foreground">
-            {data.carrier ? <div>{data.carrier}</div> : null}
-            {data.trackingNumber ? (
-              <div className="font-mono">{data.trackingNumber}</div>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          {data.order?.editable ? (
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                href={`/orders/${data.order.id}/edit?returnTo=${encodeURIComponent(`/shipments?s=${data.id}`)}`}
+              >
+                <Pencil className="mr-1 h-4 w-4" />
+                修改訂單
+              </Link>
+            </Button>
+          ) : null}
+          {data.carrier || data.trackingNumber ? (
+            <div className="text-right text-xs text-muted-foreground">
+              {data.carrier ? <div>{data.carrier}</div> : null}
+              {data.trackingNumber ? (
+                <div className="font-mono">{data.trackingNumber}</div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
@@ -175,6 +189,13 @@ export function ShipmentOrderPanel({
             <Truck className="h-4 w-4 text-info" />
             運輸與收件
           </h3>
+          {data.order?.editable ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              可修改商品、數量、金額與收件資料；儲存後會同步更新此出貨單。
+            </p>
+          ) : data.order?.editBlockedReason ? (
+            <p className="mt-2 text-xs text-muted-foreground">{data.order.editBlockedReason}</p>
+          ) : null}
           <dl className="mt-4 space-y-3 text-sm">
             <PanelRow label="物流" value={logistics.carrierLabel} />
             <PanelRow label="收件人" value={logistics.contactName} />
