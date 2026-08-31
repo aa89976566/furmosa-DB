@@ -7,6 +7,8 @@ import {
   type OrderFormCustomerHit,
   type OrderFormProductHit,
 } from '@/lib/order-form-search';
+import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
+import type { MerchantType } from '@/lib/merchant-types';
 
 export type OrderFormMerchantOption = {
   id: string;
@@ -18,6 +20,7 @@ export type OrderFormMerchantOption = {
   city: string | null;
   preferredCarrier: string | null;
   pickupStoreName: string | null;
+  types: MerchantType[];
 };
 
 /**
@@ -28,7 +31,7 @@ export async function loadOrderFormOptions(seed?: {
   customerIds?: string[];
   productIds?: string[];
 }): Promise<[OrderFormMerchantOption[], OrderFormCustomerHit[], OrderFormProductHit[]]> {
-  const [merchants, seedCustomers, seedProducts, extraCustomers, extraProducts] =
+  const [merchants, seedCustomers, seedProducts, customerProducts, extraCustomers, extraProducts] =
     await Promise.all([
       prisma.merchant.findMany({
         where: { status: 'active' },
@@ -37,6 +40,7 @@ export async function loadOrderFormOptions(seed?: {
           id: true,
           name: true,
           merchantId: true,
+          type: true,
           contactName: true,
           phone: true,
           address: true,
@@ -47,6 +51,7 @@ export async function loadOrderFormOptions(seed?: {
       }),
       searchCustomersForOrderForm('', 24),
       searchProductsForOrderForm('', 40),
+      searchProductsForOrderForm('', 40, 'customer_in_stock'),
       getCustomersByIdsForOrderForm(seed?.customerIds ?? []),
       getProductsByIdsForOrderForm(seed?.productIds ?? []),
     ]);
@@ -56,9 +61,15 @@ export async function loadOrderFormOptions(seed?: {
     customersById.set(c.id, c);
   }
   const productsById = new Map<string, OrderFormProductHit>();
-  for (const p of [...extraProducts, ...seedProducts]) {
+  for (const p of [...extraProducts, ...customerProducts, ...seedProducts]) {
     productsById.set(p.id, p);
   }
 
-  return [merchants, [...customersById.values()], [...productsById.values()]];
+  const typesByMerchant = await getMerchantTypesMap(prisma, merchants);
+  const merchantOptions = merchants.map((merchant) => ({
+    ...merchant,
+    types: typesByMerchant.get(merchant.id) ?? ['consignment'],
+  }));
+
+  return [merchantOptions, [...customersById.values()], [...productsById.values()]];
 }
