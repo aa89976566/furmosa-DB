@@ -43,7 +43,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/api/refill') ||
     pathname.startsWith('/api/payments/ecpay') ||
     pathname.startsWith('/api/shopify/webhooks/') ||
-    pathname === '/api/storefront/pickup-stores' ||
+    (pathname === '/api/storefront/pickup-stores' || pathname === '/api/storefront/pickup-stores/') ||
     pathname.startsWith('/liff') ||
     pathname.startsWith('/book') ||
     pathname.startsWith('/favicon') ||

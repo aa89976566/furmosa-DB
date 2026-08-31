@@ -90,6 +90,8 @@ test('production requires its explicit flag and the live read-only directory', a
 test('Next.js does not redirect Shopify trailing-slash proxy requests', () => {
   const config = readFileSync('next.config.mjs', 'utf8');
   assert.match(config, /skipTrailingSlashRedirect:\s*true/);
+  const middleware = readFileSync('middleware.ts', 'utf8');
+  assert.match(middleware, /pathname === '\/api\/storefront\/pickup-stores\/'/);
 });
 
 test('server resolves canonical store and frozen service remains blocked', async () => {
