@@ -14,7 +14,6 @@ export function OrderDeletionForm({ orderId, orderNumber, deleted }: { orderId: 
       <p className="text-sm">僅從 HQ 隱藏，保留紀錄供還原，不刪 Shopify 原始訂單。已有付款／出貨紀錄會阻擋；還原後必須重新審核。</p>
       <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="action" value={deleted ? 'restore' : 'delete'} />
       <label className="block text-sm">請輸入完整訂單編號：{orderNumber}<Input name="confirmNumber" required autoComplete="off" /></label>
-      {!deleted && <label className="block text-sm">刪除原因<Input name="reason" required maxLength={500} /></label>}
       <Submit deleted={deleted} />{state.message && <p role="status">{state.message}</p>}
     </form>
   </details>;
