@@ -1,13 +1,14 @@
 /**
  * 正式小範圍寫入閘門。
- * Preview 一律拒絕。Production 預設關閉，且只允許指定 HQ 操作 MER-DEMO。
- * 五家真店一律拒絕寫入。
+ * Preview 一律拒絕。Production 預設關閉；每次部署只允許指定 HQ 操作指定的小範圍目標。
+ * 五家真店只有在 approved-five 模式才可寫入。
  */
 
 export const IDENTITY_WRITE_OPERATIONS = ['confirm', 'revoke'] as const;
 export type IdentityWriteOperation = (typeof IDENTITY_WRITE_OPERATIONS)[number];
 
 export const LIMITED_ROLLOUT_MERCHANT_ID = 'MER-DEMO';
+export const APPROVED_FIVE_WRITE_TARGET = 'approved-five';
 
 /** 總部指定可寫入的 HQ 帳號（與 seed 系統帳號相同）。POS 不含在內。 */
 export const DESIGNATED_HQ_WRITER_EMAILS = [
@@ -30,7 +31,7 @@ export const PRODUCTION_FEATURE_OFF_MESSAGE = '正式環境尚未開放寫入店
 export const NO_ALLOWLIST_MESSAGE = '尚未指定可寫入的 HQ 帳號';
 export const FORBIDDEN_ACTOR_MESSAGE = '這個總部帳號不能寫入店家身分';
 export const BLOCKED_REAL_STORE_MESSAGE = '五家真店尚未批准寫入';
-export const LIMITED_TARGET_MESSAGE = '這次只允許 MER-DEMO';
+export const LIMITED_TARGET_MESSAGE = '這次只允許指定的限量目標';
 
 export type IdentityWriteDeniedReason =
   | 'preview_readonly'
@@ -44,6 +45,7 @@ export type IdentityWriteEnv = {
   VERCEL_ENV?: string | undefined;
   PARTNER_STORE_IDENTITY_WRITES?: string | undefined;
   PARTNER_STORE_IDENTITY_WRITERS?: string | undefined;
+  PARTNER_STORE_IDENTITY_TARGET?: string | undefined;
   [key: string]: string | undefined;
 };
 
@@ -74,6 +76,10 @@ export function isBlockedRealStoreMerchantId(merchantId: string): boolean {
 
 export function isLimitedRolloutMerchantId(merchantId: string): boolean {
   return merchantId.trim().toUpperCase() === LIMITED_ROLLOUT_MERCHANT_ID;
+}
+
+export function isApprovedFiveWriteTarget(env: IdentityWriteEnv = process.env): boolean {
+  return env.PARTNER_STORE_IDENTITY_TARGET === APPROVED_FIVE_WRITE_TARGET;
 }
 
 export function decideIdentityWrite(
@@ -115,6 +121,10 @@ export function denyMerchantWrite(
   merchantId: string,
   env: IdentityWriteEnv = process.env,
 ): { ok: false; error: string; reason: IdentityWriteDeniedReason } | null {
+  if (env.VERCEL_ENV === 'production' && isApprovedFiveWriteTarget(env)) {
+    if (isBlockedRealStoreMerchantId(merchantId)) return null;
+    return { ok: false, error: LIMITED_TARGET_MESSAGE, reason: 'limited_target' };
+  }
   if (isBlockedRealStoreMerchantId(merchantId)) {
     return { ok: false, error: BLOCKED_REAL_STORE_MESSAGE, reason: 'blocked_real_store' };
   }

@@ -74,4 +74,18 @@ describe('limited rollout write guard', () => {
     assert.equal(denyMerchantWrite('MER-0015', production)?.error, LIMITED_TARGET_MESSAGE);
     assert.equal(denyMerchantWrite('MER-DEMO', production), null);
   });
+
+  it('allows exactly the approved five only during the approved-five rollout', () => {
+    const production = {
+      VERCEL_ENV: 'production',
+      PARTNER_STORE_IDENTITY_TARGET: 'approved-five',
+    };
+    assert.equal(denyMerchantWrite('MER-0019', production), null);
+    assert.equal(denyMerchantWrite('MER-0020', production), null);
+    assert.equal(denyMerchantWrite('MER-0016', production), null);
+    assert.equal(denyMerchantWrite('MER-0017', production), null);
+    assert.equal(denyMerchantWrite('MER-0010', production), null);
+    assert.equal(denyMerchantWrite('MER-DEMO', production)?.error, LIMITED_TARGET_MESSAGE);
+    assert.equal(denyMerchantWrite('MER-0015', production)?.error, LIMITED_TARGET_MESSAGE);
+  });
 });

@@ -37,7 +37,7 @@ describe('identity store write refusals', () => {
     if (!realStore.ok) assert.equal(realStore.error, BLOCKED_REAL_STORE_MESSAGE);
   });
 
-  it('production page has no Preview overlay and no five-store seed', () => {
+  it('production page has no Preview overlay and gates the approved-five batch', () => {
     const page = readFileSync(
       path.join(process.cwd(), 'app/(main)/jar-exchange/stores/page.tsx'),
       'utf8',
@@ -45,7 +45,8 @@ describe('identity store write refusals', () => {
     assert.match(page, /listIdentityDecisions\('production'\)/);
     assert.equal(page.includes('withPreviewReadOnlyOverlay'), false);
     assert.equal(page.includes('預覽模式'), false);
-    assert.equal(page.includes('zhuwo_banqiao'), false);
     assert.match(page, /LimitedRolloutDemoPanel/);
+    assert.match(page, /ApprovedFiveRolloutPanel/);
+    assert.match(page, /isApprovedFiveWriteTarget/);
   });
 });
