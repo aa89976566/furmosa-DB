@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   authenticateMerchantCredentials,
   buildMerchantSessionClaims,
+  merchantSessionHours,
+  merchantSessionMaxAgeSeconds,
   readMerchantSession,
   signMerchantSession,
   MERCHANT_SESSION_TYPE,
@@ -64,6 +66,11 @@ describe('merchant session JWT', () => {
       hours: 2,
     });
     assert.equal(claims.expiresAt - claims.issuedAt, 2 * 60 * 60);
+  });
+
+  it('keeps POS sessions for 30 days by default, independent of HQ', () => {
+    assert.equal(merchantSessionHours(), 720);
+    assert.equal(merchantSessionMaxAgeSeconds(), 720 * 60 * 60);
   });
 });
 
