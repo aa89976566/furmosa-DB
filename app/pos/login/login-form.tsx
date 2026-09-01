@@ -12,7 +12,7 @@ export function PosLoginForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState(posLoginAction, initialState);
 
   return (
-    <Card>
+    <Card className="shadow-card">
       <CardContent className="p-5 sm:p-7">
         <form action={formAction} className="space-y-4">
           <input type="hidden" name="next" value={next ?? ""} />

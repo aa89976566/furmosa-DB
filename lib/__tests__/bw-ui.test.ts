@@ -120,6 +120,7 @@ describe("黑白 UI", () => {
     assert.match(css, /\[class\*="bg-gradient-"\]/);
     assert.match(css, /\[class\*="backdrop-blur"\]/);
     assert.match(card, /border-2 border-foreground/);
+    assert.equal(card.includes("shadow-card"), false);
     assert.equal(topbar.includes("backdrop-blur"), false);
     assert.equal(posNav.includes("rounded-full"), false);
     assert.match(query, /overflow-hidden rounded-3xl border-2/);
