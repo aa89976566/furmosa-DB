@@ -36,7 +36,7 @@ export function SummaryTile({
       className={cn(
         'flex h-full flex-col justify-center rounded-2xl border px-4 py-3 transition-colors',
         accent
-          ? 'border-primary/30 bg-gradient-to-br from-primary/10 to-primary/[0.02]'
+          ? 'border-primary/30 bg-primary/[0.06]'
           : 'border-border/60 bg-card hover:border-border',
         href && 'hover:bg-muted/30',
       )}

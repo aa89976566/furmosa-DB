@@ -12,6 +12,7 @@ export async function loadCustomerDetail(customerId: string) {
     recentAppointments,
     openRefillOrders,
     recentPointsLedger,
+    draftOrderCount,
   ] = await Promise.all([
     prisma.customer.findUnique({
       where: { id: customerId },
@@ -138,6 +139,9 @@ export async function loadCustomerDetail(customerId: string) {
         createdAt: true,
       },
     }),
+    prisma.order.count({
+      where: { customerId, status: 'draft' },
+    }),
   ]);
 
   if (!customer) return null;
@@ -207,6 +211,7 @@ export async function loadCustomerDetail(customerId: string) {
     openRefillOrders,
     recentPointsLedger,
     pointsBalance,
+    draftOrderCount,
   };
 }
 
