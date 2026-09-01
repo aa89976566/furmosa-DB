@@ -23,6 +23,7 @@ const VALID_CATEGORIES = [
 ] as const;
 
 const VALID_STATUSES = ['active', 'draft', 'inactive'] as const;
+const VALID_TEMPERATURES = ['ambient', 'chilled', 'frozen'] as const;
 
 async function nextProductId() {
   const last = await prisma.product.findFirst({
@@ -66,6 +67,12 @@ function parseStatus(v: FormDataEntryValue | null): string {
   return (VALID_STATUSES as readonly string[]).includes(s) ? s : 'active';
 }
 
+function parseTemperature(v: FormDataEntryValue | null): 'ambient' | 'chilled' | 'frozen' | null {
+  const value = String(v ?? '');
+  return (VALID_TEMPERATURES as readonly string[]).includes(value)
+    ? value as 'ambient' | 'chilled' | 'frozen' : null;
+}
+
 export async function createProduct(formData: FormData) {
   const name = String(formData.get('name') ?? '').trim();
   if (!name) {
@@ -97,6 +104,7 @@ export async function createProduct(formData: FormData) {
       status: parseStatus(formData.get('status')),
       vendorId,
       notes: toNullableString(formData.get('notes')),
+      defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
     },
   });
 
@@ -149,6 +157,7 @@ export async function updateProduct(formData: FormData) {
       status: parseStatus(formData.get('status')),
       vendorId: newVendorId,
       notes: toNullableString(formData.get('notes')),
+      defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
     },
   });
 

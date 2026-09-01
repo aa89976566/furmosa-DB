@@ -23,6 +23,7 @@ type ProductInput = {
   status: string;
   vendorId: string | null;
   notes: string | null;
+  defaultTemperature: string | null;
 };
 
 type VendorOption = { id: string; name: string; vendorId: string };
@@ -131,6 +132,20 @@ export function ProductForm({
               maxLength={60}
               placeholder="例：凍肉 / 蔬果"
             />
+          </Field>
+
+          <Field label="預設出貨溫層" layout={layout}>
+            <select
+              name="defaultTemperature"
+              defaultValue={product.defaultTemperature ?? ''}
+              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">尚未設定</option>
+              <option value="ambient">常溫</option>
+              <option value="chilled">冷藏</option>
+              <option value="frozen">冷凍</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">Shopify 訂單依 SKU 對應商品後，會自動帶入此溫層。</p>
           </Field>
 
           {!variable ? (
