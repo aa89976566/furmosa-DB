@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
@@ -27,6 +28,13 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
   products: { id: string; name: string; sku: string }[]; titles: string[];
 }) {
   const [state, action] = useFormState(omsReviewAction, { message: '' });
+  const [contact, setContact] = useState(() => ({
+    recipient: draft.recipient,
+    phone: draft.phone,
+    address: draft.address,
+    storeId: draft.storeId,
+    storeName: draft.storeName,
+  }));
   return <form action={action} className="space-y-4">
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <p className="text-sm text-muted-foreground">先儲存檢查，再確認訂單。修改資料後必須重新檢查；建立 HQ 出貨單不等於已送到物流公司。</p>
@@ -43,7 +51,8 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
       </select></label>
       <label className="space-y-1 text-sm">配送溫層<Temperature name="temperature" value={draft.temperature} /></label>
       {([['recipient', '收件人'], ['phone', '收件電話'], ['address', '地址／門市地址'], ['storeId', '7-11 門市店號'], ['storeName', '7-11 門市名稱']] as const).map(([name, label]) =>
-        <label className="space-y-1 text-sm" key={name}>{label}<Input name={name} defaultValue={draft[name]} maxLength={500} /></label>)}
+        <label className="space-y-1 text-sm" key={name}>{label}<Input name={name} value={contact[name]} maxLength={500}
+          onChange={event => setContact(current => ({ ...current, [name]: event.target.value }))} /></label>)}
     </div>
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="giftsConfirmed" defaultChecked={draft.giftsConfirmed} />我已核對贈品、優惠及商品內容</label>
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />若有重複訂單提示，我已確認這筆仍需要出貨</label>
