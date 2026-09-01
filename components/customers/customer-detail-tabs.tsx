@@ -3,40 +3,44 @@
 import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-export function CustomerDetailTabs({
-  overview,
-  activity,
-}: {
-  overview: ReactNode;
-  activity: ReactNode;
-}) {
-  const [tab, setTab] = useState<'overview' | 'activity'>('overview');
+export type CustomerDetailTab = {
+  value: string;
+  label: string;
+  content: ReactNode;
+};
+
+export function CustomerDetailTabs({ items }: { items: CustomerDetailTab[] }) {
+  const [active, setActive] = useState(items[0]?.value ?? '');
+  const selected = items.find((item) => item.value === active) ?? items[0];
 
   return (
     <div>
-      <div className="mb-5 flex gap-1 border-b border-border" role="tablist" aria-label="會員資料檢視">
-        {[
-          ['overview', '總覽'],
-          ['activity', '最近活動'],
-        ].map(([value, label]) => (
+      <div
+        className="flex gap-1 overflow-x-auto border-b border-border"
+        role="tablist"
+        aria-label="會員資料檢視"
+      >
+        {items.map((item) => (
           <button
-            key={value}
+            key={item.value}
             type="button"
             role="tab"
-            aria-selected={tab === value}
+            aria-selected={active === item.value}
             className={cn(
-              '-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
-              tab === value
+              '-mb-px shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+              active === item.value
                 ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
-            onClick={() => setTab(value as 'overview' | 'activity')}
+            onClick={() => setActive(item.value)}
           >
-            {label}
+            {item.label}
           </button>
         ))}
       </div>
-      <div role="tabpanel">{tab === 'overview' ? overview : activity}</div>
+      <div className="pt-4" role="tabpanel">
+        {selected?.content}
+      </div>
     </div>
   );
 }

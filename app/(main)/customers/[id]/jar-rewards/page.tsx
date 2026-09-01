@@ -29,7 +29,7 @@ export default async function CustomerJarRewardsPage({
   if (!customer) notFound();
 
   const redemptions = await prisma.rewardRedemption.findMany({
-    where: { customerId: customer.id, couponStatus: { not: 'cancelled' } },
+    where: { customerId: customer.id },
     include: { reward: { select: { rewardName: true } } },
     orderBy: { issuedAt: 'desc' },
     take: 200,
@@ -67,7 +67,8 @@ export default async function CustomerJarRewardsPage({
                   <TableHead>禮品</TableHead>
                   <TableHead>優惠券碼</TableHead>
                   <TableHead className="text-right">扣除點數</TableHead>
-                  <TableHead>兌換時間</TableHead>
+                  <TableHead>狀態</TableHead>
+                  <TableHead>發行／核銷時間</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -76,8 +77,18 @@ export default async function CustomerJarRewardsPage({
                     <TableCell className="font-medium">{r.reward.rewardName}</TableCell>
                     <TableCell className="font-mono text-xs">{r.couponCode ?? '—'}</TableCell>
                     <TableCell className="text-right tabular-nums">−{r.pointsSpent}</TableCell>
+                    <TableCell>
+                      {r.couponStatus === 'issued'
+                        ? '未使用'
+                        : r.couponStatus === 'used'
+                          ? '已核銷'
+                          : r.couponStatus === 'cancelled'
+                            ? '已取消'
+                            : r.couponStatus}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDateTime(r.issuedAt)}
+                      {r.usedAt ? <span className="block text-xs">核銷 {formatDateTime(r.usedAt)}</span> : null}
                     </TableCell>
                   </TableRow>
                 ))}

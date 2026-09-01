@@ -54,7 +54,7 @@ export function CustomerActivityTimeline({ data }: { data: CustomerDetailData })
   if (activities.length === 0) return <EmptyHint>尚無活動紀錄</EmptyHint>;
 
   return (
-    <ol className="divide-y divide-border rounded-2xl border border-border bg-card px-5 shadow-card">
+    <ol className="divide-y divide-border rounded-2xl border border-border bg-card px-5">
       {activities.map((activity) => {
         const content = (
           <div className="flex items-start gap-4 py-4">

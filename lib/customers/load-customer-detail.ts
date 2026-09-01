@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { syncCustomerServices } from '@/lib/jar-exchange/services';
 import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { CUSTOMER_OPEN_REFILL_STATUSES } from '@/lib/customers/customer-crm-labels';
+import { summarizeMemberPoints } from '@/lib/customers/member-points-summary';
 
 export async function loadCustomerDetail(customerId: string) {
   await syncCustomerServices(prisma, customerId);
@@ -13,6 +14,11 @@ export async function loadCustomerDetail(customerId: string) {
     openRefillOrders,
     recentPointsLedger,
     draftOrderCount,
+    earnedPointsAggregate,
+    redeemedPointsAggregate,
+    recentRedeemedCodes,
+    usedCodeCount,
+    availableCouponCount,
   ] = await Promise.all([
     prisma.customer.findUnique({
       where: { id: customerId },
@@ -142,6 +148,36 @@ export async function loadCustomerDetail(customerId: string) {
     prisma.order.count({
       where: { customerId, status: 'draft' },
     }),
+    prisma.memberPointsLedger.aggregate({
+      where: { customerId, pointsChange: { gt: 0 } },
+      _sum: { pointsChange: true },
+    }),
+    prisma.memberPointsLedger.aggregate({
+      where: {
+        customerId,
+        sourceType: 'reward_redemption',
+        pointsChange: { lt: 0 },
+      },
+      _sum: { pointsChange: true },
+    }),
+    prisma.jarCode.findMany({
+      where: { redeemedByCustomerId: customerId, status: 'used' },
+      orderBy: { redeemedAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        code: true,
+        pointValue: true,
+        batchNo: true,
+        redeemedAt: true,
+      },
+    }),
+    prisma.jarCode.count({
+      where: { redeemedByCustomerId: customerId, status: 'used' },
+    }),
+    prisma.rewardRedemption.count({
+      where: { customerId, couponStatus: 'issued' },
+    }),
   ]);
 
   if (!customer) return null;
@@ -154,7 +190,7 @@ export async function loadCustomerDetail(customerId: string) {
     ? Promise.all([
         getJarExchangeStatsForCustomer(customer.id),
         prisma.rewardRedemption.findMany({
-          where: { customerId: customer.id, couponStatus: { not: 'cancelled' } },
+          where: { customerId: customer.id },
           include: {
             reward: {
               select: {
@@ -202,6 +238,11 @@ export async function loadCustomerDetail(customerId: string) {
     recentPointsLedger[0]?.balanceAfter ??
     0;
 
+  const pointsTotals = summarizeMemberPoints({
+    earnedPointsChange: earnedPointsAggregate._sum.pointsChange,
+    redeemedPointsChange: redeemedPointsAggregate._sum.pointsChange,
+  });
+
   return {
     customer,
     hasJar,
@@ -212,6 +253,10 @@ export async function loadCustomerDetail(customerId: string) {
     recentPointsLedger,
     pointsBalance,
     draftOrderCount,
+    pointsTotals,
+    recentRedeemedCodes,
+    usedCodeCount,
+    availableCouponCount,
   };
 }
 

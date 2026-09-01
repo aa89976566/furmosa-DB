@@ -14,7 +14,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/format';
-import { jarCodeStatusLabel } from '@/lib/jar-exchange/labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,16 +29,16 @@ export default async function CustomerJarCodesPage({
   if (!customer) notFound();
 
   const codes = await prisma.jarCode.findMany({
-    where: { redeemedByCustomerId: customer.id },
+    where: { redeemedByCustomerId: customer.id, status: 'used' },
     orderBy: { redeemedAt: 'desc' },
-    select: { code: true, status: true, redeemedAt: true, batchNo: true },
+    select: { code: true, status: true, pointValue: true, redeemedAt: true, batchNo: true },
     take: 200,
   });
 
   return (
     <>
       <PageHeader
-        title="返航序號紀錄"
+        title="集點序號紀錄"
         description={
           <span>
             {customer.name}
@@ -58,17 +57,17 @@ export default async function CustomerJarCodesPage({
         }
       />
       <div className="mx-auto max-w-3xl space-y-6 p-6">
-        <SectionCard title={`序號紀錄（${codes.length} 筆）`} tone="supply">
+        <SectionCard title={`集點序號（${codes.length} 筆）`} tone="supply">
           {codes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">尚無返航序號紀錄</p>
+            <p className="text-sm text-muted-foreground">尚無集點序號輸入紀錄</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>序號</TableHead>
                   <TableHead>批次</TableHead>
-                  <TableHead>狀態</TableHead>
-                  <TableHead>兌換時間</TableHead>
+                  <TableHead className="text-right">增加點數</TableHead>
+                  <TableHead>輸入時間</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -76,7 +75,7 @@ export default async function CustomerJarCodesPage({
                   <TableRow key={c.code}>
                     <TableCell className="font-mono text-xs">{c.code}</TableCell>
                     <TableCell className="text-muted-foreground">{c.batchNo ?? '—'}</TableCell>
-                    <TableCell>{jarCodeStatusLabel[c.status] ?? c.status}</TableCell>
+                    <TableCell className="text-right tabular-nums">+{c.pointValue}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {c.redeemedAt ? formatDateTime(c.redeemedAt) : '—'}
                     </TableCell>
