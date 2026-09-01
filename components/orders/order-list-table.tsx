@@ -15,37 +15,54 @@ import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
-import { shipmentStatusLabel } from '@/lib/shipment';
 import type { Prisma } from '@prisma/client';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { ChevronRight, Package } from 'lucide-react';
-import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
-import { OMS_LABELS, omsIssueTone } from '@/lib/orders/oms';
+import { ChevronRight } from 'lucide-react';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { parseOmsIssues } from '@/lib/orders/oms';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
-function OmsOrderBadge({ order }: { order: OrderListRow }) {
-  if (!order.omsStatus) return <StatusBadge kind="order" value={order.status} />;
-  const tone = omsIssueTone(order.omsIssueFlags, order.omsCheckedAt ? new Date(order.omsCheckedAt) : null);
-  return <span className={`text-xs ${tone === 'red' ? 'text-destructive' : tone === 'green' ? 'text-green-700' : 'text-warning'}`}>
-    {OMS_LABELS[order.omsStatus]} · {tone === 'green' ? '檢查通過' : tone === 'red' ? '需處理' : '待確認'}
-  </span>;
+function orderCustomer(order: OrderListRow) {
+  const snapshot = snapshotView(order.shopifySnapshot);
+  return {
+    name: order.customer?.name ?? snapshot?.recipient ?? order.merchant?.name ?? '待補資料',
+    phone: order.customer?.phone ?? snapshot?.phone ?? null,
+  };
 }
 
-function fulfillmentDisplay(order: OrderListRow): string {
-  const shipment = order.shipments[0];
-  if (!shipment) return order.fulfillmentStatus;
-  if (shipment.status === 'packed' || shipment.status === 'pending') return 'pending';
-  if (shipment.status === 'shipped') return 'shipped';
-  if (shipment.status === 'delivered') return 'delivered';
-  if (shipment.status === 'cancelled') return 'returned';
-  return order.fulfillmentStatus;
+function orderItemSummary(order: OrderListRow) {
+  const sourceItems = snapshotView(order.shopifySnapshot)?.items ?? [];
+  const rows = sourceItems.length
+    ? sourceItems.map((item) => ({ name: item.title, quantity: item.quantity }))
+    : order.items.map((item) => ({ name: item.productName, quantity: item.quantity }));
+  if (!rows.length) return '商品待確認';
+  const first = rows[0]!;
+  const firstLabel = `${first.name}${first.quantity ? ` × ${first.quantity}` : ''}`;
+  const total = sourceItems.length || order._count.items;
+  return total > 1 ? `${firstLabel}，共 ${total} 項` : firstLabel;
 }
 
-function OrderFulfillmentBadge({ order }: { order: OrderListRow }) {
-  const notice = omsShipmentNotice(order.omsStatus, order.shipments.length);
-  return notice ? <span className="text-xs text-muted-foreground">{notice}</span>
-    : <StatusBadge kind="fulfillment" value={fulfillmentDisplay(order)} />;
+function nextAction(order: OrderListRow) {
+  if (order.omsStatus) {
+    const issues = parseOmsIssues(order.omsIssueFlags);
+    const blocking = issues?.filter((issue) => issue.severity === 'blocking').length ?? 0;
+    if ((order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW') && blocking > 0) {
+      return { label: `需處理 ${blocking} 項`, hint: '完成後再審核' };
+    }
+    if (order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW') {
+      return { label: '待審核', hint: order.paymentStatus === 'paid' ? '核對訂單' : '等待付款' };
+    }
+    if (order.omsStatus === 'READY') return { label: '建立物流', hint: '已通過審核' };
+    if (order.omsStatus === 'FULFILLMENT_PENDING') return { label: '等待交寄', hint: '已建立出貨單' };
+    return { label: '已完成', hint: '已出貨' };
+  }
+  if (order.status === 'cancelled') return { label: '已取消', hint: '無需處理' };
+  if (order.fulfillmentStatus === 'delivered' || order.status === 'completed') return { label: '已完成', hint: '交易完成' };
+  if (order.fulfillmentStatus === 'shipped') return { label: '運送中', hint: '等待送達' };
+  if (order.paymentStatus !== 'paid') return { label: '等待付款', hint: '尚未付款' };
+  if (order.status === 'pending_review' || order.status === 'draft') return { label: '待確認', hint: '核對訂單' };
+  return { label: '等待交寄', hint: '查看出貨進度' };
 }
 
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
@@ -69,79 +86,59 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
         />
       </div>
 
-      {/* 桌機：完整表格（已分頁，列數有限） */}
+      {/* 桌機：只保留營運判斷需要的五欄。 */}
       <Card className="hidden p-0 md:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>訂單編號</TableHead>
-              <TableHead>來源</TableHead>
-              <TableHead>客戶</TableHead>
-              <TableHead>店家</TableHead>
-              <TableHead className="min-w-[10rem]">運輸資訊</TableHead>
-              <TableHead className="text-right">品項</TableHead>
-              <TableHead className="text-right">總額</TableHead>
-              <TableHead>付款</TableHead>
-              <TableHead>出貨</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead>下單時間</TableHead>
+              <TableHead className="min-w-[11rem]">訂單／客戶</TableHead>
+              <TableHead className="min-w-[14rem]">商品</TableHead>
+              <TableHead className="min-w-[12rem]">配送</TableHead>
+              <TableHead className="text-right">金額</TableHead>
+              <TableHead className="min-w-[8rem]">下一步</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {orders.map((o) => {
               const logistics = resolveLogisticsForOrderList(o);
+              const customer = orderCustomer(o);
+              const action = nextAction(o);
               return (
-                <TableRow key={o.id}>
-                  <TableCell>
-                    <Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">
+                <TableRow key={o.id} className="group">
+                  <TableCell className="align-top py-4">
+                    <Link href={`/orders/${o.id}`} className="font-mono text-sm font-semibold hover:underline">
                       {o.externalOrderName || o.orderNumber}
                     </Link>
+                    <div className="mt-1 flex min-w-0 items-center gap-2 text-sm">
+                      {o.customer ? (
+                        <Link href={`/customers/${o.customer.id}`} className="truncate font-medium underline-offset-4 hover:underline">
+                          {customer.name}
+                        </Link>
+                      ) : (
+                        <span className="truncate font-medium">{customer.name}</span>
+                      )}
+                      <StatusBadge kind="orderSource" value={o.source} />
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(o.orderedAt)}</p>
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="orderSource" value={o.source} />
+                  <TableCell className="align-top py-4 text-sm">
+                    <p className="line-clamp-2 font-medium">{orderItemSummary(o)}</p>
                   </TableCell>
-                  <TableCell className="text-sm">{o.customer?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '-')}</TableCell>
-                  <TableCell className="text-sm">
-                    {o.merchant ? (
-                      <Link
-                        href={`/merchants/${o.merchant.id}`}
-                        className="text-info hover:underline"
-                      >
-                        {o.merchant.name}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="align-top">
+                  <TableCell className="align-top py-4">
                     <LogisticsSummary logistics={logistics} compact />
                   </TableCell>
-                  <TableCell className="text-right">{snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(Number(o.total))}
+                  <TableCell className="align-top py-4 text-right">
+                    <p className="font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
+                    <div className="mt-1 flex justify-end"><StatusBadge kind="payment" value={o.paymentStatus} /></div>
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="payment" value={o.paymentStatus} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <OrderFulfillmentBadge order={o} />
-                      {o.shipments[0] ? (
-                        <Link
-                          href={`/shipments/${o.shipments[0].id}`}
-                          className="block font-mono text-[11px] text-info hover:underline"
-                        >
-                          {o.shipments[0].shipmentNumber} ·{' '}
-                          {shipmentStatusLabel[o.shipments[0].status] ?? o.shipments[0].status}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <OmsOrderBadge order={o} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDateTime(o.orderedAt)}
+                  <TableCell className="align-top py-4">
+                    <Link href={`/orders/${o.id}`} className="flex items-start justify-between gap-2 rounded-md p-1 -m-1 hover:bg-muted">
+                      <span>
+                        <span className="block text-sm font-semibold">{action.label}</span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">{action.hint}</span>
+                      </span>
+                      <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Link>
                   </TableCell>
                 </TableRow>
               );
@@ -155,52 +152,42 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
 
 function OrderCard({ order: o }: { order: OrderListRow }) {
   const logistics = resolveLogisticsForOrderList(o);
-  const counterparty = o.customer?.name ?? o.merchant?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '—');
-  const shipment = o.shipments[0];
+  const customer = orderCustomer(o);
+  const action = nextAction(o);
 
   return (
-    <Link
-      href={`/orders/${o.id}`}
+    <article
       className="block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-colors active:bg-muted/40"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{o.externalOrderName || o.orderNumber}</span>
+            <Link href={`/orders/${o.id}`} className="font-mono text-sm font-semibold text-foreground hover:underline">{o.externalOrderName || o.orderNumber}</Link>
             <StatusBadge kind="orderSource" value={o.source} />
           </div>
-          <p className="mt-1 truncate text-sm font-medium text-foreground">{counterparty}</p>
+          {o.customer ? <Link href={`/customers/${o.customer.id}`} className="mt-1 block truncate text-sm font-medium text-foreground hover:underline">{customer.name}</Link>
+            : <p className="mt-1 truncate text-sm font-medium text-foreground">{customer.name}</p>}
         </div>
-        <div className="flex shrink-0 items-center gap-1 text-right">
-          <div>
-            <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
-            <p className="text-[11px] text-muted-foreground">
-              <Package className="mr-0.5 inline h-3 w-3 align-[-1px]" />
-              {snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items} 項
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+        <div className="shrink-0 text-right">
+          <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
+          <StatusBadge kind="payment" value={o.paymentStatus} />
         </div>
       </div>
 
-      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
+      <p className="mt-3 line-clamp-2 text-sm font-medium">{orderItemSummary(o)}</p>
+      <div className="mt-2 rounded-xl bg-muted/30 px-3 py-2.5">
         <LogisticsSummary logistics={logistics} compact />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <OmsOrderBadge order={o} />
-        <StatusBadge kind="payment" value={o.paymentStatus} />
-        <OrderFulfillmentBadge order={o} />
-      </div>
-
-      <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
         <span>{formatDateTime(o.orderedAt)}</span>
-        {shipment ? (
-          <span className="truncate font-mono text-info">
-            {shipment.shipmentNumber} · {shipmentStatusLabel[shipment.status] ?? shipment.status}
+        <Link href={`/orders/${o.id}`} className="flex items-center gap-1 text-sm font-semibold hover:underline">
+          <span>
+            {action.label}
           </span>
-        ) : null}
+          <ChevronRight className="h-4 w-4" />
+        </Link>
       </div>
-    </Link>
+    </article>
   );
 }
