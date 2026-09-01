@@ -6,10 +6,6 @@ import { SectionSkeleton } from '@/components/shared/page-skeleton';
 import { ListPagination } from '@/components/shared/list-pagination';
 import { OrderListTable } from '@/components/orders/order-list-table';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency } from '@/lib/format';
-import { getOrderSourceTotals } from '@/lib/hot-path-reads';
 import {
   hrefWithPage,
   ORDER_PAGE_SIZE,
@@ -17,7 +13,7 @@ import {
   totalPages,
 } from '@/lib/list-pagination';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { OMS_FILTERS, omsFilterWhere, omsProblemsWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
+import { OMS_FILTERS, omsFilterWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
@@ -40,12 +36,20 @@ function OrdersTotalsFallback() {
 }
 
 async function OrdersWorkSummary() {
-  const [today, review, issues, fulfillmentPending] = await Promise.all([
-    prisma.order.count({ where: { deletedAt: null, omsStatus: { not: null }, orderedAt: taiwanToday() } }),
-    prisma.order.count({ where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW'] } } }),
-    prisma.order.count({ where: omsProblemsWhere }),
-    prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLMENT_PENDING' } }),
-  ]);
+  const day = taiwanToday();
+  const [summary] = await prisma.$queryRaw<Array<{ today: bigint; review: bigint; issues: bigint; fulfillment_pending: bigint }>>`
+    SELECT
+      COUNT(*) FILTER (WHERE "orderedAt" >= ${day.gte} AND "orderedAt" < ${day.lt}) AS today,
+      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW')) AS review,
+      COUNT(*) FILTER (WHERE oms_checked_at IS NULL OR oms_issue_flags IS NULL OR oms_issue_flags <> '[]'::jsonb) AS issues,
+      COUNT(*) FILTER (WHERE oms_status = 'FULFILLMENT_PENDING') AS fulfillment_pending
+    FROM "Order"
+    WHERE deleted_at IS NULL AND oms_status IS NOT NULL
+  `;
+  const today = Number(summary?.today ?? 0);
+  const review = Number(summary?.review ?? 0);
+  const issues = Number(summary?.issues ?? 0);
+  const fulfillmentPending = Number(summary?.fulfillment_pending ?? 0);
   const cards = [
     { label: '今日新訂單', count: today, help: '台灣時間今天收到', href: '/orders?day=today' },
     { label: '待審核', count: review, help: '需要核對或確認', href: '/orders?queue=review' },
@@ -58,35 +62,13 @@ async function OrdersWorkSummary() {
       <p className="text-sm text-muted-foreground">點選卡片即可只看該類訂單。</p>
     </div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(card => <Link key={card.label} href={card.href} className="rounded-xl border bg-card p-4 transition hover:border-primary/40 hover:bg-muted/20">
+      {cards.map(card => <Link key={card.label} href={card.href} prefetch={false} className="rounded-xl border bg-card p-4 transition hover:border-primary/40 hover:bg-muted/20">
         <p className="text-sm font-medium">{card.label}</p>
         <p className="mt-2 text-3xl font-semibold tabular-nums">{card.count}</p>
         <p className="mt-1 text-xs text-muted-foreground">{card.help}</p>
       </Link>)}
     </div>
   </section>;
-}
-
-async function OrdersTotalsSection() {
-  const totals = await getOrderSourceTotals();
-  return (
-    <section aria-label="全部訂單來源彙總">
-    <p className="mb-2 text-xs text-muted-foreground">全部訂單來源彙總（不隨下方篩選變動；不是目前清單的筆數與金額）</p>
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {totals.map((t) => (
-        <Card key={t.source}>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground">
-              <StatusBadge kind="orderSource" value={t.source} />
-            </div>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(t.total)}</p>
-            <p className="text-xs text-muted-foreground">{t.count} 筆訂單</p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-    </section>
-  );
 }
 
 async function OrdersTableSection({
@@ -220,11 +202,6 @@ export default function OrdersPage({
         {(searchParams.day === 'today' || searchParams.queue === 'review') && <p className="text-sm">
           目前篩選：{searchParams.day === 'today' ? '台灣時間今日下單' : '新訂單＋待審核'} · <Link className="underline" href={workbenchHref(searchParams, { day: undefined, queue: undefined })}>清除</Link>
         </p>}
-        <details className="rounded-lg border p-3">
-          <summary className="cursor-pointer text-sm font-medium">查看全部訂單來源與金額</summary>
-          <div className="mt-3 border-t pt-3"><Suspense fallback={<OrdersTotalsFallback />}><OrdersTotalsSection /></Suspense></div>
-        </details>
-
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">種類</span>
           {ORDER_SOURCE_TABS.map((s) => {
@@ -239,7 +216,7 @@ export default function OrdersPage({
                 size="sm"
                 asChild
               >
-                <Link href={href} prefetch>
+                <Link href={href} prefetch={false}>
                   {s.label}
                 </Link>
               </Button>
