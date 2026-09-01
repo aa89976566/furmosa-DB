@@ -26,8 +26,12 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       return { productId: matches.length === 1 ? matches[0].id : '', temperature: '' };
     }), recipient: view.recipient, phone: view.phone, address: view.address,
   });
-  return <section className="space-y-3 rounded-lg border p-4" aria-label="OMS 訂單審核">
-    <h2 className="font-medium">訂單審核</h2>
+  return <section className="space-y-3 rounded-xl border p-4 md:p-5" aria-label="OMS 訂單審核">
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">主要工作區</p>
+      <h2 className="mt-1 text-lg font-semibold">核對並確認訂單</h2>
+      <p className="mt-1 text-sm text-muted-foreground">只需補齊上方標示的問題。儲存檢查通過後，才能確認訂單。</p>
+    </div>
     <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
       draft={draft} products={products} titles={rows.map(r => string(r.title) || '未命名商品')} />
   </section>;
