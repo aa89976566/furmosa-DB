@@ -77,15 +77,13 @@
   border-radius: 24px;
   background: hsl(var(--card));
   box-shadow:
-    0 1px 2px hsl(215 44% 14% / 0.04),
-    0 10px 28px hsl(215 44% 14% / 0.06);
+    0 1px 2px hsl(0 0% 0% / 0.04),
+    0 10px 28px hsl(0 0% 0% / 0.06);
 }
 
 .photo {
   aspect-ratio: 4 / 3;
-  background:
-    radial-gradient(circle at 30% 20%, hsl(var(--coral) / 0.22), transparent 46%),
-    hsl(var(--muted));
+  background: hsl(var(--muted));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -214,8 +212,8 @@
     border-radius: 28px;
     background: hsl(var(--card));
     box-shadow:
-      0 1px 2px hsl(215 44% 14% / 0.04),
-      0 10px 28px hsl(215 44% 14% / 0.06);
+      0 1px 2px hsl(0 0% 0% / 0.04),
+      0 10px 28px hsl(0 0% 0% / 0.06);
   }
 }
 

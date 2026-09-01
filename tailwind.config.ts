@@ -1,11 +1,52 @@
 import type { Config } from 'tailwindcss';
 
+/** True grayscale scale so every Tailwind color name renders black / white / gray. */
+const ink = {
+  50: '#fafafa',
+  100: '#f5f5f5',
+  200: '#e5e5e5',
+  300: '#d4d4d4',
+  400: '#a3a3a3',
+  500: '#737373',
+  600: '#525252',
+  700: '#404040',
+  800: '#262626',
+  900: '#171717',
+  950: '#0a0a0a',
+} as const;
+
+const chromatic = [
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'purple',
+  'fuchsia',
+  'pink',
+  'rose',
+  'slate',
+] as const;
+
+const grayscalePalettes = Object.fromEntries(
+  chromatic.map((name) => [name, { ...ink, DEFAULT: ink[500] }]),
+);
+
 const config: Config = {
   darkMode: ['class'],
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './features/**/*.{ts,tsx}',
+    './lib/**/*.{ts,tsx}',
   ],
   theme: {
     container: {
@@ -18,6 +59,11 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       colors: {
+        ...grayscalePalettes,
+        zinc: { ...ink, DEFAULT: ink[500] },
+        neutral: { ...ink, DEFAULT: ink[500] },
+        stone: { ...ink, DEFAULT: ink[500] },
+        gray: { ...ink, DEFAULT: ink[500] },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -75,9 +121,9 @@ const config: Config = {
         '2xl': 'calc(var(--radius) + 8px)',
       },
       boxShadow: {
-        card: '0 1px 2px hsl(215 44% 14% / 0.04), 0 8px 24px hsl(215 44% 14% / 0.06)',
+        card: '0 1px 2px hsl(0 0% 0% / 0.04), 0 8px 24px hsl(0 0% 0% / 0.06)',
         'card-hover':
-          '0 2px 4px hsl(215 44% 14% / 0.05), 0 12px 32px hsl(215 44% 14% / 0.08)',
+          '0 2px 4px hsl(0 0% 0% / 0.05), 0 12px 32px hsl(0 0% 0% / 0.08)',
       },
       keyframes: {
         'accordion-down': {
