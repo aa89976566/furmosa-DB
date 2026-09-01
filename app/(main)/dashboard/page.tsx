@@ -1,65 +1,29 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { PageHeader } from '@/components/shared/page-header';
-import { SectionBlock } from '@/components/shared/section-block';
-import { DashboardSearch } from '@/components/dashboard/dashboard-search';
-import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { PageHeader } from '@/components/shared/page-header';
+import { Button } from '@/components/ui/button';
 import { OmsDashboard } from '@/components/orders/oms-dashboard';
-import {
-  DashboardBodyFallback,
-  DashboardBodySection,
-  DashboardTasksFallback,
-  DashboardTasksSection,
-} from './dashboard-stream';
+import { DashboardBodyFallback, DashboardBodySection, DashboardTasksFallback } from './dashboard-stream';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
-  return (
-    <>
-      <PageHeader
-        tone="overview"
-        title="Furmosa Dashboard"
-        description="即時掌握全品牌營運狀況：訂單、營收、庫存、寄賣表現、會員與待辦"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" asChild>
-              <Link href="/orders/new">
-                <Plus className="mr-1 h-4 w-4" />
-                快速建立訂單
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/orders">訂單列表</Link>
-            </Button>
-          </div>
-        }
-      />
+type DashboardPageProps = { searchParams: { view?: string } };
 
-      <div className="space-y-8 p-6">
-        <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>
-        <SectionBlock
-          tone="orders"
-          title="搜尋與今日任務"
-          description="快速找到訂單、會員、商品；勾選紀錄今日待辦"
-        >
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="relative z-0 min-w-0">
-              <DashboardSearch />
-            </div>
-            <div className="relative z-10 min-w-0">
-              <Suspense fallback={<DashboardTasksFallback />}>
-                <DashboardTasksSection />
-              </Suspense>
-            </div>
-          </div>
-        </SectionBlock>
-
-        <Suspense fallback={<DashboardBodyFallback />}>
-          <DashboardBodySection />
-        </Suspense>
-      </div>
-    </>
-  );
+export default function DashboardPage({ searchParams }: DashboardPageProps) {
+  const insights = searchParams.view === 'insights';
+  return <>
+    <PageHeader tone="overview" title="營運首頁"
+      description={insights ? '看懂近期營運變化，需要時再深入完整報表。' : '先完成今天最重要的工作，系統會告訴你下一步。'}
+      actions={<Button size="sm" asChild><Link href="/orders/new"><Plus className="mr-1 h-4 w-4" />新增訂單</Link></Button>} />
+    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 sm:py-7">
+      <nav aria-label="Dashboard 顯示模式" className="inline-flex rounded-xl bg-muted/70 p-1">
+        <Link href="/dashboard" className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${!insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>今日工作</Link>
+        <Link href="/dashboard?view=insights" className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>營運數據</Link>
+      </nav>
+      {insights
+        ? <Suspense fallback={<DashboardBodyFallback />}><DashboardBodySection /></Suspense>
+        : <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>}
+    </main>
+  </>;
 }
