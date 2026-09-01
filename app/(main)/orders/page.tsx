@@ -17,7 +17,7 @@ import {
   totalPages,
 } from '@/lib/list-pagination';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { OMS_FILTERS, omsFilterWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
+import { OMS_FILTERS, omsFilterWhere, omsProblemsWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
@@ -37,6 +37,34 @@ function OrdersTotalsFallback() {
       ))}
     </div>
   );
+}
+
+async function OrdersWorkSummary() {
+  const [today, review, issues, fulfillmentPending] = await Promise.all([
+    prisma.order.count({ where: { deletedAt: null, omsStatus: { not: null }, orderedAt: taiwanToday() } }),
+    prisma.order.count({ where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW'] } } }),
+    prisma.order.count({ where: omsProblemsWhere }),
+    prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLMENT_PENDING' } }),
+  ]);
+  const cards = [
+    { label: '今日新訂單', count: today, help: '台灣時間今天收到', href: '/orders?day=today' },
+    { label: '待審核', count: review, help: '需要核對或確認', href: '/orders?queue=review' },
+    { label: '有問題', count: issues, help: '優先處理異常資料', href: '/orders?oms=issues' },
+    { label: '待出貨', count: fulfillmentPending, help: '已建立 HQ 出貨單', href: '/orders?oms=FULFILLMENT_PENDING' },
+  ];
+  return <section aria-labelledby="work-summary-title">
+    <div className="mb-3">
+      <h2 id="work-summary-title" className="text-lg font-semibold">今天需要處理</h2>
+      <p className="text-sm text-muted-foreground">點選卡片即可只看該類訂單。</p>
+    </div>
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {cards.map(card => <Link key={card.label} href={card.href} className="rounded-xl border bg-card p-4 transition hover:border-primary/40 hover:bg-muted/20">
+        <p className="text-sm font-medium">{card.label}</p>
+        <p className="mt-2 text-3xl font-semibold tabular-nums">{card.count}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{card.help}</p>
+      </Link>)}
+    </div>
+  </section>;
 }
 
 async function OrdersTotalsSection() {
@@ -163,7 +191,7 @@ export default function OrdersPage({
       <PageHeader
         tone="orders"
         title="訂單 Order Hub"
-        description="統一訂單工作台 — 篩選「寄賣」可看到店進貨與寄賣成交，來源皆為寄賣"
+        description="先處理異常與待審核訂單，再安排出貨"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">
@@ -175,8 +203,14 @@ export default function OrdersPage({
       />
 
       <div className="space-y-4 p-4 sm:p-6">
-        <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
-        <div className="flex gap-3 text-sm"><Link className="text-info hover:underline" href="/orders?deleted=true">已刪除（可還原）</Link>{searchParams.deleted === 'true' && <><span>目前顯示已刪除訂單，點入詳情可還原</span><Link href="/orders">返回一般清單</Link></>}</div>
+        <Suspense fallback={<OrdersTotalsFallback />}><OrdersWorkSummary /></Suspense>
+        <details className="rounded-lg border bg-muted/10 p-3">
+          <summary className="cursor-pointer text-sm font-medium">同步與管理工具</summary>
+          <div className="mt-3 space-y-3 border-t pt-3">
+            <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+            <div className="flex flex-wrap gap-3 text-sm"><Link className="text-info hover:underline" href="/orders?deleted=true">已移出處理清單（可還原）</Link>{searchParams.deleted === 'true' && <><span>目前顯示已移出的訂單</span><Link className="underline" href="/orders">返回一般清單</Link></>}</div>
+          </div>
+        </details>
         <nav aria-label="OMS 訂單階段" className="flex flex-wrap gap-2">
           {OMS_FILTERS.map(filter => <Button key={filter.key} size="sm" variant={(searchParams.oms ?? '') === filter.key ? 'default' : 'outline'} asChild>
             <Link href={workbenchHref(searchParams, { oms: filter.key, status: undefined, day: undefined, queue: undefined, deleted: undefined })}>{filter.label}</Link>
@@ -186,9 +220,10 @@ export default function OrdersPage({
         {(searchParams.day === 'today' || searchParams.queue === 'review') && <p className="text-sm">
           目前篩選：{searchParams.day === 'today' ? '台灣時間今日下單' : '新訂單＋待審核'} · <Link className="underline" href={workbenchHref(searchParams, { day: undefined, queue: undefined })}>清除</Link>
         </p>}
-        <Suspense fallback={<OrdersTotalsFallback />}>
-          <OrdersTotalsSection />
-        </Suspense>
+        <details className="rounded-lg border p-3">
+          <summary className="cursor-pointer text-sm font-medium">查看全部訂單來源與金額</summary>
+          <div className="mt-3 border-t pt-3"><Suspense fallback={<OrdersTotalsFallback />}><OrdersTotalsSection /></Suspense></div>
+        </details>
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">種類</span>
