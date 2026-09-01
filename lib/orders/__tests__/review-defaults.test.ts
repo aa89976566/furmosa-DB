@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { defaultReviewDraft, deliveryDefaults } from '../review-defaults';
+import { defaultReviewDraft, deliveryDefaults, fillReviewDraftBlanks } from '../review-defaults';
+import { reviewDraft } from '../review-policy';
 import type { Snapshot } from '../../shopify/intake-policy';
 
 function snapshot(overrides: Record<string, unknown> = {}): Snapshot {
@@ -45,4 +46,35 @@ test('未知配送方式不自行默認', () => {
   const result = deliveryDefaults(snapshot({ shipping_lines: [{ code: 'UNKNOWN', title: '自訂配送' }] }));
   assert.equal(result.method, '');
   assert.equal(result.temperature, '');
+});
+
+test('舊審核只補空白欄位，不覆蓋人工內容', () => {
+  const saved = reviewDraft({
+    lines: [{ productId: '', temperature: '' }], method: '', temperature: '',
+    recipient: '人工收件人', phone: '', address: '', storeId: '', storeName: '',
+    giftsConfirmed: true,
+  });
+  const suggested = reviewDraft({
+    lines: [{ productId: 'product-1', temperature: 'ambient' }], method: 'home', temperature: 'ambient',
+    recipient: 'Shopify 收件人', phone: '0912345678', address: '測試地址',
+  });
+  const result = fillReviewDraftBlanks(saved, suggested);
+  assert.equal(result.applied, true);
+  assert.deepEqual(result.draft.lines, [{ productId: 'product-1', temperature: 'ambient' }]);
+  assert.equal(result.draft.recipient, '人工收件人');
+  assert.equal(result.draft.phone, '0912345678');
+  assert.equal(result.draft.method, 'home');
+  assert.equal(result.draft.giftsConfirmed, true);
+});
+
+test('完整人工審核不套用新建議', () => {
+  const saved = reviewDraft({ lines: [{ productId: 'manual', temperature: 'frozen' }], method: 'home',
+    temperature: 'frozen', recipient: '人工', phone: '0900000000', address: '人工地址',
+    storeId: '654321', storeName: '人工門市' });
+  const suggested = reviewDraft({ lines: [{ productId: 'suggested', temperature: 'ambient' }], method: 'convenience',
+    temperature: 'ambient', recipient: 'Shopify', phone: '0911111111', address: '來源地址',
+    storeId: '123456', storeName: '測試門市' });
+  const result = fillReviewDraftBlanks(saved, suggested);
+  assert.equal(result.applied, false);
+  assert.deepEqual(result.draft, saved);
 });
