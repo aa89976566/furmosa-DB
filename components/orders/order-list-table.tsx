@@ -73,7 +73,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
   return (
     <>
       {/* 手機：虛擬化卡片，免左右滑動 */}
-      <div className="md:hidden">
+      <div className="xl:hidden">
         <VirtualCardList
           items={orders}
           estimateSize={168}
@@ -83,15 +83,15 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
       </div>
 
       {/* 桌機：只保留營運判斷需要的五欄。 */}
-      <Card className="hidden p-0 md:block">
-        <Table>
+      <Card className="hidden overflow-hidden p-0 xl:block">
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[11rem]">訂單／客戶</TableHead>
-              <TableHead className="min-w-[14rem]">商品</TableHead>
-              <TableHead className="min-w-[12rem]">配送</TableHead>
-              <TableHead className="text-right">金額</TableHead>
-              <TableHead className="min-w-[8rem]">下一步</TableHead>
+              <TableHead className="w-[28%]">訂單／客戶</TableHead>
+              <TableHead className="w-[22%]">商品</TableHead>
+              <TableHead className="w-[23%]">配送</TableHead>
+              <TableHead className="w-[12%] text-right">金額</TableHead>
+              <TableHead className="w-[15%]">下一步</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -101,7 +101,7 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
               const action = nextAction(o);
               return (
                 <TableRow key={o.id} className="group">
-                  <TableCell className="align-top py-4">
+                  <TableCell className="min-w-0 align-top py-4">
                     <div className="flex min-w-0 items-center gap-2 text-sm">
                       <StatusBadge kind="orderSource" value={o.source} />
                       {o.customer ? (
@@ -114,20 +114,20 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                     </div>
                     <Link href={`/orders/${o.id}`} className="mt-1 block font-mono text-xs text-muted-foreground hover:underline">{o.externalOrderName || o.orderNumber} · {formatDateTime(o.orderedAt)}</Link>
                   </TableCell>
-                  <TableCell className="align-top py-4 text-sm">
-                    <p className="line-clamp-2 font-medium">{orderItemSummary(o)}</p>
+                  <TableCell className="min-w-0 align-top py-4 text-sm">
+                    <p className="line-clamp-2 break-words font-medium">{orderItemSummary(o)}</p>
                   </TableCell>
-                  <TableCell className="align-top py-4">
-                    <LogisticsSummary logistics={logistics} compact />
+                  <TableCell className="min-w-0 align-top py-4">
+                    <div className="min-w-0 break-words"><LogisticsSummary logistics={logistics} compact /></div>
                   </TableCell>
                   <TableCell className="align-top py-4 text-right">
                     <p className="font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
                     <div className="mt-1 flex justify-end"><StatusBadge kind="payment" value={o.paymentStatus} /></div>
                   </TableCell>
-                  <TableCell className="align-top py-4">
+                  <TableCell className="min-w-0 align-top py-4">
                     <Link href={`/orders/${o.id}`} className="flex items-start justify-between gap-2 rounded-md p-1 -m-1 hover:bg-muted">
-                      <span>
-                        <span className="block text-sm font-semibold">{action.label}</span>
+                      <span className="min-w-0">
+                        <span className="block break-words text-sm font-semibold">{action.label}</span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">{action.hint}</span>
                       </span>
                       <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

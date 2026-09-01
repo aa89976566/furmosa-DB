@@ -31,6 +31,10 @@ test('訂單桌面列表只保留五個營運欄位', () => {
   assert.deepEqual(headers.slice(0, 5), ['訂單／客戶', '商品', '配送', '金額', '下一步']);
   assert.equal(headers.includes('幣別'), false);
   assert.equal(headers.includes('店家'), false);
+  assert.match(listSource, /Table className="table-fixed"/);
+  assert.equal(listSource.includes('min-w-[14rem]'), false);
+  assert.match(listSource, /xl:hidden/);
+  assert.match(listSource, /hidden overflow-hidden p-0 xl:block/);
 });
 
 test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
