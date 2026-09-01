@@ -15,10 +15,10 @@ function Temperature({ name, value }: { name: string; value: string }) {
 }
 function Actions({ status }: { status: string }) {
   const { pending } = useFormStatus();
-  return <div className="flex flex-wrap gap-2">
-    <Button name="action" value="check" disabled={pending} variant="outline">儲存並檢查</Button>
-    {status === 'REVIEW' && <Button name="action" value="approve" disabled={pending}>確認訂單</Button>}
-    {status === 'READY' && <Button name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}
+  return <div className="sticky bottom-2 z-10 flex gap-2 rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur sm:static sm:flex-wrap sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+    <Button className="flex-1 sm:flex-none" name="action" value="check" disabled={pending} variant="outline">儲存並檢查</Button>
+    {status === 'REVIEW' && <Button className="flex-1 sm:flex-none" name="action" value="approve" disabled={pending}>確認訂單</Button>}
+    {status === 'READY' && <Button className="flex-1 sm:flex-none" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}
     {pending && <span role="status">處理中…</span>}
   </div>;
 }
