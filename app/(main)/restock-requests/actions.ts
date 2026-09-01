@@ -25,6 +25,21 @@ async function requireHqUser() {
 
 export type HqRestockActionState = { error?: string; ok?: string };
 
+function approvalErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return '核准失敗，請稍後再試';
+
+  const message = error.message;
+  if (
+    message.includes('Transaction already closed') ||
+    message.includes('expired transaction') ||
+    message.includes('P2028')
+  ) {
+    return '建立出貨單的處理時間過長，尚未完成核准，請再試一次。';
+  }
+
+  return message;
+}
+
 export async function saveRestockRequestHqAction(
   _prev: HqRestockActionState,
   formData: FormData,
@@ -106,7 +121,7 @@ export async function approveRestockRequestAction(
     redirect(`/shipments?s=${result.shipmentId}`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
-    return { error: e instanceof Error ? e.message : '核准失敗' };
+    return { error: approvalErrorMessage(e) };
   }
 }
 

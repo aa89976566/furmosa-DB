@@ -404,6 +404,9 @@ export async function approveAndConvertRestockRequest(input: {
       shipmentId: shipment.id,
       idempotent: false as const,
     };
+  }, {
+    maxWait: 10_000,
+    timeout: 30_000,
   });
 }
 
