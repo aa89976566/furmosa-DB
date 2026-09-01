@@ -33,9 +33,14 @@ export function CustomerPointsSummary({
       description="餘額取自帳本最後一筆 balanceAfter"
       tone="supply"
       action={
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/customers/${customerId}/jar-ledger`}>完整帳本</Link>
-        </Button>
+        <div className="flex flex-wrap justify-end gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/customers/${customerId}/jar-ledger`}>完整帳本</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/customers/${customerId}/points/adjust`}>調整點數</Link>
+          </Button>
+        </div>
       }
     >
       <p className="text-2xl font-semibold tabular-nums text-navy">

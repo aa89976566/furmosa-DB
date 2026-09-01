@@ -22,6 +22,12 @@ import {
 } from '@/lib/customers/create-customer';
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 import { createHash } from 'node:crypto';
+import { getCurrentUser } from '@/lib/auth';
+import {
+  canAdjustMemberPoints,
+  formatManualPointsNote,
+  parseManualPointsInput,
+} from '@/lib/jar-exchange/manual-points';
 import {
   isTestJarMember,
   JAR_LINE_CAMPAIGN_RECIPIENT_ENTITY,
@@ -221,27 +227,83 @@ export async function adminRedeemJarCode(customerId: string, code: string) {
 }
 
 export async function manualPointsAdjustment(formData: FormData) {
-  const customerId = String(formData.get('customerId') ?? '');
-  const pointsChange = parseInt(String(formData.get('pointsChange') ?? ''), 10);
-  const note = String(formData.get('note') ?? '').trim();
-
-  if (!customerId || !Number.isFinite(pointsChange) || pointsChange === 0) {
-    return { ok: false as const, error: '請選擇會員並填寫點數變動（不可為 0）' };
+  const actor = await getCurrentUser();
+  if (!actor || !canAdjustMemberPoints(actor.role)) {
+    console.warn('manualPointsAdjustment denied', {
+      actorUserId: actor?.userId ?? null,
+      role: actor?.role ?? null,
+    });
+    return { ok: false as const, error: '需要 HQ 管理員或客服人員權限' };
   }
 
+  const parsed = parseManualPointsInput({
+    customerId: String(formData.get('customerId') ?? ''),
+    mode: String(formData.get('mode') ?? ''),
+    amount: String(formData.get('amount') ?? ''),
+    reason: String(formData.get('reason') ?? ''),
+    detail: String(formData.get('detail') ?? ''),
+    requestId: String(formData.get('requestId') ?? ''),
+  });
+  if (!parsed.ok) return parsed;
+
+  const input = parsed.value;
+
   try {
-    await prisma.$transaction(async (tx) => {
-      await ensureJarExchangeService(tx, customerId);
-      await appendPointsLedger(tx, {
-        customerId,
-        sourceType: 'manual_adjustment',
-        pointsChange,
-        note: note || '人工調整',
+    const result = await prisma.$transaction(async (tx) => {
+      // 同一會員的人工調整依序執行，避免同時送出造成餘額覆蓋。
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "Customer" WHERE "id" = ${input.customerId} FOR UPDATE
+      `;
+      if (locked.length === 0) throw new Error('找不到此會員');
+
+      // requestId 作為防重送鍵；在會員鎖內檢查可阻止連點產生兩筆流水。
+      const existing = await tx.memberPointsLedger.findFirst({
+        where: {
+          customerId: input.customerId,
+          sourceType: 'manual_adjustment',
+          sourceRefId: input.requestId,
+        },
+        select: { id: true, pointsChange: true, balanceAfter: true },
       });
+      if (existing) {
+        return {
+          entryId: existing.id,
+          pointsChange: existing.pointsChange,
+          balanceBefore: existing.balanceAfter - existing.pointsChange,
+          balanceAfter: existing.balanceAfter,
+          duplicated: true,
+        };
+      }
+
+      await ensureJarExchangeService(tx, input.customerId);
+      const entry = await appendPointsLedger(tx, {
+        customerId: input.customerId,
+        sourceType: 'manual_adjustment',
+        sourceRefId: input.requestId,
+        pointsChange: input.pointsChange,
+        note: formatManualPointsNote(input),
+        createdByUserId: actor.userId,
+      });
+      return {
+        entryId: entry.id,
+        pointsChange: entry.pointsChange,
+        balanceBefore: entry.balanceAfter - entry.pointsChange,
+        balanceAfter: entry.balanceAfter,
+        duplicated: false,
+      };
     });
     revalidateJar();
-    return { ok: true as const };
+    revalidatePath(`/customers/${input.customerId}`);
+    revalidatePath(`/customers/${input.customerId}/jar-ledger`);
+    revalidatePath(`/customers/${input.customerId}/points/adjust`);
+    return { ok: true as const, ...result };
   } catch (e) {
+    console.error('manualPointsAdjustment', {
+      actorUserId: actor.userId,
+      customerId: input.customerId,
+      requestId: input.requestId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     return { ok: false as const, error: e instanceof Error ? e.message : '調整失敗' };
   }
 }

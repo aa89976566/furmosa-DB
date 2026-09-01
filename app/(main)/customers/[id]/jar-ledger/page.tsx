@@ -48,12 +48,17 @@ export default async function CustomerJarLedgerPage({
           </span>
         }
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/customers/${customer.id}`}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回客戶
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <Link href={`/customers/${customer.id}/points/adjust`}>調整點數</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/customers/${customer.id}`}>
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回客戶
+              </Link>
+            </Button>
+          </div>
         }
       />
       <div className="mx-auto max-w-3xl space-y-6 p-6">
