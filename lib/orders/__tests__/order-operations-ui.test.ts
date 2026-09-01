@@ -27,6 +27,8 @@ const resourceListStyles = readFileSync(
   new URL('../../../components/orders/order-resource-list.module.css', import.meta.url),
   'utf8',
 );
+const globalStyles = readFileSync(new URL('../../../app/globals.css', import.meta.url), 'utf8');
+const buttonSource = readFileSync(new URL('../../../components/ui/button.tsx', import.meta.url), 'utf8');
 
 test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
   assert.equal(listSource.includes('VirtualCardList'), false);
@@ -64,6 +66,15 @@ test('OMS 詳細頁使用精簡工作區，問題直接標在欄位並收合次�
   assert.match(detailSource, /更多資料/);
   assert.match(detailSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
   assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
+});
+
+test('共用視覺基礎使用安靜表面、語意色彩與輕量邊框', () => {
+  assert.match(globalStyles, /Calm operations UI/);
+  assert.match(globalStyles, /--success: 145/);
+  assert.match(globalStyles, /--warning: 35/);
+  assert.equal(globalStyles.includes('8px 8px 0'), false);
+  assert.match(buttonSource, /border border-primary/);
+  assert.equal(buttonSource.includes('border-2 border-primary'), false);
 });
 
 test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () => {
