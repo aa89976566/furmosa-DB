@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { POS_NAV, activePosNavId } from "@/lib/pos/pos-nav";
+import { Box, Home, ReceiptText, RefreshCcw, Search } from "lucide-react";
+
+const NAV_ICONS = {
+  home: Home,
+  stock: Box,
+  refill: RefreshCcw,
+  records: Search,
+  settle: ReceiptText,
+};
 
 function navItemClass(isActive: boolean) {
   return isActive
@@ -48,35 +57,37 @@ export function PosSideRail({ storeName }: { storeName?: string }) {
   const active = activePosNavId(pathname);
 
   return (
-    <aside className="hidden md:flex md:flex-col md:items-center md:py-5">
+    <aside className="hidden border-r bg-card md:flex md:h-screen md:flex-col">
       <nav
-        className="flex h-full w-[104px] flex-col items-center rounded-[28px] border-2 border-foreground bg-card py-5 shadow-card"
+        className="flex h-full w-full flex-col"
         aria-label="店家導航"
       >
         <Link
           href="/pos"
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+          className="flex h-[98px] items-center border-b px-7 text-xl font-semibold tracking-[0.12em] text-foreground"
           title="回首頁"
         >
-          F<span className="sr-only">回首頁</span>
+          FURMOSA<span className="sr-only">回首頁</span>
         </Link>
-        <div className="mt-6 flex w-full flex-1 flex-col items-stretch gap-1 px-2">
+        <div className="flex w-full flex-1 flex-col gap-2 px-4 py-6">
           {POS_NAV.map((tab) => {
             const isActive = active === tab.id;
+            const Icon = NAV_ICONS[tab.id];
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-[48px] items-center justify-center rounded-xl text-sm font-medium leading-none ${navItemClass(isActive)}`}
+                className={`flex min-h-[52px] items-center gap-3 rounded-xl px-4 text-sm font-medium leading-none ${navItemClass(isActive)}`}
               >
+                <Icon className="h-5 w-5" />
                 {tab.label}
               </Link>
             );
           })}
         </div>
         {storeName ? (
-          <p className="mb-3 max-w-[80px] truncate px-1 text-center text-[10px] text-muted-foreground">
+          <p className="mx-4 mb-5 truncate rounded-xl border px-4 py-4 text-sm text-muted-foreground">
             {storeName}
           </p>
         ) : null}

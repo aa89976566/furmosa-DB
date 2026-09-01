@@ -1,24 +1,30 @@
 import Link from 'next/link';
+import { Check } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import {
-  getAuthenticatedMerchantId,
-  requireMerchantSession,
-} from '@/lib/merchant-auth';
+import { getAuthenticatedMerchantId, requireMerchantSession } from '@/lib/merchant-auth';
+import { loadPosAccount } from '@/lib/pos/account';
+import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import { getRestockRequestForMerchant } from '@/lib/restock-request/service';
-import {
-  restockRequestTypeLabel,
-  restockStatusLabelForMerchant,
-  type ApprovedSnapshotLine,
-} from '@/lib/restock-request/constants';
+import { restockStatusLabelForMerchant, type ApprovedSnapshotLine } from '@/lib/restock-request/constants';
 import { PosShell } from '@/components/pos/pos-shell';
+import {
+  RestockReceiptVerification,
+  type ReceiptVerificationItem,
+} from '@/components/pos/restock-receipt-verification';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 import { confirmRestockReceiptAction } from './actions';
-import { Button } from '@/components/ui/button';
-
-import { loadPosAccount } from '@/lib/pos/account';
 
 export const metadata = { title: '補貨單 · Furmosa 店家' };
+
+const shipmentCopy = {
+  pending: { label: 'HQ 已核准，等待備貨', help: 'HQ 正在安排商品與出貨。' },
+  packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
+  shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
+  delivered: { label: '商品已送達，待驗收', help: '請逐項核對實收數量。' },
+  received: { label: '收貨完成', help: '商品已加入店家庫存。' },
+  cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
+} as const;
 
 export default async function PosRestockDetailPage({
   params,
@@ -35,208 +41,171 @@ export default async function PosRestockDetailPage({
   ]);
   if (!req) notFound();
 
+  const shipment = req.shipment;
+  const copy = shipment
+    ? shipmentCopy[shipment.status as keyof typeof shipmentCopy] ?? {
+        label: '補貨處理中',
+        help: '最新進度會顯示在這裡。',
+      }
+    : null;
   const snapshot = (req.approvedSnapshot as ApprovedSnapshotLine[] | null) ?? null;
   const shortId = req.id.slice(0, 8).toUpperCase();
   const justSubmitted = searchParams?.ok === '1';
   const justReceived = searchParams?.received === '1';
-  const shipment = req.shipment;
-  const shipmentCopy = shipment
-    ? {
-        pending: { label: 'HQ 已核准，等待備貨', help: 'HQ 正在安排商品與出貨。' },
-        packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
-        shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
-        delivered: { label: '商品已送達，請驗收', help: '確認品項與數量正確後再完成收貨。' },
-        received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
-        cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
-      }[shipment.status]
-    : null;
-  const shipmentTimeline = shipment
+  const timeline = shipment
     ? [
         { label: 'HQ 核准', done: true },
         { label: '完成備貨', done: Boolean(shipment.packedAt) },
         { label: '商品出貨', done: Boolean(shipment.shippedAt) },
         { label: '物流送達', done: Boolean(shipment.deliveredAt) },
-        { label: '店家確認收貨', done: shipment.status === 'received' },
+        { label: '店家驗收', done: shipment.status === 'received' },
       ]
     : [];
 
+  const verificationItems: ReceiptVerificationItem[] = (shipment?.items ?? []).map((item) => ({
+    lineId: item.id,
+    productId: item.productId,
+    name: item.productName,
+    sku: item.sku,
+    specification: item.weightGrams ? `${item.weightGrams}g` : item.unit || '每件',
+    imageUrl: resolveFurmosaProductImage(item.productName, item.product.imageUrl),
+    expectedQuantity: item.quantity,
+  }));
+  const summaryItems =
+    verificationItems.length > 0
+      ? verificationItems
+      : snapshot?.map((item) => ({
+          lineId: item.productId,
+          productId: item.productId,
+          name: item.productName,
+          sku: item.sku,
+          specification: '每件',
+          imageUrl: resolveFurmosaProductImage(
+            item.productName,
+            req.items.find((line) => line.product.id === item.productId)?.product.imageUrl ?? null,
+          ),
+          expectedQuantity: item.quantity,
+        })) ??
+        req.items.map((item) => ({
+          lineId: item.id,
+          productId: item.product.id,
+          name: item.product.name,
+          sku: item.product.sku,
+          specification: item.product.unit,
+          imageUrl: resolveFurmosaProductImage(item.product.name, item.product.imageUrl),
+          expectedQuantity: item.approvedQuantity ?? item.requestedQuantity ?? 0,
+        }));
+
   return (
-    <PosShell storeName={account.storeName} account={account}>
-      <div className="space-y-4 px-4 py-6">
+    <PosShell storeName={account.storeName} account={account} wide>
+      <main className="mx-auto w-full max-w-6xl space-y-4 px-4 py-6 md:px-8 md:py-8">
         {justSubmitted ? <ClearDraftOnSuccess /> : null}
-        <Link href="/pos/restock" className="text-xs text-muted-foreground">
+        <Link href="/pos/restock" className="inline-flex text-sm text-muted-foreground hover:text-foreground">
           ← 補貨
         </Link>
+        <header className="pr-16">
+          <h1 className="text-2xl font-semibold tracking-tight text-navy md:text-3xl">補貨單</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            編號 {shortId} ・ 送出時間 {req.createdAt.toLocaleString('zh-TW')}
+          </p>
+        </header>
 
         {justSubmitted ? (
           <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
-            <p className="font-medium text-foreground">申請已送出</p>
-            <p className="text-muted-foreground">
-              編號 {shortId} · {req.createdAt.toLocaleString('zh-TW')}
-            </p>
+            申請已送出，HQ 將開始確認品項。
           </div>
         ) : null}
-
         {justReceived ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-            <p className="font-medium">收貨完成</p>
-            <p>商品已加入店家庫存。</p>
+            收貨完成，商品已加入店家庫存。
           </div>
         ) : null}
 
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-navy">補貨單</h1>
-            <p className="text-sm text-muted-foreground">
-              {restockRequestTypeLabel(req.requestType)} · 編號 {shortId}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              送出時間 {req.createdAt.toLocaleString('zh-TW')}
-            </p>
-          </div>
-          <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-            {shipmentCopy?.label ?? restockStatusLabelForMerchant(req.status)}
-          </span>
-        </div>
-
-        {shipmentCopy && shipment ? (
-          <Card className={shipment.status === 'delivered' ? 'border-amber-300 bg-amber-50' : ''}>
-            <CardContent className="space-y-3 p-4">
+        {shipment && copy ? (
+          <section className="rounded-2xl border bg-card p-5 md:p-6">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background">
+                <Check className="h-5 w-5" />
+              </span>
               <div>
-                <p className="font-semibold">{shipmentCopy.label}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{shipmentCopy.help}</p>
-              </div>
-              <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <p>
-                  <span className="text-muted-foreground">出貨單</span>
-                  <br />
-                  <span className="font-medium">{shipment.shipmentNumber}</span>
-                </p>
-                {shipment.carrier ? (
-                  <p>
-                    <span className="text-muted-foreground">配送方式</span>
-                    <br />
-                    <span className="font-medium">{shipment.carrier}</span>
-                  </p>
-                ) : null}
+                <h2 className="text-lg font-semibold md:text-xl">{copy.label}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{copy.help}</p>
+                <p className="mt-4 text-sm text-muted-foreground">出貨單</p>
+                <p className="font-medium">{shipment.shipmentNumber}</p>
                 {shipment.trackingNumber ? (
-                  <p>
-                    <span className="text-muted-foreground">追蹤編號</span>
-                    <br />
-                    <span className="font-medium">{shipment.trackingNumber}</span>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {shipment.carrier || '物流'} · {shipment.trackingNumber}
                   </p>
                 ) : null}
               </div>
-              {shipment.status === 'delivered' ? (
-                <form action={confirmRestockReceiptAction}>
-                  <input type="hidden" name="requestId" value={req.id} />
-                  <Button type="submit" className="min-h-[48px] w-full">
-                    確認品項正確並完成收貨
-                  </Button>
-                </form>
-              ) : null}
+            </div>
 
-              <div className="border-t pt-3">
-                <p className="mb-3 text-sm font-medium">處理進度</p>
-                <ol className="grid gap-2 sm:grid-cols-5">
-                  {shipmentTimeline.map((step) => (
-                    <li key={step.label} className="flex items-center gap-2 text-sm sm:block">
-                      <span
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                          step.done
-                            ? 'bg-foreground text-background'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {step.done ? '✓' : '·'}
-                      </span>
-                      <span className="sm:mt-2 sm:block">{step.label}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card>
-          <CardContent className="space-y-3 p-4 text-sm">
-            {req.expectedArrivalDate ? (
-              <p>
-                <span className="text-muted-foreground">預計到貨</span>
-                <br />
-                <span className="font-medium">
-                  {req.expectedArrivalDate.toLocaleDateString('zh-TW')}
-                </span>
-              </p>
-            ) : (
-              <p className="text-muted-foreground">
-                公司確認後會顯示預計到貨日。你目前不用自行修改這張申請。
-              </p>
-            )}
-            {req.merchantNote ? (
-              <p>
-                <span className="text-muted-foreground">你的備註</span>
-                <br />
-                {req.merchantNote}
-              </p>
-            ) : null}
-            {req.hqNote ? (
-              <p>
-                <span className="text-muted-foreground">公司回覆</span>
-                <br />
-                {req.hqNote}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-medium">申請品項</p>
-            {req.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">請公司代為配置</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {req.items.map((it) => (
-                  <li key={it.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 break-words">{it.product.name}</span>
-                    <span className="shrink-0 text-muted-foreground">
-                      申請 {it.requestedQuantity ?? 0}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        {(snapshot && snapshot.length > 0) ||
-        req.items.some((it) => (it.approvedQuantity ?? 0) > 0 && req.status !== 'submitted') ? (
+            <ol className="mt-7 grid grid-cols-5 gap-1" aria-label="補貨處理進度">
+              {timeline.map((step, index) => (
+                <li key={step.label} className="relative text-center">
+                  {index > 0 ? (
+                    <span
+                      className={`absolute right-1/2 top-4 h-px w-full ${step.done ? 'bg-foreground' : 'bg-border'}`}
+                      aria-hidden
+                    />
+                  ) : null}
+                  <span
+                    className={`relative z-10 mx-auto flex h-8 w-8 items-center justify-center rounded-full border text-xs ${
+                      step.done
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border bg-card text-muted-foreground'
+                    }`}
+                  >
+                    {step.done ? <Check className="h-4 w-4" /> : null}
+                  </span>
+                  <span className="mt-2 block text-[11px] leading-tight md:text-sm">{step.label}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : (
           <Card>
-            <CardContent className="space-y-2 p-4">
-              <p className="text-sm font-medium">已確認品項</p>
-              <ul className="space-y-2 text-sm">
-                {snapshot
-                  ? snapshot.map((line) => (
-                      <li key={line.productId} className="flex justify-between gap-2">
-                        <span className="min-w-0 break-words">{line.productName}</span>
-                        <span className="shrink-0 font-medium">{line.quantity}</span>
-                      </li>
-                    ))
-                  : req.items
-                      .filter((it) => (it.approvedQuantity ?? 0) > 0)
-                      .map((it) => (
-                        <li key={it.id} className="flex justify-between gap-2">
-                          <span className="min-w-0 break-words">{it.product.name}</span>
-                          <span className="shrink-0 font-medium">{it.approvedQuantity}</span>
-                        </li>
-                      ))}
-              </ul>
+            <CardContent className="p-5 text-sm">
+              {restockStatusLabelForMerchant(req.status)}，建立出貨單後會在這裡顯示進度。
             </CardContent>
           </Card>
-        ) : null}
-      </div>
+        )}
+
+        <section className="rounded-2xl border bg-card px-5 py-4 md:px-6">
+          <p className="text-sm text-muted-foreground">預計到貨</p>
+          <p className="mt-1 font-medium">
+            {req.expectedArrivalDate
+              ? req.expectedArrivalDate.toLocaleDateString('zh-TW')
+              : 'HQ 確認後提供'}
+          </p>
+          {req.hqNote ? <p className="mt-3 text-sm text-muted-foreground">HQ：{req.hqNote}</p> : null}
+        </section>
+
+        {shipment?.status === 'delivered' && verificationItems.length > 0 ? (
+          <RestockReceiptVerification
+            requestId={req.id}
+            items={verificationItems}
+            action={confirmRestockReceiptAction}
+          />
+        ) : (
+          <section className="rounded-2xl border bg-card p-5 md:p-6">
+            <h2 className="text-base font-semibold md:text-lg">
+              {shipment?.status === 'received' ? '已收貨品項' : '補貨品項'}
+            </h2>
+            <ul className="mt-3 divide-y">
+              {summaryItems.map((item) => (
+                <li key={item.lineId} className="flex items-center justify-between gap-4 py-3 text-sm">
+                  <span className="min-w-0">
+                    <span className="block font-medium">{item.name}</span>
+                    <span className="text-muted-foreground">{item.sku}</span>
+                  </span>
+                  <span className="shrink-0 font-medium">{item.expectedQuantity} 件</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </main>
     </PosShell>
   );
 }

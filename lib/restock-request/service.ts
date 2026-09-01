@@ -173,7 +173,9 @@ export async function getRestockRequestForMerchant(
     include: {
       items: {
         include: {
-          product: { select: { id: true, name: true, sku: true, unit: true } },
+          product: {
+            select: { id: true, name: true, sku: true, unit: true, imageUrl: true },
+          },
         },
       },
       shipment: {
@@ -187,6 +189,18 @@ export async function getRestockRequestForMerchant(
           shippedAt: true,
           deliveredAt: true,
           updatedAt: true,
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              productName: true,
+              sku: true,
+              quantity: true,
+              weightGrams: true,
+              unit: true,
+              product: { select: { imageUrl: true } },
+            },
+          },
         },
       },
     },

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedMerchantId, requireMerchantSession } from '@/lib/merchant-auth';
 import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
+import { validateRestockReceipt } from '@/lib/pos/restock-receipt';
 
 export async function confirmRestockReceiptAction(formData: FormData): Promise<void> {
   await requireMerchantSession();
@@ -24,6 +25,7 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
             status: true,
             items: {
               select: {
+                id: true,
                 productId: true,
                 quantity: true,
                 weightGrams: true,
@@ -42,6 +44,20 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
     if (shipment.status !== 'delivered') {
       throw new Error('商品尚未送達，現在不能確認收貨');
     }
+
+    const submittedQuantities = new Map(
+      shipment.items.map((item) => [
+        item.id,
+        Number(formData.get(`received:${item.id}`)),
+      ]),
+    );
+    validateRestockReceipt(
+      shipment.items.map((item) => ({
+        lineId: item.id,
+        expectedQuantity: item.quantity,
+      })),
+      submittedQuantities,
+    );
 
     const updated = await tx.shipment.updateMany({
       where: { id: shipment.id, merchantId, status: 'delivered' },

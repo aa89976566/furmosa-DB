@@ -35,7 +35,7 @@ export function PosAccountMenu({
         ) : (
           <button
             type="button"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-card text-navy shadow-card"
+            className="flex h-12 w-12 items-center justify-center rounded-xl border bg-card text-navy transition-colors hover:bg-muted"
             aria-label="店家選單"
           >
             {variant === 'dots' ? (

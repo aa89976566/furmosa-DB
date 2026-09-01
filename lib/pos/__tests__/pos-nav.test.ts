@@ -20,6 +20,7 @@ describe('POS_NAV', () => {
     assert.equal(activePosNavId('/pos/records'), 'records');
     assert.equal(activePosNavId('/pos/settle'), 'settle');
     assert.equal(activePosNavId('/pos/sell'), null);
-    assert.equal(activePosNavId('/pos/restock'), null);
+    assert.equal(activePosNavId('/pos/restock'), 'refill');
+    assert.equal(activePosNavId('/pos/restock/request-1'), 'refill');
   });
 });

@@ -24,7 +24,11 @@ export const POS_NAV: readonly PosNavItem[] = [
     id: 'refill',
     href: '/pos/refill',
     label: '換罐',
-    match: (p) => p === '/pos/refill' || p.startsWith('/pos/refill/'),
+    match: (p) =>
+      p === '/pos/refill' ||
+      p.startsWith('/pos/refill/') ||
+      p === '/pos/restock' ||
+      p.startsWith('/pos/restock/'),
   },
   {
     id: 'records',

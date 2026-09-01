@@ -18,8 +18,8 @@ export function PosShell({
       <div
         className={
           wide
-            ? 'md:grid md:h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:overflow-hidden md:p-3'
-            : 'md:grid md:min-h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:p-3'
+            ? 'md:grid md:h-screen md:grid-cols-[232px_minmax(0,1fr)] md:overflow-hidden'
+            : 'md:grid md:min-h-screen md:grid-cols-[232px_minmax(0,1fr)]'
         }
       >
         <PosSideRail storeName={storeName ?? account?.storeName} />
@@ -31,7 +31,7 @@ export function PosShell({
           }
         >
           {account ? (
-            <div className="absolute right-3 top-3 z-30 md:right-4 md:top-4">
+            <div className="absolute right-3 top-3 z-30 md:right-8 md:top-7">
               <PosAccountMenu account={account} />
             </div>
           ) : null}
