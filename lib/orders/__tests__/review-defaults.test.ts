@@ -78,3 +78,14 @@ test('完整人工審核不套用新建議', () => {
   assert.equal(result.applied, false);
   assert.deepEqual(result.draft, saved);
 });
+
+test('只有空白字元的舊電話會補值並顯示已套用提示', () => {
+  const saved = reviewDraft({ lines: [{ productId: 'manual', temperature: 'ambient' }], method: 'home',
+    temperature: 'ambient', recipient: '人工', phone: '   ', address: '人工地址' });
+  const suggested = reviewDraft({ lines: [{ productId: 'suggested', temperature: 'frozen' }], method: 'convenience',
+    temperature: 'frozen', recipient: 'Shopify', phone: '0912345678', address: '來源地址' });
+  const result = fillReviewDraftBlanks(saved, suggested);
+  assert.equal(result.applied, true);
+  assert.equal(result.draft.phone, '0912345678');
+  assert.equal(result.draft.lines[0]?.productId, 'manual');
+});

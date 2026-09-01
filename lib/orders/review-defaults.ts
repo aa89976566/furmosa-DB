@@ -67,7 +67,7 @@ export function defaultReviewDraft(snapshot: Snapshot, products: MappingProduct[
 export function fillReviewDraftBlanks(saved: ReviewDraft, suggested: ReviewDraft) {
   let applied = false;
   const pick = (current: string, fallback: string) => {
-    if (current || !fallback) return current;
+    if (current.trim() || !fallback.trim()) return current;
     applied = true;
     return fallback;
   };
@@ -79,18 +79,16 @@ export function fillReviewDraftBlanks(saved: ReviewDraft, suggested: ReviewDraft
       temperature: pick(line.temperature, fallback.temperature),
     };
   });
-  return {
-    applied,
-    draft: {
-      ...saved,
-      lines,
-      method: pick(saved.method, suggested.method),
-      temperature: pick(saved.temperature, suggested.temperature),
-      recipient: pick(saved.recipient, suggested.recipient),
-      phone: pick(saved.phone, suggested.phone),
-      address: pick(saved.address, suggested.address),
-      storeId: pick(saved.storeId, suggested.storeId),
-      storeName: pick(saved.storeName, suggested.storeName),
-    },
+  const draft = {
+    ...saved,
+    lines,
+    method: pick(saved.method, suggested.method),
+    temperature: pick(saved.temperature, suggested.temperature),
+    recipient: pick(saved.recipient, suggested.recipient),
+    phone: pick(saved.phone, suggested.phone),
+    address: pick(saved.address, suggested.address),
+    storeId: pick(saved.storeId, suggested.storeId),
+    storeName: pick(saved.storeName, suggested.storeName),
   };
+  return { applied, draft };
 }
