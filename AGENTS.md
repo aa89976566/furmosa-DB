@@ -97,3 +97,24 @@
 - README 與程式現況衝突時，不得直接依照舊 README 操作。
 - 應先比對目前程式、schema.prisma、package.json、DEPLOY.md 與 .env.example。
 - 發現文件過期時先回報，不要順便大幅重寫文件。
+
+## Shopify OMS 不可違反的規則
+
+1. `orders/create` 必須無條件以 Shopify shop + order id upsert 進 HQ。不得依 SKU、付款狀態、配送方式、商品類別或 allowlist 略過訂單。
+2. `orders/paid` 與 `orders/updated` 只能更新來源資料與檢查結果，不得作為訂單是否進 HQ 的條件。
+3. Shopify webhook 必須驗證簽章，並以 webhook event id/topic 去重、以 shop + order id 保證訂單唯一、防止舊來源版本覆蓋新資料，且保存處理狀態、錯誤與重試次數。若無可靠 queue，必須先持久化事件才能回應成功。
+4. OMS 狀態只允許 `NEW -> REVIEW -> READY -> FULFILLMENT_PENDING -> FULFILLED`。READY 只能由通過 blocking checks 後的人工確認產生；付款成功不得自動進入 READY。
+5. 異常使用 issue flags，不為每種異常新增 status。每個 flag 必須包含穩定 code、severity、blocking、message、source field 與 rules version；UI 文字不得作為程式判斷依據。
+6. 必須保存 Shopify 原始快照、標準化映射結果與 rules version。商品主檔或映射規則變更不得靜默改寫歷史訂單。
+7. SKU 映射必須區分唯一符合、無符合、多筆符合及空白 SKU。只有唯一符合可自動對應，其餘必須產生 blocking issue，不得自行猜測商品。
+8. 商品溫層與配送方式必須使用 enum 或穩定 code。顯示名稱只能作為受控 fallback；未知值必須產生 issue，不得默認為常溫或任一物流方式。
+9. 所有建立出貨、建立物流單、扣庫存及回寫 fulfillment 的入口必須共用同一個伺服器端 READY gate，不得只靠 UI 隱藏按鈕保護。
+10. Shopify 來源更新若影響商品、數量、付款、收件或配送，必須重新計算 issues；必要時使既有審核失效並回到 REVIEW。
+11. HQ 軟刪除不得刪除 Shopify identity、來源快照或稽核紀錄。後續 webhook 可更新來源資料，但不得自動取消刪除狀態。
+12. 非 Shopify 舊流程以 `omsStatus = null` 維持相容。修改列表、搜尋、統計、審核或出貨查詢時，必須增加 legacy regression test。
+13. Reconcile 必須支援 dry-run、批次上限、冪等 upsert、差異報告、重試與最後成功時間；正式環境禁止無上限全量同步。
+14. 資料結構變更必須先取得使用者同意。未另行批准，不得執行正式 migration、backfill、webhook 變更或物流呼叫。
+15. 不得把落後 main 的 Preview 分支直接部署正式環境。正式候選版必須基於最新 main 重整並保留其他既有變更。
+16. OMS 開發採工作包制：先凍結規格與驗收矩陣、集中實作、執行一次本地品質閘門、執行一次 Preview 端到端驗收，通過後才準備正式上線。不得因單一文字、間距或小欄位反覆部署。
+17. 正常 Shopify 訂單不得要求員工重填已存在的姓名、電話、地址、商品、數量、價格、付款或配送資料。只有缺失、衝突或無法唯一映射的欄位才可顯示人工輸入。
+18. OMS 測試至少涵蓋：未付款 create、webhook 重送與亂序、SKU 無／多筆符合、未知配送、溫層衝突、來源更新使審核失效、軟刪除後同步、reconcile 補漏、READY gate，以及舊流程回歸。
