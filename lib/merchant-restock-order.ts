@@ -7,9 +7,11 @@ function ymd(d = new Date()) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-export async function nextRestockOrderNumber() {
+type RestockDb = Prisma.TransactionClient | typeof prisma;
+
+export async function nextRestockOrderNumber(db: RestockDb = prisma) {
   const prefix = `ORD-${ymd()}-`;
-  const last = await prisma.order.findFirst({
+  const last = await db.order.findFirst({
     where: { orderNumber: { startsWith: prefix } },
     orderBy: { orderNumber: 'desc' },
   });
@@ -17,9 +19,9 @@ export async function nextRestockOrderNumber() {
   return `${prefix}${pad(seq, 3)}`;
 }
 
-export async function nextRestockShipmentNumber() {
+export async function nextRestockShipmentNumber(db: RestockDb = prisma) {
   const prefix = `SHP-${ymd()}-`;
-  const last = await prisma.shipment.findFirst({
+  const last = await db.shipment.findFirst({
     where: { shipmentNumber: { startsWith: prefix } },
     orderBy: { shipmentNumber: 'desc' },
   });
@@ -67,8 +69,8 @@ export async function createRestockOrderWithShipment(
 ) {
   const db = tx ?? prisma;
   const productById = new Map(input.products.map((p) => [p.id, p]));
-  const orderNumber = await nextRestockOrderNumber();
-  const shipmentNumber = input.shipmentNumber ?? (await nextRestockShipmentNumber());
+  const orderNumber = await nextRestockOrderNumber(db);
+  const shipmentNumber = input.shipmentNumber ?? (await nextRestockShipmentNumber(db));
 
   const order = await db.order.create({
     data: {

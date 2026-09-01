@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
-import { isNextRedirect } from '@/lib/is-next-redirect';
 import { canAccessHqRestockInbox } from '@/lib/restock-request/hq-inbox';
 import { revalidateAfterHqRestockReview } from '@/lib/restock-request/hq-inbox-cache';
 import {
@@ -43,7 +42,24 @@ export type HqRestockActionState = {
   error?: string;
   ok?: string;
   conflict?: boolean;
+  redirectTo?: string;
 };
+
+function approvalActionState(error: unknown): HqRestockActionState {
+  if (error instanceof Error) {
+    const message = error.message;
+    if (
+      message.includes('Transaction already closed') ||
+      message.includes('expired transaction') ||
+      message.includes('P2028')
+    ) {
+      return {
+        error: '建立出貨單的處理時間過長，尚未完成核准，請再試一次。',
+      };
+    }
+  }
+  return hqReviewActionStateFromError(error);
+}
 
 export async function saveRestockRequestHqAction(
   _prev: HqRestockActionState,
@@ -93,10 +109,12 @@ export async function approveRestockRequestAction(
       items: fields.items,
     });
     revalidateHqReviewSurfaces(fields.requestId, ['/shipments', '/orders']);
-    redirect(`/shipments?s=${result.shipmentId}`);
+    return {
+      ok: '已核准並建立出貨單',
+      redirectTo: `/shipments?s=${result.shipmentId}`,
+    };
   } catch (e) {
-    if (isNextRedirect(e)) throw e;
-    return hqReviewActionStateFromError(e);
+    return approvalActionState(e);
   }
 }
 
