@@ -288,6 +288,7 @@ function ShipmentQueueCard({
         <ShipmentQueueStatusCell
           shipmentId={shipment.id}
           status={shipment.status}
+          shipmentType={shipment.type}
           queueStatus={queueStatus}
           queueType={queueType}
           paymentReviewHold={Boolean(shipment.paymentReviewHold)}
@@ -421,6 +422,7 @@ export function ShipmentQueueTable({
                     <ShipmentQueueStatusCell
                       shipmentId={shipment.id}
                       status={shipment.status}
+                      shipmentType={shipment.type}
                       queueStatus={queueStatus}
                       queueType={queueType}
                       paymentReviewHold={Boolean(shipment.paymentReviewHold)}

@@ -428,8 +428,16 @@ describe('HQ restock delivery wiring and existing transitions', () => {
   it('does not add pending → delivered; HQ still requires shipped first', () => {
     assert.equal(RESTOCK_SHIPMENT_TRANSITIONS.pending.includes('delivered'), false);
     assert.equal(RESTOCK_SHIPMENT_TRANSITIONS.shipped.includes('delivered'), true);
-    assert.match(actionsSrc, /pending: \['shipped', 'cancelled'\]/);
+    assert.match(actionsSrc, /decideShipmentStatusChange/);
     assert.doesNotMatch(actionsSrc, /pending: \[[^\]]*delivered/);
+  });
+
+  it('locks merchant_restock delivered before the status-update transaction', () => {
+    const innerStart = actionsSrc.indexOf('async function markShipmentStatusInner');
+    const decideAt = actionsSrc.indexOf('decideShipmentStatusChange', innerStart);
+    const txAt = actionsSrc.indexOf('await prisma.$transaction', innerStart);
+    assert.ok(decideAt > innerStart && txAt > decideAt);
+    assert.match(actionsSrc, /decision\.kind === 'noop'/);
   });
 
   it('order status and subscription shipment updates do not call merchant restock posting', () => {

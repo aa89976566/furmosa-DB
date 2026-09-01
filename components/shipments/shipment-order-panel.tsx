@@ -88,8 +88,8 @@ export function ShipmentOrderPanel({
   const paymentReviewHold = data.paymentReviewHold;
   const allowedNext = (
     paymentReviewHold
-      ? nextStatuses(data.status).filter((status) => status !== 'shipped' && status !== 'delivered')
-      : nextStatuses(data.status)
+      ? nextStatuses(data.status, data.type).filter((status) => status !== 'shipped' && status !== 'delivered')
+      : nextStatuses(data.status, data.type)
   ) as ShipmentStatus[];
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({

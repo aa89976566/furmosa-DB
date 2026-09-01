@@ -36,14 +36,7 @@ import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
-
-const TRANSITIONS: Record<string, string[]> = {
-  pending: ['shipped', 'cancelled'],
-  packed: ['shipped', 'pending', 'cancelled'],
-  shipped: ['delivered', 'pending'],
-  delivered: ['shipped', 'pending'],
-  cancelled: [],
-};
+import { decideShipmentStatusChange } from '@/lib/shipment-status-policy';
 
 export type MarkShipmentStatusResult =
   | { ok: true; next: string; shipmentId: string }
@@ -147,9 +140,13 @@ async function markShipmentStatusInner(
   });
   if (!shipment) throw new Error('出貨單不存在');
 
-  const allowed = TRANSITIONS[shipment.status] ?? [];
-  if (!allowed.includes(next)) {
-    throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
+  const decision = decideShipmentStatusChange({
+    type: shipment.type,
+    status: shipment.status,
+    next,
+  });
+  if (decision.kind === 'noop') {
+    return { next: shipment.status, shipmentId };
   }
   if (
     next === 'shipped' &&
