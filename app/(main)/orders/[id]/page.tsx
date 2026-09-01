@@ -107,6 +107,52 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     jiba: jibaSources.get(order.id) ?? null,
   });
   const isMerchantRestock = Boolean(order.merchantId && !order.customerId);
+
+  if (order.omsStatus) {
+    return <>
+      <header className="border-b bg-card px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <Link href="/orders" className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" />訂單列表</Link>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{order.orderNumber}</h1>
+              <StatusBadge kind="orderSource" value={order.source} />
+              <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
+            </div>
+          </div>
+          <div className="text-right"><p className="text-xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p><div className="mt-1"><StatusBadge kind="payment" value={order.paymentStatus} /></div></div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+        {order.deletedAt ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">此訂單已從 HQ 刪除，不會進入待審核或出貨流程。</p> : null}
+        <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          {!order.deletedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單已刪除，審核表單已停用。</div>}
+          <aside className="space-y-4 lg:sticky lg:top-4">
+            <section className="rounded-xl border bg-card p-4">
+              <h2 className="font-semibold">訂單摘要</h2>
+              <div className="mt-3 space-y-3 text-sm">
+                <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
+                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="flex justify-between gap-3"><span className="min-w-0 truncate">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></li>)}</ul></div>
+                <div className="border-t pt-3"><p className="text-xs text-muted-foreground">下單時間</p><p>{formatDateTime(order.orderedAt)}</p></div>
+              </div>
+            </section>
+            <details className="rounded-xl border bg-card p-4">
+              <summary className="cursor-pointer text-sm font-semibold">更多資料</summary>
+              <div className="mt-3 space-y-3 border-t pt-3 text-xs text-muted-foreground">
+                <p>Shopify 原始金額：{sourceView?.currency || 'TWD'} {sourceView?.total || '待同步'}</p>
+                <p className="break-words">來源地址：{sourceView?.address || '未提供'}</p>
+                <p>審核者：{order.omsReviewedBy?.name || '尚未審核'}</p>
+                {order.omsReviewedAt ? <p>審核時間：{formatDateTime(order.omsReviewedAt)}</p> : null}
+                <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
+              </div>
+            </details>
+          </aside>
+        </div>
+      </main>
+    </>;
+  }
+
   return (
     <>
       <PageHeader

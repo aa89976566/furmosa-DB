@@ -35,11 +35,10 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
     || (!saved.phone.trim() && draft.phone)
     || (!saved.address.trim() && draft.address)
   ));
-  return <section className="space-y-3 rounded-xl border p-4 md:p-5" aria-label="OMS 訂單審核">
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">主要工作區</p>
-      <h2 className="mt-1 text-lg font-semibold">核對並確認訂單</h2>
-      <p className="mt-1 text-sm text-muted-foreground">只需補齊上方標示的問題。儲存檢查通過後，才能確認訂單。</p>
+  return <section className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
+    <div className="border-b pb-4">
+      <h2 className="text-lg font-semibold">處理訂單</h2>
+      <p className="mt-1 text-sm text-muted-foreground">紅色標記是目前必須完成的欄位。</p>
       {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已在空白欄位補入 Shopify／商品主檔建議；尚未儲存，請核對後按「儲存並檢查」。</p>}
     </div>
     <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}

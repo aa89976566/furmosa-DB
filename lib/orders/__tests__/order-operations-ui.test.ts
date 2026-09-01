@@ -58,6 +58,14 @@ test('訂單詳細頁使用四個營運區塊並隱藏進階工具', () => {
   assert.match(detailSource, /固定以新台幣顯示/);
 });
 
+test('OMS 詳細頁使用精簡工作區，問題直接標在欄位並收合次要資料', () => {
+  assert.match(detailSource, /if \(order\.omsStatus\)/);
+  assert.match(detailSource, /訂單摘要/);
+  assert.match(detailSource, /更多資料/);
+  assert.match(detailSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+  assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
+});
+
 test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () => {
   assert.match(dashboardPageSource, /今日工作/);
   assert.match(dashboardPageSource, /營運數據/);
