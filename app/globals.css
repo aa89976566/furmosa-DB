@@ -4,71 +4,71 @@
 
 @layer base {
   :root {
-  /* Monzo-inspired: coral CTA, navy text, soft canvas */
-    --background: 220 20% 97%;
-    --foreground: 215 44% 14%;
+    /* Black-and-white UI: no hue, only ink and paper */
+    --background: 0 0% 97%;
+    --foreground: 0 0% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 215 44% 14%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 215 44% 14%;
-    --primary: 6 100% 63%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 0 0% 9%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 18% 93%;
-    --secondary-foreground: 215 44% 14%;
-    --muted: 220 16% 95%;
-    --muted-foreground: 215 12% 46%;
-    --accent: 6 100% 96%;
-    --accent-foreground: 215 44% 14%;
-    --destructive: 4 88% 58%;
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 0 0% 93%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 0% 18%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 16% 89%;
-    --input: 220 16% 89%;
-    --ring: 6 90% 58%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 9%;
     --radius: 0.875rem;
 
-    --success: 148 100% 36%;
+    --success: 0 0% 22%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 95% 52%;
-    --warning-foreground: 215 44% 14%;
-    --info: 212 80% 48%;
+    --warning: 0 0% 32%;
+    --warning-foreground: 0 0% 100%;
+    --info: 0 0% 28%;
     --info-foreground: 0 0% 100%;
-    --navy: 215 44% 14%;
-    --coral: 6 100% 63%;
-    --canvas: 220 20% 97%;
+    --navy: 0 0% 9%;
+    --coral: 0 0% 9%;
+    --canvas: 0 0% 97%;
     --surface-raised: 0 0% 100%;
   }
 
   .dark {
-    --background: 215 44% 8%;
-    --foreground: 210 40% 98%;
-    --card: 215 40% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 215 40% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 6 100% 66%;
-    --primary-foreground: 215 44% 10%;
-    --secondary: 215 32% 16%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 32% 16%;
-    --muted-foreground: 215 16% 65%;
-    --accent: 6 55% 18%;
-    --accent-foreground: 6 100% 92%;
-    --destructive: 4 78% 55%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 28% 18%;
-    --input: 215 28% 18%;
-    --ring: 6 90% 62%;
+    --background: 0 0% 8%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 0% 78%;
+    --destructive-foreground: 0 0% 9%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 96%;
 
-    --success: 148 72% 42%;
-    --success-foreground: 215 44% 10%;
-    --warning: 38 92% 55%;
-    --warning-foreground: 215 44% 10%;
-    --info: 212 75% 58%;
-    --info-foreground: 215 44% 10%;
-    --navy: 210 40% 98%;
-    --coral: 6 100% 66%;
-    --canvas: 215 44% 8%;
-    --surface-raised: 215 40% 11%;
+    --success: 0 0% 78%;
+    --success-foreground: 0 0% 9%;
+    --warning: 0 0% 70%;
+    --warning-foreground: 0 0% 9%;
+    --info: 0 0% 74%;
+    --info-foreground: 0 0% 9%;
+    --navy: 0 0% 96%;
+    --coral: 0 0% 96%;
+    --canvas: 0 0% 8%;
+    --surface-raised: 0 0% 11%;
   }
 }
 
@@ -78,7 +78,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
@@ -93,14 +95,19 @@
     color: hsl(var(--navy));
   }
   .shadow-card {
-    box-shadow:
-      0 1px 2px hsl(215 44% 14% / 0.04),
-      0 8px 24px hsl(215 44% 14% / 0.06);
+    box-shadow: 4px 4px 0 hsl(var(--foreground));
   }
   .shadow-card-hover {
-    box-shadow:
-      0 2px 4px hsl(215 44% 14% / 0.05),
-      0 12px 32px hsl(215 44% 14% / 0.08);
+    box-shadow: 6px 6px 0 hsl(var(--foreground));
+  }
+
+  @media (min-width: 768px) {
+    .shadow-card {
+      box-shadow: 8px 8px 0 hsl(var(--foreground));
+    }
+    .shadow-card-hover {
+      box-shadow: 10px 10px 0 hsl(var(--foreground));
+    }
   }
 }
 
@@ -108,9 +115,29 @@
   width: 10px;
   height: 10px;
 }
+
 ::-webkit-scrollbar-thumb {
   @apply bg-muted-foreground/30 rounded-full;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/50;
+}
+
+/* Design-system guardrails for legacy screens. */
+[class*="bg-gradient-"] {
+  background-image: none !important;
+}
+
+[class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.shadow-sm,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl {
+  box-shadow: none !important;
 }

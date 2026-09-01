@@ -354,7 +354,7 @@ function SettleWorkspaceInner({
   );
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-[#f4f4f5] md:flex-row">
+    <div className="flex h-[100dvh] flex-col bg-neutral-100 md:flex-row">
       <InventorySideNav account={account} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="bg-transparent px-4 pb-2 pt-5 md:px-6">
@@ -739,7 +739,7 @@ function LedgerTable({
                     key={entry.id}
                     onClick={() => onSelect(entry.id)}
                     className={`cursor-pointer border-t border-neutral-100 ${
-                      active ? 'bg-[#f8f1e8]' : 'hover:bg-neutral-50'
+                      active ? 'bg-neutral-100' : 'hover:bg-neutral-50'
                     }`}
                   >
                     <td className="whitespace-nowrap px-3 py-3">{taipeiDateTime(entry.occurredAt)}</td>
