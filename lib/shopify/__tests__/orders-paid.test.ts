@@ -108,4 +108,20 @@ describe('Shopify orders/paid webhook', () => {
       50,
     );
   });
+
+  it('keeps 30g SKU weight from grams, title and unique price tier', () => {
+    const tiers = [{ weightGrams: 30, price: 84 }];
+    assert.equal(
+      resolveShopifyItemWeight({ sku: 'CK-30', quantity: 1, price: '84', grams: 30 }, tiers),
+      30,
+    );
+    assert.equal(
+      resolveShopifyItemWeight({ sku: 'CK-30', quantity: 1, price: '84', title: '鴨喉嚨 30g' }, tiers),
+      30,
+    );
+    assert.equal(
+      resolveShopifyItemWeight({ sku: 'CK-30', quantity: 1, price: '84' }, tiers),
+      30,
+    );
+  });
 });
