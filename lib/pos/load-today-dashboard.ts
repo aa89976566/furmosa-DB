@@ -49,7 +49,7 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
-        select: { id: true },
+        select: { id: true, shipment: { select: { status: true } } },
       }),
       prisma.merchantStock.findMany({
         where: { merchantId },
@@ -92,11 +92,20 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         .slice(0, 20);
     }
 
+    const awaitingReceipt = openRestocks.filter(
+      (request) => request.shipment?.status === 'delivered',
+    );
+    const ongoingRestocks = openRestocks.filter(
+      (request) => request.shipment?.status !== 'delivered' && request.shipment?.status !== 'received',
+    );
+
     const input: HomeTasksInput = {
       pendingRefillCount,
+      awaitingRestockReceiptCount: awaitingReceipt.length,
+      firstAwaitingRestockReceiptId: awaitingReceipt[0]?.id ?? null,
       lowStock,
-      openRestockCount: openRestocks.length,
-      firstOpenRestockId: openRestocks[0]?.id ?? null,
+      openRestockCount: ongoingRestocks.length,
+      firstOpenRestockId: ongoingRestocks[0]?.id ?? null,
     };
 
     const warning =

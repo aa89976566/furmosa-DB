@@ -1,6 +1,13 @@
 import type { Shipment } from '@prisma/client';
 
-export const SHIPMENT_STATUSES = ['pending', 'packed', 'shipped', 'delivered', 'cancelled'] as const;
+export const SHIPMENT_STATUSES = [
+  'pending',
+  'packed',
+  'shipped',
+  'delivered',
+  'received',
+  'cancelled',
+] as const;
 export const SHIPMENT_TYPES = ['merchant_restock', 'customer_order', 'subscription'] as const;
 
 /** 尚未寄出（含舊資料 packed，視同待出貨） */
@@ -12,9 +19,10 @@ export function isPreShipStatus(status: string) {
 
 export const shipmentStatusLabel: Record<string, string> = {
   pending: '待出貨',
-  packed: '待出貨',
+  packed: '已備妥',
   shipped: '已寄出',
-  delivered: '已送達',
+  delivered: '已送達，待店家驗收',
+  received: '店家已收貨',
   cancelled: '已取消',
 };
 
@@ -26,6 +34,7 @@ export const shipmentStatusVariant: Record<
   packed: 'warning',
   shipped: 'info',
   delivered: 'success',
+  received: 'success',
   cancelled: 'destructive',
 };
 
@@ -46,8 +55,9 @@ export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 export function nextStatuses(current: string): ShipmentStatus[] {
   switch (current) {
     case 'pending':
+      return ['packed', 'cancelled'];
     case 'packed':
-      return ['shipped', 'cancelled'];
+      return ['shipped', 'pending', 'cancelled'];
     case 'shipped':
       return ['delivered', 'pending'];
     default:
@@ -61,6 +71,8 @@ export function nextActionLabel(next: ShipmentStatus): string {
       return '標記為已寄出';
     case 'delivered':
       return '貨物到達';
+    case 'packed':
+      return '標記為已完成備貨';
     case 'pending':
       return '退回到待出貨';
     case 'cancelled':
@@ -71,10 +83,14 @@ export function nextActionLabel(next: ShipmentStatus): string {
 }
 
 export function timelineSteps(
-  s: Pick<Shipment, 'status' | 'shippedAt' | 'deliveredAt' | 'cancelledAt' | 'createdAt'>,
+  s: Pick<
+    Shipment,
+    'status' | 'packedAt' | 'shippedAt' | 'deliveredAt' | 'cancelledAt' | 'createdAt'
+  >,
 ) {
   return [
     { key: 'pending', label: '建立', at: s.createdAt, done: true },
+    { key: 'packed', label: '完成備貨', at: s.packedAt, done: !!s.packedAt },
     { key: 'shipped', label: '已寄出', at: s.shippedAt, done: !!s.shippedAt },
     {
       key: 'delivered',

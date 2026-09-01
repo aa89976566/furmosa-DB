@@ -33,6 +33,7 @@ export default async function HqRestockRequestDetailPage({
           packedAt: true,
           shippedAt: true,
           deliveredAt: true,
+          updatedAt: true,
         },
       },
       requestedBy: { select: { username: true } },
@@ -124,6 +125,7 @@ type CompletedRequest = {
     packedAt: Date | null;
     shippedAt: Date | null;
     deliveredAt: Date | null;
+    updatedAt: Date;
   } | null;
   items: Array<{
     id: string;
@@ -155,7 +157,11 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
     { label: '建立出貨單', at: shipment?.createdAt },
     { label: '商品完成備貨', at: shipment?.packedAt },
     { label: '商品出貨', at: shipment?.shippedAt },
-    { label: '店家收到商品', at: shipment?.deliveredAt },
+    { label: '物流送達店家', at: shipment?.deliveredAt },
+    {
+      label: '店家確認收貨並入庫',
+      at: shipment?.status === 'received' ? shipment.updatedAt : null,
+    },
   ];
 
   return (

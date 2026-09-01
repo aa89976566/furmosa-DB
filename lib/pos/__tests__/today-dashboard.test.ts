@@ -6,6 +6,8 @@ describe('buildHomeTaskCards', () => {
   it('omits empty cards', () => {
     const cards = buildHomeTaskCards({
       pendingRefillCount: 0,
+      awaitingRestockReceiptCount: 0,
+      firstAwaitingRestockReceiptId: null,
       lowStock: null,
       openRestockCount: 0,
       firstOpenRestockId: null,
@@ -16,6 +18,8 @@ describe('buildHomeTaskCards', () => {
   it('orders 待換罐 → 庫存不足 → 補貨中', () => {
     const cards = buildHomeTaskCards({
       pendingRefillCount: 3,
+      awaitingRestockReceiptCount: 0,
+      firstAwaitingRestockReceiptId: null,
       lowStock: [
         { productName: '柳葉魚凍乾', quantity: 0 },
         { productName: '水晶魚', quantity: 2 },
@@ -41,12 +45,28 @@ describe('buildHomeTaskCards', () => {
   it('hides low stock when inventory is unreliable', () => {
     const cards = buildHomeTaskCards({
       pendingRefillCount: 0,
+      awaitingRestockReceiptCount: 0,
+      firstAwaitingRestockReceiptId: null,
       lowStock: null,
       openRestockCount: 1,
       firstOpenRestockId: 'r1',
     });
     assert.equal(cards.length, 1);
     assert.equal(cards[0]?.kind, 'restock_progress');
+  });
+
+  it('shows delivered restocks before other operational tasks', () => {
+    const cards = buildHomeTaskCards({
+      pendingRefillCount: 1,
+      awaitingRestockReceiptCount: 2,
+      firstAwaitingRestockReceiptId: 'r2',
+      lowStock: null,
+      openRestockCount: 0,
+      firstOpenRestockId: null,
+    });
+    assert.equal(cards[0]?.kind, 'awaiting_restock_receipt');
+    assert.equal(cards[0]?.href, '/pos/restock/r2');
+    assert.match(cards[0]?.title ?? '', /請驗收/);
   });
 });
 

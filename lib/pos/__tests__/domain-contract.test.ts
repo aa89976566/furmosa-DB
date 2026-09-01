@@ -213,10 +213,12 @@ describe('inventory — available = onHand - reserved, never negative', () => {
     assert.throws(() => assertCanTakeFromAvailable(5, 2, 0), /大於 0/);
   });
 
-  it('increases store on-hand only when restock shipment is delivered', () => {
+  it('increases store on-hand only after the merchant confirms receipt', () => {
     assert.equal(restockIncreasesStoreOnHand('pending'), false);
-    assert.equal(restockIncreasesStoreOnHand('delivered'), true);
+    assert.equal(restockIncreasesStoreOnHand('delivered'), false);
+    assert.equal(restockIncreasesStoreOnHand('received'), true);
     assert.equal(canTransitionRestockShipment('shipped', 'delivered'), true);
+    assert.equal(canTransitionRestockShipment('delivered', 'received'), true);
     assert.equal(canTransitionRestockShipment('delivered', 'pending'), false);
   });
 });
@@ -2272,4 +2274,3 @@ describe('O1 frozen refund inventory policy', () => {
     );
   });
 });
-

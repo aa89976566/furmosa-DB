@@ -13,6 +13,8 @@ import {
 import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
+import { confirmRestockReceiptAction } from './actions';
+import { Button } from '@/components/ui/button';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -23,7 +25,7 @@ export default async function PosRestockDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { ok?: string };
+  searchParams?: { ok?: string; received?: string };
 }) {
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
@@ -36,6 +38,27 @@ export default async function PosRestockDetailPage({
   const snapshot = (req.approvedSnapshot as ApprovedSnapshotLine[] | null) ?? null;
   const shortId = req.id.slice(0, 8).toUpperCase();
   const justSubmitted = searchParams?.ok === '1';
+  const justReceived = searchParams?.received === '1';
+  const shipment = req.shipment;
+  const shipmentCopy = shipment
+    ? {
+        pending: { label: 'HQ 已核准，等待備貨', help: 'HQ 正在安排商品與出貨。' },
+        packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
+        shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
+        delivered: { label: '商品已送達，請驗收', help: '確認品項與數量正確後再完成收貨。' },
+        received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
+        cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
+      }[shipment.status]
+    : null;
+  const shipmentTimeline = shipment
+    ? [
+        { label: 'HQ 核准', done: true },
+        { label: '完成備貨', done: Boolean(shipment.packedAt) },
+        { label: '商品出貨', done: Boolean(shipment.shippedAt) },
+        { label: '物流送達', done: Boolean(shipment.deliveredAt) },
+        { label: '店家確認收貨', done: shipment.status === 'received' },
+      ]
+    : [];
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -54,6 +77,13 @@ export default async function PosRestockDetailPage({
           </div>
         ) : null}
 
+        {justReceived ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+            <p className="font-medium">收貨完成</p>
+            <p>商品已加入店家庫存。</p>
+          </div>
+        ) : null}
+
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold text-navy">補貨單</h1>
@@ -65,9 +95,69 @@ export default async function PosRestockDetailPage({
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-            {restockStatusLabelForMerchant(req.status)}
+            {shipmentCopy?.label ?? restockStatusLabelForMerchant(req.status)}
           </span>
         </div>
+
+        {shipmentCopy && shipment ? (
+          <Card className={shipment.status === 'delivered' ? 'border-amber-300 bg-amber-50' : ''}>
+            <CardContent className="space-y-3 p-4">
+              <div>
+                <p className="font-semibold">{shipmentCopy.label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{shipmentCopy.help}</p>
+              </div>
+              <div className="grid gap-2 text-sm sm:grid-cols-2">
+                <p>
+                  <span className="text-muted-foreground">出貨單</span>
+                  <br />
+                  <span className="font-medium">{shipment.shipmentNumber}</span>
+                </p>
+                {shipment.carrier ? (
+                  <p>
+                    <span className="text-muted-foreground">配送方式</span>
+                    <br />
+                    <span className="font-medium">{shipment.carrier}</span>
+                  </p>
+                ) : null}
+                {shipment.trackingNumber ? (
+                  <p>
+                    <span className="text-muted-foreground">追蹤編號</span>
+                    <br />
+                    <span className="font-medium">{shipment.trackingNumber}</span>
+                  </p>
+                ) : null}
+              </div>
+              {shipment.status === 'delivered' ? (
+                <form action={confirmRestockReceiptAction}>
+                  <input type="hidden" name="requestId" value={req.id} />
+                  <Button type="submit" className="min-h-[48px] w-full">
+                    確認品項正確並完成收貨
+                  </Button>
+                </form>
+              ) : null}
+
+              <div className="border-t pt-3">
+                <p className="mb-3 text-sm font-medium">處理進度</p>
+                <ol className="grid gap-2 sm:grid-cols-5">
+                  {shipmentTimeline.map((step) => (
+                    <li key={step.label} className="flex items-center gap-2 text-sm sm:block">
+                      <span
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
+                          step.done
+                            ? 'bg-foreground text-background'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {step.done ? '✓' : '·'}
+                      </span>
+                      <span className="sm:mt-2 sm:block">{step.label}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardContent className="space-y-3 p-4 text-sm">

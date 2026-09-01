@@ -162,6 +162,7 @@ export const RESTOCK_SHIPMENT_STATUSES = [
   'packed',
   'shipped',
   'delivered',
+  'received',
   'cancelled',
 ] as const;
 export type RestockShipmentStatus = (typeof RESTOCK_SHIPMENT_STATUSES)[number];
@@ -385,7 +386,8 @@ export const RESTOCK_SHIPMENT_TRANSITIONS: Record<
   pending: ['packed', 'shipped', 'cancelled'],
   packed: ['shipped', 'cancelled'],
   shipped: ['delivered'],
-  delivered: [],
+  delivered: ['received'],
+  received: [],
   cancelled: [],
 };
 
@@ -744,7 +746,7 @@ export function applyInventoryOp(
 }
 
 export function restockIncreasesStoreOnHand(status: unknown): boolean {
-  return parseRestockShipmentStatus(status) === 'delivered';
+  return parseRestockShipmentStatus(status) === 'received';
 }
 
 export function inventoryEffectOfRefund(): typeof POS_01_REFUND_INVENTORY_POLICY {
@@ -2456,4 +2458,3 @@ export function completeApprovedRefund(input: {
     committedOutcomeSnapshot,
   };
 }
-

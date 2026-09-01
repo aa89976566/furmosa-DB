@@ -8,7 +8,6 @@ import {
   is711Carrier,
   tryResolve711PickupFromForm,
 } from '@/lib/carrier-cvs';
-import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
   buildSubscriptionShipmentUpdate,
@@ -40,7 +39,7 @@ import type { Prisma } from '@prisma/client';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 
 const TRANSITIONS: Record<string, string[]> = {
-  pending: ['shipped', 'cancelled'],
+  pending: ['packed', 'cancelled'],
   packed: ['shipped', 'pending', 'cancelled'],
   shipped: ['delivered', 'pending'],
   delivered: ['shipped', 'pending'],
@@ -183,6 +182,7 @@ async function markShipmentStatusInner(
 
   const now = new Date();
   const data: Prisma.ShipmentUpdateInput = { status: next };
+  if (next === 'packed') data.packedAt = now;
   if (next === 'shipped') data.shippedAt = now;
   if (next === 'delivered') data.deliveredAt = now;
   if (next === 'cancelled') data.cancelledAt = now;
@@ -337,38 +337,6 @@ async function markShipmentStatusInner(
       }
     }
   });
-
-  if (
-    (next === 'shipped' || next === 'delivered') &&
-    shipment.type === 'merchant_restock' &&
-    shipment.merchantId
-  ) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        await applyMerchantRestockFromShipment(
-          tx,
-          {
-            shipmentNumber: shipment.shipmentNumber,
-            merchantId: shipment.merchantId!,
-            items: shipment.items
-              .filter((item) => item.productId && item.quantity > 0)
-              .map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                weightGrams: item.weightGrams,
-              })),
-          },
-          now,
-        );
-      });
-    } catch (inventoryError) {
-      console.error(
-        '[markShipmentStatus] restock inventory failed after status update',
-        shipment.shipmentNumber,
-        inventoryError,
-      );
-    }
-  }
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');

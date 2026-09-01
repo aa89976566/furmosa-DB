@@ -80,7 +80,7 @@ export default async function ShipmentDetailPage({
     ? nextStatuses(shipment.status).filter((status) => status !== 'shipped' && status !== 'delivered')
     : nextStatuses(shipment.status);
   const steps = timelineSteps(shipment);
-  const isFinal = ['delivered', 'cancelled'].includes(shipment.status);
+  const isFinal = ['delivered', 'received', 'cancelled'].includes(shipment.status);
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({
     carrier: shipment.carrier,
     recipientName: shipment.recipientName,

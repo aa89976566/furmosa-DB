@@ -2,7 +2,11 @@
  * 登入首頁待辦卡片。沒有資料的卡片不出現。
  */
 
-export type HomeTaskKind = 'pending_refill' | 'low_stock' | 'restock_progress';
+export type HomeTaskKind =
+  | 'pending_refill'
+  | 'awaiting_restock_receipt'
+  | 'low_stock'
+  | 'restock_progress';
 
 export type HomeTaskCard = {
   kind: HomeTaskKind;
@@ -15,6 +19,8 @@ export type HomeTaskCard = {
 
 export type HomeTasksInput = {
   pendingRefillCount: number;
+  awaitingRestockReceiptCount: number;
+  firstAwaitingRestockReceiptId: string | null;
   /** null = 庫存不可靠，不顯示庫存不足卡 */
   lowStock: { productName: string; quantity: number }[] | null;
   openRestockCount: number;
@@ -27,6 +33,19 @@ export function isInventoryReliable(stockRowCount: number): boolean {
 
 export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
   const cards: HomeTaskCard[] = [];
+
+  if (input.awaitingRestockReceiptCount > 0) {
+    cards.push({
+      kind: 'awaiting_restock_receipt',
+      title: '補貨已送達，請驗收',
+      subtitle: '確認品項與數量正確後，商品才會加入可售庫存',
+      href: input.firstAwaitingRestockReceiptId
+        ? `/pos/restock/${input.firstAwaitingRestockReceiptId}`
+        : '/pos/restock/progress',
+      badge: String(input.awaitingRestockReceiptCount),
+      badgeUnit: '筆',
+    });
+  }
 
   if (input.pendingRefillCount > 0) {
     cards.push({

@@ -9,7 +9,12 @@ import { cn } from '@/lib/utils';
 export const QUEUE_DELIVERED_LABEL = '貨物到達';
 
 const QUEUE_PENDING_OPTIONS = [
-  { value: 'pending', label: '未寄出' },
+  { value: 'pending', label: '未備貨' },
+  { value: 'packed', label: '完成備貨' },
+] as const;
+
+const QUEUE_PACKED_OPTIONS = [
+  { value: 'packed', label: '已備妥' },
   { value: 'shipped', label: '已寄出' },
 ] as const;
 
@@ -27,6 +32,7 @@ const QUEUE_DELIVERED_OPTIONS = [
 function queueSelectValue(status: string) {
   if (status === 'delivered') return 'delivered';
   if (status === 'shipped') return 'shipped';
+  if (status === 'packed') return 'packed';
   return 'pending';
 }
 
@@ -36,6 +42,9 @@ function queueOptionsForStatus(status: string) {
   }
   if (status === 'shipped') {
     return QUEUE_IN_TRANSIT_OPTIONS;
+  }
+  if (status === 'packed') {
+    return QUEUE_PACKED_OPTIONS;
   }
   return QUEUE_PENDING_OPTIONS;
 }
@@ -53,6 +62,8 @@ function statusChipClass(value: string, active: boolean) {
       return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 shadow-sm';
     case 'shipped':
       return 'border-sky-200/80 bg-sky-50 text-sky-800 shadow-sm';
+    case 'packed':
+      return 'border-violet-200/80 bg-violet-50 text-violet-800 shadow-sm';
     case 'pending':
     default:
       return 'border-amber-200/80 bg-amber-50 text-amber-900 shadow-sm';

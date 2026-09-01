@@ -27,6 +27,7 @@ export default async function PosRestockProgressPage() {
       status: true,
       createdAt: true,
       expectedArrivalDate: true,
+      shipment: { select: { status: true, updatedAt: true } },
     },
   });
 
@@ -72,7 +73,19 @@ export default async function PosRestockProgressPage() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                      {restockStatusLabelForMerchant(r.status)}
+                      {r.shipment?.status === 'pending'
+                        ? '等待備貨'
+                        : r.shipment?.status === 'packed'
+                          ? '已備妥'
+                          : r.shipment?.status === 'shipped'
+                            ? '運送中'
+                            : r.shipment?.status === 'delivered'
+                              ? '待確認收貨'
+                              : r.shipment?.status === 'received'
+                                ? '已完成'
+                                : r.shipment?.status === 'cancelled'
+                                  ? '已取消'
+                                  : restockStatusLabelForMerchant(r.status)}
                     </span>
                   </CardContent>
                 </Card>

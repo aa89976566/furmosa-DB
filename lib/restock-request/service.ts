@@ -176,7 +176,19 @@ export async function getRestockRequestForMerchant(
           product: { select: { id: true, name: true, sku: true, unit: true } },
         },
       },
-      shipment: { select: { id: true, shipmentNumber: true, status: true } },
+      shipment: {
+        select: {
+          id: true,
+          shipmentNumber: true,
+          status: true,
+          carrier: true,
+          trackingNumber: true,
+          packedAt: true,
+          shippedAt: true,
+          deliveredAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 }
