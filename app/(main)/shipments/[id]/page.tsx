@@ -77,8 +77,8 @@ export default async function ShipmentDetailPage({
   });
   const paymentReviewHold = fee.paymentReviewHold;
   const allowedNext = paymentReviewHold
-    ? nextStatuses(shipment.status).filter((status) => status !== 'shipped' && status !== 'delivered')
-    : nextStatuses(shipment.status);
+    ? nextStatuses(shipment.status, shipment.type).filter((status) => status !== 'shipped' && status !== 'delivered')
+    : nextStatuses(shipment.status, shipment.type);
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'cancelled'].includes(shipment.status);
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({

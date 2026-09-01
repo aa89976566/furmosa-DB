@@ -1,10 +1,11 @@
-import { requireMerchantSession } from '@/lib/merchant-auth';
-import { PosShell } from '@/components/pos/pos-shell';
 import { QueryBoard } from '@/components/pos/query-board';
+import { RecordsPageFrame } from '@/components/pos/records-page-frame';
 import { loadPosAccount } from '@/lib/pos/account';
 import { loadQueryFeed } from '@/lib/pos/load-query-feed';
+import { requireMerchantSession } from '@/lib/merchant-auth';
+import { QUERY_RECORDS_TITLE } from '@/lib/pos/query-records-view';
 
-export const metadata = { title: '查詢 · Furmosa 店家' };
+export const metadata = { title: `${QUERY_RECORDS_TITLE} · Furmosa 店家` };
 export const dynamic = 'force-dynamic';
 
 export default async function PosRecordsPage() {
@@ -15,11 +16,8 @@ export default async function PosRecordsPage() {
   ]);
 
   return (
-    <PosShell storeName={account.storeName} account={account}>
-      <div className="px-4 py-6 pr-16">
-        <h1 className="mb-4 text-xl font-semibold text-navy">查詢</h1>
-        <QueryBoard items={items} />
-      </div>
-    </PosShell>
+    <RecordsPageFrame account={account}>
+      <QueryBoard items={items} />
+    </RecordsPageFrame>
   );
 }

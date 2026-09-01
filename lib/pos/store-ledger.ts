@@ -315,6 +315,17 @@ export function classifyUnpaidRefill(source: UnpaidRefillSource): LedgerEntry {
   };
 }
 
+export type RewardRedemptionSource = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  couponCode: string | null;
+  discountAmount: number;
+  storeId: string;
+  usedAt: Date;
+  settlementStatus?: SettlementStatus;
+};
+
 export function classifyCouponSubsidy(source: CouponSubsidySource): LedgerEntry {
   const amount = toNtd(source.discountAmount);
   return {
@@ -344,6 +355,33 @@ export function classifyCouponSubsidy(source: CouponSubsidySource): LedgerEntry 
       source.customerName,
       source.customerId,
     ]),
+  };
+}
+
+export function classifyRewardRedemption(source: RewardRedemptionSource): LedgerEntry {
+  const amount = toNtd(source.discountAmount);
+  const couponCode = source.couponCode?.trim() || null;
+  return {
+    id: `reward:${source.id}`,
+    sourceKind: 'reward',
+    sourceId: source.id,
+    transactionType: 'COUPON_SUBSIDY',
+    occurredAt: source.usedAt,
+    amount,
+    paymentCollector: 'NONE',
+    fundDirection: 'FURMOSA_TO_STORE',
+    settlementStatus: source.settlementStatus ?? 'UNSETTLED',
+    relatedOrderId: null,
+    relatedOrderDisplay: couponCode ?? source.id,
+    storeId: source.storeId,
+    customerId: source.customerId,
+    customerName: source.customerName,
+    content: `${source.customerName} 集點兌換`.trim(),
+    remark: '集滿 10 點兌換優惠券，匠寵應補店家',
+    couponId: null,
+    couponCode,
+    jarSerial: null,
+    searchText: buildSearchText([couponCode, source.id, source.customerName, source.customerId]),
   };
 }
 

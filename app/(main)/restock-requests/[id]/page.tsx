@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, PackageCheck } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, formatDateTime } from '@/lib/format';
@@ -10,15 +11,37 @@ import {
   restockRequestTypeLabel,
   restockStatusLabelForHq,
 } from '@/lib/restock-request/constants';
+import {
+  canAccessHqRestockInbox,
+  restockRequestNumber,
+} from '@/lib/restock-request/hq-inbox';
+import {
+  canAddHqRestockCatalogItems,
+  canShowHqRestockReviewForm,
+  hqRestockAllowedActionLabels,
+  hqRestockDetailViewMode,
+  isRestockFinalStatus,
+} from '@/lib/restock-request/review-policy';
 import { HqRestockDetailForm } from './hq-restock-form';
 
 export const metadata = { title: '補貨申請詳情 · Furmosa HQ' };
+export const dynamic = 'force-dynamic';
 
 export default async function HqRestockRequestDetailPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const user = await getCurrentUser();
+  if (
+    !canAccessHqRestockInbox({
+      hasHqSession: Boolean(user),
+      hasMerchantSession: false,
+    })
+  ) {
+    redirect('/login');
+  }
+
   const req = await prisma.restockRequest.findUnique({
     where: { id: params.id },
     include: {
@@ -36,16 +59,22 @@ export default async function HqRestockRequestDetailPage({
         },
       },
       requestedBy: { select: { username: true } },
+      approvedBy: { select: { name: true } },
     },
   });
   if (!req) notFound();
 
   const catalog = await listJarExchangeProductsForRestock();
-  const locked =
-    Boolean(req.shipmentId) ||
-    req.status === 'converted_to_shipment' ||
-    req.status === 'rejected' ||
-    req.status === 'cancelled';
+  const viewMode = hqRestockDetailViewMode(req.status, req.shipmentId);
+  const showForm = canShowHqRestockReviewForm(req.status, req.shipmentId);
+  const completed = isRestockFinalStatus(req.status, req.shipmentId);
+  const allowedActions = hqRestockAllowedActionLabels(req.status, req.shipmentId);
+  const itemRows = req.items.map((it) => ({
+    productId: it.productId,
+    productName: it.product.name,
+    requestedQuantity: it.requestedQuantity,
+    approvedQuantity: it.approvedQuantity ?? it.requestedQuantity ?? 0,
+  }));
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
@@ -61,19 +90,41 @@ export default async function HqRestockRequestDetailPage({
             <h1 className="text-2xl font-semibold text-navy md:text-3xl">
               {req.merchant.name}
             </h1>
-            <Badge variant={req.status === 'converted_to_shipment' ? 'success' : 'secondary'}>
+            <Badge
+              variant={
+                req.status === 'converted_to_shipment' ? 'success' : 'secondary'
+              }
+            >
               {restockStatusLabelForHq(req.status)}
             </Badge>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            申請編號 {req.id.slice(0, 8).toUpperCase()} ·{' '}
-            {restockRequestTypeLabel(req.requestType)} · 店家帳號{' '}
-            {req.requestedBy.username}
+            申請編號 {restockRequestNumber(req.id)} ·{' '}
+            {restockRequestTypeLabel(req.requestType)}
           </p>
+          <p className="text-sm text-muted-foreground">
+            店家編號 {req.merchant.merchantId}
+            {req.requestedBy.username ? ` · 送出帳號 ${req.requestedBy.username}` : ''}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            送出 {req.createdAt.toLocaleString('zh-TW')} · 更新{' '}
+            {req.updatedAt.toLocaleString('zh-TW')}
+          </p>
+          {req.approvedAt ? (
+            <p className="text-sm text-muted-foreground">
+              核准 {req.approvedAt.toLocaleString('zh-TW')}
+              {req.approvedBy?.name ? ` · ${req.approvedBy.name}` : ''}
+            </p>
+          ) : null}
+          {req.rejectedAt ? (
+            <p className="text-sm text-muted-foreground">
+              拒絕 {req.rejectedAt.toLocaleString('zh-TW')}
+            </p>
+          ) : null}
         </div>
       </div>
 
-      {locked ? (
+      {completed ? (
         <CompletedRestockRequest request={req} />
       ) : (
         <>
@@ -84,23 +135,65 @@ export default async function HqRestockRequestDetailPage({
             </div>
           ) : null}
 
-          <HqRestockDetailForm
-            requestId={req.id}
-            locked={false}
-            hqNote={req.hqNote ?? ''}
-            expectedArrivalDate={
-              req.expectedArrivalDate
-                ? req.expectedArrivalDate.toISOString().slice(0, 10)
-                : ''
-            }
-            items={req.items.map((it) => ({
-              productId: it.productId,
-              productName: it.product.name,
-              requestedQuantity: it.requestedQuantity,
-              approvedQuantity: it.approvedQuantity ?? it.requestedQuantity ?? 0,
-            }))}
-            catalog={catalog.map((p) => ({ id: p.id, name: p.name }))}
-          />
+          {req.hqNote ? (
+            <div className="rounded-xl border bg-card p-4 text-sm">
+              <p className="text-muted-foreground">審核備註</p>
+              <p className="mt-1 whitespace-pre-wrap">{req.hqNote}</p>
+            </div>
+          ) : null}
+
+          <div className="rounded-xl border bg-card p-4 text-sm">
+            <p className="mb-2 font-medium">目前可進行的操作</p>
+            {allowedActions.length > 0 ? (
+              <p>{allowedActions.join('、')}</p>
+            ) : (
+              <p className="text-muted-foreground">這張申請已結束，只能查看結果。</p>
+            )}
+          </div>
+
+          {showForm ? (
+            <HqRestockDetailForm
+              key={`${req.id}-${req.updatedAt.toISOString()}`}
+              requestId={req.id}
+              detailHref={`/restock-requests/${req.id}`}
+              viewMode={viewMode === 'result' ? 'review' : viewMode}
+              allowCatalogAdds={canAddHqRestockCatalogItems(
+                req.status,
+                req.items.length,
+                req.shipmentId,
+              )}
+              hqNote={req.hqNote ?? ''}
+              expectedArrivalDate={
+                req.expectedArrivalDate
+                  ? req.expectedArrivalDate.toISOString().slice(0, 10)
+                  : ''
+              }
+              items={itemRows}
+              catalog={catalog.map((p) => ({ id: p.id, name: p.name }))}
+            />
+          ) : (
+            <div className="space-y-3 rounded-xl border bg-card p-4">
+              <p className="text-sm font-medium">申請結果</p>
+              {itemRows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">沒有品項</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {itemRows.map((item) => (
+                    <li
+                      key={item.productId}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2"
+                    >
+                      <span className="font-medium">{item.productName}</span>
+                      <span className="text-muted-foreground">
+                        申請 {item.requestedQuantity ?? '—'} · 核准{' '}
+                        {item.approvedQuantity}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -164,11 +257,17 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
-              {converted ? <PackageCheck className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+              {converted ? (
+                <PackageCheck className="h-5 w-5" />
+              ) : (
+                <Check className="h-5 w-5" />
+              )}
             </div>
             <div>
               <h2 className="text-lg font-semibold">
-                {converted ? '補貨申請已核准' : restockStatusLabelForHq(request.status)}
+                {converted
+                  ? '補貨申請已核准'
+                  : restockStatusLabelForHq(request.status)}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {converted
@@ -239,7 +338,11 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
             <dl className="mt-4 space-y-3 text-sm">
               <DetailRow
                 label="預計到貨"
-                value={request.expectedArrivalDate ? formatDate(request.expectedArrivalDate) : '未設定'}
+                value={
+                  request.expectedArrivalDate
+                    ? formatDate(request.expectedArrivalDate)
+                    : '未設定'
+                }
               />
               <DetailRow label="店家備註" value={request.merchantNote || '未填寫'} />
               <DetailRow label="公司備註" value={request.hqNote || '未填寫'} />
@@ -252,8 +355,18 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
               {timeline.map((step, index) => (
                 <li key={step.label} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full ${step.at ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}>
-                      {step.at ? <Check className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                        step.at
+                          ? 'bg-foreground text-background'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {step.at ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Clock3 className="h-3.5 w-3.5" />
+                      )}
                     </div>
                     {index < timeline.length - 1 ? (
                       <div className="mt-1 h-full min-h-4 w-px bg-border" />

@@ -1,4 +1,4 @@
-import { PosBottomNav, PosSideRail } from '@/components/pos/bottom-nav';
+import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { PosAccountMenu } from '@/components/pos/account-menu';
 import type { PosAccount } from '@/lib/pos/account';
 
@@ -13,32 +13,34 @@ export function PosShell({
   account?: PosAccount | null;
   wide?: boolean;
 }) {
+  const displayStore = storeName ?? account?.storeName;
+
   return (
-    <div className="min-h-screen bg-canvas text-foreground">
-      <div
-        className={
-          wide
-            ? 'md:grid md:h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:overflow-hidden md:p-3'
-            : 'md:grid md:min-h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:p-3'
-        }
-      >
-        <PosSideRail storeName={storeName ?? account?.storeName} />
-        <div
-          className={
-            wide
-              ? 'relative min-h-screen pb-24 md:h-full md:min-h-0 md:overflow-hidden md:pb-0'
-              : 'relative mx-auto min-h-screen w-full max-w-lg pb-24 md:mx-0 md:max-w-3xl md:pb-6'
-          }
-        >
-          {account ? (
-            <div className="absolute right-3 top-3 z-30 md:right-4 md:top-4">
-              <PosAccountMenu account={account} />
+    <div className="min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
+      <div className="md:flex md:h-full">
+        <InventorySideNav account={account} storeName={displayStore} />
+        <div className="relative flex min-h-screen min-w-0 flex-1 flex-col md:h-full md:min-h-0 md:overflow-hidden">
+          <div className="flex min-h-14 items-center justify-between gap-3 border-b border-neutral-200 bg-white px-4 py-2 md:hidden">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-zinc-900">匠寵店家</p>
+              {displayStore ? (
+                <p className="truncate text-sm text-zinc-500">{displayStore}</p>
+              ) : null}
             </div>
-          ) : null}
-          {children}
+            {account ? <PosAccountMenu account={account} variant="header" /> : null}
+          </div>
+          <div
+            className={
+              wide
+                ? 'flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 md:pb-0'
+                : 'mx-auto min-h-0 w-full max-w-3xl flex-1 overflow-y-auto pb-24 md:pb-6'
+            }
+          >
+            {children}
+          </div>
         </div>
       </div>
-      <PosBottomNav />
+      <InventoryBottomNav />
     </div>
   );
 }

@@ -8,7 +8,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { cn } from '@/lib/utils';
 
-export function MobileNav({ reviewBadge }: { reviewBadge?: ReactNode }) {
+export function MobileNav({
+  badges = {},
+  itemExtras,
+}: {
+  badges?: Record<string, number>;
+  itemExtras?: Partial<Record<string, ReactNode>>;
+}) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -70,7 +76,7 @@ export function MobileNav({ reviewBadge }: { reviewBadge?: ReactNode }) {
         <ScrollArea className="min-h-0 flex-1 px-3 py-4">
           <div onClick={() => setOpen(false)}>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
-              <SidebarNav itemExtras={{ '/reviews': reviewBadge }} />
+              <SidebarNav badges={badges} itemExtras={itemExtras} />
             </Suspense>
           </div>
         </ScrollArea>

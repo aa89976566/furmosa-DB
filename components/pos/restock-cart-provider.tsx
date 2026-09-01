@@ -82,3 +82,8 @@ export function useRestockCart() {
   if (!ctx) throw new Error('useRestockCart must be inside RestockCartProvider');
   return ctx;
 }
+
+/** 導航列可選用；沒有補貨車時顯示 0，不強迫每頁都包 Provider。 */
+export function useOptionalRestockCartItemCount(): number {
+  return useContext(RestockCartContext)?.itemCount ?? 0;
+}

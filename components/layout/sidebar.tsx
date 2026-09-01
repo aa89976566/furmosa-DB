@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { HqSidebarNav } from "@/components/layout/hq-sidebar-nav";
 import { ReviewInboxBadge } from "@/components/reviews/review-inbox-badge";
 import { PawPrint } from "lucide-react";
 
@@ -24,7 +24,9 @@ export function Sidebar() {
             <div className="h-40 animate-pulse rounded-xl bg-muted/50" />
           }
         >
-          <SidebarNav itemExtras={{ "/reviews": <ReviewInboxBadge /> }} />
+          <HqSidebarNav
+            itemExtras={{ "/reviews": <ReviewInboxBadge /> }}
+          />
         </Suspense>
       </ScrollArea>
       <div className="border-t border-border/70 px-5 py-4 text-[11px] text-muted-foreground">

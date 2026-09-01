@@ -8,7 +8,7 @@ import {
   is711Carrier,
   tryResolve711PickupFromForm,
 } from '@/lib/carrier-cvs';
-import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
+import { applyMerchantRestockInventoryForStatusChange } from '@/lib/merchant-restock-inventory';
 import { buildOrderUpdateFromShipmentStatus } from '@/lib/shipment-order-sync';
 import {
   buildSubscriptionShipmentUpdate,
@@ -38,14 +38,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
-
-const TRANSITIONS: Record<string, string[]> = {
-  pending: ['shipped', 'cancelled'],
-  packed: ['shipped', 'pending', 'cancelled'],
-  shipped: ['delivered', 'pending'],
-  delivered: ['shipped', 'pending'],
-  cancelled: [],
-};
+import { decideShipmentStatusChange } from '@/lib/shipment-status-policy';
 
 export type MarkShipmentStatusResult =
   | { ok: true; next: string; shipmentId: string }
@@ -153,9 +146,13 @@ async function markShipmentStatusInner(
     throw new Error('OMS 訂單尚未完成專用審核與物流流程，不可使用舊出貨操作');
   }
 
-  const allowed = TRANSITIONS[shipment.status] ?? [];
-  if (!allowed.includes(next)) {
-    throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
+  const decision = decideShipmentStatusChange({
+    type: shipment.type,
+    status: shipment.status,
+    next,
+  });
+  if (decision.kind === 'noop') {
+    return { next: shipment.status, shipmentId };
   }
   if (
     next === 'shipped' &&
@@ -284,7 +281,7 @@ async function markShipmentStatusInner(
       : `[${next}] ${note}`;
   }
 
-  // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
+  // 狀態與寄賣入庫同一 transaction：delivered 入庫失敗則整筆回滾，避免半套。
   await prisma.$transaction(async (tx) => {
     if (shipment.orderId) await guardLegacyOrderTx(tx, shipment.orderId);
     await tx.shipment.update({ where: { id: shipmentId }, data });
@@ -336,39 +333,25 @@ async function markShipmentStatusInner(
         await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
       }
     }
-  });
 
-  if (
-    (next === 'shipped' || next === 'delivered') &&
-    shipment.type === 'merchant_restock' &&
-    shipment.merchantId
-  ) {
-    try {
-      await prisma.$transaction(async (tx) => {
-        await applyMerchantRestockFromShipment(
-          tx,
-          {
-            shipmentNumber: shipment.shipmentNumber,
-            merchantId: shipment.merchantId!,
-            items: shipment.items
-              .filter((item) => item.productId && item.quantity > 0)
-              .map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                weightGrams: item.weightGrams,
-              })),
-          },
-          now,
-        );
-      });
-    } catch (inventoryError) {
-      console.error(
-        '[markShipmentStatus] restock inventory failed after status update',
-        shipment.shipmentNumber,
-        inventoryError,
-      );
-    }
-  }
+    await applyMerchantRestockInventoryForStatusChange(
+      tx,
+      {
+        nextStatus: next,
+        shipmentType: shipment.type,
+        shipmentNumber: shipment.shipmentNumber,
+        merchantId: shipment.merchantId,
+        items: shipment.items
+          .filter((item) => item.productId && item.quantity > 0)
+          .map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            weightGrams: item.weightGrams,
+          })),
+      },
+      now,
+    );
+  });
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');

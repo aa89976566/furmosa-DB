@@ -11,6 +11,7 @@ import {
   submitAutoReplenishRestockRequest,
   submitSelfSelectRestockRequest,
 } from '@/lib/restock-request/service';
+import { revalidateHqRestockInbox } from '@/lib/restock-request/hq-inbox-cache';
 
 export type PosRestockFormState = {
   error?: string;
@@ -65,6 +66,7 @@ export async function submitSelfSelectRestockAction(
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
+    revalidateHqRestockInbox();
     redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
@@ -92,6 +94,7 @@ export async function submitAutoReplenishRestockAction(
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
+    revalidateHqRestockInbox();
     redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;

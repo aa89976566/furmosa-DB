@@ -1,19 +1,16 @@
-import Link from 'next/link';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 import { PosShell } from '@/components/pos/pos-shell';
 import { HomeTaskCardLink } from '@/components/pos/home-task-card';
+import { HomeActionCard } from '@/components/pos/home-action-card';
 import { loadHomeTasks } from '@/lib/pos/load-today-dashboard';
 import { loadPosAccount } from '@/lib/pos/account';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
-import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { storeHeading } from '@/lib/pos/store-display';
+import { POS_HOME_ACTIONS } from '@/lib/pos/pos-nav';
 
 export const metadata = {
-  title: '店家 · Furmosa',
+  title: '首頁 · Furmosa 店家',
 };
 
 export const dynamic = 'force-dynamic';
@@ -22,12 +19,14 @@ export const runtime = 'nodejs';
 function HomeFallback({ message }: { message: string }) {
   return (
     <PosShell>
-      <div className="space-y-4 px-4 py-10">
-        <h1 className="text-lg font-semibold text-navy">首頁暫時無法載入</h1>
-        <p className="text-sm text-muted-foreground">{message}</p>
-        <Button asChild className="min-h-[48px] w-full">
-          <Link href="/pos/settle">去結帳</Link>
-        </Button>
+      <div className="space-y-4 px-4 py-8">
+        <h1 className="text-2xl font-semibold text-zinc-900">首頁暫時無法載入</h1>
+        <p className="text-base text-zinc-600">{message}</p>
+        <div className="grid gap-3">
+          {POS_HOME_ACTIONS.map((action) => (
+            <HomeActionCard key={action.navId} action={action} />
+          ))}
+        </div>
       </div>
     </PosShell>
   );
@@ -44,7 +43,7 @@ export default async function PosHomePage() {
       });
     } catch (err) {
       console.error('[pos] home merchant lookup', err);
-      return <HomeFallback message="資料暫時載不進來。" />;
+      return <HomeFallback message="資料暫時載不進來，請稍後再試。" />;
     }
 
     if (!merchant || merchant.id !== session.merchantId) {
@@ -55,54 +54,61 @@ export default async function PosHomePage() {
       loadPosAccount(session.merchantId, session.username),
       loadHomeTasks(session.merchantId),
     ]);
+    const heading = storeHeading({ name: merchant.name, city: merchant.city });
+
     return (
-      <RestockCartProvider>
-        <div className="min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
-          <div className="md:flex md:h-full">
-            <InventorySideNav account={account} />
+      <PosShell storeName={merchant.name} account={account}>
+        <div className="px-4 py-6 md:px-6">
+          <header className="mb-6">
+            <p className="text-sm font-medium text-zinc-500">首頁</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">
+              {heading.combined}
+            </h1>
+            {heading.branchLine ? (
+              <p className="mt-1 text-base text-zinc-500">{heading.brandLine}</p>
+            ) : null}
+            <p className="mt-2 text-lg text-zinc-600">今天要處理什麼？</p>
+          </header>
 
-            <main className="min-w-0 flex-1 md:h-full md:overflow-y-auto">
-              <header className="flex items-center justify-between px-4 pb-3 pt-5 md:px-6">
-                <div>
-                  <h1 className="text-2xl font-semibold">首頁</h1>
-                  <p className="mt-1 text-sm text-zinc-500">今天需要處理的工作</p>
-                </div>
-                <div className="md:hidden">
-                  <PosAccountMenu account={account} />
-                </div>
-              </header>
+          {tasks.warning ? (
+            <div
+              role="status"
+              className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-base text-zinc-900"
+            >
+              <p className="font-medium">部分資料暫時讀不到</p>
+              <p className="mt-1 text-zinc-700">{tasks.warning}</p>
+            </div>
+          ) : null}
 
-              <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-2 md:mx-0 md:px-6 md:pb-8">
-                {tasks.warning ? (
-                  <Card className="mb-3 border-amber-200 bg-amber-50 shadow-sm">
-                    <CardContent className="p-4 text-sm text-amber-950">{tasks.warning}</CardContent>
-                  </Card>
-                ) : null}
-
-                {tasks.cards.length === 0 && !tasks.warning ? (
-                  <Card className="border-neutral-200 bg-white shadow-sm">
-                    <CardContent className="space-y-2 p-5">
-                      <p className="font-medium text-zinc-900">目前沒有要處理的事。</p>
-                      <p className="text-sm text-zinc-500">需要時使用庫存、換罐、查詢或結帳即可。</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-3">
-                    {tasks.cards.map((card) => (
-                      <HomeTaskCardLink key={`${card.kind}-${card.href}`} card={card} />
-                    ))}
-                  </div>
-                )}
+          {tasks.cards.length > 0 ? (
+            <section className="mb-8" aria-labelledby="home-notices">
+              <h2 id="home-notices" className="mb-3 text-base font-semibold text-zinc-900">
+                需要注意
+              </h2>
+              <div className="grid gap-3">
+                {tasks.cards.map((card) => (
+                  <HomeTaskCardLink key={`${card.kind}-${card.href}`} card={card} />
+                ))}
               </div>
-            </main>
-          </div>
-          <InventoryBottomNav />
+            </section>
+          ) : null}
+
+          <section aria-labelledby="home-actions">
+            <h2 id="home-actions" className="mb-3 text-base font-semibold text-zinc-900">
+              開始工作
+            </h2>
+            <div className="grid gap-3">
+              {POS_HOME_ACTIONS.map((action) => (
+                <HomeActionCard key={action.navId} action={action} />
+              ))}
+            </div>
+          </section>
         </div>
-      </RestockCartProvider>
+      </PosShell>
     );
   } catch (err) {
     if (isNextRedirect(err)) throw err;
     console.error('[pos] home render', err);
-    return <HomeFallback message="伺服器渲染時發生錯誤。" />;
+    return <HomeFallback message="頁面暫時無法顯示，請稍後再試。" />;
   }
 }

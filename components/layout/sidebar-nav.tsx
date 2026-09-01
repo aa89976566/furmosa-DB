@@ -13,6 +13,7 @@ const HOT_PREFETCH = new Set([
   '/dashboard',
   '/orders',
   '/reviews',
+  '/restock-requests',
   '/shipments',
   '/merchants',
   '/customers',
@@ -20,8 +21,10 @@ const HOT_PREFETCH = new Set([
 ]);
 
 export function SidebarNav({
+  badges = {},
   itemExtras,
 }: {
+  badges?: Record<string, number>;
   itemExtras?: Partial<Record<string, ReactNode>>;
 }) {
   const pathname = usePathname();
@@ -64,6 +67,14 @@ export function SidebarNav({
                       )}
                     />
                     <span className="flex-1">{item.label}</span>
+                    {(badges[item.href] ?? 0) > 0 ? (
+                      <span
+                        className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary-foreground"
+                        aria-label={`${badges[item.href]} 筆待處理`}
+                      >
+                        {badges[item.href]}
+                      </span>
+                    ) : null}
                     {itemExtras?.[item.href]}
                   </Link>
                 );

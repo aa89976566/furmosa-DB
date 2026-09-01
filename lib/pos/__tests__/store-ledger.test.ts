@@ -5,6 +5,7 @@ import {
   classifyCouponSubsidy,
   classifyPaymentOrder,
   classifyRestockCost,
+  classifyRewardRedemption,
   classifyUnpaidRefill,
   filterLedgerEntries,
   fundDirectionLabel,
@@ -131,6 +132,24 @@ describe('store ledger classification', () => {
     assert.equal(view.typeLabel, '優惠券補貼');
     assert.equal(view.amountLabel, '+NT$200');
     assert.equal(view.fundDirectionLabel, '匠寵應付店家');
+  });
+
+  it('keeps reward redemption as reward source kind, not coupon', () => {
+    const entry = classifyRewardRedemption({
+      id: 'rwd-row-1',
+      customerId: 'cust-wang',
+      customerName: '王小姐',
+      couponCode: 'RWD-200',
+      discountAmount: 200,
+      storeId: STORE,
+      usedAt: at('2024-05-19T15:00:00'),
+    });
+    assert.equal(entry.sourceKind, 'reward');
+    assert.equal(entry.sourceId, 'rwd-row-1');
+    assert.notEqual(entry.sourceKind, 'coupon');
+    assert.notEqual(entry.sourceId, 'RWD-200');
+    assert.equal(entry.fundDirection, 'FURMOSA_TO_STORE');
+    assert.equal(summarizeStoreLedger([entry]).furmosaOwesStore, 200);
   });
 
   it('puts restock NT$3,450 into store payables', () => {
