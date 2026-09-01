@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ClipboardList, House, Recycle, Wallet, Warehouse } from "lucide-react";
 import { posLogoutAction } from "@/app/pos/actions";
-import { POS_NAV, activePosNavId, type PosNavId } from "@/lib/pos/pos-nav";
+import { POS_NAV, activePosNavId, type PosNavId } from '@/lib/pos/pos-nav';
 import type { PosAccount } from "@/lib/pos/account";
 import { storeHeading } from "@/lib/pos/store-display";
 import { PosAccountMenu } from "@/components/pos/account-menu";
