@@ -66,5 +66,9 @@ test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
     assert.match(ordersPageSource, new RegExp(label));
   }
   assert.equal(ordersPageSource.includes('有問題'), false);
-  assert.match(ordersPageSource, /每筆訂單只會出現在一個階段/);
+  for (const removed of ['今天需要處理', 'OMS 篩選只包含', '點選卡片即可', '種類']) {
+    assert.equal(ordersPageSource.includes(removed), false);
+  }
+  assert.match(ordersPageSource, /來源：/);
+  assert.match(ordersPageSource, /同步與管理/);
 });

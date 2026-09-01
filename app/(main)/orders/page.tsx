@@ -13,7 +13,7 @@ import {
   totalPages,
 } from '@/lib/list-pagination';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { ORDER_WORK_FILTERS, orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
+import { orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
@@ -27,9 +27,9 @@ export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 animate-pulse rounded-md bg-muted/40" />
+    <div className="flex gap-2 overflow-hidden">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-10 w-28 shrink-0 animate-pulse rounded-xl bg-muted/40" />
       ))}
     </div>
   );
@@ -46,31 +46,32 @@ function activeWorkFilter(searchParams: SearchParams) {
 }
 
 async function OrdersWorkSummary({ active }: { active: string }) {
-  const [summary] = await prisma.$queryRaw<Array<{ now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint }>>`
+  const [summary] = await prisma.$queryRaw<Array<{ all_orders: bigint; now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint }>>`
     SELECT
+      COUNT(*) AS all_orders,
       COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" IN ('paid', 'cod')) AS now,
       COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" NOT IN ('paid', 'cod')) AS waiting,
       COUNT(*) FILTER (WHERE oms_status = 'READY') AS ready,
       COUNT(*) FILTER (WHERE oms_status = 'FULFILLMENT_PENDING') AS shipping,
       COUNT(*) FILTER (WHERE oms_status = 'FULFILLED') AS done
     FROM "Order"
-    WHERE deleted_at IS NULL AND oms_status IS NOT NULL
+    WHERE deleted_at IS NULL
   `;
   const cards = [
+    { key: 'all', label: '全部', count: Number(summary?.all_orders ?? 0) },
     { key: 'now', label: '待確認', count: Number(summary?.now ?? 0), help: '核對訂單內容' },
     { key: 'waiting', label: '等待中', count: Number(summary?.waiting ?? 0), help: '等待付款或回覆' },
     { key: 'ready', label: '可出貨', count: Number(summary?.ready ?? 0), help: '建立物流單' },
     { key: 'shipping', label: '待交寄', count: Number(summary?.shipping ?? 0), help: '物流單已建立' },
+    { key: 'done', label: '已完成', count: Number(summary?.done ?? 0) },
   ];
-  return <section aria-labelledby="work-summary-title" className="space-y-3">
-    <div><h2 id="work-summary-title" className="text-lg font-semibold">訂單工作</h2><p className="text-sm text-muted-foreground">每筆訂單只會出現在一個階段。</p></div>
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} className={`rounded-xl border px-4 py-3 transition ${active === card.key ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'bg-card hover:border-primary/30'}`}>
-        <div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{card.label}</p><p className="text-xl font-semibold tabular-nums">{card.count}</p></div>
-        <p className="mt-1 text-xs text-muted-foreground">{card.help}</p>
+  return <nav aria-label="訂單工作階段" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <div className="flex min-w-max gap-2">
+      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
+        <span>{card.label}</span><span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
       </Link>)}
     </div>
-  </section>;
+  </nav>;
 }
 
 async function OrdersTableSection({
@@ -120,7 +121,7 @@ async function OrdersTableSection({
   const orders = await prisma.order.findMany({
       where,
       include: ORDER_LIST_INCLUDE,
-      orderBy: [{ orderedAt: 'desc' }, { id: 'desc' }],
+      orderBy: activeWork === 'all' || activeWork === 'done' ? [{ orderedAt: 'desc' }, { id: 'desc' }] : [{ orderedAt: 'asc' }, { id: 'asc' }],
       skip: (safePage - 1) * pageSize,
       take: pageSize,
     });
@@ -176,8 +177,7 @@ export default function OrdersPage({
     <>
       <PageHeader
         tone="orders"
-        title="訂單工作"
-        description="從現在要做的事情開始；付款等待、物流與完成訂單分開整理。"
+        title="訂單"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">
@@ -190,41 +190,24 @@ export default function OrdersPage({
 
       <div className="space-y-4 p-4 sm:p-6">
         <Suspense fallback={<OrdersTotalsFallback />}><OrdersWorkSummary active={activeWork} /></Suspense>
-        <details className="rounded-lg border bg-muted/10 p-3">
-          <summary className="cursor-pointer text-sm font-medium">同步與管理工具</summary>
-          <div className="mt-3 space-y-3 border-t pt-3">
-            <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
-            <div className="flex flex-wrap gap-3 text-sm"><Link className="text-info hover:underline" href="/orders?deleted=true">已移出處理清單（可還原）</Link>{searchParams.deleted === 'true' && <><span>目前顯示已移出的訂單</span><Link className="underline" href="/orders">返回一般清單</Link></>}</div>
-          </div>
-        </details>
-        <nav aria-label="其他訂單範圍" className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">查看</span>
-          {ORDER_WORK_FILTERS.slice(4).map(filter => <Button key={filter.key} size="sm" variant={activeWork === filter.key ? 'default' : 'outline'} asChild>
-            <Link href={workbenchHref(searchParams, { work: filter.key, oms: undefined, status: undefined, deleted: undefined })}>{filter.label}</Link>
-          </Button>)}
-          <Button size="sm" variant={activeWork === 'all' ? 'default' : 'outline'} asChild><Link href="/orders?work=all">所有訂單</Link></Button>
-        </nav>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">種類</span>
-          {ORDER_SOURCE_TABS.map((s) => {
-            const active =
-              (searchParams.source ?? '') === s.key ||
-              (s.key === 'consignment' && searchParams.source === 'restock');
-            const href = workbenchHref(searchParams, { source: s.key });
-            return (
-              <Button
-                key={s.key || 'all'}
-                variant={active ? 'default' : 'outline'}
-                size="sm"
-                asChild
-              >
-                <Link href={href} prefetch={false}>
-                  {s.label}
-                </Link>
-              </Button>
-            );
-          })}
+        <div className="flex flex-wrap items-start justify-between gap-2 border-y py-3">
+          <details className="relative">
+            <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-lg border bg-card px-3 text-sm font-medium">
+              來源：{ORDER_SOURCE_TABS.find((item) => item.key === (searchParams.source ?? ''))?.label ?? '全部'}
+            </summary>
+            <div className="absolute left-0 top-11 z-30 min-w-36 space-y-1 rounded-xl border bg-card p-2 shadow-lg">
+              {ORDER_SOURCE_TABS.map((source) => <Link key={source.key || 'all'} href={workbenchHref(searchParams, { source: source.key, page: undefined })} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">{source.label}</Link>)}
+            </div>
+          </details>
+          <details className="relative ml-auto">
+            <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-lg border bg-card px-3 text-sm font-medium">同步與管理</summary>
+            <div className="absolute right-0 top-11 z-30 w-[min(90vw,28rem)] space-y-3 rounded-xl border bg-card p-4 shadow-lg">
+              <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+              <Link className="block text-sm text-info hover:underline" href="/orders?deleted=true">查看已移出的訂單</Link>
+            </div>
+          </details>
         </div>
+        {searchParams.deleted === 'true' ? <p className="text-sm">目前顯示已移出的訂單 · <Link className="underline" href="/orders">返回一般清單</Link></p> : null}
 
         <Suspense
           key={JSON.stringify(searchParams)}
