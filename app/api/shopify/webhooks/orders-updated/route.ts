@@ -1,5 +1,7 @@
-import { orderWebhook } from '@/lib/shopify/webhook-runtime';
+import { handleShopifyWebhookRoute } from '@/lib/shopify/webhook-http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const POST = orderWebhook('orders/updated');
+export async function POST(request: Request) {
+  return handleShopifyWebhookRoute(request, 'orders/updated');
+}
