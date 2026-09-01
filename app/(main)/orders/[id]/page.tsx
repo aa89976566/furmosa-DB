@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
@@ -40,7 +41,6 @@ import {
   StickyNote,
   Truck,
   CreditCard,
-  Clock,
   Package,
   ClipboardList,
   CheckCircle2,
@@ -137,6 +137,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
         {!order.deletedAt && <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />}
         {order.omsStatus && <div className="ml-auto max-w-sm"><OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} /></div>}
+        <SecondaryInformation compact={Boolean(order.omsStatus)}>
         <HorizontalSectionBand>
           <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
             <DetailBadgeRow className="mb-3">
@@ -397,6 +398,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             )}
           </HorizontalSectionPane>
         </HorizontalSectionBand>
+        </SecondaryInformation>
 
         <SectionCard
           tone="orders"
@@ -560,13 +562,9 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </div>
         </SectionCard>
 
-        <SectionCard
-          tone="operations"
-          icon={Clock}
-          title="活動紀錄"
-          description="訂單流程時間軸"
-        >
-          <ol className="relative ml-3 space-y-4 border-l pl-6">
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="cursor-pointer font-medium">活動紀錄與訂單時間軸</summary>
+          <ol className="relative ml-3 mt-4 space-y-4 border-l pl-6">
             <TimelineItem
               time={order.orderedAt}
               title="訂單建立"
@@ -594,10 +592,19 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               <TimelineItem time={order.completedAt} title="訂單完成" description="交易完成" />
             ) : null}
           </ol>
-        </SectionCard>
+        </details>
       </div>
     </>
   );
+}
+
+function SecondaryInformation({ compact, children }: { compact: boolean; children: ReactNode }) {
+  if (!compact) return <>{children}</>;
+  return <details className="rounded-xl border bg-muted/10 p-4">
+    <summary className="cursor-pointer font-medium">訂單、物流與付款摘要</summary>
+    <p className="mt-2 text-xs text-muted-foreground">主要審核完成後，需要核對明細時再展開。</p>
+    <div className="mt-4">{children}</div>
+  </details>;
 }
 
 function toggleButtonClass(selected: boolean, fullWidth = false, destructive = false) {
