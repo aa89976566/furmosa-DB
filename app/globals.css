@@ -78,7 +78,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
   }
 }
 
@@ -93,14 +95,19 @@
     color: hsl(var(--navy));
   }
   .shadow-card {
-    box-shadow:
-      0 1px 2px hsl(0 0% 0% / 0.04),
-      0 8px 24px hsl(0 0% 0% / 0.06);
+    box-shadow: 4px 4px 0 hsl(var(--foreground));
   }
   .shadow-card-hover {
-    box-shadow:
-      0 2px 4px hsl(0 0% 0% / 0.05),
-      0 12px 32px hsl(0 0% 0% / 0.08);
+    box-shadow: 6px 6px 0 hsl(var(--foreground));
+  }
+
+  @media (min-width: 768px) {
+    .shadow-card {
+      box-shadow: 8px 8px 0 hsl(var(--foreground));
+    }
+    .shadow-card-hover {
+      box-shadow: 10px 10px 0 hsl(var(--foreground));
+    }
   }
 }
 
@@ -115,4 +122,22 @@
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/50;
+}
+
+/* Design-system guardrails for legacy screens. */
+[class*="bg-gradient-"] {
+  background-image: none !important;
+}
+
+[class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.shadow-sm,
+.shadow-md,
+.shadow-lg,
+.shadow-xl,
+.shadow-2xl {
+  box-shadow: none !important;
 }

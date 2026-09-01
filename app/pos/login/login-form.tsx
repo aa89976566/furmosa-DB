@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useFormState, useFormStatus } from 'react-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
-import { posLoginAction, type PosLoginState } from './actions';
+import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { posLoginAction, type PosLoginState } from "./actions";
 
 const initialState: PosLoginState = {};
 
@@ -13,9 +13,9 @@ export function PosLoginForm({ next }: { next?: string }) {
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-5 sm:p-7">
         <form action={formAction} className="space-y-4">
-          <input type="hidden" name="next" value={next ?? ''} />
+          <input type="hidden" name="next" value={next ?? ""} />
           <div className="space-y-1.5">
             <label htmlFor="username" className="text-sm font-medium">
               帳號
@@ -25,7 +25,7 @@ export function PosLoginForm({ next }: { next?: string }) {
               name="username"
               type="text"
               autoComplete="username"
-              defaultValue={state.values?.username ?? ''}
+              defaultValue={state.values?.username ?? ""}
               required
               className="h-11"
             />
@@ -44,7 +44,7 @@ export function PosLoginForm({ next }: { next?: string }) {
             />
           </div>
           {state.error ? (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="border-l-4 border-foreground bg-muted px-3 py-3 text-sm text-foreground">
               {state.error}
             </p>
           ) : null}
@@ -58,8 +58,12 @@ export function PosLoginForm({ next }: { next?: string }) {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" className="h-11 w-full min-h-[44px]" disabled={pending}>
-      {pending ? '登入中…' : '登入'}
+    <Button
+      type="submit"
+      className="min-h-[48px] w-full rounded-xl"
+      disabled={pending}
+    >
+      {pending ? "登入中…" : "登入"}
     </Button>
   );
 }
