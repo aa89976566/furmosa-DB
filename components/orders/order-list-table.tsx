@@ -19,7 +19,7 @@ import type { Prisma } from '@prisma/client';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { ChevronRight } from 'lucide-react';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
-import { parseOmsIssues } from '@/lib/orders/oms';
+import { omsNextActionLabel } from '@/lib/orders/oms';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
@@ -45,13 +45,9 @@ function orderItemSummary(order: OrderListRow) {
 
 function nextAction(order: OrderListRow) {
   if (order.omsStatus) {
-    const issues = parseOmsIssues(order.omsIssueFlags);
-    const blocking = issues?.filter((issue) => issue.severity === 'blocking').length ?? 0;
-    if ((order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW') && blocking > 0) {
-      return { label: `需處理 ${blocking} 項`, hint: '完成後再審核' };
-    }
     if (order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW') {
-      return { label: '待審核', hint: order.paymentStatus === 'paid' ? '核對訂單' : '等待付款' };
+      const waiting = !['paid', 'cod'].includes(order.paymentStatus);
+      return { label: waiting ? '等待付款' : omsNextActionLabel(order.omsStatus, order.omsIssueFlags), hint: waiting ? '付款後繼續' : '現在處理' };
     }
     if (order.omsStatus === 'READY') return { label: '建立物流', hint: '已通過審核' };
     if (order.omsStatus === 'FULFILLMENT_PENDING') return { label: '等待交寄', hint: '已建立出貨單' };
@@ -106,10 +102,8 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
               return (
                 <TableRow key={o.id} className="group">
                   <TableCell className="align-top py-4">
-                    <Link href={`/orders/${o.id}`} className="font-mono text-sm font-semibold hover:underline">
-                      {o.externalOrderName || o.orderNumber}
-                    </Link>
-                    <div className="mt-1 flex min-w-0 items-center gap-2 text-sm">
+                    <div className="flex min-w-0 items-center gap-2 text-sm">
+                      <StatusBadge kind="orderSource" value={o.source} />
                       {o.customer ? (
                         <Link href={`/customers/${o.customer.id}`} className="truncate font-medium underline-offset-4 hover:underline">
                           {customer.name}
@@ -117,9 +111,8 @@ export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
                       ) : (
                         <span className="truncate font-medium">{customer.name}</span>
                       )}
-                      <StatusBadge kind="orderSource" value={o.source} />
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(o.orderedAt)}</p>
+                    <Link href={`/orders/${o.id}`} className="mt-1 block font-mono text-xs text-muted-foreground hover:underline">{o.externalOrderName || o.orderNumber} · {formatDateTime(o.orderedAt)}</Link>
                   </TableCell>
                   <TableCell className="align-top py-4 text-sm">
                     <p className="line-clamp-2 font-medium">{orderItemSummary(o)}</p>
@@ -162,11 +155,11 @@ function OrderCard({ order: o }: { order: OrderListRow }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/orders/${o.id}`} className="font-mono text-sm font-semibold text-foreground hover:underline">{o.externalOrderName || o.orderNumber}</Link>
             <StatusBadge kind="orderSource" value={o.source} />
+            {o.customer ? <Link href={`/customers/${o.customer.id}`} className="truncate text-sm font-semibold text-foreground hover:underline">{customer.name}</Link>
+              : <span className="truncate text-sm font-semibold text-foreground">{customer.name}</span>}
           </div>
-          {o.customer ? <Link href={`/customers/${o.customer.id}`} className="mt-1 block truncate text-sm font-medium text-foreground hover:underline">{customer.name}</Link>
-            : <p className="mt-1 truncate text-sm font-medium text-foreground">{customer.name}</p>}
+          <Link href={`/orders/${o.id}`} className="mt-1 block font-mono text-xs text-muted-foreground hover:underline">{o.externalOrderName || o.orderNumber}</Link>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>

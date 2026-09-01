@@ -23,6 +23,28 @@ export type OmsIssue = {
   lineItemId?: string;
 };
 
+const OMS_ACTION_BY_ISSUE: Record<OmsIssueCode, string> = {
+  PAYMENT_PENDING: '等待付款', PAYMENT_REFUNDED: '確認退款狀態', ORDER_CANCELLED: '確認取消訂單',
+  SKU_MISSING: '補上商品 SKU', PRODUCT_UNMAPPED: '選擇對應商品', STOCK_UNKNOWN: '確認商品庫存',
+  STOCK_INSUFFICIENT: '處理庫存不足', SHIPPING_METHOD_UNKNOWN: '選擇配送方式',
+  PICKUP_STORE_MISSING: '補上 7-11 門市', TEMPERATURE_UNKNOWN: '確認配送溫層',
+  TEMPERATURE_CONFLICT: '確認常溫／冷凍配送', GIFT_REVIEW_REQUIRED: '核對贈品內容',
+  RECIPIENT_MISSING: '補上收件人', PHONE_MISSING: '補上聯絡電話', ADDRESS_MISSING: '補上收件地址',
+  POSSIBLE_DUPLICATE: '確認是否重複訂單', SOURCE_VERSION_UNKNOWN: '重新同步訂單', ORDER_CHANGED: '重新檢查更新內容',
+};
+
+export function omsNextActionLabel(status: OmsStatus | null, issues: unknown) {
+  const parsed = parseOmsIssues(issues);
+  const issue = parsed?.find((item) => item.severity === 'blocking' && item.code !== 'PAYMENT_PENDING')
+    ?? parsed?.find((item) => item.code !== 'PAYMENT_PENDING')
+    ?? parsed?.[0];
+  if (issue) return OMS_ACTION_BY_ISSUE[issue.code];
+  if (status === 'READY') return '建立物流單';
+  if (status === 'FULFILLMENT_PENDING') return '確認交寄狀態';
+  if (status === 'FULFILLED') return '已完成';
+  return '確認訂單內容';
+}
+
 /** Fail closed: malformed or unchecked stored flags must never look like a green check. */
 export function parseOmsIssues(value: unknown): OmsIssue[] | null {
   if (!Array.isArray(value)) return null;

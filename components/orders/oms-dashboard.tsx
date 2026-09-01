@@ -3,35 +3,11 @@ import Link from 'next/link';
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, PackageCheck } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
-import { parseOmsIssues, type OmsIssue } from '@/lib/orders/oms';
+import { omsNextActionLabel } from '@/lib/orders/oms';
 import { taiwanToday } from '@/lib/orders/oms-workbench';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
-
-const actionByIssue: Record<string, string> = {
-  PAYMENT_PENDING: '等待付款', PAYMENT_REFUNDED: '確認退款狀態', ORDER_CANCELLED: '確認取消訂單',
-  SKU_MISSING: '補上商品 SKU', PRODUCT_UNMAPPED: '選擇對應商品', STOCK_UNKNOWN: '確認商品庫存',
-  STOCK_INSUFFICIENT: '處理庫存不足', SHIPPING_METHOD_UNKNOWN: '選擇配送方式',
-  PICKUP_STORE_MISSING: '補上 7-11 門市', TEMPERATURE_UNKNOWN: '確認配送溫層',
-  TEMPERATURE_CONFLICT: '確認常溫／冷凍配送', GIFT_REVIEW_REQUIRED: '核對贈品內容',
-  RECIPIENT_MISSING: '補上收件人', PHONE_MISSING: '補上聯絡電話', ADDRESS_MISSING: '補上收件地址',
-  POSSIBLE_DUPLICATE: '確認是否重複訂單', SOURCE_VERSION_UNKNOWN: '重新同步訂單', ORDER_CHANGED: '重新檢查更新內容',
-};
-
-function nextAction(status: string | null, issues: OmsIssue[] | null) {
-  const issue = issues?.find((item) => item.severity === 'blocking' && item.code !== 'PAYMENT_PENDING')
-    ?? issues?.find((item) => item.code !== 'PAYMENT_PENDING')
-    ?? issues?.[0];
-  if (issue) return actionByIssue[issue.code] ?? issue.message;
-  if (status === 'READY') return '建立物流單';
-  if (status === 'FULFILLMENT_PENDING') return '確認交寄狀態';
-  return '確認訂單內容';
-}
-
-function isWaiting(issues: OmsIssue[] | null) {
-  return Boolean(issues?.length && issues.every((issue) => issue.code === 'PAYMENT_PENDING'));
-}
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -57,14 +33,14 @@ export async function OmsDashboard() {
   ]);
 
   const rows = orders.map((order) => {
-    const issues = parseOmsIssues(order.omsIssueFlags);
     const snapshot = snapshotView(order.shopifySnapshot);
     return {
       id: order.id, orderNumber: order.orderNumber, source: order.source, total: order.total,
       paymentStatus: order.paymentStatus, shippingMethod: order.shippingMethod,
       cvsStoreName: order.cvsStoreName, items: order.items,
       recipient: order.customer?.name || snapshot?.recipient || '收件人待確認',
-      action: nextAction(order.omsStatus, issues), waiting: isWaiting(issues),
+      action: omsNextActionLabel(order.omsStatus, order.omsIssueFlags),
+      waiting: !['paid', 'cod'].includes(order.paymentStatus) && ['NEW', 'REVIEW'].includes(order.omsStatus ?? ''),
     };
   });
   const now = rows.filter((row) => !row.waiting);
