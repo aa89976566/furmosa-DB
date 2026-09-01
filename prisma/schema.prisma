@@ -617,6 +617,7 @@ model Product {
   status       String   @default("active") // active / inactive / draft
   vendorId     String?
   notes        String? // 備註（單價表手寫欄位）
+  defaultTemperature ProductTemperature? @map("default_temperature")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -637,6 +638,12 @@ model Product {
   @@index([productCategory])
   @@index([status])
   @@index([name])
+}
+
+enum ProductTemperature {
+  ambient
+  chilled
+  frozen
 }
 
 // 同一個產品可能依重量分多種售價（30g / 50g / 100g / 150g），

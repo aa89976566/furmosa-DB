@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
-import { reviewDraft } from '@/lib/orders/review-policy';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
+import { defaultReviewDraft } from '@/lib/orders/review-defaults';
 
 export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
   if (!status || !['NEW', 'REVIEW', 'READY'].includes(status) || !snapshotView(snapshot)) return null;
@@ -14,18 +14,11 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   const source = snapshot as Snapshot;
   const hash = snapshotHash(source);
   const [products, audit] = await Promise.all([
-    prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true }, orderBy: { sku: 'asc' } }),
+    prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true, defaultTemperature: true }, orderBy: { sku: 'asc' } }),
     prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
   ]);
-  const view = snapshotView(snapshot)!;
   const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
-  const draft = currentReviewDraft(snapshot, audit?.metadataJson) ?? reviewDraft({
-    lines: rows.map(row => {
-      const sku = string(row.sku);
-      const matches = sku ? products.filter(p => p.sku === sku || p.sourceSku === sku) : [];
-      return { productId: matches.length === 1 ? matches[0].id : '', temperature: '' };
-    }), recipient: view.recipient, phone: view.phone, address: view.address,
-  });
+  const draft = currentReviewDraft(snapshot, audit?.metadataJson) ?? defaultReviewDraft(source, products);
   return <section className="space-y-3 rounded-xl border p-4 md:p-5" aria-label="OMS 訂單審核">
     <div>
       <p className="text-xs font-medium text-muted-foreground">主要工作區</p>

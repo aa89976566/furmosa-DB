@@ -131,6 +131,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               status: product.status,
               vendorId: product.vendorId,
               notes: product.notes,
+              defaultTemperature: product.defaultTemperature,
             }}
             vendors={vendors}
             saveAction={updateProduct}

@@ -50,6 +50,7 @@ export default async function NewProductPage({
               status: 'active',
               vendorId: preselectedVendorId,
               notes: null,
+              defaultTemperature: null,
             }}
             vendors={vendors}
             saveAction={createProduct}
