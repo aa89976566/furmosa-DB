@@ -6,9 +6,11 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { HomeTaskCardLink } from '@/components/pos/home-task-card';
 import { loadHomeTasks } from '@/lib/pos/load-today-dashboard';
 import { loadPosAccount } from '@/lib/pos/account';
-import { storeHeading } from '@/lib/pos/store-display';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
+import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
+import { PosAccountMenu } from '@/components/pos/account-menu';
 
 export const metadata = {
   title: '店家 · Furmosa',
@@ -53,40 +55,50 @@ export default async function PosHomePage() {
       loadPosAccount(session.merchantId, session.username),
       loadHomeTasks(session.merchantId),
     ]);
-    const heading = storeHeading({ name: merchant.name, city: merchant.city });
-
     return (
-      <PosShell storeName={merchant.name} account={account}>
-        <div className="px-4 py-6 pr-16">
-          <header className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-navy">{heading.brandLine}</h1>
-            {heading.branchLine ? (
-              <p className="mt-1 text-base text-muted-foreground">{heading.branchLine}</p>
-            ) : null}
-          </header>
+      <RestockCartProvider>
+        <div className="min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
+          <div className="md:flex md:h-full">
+            <InventorySideNav account={account} />
 
-          {tasks.warning ? (
-            <Card className="mb-3 border-amber-200 bg-amber-50">
-              <CardContent className="p-4 text-sm text-amber-950">{tasks.warning}</CardContent>
-            </Card>
-          ) : null}
+            <main className="min-w-0 flex-1 md:h-full md:overflow-y-auto">
+              <header className="flex items-center justify-between px-4 pb-3 pt-5 md:px-6">
+                <div>
+                  <h1 className="text-2xl font-semibold">首頁</h1>
+                  <p className="mt-1 text-sm text-zinc-500">今天需要處理的工作</p>
+                </div>
+                <div className="md:hidden">
+                  <PosAccountMenu account={account} />
+                </div>
+              </header>
 
-          {tasks.cards.length === 0 && !tasks.warning ? (
-            <Card className="shadow-card">
-              <CardContent className="space-y-2 p-5">
-                <p className="font-medium text-foreground">目前沒有要處理的事。</p>
-                <p className="text-sm text-muted-foreground">需要時用下面的庫存、換罐、查詢或結帳就好。</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-3">
-              {tasks.cards.map((card) => (
-                <HomeTaskCardLink key={`${card.kind}-${card.href}`} card={card} />
-              ))}
-            </div>
-          )}
+              <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-2 md:mx-0 md:px-6 md:pb-8">
+                {tasks.warning ? (
+                  <Card className="mb-3 border-amber-200 bg-amber-50 shadow-sm">
+                    <CardContent className="p-4 text-sm text-amber-950">{tasks.warning}</CardContent>
+                  </Card>
+                ) : null}
+
+                {tasks.cards.length === 0 && !tasks.warning ? (
+                  <Card className="border-neutral-200 bg-white shadow-sm">
+                    <CardContent className="space-y-2 p-5">
+                      <p className="font-medium text-zinc-900">目前沒有要處理的事。</p>
+                      <p className="text-sm text-zinc-500">需要時使用庫存、換罐、查詢或結帳即可。</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid gap-3">
+                    {tasks.cards.map((card) => (
+                      <HomeTaskCardLink key={`${card.kind}-${card.href}`} card={card} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </main>
+          </div>
+          <InventoryBottomNav />
         </div>
-      </PosShell>
+      </RestockCartProvider>
     );
   } catch (err) {
     if (isNextRedirect(err)) throw err;
