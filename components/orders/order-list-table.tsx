@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, PackageCheck, Truck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency, formatDateTime } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
-import { omsNextActionLabel } from '@/lib/orders/oms';
+import { omsNextActionLabel, parseOmsIssues, type OmsIssueCode } from '@/lib/orders/oms';
 import styles from './order-resource-list.module.css';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
@@ -48,6 +48,26 @@ function nextAction(order: OrderListRow) {
   return { label: '等待交寄', hint: '查看出貨進度', active: false };
 }
 
+const ISSUE_CATEGORY: Record<OmsIssueCode, string> = {
+  PAYMENT_PENDING: '待付款', PAYMENT_REFUNDED: '退款確認', ORDER_CANCELLED: '訂單取消',
+  SKU_MISSING: '缺少 SKU', PRODUCT_UNMAPPED: '商品未對應', STOCK_UNKNOWN: '庫存待確認',
+  STOCK_INSUFFICIENT: '庫存不足', SHIPPING_METHOD_UNKNOWN: '配送待確認',
+  PICKUP_STORE_MISSING: '缺門市資料', TEMPERATURE_UNKNOWN: '溫層待確認',
+  TEMPERATURE_CONFLICT: '溫層衝突', GIFT_REVIEW_REQUIRED: '贈品待確認',
+  RECIPIENT_MISSING: '缺收件人', PHONE_MISSING: '缺電話', ADDRESS_MISSING: '缺地址',
+  POSSIBLE_DUPLICATE: '疑似重複', SOURCE_VERSION_UNKNOWN: '同步異常', ORDER_CHANGED: '內容待檢查',
+};
+
+function issueCategory(order: OrderListRow) {
+  const issues = parseOmsIssues(order.omsIssueFlags);
+  if (!issues) return { label: '待檢查', tone: 'warning' as const };
+  const issue = issues.find((item) => item.severity === 'blocking' && item.code !== 'PAYMENT_PENDING')
+    ?? issues.find((item) => item.severity === 'blocking')
+    ?? issues[0];
+  if (!issue) return { label: '資料完整', tone: 'ok' as const };
+  return { label: ISSUE_CATEGORY[issue.code], tone: issue.severity === 'blocking' ? 'blocking' as const : 'warning' as const };
+}
+
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
   if (orders.length === 0) {
     return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
@@ -63,28 +83,25 @@ function OrderResourceRow({ order }: { order: OrderListRow }) {
   const item = orderItemSummary(order);
   const logistics = resolveLogisticsForOrderList(order);
   const action = nextAction(order);
-  const destination = logistics.destination !== '—' ? ` · ${logistics.destination}` : '';
+  const issue = issueCategory(order);
+  const orderReference = order.externalOrderName || order.orderNumber;
 
   return <article className={styles.row}>
     <div className={styles.identity}>
-      <StatusBadge kind="orderSource" value={order.source} />
-      {order.customer
-        ? <Link href={`/customers/${order.customer.id}`} className={styles.customer}>{customer}</Link>
-        : <span className={styles.customer}>{customer}</span>}
-    </div>
-
-    <div className={styles.action}>
-      <PackageCheck className={styles.actionIcon} aria-hidden />
-      <div className={styles.actionCopy}>
-        <p className={styles.actionLabel}>{action.label}</p>
-        <p className={styles.actionHint}>{action.hint}</p>
+      <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
+      <div className={styles.tags}>
+        <StatusBadge kind="orderSource" value={order.source} />
+        <span className={`${styles.issueTag} ${styles[issue.tone]}`}>{issue.label}</span>
       </div>
     </div>
 
-    <div className={styles.meta}>
+    <div className={styles.summary}>
+      {order.customer
+        ? <Link href={`/customers/${order.customer.id}`} className={styles.customer}>{customer}</Link>
+        : <span className={styles.customer}>{customer}</span>}
+      <span aria-hidden>·</span>
       <span className={styles.product}>{item}</span>
-      <span className={styles.delivery}><Truck aria-hidden />{logistics.carrierLabel}{destination}</span>
-      <Link href={`/orders/${order.id}`} className={styles.reference}>{order.externalOrderName || order.orderNumber} · {formatDateTime(order.orderedAt)}</Link>
+      <span className={styles.delivery}>{logistics.carrierLabel}</span>
     </div>
 
     <div className={styles.money}>
@@ -93,7 +110,7 @@ function OrderResourceRow({ order }: { order: OrderListRow }) {
     </div>
 
     <Link href={`/orders/${order.id}`} className={action.active ? styles.primaryAction : styles.secondaryAction} aria-label={`${action.label}：${customer}`}>
-      <span>{action.active ? '開始處理' : '查看'}</span><ChevronRight aria-hidden />
+      <span>{action.active ? action.label : '查看'}</span><ChevronRight aria-hidden />
     </Link>
   </article>;
 }
