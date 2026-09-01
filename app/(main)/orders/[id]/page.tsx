@@ -599,12 +599,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 }
 
 function SecondaryInformation({ compact, children }: { compact: boolean; children: ReactNode }) {
-  if (!compact) return <>{children}</>;
-  return <details className="rounded-xl border bg-muted/10 p-4">
-    <summary className="cursor-pointer font-medium">訂單、物流與付款摘要</summary>
-    <p className="mt-2 text-xs text-muted-foreground">主要審核完成後，需要核對明細時再展開。</p>
-    <div className="mt-4">{children}</div>
-  </details>;
+  if (compact) return null;
+  return <>{children}</>;
 }
 
 function toggleButtonClass(selected: boolean, fullWidth = false, destructive = false) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
@@ -22,6 +23,29 @@ function Actions({ status }: { status: string }) {
     {pending && <span role="status">處理中…</span>}
   </div>;
 }
+function ContactFields({ draft }: { draft: ReviewDraft }) {
+  const completeHomeDelivery = draft.method === 'home' && Boolean(draft.recipient && draft.phone && draft.address);
+  const [editing, setEditing] = useState(!completeHomeDelivery);
+  if (!editing) return <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <p className="font-medium">Shopify 已帶入收件資料</p>
+        <p className="mt-1 text-muted-foreground">{draft.recipient} · {draft.phone}</p>
+        <p className="mt-1 break-words text-muted-foreground">{draft.address}</p>
+      </div>
+      <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>修改</Button>
+    </div>
+    <input type="hidden" name="recipient" value={draft.recipient} />
+    <input type="hidden" name="phone" value={draft.phone} />
+    <input type="hidden" name="address" value={draft.address} />
+    <input type="hidden" name="storeId" value={draft.storeId} />
+    <input type="hidden" name="storeName" value={draft.storeName} />
+  </div>;
+  return <div className="grid gap-3 sm:grid-cols-2">
+    {([['recipient', '收件人'], ['phone', '收件電話'], ['address', '地址／門市地址'], ['storeId', '7-11 門市店號'], ['storeName', '7-11 門市名稱']] as const).map(([name, label]) =>
+      <label className="space-y-1 text-sm" key={name}>{label}<Input name={name} defaultValue={draft[name]} maxLength={500} /></label>)}
+  </div>;
+}
 export function OmsReviewForm({ orderId, sourceHash, status, draft, products, titles }: {
   orderId: string; sourceHash: string; status: string; draft: ReviewDraft;
   products: { id: string; name: string; sku: string }[]; titles: string[];
@@ -29,7 +53,6 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
   const [state, action] = useFormState(omsReviewAction, { message: '' });
   return <form action={action} className="space-y-4">
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
-    <p className="text-sm text-muted-foreground">先儲存檢查，再確認訂單。修改資料後必須重新檢查；建立 HQ 出貨單不等於已送到物流公司。</p>
     {draft.lines.map((line, index) => <fieldset key={index} className="grid gap-2 rounded border p-3 sm:grid-cols-2">
       <legend className="px-1 text-sm">{index + 1}. {titles[index]}</legend>
       <label className="space-y-1 text-sm">HQ 商品<select className={selectClass} name="productId" defaultValue={line.productId}>
@@ -42,9 +65,8 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
         <option value="">請選擇</option><option value="home">黑貓宅配</option><option value="convenience">7-11 取貨</option>
       </select></label>
       <label className="space-y-1 text-sm">配送溫層<Temperature name="temperature" value={draft.temperature} /></label>
-      {([['recipient', '收件人'], ['phone', '收件電話'], ['address', '地址／門市地址'], ['storeId', '7-11 門市店號'], ['storeName', '7-11 門市名稱']] as const).map(([name, label]) =>
-        <label className="space-y-1 text-sm" key={name}>{label}<Input name={name} defaultValue={draft[name]} maxLength={500} /></label>)}
     </div>
+    <ContactFields draft={draft} />
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="giftsConfirmed" defaultChecked={draft.giftsConfirmed} />我已核對贈品、優惠及商品內容</label>
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />若有重複訂單提示，我已確認這筆仍需要出貨</label>
     <Actions status={status} />
