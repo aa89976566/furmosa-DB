@@ -10,6 +10,8 @@ import {
   projectHomeRestockNotice,
   restockHomeFromSettled,
   shipmentStatusForMerchant,
+  type RestockProgressListArgs,
+  type RestockProgressListRow,
 } from '@/lib/pos/restock-progress';
 
 const merchantId = 'mer_demo';
@@ -179,10 +181,10 @@ describe('list, detail, and homepage share one progress rule', () => {
   });
 
   it('progress list query is merchant-scoped and does not swallow errors as []', async () => {
-    const seen: object[] = [];
+    const seen: RestockProgressListArgs[] = [];
     const db = {
       restockRequest: {
-        findMany: async (args: object) => {
+        findMany: async (args: RestockProgressListArgs): Promise<RestockProgressListRow[]> => {
           seen.push(args);
           return [
             {
@@ -206,7 +208,7 @@ describe('list, detail, and homepage share one progress rule', () => {
       },
     };
     const rows = await listMerchantRestockProgress(db, merchantId);
-    assert.equal((seen[0] as { where: { merchantId: string } }).where.merchantId, merchantId);
+    assert.equal(seen[0]?.where.merchantId, merchantId);
     assert.equal(rows[0]?.progressLabel, '配送中');
     assert.equal(rows[1]?.progressLabel, '進度待確認');
 
@@ -215,7 +217,7 @@ describe('list, detail, and homepage share one progress rule', () => {
         listMerchantRestockProgress(
           {
             restockRequest: {
-              findMany: async () => {
+              findMany: async (_args: RestockProgressListArgs): Promise<RestockProgressListRow[]> => {
                 throw new Error('query failed');
               },
             },

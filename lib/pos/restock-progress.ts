@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { isPreShipStatus } from '@/lib/shipment';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
 
@@ -127,18 +128,31 @@ export function restockHomeFromSettled(
   return { kind: 'ok', notice: projectHomeRestockNotice(result.value, merchantId) };
 }
 
+/** 進度列表實際查詢的 select；回傳用 Prisma payload，避免當成無 select 的預設列。 */
+export const RESTOCK_PROGRESS_LIST_SELECT = {
+  id: true,
+  requestType: true,
+  status: true,
+  createdAt: true,
+  expectedArrivalDate: true,
+  shipment: { select: RESTOCK_PROGRESS_SHIPMENT_SELECT },
+} as const;
+
+export type RestockProgressListArgs = {
+  where: { merchantId: string };
+  orderBy: { createdAt: 'desc' };
+  take: number;
+  select: typeof RESTOCK_PROGRESS_LIST_SELECT;
+};
+
+export type RestockProgressListRow = Prisma.RestockRequestGetPayload<{
+  select: typeof RESTOCK_PROGRESS_LIST_SELECT;
+}>;
+
+/** 只要求 findMany 能接受本列表查詢；PrismaClient 與測試 double 都能符合。 */
 export type MerchantRestockListDb = {
   restockRequest: {
-    findMany: (args: object) => Promise<
-      Array<{
-        id: string;
-        requestType: string;
-        status: string;
-        createdAt: Date;
-        expectedArrivalDate: Date | null;
-        shipment: RestockProgressShipment | null;
-      }>
-    >;
+    findMany: (args: RestockProgressListArgs) => Promise<RestockProgressListRow[]>;
   };
 };
 
@@ -150,14 +164,7 @@ export async function listMerchantRestockProgress(
     where: { merchantId },
     orderBy: { createdAt: 'desc' },
     take: 50,
-    select: {
-      id: true,
-      requestType: true,
-      status: true,
-      createdAt: true,
-      expectedArrivalDate: true,
-      shipment: { select: RESTOCK_PROGRESS_SHIPMENT_SELECT },
-    },
+    select: RESTOCK_PROGRESS_LIST_SELECT,
   });
   return rows.map((row) => ({
     ...row,
