@@ -29,48 +29,49 @@ export type NavGroup = {
   label: string;
   tone: SectionTone;
   items: NavItem[];
+  collapsible?: boolean;
 };
 
 export const navGroups: NavGroup[] = [
   {
-    label: '營運任務',
+    label: '每天工作',
     tone: 'operations',
     items: [
-      { href: '/tasks', label: '任務看板', icon: CheckSquare },
+      { href: '/dashboard', label: '首頁', icon: LayoutDashboard },
       {
         href: '/reviews',
         label: '待審核',
         icon: PackageOpen,
       },
+      { href: '/orders', label: '訂單', icon: ShoppingCart },
+      { href: '/shipments', label: '出貨', icon: Truck },
+      { href: '/tasks', label: '任務', icon: CheckSquare },
     ],
   },
   {
-    label: '總覽',
-    tone: 'overview',
-    items: [{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
-  },
-  {
-    label: '主資料 Master Data',
+    label: '客戶與商品',
     tone: 'master',
     items: [
-      { href: '/vendors', label: '廠商', icon: Building2 },
       { href: '/customers', label: '客戶', icon: Users },
       { href: '/products', label: '產品', icon: Package },
+      { href: '/inventory', label: '庫存', icon: Boxes },
     ],
   },
   {
-    label: '訂單 Order Hub',
+    label: '店家與供應',
     tone: 'orders',
+    collapsible: true,
     items: [
-      { href: '/orders', label: '訂單列表', icon: ShoppingCart },
-      { href: '/shipments', label: '出貨隊列', icon: Truck },
-      { href: '/restock-requests', label: '補貨申請', icon: Package },
       { href: '/merchants', label: '寄賣', icon: Store },
+      { href: '/restock-requests', label: '補貨', icon: Package },
+      { href: '/vendors', label: '廠商', icon: Building2 },
+      { href: '/inventory/transactions', label: '庫存紀錄', icon: Boxes },
     ],
   },
   {
-    label: '訂閱制 Subscription',
+    label: '訂閱制',
     tone: 'subscription',
+    collapsible: true,
     items: [
       { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
       { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
@@ -78,16 +79,9 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '庫存 Inventory',
-    tone: 'inventory',
-    items: [
-      { href: '/inventory', label: '即時庫存', icon: Boxes },
-      { href: '/inventory/transactions', label: '異動紀錄', icon: Boxes },
-    ],
-  },
-  {
     label: '換罐會員',
     tone: 'supply',
+    collapsible: true,
     items: [
       { href: '/jar-exchange/members', label: '會員列表', icon: Users },
       { href: '/jar-exchange/stores', label: '合作店家', icon: Store },
