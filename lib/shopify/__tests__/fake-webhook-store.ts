@@ -1,4 +1,5 @@
 import type { MatchableProduct } from '@/lib/shopify/match-line-item';
+import { nextSourceOrderNumber } from '@/lib/orders/source-order-number';
 import { parseShopifyAuditMetadata, shopifyAuditEntityId } from '@/lib/shopify/event-version';
 import type {
   ShopifyAuditRow,
@@ -69,6 +70,14 @@ export class FakeShopifyStore implements ShopifyWebhookDb {
         findByExternal: async (externalStore, externalOrderId) => {
           const row = this.orders.get(this.key(externalStore, externalOrderId));
           return row ? cloneOrder(row) : null;
+        },
+        nextNumber: async (prefix) => {
+          const matches = [...this.orders.values()]
+            .map((order) => order.orderNumber)
+            .filter((number) => number.startsWith(prefix))
+            .sort((a, b) => Number(a.slice(prefix.length)) - Number(b.slice(prefix.length)))
+            .reverse();
+          return nextSourceOrderNumber(prefix, matches[0]);
         },
         create: async (data: ShopifyOrderCreateData) => {
           this.createAttempts += 1;

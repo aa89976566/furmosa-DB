@@ -28,6 +28,8 @@ import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { getCurrentUser } from '@/lib/auth';
 import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
+import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
+import type { Prisma } from '@prisma/client';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -39,10 +41,21 @@ async function nextOrderNumber() {
   const prefix = `ORD-${ymd()}-`;
   const last = await prisma.order.findFirst({
     where: { orderNumber: { startsWith: prefix } },
-    orderBy: { orderNumber: 'desc' },
+    orderBy: { createdAt: 'desc' },
   });
   const seq = last ? Number(last.orderNumber.slice(prefix.length)) + 1 : 1;
   return `${prefix}${pad(seq, 3)}`;
+}
+
+async function nextLineOrderNumber(tx: Prisma.TransactionClient) {
+  const prefix = SOURCE_ORDER_PREFIX.line;
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number:${prefix}`}))`;
+  const last = await tx.order.findFirst({
+    where: { orderNumber: { startsWith: prefix } },
+    orderBy: { createdAt: 'desc' },
+    select: { orderNumber: true },
+  });
+  return nextSourceOrderNumber(prefix, last?.orderNumber);
 }
 
 async function nextShipmentNumber() {
@@ -93,10 +106,12 @@ export async function createOrder(formData: FormData) {
   const rawPayload = await parseOrderFormData(formData);
   const payload = applyJarExchangeConsignmentPricing(rawPayload);
   const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
-  const orderNumber = await nextOrderNumber();
   const shipmentNumber = await nextShipmentNumber();
 
   const created = await prisma.$transaction(async (tx) => {
+    const orderNumber = payload.source === 'line'
+      ? await nextLineOrderNumber(tx)
+      : await nextOrderNumber();
     const order = await tx.order.create({
       data: {
         orderNumber,

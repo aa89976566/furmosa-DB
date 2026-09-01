@@ -193,12 +193,6 @@ export function shopifyShippingFeeType(shippingFee: number) {
   return shippingFee > 0 ? 'unpaid' : 'free';
 }
 
-export function internalShopifyOrderNumber(order: ShopifyPaidOrder): string {
-  const visible = order.order_number ?? cleanShopifyText(order.name)?.replace(/^#/, '') ?? 'ORDER';
-  const suffix = String(order.id).replace(/\D/g, '').slice(-6);
-  return `SHOP-${visible}-${suffix}`;
-}
-
 export function validateShopifyOrderPayload(order: ShopifyPaidOrder) {
   if (!order?.id) throw new ShopifyWebhookClientError('缺少 Shopify order id');
   const items = order.line_items ?? [];

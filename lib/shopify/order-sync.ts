@@ -18,7 +18,6 @@ import {
   cleanShopifyText,
   convenienceAddress,
   hasCompleteShopifyPickupInfo,
-  internalShopifyOrderNumber,
   isConveniencePickup,
   resolveShopifyItemWeight,
   shopifyAddressText,
@@ -32,6 +31,7 @@ import {
 } from '@/lib/shopify/order-mapping';
 import { ShopifyWebhookClientError, ShopifyWebhookRetryableError } from '@/lib/shopify/webhook-errors';
 import type { ShopifyWebhookTopic } from '@/lib/shopify/webhook-verify';
+import { SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import {
   createPrismaShopifyStore,
   defaultShopifySleep,
@@ -161,9 +161,9 @@ function snapshotFields(order: ShopifyPaidOrder, items: Array<Omit<ShopifyOrderI
   };
 }
 
-function skeletonFields(order: ShopifyPaidOrder, paymentStatus: string): ShopifyOrderCreateData {
+function skeletonFields(order: ShopifyPaidOrder, paymentStatus: string, orderNumber: string): ShopifyOrderCreateData {
   return {
-    orderNumber: internalShopifyOrderNumber(order),
+    orderNumber,
     source: 'shopify',
     externalStore: '',
     externalOrderId: '',
@@ -305,7 +305,8 @@ export async function syncShopifyOrder(input: ShopifyOrderSyncInput): Promise<Sh
       let created = false;
       let updated = false;
       if (!existing) {
-        const base = skeletonFields(input.order, applyPayment ? nextPaymentStatus : 'unpaid');
+        const orderNumber = await tx.order.nextNumber(SOURCE_ORDER_PREFIX.shopify);
+        const base = skeletonFields(input.order, applyPayment ? nextPaymentStatus : 'unpaid', orderNumber);
         const createdData: ShopifyOrderCreateData = {
           ...base,
           externalStore,

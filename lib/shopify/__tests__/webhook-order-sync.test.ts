@@ -101,6 +101,7 @@ describe('Shopify order webhook event ordering and persistence', () => {
     const created = await post(store, 'orders/create', orderPayload(), 'wh-create');
     assert.equal(created.status, 200);
     assert.equal(created.sync?.created, true);
+    assert.equal(store.getOrder(SHOP, '2001')?.orderNumber, 'SHOPIFY-01');
     assert.equal(store.getOrder(SHOP, '2001')?.paymentStatus, 'unpaid');
     const paid = await post(
       store,

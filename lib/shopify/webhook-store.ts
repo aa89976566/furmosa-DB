@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { nextSourceOrderNumber } from '@/lib/orders/source-order-number';
 import { ensureMooncakeProduct } from '@/lib/products/ensure-mooncake';
 import type { MatchableProduct } from '@/lib/shopify/match-line-item';
 import { ShopifyWebhookRetryableError } from '@/lib/shopify/webhook-errors';
@@ -118,6 +119,7 @@ export type ShopifyAuditRow = {
 export type ShopifyWebhookTx = {
   order: {
     findByExternal: (externalStore: string, externalOrderId: string) => Promise<ShopifyOrderRecord | null>;
+    nextNumber: (prefix: string) => Promise<string>;
     create: (data: ShopifyOrderCreateData) => Promise<ShopifyOrderRecord>;
     update: (id: string, data: ShopifyOrderUpdateData) => Promise<ShopifyOrderRecord>;
   };
@@ -263,6 +265,14 @@ function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
           include,
         });
         return row ? toOrderRecord(row) : null;
+      },
+      nextNumber: async (prefix) => {
+        const last = await tx.order.findFirst({
+          where: { orderNumber: { startsWith: prefix } },
+          orderBy: { createdAt: 'desc' },
+          select: { orderNumber: true },
+        });
+        return nextSourceOrderNumber(prefix, last?.orderNumber);
       },
       create: async (data) => {
         const row = await tx.order.create({
