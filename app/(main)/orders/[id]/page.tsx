@@ -115,10 +115,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <div className="min-w-0">
             <Link href="/orders" className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" />訂單列表</Link>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">{order.orderNumber}</h1>
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Shopify 訂單</h1>
               <StatusBadge kind="orderSource" value={order.source} />
               <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
             </div>
+            <p className="mt-1 text-sm text-muted-foreground">訂單編號 <span className="font-mono text-foreground">{order.externalOrderName || order.orderNumber}</span></p>
           </div>
           <div className="text-right"><p className="text-xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p><div className="mt-1"><StatusBadge kind="payment" value={order.paymentStatus} /></div></div>
         </div>

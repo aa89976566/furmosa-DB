@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const selectClass = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm';
-const invalidClass = 'border-destructive/50 bg-destructive/5 focus-visible:ring-destructive/30';
+const invalidClass = 'border-foreground/35 bg-muted/50 focus-visible:ring-foreground/25';
 
 function Temperature({ name, value }: { name: string; value: string }) {
   return <select aria-label="溫層" className={`${selectClass} ${value ? '' : invalidClass}`} name={name} defaultValue={value}>
@@ -27,7 +27,7 @@ function Actions({ status }: { status: string }) {
 }
 
 function LabelText({ children, missing }: { children: string; missing: boolean }) {
-  return <span className="flex items-center justify-between gap-2">{children}{missing && <em className="shrink-0 not-italic text-xs text-destructive">待完成</em>}</span>;
+  return <span className="flex items-center justify-between gap-2">{children}{missing && <em className="shrink-0 rounded-full bg-foreground px-2 py-0.5 not-italic text-[11px] font-medium text-background">待完成</em>}</span>;
 }
 
 export function OmsReviewForm({ orderId, sourceHash, status, draft, products, titles }: {
@@ -41,10 +41,11 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <section className="space-y-3">
       <h3 className="text-sm font-semibold">商品</h3>
-      {draft.lines.map((line, index) => <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-destructive/30' : ''}`}>
-        <legend className="max-w-full truncate px-1 text-sm font-medium">{titles[index]}</legend>
-        <label className="space-y-1.5 text-sm"><LabelText missing={!line.productId}>對應商品</LabelText><select className={`${selectClass} ${line.productId ? '' : invalidClass}`} name="productId" defaultValue={line.productId}><option value="">請選擇商品</option>{products.map(product => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}</select></label>
-        <label className="space-y-1.5 text-sm"><LabelText missing={!line.temperature}>商品溫層</LabelText><Temperature name="lineTemperature" value={line.temperature} /></label>
+      {draft.lines.map((line, index) => <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-foreground/25' : ''}`}>
+        <legend className="px-1 text-sm font-semibold">第 {index + 1} 項商品</legend>
+        <p className="sm:col-span-2 text-sm"><span className="text-muted-foreground">Shopify 商品：</span>{titles[index]}</p>
+        <label className="space-y-1.5 text-sm"><LabelText missing={!line.productId}>選擇 HQ 商品</LabelText><select className={`${selectClass} ${line.productId ? '' : invalidClass}`} name="productId" defaultValue={line.productId}><option value="">請選擇 HQ 商品</option>{products.map(product => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}</select></label>
+        <label className="space-y-1.5 text-sm"><LabelText missing={!line.temperature}>出貨溫層</LabelText><Temperature name="lineTemperature" value={line.temperature} /></label>
       </fieldset>)}
     </section>
     <section className="space-y-3 border-t pt-4">
