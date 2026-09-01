@@ -198,6 +198,7 @@ export function HqRestockDetailForm({
             disabled={locked}
             value={arrival}
             onChange={(e) => setArrival(e.target.value)}
+            onInput={(e) => setArrival(e.currentTarget.value)}
           />
         </div>
         <div className="space-y-1.5">
