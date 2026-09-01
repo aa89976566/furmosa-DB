@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -37,6 +38,7 @@ export function HqRestockDetailForm({
   items: ItemRow[];
   catalog: CatalogItem[];
 }) {
+  const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [note, setNote] = useState(hqNote);
   const [arrival, setArrival] = useState(expectedArrivalDate);
@@ -57,6 +59,12 @@ export function HqRestockDetailForm({
     [catalog, items],
   );
 
+  useEffect(() => {
+    if (approveState.redirectTo) {
+      router.push(approveState.redirectTo);
+    }
+  }, [approveState.redirectTo, router]);
+
   function addItem() {
     const p = catalog.find((c) => c.id === addProductId);
     if (!p) return;
@@ -73,7 +81,7 @@ export function HqRestockDetailForm({
   }
 
   const error = saveState.error || approveState.error || rejectState.error;
-  const ok = saveState.ok || rejectState.ok;
+  const ok = saveState.ok || approveState.ok || rejectState.ok;
 
   const hidden = (
     <>

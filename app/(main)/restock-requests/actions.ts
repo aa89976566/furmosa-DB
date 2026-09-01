@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
-import { isNextRedirect } from '@/lib/is-next-redirect';
 import {
   approveAndConvertRestockRequest,
   rejectRestockRequest,
@@ -23,7 +22,11 @@ async function requireHqUser() {
   return user;
 }
 
-export type HqRestockActionState = { error?: string; ok?: string };
+export type HqRestockActionState = {
+  error?: string;
+  ok?: string;
+  redirectTo?: string;
+};
 
 function approvalErrorMessage(error: unknown) {
   if (!(error instanceof Error)) return '核准失敗，請稍後再試';
@@ -118,9 +121,11 @@ export async function approveRestockRequestAction(
     revalidateRestock(requestId);
     revalidatePath('/shipments');
     revalidatePath('/orders');
-    redirect(`/shipments?s=${result.shipmentId}`);
+    return {
+      ok: '已核准並建立出貨單',
+      redirectTo: `/shipments?s=${result.shipmentId}`,
+    };
   } catch (e) {
-    if (isNextRedirect(e)) throw e;
     return { error: approvalErrorMessage(e) };
   }
 }
