@@ -31,9 +31,9 @@ function harness(envOverrides: Record<string, string> = {}) {
     if (name === 'next/server') return { NextResponse: { json: (body: unknown, init: ResponseInit) => Response.json(body, init) } };
     if (name === '@/lib/shopify/app-proxy-signature') return { verifyAppProxyQuery };
     if (name === '@/lib/logistics/search-service') return { createSearchService };
-    if (name === '@/lib/logistics/ecpay-directory') return { fetchDirectory: async () => {
+    if (name === '@/lib/logistics/ecpay-directory') return { fetchDirectory: async (_config: unknown, service: 'UNIMART' | 'UNIMARTFREEZE') => {
       providerCalls++;
-      return { fetchedAt: Date.now(), stores: [{ id: '001', name: '示範店', address: '示範地址', serviceType: 'UNIMART' }] };
+      return { fetchedAt: Date.now(), stores: [{ id: '001', name: '示範店', address: '示範地址', serviceType: service }] };
     } };
     throw new Error('Unexpected dependency: ' + name);
   } });
@@ -94,10 +94,15 @@ test('Next.js does not redirect Shopify trailing-slash proxy requests', () => {
   assert.match(middleware, /pathname === '\/api\/storefront\/pickup-stores\/'/);
 });
 
-test('server resolves canonical store and frozen service remains blocked', async () => {
+test('server resolves canonical store and frozen service is separately gated', async () => {
   const h = harness();
   const selected = await h.get(valid({ storeId: '001', q: '', name: 'fake', address: 'fake' }));
   assert.equal(selected.status, 200);
   assert.deepEqual((await selected.json()).store, { id: '001', name: '示範店', address: '示範地址', serviceType: 'UNIMART' });
   assert.equal((await h.get(valid({ temperature: 'frozen' }))).status, 503);
+
+  const frozen = harness({ PICKUP_DIRECTORY_SOURCE: 'live-readonly', SHOPIFY_APP_PROXY_FROZEN_ENABLED: 'true' });
+  const response = await frozen.get(valid({ temperature: 'frozen' }));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).stores[0].serviceType, 'UNIMARTFREEZE');
 });

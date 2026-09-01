@@ -18,6 +18,16 @@ test('posts only to directory endpoint and omits secret keys from body', async (
   }});
   assert.equal(result.stores[0].id, '001'); assert.equal(result.fetchedAt, 100);
 });
+test('requests the dedicated 7-ELEVEN frozen directory without changing credentials', async () => {
+  const frozenData = { RtnCode:1, StoreList:[{ CvsType:'UNIMARTFREEZE', StoreInfo:[{StoreId:'009', StoreName:'冷凍示範', StoreAddr:'示範地址'}] }] };
+  const result = await fetchDirectory(config, 'UNIMARTFREEZE', { now:()=>100, fetch:async (_url, init) => {
+    const body = new URLSearchParams(String(init?.body));
+    assert.equal(body.get('CvsType'), 'UNIMARTFREEZE');
+    assert.ok(body.get('CheckMacValue'));
+    return Response.json(frozenData);
+  }});
+  assert.equal(result.stores[0].serviceType, 'UNIMARTFREEZE');
+});
 test('rejects empty, invalid JSON, provider errors and HTTP errors without leaking details', async () => {
   for (const response of [Response.json({RtnCode:0, RtnMsg:'private'}), new Response('private'), Response.json({RtnCode:1,StoreList:[]}), new Response('private',{status:500})]) {
     await assert.rejects(fetchDirectory(config,'UNIMART',{now:()=>1,fetch:async()=>response}), /^Error: 暫時無法取得門市資料$/);

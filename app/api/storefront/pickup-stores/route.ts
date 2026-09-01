@@ -20,10 +20,14 @@ function storefrontEnabled() {
     (!process.env.PICKUP_DIRECTORY_SOURCE || ['stage', 'live-readonly'].includes(process.env.PICKUP_DIRECTORY_SOURCE));
 }
 
+function frozenStorefrontEnabled() {
+  return liveDirectory() && process.env.SHOPIFY_APP_PROXY_FROZEN_ENABLED === 'true';
+}
+
 const search = createSearchService({
   now: Date.now,
   enabled: storefrontEnabled,
-  frozenConfirmed: () => false,
+  frozenConfirmed: frozenStorefrontEnabled,
   load: service => fetchDirectory({
     merchantId: (liveDirectory() ? process.env.ECPAY_LOGISTICS_LIVE_MERCHANT_ID : process.env.ECPAY_LOGISTICS_TEST_MERCHANT_ID) ?? '',
     hashKey: (liveDirectory() ? process.env.ECPAY_LOGISTICS_LIVE_HASH_KEY : process.env.ECPAY_LOGISTICS_TEST_HASH_KEY) ?? '',
