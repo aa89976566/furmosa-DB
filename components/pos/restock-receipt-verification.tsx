@@ -19,15 +19,18 @@ export function RestockReceiptVerification({
   requestId,
   items,
   action,
+  preview = false,
 }: {
   requestId: string;
   items: ReceiptVerificationItem[];
-  action: (formData: FormData) => Promise<void>;
+  action?: (formData: FormData) => Promise<void>;
+  preview?: boolean;
 }) {
   const [quantities, setQuantities] = useState<Record<string, number>>(() =>
     Object.fromEntries(items.map((item) => [item.lineId, item.expectedQuantity])),
   );
   const [issues, setIssues] = useState<Record<string, boolean>>({});
+  const [previewCompleted, setPreviewCompleted] = useState(false);
   const allCorrect = useMemo(
     () =>
       items.every(
@@ -157,8 +160,18 @@ export function RestockReceiptVerification({
         ) : null}
       </div>
 
-      <Button type="submit" className="min-h-14 w-full text-base" disabled={!allCorrect}>
-        確認收貨並加入庫存
+      {previewCompleted ? (
+        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-900">
+          Preview：收貨流程完成，正式操作時才會更新庫存。
+        </p>
+      ) : null}
+      <Button
+        type={preview ? 'button' : 'submit'}
+        className="min-h-14 w-full text-base"
+        disabled={!allCorrect}
+        onClick={preview ? () => setPreviewCompleted(true) : undefined}
+      >
+        {previewCompleted ? '已完成驗收' : '確認收貨並加入庫存'}
       </Button>
     </form>
   );

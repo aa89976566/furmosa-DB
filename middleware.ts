@@ -7,7 +7,7 @@ import {
   verifyMerchantSessionEdge,
 } from '@/lib/merchant-auth/edge';
 
-const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
+const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book', '/preview'];
 
 const RETIRED_STORE_REDEEM_DESTINATION = '/pos/login';
 
