@@ -7,6 +7,7 @@ import {
 } from '@/lib/merchant-auth';
 import { submitSelfSelectRestockRequest } from '@/lib/restock-request/service';
 import { adjustStoreProductQuantity } from '@/lib/pos/adjust-store-stock';
+import { revalidateHqRestockInbox } from '@/lib/restock-request/hq-inbox-cache';
 
 export type InventoryActionResult =
   | { ok: true; quantity?: number; requestId?: string }
@@ -61,6 +62,7 @@ export async function submitInventoryRestockCartAction(
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
+    revalidateHqRestockInbox();
     return { ok: true, requestId: req.id };
   } catch (error) {
     return { ok: false, error: toMerchantError(error) };

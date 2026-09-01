@@ -7,17 +7,25 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { getCurrentUser } from "@/lib/auth";
+import { HQ_RESTOCK_INBOX_PATH } from "@/lib/restock-request/hq-inbox";
+import { countHqPendingRestockRequests } from "@/lib/restock-request/hq-inbox-query";
 
 export async function Topbar() {
-  const user = await getCurrentUser();
+  const [user, restockPendingCount] = await Promise.all([
+    getCurrentUser(),
+    countHqPendingRestockRequests(),
+  ]);
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b-2 border-foreground bg-card px-3 sm:gap-4 sm:px-6">
       <MobileNav
-        reviewBadge={
-          <Suspense fallback={null}>
-            <ReviewInboxBadge />
-          </Suspense>
-        }
+        badges={{ [HQ_RESTOCK_INBOX_PATH]: restockPendingCount }}
+        itemExtras={{
+          "/reviews": (
+            <Suspense fallback={null}>
+              <ReviewInboxBadge />
+            </Suspense>
+          ),
+        }}
       />
       <Suspense
         fallback={

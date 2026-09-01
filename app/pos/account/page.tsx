@@ -4,6 +4,7 @@ import { loadPosAccount } from '@/lib/pos/account';
 import { storeHeading } from '@/lib/pos/store-display';
 import { FURMOSA_CONTACT } from '@/lib/pos/contact';
 import { Card, CardContent } from '@/components/ui/card';
+import { PosPageHeader } from '@/components/pos/pos-page-header';
 
 export const metadata = { title: '店家資料 · Furmosa' };
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,8 @@ export default async function PosAccountPage() {
 
   return (
     <PosShell storeName={account.storeName} account={account}>
-      <div className="space-y-4 px-4 py-6 pr-16">
-        <h1 className="text-xl font-semibold text-navy">店家資料</h1>
+      <PosPageHeader title="店家資料" description="查看目前登入的店家與帳號。" />
+      <div className="space-y-4 px-4 pb-6 md:px-6">
         <Card className="shadow-card">
           <CardContent className="space-y-3 p-5 text-sm">
             <Row label="店名" value={heading.brandLine} />

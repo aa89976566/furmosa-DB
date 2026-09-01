@@ -1,4 +1,5 @@
 import type { Shipment } from '@prisma/client';
+import { MERCHANT_RESTOCK_SHIPMENT_TYPE } from '@/lib/shipment-status-policy';
 
 export const SHIPMENT_STATUSES = ['pending', 'packed', 'shipped', 'delivered', 'cancelled'] as const;
 export const SHIPMENT_TYPES = ['merchant_restock', 'customer_order', 'subscription'] as const;
@@ -43,7 +44,10 @@ export const shipmentTypeIcon: Record<string, string> = {
 
 export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 
-export function nextStatuses(current: string): ShipmentStatus[] {
+export function nextStatuses(current: string, type?: string): ShipmentStatus[] {
+  if (type === MERCHANT_RESTOCK_SHIPMENT_TYPE && current === 'delivered') {
+    return [];
+  }
   switch (current) {
     case 'pending':
     case 'packed':

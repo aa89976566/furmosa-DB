@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { markShipmentStatusFromQueue } from '@/app/(main)/shipments/actions';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
+import { MERCHANT_RESTOCK_SHIPMENT_TYPE } from '@/lib/shipment-status-policy';
 import { cn } from '@/lib/utils';
 
 export const QUEUE_DELIVERED_LABEL = '貨物到達';
@@ -30,7 +31,10 @@ function queueSelectValue(status: string) {
   return 'pending';
 }
 
-function queueOptionsForStatus(status: string) {
+function queueOptionsForStatus(status: string, type?: string) {
+  if (status === 'delivered' && type === MERCHANT_RESTOCK_SHIPMENT_TYPE) {
+    return [{ value: 'delivered', label: QUEUE_DELIVERED_LABEL }] as const;
+  }
   if (status === 'delivered') {
     return QUEUE_DELIVERED_OPTIONS;
   }
@@ -87,6 +91,7 @@ function buildInlineSuccessHref(input: {
 export function ShipmentQueueStatusSelect({
   shipmentId,
   status,
+  shipmentType,
   queueStatus,
   queueType,
   paymentReviewHold = false,
@@ -94,13 +99,14 @@ export function ShipmentQueueStatusSelect({
 }: {
   shipmentId: string;
   status: string;
+  shipmentType?: string;
   queueStatus?: string;
   queueType?: string;
   paymentReviewHold?: boolean;
   className?: string;
 }) {
   const router = useRouter();
-  const options = queueOptionsForStatus(status);
+  const options = queueOptionsForStatus(status, shipmentType);
   const serverValue = queueSelectValue(status);
   const [displayValue, setDisplayValue] = useState(serverValue);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -208,6 +214,7 @@ export function ShipmentQueueStatusSelect({
 export function ShipmentQueueStatusCell({
   shipmentId,
   status,
+  shipmentType,
   queueStatus,
   queueType,
   paymentReviewHold,
@@ -215,6 +222,7 @@ export function ShipmentQueueStatusCell({
 }: {
   shipmentId: string;
   status: string;
+  shipmentType?: string;
   queueStatus?: string;
   queueType?: string;
   paymentReviewHold?: boolean;
@@ -224,6 +232,7 @@ export function ShipmentQueueStatusCell({
     <ShipmentQueueStatusSelect
       shipmentId={shipmentId}
       status={status}
+      shipmentType={shipmentType}
       queueStatus={queueStatus}
       queueType={queueType}
       paymentReviewHold={paymentReviewHold}

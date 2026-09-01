@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { requireMerchantSession, getAuthenticatedMerchantId } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
-import {
-  restockRequestTypeLabel,
-  restockStatusLabelForMerchant,
-} from '@/lib/restock-request/constants';
+import { restockRequestTypeLabel } from '@/lib/restock-request/constants';
+import { listMerchantRestockProgress } from '@/lib/pos/restock-progress';
 import { PosShell } from '@/components/pos/pos-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,18 +15,7 @@ export default async function PosRestockProgressPage() {
   const merchantId = await getAuthenticatedMerchantId();
   const account = await loadPosAccount(session.merchantId, session.username);
 
-  const rows = await prisma.restockRequest.findMany({
-    where: { merchantId },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    select: {
-      id: true,
-      requestType: true,
-      status: true,
-      createdAt: true,
-      expectedArrivalDate: true,
-    },
-  });
+  const rows = await listMerchantRestockProgress(prisma, merchantId);
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -72,7 +59,7 @@ export default async function PosRestockProgressPage() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-                      {restockStatusLabelForMerchant(r.status)}
+                      {r.progressLabel}
                     </span>
                   </CardContent>
                 </Card>

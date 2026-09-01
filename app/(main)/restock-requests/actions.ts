@@ -4,60 +4,70 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { isNextRedirect } from '@/lib/is-next-redirect';
+import { canAccessHqRestockInbox } from '@/lib/restock-request/hq-inbox';
+import { revalidateAfterHqRestockReview } from '@/lib/restock-request/hq-inbox-cache';
 import {
   approveAndConvertRestockRequest,
   rejectRestockRequest,
   updateRestockRequestAsHq,
 } from '@/lib/restock-request/service';
+import {
+  hqReviewActionStateFromError,
+  parseHqExpectedArrivalDate,
+  readHqReviewFormFields,
+  requireHqReviewActor,
+} from '@/lib/restock-request/review-policy';
 
-function revalidateRestock(requestId: string) {
-  revalidatePath('/restock-requests');
-  revalidatePath(`/restock-requests/${requestId}`);
-  revalidatePath('/reviews');
-  revalidatePath('/dashboard');
-}
-
-async function requireHqUser() {
+async function requireHqReviewer() {
   const user = await getCurrentUser();
-  if (!user) redirect('/login');
-  return user;
+  if (
+    !canAccessHqRestockInbox({
+      hasHqSession: Boolean(user),
+      hasMerchantSession: false,
+    })
+  ) {
+    redirect('/login');
+  }
+  return user!;
 }
 
-export type HqRestockActionState = { error?: string; ok?: string };
+function revalidateHqReviewSurfaces(requestId: string, extra: string[] = []) {
+  revalidateAfterHqRestockReview(requestId);
+  revalidatePath('/reviews');
+  for (const path of extra) {
+    revalidatePath(path);
+  }
+}
+
+export type HqRestockActionState = {
+  error?: string;
+  ok?: string;
+  conflict?: boolean;
+};
 
 export async function saveRestockRequestHqAction(
   _prev: HqRestockActionState,
   formData: FormData,
 ): Promise<HqRestockActionState> {
-  await requireHqUser();
-  const requestId = String(formData.get('requestId') ?? '');
-  const hqNote = String(formData.get('hqNote') ?? '');
-  const arrivalRaw = String(formData.get('expectedArrivalDate') ?? '').trim();
-  const expectedArrivalDate = arrivalRaw ? new Date(arrivalRaw) : null;
-
-  const productIds = formData.getAll('productId').map(String);
-  const approvedQtys = formData.getAll('approvedQuantity').map(String);
-  const requestedQtys = formData.getAll('requestedQuantity').map(String);
-
-  const items = productIds
-    .map((productId, i) => ({
-      productId,
-      approvedQuantity: Number(approvedQtys[i] ?? 0),
-      requestedQuantity: requestedQtys[i] ? Number(requestedQtys[i]) : null,
-    }))
-    .filter((it) => it.productId);
+  await requireHqReviewer();
+  const fields = readHqReviewFormFields(formData);
+  if (!fields.requestId) return { error: '申請不存在' };
 
   try {
+    const expectedArrivalDate = parseHqExpectedArrivalDate(
+      fields.expectedArrivalDateRaw,
+      false,
+    );
     await updateRestockRequestAsHq({
-      requestId,
-      hqNote,
+      requestId: fields.requestId,
+      hqNote: fields.hqNote,
       expectedArrivalDate,
-      items,
+      items: fields.items,
     });
-    revalidateRestock(requestId);
+    revalidateHqReviewSurfaces(fields.requestId);
     return { ok: '已儲存' };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : '儲存失敗' };
+    return hqReviewActionStateFromError(e);
   }
 }
 
@@ -65,48 +75,28 @@ export async function approveRestockRequestAction(
   _prev: HqRestockActionState,
   formData: FormData,
 ): Promise<HqRestockActionState> {
-  const user = await requireHqUser();
-  const requestId = String(formData.get('requestId') ?? '');
-  const hqNote = String(formData.get('hqNote') ?? '');
-  const arrivalRaw = String(formData.get('expectedArrivalDate') ?? '').trim();
-  if (!arrivalRaw) return { error: '請填寫預計到貨日' };
-  const expectedArrivalDate = new Date(arrivalRaw);
-
-  // Persist item edits before approve if present
-  const productIds = formData.getAll('productId').map(String);
-  if (productIds.length > 0) {
-    const approvedQtys = formData.getAll('approvedQuantity').map(String);
-    const requestedQtys = formData.getAll('requestedQuantity').map(String);
-    try {
-      await updateRestockRequestAsHq({
-        requestId,
-        hqNote,
-        expectedArrivalDate,
-        items: productIds.map((productId, i) => ({
-          productId,
-          approvedQuantity: Number(approvedQtys[i] ?? 0),
-          requestedQuantity: requestedQtys[i] ? Number(requestedQtys[i]) : null,
-        })),
-      });
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : '儲存品項失敗' };
-    }
-  }
+  const user = await requireHqReviewer();
+  const fields = readHqReviewFormFields(formData);
+  if (!fields.requestId) return { error: '申請不存在' };
 
   try {
+    const expectedArrivalDate = parseHqExpectedArrivalDate(
+      fields.expectedArrivalDateRaw,
+      true,
+    );
+    if (!expectedArrivalDate) return { error: '請填寫預計到貨日' };
     const result = await approveAndConvertRestockRequest({
-      requestId,
-      hqUserId: user.userId,
+      requestId: fields.requestId,
+      hqUserId: requireHqReviewActor(user),
       expectedArrivalDate,
-      hqNote,
+      hqNote: fields.hqNote,
+      items: fields.items,
     });
-    revalidateRestock(requestId);
-    revalidatePath('/shipments');
-    revalidatePath('/orders');
+    revalidateHqReviewSurfaces(fields.requestId, ['/shipments', '/orders']);
     redirect(`/shipments?s=${result.shipmentId}`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
-    return { error: e instanceof Error ? e.message : '核准失敗' };
+    return hqReviewActionStateFromError(e);
   }
 }
 
@@ -114,18 +104,19 @@ export async function rejectRestockRequestAction(
   _prev: HqRestockActionState,
   formData: FormData,
 ): Promise<HqRestockActionState> {
-  const user = await requireHqUser();
-  const requestId = String(formData.get('requestId') ?? '');
-  const hqNote = String(formData.get('hqNote') ?? '');
+  const user = await requireHqReviewer();
+  const fields = readHqReviewFormFields(formData);
+  if (!fields.requestId) return { error: '申請不存在' };
+
   try {
     await rejectRestockRequest({
-      requestId,
-      hqUserId: user.userId,
-      hqNote,
+      requestId: fields.requestId,
+      hqUserId: requireHqReviewActor(user),
+      hqNote: fields.hqNote,
     });
-    revalidateRestock(requestId);
+    revalidateHqReviewSurfaces(fields.requestId);
     return { ok: '已拒絕此申請' };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : '拒絕失敗' };
+    return hqReviewActionStateFromError(e);
   }
 }

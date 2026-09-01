@@ -3,7 +3,10 @@ import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { formatRefillOrderNo } from '@/lib/pos/refill-view';
 import { storeHeading } from '@/lib/pos/store-display';
 import {
-  classifyCouponSubsidy,
+  authoritativeGroomingCouponStoreIds,
+  projectSubsidyFactsToLedgerEntries,
+} from '@/lib/pos/project-store-ledger-sources';
+import {
   classifyPaymentOrder,
   classifyRestockCost,
   classifyUnpaidRefill,
@@ -129,12 +132,12 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       where: {
         status: 'redeemed',
         redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
-        OR: [
-          { storeId: storeSlug },
-          { storeId: merchant.merchantId },
-          ...(store ? [{ storeId: store.id }] : []),
-          { storeName: merchant.name },
-        ],
+        storeId: {
+          in: authoritativeGroomingCouponStoreIds(
+            { id: merchant.id, merchantId: merchant.merchantId, name: merchant.name },
+            { id: store?.id ?? null, slug: storeSlug },
+          ),
+        },
       },
       select: {
         id: true,
@@ -143,6 +146,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         redeemedAt: true,
         customerId: true,
         storeId: true,
+        storeName: true,
         customer: { select: { id: true, name: true } },
       },
     }),
@@ -157,6 +161,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         couponCode: true,
         usedAt: true,
         customerId: true,
+        partnerMerchantId: true,
         customer: { select: { id: true, name: true } },
         reward: { select: { couponFaceValue: true } },
       },
@@ -194,8 +199,6 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     }),
   ]);
 
-  const storeKey = store?.id ?? storeSlug;
-  const couponCodes = new Set<string>();
   const entries: LedgerEntry[] = [];
 
   for (const order of refillOrders) {
@@ -261,44 +264,14 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     }
   }
 
-  for (const coupon of coupons) {
-    if (!coupon.redeemedAt) continue;
-    couponCodes.add(coupon.couponCode.toLowerCase());
-    entries.push(
-      classifyCouponSubsidy({
-        id: coupon.id,
-        customerId: coupon.customerId,
-        customerName: coupon.customer.name,
-        couponId: coupon.id,
-        couponCode: coupon.couponCode,
-        discountAmount: coupon.discountAmount,
-        relatedRefillOrderId: null,
-        relatedRefillDisplay: null,
-        storeId: coupon.storeId || storeKey,
-        redeemedAt: coupon.redeemedAt,
-      }),
-    );
-  }
-
-  for (const redemption of redemptions) {
-    const code = (redemption.couponCode ?? '').toLowerCase();
-    if (code && couponCodes.has(code)) continue;
-    if (!redemption.usedAt) continue;
-    entries.push(
-      classifyCouponSubsidy({
-        id: redemption.id,
-        customerId: redemption.customerId,
-        customerName: redemption.customer.name,
-        couponId: redemption.id,
-        couponCode: redemption.couponCode ?? redemption.id,
-        discountAmount: redemption.reward.couponFaceValue,
-        relatedRefillOrderId: null,
-        relatedRefillDisplay: null,
-        storeId: merchant.id,
-        redeemedAt: redemption.usedAt,
-      }),
-    );
-  }
+  entries.push(
+    ...projectSubsidyFactsToLedgerEntries({
+      merchant: { id: merchant.id, merchantId: merchant.merchantId, name: merchant.name },
+      store: { id: store?.id ?? null, slug: storeSlug },
+      coupons,
+      redemptions,
+    }),
+  );
 
   let usedCostFallback = false;
   for (const restock of restocks) {

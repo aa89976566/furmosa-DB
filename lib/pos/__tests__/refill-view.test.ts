@@ -4,7 +4,11 @@ import {
   customerInitial,
   formatRefillOrderNo,
   parseRefillLookupQuery,
+  refillCompleteBlockedReason,
+  refillCurrentFlowStage,
+  refillFlowStageState,
   refillListHint,
+  refillPaymentStaffCopy,
   refillStaffView,
 } from '@/lib/pos/refill-view';
 import { mapRefillStaffError } from '@/lib/pos/refill-staff-errors';
@@ -92,6 +96,174 @@ describe('refill staff view', () => {
     });
     assert.equal(refillListHint(unpaid), '尚未完成付款');
     assert.equal(customerInitial('王小姐'), '王');
+  });
+});
+
+describe('refill payment staff copy', () => {
+  it('does not present pending or failed payment as paid', () => {
+    const pending = refillPaymentStaffCopy({
+      status: 'payment_pending',
+      paid: false,
+      totalAmount: 99,
+    });
+    assert.equal(pending.kind, 'unpaid');
+    assert.equal(pending.title, '尚未付款');
+    assert.match(pending.staffNeed, /不用收款/);
+
+    const failed = refillPaymentStaffCopy({
+      status: 'payment_failed',
+      paid: false,
+      totalAmount: 99,
+    });
+    assert.equal(failed.kind, 'failed');
+    assert.equal(failed.title, '付款沒有成功');
+    assert.doesNotMatch(failed.title, /已付款|已收款/);
+    assert.doesNotMatch(failed.detail, /已付款|已收款/);
+  });
+
+  it('says Furmosa already collected online payment, not that the store can ignore it', () => {
+    const paid = refillPaymentStaffCopy({
+      status: 'paid_waiting_return',
+      paid: true,
+      totalAmount: 99,
+    });
+    assert.equal(paid.kind, 'online_paid');
+    assert.equal(paid.title, '匠寵已收款');
+    assert.match(paid.detail, /NT\$99/);
+    assert.match(paid.detail, /不列入店家結帳/);
+    assert.doesNotMatch(paid.detail, /不用處理/);
+    assert.match(paid.staffNeed, /不用收款/);
+  });
+
+  it('keeps extra top-up pending from looking like paid-and-ready', () => {
+    const extra = refillPaymentStaffCopy({
+      status: 'awaiting_extra_payment',
+      paid: true,
+      totalAmount: 129,
+      extraAmount: 30,
+    });
+    assert.equal(extra.kind, 'extra_unpaid');
+    assert.equal(extra.title, '尚未補差額');
+    assert.match(extra.staffNeed, /不用代收現金/);
+  });
+});
+
+describe('refill flow stages', () => {
+  it('starts at 找到客人 until an order can be processed', () => {
+    assert.equal(
+      refillCurrentFlowStage({
+        hasSelection: false,
+        success: false,
+        unpaidBlock: false,
+        skipOldJar: false,
+        oldVerified: false,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      'find',
+    );
+    assert.equal(
+      refillCurrentFlowStage({
+        hasSelection: true,
+        success: false,
+        unpaidBlock: true,
+        skipOldJar: false,
+        oldVerified: false,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      'find',
+    );
+  });
+
+  it('walks old jar → new jar → confirm without skipping', () => {
+    assert.equal(
+      refillCurrentFlowStage({
+        hasSelection: true,
+        success: false,
+        unpaidBlock: false,
+        skipOldJar: false,
+        oldVerified: false,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      'old',
+    );
+    assert.equal(
+      refillCurrentFlowStage({
+        hasSelection: true,
+        success: false,
+        unpaidBlock: false,
+        skipOldJar: true,
+        oldVerified: false,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      'new',
+    );
+    assert.equal(
+      refillCurrentFlowStage({
+        hasSelection: true,
+        success: false,
+        unpaidBlock: false,
+        skipOldJar: true,
+        oldVerified: false,
+        hasNewSerial: true,
+        newConfirmed: true,
+      }),
+      'confirm',
+    );
+    assert.equal(refillFlowStageState('find', 'new'), 'done');
+    assert.equal(refillFlowStageState('new', 'new'), 'current');
+    assert.equal(refillFlowStageState('confirm', 'new'), 'upcoming');
+  });
+
+  it('explains why complete stays disabled', () => {
+    assert.equal(
+      refillCompleteBlockedReason({
+        unpaidBlock: true,
+        oldReady: true,
+        hasNewSerial: true,
+        newConfirmed: true,
+      }),
+      '客人還沒完成付款，現在不能完成換罐。',
+    );
+    assert.equal(
+      refillCompleteBlockedReason({
+        unpaidBlock: false,
+        oldReady: false,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      '請先確認收到空罐。',
+    );
+    assert.equal(
+      refillCompleteBlockedReason({
+        unpaidBlock: false,
+        oldReady: true,
+        hasNewSerial: false,
+        newConfirmed: false,
+      }),
+      '請先掃描或輸入要交給客人的新罐。',
+    );
+    assert.equal(
+      refillCompleteBlockedReason({
+        unpaidBlock: false,
+        oldReady: true,
+        hasNewSerial: true,
+        newConfirmed: false,
+      }),
+      '請先確認這是要交給客人的新罐。',
+    );
+    assert.equal(
+      refillCompleteBlockedReason({
+        unpaidBlock: false,
+        oldReady: true,
+        hasNewSerial: true,
+        newConfirmed: true,
+      }),
+      null,
+    );
   });
 });
 

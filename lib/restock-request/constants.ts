@@ -19,6 +19,25 @@ export const RESTOCK_APPROVABLE_STATUSES: RestockRequestStatus[] = [
   'approved',
 ];
 
+/** HQ may save approved quantities / start review. */
+export const RESTOCK_HQ_EDITABLE_STATUSES: RestockRequestStatus[] = [
+  'submitted',
+  'under_review',
+];
+
+/** HQ may reject. approved 不可再拒絕（避免舊畫面覆蓋已核准）。 */
+export const RESTOCK_REJECTABLE_STATUSES: RestockRequestStatus[] = [
+  'submitted',
+  'under_review',
+];
+
+/** 已結束，不能再審核。 */
+export const RESTOCK_FINAL_STATUSES: RestockRequestStatus[] = [
+  'rejected',
+  'cancelled',
+  'converted_to_shipment',
+];
+
 export type ApprovedSnapshotLine = {
   productId: string;
   productName: string;
