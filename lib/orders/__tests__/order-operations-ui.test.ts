@@ -23,22 +23,22 @@ const ordersPageSource = readFileSync(
   new URL('../../../app/(main)/orders/page.tsx', import.meta.url),
   'utf8',
 );
+const resourceListStyles = readFileSync(
+  new URL('../../../components/orders/order-resource-list.module.css', import.meta.url),
+  'utf8',
+);
 
-test('訂單桌面列表只保留五個營運欄位', () => {
-  const headers = [...listSource.matchAll(/<TableHead[^>]*>([^<]+)<\/TableHead>/g)]
-    .map((match) => match[1]?.trim())
-    .filter(Boolean);
-  assert.deepEqual(headers.slice(0, 5), ['訂單／客戶', '商品', '配送', '金額', '下一步']);
-  assert.equal(headers.includes('幣別'), false);
-  assert.equal(headers.includes('店家'), false);
-  assert.match(listSource, /Table className="table-fixed"/);
-  assert.equal(listSource.includes('min-w-[14rem]'), false);
-  assert.match(listSource, /xl:hidden/);
-  assert.match(listSource, /hidden overflow-hidden p-0 xl:block/);
+test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
+  assert.equal(listSource.includes('VirtualCardList'), false);
+  assert.equal(listSource.includes('<Table'), false);
+  assert.match(listSource, /OrderResourceRow/);
+  assert.match(resourceListStyles, /container-type: inline-size/);
+  assert.match(resourceListStyles, /@container \(min-width: 600px\)/);
+  assert.match(resourceListStyles, /@container \(min-width: 900px\)/);
 });
 
 test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
-  assert.match(listSource, /href=\{`\/customers\/\$\{o\.customer\.id\}`\}/);
+  assert.match(listSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
   assert.match(detailSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
 });
 
