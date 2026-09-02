@@ -15,6 +15,16 @@ export const ORDER_LIST_INCLUDE = {
     },
   },
   _count: { select: { items: true } },
+  items: {
+    orderBy: { id: 'asc' as const },
+    take: 2,
+    select: {
+      id: true,
+      productName: true,
+      quantity: true,
+      isGift: true,
+    },
+  },
   shipments: {
     orderBy: { createdAt: 'desc' as const },
     take: 1,

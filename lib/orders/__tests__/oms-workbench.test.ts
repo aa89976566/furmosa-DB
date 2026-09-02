@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Prisma } from '@prisma/client';
-import { OMS_FILTERS, omsFilterWhere, omsProblemsWhere, taiwanToday, workbenchHref, workbenchVisibleWhere, omsSourceSearchWhere } from '../oms-workbench';
+import { OMS_FILTERS, ORDER_WORK_FILTERS, orderWorkWhere, omsFilterWhere, omsProblemsWhere, taiwanToday, workbenchHref, workbenchVisibleWhere, omsSourceSearchWhere } from '../oms-workbench';
 import { OMS_STATUSES } from '../oms';
 import { mergeSearchWhere, orderSearchWhere } from '../../site-search';
 
@@ -13,6 +13,14 @@ describe('OMS workbench read-only queries', () => {
     assert.equal(omsFilterWhere('issues'), omsProblemsWhere);
     assert.deepEqual(workbenchVisibleWhere.OR?.[0], { omsStatus: { not: null } });
     assert.match(JSON.stringify(workbenchVisibleWhere.OR?.[1]), /cancelled/);
+  });
+  it('daily work buckets are mutually exclusive and use staff-facing labels', () => {
+    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['待確認', '等待中', '可出貨', '待交寄', '已完成']);
+    assert.deepEqual(orderWorkWhere('now'), { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { in: ['paid', 'cod'] } });
+    assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { notIn: ['paid', 'cod'] } });
+    assert.deepEqual(orderWorkWhere('ready'), { omsStatus: 'READY' });
+    assert.deepEqual(orderWorkWhere('shipping'), { omsStatus: 'FULFILLMENT_PENDING' });
+    assert.deepEqual(orderWorkWhere('done'), { omsStatus: 'FULFILLED' });
   });
   it('includes uninspected, null and nonempty issue flags, not only red flags', () => {
     assert.deepEqual(omsProblemsWhere.OR, [{ omsCheckedAt: null },

@@ -1,206 +1,116 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Card } from '@/components/ui/card';
-import { StatusBadge } from '@/components/shared/status-badge';
-import { LogisticsSummary } from '@/components/shared/logistics-summary';
-import { VirtualCardList } from '@/components/shared/virtualized-rows';
-import { formatCurrency, formatDateTime } from '@/lib/format';
-import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
-import { shipmentStatusLabel } from '@/lib/shipment';
+import { ChevronRight } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
+import { StatusBadge } from '@/components/shared/status-badge';
+import { formatCurrency } from '@/lib/format';
+import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { ChevronRight, Package } from 'lucide-react';
-import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
-import { OMS_LABELS, omsIssueTone } from '@/lib/orders/oms';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { omsNextActionLabel, parseOmsIssues, type OmsIssueCode } from '@/lib/orders/oms';
+import styles from './order-resource-list.module.css';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
-function OmsOrderBadge({ order }: { order: OrderListRow }) {
-  if (!order.omsStatus) return <StatusBadge kind="order" value={order.status} />;
-  const tone = omsIssueTone(order.omsIssueFlags, order.omsCheckedAt ? new Date(order.omsCheckedAt) : null);
-  return <span className={`text-xs ${tone === 'red' ? 'text-destructive' : tone === 'green' ? 'text-green-700' : 'text-warning'}`}>
-    {OMS_LABELS[order.omsStatus]} · {tone === 'green' ? '檢查通過' : tone === 'red' ? '需處理' : '待確認'}
-  </span>;
+function orderCustomer(order: OrderListRow) {
+  const snapshot = snapshotView(order.shopifySnapshot);
+  return order.customer?.name ?? snapshot?.recipient ?? order.merchant?.name ?? '收件人待確認';
 }
 
-function fulfillmentDisplay(order: OrderListRow): string {
-  const shipment = order.shipments[0];
-  if (!shipment) return order.fulfillmentStatus;
-  if (shipment.status === 'packed' || shipment.status === 'pending') return 'pending';
-  if (shipment.status === 'shipped') return 'shipped';
-  if (shipment.status === 'delivered') return 'delivered';
-  if (shipment.status === 'cancelled') return 'returned';
-  return order.fulfillmentStatus;
+function orderItemSummary(order: OrderListRow) {
+  const sourceItems = snapshotView(order.shopifySnapshot)?.items ?? [];
+  const rows = sourceItems.length
+    ? sourceItems.map((item) => ({ name: item.title, quantity: item.quantity }))
+    : order.items.map((item) => ({ name: item.productName, quantity: item.quantity }));
+  if (!rows.length) return '商品待確認';
+  const first = rows[0]!;
+  const firstLabel = `${first.name}${first.quantity ? ` × ${first.quantity}` : ''}`;
+  const total = sourceItems.length || order._count.items;
+  return total > 1 ? `${firstLabel} · 共 ${total} 項` : firstLabel;
 }
 
-function OrderFulfillmentBadge({ order }: { order: OrderListRow }) {
-  const notice = omsShipmentNotice(order.omsStatus, order.shipments.length);
-  return notice ? <span className="text-xs text-muted-foreground">{notice}</span>
-    : <StatusBadge kind="fulfillment" value={fulfillmentDisplay(order)} />;
+function nextAction(order: OrderListRow) {
+  if (order.omsStatus) {
+    if (order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW') {
+      const waiting = !['paid', 'cod'].includes(order.paymentStatus);
+      return { label: waiting ? '等待付款' : omsNextActionLabel(order.omsStatus, order.omsIssueFlags), hint: waiting ? '付款後繼續' : '現在處理', active: !waiting };
+    }
+    if (order.omsStatus === 'READY') return { label: '建立物流單', hint: '已通過審核', active: true };
+    if (order.omsStatus === 'FULFILLMENT_PENDING') return { label: '等待交寄', hint: '物流單已建立', active: false };
+    return { label: '已完成', hint: '已出貨', active: false };
+  }
+  if (order.status === 'cancelled') return { label: '已取消', hint: '無需處理', active: false };
+  if (order.fulfillmentStatus === 'delivered' || order.status === 'completed') return { label: '已完成', hint: '交易完成', active: false };
+  if (order.fulfillmentStatus === 'shipped') return { label: '運送中', hint: '等待送達', active: false };
+  if (order.paymentStatus !== 'paid') return { label: '等待付款', hint: '尚未付款', active: false };
+  if (order.status === 'pending_review' || order.status === 'draft') return { label: '確認訂單內容', hint: '現在處理', active: true };
+  return { label: '等待交寄', hint: '查看出貨進度', active: false };
+}
+
+const ISSUE_CATEGORY: Record<OmsIssueCode, string> = {
+  PAYMENT_PENDING: '待付款', PAYMENT_REFUNDED: '退款確認', ORDER_CANCELLED: '訂單取消',
+  SKU_MISSING: '缺少 SKU', PRODUCT_UNMAPPED: '商品未對應', STOCK_UNKNOWN: '庫存待確認',
+  STOCK_INSUFFICIENT: '庫存不足', SHIPPING_METHOD_UNKNOWN: '配送待確認',
+  PICKUP_STORE_MISSING: '缺門市資料', TEMPERATURE_UNKNOWN: '溫層待確認',
+  TEMPERATURE_CONFLICT: '溫層衝突', GIFT_REVIEW_REQUIRED: '贈品待確認',
+  RECIPIENT_MISSING: '缺收件人', PHONE_MISSING: '缺電話', ADDRESS_MISSING: '缺地址',
+  POSSIBLE_DUPLICATE: '疑似重複', SOURCE_VERSION_UNKNOWN: '同步異常', ORDER_CHANGED: '內容待檢查',
+};
+
+function issueCategory(order: OrderListRow) {
+  const issues = parseOmsIssues(order.omsIssueFlags);
+  if (!issues) return { label: '待檢查', tone: 'warning' as const };
+  const issue = issues.find((item) => item.severity === 'blocking' && item.code !== 'PAYMENT_PENDING')
+    ?? issues.find((item) => item.severity === 'blocking')
+    ?? issues[0];
+  if (!issue) return { label: '資料完整', tone: 'ok' as const };
+  return { label: ISSUE_CATEGORY[issue.code], tone: issue.severity === 'blocking' ? 'blocking' as const : 'warning' as const };
 }
 
 export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
   if (orders.length === 0) {
-    return (
-      <Card className="p-0">
-        <p className="py-10 text-center text-sm text-muted-foreground">沒有符合條件的訂單</p>
-      </Card>
-    );
+    return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
   }
 
-  return (
-    <>
-      {/* 手機：虛擬化卡片，免左右滑動 */}
-      <div className="md:hidden">
-        <VirtualCardList
-          items={orders}
-          estimateSize={168}
-          getKey={(o) => o.id}
-          renderItem={(o) => <OrderCard order={o} />}
-        />
-      </div>
-
-      {/* 桌機：完整表格（已分頁，列數有限） */}
-      <Card className="hidden p-0 md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>訂單編號</TableHead>
-              <TableHead>來源</TableHead>
-              <TableHead>客戶</TableHead>
-              <TableHead>店家</TableHead>
-              <TableHead className="min-w-[10rem]">運輸資訊</TableHead>
-              <TableHead className="text-right">品項</TableHead>
-              <TableHead className="text-right">總額</TableHead>
-              <TableHead>付款</TableHead>
-              <TableHead>出貨</TableHead>
-              <TableHead>狀態</TableHead>
-              <TableHead>下單時間</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((o) => {
-              const logistics = resolveLogisticsForOrderList(o);
-              return (
-                <TableRow key={o.id}>
-                  <TableCell>
-                    <Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">
-                      {o.externalOrderName || o.orderNumber}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="orderSource" value={o.source} />
-                  </TableCell>
-                  <TableCell className="text-sm">{o.customer?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '-')}</TableCell>
-                  <TableCell className="text-sm">
-                    {o.merchant ? (
-                      <Link
-                        href={`/merchants/${o.merchant.id}`}
-                        className="text-info hover:underline"
-                      >
-                        {o.merchant.name}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <LogisticsSummary logistics={logistics} compact />
-                  </TableCell>
-                  <TableCell className="text-right">{snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(Number(o.total))}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge kind="payment" value={o.paymentStatus} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <OrderFulfillmentBadge order={o} />
-                      {o.shipments[0] ? (
-                        <Link
-                          href={`/shipments/${o.shipments[0].id}`}
-                          className="block font-mono text-[11px] text-info hover:underline"
-                        >
-                          {o.shipments[0].shipmentNumber} ·{' '}
-                          {shipmentStatusLabel[o.shipments[0].status] ?? o.shipments[0].status}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <OmsOrderBadge order={o} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDateTime(o.orderedAt)}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </Card>
-    </>
-  );
+  return <section className={styles.list} aria-label="訂單列表">
+    {orders.map((order) => <OrderResourceRow key={order.id} order={order} />)}
+  </section>;
 }
 
-function OrderCard({ order: o }: { order: OrderListRow }) {
-  const logistics = resolveLogisticsForOrderList(o);
-  const counterparty = o.customer?.name ?? o.merchant?.name ?? (snapshotView(o.shopifySnapshot)?.recipient || '—');
-  const shipment = o.shipments[0];
+function OrderResourceRow({ order }: { order: OrderListRow }) {
+  const customer = orderCustomer(order);
+  const item = orderItemSummary(order);
+  const logistics = resolveLogisticsForOrderList(order);
+  const action = nextAction(order);
+  const issue = issueCategory(order);
+  const orderReference = order.externalOrderName || order.orderNumber;
 
-  return (
-    <Link
-      href={`/orders/${o.id}`}
-      className="block rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition-colors active:bg-muted/40"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{o.externalOrderName || o.orderNumber}</span>
-            <StatusBadge kind="orderSource" value={o.source} />
-          </div>
-          <p className="mt-1 truncate text-sm font-medium text-foreground">{counterparty}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1 text-right">
-          <div>
-            <p className="text-base font-semibold tabular-nums">{formatCurrency(Number(o.total))}</p>
-            <p className="text-[11px] text-muted-foreground">
-              <Package className="mr-0.5 inline h-3 w-3 align-[-1px]" />
-              {snapshotView(o.shopifySnapshot)?.items.length ?? o._count.items} 項
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-        </div>
+  return <article className={styles.row}>
+    <div className={styles.identity}>
+      <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
+      <div className={styles.tags}>
+        <StatusBadge kind="orderSource" value={order.source} />
+        <span className={`${styles.issueTag} ${styles[issue.tone]}`}>{issue.label}</span>
       </div>
+    </div>
 
-      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
-        <LogisticsSummary logistics={logistics} compact />
-      </div>
+    <div className={styles.summary}>
+      {order.customer
+        ? <Link href={`/customers/${order.customer.id}`} className={styles.customer}>{customer}</Link>
+        : <span className={styles.customer}>{customer}</span>}
+      <span aria-hidden>·</span>
+      <span className={styles.product}>{item}</span>
+      <span className={styles.delivery}>{logistics.carrierLabel}</span>
+    </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <OmsOrderBadge order={o} />
-        <StatusBadge kind="payment" value={o.paymentStatus} />
-        <OrderFulfillmentBadge order={o} />
-      </div>
+    <div className={styles.money}>
+      <p>{formatCurrency(Number(order.total))}</p>
+      <StatusBadge kind="payment" value={order.paymentStatus} />
+    </div>
 
-      <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span>{formatDateTime(o.orderedAt)}</span>
-        {shipment ? (
-          <span className="truncate font-mono text-info">
-            {shipment.shipmentNumber} · {shipmentStatusLabel[shipment.status] ?? shipment.status}
-          </span>
-        ) : null}
-      </div>
+    <Link href={`/orders/${order.id}`} className={action.active ? styles.primaryAction : styles.secondaryAction} aria-label={`${action.label}：${customer}`}>
+      <span>{action.active ? action.label : '查看'}</span><ChevronRight aria-hidden />
     </Link>
-  );
+  </article>;
 }

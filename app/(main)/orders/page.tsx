@@ -13,62 +13,65 @@ import {
   totalPages,
 } from '@/lib/list-pagination';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { OMS_FILTERS, omsFilterWhere, workbenchVisibleWhere, workbenchHref, taiwanToday, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
+import { orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
 import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
-type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; day?: string; queue?: string; deleted?: string };
+type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; work?: string; deleted?: string };
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 animate-pulse rounded-md bg-muted/40" />
+    <div className="flex gap-2 overflow-hidden">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-10 w-28 shrink-0 animate-pulse rounded-xl bg-muted/40" />
       ))}
     </div>
   );
 }
 
-async function OrdersWorkSummary() {
-  const day = taiwanToday();
-  const [summary] = await prisma.$queryRaw<Array<{ today: bigint; review: bigint; issues: bigint; fulfillment_pending: bigint }>>`
+function activeWorkFilter(searchParams: SearchParams) {
+  if (searchParams.deleted === 'true') return 'all';
+  if (searchParams.work) return searchParams.work;
+  if (searchParams.oms === 'READY') return 'ready';
+  if (searchParams.oms === 'FULFILLMENT_PENDING') return 'shipping';
+  if (searchParams.oms === 'FULFILLED') return 'done';
+  if (searchParams.oms === 'issues' || searchParams.oms === 'NEW' || searchParams.oms === 'REVIEW') return 'now';
+  return 'now';
+}
+
+async function OrdersWorkSummary({ active }: { active: string }) {
+  const [summary] = await prisma.$queryRaw<Array<{ all_orders: bigint; now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint }>>`
     SELECT
-      COUNT(*) FILTER (WHERE "orderedAt" >= ${day.gte} AND "orderedAt" < ${day.lt}) AS today,
-      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW')) AS review,
-      COUNT(*) FILTER (WHERE oms_checked_at IS NULL OR oms_issue_flags IS NULL OR oms_issue_flags <> '[]'::jsonb) AS issues,
-      COUNT(*) FILTER (WHERE oms_status = 'FULFILLMENT_PENDING') AS fulfillment_pending
+      COUNT(*) AS all_orders,
+      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" IN ('paid', 'cod')) AS now,
+      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" NOT IN ('paid', 'cod')) AS waiting,
+      COUNT(*) FILTER (WHERE oms_status = 'READY') AS ready,
+      COUNT(*) FILTER (WHERE oms_status = 'FULFILLMENT_PENDING') AS shipping,
+      COUNT(*) FILTER (WHERE oms_status = 'FULFILLED') AS done
     FROM "Order"
-    WHERE deleted_at IS NULL AND oms_status IS NOT NULL
+    WHERE deleted_at IS NULL
   `;
-  const today = Number(summary?.today ?? 0);
-  const review = Number(summary?.review ?? 0);
-  const issues = Number(summary?.issues ?? 0);
-  const fulfillmentPending = Number(summary?.fulfillment_pending ?? 0);
   const cards = [
-    { label: '今日新訂單', count: today, help: '台灣時間今天收到', href: '/orders?day=today' },
-    { label: '待審核', count: review, help: '需要核對或確認', href: '/orders?queue=review' },
-    { label: '有問題', count: issues, help: '優先處理異常資料', href: '/orders?oms=issues' },
-    { label: '待出貨', count: fulfillmentPending, help: '已建立 HQ 出貨單', href: '/orders?oms=FULFILLMENT_PENDING' },
+    { key: 'all', label: '全部', count: Number(summary?.all_orders ?? 0) },
+    { key: 'now', label: '待確認', count: Number(summary?.now ?? 0), help: '核對訂單內容' },
+    { key: 'waiting', label: '等待中', count: Number(summary?.waiting ?? 0), help: '等待付款或回覆' },
+    { key: 'ready', label: '可出貨', count: Number(summary?.ready ?? 0), help: '建立物流單' },
+    { key: 'shipping', label: '待交寄', count: Number(summary?.shipping ?? 0), help: '物流單已建立' },
+    { key: 'done', label: '已完成', count: Number(summary?.done ?? 0) },
   ];
-  return <section aria-labelledby="work-summary-title">
-    <div className="mb-3">
-      <h2 id="work-summary-title" className="text-lg font-semibold">今天需要處理</h2>
-      <p className="text-sm text-muted-foreground">點選卡片即可只看該類訂單。</p>
-    </div>
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      {cards.map(card => <Link key={card.label} href={card.href} prefetch={false} className="rounded-xl border bg-card p-4 transition hover:border-primary/40 hover:bg-muted/20">
-        <p className="text-sm font-medium">{card.label}</p>
-        <p className="mt-2 text-3xl font-semibold tabular-nums">{card.count}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{card.help}</p>
+  return <nav aria-label="訂單工作階段" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <div className="flex min-w-max gap-2">
+      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
+        <span>{card.label}</span><span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
       </Link>)}
     </div>
-  </section>;
+  </nav>;
 }
 
 async function OrdersTableSection({
@@ -76,9 +79,10 @@ async function OrdersTableSection({
 }: {
   searchParams: SearchParams;
 }) {
-  const where: Record<string, unknown> = { AND: [searchParams.deleted === 'true' ? { deletedAt: { not: null } } : workbenchVisibleWhere, omsFilterWhere(searchParams.oms),
-    ...(searchParams.day === 'today' ? [{ omsStatus: { not: null }, orderedAt: taiwanToday() }] : []),
-    ...(searchParams.queue === 'review' ? [{ omsStatus: { in: ['NEW', 'REVIEW'] } }] : []),
+  const activeWork = activeWorkFilter(searchParams);
+  const where: Record<string, unknown> = { AND: [
+    searchParams.deleted === 'true' ? { deletedAt: { not: null } } : workbenchVisibleWhere,
+    activeWork === 'all' ? {} : orderWorkWhere(activeWork),
   ] };
   const sourceFilter =
     searchParams.source === 'restock' ? 'consignment' : searchParams.source;
@@ -117,7 +121,7 @@ async function OrdersTableSection({
   const orders = await prisma.order.findMany({
       where,
       include: ORDER_LIST_INCLUDE,
-      orderBy: [{ orderedAt: 'desc' }, { id: 'desc' }],
+      orderBy: activeWork === 'all' || activeWork === 'done' ? [{ orderedAt: 'desc' }, { id: 'desc' }] : [{ orderedAt: 'asc' }, { id: 'asc' }],
       skip: (safePage - 1) * pageSize,
       take: pageSize,
     });
@@ -125,7 +129,7 @@ async function OrdersTableSection({
     source: searchParams.source,
     status: searchParams.status,
     q: searchParams.q,
-    oms: searchParams.oms, day: searchParams.day, queue: searchParams.queue, deleted: searchParams.deleted,
+    work: activeWork, deleted: searchParams.deleted,
   };
 
   return (
@@ -168,12 +172,12 @@ export default function OrdersPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const activeWork = activeWorkFilter(searchParams);
   return (
     <>
       <PageHeader
         tone="orders"
-        title="訂單 Order Hub"
-        description="先處理異常與待審核訂單，再管理其他訂單與補貨"
+        title="訂單"
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">
@@ -185,44 +189,25 @@ export default function OrdersPage({
       />
 
       <div className="space-y-4 p-4 sm:p-6">
-        <Suspense fallback={<OrdersTotalsFallback />}><OrdersWorkSummary /></Suspense>
-        <details className="rounded-lg border bg-muted/10 p-3">
-          <summary className="cursor-pointer text-sm font-medium">同步與管理工具</summary>
-          <div className="mt-3 space-y-3 border-t pt-3">
-            <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
-            <div className="flex flex-wrap gap-3 text-sm"><Link className="text-info hover:underline" href="/orders?deleted=true">已移出處理清單（可還原）</Link>{searchParams.deleted === 'true' && <><span>目前顯示已移出的訂單</span><Link className="underline" href="/orders">返回一般清單</Link></>}</div>
-          </div>
-        </details>
-        <nav aria-label="OMS 訂單階段" className="flex flex-wrap gap-2">
-          {OMS_FILTERS.map(filter => <Button key={filter.key} size="sm" variant={(searchParams.oms ?? '') === filter.key ? 'default' : 'outline'} asChild>
-            <Link href={workbenchHref(searchParams, { oms: filter.key, status: undefined, day: undefined, queue: undefined, deleted: undefined })}>{filter.label}</Link>
-          </Button>)}
-        </nav>
-        <p className="text-xs text-muted-foreground">OMS 篩選只包含已納入新流程的訂單；舊流程訂單仍可在「所有訂單」查看。「有問題」包含提醒及尚未檢查。</p>
-        {(searchParams.day === 'today' || searchParams.queue === 'review') && <p className="text-sm">
-          目前篩選：{searchParams.day === 'today' ? '台灣時間今日下單' : '新訂單＋待審核'} · <Link className="underline" href={workbenchHref(searchParams, { day: undefined, queue: undefined })}>清除</Link>
-        </p>}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">種類</span>
-          {ORDER_SOURCE_TABS.map((s) => {
-            const active =
-              (searchParams.source ?? '') === s.key ||
-              (s.key === 'consignment' && searchParams.source === 'restock');
-            const href = workbenchHref(searchParams, { source: s.key });
-            return (
-              <Button
-                key={s.key || 'all'}
-                variant={active ? 'default' : 'outline'}
-                size="sm"
-                asChild
-              >
-                <Link href={href} prefetch={false}>
-                  {s.label}
-                </Link>
-              </Button>
-            );
-          })}
+        <Suspense fallback={<OrdersTotalsFallback />}><OrdersWorkSummary active={activeWork} /></Suspense>
+        <div className="flex flex-wrap items-start justify-between gap-2 border-y py-3">
+          <details className="relative">
+            <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-lg border bg-card px-3 text-sm font-medium">
+              來源：{ORDER_SOURCE_TABS.find((item) => item.key === (searchParams.source ?? ''))?.label ?? '全部'}
+            </summary>
+            <div className="absolute left-0 top-11 z-30 min-w-36 space-y-1 rounded-xl border bg-card p-2 shadow-lg">
+              {ORDER_SOURCE_TABS.map((source) => <Link key={source.key || 'all'} href={workbenchHref(searchParams, { source: source.key, page: undefined })} className="block rounded-lg px-3 py-2 text-sm hover:bg-muted">{source.label}</Link>)}
+            </div>
+          </details>
+          <details className="relative ml-auto">
+            <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-lg border bg-card px-3 text-sm font-medium">同步與管理</summary>
+            <div className="absolute right-0 top-11 z-30 w-[min(90vw,28rem)] space-y-3 rounded-xl border bg-card p-4 shadow-lg">
+              <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+              <Link className="block text-sm text-info hover:underline" href="/orders?deleted=true">查看已移出的訂單</Link>
+            </div>
+          </details>
         </div>
+        {searchParams.deleted === 'true' ? <p className="text-sm">目前顯示已移出的訂單 · <Link className="underline" href="/orders">返回一般清單</Link></p> : null}
 
         <Suspense
           key={JSON.stringify(searchParams)}

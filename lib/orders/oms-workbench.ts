@@ -6,9 +6,27 @@ import { hrefWithPage } from '../list-pagination';
 export const OMS_FILTERS = [
   { key: '', label: '所有訂單' },
   ...OMS_STATUSES.slice(0, 2).map(key => ({ key, label: OMS_LABELS[key] })),
-  { key: 'issues', label: '有問題' },
+  { key: 'issues', label: '需要處理' },
   ...OMS_STATUSES.slice(2).map(key => ({ key, label: OMS_LABELS[key] })),
 ];
+
+export const ORDER_WORK_FILTERS = [
+  { key: 'now', label: '待確認' },
+  { key: 'waiting', label: '等待中' },
+  { key: 'ready', label: '可出貨' },
+  { key: 'shipping', label: '待交寄' },
+  { key: 'done', label: '已完成' },
+] as const;
+
+/** Mutually exclusive daily-work buckets. One OMS order belongs to exactly one bucket. */
+export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
+  if (value === 'now') return { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { in: ['paid', 'cod'] } };
+  if (value === 'waiting') return { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { notIn: ['paid', 'cod'] } };
+  if (value === 'ready') return { omsStatus: 'READY' };
+  if (value === 'shipping') return { omsStatus: 'FULFILLMENT_PENDING' };
+  if (value === 'done') return { omsStatus: 'FULFILLED' };
+  return {};
+}
 
 /** Every enrolled order stays visible, including cancelled/refunded exceptions. Legacy behavior is unchanged. */
 export const workbenchVisibleWhere: Prisma.OrderWhereInput = {
