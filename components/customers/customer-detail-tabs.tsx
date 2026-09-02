@@ -16,7 +16,7 @@ export function CustomerDetailTabs({ items }: { items: CustomerDetailTab[] }) {
   return (
     <div>
       <div
-        className="flex gap-1 overflow-x-auto border-b border-border"
+        className="flex flex-wrap gap-x-1 border-b border-border"
         role="tablist"
         aria-label="會員資料檢視"
       >
