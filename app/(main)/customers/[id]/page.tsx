@@ -15,9 +15,9 @@ export const dynamic = 'force-dynamic';
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 px-4 py-4 sm:px-5">
+    <div className="min-w-0 px-3 py-3.5 sm:px-4">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">{formatNumber(value)}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{formatNumber(value)}</p>
     </div>
   );
 }
@@ -40,15 +40,15 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
 
   return (
     <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-      <header className="mb-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <header className="mb-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <nav className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" aria-label="麵包屑">
               <Link href="/customers" className="hover:text-foreground">會員</Link>
               <span>/</span>
               <span>{customer.name}</span>
             </nav>
-            <h1 className="text-4xl font-semibold tracking-tight text-foreground">{customer.name}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">{customer.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="mr-2 text-lg text-muted-foreground">{customer.customerId}</span>
               {customer.lineUserId ? <Badge variant="outline" className="font-normal">LINE 已綁定</Badge> : null}
@@ -69,8 +69,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         </div>
       </header>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="space-y-4 lg:sticky lg:top-6">
+      <div className="grid items-start gap-5 min-[900px]:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="space-y-4 min-[900px]:sticky min-[900px]:top-6">
           <CustomerContactCard customer={customer} tags={tags} />
           <details className="rounded-2xl border border-border bg-card px-5">
             <summary className="cursor-pointer py-4 text-sm font-semibold text-muted-foreground">資料管理</summary>
@@ -90,7 +90,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           </div>
 
           <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 xl:grid-cols-5 xl:divide-y-0">
+            <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3 min-[900px]:grid-cols-5 min-[900px]:divide-y-0">
               <Metric label="可用點數" value={pointsBalance} />
               <Metric label="累計獲得" value={data.pointsTotals.totalEarned} />
               <Metric label="累計兌換點數" value={data.pointsTotals.totalRedeemed} />
