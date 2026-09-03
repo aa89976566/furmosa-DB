@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save } from 'lucide-react';
+import { ChevronDown, Save } from 'lucide-react';
 import { createCustomerFromForm, updateCustomerFromForm } from '@/app/(main)/customers/actions';
 import {
   PetProfileFieldsBlock,
@@ -55,12 +55,13 @@ export function CustomerForm({ customer }: { customer?: CustomerFormDefaults }) 
       className="max-w-2xl space-y-6"
     >
       <input type="hidden" name="preferredShippingMethod" value={shipping} />
+      {!isEdit ? <input type="hidden" name="type" value="individual" /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="姓名" required className="sm:col-span-2">
+        <Field label="客戶姓名" required className="sm:col-span-2">
           <Input name="name" required maxLength={60} placeholder="王小明" defaultValue={customer?.name ?? ''} />
         </Field>
-        <Field label="類型">
+        {isEdit ? <Field label="類型">
           <select
             name="type"
             defaultValue={customer?.type ?? 'individual'}
@@ -69,13 +70,17 @@ export function CustomerForm({ customer }: { customer?: CustomerFormDefaults }) 
             <option value="individual">個人</option>
             <option value="business">企業</option>
           </select>
-        </Field>
-        <Field label="電話">
-          <Input name="phone" type="tel" maxLength={40} placeholder="0912-345-678" defaultValue={customer?.phone ?? ''} />
+        </Field> : null}
+        <Field label="電話" required={!isEdit}>
+          <Input name="phone" type="tel" required={!isEdit} maxLength={40} placeholder="0912-345-678" defaultValue={customer?.phone ?? ''} />
         </Field>
         <Field label="Email">
           <Input name="email" type="text" inputMode="email" maxLength={120} placeholder="選填" defaultValue={customer?.email ?? ''} />
         </Field>
+      </div>
+
+      <OptionalSection title="LINE 資料" open={isEdit}>
+        <div className="grid gap-4 sm:grid-cols-2">
         <Field label="LINE User ID" className="sm:col-span-2">
           <Input
             name="lineUserId"
@@ -88,10 +93,11 @@ export function CustomerForm({ customer }: { customer?: CustomerFormDefaults }) 
         <Field label="LINE 顯示名稱" className="sm:col-span-2">
           <Input name="lineDisplay" maxLength={60} placeholder="選填" defaultValue={customer?.lineDisplay ?? ''} />
         </Field>
-      </div>
+        </div>
+      </OptionalSection>
 
-      <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-        <p className="text-sm font-medium">預設運輸方式（選填）</p>
+      <OptionalSection title="常用收貨方式" open={isEdit}>
+        <p className="mb-3 text-xs text-muted-foreground">新增訂單時自動帶入，當次仍可修改。</p>
         <div className="inline-flex rounded-md border bg-background p-0.5">
           {(
             [
@@ -146,14 +152,28 @@ export function CustomerForm({ customer }: { customer?: CustomerFormDefaults }) 
             <Input name="address" maxLength={200} defaultValue={customer?.address ?? ''} />
           </Field>
         )}
-      </div>
+      </OptionalSection>
 
-      <PetProfileFieldsBlock defaults={customer?.pet} />
+      <OptionalSection title="毛孩資料" open={isEdit}>
+        <PetProfileFieldsBlock defaults={customer?.pet} />
+      </OptionalSection>
 
       <div className="flex justify-end border-t pt-4">
         <SubmitButton isEdit={isEdit} />
       </div>
     </form>
+  );
+}
+
+function OptionalSection({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={open} className="group rounded-xl border bg-muted/10">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+        <span>{title} <span className="font-normal text-muted-foreground">（選填）</span></span>
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition group-open:rotate-180" />
+      </summary>
+      <div className="border-t p-4">{children}</div>
+    </details>
   );
 }
 

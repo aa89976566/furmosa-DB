@@ -68,8 +68,8 @@ export function MerchantCreateForm() {
 
       <MerchantSection
         step={2}
-        title="運輸與地址"
-        description="建立後進貨會自動帶入；寄賣分潤請至「商品與庫存」設定。"
+        title="收貨資料"
+        description="店家名稱與實際收貨人分開保存；建立補貨單時會自動帶入。"
       >
         <div className="space-y-5">
           <div className="space-y-2">
@@ -99,7 +99,7 @@ export function MerchantCreateForm() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <MerchantField label="聯絡人（取件人）">
+            <MerchantField label="預設收貨人">
               <Input name="contactName" maxLength={60} placeholder="例：王小明" />
             </MerchantField>
             <MerchantField label="電話">
