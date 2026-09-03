@@ -17,7 +17,12 @@ export async function changeOrderDeletion(db: PrismaClient, input: {
       if (!isOrderDeletionReason(input.reason)) throw new OrderDeleteError('請選擇刪除原因');
       const application = await tx.campaignApplication.findFirst({ where: { orderId: order.id }, select: { id: true } });
       const review = await tx.orderReview.findFirst({ where: { orderId: order.id }, select: { id: true } });
-      const blocker = deletionBlocker(order, Boolean(application || review || order._count.shipments || order._count.merchantStockTxns));
+      const blocker = deletionBlocker(order, {
+        hasCampaignApplication: Boolean(application),
+        hasOrderReview: Boolean(review),
+        shipmentCount: order._count.shipments,
+        merchantStockTxnCount: order._count.merchantStockTxns,
+      }, input.reason);
       if (blocker) throw new OrderDeleteError(blocker);
     } else if (!order.deletedAt) return '此訂單未刪除，沒有重複還原';
     await tx.order.update({ where: { id: order.id }, data: {
