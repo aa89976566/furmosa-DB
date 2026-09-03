@@ -40,6 +40,7 @@ export function LoginForm({ next }: { next?: string }) {
               autoComplete="current-password"
               required
             />
+            <p className="text-xs text-muted-foreground">此裝置可保持登入 180 天；主動登出後立即失效。</p>
           </div>
           {state.error ? (
             <p className="whitespace-pre-line rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

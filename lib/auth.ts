@@ -4,9 +4,9 @@ import { SignJWT, jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
 import { isDbUnreachableError, loginFailureMessage } from '@/lib/auth-errors';
+import { HQ_SESSION_DAYS, HQ_SESSION_MAX_AGE_SECONDS } from '@/lib/hq-session-policy';
 
 const SESSION_COOKIE = 'furmosa_session';
-const SESSION_HOURS = Number(process.env.SESSION_HOURS ?? '168'); // 預設 7 天
 
 function secretKey() {
   return getAuthSecretKey();
@@ -31,7 +31,7 @@ export async function signSession(payload: SessionPayload) {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_HOURS}h`)
+    .setExpirationTime(`${HQ_SESSION_DAYS}d`)
     .sign(secretKey());
 }
 
@@ -56,7 +56,7 @@ export async function setSessionCookie(token: string) {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_HOURS * 60 * 60,
+    maxAge: HQ_SESSION_MAX_AGE_SECONDS,
   });
 }
 

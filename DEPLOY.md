@@ -90,6 +90,7 @@ gh repo create furmosa-hq --private --source=. --push
    | `DATABASE_URL` | 6543 的 pooled URL，**結尾加** `?pgbouncer=true&connection_limit=10&pool_timeout=20`（dashboard 一次發多個 query，太緊會 timeout） |
    | `DIRECT_URL` | 5432 的 direct URL |
    | `AUTH_SECRET` | 用 `openssl rand -base64 32` 產一條 **新的**（**不要**和本機共用） |
+   | `HQ_SESSION_DAYS` | `180`（同一網域、同一裝置保持 HQ 登入） |
    | `SESSION_HOURS` | `168` |
    | `JIBA_TRANSFER_BANK_NAME` | Production 收款銀行名稱（Preview／本機用 placeholder） |
    | `JIBA_TRANSFER_BANK_CODE` | Production 銀行代碼 |
