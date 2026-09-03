@@ -1,3 +1,17 @@
+export const orderDeletionReasons = [
+  '測試訂單',
+  '客人取消',
+  '重複訂單',
+  '資料錯誤',
+  '其他',
+] as const;
+
+export type OrderDeletionReason = (typeof orderDeletionReasons)[number];
+
+export function isOrderDeletionReason(value: string): value is OrderDeletionReason {
+  return orderDeletionReasons.includes(value as OrderDeletionReason);
+}
+
 export function deletionBlocker(order: {
   source: string; omsStatus: string | null; paymentStatus: string; status: string;
   fulfillmentStatus: string; shippedAt: Date | null; completedAt: Date | null;

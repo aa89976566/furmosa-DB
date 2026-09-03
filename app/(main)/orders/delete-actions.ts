@@ -15,7 +15,7 @@ export async function orderDeletionAction(_state: { message: string }, form: For
   const orderId = String(form.get('orderId') ?? '');
   try {
     const message = await changeOrderDeletion(prisma, { actorId: user.userId, orderId, action,
-      confirmNumber: String(form.get('confirmNumber') ?? ''), reason: String(form.get('reason') ?? '') });
+      reason: String(form.get('reason') ?? '') });
     for (const path of ['/orders', `/orders/${orderId}`, '/reviews', '/dashboard']) revalidatePath(path);
     await bustCacheTags(CACHE_TAGS.orderHubTotals, CACHE_TAGS.dashboard);
     return { message };
