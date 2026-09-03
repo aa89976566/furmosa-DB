@@ -9,9 +9,8 @@ function Submit({ deleted }: { deleted: boolean }) {
 }
 export function OrderDeletionForm({ orderId, deleted }: { orderId: string; orderNumber: string; deleted: boolean }) {
   const [state, action] = useFormState(orderDeletionAction, { message: '' });
-  return <details className="rounded-lg border bg-background p-3"><summary className="cursor-pointer text-sm font-medium">{deleted ? '還原訂單' : '更多操作'}</summary>
+  return <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">{deleted ? '還原訂單' : '刪除訂單'}</summary>
     <form action={action} className="mt-3 space-y-3">
-      <p className="text-sm font-medium">{deleted ? '還原訂單' : '刪除訂單'}</p>
       <p className="text-xs text-muted-foreground">刪除後不會進入審核或出貨流程，管理員仍可從已刪除清單還原。</p>
       <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="action" value={deleted ? 'restore' : 'delete'} />
       {!deleted ? <label className="block space-y-1.5 text-sm font-medium">刪除原因

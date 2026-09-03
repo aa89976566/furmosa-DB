@@ -131,23 +131,20 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           {!order.deletedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單已刪除，審核表單已停用。</div>}
           <aside className="space-y-4 lg:sticky lg:top-4">
             <section className="rounded-xl border bg-card p-4">
-              <h2 className="font-semibold">訂單摘要</h2>
+              <h2 className="font-semibold">訂單內容</h2>
               <div className="mt-3 space-y-3 text-sm">
                 <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
                 <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="flex justify-between gap-3"><span className="min-w-0 truncate">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></li>)}</ul></div>
+                <div className="border-t pt-3">
+                  <p className="text-xs text-muted-foreground">收件與配送</p>
+                  <p>{sourceView?.recipient || order.customer?.name || '收件人待補'} · {sourceView?.phone || order.customer?.phone || '電話待補'}</p>
+                  <p className="mt-1 break-words text-muted-foreground">{sourceView?.address || '地址待補'}</p>
+                </div>
                 <div className="border-t pt-3"><p className="text-xs text-muted-foreground">下單時間</p><p>{formatDateTime(order.orderedAt)}</p></div>
+                {order.omsReviewedAt ? <div className="border-t pt-3"><p className="text-xs text-muted-foreground">審核</p><p>{order.omsReviewedBy?.name || '原審核者帳號已不存在'} · {formatDateTime(order.omsReviewedAt)}</p></div> : null}
               </div>
             </section>
-            <details className="rounded-xl border bg-card p-4">
-              <summary className="cursor-pointer text-sm font-semibold">更多資料</summary>
-              <div className="mt-3 space-y-3 border-t pt-3 text-xs text-muted-foreground">
-                <p>Shopify 原始金額：{sourceView?.currency || 'TWD'} {sourceView?.total || '待同步'}</p>
-                <p className="break-words">來源地址：{sourceView?.address || '未提供'}</p>
-                <p>審核者：{order.omsReviewedBy?.name || '尚未審核'}</p>
-                {order.omsReviewedAt ? <p>審核時間：{formatDateTime(order.omsReviewedAt)}</p> : null}
-                <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
-              </div>
-            </details>
+            <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
           </aside>
         </div>
       </main>
