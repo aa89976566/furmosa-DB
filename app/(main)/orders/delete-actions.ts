@@ -9,7 +9,6 @@ import { CACHE_TAGS } from '@/lib/cache-tags';
 export async function orderDeletionAction(_state: { message: string }, form: FormData) {
   const user = await getCurrentUser();
   if (!user) return { message: '請先登入 HQ' };
-  if (process.env.VERCEL_ENV === 'production') return { message: '刪除／還原功能尚未開放正式環境' };
   const action = form.get('action');
   if (action !== 'delete' && action !== 'restore') return { message: '不支援的操作' };
   const orderId = String(form.get('orderId') ?? '');
