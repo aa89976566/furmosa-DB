@@ -46,6 +46,7 @@ export default async function MerchantLayout({
           { href: 'sales', label: '訂單' },
           { href: 'settlement', label: '結算', badge: shell.draftSettlements },
           { href: 'ledger', label: '動作流水' },
+          { href: 'account', label: 'POS 帳號' },
         ]}
       />
 

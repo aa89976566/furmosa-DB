@@ -4,6 +4,7 @@ import { hashPassword, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
 import { loginFailureMessage } from '@/lib/auth-errors';
+import { isMerchantSessionAccountActive } from '@/lib/merchant-auth/active-session';
 
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
@@ -29,6 +30,7 @@ export type MerchantCredentialsLookup = {
   username: string;
   passwordHash: string;
   isActive: boolean;
+  merchantStatus?: string;
 };
 
 export function merchantSessionMaxAgeSeconds() {
@@ -135,7 +137,20 @@ export async function clearMerchantSessionCookie() {
 
 export async function getMerchantSessionFromCookies(): Promise<MerchantSessionPayload | null> {
   const token = cookies().get(MERCHANT_SESSION_COOKIE)?.value;
-  return readMerchantSession(token);
+  const session = await readMerchantSession(token);
+  if (!session) return null;
+
+  const account = await prisma.merchantUser.findUnique({
+    where: { id: session.merchantUserId },
+    select: {
+      id: true,
+      merchantId: true,
+      username: true,
+      isActive: true,
+      merchant: { select: { status: true } },
+    },
+  });
+  return isMerchantSessionAccountActive(session, account) ? session : null;
 }
 
 /**
@@ -164,13 +179,24 @@ export async function authenticateMerchantCredentials(
           username: true,
           passwordHash: true,
           isActive: true,
+          merchant: { select: { status: true } },
         },
-      }));
+      }).then((row) => row ? ({
+        id: row.id,
+        merchantId: row.merchantId,
+        username: row.username,
+        passwordHash: row.passwordHash,
+        isActive: row.isActive,
+        merchantStatus: row.merchant.status,
+      }) : null));
   const verify = deps?.verify ?? verifyPassword;
 
   const user = await find(username.trim());
   if (!user) return { ok: false, error: '帳號或密碼不正確' };
   if (!user.isActive) return { ok: false, error: '此帳號已停用，請聯繫 Furmosa 總部' };
+  if (user.merchantStatus && user.merchantStatus !== 'active') {
+    return { ok: false, error: '此店家目前未啟用，請聯繫 Furmosa 總部' };
+  }
   const valid = await verify(password, user.passwordHash);
   if (!valid) return { ok: false, error: '帳號或密碼不正確' };
   return { ok: true, user };
