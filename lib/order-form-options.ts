@@ -51,7 +51,7 @@ export async function loadOrderFormOptions(seed?: {
       }),
       searchCustomersForOrderForm('', 24),
       searchProductsForOrderForm('', 40),
-      searchProductsForOrderForm('', 40, 'customer_in_stock'),
+      searchProductsForOrderForm('', 40, 'customer_standard'),
       getCustomersByIdsForOrderForm(seed?.customerIds ?? []),
       getProductsByIdsForOrderForm(seed?.productIds ?? []),
     ]);
