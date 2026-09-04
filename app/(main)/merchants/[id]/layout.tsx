@@ -38,14 +38,10 @@ export default async function MerchantLayout({
         merchantId={shell.id}
         tabs={[
           { href: '', label: '總覽' },
+          { href: 'settings', label: '合作設定' },
           { href: 'products', label: '商品與庫存' },
-          ...(shell.types.includes('wholesale')
-            ? [{ href: 'wholesale-prices', label: '進貨價' }]
-            : []),
-          { href: 'shipments', label: '運送', badge: shell.shipmentsInTransit },
-          { href: 'sales', label: '訂單' },
-          { href: 'settlement', label: '結算', badge: shell.draftSettlements },
-          { href: 'ledger', label: '動作流水' },
+          { href: 'shipments', label: '訂單與出貨', badge: shell.shipmentsInTransit },
+          { href: 'settlement', label: '帳務', badge: shell.draftSettlements },
           { href: 'account', label: 'POS 帳號' },
         ]}
       />

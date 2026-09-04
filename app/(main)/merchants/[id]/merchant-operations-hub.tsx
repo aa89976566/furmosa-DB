@@ -1,24 +1,20 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
-  BookOpen,
   PackagePlus,
   ScanLine,
   ShoppingCart,
-  Receipt,
   ClipboardList,
-  Truck,
+  Activity,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 const actions: { href: (id: string) => string; label: string; icon: LucideIcon; primary?: boolean }[] = [
   { href: (id) => `/merchants/${id}/adjust`, label: '清點庫存', icon: ScanLine, primary: true },
-  { href: (id) => `/merchants/${id}/restock`, label: '進貨入庫', icon: PackagePlus },
+  { href: (id) => `/merchants/${id}/restock`, label: '建立補貨', icon: PackagePlus },
   { href: (id) => `/merchants/${id}/sale`, label: '建立訂單', icon: ShoppingCart },
-  { href: (id) => `/merchants/${id}/rule`, label: '分潤規則', icon: BookOpen },
-  { href: (id) => `/merchants/${id}/shipments`, label: '運送狀態', icon: Truck },
-  { href: (id) => `/merchants/${id}/settlement`, label: '期間結算', icon: Receipt },
-  { href: (id) => `/merchants/${id}/ledger`, label: '動作流水', icon: ClipboardList },
+  { href: (id) => `/merchants/${id}/shipments`, label: '訂單與出貨', icon: ClipboardList },
+  { href: (id) => `/merchants/${id}/ledger`, label: '活動紀錄', icon: Activity },
 ];
 
 function ActionButton({

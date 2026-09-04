@@ -35,7 +35,7 @@ export function MerchantShippingPanel({ merchant }: { merchant: MerchantShipping
             收起
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">進貨建立出貨單時會自動帶入。</p>
+        <p className="text-xs text-muted-foreground">建立店家補貨出貨單時會自動帶入。</p>
         <MerchantShippingForm
           merchant={merchant}
           compact

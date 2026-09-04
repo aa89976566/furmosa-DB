@@ -33,8 +33,8 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
   return (
     <div className="space-y-6 p-6">
       <SectionCard
-        title="寄賣商品 × 庫存 × 分潤"
-        description="點庫存數字就地清點：變少預設記售出，變多預設記補登進貨。已無貨品項收在下方歷史區，可移出列表；銷售紀錄仍在動作流水／訂單。"
+        title="合作商品與店家庫存"
+        description="在同一處管理合作商品、店家現貨與商務條件。點庫存數字可清點；完整異動保留在活動紀錄。"
         action={
           <div className="flex flex-wrap gap-2">
             <AutoFillCommissionButton merchantId={merchantId} />
@@ -47,7 +47,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
             <Button size="sm" asChild>
               <Link href={`/merchants/${merchantId}/restock`}>
                 <PackagePlus className="mr-1 h-4 w-4" />
-                新增進貨
+                建立補貨
               </Link>
             </Button>
           </div>
@@ -55,11 +55,11 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
       >
         {rows.length === 0 ? (
           <div className="space-y-3 py-10 text-center">
-            <p className="text-sm text-muted-foreground">這家店還沒設定寄賣商品</p>
+            <p className="text-sm text-muted-foreground">這家店還沒有合作商品</p>
             <Button size="sm" variant="outline" asChild>
               <Link href={`/merchants/${merchantId}/restock`}>
                 <PackagePlus className="mr-1 h-4 w-4" />
-                建立第一筆進貨
+                建立第一筆補貨
               </Link>
             </Button>
           </div>
@@ -67,7 +67,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
           <div className="space-y-6">
             {activeRows.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                目前沒有庫存中的寄賣商品。已無貨品項見下方歷史區。
+                目前沒有庫存中的合作商品。已無貨品項見下方歷史區。
               </div>
             ) : (
               <Table>
@@ -76,7 +76,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
                     <TableHead>商品</TableHead>
                     <TableHead className="text-right">店家庫存</TableHead>
                     <TableHead className="text-right">建議售價</TableHead>
-                    <TableHead className="text-center">寄賣分潤</TableHead>
+                    <TableHead className="text-center">合作方收益</TableHead>
                     <TableHead className="text-right">公司實收</TableHead>
                     <TableHead className="text-right">最近進貨</TableHead>
                     <TableHead className="w-px"></TableHead>
