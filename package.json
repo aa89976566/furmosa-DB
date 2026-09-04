@@ -23,7 +23,8 @@
     "merchant:create-user": "tsx scripts/create-merchant-user.ts",
     "merchant:ensure-demo-admin": "tsx scripts/ensure-demo-admin.ts",
     "product:ensure-mooncake": "tsx scripts/ensure-mooncake-product.ts",
-    "refill:seed-test": "tsx scripts/seed-refill-test-data.ts"
+    "refill:seed-test": "tsx scripts/seed-refill-test-data.ts",
+    "audit:partner-store-identity": "tsx scripts/audit-partner-store-identity.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
