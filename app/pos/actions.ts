@@ -43,6 +43,10 @@ export async function checkoutCounterSaleAction(
     revalidatePath('/pos/sell');
     revalidatePath('/pos/stock');
     revalidatePath('/pos/records');
+    revalidatePath('/orders');
+    revalidatePath(`/merchants/${session.merchantId}`);
+    revalidatePath(`/merchants/${session.merchantId}/shipments`);
+    revalidatePath(`/merchants/${session.merchantId}/settlement`);
     return { ok: true, total: result.total };
   } catch (err) {
     if (isNextRedirect(err)) throw err;

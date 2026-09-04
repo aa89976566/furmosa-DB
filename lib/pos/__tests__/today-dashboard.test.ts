@@ -68,6 +68,19 @@ describe('buildHomeTaskCards', () => {
     assert.equal(cards[0]?.href, '/pos/restock/r2');
     assert.match(cards[0]?.title ?? '', /請驗收/);
   });
+
+  it('links an HQ-initiated shipment to its POS receipt page', () => {
+    const cards = buildHomeTaskCards({
+      pendingRefillCount: 0,
+      awaitingRestockReceiptCount: 1,
+      firstAwaitingRestockReceiptId: 'shipment-1',
+      firstAwaitingRestockReceiptHref: '/pos/restock/shipment/shipment-1',
+      lowStock: null,
+      openRestockCount: 0,
+      firstOpenRestockId: null,
+    });
+    assert.equal(cards[0]?.href, '/pos/restock/shipment/shipment-1');
+  });
 });
 
 describe('isInventoryReliable', () => {

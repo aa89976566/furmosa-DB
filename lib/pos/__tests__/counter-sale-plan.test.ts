@@ -12,6 +12,9 @@ const priced = [
     productId: 'p1',
     tierId: 't1',
     name: '雞肉丁凍乾',
+    sku: 'SKU-001',
+    unit: '包',
+    weightGrams: 50,
     price: 255,
     priceTiers: [{ price: 255 }],
     suggestedPrice: 255,
@@ -34,6 +37,9 @@ describe('planCounterSale', () => {
     assert.equal(planned[0]?.unitPrice, 255);
     assert.equal(planned[0]?.commissionAmount, 102);
     assert.equal(planned[0]?.balanceAfter, 1);
+    assert.equal(planned[0]?.sku, 'SKU-001');
+    assert.equal(planned[0]?.unit, '包');
+    assert.equal(planned[0]?.weightGrams, 50);
   });
 
   it('rejects an empty ticket', () => {

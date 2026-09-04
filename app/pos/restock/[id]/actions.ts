@@ -10,31 +10,34 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
   await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
   const requestId = String(formData.get('requestId') ?? '').trim();
-  if (!requestId) throw new Error('缺少補貨申請');
+  const shipmentId = String(formData.get('shipmentId') ?? '').trim();
+  if (!requestId && !shipmentId) throw new Error('缺少補貨或出貨資料');
 
   await prisma.$transaction(async (tx) => {
-    const request = await tx.restockRequest.findFirst({
-      where: { id: requestId, merchantId },
-      select: {
-        shipment: {
-          select: {
-            id: true,
-            merchantId: true,
-            shipmentNumber: true,
-            status: true,
-            items: {
-              select: {
-                productId: true,
-                quantity: true,
-                weightGrams: true,
-              },
-            },
-          },
+    const shipmentSelect = {
+      id: true,
+      merchantId: true,
+      shipmentNumber: true,
+      status: true,
+      items: {
+        select: {
+          productId: true,
+          quantity: true,
+          weightGrams: true,
         },
       },
-    });
-
-    const shipment = request?.shipment;
+    } as const;
+    const shipment = shipmentId
+      ? await tx.shipment.findFirst({
+          where: { id: shipmentId, merchantId, type: 'merchant_restock' },
+          select: shipmentSelect,
+        })
+      : (
+          await tx.restockRequest.findFirst({
+            where: { id: requestId, merchantId },
+            select: { shipment: { select: shipmentSelect } },
+          })
+        )?.shipment;
     if (!shipment || shipment.merchantId !== merchantId) {
       throw new Error('找不到這張補貨出貨單');
     }
@@ -63,8 +66,16 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
   revalidatePath('/pos');
   revalidatePath('/pos/stock');
   revalidatePath('/pos/restock/progress');
-  revalidatePath(`/pos/restock/${requestId}`);
+  if (requestId) revalidatePath(`/pos/restock/${requestId}`);
+  if (shipmentId) revalidatePath(`/pos/restock/shipment/${shipmentId}`);
   revalidatePath('/shipments');
   revalidatePath('/restock-requests');
-  redirect(`/pos/restock/${requestId}?received=1`);
+  revalidatePath(`/merchants/${merchantId}`);
+  revalidatePath(`/merchants/${merchantId}/products`);
+  revalidatePath(`/merchants/${merchantId}/shipments`);
+  redirect(
+    requestId
+      ? `/pos/restock/${requestId}?received=1`
+      : `/pos/restock/shipment/${shipmentId}?received=1`,
+  );
 }

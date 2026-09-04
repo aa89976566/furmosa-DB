@@ -17,19 +17,46 @@ export default async function PosRestockProgressPage() {
   const merchantId = await getAuthenticatedMerchantId();
   const account = await loadPosAccount(session.merchantId, session.username);
 
-  const rows = await prisma.restockRequest.findMany({
-    where: { merchantId },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    select: {
-      id: true,
-      requestType: true,
-      status: true,
-      createdAt: true,
-      expectedArrivalDate: true,
-      shipment: { select: { status: true, updatedAt: true } },
-    },
-  });
+  const [requests, directShipments] = await Promise.all([
+    prisma.restockRequest.findMany({
+      where: { merchantId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        requestType: true,
+        status: true,
+        createdAt: true,
+        expectedArrivalDate: true,
+        shipment: { select: { status: true, updatedAt: true } },
+      },
+    }),
+    prisma.shipment.findMany({
+      where: { merchantId, type: 'merchant_restock', restockRequest: null },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { id: true, status: true, createdAt: true, shipmentNumber: true },
+    }),
+  ]);
+  const rows = [
+    ...requests.map((row) => ({
+      ...row,
+      href: `/pos/restock/${row.id}`,
+      title: restockRequestTypeLabel(row.requestType),
+    })),
+    ...directShipments.map((row) => ({
+      id: row.id,
+      requestType: 'HQ_DIRECT',
+      status: 'converted_to_shipment',
+      createdAt: row.createdAt,
+      expectedArrivalDate: null,
+      shipment: { status: row.status, updatedAt: row.createdAt },
+      href: `/pos/restock/shipment/${row.id}`,
+      title: `HQ 主動補貨 · ${row.shipmentNumber}`,
+    })),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 50);
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -58,12 +85,12 @@ export default async function PosRestockProgressPage() {
         ) : (
           <div className="grid gap-3">
             {rows.map((r) => (
-              <Link key={r.id} href={`/pos/restock/${r.id}`}>
+              <Link key={`${r.requestType}-${r.id}`} href={r.href}>
                 <Card className="shadow-card transition hover:border-primary/30">
                   <CardContent className="flex min-h-[72px] items-center justify-between gap-3 p-4">
                     <div className="min-w-0">
                       <p className="truncate font-medium">
-                        {restockRequestTypeLabel(r.requestType)}
+                        {r.title}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {r.createdAt.toLocaleString('zh-TW')}

@@ -21,10 +21,12 @@ export type HomeTasksInput = {
   pendingRefillCount: number;
   awaitingRestockReceiptCount: number;
   firstAwaitingRestockReceiptId: string | null;
+  firstAwaitingRestockReceiptHref?: string | null;
   /** null = 庫存不可靠，不顯示庫存不足卡 */
   lowStock: { productName: string; quantity: number }[] | null;
   openRestockCount: number;
   firstOpenRestockId: string | null;
+  firstOpenRestockHref?: string | null;
 };
 
 export function isInventoryReliable(stockRowCount: number): boolean {
@@ -39,9 +41,11 @@ export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
       kind: 'awaiting_restock_receipt',
       title: '補貨已送達，請驗收',
       subtitle: '確認品項與數量正確後，商品才會加入可售庫存',
-      href: input.firstAwaitingRestockReceiptId
-        ? `/pos/restock/${input.firstAwaitingRestockReceiptId}`
-        : '/pos/restock/progress',
+      href:
+        input.firstAwaitingRestockReceiptHref ??
+        (input.firstAwaitingRestockReceiptId
+          ? `/pos/restock/${input.firstAwaitingRestockReceiptId}`
+          : '/pos/restock/progress'),
       badge: String(input.awaitingRestockReceiptCount),
       badgeUnit: '筆',
     });
@@ -78,9 +82,11 @@ export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
   }
 
   if (input.openRestockCount > 0) {
-    const href = input.firstOpenRestockId
-      ? `/pos/restock/${input.firstOpenRestockId}`
-      : '/pos/restock';
+    const href =
+      input.firstOpenRestockHref ??
+      (input.firstOpenRestockId
+        ? `/pos/restock/${input.firstOpenRestockId}`
+        : '/pos/restock');
     cards.push({
       kind: 'restock_progress',
       title: '補貨中',

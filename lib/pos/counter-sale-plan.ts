@@ -11,6 +11,9 @@ export type PricedCounterProduct = {
   productId: string;
   tierId: string;
   name: string;
+  sku: string;
+  unit: string;
+  weightGrams: number | null;
   specLabel?: string | null;
   price: number;
   priceTiers: { price: number }[];
@@ -24,6 +27,9 @@ export type PlannedCounterSaleLine = {
   productId: string;
   tierId: string;
   name: string;
+  sku: string;
+  unit: string;
+  weightGrams: number | null;
   specLabel: string | null;
   qty: number;
   unitPrice: number;
@@ -82,6 +88,9 @@ export function planCounterSale(
       productId: item.productId,
       tierId: item.tierId,
       name: item.name,
+      sku: item.sku,
+      unit: item.unit,
+      weightGrams: item.weightGrams,
       specLabel: item.specLabel ?? null,
       qty,
       unitPrice: amounts.unitPrice,
