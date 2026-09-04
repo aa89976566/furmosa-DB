@@ -11,8 +11,8 @@ import type { LucideIcon } from 'lucide-react';
 
 const actions: { href: (id: string) => string; label: string; icon: LucideIcon; primary?: boolean }[] = [
   { href: (id) => `/merchants/${id}/adjust`, label: '清點庫存', icon: ScanLine, primary: true },
-  { href: (id) => `/merchants/${id}/restock`, label: '建立補貨', icon: PackagePlus },
-  { href: (id) => `/merchants/${id}/sale`, label: '建立訂單', icon: ShoppingCart },
+  { href: (id) => `/merchants/${id}/restock`, label: '新增補貨申請', icon: PackagePlus },
+  { href: (id) => `/merchants/${id}/sale`, label: '新增銷售訂單', icon: ShoppingCart },
   { href: (id) => `/merchants/${id}/shipments`, label: '訂單與出貨', icon: ClipboardList },
   { href: (id) => `/merchants/${id}/ledger`, label: '活動紀錄', icon: Activity },
 ];

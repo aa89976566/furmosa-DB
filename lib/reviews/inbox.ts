@@ -5,6 +5,7 @@ import { activeOrderWhere } from '@/lib/order-list';
 import { restockStatusLabelForHq } from '@/lib/restock-request/constants';
 
 export const REVIEW_KINDS = ['shopify_order', 'ugc', 'restock'] as const;
+export const PENDING_RESTOCK_REVIEW_STATUSES = ['submitted', 'under_review'] as const;
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
 
 export type ReviewInboxItem = {
@@ -76,7 +77,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
 
 async function loadPendingRestocks(): Promise<ReviewInboxItem[]> {
   const rows = await prisma.restockRequest.findMany({
-    where: { status: { in: ['submitted', 'under_review'] } },
+    where: { status: { in: [...PENDING_RESTOCK_REVIEW_STATUSES] } },
     select: {
       id: true,
       status: true,
@@ -157,7 +158,7 @@ export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
       },
     }),
     prisma.restockRequest.count({
-      where: { status: { in: ['submitted', 'under_review'] } },
+      where: { status: { in: [...PENDING_RESTOCK_REVIEW_STATUSES] } },
     }),
     countPendingUgc(),
   ]);

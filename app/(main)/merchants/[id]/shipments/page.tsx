@@ -36,8 +36,8 @@ export default async function MerchantOrdersAndShipmentsPage({ params }: { param
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-lg font-semibold text-navy">訂單與出貨</h2><p className="mt-1 text-sm text-muted-foreground">補貨申請、店家訂單與 HQ 出貨使用同一份正式資料。</p></div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" asChild><Link href={`/merchants/${merchant.id}/sale`}><ShoppingCart className="mr-1.5 h-4 w-4" />建立店家訂單</Link></Button>
-          <Button size="sm" asChild><Link href={`/merchants/${merchant.id}/restock`}><PackagePlus className="mr-1.5 h-4 w-4" />建立補貨</Link></Button>
+          <Button variant="outline" size="sm" asChild><Link href={`/merchants/${merchant.id}/sale`}><ShoppingCart className="mr-1.5 h-4 w-4" />新增銷售訂單</Link></Button>
+          <Button size="sm" asChild><Link href={`/merchants/${merchant.id}/restock`}><PackagePlus className="mr-1.5 h-4 w-4" />新增補貨申請</Link></Button>
         </div>
       </div>
 

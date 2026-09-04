@@ -45,7 +45,7 @@ export default async function MerchantSalesPage({ params }: { params: { id: stri
             <Button size="sm" asChild>
               <Link href={`/merchants/${merchant.id}/sale`}>
                 <ShoppingCart className="mr-1 h-4 w-4" />
-                建立訂單
+                新增銷售訂單
               </Link>
             </Button>
           </div>

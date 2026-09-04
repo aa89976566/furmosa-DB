@@ -47,7 +47,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
             <Button size="sm" asChild>
               <Link href={`/merchants/${merchantId}/restock`}>
                 <PackagePlus className="mr-1 h-4 w-4" />
-                建立補貨
+                新增補貨申請
               </Link>
             </Button>
           </div>
@@ -59,7 +59,7 @@ export default async function MerchantProductsPage({ params }: { params: { id: s
             <Button size="sm" variant="outline" asChild>
               <Link href={`/merchants/${merchantId}/restock`}>
                 <PackagePlus className="mr-1 h-4 w-4" />
-                建立第一筆補貨
+                新增第一筆補貨申請
               </Link>
             </Button>
           </div>

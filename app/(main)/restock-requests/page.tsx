@@ -29,7 +29,7 @@ export default async function HqRestockRequestsPage({
         <div>
           <h1 className="text-2xl font-semibold text-navy">補貨申請</h1>
           <p className="text-sm text-muted-foreground">
-            店家 POS 送出的叫貨申請，核准後會建立既有出貨單
+            店家 POS 送出的補貨申請；核准後會建立正式出貨單
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-sm">

@@ -65,6 +65,9 @@ export async function submitSelfSelectRestockAction(
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
+    revalidatePath('/reviews');
+    revalidatePath('/dashboard');
+    revalidatePath('/restock-requests');
     redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;
@@ -92,6 +95,9 @@ export async function submitAutoReplenishRestockAction(
     revalidatePath('/pos/restock');
     revalidatePath('/pos/restock/progress');
     revalidatePath('/pos/records');
+    revalidatePath('/reviews');
+    revalidatePath('/dashboard');
+    revalidatePath('/restock-requests');
     redirect(`/pos/restock/${req.id}?ok=1`);
   } catch (e) {
     if (isNextRedirect(e)) throw e;

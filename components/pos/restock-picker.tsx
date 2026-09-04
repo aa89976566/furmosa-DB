@@ -64,7 +64,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
           {state.error ? (
             <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>
           ) : null}
-          <Submit label="送出補貨單" />
+          <Submit label="送出補貨申請" />
         </form>
       </div>
     );
@@ -123,7 +123,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
           disabled={totalPieces === 0}
           onClick={() => setStep('confirm')}
         >
-          確認補貨
+          確認申請內容
         </Button>
       </div>
     </div>
