@@ -7,17 +7,19 @@ import { getPointsBalance } from '@/lib/jar-exchange/points';
 import { syncCustomerServices, ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { generateJarCode, isValidJarCodeFormat, JAR_CODE_LENGTH } from '@/lib/jar-exchange/codes';
 
-const prisma = new PrismaClient({
-  datasources: { db: { url: process.env.DIRECT_URL || process.env.DATABASE_URL } },
-});
+const testDatabaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
 
-describe('jar exchange', () => {
+describe('jar exchange', { skip: !testDatabaseUrl }, () => {
+  let prisma: PrismaClient;
   let customerId: string;
   let rewardId: string;
   let codeA: string;
   let codeB: string;
 
   before(async () => {
+    prisma = new PrismaClient({
+      datasources: { db: { url: testDatabaseUrl! } },
+    });
     const c = await prisma.customer.create({
       data: {
         customerId: `TEST-JAR-${Date.now()}`,

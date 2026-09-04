@@ -43,7 +43,7 @@ const FORBIDDEN_RESPONSE_MARKERS = [
   'console.error',
 ];
 
-function readSensitiveEnvKeysDuring(run: () => Promise<void>): string[] {
+function readSensitiveEnvKeysDuring(run: () => Promise<void>): Promise<string[]> {
   const reads: string[] = [];
   const original = process.env;
   process.env = new Proxy(original, {

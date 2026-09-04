@@ -109,14 +109,15 @@ describe("黑白 UI", () => {
     assert.equal(refill.includes("shadow-sm"), false);
   });
 
-  it("全站共用元件使用硬邊框、硬陰影，並關閉漸層與毛玻璃", () => {
+  it("全站共用元件使用清晰邊框、低層陰影，並關閉漸層與毛玻璃", () => {
     const css = readRepoFile("app/globals.css");
     const card = readRepoFile("components/ui/card.tsx");
     const topbar = readRepoFile("components/layout/topbar.tsx");
     const posNav = readRepoFile("components/pos/bottom-nav.tsx");
     const query = readRepoFile("components/pos/query-board.tsx");
 
-    assert.match(css, /box-shadow: 4px 4px 0/);
+    assert.match(css, /box-shadow: 0 1px 2px/);
+    assert.doesNotMatch(css, /box-shadow: 4px 4px 0/);
     assert.match(css, /\[class\*="bg-gradient-"\]/);
     assert.match(css, /\[class\*="backdrop-blur"\]/);
     assert.match(card, /border-2 border-foreground/);

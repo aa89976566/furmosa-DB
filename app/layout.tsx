@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/shared/theme-provider';
@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     icon: '/icons/icon.svg',
     apple: '/icons/icon.svg',
   },
+};
+
+export const viewport: Viewport = {
   themeColor: '#171717',
 };
 

@@ -85,6 +85,7 @@ describe('垂直按鈕選單', () => {
         },
       ],
     });
+    if (flex.type !== 'flex') assert.fail('expected a flex message');
     assert.equal(flex.contents.type, 'bubble');
     assert.match(JSON.stringify(flex), /"type":"button"/);
     assert.doesNotMatch(JSON.stringify(flex), /carousel/);
