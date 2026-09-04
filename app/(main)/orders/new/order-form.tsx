@@ -76,6 +76,9 @@ export type ProductOption = {
   sku: string;
   productCategory: string;
   availableStock: number;
+  canSelect: boolean;
+  eligibilityCode: string;
+  eligibilityMessage: string | null;
   price: number;
   cost: number;
   unit: string;
@@ -461,17 +464,38 @@ export function OrderForm({
     () => {
       if (isEdit) return productCatalog;
       if (orderType === 'customer') {
-        return productCatalog.filter(
-          (product) => product.productCategory === 'STANDARD' && product.availableStock > 0,
-        );
+        return productCatalog
+          .filter((product) => product.productCategory === 'STANDARD')
+          .map((product) => ({
+            ...product,
+            canSelect: product.availableStock > 0,
+            eligibilityCode: product.availableStock > 0 ? 'AVAILABLE' : 'OUT_OF_STOCK',
+            eligibilityMessage:
+              product.availableStock > 0 ? null : '目前無庫存，請先補貨',
+          }))
+          .sort((a, b) => Number(b.canSelect) - Number(a.canSelect));
       }
       const category = merchantOrderProductCategory(merchantOrderMode);
-      return productCatalog.filter(
-        (product) =>
-          product.productCategory === category &&
-          (merchantOrderMode !== 'wholesale' ||
-            product.wholesalePrices.some((price) => price.merchantId === merchantId)),
-      );
+      return productCatalog
+        .filter((product) => product.productCategory === category)
+        .map((product) => {
+          const hasWholesalePrice = product.wholesalePrices.some(
+            (price) => price.merchantId === merchantId,
+          );
+          const missingWholesalePrice =
+            merchantOrderMode === 'wholesale' && Boolean(merchantId) && !hasWholesalePrice;
+          return {
+            ...product,
+            canSelect: !missingWholesalePrice,
+            eligibilityCode: missingWholesalePrice
+              ? 'MISSING_WHOLESALE_PRICE'
+              : 'AVAILABLE',
+            eligibilityMessage: missingWholesalePrice
+              ? '尚未設定此店家的進貨價'
+              : null,
+          };
+        })
+        .sort((a, b) => Number(b.canSelect) - Number(a.canSelect));
     },
     [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
   );

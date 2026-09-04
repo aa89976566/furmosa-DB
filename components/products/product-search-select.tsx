@@ -22,6 +22,8 @@ export type ProductSearchOption = {
   price: number;
   unit: string;
   availableStock?: number;
+  canSelect?: boolean;
+  eligibilityMessage?: string | null;
 };
 
 function productLabel(p: ProductSearchOption) {
@@ -79,6 +81,7 @@ export function ProductSearchSelect({
   }, [query, open, onSearch]);
 
   const list = onSearch ? (remote ?? products) : products;
+  const selectableCount = list.filter((product) => product.canSelect !== false).length;
 
   function pick(id: string) {
     onChange(id);
@@ -157,13 +160,24 @@ export function ProductSearchSelect({
                     ? '輸入關鍵字搜尋商品'
                     : '找不到符合的商品'}
                 </CommandEmpty>
+                {list.length > 0 && selectableCount === 0 ? (
+                  <div className="border-b px-3 py-2 text-xs text-muted-foreground">
+                    找到商品，但目前沒有可加入本訂單的品項
+                  </div>
+                ) : null}
                 <CommandGroup>
                   {list.map((p) => (
                     <CommandItem
                       key={p.id}
                       value={productSearchValue(p)}
-                      onSelect={() => pick(p.id)}
-                      className="flex-col items-start gap-0.5 py-2"
+                      onSelect={() => {
+                        if (p.canSelect !== false) pick(p.id);
+                      }}
+                      aria-disabled={p.canSelect === false}
+                      className={cn(
+                        'flex-col items-start gap-0.5 py-2',
+                        p.canSelect === false && 'cursor-not-allowed opacity-60',
+                      )}
                     >
                       <div className="flex w-full items-center gap-2">
                         <Check
@@ -173,6 +187,11 @@ export function ProductSearchSelect({
                           )}
                         />
                         <span className="truncate font-medium">{p.name}</span>
+                        {p.eligibilityMessage ? (
+                          <span className="ml-auto shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {p.eligibilityMessage}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="pl-6 font-mono text-[11px] text-muted-foreground">
                         {p.sku} · {formatCurrency(p.price)} / {p.unit}

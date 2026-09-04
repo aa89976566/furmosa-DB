@@ -229,6 +229,8 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
+      status: true,
+      inventoryBalances: { select: { quantity: true } },
       priceTiers: { select: { id: true, cost: true } },
     },
   });
@@ -244,6 +246,21 @@ export async function parseOrderFormData(
   for (const it of rawLines) {
     const prod = productMap.get(it.productId);
     if (!prod) throw new Error('包含不存在的商品');
+    if (prod.status !== 'active') throw new Error(`「${prod.name}」已停用，無法建立訂單`);
+    if (orderType === 'customer') {
+      if (prod.productCategory !== 'STANDARD') {
+        throw new Error(`「${prod.name}」不適用於一般客戶訂單`);
+      }
+      const availableStock = prod.inventoryBalances.reduce(
+        (sum, balance) => sum + balance.quantity,
+        0,
+      );
+      if (availableStock < it.quantity) {
+        throw new Error(
+          `「${prod.name}」庫存不足，目前可用 ${Math.max(availableStock, 0)} ${prod.unit}`,
+        );
+      }
+    }
     if (it.unitPrice < 0) throw new Error('單價不可為負數');
     if (
       merchantOrderMode &&

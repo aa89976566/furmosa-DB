@@ -2,6 +2,10 @@ import { prisma } from '@/lib/prisma';
 import { customerSearchWhere, productSearchWhere } from '@/lib/site-search';
 import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import type { MerchantWholesalePriceRow } from '@/lib/orders/merchant-wholesale-price';
+import {
+  evaluateProductOrderEligibility,
+  type ProductOrderEligibilityCode,
+} from '@/lib/orders/product-order-eligibility';
 
 export type OrderFormCustomerHit = {
   id: string;
@@ -21,6 +25,9 @@ export type OrderFormProductHit = {
   sku: string;
   productCategory: string;
   availableStock: number;
+  canSelect: boolean;
+  eligibilityCode: ProductOrderEligibilityCode;
+  eligibilityMessage: string | null;
   price: number;
   cost: number;
   unit: string;
@@ -82,19 +89,41 @@ export type OrderFormProductScope =
 function toOrderFormProductHit(
   row: Awaited<ReturnType<typeof findProductsForOrderForm>>[number],
   wholesalePrices: MerchantWholesalePriceRow[] = [],
+  scope: OrderFormProductScope = 'all',
+  merchantId?: string,
 ): OrderFormProductHit {
+  const availableStock = row.inventoryBalances.reduce(
+    (sum, balance) => sum + balance.quantity,
+    0,
+  );
+  const productWholesalePrices = wholesalePrices.filter((price) => price.productId === row.id);
+  const eligibility = evaluateProductOrderEligibility({
+    scope,
+    availableStock,
+    hasWholesalePrice:
+      scope === 'merchant_standard' && merchantId
+        ? productWholesalePrices.some((price) => price.merchantId === merchantId)
+        : undefined,
+  });
   return {
     id: row.id,
     name: row.name,
     sku: row.sku,
     productCategory: row.productCategory,
-    availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    availableStock,
+    canSelect: eligibility.canSelect,
+    eligibilityCode: eligibility.code,
+    eligibilityMessage: eligibility.message,
     price: row.price,
     cost: row.cost,
     unit: row.unit,
     priceTiers: row.priceTiers,
-    wholesalePrices: wholesalePrices.filter((price) => price.productId === row.id),
+    wholesalePrices: productWholesalePrices,
   };
+}
+
+function selectableProductsFirst(rows: OrderFormProductHit[]): OrderFormProductHit[] {
+  return [...rows].sort((a, b) => Number(b.canSelect) - Number(a.canSelect));
 }
 
 function findProductsForOrderForm(
@@ -111,7 +140,6 @@ function findProductsForOrderForm(
       ...(scope === 'customer_in_stock'
         ? {
             productCategory: 'STANDARD',
-            inventoryBalances: { some: { quantity: { gt: 0 } } },
           }
         : scope === 'merchant_standard'
           ? { productCategory: 'STANDARD' }
@@ -155,14 +183,15 @@ export async function searchProductsForOrderForm(
 ): Promise<OrderFormProductHit[]> {
   const rows = await findProductsForOrderForm(q, take, scope);
   if (scope !== 'merchant_standard' || !merchantId) {
-    return rows.map((row) => toOrderFormProductHit(row));
+    return selectableProductsFirst(
+      rows.map((row) => toOrderFormProductHit(row, [], scope)),
+    );
   }
 
   const wholesalePrices = await loadMerchantWholesalePrices(merchantId);
-  const configuredProductIds = new Set(wholesalePrices.map((price) => price.productId));
-  return rows
-    .filter((row) => configuredProductIds.has(row.id))
-    .map((row) => toOrderFormProductHit(row, wholesalePrices));
+  return selectableProductsFirst(
+    rows.map((row) => toOrderFormProductHit(row, wholesalePrices, scope, merchantId)),
+  );
 }
 
 export async function getCustomersByIdsForOrderForm(
@@ -189,6 +218,9 @@ export async function getProductsByIdsForOrderForm(
     sku: row.sku,
     productCategory: row.productCategory,
     availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    canSelect: true,
+    eligibilityCode: 'AVAILABLE',
+    eligibilityMessage: null,
     price: row.price,
     cost: row.cost,
     unit: row.unit,
