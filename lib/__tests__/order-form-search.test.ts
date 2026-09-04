@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { customerSearchWhere, expandProductSearchTerms, productSearchWhere } from '../site-search';
+import { orderFormProductScopeWhere } from '../order-form-search';
 
 describe('order-form search where helpers', () => {
   it('customerSearchWhere builds OR for name/phone', () => {
@@ -32,5 +33,15 @@ describe('order-form search where helpers', () => {
     assert.deepEqual(expandProductSearchTerms('月餅'), ['月餅', '地瓜山藥雞肉月餅']);
     assert.deepEqual(expandProductSearchTerms('牠的月餅'), ['牠的月餅', '地瓜山藥雞肉月餅']);
     assert.deepEqual(expandProductSearchTerms('地瓜山藥雞肉月餅'), ['地瓜山藥雞肉月餅']);
+  });
+
+  it('keeps active standard products selectable even without an inventory balance', () => {
+    assert.deepEqual(orderFormProductScopeWhere('customer_standard'), {
+      productCategory: 'STANDARD',
+    });
+    assert.equal(
+      'inventoryBalances' in orderFormProductScopeWhere('customer_standard'),
+      false,
+    );
   });
 });

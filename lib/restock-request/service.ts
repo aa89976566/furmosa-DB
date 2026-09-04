@@ -8,6 +8,8 @@ import {
 } from '@/lib/restock-request/constants';
 import { isRestockableProductCategory } from '@/lib/product-category';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
+import type { MerchantType } from '@/lib/merchant-types';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -49,14 +51,40 @@ export type MerchantRestockProduct = {
   suggestedQty: number;
 };
 
+type RestockProductCategory = 'JAR_EXCHANGE' | 'STANDARD';
+
+export function merchantRestockProductCategories(
+  merchantTypes: MerchantType[],
+): RestockProductCategory[] {
+  const supportsJarExchange = merchantTypes.includes('jar_exchange');
+  const supportsStandard = merchantTypes.some(
+    (type) => type === 'consignment' || type === 'wholesale',
+  );
+
+  if (supportsJarExchange && !supportsStandard) return ['JAR_EXCHANGE'];
+  if (supportsJarExchange) return ['JAR_EXCHANGE', 'STANDARD'];
+
+  // 舊資料可能只保留標籤型類別（例如 partner）；維持原本的一般商品行為。
+  return ['STANDARD'];
+}
+
 export async function listMerchantRestockCatalog(
   merchantId: string,
 ): Promise<MerchantRestockProduct[]> {
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { type: true },
+  });
+  if (!merchant) return [];
+
+  const merchantTypes = await getMerchantTypes(prisma, merchantId, merchant.type);
+  const allowedCategories = merchantRestockProductCategories(merchantTypes);
+
   const [jarProducts, stocks, rules] = await Promise.all([
     prisma.product.findMany({
       where: {
         status: 'active',
-        productCategory: { in: ['JAR_EXCHANGE', 'STANDARD'] },
+        productCategory: { in: allowedCategories },
       },
       select: {
         id: true,

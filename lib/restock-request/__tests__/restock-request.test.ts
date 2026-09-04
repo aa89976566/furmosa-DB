@@ -11,6 +11,7 @@ import {
   isRestockableProductCategory,
 } from '@/lib/product-category';
 import { resolveMerchantIdForQuery } from '@/lib/merchant-auth/access';
+import { merchantRestockProductCategories } from '@/lib/restock-request/service';
 
 describe('product category', () => {
   it('recognizes JAR_EXCHANGE category', () => {
@@ -72,5 +73,25 @@ describe('restock validation rules (unit)', () => {
   it('requires expected arrival date for approval gate', () => {
     const arrivalRaw = '';
     assert.equal(Boolean(arrivalRaw.trim()), false);
+  });
+});
+
+describe('merchant restock catalog categories', () => {
+  it('shows only jar-exchange products for a jar-exchange-only merchant', () => {
+    assert.deepEqual(merchantRestockProductCategories(['jar_exchange']), [
+      'JAR_EXCHANGE',
+    ]);
+  });
+
+  it('shows both catalogs for a hybrid merchant', () => {
+    assert.deepEqual(
+      merchantRestockProductCategories(['consignment', 'jar_exchange']),
+      ['JAR_EXCHANGE', 'STANDARD'],
+    );
+  });
+
+  it('keeps standard products for non-jar and legacy tag-only merchants', () => {
+    assert.deepEqual(merchantRestockProductCategories(['wholesale']), ['STANDARD']);
+    assert.deepEqual(merchantRestockProductCategories(['partner']), ['STANDARD']);
   });
 });

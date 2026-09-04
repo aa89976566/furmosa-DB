@@ -462,7 +462,7 @@ export function OrderForm({
       if (isEdit) return productCatalog;
       if (orderType === 'customer') {
         return productCatalog.filter(
-          (product) => product.productCategory === 'STANDARD' && product.availableStock > 0,
+          (product) => product.productCategory === 'STANDARD',
         );
       }
       const category = merchantOrderProductCategory(merchantOrderMode);
@@ -508,7 +508,7 @@ export function OrderForm({
       }
       const scope = !isEdit
         ? orderType === 'customer'
-          ? 'customer_in_stock'
+          ? 'customer_standard'
           : merchantOrderMode === 'jar_exchange'
             ? 'merchant_jar_exchange'
             : 'merchant_standard'
@@ -1070,7 +1070,7 @@ export function OrderForm({
         title="③ 商品明細"
         hint={
           orderType === 'customer'
-            ? '只顯示目前有庫存的一般商品。'
+            ? '顯示上架中的一般商品；庫存數量會標示在商品旁。'
             : merchantOrderMode === 'jar_exchange'
               ? '只顯示換罐計畫商品；本張補貨單不計營收。'
               : merchantOrderMode === 'wholesale'

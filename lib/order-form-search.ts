@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { customerSearchWhere, productSearchWhere } from '@/lib/site-search';
 import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import type { MerchantWholesalePriceRow } from '@/lib/orders/merchant-wholesale-price';
+import type { Prisma } from '@prisma/client';
 
 export type OrderFormCustomerHit = {
   id: string;
@@ -75,9 +76,21 @@ const productSelect = {
 
 export type OrderFormProductScope =
   | 'all'
-  | 'customer_in_stock'
+  | 'customer_standard'
   | 'merchant_standard'
   | 'merchant_jar_exchange';
+
+export function orderFormProductScopeWhere(
+  scope: OrderFormProductScope,
+): Prisma.ProductWhereInput {
+  if (scope === 'customer_standard' || scope === 'merchant_standard') {
+    return { productCategory: 'STANDARD' };
+  }
+  if (scope === 'merchant_jar_exchange') {
+    return { productCategory: 'JAR_EXCHANGE' };
+  }
+  return {};
+}
 
 function toOrderFormProductHit(
   row: Awaited<ReturnType<typeof findProductsForOrderForm>>[number],
@@ -108,16 +121,7 @@ function findProductsForOrderForm(
   return prisma.product.findMany({
     where: {
       status: 'active',
-      ...(scope === 'customer_in_stock'
-        ? {
-            productCategory: 'STANDARD',
-            inventoryBalances: { some: { quantity: { gt: 0 } } },
-          }
-        : scope === 'merchant_standard'
-          ? { productCategory: 'STANDARD' }
-          : scope === 'merchant_jar_exchange'
-            ? { productCategory: 'JAR_EXCHANGE' }
-        : {}),
+      ...orderFormProductScopeWhere(scope),
       ...(search ?? {}),
     },
     orderBy: { name: 'asc' },

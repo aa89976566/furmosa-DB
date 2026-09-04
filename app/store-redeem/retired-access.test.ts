@@ -59,6 +59,8 @@ register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL(imp
 
 const { default: StoreRedeemPage } = await import('./page.tsx');
 const { default: StoreAccessRedeemPage } = await import('../store/[access]/page.tsx');
+const callStoreRedeemPage = StoreRedeemPage as (props?: unknown) => Promise<never>;
+const callStoreAccessRedeemPage = StoreAccessRedeemPage as (props?: unknown) => Promise<never>;
 
 function redirectLocation(error: unknown): string {
   assert.ok(error && typeof error === 'object');
@@ -106,7 +108,7 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = '__LEAK_STORE_REDEEM_QUERY__';
     await assertRetiredRedirect(
       () =>
-        StoreRedeemPage({
+        callStoreRedeemPage({
           searchParams: trappedBox('searchParams', marker),
         } as never),
       marker,
@@ -117,7 +119,7 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = 'https://evil.example/phish';
     await assertRetiredRedirect(
       () =>
-        StoreRedeemPage({
+        callStoreRedeemPage({
           searchParams: {
             store: marker,
             token: marker,
@@ -133,7 +135,7 @@ describe('legacy public store redeem pages are retired', () => {
     const marker = '__LEAK_STORE_ACCESS_PATH__';
     await assertRetiredRedirect(
       () =>
-        StoreAccessRedeemPage({
+        callStoreAccessRedeemPage({
           params: trappedBox('params', marker),
         } as never),
       marker,
@@ -153,7 +155,7 @@ describe('legacy public store redeem pages are retired', () => {
 
     for (const access of cases) {
       await assertRetiredRedirect(
-        () => StoreAccessRedeemPage({ params: { access } } as never),
+        () => callStoreAccessRedeemPage({ params: { access } } as never),
         access,
       );
     }
