@@ -19,6 +19,7 @@ import { bustCacheTags } from '@/lib/runtime-cache';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { syncPartnerStoreForJarExchangeMerchant } from '@/lib/stores/sync-merchant-stores';
+import { nextMerchantBusinessId } from '@/lib/merchant-business-id';
 
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
@@ -26,12 +27,11 @@ function toNullableField(value: FormDataEntryValue | null) {
 }
 
 async function nextMerchantId() {
-  const last = await prisma.merchant.findFirst({
+  const merchants = await prisma.merchant.findMany({
     where: { merchantId: { startsWith: 'MER-' } },
-    orderBy: { merchantId: 'desc' },
+    select: { merchantId: true },
   });
-  const seq = last ? Number(last.merchantId.replace('MER-', '')) + 1 : 1;
-  return `MER-${String(seq).padStart(4, '0')}`;
+  return nextMerchantBusinessId(merchants.map((merchant) => merchant.merchantId));
 }
 
 export type CreateMerchantState = { error: string | null };

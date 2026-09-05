@@ -45,6 +45,9 @@ import {
   normalizeWholesaleUnitPrice,
 } from '@/lib/orders/merchant-wholesale-price';
 import { randomUUID } from 'node:crypto';
+import { getCurrentUser, hashPassword } from '@/lib/auth';
+import { isValidMerchantBusinessId, nextMerchantBusinessId } from '@/lib/merchant-business-id';
+import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -55,6 +58,67 @@ function ymd(d = new Date()) {
 function toNullableField(value: FormDataEntryValue | null) {
   const trimmed = String(value ?? '').trim();
   return trimmed || null;
+}
+
+async function requireAdmin() {
+  const user = await getCurrentUser();
+  if (!user || user.role !== 'admin') throw new Error('只有管理員可以管理店家帳號');
+}
+
+export async function repairMerchantBusinessId(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get('merchantId') ?? '').trim();
+  if (!id) throw new Error('缺少店家');
+
+  await prisma.$transaction(async (tx) => {
+    const merchant = await tx.merchant.findUniqueOrThrow({ where: { id } });
+    if (isValidMerchantBusinessId(merchant.merchantId)) return;
+    const rows = await tx.merchant.findMany({ select: { merchantId: true } });
+    const nextId = nextMerchantBusinessId(rows.map((row) => row.merchantId));
+    const oldSlug = merchantToStoreSlug(merchant.merchantId);
+    const nextSlug = merchantToStoreSlug(nextId);
+
+    await tx.merchant.update({ where: { id }, data: { merchantId: nextId } });
+    await tx.store.updateMany({
+      where: { name: merchant.name, slug: oldSlug },
+      data: { slug: nextSlug },
+    });
+  });
+
+  revalidatePath(`/merchants/${id}`);
+  revalidatePath('/merchants');
+}
+
+export async function createMerchantPosUser(formData: FormData) {
+  await requireAdmin();
+  const merchantId = String(formData.get('merchantId') ?? '').trim();
+  const username = String(formData.get('username') ?? '').trim().toLowerCase();
+  const password = String(formData.get('password') ?? '');
+  if (!merchantId) throw new Error('缺少店家');
+  if (!/^[a-z0-9._-]{4,32}$/.test(username)) {
+    throw new Error('帳號需為 4–32 位英文字母、數字、句點、底線或連字號');
+  }
+  if (password.length < 8 || password.length > 64) {
+    throw new Error('密碼需為 8–64 位');
+  }
+
+  const existing = await prisma.merchantUser.findUnique({ where: { username } });
+  if (existing) throw new Error('此 POS 帳號已存在');
+  const activeCount = await prisma.merchantUser.count({
+    where: { merchantId, isActive: true },
+  });
+  if (activeCount > 0) throw new Error('此店家已有啟用中的 POS 帳號');
+
+  await prisma.merchantUser.create({
+    data: {
+      merchantId,
+      username,
+      passwordHash: await hashPassword(password),
+      displayName: username,
+      isActive: true,
+    },
+  });
+  revalidatePath(`/merchants/${merchantId}`);
 }
 
 function stockSpecLabel(

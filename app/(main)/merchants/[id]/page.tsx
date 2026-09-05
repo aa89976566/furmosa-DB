@@ -19,6 +19,9 @@ import {
 import { merchantCarrierLabel } from '@/lib/merchant-shipping-defaults';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
 import { ChevronRight, MapPin } from 'lucide-react';
+import { createMerchantPosUser, repairMerchantBusinessId } from './actions';
+import { isValidMerchantBusinessId } from '@/lib/merchant-business-id';
+import { Input } from '@/components/ui/input';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +50,7 @@ export default async function MerchantOverviewPage({
       include: {
         productRules: { select: { id: true } },
         stocks: { select: { quantity: true, productId: true } },
+        users: { select: { id: true, username: true, displayName: true, isActive: true } },
         stockTxns: {
           include: { product: true },
           orderBy: { createdAt: 'desc' },
@@ -145,6 +149,14 @@ export default async function MerchantOverviewPage({
         </div>
 
         <MerchantSection title="店家資料" description="基本檔案與聯絡方式">
+          {!isValidMerchantBusinessId(merchant.merchantId) ? (
+            <form action={repairMerchantBusinessId} className="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3">
+              <input type="hidden" name="merchantId" value={merchant.id} />
+              <p className="text-sm font-medium">店家編號需要修復</p>
+              <p className="mt-1 text-xs text-muted-foreground">系統會改為下一個可用的正式店家編號。</p>
+              <Button type="submit" size="sm" className="mt-3">修復店家編號</Button>
+            </form>
+          ) : null}
           <dl>
             <MerchantDlRow
               label="編號"
@@ -204,6 +216,32 @@ export default async function MerchantOverviewPage({
             </Link>
             依商品設定。
           </p>
+
+          <div className="mt-5 border-t pt-4">
+            <p className="text-sm font-semibold">POS 登入帳號</p>
+            {merchant.users.length > 0 ? (
+              <ul className="mt-2 space-y-2 text-sm">
+                {merchant.users.map((user) => (
+                  <li key={user.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                    <span className="font-mono">{user.username}</span>
+                    <Badge variant={user.isActive ? 'success' : 'secondary'}>
+                      {user.isActive ? '已啟用' : '已停用'}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <form action={createMerchantPosUser} className="mt-3 space-y-3">
+                <input type="hidden" name="merchantId" value={merchant.id} />
+                <Input name="username" placeholder="POS 帳號" required minLength={4} maxLength={32} />
+                <Input name="password" type="password" placeholder="密碼（至少 8 位）" required minLength={8} maxLength={64} />
+                <Button type="submit" size="sm">建立 POS 帳號</Button>
+              </form>
+            )}
+            <Link href="/pos/login" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
+              POS 登入頁面
+            </Link>
+          </div>
         </MerchantSection>
       </div>
     </MerchantWorkspace>
