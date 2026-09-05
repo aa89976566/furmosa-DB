@@ -40,7 +40,7 @@ function ymd(d = new Date()) {
 
 async function nextOrderNumber(tx: Prisma.TransactionClient) {
   const prefix = `ORD-${ymd()}-`;
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number:${prefix}`}))`;
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number-v2:${prefix}`}))`;
   const last = await tx.order.findFirst({
     where: { orderNumber: { startsWith: prefix } },
     orderBy: { orderNumber: 'desc' },
@@ -63,7 +63,7 @@ async function nextLineOrderNumber(tx: Prisma.TransactionClient) {
 
 async function nextShipmentNumber(tx: Prisma.TransactionClient) {
   const prefix = `SHP-${ymd()}-`;
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`shipment-number:${prefix}`}))`;
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`shipment-number-v2:${prefix}`}))`;
   const last = await tx.shipment.findFirst({
     where: { shipmentNumber: { startsWith: prefix } },
     orderBy: { shipmentNumber: 'desc' },
