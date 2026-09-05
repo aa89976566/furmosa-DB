@@ -57,6 +57,12 @@ export default async function PosRestockDetailPage({
         { label: '店家確認收貨', done: shipment.status === 'received' },
       ]
     : [];
+  const requestedItems = req.items.filter(
+    (item) => (item.requestedQuantity ?? 0) > 0,
+  );
+  const hasApprovedItems =
+    Boolean(snapshot?.length) ||
+    req.items.some((item) => (item.approvedQuantity ?? 0) > 0 && req.status !== 'submitted');
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -179,16 +185,20 @@ export default async function PosRestockDetailPage({
 
         <Card>
           <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-medium">申請品項</p>
-            {req.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">請公司代為配置</p>
+            <p className="text-sm font-medium">店家原申請</p>
+            {requestedItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {hasApprovedItems
+                  ? 'HQ 已調整品項，請以下方核准內容為準。'
+                  : '請公司代為配置'}
+              </p>
             ) : (
               <ul className="space-y-2 text-sm">
-                {req.items.map((it) => (
+                {requestedItems.map((it) => (
                   <li key={it.id} className="flex justify-between gap-2">
                     <span className="min-w-0 break-words">{it.product.name}</span>
                     <span className="shrink-0 text-muted-foreground">
-                      申請 {it.requestedQuantity ?? 0}
+                      {it.requestedQuantity}
                     </span>
                   </li>
                 ))}
@@ -197,11 +207,10 @@ export default async function PosRestockDetailPage({
           </CardContent>
         </Card>
 
-        {(snapshot && snapshot.length > 0) ||
-        req.items.some((it) => (it.approvedQuantity ?? 0) > 0 && req.status !== 'submitted') ? (
+        {hasApprovedItems ? (
           <Card>
             <CardContent className="space-y-2 p-4">
-              <p className="text-sm font-medium">已確認品項</p>
+              <p className="text-sm font-medium">HQ 核准內容</p>
               <ul className="space-y-2 text-sm">
                 {snapshot
                   ? snapshot.map((line) => (
