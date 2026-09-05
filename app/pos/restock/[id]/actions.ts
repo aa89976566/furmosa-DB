@@ -3,12 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedMerchantId, requireMerchantSession } from '@/lib/merchant-auth';
-import { applyMerchantRestockFromShipment } from '@/lib/merchant-restock-inventory';
+import { requireMerchantSession } from '@/lib/merchant-auth';
+import {
+  applyMerchantRestockFromShipment,
+  validateRestockReceiptShipment,
+} from '@/lib/merchant-restock-inventory';
 
 export async function confirmRestockReceiptAction(formData: FormData): Promise<void> {
-  await requireMerchantSession();
-  const merchantId = await getAuthenticatedMerchantId();
+  const session = await requireMerchantSession();
+  const { merchantId, merchantUserId } = session;
   const requestId = String(formData.get('requestId') ?? '').trim();
   if (!requestId) throw new Error('缺少補貨申請');
 
@@ -21,9 +24,11 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
             id: true,
             merchantId: true,
             shipmentNumber: true,
+            type: true,
             status: true,
             items: {
               select: {
+                id: true,
                 productId: true,
                 quantity: true,
                 weightGrams: true,
@@ -35,17 +40,24 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
     });
 
     const shipment = request?.shipment;
-    if (!shipment || shipment.merchantId !== merchantId) {
+    if (!shipment) {
       throw new Error('找不到這張補貨出貨單');
     }
-    if (shipment.status === 'received') return;
-    if (shipment.status !== 'delivered') {
-      throw new Error('商品尚未送達，現在不能確認收貨');
-    }
+    if (validateRestockReceiptShipment(shipment, merchantId) === 'already_received') return;
 
+    const now = new Date();
     const updated = await tx.shipment.updateMany({
-      where: { id: shipment.id, merchantId, status: 'delivered' },
-      data: { status: 'received' },
+      where: {
+        id: shipment.id,
+        merchantId,
+        type: 'merchant_restock',
+        status: 'delivered',
+      },
+      data: {
+        status: 'received',
+        receivedAt: now,
+        receivedByMerchantUserId: merchantUserId,
+      },
     });
     if (updated.count !== 1) throw new Error('出貨狀態已變更，請重新整理');
 
@@ -56,8 +68,20 @@ export async function confirmRestockReceiptAction(formData: FormData): Promise<v
         merchantId,
         items: shipment.items,
       },
-      new Date(),
+      now,
     );
+
+    await tx.statusAuditLog.create({
+      data: {
+        entityType: 'shipment',
+        entityId: shipment.id,
+        previousStatus: 'delivered',
+        newStatus: 'received',
+        actorType: 'merchant_user',
+        actorId: merchantUserId,
+        metadataJson: JSON.stringify({ source: 'pos_restock_receipt' }),
+      },
+    });
   });
 
   revalidatePath('/pos');

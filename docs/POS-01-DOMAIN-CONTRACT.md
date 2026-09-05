@@ -1,8 +1,8 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.9
-> **日期：** 2026-08-17
+> **版本：** v1.10
+> **日期：** 2026-09-04
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
 > **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
 > **對齊：** 既有憲法見 `docs/FURMOSA-OS-DOMAIN-SPEC-v1.md`；本文件凍結 POS 帳務方向與結算鎖定。衝突時，本合約的「已確認規則」優先，且不得猜未決事項
@@ -27,7 +27,7 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | R1 | Phase 1 每個實體門市一個 **active** POS 帳號。schema **不必**封死未來多帳號。 |
 | R2 | 目前所有補貨均為**寄賣**；店內交易由**店家收款**。 |
 | R3 | 一般佣金率按**店家設定**，同店不同商品不使用不同百分比。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot rate／amount。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
-| R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；**只有出貨 `delivered` 才增加店庫存**。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
+| R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；只有 `merchant_restock` 首次進入 **`received`** 才增加店庫存，`delivered` 只表示物流送達。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
 | R7 | LINE／綠界由 Furmosa 收款的指定門市訂單，該店仍取得**普通佣金**；必須和店收現金使用**不同帳務方向**。退款／沖銷必須產生**相反方向**的債權與佣金回沖。 |
@@ -194,7 +194,7 @@ converted_to_shipment / rejected / cancelled → （終態）
 | draft／submitted／under_review | 無 | `status_transition` → `cancelled` | 是（allow-list 允許） |
 | approved | 尚無出貨 | `cancellation_event` | 否 |
 | converted_to_shipment | pending／packed | `cancellation_event` + `cancel_shipment` | 否 |
-| 任一 | shipped／delivered | 不可 | — |
+| 任一 | shipped／delivered／received | 不可 | — |
 
 ### 3.9 補貨出貨 `RestockShipmentStatus`
 
@@ -202,10 +202,13 @@ converted_to_shipment / rejected / cancelled → （終態）
 pending → packed | shipped | cancelled
 packed → shipped | cancelled
 shipped → delivered
-delivered / cancelled → （終態）
+delivered → received
+received / cancelled → （終態）
 ```
 
-**只有 `delivered` 增加店 `onHand`。**
+此狀態機只適用 `merchant_restock`。`customer_order` 與 `subscription` 的 `delivered` 維持終態，且不得增加店庫存。
+
+**只有 `merchant_restock` 首次進入 `received` 增加店 `onHand`。** `delivered`／`received` 不直接倒退；誤操作使用新的更正／adjustment 紀錄。
 
 ### 3.10 美容券 `VoucherStatus`（與取消申請分開）
 
@@ -324,7 +327,7 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 同 key、同 aggregate／op／qty 回原 result；同 key 但 `aggregateId` 不同必須 throw，即使 op／qty 相同。
 `inventoryAggregateId` 至少為 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier；client 值不可直接信任。
 不是只用 `Set<string>`。
-補貨：僅出貨 `delivered` 增加 `onHand`。
+補貨：僅 `merchant_restock` 首次進入 `received` 增加 `onHand`；`delivered` 不入庫。
 
 履約對庫存：`pending_payment → paid_reserved`＝reserve；`ready_for_pickup → picked_up`＝consume_pickup；已付款進入 `refund_pending`＝release。
 
@@ -397,4 +400,3 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 - `lib/pos/__tests__/domain-contract.test.ts` — targeted tests
 
 禁止：新增 runtime import、改 schema／migration／package／middleware／routes／UI。
-

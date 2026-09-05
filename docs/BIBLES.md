@@ -1,5 +1,11 @@
 # Furmosa Document Bibles
 
+## POS Rules
+
+- POS 共通入口與帳號生命週期：`docs/POS-RULES-v1.md`（已選定只對店家補貨增加 `received`；等待 schema 計畫與 runtime 統一）
+- 財務、庫存、退款與結算領域合約：`docs/POS-01-DOMAIN-CONTRACT.md`
+- 店員任務流程：`docs/MERCHANT-POS-FLOW.md`
+
 ## Stages
 
 | Stage | 內容 | 狀態 |

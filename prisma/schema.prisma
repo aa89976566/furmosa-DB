@@ -578,8 +578,9 @@ model MerchantUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  merchant        Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  restockRequests RestockRequest[]
+  merchant          Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  restockRequests   RestockRequest[]
+  receivedShipments Shipment[]       @relation("ShipmentReceivedBy")
 
   @@index([merchantId])
   @@map("merchant_users")
@@ -706,13 +707,13 @@ model MerchantWholesalePrice {
 // =====================================================
 // Shipment（出貨／物流）— 統一 B2B（寄賣進貨）和 B2C（客戶/訂閱）
 // 流程：pending → packed → shipped → delivered（或 cancelled）
-// 只有 delivered 才會真正 +到店家庫存 / 標 fulfillment_done
+// merchant_restock 可再 → received。DB CHECK：status='received' 僅允許 type='merchant_restock'
 // =====================================================
 model Shipment {
   id             String @id @default(cuid())
   shipmentNumber String @unique // SHP-202605-0001
   type           String // merchant_restock / customer_order / subscription
-  status         String @default("pending") // pending / packed / shipped / delivered / cancelled
+  status         String @default("pending") // pending / packed / shipped / delivered / received / cancelled
 
   // 來源／關聯（依 type 不同填一個）
   merchantId             String? // for merchant_restock
@@ -728,10 +729,12 @@ model Shipment {
   trackingNumber   String?
 
   // 時間軸
-  packedAt    DateTime?
-  shippedAt   DateTime?
-  deliveredAt DateTime?
-  cancelledAt DateTime?
+  packedAt                 DateTime?
+  shippedAt                DateTime?
+  deliveredAt              DateTime?
+  receivedAt               DateTime?
+  receivedByMerchantUserId String?
+  cancelledAt              DateTime?
 
   notes     String?
   createdAt DateTime @default(now())
@@ -741,6 +744,7 @@ model Shipment {
   customer             Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
   order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
   subscriptionShipment SubscriptionShipment? @relation(fields: [subscriptionShipmentId], references: [id], onDelete: SetNull)
+  receivedBy           MerchantUser?         @relation("ShipmentReceivedBy", fields: [receivedByMerchantUserId], references: [id], onDelete: Restrict)
   items                ShipmentItem[]
   restockRequest       RestockRequest?
 
@@ -752,6 +756,7 @@ model Shipment {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([type, status])
+  @@index([receivedByMerchantUserId])
 }
 
 /// POS 一鍵叫貨申請（核准後轉既有 merchant_restock Shipment）
@@ -814,8 +819,9 @@ model ShipmentItem {
   unit        String? // 片 / 包 / 支 / 件...
   notes       String?
 
-  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  shipment Shipment          @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  product  Product           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  stockTxn MerchantStockTxn? @relation("StockTxnForShipmentItem")
 
   @@index([shipmentId])
   @@index([productId])
@@ -856,13 +862,15 @@ model MerchantStockTxn {
   companyRevenue   Float? // 銷售時公司實收總額
   orderId          String? // 對應的訂單
   settlementId     String? // 已被某筆結算 lock；結算時填入，避免重複結清
+  shipmentItemId   String? @unique
   note             String?
   createdAt        DateTime @default(now())
 
-  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  order      Order?      @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  settlement Settlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  merchant     Merchant      @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order        Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  settlement   Settlement?   @relation(fields: [settlementId], references: [id], onDelete: SetNull)
+  shipmentItem ShipmentItem? @relation("StockTxnForShipmentItem", fields: [shipmentItemId], references: [id], onDelete: Restrict)
 
   @@index([merchantId])
   @@index([productId])

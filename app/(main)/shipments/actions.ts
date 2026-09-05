@@ -115,9 +115,6 @@ async function markShipmentStatusInner(
   const note = String(formData.get('note') ?? '').trim() || null;
 
   if (!shipmentId) throw new Error('缺少出貨單');
-  if (!['pending', 'packed', 'shipped', 'delivered', 'cancelled'].includes(next)) {
-    throw new Error('狀態錯誤');
-  }
 
   const shipment = await prisma.shipment.findUnique({
     where: { id: shipmentId },
@@ -150,6 +147,15 @@ async function markShipmentStatusInner(
   if (!shipment) throw new Error('出貨單不存在');
   if (shipment.order?.omsStatus) {
     throw new Error('OMS 訂單尚未完成專用審核與物流流程，不可使用舊出貨操作');
+  }
+  if (
+    shipment.type === 'merchant_restock' &&
+    (shipment.status === 'delivered' || shipment.status === 'received')
+  ) {
+    throw new Error('店家補貨已送達或完成收貨，不可由 HQ 退回或變更狀態');
+  }
+  if (!['pending', 'packed', 'shipped', 'delivered', 'cancelled'].includes(next)) {
+    throw new Error('狀態錯誤');
   }
 
   const allowed = TRANSITIONS[shipment.status] ?? [];
