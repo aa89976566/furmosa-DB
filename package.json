@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:check": "prisma migrate deploy && node -e \"const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.\\$queryRaw\\`SELECT 1\\`.then(()=>{console.log('資料庫連線成功');return p.\\$disconnect();}).catch(e=>{console.error('連線失敗:',e.message);process.exit(1);})\"",
+    "db:assert-local": "tsx scripts/assert-local-db.ts",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
     "db:setup": "prisma migrate dev --name init && prisma db seed",
