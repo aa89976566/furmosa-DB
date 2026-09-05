@@ -119,6 +119,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     jiba: jibaSources.get(order.id) ?? null,
   });
   const isMerchantRestock = Boolean(order.merchantId && !order.customerId);
+  const requiresItemPrice = !isMerchantRestock;
+  const paymentLabel = isMerchantRestock && Number(order.total) === 0 ? '無須付款' : null;
 
   if (order.omsStatus) {
     return <>
@@ -167,8 +169,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     <>
       <PageHeader
         tone="orders"
-        title={order.orderNumber}
-        description={`下單時間 ${formatDateTime(order.orderedAt)}`}
+        title={order.merchant?.name || order.customer?.name || '訂單詳情'}
+        description={order.merchant ? '店家訂單' : '客戶訂單'}
         actions={
           <div className="flex flex-wrap gap-2">
             {editable.ok && !order.omsStatus ? (
@@ -189,12 +191,54 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-6 p-6">
         {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
+
+        <SectionCard tone="logistics" icon={Truck} title="1. 店家與配送資料">
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="rounded-lg border bg-muted/10 p-4">
+              <p className="text-xs font-medium text-muted-foreground">
+                {order.merchant ? '店家' : '客戶'}
+              </p>
+              {order.merchant ? (
+                <Link href={`/merchants/${order.merchant.id}`} className="mt-1 inline-block text-base font-semibold underline-offset-4 hover:underline">
+                  {order.merchant.name}
+                </Link>
+              ) : order.customer ? (
+                <Link href={`/customers/${order.customer.id}`} className="mt-1 inline-block text-base font-semibold underline-offset-4 hover:underline">
+                  {order.customer.name}
+                </Link>
+              ) : (
+                <p className="mt-1 text-base font-semibold">待補資料</p>
+              )}
+              <dl className="mt-3 space-y-2 text-sm">
+                <div><dt className="text-xs text-muted-foreground">聯絡人</dt><dd>{recipientName || '待補'}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">電話</dt><dd className="font-mono">{recipientPhone || '待補'}</dd></div>
+              </dl>
+              <Button className="mt-4" variant="outline" size="sm" asChild>
+                <Link href={order.merchant ? `/merchants/${order.merchant.id}` : `/orders/${order.id}/edit`}>
+                  修改聯絡資料
+                </Link>
+              </Button>
+            </div>
+            <div className="rounded-lg border bg-muted/10 p-4">
+              <p className="mb-3 text-xs font-medium text-muted-foreground">配送方式與收件地點</p>
+              <LogisticsSummary logistics={logistics} />
+              {recipientAddress ? <p className="mt-3 flex items-start gap-1.5 text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span className="whitespace-pre-line">{recipientAddress}</span></p> : null}
+              {shippingIncomplete ? (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                  <div><p className="font-medium">配送資料尚未完整</p><p className="mt-0.5 text-muted-foreground">缺少{shippingMissingFields.join('、')}</p></div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </SectionCard>
+
         <section className="space-y-3" aria-labelledby="order-next-step">
           <div>
-            <p className="text-xs font-medium text-muted-foreground">1. 訂單處理</p>
-            <h2 id="order-next-step" className="mt-1 text-xl font-semibold">現在要做什麼</h2>
+            <p className="text-xs font-medium text-muted-foreground">2. 訂單處理</p>
+            <h2 id="order-next-step" className="mt-1 text-xl font-semibold">下一步</h2>
           </div>
           {order.omsStatus ? (
             <>
@@ -211,7 +255,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               <p className="mt-3 text-sm font-medium">
                 {order.status === 'completed' || order.fulfillmentStatus === 'delivered'
                   ? '此訂單已完成'
-                  : order.paymentStatus !== 'paid'
+                  : !paymentLabel && order.paymentStatus !== 'paid'
                     ? '等待付款'
                     : shippingIncomplete
                       ? `請補齊${shippingMissingFields.join('、')}`
@@ -489,7 +533,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         <SectionCard
           tone="orders"
           icon={Package}
-          title="2. 商品內容"
+          title="3. 商品內容"
           description={order.omsStatus && !order.items.length
             ? `Shopify 原始品項 ${sourceView?.items.length ?? 0} 項；尚未建立 HQ 出貨品項`
             : `${order.items.length} 項 · 共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件`}
@@ -501,7 +545,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                 item: it,
                 missing: [
                   ...(!it.sku?.trim() ? ['SKU'] : []),
-                  ...(Number(it.unitPrice) <= 0 ? ['單價'] : []),
+                  ...(requiresItemPrice && Number(it.unitPrice) <= 0 ? ['單價'] : []),
                   ...(!it.weightGrams || Number(it.weightGrams) <= 0 ? ['重量'] : []),
                 ],
               }))
@@ -550,7 +594,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               ))}
               {order.items.map((it) => {
                 const skuMissing = !it.sku?.trim();
-                const priceMissing = !it.isGift && Number(it.unitPrice) <= 0;
+                const priceMissing = !it.isGift && requiresItemPrice && Number(it.unitPrice) <= 0;
                 const weightMissing = !it.isGift && (!it.weightGrams || Number(it.weightGrams) <= 0);
                 return (
                   <TableRow key={it.id}>
@@ -603,6 +647,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
                           <AlertTriangle className="h-3 w-3" />
                           未填
                         </span>
+                      ) : isMerchantRestock && Number(it.unitPrice) <= 0 ? (
+                        <span className="text-xs text-muted-foreground">無須計價</span>
                       ) : (
                         formatCurrency(Number(it.unitPrice))
                       )}
@@ -648,49 +694,22 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </div>
         </SectionCard>
 
-        <SectionCard tone="logistics" icon={Truck} title="3. 收件與配送">
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <div className="rounded-lg border bg-muted/10 p-4">
-              <p className="text-xs font-medium text-muted-foreground">客戶</p>
-              {order.customer ? (
-                <Link href={`/customers/${order.customer.id}`} className="mt-1 inline-block text-base font-semibold underline-offset-4 hover:underline">
-                  {order.customer.name}
-                </Link>
-              ) : (
-                <p className="mt-1 text-base font-semibold">{sourceView?.recipient || order.merchant?.name || '待補資料'}</p>
-              )}
-              <p className="mt-1 text-sm text-muted-foreground">
-                {order.customer?.phone || sourceView?.phone || '電話待補'}
-              </p>
-              {order.customer ? <p className="mt-2 text-xs text-muted-foreground">點擊姓名可開啟 CRM 客戶資料</p> : null}
-            </div>
-            <div className="rounded-lg border bg-muted/10 p-4">
-              {order.omsStatus && savedReview ? (
-                <div className="space-y-2 text-sm break-words">
-                  <p className="font-semibold">{savedReview.method === 'home' ? '黑貓宅配' : savedReview.method === 'convenience' ? '7-11 取貨' : '配送方式待確認'}</p>
-                  <p>{savedReview.address || '地址待補'}</p>
-                  {savedReview.method === 'convenience' ? <p>{savedReview.storeId || '店號待補'} · {savedReview.storeName || '門市名稱待補'}</p> : null}
-                  <p className="text-xs text-muted-foreground">溫層：{({ ambient: '常溫', chilled: '冷藏', frozen: '冷凍' } as Record<string, string>)[savedReview.temperature] || '待確認'}</p>
-                </div>
-              ) : order.omsStatus ? (
-                <p className="text-sm text-warning">配送資料尚未完成檢查</p>
-              ) : (
-                <LogisticsSummary logistics={logistics} />
-              )}
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard tone="finance" icon={CreditCard} title="4. 金額與處理紀錄">
+        <SectionCard tone="finance" icon={CreditCard} title="4. 訂單資訊與處理紀錄">
           <div className="grid gap-5 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div className="rounded-lg border bg-muted/10 p-4">
               <p className="text-xs font-medium text-muted-foreground">合計</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <StatusBadge kind="payment" value={order.paymentStatus} />
+                {paymentLabel ? <Badge variant="secondary">{paymentLabel}</Badge> : <StatusBadge kind="payment" value={order.paymentStatus} />}
                 {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
                   : <StatusBadge kind="order" value={order.status} />}
+                <StatusBadge kind="orderSource" value={order.source} />
+                <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
               </div>
+              <dl className="mt-4 space-y-2 border-t pt-3 text-sm">
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">訂單編號</dt><dd className="font-mono">{order.orderNumber}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-muted-foreground">下單時間</dt><dd>{formatDateTime(order.orderedAt)}</dd></div>
+              </dl>
               <p className="mt-3 text-xs text-muted-foreground">匠寵訂單固定以新台幣顯示。</p>
             </div>
           <ol className="relative ml-3 mt-4 space-y-4 border-l pl-6">
@@ -729,7 +748,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 }
 
 function SecondaryInformation({ children }: { children: ReactNode }) {
-  return <details className="rounded-xl border bg-muted/10 p-4">
+  return <details className="order-last rounded-xl border bg-muted/10 p-4">
     <summary className="cursor-pointer font-medium">更多管理工具</summary>
     <p className="mt-2 text-xs text-muted-foreground">修改舊流程狀態、運費或核對完整物流資料時再展開。</p>
     <div className="mt-4">{children}</div>

@@ -52,10 +52,14 @@ test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
   assert.match(detailSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
 });
 
-test('訂單詳細頁使用四個營運區塊並隱藏進階工具', () => {
-  for (const label of ['1. 訂單處理', '2. 商品內容', '3. 收件與配送', '4. 金額與處理紀錄']) {
+test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {
+  for (const label of ['1. 店家與配送資料', '2. 訂單處理', '3. 商品內容', '4. 訂單資訊與處理紀錄']) {
     assert.match(detailSource, new RegExp(label.replace('.', '\\.')));
   }
+  assert.ok(detailSource.indexOf('1. 店家與配送資料') < detailSource.indexOf('2. 訂單處理'));
+  assert.ok(detailSource.indexOf('3. 商品內容') < detailSource.indexOf('4. 訂單資訊與處理紀錄'));
+  assert.match(detailSource, /const paymentLabel = isMerchantRestock/);
+  assert.match(detailSource, /無須計價/);
   assert.match(detailSource, /更多管理工具/);
   assert.match(detailSource, /固定以新台幣顯示/);
 });
