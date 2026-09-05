@@ -422,7 +422,7 @@ function TierFormRow({
               />
             </FieldInline>
 
-            <FieldInline label="成本 (元)" required>
+            <FieldInline label="成本 (元)">
               <Input
                 name="tierCost"
                 type="number"
@@ -430,7 +430,6 @@ function TierFormRow({
                 step="0.01"
                 defaultValue={tierCostDefault ?? ''}
                 placeholder={mode === 'weight' ? '此規格進貨總成本' : '此規格成本'}
-                required
                 autoComplete="off"
                 className="w-28"
               />

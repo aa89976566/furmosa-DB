@@ -224,14 +224,13 @@ export async function deleteProduct(formData: FormData): Promise<
 // schema 設計：weightGrams + unit + unitQty 的組合在同商品內唯一。
 // =====================================================
 
-function parseTierFields(formData: FormData) {
+export function parseTierFields(formData: FormData) {
   const mode = String(formData.get('mode') ?? 'weight'); // weight | unit
   const price = toNumber(formData.get('price'));
   if (price <= 0) throw new Error('售價必須大於 0');
   const rawCostStr = String(formData.get('tierCost') ?? '').trim();
   const rawCost = rawCostStr === '' ? null : toNumber(formData.get('tierCost'));
-  if (rawCost == null || rawCost <= 0) throw new Error('請填寫此規格的成本');
-  if (rawCost < 0) throw new Error('成本不可為負數');
+  if (rawCost != null && rawCost <= 0) throw new Error('成本必須大於 0，或留空待後續補齊');
   const notes = toNullableString(formData.get('notes'));
 
   if (mode === 'weight') {
