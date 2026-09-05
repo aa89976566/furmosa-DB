@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import {
   HandCoins,
   Plus,
   Save,
+  Settings2,
   Store,
   Trash2,
   Truck,
@@ -49,7 +51,7 @@ import { SegmentedControl } from '@/components/ui/segmented-control';
 import { variationLabel } from '@/lib/product-variations';
 import { ORDER_LINE_UNIT_OPTIONS } from '@/lib/product-units';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
-import type { MerchantType } from '@/lib/merchant-types';
+import { merchantTypeDisplay, type MerchantType } from '@/lib/merchant-types';
 import {
   findMerchantWholesalePrice,
   type MerchantWholesalePriceRow,
@@ -985,7 +987,15 @@ export function OrderForm({
       {/* Step 2B: 合作店家模式 */}
       {orderType === 'merchant' && (
         <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="text-sm font-medium">② 合作店家</div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium">② 訂購店家</div>
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href="/merchants/new">
+                <Store className="mr-1 h-4 w-4" />
+                新增店家
+              </Link>
+            </Button>
+          </div>
 
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
@@ -1008,7 +1018,50 @@ export function OrderForm({
           </div>
 
           {selectedMerchant ? (
-            <div>
+            <div className="space-y-3">
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">目前訂購店家</p>
+                    <p className="mt-1 font-semibold">{selectedMerchant.name}</p>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                      {selectedMerchant.merchantId}
+                    </p>
+                  </div>
+                  <Button asChild type="button" size="sm" variant="ghost">
+                    <Link href={`/merchants/${selectedMerchant.id}`}>
+                      <Settings2 className="mr-1 h-4 w-4" />
+                      查看店家資料與設定
+                    </Link>
+                  </Button>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  <div>
+                    <dt className="text-[11px] text-muted-foreground">合作方式</dt>
+                    <dd className="mt-1 font-medium">{merchantTypeDisplay(selectedMerchant.types)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] text-muted-foreground">聯絡人／電話</dt>
+                    <dd className="mt-1 font-medium">
+                      {[selectedMerchant.contactName, selectedMerchant.phone].filter(Boolean).join(' · ') || '尚未設定'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] text-muted-foreground">預設收件方式</dt>
+                    <dd className="mt-1 font-medium">
+                      {selectedMerchant.preferredCarrier
+                        ? `${selectedMerchant.preferredCarrier}${selectedMerchant.pickupStoreName ? ` · ${selectedMerchant.pickupStoreName}` : ''}`
+                        : selectedMerchant.address || '尚未設定'}
+                    </dd>
+                  </div>
+                </dl>
+                {selectedMerchant.address && selectedMerchant.preferredCarrier ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    收件地址：{selectedMerchant.address}
+                  </p>
+                ) : null}
+              </div>
+
               <label className="mb-2 block text-[11px] text-muted-foreground">
                 這次要做什麼？ <span className="text-destructive">*</span>
               </label>
@@ -1047,11 +1100,12 @@ export function OrderForm({
           {merchantOrderMode === 'consignment' && <div>
             <div className="mb-1 flex items-center justify-between">
               <label className="block text-[11px] text-muted-foreground">
-                買家客戶（選填，若知道誰買的）
+                終端買家（選填）
               </label>
               <ToggleNewCustomerButton
                 open={showNewCustomer}
                 onToggle={() => setShowNewCustomer((v) => !v)}
+                label="新增終端買家"
               />
             </div>
             {showNewCustomer ? (
@@ -1461,7 +1515,7 @@ function NewCustomerPanel({
     <div className="space-y-3 rounded-md border border-dashed border-info/50 bg-info/5 p-3">
       <div className="flex items-center gap-2 text-xs font-medium text-info">
         <UserPlus className="h-3.5 w-3.5" />
-        新增客戶（建立後自動帶入此訂單）
+        {customerSource ? '新增客戶' : '新增終端買家'}（建立後自動帶入此訂單）
       </div>
       {customerSource ? (
         <p className="text-[11px] leading-relaxed text-muted-foreground">
@@ -1631,9 +1685,11 @@ function NewCustomerPanel({
 function ToggleNewCustomerButton({
   open,
   onToggle,
+  label = '新增客戶',
 }: {
   open: boolean;
   onToggle: () => void;
+  label?: string;
 }) {
   if (open) {
     return (
@@ -1647,7 +1703,7 @@ function ToggleNewCustomerButton({
   return (
     <Button type="button" size="sm" variant="outline" onClick={onToggle}>
       <UserPlus className="mr-1 h-4 w-4" />
-      新增客戶
+      {label}
     </Button>
   );
 }

@@ -15,7 +15,7 @@ export default async function NewOrderPage() {
     <>
       <PageHeader
         title="新增訂單"
-        description="先選客戶或合作店家，系統會依合作方式顯示適用商品。"
+        description="先選一般客戶或訂購店家；店家訂單會依合作方式顯示適用商品與設定。"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/orders">
