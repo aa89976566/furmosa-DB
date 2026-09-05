@@ -101,17 +101,20 @@ export function buildOrderEditInitial(
 
   const items = order.items.map((item) => {
     const retailUnitPrice = item.isGift ? item.unitCost ?? 0 : item.unitPrice;
+    const tierId = resolveTierId(item, products);
+    const product = products.find((candidate) => candidate.id === item.productId);
+    const selectedTier = product?.priceTiers.find((tier) => tier.id === tierId);
     return {
       key: genKey(),
       productId: item.productId,
-      tierId: resolveTierId(item, products),
+      tierId,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       unitCost: item.unitCost ?? 0,
       isGift: item.isGift,
       retailUnitPrice,
-      weightGrams: item.weightGrams,
-      unit: item.unit,
+      weightGrams: item.weightGrams ?? selectedTier?.weightGrams ?? null,
+      unit: item.unit ?? selectedTier?.unit ?? product?.unit ?? null,
     };
   });
 
