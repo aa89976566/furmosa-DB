@@ -84,17 +84,29 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   const savedReview = order.omsStatus ? currentReviewDraft(order.shopifySnapshot, reviewAudit?.metadataJson) : null;
 
   const editable = isOrderEditable(order);
-  const recipientNameMissing =
-    !order.customer?.name?.trim() || order.customer.name.trim() === 'Shopify 客戶';
+  const latestShipment = order.shipments[0];
+  const recipientName =
+    latestShipment?.recipientName?.trim() ||
+    order.customer?.name?.trim() ||
+    order.merchant?.contactName?.trim() ||
+    '';
+  const recipientPhone =
+    latestShipment?.recipientPhone?.trim() ||
+    order.customer?.phone?.trim() ||
+    order.merchant?.phone?.trim() ||
+    '';
+  const recipientAddress =
+    latestShipment?.recipientAddress?.trim() || order.shippingAddress?.trim() || '';
+  const recipientNameMissing = !recipientName || recipientName === 'Shopify 客戶';
   const shippingMissingFields = [
     ...(recipientNameMissing ? ['收件人'] : []),
-    ...(!order.customer?.phone?.trim() ? ['電話'] : []),
-    ...(order.shippingMethod === 'home' && !order.shippingAddress?.trim() ? ['地址'] : []),
+    ...(!recipientPhone ? ['電話'] : []),
+    ...(order.shippingMethod === 'home' && !recipientAddress ? ['地址'] : []),
     ...(order.shippingMethod === 'convenience' && !order.cvsBrand?.trim() ? ['超商'] : []),
     ...(order.shippingMethod === 'convenience' && !order.cvsStoreName?.trim()
       ? ['門市名稱']
       : []),
-    ...(order.shippingMethod === 'convenience' && !order.shippingAddress?.trim()
+    ...(order.shippingMethod === 'convenience' && !recipientAddress
       ? ['門市所在地']
       : []),
   ];

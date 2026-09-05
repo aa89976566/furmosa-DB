@@ -84,6 +84,14 @@ test('OMS 頁面清楚標示來源單號與 Shopify 商品，不直接使用技�
   assert.match(detailSource, /order\.externalOrderName \|\| order\.orderNumber/);
 });
 
+test('配送完整性優先使用最新出貨單快照，店家訂單不會被誤判缺少客戶資料', () => {
+  assert.match(detailSource, /const latestShipment = order\.shipments\[0\]/);
+  assert.match(detailSource, /latestShipment\?\.recipientName\?\.trim\(\)/);
+  assert.match(detailSource, /latestShipment\?\.recipientPhone\?\.trim\(\)/);
+  assert.match(detailSource, /latestShipment\?\.recipientAddress\?\.trim\(\)/);
+  assert.doesNotMatch(detailSource, /!order\.customer\?\.phone\?\.trim\(\) \? \['電話'\]/);
+});
+
 test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () => {
   assert.match(dashboardPageSource, /今日工作/);
   assert.match(dashboardPageSource, /營運數據/);
