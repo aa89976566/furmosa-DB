@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseTierFields } from '@/app/(main)/products/actions';
+import { parseTierFields } from '@/lib/products/price-tier-input';
 
 function weightTier(cost?: string) {
   const form = new FormData();

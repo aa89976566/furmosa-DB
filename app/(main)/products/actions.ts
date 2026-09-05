@@ -9,6 +9,7 @@ import {
 } from '@/lib/product-price-tier';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { parseTierFields } from '@/lib/products/price-tier-input';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -223,41 +224,6 @@ export async function deleteProduct(formData: FormData): Promise<
 // 同一商品下可有多筆規格：依「重量」（30g/50g/100g）或「單位」（5 隻/10 片）。
 // schema 設計：weightGrams + unit + unitQty 的組合在同商品內唯一。
 // =====================================================
-
-export function parseTierFields(formData: FormData) {
-  const mode = String(formData.get('mode') ?? 'weight'); // weight | unit
-  const price = toNumber(formData.get('price'));
-  if (price <= 0) throw new Error('售價必須大於 0');
-  const rawCostStr = String(formData.get('tierCost') ?? '').trim();
-  const rawCost = rawCostStr === '' ? null : toNumber(formData.get('tierCost'));
-  if (rawCost != null && rawCost <= 0) throw new Error('成本必須大於 0，或留空待後續補齊');
-  const notes = toNullableString(formData.get('notes'));
-
-  if (mode === 'weight') {
-    const weightGrams = toInt(formData.get('weightGrams'));
-    if (weightGrams <= 0) throw new Error('重量必須大於 0');
-    return {
-      weightGrams,
-      unit: 'g',
-      unitQty: 1,
-      price,
-      cost: rawCost,
-      notes,
-    };
-  }
-  // unit mode
-  const unit = String(formData.get('unit') ?? '').trim();
-  if (!unit) throw new Error('單位為必填（例：隻、片、包）');
-  const unitQty = Math.max(1, toInt(formData.get('unitQty'), 1));
-  return {
-    weightGrams: null,
-    unit,
-    unitQty,
-    price,
-    cost: rawCost,
-    notes,
-  };
-}
 
 function isPriceTierUniqueConflict(e: unknown): boolean {
   return (
