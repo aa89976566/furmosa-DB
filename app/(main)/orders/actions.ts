@@ -199,7 +199,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     });
 
       return order;
-    }, { maxWait: 5_000, timeout: 15_000 });
+    }, { maxWait: 10_000, timeout: 30_000 });
   } catch (error) {
     console.error('[orders/create] 建立訂單交易失敗', error);
     return {
