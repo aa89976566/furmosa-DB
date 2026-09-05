@@ -19,7 +19,11 @@ import {
 import { merchantCarrierLabel } from '@/lib/merchant-shipping-defaults';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
 import { ChevronRight, MapPin } from 'lucide-react';
-import { createMerchantPosUser, repairMerchantBusinessId } from './actions';
+import {
+  createMerchantPosUser,
+  repairMerchantBusinessId,
+  resetMerchantPosUserPassword,
+} from './actions';
 import { isValidMerchantBusinessId } from '@/lib/merchant-business-id';
 import { Input } from '@/components/ui/input';
 
@@ -220,16 +224,24 @@ export default async function MerchantOverviewPage({
           <div className="mt-5 border-t pt-4">
             <p className="text-sm font-semibold">POS 登入帳號</p>
             {merchant.users.length > 0 ? (
-              <ul className="mt-2 space-y-2 text-sm">
-                {merchant.users.map((user) => (
-                  <li key={user.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
-                    <span className="font-mono">{user.username}</span>
-                    <Badge variant={user.isActive ? 'success' : 'secondary'}>
-                      {user.isActive ? '已啟用' : '已停用'}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-2 space-y-2 text-sm">
+                  {merchant.users.map((user) => (
+                    <li key={user.id} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                      <span className="font-mono">{user.username}</span>
+                      <Badge variant={user.isActive ? 'success' : 'secondary'}>
+                        {user.isActive ? '已啟用' : '已停用'}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+                <form action={resetMerchantPosUserPassword} className="mt-3 space-y-3">
+                  <input type="hidden" name="merchantId" value={merchant.id} />
+                  <input type="hidden" name="userId" value={(merchant.users.find((user) => user.isActive) ?? merchant.users[0]).id} />
+                  <Input name="password" type="password" placeholder="新密碼（至少 8 位）" required minLength={8} maxLength={64} />
+                  <Button type="submit" size="sm" variant="outline">重設 POS 密碼</Button>
+                </form>
+              </>
             ) : (
               <form action={createMerchantPosUser} className="mt-3 space-y-3">
                 <input type="hidden" name="merchantId" value={merchant.id} />

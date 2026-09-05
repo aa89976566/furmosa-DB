@@ -121,6 +121,29 @@ export async function createMerchantPosUser(formData: FormData) {
   revalidatePath(`/merchants/${merchantId}`);
 }
 
+export async function resetMerchantPosUserPassword(formData: FormData) {
+  await requireAdmin();
+  const merchantId = String(formData.get('merchantId') ?? '').trim();
+  const userId = String(formData.get('userId') ?? '').trim();
+  const password = String(formData.get('password') ?? '');
+  if (!merchantId || !userId) throw new Error('缺少店家或 POS 帳號');
+  if (password.length < 8 || password.length > 64) {
+    throw new Error('密碼需為 8–64 位');
+  }
+
+  const user = await prisma.merchantUser.findFirst({
+    where: { id: userId, merchantId },
+    select: { id: true },
+  });
+  if (!user) throw new Error('POS 帳號不存在或不屬於此店家');
+
+  await prisma.merchantUser.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(password) },
+  });
+  revalidatePath(`/merchants/${merchantId}`);
+}
+
 function stockSpecLabel(
   tiers: MerchantProductTierOption[],
   tierId: string,
