@@ -9,27 +9,52 @@ const tiers = [
   { id: 't100', weightGrams: 100, unit: 'g', unitQty: 100, price: 200, notes: null },
 ];
 
-test('multi-weight: only shows tiers with stock rows', () => {
+test('multi-weight: exposes every configured tier before any stock exists', () => {
+  const result = buildMerchantProductTierStocks('p1', tiers, []);
+
+  assert.equal(result.totalQuantity, 0);
+  assert.deepEqual(
+    result.tierStocks.map((t) => [t.tierId, t.quantity]),
+    [
+      ['t30', 0],
+      ['t50', 0],
+      ['t100', 0],
+    ],
+  );
+});
+
+test('multi-weight: shows every configured tier and fills missing stock with zero', () => {
   const result = buildMerchantProductTierStocks('p1', tiers, [
     { productId: 'p1', tierId: 't30', quantity: 3 },
     { productId: 'p1', tierId: 't50', quantity: 2 },
   ]);
   assert.equal(result.totalQuantity, 5);
-  assert.equal(result.tierStocks.length, 2);
+  assert.equal(result.tierStocks.length, 3);
   assert.deepEqual(
-    result.tierStocks.map((t) => t.tierId),
-    ['t30', 't50'],
+    result.tierStocks.map((t) => [t.tierId, t.quantity]),
+    [
+      ['t30', 3],
+      ['t50', 2],
+      ['t100', 0],
+    ],
   );
 });
 
-test('multi-weight: legacy stock shows as 未分規格 without empty tiers', () => {
+test('multi-weight: keeps legacy stock and also exposes configured tiers', () => {
   const result = buildMerchantProductTierStocks('p1', tiers, [
     { productId: 'p1', tierId: LEGACY_MERCHANT_STOCK_TIER_ID, quantity: 5 },
   ]);
   assert.equal(result.totalQuantity, 5);
-  assert.equal(result.tierStocks.length, 1);
-  assert.equal(result.tierStocks[0].label, '未分規格');
-  assert.equal(result.tierStocks[0].quantity, 5);
+  assert.equal(result.tierStocks.length, 4);
+  assert.deepEqual(
+    result.tierStocks.map((t) => [t.label, t.quantity]),
+    [
+      ['30g', 0],
+      ['50g', 0],
+      ['100g', 0],
+      ['未分規格', 5],
+    ],
+  );
 });
 
 test('single-weight: aggregates all rows', () => {

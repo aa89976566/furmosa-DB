@@ -36,8 +36,8 @@ export function toMerchantProductTierOptions(
 }
 
 /**
- * 店家庫存顯示：只列出該店「有庫存紀錄」的規格列。
- * - 多規格／單規格都按實際庫存列拆開，不加總混寫
+ * 店家庫存顯示：多重量商品列出所有正式規格，尚未建庫存列的規格顯示為 0。
+ * - 多規格／單規格都按規格拆開，不加總混寫
  * - 舊版未分規格（tierId=''）單獨顯示
  */
 export function buildMerchantProductTierStocks(
@@ -48,6 +48,19 @@ export function buildMerchantProductTierStocks(
   const productStocks = stocks.filter((s) => s.productId === productId);
 
   if (productStocks.length === 0) {
+    if (isMultiWeightProduct(priceTiers)) {
+      return {
+        totalQuantity: 0,
+        tierStocks: weightTiersForProduct(priceTiers).map((tier) => {
+          const fullTier = priceTiers.find((candidate) => candidate.id === tier.id) ?? null;
+          return {
+            tierId: tier.id,
+            label: tierSpecLabel(fullTier) ?? '規格',
+            quantity: 0,
+          };
+        }),
+      };
+    }
     const defaultTier = pickDefaultTier(priceTiers);
     return {
       totalQuantity: 0,
@@ -74,12 +87,11 @@ export function buildMerchantProductTierStocks(
 
     for (const tier of weightTiersForProduct(priceTiers)) {
       const stock = tierStockById.get(tier.id);
-      if (!stock) continue;
       const fullTier = priceTiers.find((t) => t.id === tier.id) ?? null;
       tierStocks.push({
         tierId: tier.id,
         label: tierSpecLabel(fullTier) ?? '規格',
-        quantity: stock.quantity,
+        quantity: stock?.quantity ?? 0,
       });
     }
 

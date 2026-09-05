@@ -1,7 +1,7 @@
 import type { MerchantCommissionPercent } from '@/lib/merchant-commission';
 
 /** 登記庫存異動：減少 */
-export const STOCK_DECREASE_REASONS = ['sale', 'damage', 'return_hq'] as const;
+export const STOCK_DECREASE_REASONS = ['sale', 'damage', 'return_hq', 'count_correction'] as const;
 /** 登記庫存異動：增加 */
 export const STOCK_INCREASE_REASONS = ['restock_correction', 'count_correction'] as const;
 
@@ -38,6 +38,13 @@ export const STOCK_DECREASE_REASON_OPTIONS: StockMovementReasonMeta[] = [
     description: '不計分潤金額',
     countsAsSale: false,
     txnType: 'return',
+  },
+  {
+    value: 'count_correction',
+    label: '盤點清點錯誤更正',
+    description: '更正誤鍵／清點誤差，不計金額',
+    countsAsSale: false,
+    txnType: 'adjust',
   },
 ];
 
