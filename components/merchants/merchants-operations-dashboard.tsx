@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import {
   MerchantSection,
   MerchantStat,
@@ -72,12 +73,53 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
         description="依本期間銷售與目前在店庫存整理"
         contentClassName="px-0 py-0"
       >
+        <div className="divide-y divide-border/60 md:hidden">
+          {report.merchants.map((merchant) => (
+            <Link
+              key={merchant.id}
+              href={`/merchants/${merchant.id}`}
+              className="block min-w-0 px-4 py-4 transition-colors active:bg-muted/50"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-navy">{merchant.name}</p>
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                    {merchant.merchantId}
+                    <span className="px-1.5">·</span>
+                    {merchant.city ?? '未填城市'}
+                    <span className="px-1.5">·</span>
+                    {merchantIndustryDisplay(merchant.industry)}
+                  </p>
+                </div>
+                <div className="flex max-w-[48%] shrink items-center gap-1.5">
+                  <MerchantTypeBadges types={merchant.types} />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+                </div>
+              </div>
+
+              <dl className="mt-3 grid grid-cols-3 gap-x-3 gap-y-3">
+                <MobileMetric label="在店庫存">
+                  <StockQty quantity={merchant.stockUnits} />
+                  <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">件</span>
+                </MobileMetric>
+                <MobileMetric label="期間銷售" value={`${merchant.periodSoldQty} 件`} />
+                <MobileMetric label="訂單" value={`${merchant.orderCount} 筆`} />
+                <MobileMetric label="銷售額" value={formatCurrency(merchant.periodGrossSales)} />
+                <MobileMetric label="分潤" value={formatPercent(merchant.commissionRate, 0)} />
+                <MobileMetric label="結算" value={`${merchant.settlementCount} 筆`} />
+              </dl>
+            </Link>
+          ))}
+        </div>
+
+        <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>編號</TableHead>
                 <TableHead>店家名稱</TableHead>
                 <TableHead>類型</TableHead>
+                <TableHead>產業</TableHead>
                 <TableHead>城市</TableHead>
                 <TableHead className="text-right">在店庫存</TableHead>
                 <TableHead className="text-right">期間銷售</TableHead>
@@ -124,7 +166,27 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
               ))}
             </TableBody>
           </Table>
+        </div>
       </MerchantSection>
+    </div>
+  );
+}
+
+function MobileMetric({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate text-[10px] text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 truncate font-mono text-sm font-semibold tabular-nums text-foreground">
+        {children ?? value}
+      </dd>
     </div>
   );
 }
