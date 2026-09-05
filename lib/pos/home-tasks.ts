@@ -37,7 +37,7 @@ export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
   if (input.awaitingRestockReceiptCount > 0) {
     cards.push({
       kind: 'awaiting_restock_receipt',
-      title: '補貨已送達，請驗收',
+      title: '補貨已送達，請確認收到貨',
       subtitle: '確認品項與數量正確後，商品才會加入可售庫存',
       href: input.firstAwaitingRestockReceiptId
         ? `/pos/restock/${input.firstAwaitingRestockReceiptId}`

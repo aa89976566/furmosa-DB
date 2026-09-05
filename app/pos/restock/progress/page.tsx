@@ -82,7 +82,7 @@ export default async function PosRestockProgressPage() {
                             : r.shipment?.status === 'delivered'
                               ? '待確認收貨'
                               : r.shipment?.status === 'received'
-                                ? '已完成'
+                                ? '已收貨'
                                 : r.shipment?.status === 'cancelled'
                                   ? '已取消'
                                   : restockStatusLabelForMerchant(r.status)}

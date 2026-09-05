@@ -66,7 +66,7 @@ describe('buildHomeTaskCards', () => {
     });
     assert.equal(cards[0]?.kind, 'awaiting_restock_receipt');
     assert.equal(cards[0]?.href, '/pos/restock/r2');
-    assert.match(cards[0]?.title ?? '', /請驗收/);
+    assert.match(cards[0]?.title ?? '', /請確認收到貨/);
   });
 });
 
