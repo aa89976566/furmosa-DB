@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useCallback } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -368,6 +369,8 @@ export function OrderForm({
   returnTo?: string;
 }) {
   const isEdit = Boolean(edit);
+  const router = useRouter();
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<OrderType>(edit?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     edit?.customerSource ?? 'social',
@@ -819,12 +822,13 @@ export function OrderForm({
   return (
     <form
       action={async (formData) => {
+        setSubmitError(null);
         if (!recipientName.trim()) {
-          alert('請填寫收件人姓名');
+          setSubmitError('請填寫收件人姓名。');
           return;
         }
         if (!hasValidLines) {
-          alert('請至少新增一筆商品明細');
+          setSubmitError('請至少新增一筆商品明細。');
           return;
         }
         try {
@@ -832,11 +836,22 @@ export function OrderForm({
             formData.set('orderId', edit.orderId);
             await updateOrder(formData);
           } else {
-            await createOrder(formData);
+            const result = await createOrder(formData);
+            if (!result.ok) {
+              setSubmitError(result.message);
+              return;
+            }
+            router.push(`/orders/${result.orderId}`);
           }
         } catch (e) {
           if (isRedirectError(e)) throw e;
-          alert(e instanceof Error ? e.message : isEdit ? '儲存訂單失敗' : '建立訂單失敗');
+          setSubmitError(
+            e instanceof Error
+              ? e.message
+              : isEdit
+                ? '儲存訂單失敗，請稍後重試。'
+                : '建立訂單失敗，請稍後重試。',
+          );
         }
       }}
       className="space-y-6"
@@ -1368,6 +1383,18 @@ export function OrderForm({
           />
         </FieldInline>
       </section>
+
+      {submitError ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          <div className="font-medium">無法儲存訂單</div>
+          <div className="mt-1">{submitError}</div>
+          <div className="mt-1 text-xs opacity-80">您已填寫的內容仍保留在畫面上。</div>
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-end gap-2 border-t pt-4">
         <div className="mr-auto flex items-center gap-2 text-sm">

@@ -38,11 +38,13 @@ function ymd(d = new Date()) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-async function nextOrderNumber() {
+async function nextOrderNumber(tx: Prisma.TransactionClient) {
   const prefix = `ORD-${ymd()}-`;
-  const last = await prisma.order.findFirst({
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`order-number:${prefix}`}))`;
+  const last = await tx.order.findFirst({
     where: { orderNumber: { startsWith: prefix } },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { orderNumber: 'desc' },
+    select: { orderNumber: true },
   });
   const seq = last ? Number(last.orderNumber.slice(prefix.length)) + 1 : 1;
   return `${prefix}${pad(seq, 3)}`;
@@ -59,11 +61,13 @@ async function nextLineOrderNumber(tx: Prisma.TransactionClient) {
   return nextSourceOrderNumber(prefix, last?.orderNumber);
 }
 
-async function nextShipmentNumber() {
+async function nextShipmentNumber(tx: Prisma.TransactionClient) {
   const prefix = `SHP-${ymd()}-`;
-  const last = await prisma.shipment.findFirst({
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`shipment-number:${prefix}`}))`;
+  const last = await tx.shipment.findFirst({
     where: { shipmentNumber: { startsWith: prefix } },
     orderBy: { shipmentNumber: 'desc' },
+    select: { shipmentNumber: true },
   });
   const seq = last ? Number(last.shipmentNumber.slice(prefix.length)) + 1 : 1;
   return `${prefix}${pad(seq, 4)}`;
@@ -103,16 +107,30 @@ async function revalidateOrderPaths(
   );
 }
 
-export async function createOrder(formData: FormData) {
-  const rawPayload = await parseOrderFormData(formData);
-  const payload = applyJarExchangeConsignmentPricing(rawPayload);
-  const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
-  const shipmentNumber = await nextShipmentNumber();
+export type CreateOrderResult =
+  | { ok: true; orderId: string }
+  | { ok: false; message: string };
 
-  const created = await prisma.$transaction(async (tx) => {
-    const orderNumber = payload.source === 'line'
-      ? await nextLineOrderNumber(tx)
-      : await nextOrderNumber();
+export async function createOrder(formData: FormData): Promise<CreateOrderResult> {
+  let created: {
+    id: string;
+    orderNumber: string;
+    total: number;
+    source: string;
+    merchantId: string | null;
+    customerId: string | null;
+  };
+
+  try {
+    const rawPayload = await parseOrderFormData(formData);
+    const payload = applyJarExchangeConsignmentPricing(rawPayload);
+    const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
+
+    created = await prisma.$transaction(async (tx) => {
+      const orderNumber = payload.source === 'line'
+        ? await nextLineOrderNumber(tx)
+        : await nextOrderNumber(tx);
+      const shipmentNumber = await nextShipmentNumber(tx);
     const order = await tx.order.create({
       data: {
         orderNumber,
@@ -180,17 +198,29 @@ export async function createOrder(formData: FormData) {
       },
     });
 
-    return order;
-  });
+      return order;
+    });
+  } catch (error) {
+    console.error('[orders/create] 建立訂單交易失敗', error);
+    return {
+      ok: false,
+      message: '訂單未建立。請確認資料後重試；若仍失敗，請聯絡系統管理員。',
+    };
+  }
 
-  await revalidateOrderPaths(created.id, created.merchantId, created.customerId);
+  try {
+    await revalidateOrderPaths(created.id, created.merchantId, created.customerId);
+  } catch (error) {
+    // 訂單已成功提交，不應因快取更新失敗讓使用者誤以為需要重複送出。
+    console.error('[orders/create] 訂單已建立，但畫面快取更新失敗', error);
+  }
   void sendNewOrderPush({
     id: created.id,
     orderNumber: created.orderNumber,
     total: Number(created.total),
     source: created.source,
   });
-  redirect(`/orders/${created.id}`);
+  return { ok: true, orderId: created.id };
 }
 
 export async function updateOrder(formData: FormData) {
