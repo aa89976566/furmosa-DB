@@ -1097,40 +1097,6 @@ export function OrderForm({
             </div>
           ) : null}
 
-          {merchantOrderMode === 'consignment' && <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="block text-[11px] text-muted-foreground">
-                終端買家（選填）
-              </label>
-              <ToggleNewCustomerButton
-                open={showNewCustomer}
-                onToggle={() => setShowNewCustomer((v) => !v)}
-                label="新增終端買家"
-              />
-            </div>
-            {showNewCustomer ? (
-              <>
-                <input type="hidden" name="customerId" value={customerId} />
-                <NewCustomerPanel
-                  value={newCustomer}
-                  onChange={(v) => setNewCustomer(v)}
-                  onSubmit={submitNewCustomer}
-                  onCancel={() => setShowNewCustomer(false)}
-                  pending={creatingCustomer}
-                />
-              </>
-            ) : (
-              <CustomerSearchSelect
-                customers={customers}
-                value={customerId}
-                onChange={onCustomerChange}
-                onSearch={handleSearchCustomers}
-                allowEmpty
-                emptyLabel="— 不指定 —"
-                placeholder="搜尋買家（選填）…"
-              />
-            )}
-          </div>}
         </section>
       )}
 
@@ -1685,11 +1651,9 @@ function NewCustomerPanel({
 function ToggleNewCustomerButton({
   open,
   onToggle,
-  label = '新增客戶',
 }: {
   open: boolean;
   onToggle: () => void;
-  label?: string;
 }) {
   if (open) {
     return (
@@ -1703,7 +1667,7 @@ function ToggleNewCustomerButton({
   return (
     <Button type="button" size="sm" variant="outline" onClick={onToggle}>
       <UserPlus className="mr-1 h-4 w-4" />
-      {label}
+      新增客戶
     </Button>
   );
 }
