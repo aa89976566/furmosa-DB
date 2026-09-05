@@ -13,8 +13,7 @@ import {
 import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
-import { confirmRestockReceiptAction } from './actions';
-import { Button } from '@/components/ui/button';
+import { ConfirmReceiptButton } from './confirm-receipt-button';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -25,7 +24,7 @@ export default async function PosRestockDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { ok?: string; received?: string };
+  searchParams?: { ok?: string };
 }) {
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
@@ -38,14 +37,13 @@ export default async function PosRestockDetailPage({
   const snapshot = (req.approvedSnapshot as ApprovedSnapshotLine[] | null) ?? null;
   const shortId = req.id.slice(0, 8).toUpperCase();
   const justSubmitted = searchParams?.ok === '1';
-  const justReceived = searchParams?.received === '1';
   const shipment = req.shipment;
   const shipmentCopy = shipment
     ? {
         pending: { label: 'HQ 已核准，等待備貨', help: 'HQ 正在安排商品與出貨。' },
         packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
         shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
-        delivered: { label: '商品已送達，請驗收', help: '確認品項與數量正確後再完成收貨。' },
+        delivered: { label: '待確認收貨', help: '請核對這批商品，再確認收到貨。' },
         received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
         cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
       }[shipment.status]
@@ -74,13 +72,6 @@ export default async function PosRestockDetailPage({
             <p className="text-muted-foreground">
               編號 {shortId} · {req.createdAt.toLocaleString('zh-TW')}
             </p>
-          </div>
-        ) : null}
-
-        {justReceived ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-            <p className="font-medium">收貨完成</p>
-            <p>商品已加入店家庫存。</p>
           </div>
         ) : null}
 
@@ -128,12 +119,7 @@ export default async function PosRestockDetailPage({
                 ) : null}
               </div>
               {shipment.status === 'delivered' ? (
-                <form action={confirmRestockReceiptAction}>
-                  <input type="hidden" name="requestId" value={req.id} />
-                  <Button type="submit" className="min-h-[48px] w-full">
-                    確認品項正確並完成收貨
-                  </Button>
-                </form>
+                <ConfirmReceiptButton requestId={req.id} />
               ) : null}
 
               <div className="border-t pt-3">
