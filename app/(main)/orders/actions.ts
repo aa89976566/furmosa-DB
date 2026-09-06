@@ -314,7 +314,7 @@ export async function updateOrder(formData: FormData) {
         },
       });
     }
-  });
+  }, { maxWait: 10_000, timeout: 30_000 });
 
   await revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
   const returnTo = safeOrderEditReturnTo(String(formData.get('returnTo') ?? ''));
