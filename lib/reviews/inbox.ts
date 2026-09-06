@@ -3,6 +3,7 @@ import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import { activeOrderWhere } from '@/lib/order-list';
 import { restockStatusLabelForHq } from '@/lib/restock-request/constants';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
 
 export const REVIEW_KINDS = ['shopify_order', 'ugc', 'restock'] as const;
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
@@ -28,15 +29,22 @@ export function reviewKindLabel(kind: ReviewKind) {
   return KIND_LABEL[kind];
 }
 
-function orderTitle(order: {
-  externalOrderName: string | null;
-  orderNumber: string;
+export function orderContentSummary(order: {
   items: { productName: string }[];
+  shopifySnapshot?: unknown;
 }) {
-  const names = order.items.map((item) => item.productName).filter(Boolean);
-  if (names.length === 0) return order.externalOrderName ?? order.orderNumber;
+  const storedNames = order.items.map((item) => item.productName.trim()).filter(Boolean);
+  const snapshotNames = snapshotView(order.shopifySnapshot)?.items
+    .map((item) => item.title.trim())
+    .filter(Boolean) ?? [];
+  const names = storedNames.length > 0 ? storedNames : snapshotNames;
+  if (names.length === 0) return '商品明細尚未同步';
   if (names.length === 1) return names[0]!;
   return `${names[0]} 等 ${names.length} 項`;
+}
+
+export function orderReferenceSummary(values: Array<string | null | undefined>) {
+  return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])].join(' · ');
 }
 
 async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
@@ -50,6 +58,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       id: true,
       orderNumber: true,
       externalOrderName: true,
+      shopifySnapshot: true,
       source: true,
       orderedAt: true,
       createdAt: true,
@@ -64,10 +73,11 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     id: order.id,
     kind: 'shopify_order',
     kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
-    title: orderTitle(order),
-    subtitle: [order.externalOrderName ?? order.orderNumber, order.customer?.name]
-      .filter(Boolean)
-      .join(' · '),
+    title: orderContentSummary(order),
+    subtitle: orderReferenceSummary([
+      order.externalOrderName ?? order.orderNumber,
+      order.customer?.name,
+    ]),
     href: `/orders/${order.id}`,
     createdAt: order.orderedAt ?? order.createdAt,
     statusLabel: '待審核',
