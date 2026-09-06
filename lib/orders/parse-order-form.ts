@@ -245,8 +245,10 @@ export async function parseOrderFormData(
     const prod = productMap.get(it.productId);
     if (!prod) throw new Error('包含不存在的商品');
     if (it.unitPrice < 0) throw new Error('單價不可為負數');
+    const isJarExchangeGift = merchantOrderMode === 'jar_exchange' && it.isGift;
     if (
       merchantOrderMode &&
+      !isJarExchangeGift &&
       prod.productCategory !== merchantOrderProductCategory(merchantOrderMode)
     ) {
       throw new Error(
