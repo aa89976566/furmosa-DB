@@ -41,6 +41,13 @@ export function invalidateRefillPlanCache(): void {
   flavoursCache = null;
 }
 
+export function resolveRefillHeroImage(value: string | null | undefined): string {
+  const path = value?.trim();
+  return !path || path === '/images/refill-plan/refill-flavours.jpg'
+    ? REFILL_PLAN_RULES.heroImagePath
+    : path;
+}
+
 function fallbackSettings(): RefillPlanSettingsView {
   return {
     heroImageUrl: REFILL_PLAN_RULES.heroImagePath,
@@ -148,7 +155,7 @@ export async function getRefillPlanSettings(): Promise<RefillPlanSettingsView> {
     const row = await prisma.refillPlanSettings.findUnique({ where: { id: 'default' } });
     const value: RefillPlanSettingsView = row
       ? {
-          heroImageUrl: row.heroImageUrl || REFILL_PLAN_RULES.heroImagePath,
+          heroImageUrl: resolveRefillHeroImage(row.heroImageUrl),
           firstJarPrice: row.firstJarPrice,
           exchangePrice: row.exchangePrice,
           pointsPerJar: row.pointsPerJar,
