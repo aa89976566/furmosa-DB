@@ -16,6 +16,7 @@ const nextConfig = {
   },
   // 勿將 @prisma/client 打包進 server action，否則 schema 更新後仍會 Unknown argument
   experimental: {
+    instrumentationHook: true,
     serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
     serverActions: {
