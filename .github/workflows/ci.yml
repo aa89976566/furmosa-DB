@@ -17,6 +17,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # CI-only ephemeral database. Never points at production.
     services:
       postgres:
         image: postgres:16
