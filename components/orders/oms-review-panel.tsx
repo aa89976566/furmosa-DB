@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
-import { defaultReviewDraft, fillReviewDraftBlanks } from '@/lib/orders/review-defaults';
+import { defaultReviewDraft, fillReviewDraftBlanks, reviewLineDisplays } from '@/lib/orders/review-defaults';
 
 export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
   const sourceView = snapshotView(snapshot);
@@ -18,7 +18,6 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
     prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true, defaultTemperature: true }, orderBy: { sku: 'asc' } }),
     prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
   ]);
-  const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
   const suggested = defaultReviewDraft(source, products);
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
   const upgraded = saved ? fillReviewDraftBlanks(saved, suggested) : { draft: suggested, applied: false };
@@ -42,6 +41,6 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已在空白欄位補入 Shopify／商品主檔建議；尚未儲存，請核對後按「儲存並檢查」。</p>}
     </div>
     <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
-      draft={draft} products={products} titles={rows.map(r => string(r.title) || '未命名商品')} />
+      draft={draft} products={products} lineDisplays={reviewLineDisplays(source, products, draft, saved)} />
   </section>;
 }

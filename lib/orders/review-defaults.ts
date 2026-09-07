@@ -9,7 +9,85 @@ type MappingProduct = {
   defaultTemperature: string | null;
 };
 
+export type ReviewLineMappingKind = 'auto' | 'saved' | 'conflict' | 'select';
+
+/** Display-only line props for the review form. Not part of ReviewDraft. */
+export type ReviewLineDisplay = {
+  title: string;
+  quantityLabel: string;
+  mappingKind: ReviewLineMappingKind;
+  conflictMessage: string;
+};
+
+const MAX_SOURCE_QUANTITY = 2147483647;
+
 const containsAny = (value: string, words: string[]) => words.some(word => value.includes(word));
+
+export function sourceQuantityLabel(quantity: unknown): string {
+  const valid = typeof quantity === 'number'
+    && Number.isSafeInteger(quantity)
+    && quantity > 0
+    && quantity <= MAX_SOURCE_QUANTITY;
+  return valid ? `×${quantity}` : '數量待確認';
+}
+
+/** Exact sku / sourceSku hits only. The same product counted once; empty SKU matches nothing. */
+export function skuMatchingProducts<T extends { id: string; sku: string; sourceSku: string | null }>(
+  sku: string,
+  products: T[],
+): T[] {
+  if (!sku) return [];
+  const seen = new Set<string>();
+  return products.filter(product => {
+    if (product.sku !== sku && product.sourceSku !== sku) return false;
+    if (seen.has(product.id)) return false;
+    seen.add(product.id);
+    return true;
+  });
+}
+
+function sourceLineRows(snapshot: Snapshot) {
+  return Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+}
+
+function lineMapping(
+  savedProductId: string,
+  uniqueProductId: string,
+): Pick<ReviewLineDisplay, 'mappingKind' | 'conflictMessage'> {
+  if (savedProductId) {
+    if (uniqueProductId === savedProductId) {
+      return { mappingKind: 'saved', conflictMessage: '' };
+    }
+    return {
+      mappingKind: 'conflict',
+      conflictMessage: uniqueProductId
+        ? '已保存對應與目前來源 SKU 的唯一商品不同，請確認後再選擇。'
+        : '目前來源 SKU 無法唯一對應商品，請確認已保存對應是否正確。',
+    };
+  }
+  if (uniqueProductId) return { mappingKind: 'auto', conflictMessage: '' };
+  return { mappingKind: 'select', conflictMessage: '' };
+}
+
+export function reviewLineDisplays(
+  snapshot: Snapshot,
+  products: MappingProduct[],
+  draft: ReviewDraft,
+  saved: ReviewDraft | null,
+): ReviewLineDisplay[] {
+  const rows = sourceLineRows(snapshot);
+  return draft.lines.map((_, index) => {
+    const row = rows[index] ?? {};
+    const sku = string(row.sku);
+    const matches = skuMatchingProducts(sku, products);
+    const uniqueProductId = matches.length === 1 ? matches[0]!.id : '';
+    return {
+      title: string(row.title) || '未命名商品',
+      quantityLabel: sourceQuantityLabel(row.quantity),
+      ...lineMapping(string(saved?.lines[index]?.productId), uniqueProductId),
+    };
+  });
+}
 
 export function deliveryDefaults(snapshot: Snapshot) {
   const lines = Array.isArray(snapshot.order.shipping_lines)
@@ -41,10 +119,9 @@ export function deliveryDefaults(snapshot: Snapshot) {
 
 export function defaultReviewDraft(snapshot: Snapshot, products: MappingProduct[]): ReviewDraft {
   const view = snapshotView(snapshot)!;
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceLineRows(snapshot);
   const lines = rows.map(row => {
-    const sku = string(row.sku);
-    const matches = sku ? products.filter(product => product.sku === sku || product.sourceSku === sku) : [];
+    const matches = skuMatchingProducts(string(row.sku), products);
     const product = matches.length === 1 ? matches[0] : null;
     return { productId: product?.id ?? '', temperature: product?.defaultTemperature ?? '' };
   });

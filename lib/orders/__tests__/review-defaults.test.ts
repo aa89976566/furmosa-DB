@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { defaultReviewDraft, deliveryDefaults, fillReviewDraftBlanks } from '../review-defaults';
+import { defaultReviewDraft, deliveryDefaults, fillReviewDraftBlanks, reviewLineDisplays, skuMatchingProducts, sourceQuantityLabel } from '../review-defaults';
 import { reviewDraft } from '../review-policy';
 import type { Snapshot } from '../../shopify/intake-policy';
 
@@ -14,8 +14,10 @@ function snapshot(overrides: Record<string, unknown> = {}): Snapshot {
   } as never };
 }
 
+const frozen = { id: 'p1', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' };
+
 test('Shopify 配送 code 與商品主檔可自動填入正常宅配訂單', () => {
-  const draft = defaultReviewDraft(snapshot(), [{ id: 'p1', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' }]);
+  const draft = defaultReviewDraft(snapshot(), [frozen]);
   assert.deepEqual(draft.lines, [{ productId: 'p1', temperature: 'frozen' }]);
   assert.equal(draft.method, 'home');
   assert.equal(draft.temperature, 'frozen');
@@ -88,4 +90,63 @@ test('只有空白字元的舊電話會補值並顯示已套用提示', () => {
   assert.equal(result.applied, true);
   assert.equal(result.draft.phone, '0912345678');
   assert.equal(result.draft.lines[0]?.productId, 'manual');
+});
+
+test('唯一 sku 或 sourceSku 可自動帶入，同商品兩欄命中仍只算一筆', () => {
+  assert.equal(defaultReviewDraft(snapshot(), [frozen]).lines[0]?.productId, 'p1');
+  assert.equal(defaultReviewDraft(snapshot(), [
+    { id: 'p1', sku: 'HQ-1', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
+  ]).lines[0]?.productId, 'p1');
+  assert.equal(defaultReviewDraft(snapshot(), [
+    { id: 'p1', sku: 'SKU-FROZEN', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
+  ]).lines[0]?.productId, 'p1');
+  assert.equal(skuMatchingProducts('SKU-FROZEN', [
+    { id: 'p1', sku: 'SKU-FROZEN', sourceSku: 'SKU-FROZEN' },
+  ]).length, 1);
+});
+
+test('空 SKU、無匹配與大小寫不同都不自動帶入', () => {
+  assert.equal(defaultReviewDraft(snapshot({ line_items: [{ title: '無 SKU', sku: '', quantity: 1, price: '100.00' }] }), [frozen]).lines[0]?.productId, '');
+  assert.equal(defaultReviewDraft(snapshot({ line_items: [{ title: '其他', sku: 'NO-MATCH', quantity: 1, price: '100.00' }] }), [frozen]).lines[0]?.productId, '');
+  assert.equal(defaultReviewDraft(snapshot(), [
+    { id: 'p1', sku: 'sku-frozen', sourceSku: 'sku-frozen', defaultTemperature: 'frozen' },
+  ]).lines[0]?.productId, '');
+  assert.deepEqual(skuMatchingProducts('', [frozen]), []);
+});
+
+test('來源數量僅接受正整數，其餘顯示待確認', () => {
+  assert.equal(sourceQuantityLabel(10), '×10');
+  assert.equal(sourceQuantityLabel(2147483647), '×2147483647');
+  for (const quantity of [0, -1, 0.5, 1.5, '10', null, undefined, 2147483648, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(sourceQuantityLabel(quantity), '數量待確認');
+  }
+});
+
+test('新 draft 唯一匹配為 auto；已保存相同不是 auto；衝突保留原值', () => {
+  const source = snapshot({ line_items: [{ title: '冷凍商品', sku: 'SKU-FROZEN', quantity: 10, price: '100.00' }] });
+  const draft = defaultReviewDraft(source, [frozen]);
+  const auto = reviewLineDisplays(source, [frozen], draft, null);
+  assert.deepEqual(auto, [{ title: '冷凍商品', quantityLabel: '×10', mappingKind: 'auto', conflictMessage: '' }]);
+
+  const savedSame = reviewDraft({ ...draft, lines: [{ productId: 'p1', temperature: 'frozen' }] });
+  assert.equal(reviewLineDisplays(source, [frozen], savedSame, savedSame)[0]?.mappingKind, 'saved');
+  assert.equal(reviewLineDisplays(source, [frozen], savedSame, savedSame)[0]?.conflictMessage, '');
+
+  const savedOther = reviewDraft({ ...draft, lines: [{ productId: 'old', temperature: 'frozen' }] });
+  const conflict = reviewLineDisplays(source, [frozen], savedOther, savedOther)[0];
+  assert.equal(conflict?.mappingKind, 'conflict');
+  assert.match(conflict?.conflictMessage ?? '', /不同/);
+  assert.equal(savedOther.lines[0]?.productId, 'old');
+
+  const emptySku = snapshot({ line_items: [{ title: '無 SKU', sku: '', quantity: 2, price: '100.00' }] });
+  const emptyDraft = defaultReviewDraft(emptySku, [frozen]);
+  assert.equal(reviewLineDisplays(emptySku, [frozen], emptyDraft, null)[0]?.mappingKind, 'select');
+
+  const savedOnEmpty = reviewDraft({ ...emptyDraft, lines: [{ productId: 'p1', temperature: 'frozen' }] });
+  assert.equal(reviewLineDisplays(emptySku, [frozen], savedOnEmpty, savedOnEmpty)[0]?.mappingKind, 'conflict');
+
+  const blankSaved = reviewDraft({ ...draft, lines: [{ productId: '', temperature: '' }] });
+  const filled = fillReviewDraftBlanks(blankSaved, draft).draft;
+  assert.equal(filled.lines[0]?.productId, 'p1');
+  assert.equal(reviewLineDisplays(source, [frozen], filled, blankSaved)[0]?.mappingKind, 'auto');
 });

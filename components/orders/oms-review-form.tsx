@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
+import type { ReviewLineDisplay } from '@/lib/orders/review-defaults';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -30,9 +31,29 @@ function LabelText({ children, missing }: { children: string; missing: boolean }
   return <span className="flex items-center justify-between gap-2">{children}{missing && <em className="shrink-0 rounded-full bg-foreground px-2 py-0.5 not-italic text-[11px] font-medium text-background">待完成</em>}</span>;
 }
 
-export function OmsReviewForm({ orderId, sourceHash, status, draft, products, titles }: {
+type CatalogProduct = { id: string; name: string; sku: string };
+
+function ProductMapping({ mappingKind, conflictMessage, productId, products }: {
+  mappingKind: ReviewLineDisplay['mappingKind']; conflictMessage: string; productId: string; products: CatalogProduct[];
+}) {
+  const product = products.find(item => item.id === productId);
+  const summary = product ? `${product.sku} · ${product.name}` : productId;
+  const select = <select className={`${selectClass} ${productId ? '' : invalidClass}`} name="productId" defaultValue={productId}>
+    <option value="">請選擇 HQ 商品</option>
+    {productId && !product && <option value={productId}>{productId}</option>}
+    {products.map(item => <option key={item.id} value={item.id}>{item.sku} · {item.name}</option>)}
+  </select>;
+  return <label className="space-y-1.5 text-sm"><LabelText missing={!productId}>選擇 HQ 商品</LabelText>
+    {mappingKind === 'auto' && <><p className="text-sm text-muted-foreground">SKU 自動對應{summary ? ` · ${summary}` : ''}</p><input type="hidden" name="productId" value={productId} /></>}
+    {mappingKind === 'saved' && <><p className="text-sm text-muted-foreground">已保存對應{summary ? ` · ${summary}` : ''}</p><input type="hidden" name="productId" value={productId} /></>}
+    {mappingKind === 'conflict' && <><p className="text-sm text-muted-foreground">已保存對應</p>{conflictMessage ? <p className="text-sm text-warning">{conflictMessage}</p> : null}{select}</>}
+    {mappingKind === 'select' && select}
+  </label>;
+}
+
+export function OmsReviewForm({ orderId, sourceHash, status, draft, products, lineDisplays }: {
   orderId: string; sourceHash: string; status: string; draft: ReviewDraft;
-  products: { id: string; name: string; sku: string }[]; titles: string[];
+  products: CatalogProduct[]; lineDisplays: ReviewLineDisplay[];
 }) {
   const [state, action] = useFormState(omsReviewAction, { message: '' });
   const [method, setMethod] = useState(draft.method);
@@ -41,12 +62,15 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, ti
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <section className="space-y-3">
       <h3 className="text-sm font-semibold">商品</h3>
-      {draft.lines.map((line, index) => <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-foreground/25' : ''}`}>
-        <legend className="px-1 text-sm font-semibold">第 {index + 1} 項商品</legend>
-        <p className="sm:col-span-2 text-sm"><span className="text-muted-foreground">Shopify 商品：</span>{titles[index]}</p>
-        <label className="space-y-1.5 text-sm"><LabelText missing={!line.productId}>選擇 HQ 商品</LabelText><select className={`${selectClass} ${line.productId ? '' : invalidClass}`} name="productId" defaultValue={line.productId}><option value="">請選擇 HQ 商品</option>{products.map(product => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}</select></label>
-        <label className="space-y-1.5 text-sm"><LabelText missing={!line.temperature}>出貨溫層</LabelText><Temperature name="lineTemperature" value={line.temperature} /></label>
-      </fieldset>)}
+      {draft.lines.map((line, index) => {
+        const display = lineDisplays[index] ?? { title: '未命名商品', quantityLabel: '數量待確認', mappingKind: 'select' as const, conflictMessage: '' };
+        return <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-foreground/25' : ''}`}>
+          <legend className="px-1 text-sm font-semibold">第 {index + 1} 項商品</legend>
+          <p className="sm:col-span-2 text-sm"><span className="text-muted-foreground">Shopify 商品：</span>{display.title} <span className={display.quantityLabel === '數量待確認' ? 'text-warning' : undefined}>{display.quantityLabel}</span></p>
+          <ProductMapping mappingKind={display.mappingKind} conflictMessage={display.conflictMessage} productId={line.productId} products={products} />
+          <label className="space-y-1.5 text-sm"><LabelText missing={!line.temperature}>出貨溫層</LabelText><Temperature name="lineTemperature" value={line.temperature} /></label>
+        </fieldset>;
+      })}
     </section>
     <section className="space-y-3 border-t pt-4">
       <h3 className="text-sm font-semibold">配送與收件</h3>
