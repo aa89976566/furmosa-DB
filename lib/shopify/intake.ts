@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { compareShopifySourceVersion } from '../orders/oms';
 import { intakeSummary, preserveOperationalOrder, record, snapshotHash, sourceDate, string,
+  hasPromotionCapture, stripPromotionCapture,
   type Snapshot, type ShopifyOrderTopic } from './intake-policy';
 
 export type IntakeEvent = { shopDomain: string; topic: ShopifyOrderTopic; eventId: string; snapshot: Snapshot; origin?: 'reconcile' };
@@ -48,6 +49,31 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
         snapshotHash(existing.shopifySnapshot as Snapshot) === hash) {
         await finish('IGNORED');
         return { created: false, disposition: 'duplicate' };
+      }
+      // Same-timestamp reconcile may add W2 capture fields only when the rest of the snapshot is identical.
+      if (input.origin === 'reconcile' && existing && !existing.deletedAt && existing.omsStatus
+        && !preserveOperationalOrder(existing) && comparison === 'same' && existing.shopifySnapshot
+        && !hasPromotionCapture(existing.shopifySnapshot)
+        && hasPromotionCapture(snapshot)
+        && snapshotHash(stripPromotionCapture(snapshot)) === snapshotHash(existing.shopifySnapshot as Snapshot)) {
+        const summary = intakeSummary(snapshot);
+        const shipping = record(snapshot.order.shipping_address);
+        const address = ['zip', 'province', 'city', 'address1', 'address2', 'company']
+          .map(key => string(shipping[key])).filter(Boolean).join(' ') || null;
+        await tx.order.update({ where: { id: existing.id }, data: {
+          shopifySnapshot: snapshot as Prisma.InputJsonObject,
+          shopifySourceUpdatedAt: version, shopifyLastEventId: eventId,
+          omsIssueFlags: summary.issues as Prisma.InputJsonValue,
+          omsCheckedAt: null, omsCheckedSourceUpdatedAt: null,
+          paymentStatus: summary.paymentStatus,
+          subtotal: summary.subtotal, discount: summary.discount,
+          shippingFee: summary.shippingFee, total: summary.total,
+          shippingAddress: address,
+          omsStatus: 'NEW', omsReviewedAt: null, omsReviewedById: null,
+          status: snapshot.order.cancelled_at ? 'cancelled' : 'pending_review',
+        } });
+        await finish('PROCESSED');
+        return { created: false, disposition: 'saved' };
       }
       // Equal or missing timestamps with different data cannot safely overwrite a known snapshot.
       if (existing?.shopifySnapshot && (comparison === 'same' || comparison === 'unknown')) {

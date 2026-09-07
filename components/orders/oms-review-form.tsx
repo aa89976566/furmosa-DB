@@ -7,6 +7,8 @@ import type { ReviewDraft } from '@/lib/orders/review-policy';
 import type { ReviewLineDisplay } from '@/lib/orders/review-defaults';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { OmsPromotionSummary } from './oms-promotion-summary';
+import type { PromotionSummaryView } from '@/lib/orders/fulfillment-plan';
 
 const selectClass = 'h-10 w-full rounded-md border border-input bg-background px-3 text-sm';
 const invalidClass = 'border-foreground/35 bg-muted/50 focus-visible:ring-foreground/25';
@@ -51,9 +53,10 @@ function ProductMapping({ mappingKind, conflictMessage, productId, products }: {
   </label>;
 }
 
-export function OmsReviewForm({ orderId, sourceHash, status, draft, products, lineDisplays }: {
+export function OmsReviewForm({ orderId, sourceHash, status, draft, products, lineDisplays, promotionSummary }: {
   orderId: string; sourceHash: string; status: string; draft: ReviewDraft;
   products: CatalogProduct[]; lineDisplays: ReviewLineDisplay[];
+  promotionSummary?: PromotionSummaryView;
 }) {
   const [state, action] = useFormState(omsReviewAction, { message: '' });
   const [method, setMethod] = useState(draft.method);
@@ -62,6 +65,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, li
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <section className="space-y-3">
       <h3 className="text-sm font-semibold">商品</h3>
+      {promotionSummary && <OmsPromotionSummary summary={promotionSummary} />}
       {draft.lines.map((line, index) => {
         const display = lineDisplays[index] ?? { title: '未命名商品', quantityLabel: '數量待確認', mappingKind: 'select' as const, conflictMessage: '' };
         return <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-foreground/25' : ''}`}>
