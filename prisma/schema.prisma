@@ -1,4 +1,56 @@
 // Furmosa HQ - Prisma schema
+
+// Isolated business outreach ledger; no relation to operational customer/order data.
+model OutreachContact {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  domain            String   @unique
+  email             String   @unique
+  brand             String
+  sourceUrl         String
+  product           String
+  reason            String
+  subject           String
+  body              String
+  status            String   @default("APPROVED")
+  doNotContact      Boolean  @default(false)
+  firstMessageId    String?
+  firstSentAt       DateTime?
+  followUpDueAt     DateTime?
+  followUpSentAt    DateTime?
+  replyMessageId    String?
+  replyFolderId     String?
+  replySummary      String?
+  stopReason        String?
+  checkedAt         DateTime?
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  messages          OutreachMessage[]
+
+  @@index([status, checkedAt])
+  @@map("outreach_contacts")
+}
+
+model OutreachMessage {
+  id             String   @id @default(cuid())
+  contactId      String
+  sequence       Int
+  status         String   @default("SENDING")
+  subject        String
+  body           String
+  reservedDay    String
+  zohoMessageId  String?  @unique
+  sentAt         DateTime?
+  errorCode      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contact        OutreachContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@unique([contactId, sequence])
+  @@index([reservedDay, sequence, status])
+  @@map("outreach_messages")
+}
 // Production: Supabase Postgres
 //   - DATABASE_URL  → pgbouncer 6543（runtime 共用連線池）
 //   - DIRECT_URL    → 5432（prisma migrate / introspect 專用）
