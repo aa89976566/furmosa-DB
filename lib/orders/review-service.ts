@@ -70,7 +70,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     }
     const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' ? 'REVIEW' : order.omsStatus,
       issues: result.issues, checkedAt: order.omsCheckedAt, checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
-      sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) });
+      sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) },
+      command.action === 'ship' ? 'ship' : 'review');
     if (blockers.length) throw new ReviewError(blockers.join('；'));
     if (command.action === 'approve') {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
@@ -90,6 +91,6 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id, previousStatus: order.omsStatus,
       newStatus: command.action === 'approve' ? 'READY' : 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
       metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id }) } });
-    return { message: command.action === 'approve' ? '已確認，可建立出貨單（尚未送物流）' : '已建立 HQ 內部出貨單；尚未連接物流供應商' };
+    return { message: command.action === 'approve' ? '已確認；付款完成後即可建立出貨單' : '已建立 HQ 內部出貨單；尚未連接物流供應商' };
   }, { maxWait: 2000, timeout: 10000 });
 }
