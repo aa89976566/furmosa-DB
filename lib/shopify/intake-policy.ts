@@ -4,7 +4,10 @@ import type { OmsIssue } from '../orders/oms';
 export const SHOPIFY_ORDER_TOPICS = ['orders/create', 'orders/paid', 'orders/updated'] as const;
 export type ShopifyOrderTopic = (typeof SHOPIFY_ORDER_TOPICS)[number];
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
-export type Snapshot = { schemaVersion: 1; order: Record<string, Json> };
+export const PROMOTION_CAPTURE_VERSION = 1;
+export const PROMOTION_GIFT_MARKER = '_jc_gift_555';
+export const PROMOTION_CHOICE_ATTRIBUTE = 'jc_mooncake_choice';
+export type Snapshot = { schemaVersion: 1; order: Record<string, Json>; promotionCaptureVersion?: number };
 
 export function record(value: unknown): Record<string, Json> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -35,17 +38,65 @@ export function shopifySnapshot(value: unknown): Snapshot {
     'company', 'address1', 'address2', 'city', 'province', 'zip', 'country']);
   const shipping = record(input.total_shipping_price_set);
   order.total_shipping_price_set = { shop_money: pick(shipping.shop_money, ['amount', 'currency_code']) };
-  order.line_items = Array.isArray(input.line_items) ? input.line_items.map(item =>
-    pick(item, ['id', 'title', 'variant_title', 'sku', 'quantity', 'price', 'grams', 'requires_shipping',
-      'total_discount'])) : [];
+  order.line_items = Array.isArray(input.line_items) ? input.line_items.map(item => {
+    const line = pick(item, ['id', 'title', 'variant_title', 'sku', 'quantity', 'price', 'grams', 'requires_shipping',
+      'total_discount']);
+    const variantId = promotionVariantId(item);
+    if (variantId) line.variant_id = variantId;
+    const properties = promotionGiftProperties(item);
+    if (properties) line.properties = properties;
+    return line;
+  }) : [];
   order.shipping_lines = Array.isArray(input.shipping_lines) ? input.shipping_lines.map(item =>
     pick(item, ['title', 'code', 'price'])) : [];
   const pickupKeys = new Set(['超商品牌', '取貨超商', 'cvs_brand', '取貨縣市', '門市縣市', 'cvs_city',
     '取貨區域', '門市區域', 'cvs_district', '取貨門市名稱', '門市名稱', 'cvs_store_name',
     '取貨門市店號', '門市店號', 'cvs_store_id']);
   order.note_attributes = Array.isArray(input.note_attributes) ? input.note_attributes
-    .filter(item => pickupKeys.has(string(record(item).name).toLowerCase()))
+    .filter(item => {
+      const name = string(record(item).name);
+      return pickupKeys.has(name.toLowerCase()) || name === PROMOTION_CHOICE_ATTRIBUTE;
+    })
     .map(item => pick(item, ['name', 'value'])) : [];
+  return { schemaVersion: 1, order, promotionCaptureVersion: PROMOTION_CAPTURE_VERSION };
+}
+
+function promotionVariantId(item: unknown): string {
+  const raw = record(item).variant_id;
+  if (typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0) return String(raw);
+  const text = string(raw);
+  const digits = text.includes('gid://') ? (text.split('/').pop() ?? '') : text;
+  return /^\d+$/.test(digits) && /[1-9]/.test(digits) ? digits : '';
+}
+
+function promotionGiftProperties(item: unknown): Json[] | undefined {
+  const raw = record(item).properties;
+  const values: Json[] = [];
+  const push = (name: unknown, value: unknown) => {
+    if (string(name) !== PROMOTION_GIFT_MARKER) return;
+    values.push({ name: PROMOTION_GIFT_MARKER, value: typeof value === 'boolean' ? (value ? 'true' : 'false') : string(value) });
+  };
+  if (Array.isArray(raw)) for (const row of raw) push(record(row).name, record(row).value);
+  else if (raw && typeof raw === 'object') for (const [name, value] of Object.entries(record(raw))) push(name, value);
+  return values.length ? values : undefined;
+}
+
+export function hasPromotionCapture(snapshot: unknown): boolean {
+  return record(snapshot).promotionCaptureVersion === PROMOTION_CAPTURE_VERSION;
+}
+
+/** Remove W2 capture fields so a field-only supplement can compare against a pre-W2 snapshot. */
+export function stripPromotionCapture(snapshot: Snapshot): Snapshot {
+  const order = { ...snapshot.order };
+  order.line_items = Array.isArray(order.line_items) ? order.line_items.map(row => {
+    const item = { ...record(row) };
+    delete item.variant_id;
+    delete item.properties;
+    return item;
+  }) : [];
+  if (Array.isArray(order.note_attributes)) {
+    order.note_attributes = order.note_attributes.filter(row => string(record(row).name) !== PROMOTION_CHOICE_ATTRIBUTE);
+  }
   return { schemaVersion: 1, order };
 }
 

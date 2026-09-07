@@ -1,10 +1,18 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
-import { defaultReviewDraft, fillReviewDraftBlanks } from '@/lib/orders/review-defaults';
+import { defaultReviewDraft, fillReviewDraftBlanks, reviewLineDisplays } from '@/lib/orders/review-defaults';
+import { buildFulfillmentPlan } from '@/lib/orders/fulfillment-plan';
+import { PROMOTION_GIFT_SKU } from '@/lib/orders/promotion-resolver';
+
+const productSelect = {
+  id: true, name: true, sku: true, sourceSku: true, defaultTemperature: true, status: true,
+  cost: true, unit: true, productCategory: true,
+  priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true, cost: true } },
+} as const;
 
 export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
   const sourceView = snapshotView(snapshot);
@@ -14,12 +22,15 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   if (!actor || !['admin', 'staff'].includes(actor.role)) return <p>需要 HQ 審核人員確認此訂單。</p>;
   const source = snapshot as Snapshot;
   const hash = snapshotHash(source);
-  const [products, audit] = await Promise.all([
-    prisma.product.findMany({ where: { status: 'active' }, select: { id: true, name: true, sku: true, sourceSku: true, defaultTemperature: true }, orderBy: { sku: 'asc' } }),
+  const [catalog, giftCandidates, audit] = await Promise.all([
+    prisma.product.findMany({ where: { status: 'active' }, select: productSelect, orderBy: { sku: 'asc' } }),
+    prisma.product.findMany({ where: { OR: [{ sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU }] }, select: productSelect }),
     prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }),
   ]);
-  const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
-  const suggested = defaultReviewDraft(source, products);
+  const productsById = new Map(catalog.map(product => [product.id, product]));
+  for (const product of giftCandidates) if (!productsById.has(product.id)) productsById.set(product.id, product);
+  const planProducts = [...productsById.values()];
+  const suggested = defaultReviewDraft(source, catalog);
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
   const upgraded = saved ? fillReviewDraftBlanks(saved, suggested) : { draft: suggested, applied: false };
   // Contact data is operationally critical. Read it from the same safe source projection
@@ -35,6 +46,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
     || (!saved.phone.trim() && draft.phone)
     || (!saved.address.trim() && draft.address)
   ));
+  const plan = buildFulfillmentPlan(source, draft, planProducts.map(product => ({ ...product, available: null })));
   return <section className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
     <div className="border-b pb-4">
       <h2 className="text-lg font-semibold">處理訂單</h2>
@@ -42,6 +54,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已在空白欄位補入 Shopify／商品主檔建議；尚未儲存，請核對後按「儲存並檢查」。</p>}
     </div>
     <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
-      draft={draft} products={products} titles={rows.map(r => string(r.title) || '未命名商品')} />
+      draft={draft} products={catalog} lineDisplays={reviewLineDisplays(source, catalog, draft, saved)}
+      promotionSummary={plan.display} />
   </section>;
 }
