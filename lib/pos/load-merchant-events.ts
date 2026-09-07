@@ -128,7 +128,12 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
     };
   });
 
-  return [...requestEvents, ...directShipments.map((shipment) => shipmentEvent(shipment, null))]
+  return [
+    ...requestEvents,
+    ...directShipments.map((shipment) =>
+      shipmentEvent(shipment, `/pos/shipments/${shipment.id}`),
+    ),
+  ]
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
     .slice(0, 50);
 }
