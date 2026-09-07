@@ -57,8 +57,12 @@ describe('OMS foundation (no database or external effects)', () => {
       { omsStatus: null }, { omsStatus: 'NEW' as const }, { omsStatus: 'READY' as const },
       { cancelled: true }, { checkedSourceUpdatedAt: null },
       { sourceUpdatedAt: after }, { sourceUpdatedAt: new Date('invalid') },
-      { issues: [{ code: 'PAYMENT_PENDING', severity: 'blocking', message: '尚未付款' }] },
     ]) assert.ok(omsApprovalBlockers({ ...valid, ...override }).length);
+  });
+  it('allows payment-pending review but still blocks shipment', () => {
+    const paymentPending = [{ code: 'PAYMENT_PENDING' as const, severity: 'blocking' as const, message: '尚未付款' }];
+    assert.deepEqual(omsApprovalBlockers({ ...valid, issues: paymentPending }, 'review'), []);
+    assert.ok(omsApprovalBlockers({ ...valid, issues: paymentPending }, 'ship').includes('尚未付款'));
   });
   it('keeps legacy enrollment nullable and migration additive', () => {
     const schema = readFileSync(resolve('prisma/schema.prisma'), 'utf8');
