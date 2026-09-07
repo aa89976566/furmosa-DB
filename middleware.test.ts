@@ -185,3 +185,33 @@ describe('public webhook middleware paths', () => {
     assert.equal(authReads.length, 0);
   });
 });
+
+
+describe('health middleware security contract', () => {
+  it('keeps only exact /api/health public without auth reads', async () => {
+    const res = await invoke(`${ORIGIN}/api/health`, true);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-middleware-next'), '1');
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('does not exempt nested /api/health paths from HQ auth', async () => {
+    const res = await invoke(`${ORIGIN}/api/health/ready`);
+
+    assert.equal(res.status, 307);
+    const location = res.headers.get('location');
+    assert.ok(location);
+    const dest = new URL(location);
+    assert.equal(dest.pathname, '/login');
+    assert.equal(dest.searchParams.get('next'), '/api/health/ready');
+    assert.deepEqual(authReads, ['hq']);
+  });
+
+  it('keeps the public bypass exact instead of prefix-wide', () => {
+    const src = readFileSync(new URL('./middleware.ts', import.meta.url), 'utf8');
+    assert.match(src, /pathname === '\/api\/health'/);
+    assert.equal(src.includes("pathname.startsWith('/api/health')"), false);
+  });
+});
