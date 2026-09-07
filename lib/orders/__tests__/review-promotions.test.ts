@@ -222,4 +222,34 @@ describe('review promotions contract', () => {
     assert.equal(stockOnly.shipmentCreates, 1);
     assert.equal(stockOnly.createdItems.reduce((sum, item) => sum + item.quantity, 0), 11);
   });
+
+  it('rejects approve and ship when a source gift chosen temperature contradicts catalog', async () => {
+    const giftDraft = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'ambient' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址',
+      giftsConfirmed: true,
+    });
+    const existing = shopifySnapshot({
+      ...snapshot.order,
+      line_items: [
+        { sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true },
+        { sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '0.00', requires_shipping: true },
+      ],
+    });
+    const f = fakeDb([cloneMooncake()], 20, existing, giftDraft);
+    await f.run('check');
+    await assert.rejects(f.run('approve'), /溫層/);
+    await assert.rejects(f.run('ship'), /確認|溫層|出貨/);
+    assert.equal(f.shipmentCreates, 0);
+
+    const aligned = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'frozen' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址',
+      giftsConfirmed: true,
+    });
+    const g = fakeDb([cloneMooncake()], 20, existing, aligned);
+    await g.run('check'); await g.run('approve'); await g.run('ship');
+    assert.equal(g.createdItems.reduce((sum, item) => sum + item.quantity, 0), 11);
+    assert.equal(g.shipmentCreates, 1);
+  });
 });

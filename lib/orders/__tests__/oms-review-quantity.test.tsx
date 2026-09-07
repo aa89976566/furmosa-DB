@@ -280,7 +280,7 @@ test('活動期間外與未達門檻顯示不同文字', async () => {
   assert.equal(beforeHtml.includes('未達門檻'), false);
 
   const cheap = campaignSource([{ title: '飼料', sku: 'FD-01', quantity: 1, price: '100.00' }]);
-  const feed = { ...mooncake, id: 'feed', sku: 'FD-01', sourceSku: 'FD-01', defaultTemperature: 'ambient', priceTiers: [] as typeof mooncake.priceTiers };
+  const feed = { ...mooncake, id: 'feed', sku: 'FD-01', sourceSku: 'FD-01', defaultTemperature: 'frozen', priceTiers: [] as typeof mooncake.priceTiers };
   const cheapHtml = htmlPlan(FormComponent, cheap, [feed, mooncake]);
   assert.match(cheapHtml, /未達門檻/);
   assert.equal(cheapHtml.includes('活動期間外'), false);
@@ -294,4 +294,41 @@ test('無效商品主檔時列出原因與總數待確認', async () => {
   assert.match(html, /多筆/);
   assert.match(html, /總數待確認/);
   assert.equal(html.includes('預計出貨 11'), false);
+});
+
+test('溫層衝突時列出原因與總數待確認，不顯示確定的11顆', async () => {
+  const FormComponent = await loadForm();
+  const source = campaignSource([
+    { title: '月餅', sku: 'CK-08', quantity: 10, price: '79.00' },
+    { title: '贈品', sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '0.00' },
+  ]);
+  const draft = reviewDraft({
+    lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'ambient' }],
+    method: 'home', temperature: 'frozen', recipient: '王小明', phone: '0912345678', address: '測試路 1 號',
+    giftsConfirmed: true,
+  });
+  const plan = buildFulfillmentPlan(source, draft, [mooncake]);
+  const html = renderToStaticMarkup(createElement(FormComponent, {
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft,
+    products: [mooncake], lineDisplays: reviewLineDisplays(source, [mooncake], draft, null),
+    promotionSummary: plan.display,
+  }));
+  assert.match(html, /人工溫層/);
+  assert.match(html, /總數待確認/);
+  assert.equal(html.includes('預計出貨 11'), false);
+
+  const shipDraft = reviewDraft({
+    lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'frozen' }],
+    method: 'home', temperature: 'ambient', recipient: '王小明', phone: '0912345678', address: '測試路 1 號',
+    giftsConfirmed: true,
+  });
+  const shipPlan = buildFulfillmentPlan(source, shipDraft, [mooncake]);
+  const shipHtml = renderToStaticMarkup(createElement(FormComponent, {
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft: shipDraft,
+    products: [mooncake], lineDisplays: reviewLineDisplays(source, [mooncake], shipDraft, null),
+    promotionSummary: shipPlan.display,
+  }));
+  assert.match(shipHtml, /配送溫層/);
+  assert.match(shipHtml, /總數待確認/);
+  assert.equal(shipHtml.includes('預計出貨 11'), false);
 });

@@ -90,7 +90,7 @@ describe('fulfillment plan gift lines', () => {
       lines: [{ productId: 'feed', temperature: 'ambient' }, { productId: 'feed', temperature: 'ambient' }],
       method: 'home', temperature: 'ambient', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
     });
-    const mixedPlan = buildFulfillmentPlan(mixed, mixedDraft, [feed, mooncake]);
+    const mixedPlan = buildFulfillmentPlan(mixed, mixedDraft, [feed, { ...mooncake, defaultTemperature: 'ambient' }]);
     assert.equal(mixedPlan.promotion.giftAction, 'add');
     assert.equal(mixedPlan.items.filter(item => item.origin === 'hq-gift').length, 1);
     assert.equal(mixedPlan.display.otherGiftQuantity, 1);
@@ -220,5 +220,70 @@ describe('fulfillment plan gift lines', () => {
       method: 'home', temperature: 'ambient', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
     });
     assert.equal(buildFulfillmentPlan(cheap, cheapDraft, [feed, mooncake]).display.statusLabel, '未達門檻');
+  });
+
+  it('blocks source-gift chosen temperature that contradicts catalog, and shipping mismatches, on the same plan', () => {
+    const giftLine = { sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '0.00', requires_shipping: true };
+    const paid = { sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true };
+    const snapshot = source([paid, giftLine]);
+    const chosenAmbient = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'ambient' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
+    });
+    const chosen = buildFulfillmentPlan(snapshot, chosenAmbient, [mooncake]);
+    assert.ok(chosen.issues.some(issue => issue.code === 'TEMPERATURE_CONFLICT' && issue.message.includes('人工溫層')));
+    assert.equal(chosen.items.find(item => item.isGift)?.temperature, 'frozen');
+    assert.equal(chosen.display.determinate, false);
+    assert.match(chosen.display.expectedShipLabel, /總數待確認/);
+    assert.ok(chosen.display.details.some(detail => detail.includes('人工溫層')));
+    assert.equal(chosen.display.expectedShipLabel.includes('預計出貨 11'), false);
+
+    const emptyChosen = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: '' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
+    });
+    const unknown = buildFulfillmentPlan(snapshot, emptyChosen, [mooncake]);
+    assert.ok(unknown.issues.some(issue => issue.code === 'TEMPERATURE_UNKNOWN'));
+    assert.equal(unknown.display.determinate, false);
+
+    const invalidChosen = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'hot' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
+    });
+    assert.ok(buildFulfillmentPlan(snapshot, invalidChosen, [mooncake]).issues.some(issue => issue.code === 'TEMPERATURE_UNKNOWN'));
+
+    const shipAmbient = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'frozen' }],
+      method: 'home', temperature: 'ambient', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
+    });
+    const ship = buildFulfillmentPlan(snapshot, shipAmbient, [mooncake]);
+    assert.ok(ship.issues.some(issue => issue.code === 'TEMPERATURE_CONFLICT' && issue.message.includes('配送溫層')));
+    assert.equal(ship.display.determinate, false);
+    assert.match(ship.display.expectedShipLabel, /總數待確認/);
+    assert.ok(ship.display.details.some(detail => detail.includes('配送溫層')));
+
+    const digitalGift = source([
+      paid,
+      { sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '0.00', requires_shipping: false },
+    ]);
+    const digital = buildFulfillmentPlan(digitalGift, shipAmbient, [mooncake]);
+    assert.equal(digital.items.find(item => item.isGift)?.includeInTemperature, true);
+    assert.ok(digital.issues.some(issue => issue.code === 'TEMPERATURE_CONFLICT'));
+    assert.equal(digital.display.determinate, false);
+
+    const hqShip = source([{ sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true }]);
+    const hqAmbientShip = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }],
+      method: 'home', temperature: 'ambient', recipient: '測試', phone: '0912345678', address: '地址', giftsConfirmed: true,
+    });
+    const hq = buildFulfillmentPlan(hqShip, hqAmbientShip, [mooncake]);
+    assert.ok(hq.issues.some(issue => issue.code === 'TEMPERATURE_CONFLICT' && issue.message.includes('配送溫層')));
+    assert.equal(hq.display.determinate, false);
+    assert.match(hq.display.expectedShipLabel, /總數待確認/);
+
+    const aligned = buildFulfillmentPlan(snapshot, draftFor(snapshot, 'ck08'), [mooncake]);
+    assert.equal(aligned.issues.some(issue => issue.code === 'TEMPERATURE_CONFLICT' || issue.code === 'TEMPERATURE_UNKNOWN'), false);
+    assert.equal(aligned.display.determinate, true);
+    assert.equal(aligned.display.expectedShipQuantity, 11);
   });
 });

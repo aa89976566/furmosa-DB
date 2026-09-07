@@ -352,7 +352,15 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
       issues.push(issue(`第 ${index + 1} 項小計超過安全計算範圍`));
     }
     const physical = row.requires_shipping !== false;
-    if (physical && !campaignGift && !TEMPS.includes((choice?.temperature ?? '') as typeof TEMPS[number])) {
+    const chosenTemp = choice?.temperature ?? '';
+    const knownChosen = TEMPS.includes(chosenTemp as typeof TEMPS[number]);
+    if (campaignGift && giftCatalog.ok) {
+      if (!knownChosen) {
+        issues.push({ code: 'TEMPERATURE_UNKNOWN', severity: 'blocking', message: '來源活動贈品請確認商品溫層' });
+      } else if (chosenTemp !== giftCatalog.temperature) {
+        issues.push({ code: 'TEMPERATURE_CONFLICT', severity: 'blocking', message: '來源活動贈品的人工溫層與商品主檔不同，不能用人工值掩蓋' });
+      }
+    } else if (physical && !knownChosen) {
       issues.push({ code: 'TEMPERATURE_UNKNOWN', severity: 'blocking', message: `第 ${index + 1} 項請確認商品溫層` });
     }
     if (!string(row.sku) && product) {
@@ -376,7 +384,7 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
       productId: product.id, productName: product.name, sku: product.sku, quantity,
       unitPrice, subtotal, isGift, origin: 'source', temperature,
       weightGrams: spec.weightGrams, unit: spec.unit,
-      sourceIndex: index, includeInTemperature: physical, ...print,
+      sourceIndex: index, includeInTemperature: campaignGift || physical, ...print,
     });
   });
 
@@ -400,6 +408,12 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
   if (overflow) {
     issues.push(issue('出貨數量合計超過安全計算範圍'));
     canCount = false;
+  }
+
+  const fulfillmentTemps = new Set(items.filter(item => item.includeInTemperature)
+    .map(item => item.temperature).filter((value): value is typeof TEMPS[number] => TEMPS.includes(value as typeof TEMPS[number])));
+  if (fulfillmentTemps.size > 1 || [...fulfillmentTemps].some(value => value !== draft.temperature)) {
+    issues.push({ code: 'TEMPERATURE_CONFLICT', severity: 'blocking', message: '商品與配送溫層不同，請先確認是否需要拆單' });
   }
 
   const determinate = canCount && !overflow && !issues.some(row => row.severity === 'blocking');

@@ -50,9 +50,6 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
   if (!draft.address) add('ADDRESS_MISSING', '缺少收件地址／門市地址');
   if (draft.method === 'convenience' && (!/^\d{6}$/.test(draft.storeId) || !draft.storeName)) add('PICKUP_STORE_MISSING', '7-11 需要六位數門市店號及門市名稱');
   if (!['ambient', 'chilled', 'frozen'].includes(draft.temperature)) add('TEMPERATURE_UNKNOWN', '請確認配送溫層');
-  const temperatures = new Set(plan.items.filter(item => item.includeInTemperature)
-    .map(item => item.temperature).filter(value => ['ambient', 'chilled', 'frozen'].includes(value)));
-  if (temperatures.size > 1 || [...temperatures].some(t => t !== draft.temperature)) add('TEMPERATURE_CONFLICT', '商品與配送溫層不同，請先確認是否需要拆單');
   if (draft.method === 'convenience' && draft.temperature === 'chilled') add('TEMPERATURE_CONFLICT', '本版未接 7-11 冷藏配送');
   if (!draft.giftsConfirmed) add('GIFT_REVIEW_REQUIRED', '請核對贈品及優惠內容');
   if (duplicate && !draft.duplicateConfirmed) add('POSSIBLE_DUPLICATE', '相同聯絡資料及金額有近期訂單，請確認不是重複下單');
