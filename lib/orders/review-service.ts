@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-policy';
+import { fulfillmentPlanHash, parseFrozenFulfillmentPlan } from './fulfillment-plan';
+import { PROMOTION_GIFT_SKU } from './promotion-resolver';
 import { checkReview, reviewDraft, type ReviewDraft } from './review-policy';
 import { omsApprovalBlockers, parseOmsIssues } from './oms';
 
@@ -39,7 +41,14 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       // Serializes new OMS reservations; legacy fulfillment still requires its own final stock check.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'oms:stock-allocation'}, 0))`;
     }
-    const products = await tx.product.findMany({ where: { id: { in: draft.lines.map(l => l.productId).filter(Boolean) } }, include: { inventoryBalances: true, priceTiers: true } });
+    const draftIds = draft.lines.map(l => l.productId).filter(Boolean);
+    const products = await tx.product.findMany({
+      where: { OR: [
+        ...(draftIds.length ? [{ id: { in: draftIds } }] : []),
+        { sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU },
+      ] },
+      include: { inventoryBalances: true, priceTiers: true },
+    });
     const reservations = await tx.shipmentItem.groupBy({ by: ['productId'], where: {
       productId: { in: products.map(p => p.id) }, shipment: { status: { in: ['pending', 'packed'] }, OR: [{ orderId: null }, { orderId: { not: order.id } }] },
     }, _sum: { quantity: true } });
@@ -55,9 +64,6 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const result = checkReview(snapshot, draft, products.map(p => ({ ...p,
       available: p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
-    // Existing tier-based stock/weight handling needs an explicit variant selection, never guess it.
-    if (products.some(p => p.priceTiers.length > 0)) result.issues.push({ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: '包含多規格商品；本版尚未支援規格對應，不能直接出貨' });
-    if (products.some(p => p.productCategory !== 'STANDARD')) result.issues.push({ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: '包含換罐、服務或其他特殊商品，需要專用履約流程，不能當一般商品出貨' });
     const now = new Date();
     if (command.action === 'check') {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'REVIEW',
@@ -65,8 +71,14 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         omsCheckedSourceUpdatedAt: order.shopifySourceUpdatedAt, omsReviewedAt: null, omsReviewedById: null } });
       await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id,
         previousStatus: order.omsStatus, newStatus: 'REVIEW', actorType: 'user', actorId: actor.id,
-        metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft }) } });
+        metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft,
+          planVersion: result.plan.planVersion, rulesVersion: result.plan.rulesVersion,
+          fulfillmentPlan: result.plan.frozen }) } });
       return { message: result.issues.some(i => i.severity === 'blocking') ? '已儲存，請處理上方列出的問題後重新檢查' : '檢查通過，可以確認訂單' };
+    }
+    const savedPlan = parseFrozenFulfillmentPlan(saved.fulfillmentPlan);
+    if (!savedPlan || fulfillmentPlanHash(savedPlan) !== result.plan.frozenHash || savedPlan.sourceHash !== command.sourceHash) {
+      throw new ReviewError('出貨計畫已變更或不完整，請重新檢查');
     }
     const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' ? 'REVIEW' : order.omsStatus,
       issues: result.issues, checkedAt: order.omsCheckedAt, checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
@@ -83,7 +95,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : '黑貓',
         notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature}；門市：${draft.storeId} ${draft.storeName}`,
-        items: { create: result.items.map(({ productId, productName, sku, quantity }) => ({ productId, productName, sku, quantity })) } } });
+        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
+          { productId, productName, sku, quantity, weightGrams, unit })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });

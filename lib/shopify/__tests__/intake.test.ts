@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import { describe, it } from 'node:test';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { guardLegacyOrderTx } from '../legacy-gate';
-import { intakeSummary, shopifySnapshot, snapshotHash, intakePaymentStatus, preserveOperationalOrder } from '../intake-policy';
+import { intakeSummary, shopifySnapshot, snapshotHash, intakePaymentStatus, preserveOperationalOrder, stripPromotionCapture, hasPromotionCapture, PROMOTION_CAPTURE_VERSION } from '../intake-policy';
 import { persistShopifyIntake, type IntakeEvent } from '../intake';
 import { shopifyWebhookHandler } from '../webhook-handler';
 import { snapshotView } from '../snapshot-view';
@@ -166,6 +166,210 @@ describe('Shopify intake', () => {
       assert.notEqual(intakePaymentStatus(status), 'paid');
     }
     assert.equal(preserveOperationalOrder({ status: 'cancelled', fulfillmentStatus: 'pending', omsStatus: null }), true);
+  });
+  it('stores only allowlisted promotion capture fields and ignores forged capability markers', () => {
+    const snapshot = shopifySnapshot({
+      ...raw, promotionCaptureVersion: 99,
+      line_items: [{ ...raw.line_items[0], variant_id: 64368368517497, properties: [
+        { name: '_jc_gift_555', value: 'true' }, { name: 'secret', value: 'PRIVATE' },
+      ] }],
+      note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }, { name: 'password', value: 'SECRET' }],
+    });
+    assert.equal(snapshot.promotionCaptureVersion, PROMOTION_CAPTURE_VERSION);
+    assert.equal(snapshot.schemaVersion, 1);
+    const line = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items[0] : null;
+    const lineRecord = line && typeof line === 'object' && !Array.isArray(line) ? line : {};
+    assert.equal(lineRecord.variant_id, '64368368517497');
+    assert.deepEqual(lineRecord.properties, [{ name: '_jc_gift_555', value: 'true' }]);
+    assert.ok(Array.isArray(snapshot.order.note_attributes) && snapshot.order.note_attributes.some((row: any) => row.name === 'jc_mooncake_choice'));
+    assert.doesNotMatch(JSON.stringify(snapshot), /SECRET|PRIVATE/);
+    assert.equal(hasPromotionCapture(stripPromotionCapture(snapshot)), false);
+  });
+  it('reconcile may supplement capture fields at the same timestamp only when the rest hashes equal', async () => {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input());
+    const order = [...fake.orders.values()][0];
+    order.shopifySnapshot = stripPromotionCapture(order.shopifySnapshot);
+    assert.equal(hasPromotionCapture(order.shopifySnapshot), false);
+    const supplemented = await persistShopifyIntake(fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], variant_id: 64368368517497, properties: [{ name: '_jc_gift_555', value: 'true' }] }],
+        note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }],
+      }, 'capture-only'),
+      origin: 'reconcile',
+    });
+    assert.equal(supplemented.disposition, 'saved');
+    assert.equal(hasPromotionCapture([...fake.orders.values()][0].shopifySnapshot), true);
+    assert.equal([...fake.orders.values()][0].omsStatus, 'NEW');
+    const changed = await persistShopifyIntake(fake.db, {
+      ...input({
+        updated_at: raw.updated_at,
+        line_items: [{ ...raw.line_items[0], quantity: 9, variant_id: 1 }],
+      }, 'capture-price'),
+      origin: 'reconcile',
+    });
+    assert.equal(changed.disposition, 'conflict');
+  });
+  it('does not use the capture supplement path for older, unknown, webhook, legacy, deleted or shipped orders', async () => {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input());
+    const order = [...fake.orders.values()][0];
+    order.shopifySnapshot = stripPromotionCapture(order.shopifySnapshot);
+    const webhook = await persistShopifyIntake(fake.db, input({
+      line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }],
+    }, 'webhook-capture'));
+    assert.equal(webhook.disposition, 'conflict');
+    const older = await persistShopifyIntake(fake.db, {
+      ...input({ updated_at: '2026-08-29T00:00:00Z', line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'older'),
+      origin: 'reconcile',
+    });
+    assert.equal(older.disposition, 'stale');
+    const g = fakeDb();
+    await persistShopifyIntake(g.db, input());
+    const legacy = [...g.orders.values()][0];
+    legacy.shopifySnapshot = stripPromotionCapture(legacy.shopifySnapshot);
+    legacy.omsStatus = null;
+    const legacyResult = await persistShopifyIntake(g.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'legacy-cap'),
+      origin: 'reconcile',
+    });
+    assert.equal(legacyResult.disposition, 'legacy');
+    const h = fakeDb();
+    await persistShopifyIntake(h.db, input());
+    const shipped = [...h.orders.values()][0];
+    shipped.shopifySnapshot = stripPromotionCapture(shipped.shopifySnapshot);
+    shipped.status = 'shipped'; shipped.omsStatus = 'FULFILLED';
+    const shippedResult = await persistShopifyIntake(h.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'shipped-cap'),
+      origin: 'reconcile',
+    });
+    assert.equal(shippedResult.disposition, 'conflict');
+    assert.equal([...h.orders.values()][0].status, 'shipped');
+    assert.equal([...h.orders.values()][0].omsStatus, 'FULFILLED');
+    const d = fakeDb();
+    await persistShopifyIntake(d.db, input());
+    const deleted = [...d.orders.values()][0];
+    deleted.shopifySnapshot = stripPromotionCapture(deleted.shopifySnapshot);
+    deleted.deletedAt = new Date('2026-08-30T02:00:00Z');
+    const deletedResult = await persistShopifyIntake(d.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'deleted-cap'),
+      origin: 'reconcile',
+    });
+    assert.equal(deletedResult.disposition, 'conflict');
+    assert.ok([...d.orders.values()][0].deletedAt);
+  });
+});
+
+describe('Shopify intake capture supplement hash guard', () => {
+  async function seedUncaptured(eventId: string) {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input({}, eventId));
+    const order = [...fake.orders.values()][0];
+    order.shopifySnapshot = stripPromotionCapture(order.shopifySnapshot);
+    order.omsStatus = 'REVIEW';
+    order.omsCheckedAt = new Date('2026-08-30T02:00:00Z');
+    order.omsReviewedAt = new Date('2026-08-30T02:00:00Z');
+    order.omsReviewedById = 'reviewer';
+    return { fake, order, sourceBefore: structuredClone(order.shopifySnapshot) };
+  }
+
+  it('saves capture-only supplement and invalidates checked/reviewed fields', async () => {
+    const { fake, sourceBefore } = await seedUncaptured('fresh-capture');
+    const result = await persistShopifyIntake(fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], variant_id: 64368368517497, properties: [{ name: '_jc_gift_555', value: 'true' }] }],
+        note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }],
+      }, 'fresh-capture-new'),
+      origin: 'reconcile',
+    });
+    const next = [...fake.orders.values()][0];
+    assert.equal(result.disposition, 'saved');
+    assert.equal(hasPromotionCapture(next.shopifySnapshot), true);
+    assert.equal(snapshotHash(stripPromotionCapture(next.shopifySnapshot)), snapshotHash(sourceBefore));
+    assert.equal(next.omsStatus, 'NEW');
+    assert.equal(next.omsCheckedAt, null);
+    assert.equal(next.omsReviewedAt, null);
+    assert.equal(next.omsReviewedById, null);
+  });
+
+  it('conflicts on price-only or quantity-only changes without writing the new source', async () => {
+    const priceCase = await seedUncaptured('fresh-price');
+    const price = await persistShopifyIntake(priceCase.fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], price: '90.00', variant_id: 64368368517497 }],
+      }, 'fresh-price-new'),
+      origin: 'reconcile',
+    });
+    const priceOrder = [...priceCase.fake.orders.values()][0];
+    assert.equal(price.disposition, 'conflict');
+    assert.deepEqual(priceOrder.shopifySnapshot, priceCase.sourceBefore);
+    assert.equal(hasPromotionCapture(priceOrder.shopifySnapshot), false);
+
+    const qtyCase = await seedUncaptured('fresh-qty');
+    const qty = await persistShopifyIntake(qtyCase.fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], quantity: 9, variant_id: 64368368517497 }],
+      }, 'fresh-qty-new'),
+      origin: 'reconcile',
+    });
+    const qtyOrder = [...qtyCase.fake.orders.values()][0];
+    assert.equal(qty.disposition, 'conflict');
+    assert.deepEqual(qtyOrder.shopifySnapshot, qtyCase.sourceBefore);
+    assert.equal(hasPromotionCapture(qtyOrder.shopifySnapshot), false);
+  });
+
+  it('keeps original protection for unknown timestamp, event-id reuse, legacy, deleted and shipped', async () => {
+    const unknownCase = await seedUncaptured('fresh-unknown');
+    const unknown = await persistShopifyIntake(unknownCase.fake.db, {
+      ...input({
+        updated_at: 'not-a-timestamp',
+        line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }],
+      }, 'fresh-unknown-new'),
+      origin: 'reconcile',
+    });
+    const unknownOrder = [...unknownCase.fake.orders.values()][0];
+    assert.equal(unknown.disposition, 'conflict');
+    assert.deepEqual(unknownOrder.shopifySnapshot, unknownCase.sourceBefore);
+
+    const eventCase = await seedUncaptured('fresh-event');
+    await assert.rejects(
+      () => persistShopifyIntake(eventCase.fake.db, input({ total_price: '999.00' }, 'fresh-event')),
+      /EVENT_ID_CONFLICT/,
+    );
+    assert.deepEqual([...eventCase.fake.orders.values()][0].shopifySnapshot, eventCase.sourceBefore);
+
+    const legacyCase = await seedUncaptured('fresh-legacy');
+    legacyCase.order.omsStatus = null;
+    const legacy = await persistShopifyIntake(legacyCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-legacy-new'),
+      origin: 'reconcile',
+    });
+    assert.equal(legacy.disposition, 'legacy');
+    assert.deepEqual([...legacyCase.fake.orders.values()][0].shopifySnapshot, legacyCase.sourceBefore);
+
+    const deletedCase = await seedUncaptured('fresh-deleted');
+    deletedCase.order.deletedAt = new Date('2026-08-30T02:00:00Z');
+    const deleted = await persistShopifyIntake(deletedCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-deleted-new'),
+      origin: 'reconcile',
+    });
+    const deletedOrder = [...deletedCase.fake.orders.values()][0];
+    assert.equal(deleted.disposition, 'conflict');
+    assert.deepEqual(deletedOrder.shopifySnapshot, deletedCase.sourceBefore);
+    assert.ok(deletedOrder.deletedAt);
+
+    const shippedCase = await seedUncaptured('fresh-shipped');
+    shippedCase.order.status = 'shipped';
+    shippedCase.order.omsStatus = 'FULFILLED';
+    const shipped = await persistShopifyIntake(shippedCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-shipped-new'),
+      origin: 'reconcile',
+    });
+    const shippedOrder = [...shippedCase.fake.orders.values()][0];
+    assert.equal(shipped.disposition, 'conflict');
+    assert.deepEqual(shippedOrder.shopifySnapshot, shippedCase.sourceBefore);
+    assert.equal(shippedOrder.status, 'shipped');
+    assert.equal(shippedOrder.omsStatus, 'FULFILLED');
   });
 });
 
