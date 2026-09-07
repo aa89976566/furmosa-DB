@@ -5,6 +5,7 @@ import {
   fetchShipmentPanel,
   type ShipmentPanelData,
 } from '@/app/(main)/shipments/actions';
+import { fetchProductProgramLabels } from '@/app/(main)/shipments/product-program-actions';
 import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ export function ShipmentOrderPanel({
   queueStatus?: string;
 }) {
   const [data, setData] = useState<ShipmentPanelData | null>(null);
+  const [programLabelsBySku, setProgramLabelsBySku] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +49,10 @@ export function ShipmentOrderPanel({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setProgramLabelsBySku({});
 
     fetchShipmentPanel(shipmentId)
-      .then((panel) => {
+      .then(async (panel) => {
         if (cancelled) return;
         if (!panel) {
           setError('找不到這張出貨單');
@@ -57,6 +60,17 @@ export function ShipmentOrderPanel({
           return;
         }
         setData(panel);
+
+        const skus = panel.items.map((item) => item.sku).filter(Boolean);
+        if (skus.length > 0) {
+          try {
+            const labels = await fetchProductProgramLabels(skus);
+            if (!cancelled) setProgramLabelsBySku(labels);
+          } catch {
+            // 計劃標籤是輔助資訊；查詢失敗不可阻塞出貨主流程。
+            if (!cancelled) setProgramLabelsBySku({});
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setError('載入失敗，請稍後再試');
@@ -119,6 +133,7 @@ export function ShipmentOrderPanel({
           sku: item.sku,
           quantity: item.quantity,
           unit: item.unit,
+          programLabel: programLabelsBySku[item.sku] ?? null,
         }))
       : planContents.map((item, index) => ({
           key: `plan-${index}`,
@@ -126,6 +141,7 @@ export function ShipmentOrderPanel({
           sku: '-',
           quantity: 1,
           unit: '-',
+          programLabel: null,
         }));
   const displayQty =
     data.items.length > 0 ? totalQty : planContents.length > 0 ? planContents.length : 0;
@@ -256,13 +272,13 @@ export function ShipmentOrderPanel({
                 key={item.key}
                 className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
               >
-                <p className="font-medium break-words [overflow-wrap:anywhere]">{item.name}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 font-medium break-words [overflow-wrap:anywhere]">{item.name}</p>
+                  <span className="shrink-0 text-base font-semibold tabular-nums">×{item.quantity}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span className="font-mono">{item.sku}</span>
-                  <span>
-                    數量 <span className="font-semibold text-foreground">{item.quantity}</span>
-                  </span>
-                  <span>單位 {item.unit ?? '-'}</span>
+                  {item.programLabel ? <Badge variant="outline">{item.programLabel}</Badge> : null}
                 </div>
               </li>
             ))}
@@ -272,6 +288,7 @@ export function ShipmentOrderPanel({
               <TableRow>
                 <TableHead>商品</TableHead>
                 <TableHead>SKU</TableHead>
+                <TableHead>計劃</TableHead>
                 <TableHead className="text-right">數量</TableHead>
                 <TableHead className="text-center">單位</TableHead>
               </TableRow>
@@ -282,6 +299,9 @@ export function ShipmentOrderPanel({
                   <TableCell className="text-sm font-medium">{item.name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {item.sku}
+                  </TableCell>
+                  <TableCell>
+                    {item.programLabel ? <Badge variant="outline">{item.programLabel}</Badge> : '—'}
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold">
                     {item.quantity}
