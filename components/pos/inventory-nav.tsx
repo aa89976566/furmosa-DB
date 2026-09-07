@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, Home, Recycle, Wallet, Warehouse } from "lucide-react";
+import { Bell, ClipboardList, Home, Recycle, Wallet, Warehouse } from "lucide-react";
 import { POS_NAV, activePosNavId, type PosNavId } from "@/lib/pos/pos-nav";
 import type { PosAccount } from "@/lib/pos/account";
 import { PosAccountMenu } from "@/components/pos/account-menu";
@@ -12,6 +12,7 @@ const ICONS: Record<PosNavId, typeof Home> = {
   home: Home,
   stock: Warehouse,
   refill: Recycle,
+  notifications: Bell,
   records: ClipboardList,
   settle: Wallet,
 };
