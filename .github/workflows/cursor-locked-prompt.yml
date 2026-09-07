@@ -163,9 +163,10 @@ jobs:
             exit 1
           fi
 
-          jq -r '.result // "(Cursor did not return a final message.)"' cursor-run.json \
-            | head -c 12000 > cursor-result.txt
-          pr_url="$(jq -r '.git.branches[]?.prUrl // empty' cursor-run.json | head -n 1)"
+          jq -r '.result // "(Cursor did not return a final message.)"' \
+            cursor-run.json > cursor-result-full.txt
+          head -c 12000 cursor-result-full.txt > cursor-result.txt
+          pr_url="$(jq -r '[.git.branches[]?.prUrl // empty][0] // ""' cursor-run.json)"
 
           {
             printf 'Cursor 執行完成。\n\n'
