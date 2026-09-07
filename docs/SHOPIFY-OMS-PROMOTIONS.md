@@ -15,16 +15,17 @@
 
 - 標準 SKU 是 `CK-08`，Shopify variant 是 `64368368517497`。
 - 新的完整來源（伺服器 `promotionCaptureVersion = 1`）中，精確 variant 或 SKU 且整行實付為 0（`price × quantity − total_discount`；缺折扣視為 0）可識別為已有本活動贈品。不要求每一筆都帶 `_jc_gift_555`。
-- `_jc_gift_555=true` 也是來源證據。標記與非零實付、或與 variant/SKU 矛盾時阻擋。
+- `_jc_gift_555=true` 也是來源證據。標記與非零實付、或與 variant/SKU 矛盾時阻擋。兩個非空識別同時提供且一個符合、一個不符合時視為身份衝突，標記不能覆蓋此衝突。
 - 付費 CK-08 不是已送贈品。其他 SKU 的免費行不阻止本活動。
-- 多份本活動贈品、未知或矛盾標記／顧客選擇，不得靜默刪減或再送，必須阻擋核對。
+- 多份本活動贈品、未知或矛盾標記／顧客選擇，不得靜默刪減或再送，必須阻擋核對。重複的相同 keep／true 也阻擋。缺選擇合法；單一 keep 或 decline 合法。
 - 尊重 `jc_mooncake_choice=decline`：不加贈。decline 卻已有本活動贈品則阻擋。`keep` 或未選擇且符合資格可補贈。
+- 達門檻但 `created_at` 不是真實日曆日（例如 9/31、非閏年 2/29）會阻擋，不會被 JavaScript Date 正規化成有效日期。未達門檻的舊單不因此額外阻擋。
 
 ## 來源快照
 
 - `schemaVersion` 仍是 1。伺服器寫入 `promotionCaptureVersion`，不接受 payload 偽造的能力標記。
 - 只多保存 `variant_id`、properties 中精確 `_jc_gift_555`、note_attributes 中 `jc_mooncake_choice`，以及既有超商欄位。不保存任意 properties 或客戶秘密。
-- 舊快照仍可讀。達門檻但缺少 capture 標記時，不可假定沒有贈品或沒有拒領；畫面顯示需重新同步，沒有 checkbox 可繞過。
+- 舊快照仍可讀。達門檻但缺少 capture 標記時，不可假定沒有贈品或沒有拒領；畫面顯示需重新同步來源資料，沒有 checkbox 可繞過。
 
 ## 舊單補欄位
 
@@ -40,14 +41,16 @@
 
 ## 履約計畫
 
-- `promotion-resolver` 是純函式。`fulfillment-plan` 集中原購買、Shopify 已有贈品、HQ 補贈與總數。
-- 來源 quantity 不會從 10 改成 11。HQ 贈品是獨立一列，單價與小計 0、`isGift=true`，成本取商品主檔有效成本。
+- `promotion-resolver` 是純函式。`fulfillment-plan` 集中原購買、Shopify 已有贈品、HQ 補贈與總數。計畫版本 `ck08-555-plan-v2`。
+- 來源 quantity 不會從 10 改成 11。HQ 贈品是獨立一列，單價與小計 0、`isGift=true`。
+- HQ 補贈與來源已有贈品共用同一套商品主檔驗證：去重後唯一精確 `sku`／`sourceSku` = CK-08、active 一般商品、唯一 50g／顆／unitQty 1 且有 `tier.id`。來源贈品必須對到這個唯一商品。
+- 成本取第一個「有出現」的 `tier.cost`、`product.cost` 或目錄成本。出現但無效（負值、非有限數字）不得往下 fallback；0 合法。不得把無效成本靜默寫成 `unitCost: null` 作出貨。
+- 贈品溫層只來看商品主檔 `defaultTemperature`，不能用人工 chosenTemp 掩蓋主檔空值或衝突。與配送及實體購買行比較；非實體（`requires_shipping=false`）不納入溫層比較。HQ 贈品本身是實體。不預設常溫、不自動改物流。
 - 已有全折扣贈品的出貨行標為贈品／0 元，但不改來源快照、Order 金額或付費行結算。
 - check / approve / ship 使用同一計畫。計畫存在既有 `oms_review` metadataJson，草稿契約仍是 `schemaVersion: 1`。瀏覽器不能提交或覆寫計畫。
-- approve / ship 會重建計畫；來源、規則、商品、規格、溫層或行數量與保存計畫不一致時，必須重新檢查。庫存不納入凍結 hash，每次即時重驗。
-- CK-08 只接受唯一標準規格：50g、顆、unitQty 1。未知溫層或與配送／購買行衝突會阻擋，不預設常溫、不自動改物流。
+- 凍結計畫會保存實際用到的商品／規格身份（含 `tier.id`）、status／category、sku／sourceSku、主檔溫層與有效 unitCost。approve / ship 會重建比較。舊版計畫或缺欄位必須重新檢查，不回填舊 audit。庫存與預留不納入凍結 hash，每次即時重驗。
 - 購買 10 顆加贈 1 顆、同一 `productId` 需要 11 件庫存，含 pending／packed 預留。
 
 ## 畫面
 
-顯示「活動贈品：滿NT$555贈月餅×1」以及 HQ補贈／Shopify已有／已拒領／未達門檻／待確認。CK-08 10+1 顯示 11 顆。混合商品用「件」。計畫無法確定時顯示「總數待確認」。不新增人工按鈕，也不把勾選當成解除問題。
+顯示「活動贈品：滿NT$555贈月餅×1」。狀態為 HQ補贈／Shopify已有／已拒領／活動期間外／未達門檻／待確認。只有未達門檻才顯示「未達門檻」。阻擋時列出可讀原因與「總數待確認」，缺少 capture 時說明需重新同步來源資料。CK-08 10+1 顯示 11 顆。混合商品用「件」。不新增人工按鈕，也不把勾選當成解除問題。

@@ -260,6 +260,119 @@ describe('Shopify intake', () => {
   });
 });
 
+describe('Shopify intake capture supplement hash guard', () => {
+  async function seedUncaptured(eventId: string) {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input({}, eventId));
+    const order = [...fake.orders.values()][0];
+    order.shopifySnapshot = stripPromotionCapture(order.shopifySnapshot);
+    order.omsStatus = 'REVIEW';
+    order.omsCheckedAt = new Date('2026-08-30T02:00:00Z');
+    order.omsReviewedAt = new Date('2026-08-30T02:00:00Z');
+    order.omsReviewedById = 'reviewer';
+    return { fake, order, sourceBefore: structuredClone(order.shopifySnapshot) };
+  }
+
+  it('saves capture-only supplement and invalidates checked/reviewed fields', async () => {
+    const { fake, sourceBefore } = await seedUncaptured('fresh-capture');
+    const result = await persistShopifyIntake(fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], variant_id: 64368368517497, properties: [{ name: '_jc_gift_555', value: 'true' }] }],
+        note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }],
+      }, 'fresh-capture-new'),
+      origin: 'reconcile',
+    });
+    const next = [...fake.orders.values()][0];
+    assert.equal(result.disposition, 'saved');
+    assert.equal(hasPromotionCapture(next.shopifySnapshot), true);
+    assert.equal(snapshotHash(stripPromotionCapture(next.shopifySnapshot)), snapshotHash(sourceBefore));
+    assert.equal(next.omsStatus, 'NEW');
+    assert.equal(next.omsCheckedAt, null);
+    assert.equal(next.omsReviewedAt, null);
+    assert.equal(next.omsReviewedById, null);
+  });
+
+  it('conflicts on price-only or quantity-only changes without writing the new source', async () => {
+    const priceCase = await seedUncaptured('fresh-price');
+    const price = await persistShopifyIntake(priceCase.fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], price: '90.00', variant_id: 64368368517497 }],
+      }, 'fresh-price-new'),
+      origin: 'reconcile',
+    });
+    const priceOrder = [...priceCase.fake.orders.values()][0];
+    assert.equal(price.disposition, 'conflict');
+    assert.deepEqual(priceOrder.shopifySnapshot, priceCase.sourceBefore);
+    assert.equal(hasPromotionCapture(priceOrder.shopifySnapshot), false);
+
+    const qtyCase = await seedUncaptured('fresh-qty');
+    const qty = await persistShopifyIntake(qtyCase.fake.db, {
+      ...input({
+        line_items: [{ ...raw.line_items[0], quantity: 9, variant_id: 64368368517497 }],
+      }, 'fresh-qty-new'),
+      origin: 'reconcile',
+    });
+    const qtyOrder = [...qtyCase.fake.orders.values()][0];
+    assert.equal(qty.disposition, 'conflict');
+    assert.deepEqual(qtyOrder.shopifySnapshot, qtyCase.sourceBefore);
+    assert.equal(hasPromotionCapture(qtyOrder.shopifySnapshot), false);
+  });
+
+  it('keeps original protection for unknown timestamp, event-id reuse, legacy, deleted and shipped', async () => {
+    const unknownCase = await seedUncaptured('fresh-unknown');
+    const unknown = await persistShopifyIntake(unknownCase.fake.db, {
+      ...input({
+        updated_at: 'not-a-timestamp',
+        line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }],
+      }, 'fresh-unknown-new'),
+      origin: 'reconcile',
+    });
+    const unknownOrder = [...unknownCase.fake.orders.values()][0];
+    assert.equal(unknown.disposition, 'conflict');
+    assert.deepEqual(unknownOrder.shopifySnapshot, unknownCase.sourceBefore);
+
+    const eventCase = await seedUncaptured('fresh-event');
+    await assert.rejects(
+      () => persistShopifyIntake(eventCase.fake.db, input({ total_price: '999.00' }, 'fresh-event')),
+      /EVENT_ID_CONFLICT/,
+    );
+    assert.deepEqual([...eventCase.fake.orders.values()][0].shopifySnapshot, eventCase.sourceBefore);
+
+    const legacyCase = await seedUncaptured('fresh-legacy');
+    legacyCase.order.omsStatus = null;
+    const legacy = await persistShopifyIntake(legacyCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-legacy-new'),
+      origin: 'reconcile',
+    });
+    assert.equal(legacy.disposition, 'legacy');
+    assert.deepEqual([...legacyCase.fake.orders.values()][0].shopifySnapshot, legacyCase.sourceBefore);
+
+    const deletedCase = await seedUncaptured('fresh-deleted');
+    deletedCase.order.deletedAt = new Date('2026-08-30T02:00:00Z');
+    const deleted = await persistShopifyIntake(deletedCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-deleted-new'),
+      origin: 'reconcile',
+    });
+    const deletedOrder = [...deletedCase.fake.orders.values()][0];
+    assert.equal(deleted.disposition, 'conflict');
+    assert.deepEqual(deletedOrder.shopifySnapshot, deletedCase.sourceBefore);
+    assert.ok(deletedOrder.deletedAt);
+
+    const shippedCase = await seedUncaptured('fresh-shipped');
+    shippedCase.order.status = 'shipped';
+    shippedCase.order.omsStatus = 'FULFILLED';
+    const shipped = await persistShopifyIntake(shippedCase.fake.db, {
+      ...input({ line_items: [{ ...raw.line_items[0], variant_id: 64368368517497 }] }, 'fresh-shipped-new'),
+      origin: 'reconcile',
+    });
+    const shippedOrder = [...shippedCase.fake.orders.values()][0];
+    assert.equal(shipped.disposition, 'conflict');
+    assert.deepEqual(shippedOrder.shopifySnapshot, shippedCase.sourceBefore);
+    assert.equal(shippedOrder.status, 'shipped');
+    assert.equal(shippedOrder.omsStatus, 'FULFILLED');
+  });
+});
+
 describe('Shopify webhook HTTP boundary', () => {
   const body = JSON.stringify(raw), secret = 'synthetic-test-secret';
   function request(headers: Record<string, string> = {}) {

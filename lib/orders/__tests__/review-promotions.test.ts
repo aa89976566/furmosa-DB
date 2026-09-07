@@ -35,9 +35,18 @@ const draft: ReviewDraft = reviewDraft({
   giftsConfirmed: true,
 });
 
-function fakeDb(catalog = [mooncakeProduct], stock = 20) {
+function cloneMooncake(overrides: Record<string, unknown> = {}) {
+  return {
+    ...mooncakeProduct,
+    priceTiers: mooncakeProduct.priceTiers.map(tier => ({ ...tier })),
+    inventoryBalances: [{ quantity: 20 }],
+    ...overrides,
+  };
+}
+
+function fakeDb(catalog = [cloneMooncake()], stock = 20, source = snapshot, form: ReviewDraft = draft) {
   let order: any = { id: 'o1', externalStore: 'test.myshopify.com', externalOrderId: '790',
-    omsStatus: 'NEW', status: 'pending_review', shopifySnapshot: snapshot, omsIssueFlags: [], shipments: [],
+    omsStatus: 'NEW', status: 'pending_review', shopifySnapshot: source, omsIssueFlags: [], shipments: [],
     shopifySourceUpdatedAt: new Date('2026-09-01T01:00:00+08:00'), orderedAt: new Date('2026-09-01T00:00:00+08:00'), total: 790 };
   const audits: any[] = [];
   let shipmentCreates = 0;
@@ -77,7 +86,7 @@ function fakeDb(catalog = [mooncakeProduct], stock = 20) {
   };
   const db = { $transaction: async (fn: any) => fn(tx) } as PrismaClient;
   const run = (action: 'check' | 'approve' | 'ship', overrides = {}) => runReview(db, {
-    orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(snapshot), action, draft, ...overrides,
+    orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(source), action, draft: form, ...overrides,
   });
   return { run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
     createdItems, createdShipmentItems, audits, setStock: (n: number) => { stock = n; },
@@ -106,12 +115,12 @@ describe('review promotions contract', () => {
   });
 
   it('blocks shipping when stock is 10 for a 10+1 plan, including reserved quantity', async () => {
-    const f = fakeDb([mooncakeProduct], 20);
+    const f = fakeDb([cloneMooncake()], 20);
     await f.run('check'); await f.run('approve');
     f.setStock(10);
     await assert.rejects(f.run('ship'), /庫存不足/);
     assert.equal(f.shipmentCreates, 0);
-    const g = fakeDb([mooncakeProduct], 11);
+    const g = fakeDb([cloneMooncake()], 11);
     await g.run('check'); await g.run('approve');
     g.reserve('ck08', 1);
     await assert.rejects(g.run('ship'), /庫存不足/);
@@ -125,18 +134,92 @@ describe('review promotions contract', () => {
     f.audits[0].metadataJson = JSON.stringify(saved);
     f.order.omsStatus = 'REVIEW';
     await assert.rejects(f.run('approve'), /出貨計畫/);
-    const g = fakeDb();
+    const catalog = [cloneMooncake()];
+    const g = fakeDb(catalog);
     await g.run('check'); await g.run('approve');
-    const original = mooncakeProduct.priceTiers[0].weightGrams;
-    mooncakeProduct.priceTiers[0].weightGrams = 100;
+    catalog[0].priceTiers[0].weightGrams = 100;
     await assert.rejects(g.run('ship'), /出貨計畫|規格|CK-08|重新檢查/);
-    mooncakeProduct.priceTiers[0].weightGrams = original;
   });
 
   it('does not create a shipment during check/approve and keeps unpaid review allowed', () => {
     const unpaid = shopifySnapshot({ ...snapshot.order, financial_status: 'pending', id: snapshot.order.id });
-    const result = checkReview(unpaid, draft, [{ ...mooncakeProduct, available: 20 }], false);
+    const result = checkReview(unpaid, draft, [{ ...cloneMooncake(), available: 20 }], false);
     assert.ok(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
     assert.equal(result.plan.items.length, 2);
+  });
+
+  it('allows unpaid check and approve through the service, but blocks ship', async () => {
+    const unpaid = shopifySnapshot({ ...snapshot.order, financial_status: 'pending', id: snapshot.order.id });
+    const f = fakeDb([cloneMooncake()], 20, unpaid);
+    await f.run('check');
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    await f.run('approve');
+    assert.equal(f.order.omsStatus, 'READY');
+    await assert.rejects(f.run('ship'), /付款/);
+    assert.equal(f.shipmentCreates, 0);
+  });
+
+  it('ships source gifts at 0/50g/顆 for both free and fully-discounted lines', async () => {
+    const giftDraft = reviewDraft({
+      lines: [{ productId: 'ck08', temperature: 'frozen' }, { productId: 'ck08', temperature: 'frozen' }],
+      method: 'home', temperature: 'frozen', recipient: '測試', phone: '0912345678', address: '地址',
+      giftsConfirmed: true,
+    });
+    const free = shopifySnapshot({
+      ...snapshot.order,
+      line_items: [
+        { sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true },
+        { sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '0.00', requires_shipping: true },
+      ],
+    });
+    const f = fakeDb([cloneMooncake()], 20, free, giftDraft);
+    await f.run('check'); await f.run('approve'); await f.run('ship');
+    assert.equal(f.createdItems.length, 2);
+    assert.equal(f.createdItems.reduce((sum, item) => sum + item.quantity, 0), 11);
+    const freeGift = f.createdItems.find(item => item.isGift);
+    assert.equal(freeGift?.unitPrice, 0);
+    assert.equal(freeGift?.weightGrams, 50);
+    assert.equal(freeGift?.unit, '顆');
+
+    const discounted = shopifySnapshot({
+      ...snapshot.order,
+      line_items: [
+        { sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true },
+        { sku: 'CK-08', variant_id: '64368368517497', quantity: 1, price: '79.00', total_discount: '79.00', requires_shipping: true },
+      ],
+    });
+    const g = fakeDb([cloneMooncake()], 20, discounted, giftDraft);
+    await g.run('check'); await g.run('approve'); await g.run('ship');
+    assert.equal(g.createdItems.reduce((sum, item) => sum + item.quantity, 0), 11);
+    assert.equal(g.createdItems.find(item => item.isGift)?.unitPrice, 0);
+  });
+
+  it('requires recheck for tier, cost, catalog temperature and old plan versions; stock-only still uses live stock', async () => {
+    const drift = async (mutate: (product: ReturnType<typeof cloneMooncake>) => void) => {
+      const product = cloneMooncake();
+      const f = fakeDb([product]);
+      await f.run('check'); await f.run('approve');
+      mutate(product);
+      await assert.rejects(f.run('ship'), /出貨計畫/);
+      assert.equal(f.shipmentCreates, 0);
+    };
+    await drift(product => { product.priceTiers[0].id = 'replacement'; });
+    await drift(product => { product.priceTiers[0].cost = 99; });
+    await drift(product => { product.defaultTemperature = 'ambient'; });
+
+    const version = fakeDb([cloneMooncake()]);
+    await version.run('check');
+    const saved = JSON.parse(version.audits[0].metadataJson);
+    saved.fulfillmentPlan.planVersion = 'ck08-555-plan-v1';
+    version.audits[0].metadataJson = JSON.stringify(saved);
+    version.order.omsStatus = 'REVIEW';
+    await assert.rejects(version.run('approve'), /出貨計畫/);
+
+    const stockOnly = fakeDb([cloneMooncake()], 20);
+    await stockOnly.run('check'); await stockOnly.run('approve');
+    stockOnly.setStock(11);
+    await stockOnly.run('ship');
+    assert.equal(stockOnly.shipmentCreates, 1);
+    assert.equal(stockOnly.createdItems.reduce((sum, item) => sum + item.quantity, 0), 11);
   });
 });

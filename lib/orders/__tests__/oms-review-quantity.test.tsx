@@ -267,5 +267,31 @@ test('拒領不補贈，阻擋時不顯示假的可出貨總數', async () => {
   const blockedHtml = htmlPlan(FormComponent, blocked, [mooncake]);
   assert.match(blockedHtml, /待確認/);
   assert.match(blockedHtml, /總數待確認/);
+  assert.match(blockedHtml, /重新同步來源資料/);
   assert.equal(blockedHtml.includes('預計出貨 11'), false);
+});
+
+test('活動期間外與未達門檻顯示不同文字', async () => {
+  const FormComponent = await loadForm();
+  const before = campaignSource([{ title: '月餅', sku: 'CK-08', quantity: 10, price: '79.00' }]);
+  before.order.created_at = '2026-08-27T06:54:59+08:00';
+  const beforeHtml = htmlPlan(FormComponent, before, [mooncake]);
+  assert.match(beforeHtml, /活動期間外/);
+  assert.equal(beforeHtml.includes('未達門檻'), false);
+
+  const cheap = campaignSource([{ title: '飼料', sku: 'FD-01', quantity: 1, price: '100.00' }]);
+  const feed = { ...mooncake, id: 'feed', sku: 'FD-01', sourceSku: 'FD-01', defaultTemperature: 'ambient', priceTiers: [] as typeof mooncake.priceTiers };
+  const cheapHtml = htmlPlan(FormComponent, cheap, [feed, mooncake]);
+  assert.match(cheapHtml, /未達門檻/);
+  assert.equal(cheapHtml.includes('活動期間外'), false);
+});
+
+test('無效商品主檔時列出原因與總數待確認', async () => {
+  const FormComponent = await loadForm();
+  const source = campaignSource([{ title: '飼料', sku: 'FD-01', quantity: 1, price: '555.00' }]);
+  const feed = { ...mooncake, id: 'feed', sku: 'FD-01', sourceSku: 'FD-01', defaultTemperature: 'ambient', priceTiers: [] as typeof mooncake.priceTiers };
+  const html = htmlPlan(FormComponent, source, [feed, mooncake, { ...mooncake, id: 'ck08b' }]);
+  assert.match(html, /多筆/);
+  assert.match(html, /總數待確認/);
+  assert.equal(html.includes('預計出貨 11'), false);
 });

@@ -72,6 +72,21 @@ describe('promotion resolver eligibility', () => {
     assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 0.5, price: '555.00' }])).reason, 'INVALID_QUANTITY');
     assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 9007199254740993, price: '1.00' }])).reason, 'INVALID_QUANTITY');
     assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 1, price: '555.00', total_discount: '600.00' }])).reason, 'INVALID_MONEY');
+    assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 1, price: '90071992547410.00' }])).reason, 'INVALID_MONEY');
+    assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 2147483647, price: '999999.00' }])).reason, 'OVERFLOW');
+  });
+
+  it('rejects impossible calendar dates at threshold and does not extra-block cheap orders', () => {
+    const sept31 = resolvePromotion(snap({ created_at: '2026-09-31T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '555.00' }]));
+    assert.equal(sept31.reason, 'INVALID_DATE');
+    assert.equal(sept31.giftAction, 'uncertain');
+    assert.ok(sept31.issues.some(issue => issue.message.includes('真實日曆')));
+    const feb29 = resolvePromotion(snap({ created_at: '2026-02-29T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '555.00' }]));
+    assert.equal(feb29.reason, 'INVALID_DATE');
+    const cheapImpossible = resolvePromotion(snap({ created_at: '2026-09-31T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '100.00' }]));
+    assert.equal(cheapImpossible.reason, 'INELIGIBLE_BELOW_THRESHOLD');
+    assert.deepEqual(cheapImpossible.issues, []);
+    assert.equal(resolvePromotion(snap({ created_at: '2028-02-29T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '555.00' }])).giftAction, 'add');
   });
 });
 
@@ -110,11 +125,11 @@ describe('promotion resolver gifts and choices', () => {
   it('blocks marker/variant/SKU contradictions, multiple gifts and decline-with-gift', () => {
     assert.equal(resolvePromotion(snap({}, [
       { sku: 'A', quantity: 1, price: '555.00', properties: [{ name: '_jc_gift_555', value: 'true' }] },
-    ])).reason, 'CONTRADICTION');
+    ])).reason, 'INVALID_MARKER');
     assert.equal(resolvePromotion(snap({}, [
       { sku: 'CK-08', quantity: 1, price: '79.00', properties: [{ name: '_jc_gift_555', value: 'true' }] },
       { sku: 'B', quantity: 1, price: '555.00' },
-    ])).reason, 'CONTRADICTION');
+    ])).reason, 'INVALID_MARKER');
     assert.equal(resolvePromotion(snap({}, [
       { sku: 'A', quantity: 1, price: '555.00' },
       { sku: 'CK-08', quantity: 1, price: '0.00' },
@@ -131,9 +146,74 @@ describe('promotion resolver gifts and choices', () => {
     ])).reason, 'CONTRADICTION');
     assert.equal(resolvePromotion(snap({
       note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }, { name: 'jc_mooncake_choice', value: 'decline' }],
-    }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'CONTRADICTION');
+    }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'DUPLICATE_CHOICE');
     assert.equal(resolvePromotion(snap({
       note_attributes: [{ name: 'jc_mooncake_choice', value: 'maybe' }],
     }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'UNKNOWN_CHOICE');
+  });
+
+  it('fails closed on identity conflict, duplicate/invalid markers and choices, and still identifies a single present identifier', () => {
+    const skuAndWrongVariant = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'CK-08', variant_id: '123', quantity: 1, price: '0.00' },
+    ]));
+    assert.equal(skuAndWrongVariant.reason, 'IDENTITY_CONFLICT');
+    assert.equal(skuAndWrongVariant.giftAction, 'uncertain');
+    assert.notEqual(skuAndWrongVariant.giftAction, 'existing');
+    assert.ok(skuAndWrongVariant.issues.length > 0);
+
+    const otherAndCanonicalVariant = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'OTHER', variant_id: PROMOTION_GIFT_VARIANT_ID, quantity: 1, price: '0.00' },
+    ]));
+    assert.equal(otherAndCanonicalVariant.reason, 'IDENTITY_CONFLICT');
+    assert.notEqual(otherAndCanonicalVariant.giftAction, 'existing');
+
+    const skuOnly = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'CK-08', quantity: 1, price: '0.00' },
+    ]));
+    assert.equal(skuOnly.giftAction, 'existing');
+    assert.equal(skuOnly.existingGiftQuantity, 1);
+
+    const variantOnly = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: '', variant_id: PROMOTION_GIFT_VARIANT_ID, quantity: 1, price: '0.00' },
+    ]));
+    assert.equal(variantOnly.giftAction, 'existing');
+
+    const otherFree = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'STICKER', variant_id: '999', quantity: 1, price: '0.00' },
+    ]));
+    assert.equal(otherFree.giftAction, 'add');
+    assert.equal(otherFree.existingGiftQuantity, 0);
+    assert.equal(otherFree.reason, 'ADD_HQ_GIFT');
+
+    const markedConflict = resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'CK-08', variant_id: '123', quantity: 1, price: '0.00', properties: [{ name: '_jc_gift_555', value: 'true' }] },
+    ]));
+    assert.equal(markedConflict.reason, 'IDENTITY_CONFLICT');
+
+    assert.equal(resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'CK-08', quantity: 1, price: '0.00', properties: [
+        { name: '_jc_gift_555', value: 'true' }, { name: '_jc_gift_555', value: 'true' },
+      ] },
+    ])).reason, 'DUPLICATE_MARKER');
+    assert.equal(resolvePromotion(snap({}, [
+      { sku: 'A', quantity: 1, price: '555.00' },
+      { sku: 'CK-08', quantity: 1, price: '0.00', properties: [{ name: '_jc_gift_555', value: '' }] },
+    ])).reason, 'INVALID_MARKER');
+    assert.equal(resolvePromotion(snap({
+      note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }, { name: 'jc_mooncake_choice', value: 'keep' }],
+    }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'DUPLICATE_CHOICE');
+    assert.equal(resolvePromotion(snap({
+      note_attributes: [{ name: 'jc_mooncake_choice', value: '' }],
+    }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'INVALID_CHOICE');
+    assert.equal(resolvePromotion(snap({
+      note_attributes: [{ name: 'jc_mooncake_choice', value: 'keep' }],
+    }, [{ sku: 'A', quantity: 1, price: '555.00' }])).giftAction, 'add');
   });
 });
