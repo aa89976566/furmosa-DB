@@ -11,18 +11,27 @@ export const OMS_FILTERS = [
 ];
 
 export const ORDER_WORK_FILTERS = [
-  { key: 'now', label: '待確認' },
+  { key: 'now', label: '需處理' },
   { key: 'waiting', label: '等待中' },
   { key: 'ready', label: '可出貨' },
   { key: 'shipping', label: '待交寄' },
   { key: 'done', label: '已完成' },
 ] as const;
 
-/** Mutually exclusive daily-work buckets. One OMS order belongs to exactly one bucket. */
+/**
+ * Mutually exclusive staff-facing buckets.
+ * NEW / REVIEW are always work, regardless of payment.
+ * A payment wait only exists after human review, represented by READY + unpaid/partial.
+ */
 export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
-  if (value === 'now') return { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { in: ['paid', 'cod'] } };
-  if (value === 'waiting') return { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { notIn: ['paid', 'cod'] } };
-  if (value === 'ready') return { omsStatus: 'READY' };
+  if (value === 'now') return {
+    OR: [
+      { omsStatus: { in: ['NEW', 'REVIEW'] } },
+      { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
+    ],
+  };
+  if (value === 'waiting') return { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } };
+  if (value === 'ready') return { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } };
   if (value === 'shipping') return { omsStatus: 'FULFILLMENT_PENDING' };
   if (value === 'done') return { omsStatus: 'FULFILLED' };
   return {};
