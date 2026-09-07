@@ -1,4 +1,27 @@
-export const REQUIRED_READY_ENV = ['DATABASE_URL', 'AUTH_SECRET', 'NODE_ENV'] as const;
+export const REQUIRED_READY_ENV = ['AUTH_SECRET', 'NODE_ENV'] as const;
+const DB_URL_ENV = ['DATABASE_URL', 'POSTGRES_PRISMA_URL', 'POSTGRES_URL'] as const;
+
+// Keep an unresolved probe in flight after an HTTP timeout: Promise.race does
+// not cancel a database query, so starting another would accumulate work.
+export function createReadinessProbe(query: () => Promise<unknown>, timeoutMs = 2000) {
+  let inFlight: Promise<unknown> | undefined;
+  return async () => {
+    if (!inFlight) {
+      inFlight = Promise.resolve().then(query).finally(() => { inFlight = undefined; });
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        inFlight,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Readiness timeout')), timeoutMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
 
 export type ReadyResult = {
   status: 'ok' | 'error';
@@ -16,9 +39,9 @@ export async function checkReadiness(input: {
   const now = input.now ?? (() => new Date());
   const clock = input.clock ?? (() => performance.now());
   const timestamp = now().toISOString();
-  const missing = REQUIRED_READY_ENV.filter((name) => !input.env[name]);
+  const missing = REQUIRED_READY_ENV.filter((name) => !input.env[name]?.trim());
 
-  if (missing.length > 0) {
+  if (missing.length > 0 || !DB_URL_ENV.some((name) => input.env[name]?.trim())) {
     return {
       httpStatus: 503,
       body: { status: 'error', database: 'unknown', latencyMs: null, timestamp },

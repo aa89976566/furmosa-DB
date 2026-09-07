@@ -5,9 +5,16 @@ import {
   getRefillPlanSettings,
   invalidateRefillPlanCache,
   listActiveRefillFlavours,
+  resolveRefillHeroImage,
 } from '../refill-flavours';
 
 describe('refill plan read cache', () => {
+  it('resolves removed default image without changing custom URLs', () => {
+    assert.equal(resolveRefillHeroImage('/images/refill-plan/refill-flavours.jpg'), '/images/refill-plan/refill-flavours-v2.jpg');
+    assert.equal(resolveRefillHeroImage(null), '/images/refill-plan/refill-flavours-v2.jpg');
+    assert.equal(resolveRefillHeroImage('https://example.com/custom.jpg'), 'https://example.com/custom.jpg');
+    assert.equal(resolveRefillHeroImage('/custom/refill-flavours.jpg'), '/custom/refill-flavours.jpg');
+  });
   it('DB 不可達時仍回傳靜態 fallback（不 throw）', async () => {
     invalidateRefillPlanCache();
     const [settings, flavours] = await Promise.all([
