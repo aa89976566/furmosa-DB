@@ -299,13 +299,18 @@ export async function rejectRestockRequest(input: {
     return existing;
   }
 
+  const hqNote = input.hqNote?.trim() ?? '';
+  if (!hqNote) {
+    throw new Error('請填寫拒絕原因');
+  }
+
   return prisma.restockRequest.update({
     where: { id: input.requestId },
     data: {
       status: 'rejected',
       rejectedAt: new Date(),
       approvedByUserId: input.hqUserId,
-      hqNote: input.hqNote?.trim() || existing.hqNote,
+      hqNote,
     },
   });
 }

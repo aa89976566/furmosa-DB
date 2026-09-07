@@ -238,6 +238,7 @@ export function HqRestockDetailForm({
           <form action={rejectAction} className="flex-1">
             <input type="hidden" name="requestId" value={requestId} />
             <input type="hidden" name="hqNote" value={note} />
+            <p className="mb-2 text-xs text-muted-foreground">拒絕時必須填寫原因</p>
             <SubmitButton label="拒絕" variant="destructive" />
           </form>
         </div>

@@ -25,6 +25,32 @@ function itemSummary(items: Array<{ productName: string; quantity: number }>) {
   return items.length > 2 ? `${visible.join('、')}，另 ${items.length - 2} 項` : visible.join('、');
 }
 
+export function merchantEventHqNote(status: string, hqNote: string | null): string | null {
+  const trimmed = hqNote?.trim() ?? '';
+  if (status === 'rejected') return trimmed || '未提供原因';
+  return trimmed || null;
+}
+
+export function restockQuantityAdjustmentDetail(
+  items: Array<{ requestedQuantity: number | null; approvedQuantity?: number | null }>,
+): string | null {
+  let requestedTotal = 0;
+  let approvedTotal = 0;
+  let hasRequested = false;
+
+  for (const item of items) {
+    const requested = item.requestedQuantity;
+    const approved = item.approvedQuantity ?? requested ?? 0;
+    approvedTotal += approved;
+    if (requested == null) continue;
+    hasRequested = true;
+    requestedTotal += requested;
+  }
+
+  if (!hasRequested || requestedTotal === approvedTotal) return null;
+  return `申請 ${requestedTotal} 件，核准 ${approvedTotal} 件`;
+}
+
 export function shipmentEvent(
   shipment: ShipmentSummary,
   href: string | null,
@@ -66,7 +92,11 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
         updatedAt: true,
         hqNote: true,
         items: {
-          select: { requestedQuantity: true, product: { select: { name: true } } },
+          select: {
+            requestedQuantity: true,
+            approvedQuantity: true,
+            product: { select: { name: true } },
+          },
         },
         shipment: {
           select: {
@@ -94,10 +124,21 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
   ]);
 
   const requestEvents = requests.map<MerchantEvent>((request) => {
+    const isApproveOrConvert =
+      request.status === 'approved' ||
+      request.status === 'converted_to_shipment' ||
+      Boolean(request.shipment);
+    const adjustment = isApproveOrConvert
+      ? restockQuantityAdjustmentDetail(request.items)
+      : null;
+    const hqNote = merchantEventHqNote(request.status, request.hqNote);
+
     if (request.shipment) {
+      const event = shipmentEvent(request.shipment, `/pos/restock/${request.id}`);
       return {
-        ...shipmentEvent(request.shipment, `/pos/restock/${request.id}`),
-        hqNote: request.hqNote,
+        ...event,
+        hqNote,
+        detail: adjustment ? `${event.detail} · ${adjustment}` : event.detail,
       };
     }
     const presentation: Record<string, { title: string; status: string; action: boolean }> = {
@@ -119,12 +160,12 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
     return {
       id: `request-${request.id}`,
       title: state.title,
-      detail: itemSummary(items),
+      detail: adjustment ? `${itemSummary(items)} · ${adjustment}` : itemSummary(items),
       statusLabel: state.status,
       occurredAt: request.updatedAt,
       actionRequired: state.action,
       href: `/pos/restock/${request.id}`,
-      hqNote: request.hqNote,
+      hqNote,
     };
   });
 
