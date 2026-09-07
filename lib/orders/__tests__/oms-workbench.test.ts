@@ -14,11 +14,16 @@ describe('OMS workbench read-only queries', () => {
     assert.deepEqual(workbenchVisibleWhere.OR?.[0], { omsStatus: { not: null } });
     assert.match(JSON.stringify(workbenchVisibleWhere.OR?.[1]), /cancelled/);
   });
-  it('daily work buckets are mutually exclusive and use staff-facing labels', () => {
-    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['待確認', '等待中', '可出貨', '待交寄', '已完成']);
-    assert.deepEqual(orderWorkWhere('now'), { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { in: ['paid', 'cod'] } });
-    assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: { in: ['NEW', 'REVIEW'] }, paymentStatus: { notIn: ['paid', 'cod'] } });
-    assert.deepEqual(orderWorkWhere('ready'), { omsStatus: 'READY' });
+  it('keeps unreviewed orders actionable regardless of payment', () => {
+    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['需處理', '等待中', '可出貨', '待交寄', '已完成']);
+    assert.deepEqual(orderWorkWhere('now'), {
+      OR: [
+        { omsStatus: { in: ['NEW', 'REVIEW'] } },
+        { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
+      ],
+    });
+    assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } });
+    assert.deepEqual(orderWorkWhere('ready'), { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } });
     assert.deepEqual(orderWorkWhere('shipping'), { omsStatus: 'FULFILLMENT_PENDING' });
     assert.deepEqual(orderWorkWhere('done'), { omsStatus: 'FULFILLED' });
   });

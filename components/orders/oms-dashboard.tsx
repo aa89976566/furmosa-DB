@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
 import { omsNextActionLabel } from '@/lib/orders/oms';
 import { taiwanToday } from '@/lib/orders/oms-workbench';
+import { getOrderWorkState } from '@/lib/orders/order-work-state';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
@@ -13,6 +14,7 @@ type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
   shippingMethod: string; cvsStoreName: string | null; recipient: string; action: string;
   items: { productName: string }[];
+  workState: 'ACTION_REQUIRED' | 'WAITING' | 'DONE';
 };
 
 export async function OmsDashboard() {
@@ -32,7 +34,7 @@ export async function OmsDashboard() {
     prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLED', updatedAt: today } }),
   ]);
 
-  const rows = orders.map((order) => {
+  const rows: WorkRow[] = orders.map((order) => {
     const snapshot = snapshotView(order.shopifySnapshot);
     return {
       id: order.id, orderNumber: order.orderNumber, source: order.source, total: order.total,
@@ -40,23 +42,33 @@ export async function OmsDashboard() {
       cvsStoreName: order.cvsStoreName, items: order.items,
       recipient: order.customer?.name || snapshot?.recipient || '收件人待確認',
       action: omsNextActionLabel(order.omsStatus, order.omsIssueFlags),
-      waiting: !['paid', 'cod'].includes(order.paymentStatus) && ['NEW', 'REVIEW'].includes(order.omsStatus ?? ''),
+      workState: getOrderWorkState({ omsStatus: order.omsStatus, paymentStatus: order.paymentStatus }),
     };
   });
-  const now = rows.filter((row) => !row.waiting);
-  const waiting = rows.filter((row) => row.waiting);
-  const completed = reviewedToday + fulfilledToday;
-  const total = completed + now.length;
-  const progress = total > 0 ? Math.round((completed / total) * 100) : 100;
+  const now = rows.filter((row) => row.workState === 'ACTION_REQUIRED');
+  const waiting = rows.filter((row) => row.workState === 'WAITING');
+  const completedSteps = reviewedToday + fulfilledToday;
+  const total = completedSteps + now.length;
+  const progress = total > 0 ? Math.round((completedSteps / total) * 100) : 100;
   const first = now[0];
+  const headline = now.length
+    ? `還有 ${now.length} 件事需要處理`
+    : waiting.length
+      ? '目前沒有需要立即處理的訂單'
+      : '目前所有訂單工作都已處理完成';
+  const subline = now.length
+    ? `今天已完成 ${completedSteps} 個處理步驟；另有 ${waiting.length} 筆等待外部條件。`
+    : waiting.length
+      ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
+      : `今天已完成 ${completedSteps} 個處理步驟。`;
 
   return <div className="space-y-6">
     <section className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <p className="text-sm font-medium text-muted-foreground">今天的工作</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-navy">{now.length ? `還有 ${now.length} 件事需要處理` : '今天的訂單工作都完成了'}</h2>
-          <p className="text-sm text-muted-foreground">今天已完成 {completed} 筆；等待中的訂單不會干擾目前工作。</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-navy">{headline}</h2>
+          <p className="text-sm text-muted-foreground">{subline}</p>
         </div>
         {first
           ? <Button size="lg" asChild><Link href={`/orders/${first.id}`}>繼續處理<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
@@ -78,7 +90,7 @@ export async function OmsDashboard() {
     </details> : null}
 
     <section className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-success" /><div><h3 className="font-semibold">今天完成</h3><p className="text-sm text-muted-foreground">已完成 {completed} 筆訂單工作</p></div></div>
+      <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5 text-success" /><div><h3 className="font-semibold">今天完成</h3><p className="text-sm text-muted-foreground">已完成 {completedSteps} 個訂單處理步驟</p></div></div>
       <Button variant="ghost" asChild><Link href="/orders">查看所有訂單<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
     </section>
   </div>;
