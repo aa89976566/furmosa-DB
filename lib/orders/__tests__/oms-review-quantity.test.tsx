@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import Module, { createRequire, register } from 'node:module';
 import { test } from 'node:test';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { defaultReviewDraft, reviewLineDisplays } from '../review-defaults.ts';
@@ -26,8 +26,8 @@ export async function resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context);
 }
 `;
-register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL(import.meta.url));
-assert.equal(existsSync('/workspace/components/orders/oms-review-form.tsx'), true);
+register(`data:text/javascript,${encodeURIComponent(loader)}`, import.meta.url);
+assert.equal(existsSync(fileURLToPath(new URL('../../../components/orders/oms-review-form.tsx', import.meta.url))), true);
 
 type FormProps = {
   orderId: string; sourceHash: string; status: string; draft: ReviewDraft;
