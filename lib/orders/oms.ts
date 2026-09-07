@@ -72,7 +72,11 @@ export function compareShopifySourceVersion(current: Date | null, incoming: Date
   return 'newer' as const;
 }
 
-/** Pure precondition helper; callers MUST load trusted values and lock/recheck in a DB transaction. */
+/**
+ * Review and shipment intentionally have different payment gates:
+ * - review: PAYMENT_PENDING may pass so a human can finish review before payment arrives;
+ * - ship: PAYMENT_PENDING remains blocking so unpaid orders cannot be fulfilled.
+ */
 export function omsApprovalBlockers(input: {
   omsStatus: OmsStatus | null;
   issues: unknown;
@@ -82,7 +86,7 @@ export function omsApprovalBlockers(input: {
   actorId: string | null;
   actorCanReview: boolean;
   cancelled: boolean;
-}): string[] {
+}, phase: 'review' | 'ship' = 'review'): string[] {
   const blockers: string[] = [];
   if (!input.actorId?.trim() || !input.actorCanReview) blockers.push('需要有審核權限的 HQ 人員確認');
   if (input.omsStatus !== 'REVIEW') blockers.push('訂單不在待審核狀態');
@@ -96,6 +100,9 @@ export function omsApprovalBlockers(input: {
     input.checkedSourceUpdatedAt.getTime() !== input.sourceUpdatedAt.getTime()) {
     blockers.push('來源版本不明或訂單已更新，請重新檢查');
   }
-  blockers.push(...(issues ?? []).filter((issue) => issue.severity === 'blocking').map((issue) => issue.message));
+  blockers.push(...(issues ?? [])
+    .filter((issue) => issue.severity === 'blocking')
+    .filter((issue) => !(phase === 'review' && issue.code === 'PAYMENT_PENDING'))
+    .map((issue) => issue.message));
   return blockers;
 }
