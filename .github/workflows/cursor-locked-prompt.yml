@@ -1,0 +1,192 @@
+name: Cursor Locked Prompt
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: GitHub issue number containing the locked prompt
+        required: true
+        type: string
+      comment_id:
+        description: Comment ID whose complete body is the locked Cursor prompt
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: cursor-locked-prompt-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  run-cursor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      COMMENT_ID: ${{ inputs.comment_id }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Validate locked prompt and current main
+        id: prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${ISSUE_NUMBER}" =~ ^[0-9]+$ || ! "${COMMENT_ID}" =~ ^[0-9]+$ ]]; then
+            echo "issue_number and comment_id must be numeric." >&2
+            exit 1
+          fi
+
+          gh api "repos/${REPOSITORY}/issues/comments/${COMMENT_ID}" > comment.json
+          comment_issue_url="$(jq -r '.issue_url' comment.json)"
+          author_association="$(jq -r '.author_association' comment.json)"
+          jq -r '.body' comment.json > locked-prompt.md
+
+          if [[ "${comment_issue_url}" != */issues/"${ISSUE_NUMBER}" ]]; then
+            echo "The comment does not belong to the requested issue." >&2
+            exit 1
+          fi
+
+          case "${author_association}" in
+            OWNER|MEMBER|COLLABORATOR) ;;
+            *)
+              echo "The locked prompt must be posted by a trusted repository member." >&2
+              exit 1
+              ;;
+          esac
+
+          if ! grep -q '^## CURSOR-PROMPT-v[0-9]' locked-prompt.md; then
+            echo "The comment is not a versioned locked Cursor prompt." >&2
+            exit 1
+          fi
+
+          baseline_sha="$(grep -oE '[0-9a-f]{40}' locked-prompt.md | head -n 1 || true)"
+          if [[ -z "${baseline_sha}" ]]; then
+            echo "The locked prompt must contain a full 40-character baseline SHA." >&2
+            exit 1
+          fi
+
+          main_sha="$(gh api "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "${baseline_sha}" != "${main_sha}" ]]; then
+            echo "Locked baseline ${baseline_sha} does not match current main ${main_sha}." >&2
+            exit 1
+          fi
+
+          echo "baseline_sha=${baseline_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Start Cursor and receive final result
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ steps.prompt.outputs.baseline_sha }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CURSOR_API_KEY}" ]]; then
+            echo "CURSOR_API_KEY is not configured." >&2
+            exit 1
+          fi
+
+          jq -n \
+            --rawfile prompt locked-prompt.md \
+            --arg repo "https://github.com/${REPOSITORY}" \
+            --arg ref "${BASELINE_SHA}" \
+            --arg name "Issue ${ISSUE_NUMBER} locked prompt" \
+            '{
+              prompt: {text: $prompt},
+              name: $name,
+              repos: [{url: $repo, startingRef: $ref}],
+              workOnCurrentBranch: false,
+              autoCreatePR: true,
+              skipReviewerRequest: true,
+              mode: "agent"
+            }' > cursor-request.json
+
+          http_code="$(curl --silent --show-error \
+            --output cursor-response.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --url 'https://api.cursor.com/v1/agents' \
+            --header "Authorization: Bearer ${CURSOR_API_KEY}" \
+            --header 'Content-Type: application/json' \
+            --data-binary @cursor-request.json)"
+
+          if [[ ! "${http_code}" =~ ^2 ]]; then
+            error_code="$(jq -r '.error.code // .code // "unknown"' cursor-response.json 2>/dev/null || echo unknown)"
+            echo "Cursor rejected the request (HTTP ${http_code}, code ${error_code})." >&2
+            exit 1
+          fi
+
+          agent_id="$(jq -r '.agent.id' cursor-response.json)"
+          run_id="$(jq -r '.run.id' cursor-response.json)"
+          agent_url="$(jq -r '.agent.url' cursor-response.json)"
+
+          if [[ ! "${agent_id}" =~ ^bc-[A-Za-z0-9-]+$ || ! "${run_id}" =~ ^run-[A-Za-z0-9-]+$ ]]; then
+            echo "Cursor returned invalid agent or run identifiers." >&2
+            exit 1
+          fi
+
+          jq -n \
+            --arg body "Cursor 已接收鎖定提示詞。\n\n- 基準：\`${BASELINE_SHA}\`\n- Agent：[查看執行](${agent_url})\n- 狀態：監督中，尚未合併或部署。" \
+            '{body: $body}' > issue-comment.json
+          gh api "repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            --method POST --input issue-comment.json >/dev/null
+
+          terminal_status=""
+          for _ in $(seq 1 180); do
+            curl --silent --show-error --fail \
+              --output cursor-run.json \
+              --url "https://api.cursor.com/v1/agents/${agent_id}/runs/${run_id}" \
+              --header "Authorization: Bearer ${CURSOR_API_KEY}"
+
+            status="$(jq -r '.status' cursor-run.json)"
+            case "${status}" in
+              FINISHED|ERROR|CANCELLED|EXPIRED)
+                terminal_status="${status}"
+                break
+                ;;
+              CREATING|RUNNING) sleep 20 ;;
+              *)
+                echo "Cursor returned an unknown run status: ${status}" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          if [[ -z "${terminal_status}" ]]; then
+            echo "Cursor did not finish within 60 minutes." >&2
+            exit 1
+          fi
+
+          jq -r '.result // "(Cursor did not return a final message.)"' cursor-run.json \
+            | head -c 12000 > cursor-result.txt
+          pr_url="$(jq -r '.git.branches[]?.prUrl // empty' cursor-run.json | head -n 1)"
+
+          {
+            printf 'Cursor 執行完成。\n\n'
+            printf -- '- 狀態：`%s`\n' "${terminal_status}"
+            printf -- '- 基準：`%s`\n' "${BASELINE_SHA}"
+            printf -- '- Agent：[查看執行](%s)\n' "${agent_url}"
+            if [[ -n "${pr_url}" ]]; then
+              printf -- '- PR：%s\n' "${pr_url}"
+            else
+              printf -- '- PR：未建立\n'
+            fi
+            printf '\n<details><summary>Cursor 最終回覆</summary>\n\n'
+            cat cursor-result.txt
+            printf '\n\n</details>\n\n'
+            printf '尚未合併、部署或操作資料庫／Production。\n'
+          } > final-comment.md
+
+          jq -n --rawfile body final-comment.md '{body: $body}' > issue-comment.json
+          gh api "repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            --method POST --input issue-comment.json >/dev/null
+
+          if [[ "${terminal_status}" != "FINISHED" ]]; then
+            exit 1
+          fi
