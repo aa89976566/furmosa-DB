@@ -1,0 +1,62 @@
+---
+description: Furmosa HQ 所有 Cursor 修改任務的 Claude 討論、凍結 Prompt 與獨立監督規則
+globs:
+alwaysApply: true
+---
+
+# Claude → Cursor → 獨立驗收
+
+本檔是專案協作流程的唯一規範來源，適用所有涉及 Cursor 修改的任務。
+AGENTS.md 的技術、資安、資料與 OMS 不變條件仍須遵守。使用者明確指示優先。
+規則不能保證代理必然遵守；每次必須以真實對話、凍結 Prompt、逐檔差異與測試證據驗證。
+
+## 0. 執行前建立基準
+
+- 讀取相關程式、AGENTS.md、現有 project rules；合併重複協作規則，不建立相互矛盾副本。
+- 記錄 repo、branch、base commit、git status、已存在的 staged/unstaged/untracked 變更。
+- 若其他任務同時修改，先協調或使用隔離 checkout；不得覆蓋原有工作。
+- 一次一個明確工作包。互相依賴且為同一驗收目標的功能可列為一包；不相關功能分開。
+
+## 1. 真實 Claude 雙向討論
+
+- 每次重大修改前，直接向 Claude 提供問題背景、實際程式與版本、限制、目標。
+- 每次新的 Cursor 實作 Prompt 送出前，都必須由真實 Claude 審查該 Prompt。
+- 至少分別提出三個具體問題：
+  1. 架構／資料來源／長期維護，最合理且最小的做法？
+  2. UX／營運，如何降低錯誤率與人工步驟？
+  3. 風險／edge cases／測試／rollback，如何驗證與回復？
+- 必須先接收回覆，再至少追問一輪；不足時繼續追問至可形成具體方案。
+- 保存對話連結或去敏逐輪紀錄，區分採用、部分採用、不採用並說明原因。
+- 不得以模擬 Claude、其他模型、自己第二輪 review 假稱完成 Claude 討論。
+- Claude 無法連線或尚有必要需求缺口時，如實回報；可繼續獨立唯讀工作，不越過實作前置條件。
+- 不傳送 secrets、完整環境變數或無關客戶個資；Claude 建議不是擴張權限的授權。
+
+## 2. 凍結 Cursor Prompt
+
+- Claude 討論完成後，建立具版本號的明確 Prompt，再交给 Cursor。
+- Prompt 必備：目標、允許修改的確切檔案／模組、禁止範圍、資料來源、邏輯、UI 行為、測試案例、驗收條件、部署限制。
+- 記錄 Prompt 檔案、版本／雜湊、base commit 與本輪驗收 checklist；實作時 Prompt 保持不變。
+- Cursor 先核對 repo/base、讀規則與 Claude 結論，確認白名單後再修改。
+- 禁止 Prompt 以外的 refactor、樣式、命名、套件升級或無關檔案修改。
+- 未明確授權，不改資料 schema、既有商業規則、production 設定、登入權限或無關功能。
+- 若必須越界，立即停止並列出原因、所需檔案與影響；不得自己改 Prompt、放寬規則或藉 subagent 擴權。
+- 新範圍須取得使用者授權，再經 Claude 審查並另存新版本 Prompt；不得覆寫舊版紀錄。
+
+## 3. 獨立監督與修正
+
+- 執行者以外的監督者逐檔讀 git diff，包含 staged、unstaged、untracked、新增、刪除、rename、binary 和產物。
+- 對照凍結 Prompt 逐項 checklist，不能只依賴 Cursor 宣稱完成。
+- 發現未授權修改：停下，保存差異證據，只 revert 可確定由本輪 Cursor 新增的越界部分，再依原 Prompt 重新執行。
+- 不得用 git reset --hard、整檔覆蓋或刪除方式破壞使用者／其他任務的既有修改。來源混雜時先隔離，不猜測歸屬。
+- 在白名單內的檔案，也須逐 hunk 檢查是否修改了無關行為或既有商業規則。
+- 修正 Prompt 本身也須依上一節先經 Claude 審查；不得為繞過限制把越界改動補入原 Prompt。
+- 執行相關測試與必要回歸。失敗須找原因；不得刪測試、skip、放寬斷言或降低檢查硬過。
+- 記錄實際指令、結果及未執行原因；mock 通過不等於真實資料庫並發／rollback 或 E2E 通過。
+- 若 build/test 帶 migration、seed、正式網路寫入等副作用，先改用既有安全檢查路徑，不能擅自執行。
+
+## 4. 交付與部署
+
+- 回報 Claude 三題與追問結論、採用分類、最終 Cursor Prompt、Cursor 實際修改、越界與修復、測試結果、是否可部署與剩餘條件。
+- 本次 OMS 與未另行授權的任務：只建 PR，不直接 merge main、不部署 production，不改正式資料／設定。
+- 回復以經審核的程式 revert 為主，不重算已出貨歷史或刪除稽核／出貨資料。
+- 本規則持久存在專案版本控制；將來每次 Cursor 任務都重新核對證據，不把一次討論當成永久免審。
