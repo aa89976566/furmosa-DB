@@ -6,11 +6,14 @@ export type ShopifyMatchItem = {
   sku?: string | null;
 };
 
-export type MatchableProduct = {
+export type ProductIdentity = {
   id: string;
   name: string;
   sku: string;
   sourceSku: string | null;
+};
+
+export type MatchableProduct = ProductIdentity & {
   unit: string;
   priceTiers: { weightGrams: number | null; price: number }[];
 };
@@ -40,10 +43,14 @@ export function isMooncakeShopifyItem(item: ShopifyMatchItem) {
   return text.includes(MOONCAKE_CATALOG.sourceSku) || isMooncakeSearchTerm(text);
 }
 
-export function matchShopifyItemToProduct(
+/**
+ * Shared Shopify -> HQ identity matcher.
+ * Callers that require unique-SKU semantics must reject duplicate SKU/sourceSku hits before calling this fallback.
+ */
+export function matchShopifyItemToProduct<T extends ProductIdentity>(
   item: ShopifyMatchItem,
-  products: MatchableProduct[],
-): MatchableProduct | null {
+  products: T[],
+): T | null {
   const sku = clean(item.sku);
   if (sku) {
     const bySku = products.find((product) => product.sku === sku || product.sourceSku === sku);
