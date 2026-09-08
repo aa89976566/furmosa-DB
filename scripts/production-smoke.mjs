@@ -2,24 +2,21 @@ import { pathToFileURL } from 'node:url';
 
 // Fixed, audited GET routes only. Never run login actions, cron, coupon reads
 // (which expire rows), seed endpoints, or payment/webhook operations.
-export async function runSmoke({ origin, baseline = false, fetchFn = fetch }) {
+// Public health is intentionally liveness-only; DB readiness must not be
+// reintroduced as an unauthenticated production smoke dependency.
+export async function runSmoke({ origin, fetchFn = fetch }) {
   const base = new URL(origin);
   if (base.protocol !== 'https:' || base.username || base.password || base.search || base.hash || base.pathname !== '/') {
     throw new Error('An HTTPS origin without credentials, path, or query is required');
   }
-  const checks = baseline
-    ? [{ path: '/api/health', kind: 'legacy', status: 200 }]
-    : [
-        { path: '/api/health/live', kind: 'live', status: 200 },
-        { path: '/api/health/ready', kind: 'ready', status: 200 },
-      ];
-  checks.push(
+  const checks = [
+    { path: '/api/health', kind: 'health', status: 200 },
     { path: '/login', kind: 'hq-login', status: 200 },
     { path: '/pos/login', kind: 'pos-login', status: 200 },
     { path: '/orders', kind: 'redirect', status: 307, destination: '/login' },
     { path: '/pos', kind: 'redirect', status: 307, destination: '/pos/login' },
     { path: '/api/merchant/refill-orders', kind: 'unauthorized', status: 401 },
-  );
+  ];
   const results = [];
   for (const check of checks) {
     const started = performance.now();
@@ -46,12 +43,7 @@ export async function runSmoke({ origin, baseline = false, fetchFn = fetch }) {
       } else {
         const body = await res.json();
         ok &&= /no-store/.test(res.headers.get('cache-control') ?? '');
-        if (check.kind === 'legacy') ok &&= body.ok === true && body.service === 'furmosa-hq';
-        if (check.kind === 'live') ok &&= body.status === 'ok' && Object.keys(body).length === 1;
-        if (check.kind === 'ready') {
-          ok &&= body.status === 'ok' && body.database === 'ok' && Number.isFinite(body.latencyMs)
-            && body.latencyMs >= 0 && Number.isFinite(Date.parse(body.timestamp));
-        }
+        if (check.kind === 'health') ok &&= body.ok === true && body.service === 'furmosa-hq';
       }
     } catch {
       // Do not log exceptions, response bodies, URLs with secrets, or cookies.
@@ -64,7 +56,7 @@ export async function runSmoke({ origin, baseline = false, fetchFn = fetch }) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    const report = await runSmoke({ origin: process.argv[2], baseline: process.argv.includes('--baseline') });
+    const report = await runSmoke({ origin: process.argv[2] });
     console.log(JSON.stringify(report, null, 2));
     process.exitCode = report.ok ? 0 : 1;
   } catch {
