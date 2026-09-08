@@ -12,7 +12,7 @@ export const MOONCAKE_CATALOG = {
   weightGrams: 50,
   price: 79,
   cost: 30,
-  defaultTemperature: 'frozen',
+  defaultTemperature: 'chilled',
   imageUrl:
     'https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-sweet-potato-yam-chicken-mooncake-hero_7d329749-9210-4775-9927-88083c45dfa3.jpg?v=1787834174',
   notes: '官網「牠的月餅」50g；每售出一顆捐 NT$10 給巴克幫浪犬之家。Shopify 變體 SKU：CK-08。',
