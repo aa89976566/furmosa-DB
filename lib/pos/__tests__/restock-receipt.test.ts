@@ -246,10 +246,12 @@ describe('findRestockShipmentsAlreadyPosted', () => {
     },
   ];
 
-  function evidenceDb(options: {
-    itemTxns?: Array<{ shipmentItemId: string }>;
-    noteTxns?: Array<{ note: string }>;
-  }) {
+  function evidenceDb(
+    options: {
+      itemTxns?: Array<{ shipmentItemId: string }>;
+      noteTxns?: Array<{ note: string }>;
+    } = {},
+  ) {
     const wheres: Array<Record<string, unknown>> = [];
     return {
       wheres,

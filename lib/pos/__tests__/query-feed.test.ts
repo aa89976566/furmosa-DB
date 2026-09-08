@@ -8,6 +8,13 @@ import { filterQueryFeed, formatQueryWhen, groupSaleLines, type QueryFeedItem } 
 
 const SAME_DAY_NOW = new Date('2026-09-08T04:00:00.000Z'); // Taipei 12:00
 
+if (process.env.FORMAT_QUERY_WHEN_TZ_PROBE === '1') {
+  process.stdout.write(
+    formatQueryWhen(process.env.FORMAT_ISO ?? '', new Date(process.env.FORMAT_NOW ?? '')),
+  );
+  process.exit(0);
+}
+
 describe('formatQueryWhen', () => {
   it('formats same Taipei day with 上午/下午, unpadded hour, padded minute, no space', () => {
     assert.equal(formatQueryWhen('2026-09-07T16:05:00.000Z', SAME_DAY_NOW), '上午12:05');
@@ -19,9 +26,11 @@ describe('formatQueryWhen', () => {
   });
 
   it('splits Taipei midnight into different calendar days', () => {
-    const now = new Date('2026-09-07T16:00:00.000Z');
-    assert.equal(formatQueryWhen('2026-09-07T15:59:59.000Z', now), '下午11:59');
-    assert.equal(formatQueryWhen('2026-09-07T16:00:00.000Z', now), '上午12:00');
+    const beforeMidnight = new Date('2026-09-07T15:00:00.000Z'); // Taipei 23:00 on 09/07
+    const afterMidnight = new Date('2026-09-07T16:00:00.000Z'); // Taipei 00:00 on 09/08
+    assert.equal(formatQueryWhen('2026-09-07T15:59:59.000Z', beforeMidnight), '下午11:59');
+    assert.equal(formatQueryWhen('2026-09-07T15:59:59.000Z', afterMidnight), '09/07');
+    assert.equal(formatQueryWhen('2026-09-07T16:00:00.000Z', afterMidnight), '上午12:00');
   });
 
   it('uses zero-padded MM/DD for a different Taipei day', () => {
@@ -37,19 +46,19 @@ describe('formatQueryWhen', () => {
   });
 
   it('returns the same string under UTC, New York, and Taipei timezones', () => {
-    const queryFeedPath = fileURLToPath(new URL('../query-feed.ts', import.meta.url));
     const iso = '2026-09-07T16:05:00.000Z';
     const nowIso = SAME_DAY_NOW.toISOString();
-    const source = `
-      import { formatQueryWhen } from ${JSON.stringify(queryFeedPath)};
-      process.stdout.write(formatQueryWhen(${JSON.stringify(iso)}, new Date(${JSON.stringify(nowIso)})));
-    `;
     const labels = ['UTC', 'America/New_York', 'Asia/Taipei'].map((tz) => {
-      const result = spawnSync(
-        process.execPath,
-        ['--import', 'tsx', '--input-type=module', '-e', source],
-        { env: { ...process.env, TZ: tz }, encoding: 'utf8' },
-      );
+      const result = spawnSync(process.execPath, ['--import', 'tsx', fileURLToPath(import.meta.url)], {
+        env: {
+          ...process.env,
+          TZ: tz,
+          FORMAT_QUERY_WHEN_TZ_PROBE: '1',
+          FORMAT_ISO: iso,
+          FORMAT_NOW: nowIso,
+        },
+        encoding: 'utf8',
+      });
       assert.equal(result.status, 0, result.stderr);
       return result.stdout;
     });
