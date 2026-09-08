@@ -55,6 +55,30 @@ export default async function ReviewInboxPage() {
                         {item.title}
                       </Link>
                       <div className="text-sm text-muted-foreground">{item.subtitle || '—'}</div>
+                      {item.lines ? (
+                        <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {item.lines.map((line, index) => {
+                            const separator = ' × ';
+                            const separatorIndex = line.lastIndexOf(separator);
+                            if (separatorIndex === -1) {
+                              return (
+                                <div key={index} className="flex items-baseline justify-between gap-3">
+                                  <span className="min-w-0 truncate">{line}</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={index} className="flex items-baseline justify-between gap-3">
+                                <span className="min-w-0 truncate">{line.slice(0, separatorIndex)}</span>
+                                <span className="shrink-0 tabular-nums">{line.slice(separatorIndex + separator.length)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {item.moreLabel ? (
+                        <div className="mt-0.5 text-xs text-muted-foreground">{item.moreLabel}</div>
+                      ) : null}
                     </div>
                     <Button asChild variant="outline" size="sm">
                       <Link href={item.href}>審核</Link>
@@ -82,11 +106,35 @@ export default async function ReviewInboxPage() {
                       <td className="px-3 py-2">
                         <Badge variant="muted">{item.kindLabel}</Badge>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="max-w-[20rem] px-3 py-2">
                         <Link href={item.href} className="font-medium text-info hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                           {item.title}
                         </Link>
                         <div className="text-muted-foreground">{item.subtitle || '—'}</div>
+                        {item.lines ? (
+                          <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                            {item.lines.map((line, index) => {
+                              const separator = ' × ';
+                              const separatorIndex = line.lastIndexOf(separator);
+                              if (separatorIndex === -1) {
+                                return (
+                                  <div key={index} className="flex items-baseline justify-between gap-3">
+                                    <span className="min-w-0 truncate">{line}</span>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div key={index} className="flex items-baseline justify-between gap-3">
+                                  <span className="min-w-0 truncate">{line.slice(0, separatorIndex)}</span>
+                                  <span className="shrink-0 tabular-nums">{line.slice(separatorIndex + separator.length)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                        {item.moreLabel ? (
+                          <div className="mt-0.5 text-xs text-muted-foreground">{item.moreLabel}</div>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant="default">{item.statusLabel}</Badge>
