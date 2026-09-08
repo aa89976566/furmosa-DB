@@ -11,8 +11,7 @@ test('smoke uses only audited GET routes, never follows redirects or sends sessi
     assert.equal(new Headers(init.headers).has('cookie'), false);
     paths.push(url.pathname);
     const headers = { 'cache-control': 'no-store' };
-    if (url.pathname.endsWith('/live')) return Response.json({ status: 'ok' }, { headers });
-    if (url.pathname.endsWith('/ready')) return Response.json({ status: 'ok', database: 'ok', latencyMs: 1, timestamp: new Date().toISOString() }, { headers });
+    if (url.pathname === '/api/health') return Response.json({ ok: true, service: 'furmosa-hq' }, { headers });
     if (url.pathname === '/login') return new Response('Furmosa HQ <input type="password">');
     if (url.pathname === '/pos/login') return new Response('Furmosa POS <input type="password">');
     if (url.pathname === '/orders') return new Response(null, { status: 307, headers: { location: '/login' } });
@@ -20,7 +19,9 @@ test('smoke uses only audited GET routes, never follows redirects or sends sessi
     return new Response(null, { status: 401 });
   } });
   assert.equal(report.ok, true);
-  assert.deepEqual(paths, ['/api/health/live', '/api/health/ready', '/login', '/pos/login', '/orders', '/pos', '/api/merchant/refill-orders']);
+  assert.deepEqual(paths, ['/api/health', '/login', '/pos/login', '/orders', '/pos', '/api/merchant/refill-orders']);
+  assert.equal(paths.includes('/api/health/live'), false);
+  assert.equal(paths.includes('/api/health/ready'), false);
 });
 
 test('smoke fails closed for redirects, failures, and secret-bearing origins', async () => {
