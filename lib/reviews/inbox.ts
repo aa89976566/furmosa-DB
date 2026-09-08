@@ -17,7 +17,79 @@ export type ReviewInboxItem = {
   href: string;
   createdAt: Date;
   statusLabel: string;
+  lines?: string[];
+  moreLabel?: string;
 };
+
+const MAX_LINES = 6;
+
+export type RestockReviewSummaryInput = {
+  itemCount: number;
+  requestType: string;
+  merchantNote: string | null;
+  items: { name: string; quantity: number | null }[];
+};
+
+export function restockReviewSummary(
+  input: RestockReviewSummaryInput,
+): {
+  title: string;
+  subtitleExtra?: string;
+  lines?: string[];
+  moreLabel?: string;
+} {
+  const validItems: { name: string; quantity: number | null }[] = [];
+  for (const item of input.items) {
+    const name = item.name.trim();
+    if (!name) continue;
+    validItems.push({ name, quantity: item.quantity });
+  }
+
+  const displayText = (item: { name: string; quantity: number | null }) =>
+    item.quantity != null ? `${item.name} × ${item.quantity}` : item.name;
+
+  const moreLabelFor = (lines: string[] | undefined) => {
+    if (!lines) return undefined;
+    if (input.itemCount > lines.length) return `…另 ${input.itemCount - lines.length} 項`;
+    return undefined;
+  };
+
+  if (input.itemCount >= 1 && validItems.length >= 1) {
+    if (input.itemCount === 1) {
+      return { title: displayText(validItems[0]!) };
+    }
+    const lines = validItems.slice(0, MAX_LINES).map(displayText);
+    return {
+      title: `${validItems[0]!.name} 等 ${input.itemCount} 項`,
+      lines,
+      moreLabel: moreLabelFor(lines),
+    };
+  }
+
+  if (input.itemCount >= 1) {
+    return {
+      title: input.itemCount === 1 ? '補貨申請' : `補貨申請 等 ${input.itemCount} 項`,
+    };
+  }
+
+  if (input.requestType === 'AUTO_REPLENISH') {
+    const cleaned = (input.merchantNote ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const lines = ['店家未列品項，請看店家備註'];
+    return {
+      title: '請幫我配',
+      subtitleExtra: cleaned || undefined,
+      lines,
+      moreLabel: moreLabelFor(lines),
+    };
+  }
+
+  const lines = ['此申請沒有品項，請開啟明細確認'];
+  return {
+    title: '補貨申請（無品項）',
+    lines,
+    moreLabel: moreLabelFor(lines),
+  };
+}
 
 const KIND_LABEL: Record<ReviewKind, string> = {
   shopify_order: 'Shopify 訂單',
@@ -91,27 +163,47 @@ async function loadPendingRestocks(): Promise<ReviewInboxItem[]> {
       id: true,
       status: true,
       createdAt: true,
+      requestType: true,
+      merchantNote: true,
       merchant: { select: { name: true } },
-      items: { select: { product: { select: { name: true } } }, take: 3 },
+      // 顯示品項數只能來自 `_count.items`，禁止由截斷後的 `items.length` 推導。
+      _count: { select: { items: true } },
+      items: {
+        select: { requestedQuantity: true, product: { select: { name: true } } },
+        // 巢狀 items 必須有穩定 orderBy。
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 6,
+      },
     },
     orderBy: { createdAt: 'desc' },
     take: 40,
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    kind: 'restock',
-    kindLabel: KIND_LABEL.restock,
-    title: row.items[0]?.product.name
-      ? row.items.length > 1
-        ? `${row.items[0].product.name} 等 ${row.items.length} 項`
-        : row.items[0].product.name
-      : '補貨申請',
-    subtitle: row.merchant.name,
-    href: `/restock-requests/${row.id}`,
-    createdAt: row.createdAt,
-    statusLabel: restockStatusLabelForHq(row.status),
-  }));
+  return rows.map((row) => {
+    const summary = restockReviewSummary({
+      itemCount: row._count.items,
+      requestType: row.requestType,
+      merchantNote: row.merchantNote,
+      items: row.items.map((item) => ({
+        name: item.product.name,
+        quantity: item.requestedQuantity,
+      })),
+    });
+    return {
+      id: row.id,
+      kind: 'restock',
+      kindLabel: KIND_LABEL.restock,
+      title: summary.title,
+      subtitle: [row.merchant.name, summary.subtitleExtra]
+        .filter(Boolean)
+        .join(' · '),
+      href: `/restock-requests/${row.id}`,
+      createdAt: row.createdAt,
+      statusLabel: restockStatusLabelForHq(row.status),
+      lines: summary.lines,
+      moreLabel: summary.moreLabel,
+    };
+  });
 }
 
 async function loadPendingUgc(): Promise<ReviewInboxItem[]> {
