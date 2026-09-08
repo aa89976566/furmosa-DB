@@ -1,6 +1,7 @@
 import type { PromotionSummaryView } from '@/lib/orders/fulfillment-plan';
+import { OmsPromotionResync } from './oms-promotion-resync';
 
-export function OmsPromotionSummary({ summary }: { summary: PromotionSummaryView }) {
+export function OmsPromotionSummary({ summary, orderId }: { summary: PromotionSummaryView; orderId: string }) {
   const unknown = !summary.determinate;
   const row = (label: string, value: number | null) => (
     <p className="flex justify-between gap-3 text-sm">
@@ -14,6 +15,7 @@ export function OmsPromotionSummary({ summary }: { summary: PromotionSummaryView
     {summary.details.map(detail => (
       <p key={detail} className="text-sm text-warning">{detail}</p>
     ))}
+    {summary.reason === 'MISSING_CAPTURE' ? <OmsPromotionResync orderId={orderId} /> : null}
     {row('購買', summary.purchaseQuantity)}
     {row('活動贈品', summary.campaignGiftQuantity)}
     {row('其他贈品', summary.otherGiftQuantity)}
