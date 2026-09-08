@@ -27,9 +27,9 @@ export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
-    <div className="flex gap-2 overflow-hidden">
+    <div className="flex flex-wrap gap-2">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-10 w-28 shrink-0 animate-pulse rounded-xl bg-muted/40" />
+        <div key={i} className="h-10 w-24 animate-pulse rounded-xl bg-muted/40 sm:w-28" />
       ))}
     </div>
   );
@@ -65,10 +65,10 @@ async function OrdersWorkSummary({ active }: { active: string }) {
     { key: 'shipping', label: '待交寄', count: Number(summary?.shipping ?? 0), help: '物流單已建立' },
     { key: 'done', label: '已完成', count: Number(summary?.done ?? 0) },
   ];
-  return <nav aria-label="訂單工作階段" className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-    <div className="flex min-w-max gap-2">
-      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
-        <span>{card.label}</span><span className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
+  return <nav aria-label="訂單工作階段">
+    <div className="flex flex-wrap gap-2">
+      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border px-2.5 text-sm font-medium transition sm:gap-2 sm:px-3.5 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
+        <span>{card.label}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
       </Link>)}
     </div>
   </nav>;
