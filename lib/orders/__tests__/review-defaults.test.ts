@@ -14,7 +14,7 @@ function snapshot(overrides: Record<string, unknown> = {}): Snapshot {
   } as never };
 }
 
-const frozen = { id: 'p1', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' };
+const frozen = { id: 'p1', name: '冷凍商品', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' };
 
 test('Shopify 配送 code 與商品主檔可自動填入正常宅配訂單', () => {
   const draft = defaultReviewDraft(snapshot(), [frozen]);
@@ -39,9 +39,24 @@ test('SKU 無符合或多筆符合時不猜商品', () => {
   const source = snapshot();
   assert.equal(defaultReviewDraft(source, []).lines[0]?.productId, '');
   assert.equal(defaultReviewDraft(source, [
-    { id: 'p1', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' },
-    { id: 'p2', sku: 'OTHER', sourceSku: 'SKU-FROZEN', defaultTemperature: 'ambient' },
+    { id: 'p1', name: '冷凍商品 A', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' },
+    { id: 'p2', name: '冷凍商品 B', sku: 'OTHER', sourceSku: 'SKU-FROZEN', defaultTemperature: 'ambient' },
   ]).lines[0]?.productId, '');
+});
+
+test('月餅即使 Shopify 沒有 SKU，也沿用共用商品識別自動對應 HQ 商品與溫層', () => {
+  const source = snapshot({
+    line_items: [{ title: '牠的月餅｜地瓜山藥雞肉月餅 50g', sku: '', quantity: 10, price: '79.00' }],
+    total_price: '790.00',
+  });
+  const mooncake = {
+    id: 'p-mooncake', name: '地瓜山藥雞肉月餅', sku: 'CK-08', sourceSku: 'CK-08',
+    defaultTemperature: 'frozen',
+  };
+  const draft = defaultReviewDraft(source, [mooncake]);
+  assert.deepEqual(draft.lines, [{ productId: 'p-mooncake', temperature: 'frozen' }]);
+  assert.equal(reviewLineDisplays(source, [mooncake], draft, null)[0]?.mappingKind, 'auto');
+  assert.equal(reviewLineDisplays(source, [mooncake], draft, null)[0]?.quantityLabel, '×10');
 });
 
 test('未知配送方式不自行默認', () => {
@@ -95,21 +110,21 @@ test('只有空白字元的舊電話會補值並顯示已套用提示', () => {
 test('唯一 sku 或 sourceSku 可自動帶入，同商品兩欄命中仍只算一筆', () => {
   assert.equal(defaultReviewDraft(snapshot(), [frozen]).lines[0]?.productId, 'p1');
   assert.equal(defaultReviewDraft(snapshot(), [
-    { id: 'p1', sku: 'HQ-1', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
+    { id: 'p1', name: '冷凍商品', sku: 'HQ-1', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
   ]).lines[0]?.productId, 'p1');
   assert.equal(defaultReviewDraft(snapshot(), [
-    { id: 'p1', sku: 'SKU-FROZEN', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
+    { id: 'p1', name: '冷凍商品', sku: 'SKU-FROZEN', sourceSku: 'SKU-FROZEN', defaultTemperature: 'frozen' },
   ]).lines[0]?.productId, 'p1');
   assert.equal(skuMatchingProducts('SKU-FROZEN', [
     { id: 'p1', sku: 'SKU-FROZEN', sourceSku: 'SKU-FROZEN' },
   ]).length, 1);
 });
 
-test('空 SKU、無匹配與大小寫不同都不自動帶入', () => {
-  assert.equal(defaultReviewDraft(snapshot({ line_items: [{ title: '無 SKU', sku: '', quantity: 1, price: '100.00' }] }), [frozen]).lines[0]?.productId, '');
+test('空 SKU 無可靠標題、無匹配與大小寫不同都不自動帶入', () => {
+  assert.equal(defaultReviewDraft(snapshot({ line_items: [{ title: '無法辨識商品', sku: '', quantity: 1, price: '100.00' }] }), [frozen]).lines[0]?.productId, '');
   assert.equal(defaultReviewDraft(snapshot({ line_items: [{ title: '其他', sku: 'NO-MATCH', quantity: 1, price: '100.00' }] }), [frozen]).lines[0]?.productId, '');
   assert.equal(defaultReviewDraft(snapshot(), [
-    { id: 'p1', sku: 'sku-frozen', sourceSku: 'sku-frozen', defaultTemperature: 'frozen' },
+    { id: 'p1', name: '不同名稱', sku: 'sku-frozen', sourceSku: 'sku-frozen', defaultTemperature: 'frozen' },
   ]).lines[0]?.productId, '');
   assert.deepEqual(skuMatchingProducts('', [frozen]), []);
 });
@@ -138,7 +153,7 @@ test('新 draft 唯一匹配為 auto；已保存相同不是 auto；衝突保留
   assert.match(conflict?.conflictMessage ?? '', /不同/);
   assert.equal(savedOther.lines[0]?.productId, 'old');
 
-  const emptySku = snapshot({ line_items: [{ title: '無 SKU', sku: '', quantity: 2, price: '100.00' }] });
+  const emptySku = snapshot({ line_items: [{ title: '無法辨識商品', sku: '', quantity: 2, price: '100.00' }] });
   const emptyDraft = defaultReviewDraft(emptySku, [frozen]);
   assert.equal(reviewLineDisplays(emptySku, [frozen], emptyDraft, null)[0]?.mappingKind, 'select');
 
