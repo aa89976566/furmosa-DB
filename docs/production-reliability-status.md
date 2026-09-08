@@ -1,51 +1,48 @@
-# Production Reliability — 2026-09-07
+# Production Reliability — 2026-09-08
 
-Status: **NOT READY TO DEPLOY**. PR #188 remains a draft.
+Status: **CURRENT HEALTH CONTRACT ALIGNED**. The canonical public production health endpoint is `/api/health` only. The DB-backed public readiness experiment from PR #188 is historical and was superseded by the #201/#204 security hardening.
 
 ## Verified work
 
-- Health readiness accepts the same three DB URL names as Prisma and rejects blank settings.
-- Readiness uses a 2-second HTTP timeout with one shared outstanding SELECT 1 per process. Timeout does not cancel SQL; unresolved work remains shared until settlement. No restart is triggered.
-- Claude reviewed the two health files at `1981e046` and returned NO BLOCKER: https://github.com/aa89976566/furmosa-DB/pull/188#issuecomment-5571243477
-- CI run 34124762778 at `1981e046`: 818/818 tests, Prisma validation, isolated PostgreSQL migrations, typecheck and build passed. Subsequent commits require fresh CI.
-- CI build uses production NODE_ENV; test NODE_ENV is scoped to the test step.
-- Removed default refill image paths are mapped during reads. Custom URLs and stored data are untouched.
-- Fifteen previously omitted route/middleware tests passed with Node's type-stripping runner and are now included in npm test. They cannot use the existing tsx CommonJS runner because their harness uses top-level await.
-- Railway restart policy was set to ON_FAILURE, max 3, for the next deployment. No deployment or restart was triggered.
-- Production baseline: `/api/health`, `/login`, `/pos/login` returned 200; `/orders`, `/pos` returned the expected login redirects; `/api/merchant/refill-orders` returned 401. This does not verify authenticated business reads.
+- `/api/health` is intentionally public liveness only: no auth, DB, Prisma, env or network access.
+- PR #204 removed the public DB-backed `/api/health/ready` route and narrowed the middleware exemption to exact `/api/health`.
+- Railway production uses `healthcheckPath=/api/health` with a 60-second timeout. Railway healthchecks gate deployments by requiring a successful 2xx response before traffic is switched: https://docs.railway.com/deployments/healthchecks
+- Railway `source.checkSuites` is enabled for the production service.
+- Production smoke covers `/api/health`, `/login`, `/pos/login`, expected unauthenticated redirects for `/orders` and `/pos`, and the 401 authorization gate for `/api/merchant/refill-orders`. This does not verify authenticated business reads.
+- The smoke script uses only fixed audited GET routes, never follows redirects, never sends sessions and never records response bodies or exception contents.
 
-## Platform blockers
+## Platform blockers / guardrails
 
-1. Main branch protection form is prepared: require PR, require GitHub Actions `verify`, require up-to-date branch, disallow admin bypass. Saving stopped at GitHub Confirm access. The rule is **not confirmed saved**.
-2. Railway `source.checkSuites` remains false. The browser's Wait for CI control is disabled; the connected service update tool cannot change source settings. Enable and verify it using an account with edit access before deployment.
-3. Railway dashboard shows pre-existing staged changes. Inspect their exact scope before accepting an environment deployment. Do not commit unknown staged changes.
-4. Keep the platform probe at `/api/health` until the new health endpoints are in the verified deployment candidate and deployment gating is effective; switching early could reject unrelated deployments of current main.
-5. Main is changing concurrently. Fetch again, merge main into the candidate, rerun CI, and record the exact head and main SHAs immediately before any merge.
+1. `main` branch protection is not currently enforced by GitHub. Keep CI as a merge gate for automated reliability fixes and do not merge a failing PR.
+2. Railway `source.checkSuites` is enabled; preserve it.
+3. Railway currently has pre-existing staged changes. Inspect their exact scope before accepting any environment-level staged deploy; do not commit unknown staged changes as part of an incident fix.
+4. Keep the Railway platform probe at `/api/health`. Do not attach `/api/health/live` or `/api/health/ready`, and do not add a public DB query to satisfy deployment readiness.
+5. Main may change concurrently. Refresh main/head SHAs and CI state immediately before merge.
 
 ## Remaining phases
 
-- Phase 2: complete platform gate and readiness attachment, verify rollback availability.
-- Phase 4: read-only smoke script prepared; authenticated POS and order read verification remains required using existing authorized sessions, without creating accounts or records.
-- Phase 5: idempotency audit is incomplete and no new business-write guard has been applied. Confirmed gaps include coupon verify-then-update without an atomic available-state predicate; point ledger append reads the previous balance without a common lock across all callers; POS quantity correction writes stock rows and its audit record outside one transaction. Manual point adjustments already use a customer row lock and requestId replay lookup. Refill order idempotency and Shopify event deduplication already exist and must be preserved. Audit actual callers and concurrency tests before changing each flow.
-- Phase 6: process crash retry limit prepared; no HTTP-error-triggered restart or autonomous recovery loop exists in this change.
-- Phase 7: core structured logging remains to be implemented; never log cookies, tokens, connection strings, raw exceptions, or customer request bodies.
-- Phase 8: post-deploy and rollback gates remain incomplete. Do not label the whole 0→8 task complete based on health/CI alone.
+- Phase 2: maintain platform gating and verify rollback availability. Public DB readiness is intentionally out of scope unless a future authoritative protected operator path is designed.
+- Phase 4: authenticated POS and order read verification still requires an existing authorized test/session path that does not create or mutate business data.
+- Phase 5: idempotency audit remains incomplete. Confirmed areas requiring separate evidence before changes include coupon verify-then-update atomicity, point-ledger locking across callers, and POS quantity correction plus audit-record transaction boundaries. Existing refill-order idempotency and Shopify event deduplication must be preserved.
+- Phase 6: process crash retry is bounded; do not add HTTP-error-triggered restart loops.
+- Phase 7: core structured logging remains to be completed; never log cookies, tokens, connection strings, raw exceptions, or customer request bodies.
+- Phase 8: post-deploy and rollback gates must remain explicit for incident fixes.
 
 ## Read-only smoke
 
 `npm run smoke:production -- https://furmosa-hq-production.up.railway.app`
 
-Use `--baseline` only before the new endpoints are deployed. Baseline success is not post-deploy success. The script uses only a fixed list of GET routes, rejects credentials in the origin, never follows redirects, never sends sessions and reports no response bodies. A redirect where health/login content is expected is a failure.
+The smoke contract always uses canonical `/api/health`. `/api/health/live` and `/api/health/ready` are not required production probes; their absence is not an incident. Do not restore a `--baseline` versus `ready` split.
 
-Do not use coupon listing as a production smoke read: the current service expires rows on read. Do not invoke cron, refill completion, login actions, webhook, payment, seed or repair operations for smoke testing.
+Do not use coupon listing as a production smoke read: the current service may expire rows on read. Do not invoke cron, refill completion, login actions, webhook, payment, seed or repair operations for smoke testing.
 
-## Deployment and rollback checklist (not yet executed)
+## Deployment and rollback checklist
 
-1. Verify current head CI and review, required branch protection, Railway Wait for CI, no schema/migration or start/predeploy data writes, and all remaining phase acceptance tests.
-2. Record the current SUCCESS deployment ID, commit SHA, settings and timestamp immediately before deploying. As of the earlier inspection, deployment `ff25a4ec-0007-4f45-82b2-81026e77af7c` ran `3dcd25f`; this is a historical observation, **not a fixed rollback target**.
-3. Confirm the prior deployment exposes Rollback in the dashboard and is within retention. Railway rollback restores an image and its custom variables; a generic redeploy is not proof of rollback capability. Reference: https://docs.railway.com/guides/roll-back-bad-deploy
-4. Attach `/api/health/ready` with a bounded startup window only when the verified candidate is ready. Apply only reviewed staged changes. Preserve one replica and avoid migrations.
-5. Verify Railway reports SUCCESS for the intended commit, run the new-endpoint smoke checks and existing-session read verification, and inspect sanitized runtime failures. Never accept a login redirect as a successful authenticated order read.
-6. If the candidate fails deployment readiness, leave the prior deployment serving. If post-deploy verification fails, use the recorded prior deployment's Rollback action, then verify its commit/status and baseline. If rollback is unavailable, stop before deployment; do not substitute unverified source rebuilds.
+1. Verify current head CI, no schema/migration or start/predeploy data writes, and the incident-specific acceptance tests.
+2. Record the current SUCCESS deployment ID, commit SHA, service healthcheck settings and timestamp immediately before deploying.
+3. Confirm a prior known-good deployment is available for rollback when the incident has meaningful runtime risk. Railway rollback guidance: https://docs.railway.com/guides/roll-back-bad-deploy
+4. Preserve `/api/health` as the deployment healthcheck. Do not introduce a public DB-readiness endpoint as part of reliability work.
+5. Verify Railway reports SUCCESS for the intended commit, run canonical read-only smoke checks, and inspect sanitized runtime/proxy errors. Never accept a login redirect as a successful authenticated business read.
+6. If post-deploy verification fails, perform at most one safe rollback to the recorded known-good deployment, verify it, and stop further automated repair attempts for that incident.
 
-No production database mutation, secret change, migration, restart, merge to main or reliability deployment has been performed by this task.
+No production database mutation, secret change, migration, seed, reset or business-data write is permitted as part of this reliability contract.
