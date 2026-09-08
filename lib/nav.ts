@@ -62,7 +62,7 @@ export const navGroups: NavGroup[] = [
     tone: 'orders',
     collapsible: true,
     items: [
-      { href: '/merchants', label: '寄賣', icon: Store },
+      { href: '/merchants', label: '店家', icon: Store },
       { href: '/restock-requests', label: '補貨', icon: Package },
       { href: '/vendors', label: '廠商', icon: Building2 },
       { href: '/inventory/transactions', label: '庫存紀錄', icon: Boxes },
