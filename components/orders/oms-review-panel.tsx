@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
+import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
@@ -13,6 +13,20 @@ const productSelect = {
   cost: true, unit: true, productCategory: true,
   priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true, cost: true } },
 } as const;
+
+function paymentSummary(source: Snapshot) {
+  const financialStatus = string(source.order.financial_status);
+  const map: Record<string, { label: string; tone: 'ready' | 'hold' | 'danger' }> = {
+    paid: { label: '已付款', tone: 'ready' },
+    pending: { label: '未付款', tone: 'hold' },
+    authorized: { label: '待請款', tone: 'hold' },
+    partially_paid: { label: '部分付款', tone: 'hold' },
+    refunded: { label: '已退款', tone: 'danger' },
+    partially_refunded: { label: '部分退款', tone: 'danger' },
+    voided: { label: '已作廢', tone: 'danger' },
+  };
+  return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
+}
 
 export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
   const sourceView = snapshotView(snapshot);
@@ -33,8 +47,6 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   const suggested = defaultReviewDraft(source, catalog);
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
   const upgraded = saved ? fillReviewDraftBlanks(saved, suggested) : { draft: suggested, applied: false };
-  // Contact data is operationally critical. Read it from the same safe source projection
-  // used by the Shopify summary when an older saved review left a field blank.
   const draft = {
     ...upgraded.draft,
     recipient: upgraded.draft.recipient.trim() || sourceView.recipient,
@@ -47,14 +59,29 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
     || (!saved.address.trim() && draft.address)
   ));
   const plan = buildFulfillmentPlan(source, draft, planProducts.map(product => ({ ...product, available: null })));
+  const payment = paymentSummary(source);
+  const shipping = Array.isArray(source.order.shipping_lines) ? source.order.shipping_lines.map(record) : [];
+  const shippingLabel = shipping.map(row => string(row.title) || string(row.code)).filter(Boolean).join('、');
+
   return <section className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
     <div className="border-b pb-4">
       <h2 className="text-lg font-semibold">處理訂單</h2>
-      <p className="mt-1 text-sm text-muted-foreground">紅色標記是目前必須完成的欄位。</p>
-      {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已在空白欄位補入 Shopify／商品主檔建議；尚未儲存，請核對後按「儲存並檢查」。</p>}
+      <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
+      {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已補入 Shopify／商品主檔資料；請確認標示為「待完成」的例外。</p>}
     </div>
     <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
       draft={draft} products={catalog} lineDisplays={reviewLineDisplays(source, catalog, draft, saved)}
-      promotionSummary={plan.display} />
+      promotionSummary={plan.display}
+      sourceSummary={{
+        paymentLabel: payment.label,
+        paymentTone: payment.tone,
+        financialStatus: payment.financialStatus,
+        total: sourceView.total,
+        currency: sourceView.currency,
+        recipient: sourceView.recipient,
+        phone: sourceView.phone,
+        address: sourceView.address,
+        shippingLabel,
+      }} />
   </section>;
 }
