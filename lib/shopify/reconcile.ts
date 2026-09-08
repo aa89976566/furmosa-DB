@@ -7,6 +7,28 @@ export type ReconcileRow = { orderId: string; outcome: string };
 export type ReconcileReport = { mode: 'inspect' | 'sync'; fetched: number; processed: number;
   complete: boolean; rows: ReconcileRow[]; auditRecorded: boolean };
 
+const SHOPIFY_ORDER_FIELDS = 'id,name,order_number,email,phone,financial_status,fulfillment_status,cancelled_at,created_at,updated_at,processed_at,currency,subtotal_price,total_discounts,total_price,customer,shipping_address,total_shipping_price_set,line_items,shipping_lines,note_attributes';
+
+function shopifyAdminConfig(config: { domain: string; token: string }) {
+  const domain = config.domain.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain) || !config.token.trim()) {
+    throw new ReconcileError('尚未設定 Shopify 管理 API 網域與讀取憑證');
+  }
+  return { domain, token: config.token };
+}
+
+async function shopifyFetch(url: URL, token: string, request: typeof fetch): Promise<Response> {
+  let response: Response;
+  try {
+    response = await request(url, { headers: { 'X-Shopify-Access-Token': token, Accept: 'application/json' },
+      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
+  } catch { throw new ReconcileError('Shopify 讀取逾時或連線失敗，尚未開始補同步'); }
+  if (response.status === 429) throw new ReconcileError('Shopify 暫時限制讀取頻率，請稍後再試');
+  if (response.status === 401 || response.status === 403) throw new ReconcileError('Shopify 讀取授權不足，請確認 read_orders 與客戶資料權限');
+  if (!response.ok) throw new ReconcileError('Shopify 讀取失敗，尚未開始補同步');
+  return response;
+}
+
 export function reconcileLimit(value: unknown) {
   const limit = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 25) throw new ReconcileError('請選擇 1～25 筆訂單');
@@ -15,22 +37,13 @@ export function reconcileLimit(value: unknown) {
 
 /** Compatibility adapter for the existing store's REST-capable custom app. No public/client token. */
 export async function fetchRecentOrders(config: { domain: string; token: string }, limit: number, request: typeof fetch = fetch): Promise<Snapshot[]> {
-  const domain = config.domain.trim().toLowerCase();
-  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain) || !config.token.trim()) throw new ReconcileError('尚未設定 Shopify 管理 API 網域與讀取憑證');
+  const { domain, token } = shopifyAdminConfig(config);
   const url = new URL(`https://${domain}/admin/api/2026-07/orders.json`);
   url.searchParams.set('status', 'any');
   url.searchParams.set('limit', String(reconcileLimit(limit)));
   url.searchParams.set('order', 'created_at desc');
-  // Match the webhook projection to avoid introducing unrelated payload differences.
-  url.searchParams.set('fields', 'id,name,order_number,email,phone,financial_status,fulfillment_status,cancelled_at,created_at,updated_at,processed_at,currency,subtotal_price,total_discounts,total_price,customer,shipping_address,total_shipping_price_set,line_items,shipping_lines,note_attributes');
-  let response: Response;
-  try {
-    response = await request(url, { headers: { 'X-Shopify-Access-Token': config.token, Accept: 'application/json' },
-      cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(8000) });
-  } catch { throw new ReconcileError('Shopify 讀取逾時或連線失敗，尚未開始補同步'); }
-  if (response.status === 429) throw new ReconcileError('Shopify 暫時限制讀取頻率，請稍後再試');
-  if (response.status === 401 || response.status === 403) throw new ReconcileError('Shopify 讀取授權不足，請確認 read_orders 與客戶資料權限');
-  if (!response.ok) throw new ReconcileError('Shopify 讀取失敗，尚未開始補同步');
+  url.searchParams.set('fields', SHOPIFY_ORDER_FIELDS);
+  const response = await shopifyFetch(url, token, request);
   try {
     const data = record(await response.json());
     if (!Array.isArray(data.orders) || data.orders.length > limit) throw new Error('INVALID_RESPONSE');
@@ -38,6 +51,25 @@ export async function fetchRecentOrders(config: { domain: string; token: string 
     if (new Set(snapshots.map(s => s.order.id)).size !== snapshots.length) throw new Error('DUPLICATE_RESPONSE');
     return snapshots;
   } catch { throw new ReconcileError('Shopify 回傳資料不完整，未開始補同步'); }
+}
+
+/** Production-safe narrow read: fetch exactly one known Shopify order by its numeric external ID. */
+export async function fetchOrderById(
+  config: { domain: string; token: string },
+  orderId: string,
+  request: typeof fetch = fetch,
+): Promise<Snapshot> {
+  const { domain, token } = shopifyAdminConfig(config);
+  if (!/^\d+$/.test(orderId) || !/[1-9]/.test(orderId)) throw new ReconcileError('Shopify 訂單編號無效');
+  const url = new URL(`https://${domain}/admin/api/2026-07/orders/${orderId}.json`);
+  url.searchParams.set('fields', SHOPIFY_ORDER_FIELDS);
+  const response = await shopifyFetch(url, token, request);
+  try {
+    const data = record(await response.json());
+    const snapshot = shopifySnapshot(data.order);
+    if (String(snapshot.order.id) !== orderId) throw new Error('WRONG_ORDER');
+    return snapshot;
+  } catch { throw new ReconcileError('Shopify 回傳的指定訂單資料不完整'); }
 }
 
 export async function reconcileRecentOrders(input: { actorId: string; mode: 'inspect' | 'sync'; limit: number }, deps: {

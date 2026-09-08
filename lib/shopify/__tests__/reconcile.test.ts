@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { fetchRecentOrders, reconcileLimit, reconcileRecentOrders } from '../reconcile';
-import { shopifySnapshot } from '../intake-policy';
+import { fetchOrderById, fetchRecentOrders, reconcileLimit, reconcileRecentOrders } from '../reconcile';
+import { hasPromotionCapture, shopifySnapshot } from '../intake-policy';
 
 const raw = { id: '123', name: '#123', financial_status: 'pending', updated_at: '2026-08-30T00:00:00Z', line_items: [{ title: '未知商品', quantity: 1 }] };
 const snapshot = shopifySnapshot(raw);
@@ -65,18 +65,55 @@ describe('Shopify manual reconcile', () => {
     assert.equal(result[0].order.financial_status, 'pending');
     await assert.rejects(fetchRecentOrders({ domain: 'test.myshopify.com.evil.test', token: 'TEST' }, 10), /尚未設定/);
   });
+  it('fetches exactly one configured Shopify order for narrow promotion resync', async () => {
+    const source = {
+      ...raw,
+      id: '987654321',
+      line_items: [{
+        title: '牠的月餅｜地瓜山藥雞肉月餅 50g', sku: 'CK-08', variant_id: 64368368517497,
+        quantity: 10, price: '79.00', total_discount: '0.00', properties: [],
+      }],
+      note_attributes: [],
+    };
+    const result = await fetchOrderById({ domain: 'test.myshopify.com', token: 'TEST_TOKEN' }, '987654321', async (input, init) => {
+      const url = new URL(String(input));
+      assert.equal(url.origin, 'https://test.myshopify.com');
+      assert.equal(url.pathname, '/admin/api/2026-07/orders/987654321.json');
+      assert.ok(url.searchParams.get('fields')?.includes('line_items'));
+      assert.equal(init?.redirect, 'error'); assert.equal(init?.cache, 'no-store');
+      return Response.json({ order: source });
+    });
+    assert.equal(String(result.order.id), '987654321');
+    assert.equal(hasPromotionCapture(result), true);
+    const line = Array.isArray(result.order.line_items) ? result.order.line_items[0] as any : null;
+    assert.equal(line?.variant_id, '64368368517497');
+    assert.equal(line?.quantity, 10);
+  });
+  it('targeted fetch rejects invalid IDs and wrong-order responses', async () => {
+    for (const id of ['', 'abc', '0', '-1', '1/2']) {
+      await assert.rejects(fetchOrderById({ domain: 'test.myshopify.com', token: 'TEST' }, id, async () => Response.json({ order: raw })), /訂單編號無效/);
+    }
+    await assert.rejects(fetchOrderById({ domain: 'test.myshopify.com', token: 'TEST' }, '999',
+      async () => Response.json({ order: raw })), /指定訂單資料不完整/);
+  });
   it('fails closed on API errors, malformed IDs and duplicate batches', async () => {
     for (const status of [401, 403, 429, 500]) await assert.rejects(fetchRecentOrders({ domain: 'test.myshopify.com', token: 'TEST' }, 10,
       async () => new Response('PRIVATE_TOKEN_RESPONSE', { status })), error => !String(error).includes('PRIVATE_TOKEN_RESPONSE'));
     for (const orders of [[{ id: 9007199254740992 }], [raw, raw], null]) await assert.rejects(fetchRecentOrders({ domain: 'test.myshopify.com', token: 'TEST' }, 10,
       async () => Response.json({ orders })), /回傳資料不完整/);
   });
-  it('keeps mutations behind Next server action, admin role and disabled-by-default test gate', () => {
+  it('keeps broad mutations test-only while targeted production resync stays admin and reason scoped', () => {
     const action = readFileSync('app/(main)/orders/reconcile-actions.ts', 'utf8');
     assert.match(action, /'use server'/); assert.match(action, /getCurrentUser/);
     assert.match(action, /SHOPIFY_RECONCILE_TEST_MODE !== 'true'/); assert.match(action, /VERCEL_ENV === 'production'/);
-    assert.match(action, /role === 'admin'/);
+    assert.match(action, /role !== 'admin'/);
+    assert.match(action, /resolvePromotion\(current\)\.reason !== 'MISSING_CAPTURE'/);
+    assert.match(action, /fetchOrderById/);
+    assert.match(action, /origin: 'reconcile'/);
     const form = readFileSync('components/orders/shopify-reconcile-form.tsx', 'utf8');
+    const targeted = readFileSync('components/orders/oms-promotion-resync.tsx', 'utf8');
     assert.doesNotMatch(form, /process\.env|SHOPIFY_ADMIN_ACCESS_TOKEN/);
+    assert.doesNotMatch(targeted, /process\.env|SHOPIFY_ADMIN_ACCESS_TOKEN/);
+    assert.match(targeted, /只重新讀取這一張 Shopify 訂單/);
   });
 });
