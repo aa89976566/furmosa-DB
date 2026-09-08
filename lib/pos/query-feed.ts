@@ -6,6 +6,7 @@ export type QueryFeedItem = {
   id: string;
   kind: QueryKind;
   at: string;
+  whenLabel: string;
   title: string;
   subtitle: string;
   status: string;
@@ -13,19 +14,43 @@ export type QueryFeedItem = {
   searchText: string;
 };
 
+/** Taipei has had no DST since 1979; safe for this POS data (2024+). */
+const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 function sameSecondKey(date: Date): string {
   return String(Math.floor(date.getTime() / 1000));
 }
 
-function formatWhen(date: Date, now = new Date()): string {
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  if (sameDay) {
-    return date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+function isValidDate(value: Date): boolean {
+  return !Number.isNaN(value.getTime());
+}
+
+function taipeiParts(date: Date) {
+  const shifted = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+  };
+}
+
+function formatTaipeiClock(hour: number, minute: number): string {
+  const period = hour < 12 ? '上午' : '下午';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${period}${hour12}:${String(minute).padStart(2, '0')}`;
+}
+
+export function formatQueryWhen(iso: string, now: Date): string {
+  const date = new Date(iso);
+  if (!isValidDate(date) || !isValidDate(now)) return '—';
+  const at = taipeiParts(date);
+  const current = taipeiParts(now);
+  if (at.year === current.year && at.month === current.month && at.day === current.day) {
+    return formatTaipeiClock(at.hour, at.minute);
   }
-  return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
+  return `${String(at.month).padStart(2, '0')}/${String(at.day).padStart(2, '0')}`;
 }
 
 export function groupSaleLines(
@@ -36,6 +61,7 @@ export function groupSaleLines(
     unitPrice: number | null;
     productName: string;
   }[],
+  now: Date,
 ): QueryFeedItem[] {
   const groups = new Map<string, typeof rows>();
   for (const row of rows) {
@@ -53,10 +79,12 @@ export function groupSaleLines(
       (sum, l) => sum + Math.abs(l.quantity) * (l.unitPrice ?? 0),
       0,
     );
+    const atIso = at.toISOString();
     return {
       id: `sale-${key}`,
       kind: 'sale' as const,
-      at: at.toISOString(),
+      at: atIso,
+      whenLabel: formatQueryWhen(atIso, now),
       title: names,
       subtitle: formatCurrency(total),
       status: '已完成',
@@ -64,10 +92,6 @@ export function groupSaleLines(
       searchText: `${names} ${total}`.toLowerCase(),
     };
   });
-}
-
-export function formatQueryWhen(iso: string, now = new Date()): string {
-  return formatWhen(new Date(iso), now);
 }
 
 export function filterQueryFeed(

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { findRestockShipmentsAlreadyPosted } from '@/lib/merchant-restock-inventory';
 
 export type MerchantEvent = {
   id: string;
@@ -18,6 +19,47 @@ type ShipmentSummary = {
   updatedAt: Date;
   items: Array<{ productName: string; quantity: number }>;
 };
+
+export type DirectRestockShipment = {
+  id: string;
+  shipmentNumber: string;
+  status: string;
+  deliveredAt: Date | null;
+  updatedAt: Date;
+  items: Array<{ id: string; productName: string; quantity: number }>;
+};
+
+export async function loadDirectRestockShipments(
+  merchantId: string,
+  options: {
+    statuses?: string[];
+    take: number;
+    order: 'newest' | 'oldest';
+  },
+): Promise<DirectRestockShipment[]> {
+  return prisma.shipment.findMany({
+    where: {
+      merchantId,
+      type: 'merchant_restock',
+      restockRequest: null,
+      ...(options.statuses ? { status: { in: options.statuses } } : {}),
+    },
+    // oldest: Postgres ASC is NULLS LAST; newest keeps existing notifications order.
+    orderBy:
+      options.order === 'oldest'
+        ? [{ deliveredAt: 'asc' }, { shipmentNumber: 'asc' }]
+        : { updatedAt: 'desc' },
+    take: options.take,
+    select: {
+      id: true,
+      shipmentNumber: true,
+      status: true,
+      deliveredAt: true,
+      updatedAt: true,
+      items: { select: { id: true, productName: true, quantity: true } },
+    },
+  });
+}
 
 function itemSummary(items: Array<{ productName: string; quantity: number }>) {
   if (items.length === 0) return '尚未加入出貨品項';
@@ -109,19 +151,20 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
         },
       },
     }),
-    prisma.shipment.findMany({
-      where: { merchantId, type: 'merchant_restock', restockRequest: null },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        shipmentNumber: true,
-        status: true,
-        updatedAt: true,
-        items: { select: { productName: true, quantity: true } },
-      },
-    }),
+    loadDirectRestockShipments(merchantId, { take: 50, order: 'newest' }),
   ]);
+
+  let postedDirectIds = new Set<string>();
+  try {
+    const evidence = await findRestockShipmentsAlreadyPosted(
+      prisma,
+      merchantId,
+      directShipments,
+    );
+    postedDirectIds = evidence.posted;
+  } catch (error) {
+    console.error('[pos] loadMerchantEvents:directEvidence', error);
+  }
 
   const requestEvents = requests.map<MerchantEvent>((request) => {
     const isApproveOrConvert =
@@ -171,9 +214,18 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
 
   return [
     ...requestEvents,
-    ...directShipments.map((shipment) =>
-      shipmentEvent(shipment, `/pos/shipments/${shipment.id}`),
-    ),
+    ...directShipments.map((shipment) => {
+      const event = shipmentEvent(shipment, `/pos/shipments/${shipment.id}`);
+      if (shipment.status === 'delivered' && postedDirectIds.has(shipment.id)) {
+        return {
+          ...event,
+          title: '商品已送達',
+          statusLabel: '已送達（庫存已入帳）',
+          actionRequired: false,
+        };
+      }
+      return event;
+    }),
   ]
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
     .slice(0, 50);

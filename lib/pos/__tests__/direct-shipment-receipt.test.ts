@@ -91,6 +91,8 @@ type World = {
   stockWrites: Array<Record<string, unknown>>;
   txnWrites: Array<Record<string, unknown>>;
   postedItemIds: string[];
+  evidenceNotes: Array<string | null>;
+  failEvidence: boolean;
 };
 
 function createWorld(overrides: Partial<ShipmentRow> = {}): World {
@@ -101,6 +103,8 @@ function createWorld(overrides: Partial<ShipmentRow> = {}): World {
     stockWrites: [],
     txnWrites: [],
     postedItemIds: [],
+    evidenceNotes: [],
+    failEvidence: false,
   };
 }
 
@@ -151,8 +155,10 @@ function makeShipmentDelegate() {
           id: world.shipment.id,
           shipmentNumber: world.shipment.shipmentNumber,
           status: world.shipment.status,
+          deliveredAt: world.shipment.deliveredAt,
           updatedAt: world.shipment.updatedAt,
           items: world.shipment.items.map((item) => ({
+            id: item.id,
             productName: item.productName,
             quantity: item.quantity,
           })),
@@ -222,6 +228,9 @@ const harness = globalThis as typeof globalThis & {
     restockRequest: {
       findMany: (args: { where: { merchantId: string } }) => Promise<unknown[]>;
     };
+    merchantStockTxn: {
+      findMany: (args: { where?: Record<string, unknown> }) => Promise<unknown[]>;
+    };
   };
   __TEST_SESSION__: {
     merchantId: string;
@@ -272,6 +281,18 @@ harness.__TEST_PRISMA__ = {
               }
             : null,
         })),
+  },
+  merchantStockTxn: {
+    findMany: async ({ where }: { where?: Record<string, unknown> }) => {
+      if (world.failEvidence) throw new Error('evidence failed');
+      if (where?.shipmentItemId) {
+        return world.postedItemIds.map((shipmentItemId) => ({ shipmentItemId }));
+      }
+      if (where?.OR || where?.note) {
+        return world.evidenceNotes.map((note) => ({ note }));
+      }
+      return [];
+    },
   },
 };
 
@@ -525,5 +546,24 @@ describe('HQ 直接 merchant_restock 出貨 POS 入口', () => {
     const direct = events.find((event) => event.id === 'shipment-shipment-1');
     assert.equal(linked?.href, '/pos/restock/request-9');
     assert.equal(direct?.href, '/pos/shipments/shipment-1');
+  });
+
+  it('真正未入庫的直送單仍可收貨；已入庫不重複', async () => {
+    world = createWorld();
+    harness.__TEST_SESSION__ = {
+      merchantId: 'merchant-1',
+      merchantUserId: 'merchant-user-1',
+      username: 'store01',
+    };
+    harness.__TEST_REDIRECTS__ = [];
+
+    const events = await loadMerchantEvents('merchant-1');
+    assert.equal(events.find((event) => event.id === 'shipment-shipment-1')?.actionRequired, true);
+
+    const first = await runAction(formDataWith('shipment-1'));
+    assert.equal(first, '/pos/shipments/shipment-1?receipt=just_received');
+    const second = await runAction(formDataWith('shipment-1'));
+    assert.equal(second, '/pos/shipments/shipment-1?receipt=already_received');
+    assert.equal(world.txnWrites.length, 2);
   });
 });

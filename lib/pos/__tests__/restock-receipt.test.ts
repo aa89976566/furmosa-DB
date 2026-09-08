@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   applyMerchantRestockFromShipment,
+  findRestockShipmentsAlreadyPosted,
   validateRestockReceiptShipment,
 } from '@/lib/merchant-restock-inventory';
 
@@ -230,5 +231,91 @@ describe('店家補貨確認收貨入庫', () => {
       /不存在的商品/,
     );
     assert.equal(missingProduct.stockWrites.length, 0);
+  });
+});
+
+describe('findRestockShipmentsAlreadyPosted', () => {
+  const directs = [
+    {
+      id: 'ship-1',
+      shipmentNumber: 'SHP-TEST-0001',
+      items: [
+        { id: 'item-1', quantity: 2 },
+        { id: 'item-2', quantity: 3 },
+      ],
+    },
+  ];
+
+  function evidenceDb(options: {
+    itemTxns?: Array<{ shipmentItemId: string }>;
+    noteTxns?: Array<{ note: string }>;
+  }) {
+    const wheres: Array<Record<string, unknown>> = [];
+    return {
+      wheres,
+      db: {
+        merchantStockTxn: {
+          findMany: async ({ where }: { where: Record<string, unknown> }) => {
+            wheres.push(where);
+            if (where.shipmentItemId) return options.itemTxns ?? [];
+            return options.noteTxns ?? [];
+          },
+        },
+      },
+    };
+  }
+
+  it('marks a shipment posted only when every positive item has a txn', async () => {
+    const { db, wheres } = evidenceDb({
+      itemTxns: [{ shipmentItemId: 'item-1' }, { shipmentItemId: 'item-2' }],
+    });
+    const result = await findRestockShipmentsAlreadyPosted(db, 'merchant-1', directs);
+    assert.equal(result.posted.has('ship-1'), true);
+    assert.equal(result.ambiguous.has('ship-1'), false);
+    assert.equal(wheres.length, 2);
+    assert.equal(wheres[0]?.merchantId, 'merchant-1');
+    assert.equal(wheres[1]?.merchantId, 'merchant-1');
+  });
+
+  it('marks partial item txn as ambiguous and still actionable', async () => {
+    const { db } = evidenceDb({ itemTxns: [{ shipmentItemId: 'item-1' }] });
+    const result = await findRestockShipmentsAlreadyPosted(db, 'merchant-1', directs);
+    assert.equal(result.posted.has('ship-1'), false);
+    assert.equal(result.ambiguous.has('ship-1'), true);
+  });
+
+  it('does not treat zero-positive-item shipments as posted', async () => {
+    const { db } = evidenceDb();
+    const result = await findRestockShipmentsAlreadyPosted(db, 'merchant-1', [
+      { id: 'ship-zero', shipmentNumber: 'SHP-ZERO-0001', items: [{ id: 'item-z', quantity: 0 }] },
+    ]);
+    assert.equal(result.posted.has('ship-zero'), false);
+    assert.equal(result.ambiguous.has('ship-zero'), false);
+  });
+
+  it('treats an exact legacy note as posted', async () => {
+    const { db } = evidenceDb({
+      noteTxns: [{ note: '來自出貨單 SHP-TEST-0001' }],
+    });
+    const result = await findRestockShipmentsAlreadyPosted(db, 'merchant-1', directs);
+    assert.equal(result.posted.has('ship-1'), true);
+  });
+
+  it('treats an ambiguous legacy note as ambiguous', async () => {
+    const { db } = evidenceDb({
+      noteTxns: [{ note: '[來源] 出貨紀錄（備註：SHP-TEST-0001）' }],
+    });
+    const result = await findRestockShipmentsAlreadyPosted(db, 'merchant-1', directs);
+    assert.equal(result.posted.has('ship-1'), false);
+    assert.equal(result.ambiguous.has('ship-1'), true);
+  });
+
+  it('only accepts direct-shaped shipments and scopes both queries by merchantId', async () => {
+    const { db, wheres } = evidenceDb({
+      itemTxns: [{ shipmentItemId: 'item-1' }, { shipmentItemId: 'item-2' }],
+    });
+    await findRestockShipmentsAlreadyPosted(db, 'merchant-1', directs);
+    assert.equal(wheres.every((where) => where.merchantId === 'merchant-1'), true);
+    assert.ok(!('restockRequestId' in directs[0]!));
   });
 });

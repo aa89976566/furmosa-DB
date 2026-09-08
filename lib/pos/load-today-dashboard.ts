@@ -1,4 +1,9 @@
 import { prisma } from '@/lib/prisma';
+import { findRestockShipmentsAlreadyPosted } from '@/lib/merchant-restock-inventory';
+import {
+  loadDirectRestockShipments,
+  type DirectRestockShipment,
+} from '@/lib/pos/load-merchant-events';
 import {
   buildHomeTaskCards,
   isInventoryReliable,
@@ -13,6 +18,8 @@ const OPEN_RESTOCK_STATUSES = [
   'approved',
   'converted_to_shipment',
 ] as const;
+
+const RECEIPT_TAKE = 20;
 
 export type LoadedHomeTasks = {
   cards: HomeTaskCard[];
@@ -39,9 +46,29 @@ function settledValue<T>(result: PromiseSettledResult<T>, label: string): T | nu
   return null;
 }
 
+type ReceiptCandidate = {
+  shipmentId: string | null;
+  shipmentNumber: string | null;
+  deliveredAt: Date | null;
+  href: string;
+};
+
+function compareReceiptCandidates(a: ReceiptCandidate, b: ReceiptCandidate): number {
+  const aTime = a.deliveredAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  const bTime = b.deliveredAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (aTime !== bTime) return aTime - bTime;
+  return (a.shipmentNumber ?? '').localeCompare(b.shipmentNumber ?? '');
+}
+
 export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks> {
   try {
-    const [restockResult, stockResult, refillResult] = await Promise.allSettled([
+    const [
+      restockResult,
+      stockResult,
+      refillResult,
+      deliveredRequestResult,
+      directResult,
+    ] = await Promise.allSettled([
       prisma.restockRequest.findMany({
         where: {
           merchantId,
@@ -71,12 +98,44 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
           },
         },
       }),
+      prisma.restockRequest.findMany({
+        where: {
+          merchantId,
+          status: { in: [...OPEN_RESTOCK_STATUSES] },
+          shipment: { status: 'delivered' },
+        },
+        orderBy: [
+          { shipment: { deliveredAt: 'asc' } },
+          { shipment: { shipmentNumber: 'asc' } },
+        ],
+        take: RECEIPT_TAKE,
+        select: {
+          id: true,
+          shipment: {
+            select: {
+              id: true,
+              shipmentNumber: true,
+              deliveredAt: true,
+              updatedAt: true,
+            },
+          },
+        },
+      }),
+      loadDirectRestockShipments(merchantId, {
+        statuses: ['delivered'],
+        take: RECEIPT_TAKE,
+        order: 'oldest',
+      }),
     ]);
 
-    const failures = [restockResult, stockResult].filter((r) => r.status === 'rejected');
+    const failures = [restockResult, stockResult, deliveredRequestResult, directResult].filter(
+      (r) => r.status === 'rejected',
+    );
     const openRestocks = settledValue(restockResult, 'restock') ?? [];
     const stockRows = settledValue(stockResult, 'stock');
     const pendingRefillCount = settledValue(refillResult, 'refill') ?? 0;
+    const deliveredRequestRows = settledValue(deliveredRequestResult, 'deliveredRequest');
+    const directRows = settledValue(directResult, 'direct');
 
     let lowStock: HomeTasksInput['lowStock'] = null;
     if (stockRows && isInventoryReliable(stockRows.length)) {
@@ -92,26 +151,92 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         .slice(0, 20);
     }
 
-    const awaitingReceipt = openRestocks.filter(
-      (request) => request.shipment?.status === 'delivered',
-    );
+    const deliveredRequests: ReceiptCandidate[] =
+      deliveredRequestRows !== null
+        ? deliveredRequestRows.flatMap((request) =>
+            request.shipment
+              ? [
+                  {
+                    shipmentId: request.shipment.id,
+                    shipmentNumber: request.shipment.shipmentNumber,
+                    deliveredAt: request.shipment.deliveredAt,
+                    href: `/pos/restock/${request.id}`,
+                  },
+                ]
+              : [],
+          )
+        : openRestocks
+            .filter((request) => request.shipment?.status === 'delivered')
+            .map((request) => ({
+              shipmentId: null,
+              shipmentNumber: null,
+              deliveredAt: null,
+              href: `/pos/restock/${request.id}`,
+            }));
+
+    const directs: DirectRestockShipment[] = directRows ?? [];
+    let postedDirectIds = new Set<string>();
+    let evidenceFailed = false;
+    let evidenceError: unknown = null;
+    if (directs.length > 0) {
+      try {
+        const evidence = await findRestockShipmentsAlreadyPosted(prisma, merchantId, directs);
+        postedDirectIds = evidence.posted;
+      } catch (error) {
+        evidenceFailed = true;
+        evidenceError = error;
+        console.error('[pos] loadHomeTasks:directEvidence', error);
+      }
+    }
+
+    const candidates: ReceiptCandidate[] = [];
+    const seenShipmentIds = new Set<string>();
+    for (const request of deliveredRequests) {
+      const key = request.shipmentId ?? request.href;
+      if (seenShipmentIds.has(key)) continue;
+      seenShipmentIds.add(key);
+      candidates.push(request);
+    }
+    for (const shipment of directs) {
+      if (postedDirectIds.has(shipment.id)) continue;
+      if (seenShipmentIds.has(shipment.id)) continue;
+      seenShipmentIds.add(shipment.id);
+      candidates.push({
+        shipmentId: shipment.id,
+        shipmentNumber: shipment.shipmentNumber,
+        deliveredAt: shipment.deliveredAt,
+        href: `/pos/shipments/${shipment.id}`,
+      });
+    }
+    candidates.sort(compareReceiptCandidates);
+
+    const first = candidates[0];
+    const awaitingRestockReceiptCount = candidates.length;
+    const capped =
+      (deliveredRequestRows?.length === RECEIPT_TAKE) ||
+      (directRows?.length === RECEIPT_TAKE);
+
     const ongoingRestocks = openRestocks.filter(
       (request) => request.shipment?.status !== 'delivered' && request.shipment?.status !== 'received',
     );
 
     const input: HomeTasksInput = {
       pendingRefillCount,
-      awaitingRestockReceiptCount: awaitingReceipt.length,
-      firstAwaitingRestockReceiptId: awaitingReceipt[0]?.id ?? null,
+      awaitingRestockReceiptCount,
+      firstAwaitingRestockReceiptHref: first?.href ?? null,
+      firstAwaitingRestockShipmentNumber: first?.shipmentNumber ?? null,
+      awaitingRestockReceiptCountCapped: capped,
       lowStock,
       openRestockCount: ongoingRestocks.length,
       firstOpenRestockId: ongoingRestocks[0]?.id ?? null,
     };
 
+    const warningReasons: unknown[] = failures.map((failure) => failure.reason);
+    if (evidenceFailed) warningReasons.push(evidenceError);
     const warning =
-      failures.length === 0
+      warningReasons.length === 0
         ? null
-        : failures.some((f) => isMissingRelationError(f.reason))
+        : warningReasons.some((reason) => isMissingRelationError(reason))
           ? '部分資料暫時讀不到。需要時可從下方選單進庫存或補貨。'
           : '部分資料暫時讀取失敗，請稍後再試。';
 

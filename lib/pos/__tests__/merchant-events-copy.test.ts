@@ -24,16 +24,30 @@ type RequestRow = {
   } | null;
 };
 
+type DirectRow = {
+  id: string;
+  merchantId: string;
+  type: string;
+  restockRequestId: string | null;
+  shipmentNumber: string;
+  status: string;
+  deliveredAt: Date | null;
+  updatedAt: Date;
+  items: Array<{ id: string; productName: string; quantity: number }>;
+};
+
+type StockTxn = {
+  merchantId: string;
+  shipmentItemId?: string | null;
+  type?: string;
+  note?: string | null;
+};
+
 type World = {
   requests: RequestRow[];
-  shipments: Array<{
-    id: string;
-    merchantId: string;
-    shipmentNumber: string;
-    status: string;
-    updatedAt: Date;
-    items: Array<{ productName: string; quantity: number }>;
-  }>;
+  shipments: DirectRow[];
+  stockTxns: StockTxn[];
+  failEvidence: boolean;
 };
 
 function requestRow(overrides: Partial<RequestRow> = {}): RequestRow {
@@ -55,7 +69,16 @@ function requestRow(overrides: Partial<RequestRow> = {}): RequestRow {
   };
 }
 
-let world: World = { requests: [], shipments: [] };
+let world: World = { requests: [], shipments: [], stockTxns: [], failEvidence: false };
+
+function matchesDirectWhere(row: DirectRow, where: Record<string, unknown>) {
+  if (where.merchantId && row.merchantId !== where.merchantId) return false;
+  if (where.type && row.type !== where.type) return false;
+  if (where.restockRequest === null && row.restockRequestId !== null) return false;
+  const statusFilter = where.status as { in?: string[] } | undefined;
+  if (statusFilter?.in && !statusFilter.in.includes(row.status)) return false;
+  return true;
+}
 
 const harness = globalThis as typeof globalThis & {
   __TEST_PRISMA__: {
@@ -63,7 +86,10 @@ const harness = globalThis as typeof globalThis & {
       findMany: (args: { where: { merchantId: string } }) => Promise<RequestRow[]>;
     };
     shipment: {
-      findMany: (args: { where: { merchantId: string } }) => Promise<World['shipments']>;
+      findMany: (args: { where: Record<string, unknown>; take?: number; orderBy?: unknown }) => Promise<unknown[]>;
+    };
+    merchantStockTxn: {
+      findMany: (args: { where: Record<string, unknown> }) => Promise<unknown[]>;
     };
   };
 };
@@ -74,8 +100,37 @@ harness.__TEST_PRISMA__ = {
       world.requests.filter((row) => row.merchantId === where.merchantId),
   },
   shipment: {
-    findMany: async ({ where }) =>
-      world.shipments.filter((row) => row.merchantId === where.merchantId),
+    findMany: async ({ where, take, orderBy }) => {
+      const matched = world.shipments.filter((row) => matchesDirectWhere(row, where));
+      const sorted = [...matched].sort((a, b) => {
+        if (Array.isArray(orderBy)) {
+          const aTime = a.deliveredAt?.getTime() ?? Number.POSITIVE_INFINITY;
+          const bTime = b.deliveredAt?.getTime() ?? Number.POSITIVE_INFINITY;
+          if (aTime !== bTime) return aTime - bTime;
+          return a.shipmentNumber.localeCompare(b.shipmentNumber);
+        }
+        return b.updatedAt.getTime() - a.updatedAt.getTime();
+      });
+      return sorted.slice(0, take ?? sorted.length);
+    },
+  },
+  merchantStockTxn: {
+    findMany: async ({ where }) => {
+      if (world.failEvidence) throw new Error('evidence failed');
+      return world.stockTxns.filter((txn) => {
+        if (txn.merchantId !== where.merchantId) return false;
+        const itemFilter = where.shipmentItemId as { in?: string[] } | undefined;
+        if (itemFilter?.in) return Boolean(txn.shipmentItemId && itemFilter.in.includes(txn.shipmentItemId));
+        if (where.type && txn.type !== where.type) return false;
+        const ors = where.OR as Array<{ note?: { contains?: string } }> | undefined;
+        if (ors) {
+          return ors.some((clause) =>
+            Boolean(txn.note && clause.note?.contains && txn.note.includes(clause.note.contains)),
+          );
+        }
+        return true;
+      });
+    },
   },
 };
 
@@ -160,6 +215,8 @@ describe('POS 補貨通知文案', () => {
     world = {
       requests: [requestRow({ hqNote: '本週庫存仍足夠' })],
       shipments: [],
+      stockTxns: [],
+      failEvidence: false,
     };
     const events = await loadMerchantEvents('merchant-1');
     assert.equal(events[0]?.title, '補貨申請未核准');
@@ -188,6 +245,8 @@ describe('POS 補貨通知文案', () => {
     world = {
       requests: [requestRow({ hqNote: null })],
       shipments: [],
+      stockTxns: [],
+      failEvidence: false,
     };
     const events = await loadMerchantEvents('merchant-1');
     assert.equal(events[0]?.hqNote, '未提供原因');
@@ -226,6 +285,8 @@ describe('POS 補貨通知文案', () => {
         }),
       ],
       shipments: [],
+      stockTxns: [],
+      failEvidence: false,
     };
     const events = await loadMerchantEvents('merchant-1');
     const adjusted = events.find((event) => event.id === 'shipment-shipment-adjusted');
@@ -242,6 +303,8 @@ describe('POS 補貨通知文案', () => {
         requestRow({ id: 'request-b', merchantId: 'merchant-2', hqNote: 'B 店原因' }),
       ],
       shipments: [],
+      stockTxns: [],
+      failEvidence: false,
     };
     const events = await loadMerchantEvents('merchant-1');
     assert.equal(events.length, 1);
@@ -251,5 +314,131 @@ describe('POS 補貨通知文案', () => {
       events.some((event) => event.href === '/pos/restock/request-b'),
       false,
     );
+  });
+
+  function directShipment(overrides: Partial<DirectRow> = {}): DirectRow {
+    return {
+      id: 'direct-1',
+      merchantId: 'merchant-1',
+      type: 'merchant_restock',
+      restockRequestId: null,
+      shipmentNumber: 'SHP-DIR-0001',
+      status: 'delivered',
+      deliveredAt: new Date('2026-09-05'),
+      updatedAt: new Date('2026-09-05'),
+      items: [
+        { id: 'item-1', productName: '雞霸', quantity: 2 },
+        { id: 'item-2', productName: '水晶魚', quantity: 3 },
+      ],
+      ...overrides,
+    };
+  }
+
+  it('posted delivered direct shows 已入帳 and keeps href', async () => {
+    world = {
+      requests: [],
+      shipments: [directShipment()],
+      stockTxns: [
+        { merchantId: 'merchant-1', shipmentItemId: 'item-1' },
+        { merchantId: 'merchant-1', shipmentItemId: 'item-2' },
+      ],
+      failEvidence: false,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    assert.equal(events[0]?.title, '商品已送達');
+    assert.equal(events[0]?.statusLabel, '已送達（庫存已入帳）');
+    assert.equal(events[0]?.actionRequired, false);
+    assert.equal(events[0]?.href, '/pos/shipments/direct-1');
+  });
+
+  it('partial item txn and ambiguous note stay 待驗收', async () => {
+    world = {
+      requests: [],
+      shipments: [
+        directShipment({ id: 'partial-1', shipmentNumber: 'SHP-PART-0001' }),
+        directShipment({
+          id: 'amb-1',
+          shipmentNumber: 'SHP-AMB-0001',
+          items: [{ id: 'item-amb', productName: '雞霸', quantity: 1 }],
+        }),
+      ],
+      stockTxns: [
+        { merchantId: 'merchant-1', shipmentItemId: 'item-1' },
+        {
+          merchantId: 'merchant-1',
+          type: 'restock',
+          note: '[來源] 出貨紀錄（備註：SHP-AMB-0001）',
+        },
+      ],
+      failEvidence: false,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    const partial = events.find((event) => event.id === 'shipment-partial-1');
+    const ambiguous = events.find((event) => event.id === 'shipment-amb-1');
+    assert.equal(partial?.title, '商品已送達，請確認收貨');
+    assert.equal(partial?.statusLabel, '待驗收');
+    assert.equal(partial?.actionRequired, true);
+    assert.equal(ambiguous?.title, '商品已送達，請確認收貨');
+    assert.equal(ambiguous?.statusLabel, '待驗收');
+    assert.equal(ambiguous?.actionRequired, true);
+  });
+
+  it('unposted delivered direct stays 待驗收', async () => {
+    world = {
+      requests: [],
+      shipments: [directShipment()],
+      stockTxns: [],
+      failEvidence: false,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    assert.equal(events[0]?.title, '商品已送達，請確認收貨');
+    assert.equal(events[0]?.statusLabel, '待驗收');
+    assert.equal(events[0]?.actionRequired, true);
+    assert.equal(events[0]?.href, '/pos/shipments/direct-1');
+  });
+
+  it('evidence throw keeps 待驗收 and does not reject', async () => {
+    world = {
+      requests: [],
+      shipments: [directShipment()],
+      stockTxns: [
+        { merchantId: 'merchant-1', shipmentItemId: 'item-1' },
+        { merchantId: 'merchant-1', shipmentItemId: 'item-2' },
+      ],
+      failEvidence: true,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    assert.equal(events[0]?.title, '商品已送達，請確認收貨');
+    assert.equal(events[0]?.statusLabel, '待驗收');
+    assert.equal(events[0]?.actionRequired, true);
+    assert.equal(events[0]?.href, '/pos/shipments/direct-1');
+  });
+
+  it('other direct statuses and request copy stay unchanged', async () => {
+    world = {
+      requests: [requestRow({ hqNote: '本週庫存仍足夠' })],
+      shipments: [directShipment({ id: 'shipped-1', status: 'shipped', shipmentNumber: 'SHP-SHIP-0001' })],
+      stockTxns: [],
+      failEvidence: false,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    const request = events.find((event) => event.id === 'request-request-1');
+    const shipped = events.find((event) => event.id === 'shipment-shipped-1');
+    assert.equal(request?.title, '補貨申請未核准');
+    assert.equal(request?.hqNote, '本週庫存仍足夠');
+    assert.equal(shipped?.title, '商品已出貨');
+    assert.equal(shipped?.statusLabel, '運送中');
+    assert.equal(shipped?.actionRequired, false);
+  });
+
+  it('direct shipments from another store do not appear', async () => {
+    world = {
+      requests: [],
+      shipments: [directShipment({ merchantId: 'merchant-2' })],
+      stockTxns: [],
+      failEvidence: false,
+    };
+    const events = await loadMerchantEvents('merchant-1');
+    assert.equal(events.length, 0);
   });
 });
