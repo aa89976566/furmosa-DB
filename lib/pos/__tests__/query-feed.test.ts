@@ -213,16 +213,15 @@ let loadQueryFeed: (typeof import('@/lib/pos/load-query-feed'))['loadQueryFeed']
 
 function withFrozenNow<T>(now: Date, fn: () => T): T {
   const RealDate = Date;
-  const MockDate = function DateMock(this: Date, ...args: unknown[]) {
+  function DateMock(...args: unknown[]) {
     if (args.length === 0) return new RealDate(now.getTime());
     return new RealDate(...(args as ConstructorParameters<typeof Date>));
-  } as unknown as DateConstructor;
-  MockDate.now = () => now.getTime();
-  MockDate.parse = RealDate.parse;
-  MockDate.UTC = RealDate.UTC;
-  MockDate.prototype = RealDate.prototype;
+  }
+  DateMock.now = () => now.getTime();
+  DateMock.parse = RealDate.parse;
+  DateMock.UTC = RealDate.UTC;
   const previous = globalThis.Date;
-  globalThis.Date = MockDate;
+  globalThis.Date = DateMock as unknown as DateConstructor;
   try {
     return fn();
   } finally {

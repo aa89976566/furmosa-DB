@@ -259,7 +259,9 @@ export async function findRestockShipmentsAlreadyPosted(
       },
       select: { note: true },
     });
-    legacyNotes.push(...noteRows);
+    for (const row of noteRows) {
+      legacyNotes.push({ note: row.note });
+    }
   }
 
   for (const shipment of shipments) {
