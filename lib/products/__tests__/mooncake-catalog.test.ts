@@ -16,6 +16,7 @@ describe('mooncake catalog', () => {
     assert.equal(MOONCAKE_CATALOG.cost, 30);
     assert.equal(MOONCAKE_CATALOG.vendor, '匠寵');
     assert.equal(MOONCAKE_CATALOG.unit, '顆');
+    assert.equal(MOONCAKE_CATALOG.defaultTemperature, 'chilled');
     assert.match(MOONCAKE_CATALOG.shopifyTitle, /牠的月餅/);
     assert.match(MOONCAKE_CATALOG.notes, /CK-08/);
     assert.equal(

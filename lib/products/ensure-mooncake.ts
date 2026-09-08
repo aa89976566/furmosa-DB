@@ -16,10 +16,10 @@ async function nextProductId(db: Db) {
 
 async function nextSku(db: Db, productSeq: number) {
   let seq = productSeq;
-  let sku = `FUR-${pad(seq, 4)}`;
+  let sku = `FUR-${pad(seq)}`;
   while (await db.product.findUnique({ where: { sku } })) {
     seq += 1;
-    sku = `FUR-${pad(seq, 4)}`;
+    sku = `FUR-${pad(seq)}`;
   }
   return sku;
 }
@@ -45,7 +45,7 @@ export async function findMooncakeProduct(db: Db) {
   return null;
 }
 
-/** 找到就回傳；沒有就建立一筆月餅主檔，方便 Shopify 訂單對到商品。 */
+/** 找到就修正必要主檔；沒有才建立。讓 Shopify OMS 不要求重填已知月餅資料。 */
 export async function ensureMooncakeProduct(db: Db) {
   const existing = await findMooncakeProduct(db);
   const vendor = await db.vendor.findFirst({
@@ -54,19 +54,20 @@ export async function ensureMooncakeProduct(db: Db) {
   });
 
   if (existing) {
-    const needsSku = !existing.sourceSku;
-    const needsActive = existing.status !== 'active';
-    const product =
-      needsSku || needsActive
-        ? await db.product.update({
-            where: { id: existing.id },
-            data: {
-              sourceSku: existing.sourceSku ?? MOONCAKE_CATALOG.sourceSku,
-              status: 'active',
-            },
-            include: { priceTiers: { select: { weightGrams: true, price: true } } },
-          })
-        : existing;
+    const needsUpdate = !existing.sourceSku
+      || existing.status !== 'active'
+      || existing.defaultTemperature !== MOONCAKE_CATALOG.defaultTemperature;
+    const product = needsUpdate
+      ? await db.product.update({
+          where: { id: existing.id },
+          data: {
+            sourceSku: existing.sourceSku ?? MOONCAKE_CATALOG.sourceSku,
+            status: 'active',
+            defaultTemperature: MOONCAKE_CATALOG.defaultTemperature,
+          },
+          include: { priceTiers: { select: { weightGrams: true, price: true } } },
+        })
+      : existing;
 
     await db.productPriceTier.upsert({
       where: {
@@ -102,6 +103,7 @@ export async function ensureMooncakeProduct(db: Db) {
       unit: MOONCAKE_CATALOG.unit,
       price: MOONCAKE_CATALOG.price,
       cost: MOONCAKE_CATALOG.cost,
+      defaultTemperature: MOONCAKE_CATALOG.defaultTemperature,
       imageUrl: MOONCAKE_CATALOG.imageUrl,
       notes: MOONCAKE_CATALOG.notes,
       status: 'active',
