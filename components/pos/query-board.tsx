@@ -6,7 +6,6 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   filterQueryFeed,
-  formatQueryWhen,
   type QueryFeedItem,
   type QueryKind,
 } from "@/lib/pos/query-feed";
@@ -78,7 +77,7 @@ export function QueryBoard({ items }: { items: QueryFeedItem[] }) {
                 <div className="flex min-h-[88px] items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">
-                      {formatQueryWhen(item.at)}
+                      {item.whenLabel}
                     </p>
                     <p className="truncate font-medium text-foreground">
                       {item.title}

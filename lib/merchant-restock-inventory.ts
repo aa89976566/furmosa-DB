@@ -199,3 +199,91 @@ export async function applyMerchantRestockFromShipment(
 
   return true;
 }
+
+type RestockEvidenceDb = {
+  merchantStockTxn: {
+    findMany: (args: {
+      where: {
+        merchantId: string;
+        shipmentItemId?: { in: string[] };
+        type?: string;
+        OR?: Array<{ note: { contains: string } }>;
+      };
+      select: { shipmentItemId?: true; note?: true };
+    }) => Promise<Array<{ shipmentItemId?: string | null; note?: string | null }>>;
+  };
+};
+
+export type DirectShipmentEvidenceInput = {
+  id: string;
+  shipmentNumber: string;
+  items: Array<{ id: string; quantity: number }>;
+};
+
+/**
+ * 唯讀：批次判斷直送補貨單是否已有完整入庫證據。
+ * 只可傳入 restockRequest=null 的 direct shipments；不得進入寫入路徑。
+ */
+export async function findRestockShipmentsAlreadyPosted(
+  db: RestockEvidenceDb,
+  merchantId: string,
+  shipments: DirectShipmentEvidenceInput[],
+): Promise<{ posted: Set<string>; ambiguous: Set<string> }> {
+  const posted = new Set<string>();
+  const ambiguous = new Set<string>();
+  if (shipments.length === 0) return { posted, ambiguous };
+
+  const itemIds = shipments.flatMap((shipment) => shipment.items.map((item) => item.id)).filter(Boolean);
+  const shipmentNumbers = [
+    ...new Set(shipments.map((shipment) => shipment.shipmentNumber).filter(Boolean)),
+  ];
+
+  const postedItemIds = new Set<string>();
+  if (itemIds.length > 0) {
+    const itemTxns = await db.merchantStockTxn.findMany({
+      where: { merchantId, shipmentItemId: { in: itemIds } },
+      select: { shipmentItemId: true },
+    });
+    for (const row of itemTxns) {
+      if (row.shipmentItemId) postedItemIds.add(row.shipmentItemId);
+    }
+  }
+
+  const legacyNotes: Array<{ note: string | null | undefined }> = [];
+  if (shipmentNumbers.length > 0) {
+    const noteRows = await db.merchantStockTxn.findMany({
+      where: {
+        merchantId,
+        type: 'restock',
+        OR: shipmentNumbers.map((shipmentNumber) => ({ note: { contains: shipmentNumber } })),
+      },
+      select: { note: true },
+    });
+    for (const row of noteRows) {
+      legacyNotes.push({ note: row.note });
+    }
+  }
+
+  for (const shipment of shipments) {
+    const positiveItems = shipment.items.filter((item) => item.quantity > 0);
+    const allPositivePosted =
+      positiveItems.length > 0 && positiveItems.every((item) => postedItemIds.has(item.id));
+    const somePositivePosted = positiveItems.some((item) => postedItemIds.has(item.id));
+
+    let hasExactNote = false;
+    let hasAmbiguousNote = false;
+    for (const row of legacyNotes) {
+      const classified = classifyLegacyRestockNote(row.note, shipment.shipmentNumber);
+      if (classified === 'posted') hasExactNote = true;
+      if (classified === 'ambiguous') hasAmbiguousNote = true;
+    }
+
+    if (allPositivePosted || hasExactNote) {
+      posted.add(shipment.id);
+    } else if (somePositivePosted || hasAmbiguousNote) {
+      ambiguous.add(shipment.id);
+    }
+  }
+
+  return { posted, ambiguous };
+}

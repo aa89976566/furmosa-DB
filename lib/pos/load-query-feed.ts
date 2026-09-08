@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
-import { groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
 function stockTypeLabel(type: string): string {
   switch (type) {
@@ -18,7 +18,8 @@ function stockTypeLabel(type: string): string {
 }
 
 export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]> {
-  const since = new Date();
+  const now = new Date();
+  const since = new Date(now);
   since.setDate(since.getDate() - 60);
 
   const [sales, refills, restocks, stockTxns] = await Promise.all([
@@ -87,6 +88,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       unitPrice: s.unitPrice,
       productName: s.product?.name ?? '商品',
     })),
+    now,
   );
 
   const refillItems: QueryFeedItem[] = refills.map((o) => {
@@ -101,10 +103,12 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
           : o.status === 'payment_pending'
             ? '尚未付款'
             : '處理中';
+    const at = o.createdAt.toISOString();
     return {
       id: `refill-${o.id}`,
       kind: 'refill',
-      at: o.createdAt.toISOString(),
+      at,
+      whenLabel: formatQueryWhen(at, now),
       title: '換罐',
       subtitle,
       status,
@@ -120,10 +124,12 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const submitted = ['submitted', 'under_review', 'approved', 'converted_to_shipment'].includes(
       r.status,
     );
+    const at = r.createdAt.toISOString();
     return {
       id: `restock-${r.id}`,
       kind: 'restock',
-      at: r.createdAt.toISOString(),
+      at,
+      whenLabel: formatQueryWhen(at, now),
       title: '補貨',
       subtitle: names || '補貨單',
       status: submitted && r.status !== 'converted_to_shipment' ? '已送出' : restockStatusLabelForMerchant(r.status),
@@ -134,10 +140,12 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
 
   const stockItems: QueryFeedItem[] = stockTxns.map((t) => {
     const sign = t.quantity > 0 ? `＋${t.quantity}` : String(t.quantity);
+    const at = t.createdAt.toISOString();
     return {
       id: `stock-${t.id}`,
       kind: 'stock',
-      at: t.createdAt.toISOString(),
+      at,
+      whenLabel: formatQueryWhen(at, now),
       title: '庫存',
       subtitle: `${stockTypeLabel(t.type)}${t.product?.name ?? ''} ${sign}`,
       status: `現在 ${t.balanceAfter}`,
