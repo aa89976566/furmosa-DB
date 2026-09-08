@@ -65,7 +65,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, li
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <section className="space-y-3">
       <h3 className="text-sm font-semibold">商品</h3>
-      {promotionSummary && <OmsPromotionSummary summary={promotionSummary} />}
+      {promotionSummary && <OmsPromotionSummary summary={promotionSummary} orderId={orderId} />}
       {draft.lines.map((line, index) => {
         const display = lineDisplays[index] ?? { title: '未命名商品', quantityLabel: '數量待確認', mappingKind: 'select' as const, conflictMessage: '' };
         return <fieldset key={index} className={`grid gap-3 rounded-lg border p-3 sm:grid-cols-2 ${!line.productId || !line.temperature ? 'border-foreground/25' : ''}`}>
