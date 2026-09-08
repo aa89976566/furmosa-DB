@@ -45,8 +45,8 @@ describe('OMS review checks', () => {
     const result = codes(snapshot, { ...draft, recipient: '', phone: '', address: '', method: 'convenience', temperature: 'frozen' });
     for (const c of ['RECIPIENT_MISSING', 'PHONE_MISSING', 'ADDRESS_MISSING', 'PICKUP_STORE_MISSING', 'TEMPERATURE_CONFLICT']) assert.ok(result.includes(c as any));
   });
-  it('requires gifts and possible duplicate acknowledgment', () => {
-    assert.ok(codes(snapshot, { ...draft, giftsConfirmed: false }, products, true).includes('GIFT_REVIEW_REQUIRED'));
+  it('uses deterministic promotion checks and only asks for duplicate acknowledgment when needed', () => {
+    assert.equal(codes(snapshot, { ...draft, giftsConfirmed: false }, products, false).includes('GIFT_REVIEW_REQUIRED'), false);
     assert.ok(codes(snapshot, draft, products, true).includes('POSSIBLE_DUPLICATE'));
     assert.deepEqual(codes(snapshot, { ...draft, duplicateConfirmed: true }, products, true), []);
   });
