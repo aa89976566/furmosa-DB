@@ -46,7 +46,7 @@ import {
 } from '@/lib/orders/merchant-wholesale-price';
 import { randomUUID } from 'node:crypto';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
-import { isValidMerchantBusinessId, nextMerchantBusinessId } from '@/lib/merchant-business-id';
+import { isValidMerchantBusinessId, nextMerchantBusinessId, canRepairMerchantBusinessId } from '@/lib/merchant-business-id';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
@@ -73,6 +73,9 @@ export async function repairMerchantBusinessId(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     const merchant = await tx.merchant.findUniqueOrThrow({ where: { id } });
     if (isValidMerchantBusinessId(merchant.merchantId)) return;
+    if (!canRepairMerchantBusinessId(merchant.merchantId)) {
+      throw new Error('測試或示範編號不可改成正式店家編號');
+    }
     const rows = await tx.merchant.findMany({ select: { merchantId: true } });
     const nextId = nextMerchantBusinessId(rows.map((row) => row.merchantId));
     const oldSlug = merchantToStoreSlug(merchant.merchantId);

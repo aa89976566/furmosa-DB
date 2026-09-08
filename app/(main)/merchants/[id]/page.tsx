@@ -24,7 +24,7 @@ import {
   repairMerchantBusinessId,
   resetMerchantPosUserPassword,
 } from './actions';
-import { isValidMerchantBusinessId } from '@/lib/merchant-business-id';
+import { merchantBusinessIdKind } from '@/lib/merchant-business-id';
 import { Input } from '@/components/ui/input';
 
 export const dynamic = 'force-dynamic';
@@ -76,6 +76,7 @@ export default async function MerchantOverviewPage({
   const totalStockUnits = merchant.stocks.reduce((s, r) => s + r.quantity, 0);
   const lowStock = merchant.stocks.filter((r) => r.quantity > 0 && r.quantity <= 3).length;
   const outOfStock = merchant.stocks.filter((r) => r.quantity === 0).length;
+  const businessIdKind = merchantBusinessIdKind(merchant.merchantId);
 
   return (
     <MerchantWorkspace>
@@ -153,13 +154,23 @@ export default async function MerchantOverviewPage({
         </div>
 
         <MerchantSection title="店家資料" description="基本檔案與聯絡方式">
-          {!isValidMerchantBusinessId(merchant.merchantId) ? (
+          {businessIdKind === 'invalid' ? (
             <form action={repairMerchantBusinessId} className="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3">
               <input type="hidden" name="merchantId" value={merchant.id} />
-              <p className="text-sm font-medium">店家編號需要修復</p>
-              <p className="mt-1 text-xs text-muted-foreground">系統會改為下一個可用的正式店家編號。</p>
+              <p className="text-sm font-medium">店家編號不符合正式規則</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                正式編號為 MER- 加至少四位數字。按下修復才會改成下一個可用的正式編號，系統不會自動改資料。
+              </p>
               <Button type="submit" size="sm" className="mt-3">修復店家編號</Button>
             </form>
+          ) : null}
+          {businessIdKind === 'reserved' ? (
+            <div className="mb-4 rounded-xl border border-border/60 bg-muted/30 p-3">
+              <p className="text-sm font-medium">這是測試／示範編號</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                例如 MER-DEMO 不會當成正式店家，也不提供改成正式編號。
+              </p>
+            </div>
           ) : null}
           <dl>
             <MerchantDlRow

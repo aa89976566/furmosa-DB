@@ -46,7 +46,7 @@ export default async function MerchantLedgerPage({
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {merchant.name} 的庫存異動；全站紀錄請至寄賣庫存頁
+          {merchant.name} 的庫存異動；全站紀錄請至店家庫存頁
         </p>
         <Button variant="outline" size="sm" asChild>
           <Link href={`/merchants/stock?merchantId=${merchant.id}`}>全站庫存紀錄</Link>

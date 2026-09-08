@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { merchantCarrierLabel } from '@/lib/merchant-shipping-defaults';
+import { merchantShippingIssue } from '@/lib/merchant-shipping-status';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
 import { Pencil, X } from 'lucide-react';
 import {
@@ -24,6 +25,7 @@ function shippingSummaryLine(merchant: MerchantShippingInput) {
 
 export function MerchantShippingPanel({ merchant }: { merchant: MerchantShippingInput }) {
   const [editing, setEditing] = useState(false);
+  const issue = merchantShippingIssue(merchant);
 
   if (editing) {
     return (
@@ -53,6 +55,11 @@ export function MerchantShippingPanel({ merchant }: { merchant: MerchantShipping
           {merchantCarrierLabel(merchant.preferredCarrier)}
         </p>
         <p className="truncate text-xs text-muted-foreground">{shippingSummaryLine(merchant)}</p>
+        {issue ? (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {issue.message} {issue.action}
+          </p>
+        ) : null}
       </div>
       <Button
         type="button"

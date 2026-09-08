@@ -29,4 +29,10 @@ describe('HQ 側欄', () => {
     assert.equal(labels.includes('UGC 審核'), false);
     assert.equal(labels.includes('待審核'), true);
   });
+
+  it('合作通路總覽用店家，不用寄賣當全體總稱', () => {
+    const storeGroup = navGroups.find((group) => group.label === '店家與供應');
+    const merchants = storeGroup?.items.find((item) => item.href === '/merchants');
+    assert.equal(merchants?.label, '店家');
+  });
 });
