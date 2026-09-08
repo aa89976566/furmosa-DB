@@ -3,6 +3,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { isMooncakeShopifyItem } from '@/lib/shopify/match-line-item';
+import { ensureMooncakeProduct } from '@/lib/products/ensure-mooncake';
 import { OmsReviewForm } from './oms-review-form';
 import { defaultReviewDraft, fillReviewDraftBlanks, reviewLineDisplays } from '@/lib/orders/review-defaults';
 import { buildFulfillmentPlan } from '@/lib/orders/fulfillment-plan';
@@ -28,6 +30,13 @@ function paymentSummary(source: Snapshot) {
   return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
 }
 
+function sourceHasMooncake(source: Snapshot) {
+  const rows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
+  return rows.some(row => isMooncakeShopifyItem({
+    title: string(row.title), variant_title: string(row.variant_title), sku: string(row.sku),
+  }));
+}
+
 export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
   const sourceView = snapshotView(snapshot);
   if (!status || !['NEW', 'REVIEW', 'READY'].includes(status) || !sourceView) return null;
@@ -36,6 +45,10 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   if (!actor || !['admin', 'staff'].includes(actor.role)) return <p>需要 HQ 審核人員確認此訂單。</p>;
   const source = snapshot as Snapshot;
   const hash = snapshotHash(source);
+
+  // 既有 OMS intake 不查商品主檔；月餅是已知活動商品，進審核時先以唯一主檔規則補齊 CK-08、active 與 frozen。
+  if (sourceHasMooncake(source)) await ensureMooncakeProduct(prisma);
+
   const [catalog, giftCandidates, audit] = await Promise.all([
     prisma.product.findMany({ where: { status: 'active' }, select: productSelect, orderBy: { sku: 'asc' } }),
     prisma.product.findMany({ where: { OR: [{ sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU }] }, select: productSelect }),
