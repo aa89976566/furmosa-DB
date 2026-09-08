@@ -1,9 +1,11 @@
 import { record, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { matchShopifyItemToProduct } from '@/lib/shopify/match-line-item';
 import { reviewDraft, type ReviewDraft } from './review-policy';
 
 type MappingProduct = {
   id: string;
+  name: string;
   sku: string;
   sourceSku: string | null;
   defaultTemperature: string | null;
@@ -50,22 +52,40 @@ function sourceLineRows(snapshot: Snapshot) {
   return Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
 }
 
+/**
+ * OMS uses the same Shopify identity matcher as order sync.
+ * Exact SKU/sourceSku remains highest priority and must be unique; only then may title/known-product fallback run.
+ */
+function autoMatchProduct(row: Record<string, unknown>, products: MappingProduct[]): MappingProduct | null {
+  const sku = string(row.sku);
+  if (sku) {
+    const skuMatches = skuMatchingProducts(sku, products);
+    if (skuMatches.length === 1) return skuMatches[0]!;
+    if (skuMatches.length > 1) return null;
+  }
+  return matchShopifyItemToProduct({
+    title: string(row.title),
+    variant_title: string(row.variant_title),
+    sku,
+  }, products);
+}
+
 function lineMapping(
   savedProductId: string,
-  uniqueProductId: string,
+  matchedProductId: string,
 ): Pick<ReviewLineDisplay, 'mappingKind' | 'conflictMessage'> {
   if (savedProductId) {
-    if (uniqueProductId === savedProductId) {
+    if (matchedProductId === savedProductId) {
       return { mappingKind: 'saved', conflictMessage: '' };
     }
     return {
       mappingKind: 'conflict',
-      conflictMessage: uniqueProductId
-        ? '已保存對應與目前來源 SKU 的唯一商品不同，請確認後再選擇。'
-        : '目前來源 SKU 無法唯一對應商品，請確認已保存對應是否正確。',
+      conflictMessage: matchedProductId
+        ? '已保存對應與目前 Shopify 商品識別出的 HQ 商品不同，請確認後再選擇。'
+        : '目前 Shopify 商品無法唯一對應 HQ 商品，請確認已保存對應是否正確。',
     };
   }
-  if (uniqueProductId) return { mappingKind: 'auto', conflictMessage: '' };
+  if (matchedProductId) return { mappingKind: 'auto', conflictMessage: '' };
   return { mappingKind: 'select', conflictMessage: '' };
 }
 
@@ -78,13 +98,11 @@ export function reviewLineDisplays(
   const rows = sourceLineRows(snapshot);
   return draft.lines.map((_, index) => {
     const row = rows[index] ?? {};
-    const sku = string(row.sku);
-    const matches = skuMatchingProducts(sku, products);
-    const uniqueProductId = matches.length === 1 ? matches[0]!.id : '';
+    const matchedProductId = autoMatchProduct(row, products)?.id ?? '';
     return {
       title: string(row.title) || '未命名商品',
       quantityLabel: sourceQuantityLabel(row.quantity),
-      ...lineMapping(string(saved?.lines[index]?.productId), uniqueProductId),
+      ...lineMapping(string(saved?.lines[index]?.productId), matchedProductId),
     };
   });
 }
@@ -121,8 +139,7 @@ export function defaultReviewDraft(snapshot: Snapshot, products: MappingProduct[
   const view = snapshotView(snapshot)!;
   const rows = sourceLineRows(snapshot);
   const lines = rows.map(row => {
-    const matches = skuMatchingProducts(string(row.sku), products);
-    const product = matches.length === 1 ? matches[0] : null;
+    const product = autoMatchProduct(row, products);
     return { productId: product?.id ?? '', temperature: product?.defaultTemperature ?? '' };
   });
   const delivery = deliveryDefaults(snapshot);
