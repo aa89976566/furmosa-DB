@@ -3,39 +3,83 @@ import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-p
 import { fulfillmentPlanHash, parseFrozenFulfillmentPlan } from './fulfillment-plan';
 import { PROMOTION_GIFT_SKU } from './promotion-resolver';
 import { checkReview, reviewDraft, type ReviewDraft } from './review-policy';
-import { omsApprovalBlockers, parseOmsIssues } from './oms';
+import { omsApprovalBlockers, parseOmsIssues, type OmsStatus } from './oms';
 
-export class ReviewError extends Error {}
+export type ReviewAction = 'check' | 'approve' | 'ship';
+export type ReviewResultKind = 'success' | 'blocked' | 'error' | null;
+export type ReviewResult = {
+  ok: boolean | null;
+  action: ReviewAction | null;
+  message: string;
+  omsStatus: OmsStatus | null;
+  blockers: string[];
+  kind: ReviewResultKind;
+  next: { label: string; href: string } | null;
+};
+
+export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
+  return {
+    ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null,
+    ...overrides,
+  };
+}
+
+export class ReviewError extends Error {
+  readonly blockers: string[];
+  readonly kind: 'blocked' | 'error';
+  constructor(message: string, extras?: { blockers?: string[]; kind?: 'blocked' | 'error' }) {
+    super(message);
+    this.name = 'ReviewError';
+    this.blockers = extras?.blockers ?? [];
+    this.kind = extras?.kind ?? 'error';
+  }
+}
 export type ReviewCommand = { orderId: string; actorId: string; sourceHash: string;
-  action: 'check' | 'approve' | 'ship'; draft?: ReviewDraft };
+  action: ReviewAction; draft?: ReviewDraft };
+
+const shippingNext = (label: string) => ({ label, href: '#oms-shipping' });
+const paymentPendingNotes = [
+  '等待 Shopify 付款完成',
+  'Shopify 付款完成後訂單會回到待審核，需重新檢查並確認',
+];
+function approveSuccess(awaitingPayment: boolean): ReviewResult {
+  return emptyReviewResult({
+    ok: true, action: 'approve', message: '已確認訂單', omsStatus: 'READY',
+    blockers: awaitingPayment ? [...paymentPendingNotes] : [], kind: 'success',
+    next: shippingNext('前往運送資訊'),
+  });
+}
 
 /** Shared order lock with intake: review cannot race an incoming Shopify update. */
 export async function runReview(db: PrismaClient, command: ReviewCommand) {
   return db.$transaction(async tx => {
     const actor = await tx.user.findUnique({ where: { id: command.actorId } });
-    if (!actor || !['admin', 'staff'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作');
+    if (!actor || !['admin', 'staff'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作', { kind: 'error' });
     const key = await tx.order.findUnique({ where: { id: command.orderId } });
-    if (!key?.externalStore || !key.externalOrderId || !key.omsStatus) throw new ReviewError('此訂單不適用 Shopify OMS');
+    if (!key?.externalStore || !key.externalOrderId || !key.omsStatus) throw new ReviewError('此訂單不適用 Shopify OMS', { kind: 'error' });
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0))`;
     const order = await tx.order.findUniqueOrThrow({ where: { id: key.id }, include: { shipments: true } });
     const snapshot = order.shopifySnapshot as Snapshot | null;
-    if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核');
-    if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核');
+    if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
+    if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
     if (command.action === 'ship' && order.omsStatus === 'FULFILLMENT_PENDING' && order.shipments.some(s => s.shipmentNumber === `OMS-${order.id}`)) {
-      return { message: '出貨單已存在，沒有重複建立' };
+      return emptyReviewResult({
+        ok: true, action: 'ship', message: '出貨單已存在，沒有重複建立', omsStatus: 'FULFILLMENT_PENDING',
+        kind: 'success', next: shippingNext('查看出貨單'),
+      });
     }
     if (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
       ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || order.shipments.length) {
-      throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核');
+      throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核', { kind: 'error' });
     }
     // Conflicting same-version payload must be reconciled at source, not cleared by a reviewer.
-    if (parseOmsIssues(order.omsIssueFlags)?.some(i => i.code === 'SOURCE_VERSION_UNKNOWN')) throw new ReviewError('來源版本不明或衝突，需先重新同步 Shopify');
+    if (parseOmsIssues(order.omsIssueFlags)?.some(i => i.code === 'SOURCE_VERSION_UNKNOWN')) throw new ReviewError('來源版本不明或衝突，需先重新同步 Shopify', { kind: 'error' });
     const audit = await tx.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     let saved: Record<string, unknown> = {};
     try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* fail closed below */ }
     const draft = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);
-    if (command.action !== 'check' && saved.sourceHash !== command.sourceHash) throw new ReviewError('請先儲存並檢查目前版本');
-    if (command.action !== 'check' && JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft)) throw new ReviewError('表單內容已修改，請先儲存並檢查');
+    if (command.action !== 'check' && saved.sourceHash !== command.sourceHash) throw new ReviewError('請先儲存並檢查目前版本', { kind: 'blocked' });
+    if (command.action !== 'check' && JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft)) throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
     if (command.action === 'ship') {
       if (order.omsStatus !== 'READY' || !order.omsReviewedAt || !order.omsReviewedById) throw new ReviewError('需要先由人員確認訂單');
       // Serializes new OMS reservations; legacy fulfillment still requires its own final stock check.
@@ -74,17 +118,25 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft,
           planVersion: result.plan.planVersion, rulesVersion: result.plan.rulesVersion,
           fulfillmentPlan: result.plan.frozen }) } });
-      return { message: result.issues.some(i => i.severity === 'blocking') ? '已儲存，請處理上方列出的問題後重新檢查' : '檢查通過，可以確認訂單' };
+      const blocking = result.issues.filter(issue => issue.severity === 'blocking').map(issue => issue.message);
+      return emptyReviewResult({
+        ok: blocking.length === 0, action: 'check', omsStatus: 'REVIEW',
+        message: blocking.length ? '已儲存，請處理上方列出的問題後重新檢查' : '檢查通過，可以確認訂單',
+        blockers: blocking, kind: blocking.length ? 'blocked' : 'success',
+      });
     }
     const savedPlan = parseFrozenFulfillmentPlan(saved.fulfillmentPlan);
     if (!savedPlan || fulfillmentPlanHash(savedPlan) !== result.plan.frozenHash || savedPlan.sourceHash !== command.sourceHash) {
-      throw new ReviewError('出貨計畫已變更或不完整，請重新檢查');
+      throw new ReviewError('出貨計畫已變更或不完整，請重新檢查', { kind: 'error' });
+    }
+    if (command.action === 'approve' && order.omsStatus === 'READY' && order.omsReviewedAt && order.omsReviewedById) {
+      return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
     }
     const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' ? 'REVIEW' : order.omsStatus,
       issues: result.issues, checkedAt: order.omsCheckedAt, checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
       sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) },
       command.action === 'ship' ? 'ship' : 'review');
-    if (blockers.length) throw new ReviewError(blockers.join('；'));
+    if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
     if (command.action === 'approve') {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
@@ -104,6 +156,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id, previousStatus: order.omsStatus,
       newStatus: command.action === 'approve' ? 'READY' : 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
       metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id }) } });
-    return { message: command.action === 'approve' ? '已確認；付款完成後即可建立出貨單' : '已建立 HQ 內部出貨單；尚未連接物流供應商' };
+    if (command.action === 'approve') {
+      return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
+    }
+    return emptyReviewResult({
+      ok: true, action: 'ship', message: '已建立 HQ 內部出貨單；尚未連接物流供應商',
+      omsStatus: 'FULFILLMENT_PENDING', kind: 'success', next: shippingNext('查看出貨單'),
+    });
   }, { maxWait: 2000, timeout: 10000 });
 }

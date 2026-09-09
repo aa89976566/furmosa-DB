@@ -144,7 +144,32 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         {order.deletedAt ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">此訂單已從 HQ 刪除，不會進入待審核或出貨流程。</p> : null}
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          {!order.deletedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單已刪除，審核表單已停用。</div>}
+          <div className="min-w-0 space-y-4">
+            {!order.deletedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單已刪除，審核表單已停用。</div>}
+            <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
+              <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
+              {order.shipments.length > 0 ? (
+                <ul className="mt-3 space-y-1.5">
+                  {order.shipments.map((shipment) => (
+                    <li key={shipment.id} className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-1.5">
+                      {order.deletedAt ? (
+                        <span className="min-w-0 font-mono text-xs">{shipment.shipmentNumber}</span>
+                      ) : (
+                        <Link href={`/shipments?s=${encodeURIComponent(shipment.id)}`} className="min-w-0 font-mono text-xs text-info hover:underline">
+                          {shipment.shipmentNumber}
+                        </Link>
+                      )}
+                      <Badge variant={shipmentStatusVariant[shipment.status] ?? 'secondary'} className="shrink-0">
+                        {shipmentStatusLabel[shipment.status] ?? shipment.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">{omsShipmentNotice(order.omsStatus, 0)}</p>
+              )}
+            </section>
+          </div>
           <aside className="space-y-4 lg:sticky lg:top-4">
             <section className="rounded-xl border bg-card p-4">
               <h2 className="font-semibold">訂單內容</h2>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import type { ReviewLineDisplay } from '@/lib/orders/review-defaults';
@@ -22,13 +23,25 @@ function Temperature({ name, value }: { name: string; value: string }) {
   </select>;
 }
 
-function Actions({ status }: { status: string }) {
+function Actions({ status, summary, alertText, cta }: {
+  status: string;
+  summary: string;
+  alertText: string;
+  cta: { label: string; href: string } | null;
+}) {
   const { pending } = useFormStatus();
-  return <div className="sticky bottom-3 z-10 flex flex-wrap justify-end gap-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
-    <Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>儲存並檢查</Button>
-    {status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}
-    {status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}
-    {pending && <span className="self-center text-sm text-muted-foreground" role="status">處理中…</span>}
+  return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
+    <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm">
+      <p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p>
+      <p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p>
+      {cta ? <a href={cta.href} className="shrink-0 font-medium text-info underline">{cta.label}</a> : null}
+    </div>
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>儲存並檢查</Button>
+      {status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}
+      {status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}
+      {pending && <span className="self-center text-sm text-muted-foreground" role="status">處理中…</span>}
+    </div>
   </div>;
 }
 
@@ -124,8 +137,24 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, li
   promotionSummary?: PromotionSummaryView;
   sourceSummary: SourceSummary;
 }) {
-  const [state, action] = useFormState(omsReviewAction, { message: '' });
+  const [state, action] = useFormState(omsReviewAction, {
+    ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null,
+  });
   const [method, setMethod] = useState(draft.method);
+  const ok = state.ok ?? null;
+  const kind = state.kind ?? null;
+  const message = state.message ?? '';
+  const blockers = state.blockers ?? [];
+  const next = state.next ?? null;
+  const isError = ok === false && kind === 'error';
+  const isBlocked = ok === false && kind === 'blocked';
+  const isSuccess = ok === true;
+  const hasPendingPayment = isSuccess && (state.action ?? null) === 'approve' && blockers.length > 0;
+  const resultTone = isError
+    ? 'border-destructive/40 bg-destructive/5'
+    : isBlocked
+      ? 'border-warning/40 bg-warning/5'
+      : 'border-success/40 bg-success/5';
   return <form action={action} className="space-y-5">
     <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />
     <SourceOrderSummary source={sourceSummary} />
@@ -189,7 +218,17 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, li
       <summary className="cursor-pointer font-medium">例外確認</summary>
       <label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label>
     </details>
-    {state.message && <p role="status" aria-live="polite" className="rounded-lg border bg-muted/30 p-3 text-sm font-medium">{state.message}</p>}
-    <Actions status={status} />
+    {ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="off">
+      <p className="flex items-start gap-2 font-medium">
+        {isSuccess ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden /> : <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden />}
+        <span>{message}</span>
+      </p>
+      {hasPendingPayment ? <div className="rounded-md border border-warning/40 bg-warning/5 p-2">
+        <p className="font-medium text-warning">尚待條件</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5" aria-live="off">{blockers.map((item) => <li key={item}>{item}</li>)}</ul>
+      </div> : blockers.length > 0 ? <ul className="list-disc space-y-1 pl-5" aria-live="off">{blockers.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+      {next ? <a href={next.href} className="inline-block font-medium text-info underline">{next.label}</a> : null}
+    </div> : null}
+    <Actions status={status} summary={isError ? '' : (ok != null ? message : '')} alertText={isError ? message : ''} cta={next} />
   </form>;
 }
