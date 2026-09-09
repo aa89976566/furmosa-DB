@@ -5,6 +5,7 @@ import {
   orderReferenceSummary,
   reviewInboxTotal,
   reviewKindLabel,
+  shopifyReviewTitle,
 } from '@/lib/reviews/inbox';
 
 describe('review inbox labels', () => {
@@ -45,5 +46,31 @@ describe('review inbox labels', () => {
   it('shows each order reference only once', () => {
     assert.equal(orderReferenceSummary(['#1022', '#1022', null]), '#1022');
     assert.equal(orderReferenceSummary(['#1022', '王小明']), '#1022 · 王小明');
+  });
+
+  it('shows the Shopify recipient and order number as the review title', () => {
+    assert.equal(
+      shopifyReviewTitle({
+        orderNumber: 'SHOPIFY-01',
+        externalOrderName: '#1024',
+        customerName: 'HQ 客戶主檔',
+        shopifySnapshot: {
+          schemaVersion: 1,
+          order: { name: '#1024', shipping_address: { name: '王小明' }, line_items: [] },
+        },
+      }),
+      '王小明 · #1024',
+    );
+  });
+
+  it('falls back safely when Shopify has no recipient name', () => {
+    assert.equal(
+      shopifyReviewTitle({ orderNumber: 'SHOPIFY-02', customerName: '陳小華' }),
+      '陳小華 · SHOPIFY-02',
+    );
+    assert.equal(
+      shopifyReviewTitle({ orderNumber: 'SHOPIFY-03' }),
+      '未提供客戶名稱 · SHOPIFY-03',
+    );
   });
 });

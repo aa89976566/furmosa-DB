@@ -119,6 +119,18 @@ export function orderReferenceSummary(values: Array<string | null | undefined>) 
   return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])].join(' · ');
 }
 
+export function shopifyReviewTitle(order: {
+  orderNumber: string;
+  externalOrderName?: string | null;
+  customerName?: string | null;
+  shopifySnapshot?: unknown;
+}) {
+  const snapshot = snapshotView(order.shopifySnapshot);
+  const name = snapshot?.recipient.trim() || order.customerName?.trim() || '未提供客戶名稱';
+  const reference = order.externalOrderName?.trim() || snapshot?.name.trim() || order.orderNumber.trim();
+  return `${name} · ${reference}`;
+}
+
 async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   const orders = await prisma.order.findMany({
     where: {
@@ -141,19 +153,24 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     take: 80,
   });
 
-  return orders.map((order) => ({
-    id: order.id,
-    kind: 'shopify_order',
-    kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
-    title: orderContentSummary(order),
-    subtitle: orderReferenceSummary([
-      order.externalOrderName ?? order.orderNumber,
-      order.customer?.name,
-    ]),
-    href: `/orders/${order.id}`,
-    createdAt: order.orderedAt ?? order.createdAt,
-    statusLabel: '待審核',
-  }));
+  return orders.map((order) => {
+    const title = shopifyReviewTitle({
+      orderNumber: order.orderNumber,
+      externalOrderName: order.externalOrderName,
+      customerName: order.customer?.name,
+      shopifySnapshot: order.shopifySnapshot,
+    });
+    return {
+      id: order.id,
+      kind: 'shopify_order' as const,
+      kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
+      title,
+      subtitle: orderContentSummary(order),
+      href: `/orders/${order.id}`,
+      createdAt: order.orderedAt ?? order.createdAt,
+      statusLabel: '待審核',
+    };
+  });
 }
 
 async function loadPendingRestocks(): Promise<ReviewInboxItem[]> {
