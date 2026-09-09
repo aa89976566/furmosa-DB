@@ -140,6 +140,19 @@ export async function assertJarExchangeProducts(productIds: string[]) {
   }
 }
 
+export function assertApprovableRestockProducts(
+  products: { productCategory: string }[],
+  lines: { productId: string }[],
+) {
+  if (products.length !== lines.length) {
+    throw new Error('商品資料不完整');
+  }
+  const bad = products.filter((p) => !isRestockableProductCategory(p.productCategory));
+  if (bad.length > 0) {
+    throw new Error('這項商品目前不能補貨');
+  }
+}
+
 export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInput) {
   const cleaned = input.items
     .map((it) => ({
@@ -384,12 +397,7 @@ export async function approveAndConvertRestockRequest(input: {
     const products = await tx.product.findMany({
       where: { id: { in: lines.map((l) => l.productId) } },
     });
-    if (products.some((p) => p.productCategory !== 'JAR_EXCHANGE')) {
-      throw new Error('只能核准換罐計畫商品');
-    }
-    if (products.length !== lines.length) {
-      throw new Error('商品資料不完整');
-    }
+    assertApprovableRestockProducts(products, lines);
 
     const productById = new Map(products.map((p) => [p.id, p]));
     const snapshot: ApprovedSnapshotLine[] = lines.map((l) => {
