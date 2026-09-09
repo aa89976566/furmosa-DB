@@ -149,7 +149,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, products, li
   const isError = ok === false && kind === 'error';
   const isBlocked = ok === false && kind === 'blocked';
   const isSuccess = ok === true;
-  const hasPendingPayment = isSuccess && blockers.length > 0;
+  const hasPendingPayment = isSuccess && (state.action ?? null) === 'approve' && blockers.length > 0;
   const resultTone = isError
     ? 'border-destructive/40 bg-destructive/5'
     : isBlocked
