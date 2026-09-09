@@ -58,6 +58,7 @@ import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { OMS_LABELS } from '@/lib/orders/oms';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
+import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +122,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   const isMerchantRestock = Boolean(order.merchantId && !order.customerId);
   const requiresItemPrice = !isMerchantRestock;
   const paymentLabel = isMerchantRestock && Number(order.total) === 0 ? '無須付款' : null;
+  const collection = paymentCollectionSummary(Number(order.total), order.paymentStatus);
 
   if (order.omsStatus) {
     return <>
@@ -699,6 +701,21 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             <div className="rounded-lg border bg-muted/10 p-4">
               <p className="text-xs font-medium text-muted-foreground">合計</p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-sm">
+                <div>
+                  <dt className="text-xs text-muted-foreground">實際已收</dt>
+                  <dd className="mt-1 font-semibold tabular-nums">
+                    {collection.receivedAmount == null ? '尚未登記' : formatCurrency(collection.receivedAmount)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">未收尾款</dt>
+                  <dd className="mt-1 font-semibold tabular-nums">
+                    {collection.outstandingAmount == null ? '尚未登記' : formatCurrency(collection.outstandingAmount)}
+                  </dd>
+                </div>
+              </dl>
+              {collection.note ? <p className="mt-2 text-xs text-warning">{collection.note}</p> : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {paymentLabel ? <Badge variant="secondary">{paymentLabel}</Badge> : <StatusBadge kind="payment" value={order.paymentStatus} />}
                 {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>

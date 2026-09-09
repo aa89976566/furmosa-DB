@@ -42,6 +42,7 @@ import {
 } from '@/lib/shipping-policy';
 import { createOrder, updateOrder, searchCustomersForOrder, searchProductsForOrder } from '../actions';
 import { isRedirectError } from '@/lib/redirect-error';
+import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
 import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
@@ -561,6 +562,13 @@ export function OrderForm({
       0,
     );
   }, [items, merchantOrderMode, orderType]);
+  const referenceMerchandiseValue = useMemo(
+    () => items.reduce(
+      (sum, item) => (item.isGift ? sum : sum + item.quantity * item.unitPrice),
+      0,
+    ),
+    [items],
+  );
   const giftCostTotal = useMemo(
     () =>
       items.reduce(
@@ -579,6 +587,7 @@ export function OrderForm({
     [shippingFeeType, shippingMethod, cvsBrand],
   );
   const total = Math.max(0, subtotal - discount + shippingResolved.shippingFee);
+  const collection = paymentCollectionSummary(total, paymentStatus);
 
   const showMerchantOptional =
     orderType === 'customer' && customerSource === 'consignment';
@@ -1232,8 +1241,19 @@ export function OrderForm({
           </p>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="小計" value={formatCurrency(subtotal)} />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          <Stat
+            label={orderType === 'merchant' && merchantOrderMode === 'consignment'
+              ? '寄賣參考貨值（非業績）'
+              : orderType === 'merchant' && merchantOrderMode === 'jar_exchange'
+                ? '換罐商品金額'
+                : '商品銷售小計'}
+            value={formatCurrency(
+              orderType === 'merchant' && merchantOrderMode !== 'wholesale'
+                ? referenceMerchandiseValue
+                : subtotal,
+            )}
+          />
           <FieldInline label="折扣">
             <OrderDiscountField
               subtotal={subtotal}
@@ -1256,8 +1276,26 @@ export function OrderForm({
               ) : null}
             </div>
           </FieldInline>
-          <Stat label="合計（買家應付）" value={formatCurrency(total)} highlight />
+          <Stat label="訂單應收合計" value={formatCurrency(total)} highlight />
+          <Stat
+            label="實際已收"
+            value={collection.receivedAmount == null
+              ? '尚未登記'
+              : formatCurrency(collection.receivedAmount)}
+          />
+          <Stat
+            label="未收尾款"
+            value={collection.outstandingAmount == null
+              ? '尚未登記'
+              : formatCurrency(collection.outstandingAmount)}
+          />
         </div>
+
+        {collection.note ? (
+          <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+            {collection.note}
+          </p>
+        ) : null}
 
         <FieldInline label="出貨與收件">
           <div className="space-y-3">
