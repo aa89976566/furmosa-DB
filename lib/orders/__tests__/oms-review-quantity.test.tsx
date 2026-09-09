@@ -37,6 +37,17 @@ type FormProps = {
   products: { id: string; name: string; sku: string }[];
   lineDisplays: ReturnType<typeof reviewLineDisplays>;
   promotionSummary?: PromotionSummaryView;
+  sourceSummary: {
+    paymentLabel: string;
+    paymentTone: 'ready' | 'hold' | 'danger';
+    financialStatus: string;
+    total: string;
+    currency: string;
+    recipient: string;
+    phone: string;
+    address: string;
+    shippingLabel: string;
+  };
 };
 let Form: ComponentType<FormProps>;
 
@@ -53,6 +64,10 @@ async function loadForm() {
 }
 
 const products = [{ id: 'p1', name: '冷凍商品', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' }];
+const sourceSummary: FormProps['sourceSummary'] = {
+  paymentLabel: '已付款', paymentTone: 'ready', financialStatus: 'paid', total: '100.00', currency: 'TWD',
+  recipient: '王小明', phone: '0912345678', address: '台北市測試路 1 號', shippingLabel: '黑貓冷凍宅配',
+};
 
 function snapshot(line: Record<string, unknown>): Snapshot {
   return { schemaVersion: 1, order: {
@@ -66,7 +81,7 @@ function snapshot(line: Record<string, unknown>): Snapshot {
 
 function htmlFor(FormComponent: ComponentType<FormProps>, source: Snapshot, draft: ReviewDraft, saved: ReviewDraft | null, status = 'NEW') {
   return renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status, draft, products,
+    orderId: 'o1', sourceHash: 'hash', status, draft, products, sourceSummary,
     lineDisplays: reviewLineDisplays(source, products, draft, saved),
   }));
 }
@@ -110,7 +125,7 @@ test('唯一 sourceSku 同樣自動對應；大小寫不同則顯示人工 selec
   const source = snapshot({ title: '冷凍商品', sku: 'SKU-FROZEN', quantity: 10, price: '100.00' });
   const draft = defaultReviewDraft(source, sourceSkuProduct);
   const html = renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft, products: sourceSkuProduct,
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft, products: sourceSkuProduct, sourceSummary,
     lineDisplays: reviewLineDisplays(source, sourceSkuProduct, draft, null),
   }));
   const fieldset = productFieldset(html);
@@ -191,7 +206,7 @@ test('空 SKU、無匹配與多產品撞 SKU 都顯示人工 select', async () =
   const collideSource = snapshot({ title: '冷凍商品', sku: 'SKU-FROZEN', quantity: 4, price: '100.00' });
   const collideDraft = defaultReviewDraft(collideSource, collided);
   const collideHtml = renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft: collideDraft, products: collided,
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft: collideDraft, products: collided, sourceSummary,
     lineDisplays: reviewLineDisplays(collideSource, collided, collideDraft, null),
   }));
   assert.equal(collideDraft.lines[0]?.productId, '');
@@ -222,7 +237,7 @@ function htmlPlan(FormComponent: ComponentType<FormProps>, source: Snapshot, cat
   const draft = defaultReviewDraft(source, catalog);
   const plan = buildFulfillmentPlan(source, draft, catalog);
   return renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft,
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft, sourceSummary,
     products: catalog, lineDisplays: reviewLineDisplays(source, catalog, draft, null),
     promotionSummary: plan.display,
   }));
@@ -309,7 +324,7 @@ test('溫層衝突時列出原因與總數待確認，不顯示確定的11顆', 
   });
   const plan = buildFulfillmentPlan(source, draft, [mooncake]);
   const html = renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft,
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft, sourceSummary,
     products: [mooncake], lineDisplays: reviewLineDisplays(source, [mooncake], draft, null),
     promotionSummary: plan.display,
   }));
@@ -324,7 +339,7 @@ test('溫層衝突時列出原因與總數待確認，不顯示確定的11顆', 
   });
   const shipPlan = buildFulfillmentPlan(source, shipDraft, [mooncake]);
   const shipHtml = renderToStaticMarkup(createElement(FormComponent, {
-    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft: shipDraft,
+    orderId: 'o1', sourceHash: 'hash', status: 'NEW', draft: shipDraft, sourceSummary,
     products: [mooncake], lineDisplays: reviewLineDisplays(source, [mooncake], shipDraft, null),
     promotionSummary: shipPlan.display,
   }));
