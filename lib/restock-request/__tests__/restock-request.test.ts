@@ -11,7 +11,10 @@ import {
   isRestockableProductCategory,
 } from '@/lib/product-category';
 import { resolveMerchantIdForQuery } from '@/lib/merchant-auth/access';
-import { merchantRestockProductCategories } from '@/lib/restock-request/service';
+import {
+  assertApprovableRestockProducts,
+  merchantRestockProductCategories,
+} from '@/lib/restock-request/service';
 
 describe('product category', () => {
   it('recognizes JAR_EXCHANGE category', () => {
@@ -93,5 +96,91 @@ describe('merchant restock catalog categories', () => {
   it('keeps standard products for non-jar and legacy tag-only merchants', () => {
     assert.deepEqual(merchantRestockProductCategories(['wholesale']), ['STANDARD']);
     assert.deepEqual(merchantRestockProductCategories(['partner']), ['STANDARD']);
+  });
+});
+
+describe('assertApprovableRestockProducts', () => {
+  it('allows all STANDARD products', () => {
+    assert.doesNotThrow(() =>
+      assertApprovableRestockProducts(
+        [{ productCategory: 'STANDARD' }, { productCategory: 'STANDARD' }],
+        [{ productId: 'p1' }, { productId: 'p2' }],
+      ),
+    );
+  });
+
+  it('allows all JAR_EXCHANGE products', () => {
+    assert.doesNotThrow(() =>
+      assertApprovableRestockProducts(
+        [{ productCategory: 'JAR_EXCHANGE' }],
+        [{ productId: 'p1' }],
+      ),
+    );
+  });
+
+  it('allows STANDARD and JAR_EXCHANGE mixed', () => {
+    assert.doesNotThrow(() =>
+      assertApprovableRestockProducts(
+        [{ productCategory: 'STANDARD' }, { productCategory: 'JAR_EXCHANGE' }],
+        [{ productId: 'p1' }, { productId: 'p2' }],
+      ),
+    );
+  });
+
+  it('rejects SERVICE products', () => {
+    assert.throws(
+      () =>
+        assertApprovableRestockProducts(
+          [{ productCategory: 'STANDARD' }, { productCategory: 'SERVICE' }],
+          [{ productId: 'p1' }, { productId: 'p2' }],
+        ),
+      /這項商品目前不能補貨/,
+    );
+  });
+
+  it('rejects VOUCHER and DONATION products', () => {
+    assert.throws(
+      () =>
+        assertApprovableRestockProducts(
+          [{ productCategory: 'VOUCHER' }],
+          [{ productId: 'p1' }],
+        ),
+      /這項商品目前不能補貨/,
+    );
+    assert.throws(
+      () =>
+        assertApprovableRestockProducts(
+          [{ productCategory: 'DONATION' }],
+          [{ productId: 'p1' }],
+        ),
+      /這項商品目前不能補貨/,
+    );
+  });
+
+  it('reports incomplete product data before category errors', () => {
+    assert.throws(
+      () =>
+        assertApprovableRestockProducts(
+          [{ productCategory: 'SERVICE' }],
+          [{ productId: 'missing' }, { productId: 'service-1' }],
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.equal(err.message, '商品資料不完整');
+        assert.notEqual(err.message, '這項商品目前不能補貨');
+        return true;
+      },
+    );
+  });
+
+  it('treats duplicate lines as incomplete product data', () => {
+    assert.throws(
+      () =>
+        assertApprovableRestockProducts(
+          [{ productCategory: 'STANDARD' }],
+          [{ productId: 'p1' }, { productId: 'p1' }],
+        ),
+      /商品資料不完整/,
+    );
   });
 });

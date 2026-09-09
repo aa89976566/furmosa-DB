@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -43,16 +43,56 @@ export function HqRestockDetailForm({
   const [note, setNote] = useState(hqNote);
   const [arrival, setArrival] = useState(expectedArrivalDate);
   const [addProductId, setAddProductId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const [saveState, saveAction] = useFormState(saveRestockRequestHqAction, initial);
-  const [approveState, approveAction] = useFormState(
-    approveRestockRequestAction,
-    initial,
+  const wrapSaveAction = useCallback(
+    async (
+      prev: HqRestockActionState,
+      formData: FormData,
+    ): Promise<HqRestockActionState> => {
+      setSubmitting(true);
+      try {
+        return await saveRestockRequestHqAction(prev, formData);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [],
   );
-  const [rejectState, rejectAction] = useFormState(
-    rejectRestockRequestAction,
-    initial,
+  const wrapApproveAction = useCallback(
+    async (
+      prev: HqRestockActionState,
+      formData: FormData,
+    ): Promise<HqRestockActionState> => {
+      setSubmitting(true);
+      try {
+        return await approveRestockRequestAction(prev, formData);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [],
   );
+  const wrapRejectAction = useCallback(
+    async (
+      prev: HqRestockActionState,
+      formData: FormData,
+    ): Promise<HqRestockActionState> => {
+      setSubmitting(true);
+      try {
+        return await rejectRestockRequestAction(prev, formData);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [],
+  );
+
+  const [saveState, saveAction] = useFormState(wrapSaveAction, initial);
+  const [approveState, approveAction] = useFormState(wrapApproveAction, initial);
+  const [rejectState, rejectAction] = useFormState(wrapRejectAction, initial);
+
+  const busy = submitting || Boolean(approveState.redirectTo);
 
   const availableToAdd = useMemo(
     () => catalog.filter((c) => !items.some((i) => i.productId === c.id)),
@@ -213,6 +253,11 @@ export function HqRestockDetailForm({
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
+          {!locked ? (
+            <p className="text-xs text-muted-foreground">
+              拒絕時必須在『公司備註』填寫原因
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -224,22 +269,32 @@ export function HqRestockDetailForm({
       {ok ? (
         <p className="rounded-md bg-secondary px-3 py-2 text-sm">{ok}</p>
       ) : null}
+      <p id="hq-restock-error" className="sr-only" role="alert" aria-atomic="true">
+        {error ?? ''}
+      </p>
+      <p
+        id="hq-restock-success"
+        className="sr-only"
+        role="status"
+        aria-atomic="true"
+      >
+        {ok ?? ''}
+      </p>
 
       {!locked ? (
         <div className="flex flex-col gap-2 sm:flex-row">
           <form action={saveAction} className="flex-1">
             {hidden}
-            <SubmitButton label="儲存調整" variant="outline" />
+            <SubmitButton label="儲存調整" variant="outline" busy={busy} />
           </form>
           <form action={approveAction} className="flex-1">
             {hidden}
-            <SubmitButton label="核准並建立出貨單" />
+            <SubmitButton label="核准並建立出貨單" busy={busy} />
           </form>
           <form action={rejectAction} className="flex-1">
             <input type="hidden" name="requestId" value={requestId} />
             <input type="hidden" name="hqNote" value={note} />
-            <p className="mb-2 text-xs text-muted-foreground">拒絕時必須填寫原因</p>
-            <SubmitButton label="拒絕" variant="destructive" />
+            <SubmitButton label="拒絕" variant="destructive" busy={busy} />
           </form>
         </div>
       ) : null}
@@ -250,9 +305,11 @@ export function HqRestockDetailForm({
 function SubmitButton({
   label,
   variant = 'default',
+  busy,
 }: {
   label: string;
   variant?: 'default' | 'outline' | 'destructive';
+  busy: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
@@ -260,7 +317,9 @@ function SubmitButton({
       type="submit"
       variant={variant}
       className="min-h-[44px] w-full"
-      disabled={pending}
+      disabled={pending || busy}
+      aria-busy={pending || busy}
+      aria-describedby="hq-restock-error hq-restock-success"
     >
       {pending ? '處理中…' : label}
     </Button>
