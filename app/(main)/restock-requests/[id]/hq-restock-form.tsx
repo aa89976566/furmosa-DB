@@ -255,6 +255,7 @@ export function HqRestockDetailForm({
           />
           {!locked ? (
             <p className="text-xs text-muted-foreground">
+              {/* 拒絕時必須填寫原因 */}
               拒絕時必須在『公司備註』填寫原因
             </p>
           ) : null}
