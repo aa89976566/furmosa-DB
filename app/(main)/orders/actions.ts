@@ -547,6 +547,7 @@ export async function searchProductsForOrder(
   take = 40,
   scope: OrderFormProductScope = 'all',
   merchantId?: string,
+  merchantOrderMode?: 'consignment' | 'wholesale' | 'jar_exchange',
 ) {
-  return searchProductsForOrderForm(q, take, scope, merchantId);
+  return searchProductsForOrderForm(q, take, scope, merchantId, merchantOrderMode);
 }

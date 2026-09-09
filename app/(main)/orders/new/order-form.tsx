@@ -61,6 +61,7 @@ import {
   merchantOrderModeLabel,
   merchantOrderModesForTypes,
   merchantOrderProductCategory,
+  orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
 
@@ -84,6 +85,7 @@ export type ProductOption = {
   unit: string;
   priceTiers: ProductTierOption[];
   wholesalePrices: MerchantWholesalePriceRow[];
+  merchantSuggestedPrice: number | null;
 };
 
 function tierLabel(t: ProductTierOption): string {
@@ -527,7 +529,8 @@ export function OrderForm({
         query,
         40,
         scope,
-        orderType === 'merchant' && merchantOrderMode === 'wholesale' ? merchantId : undefined,
+        orderType === 'merchant' ? merchantId : undefined,
+        orderType === 'merchant' ? merchantOrderMode : undefined,
       );
       mergeProducts(rows);
       return rows;
@@ -535,19 +538,29 @@ export function OrderForm({
     [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType],
   );
 
+  useEffect(() => {
+    if (isEdit || orderType !== 'merchant' || !merchantId) return;
+    const scope = merchantOrderMode === 'jar_exchange'
+      ? 'merchant_jar_exchange'
+      : 'merchant_standard';
+    void searchProductsForOrder('', 40, scope, merchantId, merchantOrderMode)
+      .then(mergeProducts)
+      .catch(() => undefined);
+  }, [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType]);
+
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
     [items],
   );
 
-  const subtotal = useMemo(
-    () =>
-      items.reduce(
-        (s, it) => (it.isGift ? s : s + it.quantity * it.unitPrice),
-        0,
-      ),
-    [items],
-  );
+  const subtotal = useMemo(() => {
+    const merchandiseIsBillable = orderMerchandiseIsBillable(orderType, merchantOrderMode);
+    if (!merchandiseIsBillable) return 0;
+    return items.reduce(
+      (s, it) => (it.isGift ? s : s + it.quantity * it.unitPrice),
+      0,
+    );
+  }, [items, merchantOrderMode, orderType]);
   const giftCostTotal = useMemo(
     () =>
       items.reduce(
@@ -577,7 +590,8 @@ export function OrderForm({
     p: ProductOption,
     tierId: string,
   ): { unitPrice: number; unitCost: number; weightGrams: number | null; unit: string | null; tierId: string } {
-    const useCatalogPrice = orderType === 'customer';
+    const useCatalogPrice =
+      orderType === 'customer' || merchantOrderMode === 'consignment';
     const wholesalePrice = (tierId: string) =>
       merchantOrderMode === 'wholesale'
         ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ?? 0
@@ -586,7 +600,9 @@ export function OrderForm({
       const t = p.priceTiers.find((x) => x.id === tierId) ?? p.priceTiers[0];
       return {
         tierId: t.id,
-        unitPrice: useCatalogPrice ? t.price : wholesalePrice(t.id),
+        unitPrice: useCatalogPrice
+          ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? t.price : t.price)
+          : wholesalePrice(t.id),
         unitCost: resolveOrderItemUnitCost(p, t.id),
         weightGrams: t.weightGrams,
         unit: t.unit,
@@ -594,7 +610,9 @@ export function OrderForm({
     }
     return {
       tierId: '',
-      unitPrice: useCatalogPrice ? p.price : wholesalePrice(''),
+      unitPrice: useCatalogPrice
+        ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? p.price : p.price)
+        : wholesalePrice(''),
       unitCost: resolveOrderItemUnitCost(p),
       weightGrams: null,
       unit: p.unit,
@@ -709,6 +727,15 @@ export function OrderForm({
 
   function onMerchantChange(id: string) {
     setMerchantId(id);
+    setItems((current) => current.map((item) => ({
+      ...item,
+      productId: '',
+      tierId: '',
+      unitPrice: 0,
+      retailUnitPrice: 0,
+      weightGrams: null,
+      unit: null,
+    })));
     const m = merchants.find((x) => x.id === id);
     if (m) {
       applyMerchantShipping(m);
@@ -716,18 +743,7 @@ export function OrderForm({
       const nextMode = availableModes.includes(merchantOrderMode)
         ? merchantOrderMode
         : (availableModes[0] ?? 'consignment');
-      if (nextMode !== merchantOrderMode) {
-        setMerchantOrderMode(nextMode);
-        setItems((current) => current.map((item) => ({
-          ...item,
-          productId: '',
-          tierId: '',
-          unitPrice: 0,
-          retailUnitPrice: 0,
-          weightGrams: null,
-          unit: null,
-        })));
-      }
+      if (nextMode !== merchantOrderMode) setMerchantOrderMode(nextMode);
     }
   }
 

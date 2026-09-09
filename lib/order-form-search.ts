@@ -35,6 +35,7 @@ export type OrderFormProductHit = {
     notes: string | null;
   }[];
   wholesalePrices: MerchantWholesalePriceRow[];
+  merchantSuggestedPrice: number | null;
 };
 
 const customerSelect = {
@@ -95,6 +96,7 @@ export function orderFormProductScopeWhere(
 function toOrderFormProductHit(
   row: Awaited<ReturnType<typeof findProductsForOrderForm>>[number],
   wholesalePrices: MerchantWholesalePriceRow[] = [],
+  merchantSuggestedPrices: Map<string, number> = new Map(),
 ): OrderFormProductHit {
   return {
     id: row.id,
@@ -107,6 +109,7 @@ function toOrderFormProductHit(
     unit: row.unit,
     priceTiers: row.priceTiers,
     wholesalePrices: wholesalePrices.filter((price) => price.productId === row.id),
+    merchantSuggestedPrice: merchantSuggestedPrices.get(row.id) ?? null,
   };
 }
 
@@ -156,17 +159,27 @@ export async function searchProductsForOrderForm(
   take = 40,
   scope: OrderFormProductScope = 'all',
   merchantId?: string,
+  merchantOrderMode?: 'consignment' | 'wholesale' | 'jar_exchange',
 ): Promise<OrderFormProductHit[]> {
   const rows = await findProductsForOrderForm(q, take, scope);
   if (scope !== 'merchant_standard' || !merchantId) {
     return rows.map((row) => toOrderFormProductHit(row));
   }
 
-  const wholesalePrices = await loadMerchantWholesalePrices(merchantId);
-  const configuredProductIds = new Set(wholesalePrices.map((price) => price.productId));
-  return rows
-    .filter((row) => configuredProductIds.has(row.id))
-    .map((row) => toOrderFormProductHit(row, wholesalePrices));
+  if (merchantOrderMode === 'wholesale') {
+    const wholesalePrices = await loadMerchantWholesalePrices(merchantId);
+    const configuredProductIds = new Set(wholesalePrices.map((price) => price.productId));
+    return rows
+      .filter((row) => configuredProductIds.has(row.id))
+      .map((row) => toOrderFormProductHit(row, wholesalePrices));
+  }
+
+  const rules = await prisma.merchantProductRule.findMany({
+    where: { merchantId, productId: { in: rows.map((row) => row.id) } },
+    select: { productId: true, suggestedPrice: true },
+  });
+  const suggestedPrices = new Map(rules.map((rule) => [rule.productId, rule.suggestedPrice]));
+  return rows.map((row) => toOrderFormProductHit(row, [], suggestedPrices));
 }
 
 export async function getCustomersByIdsForOrderForm(
@@ -198,5 +211,6 @@ export async function getProductsByIdsForOrderForm(
     unit: row.unit,
     priceTiers: row.priceTiers,
     wholesalePrices: [],
+    merchantSuggestedPrice: null,
   }));
 }

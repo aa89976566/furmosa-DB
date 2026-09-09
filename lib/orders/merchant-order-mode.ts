@@ -35,3 +35,11 @@ export function merchantOrderSource(mode: MerchantOrderMode): string {
 export function merchantOrderProductCategory(mode: MerchantOrderMode): 'STANDARD' | 'JAR_EXCHANGE' {
   return mode === 'jar_exchange' ? 'JAR_EXCHANGE' : 'STANDARD';
 }
+
+/** 客戶與店家買斷訂單計入商品應付；寄賣／換罐僅記錄品項與參考售價。 */
+export function orderMerchandiseIsBillable(
+  orderType: 'customer' | 'merchant',
+  mode: MerchantOrderMode | null,
+): boolean {
+  return orderType === 'customer' || mode === 'wholesale';
+}

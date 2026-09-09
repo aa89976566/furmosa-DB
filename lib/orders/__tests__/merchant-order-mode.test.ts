@@ -4,6 +4,7 @@ import {
   merchantOrderModesForTypes,
   merchantOrderProductCategory,
   merchantOrderSource,
+  orderMerchandiseIsBillable,
 } from '@/lib/orders/merchant-order-mode';
 
 test('店家只顯示主檔已登記的合作方式', () => {
@@ -23,4 +24,11 @@ test('換罐與一般店家商品使用不同產品類型', () => {
   assert.equal(merchantOrderProductCategory('jar_exchange'), 'JAR_EXCHANGE');
   assert.equal(merchantOrderProductCategory('consignment'), 'STANDARD');
   assert.equal(merchantOrderProductCategory('wholesale'), 'STANDARD');
+});
+
+test('只有客戶訂單與店家買斷會把商品金額列入應付', () => {
+  assert.equal(orderMerchandiseIsBillable('customer', null), true);
+  assert.equal(orderMerchandiseIsBillable('merchant', 'wholesale'), true);
+  assert.equal(orderMerchandiseIsBillable('merchant', 'consignment'), false);
+  assert.equal(orderMerchandiseIsBillable('merchant', 'jar_exchange'), false);
 });

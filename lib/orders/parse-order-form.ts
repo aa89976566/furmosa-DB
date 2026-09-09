@@ -14,6 +14,7 @@ import {
   isMerchantOrderMode,
   merchantOrderProductCategory,
   merchantOrderSource,
+  orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
 import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
@@ -241,6 +242,17 @@ export async function parseOrderFormData(
     merchantOrderMode === 'wholesale' && merchantId
       ? await loadMerchantWholesalePrices(merchantId)
       : [];
+  const merchantSuggestedPrices =
+    merchantOrderMode === 'consignment' && merchantId
+      ? new Map(
+          (
+            await prisma.merchantProductRule.findMany({
+              where: { merchantId, productId: { in: rawLines.map((line) => line.productId) } },
+              select: { productId: true, suggestedPrice: true },
+            })
+          ).map((rule) => [rule.productId, rule.suggestedPrice]),
+        )
+      : new Map<string, number>();
 
   let giftCost = 0;
   const items: ParsedOrderLine[] = [];
@@ -276,14 +288,21 @@ export async function parseOrderFormData(
         throw new Error(`「${prod.name}」尚未設定此規格的店家進貨價`);
       }
       it.unitPrice = it.isGift ? 0 : configuredPrice;
-    } else if (opts?.catalogPricing && orderType === 'customer' && !it.isGift) {
+    } else if (
+      opts?.catalogPricing &&
+      !it.isGift &&
+      (orderType === 'customer' || merchantOrderMode === 'consignment')
+    ) {
       if (
         prod.priceTiers.length > 0 &&
         !prod.priceTiers.some((tier) => tier.id === it.tierId)
       ) {
         throw new Error(`請選擇「${prod.name}」的有效規格`);
       }
-      it.unitPrice = resolveOrderItemUnitPrice(prod, it.tierId || null);
+      it.unitPrice =
+        merchantOrderMode === 'consignment'
+          ? merchantSuggestedPrices.get(prod.id) ?? resolveOrderItemUnitPrice(prod, it.tierId || null)
+          : resolveOrderItemUnitPrice(prod, it.tierId || null);
       if (it.unitPrice <= 0) {
         throw new Error(`「${prod.name}」尚未設定售價，請先更新商品主檔`);
       }
@@ -303,9 +322,13 @@ export async function parseOrderFormData(
     });
   }
 
-  const subtotal = items
-    .filter((it) => !it.isGift)
-    .reduce((sum, it) => sum + it.lineSubtotal, 0);
+  const merchandiseIsBillable = orderMerchandiseIsBillable(
+    orderType as 'customer' | 'merchant',
+    merchantOrderMode,
+  );
+  const subtotal = merchandiseIsBillable
+    ? items.filter((it) => !it.isGift).reduce((sum, it) => sum + it.lineSubtotal, 0)
+    : 0;
   const total = orderTotalFromAmounts(subtotal, discount, shippingFee);
 
   const customer = customerId
