@@ -20,7 +20,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "border-b-2 border-foreground bg-card px-4 py-5 sm:px-6 sm:py-6 md:py-7",
+        "border-b-2 border-foreground bg-card px-4 py-3 sm:px-6 sm:py-6 md:py-7",
         tone && "border-l-4",
         tone && styles?.cardBorder,
       )}
