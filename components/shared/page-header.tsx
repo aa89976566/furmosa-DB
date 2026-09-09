@@ -2,14 +2,12 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { sectionToneStyles, type SectionTone } from "@/lib/section-tone";
 
-
 interface PageHeaderProps {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   tone?: SectionTone;
 }
-
 
 export function PageHeader({
   title,
@@ -18,7 +16,6 @@ export function PageHeader({
   tone,
 }: PageHeaderProps) {
   const styles = tone ? sectionToneStyles[tone] : null;
-
 
   return (
     <div
@@ -52,4 +49,3 @@ export function PageHeader({
     </div>
   );
 }
-
