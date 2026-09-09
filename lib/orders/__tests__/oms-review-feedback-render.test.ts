@@ -32,7 +32,7 @@ assert.equal(existsSync(fileURLToPath(new URL('../../../components/orders/oms-re
 
 type FormProps = {
   orderId: string; sourceHash: string; status: string; draft: ReviewDraft;
-  products: { id: string; name: string; sku: string }[];
+  products: { id: string; name: string; sku: string; sourceSku: string | null; defaultTemperature: string }[];
   lineDisplays: ReturnType<typeof reviewLineDisplays>;
   sourceSummary: {
     paymentLabel: string;
@@ -61,7 +61,7 @@ async function loadForm() {
   return Form;
 }
 
-const products = [{ id: 'p1', name: '冷凍商品', sku: 'SKU-FROZEN' }];
+const products = [{ id: 'p1', name: '冷凍商品', sku: 'SKU-FROZEN', sourceSku: null, defaultTemperature: 'frozen' }];
 const sourceSummary: FormProps['sourceSummary'] = {
   paymentLabel: '已付款', paymentTone: 'ready', financialStatus: 'paid', total: '100.00', currency: 'TWD',
   recipient: '王小明', phone: '0912345678', address: '台北市測試路 1 號', shippingLabel: '黑貓冷凍宅配',
