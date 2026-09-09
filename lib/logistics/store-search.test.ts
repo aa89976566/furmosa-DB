@@ -25,6 +25,27 @@ test('selection checks temperature and never falls back to an ambient store', ()
 test('preserves leading zeroes and normalizes 台/臺 and spaces', () => {
   assert.equal(searchStores(directory, ' 台北  示範 ', options)[0].id, '001234');
 });
+test('finds stores by exact ID and tolerates common customer wording', () => {
+  assert.equal(searchStores(directory, '001234', options)[0].id, '001234');
+  assert.equal(searchStores(directory, '7-ELEVEN 示範門市', options)[0].id, '001234');
+});
+test('falls back from a neighborhood descriptor without returning unrelated stores', () => {
+  const newBan = {
+    fetchedAt: 1000,
+    stores: [
+      { id: '286325', name: '新板橋', address: '新北市板橋區文化路一段135號', serviceType: 'UNIMART' as const },
+      { id: '110301', name: '耀心', address: '新北市板橋區中山路一段50巷22號', serviceType: 'UNIMART' as const },
+    ],
+  };
+  assert.deepEqual(searchStores(newBan, '新板特區', options).map(store => store.id), ['286325']);
+});
+test('ranks an exact store name before broad address matches', () => {
+  const stores = [
+    { id: '002', name: '其他', address: '新北市示範區示範路2號', serviceType: 'UNIMART' as const },
+    { id: '001', name: '示範', address: '新北市其他區1號', serviceType: 'UNIMART' as const },
+  ];
+  assert.equal(searchStores({ fetchedAt: 1000, stores }, '示範', options)[0].id, '001');
+});
 test('empty and unknown searches do not fabricate stores', () => {
   assert.deepEqual(searchStores(directory, '', options), []);
   assert.deepEqual(searchStores(directory, '不存在', options), []);
@@ -52,4 +73,18 @@ test('limits returned results to 20 and rejects long queries', () => {
   const stores = Array.from({ length: 25 }, (_, i) => ({ ...directory.stores[0], id: String(i) }));
   assert.equal(searchStores({ ...directory, stores }, '示範', options).length, 20);
   assert.throws(() => searchStores(directory, 'a'.repeat(81), options));
+});
+test('every store in a large directory is searchable without manual spot checks', () => {
+  const stores = Array.from({ length: 500 }, (_, i) => ({
+    id: String(100000 + i),
+    name: `批次驗證${i}`,
+    address: `台灣測試市第${i}區完整路${i}號`,
+    serviceType: 'UNIMART' as const,
+  }));
+  const largeDirectory = { fetchedAt: 1000, stores };
+  for (const store of stores) {
+    assert.ok(searchStores(largeDirectory, store.id, options).some(result => result.id === store.id));
+    assert.ok(searchStores(largeDirectory, store.name, options).some(result => result.id === store.id));
+    assert.ok(searchStores(largeDirectory, `${store.name}門市`, options).some(result => result.id === store.id));
+  }
 });
