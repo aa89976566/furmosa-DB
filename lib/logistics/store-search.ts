@@ -22,7 +22,38 @@ export function resolveStore(directory: Directory, id: string, options: {
   return matches.length === 1 ? { ...matches[0] } : null;
 }
 export function normalizeSearch(value: string): string {
-  return value.normalize('NFKC').replace(/臺/g, '台').toLowerCase().replace(/\s+/g, ' ').trim();
+  return value.normalize('NFKC').replace(/臺/g, '台').toLowerCase()
+    .replace(/[，,。．.、・·／/\\｜|_—–-]+/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function queryVariants(value: string): string[] {
+  const normalized = normalizeSearch(value);
+  const simplified = normalized
+    .replace(/7\s*eleven/g, ' ')
+    .replace(/統一超商|門市|特區/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  return simplified.length >= 2 && simplified !== normalized
+    ? [normalized, simplified]
+    : [normalized];
+}
+
+function matchesQuery(store: Store, query: string): boolean {
+  const haystack = normalizeSearch(`${store.id} ${store.name} ${store.address}`);
+  return query.split(' ').every(term => haystack.includes(term));
+}
+
+function matchRank(store: Store, query: string): number {
+  const id = normalizeSearch(store.id);
+  const name = normalizeSearch(store.name);
+  const address = normalizeSearch(store.address);
+  if (id === query) return 0;
+  if (name === query || `${name}門市` === query) return 1;
+  if (name.startsWith(query)) return 2;
+  if (name.includes(query)) return 3;
+  if (address.startsWith(query)) return 4;
+  if (address.includes(query)) return 5;
+  return 6;
 }
 export function parseStoreList(payload: unknown, serviceType: Store['serviceType']): Store[] {
   if (!payload || typeof payload !== 'object') throw new Error('門市資料格式錯誤');
@@ -65,11 +96,14 @@ export function searchStores(directory: Directory, query: string, options: {
   const normalized = normalizeSearch(query);
   if (normalized.length > 80) throw new Error('搜尋內容過長');
   if (normalized.length < 2) return [];
-  const terms = normalized.split(' ');
+  const variants = queryVariants(query);
   const service = options.temperature === 'frozen' ? 'UNIMARTFREEZE' : 'UNIMART';
-  return directory.stores.filter(store => {
-    if (store.serviceType !== service) return false;
-    const haystack = normalizeSearch(store.name + ' ' + store.address);
-    return terms.every(term => haystack.includes(term));
-  }).sort((a, b) => a.id.localeCompare(b.id)).slice(0, 20);
+  const matchedVariant = variants.find(variant => directory.stores.some(store =>
+    store.serviceType === service && matchesQuery(store, variant),
+  ));
+  if (!matchedVariant) return [];
+  return directory.stores
+    .filter(store => store.serviceType === service && matchesQuery(store, matchedVariant))
+    .sort((a, b) => matchRank(a, matchedVariant) - matchRank(b, matchedVariant) || a.id.localeCompare(b.id))
+    .slice(0, 20);
 }
