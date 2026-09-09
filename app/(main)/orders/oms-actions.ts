@@ -27,7 +27,7 @@ export async function omsReviewAction(_previous: { message: string }, form: Form
   }
   // A cache error after commit must not be reported as a failed order mutation.
   try {
-    for (const path of ['/orders', `/orders/${field('orderId')}`, '/dashboard', '/shipments']) revalidatePath(path);
+    for (const path of ['/orders', `/orders/${field('orderId')}`, '/reviews', '/dashboard', '/shipments']) revalidatePath(path);
     await bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals, CACHE_TAGS.shipmentQueueCounts);
   } catch { console.error('[oms.review]', 'CACHE_REFRESH_FAILED'); }
   return result;

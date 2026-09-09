@@ -82,7 +82,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
       {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已補入 Shopify／商品主檔資料；請確認標示為「待完成」的例外。</p>}
     </div>
-    <OmsReviewForm key={`${hash}-${audit?.id ?? 'new'}`} orderId={orderId} sourceHash={hash} status={status}
+    <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={status}
       draft={draft} products={catalog} lineDisplays={reviewLineDisplays(source, catalog, draft, saved)}
       promotionSummary={plan.display}
       sourceSummary={{
