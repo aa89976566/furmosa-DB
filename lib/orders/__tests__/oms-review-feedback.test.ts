@@ -67,4 +67,7 @@ test('Actions source order keeps the first status live region before the usage s
   assert.ok(definition >= 0 && definition < usage);
   assert.ok(formSource.indexOf('role="status" aria-live="polite"') < usage);
   assert.ok(formSource.indexOf('role="status"') < usage);
+  assert.ok(formSource.indexOf('role="alert"') > definition && formSource.indexOf('role="alert"') < usage);
+  assert.doesNotMatch(formSource, /alertText \? <p role="alert"/);
+  assert.doesNotMatch(formSource, /key=\{`\$\{state\.ok\}-\$\{state\.message/);
 });

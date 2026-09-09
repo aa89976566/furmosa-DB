@@ -120,9 +120,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
           fulfillmentPlan: result.plan.frozen }) } });
       const blocking = result.issues.filter(issue => issue.severity === 'blocking').map(issue => issue.message);
       return emptyReviewResult({
-        ok: true, action: 'check', omsStatus: 'REVIEW',
+        ok: blocking.length === 0, action: 'check', omsStatus: 'REVIEW',
         message: blocking.length ? '已儲存，請處理上方列出的問題後重新檢查' : '檢查通過，可以確認訂單',
-        blockers: blocking, kind: 'success',
+        blockers: blocking, kind: blocking.length ? 'blocked' : 'success',
       });
     }
     const savedPlan = parseFrozenFulfillmentPlan(saved.fulfillmentPlan);

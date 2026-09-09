@@ -131,6 +131,25 @@ describe('OMS review action result contract', () => {
     assert.deepEqual(serializable(approved), approved);
   });
 
+  it('classifies a saved check with blocking issues as blocked, not success', async () => {
+    const incomplete = { ...draft, recipient: '', phone: '', address: '' };
+    const blockedDb = fakeDb();
+    const blocked = await blockedDb.run('check', { draft: incomplete });
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.kind, 'blocked');
+    assert.equal(blocked.action, 'check');
+    assert.equal(blocked.omsStatus, 'REVIEW');
+    assert.equal(blockedDb.order.omsStatus, 'REVIEW');
+    assert.equal(blocked.message, '已儲存，請處理上方列出的問題後重新檢查');
+    assert.ok(Array.isArray(blocked.blockers) && blocked.blockers.length >= 2);
+    assert.deepEqual(serializable(blocked), blocked);
+    const passed = await fakeDb().run('check');
+    assert.equal(passed.ok, true);
+    assert.equal(passed.kind, 'success');
+    assert.equal(passed.message, '檢查通過，可以確認訂單');
+    assert.deepEqual(passed.blockers, []);
+  });
+
   it('lets unpaid orders become READY and reports payment still pending', async () => {
     const f = fakeDb(unpaidSnapshot);
     await f.run('check');

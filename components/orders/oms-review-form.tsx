@@ -33,7 +33,7 @@ function Actions({ status, summary, alertText, cta }: {
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
     <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm">
       <p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p>
-      {alertText ? <p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p> : null}
+      <p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p>
       {cta ? <a href={cta.href} className="shrink-0 font-medium text-info underline">{cta.label}</a> : null}
     </div>
     <div className="flex flex-wrap justify-end gap-2">

@@ -86,6 +86,12 @@ function htmlFor(status = 'REVIEW') {
   }));
 }
 
+function alertRegion(html: string) {
+  const match = html.match(/<p\b[^>]*role="alert"[^>]*>([\s\S]*?)<\/p>/);
+  assert.ok(match, html);
+  return match[1];
+}
+
 test('初始 ok=null 不渲染結果框或 CTA', async () => {
   await loadForm();
   injected = emptyReviewResult();
@@ -93,11 +99,12 @@ test('初始 ok=null 不渲染結果框或 CTA', async () => {
   assert.equal(html.includes('已確認訂單'), false);
   assert.equal(html.includes('href="#oms-shipping"'), false);
   assert.equal(html.includes('尚待條件'), false);
-  assert.equal(html.includes('role="alert"'), false);
+  assert.equal(html.includes('aria-live="off"'), false);
   assert.match(html, /role="status" aria-live="polite"/);
+  assert.equal(alertRegion(html), '');
 });
 
-test('approve success 顯示 CTA 且不是 alert', async () => {
+test('approve success 顯示 CTA 且 alert region 為空', async () => {
   await loadForm();
   injected = emptyReviewResult({
     ok: true, action: 'approve', message: '已確認訂單', omsStatus: 'READY',
@@ -107,8 +114,8 @@ test('approve success 顯示 CTA 且不是 alert', async () => {
   assert.match(html, /已確認訂單/);
   assert.match(html, /href="#oms-shipping"/);
   assert.match(html, /前往運送資訊/);
-  assert.equal(html.includes('role="alert"'), false);
   assert.match(html, /role="status" aria-live="polite"/);
+  assert.equal(alertRegion(html), '');
 });
 
 test('未付款 success 用 warning 尚待條件且仍是 status', async () => {
@@ -123,11 +130,11 @@ test('未付款 success 用 warning 尚待條件且仍是 status', async () => {
   assert.match(html, /等待 Shopify 付款完成/);
   assert.match(html, /尚待條件/);
   assert.match(html, /border-warning\/40/);
-  assert.equal(html.includes('role="alert"'), false);
   assert.match(html, /role="status" aria-live="polite"/);
+  assert.equal(alertRegion(html), '');
 });
 
-test('blocked 使用 status，error 使用 alert 並列出多個 li', async () => {
+test('blocked 使用 status，error 使用同一 alert region 並列出多個 li', async () => {
   await loadForm();
   injected = emptyReviewResult({
     ok: false, action: 'approve', message: '請先儲存並檢查目前版本',
@@ -136,7 +143,7 @@ test('blocked 使用 status，error 使用 alert 並列出多個 li', async () =
   const blocked = htmlFor();
   assert.match(blocked, /請先儲存並檢查目前版本/);
   assert.match(blocked, /role="status" aria-live="polite"/);
-  assert.equal(blocked.includes('role="alert"'), false);
+  assert.equal(alertRegion(blocked), '');
   assert.equal(blocked.includes('href="#oms-shipping"'), false);
 
   injected = emptyReviewResult({
@@ -144,7 +151,7 @@ test('blocked 使用 status，error 使用 alert 並列出多個 li', async () =
     blockers: ['缺少收件人', '缺少收件地址／門市地址'], kind: 'error',
   });
   const failed = htmlFor();
-  assert.match(failed, /role="alert"/);
+  assert.equal(alertRegion(failed), '訂單未確認');
   assert.equal((failed.match(/<li>/g) ?? []).length, 2);
   assert.match(failed, /缺少收件人/);
   assert.match(failed, /缺少收件地址／門市地址/);
