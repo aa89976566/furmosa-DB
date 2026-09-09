@@ -2,12 +2,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { sectionToneStyles, type SectionTone } from "@/lib/section-tone";
 
+
 interface PageHeaderProps {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   tone?: SectionTone;
 }
+
 
 export function PageHeader({
   title,
@@ -17,10 +19,11 @@ export function PageHeader({
 }: PageHeaderProps) {
   const styles = tone ? sectionToneStyles[tone] : null;
 
+
   return (
     <div
       className={cn(
-        "border-b-2 border-foreground bg-card px-4 py-5 sm:px-6 sm:py-6 md:py-7",
+        "border-b-2 border-foreground bg-card px-4 py-3 sm:px-6 sm:py-6 md:py-7",
         tone && "border-l-4",
         tone && styles?.cardBorder,
       )}
@@ -49,3 +52,4 @@ export function PageHeader({
     </div>
   );
 }
+
