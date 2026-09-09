@@ -122,6 +122,24 @@ describe('Shopify intake', () => {
     assert.equal((await persistShopifyIntake(fake.db, input({}, 'late'))).disposition, 'stale');
     assert.equal([...fake.orders.values()][0].paymentStatus, 'paid');
   });
+  it('paid webhook returns a READY review to NEW and clears reviewed fields', async () => {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input());
+    const order = [...fake.orders.values()][0];
+    order.omsStatus = 'READY';
+    order.omsReviewedAt = new Date('2026-08-30T01:30:00Z');
+    order.omsReviewedById = 'reviewer';
+    order.omsCheckedAt = new Date('2026-08-30T01:20:00Z');
+    await persistShopifyIntake(fake.db, {
+      ...input({ updated_at: '2026-08-30T02:00:00Z', financial_status: 'paid' }, 'paid-ready'),
+      topic: 'orders/paid',
+    });
+    const next = [...fake.orders.values()][0];
+    assert.equal(next.omsStatus, 'NEW');
+    assert.equal(next.omsReviewedAt, null);
+    assert.equal(next.omsReviewedById, null);
+    assert.equal(next.omsCheckedAt, null);
+  });
   it('quarantines conflicting timestamps rather than overwriting payment', async () => {
     const fake = fakeDb(); await persistShopifyIntake(fake.db, input());
     const result = await persistShopifyIntake(fake.db, input({ financial_status: 'paid' }, 'conflict'));

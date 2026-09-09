@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
-import { runReview } from '../review-service';
+import { ReviewError, runReview } from '../review-service';
 
 const raw = { id: '123', currency: 'TWD', updated_at: '2026-08-30T01:00:00Z', financial_status: 'paid',
   subtotal_price: '100.10', total_discounts: '0.00', total_price: '160.10',
@@ -53,9 +53,9 @@ describe('OMS review checks', () => {
 });
 
 // Contract double only: real PostgreSQL lock, rollback and concurrent stock tests require isolated DB.
-function fakeDb() {
+function fakeDb(source = snapshot) {
   let order: any = { id: 'o1', externalStore: 'test.myshopify.com', externalOrderId: '123',
-    omsStatus: 'NEW', status: 'pending_review', shopifySnapshot: snapshot, omsIssueFlags: [], shipments: [],
+    omsStatus: 'NEW', status: 'pending_review', shopifySnapshot: source, omsIssueFlags: [], shipments: [],
     shopifySourceUpdatedAt: new Date(raw.updated_at), orderedAt: new Date(raw.updated_at), total: 160.1 };
   const audits: any[] = [];
   let stock = 2, role = 'staff', shipmentCreates = 0;
@@ -73,9 +73,10 @@ function fakeDb() {
   };
   const db = { $transaction: async (fn: any) => fn(tx) } as PrismaClient;
   const run = (action: 'check' | 'approve' | 'ship', overrides = {}) => runReview(db, {
-    orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(snapshot), action, draft, ...overrides,
+    orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(source), action, draft, ...overrides,
   });
   return { run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
+    get audits() { return audits; },
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
@@ -102,5 +103,122 @@ describe('OMS review transaction contract', () => {
     await assert.rejects(f.run('ship'), /庫存不足/); assert.equal(f.shipmentCreates, 0);
     const g = fakeDb(); g.order.omsIssueFlags = [{ code: 'SOURCE_VERSION_UNKNOWN', severity: 'blocking', message: '版本衝突' }];
     await assert.rejects(g.run('check'), /版本不明或衝突/);
+  });
+});
+
+const unpaidSnapshot = shopifySnapshot({ ...raw, financial_status: 'pending' });
+function serializable(value: unknown) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+describe('OMS review action result contract', () => {
+  it('returns a serializable approve result with READY and shipping CTA', async () => {
+    const f = fakeDb();
+    const checked = await f.run('check');
+    assert.equal(checked.ok, true);
+    assert.equal(checked.action, 'check');
+    assert.equal(checked.omsStatus, 'REVIEW');
+    assert.equal(checked.kind, 'success');
+    assert.deepEqual(serializable(checked), checked);
+    const approved = await f.run('approve');
+    assert.equal(approved.ok, true);
+    assert.equal(approved.action, 'approve');
+    assert.equal(approved.message, '已確認訂單');
+    assert.equal(approved.omsStatus, 'READY');
+    assert.equal(approved.kind, 'success');
+    assert.deepEqual(approved.blockers, []);
+    assert.deepEqual(approved.next, { label: '前往運送資訊', href: '#oms-shipping' });
+    assert.deepEqual(serializable(approved), approved);
+  });
+
+  it('lets unpaid orders become READY and reports payment still pending', async () => {
+    const f = fakeDb(unpaidSnapshot);
+    await f.run('check');
+    const approved = await f.run('approve');
+    assert.equal(approved.ok, true);
+    assert.equal(f.order.omsStatus, 'READY');
+    assert.equal(approved.message, '已確認訂單');
+    assert.ok(approved.blockers.includes('等待 Shopify 付款完成'));
+    assert.ok(approved.blockers.includes('Shopify 付款完成後訂單會回到待審核，需重新檢查並確認'));
+    assert.equal(approved.kind, 'success');
+    assert.deepEqual(approved.next, { label: '前往運送資訊', href: '#oms-shipping' });
+    assert.deepEqual(serializable(approved), approved);
+  });
+
+  it('treats a second approve as success without writing data', async () => {
+    const f = fakeDb();
+    await f.run('check');
+    const first = await f.run('approve');
+    const reviewedAt = f.order.omsReviewedAt;
+    const reviewedBy = f.order.omsReviewedById;
+    const auditCount = f.audits.length;
+    const again = await f.run('approve');
+    assert.equal(first.ok, true);
+    assert.equal(again.ok, true);
+    assert.equal(again.action, 'approve');
+    assert.equal(again.omsStatus, 'READY');
+    assert.equal(f.order.omsReviewedAt, reviewedAt);
+    assert.equal(f.order.omsReviewedById, reviewedBy);
+    assert.equal(f.audits.length, auditCount);
+    assert.equal(f.shipmentCreates, 0);
+  });
+
+  it('returns ok true for a duplicate ship and keeps a single shipment', async () => {
+    const f = fakeDb();
+    await f.run('check');
+    await f.run('approve');
+    const first = await f.run('ship');
+    const second = await f.run('ship');
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    assert.equal(second.action, 'ship');
+    assert.equal(second.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(second.message, '出貨單已存在，沒有重複建立');
+    assert.equal(f.shipmentCreates, 1);
+    assert.deepEqual(serializable(second), second);
+  });
+
+  it('keeps multiple blockers as an array instead of joining them', async () => {
+    const incomplete = { ...draft, recipient: '', phone: '', address: '' };
+    const f = fakeDb();
+    await f.run('check', { draft: incomplete });
+    await assert.rejects(f.run('approve', { draft: incomplete }), (error: unknown) => {
+      assert.ok(error instanceof ReviewError);
+      assert.equal(error.kind, 'blocked');
+      assert.ok(Array.isArray(error.blockers) && error.blockers.length >= 2);
+      assert.equal(error.message.includes('；'), false);
+      return true;
+    });
+  });
+
+  it('classifies stale hash, unsaved edits and stock as structured errors', async () => {
+    const stale = fakeDb();
+    await assert.rejects(stale.run('check', { sourceHash: 'old' }), (error: unknown) => {
+      assert.ok(error instanceof ReviewError);
+      assert.equal(error.kind, 'error');
+      assert.deepEqual(error.blockers, []);
+      assert.match(error.message, /已更新/);
+      return true;
+    });
+    const unsaved = fakeDb();
+    await unsaved.run('check');
+    await assert.rejects(unsaved.run('approve', { draft: { ...draft, address: '另一地址' } }), (error: unknown) => {
+      assert.ok(error instanceof ReviewError);
+      assert.equal(error.kind, 'blocked');
+      assert.deepEqual(error.blockers, []);
+      assert.match(error.message, /已修改/);
+      return true;
+    });
+    const stock = fakeDb();
+    await stock.run('check');
+    await stock.run('approve');
+    stock.setStock(0);
+    await assert.rejects(stock.run('ship'), (error: unknown) => {
+      assert.ok(error instanceof ReviewError);
+      assert.equal(error.kind, 'blocked');
+      assert.ok(Array.isArray(error.blockers) && error.blockers.some(item => item.includes('庫存不足')));
+      return true;
+    });
+    assert.equal(stock.shipmentCreates, 0);
   });
 });
