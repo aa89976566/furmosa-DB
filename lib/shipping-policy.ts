@@ -93,3 +93,51 @@ export function resolveOrderShipping(params: {
 export function orderTotalFromAmounts(subtotal: number, discount: number, shippingFee: number): number {
   return Math.max(0, subtotal - discount + shippingFee);
 }
+
+export type ShippingRecipientFields = {
+  recipientName: string | null | undefined;
+  recipientPhone: string | null | undefined;
+  recipientAddress: string | null | undefined;
+};
+
+/** HQ home／delivery 與進貨黑貓／送貨共用的必填對照。 */
+export const HOME_OR_DELIVERY_RECIPIENT_REQUIREMENTS = [
+  { field: 'recipientName', message: '請填寫收件人姓名' },
+  { field: 'recipientPhone', message: '請填寫收件人電話' },
+  { field: 'recipientAddress', message: '請填寫收件地址' },
+] as const;
+
+const HOME_OR_DELIVERY_METHODS = new Set<string>(['home', 'delivery']);
+const HOME_OR_DELIVERY_CARRIERS = new Set<string>(['黑貓', SHIPPING_CARRIER_DELIVERY]);
+
+export function parseHqShippingMethod(raw: unknown): ShippingMethod {
+  const value = String(raw ?? '').trim();
+  if (value === 'home' || value === 'convenience' || value === 'delivery') {
+    return value;
+  }
+  throw new Error('請選擇運送方式');
+}
+
+export function shippingMethodRequiresHomeOrDeliveryRecipient(method: string): boolean {
+  return HOME_OR_DELIVERY_METHODS.has(method);
+}
+
+export function carrierRequiresHomeOrDeliveryRecipient(carrier: string | null | undefined): boolean {
+  return HOME_OR_DELIVERY_CARRIERS.has((carrier ?? '').trim());
+}
+
+export function assertHomeOrDeliveryRecipient(fields: ShippingRecipientFields): void {
+  for (const { field, message } of HOME_OR_DELIVERY_RECIPIENT_REQUIREMENTS) {
+    if (!String(fields[field] ?? '').trim()) {
+      throw new Error(message);
+    }
+  }
+}
+
+export function assertCarrierHomeOrDeliveryRecipient(
+  carrier: string | null | undefined,
+  fields: ShippingRecipientFields,
+): void {
+  if (!carrierRequiresHomeOrDeliveryRecipient(carrier)) return;
+  assertHomeOrDeliveryRecipient(fields);
+}
