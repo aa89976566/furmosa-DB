@@ -158,7 +158,7 @@ describe('rejectRestockRequest 拒絕原因驗證', () => {
       new URL('../../../app/(main)/restock-requests/[id]/hq-restock-form.tsx', import.meta.url),
       'utf8',
     );
-    assert.match(form, /拒絕時必須填寫原因/);
+    assert.match(form, />\s*拒絕時必須在『公司備註』填寫原因\s*</);
     assert.match(form, /rejectRestockRequestAction/);
 
     const actions = readFileSync(
