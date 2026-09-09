@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { assertCarrierHomeOrDeliveryRecipient } from '@/lib/shipping-policy';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -67,6 +68,11 @@ export async function createRestockOrderWithShipment(
   input: CreateRestockOrderInput,
   tx?: Prisma.TransactionClient,
 ) {
+  assertCarrierHomeOrDeliveryRecipient(input.carrier, {
+    recipientName: input.recipientName,
+    recipientPhone: input.recipientPhone,
+    recipientAddress: input.recipientAddress,
+  });
   const db = tx ?? prisma;
   const productById = new Map(input.products.map((p) => [p.id, p]));
   const orderNumber = await nextRestockOrderNumber(db);

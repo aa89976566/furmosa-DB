@@ -1,9 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
 import {
+  assertHomeOrDeliveryRecipient,
   orderTotalFromAmounts,
+  parseHqShippingMethod,
   resolveOrderShipping,
   shipmentCarrierFromOrder,
+  shippingMethodRequiresHomeOrDeliveryRecipient,
   SHIPPING_FEE_TYPES,
 } from '@/lib/shipping-policy';
 import { getMerchantTypes } from '@/lib/merchant-types-persist';
@@ -115,13 +118,7 @@ export async function parseOrderFormData(
     ? paymentStatusRaw
     : 'unpaid';
 
-  const shippingMethodRaw = String(formData.get('shippingMethod') ?? 'home');
-  const shippingMethod =
-    shippingMethodRaw === 'convenience'
-      ? 'convenience'
-      : shippingMethodRaw === 'delivery'
-        ? 'delivery'
-        : 'home';
+  const shippingMethod = parseHqShippingMethod(formData.get('shippingMethod'));
   let shippingAddress = toNullableString(formData.get('shippingAddress'));
   let cvsBrand = toNullableString(formData.get('cvsBrand'));
   let cvsStoreName = toNullableString(formData.get('cvsStoreName'));
@@ -139,6 +136,13 @@ export async function parseOrderFormData(
   } else {
     cvsBrand = null;
     cvsStoreName = null;
+  }
+  if (shippingMethodRequiresHomeOrDeliveryRecipient(shippingMethod)) {
+    assertHomeOrDeliveryRecipient({
+      recipientName,
+      recipientPhone,
+      recipientAddress: shippingAddress,
+    });
   }
   const cvsStoreId = null;
 
