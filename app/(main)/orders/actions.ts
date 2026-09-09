@@ -122,7 +122,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   };
 
   try {
-    const rawPayload = await parseOrderFormData(formData);
+    const rawPayload = await parseOrderFormData(formData, { catalogPricing: true });
     const payload = applyJarExchangeConsignmentPricing(rawPayload);
     const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
 

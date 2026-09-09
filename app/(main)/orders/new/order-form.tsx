@@ -306,6 +306,11 @@ function OrderLineItemsTable({
                     required={rowRequired && Boolean(it.productId) && !it.isGift}
                     className="h-9 min-w-[5.5rem] text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60"
                   />
+                  {!it.isGift && it.productId && it.unitPrice <= 0 ? (
+                    <p className="mt-1 text-[10px] text-destructive">
+                      商品主檔尚未設定售價
+                    </p>
+                  ) : null}
                   {it.isGift && it.retailUnitPrice > 0 ? (
                     <p className="mt-0.5 text-[10px] text-muted-foreground line-through">
                       售價 {formatCurrency(it.retailUnitPrice)}
@@ -1119,7 +1124,9 @@ export function OrderForm({
         onSelectProduct={onSelectProduct}
         onSelectTier={onSelectTier}
         onToggleGift={onToggleGift}
-        unitPriceReadOnly={orderType === 'merchant' && merchantOrderMode === 'wholesale'}
+        unitPriceReadOnly={
+          !isEdit || (orderType === 'merchant' && merchantOrderMode === 'wholesale')
+        }
         updateItem={updateItem}
         addItem={addItem}
         removeItem={removeItem}

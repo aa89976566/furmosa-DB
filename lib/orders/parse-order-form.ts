@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
+import { resolveOrderItemUnitCost, resolveOrderItemUnitPrice } from '@/lib/order-item-cost';
 import {
   assertHomeOrDeliveryRecipient,
   orderTotalFromAmounts,
@@ -92,7 +92,7 @@ export type ParsedOrderPayload = {
 
 export async function parseOrderFormData(
   formData: FormData,
-  opts?: { extendedPayment?: boolean },
+  opts?: { extendedPayment?: boolean; catalogPricing?: boolean },
 ): Promise<ParsedOrderPayload> {
   const orderType = String(formData.get('orderType') ?? '');
   if (!['merchant', 'customer'].includes(orderType)) {
@@ -233,7 +233,7 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
-      priceTiers: { select: { id: true, cost: true } },
+      priceTiers: { select: { id: true, price: true, cost: true } },
     },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -276,6 +276,17 @@ export async function parseOrderFormData(
         throw new Error(`「${prod.name}」尚未設定此規格的店家進貨價`);
       }
       it.unitPrice = it.isGift ? 0 : configuredPrice;
+    } else if (opts?.catalogPricing && orderType === 'customer' && !it.isGift) {
+      if (
+        prod.priceTiers.length > 0 &&
+        !prod.priceTiers.some((tier) => tier.id === it.tierId)
+      ) {
+        throw new Error(`請選擇「${prod.name}」的有效規格`);
+      }
+      it.unitPrice = resolveOrderItemUnitPrice(prod, it.tierId || null);
+      if (it.unitPrice <= 0) {
+        throw new Error(`「${prod.name}」尚未設定售價，請先更新商品主檔`);
+      }
     }
     let unitCost = 0;
     if (it.isGift) {

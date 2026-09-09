@@ -19,3 +19,23 @@ export function resolveOrderItemUnitCost(
   }
   return Number.isFinite(product.cost) ? product.cost : 0;
 }
+
+/** 新增客戶訂單用：單價一律由商品主檔／所選規格取得。 */
+export type OrderItemPriceProduct = {
+  price: number;
+  priceTiers: Array<{
+    id: string;
+    price: number;
+  }>;
+};
+
+export function resolveOrderItemUnitPrice(
+  product: OrderItemPriceProduct,
+  tierId?: string | null,
+): number {
+  if (tierId) {
+    const tier = product.priceTiers.find((candidate) => candidate.id === tierId);
+    if (tier && Number.isFinite(tier.price)) return Math.max(0, tier.price);
+  }
+  return Number.isFinite(product.price) ? Math.max(0, product.price) : 0;
+}
