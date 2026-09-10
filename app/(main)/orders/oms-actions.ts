@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { ReviewError, emptyReviewResult, runReview, type ReviewResult } from '@/lib/orders/review-service';
 import { reviewDraft } from '@/lib/orders/review-policy';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 
@@ -38,5 +39,12 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
     for (const path of ['/orders', `/orders/${field('orderId')}`, '/reviews', '/dashboard', '/shipments']) revalidatePath(path);
     await bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals, CACHE_TAGS.shipmentQueueCounts);
   } catch { console.error('[oms.review]', 'CACHE_REFRESH_FAILED'); }
+
+  // Successful state transitions must render from the committed server state, not rely on
+  // transient client form state. A same-page redirect guarantees the next workflow action
+  // is visible immediately after approve/ship even if React remounts during revalidation.
+  if (result.ok && result.action === 'approve') redirect(`/orders/${field('orderId')}#oms-review`);
+  if (result.ok && result.action === 'ship') redirect(`/orders/${field('orderId')}#oms-shipping`);
+
   return result;
 }
