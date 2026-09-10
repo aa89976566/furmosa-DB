@@ -76,10 +76,15 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   const shipping = Array.isArray(source.order.shipping_lines) ? source.order.shipping_lines.map(record) : [];
   const shippingLabel = shipping.map(row => string(row.title) || string(row.code)).filter(Boolean).join('、');
 
-  return <section className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
+  return <section id="oms-review" tabIndex={-1} className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
     <div className="border-b pb-4">
       <h2 className="text-lg font-semibold">處理訂單</h2>
       <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
+      {status === 'READY' ? <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm">
+        <p className="font-semibold text-success">訂單已確認</p>
+        <p className="mt-1 text-muted-foreground">下一步：建立 HQ 出貨單，再進入運送資訊流程。</p>
+        <a href="#oms-shipping" className="mt-2 inline-block font-medium text-info underline">查看運送資訊</a>
+      </div> : null}
       {(upgraded.applied || contactApplied) && <p className="mt-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-warning">系統已補入 Shopify／商品主檔資料；請確認標示為「待完成」的例外。</p>}
     </div>
     <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={status}
