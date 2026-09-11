@@ -16,6 +16,8 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/format';
 import { calcSettlement } from '@/lib/settlement-calc';
+import { hasSourceSnapshot, loadSettlementSnapshot } from '@/lib/settlements/read-snapshot';
+import { SnapshotDetail, SnapshotUnavailable } from '@/components/settlements/snapshot-detail';
 import { ArrowLeft, CheckCircle2, Send, FileCheck2, DollarSign, Trash2 } from 'lucide-react';
 import { updateSettlementStatus, deleteSettlement } from '@/app/(main)/settlements/actions';
 
@@ -34,6 +36,37 @@ export default async function SettlementDetailPage({ params }: { params: { id: s
     include: { merchant: true },
   });
   if (!settlement) notFound();
+
+  // 新版結算一律讀已存快照，不重算，也不進入下面的 calcSettlement 分支。
+  // 身份只看 rulesVersion；未知版本與缺必要欄位由 loadSettlementSnapshot fail closed。
+  if (hasSourceSnapshot(settlement.rulesVersion)) {
+    const snapshot = await loadSettlementSnapshot(prisma, settlement.id);
+    return (
+      <>
+        <PageHeader
+          title={settlement.settlementId}
+          description={`${settlement.merchant.name} · ${formatDate(settlement.periodStart)} ~ ${formatDate(settlement.periodEnd)}`}
+          actions={
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/merchants/settlements">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回月結紀錄
+              </Link>
+            </Button>
+          }
+        />
+        {snapshot.ok ? (
+          <SnapshotDetail
+            view={snapshot.view}
+            merchantId={settlement.merchant.id}
+            merchantName={settlement.merchant.name}
+          />
+        ) : (
+          <SnapshotUnavailable error={snapshot.error} />
+        )}
+      </>
+    );
+  }
 
   const summary = await calcSettlement({
     merchantId: settlement.merchantId,
