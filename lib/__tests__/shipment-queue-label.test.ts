@@ -13,6 +13,8 @@ const cases = [
   [
     "個人收件人優先",
     {
+      "type": "customer_order",
+      "status": "pending",
       "recipientName": "簡玉珊",
       "customer": {
         "name": "下單人"
@@ -27,6 +29,7 @@ const cases = [
     "店家名稱優先",
     {
       "type": "merchant_restock",
+      "status": "pending",
       "merchant": {
         "name": "曼利莎寵物美容"
       },
@@ -38,6 +41,7 @@ const cases = [
     "舊店家單",
     {
       "type": "customer_order",
+      "status": "pending",
       "merchant": {
         "name": "洗室"
       },
@@ -48,6 +52,8 @@ const cases = [
   [
     "無收件人使用客戶姓名",
     {
+      "type": "customer_order",
+      "status": "pending",
       "recipientName": "  ",
       "customer": {
         "name": " 客戶甲 "
@@ -61,6 +67,8 @@ const cases = [
   [
     "空店名不遮住收件人",
     {
+      "type": "customer_order",
+      "status": "pending",
       "merchant": {
         "name": " "
       },
@@ -71,6 +79,8 @@ const cases = [
   [
     "缺姓名保留訂單號",
     {
+      "type": "customer_order",
+      "status": "pending",
       "order": {
         "orderNumber": "ORD-001"
       }
@@ -78,9 +88,10 @@ const cases = [
     "ORD-001"
   ],
   [
-    "訂閱顯示收件人",
+    "訂閱區保留原訂閱單號",
     {
       "type": "subscription",
+      "status": "pending",
       "recipientName": "訂閱收件人",
       "subscriptionShipment": {
         "subscription": {
@@ -88,12 +99,13 @@ const cases = [
         }
       }
     },
-    "訂閱收件人"
+    "SUB-1"
   ],
   [
     "舊訂閱無姓名",
     {
       "type": "subscription",
+      "status": "pending",
       "subscriptionShipment": {
         "subscription": {
           "subscriptionNo": "SUB-1"
@@ -105,9 +117,59 @@ const cases = [
   [
     "孤立出貨單",
     {
+      "type": "customer_order",
+      "status": "pending",
       "shipmentNumber": "SHP-001"
     },
     "SHP-001"
+  ],
+  [
+    "packed 個人單",
+    {
+      "type": "customer_order",
+      "status": "packed",
+      "recipientName": "收件人",
+      "order": {
+        "orderNumber": "ORD-001"
+      }
+    },
+    "收件人"
+  ],
+  [
+    "shipped 個人單",
+    {
+      "type": "customer_order",
+      "status": "shipped",
+      "recipientName": "收件人",
+      "order": {
+        "orderNumber": "ORD-001"
+      }
+    },
+    "ORD-001"
+  ],
+  [
+    "delivered 個人單",
+    {
+      "type": "customer_order",
+      "status": "delivered",
+      "recipientName": "收件人",
+      "order": {
+        "orderNumber": "ORD-001"
+      }
+    },
+    "ORD-001"
+  ],
+  [
+    "在途店家仍顯示店名",
+    {
+      "type": "merchant_restock",
+      "status": "shipped",
+      "merchant": {
+        "name": "店家"
+      },
+      "recipientName": "聯絡人"
+    },
+    "店家"
   ]
 ] as const;
 
