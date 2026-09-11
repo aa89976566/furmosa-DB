@@ -15,6 +15,7 @@ import {
   SETTLEMENT_VOID_STATE_ERROR,
   buildSnapshotView,
   countsTowardValidTotals,
+  formatSourceAmount,
   hasSourceSnapshot,
   isPosSettlementVersion,
   loadActiveSourceKeys,
@@ -480,5 +481,41 @@ describe('R4#3：非法 header 與整數溢位必須是可讀錯誤', () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, SETTLEMENT_INVALID_AMOUNT_ERROR);
+  });
+});
+
+describe('R5#5：來源與分潤必須顯示原始小數', () => {
+  it('半元不得被四捨五入成整數', () => {
+    // 原缺陷：lib/format.ts 的 formatCurrency 把 76.5 顯示成 NT$77，
+    // 畫面數字與快照存下的來源值不符，對帳查不出差額來源。
+    assert.equal(formatSourceAmount(76.5), 'NT$76.5');
+    assert.equal(formatSourceAmount(178.5), 'NT$178.5');
+    assert.equal(formatSourceAmount(0.5), 'NT$0.5');
+  });
+
+  it('整數仍然沒有多餘小數位', () => {
+    assert.equal(formatSourceAmount(255), 'NT$255');
+    assert.equal(formatSourceAmount(0), 'NT$0');
+  });
+
+  it('千分位分組不變，且不因分組丟掉小數', () => {
+    assert.equal(formatSourceAmount(1234), 'NT$1,234');
+    assert.equal(formatSourceAmount(1234567.25), 'NT$1,234,567.25');
+  });
+
+  it('負值保留負號', () => {
+    assert.equal(formatSourceAmount(-76.5), '-NT$76.5');
+    assert.equal(formatSourceAmount(-1200), '-NT$1,200');
+  });
+
+  it('非有限數值不得顯示成金額', () => {
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.equal(formatSourceAmount(value), '—');
+    }
+  });
+
+  it('多位小數不截斷：三成分潤的零頭要看得到', () => {
+    assert.equal(formatSourceAmount(85.25), 'NT$85.25');
+    assert.equal(formatSourceAmount(25.575), 'NT$25.575');
   });
 });

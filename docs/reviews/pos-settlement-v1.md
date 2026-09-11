@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R4（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4 規格缺陷修訂；詳見 §0.1–§0.5） |
-| 凍結文字 SHA256 | `e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5df44c4de9cda7e00` |
+| Prompt 版本 | v2-R5（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5 規格缺陷修訂；詳見 §0.1–§0.6） |
+| 凍結文字 SHA256 | `fe0e5eac9fca5872a83ffffc27f53fb8f714301bc32eb69b94d9578900f762e4` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -96,6 +96,22 @@ R3 修訂前的凍結雜湊：`c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e8815
 | 3 | 讀快照時非法 header 與加總溢位仍會變成 500 | **確認** | R3 只驗了逐列來源。header 的 legacy Float 若非有限，`new Prisma.Decimal()` 會在加總時直接拋例外；`netPayableTwd`／`storeCollected` 若非整數或超出 INT4 也無法比較。更隱蔽的是逐列都合法、加總後才溢位（`originalAmount` 是 DOUBLE PRECISION 而 `netPayableTwd` 是 INTEGER），`assertIntegerTwdRange` 會拋例外冒泡成 500。新增 `validateSnapshotHeader()` 與不丟例外的 `isIntegerTwdInRange()`，並把 `computeLegacyTotals` 包在 try／catch 內轉成可讀錯誤（未知種類與金額錯誤分開） |
 
 R4 修訂前的凍結雜湊：`c75cf101e3964d0c8ac7fdfdcb1ccd4ebb1260c2ba06e83f588727fb98663dd2`（commit `9ca4c46`）。
+
+### 0.6 R5 規格缺陷審核紀錄（POS／HQ 串接）
+
+使用者第十輪以 `f43913d` 逐檔驗收提出五項必修串接錯誤。全部經審核**確認為真實缺陷**並修復。
+
+前四輪（R1–R4）都在修「算得對不對」，R5 修的是「算對了但畫面與入口沒有真的用它」。這是**原規格的缺口**：§1.9／§1.10 規定了暫計與已送出必須分開、付款方式納入 key、送出不得標已付款，卻沒有規定**哪些欄位是畫面唯一數字來源**、**切換付款方式時 key 怎麼換**、以及 **HQ 狀態推進的合法轉移**。依授權最小幅度修訂 §1.8、§1.9、§1.10、§1.11 並重新計算凍結雜湊。舊雜湊保留於 §0.1、§0.2、§0.4、§0.5 與本節。白名單未擴張。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | 上方四張卡、付款方式與主要總額仍取 `ledger.summary`，同畫面兩套金額 | **確認** | `summary = summarizeStoreLedger(entries)`，而 `entries` 少了寄賣銷售（只進 `rawSources`）、又含已被別張結帳單鎖住的券，且進貨款以 `amount: 0` 列入。因此 `summary` 與實際要送出的 `preview` 必然不同；零淨額時 `summary.payer` 還可能指向相反方向而選錯付款方式。新增 `buildSettleOverview()`（`lib/pos/store-settlement.ts`），四張卡、收付方向與主要總額全部改讀**可信且未鎖定 sources 的 Decimal totals**；已結算金額改讀**已送出快照**（同期間且 `countsTowardValidTotals`），不再用 legacy `summary.settledAmount`。legacy 拆解區保留不刪，但改標為「交易流水拆解（參考）」並註明小計不等於結算結果 |
+| 2 | 切換付款方式時 preview key／fingerprint 未更新，且會默默 fallback 到別的方式 | **確認** | 付款方式納入冪等 key，但預覽只算一份 key。切換選項後送出的是別的方式的 key；server action 的 `allowed.includes(requested) ? requested : allowed[0]` 又會在不適用時悄悄換方式，等於畫面顯示與實際存下的不符。改為**伺服器端為每個可選方式各算一份** key／fingerprint（`preview.methods[]`），畫面帶該方式自己的那份，切換不需往返；`resolveRequestedPaymentMethod()` 不適用一律擋下並回可讀訊息（`SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR`），**不得 fallback**。傳輸改用穩定代碼，不再送中文標籤 |
+| 3 | `submittedMessage` 對已撤回或已撥款的重送一律說待核對；歷史 `paid` 缺 `paidAt` 仍標已撥款 | **確認** | R3#2 的「重送先找原key」會回到原單，而原單可能已 `cancelled` 或 `paid`，訊息卻只看 `duplicate`。`settlementHistoryStatusView()`（`lib/pos/store-ledger.ts`，純函式無相依）依 `status` 與 `paidAt` 決定文字與色票：`paid` 缺 `paidAt` 顯示「撥款待確認（缺撥款時間）」且不得用完成色。`submittedSettlementMessage()` 依實際狀態產生訊息 |
+| 4 | HQ `updateSettlementStatus` 只擋 `cancelled`，`paid` 可被改回 `draft` 再由 POS 撤回 | **確認** | 被降回 `draft` 的新版結算會重新符合 `withdrawSettlementDraft` 的條件（`status: 'draft'` ＋ `rulesVersion` ＋ `createdSource: 'pos'`），店家就能撤回一張已撥款的結算並釋放來源鎖。新增 `settlementStatusUpdateCondition()`：新版驗合法下一步（`draft→reviewing→approved→paid`，`cancelled` 與 `paid` 皆為終點）並以**原狀態**當 `updateMany` 條件，競態時整筆不動；legacy（`rulesVersion == null`）條件與訊息完全不變。缺表／缺欄位環境讀不到 `rulesVersion` 時一律當 legacy |
+| 5 | HQ `snapshot-detail` 用 `formatCurrency` 把原始 76.5 顯示成 77 | **確認** | `lib/format.ts` 的 `formatCurrency` 用 `maximumFractionDigits: 0`。店家分潤是售價的 20%／30%，半元很常見；四捨五入後畫面數字與快照存下的來源值不符，對帳查不出差額來源。新增 `formatSourceAmount()`（`lib/settlements/read-snapshot.ts`，不截斷小數位）用於來源列與 legacy Float header；只有整數口徑的 `netPayableTwd` 與 `storeCollected` 維持無小數。`lib/format.ts` 不在白名單，未修改 |
+
+R5 修訂前的凍結雜湊：`e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5df44c4de9cda7e00`（commit `8878c7c`）。
 
 ---
 
@@ -251,7 +267,9 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - `idempotencyKey = sha256(rulesVersion | merchantId | periodStart | periodEnd | sorted sourceKeys | intendedPaymentMethod | operationSeq)`。
 - `operationSeq` 必須由**伺服器推導**，不得由瀏覽器提供：取本來源集合在本店已作廢（`voidedAt` 非 null）的明細嘗試次數。效果：同一次送出重送得到同一個 key（冪等）；撤回後同來源可用新 key 重新結算；舊 key 重送仍回到原本那張 `cancelled`，不復活。
 - `payloadFingerprint = sha256(idempotencyKey | sorted 來源原值 | legacy 合計)`。來源原值必須含 `originalAmount`、`quantity`、`unitPrice`、`commissionAmount`、`companyRevenue` 與方向，使任何來源原值變更都必定改變 fingerprint。
-- 付款方式**納入** key 與 fingerprint。送出後付款方式不可改；送出前改選會產生新的操作 key。
+- 付款方式**納入** key 與 fingerprint。送出後付款方式不可改；送出前改選會產生新的操作 key。因此預覽必須為**每一個可選付款方式各算一份** key 與 fingerprint，畫面切換選項時帶該方式自己的那份；不得只提供單一 key 讓畫面在切換後沿用別的方式算出的值。
+- 付款方式的合法性由**伺服器端依收付方向**判定，不適用者一律擋下並回可讀訊息，**不得 fallback 成其他方式**：悄悄換方式等於用不同的 key 寫入，且畫面顯示與實際存下的付款方式不符。收付方向必須取自可信且未鎖定來源的 Decimal 淨額，不得取 legacy 對帳摘要（淨額為零時方向可能相反）。
+- 瀏覽器送出的付款方式必須是**穩定代碼**，不得是 UI 顯示文字。
 - 送出時伺服器必須重新計算來源集合並與預覽摘要比對，改變即拒絕，不得靜默改變整批內容。
 - 同 key 同 payload → 回傳既有結算；同 key 不同 payload → 拒絕；部分重疊 → 整批拒絕。
 - **重送優先於重算**：送出時必須先用預覽當時的 key 查本店原單，找到就回傳原單。送出成功會鎖住來源而讓它們從新預覽消失，撤回會讓操作序號改變，兩者都會算出不同的新 key；若先算新 key 再寫入，重按一次就會變成「沒有可結算項目」或直接開出第二張結算。原 key 查詢必須限定本店，且找到的原單指紋與預覽不符時拒絕。
@@ -273,6 +291,9 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 不得撤回 `reviewing`／`approved`／`paid`。
 - HQ 新版：伺服器與 UI 都禁止刪除帶有來源明細的結算；legacy 結算的刪除行為保留不變。
 - 原 key 重送不得讓已撤回的結算復活。
+- **HQ 推進新版結算狀態必須驗合法下一步**：只允許 `draft → reviewing → approved → paid`，`paid` 與 `cancelled` 皆為終點，不得往回改。只擋 `cancelled` 是不夠的：被降回 `draft` 的新版結算會重新符合 POS 撤回條件，店家就能撤回一張已撥款的結算並釋放來源鎖。
+- 新版狀態更新必須以**原狀態**當資料庫條件（不是「不等於 `cancelled`」）並做筆數斷言，競態時整筆不動並回可讀訊息。legacy（`rulesVersion == null`）條件與訊息完全不變；缺表／缺欄位環境讀不到 `rulesVersion` 時一律視為 legacy。
+- 重送若命中的原單已 `cancelled`／`paid`／`reviewing`／`approved`，回應訊息必須說明**實際狀態**，不得一律說「待核對」。
 
 ### 1.10 讀取與 UI
 
@@ -284,7 +305,10 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - **header 本身也必須先驗**：legacy Float 欄位非有限、整數欄位非整數或超出 INT4 範圍時，必須是可讀錯誤而非 500。另必須處理「逐列都合法、加總後才溢位」的情況（來源原值是 DOUBLE PRECISION，淨額是 INTEGER），加總過程拋出的範圍與未知種類錯誤都要轉成可讀訊息，兩者代碼分開。範圍檢查必須另備**不丟例外**的版本供讀取端使用。
 - HQ 新版分支讀逐筆來源快照與共用淨額；legacy `calcSettlement` 路徑完全不變。
 - POS 必須把**暫計**、**待確認**、**已送出紀錄**分開呈現，已送出者顯示同一編號與狀態。
-- 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。
+- **同一個畫面不得出現兩套結算金額。** POS 總覽的應收應付卡、收付方向與主要總額只能有一個來源：本次可結算來源的 Decimal totals。legacy `summarizeStoreLedger(entries)` 不得用於這些欄位——`entries` 少了寄賣銷售、含已被別張結帳單鎖住的券、且進貨款以 0 列入，必然與要送出的金額不同。已結算金額改讀**已送出快照**（同期間且計入有效統計者），不得用 legacy 摘要的已結清欄位。
+- legacy 流水拆解區可保留（不刪除既有功能），但標題與說明必須讓人看得出它是**流水分類參考**而非結算金額，且小計不等於本期結算結果。
+- 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。`paid` 但缺 `paidAt` 是資料不一致，必須顯示成待確認並且不得使用完成色；未知狀態原樣顯示，不得猜成已撥款。
+- **來源原值與店家分潤必須顯示原始小數**，不得四捨五入：分潤是售價的 20%／30%，半元很常見，四捨五入後畫面數字與快照存下的來源值不符，對帳查不出差額來源。只有整數口徑的欄位（`netPayableTwd`、`storeCollected`）才可無小數顯示。此格式化函式必須放在白名單內模組，不得修改白名單外的 `lib/format.ts`。
 - 沿用既有 UI 元件與樣式，手機與桌機都必須可用。
 - 新版伺服器寫入 flag 預設關閉；關閉時 UI 必須顯示可讀提示且**不得假裝成功**。flag 關閉不得讓任何已存在的新版紀錄從讀取面消失。
 - 缺 schema 的環境同樣必須顯示可讀提示。無法送出的原因必須由伺服器提供、UI 原樣顯示，不得在前端寫死成單一句子（否則鎖定狀態讀不到會被說成 flag 關閉）。手機版固定底欄也必須看得到該原因，不得只放在桌機側欄。
@@ -296,6 +320,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 必須涵蓋：76.5 半元保留；正負半元；兩端同值一致；缺價與歸屬不可靠的券不鎖定；跨店拒絕；同 key／不同 payload／部分重疊／編號碰撞分類；零來源／零淨額；撤回競態／不復活；新舊分支與完整性錯誤；已鎖來源不入暫計；重送依原 key 回原單；同碼券顧客／店家不符與歧義；撤回狀態與明細不一致；未知來源種類與非法金額。
 
 R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被擋下並回同一個可讀原因（含 flag 關閉仍優先回報 flag）；歧義券在分類階段轉 pending 後同 canonical key 的另一鏡像也全列 pending，而無券號的 pending 不得擋下無關來源；非法 header 與逐列合法但加總溢位都回可讀錯誤。加總溢位必須在真實 PostgreSQL 上驗（逐列 DOUBLE PRECISION 寫入後讀取），不得只用單元測試模擬。
+
+R5 追加必測（畫面與入口串接，全部為純函式測試，不需資料庫）：收付方向由 Decimal 淨額推導且零淨額只允許「本期無需付款」；不適用的付款方式被擋下而非 fallback，且 UI 文字不被當成合法輸入；每個可選方式的 key 與 fingerprint 互不相同而金額相同；重送命中 `cancelled`／`paid`／`reviewing`／`approved` 的訊息各自正確；`paid` 缺 `paidAt` 不顯示已撥款且不用完成色；總覽四張卡只有一方有數字、零淨額顯示相抵、已送出金額只計同期間且排除已撤回、舊流程缺 `netPayableTwd` 時退回 `merchantOwesUs`；HQ 新版狀態只允許逐步推進並以原狀態當條件，legacy 條件與行為完全不變；來源金額格式化保留半元與多位小數、非有限值不顯示成金額。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
@@ -389,16 +415,19 @@ R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被�
 
 | 項目 | 結果 |
 |---|---|
-| `npx tsc --noEmit` | 通過（R4 後重跑） |
+| `npx tsc --noEmit` | 通過（R5 後重跑） |
 | `lib/settlements/__tests__/source-snapshot.test.ts` | 33／33 通過（R4#2 追加 3 案） |
-| `lib/settlements/__tests__/read-snapshot.test.ts` | 31／31 通過（R4#3 追加 4 案） |
-| `lib/settlements/__tests__/write-settlement.test.ts` | 33／33 通過（R4#1 追加 5 案） |
-| `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉） |
-| `lib/pos/__tests__/store-settlement-v1.test.ts` | 15／15 通過 |
+| `lib/settlements/__tests__/read-snapshot.test.ts` | 37／37 通過（R4#3 追加 4 案、R5#5 追加 6 案） |
+| `lib/settlements/__tests__/write-settlement.test.ts` | 39／39 通過（R4#1 追加 5 案、R5#4 追加 6 案） |
+| `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5 未在此檔加案，遵守白名單第 24 項） |
+| `lib/pos/__tests__/store-settlement-v1.test.ts` | 33／33 通過（R5#1–#3 追加 18 案：收付方向與付款方式 5、送出訊息 5、結帳紀錄狀態 3、總覽金額 5） |
 | `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 14 個真 DB 案例待獨立驗收者執行（R4#3 追加「逐列合法、加總溢位」1 案） |
-| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 321／321 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
+| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 351／351 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
+| `npm test`（全量，R5 後一次性回歸） | 1040／1040 ＋ 18／18 通過、0 失敗、0 skipped |
 
-白名單指定測試合計 128 項通過；連同兩個測試目錄的既有測試共 321 項通過。實作端全程未連任何資料庫、未套用 migration。
+白名單指定測試合計 158 項通過；連同兩個測試目錄的既有測試共 351 項通過。
+
+`npm test` 本輪已執行一次：R5 動到了 `lib/pos/store-ledger.ts`（新增純顯示函式）與 HQ server action，必須確認沒有回歸。指令只跑 `node --import tsx --test`，實測未建立任何資料庫連線、未寫入任何資料；原先「禁止 `npm test`」的理由（`lib/jar-exchange` 會寫資料庫）在本次執行中未出現寫入行為。實作端全程未連任何資料庫、未套用 migration。
 
 以上為實作端自跑結果，**不等於獨立驗收**。真 DB 行為與畫面操作仍須由 Codex 在自己的隔離庫與環境確認。
 
@@ -410,8 +439,8 @@ R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被�
 | 真 DB 測試（實作端執行） | **未執行** | 實作端不連資料庫；測試程式已備，由獨立驗收者在自己的隔離庫執行 |
 | 正式 drift reconcile 驗證 | **未執行** | 需讀正式庫，未授權 |
 | `npm run build` | **未執行** | 可能觸發資料庫遷移，未授權 |
-| `npm test`（全量） | **未執行** | 會連帶執行會寫資料庫的 `lib/jar-exchange` 測試；另 `package.json` 的 `test` script 未含 `lib/settlements/__tests__/*`，而 `package.json` 不在白名單，需另行授權才能補上 |
-| POS／HQ 畫面實機操作 | **未執行** | 需要可登入的執行環境與資料庫 |
+| `package.json` 的 `test` script 補上 `lib/settlements/__tests__/*` | **未執行** | `package.json` 不在白名單。目前 `npm test` 不會跑本包的 `lib/settlements` 測試，必須另行手動指定路徑；需使用者授權才能補上 |
+| POS／HQ 畫面實機操作 | **未執行** | 需要可登入的執行環境與資料庫。R5 的畫面行為以純函式測試覆蓋（`buildSettleOverview`、`settlementHistoryStatusView`、`resolveRequestedPaymentMethod`、`submittedSettlementMessage`、`formatSourceAmount`），但**不等於**實機點擊驗收 |
 
 ### 3.3 上線前必須完成的檢查
 

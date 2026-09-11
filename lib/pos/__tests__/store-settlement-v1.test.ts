@@ -15,20 +15,26 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   isIncludedInSettlement,
+  settlementHistoryStatusView,
   type LedgerEntry,
 } from '@/lib/pos/store-ledger';
 import {
   DuplicateSettlementError,
   allowedPaymentMethods,
   assertSourcesNotSettled,
+  buildSettleOverview,
   buildSettlementSnapshot,
+  payerFromDirection,
   paymentMethodLabel,
   persistStoreSettlement,
+  resolveRequestedPaymentMethod,
   runSettlementTransaction,
   selectSettlementItems,
+  submittedSettlementMessage,
   withdrawStoreSettlement,
 } from '@/lib/pos/store-settlement';
 import {
+  SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR,
   SETTLEMENT_WRITE_DISABLED_ERROR,
   SETTLEMENT_WRITE_FLAG_ENV,
   buildSettlementDraft,
@@ -334,5 +340,228 @@ describe('舊 POS 結帳輔助函式回歸', () => {
       ),
       DuplicateSettlementError,
     );
+  });
+});
+
+describe('R5 收付方向與付款方式', () => {
+  it('方向一律由 Decimal 淨額推導，不看 legacy 對帳摘要', () => {
+    assert.equal(payerFromDirection('STORE_TO_FURMOSA'), 'STORE');
+    assert.equal(payerFromDirection('FURMOSA_TO_STORE'), 'FURMOSA');
+    assert.equal(payerFromDirection('NONE'), 'NONE');
+  });
+
+  it('零淨額只允許「本期無需付款」，不會選到匯款方式', () => {
+    assert.deepEqual(allowedPaymentMethods(payerFromDirection('NONE')), ['NONE']);
+    const wrong = resolveRequestedPaymentMethod({ requested: 'BANK_TRANSFER', payer: 'NONE' });
+    assert.equal(wrong.ok, false);
+  });
+
+  it('不適用的付款方式一律擋下，不得 fallback 成別的方式', () => {
+    // fallback 等於用另一個 key 寫入，畫面顯示的方式也會與實際存下的不符。
+    for (const requested of ['FURMOSA_TO_STORE_TRANSFER', 'NONE', '', '銀行轉帳', 'unknown']) {
+      const result = resolveRequestedPaymentMethod({ requested, payer: 'STORE' });
+      assert.equal(result.ok, false, `${requested} 不應被接受`);
+      if (result.ok) continue;
+      assert.equal(result.error, SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR);
+    }
+  });
+
+  it('穩定代碼才算合法，畫面文字不得作為判斷依據', () => {
+    const ok = resolveRequestedPaymentMethod({ requested: 'FURMOSA_BALANCE', payer: 'STORE' });
+    assert.equal(ok.ok, true);
+    if (!ok.ok) return;
+    assert.equal(ok.method, 'FURMOSA_BALANCE');
+    // 標籤文字只供顯示；送進來的若是文字必須被拒絕（上一個案例已驗）。
+    assert.equal(paymentMethodLabel(ok.method), '匠寵餘額折抵');
+  });
+
+  it('每個可選方式各自一份 key 與 fingerprint，互不相同', () => {
+    const sources = [saleSource('txn-1')];
+    const drafts = allowedPaymentMethods('STORE').map((method) =>
+      draftOf(sources, { paymentMethod: method }),
+    );
+    const keys = new Set(drafts.map((draft) => draft.idempotencyKey));
+    const prints = new Set(drafts.map((draft) => draft.payloadFingerprint));
+    assert.equal(keys.size, drafts.length, '切換付款方式必須換 key');
+    assert.equal(prints.size, drafts.length);
+    // 金額不隨付款方式改變，所以畫面顯示的淨額只需算一次。
+    assert.equal(new Set(drafts.map((draft) => draft.totals.netPayableTwd)).size, 1);
+  });
+});
+
+describe('R5 送出訊息', () => {
+  it('第一次送出說待核對，並明說不是已付款', () => {
+    const message = submittedSettlementMessage({
+      duplicate: false,
+      settlementNo: 'SET-202405-001',
+      status: 'draft',
+    });
+    assert.match(message, /待核對/);
+    assert.match(message, /不是已付款/);
+  });
+
+  it('同一張重送仍說待核對，並說明沒有新增', () => {
+    const message = submittedSettlementMessage({
+      duplicate: true,
+      settlementNo: 'SET-202405-001',
+      status: 'draft',
+    });
+    assert.match(message, /還是同一張/);
+  });
+
+  it('重送命中已撤回的原單不得說待核對', () => {
+    const message = submittedSettlementMessage({
+      duplicate: true,
+      settlementNo: 'SET-202405-001',
+      status: 'cancelled',
+    });
+    assert.match(message, /已經撤回/);
+    assert.doesNotMatch(message, /狀態待總部核對/);
+  });
+
+  it('重送命中已撥款的原單要說已撥款完成，且沒有新增紀錄', () => {
+    const message = submittedSettlementMessage({
+      duplicate: true,
+      settlementNo: 'SET-202405-001',
+      status: 'paid',
+    });
+    assert.match(message, /已經撥款完成/);
+    assert.match(message, /沒有新增/);
+  });
+
+  it('審核中與已核准都要說明撥款前不算已付款', () => {
+    for (const status of ['reviewing', 'approved']) {
+      const message = submittedSettlementMessage({
+        duplicate: true,
+        settlementNo: 'SET-202405-001',
+        status,
+      });
+      assert.match(message, /審核中/);
+      assert.match(message, /不算已付款/);
+    }
+  });
+});
+
+describe('R5 結帳紀錄狀態顯示', () => {
+  it('paid 且有撥款時間才顯示已撥款', () => {
+    const view = settlementHistoryStatusView({
+      status: 'paid',
+      paidAt: '2024-06-05T02:00:00.000Z',
+    });
+    assert.equal(view.label, '已撥款');
+    assert.equal(view.tone, 'settled');
+  });
+
+  it('paid 但缺撥款時間不得顯示已撥款，也不得標成完成色', () => {
+    const view = settlementHistoryStatusView({ status: 'paid', paidAt: null });
+    assert.doesNotMatch(view.label, /^已撥款$/);
+    assert.match(view.label, /待確認/);
+    assert.notEqual(view.tone, 'settled');
+  });
+
+  it('已撤回是中性狀態，其他狀態都是待處理', () => {
+    assert.deepEqual(settlementHistoryStatusView({ status: 'cancelled', paidAt: null }), {
+      label: '已撤回',
+      tone: 'neutral',
+    });
+    assert.equal(settlementHistoryStatusView({ status: 'draft', paidAt: null }).label, '待核對');
+    assert.equal(settlementHistoryStatusView({ status: 'reviewing', paidAt: null }).tone, 'pending');
+    // 未知狀態原樣顯示，不得猜成已撥款。
+    assert.equal(settlementHistoryStatusView({ status: 'weird', paidAt: null }).label, 'weird');
+  });
+});
+
+describe('R5 總覽金額', () => {
+  const PERIOD = { periodStart: '2024-05-01T00:00:00.000Z', periodEnd: '2024-05-31T23:59:59.999Z' };
+
+  function historyRow(overrides: Partial<{
+    netPayableTwd: number | null;
+    merchantOwesUs: number;
+    periodStart: string;
+    periodEnd: string;
+    countsTowardValidTotals: boolean;
+  }> = {}) {
+    return {
+      netPayableTwd: 179,
+      merchantOwesUs: 179,
+      periodStart: PERIOD.periodStart,
+      periodEnd: PERIOD.periodEnd,
+      countsTowardValidTotals: true,
+      ...overrides,
+    };
+  }
+
+  it('應收應付只由 Decimal 淨額決定，兩張卡不會同時有數字', () => {
+    const store = buildSettleOverview({
+      totals: { netPayableTwd: 179, direction: 'STORE_TO_FURMOSA' },
+      history: [],
+      ...PERIOD,
+    });
+    assert.equal(store.storeOwesFurmosa, 179);
+    assert.equal(store.furmosaOwesStore, 0);
+    assert.equal(store.payer, 'STORE');
+    assert.equal(store.resultLabel, '店家應匯給匠寵');
+
+    const furmosa = buildSettleOverview({
+      totals: { netPayableTwd: -240, direction: 'FURMOSA_TO_STORE' },
+      history: [],
+      ...PERIOD,
+    });
+    assert.equal(furmosa.storeOwesFurmosa, 0);
+    assert.equal(furmosa.furmosaOwesStore, 240);
+    assert.equal(furmosa.payer, 'FURMOSA');
+    assert.equal(furmosa.resultLabel, '匠寵應匯給店家');
+  });
+
+  it('零淨額顯示相抵，不會誤指某一方應付', () => {
+    const zero = buildSettleOverview({
+      totals: { netPayableTwd: 0, direction: 'NONE' },
+      history: [],
+      ...PERIOD,
+    });
+    assert.equal(zero.storeOwesFurmosa, 0);
+    assert.equal(zero.furmosaOwesStore, 0);
+    assert.equal(zero.netPayableTwd, 0);
+    assert.equal(zero.payer, 'NONE');
+    assert.equal(zero.resultLabel, '本期無需付款');
+  });
+
+  it('已送出金額讀已送出的快照，撤回的不算', () => {
+    const overview = buildSettleOverview({
+      totals: { netPayableTwd: 100, direction: 'STORE_TO_FURMOSA' },
+      history: [
+        historyRow({ netPayableTwd: 500 }),
+        historyRow({ netPayableTwd: 300, countsTowardValidTotals: false }),
+      ],
+      ...PERIOD,
+    });
+    assert.equal(overview.submittedCount, 1);
+    assert.equal(overview.submittedNet, 500);
+  });
+
+  it('只統計同一期間的已送出結算，別期不混入', () => {
+    const overview = buildSettleOverview({
+      totals: { netPayableTwd: 100, direction: 'STORE_TO_FURMOSA' },
+      history: [
+        historyRow({ netPayableTwd: 500 }),
+        historyRow({ netPayableTwd: 900, periodStart: '2024-04-01T00:00:00.000Z' }),
+      ],
+      ...PERIOD,
+    });
+    assert.equal(overview.submittedCount, 1);
+    assert.equal(overview.submittedNet, 500);
+  });
+
+  it('舊流程沒有 netPayableTwd 時退回 merchantOwesUs，方向不影響絕對值', () => {
+    const overview = buildSettleOverview({
+      totals: { netPayableTwd: 0, direction: 'NONE' },
+      history: [
+        historyRow({ netPayableTwd: null, merchantOwesUs: 640 }),
+        historyRow({ netPayableTwd: -120, merchantOwesUs: 0 }),
+      ],
+      ...PERIOD,
+    });
+    assert.equal(overview.submittedCount, 2);
+    assert.equal(overview.submittedNet, 760);
   });
 });

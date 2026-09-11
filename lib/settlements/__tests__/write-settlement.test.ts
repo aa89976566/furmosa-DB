@@ -8,6 +8,7 @@ import {
   type SettlementSourceDraft,
 } from '@/lib/settlements/source-snapshot';
 import {
+  SETTLEMENT_STATUS_TRANSITION_ERROR,
   SETTLEMENT_WRITE_FLAG_ENV,
   SettlementLockConflictError,
   assertLockedCount,
@@ -18,6 +19,7 @@ import {
   isMissingSchemaError,
   persistSettlementDraft,
   settlementReadiness,
+  settlementStatusUpdateCondition,
   settlementWriteEnabled,
   withdrawSettlementDraft,
   type SettlementDraft,
@@ -718,5 +720,94 @@ describe('刪除守衛', () => {
 
   it('legacy 結算的刪除行為不變', () => {
     assert.doesNotThrow(() => assertSettlementDeletable({ rulesVersion: null, sourceItemCount: 0 }));
+  });
+});
+
+describe('R5#4：HQ 狀態推進必須驗合法下一步', () => {
+  const v1 = POS_SETTLEMENT_RULES_VERSION;
+
+  it('新版只允許逐步推進，並以原狀態當更新條件', () => {
+    const steps: Array<[string, string]> = [
+      ['draft', 'reviewing'],
+      ['reviewing', 'approved'],
+      ['approved', 'paid'],
+    ];
+    for (const [currentStatus, next] of steps) {
+      const condition = settlementStatusUpdateCondition({
+        rulesVersion: v1,
+        currentStatus,
+        next,
+      });
+      // 條件必須是「等於原狀態」，不是「不等於 cancelled」：競態時整筆不動。
+      assert.deepEqual(condition.where, { status: currentStatus });
+    }
+  });
+
+  it('新版不得往回改，已撥款的結算不能被降回 draft', () => {
+    // 這是原缺陷的關鍵：被降回 draft 的新版結算會重新符合 POS 撤回條件。
+    const illegal: Array<[string, string]> = [
+      ['paid', 'draft'],
+      ['paid', 'approved'],
+      ['approved', 'draft'],
+      ['approved', 'reviewing'],
+      ['reviewing', 'draft'],
+      ['draft', 'approved'],
+      ['draft', 'paid'],
+      ['reviewing', 'paid'],
+    ];
+    for (const [currentStatus, next] of illegal) {
+      assert.throws(
+        () => settlementStatusUpdateCondition({ rulesVersion: v1, currentStatus, next }),
+        (error: unknown) =>
+          error instanceof Error && error.message === SETTLEMENT_STATUS_TRANSITION_ERROR,
+        `${currentStatus} -> ${next} 必須被擋下`,
+      );
+    }
+  });
+
+  it('新版已撤回不得被推回流程復活', () => {
+    for (const next of ['draft', 'reviewing', 'approved', 'paid']) {
+      assert.throws(
+        () =>
+          settlementStatusUpdateCondition({
+            rulesVersion: v1,
+            currentStatus: 'cancelled',
+            next,
+          }),
+        /不是合法的下一步/,
+      );
+    }
+  });
+
+  it('新版已撥款是終點，不得再推進', () => {
+    assert.throws(
+      () =>
+        settlementStatusUpdateCondition({ rulesVersion: v1, currentStatus: 'paid', next: 'paid' }),
+      /不是合法的下一步/,
+    );
+  });
+
+  it('legacy 規則完全不變：仍是「不等於 cancelled」，跳步也照舊允許', () => {
+    for (const [currentStatus, next] of [
+      ['draft', 'paid'],
+      ['paid', 'draft'],
+      ['approved', 'reviewing'],
+    ]) {
+      const condition = settlementStatusUpdateCondition({
+        rulesVersion: null,
+        currentStatus: currentStatus!,
+        next: next!,
+      });
+      assert.deepEqual(condition.where, { status: { not: 'cancelled' } });
+    }
+  });
+
+  it('legacy 已撤回仍由條件擋下，不靠例外', () => {
+    const condition = settlementStatusUpdateCondition({
+      rulesVersion: null,
+      currentStatus: 'cancelled',
+      next: 'reviewing',
+    });
+    assert.deepEqual(condition.where, { status: { not: 'cancelled' } });
   });
 });
