@@ -464,7 +464,8 @@ describe('R5 結帳紀錄狀態顯示', () => {
       label: '已撤回',
       tone: 'neutral',
     });
-    assert.equal(settlementHistoryStatusView({ status: 'draft', paidAt: null }).label, '待核對');
+    // 其餘狀態沿用既有 settlementStatusLabel，本次不改既有字樣。
+    assert.equal(settlementHistoryStatusView({ status: 'draft', paidAt: null }).label, '草稿');
     assert.equal(settlementHistoryStatusView({ status: 'reviewing', paidAt: null }).tone, 'pending');
     // 未知狀態原樣顯示，不得猜成已撥款。
     assert.equal(settlementHistoryStatusView({ status: 'weird', paidAt: null }).label, 'weird');

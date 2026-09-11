@@ -5,6 +5,9 @@
  * 金流方向由交易類型與實際收款方決定，店員不可改。
  */
 
+// 別名避開本檔既有的 settlementStatusLabel(entry)：那個是流水列的狀態，不是結算單狀態。
+import { settlementStatusLabel as settlementHeaderStatusLabel } from '@/lib/labels';
+
 export type PaymentCollector = 'FURMOSA' | 'STORE' | 'NONE';
 export type FundDirection = 'STORE_TO_FURMOSA' | 'FURMOSA_TO_STORE' | 'NO_SETTLEMENT';
 export type SettlementStatus = 'UNSETTLED' | 'SETTLED' | 'EXCLUDED';
@@ -770,34 +773,27 @@ export type SettlementHistoryStatusView = {
   tone: 'settled' | 'pending' | 'neutral';
 };
 
-const SETTLEMENT_HISTORY_LABEL: Record<string, string> = {
-  draft: '待核對',
-  reviewing: '審核中',
-  approved: '已核准',
-  paid: '已撥款',
-  cancelled: '已撤回',
-};
-
 /**
  * 結帳紀錄的狀態顯示。
  *
  * POS 明定「只有狀態顯示已撥款才代表款項已付」，所以 `paid` 卻沒有 `paidAt` 時
  * **不得**顯示成已撥款——那會讓店家以為錢已經到帳。這種資料不一致要看得出來，
  * 而不是被標成綠色的完成狀態。
+ *
+ * 其餘狀態的文字與色票沿用既有 `lib/labels` 的結算狀態字樣，本次不改既有文字。
  */
 export function settlementHistoryStatusView(input: {
   status: string;
   paidAt: string | null;
 }): SettlementHistoryStatusView {
+  const label = settlementHeaderStatusLabel[input.status] ?? input.status;
   if (input.status === 'paid') {
     return input.paidAt
-      ? { label: SETTLEMENT_HISTORY_LABEL.paid!, tone: 'settled' }
+      ? { label, tone: 'settled' }
       : { label: '撥款待確認（缺撥款時間）', tone: 'pending' };
   }
-  if (input.status === 'cancelled') {
-    return { label: SETTLEMENT_HISTORY_LABEL.cancelled!, tone: 'neutral' };
-  }
-  return { label: SETTLEMENT_HISTORY_LABEL[input.status] ?? input.status, tone: 'pending' };
+  if (input.status === 'cancelled') return { label, tone: 'neutral' };
+  return { label, tone: 'pending' };
 }
 
 export function buildSearchText(parts: Array<string | null | undefined>): string {
