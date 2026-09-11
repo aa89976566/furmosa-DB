@@ -1168,8 +1168,9 @@ model SettlementSourceItem {
   voidedAt         DateTime? // 撤回時標記，釋放 active 唯一鍵，但不刪稽核
   createdAt        DateTime  @default(now())
 
+  // 兩個關聯都是 Restrict：刪店家或刪結算都不得連帶刪掉帳務稽核列。
   settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
-  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
 
   @@index([settlementId])
   @@index([merchantId, sourceKey])

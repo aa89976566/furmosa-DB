@@ -21,7 +21,6 @@ import {
   buildPayloadFingerprint,
   computeLegacyTotals,
   consignmentSaleTxnIdFromKey,
-  dedupeSources,
   sourceKeysDigest,
   type SettlementLegacyTotals,
   type SettlementSourceDraft,
@@ -75,6 +74,7 @@ export type SettlementDraft = {
   periodStart: Date;
   periodEnd: Date;
   intendedPaymentMethod: SettlementPaymentMethod;
+  operationSeq: number;
   sources: SettlementSourceDraft[];
   totals: SettlementLegacyTotals;
   sourceKeysDigest: string;
@@ -84,15 +84,27 @@ export type SettlementDraft = {
   note: string | null;
 };
 
+/**
+ * 由已去重的來源建立草稿。
+ *
+ * 呼叫端必須先跑 `dedupeSources` 並把衝突放進待確認；這裡遇到重複鍵視為程式錯誤，
+ * 不再自行挑一邊。`operationSeq` 由伺服器推導，見 `buildIdempotencyKey`。
+ */
 export function buildSettlementDraft(input: {
   merchantId: string;
   periodStart: Date;
   periodEnd: Date;
   intendedPaymentMethod: SettlementPaymentMethod;
+  operationSeq: number;
   sources: readonly SettlementSourceDraft[];
   note?: string | null;
 }): SettlementDraft {
-  const sources = dedupeSources(input.sources);
+  const sources = [...input.sources].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey));
+  const uniqueKeys = new Set(sources.map((source) => source.sourceKey));
+  if (uniqueKeys.size !== sources.length) {
+    throw new Error('來源鍵重複，必須先去重並處理衝突');
+  }
+
   const totals = computeLegacyTotals(sources);
   const keysDigest = sourceKeysDigest(sources);
   const valuesDigest = amountsDigest(sources, totals);
@@ -102,6 +114,7 @@ export function buildSettlementDraft(input: {
     periodEnd: input.periodEnd,
     sourceKeysDigest: keysDigest,
     intendedPaymentMethod: input.intendedPaymentMethod,
+    operationSeq: input.operationSeq,
   });
 
   return {
@@ -110,6 +123,7 @@ export function buildSettlementDraft(input: {
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     intendedPaymentMethod: input.intendedPaymentMethod,
+    operationSeq: input.operationSeq,
     sources,
     totals,
     sourceKeysDigest: keysDigest,

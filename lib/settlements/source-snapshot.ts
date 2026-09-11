@@ -53,6 +53,7 @@ export type PendingSourceReason =
   | 'RESTOCK_NO_TRUSTED_PRICE'
   | 'COUPON_CODE_MISSING'
   | 'COUPON_STORE_AMBIGUOUS'
+  | 'COUPON_SOURCE_CONFLICT'
   | 'UNSUPPORTED_LEDGER_AMOUNT';
 
 const PENDING_REASON_LABEL: Record<PendingSourceReason, string> = {
@@ -62,6 +63,8 @@ const PENDING_REASON_LABEL: Record<PendingSourceReason, string> = {
   RESTOCK_NO_TRUSTED_PRICE: '進貨單沒有可信成交價，需要總部補價後才能結算。',
   COUPON_CODE_MISSING: '這張券沒有可靠券號，無法確認是否重複，需要人工確認。',
   COUPON_STORE_AMBIGUOUS: '這張券只能靠店名比對到本店，歸屬不可靠，需要人工確認。',
+  COUPON_SOURCE_CONFLICT:
+    '同一張券在兩個系統裡的面額或歸屬對不起來，需要人工確認，系統不會自行選一邊。',
   UNSUPPORTED_LEDGER_AMOUNT: '這筆金額目前沒有對應的結算欄位，需要人工確認。',
 };
 
@@ -173,12 +176,25 @@ export type SettlementLegacyTotals = {
   direction: SettlementSourceDirection | 'NONE';
 };
 
-export function computeLegacyTotals(sources: readonly SettlementSourceDraft[]): SettlementLegacyTotals {
+/**
+ * 加總所需的最小欄位。`SettlementSourceDraft` 與資料庫讀出的來源列都滿足這個形狀，
+ * 讓讀取與寫入共用同一個 Decimal 口徑（半元邊界下 JS 浮點累加會得出不同的整數淨額）。
+ */
+export type LegacySummableSource = {
+  sourceKind: string;
+  originalAmount: number;
+  commissionAmount: number | null;
+};
+
+export function computeLegacyTotals(
+  sources: readonly LegacySummableSource[],
+  options: { shippingFee?: number } = {},
+): SettlementLegacyTotals {
   let gross = new Prisma.Decimal(0);
   let commission = new Prisma.Decimal(0);
   let reward = new Prisma.Decimal(0);
   let collected = new Prisma.Decimal(0);
-  const shipping = new Prisma.Decimal(0);
+  const shipping = decimal(options.shippingFee);
 
   for (const source of sources) {
     if (source.sourceKind === 'consignment_sale') {
@@ -233,7 +249,12 @@ export function sourceKeysDigest(sources: readonly SettlementSourceDraft[]): str
   );
 }
 
-/** 含每筆來源金額、方向與 legacy 合計。金額改變時必定改變。 */
+/**
+ * 含每筆來源原值、方向與 legacy 合計。任何來源原值改變都必定改變這個摘要。
+ *
+ * 必須含 quantity 與 unitPrice：2 × 100 改成 4 × 50 時 originalAmount 不變，
+ * 只看 originalAmount 會把來源原值變更誤判成同一個 payload。
+ */
 export function amountsDigest(
   sources: readonly SettlementSourceDraft[],
   totals: SettlementLegacyTotals,
@@ -245,7 +266,10 @@ export function amountsDigest(
         source.sourceKind,
         source.direction,
         stable(source.originalAmount),
+        stable(source.quantity),
+        stable(source.unitPrice),
         stable(source.commissionAmount),
+        stable(source.companyRevenue),
         source.occurredAt.toISOString(),
       ].join('|'),
     )
@@ -263,13 +287,27 @@ export function amountsDigest(
   return sha256([...rows, totalsRow].join('\n'));
 }
 
+/**
+ * 操作 key。
+ *
+ * `operationSeq` 是伺服器推導的操作序號（本來源集合在本店已作廢的嘗試次數），
+ * 不可由瀏覽器提供。沒有它的話，撤回後同一組來源永遠命中原本那張 cancelled，
+ * 店家再也無法重新結算。有了它：
+ * - 同一次送出重送 → 序號未變 → 同一個 key → 回傳既有結算（冪等）
+ * - 撤回後重新送出 → 序號 +1 → 新 key → 可以建立新結算
+ * - 舊 key 重送 → 仍回到原本那張 cancelled，不復活
+ */
 export function buildIdempotencyKey(input: {
   merchantId: string;
   periodStart: Date;
   periodEnd: Date;
   sourceKeysDigest: string;
   intendedPaymentMethod: string;
+  operationSeq: number;
 }): string {
+  if (!Number.isSafeInteger(input.operationSeq) || input.operationSeq < 0) {
+    throw new Error('操作序號必須是非負整數');
+  }
   return sha256(
     [
       POS_SETTLEMENT_RULES_VERSION,
@@ -278,6 +316,7 @@ export function buildIdempotencyKey(input: {
       input.periodEnd.toISOString(),
       input.sourceKeysDigest,
       input.intendedPaymentMethod,
+      String(input.operationSeq),
     ].join('|'),
   );
 }
@@ -493,28 +532,68 @@ export function storeCollectionSource(input: StoreCollectionInput): SettlementSo
   };
 }
 
+export type DedupeResult = {
+  sources: SettlementSourceDraft[];
+  /** 無法安全去重的來源。兩邊都不認列，也不占唯一鍵。 */
+  conflicts: PendingSource[];
+};
+
+/** 兩筆是否為同一張券的鏡像：面額與方向都相同才算。 */
+function sameCouponValue(left: SettlementSourceDraft, right: SettlementSourceDraft): boolean {
+  return (
+    left.direction === right.direction &&
+    new Prisma.Decimal(left.originalAmount).equals(new Prisma.Decimal(right.originalAmount))
+  );
+}
+
 /**
- * 同一正規化券號在兩個來源模型同時出現時只認列一次，以 GroomingCoupon 為準。
- * 其餘 sourceKey 重複代表上游查詢有誤，直接視為錯誤而非默默去重。
+ * 同一正規化券號在兩個來源模型同時出現時：
+ * - 面額與方向完全一致（同一張券的鏡像）→ 只認列一次，以 GroomingCoupon 為準。
+ * - 面額或歸屬衝突 → **兩邊都不認列**，產生待確認。系統不得自行選一邊把真實衝突解掉。
+ *
+ * 其餘 sourceKey 重複代表上游查詢有誤，視為程式錯誤而非資料歧義。
  */
-export function dedupeSources(sources: readonly SettlementSourceDraft[]): SettlementSourceDraft[] {
+export function dedupeSources(sources: readonly SettlementSourceDraft[]): DedupeResult {
   const byKey = new Map<string, SettlementSourceDraft>();
+  const conflictKeys = new Map<string, SettlementSourceDraft>();
+
   for (const source of sources) {
+    if (conflictKeys.has(source.sourceKey)) continue;
+
     const existing = byKey.get(source.sourceKey);
     if (!existing) {
       byKey.set(source.sourceKey, source);
       continue;
     }
-    const existingModel = existing.sourceSnapshot.model;
-    const incomingModel = source.sourceSnapshot.model;
+
     const isCouponPair =
       source.sourceKind === 'coupon_subsidy' && existing.sourceKind === 'coupon_subsidy';
-    if (isCouponPair && existingModel !== 'grooming_coupon' && incomingModel === 'grooming_coupon') {
-      byKey.set(source.sourceKey, source);
+    if (!isCouponPair) throw new Error(`來源鍵重複：${source.sourceKey}`);
+
+    if (!sameCouponValue(existing, source)) {
+      byKey.delete(source.sourceKey);
+      conflictKeys.set(source.sourceKey, source);
       continue;
     }
-    if (isCouponPair) continue;
-    throw new Error(`來源鍵重複：${source.sourceKey}`);
+
+    if (
+      existing.sourceSnapshot.model !== 'grooming_coupon' &&
+      source.sourceSnapshot.model === 'grooming_coupon'
+    ) {
+      byKey.set(source.sourceKey, source);
+    }
   }
-  return [...byKey.values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey));
+
+  return {
+    sources: [...byKey.values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey)),
+    conflicts: [...conflictKeys.values()].map((source) =>
+      pendingSource({
+        reason: 'COUPON_SOURCE_CONFLICT',
+        sourceKind: source.sourceKind,
+        sourceRef: source.sourceKey,
+        occurredAt: source.occurredAt,
+        label: source.label,
+      }),
+    ),
+  };
 }

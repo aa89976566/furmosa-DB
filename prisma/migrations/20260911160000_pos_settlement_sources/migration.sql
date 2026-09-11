@@ -27,8 +27,9 @@ ON "Settlement"("idempotencyKey");
 CREATE INDEX IF NOT EXISTS "Settlement_rulesVersion_idx"
 ON "Settlement"("rulesVersion");
 
--- 新版結算必須同時具備 rulesVersion / idempotencyKey / payloadFingerprint / netPayableTwd。
--- legacy 結算四者皆為 NULL。不允許半套狀態，避免讀取端猜測版本。
+-- 新版結算必須同時具備 rulesVersion / idempotencyKey / payloadFingerprint /
+-- netPayableTwd / storeCollected。legacy 結算五者皆為 NULL。
+-- 不允許半套狀態：讀取端必須能 fail closed，不得以 0 代替缺失的金額。
 DO $$ BEGIN
   ALTER TABLE "Settlement"
   ADD CONSTRAINT "Settlement_rules_version_completeness_check"
@@ -36,12 +37,14 @@ DO $$ BEGIN
     ("rulesVersion" IS NULL
       AND "idempotencyKey" IS NULL
       AND "payloadFingerprint" IS NULL
-      AND "netPayableTwd" IS NULL)
+      AND "netPayableTwd" IS NULL
+      AND "storeCollected" IS NULL)
     OR
     ("rulesVersion" IS NOT NULL
       AND "idempotencyKey" IS NOT NULL
       AND "payloadFingerprint" IS NOT NULL
-      AND "netPayableTwd" IS NOT NULL)
+      AND "netPayableTwd" IS NOT NULL
+      AND "storeCollected" IS NOT NULL)
   );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -98,9 +101,9 @@ DO $$ BEGIN
   FOREIGN KEY ("settlementId") REFERENCES "Settlement"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- merchant 沿用既有 Settlement 的 CASCADE 語意，不改變店家刪除行為。
+-- RESTRICT：刪店家也不得連帶刪掉帳務稽核列。既有 Settlement.merchantId 的 CASCADE 不動。
 DO $$ BEGIN
   ALTER TABLE "SettlementSourceItem"
   ADD CONSTRAINT "SettlementSourceItem_merchantId_fkey"
-  FOREIGN KEY ("merchantId") REFERENCES "Merchant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("merchantId") REFERENCES "Merchant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

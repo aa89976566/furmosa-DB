@@ -3,10 +3,13 @@
  *
  * 凍結規格見 docs/reviews/pos-settlement-v1.md。核心不變條件：
  * - 新版身份只看 rulesVersion，絕不以「有沒有明細列」推測。
+ * - 未知的非空版本與缺必要欄位一律 fail closed，不得套本版公式、不得以 0 代替金額。
  * - 新版結算一律讀已存快照，不重算，也不呼叫 calcSettlement。
  * - 舊版（rulesVersion 為 null）維持原路徑，本模組不介入。
- * - 完整性不符時給出可讀訊息，不得靜默顯示看似正確的數字。
+ * - header 是送出當時的不可變快照，以**保留的全部稽核來源**驗證；
+ *   撤回會把明細標 voidedAt，但不得因此把合法的已撤回結算判為損毀或清零歷史。
  * - cancelled 不計入有效財務總計。
+ * - 加總與寫入共用同一個 Prisma.Decimal 函式，半元邊界才不會得出不同的整數淨額。
  *
  * Prisma client 由呼叫端注入（型別為 type-only import），模組本身不建立連線，
  * 因此純邏輯部分可以在沒有資料庫的環境單元測試。
@@ -16,10 +19,9 @@ import type { PrismaClient } from '@prisma/client';
 import {
   LEGACY_FLOAT_TOLERANCE,
   POS_SETTLEMENT_RULES_VERSION,
-  halfAwayFromZero,
+  computeLegacyTotals,
   withinLegacyTolerance,
   type SettlementSourceDirection,
-  type SettlementSourceKind,
 } from '@/lib/settlements/source-snapshot';
 
 export const SETTLEMENT_SNAPSHOT_BROKEN_ERROR =
@@ -27,6 +29,9 @@ export const SETTLEMENT_SNAPSHOT_BROKEN_ERROR =
 
 export const SETTLEMENT_SNAPSHOT_EMPTY_ERROR =
   '這張結帳單標記為新版結算，但找不到來源明細。請聯絡總部檢查，資料沒有被改動。';
+
+export const SETTLEMENT_UNKNOWN_VERSION_ERROR =
+  '這張結帳單是這個版本的系統還看不懂的結算版本，為了避免算錯金額已經停止顯示。請聯絡總部，資料沒有被改動。';
 
 /** 不計入有效財務總計的狀態。cancelled 是撤回後的稽核殘留。 */
 export const SETTLEMENT_EXCLUDED_STATUSES = ['cancelled'] as const;
@@ -41,9 +46,18 @@ export function isPosSettlementVersion(rulesVersion: string | null | undefined):
   return rulesVersion === POS_SETTLEMENT_RULES_VERSION;
 }
 
-/** 任何非 null 的 rulesVersion 都代表存在快照，即使版本號不是本次這一版。 */
+/**
+ * 是否帶有來源快照（任何非空版本）。
+ *
+ * 只用來判斷「該不該走快照分支」，**不足以**判斷能不能解讀；
+ * 能不能解讀由 isPosSettlementVersion 決定，未知版本必須 fail closed。
+ */
 export function hasSourceSnapshot(rulesVersion: string | null | undefined): boolean {
   return rulesVersion != null && rulesVersion.length > 0;
+}
+
+export function countsTowardValidTotals(status: string): boolean {
+  return !(SETTLEMENT_EXCLUDED_STATUSES as readonly string[]).includes(status);
 }
 
 export type SettlementSourceRow = {
@@ -83,12 +97,16 @@ export type SettlementHeaderRow = {
 
 export type SettlementSnapshotView = {
   header: SettlementHeaderRow;
-  /** 未作廢的來源，是金額的依據。 */
+  /** 保留的全部稽核來源。金額驗證的依據。 */
+  auditSources: SettlementSourceRow[];
+  /** 仍占用 active canonical 唯一鍵的來源。 */
   activeSources: SettlementSourceRow[];
-  /** 已撤回的稽核殘留，只顯示不計入金額。 */
+  /** 已撤回的稽核殘留，只顯示、不釋放稽核。 */
   voidedSources: SettlementSourceRow[];
+  /** 送出當時存下的整數淨額。已撤回也保留原值，不清零。 */
   netPayableTwd: number;
   direction: SettlementSourceDirection | 'NONE';
+  withdrawn: boolean;
   countsTowardValidTotals: boolean;
 };
 
@@ -96,60 +114,44 @@ export type SettlementSnapshotResult =
   | { ok: true; view: SettlementSnapshotView }
   | { ok: false; error: string };
 
-function sumFloat(rows: readonly SettlementSourceRow[], pick: (row: SettlementSourceRow) => number) {
-  return rows.reduce((total, row) => total + pick(row), 0);
-}
-
-function isKind(row: SettlementSourceRow, kind: SettlementSourceKind): boolean {
-  return row.sourceKind === kind;
-}
-
 /**
  * 漂移不變條件。
  *
- * legacy Float 合計只允許 0.01 的比較容差（浮點加總誤差）；
- * 已存的整數淨額必須與明細重算完全相等，不得套用任何容差。
+ * 驗證對象是 header 與**保留的全部稽核來源**，因為 header 記錄的是送出當時的內容；
+ * 撤回只標記 voidedAt，不改 header，也不應讓 header 變成「對不起來」。
+ *
+ * legacy Float 合計允許 0.01 的比較容差（浮點加總誤差）；
+ * 已存的整數欄位（netPayableTwd、storeCollected）必須完全相等，不得套用任何容差。
  */
 export function verifySnapshotIntegrity(
   header: SettlementHeaderRow,
-  activeSources: readonly SettlementSourceRow[],
+  auditSources: readonly SettlementSourceRow[],
 ): { ok: true } | { ok: false; error: string } {
-  if (activeSources.length === 0) {
-    // 全部撤回時淨額必須是 0，否則 header 與明細已經失去一致性。
-    if (header.netPayableTwd != null && header.netPayableTwd !== 0) {
-      return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
-    }
-    return { ok: true };
+  if (header.netPayableTwd == null || header.storeCollected == null) {
+    return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
+  }
+  if (auditSources.length === 0) {
+    return { ok: false, error: SETTLEMENT_SNAPSHOT_EMPTY_ERROR };
   }
 
-  const gross = sumFloat(activeSources, (row) =>
-    isKind(row, 'consignment_sale') ? row.originalAmount : 0,
-  );
-  const commission = sumFloat(activeSources, (row) =>
-    isKind(row, 'consignment_sale') ? row.commissionAmount ?? 0 : 0,
-  );
-  const reward = sumFloat(activeSources, (row) =>
-    isKind(row, 'coupon_subsidy') ? row.originalAmount : 0,
-  );
-  const collected = sumFloat(activeSources, (row) =>
-    isKind(row, 'store_collection') ? row.originalAmount : 0,
-  );
+  // 與寫入端完全相同的 Decimal 口徑，S 取 header 已存的 legacy 運費。
+  const totals = computeLegacyTotals(auditSources, { shippingFee: header.shippingFee });
+
+  const floatChecks: Array<[number, number]> = [
+    [header.grossSales, totals.grossSales],
+    [header.commissionAmount, totals.commissionAmount],
+    [header.rewardPayout, totals.rewardPayout],
+    [header.payable, totals.payable],
+    [header.merchantOwesUs, totals.merchantOwesUs],
+  ];
+  if (floatChecks.some(([stored, recomputed]) => !withinLegacyTolerance(stored, recomputed))) {
+    return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
+  }
 
   if (
-    !withinLegacyTolerance(header.grossSales, gross) ||
-    !withinLegacyTolerance(header.commissionAmount, commission) ||
-    !withinLegacyTolerance(header.rewardPayout, reward)
+    header.netPayableTwd !== totals.netPayableTwd ||
+    header.storeCollected !== totals.storeCollected
   ) {
-    return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
-  }
-
-  const merchantOwesUs = gross - commission - reward - header.shippingFee + collected;
-  if (!withinLegacyTolerance(header.merchantOwesUs, merchantOwesUs)) {
-    return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
-  }
-
-  // 整數淨額不套容差。
-  if (header.netPayableTwd != null && header.netPayableTwd !== halfAwayFromZero(merchantOwesUs)) {
     return { ok: false, error: SETTLEMENT_SNAPSHOT_BROKEN_ERROR };
   }
 
@@ -163,35 +165,33 @@ export function buildSnapshotView(
   if (!hasSourceSnapshot(header.rulesVersion)) {
     return { ok: false, error: SETTLEMENT_SNAPSHOT_EMPTY_ERROR };
   }
-
-  const activeSources = sources.filter((row) => row.voidedAt == null);
-  const voidedSources = sources.filter((row) => row.voidedAt != null);
-
-  if (sources.length === 0) {
-    return { ok: false, error: SETTLEMENT_SNAPSHOT_EMPTY_ERROR };
+  // fail closed：未知版本的語意未知，絕不套用本版公式解讀。
+  if (!isPosSettlementVersion(header.rulesVersion)) {
+    return { ok: false, error: SETTLEMENT_UNKNOWN_VERSION_ERROR };
   }
 
-  const integrity = verifySnapshotIntegrity(header, activeSources);
+  const integrity = verifySnapshotIntegrity(header, sources);
   if (!integrity.ok) return integrity;
 
-  const netPayableTwd = header.netPayableTwd ?? 0;
+  const auditSources = [...sources];
+  const activeSources = auditSources.filter((row) => row.voidedAt == null);
+  const voidedSources = auditSources.filter((row) => row.voidedAt != null);
+  const netPayableTwd = header.netPayableTwd as number;
 
   return {
     ok: true,
     view: {
       header,
+      auditSources,
       activeSources,
       voidedSources,
       netPayableTwd,
       direction:
         netPayableTwd > 0 ? 'STORE_TO_FURMOSA' : netPayableTwd < 0 ? 'FURMOSA_TO_STORE' : 'NONE',
+      withdrawn: activeSources.length === 0 && voidedSources.length > 0,
       countsTowardValidTotals: countsTowardValidTotals(header.status),
     },
   };
-}
-
-export function countsTowardValidTotals(status: string): boolean {
-  return !SETTLEMENT_EXCLUDED_STATUSES.includes(status as (typeof SETTLEMENT_EXCLUDED_STATUSES)[number]);
 }
 
 const HEADER_SELECT = {
@@ -229,6 +229,11 @@ const SOURCE_SELECT = {
   voidedAt: true,
 } as const;
 
+function isMissingSchemaRead(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === 'P2021' || code === 'P2022';
+}
+
 /**
  * 讀取新版結算快照。
  *
@@ -261,9 +266,33 @@ export async function loadSettlementSnapshot(
   }
 }
 
-function isMissingSchemaRead(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code;
-  return code === 'P2021' || code === 'P2022';
+/**
+ * 操作序號：這組來源在本店已經被幾張結算作廢過。
+ *
+ * 由伺服器推導、不可由瀏覽器提供，用來讓撤回後的重新結算取得新的 idempotencyKey。
+ * 缺表環境回傳 0 並標記 unavailable，由寫入端拒絕，不在這裡假裝成功。
+ */
+export async function countVoidedAttempts(
+  client: PrismaClient,
+  merchantId: string,
+  sourceKeys: readonly string[],
+): Promise<{ available: boolean; operationSeq: number }> {
+  if (sourceKeys.length === 0) return { available: true, operationSeq: 0 };
+  try {
+    const rows = await client.settlementSourceItem.findMany({
+      where: {
+        merchantId,
+        sourceKey: { in: [...sourceKeys] },
+        voidedAt: { not: null },
+      },
+      select: { settlementId: true },
+      distinct: ['settlementId'],
+    });
+    return { available: true, operationSeq: rows.length };
+  } catch (error) {
+    if (isMissingSchemaRead(error)) return { available: false, operationSeq: 0 };
+    throw error;
+  }
 }
 
 /**
