@@ -532,6 +532,7 @@ model Merchant {
 
   orders                 Order[]
   settlements            Settlement[]
+  settlementSourceItems  SettlementSourceItem[]
   productRules           MerchantProductRule[]
   wholesalePrices        MerchantWholesalePrice[]
   partnerRewards         RewardCatalog[]      @relation("RewardPartnerMerchant")
@@ -1123,17 +1124,58 @@ model Settlement {
   shippingFee      Float     @default(0) // 運費（公司補給店家／或店家代墊）
   merchantOwesUs   Float     @default(0) // 店家應返公司金額 = grossSales - commissionAmount - rewardPayout - shippingFee
   payable          Float // 兼容舊欄位：等於 commissionAmount + rewardPayout + shippingFee（公司應付店家）
-  status           String    @default("draft") // draft / reviewing / approved / paid
+  status           String    @default("draft") // draft / reviewing / approved / paid / cancelled
   paidAt           DateTime?
   note             String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  merchant Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  txns     MerchantStockTxn[]
+  // POS 共用帳務增量欄位。全部 nullable；舊流程維持 null，不 backfill。
+  rulesVersion         String? // 新版身份判定的唯一依據；null = legacy 流程
+  idempotencyKey       String? @unique // 同 key 同 payload 回傳既有結算
+  payloadFingerprint   String? // 同 key 不同 payload 必須拒絕
+  createdSource        String? // pos / hq
+  intendedPaymentMethod String?
+  netPayableTwd        Int? // 整數台幣。正 = 店家應付公司；負 = 公司應付店家
+  storeCollected       Int? // 整數台幣。店家代收現金，不含寄賣銷售現金
+
+  merchant    Merchant               @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  txns        MerchantStockTxn[]
+  sourceItems SettlementSourceItem[]
 
   @@index([merchantId])
   @@index([status])
+  @@index([rulesVersion])
+}
+
+// 結算的來源唯一明細。每一筆已認列的來源在未作廢狀態下只能屬於一張結算。
+model SettlementSourceItem {
+  id               String    @id @default(cuid())
+  settlementId     String
+  merchantId       String
+  sourceKind       String // consignment_sale / store_collection / coupon_subsidy
+  sourceKey        String // canonical key，例如 consignment_sale:<txnId>
+  direction        String // STORE_TO_FURMOSA / FURMOSA_TO_STORE
+  originalAmount   Float // 來源原值，保留半元不四捨五入
+  quantity         Int?
+  unitPrice        Float?
+  commissionAmount Float?
+  companyRevenue   Float?
+  occurredAt       DateTime
+  relatedOrderId   String?
+  sourceSnapshot   Json // 認列當時的來源快照
+  rulesVersion     String
+  voidedAt         DateTime? // 撤回時標記，釋放 active 唯一鍵，但不刪稽核
+  createdAt        DateTime  @default(now())
+
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
+  @@index([merchantId, sourceKey])
+  @@index([sourceKind])
+  // active canonical unique：(merchantId, sourceKey) WHERE "voidedAt" IS NULL
+  // Prisma schema 無法表達 partial unique index，於 migration.sql 手寫。
 }
 
 // =====================================================
