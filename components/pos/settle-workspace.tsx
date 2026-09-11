@@ -9,7 +9,11 @@ import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
 import type { PosAccount } from '@/lib/pos/account';
 import type { StoreLedgerPageData } from '@/lib/pos/load-store-ledger';
 import { formatNtd, type LedgerEntryView } from '@/lib/pos/store-ledger';
-import { confirmStoreSettlementAction } from '@/app/pos/settle/actions';
+import { settlementStatusLabel } from '@/lib/labels';
+import {
+  confirmStoreSettlementAction,
+  withdrawStoreSettlementAction,
+} from '@/app/pos/settle/actions';
 
 type SettleTab = 'overview' | 'ledger' | 'refill' | 'history';
 
@@ -193,9 +197,25 @@ function SettleWorkspaceInner({
       from,
       to,
       paymentMethodLabel: paymentMethod,
+      preview: {
+        sourceKeysDigest: ledger.preview.sourceKeysDigest,
+        amountsDigest: ledger.preview.amountsDigest,
+        idempotencyKey: ledger.preview.idempotencyKey,
+        payloadFingerprint: ledger.preview.payloadFingerprint,
+      },
     });
     setBusy(false);
     setMessage(result.ok ? result.message : result.error);
+    if (result.ok) router.refresh();
+  }
+
+  async function onWithdraw(settlementId: string) {
+    setBusy(true);
+    setMessage(null);
+    const result = await withdrawStoreSettlementAction({ settlementId });
+    setBusy(false);
+    setMessage(result.ok ? result.message : result.error);
+    if (result.ok) router.refresh();
   }
 
   function applyPeriod(event: FormEvent<HTMLFormElement>) {
@@ -239,6 +259,9 @@ function SettleWorkspaceInner({
     <div className="space-y-4">
       <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-100">
         <h2 className="text-base font-semibold">本次結帳</h2>
+        <p className="mt-1 text-xs text-zinc-400">
+          這是送出前的暫計，還不是已送出的紀錄，也不代表已付款。
+        </p>
         <dl className="mt-4 space-y-3 text-sm">
           <div className="flex justify-between gap-3">
             <dt className="text-zinc-500">結算單號</dt>
@@ -248,6 +271,26 @@ function SettleWorkspaceInner({
             <dt className="text-zinc-500">期間</dt>
             <dd>{periodLabel}</dd>
           </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-zinc-500">可結算項目</dt>
+            <dd>{ledger.preview.sourceCount} 筆</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-zinc-500">暫計淨額</dt>
+            <dd className="font-semibold">
+              {ledger.preview.netPayableTwd === 0
+                ? '相抵'
+                : `${formatNtd(Math.abs(ledger.preview.netPayableTwd))}${
+                    ledger.preview.netPayableTwd > 0 ? '（店家匯回匠寵）' : '（匠寵匯給店家）'
+                  }`}
+            </dd>
+          </div>
+          {ledger.preview.lockedSourceCount > 0 ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-zinc-500">已結過不重複列入</dt>
+              <dd>{ledger.preview.lockedSourceCount} 筆</dd>
+            </div>
+          ) : null}
         </dl>
         <fieldset className="mt-5 space-y-2">
           <legend className="mb-2 text-sm font-medium">結帳方式</legend>
@@ -275,20 +318,46 @@ function SettleWorkspaceInner({
         ) : (
           <p className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 text-sm text-zinc-600">兩邊應付相抵，本期不用匯款。</p>
         )}
+        {!ledger.persistAvailable ? (
+          <p className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 text-sm text-zinc-600">
+            店家結帳寫入功能還沒啟用，現在送出不會留下任何紀錄。畫面數字可以先對，等總部開啟後再送出。
+          </p>
+        ) : null}
         {message ? <p className="mt-3 text-sm text-orange-700">{message}</p> : null}
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
           className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white disabled:opacity-60"
         >
           {busy
             ? '處理中…'
-            : ledger.summary.payer === 'NONE'
-              ? '確認結帳'
-              : `確認結帳 ${formatNtd(Math.abs(ledger.summary.netAmount))}`}
+            : ledger.preview.sourceCount === 0
+              ? '本期沒有可結算項目'
+              : ledger.preview.netPayableTwd === 0
+                ? '送出待核對'
+                : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
         </button>
       </section>
+      {ledger.pending.length > 0 ? (
+        <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-neutral-100">
+          <h3 className="text-base font-semibold">待確認 {ledger.pending.length} 筆</h3>
+          <p className="mt-1 text-xs text-zinc-400">
+            這些項目沒有算進暫計金額，也不會跟著送出。需要總部確認後才能結算。
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-zinc-600">
+            {ledger.pending.slice(0, 8).map((item) => (
+              <li key={`${item.sourceKind}-${item.sourceRef}`} className="rounded-xl bg-neutral-50 px-3 py-2">
+                <p className="text-zinc-900">{item.label}</p>
+                <p className="mt-1 text-xs text-zinc-500">{item.reasonLabel}</p>
+              </li>
+            ))}
+          </ul>
+          {ledger.pending.length > 8 ? (
+            <p className="mt-2 text-xs text-zinc-400">另有 {ledger.pending.length - 8} 筆待確認。</p>
+          ) : null}
+        </section>
+      ) : null}
       <section className="rounded-2xl bg-white p-5 text-sm text-zinc-600 shadow-sm ring-1 ring-neutral-100">
         <h3 className="mb-3 font-medium text-zinc-900">對帳規則</h3>
         <ol className="list-decimal space-y-2 pl-4">
@@ -610,12 +679,12 @@ function SettleWorkspaceInner({
           ) : null}
 
           {tab === 'history' ? (
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
-              <h2 className="text-base font-semibold">結帳紀錄</h2>
-              <p className="mt-2 text-sm text-zinc-500">
-                目前還沒有店家對帳結算表，所以還不能留下每次結帳快照。數字可以先對，確認結帳不會改流水狀態。
-              </p>
-            </div>
+            <SettlementHistoryTable
+              rows={ledger.history}
+              available={ledger.historyAvailable}
+              busy={busy}
+              onWithdraw={onWithdraw}
+            />
           ) : null}
         </div>
       </main>
@@ -627,11 +696,15 @@ function SettleWorkspaceInner({
       <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
-          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg"
+          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg disabled:opacity-60"
         >
-          {busy ? '處理中…' : `確認結帳 ${formatNtd(Math.abs(ledger.summary.netAmount))}`}
+          {busy
+            ? '處理中…'
+            : ledger.preview.sourceCount === 0
+              ? '本期沒有可結算項目'
+              : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
         </button>
       </div>
 
@@ -851,6 +924,106 @@ function RefillSummaryTable({
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * 已送出紀錄。與暫計完全分開呈現，避免把待核對誤認成已付款。
+ * 只有 `paid` 才顯示已撥款；`draft` 的新版結算才給撤回。
+ */
+function SettlementHistoryTable({
+  rows,
+  available,
+  busy,
+  onWithdraw,
+}: {
+  rows: StoreLedgerPageData['history'];
+  available: boolean;
+  busy: boolean;
+  onWithdraw: (settlementId: string) => void;
+}) {
+  if (!available) {
+    return (
+      <div className="rounded-2xl bg-white p-6 shadow-sm">
+        <h2 className="text-base font-semibold">結帳紀錄</h2>
+        <p className="mt-2 text-sm text-zinc-500">
+          這個環境還沒有結算來源明細表，所以讀不到結帳紀錄。畫面數字可以先對，等總部完成資料庫更新後再看紀錄。
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+      <h2 className="px-4 pt-4 text-base font-semibold">結帳紀錄</h2>
+      <p className="px-4 pb-3 pt-1 text-xs text-zinc-400">
+        送出後是待總部核對，只有狀態顯示已撥款才代表款項已付。
+      </p>
+      <div className="overflow-x-auto">
+        <table className="min-w-[760px] w-full text-left text-sm">
+          <thead className="text-xs text-zinc-400">
+            <tr>
+              {['結算單號', '期間', '淨額', '狀態', '撥款時間', '操作'].map((col) => (
+                <th key={col} className="px-3 py-3 font-medium">
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-10 text-center text-zinc-500">
+                  還沒有送出過的結帳紀錄。
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id} className="border-t border-neutral-100">
+                  <td className="whitespace-nowrap px-3 py-3">{row.settlementNo}</td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {taipeiDay(row.periodStart)} - {taipeiDay(row.periodEnd)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {formatNtd(Math.abs(row.netPayableTwd ?? row.merchantOwesUs))}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        row.status === 'paid'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : row.status === 'cancelled'
+                            ? 'bg-neutral-100 text-zinc-600'
+                            : 'bg-orange-50 text-orange-700'
+                      }`}
+                    >
+                      {settlementStatusLabel[row.status] ?? row.status}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    {row.paidAt && row.status === 'paid' ? taipeiDateTime(row.paidAt) : '—'}
+                  </td>
+                  <td className="px-3 py-3">
+                    {row.isNewVersion && row.status === 'draft' ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onWithdraw(row.id)}
+                        className="min-h-[36px] rounded-xl border border-neutral-200 px-3 text-xs text-zinc-700 disabled:opacity-40"
+                      >
+                        撤回
+                      </button>
+                    ) : (
+                      <span className="text-xs text-zinc-400">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

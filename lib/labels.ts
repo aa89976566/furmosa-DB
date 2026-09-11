@@ -72,6 +72,8 @@ export const settlementStatusLabel: Record<string, string> = {
   reviewing: '審核中',
   approved: '已核准',
   paid: '已撥款',
+  // 撤回後的狀態。紀錄與稽核保留，但不計入有效財務統計。
+  cancelled: '已撤回',
 };
 
 export const taskStatusLabel: Record<string, string> = {

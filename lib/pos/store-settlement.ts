@@ -4,6 +4,15 @@ import {
   summarizeStoreLedger,
   type LedgerEntry,
 } from '@/lib/pos/store-ledger';
+import {
+  persistSettlementDraft,
+  settlementWriteEnabled,
+  settlementWriteFailure,
+  withdrawSettlementDraft,
+  type SettlementDraft,
+  type SettlementWriteResult,
+  type SubmittedPreview,
+} from '@/lib/settlements/write-settlement';
 
 export const STORE_SETTLEMENT_SCHEMA_MISSING =
   '目前還沒有店家對帳結算表，無法寫入結帳紀錄。畫面數字可以先對，等總部確認後再新增 StoreSettlement。';
@@ -152,12 +161,28 @@ export async function runSettlementTransaction(
   });
 }
 
-export async function persistStoreSettlement(
-  _snapshot: StoreSettlementSnapshot,
-): Promise<{ ok: false; code: 'SCHEMA_MISSING'; error: string }> {
-  return {
-    ok: false,
-    code: 'SCHEMA_MISSING',
-    error: STORE_SETTLEMENT_SCHEMA_MISSING,
-  };
+/**
+ * POS 端寫入入口。
+ *
+ * 共用 `lib/settlements/write-settlement.ts` 的伺服器端閘門與交易，POS 與 HQ 不各寫一套。
+ * 寫入開關關閉時在這裡就回絕，並且**不載入 prisma**：
+ * 一方面沒有任何資料庫連線，另一方面讓純邏輯測試能在沒有 DATABASE_URL 的環境跑。
+ */
+export async function persistStoreSettlement(input: {
+  draft: SettlementDraft;
+  submitted: SubmittedPreview;
+}): Promise<SettlementWriteResult> {
+  if (!settlementWriteEnabled()) return settlementWriteFailure('WRITE_DISABLED');
+  const { prisma } = await import('@/lib/prisma');
+  return persistSettlementDraft(prisma, input.draft, input.submitted);
+}
+
+/** 店家撤回自己的新版草稿。同樣共用伺服器端閘門，不靠 UI 隱藏按鈕保護。 */
+export async function withdrawStoreSettlement(input: {
+  merchantId: string;
+  settlementId: string;
+}): Promise<SettlementWriteResult> {
+  if (!settlementWriteEnabled()) return settlementWriteFailure('WRITE_DISABLED');
+  const { prisma } = await import('@/lib/prisma');
+  return withdrawSettlementDraft(prisma, input);
 }
