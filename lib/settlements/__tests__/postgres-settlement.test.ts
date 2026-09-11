@@ -14,6 +14,10 @@
  * - 本檔不執行 migration。資料庫結構必須已由執行者自行套用；缺結構時直接失敗，
  *   不自動建表，也不降級成「假裝通過」。
  * - 只操作本檔自己建立、帶專用前綴的資料列，結束時清乾淨。
+ * - 曝險防護測試會在這個隔離庫建立 anon／authenticated 角色並改動
+ *   `SettlementSourceItem` 一張表的權限，用來重現 Supabase 的預設授權。
+ *   不改全域 default privileges，不動其他表，結束時該表停在「已防護」狀態。
+ *   因為要 CREATE ROLE，這個隔離庫的連線角色需要 superuser 或 CREATEROLE。
  *
  * 執行方式（由獨立驗收者在自己的專用本機庫執行）：
  *   SETTLEMENT_TEST_DATABASE_URL=... \
@@ -23,6 +27,7 @@
 
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import type { PrismaClient } from '@prisma/client';
 import {
   POS_SETTLEMENT_RULES_VERSION,
@@ -244,6 +249,100 @@ async function countSettlements(merchantId: string): Promise<number> {
   return prisma.settlement.count({ where: { merchantId } });
 }
 
+// ---------------------------------------------------------------------------
+// 曝險防護段：直接取用會上線的那份 migration SQL
+// ---------------------------------------------------------------------------
+
+const MIGRATION_URL = new URL(
+  '../../../prisma/migrations/20260911160000_pos_settlement_sources/migration.sql',
+  import.meta.url,
+);
+
+const GUARD_BEGIN = '-- ===== SETTLEMENT-SOURCE-ITEM-EXPOSURE-GUARD-BEGIN =====';
+const GUARD_END = '-- ===== SETTLEMENT-SOURCE-ITEM-EXPOSURE-GUARD-END =====';
+
+/**
+ * 從實際出貨的 migration 取出曝險防護段。
+ *
+ * 測試執行的必須是會上線的那段 SQL，不是抄寫的副本；否則 migration 被改掉時
+ * 測試還會繼續通過。
+ */
+function readExposureGuardSql(): string {
+  const sql = readFileSync(MIGRATION_URL, 'utf8');
+  const begin = sql.indexOf(GUARD_BEGIN);
+  const end = sql.indexOf(GUARD_END);
+  if (begin < 0 || end < 0 || end < begin) {
+    throw new Error('migration.sql 缺少曝險防護段標記，新表會帶著 Supabase 預設權限上線');
+  }
+  return sql.slice(begin + GUARD_BEGIN.length, end).trim();
+}
+
+/**
+ * 以分號切開語句，並跳過 `$tag$ ... $tag$` 與單引號字串內的內容。
+ *
+ * Prisma 的 `$executeRawUnsafe` 一次只能送一個語句，而防護段裡有 `DO $guard$` 區塊，
+ * 不能用單純的 `split(';')`。
+ */
+function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let buffer = '';
+  let index = 0;
+  let dollarTag: string | null = null;
+  let inQuote = false;
+
+  while (index < sql.length) {
+    if (dollarTag != null) {
+      if (sql.startsWith(dollarTag, index)) {
+        buffer += dollarTag;
+        index += dollarTag.length;
+        dollarTag = null;
+      } else {
+        buffer += sql[index];
+        index += 1;
+      }
+      continue;
+    }
+    if (inQuote) {
+      buffer += sql[index];
+      if (sql[index] === "'") inQuote = false;
+      index += 1;
+      continue;
+    }
+    if (sql.startsWith('--', index)) {
+      const lineEnd = sql.indexOf('\n', index);
+      index = lineEnd < 0 ? sql.length : lineEnd + 1;
+      continue;
+    }
+    const dollarOpen = /^\$[A-Za-z_]*\$/.exec(sql.slice(index, index + 64));
+    if (dollarOpen != null) {
+      dollarTag = dollarOpen[0];
+      buffer += dollarTag;
+      index += dollarTag.length;
+      continue;
+    }
+    if (sql[index] === "'") {
+      inQuote = true;
+      buffer += sql[index];
+      index += 1;
+      continue;
+    }
+    if (sql[index] === ';') {
+      if (buffer.trim() !== '') statements.push(buffer.trim());
+      buffer = '';
+      index += 1;
+      continue;
+    }
+    buffer += sql[index];
+    index += 1;
+  }
+
+  if (buffer.trim() !== '') statements.push(buffer.trim());
+  return statements;
+}
+
+/** `$transaction` 回呼拿到的 client，這裡只需要 raw 介面。 */
+type RawClient = Pick<PrismaClient, '$executeRawUnsafe' | '$queryRawUnsafe'>;
+
 describe('真實 PostgreSQL 結算測試', { skip }, () => {
   before(async () => {
     const { PrismaClient: Client } = await import('@prisma/client');
@@ -335,6 +434,192 @@ describe('真實 PostgreSQL 結算測試', { skip }, () => {
         }),
       );
       assert.equal(await countSettlements(merchantA), 0, '被 CHECK 擋下不應留下殘列');
+    });
+  });
+
+  describe('資料庫曝險防護（模擬 Supabase 預設權限）', () => {
+    /** `has_table_privilege` 與 regclass 都要帶 schema 與大小寫。 */
+    const REGCLASS = 'public."SettlementSourceItem"';
+    const PUBLIC_ROLES = ['anon', 'authenticated'] as const;
+    const WRITE_PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const;
+
+    /** Prisma 一次只能送一個語句，依序執行。 */
+    async function run(statements: readonly string[]): Promise<void> {
+      for (const statement of statements) {
+        await prisma.$executeRawUnsafe(statement);
+      }
+    }
+
+    async function rowSecurityFlags(): Promise<{ enabled: boolean; forced: boolean }> {
+      const rows = await prisma.$queryRawUnsafe<
+        Array<{ relrowsecurity: boolean; relforcerowsecurity: boolean }>
+      >(
+        `SELECT relrowsecurity, relforcerowsecurity
+         FROM pg_class WHERE oid = '${REGCLASS}'::regclass`,
+      );
+      assert.equal(rows.length, 1, '找不到 SettlementSourceItem，結構尚未套用');
+      return { enabled: rows[0].relrowsecurity, forced: rows[0].relforcerowsecurity };
+    }
+
+    async function hasPrivilege(role: string, privilege: string): Promise<boolean> {
+      const rows = await prisma.$queryRawUnsafe<Array<{ allowed: boolean }>>(
+        `SELECT has_table_privilege('${role}', '${REGCLASS}', '${privilege}') AS allowed`,
+      );
+      return rows[0].allowed;
+    }
+
+    /** 真的切換成該角色去讀寫，證明「權限被收回」不只是 catalog 上的數字。 */
+    async function assertRoleIsDenied(role: string): Promise<void> {
+      const attempts: Array<{ label: string; execute: (tx: RawClient) => Promise<unknown> }> = [
+        {
+          label: `SELECT ${REGCLASS}`,
+          execute: (tx) => tx.$queryRawUnsafe(`SELECT count(*) FROM "SettlementSourceItem"`),
+        },
+        {
+          label: `INSERT ${REGCLASS}`,
+          execute: (tx) =>
+            tx.$executeRawUnsafe(`INSERT INTO "SettlementSourceItem" ("id") VALUES ('denied')`),
+        },
+      ];
+
+      for (const attempt of attempts) {
+        await assert.rejects(
+          prisma.$transaction(async (tx) => {
+            await tx.$executeRawUnsafe(`SET LOCAL ROLE ${role}`);
+            await attempt.execute(tx);
+          }),
+          (error: unknown) => {
+            const message = error instanceof Error ? error.message : String(error);
+            assert.match(
+              message,
+              /permission denied|42501/i,
+              `${role} 被擋下的原因不是權限不足：${message}`,
+            );
+            return true;
+          },
+          `${role} 仍然可以執行 ${attempt.label}`,
+        );
+      }
+    }
+
+    before(async () => {
+      // 重現 Supabase 的角色拓樸：anon／authenticated 是 NOLOGIN NOINHERIT，
+      // 而連線用的 postgres 是它們的成員（PostgREST 靠 SET ROLE 切換）。
+      // 這些只發生在隔離測試庫，migration 本身不建立任何角色。
+      await run([
+        `DO $sim$
+         BEGIN
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+             CREATE ROLE anon NOLOGIN NOINHERIT;
+           END IF;
+           IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+             CREATE ROLE authenticated NOLOGIN NOINHERIT;
+           END IF;
+         END
+         $sim$`,
+        `GRANT anon TO CURRENT_USER`,
+        `GRANT authenticated TO CURRENT_USER`,
+        `GRANT USAGE ON SCHEMA public TO anon, authenticated`,
+      ]);
+    });
+
+    after(async () => {
+      // 這個 describe 結束時，隔離庫一定停在「已防護」狀態。
+      await run(splitSqlStatements(readExposureGuardSql()));
+    });
+
+    it('出貨的 migration 帶有防護段，且沒有 FORCE RLS、policy 或全域權限改動', () => {
+      const guard = readExposureGuardSql();
+
+      assert.match(guard, /ALTER TABLE "SettlementSourceItem" ENABLE ROW LEVEL SECURITY/i);
+      assert.match(guard, /REVOKE ALL ON TABLE "SettlementSourceItem" FROM PUBLIC/i);
+      assert.match(guard, /REVOKE ALL ON TABLE "SettlementSourceItem" FROM anon/i);
+      assert.match(guard, /REVOKE ALL ON TABLE "SettlementSourceItem" FROM authenticated/i);
+      // 隔離庫沒有這些角色，缺角色不得讓整份 migration 失敗。
+      assert.match(guard, /pg_roles/i);
+
+      // FORCE 會讓表擁有者（＝伺服器連線角色）自己也讀不到資料。
+      assert.doesNotMatch(guard, /FORCE ROW LEVEL SECURITY/i);
+      // 無 policy 才是全拒；新增任何 policy 就等於開了一個公開讀取面。
+      assert.doesNotMatch(guard, /CREATE POLICY/i);
+      // 全域預設權限、schema 權限與既有表都不在本包範圍。
+      assert.doesNotMatch(guard, /ALTER DEFAULT PRIVILEGES/i);
+      assert.doesNotMatch(guard, /ON SCHEMA/i);
+      assert.doesNotMatch(guard, /"Settlement"/);
+
+      assert.equal(splitSqlStatements(guard).length, 3, '防護段語句數量與預期不同');
+    });
+
+    it('模擬 Supabase 預設授權後，防護段讓 anon／authenticated 讀不到也寫不進新表', async () => {
+      try {
+        await run([
+          // 這一行就是 ALTER DEFAULT PRIVILEGES 在 CREATE TABLE 當下造成的結果。
+          `GRANT ALL ON TABLE "SettlementSourceItem" TO anon, authenticated`,
+          `ALTER TABLE "SettlementSourceItem" DISABLE ROW LEVEL SECURITY`,
+        ]);
+
+        // 先證明漏洞真的被重現，否則後面的「通過」沒有意義。
+        assert.equal(await hasPrivilege('anon', 'SELECT'), true, '模擬失敗：anon 沒有取得授權');
+        assert.equal((await rowSecurityFlags()).enabled, false, '模擬失敗：RLS 沒有被關掉');
+      } finally {
+        // 無論上面成敗，都要用出貨的那段 SQL 回到有防護的狀態。
+        await run(splitSqlStatements(readExposureGuardSql()));
+      }
+
+      const flags = await rowSecurityFlags();
+      assert.equal(flags.enabled, true, 'RLS 未啟用');
+      assert.equal(flags.forced, false, 'FORCE RLS 會讓伺服器自己讀不到資料');
+
+      const policies = await prisma.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT count(*)::int AS total FROM pg_policies
+         WHERE schemaname = 'public' AND tablename = 'SettlementSourceItem'`,
+      );
+      assert.equal(policies[0].total, 0, '新表不得有任何 policy');
+
+      for (const role of PUBLIC_ROLES) {
+        for (const privilege of WRITE_PRIVILEGES) {
+          assert.equal(await hasPrivilege(role, privilege), false, `${role} 仍有 ${privilege} 權限`);
+        }
+      }
+
+      await assertRoleIsDenied('anon');
+      await assertRoleIsDenied('authenticated');
+    });
+
+    it('伺服器交易在 RLS 啟用後仍可用，且誤下 GRANT 時 RLS 仍讓 anon 讀不到任何一列', async () => {
+      const txn = await createSaleTxn(merchantA, {
+        quantity: 1,
+        unitPrice: 100,
+        commissionAmount: 30,
+      });
+      const draft = draftOf(merchantA, [txn]);
+      const created = await persistSettlementDraft(prisma, draft, submittedOf(draft));
+      assert.equal(created.ok, true, 'RLS 啟用後伺服器仍必須寫得進去');
+      if (!created.ok) return;
+      assert.equal(
+        await prisma.settlementSourceItem.count({ where: { settlementId: created.id } }),
+        1,
+        '伺服器讀不到自己剛寫入的來源明細，代表連線角色不是表擁有者',
+      );
+
+      // 後備層驗證：就算日後有人誤下 GRANT，無 policy 的 RLS 仍然全拒。
+      try {
+        await prisma.$executeRawUnsafe(`GRANT SELECT ON TABLE "SettlementSourceItem" TO anon`);
+        await prisma.$transaction(async (tx) => {
+          await tx.$executeRawUnsafe(`SET LOCAL ROLE anon`);
+          const rows = await tx.$queryRawUnsafe<Array<{ total: number }>>(
+            `SELECT count(*)::int AS total FROM "SettlementSourceItem"`,
+          );
+          assert.equal(rows[0].total, 0, 'RLS 後備層失效：anon 讀到了資料列');
+        });
+      } finally {
+        // 斷言失敗也不能把臨時授權留在資料庫裡。
+        await prisma.$executeRawUnsafe(`REVOKE SELECT ON TABLE "SettlementSourceItem" FROM anon`);
+      }
+
+      assert.equal(await hasPrivilege('anon', 'SELECT'), false, '臨時 GRANT 沒有被收回');
+
+      await cleanupMerchant(merchantA);
     });
   });
 

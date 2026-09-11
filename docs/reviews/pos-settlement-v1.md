@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R5（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5 規格缺陷修訂；詳見 §0.1–§0.6） |
-| 凍結文字 SHA256 | `fe0e5eac9fca5872a83ffffc27f53fb8f714301bc32eb69b94d9578900f762e4` |
+| Prompt 版本 | v2-R6（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5／R6 規格缺陷修訂；詳見 §0.1–§0.7） |
+| 凍結文字 SHA256 | `a78f2f4fb50824a7bfa3e673ea90fee8e89aa54ccbb7c1bd5313d57e1e5fa37c` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -113,6 +113,28 @@ R4 修訂前的凍結雜湊：`c75cf101e3964d0c8ac7fdfdcb1ccd4ebb1260c2ba06e83f5
 
 R5 修訂前的凍結雜湊：`e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5df44c4de9cda7e00`（commit `8878c7c`）。
 
+### 0.7 R6 部署安全缺陷審核紀錄（新表經 Data API 曝險）
+
+使用者第十一輪提出一項已確認的部署安全缺陷：正式庫 `public` schema 的 default privileges 會讓 `postgres`／`supabase_admin` 建立的表自動取得 `anon` 與 `authenticated` 的全部表權限，而本包 `migration.sql` 新建 `SettlementSourceItem` 時既未啟用 RLS 也未收回公用角色權限，逐筆帳務與 `sourceSnapshot` 會經 Data API 曝露。
+
+經逐行核對 `prisma/migrations/20260911160000_pos_settlement_sources/migration.sql`（R6 前 109 行）：**確認為真實缺陷**。該檔完整建立了表、CHECK、partial unique index 與兩個 RESTRICT 外鍵，但**完全沒有 `ENABLE ROW LEVEL SECURITY`，也沒有任何 `REVOKE`**。
+
+這屬**原規格本身的缺口**：§1.6 只要求「一次帶齊全部約束」，把「約束」理解成資料完整性（PK／FK／index／CHECK），完全沒有規定**存取權限**。前五輪 R1–R5 修的都是算得對不對、以及畫面有沒有真的用它，沒有任何一輪檢查過新表在託管 PostgreSQL 上的預設曝險面。依使用者指示最小幅度修訂 §1.6 與 §1.11 並重新計算凍結雜湊。舊雜湊保留於 §0.1、§0.2、§0.4、§0.5、§0.6 與本節。白名單未擴張——修正只落在原第 6 項（`migration.sql`）與原第 10 項（`postgres-settlement.test.ts`）。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | 新表未啟用 RLS、未收回 `PUBLIC`／`anon`／`authenticated` 權限 | **確認（上線阻擋）** | Supabase 的 `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES TO anon, authenticated` 是在 `CREATE TABLE` **當下**套用的，所以新表一建立就帶著公用角色的全表權限；PostgREST 只要角色有權限就會把表放進 schema cache 並公開。在同一份 migration 的 `CREATE TABLE` 之後緊接兩層防護：`REVOKE`（以 `pg_roles` 判存，相容沒有這些角色的隔離測試庫）讓新表從 Data API 的可見面消失；無 policy 的 `ENABLE ROW LEVEL SECURITY` 作為後備層，防止日後誤下 `GRANT`。三個語句都可重複執行 |
+
+審核追加的三項**刻意不處理**（已在 §1.6 與 PR 中誠實列出，不靜默處理）：
+
+1. **不用 `FORCE ROW LEVEL SECURITY`**。表擁有者預設繞過 RLS，而 migration 與應用程式連線是同一個 owner 角色；一旦 FORCE，伺服器自己就讀不到資料。
+2. **既有 `Settlement` 表有完全相同的曝險**，而本包 7 個新欄位就加在它上面。使用者明確指示「不可改既有表」，故列為**另一個工作包**，不在本輪動。
+3. **不收回 `service_role`**。使用者只指名 `PUBLIC`／`anon`／`authenticated`，且要求保留伺服器合法角色存取；`service_role` 需要伺服器機密才能使用，風險層級不同。
+
+另一項必須列入上線前檢查而非程式修正的風險：RLS 啟用後，**若應用程式的連線角色不是表擁有者、也沒有 `BYPASSRLS`**，讀取會靜默回 0 列。分析結論是這個情況會 fail closed 而不是錯帳——`read-snapshot` 讀不到來源明細會回報快照空／不一致的可讀錯誤，而唯一索引的約束檢查與 RLS 可見性無關，所以並行寫入仍會得到 P2002 而轉成 `SOURCE_CONFLICT`——但這點必須在部署後以唯讀方式實測確認，已加入 §3.3。
+
+R6 修訂前的凍結雜湊：`fe0e5eac9fca5872a83ffffc27f53fb8f714301bc32eb69b94d9578900f762e4`（commit `aa17a22`）。
+
 ---
 
 ## 1. 凍結 Prompt v2 全文
@@ -129,7 +151,8 @@ R5 修訂前的凍結雜湊：`e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5d
 - 稽核鏡像保留來源原始 Float 值，**不是** POS-01 的新佣金計算，**不引用** `TwdInteger`、不套用 POS-01 `roundPercentCommission`。
 - 上線阻擋（必須在 PR 中誠實列出，缺一不可上線）：
   1. 正式 drift 未驗證；
-  2. 真實資料庫並行與失敗注入測試未執行。
+  2. 真實資料庫並行與失敗注入測試未執行；
+  3. 新表曝險防護（RLS ＋ `REVOKE`）未在正式庫以唯讀方式實測確認，見 §1.6 與 §3.3 第 6–7 項。
 - 禁止：正式 migration、`db push`、seed、reset、資料更動、部署、正式 cron、正式環境變數操作。
 - 禁止讀取或輸出密碼、金鑰、環境秘密與無關個資。
 
@@ -233,6 +256,18 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 
 `migration.sql` 必須一次帶齊全部約束（PK、FK、index、partial unique、unique），**禁止先建裸表下一輪再補**。不得刪欄、不得改既有欄位型別、不得 cascade 刪稽核。
 
+**新表曝險防護（R6）**：正式庫在 `public` schema 設有 default privileges，`postgres`／`supabase_admin` 建立的表會在 `CREATE TABLE` 當下自動把全部表權限授予 `anon` 與 `authenticated`，PostgREST 只要角色有權限就會把表公開。`SettlementSourceItem` 存的是逐筆分潤與整包 `sourceSnapshot`，一旦上線即為匿名可讀。因此同一份 `migration.sql` 必須在 `CREATE TABLE` 之後**緊接著**兩層防護，且只針對這一張新表：
+
+- `REVOKE ALL ON TABLE "SettlementSourceItem" FROM PUBLIC`，並以 `pg_roles` 判存後 `REVOKE` `anon` 與 `authenticated`（隔離測試庫沒有這兩個角色，缺角色不得讓整份 migration 失敗）。這一層直接讓新表從 Data API 的可見面消失。
+- `ALTER TABLE "SettlementSourceItem" ENABLE ROW LEVEL SECURITY` 且**不新增任何 policy**。無 policy 的 RLS 對不繞過 RLS 的角色即為全拒，是後備層：即使日後有人誤下大範圍 `GRANT`，資料仍讀不到。
+
+明確不做（刻意取捨，必須在 PR 誠實列出）：
+
+- **不得** `FORCE ROW LEVEL SECURITY`。表擁有者預設繞過 RLS，而 migration 與伺服器連線是同一個 owner 角色；一旦 FORCE，伺服器自己就讀不到資料。
+- **不得**改 `ALTER DEFAULT PRIVILEGES`、schema 層 `USAGE`，或任何既有表。既有 `Settlement` 有同樣的曝險（本包 7 個新欄位就加在它上面），屬**另一個工作包**，本輪不處理。
+- **不**收回 `service_role`：它需要伺服器機密才能使用，風險層級不同，不在本輪指示範圍。
+- 防護段三個語句全部可重複執行；表已存在（`CREATE TABLE IF NOT EXISTS` 跳過）時重跑仍會補上防護。
+
 ### 1.7 精度與 legacy 公式
 
 - 來源原值逐欄保留，**不以容差抹掉半元**（例如 255 × 30% = 76.5 必須原樣存）。
@@ -322,6 +357,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被擋下並回同一個可讀原因（含 flag 關閉仍優先回報 flag）；歧義券在分類階段轉 pending 後同 canonical key 的另一鏡像也全列 pending，而無券號的 pending 不得擋下無關來源；非法 header 與逐列合法但加總溢位都回可讀錯誤。加總溢位必須在真實 PostgreSQL 上驗（逐列 DOUBLE PRECISION 寫入後讀取），不得只用單元測試模擬。
 
 R5 追加必測（畫面與入口串接，全部為純函式測試，不需資料庫）：收付方向由 Decimal 淨額推導且零淨額只允許「本期無需付款」；不適用的付款方式被擋下而非 fallback，且 UI 文字不被當成合法輸入；每個可選方式的 key 與 fingerprint 互不相同而金額相同；重送命中 `cancelled`／`paid`／`reviewing`／`approved` 的訊息各自正確；`paid` 缺 `paidAt` 不顯示已撥款且不用完成色；總覽四張卡只有一方有數字、零淨額顯示相抵、已送出金額只計同期間且排除已撤回、舊流程缺 `netPayableTwd` 時退回 `merchantOwesUs`；HQ 新版狀態只允許逐步推進並以原狀態當條件，legacy 條件與行為完全不變；來源金額格式化保留半元與多位小數、非有限值不顯示成金額。
+
+R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從**實際出貨的 `migration.sql`** 以標記擷取防護段來執行，不得抄寫副本，否則 migration 被改掉時測試還會通過。內容需涵蓋：出貨的防護段含三個語句且不含 `FORCE ROW LEVEL SECURITY`、`CREATE POLICY`、`ALTER DEFAULT PRIVILEGES` 與 schema 層授權；在隔離庫建立 `anon`／`authenticated` 並 `GRANT ALL` ＋ 關閉 RLS 以**重現** Supabase 預設授權（必須先斷言漏洞真的被重現，否則後續通過沒有意義）；套用防護段後 `relrowsecurity` 為真、`relforcerowsecurity` 為假、policy 數為 0、兩個角色的 SELECT／INSERT／UPDATE／DELETE `has_table_privilege` 皆為假，且實際 `SET LOCAL ROLE` 後讀寫都被權限擋下；伺服器（表擁有者）交易在 RLS 啟用後仍可寫入並讀回自己的來源明細；以及在可回滾的交易內臨時 `GRANT SELECT` 給 `anon` 時，無 policy 的 RLS 仍讓它讀到 0 列。測試只改這一張新表的權限，不改全域 default privileges，結束時隔離庫停在「已防護」狀態。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
@@ -421,9 +458,10 @@ R5 追加必測（畫面與入口串接，全部為純函式測試，不需資�
 | `lib/settlements/__tests__/write-settlement.test.ts` | 39／39 通過（R4#1 追加 5 案、R5#4 追加 6 案） |
 | `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5 未在此檔加案，遵守白名單第 24 項） |
 | `lib/pos/__tests__/store-settlement-v1.test.ts` | 33／33 通過（R5#1–#3 追加 18 案：收付方向與付款方式 5、送出訊息 5、結帳紀錄狀態 3、總覽金額 5） |
-| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 14 個真 DB 案例待獨立驗收者執行（R4#3 追加「逐列合法、加總溢位」1 案） |
+| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 17 個真 DB 案例待獨立驗收者執行（R4#3 追加「逐列合法、加總溢位」1 案；R6 追加曝險防護 3 案） |
 | `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 351／351 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
-| `npm test`（全量，R5 後一次性回歸） | 1040／1040 ＋ 18／18 通過、0 失敗、0 skipped |
+| `npm test`（全量，R5 後一次性回歸；R6 後再跑一次確認） | 1040／1040 ＋ 18／18 通過、0 失敗、0 skipped |
+| R6 防護段純文字驗證（不連資料庫） | 以臨時腳本確認：標記可正確擷取防護段、dollar-quote 切分得到恰好 3 個語句且 `DO $guard$` 區塊完整、整份 migration 切分得到 20 個語句（與逐一清點一致）、`migration.sql` 通過全部必含與必不含的斷言 |
 
 白名單指定測試合計 158 項通過；連同兩個測試目錄的既有測試共 351 項通過。
 
@@ -449,7 +487,9 @@ R5 追加必測（畫面與入口串接，全部為純函式測試，不需資�
    使用者第十輪已提供唯讀 drift 證據，分析與最小處理方案見 §3.4。
 2. **隔離庫並行／回滾驗收**：以 `SETTLEMENT_TEST_DATABASE_URL` 執行
    `postgres-settlement.test.ts`，確認 partial unique index、完整性 CHECK、
-   `ON DELETE RESTRICT`、同 key 並行收斂、來源衝突與鎖定衝突的零殘留回滾。
+   `ON DELETE RESTRICT`、同 key 並行收斂、來源衝突與鎖定衝突的零殘留回滾，
+   以及 R6 的新表曝險防護三案。該隔離庫的連線角色需要 superuser 或 `CREATEROLE`
+   才能建立 `anon`／`authenticated` 來重現 Supabase 預設授權。
 3. **migration 增量與回復**：本包 migration 只 `ADD COLUMN IF NOT EXISTS` 與 `CREATE TABLE IF NOT EXISTS`，
    全部新欄位 nullable 且不 backfill。回復＝關閉寫入 flag，不刪表、不清欄位、不重算歷史。
 4. **部署先後次序**：先套 migration（讀取端此時全走 legacy 分支，行為不變）→ 再部署程式
@@ -457,6 +497,18 @@ R5 追加必測（畫面與入口串接，全部為純函式測試，不需資�
    反序（先開 flag 後套 migration）會讓店家看到 `SCHEMA_MISSING`。
 5. **writer flag**：`POS_SETTLEMENT_WRITE_ENABLED` 預設關閉，只讀伺服器環境變數。
    先在 Preview 開啟驗收，正式環境另行授權後才開。
+6. **新表曝險防護實測（R6，上線阻擋）**：套用 migration 後，以**唯讀**方式確認三件事——
+   `has_table_privilege('anon', 'public."SettlementSourceItem"', 'SELECT')` 與
+   `authenticated` 同項皆為 `false`；`pg_class.relrowsecurity` 為 `true` 且
+   `relforcerowsecurity` 為 `false`；`pg_policies` 對該表為 0 筆。
+   若 migration 是以 `prisma db push` 而非 `migrate deploy` 套用，防護段**不會**被執行，
+   必須單獨補跑防護段那三個語句後再驗。
+7. **應用程式連線角色（R6 衍生）**：唯讀確認執行期連線角色是該表的擁有者
+   （`SELECT tableowner FROM pg_tables WHERE tablename = 'SettlementSourceItem'` 與
+   `SELECT current_user` 一致），或具備 `BYPASSRLS`。
+   若兩者都不成立，RLS 會讓讀取靜默回 0 列。此情況會 fail closed（快照讀不到來源會回
+   可讀錯誤，而唯一索引與 RLS 可見性無關，並行寫入仍得到 P2002 轉 `SOURCE_CONFLICT`），
+   但仍必須在開 flag 前確認，不可事後才發現。
 
 ### 3.4 正式庫 migration drift：唯讀證據與最小處理方案
 

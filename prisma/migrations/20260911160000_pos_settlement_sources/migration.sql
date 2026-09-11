@@ -10,6 +10,8 @@
 -- * active canonical unique 為 partial unique index，Prisma schema 無法表達，於此手寫。
 -- * legacy 欄位型別不變；新增金額欄為整數台幣（INTEGER），不使用 DOUBLE PRECISION。
 -- * 全部新增欄位 nullable 且不 backfill，舊流程維持 NULL。
+-- * 新表建立後立即收回公用角色權限並啟用 RLS，避免逐筆帳務經 Data API 曝露。
+--   只處理本檔新建的表，不改全域 default privileges，也不動既有表。
 
 -- AlterTable：Settlement 增量欄位
 ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "rulesVersion" TEXT;
@@ -78,6 +80,37 @@ CREATE TABLE IF NOT EXISTS "SettlementSourceItem" (
     CONSTRAINT "SettlementSourceItem_rulesVersion_not_blank_check"
       CHECK (length(btrim("rulesVersion")) > 0)
 );
+
+-- Supabase 在 public schema 設了 default privileges，把新建表的全部權限授予 anon 與
+-- authenticated。授權是在 CREATE TABLE 當下套用的，所以緊接著在這裡收回，不留空窗。
+-- 兩層防護：REVOKE 讓新表從 Data API 的可見面消失；無 policy 的 RLS 是後備層，
+-- 即使日後有人誤下大範圍 GRANT，資料仍然讀不到。
+--
+-- 刻意不做的事：
+-- * 不用 FORCE ROW LEVEL SECURITY。表擁有者預設繞過 RLS，而 migration 與伺服器是
+--   同一個 owner 角色；一旦 FORCE，伺服器自己就讀不到資料。
+-- * 不新增任何 policy。新表沒有任何「該公開」的列。
+-- * 不改 ALTER DEFAULT PRIVILEGES，不改 schema 層 USAGE，不動既有表。
+-- * 不收回 service_role：它需要伺服器機密才能使用，屬於另一個工作包。
+--
+-- 下面三個語句都可重複執行。anon／authenticated 在隔離的本機測試庫通常不存在，
+-- 因此以 pg_roles 判存後才 REVOKE，缺角色不得讓整份 migration 失敗。
+-- ===== SETTLEMENT-SOURCE-ITEM-EXPOSURE-GUARD-BEGIN =====
+ALTER TABLE "SettlementSourceItem" ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE "SettlementSourceItem" FROM PUBLIC;
+
+DO $guard$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE "SettlementSourceItem" FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE "SettlementSourceItem" FROM authenticated;
+  END IF;
+END
+$guard$;
+-- ===== SETTLEMENT-SOURCE-ITEM-EXPOSURE-GUARD-END =====
 
 -- active canonical unique：未作廢的來源在同一店家只能屬於一張結算。
 -- 撤回時寫入 voidedAt 釋放此鍵，稽核列仍然保留。
