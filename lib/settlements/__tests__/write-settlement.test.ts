@@ -15,9 +15,11 @@ import {
   assertSettlementDeletable,
   buildSettlementDraft,
   classifyUniqueViolation,
+  findSettlementByPreviewKey,
   formatSettlementNo,
   isMissingSchemaError,
   persistSettlementDraft,
+  priorSettlementResult,
   settlementReadiness,
   settlementStatusUpdateCondition,
   settlementWriteEnabled,
@@ -171,6 +173,8 @@ function fakeClient(options: { txns?: FakeTxn[]; failNextCreateWith?: unknown } 
         }
         sequence += 1;
         const row = { ...data, id: `st-${sequence}` } as FakeSettlement;
+        // 真 Prisma 的 select 會回 null，不是 undefined。POS 從不寫 paidAt。
+        if (row.paidAt === undefined) row.paidAt = null;
         settlements.push(row);
         return row;
       },
@@ -384,7 +388,8 @@ describe('建立草稿與冪等', () => {
     assert.equal(result.duplicate, false);
     assert.equal(result.status, 'draft');
     assert.equal(settlements.length, 1);
-    assert.equal(settlements[0]?.paidAt, undefined);
+    // POS 從不寫撥款時間；假 client 與真 Prisma 一樣留 null。
+    assert.equal(settlements[0]?.paidAt, null);
     assert.equal(settlements[0]?.rulesVersion, POS_SETTLEMENT_RULES_VERSION);
     assert.equal(settlements[0]?.createdSource, 'pos');
     assert.equal(items.length, 2);
@@ -706,6 +711,160 @@ describe('R3#2：重送必須先依原 key 找原單，不另建第二張', () =
     const result = await persistSettlementDraft(client, emptyPreview, expectedOf(emptyPreview));
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.code, 'NO_SOURCES');
+  });
+
+  it('帶原 key 卻沒帶 fingerprint 時拒絕，不得只憑 key 就回原單', async () => {
+    enableWrites();
+    const { client } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    await persistSettlementDraft(client, first, submittedOf(first));
+
+    const emptyPreview = draftFor([]);
+    const result = await persistSettlementDraft(client, emptyPreview, {
+      ...expectedOf(emptyPreview),
+      idempotencyKey: first.idempotencyKey,
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, 'PAYLOAD_CONFLICT');
+  });
+});
+
+describe('R7#2：撥款時間一路由資料庫帶出，不得由 status 推導', () => {
+  it('新建的待核對草稿帶出 paidAt = null', async () => {
+    enableWrites();
+    const { client } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const draft = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, draft, submittedOf(draft));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+    assert.equal(created.paidAt, null);
+  });
+
+  it('重送回原單時帶出資料庫裡真實的 paidAt', async () => {
+    enableWrites();
+    const { client, settlements } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, first, submittedOf(first));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    const paidAt = at('2024-06-05T10:00:00');
+    Object.assign(settlements[0], { status: 'paid', paidAt });
+
+    const emptyPreview = draftFor([]);
+    const resend = await persistSettlementDraft(client, emptyPreview, {
+      ...expectedOf(emptyPreview),
+      idempotencyKey: first.idempotencyKey,
+      payloadFingerprint: first.payloadFingerprint,
+    });
+    assert.equal(resend.ok, true);
+    if (!resend.ok) return;
+    assert.equal(resend.status, 'paid');
+    assert.deepEqual(resend.paidAt, paidAt);
+  });
+
+  it('status 是 paid 但沒有 paidAt 時仍照實帶出 null，不得補一個時間', async () => {
+    enableWrites();
+    const { client, settlements } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    await persistSettlementDraft(client, first, submittedOf(first));
+    Object.assign(settlements[0], { status: 'paid' });
+
+    const emptyPreview = draftFor([]);
+    const resend = await persistSettlementDraft(client, emptyPreview, {
+      ...expectedOf(emptyPreview),
+      idempotencyKey: first.idempotencyKey,
+      payloadFingerprint: first.payloadFingerprint,
+    });
+    assert.equal(resend.ok, true);
+    if (!resend.ok) return;
+    assert.equal(resend.status, 'paid');
+    assert.equal(resend.paidAt, null);
+  });
+
+  it('撤回結果同樣帶出 paidAt', async () => {
+    enableWrites();
+    const { client } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const draft = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, draft, submittedOf(draft));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    const result = await withdrawSettlementDraft(client, {
+      merchantId: 'm-1',
+      settlementId: created.id,
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.status, 'cancelled');
+    assert.equal(result.paidAt, null);
+  });
+});
+
+describe('R7#1：送出前可先依本店 + 原 key 查既有單', () => {
+  it('查得到本店原單，查不到別家店的同一把 key', async () => {
+    enableWrites();
+    const { client } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const draft = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, draft, submittedOf(draft));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    const mine = await findSettlementByPreviewKey(client, 'm-1', draft.idempotencyKey);
+    assert.equal(mine?.id, created.id);
+    assert.equal(mine?.payloadFingerprint, draft.payloadFingerprint);
+    assert.equal(mine?.paidAt, null);
+
+    // 別家店拿同一把 key 必須查不到，才不會沿用或洩漏別人的結算。
+    assert.equal(await findSettlementByPreviewKey(client, 'm-2', draft.idempotencyKey), null);
+  });
+
+  it('資料表還沒建立時回 null，不讓整個送出流程 500', async () => {
+    const missingSchema = {
+      settlement: {
+        findFirst: async () => {
+          throw Object.assign(new Error('missing'), { code: 'P2021' });
+        },
+      },
+    } as unknown as PrismaClient;
+    assert.equal(await findSettlementByPreviewKey(missingSchema, 'm-1', 'k'), null);
+  });
+
+  it('fingerprint 完全一致才回原單，缺少或不符都拒絕', () => {
+    const prior = {
+      id: 'st-1',
+      settlementId: 'SET-202405-001',
+      status: 'draft',
+      netPayableTwd: 178,
+      payloadFingerprint: 'fp-1',
+      paidAt: null,
+    };
+
+    const match = priorSettlementResult(prior, 'fp-1');
+    assert.equal(match.ok, true);
+    if (match.ok) {
+      assert.equal(match.duplicate, true);
+      assert.equal(match.netPayableTwd, 178);
+      assert.equal(match.paidAt, null);
+    }
+
+    for (const wrong of [undefined, null, 'fp-2'] as const) {
+      const rejected = priorSettlementResult(prior, wrong);
+      assert.equal(rejected.ok, false);
+      if (!rejected.ok) assert.equal(rejected.code, 'PAYLOAD_CONFLICT');
+    }
   });
 });
 

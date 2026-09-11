@@ -343,6 +343,63 @@ function splitSqlStatements(sql: string): string[] {
 /** `$transaction` 回呼拿到的 client，這裡只需要 raw 介面。 */
 type RawClient = Pick<PrismaClient, '$executeRawUnsafe' | '$queryRawUnsafe'>;
 
+function readMigrationStatements(): string[] {
+  return splitSqlStatements(readFileSync(MIGRATION_URL, 'utf8'));
+}
+
+/**
+ * 不需要資料庫的靜態檢查，因此**刻意放在 skip 閘門外面**。
+ *
+ * 這份 migration 是唯一還沒正式套用的一份。若它沒有被單一交易包住，以 autocommit
+ * 方式套用時 CREATE TABLE 會先 commit，在後面的 REVOKE 生效前就存在曝險空窗；
+ * 中途失敗也會留下半套結構。
+ */
+describe('migration 交易包裝（靜態檢查）', () => {
+  it('整份 migration 被單一 BEGIN/COMMIT 包住，防護段在建表之後、COMMIT 之前', () => {
+    const statements = readMigrationStatements();
+
+    assert.equal(statements.at(0), 'BEGIN', 'migration 第一個語句必須是 BEGIN');
+    assert.equal(statements.at(-1), 'COMMIT', 'migration 最後一個語句必須是 COMMIT');
+    assert.equal(
+      statements.filter((statement) => /^BEGIN$/i.test(statement)).length,
+      1,
+      '只能有一組交易，不得中途再開新交易',
+    );
+    assert.equal(statements.filter((statement) => /^COMMIT$/i.test(statement)).length, 1);
+    assert.equal(
+      statements.filter((statement) => /^ROLLBACK$/i.test(statement)).length,
+      0,
+      'migration 內不得自行 ROLLBACK',
+    );
+
+    const createTableAt = statements.findIndex((statement) =>
+      /CREATE TABLE IF NOT EXISTS "SettlementSourceItem"/i.test(statement),
+    );
+    const enableRlsAt = statements.findIndex((statement) =>
+      /ALTER TABLE "SettlementSourceItem" ENABLE ROW LEVEL SECURITY/i.test(statement),
+    );
+    const revokeAt = statements.findIndex((statement) =>
+      /REVOKE ALL ON TABLE "SettlementSourceItem" FROM PUBLIC/i.test(statement),
+    );
+
+    assert.ok(createTableAt > 0, '找不到新表的 CREATE TABLE');
+    assert.ok(enableRlsAt > createTableAt, 'ENABLE RLS 必須排在 CREATE TABLE 之後');
+    assert.ok(revokeAt > createTableAt, 'REVOKE 必須排在 CREATE TABLE 之後');
+    assert.ok(
+      enableRlsAt < statements.length - 1 && revokeAt < statements.length - 1,
+      '防護段必須在 COMMIT 之前，否則建表與收權不在同一個交易',
+    );
+
+    // 這些語句不能在交易內執行；一旦混進來，整份 migration 會在套用時失敗。
+    for (const statement of statements) {
+      assert.doesNotMatch(statement, /\bINDEX\s+CONCURRENTLY\b/i);
+      assert.doesNotMatch(statement, /\bVACUUM\b/i);
+      assert.doesNotMatch(statement, /\bCREATE\s+DATABASE\b/i);
+      assert.doesNotMatch(statement, /\bALTER\s+SYSTEM\b/i);
+    }
+  });
+});
+
 describe('真實 PostgreSQL 結算測試', { skip }, () => {
   before(async () => {
     const { PrismaClient: Client } = await import('@prisma/client');
@@ -434,6 +491,44 @@ describe('真實 PostgreSQL 結算測試', { skip }, () => {
         }),
       );
       assert.equal(await countSettlements(merchantA), 0, '被 CHECK 擋下不應留下殘列');
+    });
+
+    it('整份 migration 可在單一交易內重複套用，回滾後不留半套變更', async () => {
+      // 過濾掉 BEGIN／COMMIT：Prisma 的 `$transaction` 已經開好交易，
+      // 再送一個 COMMIT 會提早結束它，演練就證明不了整包回滾。
+      // 交易邊界本身由上面的靜態檢查負責。
+      const statements = readMigrationStatements().filter(
+        (statement) => !/^(BEGIN|COMMIT)$/i.test(statement),
+      );
+      assert.ok(statements.length > 0, 'migration 沒有可執行語句');
+
+      const sentinel = `migration-rehearsal-rollback-${PREFIX}`;
+      await assert.rejects(
+        prisma.$transaction(
+          async (tx) => {
+            for (const statement of statements) {
+              await tx.$executeRawUnsafe(statement);
+            }
+            throw new Error(sentinel);
+          },
+          // ALTER TABLE 會取得 ACCESS EXCLUSIVE 鎖，給足時間避免誤判成超時。
+          { timeout: 60_000, maxWait: 20_000 },
+        ),
+        (error: unknown) => {
+          // 用訊息比對而不是 instanceof：Prisma 可能包裝掉原本的錯誤物件。
+          assert.match(String((error as Error | null)?.message ?? error), new RegExp(sentinel));
+          return true;
+        },
+      );
+
+      // 整包能跑完才會走到 sentinel，代表每個語句都能在交易內執行且可重複套用。
+      // 回滾後既有結構必須完好無缺。
+      const state = await prisma.$queryRawUnsafe<Array<{ relrowsecurity: boolean }>>(
+        `SELECT relrowsecurity FROM pg_class
+         WHERE oid = 'public."SettlementSourceItem"'::regclass`,
+      );
+      assert.equal(state.length, 1, '回滾後新表應該仍然存在');
+      assert.equal(state[0].relrowsecurity, true, '回滾後 RLS 仍必須是啟用狀態');
     });
   });
 

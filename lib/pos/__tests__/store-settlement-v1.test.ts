@@ -12,6 +12,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   isIncludedInSettlement,
@@ -24,6 +25,7 @@ import {
   assertSourcesNotSettled,
   buildSettleOverview,
   buildSettlementSnapshot,
+  confirmStoreSettlement,
   payerFromDirection,
   paymentMethodLabel,
   persistStoreSettlement,
@@ -32,8 +34,11 @@ import {
   selectSettlementItems,
   submittedSettlementMessage,
   withdrawStoreSettlement,
+  type ConfirmStoreSettlementDeps,
+  type ConfirmStoreSettlementInput,
 } from '@/lib/pos/store-settlement';
 import {
+  SETTLEMENT_PAYLOAD_CONFLICT_ERROR,
   SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR,
   SETTLEMENT_WRITE_DISABLED_ERROR,
   SETTLEMENT_WRITE_FLAG_ENV,
@@ -390,11 +395,14 @@ describe('R5 收付方向與付款方式', () => {
 });
 
 describe('R5 送出訊息', () => {
+  const PAID_AT = at('2024-06-05T10:00:00');
+
   it('第一次送出說待核對，並明說不是已付款', () => {
     const message = submittedSettlementMessage({
       duplicate: false,
       settlementNo: 'SET-202405-001',
       status: 'draft',
+      paidAt: null,
     });
     assert.match(message, /待核對/);
     assert.match(message, /不是已付款/);
@@ -405,6 +413,7 @@ describe('R5 送出訊息', () => {
       duplicate: true,
       settlementNo: 'SET-202405-001',
       status: 'draft',
+      paidAt: null,
     });
     assert.match(message, /還是同一張/);
   });
@@ -414,6 +423,7 @@ describe('R5 送出訊息', () => {
       duplicate: true,
       settlementNo: 'SET-202405-001',
       status: 'cancelled',
+      paidAt: null,
     });
     assert.match(message, /已經撤回/);
     assert.doesNotMatch(message, /狀態待總部核對/);
@@ -424,8 +434,24 @@ describe('R5 送出訊息', () => {
       duplicate: true,
       settlementNo: 'SET-202405-001',
       status: 'paid',
+      paidAt: PAID_AT,
     });
     assert.match(message, /已經撥款完成/);
+    assert.match(message, /沒有新增/);
+  });
+
+  it('R7#2：status 是 paid 但沒有撥款時間時，不得宣稱撥款完成', () => {
+    const message = submittedSettlementMessage({
+      duplicate: true,
+      settlementNo: 'SET-202405-001',
+      status: 'paid',
+      paidAt: null,
+    });
+    assert.doesNotMatch(message, /已經撥款完成/);
+    assert.match(message, /沒有撥款時間/);
+    assert.match(message, /資料不一致/);
+    assert.match(message, /不要當成已經收到款/);
+    // 這次沒有建立任何東西，也必須說清楚。
     assert.match(message, /沒有新增/);
   });
 
@@ -435,10 +461,268 @@ describe('R5 送出訊息', () => {
         duplicate: true,
         settlementNo: 'SET-202405-001',
         status,
+        paidAt: null,
       });
       assert.match(message, /審核中/);
       assert.match(message, /不算已付款/);
     }
+  });
+});
+
+describe('R7#1 送出順序：先查本店原單，才驗來源與付款方式', () => {
+  const PREVIEW_DRAFT = draftOf([saleSource('txn-1')]);
+  const PRIOR = {
+    id: 'st-1',
+    settlementId: 'SET-202405-001',
+    status: 'draft',
+    netPayableTwd: 178,
+    payloadFingerprint: PREVIEW_DRAFT.payloadFingerprint,
+    paidAt: null,
+  };
+
+  type Calls = string[];
+
+  /**
+   * 全部相依都可注入，因此順序本身可以在沒有資料庫的環境驗證。
+   *
+   * 預設會在 `loadSources` 回傳空來源：這正是第一次送出成功後的真實狀態
+   * （來源全被自己那張鎖住）。若順序錯誤，流程就會被擋在「沒有可結算項目」
+   * 或「結帳方式不適用」，而不是回到原單。
+   */
+  function deps(
+    overrides: Partial<ConfirmStoreSettlementDeps> = {},
+    calls: Calls = [],
+  ): ConfirmStoreSettlementDeps {
+    return {
+      writeEnabled: () => {
+        calls.push('writeEnabled');
+        return true;
+      },
+      findPrior: async () => {
+        calls.push('findPrior');
+        return null;
+      },
+      loadSources: async () => {
+        calls.push('loadSources');
+        return { sources: [], lockStateAvailable: true };
+      },
+      countAttempts: async () => {
+        calls.push('countAttempts');
+        return { operationSeq: 0, available: true };
+      },
+      persist: async () => {
+        calls.push('persist');
+        throw new Error('預設不應該走到 persist');
+      },
+      ...overrides,
+    };
+  }
+
+  function input(overrides: Partial<ConfirmStoreSettlementInput> = {}): ConfirmStoreSettlementInput {
+    return {
+      merchantId: STORE,
+      periodStart: PERIOD_START,
+      periodEnd: PERIOD_END,
+      paymentMethod: 'BANK_TRANSFER',
+      preview: {
+        sourceKeysDigest: PREVIEW_DRAFT.sourceKeysDigest,
+        amountsDigest: PREVIEW_DRAFT.amountsDigest,
+        idempotencyKey: PREVIEW_DRAFT.idempotencyKey,
+        payloadFingerprint: PREVIEW_DRAFT.payloadFingerprint,
+      },
+      ...overrides,
+    };
+  }
+
+  it('首次送出成功後來源全鎖，重送同 key 仍回原單而不是被付款方向擋下', async () => {
+    const calls: Calls = [];
+    const result = await confirmStoreSettlement(
+      input(),
+      deps({ findPrior: async () => (calls.push('findPrior'), PRIOR) }, calls),
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.duplicate, true);
+    assert.equal(result.settlementNo, 'SET-202405-001');
+    assert.equal(result.status, 'draft');
+    assert.equal(result.netPayableTwd, 178);
+    assert.equal(result.paidAt, null);
+    assert.match(result.message, /還是同一張/);
+
+    // 關鍵：回原單的路徑完全不讀來源、不驗付款方式、不寫入。
+    assert.deepEqual(calls, ['writeEnabled', 'findPrior']);
+  });
+
+  it('查不到原單才是新送出，這時才重算來源並驗付款方式', async () => {
+    const calls: Calls = [];
+    const sources = [saleSource('txn-1')];
+    const result = await confirmStoreSettlement(
+      input(),
+      deps(
+        {
+          loadSources: async () => (
+            calls.push('loadSources'), { sources, lockStateAvailable: true }
+          ),
+          persist: async ({ draft, submitted }) => {
+            calls.push('persist');
+            assert.equal(draft.intendedPaymentMethod, 'BANK_TRANSFER');
+            assert.equal(draft.idempotencyKey, PREVIEW_DRAFT.idempotencyKey);
+            assert.equal(submitted.payloadFingerprint, PREVIEW_DRAFT.payloadFingerprint);
+            return {
+              ok: true,
+              id: 'st-9',
+              settlementNo: 'SET-202405-009',
+              status: 'draft',
+              netPayableTwd: draft.totals.netPayableTwd,
+              duplicate: false,
+              paidAt: null,
+            };
+          },
+        },
+        calls,
+      ),
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.match(result.message, /待核對/);
+    assert.deepEqual(calls, [
+      'writeEnabled',
+      'findPrior',
+      'loadSources',
+      'countAttempts',
+      'writeEnabled',
+      'persist',
+    ]);
+  });
+
+  it('原單存在但預覽指紋不符時拒絕，不回傳不相符的原單', async () => {
+    const result = await confirmStoreSettlement(
+      input({
+        preview: { ...input().preview, payloadFingerprint: 'tampered' },
+      }),
+      deps({ findPrior: async () => PRIOR }),
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_PAYLOAD_CONFLICT_ERROR);
+  });
+
+  it('跨店：查詢限定本店，別家店的 key 查不到而不會沿用別人的結算', async () => {
+    const seen: Array<{ merchantId: string; idempotencyKey: string }> = [];
+    const result = await confirmStoreSettlement(input({ merchantId: 'store-other' }), {
+      ...deps(),
+      findPrior: async (query) => {
+        seen.push(query);
+        // 真實查詢帶 merchantId 條件，別家店的 key 在本店查不到。
+        return query.merchantId === STORE ? PRIOR : null;
+      },
+    });
+
+    assert.deepEqual(seen, [
+      { merchantId: 'store-other', idempotencyKey: PREVIEW_DRAFT.idempotencyKey },
+    ]);
+    // 落入新送出分支，而該店這期沒有任何來源，因此被擋下而不是拿到別人的單。
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR);
+  });
+
+  it('寫入開關關閉時連原單都不查，也不讀任何資料', async () => {
+    const calls: Calls = [];
+    const result = await confirmStoreSettlement(
+      input(),
+      deps(
+        {
+          writeEnabled: () => (calls.push('writeEnabled'), false),
+          findPrior: async () => {
+            throw new Error('寫入關閉時不應該讀資料庫');
+          },
+        },
+        calls,
+      ),
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_WRITE_DISABLED_ERROR);
+    assert.deepEqual(calls, ['writeEnabled']);
+  });
+
+  it('讀不到鎖定狀態或操作序號時擋下，且擋在收付方向判斷之前', async () => {
+    for (const broken of [
+      { lockStateAvailable: false, available: true },
+      { lockStateAvailable: true, available: false },
+    ]) {
+      const result = await confirmStoreSettlement(
+        input(),
+        deps({
+          loadSources: async () => ({
+            sources: [saleSource('txn-1')],
+            lockStateAvailable: broken.lockStateAvailable,
+          }),
+          countAttempts: async () => ({ operationSeq: 0, available: broken.available }),
+        }),
+      );
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /讀不到/);
+    }
+  });
+
+  it('操作序號一路傳到草稿，撤回後重新結算才會是新的一張', async () => {
+    const captured: SettlementDraft[] = [];
+    await confirmStoreSettlement(input(), {
+      ...deps(),
+      loadSources: async () => ({ sources: [saleSource('txn-1')], lockStateAvailable: true }),
+      countAttempts: async () => ({ operationSeq: 2, available: true }),
+      persist: async ({ draft }) => {
+        captured.push(draft);
+        return {
+          ok: true,
+          id: 'st-9',
+          settlementNo: 'SET-202405-009',
+          status: 'draft',
+          netPayableTwd: draft.totals.netPayableTwd,
+          duplicate: false,
+          paidAt: null,
+        };
+      },
+    });
+
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].operationSeq, 2);
+    assert.equal(
+      captured[0].idempotencyKey,
+      draftOf([saleSource('txn-1')], { operationSeq: 2 }).idempotencyKey,
+    );
+  });
+});
+
+describe('R7#3 總覽卡與流水註記的說明必須與實際計算一致', () => {
+  const workspace = readFileSync(
+    new URL('../../../components/pos/settle-workspace.tsx', import.meta.url),
+    'utf8',
+  );
+
+  it('兩張應付卡標明抵扣後淨額，不再列舉未實作的活動返利', () => {
+    assert.match(workspace, /店家應付匠寵（抵扣後）/);
+    assert.match(workspace, /匠寵應付店家（抵扣後）/);
+    // 卡片說明不得再寫成抵扣前的組成項目。
+    assert.doesNotMatch(workspace, /hint="寄賣分潤 \+ 店家代收現金"/);
+    assert.doesNotMatch(workspace, /hint="優惠券補貼 \+ 活動返利"/);
+  });
+
+  it('不再顯示永遠成立的相減等式，改為直接說明淨結果', () => {
+    assert.doesNotMatch(workspace, /店家應付匠寵 \{formatNtd/);
+    assert.match(workspace, /兩邊互相抵扣後/);
+    assert.match(workspace, /其中一張一定是 0/);
+  });
+
+  it('流水註記不得聲稱已鎖定的券不在流水裡（load-store-ledger 其實仍列出）', () => {
+    assert.doesNotMatch(workspace, /寄賣銷售與已被其他結帳單結過的項目不在這裡/);
+    assert.match(workspace, /已被其他結帳單結過的券仍然會列出/);
+    assert.match(workspace, /流水小計不等於上面的本期結算結果/);
   });
 });
 

@@ -12,6 +12,13 @@
 -- * 全部新增欄位 nullable 且不 backfill，舊流程維持 NULL。
 -- * 新表建立後立即收回公用角色權限並啟用 RLS，避免逐筆帳務經 Data API 曝露。
 --   只處理本檔新建的表，不改全域 default privileges，也不動既有表。
+-- * 整份包在單一 transaction：Prisma 5 對 PostgreSQL 不會自行送出 BEGIN，
+--   官方指定的作法就是在 migration 檔內自己寫 BEGIN/COMMIT。若以 autocommit 方式套用
+--   （例如 psql -f 的人工補救路徑），CREATE TABLE 會先 commit，後面的 REVOKE 之前就出現
+--   曝險空窗；中途失敗也會留下半套結構。本檔沒有任何不能在 transaction 內執行的語句
+--   （沒有 CREATE INDEX CONCURRENTLY、沒有 VACUUM），因此可以整包原子套用或整包回滾。
+
+BEGIN;
 
 -- AlterTable：Settlement 增量欄位
 ALTER TABLE "Settlement" ADD COLUMN IF NOT EXISTS "rulesVersion" TEXT;
@@ -140,3 +147,5 @@ DO $$ BEGIN
   ADD CONSTRAINT "SettlementSourceItem_merchantId_fkey"
   FOREIGN KEY ("merchantId") REFERENCES "Merchant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+COMMIT;

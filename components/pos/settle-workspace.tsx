@@ -465,17 +465,21 @@ function SettleWorkspaceInner({
           {tab === 'overview' ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {/*
+                  這兩張卡是同一個淨額的兩個方向（net > 0 / net < 0），不是抵扣前的兩邊，
+                  所以標題必須寫明「抵扣後」，其中一張一定是 0。
+                */}
                 <SummaryCard
-                  title="店家應付匠寵"
+                  title="店家應付匠寵（抵扣後）"
                   amount={ledger.overview.storeOwesFurmosa}
-                  hint="寄賣分潤 + 店家代收現金"
+                  hint="兩邊互相抵扣後，由店家付的淨額"
                   icon={<ArrowUp className="h-4 w-4" />}
                   iconClass="bg-red-50 text-red-500"
                 />
                 <SummaryCard
-                  title="匠寵應付店家"
+                  title="匠寵應付店家（抵扣後）"
                   amount={ledger.overview.furmosaOwesStore}
-                  hint="優惠券補貼 + 活動返利"
+                  hint="兩邊互相抵扣後，由匠寵付的淨額"
                   icon={<ArrowDown className="h-4 w-4" />}
                   iconClass="bg-sky-50 text-sky-600"
                 />
@@ -509,23 +513,26 @@ function SettleWorkspaceInner({
                   </p>
                 </div>
               </div>
+              {/*
+                原本寫成「店家應付匠寵 − 匠寵應付店家 = 淨額」，但兩邊已經是抵扣後的淨額，
+                其中一邊永遠是 0，這條等式永遠成立卻沒有任何資訊。改為直接說明淨結果。
+              */}
               <p className="rounded-xl bg-neutral-200/60 px-4 py-3 text-sm text-zinc-600">
-                店家應付匠寵 {formatNtd(ledger.overview.storeOwesFurmosa)} − 匠寵應付店家{' '}
-                {formatNtd(ledger.overview.furmosaOwesStore)} ={' '}
-                <span
-                  className={
-                    ledger.overview.netPayableTwd === 0
-                      ? 'font-semibold text-zinc-900'
-                      : 'font-semibold text-orange-500'
-                  }
-                >
-                  {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
-                </span>
+                兩邊互相抵扣後，
+                {ledger.overview.netPayableTwd === 0 ? (
+                  <span className="font-semibold text-zinc-900">本期無需付款</span>
+                ) : (
+                  <span className="font-semibold text-orange-500">
+                    {ledger.overview.resultLabel} {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
+                  </span>
+                )}
+                。上面兩張卡是同一個淨額的兩個方向，所以其中一張一定是 0。
               </p>
               <h2 className="pt-1 text-base font-semibold">交易流水拆解（參考）</h2>
               <p className="text-xs text-zinc-400">
-                這裡是換罐與券的流水分類，用來核對明細。寄賣銷售與已被其他結帳單結過的項目不在這裡，
-                所以小計不等於上面的本期結算結果。
+                這裡是換罐與券的流水分類，用來核對明細。寄賣銷售不在這裡，
+                已被其他結帳單結過的券仍然會列出，
+                所以流水小計不等於上面的本期結算結果。
               </p>
               <div className="grid gap-3 lg:grid-cols-2">
                 <section className="rounded-2xl bg-white p-5 shadow-sm">

@@ -5,18 +5,12 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { parseTaipeiDateRange } from '@/lib/taipei-date';
 import { loadStoreLedger } from '@/lib/pos/load-store-ledger';
 import {
-  payerFromDirection,
+  confirmStoreSettlement,
+  findPriorStoreSettlement,
   persistStoreSettlement,
-  resolveRequestedPaymentMethod,
-  submittedSettlementMessage,
   withdrawStoreSettlement,
 } from '@/lib/pos/store-settlement';
-import {
-  buildSettlementDraft,
-  settlementReadiness,
-  settlementWriteEnabled,
-} from '@/lib/settlements/write-settlement';
-import { computeLegacyTotals } from '@/lib/settlements/source-snapshot';
+import { settlementWriteEnabled } from '@/lib/settlements/write-settlement';
 import { countVoidedAttempts } from '@/lib/settlements/read-snapshot';
 
 export type ConfirmSettleResult =
@@ -27,6 +21,8 @@ export type ConfirmSettleResult =
       settlementNo: string;
       status: string;
       netPayableTwd: number;
+      /** 資料庫裡真實的撥款時間。status 是 paid 但這裡是 null 不得宣稱已撥款。 */
+      paidAt: string | null;
       message: string;
     }
   | { ok: false; error: string };
@@ -53,56 +49,26 @@ export async function confirmStoreSettlementAction(input: {
     return { ok: false, error: '期間日期不正確。' };
   }
 
-  // 金額一律由伺服器重算，不採用瀏覽器傳入的任何數字。
-  const { sources, lockStateAvailable } = await loadStoreLedger({
-    merchantId: session.merchantId,
-    periodStart: range.start,
-    periodEnd: range.end,
-  });
-
   try {
-    const attempts = await countVoidedAttempts(
-      prisma,
-      session.merchantId,
-      sources.map((source) => source.sourceKey),
-    );
-
-    // 讀不到鎖定狀態或操作序號時不得繼續：序號錯了會算出錯的冪等 key。
-    // 也必須排在收付方向之前：sources 不完整時算出的方向可能相反。
-    const readiness = settlementReadiness({
-      writeEnabled: settlementWriteEnabled(),
-      lockStateAvailable,
-      operationSeqAvailable: attempts.available,
-    });
-    if (!readiness.ok) return { ok: false, error: readiness.error };
-
-    // 收付方向由可信且未鎖定來源的 Decimal 淨額決定，不看 legacy 對帳摘要。
-    // 不適用的方式直接擋下，不 fallback：付款方式納入冪等 key，悄悄換一個
-    // 等於用別的 key 寫入，畫面顯示的方式也會與實際存下的不符。
-    const resolved = resolveRequestedPaymentMethod({
-      requested: input.paymentMethod,
-      payer: payerFromDirection(computeLegacyTotals(sources).direction),
-    });
-    if (!resolved.ok) return { ok: false, error: resolved.error };
-
-    const draft = buildSettlementDraft({
-      merchantId: session.merchantId,
-      periodStart: range.start,
-      periodEnd: range.end,
-      intendedPaymentMethod: resolved.method,
-      operationSeq: attempts.operationSeq,
-      sources,
-    });
-
-    const result = await persistStoreSettlement({
-      draft,
-      submitted: {
-        sourceKeysDigest: input.preview.sourceKeysDigest,
-        amountsDigest: input.preview.amountsDigest,
-        idempotencyKey: input.preview.idempotencyKey,
-        payloadFingerprint: input.preview.payloadFingerprint,
+    // 送出順序（寫入開關 → 先查本店原單 → 才重算來源與付款方式）集中在
+    // lib/pos/store-settlement.ts，讓順序本身能在沒有資料庫的環境回歸測試。
+    const result = await confirmStoreSettlement(
+      {
+        merchantId: session.merchantId,
+        periodStart: range.start,
+        periodEnd: range.end,
+        paymentMethod: input.paymentMethod,
+        preview: input.preview,
       },
-    });
+      {
+        writeEnabled: settlementWriteEnabled,
+        findPrior: findPriorStoreSettlement,
+        loadSources: loadStoreLedger,
+        countAttempts: ({ merchantId, sourceKeys }) =>
+          countVoidedAttempts(prisma, merchantId, sourceKeys),
+        persist: persistStoreSettlement,
+      },
+    );
 
     if (!result.ok) return { ok: false, error: result.error };
 
@@ -112,12 +78,8 @@ export async function confirmStoreSettlementAction(input: {
       settlementNo: result.settlementNo,
       status: result.status,
       netPayableTwd: result.netPayableTwd,
-      // 重送舊 key 會回到原本那一張，而它可能已撤回或已撥款；訊息必須依實際狀態。
-      message: submittedSettlementMessage({
-        duplicate: result.duplicate,
-        settlementNo: result.settlementNo,
-        status: result.status,
-      }),
+      paidAt: result.paidAt ? result.paidAt.toISOString() : null,
+      message: result.message,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : '結帳失敗。';

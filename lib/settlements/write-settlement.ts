@@ -165,6 +165,13 @@ export type SettlementWriteResult =
       status: string;
       netPayableTwd: number;
       duplicate: boolean;
+      /**
+       * 資料庫裡真實的撥款時間。
+       *
+       * `status === 'paid'` 但這裡是 null 代表資料不一致，呼叫端**不得**宣稱撥款完成。
+       * 因此不能由 status 推導，必須一路從資料庫帶出來。
+       */
+      paidAt: Date | null;
     }
   | { ok: false; code: SettlementWriteFailureCode; error: string };
 
@@ -302,6 +309,7 @@ function existingResult(row: {
   settlementId: string;
   status: string;
   netPayableTwd: number | null;
+  paidAt: Date | null;
 }): SettlementWriteResult {
   return {
     ok: true,
@@ -310,6 +318,7 @@ function existingResult(row: {
     status: row.status,
     netPayableTwd: row.netPayableTwd ?? 0,
     duplicate: true,
+    paidAt: row.paidAt,
   };
 }
 
@@ -322,7 +331,11 @@ function existingResult(row: {
 export type SubmittedPreview = {
   sourceKeysDigest: string;
   amountsDigest: string;
-  /** 預覽當時的 key／fingerprint。重送時先用它找原單，避免另建第二張。 */
+  /**
+   * 預覽當時的 key／fingerprint。重送時先用它找原單，避免另建第二張。
+   *
+   * 找到原單時 fingerprint 必須完全一致才回原單；沒帶或不一致都拒絕。
+   */
   idempotencyKey?: string;
   payloadFingerprint?: string;
 };
@@ -347,12 +360,7 @@ export async function persistSettlementDraft(
   const priorKey = expected.idempotencyKey;
   if (priorKey && priorKey !== draft.idempotencyKey) {
     const prior = await findSubmittedSettlement(client, draft.merchantId, priorKey);
-    if (prior) {
-      return expected.payloadFingerprint == null ||
-        prior.payloadFingerprint === expected.payloadFingerprint
-        ? existingResult(prior)
-        : settlementWriteFailure('PAYLOAD_CONFLICT');
-    }
+    if (prior) return priorSettlementResult(prior, expected.payloadFingerprint);
   }
 
   if (draft.sources.length === 0) return settlementWriteFailure('NO_SOURCES');
@@ -392,6 +400,21 @@ export async function persistSettlementDraft(
   return settlementWriteFailure('LOCK_CONFLICT');
 }
 
+/**
+ * 判斷重送與回報狀態需要的欄位。
+ *
+ * `paidAt` 一定要一起讀出來：`status` 只是標記，真正證明撥款完成的是時間戳，
+ * 呼叫端不得由 `status` 推導撥款事實。
+ */
+const EXISTING_SETTLEMENT_SELECT = {
+  id: true,
+  settlementId: true,
+  status: true,
+  netPayableTwd: true,
+  payloadFingerprint: true,
+  paidAt: true,
+} as const;
+
 /** 依 key 找原單，並限定本店。瀏覽器帶回的 key 不得用來讀別家店的結算。 */
 async function findSubmittedSettlement(
   client: PrismaClient,
@@ -401,13 +424,7 @@ async function findSubmittedSettlement(
   try {
     return await client.settlement.findFirst({
       where: { idempotencyKey, merchantId },
-      select: {
-        id: true,
-        settlementId: true,
-        status: true,
-        netPayableTwd: true,
-        payloadFingerprint: true,
-      },
+      select: EXISTING_SETTLEMENT_SELECT,
     });
   } catch (error) {
     if (isMissingSchemaError(error)) return null;
@@ -415,16 +432,54 @@ async function findSubmittedSettlement(
   }
 }
 
+export type PriorSettlement = {
+  id: string;
+  settlementId: string;
+  status: string;
+  netPayableTwd: number | null;
+  payloadFingerprint: string | null;
+  paidAt: Date | null;
+};
+
+/**
+ * 送出流程最前面的「本店 + 原 key」查詢。
+ *
+ * 送出成功後來源會全部被鎖住，重新載入的預覽就沒有任何可結算來源，付款方向也會變成
+ * `NONE`。若還是先驗來源與付款方式才查原單，第二次按同一顆按鈕會先被擋在
+ * 「沒有可結算項目」或「結帳方式不適用」，永遠回不到原單。因此呼叫端必須在
+ * 驗來源之前先呼叫這個查詢。
+ *
+ * 一律限定 `merchantId`：別家店的 key 在這裡查不到，會被當成新送出而由後續的
+ * 來源／摘要比對擋下，不會洩漏也不會沿用別家店的結算。
+ */
+export async function findSettlementByPreviewKey(
+  client: PrismaClient,
+  merchantId: string,
+  idempotencyKey: string,
+): Promise<PriorSettlement | null> {
+  return findSubmittedSettlement(client, merchantId, idempotencyKey);
+}
+
+/**
+ * 依原 key 回報既有結算。
+ *
+ * fingerprint 必須完全一致才算同一次送出；缺 fingerprint 或不一致都拒絕，
+ * 不得放寬成「只要 key 對就回原單」。
+ */
+export function priorSettlementResult(
+  prior: PriorSettlement,
+  expectedFingerprint: string | null | undefined,
+): SettlementWriteResult {
+  if (expectedFingerprint == null || prior.payloadFingerprint !== expectedFingerprint) {
+    return settlementWriteFailure('PAYLOAD_CONFLICT');
+  }
+  return existingResult(prior);
+}
+
 async function findByIdempotencyKey(client: PrismaClient, idempotencyKey: string) {
   return client.settlement.findFirst({
     where: { idempotencyKey },
-    select: {
-      id: true,
-      settlementId: true,
-      status: true,
-      netPayableTwd: true,
-      payloadFingerprint: true,
-    },
+    select: EXISTING_SETTLEMENT_SELECT,
   });
 }
 
@@ -442,13 +497,7 @@ async function runPersistAttempt(
   return client.$transaction(async (tx) => {
     const inTx = await tx.settlement.findFirst({
       where: { idempotencyKey: draft.idempotencyKey },
-      select: {
-        id: true,
-        settlementId: true,
-        status: true,
-        netPayableTwd: true,
-        payloadFingerprint: true,
-      },
+      select: EXISTING_SETTLEMENT_SELECT,
     });
     if (inTx) {
       return inTx.payloadFingerprint === draft.payloadFingerprint
@@ -481,7 +530,7 @@ async function runPersistAttempt(
         netPayableTwd: draft.totals.netPayableTwd,
         storeCollected: draft.totals.storeCollected,
       },
-      select: { id: true, settlementId: true, status: true, netPayableTwd: true },
+      select: { id: true, settlementId: true, status: true, netPayableTwd: true, paidAt: true },
     });
 
     await tx.settlementSourceItem.createMany({
@@ -524,6 +573,8 @@ async function runPersistAttempt(
       status: created.status,
       netPayableTwd: created.netPayableTwd ?? draft.totals.netPayableTwd,
       duplicate: false,
+      // POS 建立的永遠是待核對草稿，這裡必然是 null，但仍由資料庫帶出而非寫死。
+      paidAt: created.paidAt,
     };
   });
 }
@@ -568,7 +619,7 @@ export async function withdrawSettlementDraft(
 
       const row = await tx.settlement.findUniqueOrThrow({
         where: { id: input.settlementId },
-        select: { id: true, settlementId: true, status: true, netPayableTwd: true },
+        select: { id: true, settlementId: true, status: true, netPayableTwd: true, paidAt: true },
       });
       return {
         ok: true as const,
@@ -577,6 +628,7 @@ export async function withdrawSettlementDraft(
         status: row.status,
         netPayableTwd: row.netPayableTwd ?? 0,
         duplicate: false,
+        paidAt: row.paidAt,
       };
     });
   } catch (error) {
