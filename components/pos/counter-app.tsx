@@ -134,9 +134,9 @@ function CounterWorkspace({
         )}
       />
       <section className={styles.catalog}>
-        <div className={`${styles.top} pr-14`}>
+        <div className={styles.top}>
           <div>
-            <p className={styles.kicker}>結帳</p>
+            <p className={styles.kicker}>寄賣銷售</p>
             <h1 className={styles.heading}>店內商品</h1>
           </div>
           <div className={styles.search}>

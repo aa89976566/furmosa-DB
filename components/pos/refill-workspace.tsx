@@ -7,7 +7,7 @@ import {
   InventorySideNav,
 } from "@/components/pos/inventory-nav";
 import { RestockCartProvider } from "@/components/pos/restock-cart-provider";
-import { PosAccountMenu } from "@/components/pos/account-menu";
+import { PosPageTools } from "@/components/pos/page-tools";
 import { JarSerialPanel } from "@/components/pos/jar-serial-panel";
 import {
   RefillOrderPanel,
@@ -169,8 +169,8 @@ function RefillWorkspaceInner({
                   掃罐底就能找到客人的訂單
                 </p>
               </div>
-              <div className="md:hidden">
-                <PosAccountMenu account={account} />
+              <div>
+                <PosPageTools account={account} />
               </div>
             </header>
 

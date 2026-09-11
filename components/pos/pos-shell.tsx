@@ -1,5 +1,5 @@
 import { PosBottomNav, PosSideRail } from '@/components/pos/bottom-nav';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { PosPageTools } from '@/components/pos/page-tools';
 import type { PosAccount } from '@/lib/pos/account';
 
 export function PosShell({
@@ -26,16 +26,16 @@ export function PosShell({
         <div
           className={
             wide
-              ? 'relative min-h-screen pb-24 md:h-full md:min-h-0 md:overflow-hidden md:pb-0'
+              ? 'relative flex min-h-screen flex-col pb-24 md:h-full md:min-h-0 md:overflow-hidden md:pb-0'
               : 'relative mx-auto min-h-screen w-full max-w-lg pb-24 md:mx-0 md:max-w-3xl md:pb-6'
           }
         >
           {account ? (
-            <div className="absolute right-3 top-3 z-30 md:right-4 md:top-4">
-              <PosAccountMenu account={account} />
+            <div className="flex shrink-0 justify-end px-3 pt-3 md:px-4">
+              <PosPageTools account={account} />
             </div>
           ) : null}
-          {children}
+          {wide ? <div className="min-h-0 flex-1 md:overflow-hidden">{children}</div> : children}
         </div>
       </div>
       <PosBottomNav />

@@ -18,9 +18,9 @@ const TABS: { id: QueryKind | "all"; label: string }[] = [
   { id: "stock", label: "庫存" },
 ];
 
-export function QueryBoard({ items }: { items: QueryFeedItem[] }) {
+export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[]; initialQuery?: string }) {
   const [kind, setKind] = useState<QueryKind | "all">("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const visible = useMemo(
     () => filterQueryFeed(items, kind, query),
     [items, kind, query],
@@ -33,6 +33,7 @@ export function QueryBoard({ items }: { items: QueryFeedItem[] }) {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-label="搜尋紀錄"
           placeholder="搜尋訂單、商品、罐子序號"
           className="h-12 rounded-xl bg-card pl-10"
         />
