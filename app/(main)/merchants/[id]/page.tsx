@@ -1,3 +1,4 @@
+import { PosPasswordForm } from '@/components/merchants/pos-password-form';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -22,7 +23,6 @@ import { ChevronRight, MapPin } from 'lucide-react';
 import {
   createMerchantPosUser,
   repairMerchantBusinessId,
-  resetMerchantPosUserPassword,
 } from './actions';
 import { merchantBusinessIdKind } from '@/lib/merchant-business-id';
 import { Input } from '@/components/ui/input';
@@ -246,12 +246,7 @@ export default async function MerchantOverviewPage({
                     </li>
                   ))}
                 </ul>
-                <form action={resetMerchantPosUserPassword} className="mt-3 space-y-3">
-                  <input type="hidden" name="merchantId" value={merchant.id} />
-                  <input type="hidden" name="userId" value={(merchant.users.find((user) => user.isActive) ?? merchant.users[0]).id} />
-                  <Input name="password" type="password" placeholder="新密碼（至少 8 位）" required minLength={8} maxLength={64} />
-                  <Button type="submit" size="sm" variant="outline">重設 POS 密碼</Button>
-                </form>
+                <PosPasswordForm merchantId={merchant.id} users={merchant.users} />
               </>
             ) : (
               <form action={createMerchantPosUser} className="mt-3 space-y-3">
