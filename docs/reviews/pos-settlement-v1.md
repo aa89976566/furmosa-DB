@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R1（＝v2 全文 ＋ R1 白名單路徑更正；詳見 §0.1） |
-| 凍結文字 SHA256 | `1431ad834b39d1f170c3181926e13556f4dd92c989c00112126112874c4f7efe` |
+| Prompt 版本 | v2-R2（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2 規格缺陷修訂；詳見 §0.1–§0.3） |
+| 凍結文字 SHA256 | `c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e88159ce9b0e10935312` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -25,7 +25,6 @@
 | 原核准清單 | `lib/settlements/source-snapshot.ts`、`lib/settlements/write-settlement.ts`、`lib/settlements/read-snapshot.ts` |
 | 錯誤版本 commit | `4a641b7`（保留於版本控制，不改寫） |
 | 錯誤版本凍結文字 SHA256 | `86c00f33a190d9c20728271aba7806f1fc30251f376362a54cd78a626f2d8acd`（保留為證據） |
-| 更正後凍結文字 SHA256 | `1431ad834b39d1f170c3181926e13556f4dd92c989c00112126112874c4f7efe` |
 | 責任歸屬 | 本檔作者（重組 v1 → v2 時抄錄錯誤），非使用者指示錯誤 |
 
 更正範圍**僅限**把該項還原為原核准的三個模組路徑並重新編號；白名單**未擴大**，其他任何條文未變更。R1 前已寫入的實作處置：
@@ -33,6 +32,40 @@
 - `lib/pos/settlement-sources.ts`（R1 時尚未提交，屬 untracked）移至 `lib/settlements/source-snapshot.ts`，內容不變更語意，僅更新檔頭註解指向的相鄰模組路徑。
 - `lib/pos/store-settlement.ts` 於 R1 前的未完成編輯以 `git checkout --` 逐檔還原（**未使用** `git reset --hard`），不影響任何其他工作。
 - R1 前的未提交 diff、`git status`、提交紀錄與被移動檔原件已保存為證據（`/tmp/pos-settlement-evidence/`），並在 PR 說明中交代。
+
+### 0.2 R1 補充更正紀錄（測試、元件與可修改清單仍抄錯）
+
+| 項目 | 內容 |
+|---|---|
+| 提出者 | 使用者第七輪「R1 範圍複查補充」 |
+| 錯誤版本 commit | `3cd74d4`（R1 更正版，仍有抄錯，保留不改寫） |
+| 錯誤版本凍結文字 SHA256 | `1431ad834b39d1f170c3181926e13556f4dd92c989c00112126112874c4f7efe`（保留為證據） |
+| 更正後凍結文字 SHA256 | 見 §0 表格 |
+| 責任歸屬 | 本檔作者。**凍結文件不得優先於使用者原指令**；以原 v1／v2 訊息為準 |
+
+| 抄錯項 | 文件原寫（錯） | 原核准（正確） |
+|---|---|---|
+| 新增測試檔 | `lib/pos/__tests__/settlement-sources.test.ts`、`settlement-persist.test.ts`、`settlement-db-concurrency.test.ts` | `lib/settlements/__tests__/source-snapshot.test.ts`、`write-settlement.test.ts`、`read-snapshot.test.ts`、`postgres-settlement.test.ts`、`lib/pos/__tests__/store-settlement-v1.test.ts` |
+| 新增元件 | 抄漏 | `components/settlements/snapshot-detail.tsx` |
+| 可修改檔 | 抄漏 | `lib/pos/store-ledger.ts` |
+
+文件原寫的三個 `lib/pos/__tests__/settlement-*.test.ts` **不得建立**。更正僅限清單本身，白名單未擴大到任何未經核准的檔案。
+
+### 0.3 R2 規格缺陷審核紀錄
+
+使用者第七輪以獨立驗收 `a99bb46` 提出六項缺陷，全部經審核**確認為真實缺陷**並修復；審核另發現第 7 項同類缺陷，一併修復。
+
+缺陷 4、6 與 §1.7 的讀寫口徑屬**原規格本身的缺口**，不只是實作偏差。使用者在 R2 中已明確指示所需行為，故依授權最小幅度修訂 §1.5、§1.7、§1.8、§1.10 對應條文並重新計算凍結雜湊；舊雜湊全部保留於 §0.1、§0.2 作為證據。其餘條文未變更。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | 撤回後 `activeSources` 為空且原淨額非零即報錯 | **確認** | 撤回會把全部明細標 `voidedAt`，但 header 是送出當時的不可變快照。改為以**保留的全部稽核來源**驗 header；`cancelled` 只從有效統計排除，不清零歷史 |
+| 2 | 未知非空版本被接受、`netPayableTwd ?? 0` 捏造金額 | **確認** | `hasSourceSnapshot()` 只檢查非 null。改為未知版本與缺必要欄位一律 fail closed，並加驗 `storeCollected` 與 `payable` |
+| 3 | 讀取用 JS 浮點累加、寫入用 `Prisma.Decimal` | **確認** | 半元邊界可得出不同整數淨額，而整數淨額要求完全相等。讀寫改為共用同一個 `Prisma.Decimal` 函式 |
+| 4 | `idempotencyKey` 無操作識別 | **確認** | 撤回後同來源永遠命中原 cancelled 列，無法重新結算。加入伺服器端推導的操作序號（該來源集合已作廢的嘗試次數）：同次重送固定、撤回後可再建、舊 key 仍回原 cancelled、付款方式仍在 key 與 fingerprint |
+| 5 | `amountsDigest` 漏 `quantity`／`unitPrice`／`companyRevenue` | **確認** | `2×100` 改 `4×50` 時 `originalAmount` 不變即被當成同 payload。補齊三個欄位 |
+| 6 | `dedupeSources` 無條件取 `GroomingCoupon` | **確認** | 面額或歸屬衝突被靜默解掉。改為僅在兩邊完全一致時視為同一張券鏡像；衝突則**兩邊都不認列**、產生 `COUPON_SOURCE_CONFLICT` 待確認、不占唯一鍵 |
+| 7 | `SettlementSourceItem.merchant` 用 `onDelete: Cascade` | **確認（審核追加）** | 刪店家會連帶刪掉新帳務稽核列。改 `Restrict`；既有 `Settlement.merchant` 不動。同時補上 migration 完整性 CHECK 漏掉的 `storeCollected` |
 
 ---
 
@@ -67,28 +100,32 @@
 2. `lib/settlements/source-snapshot.ts` — 來源分類、canonical key、精度與 legacy 公式（純函式）
 3. `lib/settlements/write-settlement.ts` — 交易寫入、來源鎖定、撤回與刪除守衛
 4. `lib/settlements/read-snapshot.ts` — 新版身份判定、快照讀取與漂移不變條件
-5. `prisma/migrations/20260911160000_pos_settlement_sources/migration.sql`
-6. `lib/pos/__tests__/settlement-sources.test.ts`
-7. `lib/pos/__tests__/settlement-persist.test.ts`
-8. `lib/pos/__tests__/settlement-db-concurrency.test.ts`（需真實隔離資料庫，無則標記未執行）
+5. `components/settlements/snapshot-detail.tsx` — 新版快照明細呈現元件
+6. `prisma/migrations/20260911160000_pos_settlement_sources/migration.sql`
+7. `lib/settlements/__tests__/source-snapshot.test.ts`
+8. `lib/settlements/__tests__/write-settlement.test.ts`
+9. `lib/settlements/__tests__/read-snapshot.test.ts`
+10. `lib/settlements/__tests__/postgres-settlement.test.ts`（需真實隔離資料庫，無則標記未執行）
+11. `lib/pos/__tests__/store-settlement-v1.test.ts`
 
 修改：
 
-9. `prisma/schema.prisma`
-10. `lib/pos/store-settlement.ts`
-11. `lib/pos/load-store-ledger.ts`
-12. `app/pos/settle/actions.ts`
-13. `components/pos/settle-workspace.tsx`
-14. `app/(main)/merchants/(hub)/settlements/[id]/page.tsx`
-15. `app/(main)/settlements/actions.ts`
-16. `lib/labels.ts` — 只加 `cancelled`
-17. `components/shared/status-badge.tsx` — 只加 `cancelled`
-18. `lib/settlement-list-query.ts` — 只加 `cancelled` 篩選
-19. `app/(main)/merchants/(hub)/settlements/page.tsx` — 只處理 `cancelled` 顯示與從財務有效總計排除
-20. `lib/pos/__tests__/store-ledger.test.ts` — **只**把原 `SCHEMA_MISSING` 單一案例改為「寫入 flag 關閉時拒寫」，其餘 15 個案例不刪、不放寬
-21. `docs/POS-02-MIGRATION-PLAN.md`、`docs/POS-02-PERSISTENCE-PROPOSAL.md` — **只**加本包例外註記，不重寫舊規則
+12. `prisma/schema.prisma`
+13. `lib/pos/store-ledger.ts`
+14. `lib/pos/store-settlement.ts`
+15. `lib/pos/load-store-ledger.ts`
+16. `app/pos/settle/actions.ts`
+17. `components/pos/settle-workspace.tsx`
+18. `app/(main)/merchants/(hub)/settlements/[id]/page.tsx`
+19. `app/(main)/settlements/actions.ts`
+20. `lib/labels.ts` — 只加 `cancelled`
+21. `components/shared/status-badge.tsx` — 只加 `cancelled`
+22. `lib/settlement-list-query.ts` — 只加 `cancelled` 篩選
+23. `app/(main)/merchants/(hub)/settlements/page.tsx` — 只處理 `cancelled` 顯示與從財務有效總計排除
+24. `lib/pos/__tests__/store-ledger.test.ts` — **只**把原 `SCHEMA_MISSING` 單一案例改為「寫入 flag 關閉時拒寫」，其餘 15 個案例不刪、不放寬
+25. `docs/POS-02-MIGRATION-PLAN.md`、`docs/POS-02-PERSISTENCE-PROPOSAL.md` — **只**加本包例外註記，不重寫舊規則
 
-新增模組**只有上列三個 `lib/settlements/*`**。不得另建 `lib/pos/settlement-sources.ts` 或任何其他新模組檔。
+新增檔案**只有上列第 2–11 項**。明確禁止建立：`lib/pos/settlement-sources.ts`、`lib/pos/__tests__/settlement-sources.test.ts`、`lib/pos/__tests__/settlement-persist.test.ts`、`lib/pos/__tests__/settlement-db-concurrency.test.ts`。
 
 白名單外一律不得修改，包含 `lib/settlement-calc.ts`、`lib/merchant-settlement-sales.ts`、`middleware.ts`、`lib/auth*`、`lib/merchant-auth`、OMS、webhook、LINE、金流、點數、券面額、櫃檯售價、庫存寫入路徑。禁止順手 refactor、改樣式、改命名、升套件、改無關檔案。必須越界時立即停止並回報原因與影響，不得自行放寬。
 
@@ -112,7 +149,7 @@
 - 只認已核銷且店家歸屬可靠者。歸屬可靠＝券的 `storeId` 命中 store slug、`merchant.merchantId` 或 `Store.id`。**只靠中文店名比對不算可靠**，列待確認。
 - 面額例外規則保留：標準 200、豬窩 250，依既有資料，不重算。
 - 兩個來源模型（`GroomingCoupon`、`RewardRedemption`）都必須有可靠 canonical key：`coupon:<正規化券號>`。券號缺失或空白 → 待確認。**禁止以資料列 id 充當券號再宣稱已去重。**
-- 同一正規化券號在兩模型同時出現時，以 `GroomingCoupon` 為準，`RewardRedemption` 不重複計列。
+- 同一正規化券號在兩模型同時出現時：**只有**面額與方向完全一致（同一張券的鏡像）才以 `GroomingCoupon` 為準、`RewardRedemption` 不重複計列。面額或歸屬衝突時**兩邊都不認列**，產生待確認，不占唯一鍵，不得自行選一邊。
 
 **待確認（pending，不計金額、不鎖定、不占唯一鍵）**
 
@@ -128,7 +165,7 @@
 新增 `SettlementSourceItem`：
 
 - `id`、`settlementId`、`merchantId`、`sourceKind`、`sourceKey`、`direction`、`originalAmount`（Float，保留原值）、`quantity`、`unitPrice`、`commissionAmount`、`companyRevenue`、`occurredAt`、`relatedOrderId`、`sourceSnapshot`（Json）、`rulesVersion`、`voidedAt`、`createdAt`。
-- `settlement` 關聯 `onDelete: Restrict`（稽核外鍵）；`merchant` 關聯沿用 `Cascade` 以免改變既有店家語意。
+- `settlement` 與 `merchant` 關聯**都**使用 `onDelete: Restrict`。刪店家不得連帶刪掉新帳務稽核列。既有 `Settlement.merchant` 關聯維持原樣不動。
 - **active canonical partial unique index**：`(merchantId, sourceKey) WHERE "voidedAt" IS NULL`。Prisma schema 無法表達，必須在同一份 `migration.sql` 手寫。
 
 `Settlement` 新增（全部 nullable，不 backfill）：
@@ -168,11 +205,14 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 
 比較容差：**只有** legacy Float 合計比較允許 0.01（與 HQ 既有漂移判斷一致）；新存的整數淨額必須完全相等。
 
+因為整數淨額要求完全相等，**讀取與寫入必須共用同一個 `Prisma.Decimal` 加總函式**，不得一邊用 Decimal、另一邊用 JS 浮點累加。
+
 ### 1.8 寫入規則
 
 - 伺服器端必須驗證 POS session（`requireMerchantSession()`），逐筆來源驗證店家歸屬與金額，不得信任瀏覽器傳入金額。
-- `idempotencyKey = sha256(rulesVersion | merchantId | periodStart | periodEnd | sorted sourceKeys | intendedPaymentMethod)`。
-- `payloadFingerprint = sha256(idempotencyKey | sorted 來源金額與方向 | legacy 合計)`。
+- `idempotencyKey = sha256(rulesVersion | merchantId | periodStart | periodEnd | sorted sourceKeys | intendedPaymentMethod | operationSeq)`。
+- `operationSeq` 必須由**伺服器推導**，不得由瀏覽器提供：取本來源集合在本店已作廢（`voidedAt` 非 null）的明細嘗試次數。效果：同一次送出重送得到同一個 key（冪等）；撤回後同來源可用新 key 重新結算；舊 key 重送仍回到原本那張 `cancelled`，不復活。
+- `payloadFingerprint = sha256(idempotencyKey | sorted 來源原值 | legacy 合計)`。來源原值必須含 `originalAmount`、`quantity`、`unitPrice`、`commissionAmount`、`companyRevenue` 與方向，使任何來源原值變更都必定改變 fingerprint。
 - 付款方式**納入** key 與 fingerprint。送出後付款方式不可改；送出前改選會產生新的操作 key。
 - 送出時伺服器必須重新計算來源集合並與預覽摘要比對，改變即拒絕，不得靜默改變整批內容。
 - 同 key 同 payload → 回傳既有結算；同 key 不同 payload → 拒絕；部分重疊 → 整批拒絕。
@@ -196,7 +236,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 ### 1.10 讀取與 UI
 
 - 新版身份**只按 `rulesVersion`** 判定，不得以「有沒有明細」猜測。
-- 新版結算缺明細或版本未知 → 顯示可讀的完整性錯誤，不得 fallback、不得 500 白畫面。
+- 新版結算缺明細或版本未知 → 顯示可讀的完整性錯誤，不得 fallback、不得 500 白畫面。**未知的非空版本必須 fail closed**，不得套用本版公式解讀；缺必要欄位（`netPayableTwd`、`storeCollected`）同樣 fail closed，不得以 0 代替。
+- 已撤回（`cancelled`）的結算必須仍可查閱其送出當時的快照：header 以**保留的全部稽核來源**驗證，不因明細被標 `voidedAt` 而判為損毀，也不得把歷史金額清零。
 - HQ 新版分支讀逐筆來源快照與共用淨額；legacy `calcSettlement` 路徑完全不變。
 - POS 必須把**暫計**、**待確認**、**已送出紀錄**分開呈現，已送出者顯示同一編號與狀態。
 - 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。
