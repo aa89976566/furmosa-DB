@@ -1,3 +1,4 @@
+import { posSearchQuery } from '@/lib/pos/search-query';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { loadPosAccount } from '@/lib/pos/account';
 import { prisma } from '@/lib/prisma';
@@ -7,9 +8,9 @@ import { formatCurrency } from '@/lib/format';
 export const metadata = { title: '活動／團購 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
-export default async function PosGroupBuyPage({ searchParams }: { searchParams?: { q?: string } }) {
+export default async function PosGroupBuyPage({ searchParams }: { searchParams?: { q?: string | string[] } }) {
   const session = await requireMerchantSession();
-  const query = searchParams?.q?.trim() ?? '';
+  const query = posSearchQuery(searchParams?.q);
   const [account, prices] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
     prisma.merchantWholesalePrice.findMany({
