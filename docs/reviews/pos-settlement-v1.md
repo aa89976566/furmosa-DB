@@ -365,14 +365,42 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 
 ## 3. 未執行項目與上線阻擋
 
+### 3.1 已執行（實作端，未連任何資料庫）
+
+| 項目 | 結果 |
+|---|---|
+| `npx tsc --noEmit` | 通過 |
+| `lib/settlements/__tests__/*.test.ts`（純邏輯） | 85／85 通過 |
+| `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉） |
+| `lib/pos/__tests__/store-settlement-v1.test.ts` | 15／15 通過 |
+| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，測試如實 SKIP 並列出理由 |
+
+合計 116 項純邏輯測試通過。實作端全程未連任何資料庫、未套用 migration。
+
+### 3.2 未執行項目
+
 | 項目 | 狀態 | 原因 |
 |---|---|---|
 | 正式庫 migration 套用 | **未執行** | 本輪明確禁止；任何資料庫都不套用 |
-| 真實 PostgreSQL 並行測試 | **未執行** | 環境無 `psql`、無可用 docker、無 `SETTLEMENT_TEST_DATABASE_URL` |
-| 失敗注入回滾零殘留測試 | **未執行** | 同上 |
-| 撤回與狀態競態的資料庫層測試 | **未執行** | 同上 |
+| 真 DB 測試（實作端執行） | **未執行** | 實作端不連資料庫；測試程式已備，由獨立驗收者在自己的隔離庫執行 |
 | 正式 drift reconcile 驗證 | **未執行** | 需讀正式庫，未授權 |
 | `npm run build` | **未執行** | 可能觸發資料庫遷移，未授權 |
-| `npm test`（全量） | **未執行** | 會連帶執行會寫資料庫的 `lib/jar-exchange` 測試 |
+| `npm test`（全量） | **未執行** | 會連帶執行會寫資料庫的 `lib/jar-exchange` 測試；另 `package.json` 的 `test` script 未含 `lib/settlements/__tests__/*`，而 `package.json` 不在白名單，需另行授權才能補上 |
+| POS／HQ 畫面實機操作 | **未執行** | 需要可登入的執行環境與資料庫 |
 
-**結論：本 PR 不具備上線條件。** 上線前必須補齊正式 drift 驗證與真實資料庫並行／回滾驗收。
+### 3.3 上線前必須完成的檢查
+
+1. **正式 drift**：`docs/POS-02-MIGRATION-PLAN.md` §2 的閘門必須先關閉，才可在正式庫建立
+   `20260911160000_pos_settlement_sources`。文件內的證據句已過期，閘門本身未失效。
+2. **隔離庫並行／回滾驗收**：以 `SETTLEMENT_TEST_DATABASE_URL` 執行
+   `postgres-settlement.test.ts`，確認 partial unique index、完整性 CHECK、
+   `ON DELETE RESTRICT`、同 key 並行收斂、來源衝突與鎖定衝突的零殘留回滾。
+3. **migration 增量與回復**：本包 migration 只 `ADD COLUMN IF NOT EXISTS` 與 `CREATE TABLE IF NOT EXISTS`，
+   全部新欄位 nullable 且不 backfill。回復＝關閉寫入 flag，不刪表、不清欄位、不重算歷史。
+4. **部署先後次序**：先套 migration（讀取端此時全走 legacy 分支，行為不變）→ 再部署程式
+   （寫入 flag 仍關閉，POS 只顯示暫計並說明尚未啟用）→ 最後才開 flag。
+   反序（先開 flag 後套 migration）會讓店家看到 `SCHEMA_MISSING`。
+5. **writer flag**：`POS_SETTLEMENT_WRITE_ENABLED` 預設關閉，只讀伺服器環境變數。
+   先在 Preview 開啟驗收，正式環境另行授權後才開。
+
+**結論：本 PR 仍不具備上線條件。** 缺正式 drift 驗證與實機操作驗收。
