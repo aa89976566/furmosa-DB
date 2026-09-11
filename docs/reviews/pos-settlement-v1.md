@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2（＝候選 v1 全文 ＋ 使用者第五輪精確修正，重組為單一權威文字） |
-| 凍結文字 SHA256 | `86c00f33a190d9c20728271aba7806f1fc30251f376362a54cd78a626f2d8acd` |
+| Prompt 版本 | v2-R1（＝v2 全文 ＋ R1 白名單路徑更正；詳見 §0.1） |
+| 凍結文字 SHA256 | `1431ad834b39d1f170c3181926e13556f4dd92c989c00112126112874c4f7efe` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -15,6 +15,24 @@
 | 實作者／監督者 | 實作＝Cursor（本代理）；獨立逐檔 diff 驗收＝Codex。實作者不得自我驗收 |
 
 本檔是本工作包的唯一權威規格。實作期間 §1 文字不得變更；需要變更範圍必須另取使用者授權、重新審核並另存新版本，不得覆寫本檔。
+
+### 0.1 R1 更正紀錄（白名單路徑抄錄錯誤）
+
+| 項目 | 內容 |
+|---|---|
+| 提出者 | 獨立監督（Codex 逐檔 diff）→ 使用者第六輪 R1 指令 |
+| 錯誤內容 | 本檔初版 §1.4 新增清單第 2 項抄成單一檔 `lib/pos/settlement-sources.ts` |
+| 原核准清單 | `lib/settlements/source-snapshot.ts`、`lib/settlements/write-settlement.ts`、`lib/settlements/read-snapshot.ts` |
+| 錯誤版本 commit | `4a641b7`（保留於版本控制，不改寫） |
+| 錯誤版本凍結文字 SHA256 | `86c00f33a190d9c20728271aba7806f1fc30251f376362a54cd78a626f2d8acd`（保留為證據） |
+| 更正後凍結文字 SHA256 | `1431ad834b39d1f170c3181926e13556f4dd92c989c00112126112874c4f7efe` |
+| 責任歸屬 | 本檔作者（重組 v1 → v2 時抄錄錯誤），非使用者指示錯誤 |
+
+更正範圍**僅限**把該項還原為原核准的三個模組路徑並重新編號；白名單**未擴大**，其他任何條文未變更。R1 前已寫入的實作處置：
+
+- `lib/pos/settlement-sources.ts`（R1 時尚未提交，屬 untracked）移至 `lib/settlements/source-snapshot.ts`，內容不變更語意，僅更新檔頭註解指向的相鄰模組路徑。
+- `lib/pos/store-settlement.ts` 於 R1 前的未完成編輯以 `git checkout --` 逐檔還原（**未使用** `git reset --hard`），不影響任何其他工作。
+- R1 前的未提交 diff、`git status`、提交紀錄與被移動檔原件已保存為證據（`/tmp/pos-settlement-evidence/`），並在 PR 說明中交代。
 
 ---
 
@@ -46,27 +64,31 @@
 新增：
 
 1. `docs/reviews/pos-settlement-v1.md`
-2. `lib/pos/settlement-sources.ts`
-3. `prisma/migrations/20260911160000_pos_settlement_sources/migration.sql`
-4. `lib/pos/__tests__/settlement-sources.test.ts`
-5. `lib/pos/__tests__/settlement-persist.test.ts`
-6. `lib/pos/__tests__/settlement-db-concurrency.test.ts`（需真實隔離資料庫，無則標記未執行）
+2. `lib/settlements/source-snapshot.ts` — 來源分類、canonical key、精度與 legacy 公式（純函式）
+3. `lib/settlements/write-settlement.ts` — 交易寫入、來源鎖定、撤回與刪除守衛
+4. `lib/settlements/read-snapshot.ts` — 新版身份判定、快照讀取與漂移不變條件
+5. `prisma/migrations/20260911160000_pos_settlement_sources/migration.sql`
+6. `lib/pos/__tests__/settlement-sources.test.ts`
+7. `lib/pos/__tests__/settlement-persist.test.ts`
+8. `lib/pos/__tests__/settlement-db-concurrency.test.ts`（需真實隔離資料庫，無則標記未執行）
 
 修改：
 
-7. `prisma/schema.prisma`
-8. `lib/pos/store-settlement.ts`
-9. `lib/pos/load-store-ledger.ts`
-10. `app/pos/settle/actions.ts`
-11. `components/pos/settle-workspace.tsx`
-12. `app/(main)/merchants/(hub)/settlements/[id]/page.tsx`
-13. `app/(main)/settlements/actions.ts`
-14. `lib/labels.ts` — 只加 `cancelled`
-15. `components/shared/status-badge.tsx` — 只加 `cancelled`
-16. `lib/settlement-list-query.ts` — 只加 `cancelled` 篩選
-17. `app/(main)/merchants/(hub)/settlements/page.tsx` — 只處理 `cancelled` 顯示與從財務有效總計排除
-18. `lib/pos/__tests__/store-ledger.test.ts` — **只**把原 `SCHEMA_MISSING` 單一案例改為「寫入 flag 關閉時拒寫」，其餘 15 個案例不刪、不放寬
-19. `docs/POS-02-MIGRATION-PLAN.md`、`docs/POS-02-PERSISTENCE-PROPOSAL.md` — **只**加本包例外註記，不重寫舊規則
+9. `prisma/schema.prisma`
+10. `lib/pos/store-settlement.ts`
+11. `lib/pos/load-store-ledger.ts`
+12. `app/pos/settle/actions.ts`
+13. `components/pos/settle-workspace.tsx`
+14. `app/(main)/merchants/(hub)/settlements/[id]/page.tsx`
+15. `app/(main)/settlements/actions.ts`
+16. `lib/labels.ts` — 只加 `cancelled`
+17. `components/shared/status-badge.tsx` — 只加 `cancelled`
+18. `lib/settlement-list-query.ts` — 只加 `cancelled` 篩選
+19. `app/(main)/merchants/(hub)/settlements/page.tsx` — 只處理 `cancelled` 顯示與從財務有效總計排除
+20. `lib/pos/__tests__/store-ledger.test.ts` — **只**把原 `SCHEMA_MISSING` 單一案例改為「寫入 flag 關閉時拒寫」，其餘 15 個案例不刪、不放寬
+21. `docs/POS-02-MIGRATION-PLAN.md`、`docs/POS-02-PERSISTENCE-PROPOSAL.md` — **只**加本包例外註記，不重寫舊規則
+
+新增模組**只有上列三個 `lib/settlements/*`**。不得另建 `lib/pos/settlement-sources.ts` 或任何其他新模組檔。
 
 白名單外一律不得修改，包含 `lib/settlement-calc.ts`、`lib/merchant-settlement-sales.ts`、`middleware.ts`、`lib/auth*`、`lib/merchant-auth`、OMS、webhook、LINE、金流、點數、券面額、櫃檯售價、庫存寫入路徑。禁止順手 refactor、改樣式、改命名、升套件、改無關檔案。必須越界時立即停止並回報原因與影響，不得自行放寬。
 
