@@ -57,6 +57,15 @@ export const SETTLEMENT_NOT_WITHDRAWABLE_ERROR =
 export const SETTLEMENT_HAS_SOURCE_ITEMS_ERROR =
   '這張結算已經有來源明細，為了保留稽核紀錄不能刪除。請改用撤回或建立沖銷。';
 
+export const SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR =
+  '這個結帳方式不適用本期的收付方向，為了避免記錯方向已經擋下。請重新整理後再選一次。';
+
+export const SETTLEMENT_STATUS_TRANSITION_ERROR =
+  '這個狀態變更不是合法的下一步。新版結算只能依 待核對 → 審核中 → 已核准 → 已撥款 逐步推進，不能往回改。';
+
+export const SETTLEMENT_STATUS_RACE_ERROR =
+  '這張結算的狀態在你操作的同時被改過了，這次沒有變更。請重新整理後再確認。';
+
 /** 伺服器端寫入開關。預設關閉；只讀伺服器環境變數，不得暴露到前端。 */
 export function settlementWriteEnabled(
   env: Record<string, string | undefined> = process.env,
@@ -587,4 +596,38 @@ export function assertSettlementDeletable(input: {
   if (input.sourceItemCount > 0 || input.rulesVersion != null) {
     throw new Error(SETTLEMENT_HAS_SOURCE_ITEMS_ERROR);
   }
+}
+
+/** 新版結算唯一允許的狀態推進。cancelled 不在其中：撤回後不得推回流程。 */
+const NEW_VERSION_NEXT_STATUS: Record<string, string | null> = {
+  draft: 'reviewing',
+  reviewing: 'approved',
+  approved: 'paid',
+  paid: null,
+  cancelled: null,
+};
+
+/**
+ * HQ 推進結算狀態時的伺服器端條件。
+ *
+ * 原實作只擋 `cancelled`，等於允許 `paid -> draft`；被降回 draft 的新版結算會重新
+ * 符合 POS 的撤回條件，店家就能撤回一張已撥款的結算。因此新版必須驗合法下一步，
+ * 並以**原狀態**當更新條件（不是「不等於 cancelled」），競態時整筆不動。
+ *
+ * legacy（`rulesVersion == null`）維持原本的寬鬆規則，只保留不得復活 cancelled。
+ */
+export function settlementStatusUpdateCondition(input: {
+  rulesVersion: string | null;
+  currentStatus: string;
+  next: string;
+}): { where: { status: string } | { status: { not: string } } } {
+  // legacy 行為完全不變：條件仍是「不等於 cancelled」，由呼叫端的筆數斷言給訊息。
+  if (input.rulesVersion == null) {
+    return { where: { status: { not: 'cancelled' } } };
+  }
+
+  if (NEW_VERSION_NEXT_STATUS[input.currentStatus] !== input.next) {
+    throw new Error(SETTLEMENT_STATUS_TRANSITION_ERROR);
+  }
+  return { where: { status: input.currentStatus } };
 }

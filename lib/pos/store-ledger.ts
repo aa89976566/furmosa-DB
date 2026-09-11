@@ -764,6 +764,42 @@ export function formatNtd(amount: number, sign: 'auto' | 'negative' | 'none' = '
   return body;
 }
 
+export type SettlementHistoryStatusView = {
+  label: string;
+  /** 對應 POS 既有的狀態色票，不另外新增顏色。 */
+  tone: 'settled' | 'pending' | 'neutral';
+};
+
+const SETTLEMENT_HISTORY_LABEL: Record<string, string> = {
+  draft: '待核對',
+  reviewing: '審核中',
+  approved: '已核准',
+  paid: '已撥款',
+  cancelled: '已撤回',
+};
+
+/**
+ * 結帳紀錄的狀態顯示。
+ *
+ * POS 明定「只有狀態顯示已撥款才代表款項已付」，所以 `paid` 卻沒有 `paidAt` 時
+ * **不得**顯示成已撥款——那會讓店家以為錢已經到帳。這種資料不一致要看得出來，
+ * 而不是被標成綠色的完成狀態。
+ */
+export function settlementHistoryStatusView(input: {
+  status: string;
+  paidAt: string | null;
+}): SettlementHistoryStatusView {
+  if (input.status === 'paid') {
+    return input.paidAt
+      ? { label: SETTLEMENT_HISTORY_LABEL.paid!, tone: 'settled' }
+      : { label: '撥款待確認（缺撥款時間）', tone: 'pending' };
+  }
+  if (input.status === 'cancelled') {
+    return { label: SETTLEMENT_HISTORY_LABEL.cancelled!, tone: 'neutral' };
+  }
+  return { label: SETTLEMENT_HISTORY_LABEL[input.status] ?? input.status, tone: 'pending' };
+}
+
 export function buildSearchText(parts: Array<string | null | undefined>): string {
   return parts
     .filter((part): part is string => Boolean(part && part.trim()))

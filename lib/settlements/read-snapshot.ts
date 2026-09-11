@@ -79,6 +79,30 @@ export function countsTowardValidTotals(status: string): boolean {
   return !(SETTLEMENT_EXCLUDED_STATUSES as readonly string[]).includes(status);
 }
 
+/**
+ * 來源原值與店家分潤的顯示格式。**保留原始小數，不四捨五入。**
+ *
+ * `lib/format.ts` 的 `formatCurrency` 用 `maximumFractionDigits: 0`，會把 76.5 顯示成
+ * NT$77。店家分潤是售價的 20%／30%，半元很常見；四捨五入後畫面數字與快照存下的
+ * 來源值不一致，對帳時查不出差額來自哪裡。只有整數口徑的欄位（`netPayableTwd`、
+ * `storeCollected`）才可以無小數顯示。
+ *
+ * 小數位不截斷：直接用該 double 的十進位表示分組，不先轉成固定位數。
+ */
+export function formatSourceAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return '—';
+  const sign = amount < 0 ? '-' : '';
+  const abs = Math.abs(amount);
+  const text = String(abs);
+  // 極大／極小值會變成指數表示，分組沒有意義，交給 Intl 處理。
+  if (text.includes('e') || text.includes('E')) {
+    return `${sign}NT$${new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 20 }).format(abs)}`;
+  }
+  const [whole = '0', fraction] = text.split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${sign}NT$${fraction ? `${grouped}.${fraction}` : grouped}`;
+}
+
 export type SettlementSourceRow = {
   id: string;
   sourceKind: string;

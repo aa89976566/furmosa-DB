@@ -13,7 +13,10 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
 import { updateSettlementStatus } from '@/app/(main)/settlements/actions';
-import type { SettlementSnapshotView } from '@/lib/settlements/read-snapshot';
+import {
+  formatSourceAmount,
+  type SettlementSnapshotView,
+} from '@/lib/settlements/read-snapshot';
 
 const SOURCE_KIND_LABEL: Record<string, string> = {
   consignment_sale: '寄賣銷售',
@@ -67,10 +70,11 @@ export function SnapshotDetail({
             label="期間"
             value={`${formatDate(header.periodStart)} ~ ${formatDate(header.periodEnd)}`}
           />
-          <Row label="寄賣銷售額" value={formatCurrency(header.grossSales)} />
-          <Row label="店家分潤" value={formatCurrency(header.commissionAmount)} />
-          <Row label="優惠券補貼" value={formatCurrency(header.rewardPayout)} />
-          <Row label="運費" value={formatCurrency(header.shippingFee)} />
+          {/* 這四個是 legacy Float 口徑，必須顯示原始小數；下面兩個是整數口徑。 */}
+          <Row label="寄賣銷售額" value={formatSourceAmount(header.grossSales)} />
+          <Row label="店家分潤" value={formatSourceAmount(header.commissionAmount)} />
+          <Row label="優惠券補貼" value={formatSourceAmount(header.rewardPayout)} />
+          <Row label="運費" value={formatSourceAmount(header.shippingFee)} />
           <Row label="店家代收現金" value={formatCurrency(header.storeCollected ?? 0)} />
           <Row
             label={owedByStore ? '店家應匯回公司' : '公司應匯給店家'}
@@ -147,7 +151,7 @@ export function SnapshotDetail({
 
         <SectionCard
           title={`來源明細（${view.auditSources.length}）`}
-          description="送出當時存下的逐筆來源快照，不重算"
+          description="送出當時存下的逐筆來源快照，不重算；金額顯示原始小數"
         >
           <Table>
             <TableHeader>
@@ -172,13 +176,13 @@ export function SnapshotDetail({
                   <TableCell className="font-mono text-xs">{row.sourceKey}</TableCell>
                   <TableCell className="text-right font-mono">{row.quantity ?? '—'}</TableCell>
                   <TableCell className="text-right text-sm">
-                    {row.unitPrice == null ? '—' : formatCurrency(row.unitPrice)}
+                    {row.unitPrice == null ? '—' : formatSourceAmount(row.unitPrice)}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(row.originalAmount)}
+                    {formatSourceAmount(row.originalAmount)}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-success">
-                    {row.commissionAmount == null ? '—' : formatCurrency(row.commissionAmount)}
+                    {row.commissionAmount == null ? '—' : formatSourceAmount(row.commissionAmount)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {row.voidedAt ? '已作廢（保留稽核）' : '認列中'}

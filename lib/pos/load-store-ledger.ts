@@ -18,6 +18,7 @@ import {
 import {
   classifyConsignmentSaleTxn,
   classifyCouponSource,
+  computeLegacyTotals,
   dedupeSources,
   pendingSource,
   storeCollectionSource,
@@ -25,11 +26,19 @@ import {
   type SettlementSourceDraft,
 } from '@/lib/settlements/source-snapshot';
 import {
+  allowedPaymentMethods,
+  buildSettleOverview,
+  payerFromDirection,
+  paymentMethodLabel,
+  type SettleOverview,
+  type StoreSettlementPaymentMethod,
+  type StoreSettlementSnapshot,
+} from '@/lib/pos/store-settlement';
+import {
   buildSettlementDraft,
   settlementReadiness,
   settlementWriteEnabled,
   type SettlementDraft,
-  type SettlementPaymentMethod,
 } from '@/lib/settlements/write-settlement';
 import {
   countVoidedAttempts,
@@ -39,7 +48,13 @@ import {
 
 const BILLABLE_RESTOCK_STATUSES = ['approved', 'converted_to_shipment'] as const;
 
-/** 送出前顯示的暫計。與 legacy 對帳摘要分開呈現，不可混為同一個數字。 */
+/**
+ * 送出前顯示的暫計。與 legacy 對帳摘要分開呈現，不可混為同一個數字。
+ *
+ * 付款方式納入冪等 key，所以每個可選方式都有自己的 key 與指紋：`methods`。
+ * 這裡刻意**不提供**單一的 `idempotencyKey`，否則切換付款方式時畫面會拿著
+ * 別的方式算出來的 key 去送出。
+ */
 export type SettlementPreview = {
   sourceCount: number;
   grossSales: number;
@@ -48,11 +63,17 @@ export type SettlementPreview = {
   storeCollected: number;
   netPayableTwd: number;
   direction: SettlementDraft['totals']['direction'];
+  /** 由可信且未鎖定來源的 Decimal 淨額推導，不取 legacy 對帳摘要。 */
+  payer: StoreSettlementSnapshot['payer'];
   sourceKeysDigest: string;
   amountsDigest: string;
-  /** 重送時用來找原單，避免另建第二張。只供比對與查詢，不參與金額計算。 */
-  idempotencyKey: string;
-  payloadFingerprint: string;
+  /** 每個可選付款方式各自的 key 與指紋。只供比對與查詢，不參與金額計算。 */
+  methods: Array<{
+    method: StoreSettlementPaymentMethod;
+    label: string;
+    idempotencyKey: string;
+    payloadFingerprint: string;
+  }>;
   /** 已被其他結帳單鎖住而未列入暫計的筆數。 */
   lockedSourceCount: number;
   lines: Array<{
@@ -93,7 +114,10 @@ export type StoreLedgerPageData = {
   storeLabel: string;
   periodStart: string;
   periodEnd: string;
+  /** legacy 對帳明細摘要。**只**給明細拆解區看，不是結帳金額。 */
   summary: StoreLedgerSummary;
+  /** 四張卡、付款方向與主要總額的唯一來源。由可結算 sources 的 Decimal totals 推導。 */
+  overview: SettleOverview;
   entries: LedgerEntryView[];
   refillRows: ReturnType<typeof groupRefillReconciliations>;
   /** 伺服器端寫入開關與鎖定狀態都就緒才為 true。false 時 UI 必須顯示可讀提示。 */
@@ -117,12 +141,22 @@ function paidPayment(status: string, paidAt: Date | null): boolean {
   return status === 'paid' && paidAt != null;
 }
 
-function previewFromDraft(draft: SettlementDraft, lockedSourceCount: number): SettlementPreview {
+function previewFromDrafts(
+  drafts: readonly SettlementDraft[],
+  lockedSourceCount: number,
+): SettlementPreview {
+  // 金額不隨付款方式改變，取任一份即可；key 與指紋才是逐方式不同。
+  const draft = drafts[0]!;
   return {
     sourceCount: draft.sources.length,
     lockedSourceCount,
-    idempotencyKey: draft.idempotencyKey,
-    payloadFingerprint: draft.payloadFingerprint,
+    payer: payerFromDirection(draft.totals.direction),
+    methods: drafts.map((item) => ({
+      method: item.intendedPaymentMethod,
+      label: paymentMethodLabel(item.intendedPaymentMethod),
+      idempotencyKey: item.idempotencyKey,
+      payloadFingerprint: item.payloadFingerprint,
+    })),
     grossSales: draft.totals.grossSales,
     commissionAmount: draft.totals.commissionAmount,
     rewardPayout: draft.totals.rewardPayout,
@@ -172,27 +206,53 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     operationSeqAvailable: attempts.available,
   });
 
-  const draft = buildSettlementDraft({
-    merchantId: storeId,
-    periodStart: options.periodStart,
-    periodEnd: options.periodEnd,
-    intendedPaymentMethod: previewPaymentMethod(summary.payer),
-    operationSeq: attempts.operationSeq,
-    sources,
-  });
+  // 付款方向必須由可信且未鎖定來源的 Decimal 淨額決定，不看 legacy summary.payer。
+  // 每個可選方式都各算一份 key，畫面切換時不需要重新往返，也不會用錯 key。
+  const previewTotals = computeLegacyTotals(sources);
+  const drafts = allowedPaymentMethods(payerFromDirection(previewTotals.direction)).map((method) =>
+    buildSettlementDraft({
+      merchantId: storeId,
+      periodStart: options.periodStart,
+      periodEnd: options.periodEnd,
+      intendedPaymentMethod: method,
+      operationSeq: attempts.operationSeq,
+      sources,
+    }),
+  );
+
+  const periodStartIso = options.periodStart.toISOString();
+  const periodEndIso = options.periodEnd.toISOString();
+  const historyRows = history.rows.map((row) => ({
+    id: row.id,
+    settlementNo: row.settlementNo,
+    status: row.status,
+    isNewVersion: row.rulesVersion != null,
+    netPayableTwd: row.netPayableTwd,
+    merchantOwesUs: row.merchantOwesUs,
+    periodStart: row.periodStart.toISOString(),
+    periodEnd: row.periodEnd.toISOString(),
+    paidAt: row.paidAt ? row.paidAt.toISOString() : null,
+    countsTowardValidTotals: row.countsTowardValidTotals,
+  }));
 
   return {
     storeId,
     storeLabel,
-    periodStart: options.periodStart.toISOString(),
-    periodEnd: options.periodEnd.toISOString(),
+    periodStart: periodStartIso,
+    periodEnd: periodEndIso,
     summary,
+    overview: buildSettleOverview({
+      totals: previewTotals,
+      history: historyRows,
+      periodStart: periodStartIso,
+      periodEnd: periodEndIso,
+    }),
     entries: sortLedgerEntries(entries).map(toLedgerEntryView),
     refillRows: groupRefillReconciliations(entries),
     persistAvailable: readiness.ok,
     persistBlockedReason: readiness.ok ? null : readiness.error,
     amountNotes,
-    preview: previewFromDraft(draft, lockedSourceCount),
+    preview: previewFromDrafts(drafts, lockedSourceCount),
     pending: pending.map((item) => ({
       reason: item.reason,
       reasonLabel: item.reasonLabel,
@@ -201,27 +261,9 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
       occurredAt: item.occurredAt.toISOString(),
       label: item.label,
     })),
-    history: history.rows.map((row) => ({
-      id: row.id,
-      settlementNo: row.settlementNo,
-      status: row.status,
-      isNewVersion: row.rulesVersion != null,
-      netPayableTwd: row.netPayableTwd,
-      merchantOwesUs: row.merchantOwesUs,
-      periodStart: row.periodStart.toISOString(),
-      periodEnd: row.periodEnd.toISOString(),
-      paidAt: row.paidAt ? row.paidAt.toISOString() : null,
-      countsTowardValidTotals: row.countsTowardValidTotals,
-    })),
+    history: historyRows,
     historyAvailable: history.available,
   };
-}
-
-/** 預覽用的預設付款方式。付款方式納入操作 key，送出前改選會產生新的 key。 */
-function previewPaymentMethod(payer: StoreLedgerSummary['payer']): SettlementPaymentMethod {
-  if (payer === 'FURMOSA') return 'FURMOSA_TO_STORE_TRANSFER';
-  if (payer === 'NONE') return 'NONE';
-  return 'BANK_TRANSFER';
 }
 
 export async function loadStoreLedger(options: LoadOptions): Promise<{

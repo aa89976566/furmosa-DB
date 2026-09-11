@@ -5,16 +5,18 @@ import { requireMerchantSession } from '@/lib/merchant-auth';
 import { parseTaipeiDateRange } from '@/lib/taipei-date';
 import { loadStoreLedger } from '@/lib/pos/load-store-ledger';
 import {
-  allowedPaymentMethods,
+  payerFromDirection,
   persistStoreSettlement,
+  resolveRequestedPaymentMethod,
+  submittedSettlementMessage,
   withdrawStoreSettlement,
-  type StoreSettlementPaymentMethod,
 } from '@/lib/pos/store-settlement';
 import {
   buildSettlementDraft,
   settlementReadiness,
   settlementWriteEnabled,
 } from '@/lib/settlements/write-settlement';
+import { computeLegacyTotals } from '@/lib/settlements/source-snapshot';
 import { countVoidedAttempts } from '@/lib/settlements/read-snapshot';
 
 export type ConfirmSettleResult =
@@ -29,26 +31,14 @@ export type ConfirmSettleResult =
     }
   | { ok: false; error: string };
 
-const METHOD_MAP: Record<string, StoreSettlementPaymentMethod> = {
-  銀行轉帳: 'BANK_TRANSFER',
-  '銀行轉帳（店家匯回匠寵）': 'BANK_TRANSFER',
-  匠寵餘額折抵: 'FURMOSA_BALANCE',
-  其他已核准方式: 'OTHER_APPROVED',
-  匠寵匯款至店家帳戶: 'FURMOSA_TO_STORE_TRANSFER',
-  本期無需付款: 'NONE',
-};
-
-/** 已送出的草稿只是待核對，絕不能寫成「已付款」或「已完成」。 */
-function submittedMessage(duplicate: boolean, settlementNo: string): string {
-  return duplicate
-    ? `這期已經送出過了，還是同一張 ${settlementNo}，狀態待總部核對。`
-    : `已送出待核對 ${settlementNo}。總部核對後才會撥款，這不是已付款。`;
-}
-
 export async function confirmStoreSettlementAction(input: {
   from: string;
   to: string;
-  paymentMethodLabel: string;
+  /**
+   * 穩定的結帳方式代碼（不是畫面文字）。
+   * UI 文字不得作為程式判斷依據，改字或換語言都不該影響冪等 key。
+   */
+  paymentMethod: string;
   /** 畫面上那份暫計的指紋。與伺服器重算不符即拒絕，不靜默改變整批內容。 */
   preview: {
     sourceKeysDigest: string;
@@ -64,15 +54,11 @@ export async function confirmStoreSettlementAction(input: {
   }
 
   // 金額一律由伺服器重算，不採用瀏覽器傳入的任何數字。
-  const { summary, sources, lockStateAvailable } = await loadStoreLedger({
+  const { sources, lockStateAvailable } = await loadStoreLedger({
     merchantId: session.merchantId,
     periodStart: range.start,
     periodEnd: range.end,
   });
-
-  const allowed = allowedPaymentMethods(summary.payer);
-  const requested = METHOD_MAP[input.paymentMethodLabel];
-  const method = requested && allowed.includes(requested) ? requested : allowed[0] ?? 'NONE';
 
   try {
     const attempts = await countVoidedAttempts(
@@ -82,6 +68,7 @@ export async function confirmStoreSettlementAction(input: {
     );
 
     // 讀不到鎖定狀態或操作序號時不得繼續：序號錯了會算出錯的冪等 key。
+    // 也必須排在收付方向之前：sources 不完整時算出的方向可能相反。
     const readiness = settlementReadiness({
       writeEnabled: settlementWriteEnabled(),
       lockStateAvailable,
@@ -89,11 +76,20 @@ export async function confirmStoreSettlementAction(input: {
     });
     if (!readiness.ok) return { ok: false, error: readiness.error };
 
+    // 收付方向由可信且未鎖定來源的 Decimal 淨額決定，不看 legacy 對帳摘要。
+    // 不適用的方式直接擋下，不 fallback：付款方式納入冪等 key，悄悄換一個
+    // 等於用別的 key 寫入，畫面顯示的方式也會與實際存下的不符。
+    const resolved = resolveRequestedPaymentMethod({
+      requested: input.paymentMethod,
+      payer: payerFromDirection(computeLegacyTotals(sources).direction),
+    });
+    if (!resolved.ok) return { ok: false, error: resolved.error };
+
     const draft = buildSettlementDraft({
       merchantId: session.merchantId,
       periodStart: range.start,
       periodEnd: range.end,
-      intendedPaymentMethod: method,
+      intendedPaymentMethod: resolved.method,
       operationSeq: attempts.operationSeq,
       sources,
     });
@@ -116,7 +112,12 @@ export async function confirmStoreSettlementAction(input: {
       settlementNo: result.settlementNo,
       status: result.status,
       netPayableTwd: result.netPayableTwd,
-      message: submittedMessage(result.duplicate, result.settlementNo),
+      // 重送舊 key 會回到原本那一張，而它可能已撤回或已撥款；訊息必須依實際狀態。
+      message: submittedSettlementMessage({
+        duplicate: result.duplicate,
+        settlementNo: result.settlementNo,
+        status: result.status,
+      }),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : '結帳失敗。';

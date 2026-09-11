@@ -4,11 +4,13 @@ import {
   summarizeStoreLedger,
   type LedgerEntry,
 } from '@/lib/pos/store-ledger';
+import type { SettlementLegacyTotals } from '@/lib/settlements/source-snapshot';
 import {
   persistSettlementDraft,
   settlementWriteEnabled,
   settlementWriteFailure,
   withdrawSettlementDraft,
+  SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR,
   type SettlementDraft,
   type SettlementWriteResult,
   type SubmittedPreview,
@@ -71,6 +73,118 @@ export function allowedPaymentMethods(
   if (payer === 'STORE') return ['BANK_TRANSFER', 'FURMOSA_BALANCE', 'OTHER_APPROVED'];
   if (payer === 'FURMOSA') return ['FURMOSA_TO_STORE_TRANSFER'];
   return ['NONE'];
+}
+
+/**
+ * 收付方向一律由**可信且未鎖定來源**的 Decimal 淨額決定，不看 legacy 對帳摘要。
+ *
+ * legacy `summary.payer` 來自 `summarizeStoreLedger(entries)`，而 entries 少了寄賣銷售、
+ * 又含已被別張結帳單鎖住的券，因此它的方向可能與實際要送出的淨額相反；淨額為零時
+ * 更會選到錯的付款方式。
+ */
+export function payerFromDirection(
+  direction: SettlementLegacyTotals['direction'],
+): StoreSettlementSnapshot['payer'] {
+  if (direction === 'STORE_TO_FURMOSA') return 'STORE';
+  if (direction === 'FURMOSA_TO_STORE') return 'FURMOSA';
+  return 'NONE';
+}
+
+/**
+ * 解析瀏覽器選的結帳方式。
+ *
+ * **不得 fallback 到別的付款方式**：付款方式納入冪等 key，悄悄換一個等於用不同的
+ * key 寫入，畫面顯示的方式也會與實際存下的不符。不適用就擋下並要求重新整理。
+ */
+export function resolveRequestedPaymentMethod(input: {
+  requested: string;
+  payer: StoreSettlementSnapshot['payer'];
+}): { ok: true; method: StoreSettlementPaymentMethod } | { ok: false; error: string } {
+  const allowed = allowedPaymentMethods(input.payer);
+  const match = allowed.find((method) => method === input.requested);
+  if (!match) {
+    return { ok: false, error: SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR };
+  }
+  return { ok: true, method: match };
+}
+
+/**
+ * 送出後要顯示的訊息。
+ *
+ * 重送舊 key 會回到原本那一張，而原本那張可能已經撤回或已撥款；一律說「待核對」
+ * 會直接誤導店家。因此訊息必須依實際狀態產生。
+ */
+export function submittedSettlementMessage(input: {
+  duplicate: boolean;
+  settlementNo: string;
+  status: string;
+}): string {
+  const { settlementNo: no } = input;
+  if (input.status === 'cancelled') {
+    return `這期先前送出的 ${no} 已經撤回，撤回紀錄保留。請重新整理後再送出新的一張。`;
+  }
+  if (input.status === 'paid') {
+    return `${no} 已經撥款完成，不會重複建立，也沒有新增任何紀錄。`;
+  }
+  if (input.status === 'reviewing' || input.status === 'approved') {
+    return `${no} 已經在總部審核中，不會重複建立。撥款完成前都不算已付款。`;
+  }
+  if (input.duplicate) {
+    return `這期已經送出過了，還是同一張 ${no}，狀態待總部核對。`;
+  }
+  return `已送出待核對 ${no}。總部核對後才會撥款，這不是已付款。`;
+}
+
+export type SettleOverview = {
+  storeOwesFurmosa: number;
+  furmosaOwesStore: number;
+  submittedNet: number;
+  submittedCount: number;
+  netPayableTwd: number;
+  payer: StoreSettlementSnapshot['payer'];
+  resultLabel: string;
+};
+
+/**
+ * POS 總覽四張卡與淨額的唯一數字來源。
+ *
+ * 應收應付只取本次可結算的 Decimal totals；已結算金額改讀**已送出的快照**
+ * （`history`），不再用 legacy 對帳摘要的 `settledAmount`，避免同一畫面兩套金額。
+ */
+export function buildSettleOverview(input: {
+  totals: Pick<SettlementLegacyTotals, 'netPayableTwd' | 'direction'>;
+  history: ReadonlyArray<{
+    netPayableTwd: number | null;
+    merchantOwesUs: number;
+    periodStart: string;
+    periodEnd: string;
+    countsTowardValidTotals: boolean;
+  }>;
+  periodStart: string;
+  periodEnd: string;
+}): SettleOverview {
+  const net = input.totals.netPayableTwd;
+  const payer = payerFromDirection(input.totals.direction);
+  const submitted = input.history.filter(
+    (row) =>
+      row.countsTowardValidTotals &&
+      row.periodStart === input.periodStart &&
+      row.periodEnd === input.periodEnd,
+  );
+
+  return {
+    storeOwesFurmosa: net > 0 ? net : 0,
+    furmosaOwesStore: net < 0 ? -net : 0,
+    submittedNet: submitted.reduce(
+      (sum, row) => sum + Math.abs(row.netPayableTwd ?? row.merchantOwesUs),
+      0,
+    ),
+    submittedCount: submitted.length,
+    netPayableTwd: net,
+    payer,
+    resultLabel:
+      payer === 'STORE' ? '店家應匯給匠寵' : payer === 'FURMOSA' ? '匠寵應匯給店家' : '本期無需付款',
+  };
 }
 
 export function selectSettlementItems(entries: LedgerEntry[]): LedgerEntry[] {
