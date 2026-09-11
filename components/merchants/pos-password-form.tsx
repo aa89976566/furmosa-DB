@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { submitPasswordResetWithReceipt, type PasswordResetReceipt } from '@/lib/pos/password-reset-receipt';
+import { isNextRedirect } from '@/lib/is-next-redirect';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { resetPosPasswordWithFeedback, type PosPasswordState } from '@/app/(main)/merchants/[id]/pos-password-action';
@@ -42,7 +44,18 @@ function PasswordFields({ users, visible, toggle }: { users: PosUser[]; visible:
 }
 
 export function PosPasswordForm({ merchantId, users }: { merchantId: string; users: PosUser[] }) {
-  const [state, action] = useFormState(resetPosPasswordWithFeedback, initialState);
+  const [receipt, setReceipt] = useState<PasswordResetReceipt | null>(null);
+  const [state, action] = useFormState(async (previous: PosPasswordState, data: FormData) => {
+    setReceipt(null);
+    try {
+      const result = await submitPasswordResetWithReceipt(previous, data, users, resetPosPasswordWithFeedback);
+      setReceipt(result.receipt);
+      return result.state;
+    } catch (error) {
+      if (isNextRedirect(error)) throw error;
+      return { status: 'error' as const, message: '無法確認密碼是否更新，請先嘗試登入；若仍失敗，請重新設定。' };
+    }
+  }, initialState);
   const [visible, setVisible] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -54,7 +67,17 @@ export function PosPasswordForm({ merchantId, users }: { merchantId: string; use
   return (
     <form ref={form} action={action} className="mt-3 space-y-3">
       <input type="hidden" name="merchantId" value={merchantId} />
-      <p className="text-xs text-muted-foreground">原密碼無法查回。請先輸入新密碼，再按重設；成功後原密碼將失效。</p>
+      {receipt ? (
+        <section aria-label="本次設定的登入資料" className="space-y-2 rounded-lg border bg-muted/40 p-3">
+          <p className="text-sm font-medium">已設定帳號：<span className="font-mono">{receipt.username}</span></p>
+          <p className="text-sm">密碼：</p>
+          <p className="select-text whitespace-pre-wrap break-all rounded-md bg-background p-3 font-mono text-lg">{receipt.password}</p>
+          <p className="text-xs text-muted-foreground">請抄下本次設定的密碼，離開或重新整理頁面後將不再顯示。</p>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setReceipt(null)}>隱藏已設定密碼</Button>
+        </section>
+      ) : (
+        <p className="text-xs text-muted-foreground">原密碼無法查回。輸入新密碼並重設成功後，密碼會直接顯示在帳號下方。</p>
+      )}
       <PasswordFields users={users} visible={visible} toggle={() => setVisible((value) => !value)} />
       {state.message ? <p role={state.status === 'error' ? 'alert' : 'status'} className="rounded-lg border bg-muted/40 p-3 text-sm">{state.message}</p> : null}
     </form>
