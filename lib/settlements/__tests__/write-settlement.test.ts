@@ -17,6 +17,7 @@ import {
   formatSettlementNo,
   isMissingSchemaError,
   persistSettlementDraft,
+  settlementReadiness,
   settlementWriteEnabled,
   withdrawSettlementDraft,
   type SettlementDraft,
@@ -277,6 +278,50 @@ describe('寫入開關預設關閉', () => {
     if (result.ok) return;
     assert.equal(result.code, 'WRITE_DISABLED');
     assert.match(result.error, /尚未啟用/);
+  });
+});
+
+describe('R4#1：讀不到鎖定狀態不得當成沒有鎖繼續', () => {
+  const ready = { writeEnabled: true, lockStateAvailable: true, operationSeqAvailable: true };
+
+  it('三者都就緒才放行', () => {
+    assert.deepEqual(settlementReadiness(ready), { ok: true });
+  });
+
+  it('flag 關閉時的理由與代碼不變', () => {
+    const result = settlementReadiness({ ...ready, writeEnabled: false });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'WRITE_DISABLED');
+  });
+
+  it('鎖定狀態讀不到時擋下送出，並說明是讀不到而不是沒有鎖', () => {
+    const result = settlementReadiness({ ...ready, lockStateAvailable: false });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'LOCK_STATE_UNKNOWN');
+    assert.match(result.error, /讀不到/);
+    assert.match(result.error, /避免重複結算/);
+    // 不得把 available:false 說成「沒有可結算項目」或「已啟用」。
+    assert.doesNotMatch(result.error, /沒有可以結算|尚未啟用/);
+  });
+
+  it('操作序號讀不到時同樣擋下：序號錯了會算出錯的冪等 key', () => {
+    const result = settlementReadiness({ ...ready, operationSeqAvailable: false });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'LOCK_STATE_UNKNOWN');
+  });
+
+  it('flag 關閉優先於鎖定狀態，理由只給一個', () => {
+    const result = settlementReadiness({
+      writeEnabled: false,
+      lockStateAvailable: false,
+      operationSeqAvailable: false,
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.code, 'WRITE_DISABLED');
   });
 });
 

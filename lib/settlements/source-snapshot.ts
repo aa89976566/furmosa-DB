@@ -104,6 +104,13 @@ export type PendingSource = {
   sourceRef: string;
   occurredAt: Date;
   label: string;
+  /**
+   * 這筆待確認對應的 canonical key，算不出來時為 null。
+   *
+   * 用途是把「已經在分類階段被擋下的一側」與「還留在可認列清單裡的另一側鏡像」
+   * 關聯起來。只要同一個 canonical key 有任何一側待確認，另一側就不能單獨認列。
+   */
+  sourceKey: string | null;
 };
 
 export function pendingSource(input: {
@@ -112,8 +119,13 @@ export function pendingSource(input: {
   sourceRef: string;
   occurredAt: Date;
   label: string;
+  sourceKey?: string | null;
 }): PendingSource {
-  return { ...input, reasonLabel: PENDING_REASON_LABEL[input.reason] };
+  return {
+    ...input,
+    sourceKey: input.sourceKey ?? null,
+    reasonLabel: PENDING_REASON_LABEL[input.reason],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +148,11 @@ export function halfAwayFromZero(value: number | Prisma.Decimal): number {
   const rounded = amount.abs().plus('0.5').floor();
   const signed = amount.isNegative() ? rounded.negated() : rounded;
   return signed.toNumber();
+}
+
+/** 不丟例外的版本。讀取端需要把超範圍轉成可讀訊息，不能讓它變成 500。 */
+export function isIntegerTwdInRange(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= INT4_MIN && value <= INT4_MAX;
 }
 
 export function assertIntegerTwdRange(value: number, label: string): number {
@@ -505,6 +522,8 @@ export function classifyCouponSource(coupon: CouponSourceInput): ClassifiedSourc
         sourceRef: coupon.id,
         occurredAt: coupon.redeemedAt,
         label,
+        // 沒有可靠券號就算不出 canonical key，無法與另一側鏡像關聯。
+        sourceKey: null,
       }),
     };
   }
@@ -518,6 +537,9 @@ export function classifyCouponSource(coupon: CouponSourceInput): ClassifiedSourc
         sourceRef: coupon.id,
         occurredAt: coupon.redeemedAt,
         label,
+        // 券號可靠、只有歸屬不可靠：canonical key 算得出來，
+        // 必須帶上，否則同券號的另一側會被單獨認列。
+        sourceKey: couponSourceKey(normalized),
       }),
     };
   }
@@ -626,13 +648,33 @@ export function compareCouponMirror(
  * - 任一邊缺可比對身分 → 同樣兩邊都不認列，理由是歧義而非衝突。
  *
  * 其餘 sourceKey 重複代表上游查詢有誤，視為程式錯誤而非資料歧義。
+ *
+ * `pendingBefore` 是分類階段就已經擋下的待確認項目。歧義的一側被移到待確認之後，
+ * 另一側不會再進到這裡比對，若不特別處理就會被單獨認列——等於用「把一邊藏起來」
+ * 的方式解掉真實歧義。因此只要同一個 canonical key 已經有待確認，剩下那側也必須
+ * 一起待確認。
  */
-export function dedupeSources(sources: readonly SettlementSourceDraft[]): DedupeResult {
+export function dedupeSources(
+  sources: readonly SettlementSourceDraft[],
+  pendingBefore: readonly PendingSource[] = [],
+): DedupeResult {
   const byKey = new Map<string, SettlementSourceDraft>();
   const conflicts = new Map<string, { source: SettlementSourceDraft; reason: PendingSourceReason }>();
+  const withheldKeys = new Set(
+    pendingBefore
+      .map((item) => item.sourceKey)
+      .filter((key): key is string => key != null && key.trim() !== ''),
+  );
 
   for (const source of sources) {
     if (conflicts.has(source.sourceKey)) continue;
+
+    if (withheldKeys.has(source.sourceKey)) {
+      // 另一側已經是待確認，這側不得單獨認列，也不得占用唯一鍵。
+      byKey.delete(source.sourceKey);
+      conflicts.set(source.sourceKey, { source, reason: 'COUPON_MIRROR_AMBIGUOUS' });
+      continue;
+    }
 
     const existing = byKey.get(source.sourceKey);
     if (!existing) {
@@ -671,6 +713,7 @@ export function dedupeSources(sources: readonly SettlementSourceDraft[]): Dedupe
         sourceRef: source.sourceKey,
         occurredAt: source.occurredAt,
         label: source.label,
+        sourceKey: source.sourceKey,
       }),
     ),
   };

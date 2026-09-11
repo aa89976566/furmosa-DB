@@ -40,6 +40,7 @@ import {
   type SubmittedPreview,
 } from '@/lib/settlements/write-settlement';
 import {
+  SETTLEMENT_INVALID_AMOUNT_ERROR,
   SETTLEMENT_VOID_STATE_ERROR,
   countVoidedAttempts,
   countsTowardValidTotals,
@@ -827,6 +828,33 @@ describe('真實 PostgreSQL 結算測試', { skip }, () => {
       assert.equal(broken.ok, false);
       if (!broken.ok) {
         assert.equal(broken.error, SETTLEMENT_VOID_STATE_ERROR);
+      }
+
+      await cleanupMerchant(merchantA);
+    });
+
+    it('來源原值被外部改成極大值時回傳可讀錯誤，不是 500', async () => {
+      const txn = await createSaleTxn(merchantA, {
+        quantity: 1,
+        unitPrice: 100,
+        commissionAmount: 30,
+      });
+      const draft = draftOf(merchantA, [txn]);
+      const created = await persistSettlementDraft(prisma, draft, submittedOf(draft));
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+
+      // 每一列都還是有限數值（過得了逐列檢查），但加總後超出整數台幣範圍。
+      // 這是 originalAmount 為 DOUBLE PRECISION 而 netPayableTwd 為 INTEGER 的真實落差。
+      await prisma.settlementSourceItem.updateMany({
+        where: { settlementId: created.id },
+        data: { originalAmount: 4e9 },
+      });
+
+      const overflow = await loadSettlementSnapshot(prisma, created.id);
+      assert.equal(overflow.ok, false);
+      if (!overflow.ok) {
+        assert.equal(overflow.error, SETTLEMENT_INVALID_AMOUNT_ERROR);
       }
 
       await cleanupMerchant(merchantA);

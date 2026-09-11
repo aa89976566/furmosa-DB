@@ -10,7 +10,11 @@ import {
   withdrawStoreSettlement,
   type StoreSettlementPaymentMethod,
 } from '@/lib/pos/store-settlement';
-import { buildSettlementDraft } from '@/lib/settlements/write-settlement';
+import {
+  buildSettlementDraft,
+  settlementReadiness,
+  settlementWriteEnabled,
+} from '@/lib/settlements/write-settlement';
 import { countVoidedAttempts } from '@/lib/settlements/read-snapshot';
 
 export type ConfirmSettleResult =
@@ -60,7 +64,7 @@ export async function confirmStoreSettlementAction(input: {
   }
 
   // 金額一律由伺服器重算，不採用瀏覽器傳入的任何數字。
-  const { summary, sources } = await loadStoreLedger({
+  const { summary, sources, lockStateAvailable } = await loadStoreLedger({
     merchantId: session.merchantId,
     periodStart: range.start,
     periodEnd: range.end,
@@ -76,6 +80,14 @@ export async function confirmStoreSettlementAction(input: {
       session.merchantId,
       sources.map((source) => source.sourceKey),
     );
+
+    // 讀不到鎖定狀態或操作序號時不得繼續：序號錯了會算出錯的冪等 key。
+    const readiness = settlementReadiness({
+      writeEnabled: settlementWriteEnabled(),
+      lockStateAvailable,
+      operationSeqAvailable: attempts.available,
+    });
+    if (!readiness.ok) return { ok: false, error: readiness.error };
 
     const draft = buildSettlementDraft({
       merchantId: session.merchantId,

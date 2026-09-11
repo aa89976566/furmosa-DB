@@ -318,9 +318,9 @@ function SettleWorkspaceInner({
         ) : (
           <p className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 text-sm text-zinc-600">兩邊應付相抵，本期不用匯款。</p>
         )}
-        {!ledger.persistAvailable ? (
+        {ledger.persistBlockedReason ? (
           <p className="mt-4 rounded-xl bg-neutral-50 px-3 py-3 text-sm text-zinc-600">
-            店家結帳寫入功能還沒啟用，現在送出不會留下任何紀錄。畫面數字可以先對，等總部開啟後再送出。
+            {ledger.persistBlockedReason}
           </p>
         ) : null}
         {message ? <p className="mt-3 text-sm text-orange-700">{message}</p> : null}
@@ -694,6 +694,12 @@ function SettleWorkspaceInner({
       </aside>
 
       <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
+        {/* 手機版看不到右側卡片，停用原因必須在按鈕旁講清楚，不能只是變灰。 */}
+        {ledger.persistBlockedReason ? (
+          <p className="mb-2 rounded-xl bg-white/95 px-3 py-2 text-xs text-zinc-600 shadow-lg">
+            {ledger.persistBlockedReason}
+          </p>
+        ) : null}
         <button
           type="button"
           disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
@@ -702,9 +708,11 @@ function SettleWorkspaceInner({
         >
           {busy
             ? '處理中…'
-            : ledger.preview.sourceCount === 0
-              ? '本期沒有可結算項目'
-              : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
+            : !ledger.persistAvailable
+              ? '目前無法送出'
+              : ledger.preview.sourceCount === 0
+                ? '本期沒有可結算項目'
+                : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
         </button>
       </div>
 

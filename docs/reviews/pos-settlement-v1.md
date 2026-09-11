@@ -6,12 +6,12 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R3（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3 規格缺陷修訂；詳見 §0.1–§0.4） |
-| 凍結文字 SHA256 | `c75cf101e3964d0c8ac7fdfdcb1ccd4ebb1260c2ba06e83f588727fb98663dd2` |
+| Prompt 版本 | v2-R4（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4 規格缺陷修訂；詳見 §0.1–§0.5） |
+| 凍結文字 SHA256 | `e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5df44c4de9cda7e00` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
-| 交付方式 | 僅 draft PR。不 merge、不部署、不動正式資料 |
+| 交付方式 | 實作端只推 draft PR。使用者已於第九輪明確授權正式部署，**但部署由 Codex 驗收後執行**；實作端仍不 merge、不部署、不動正式資料、不接觸正式庫存與歷史 |
 | 實作者／監督者 | 實作＝Cursor（本代理）；獨立逐檔 diff 驗收＝Codex。實作者不得自我驗收 |
 
 本檔是本工作包的唯一權威規格。實作期間 §1 文字不得變更；需要變更範圍必須另取使用者授權、重新審核並另存新版本，不得覆寫本檔。
@@ -82,6 +82,20 @@
 | 5 | 未知 `sourceKind`／非法金額／缺必要 sale 欄位會變成 500 | **確認** | `computeLegacyTotals` 的 `else` 分支把未知種類默默當成代收現金加進淨額，`assertIntegerTwdRange` 遇 NaN 直接拋例外。新增 `validateSnapshotSources()` 於任何加總之前擋下並回可讀訊息；`computeLegacyTotals` 對未知種類改拋 `UnknownSourceKindError` 而非沉默錯帳 |
 
 R3 修訂前的凍結雜湊：`c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e88159ce9b0e10935312`（commit `7ed36a1`）。
+
+### 0.5 R4 規格缺陷審核紀錄
+
+使用者第九輪（獨立驗收 `97f0210`：101 項指定測試、typecheck，以及隔離 PostgreSQL 五項並行／回滾／撤回／稽核保留實測皆通過）提出三項 R3 剩餘缺口。全部經審核**確認為真實缺陷**，其中第 1 項在審核時發現同一類問題還有第二處。
+
+三項都屬**原規格本身的缺口**：R3 引入了「可用性旗標」與「分類階段 pending」兩個新概念，但沒有規定它們的失敗語意，等於留下沉默失敗的空間。依授權最小幅度修訂 §1.5、§1.8、§1.10、§1.11 對應條文並重新計算凍結雜湊。舊雜湊保留於 §0.1、§0.2、§0.4、本節作為證據。白名單未擴張。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | `loadActiveSourceKeys.available === false` 被當成空鎖集合悄悄繼續 | **確認（審核發現第二處）** | `available: false` 只代表**讀不到**，不代表沒有鎖。當成空集合會算出偏高的暫計，送出才被資料庫擋下。審核另查出 `countVoidedAttempts.available` 有完全相同的問題，而且更嚴重：操作序號讀錯會算出錯的冪等 key，撤回後可能重用已被占用的 key。新增共用 `settlementReadiness()`（`lib/settlements/write-settlement.ts`），預覽與送出都用同一個結論，新增 `LOCK_STATE_UNKNOWN` 代碼與可讀訊息；POS server action 也在建立草稿前檢查，不只擋 UI |
+| 2 | 歧義券在分類階段移到 pending 後，同 canonical key 的另一側仍被單獨認列 | **確認** | `COUPON_STORE_AMBIGUOUS` 的券有可靠券號、算得出 canonical key，但已離開可認列清單，`dedupeSources` 再也看不到它，剩下那側就被當成唯一一筆認列——等於用「把一邊藏起來」解掉真實歧義。`PendingSource` 增加 `sourceKey`（算不出時為 null），`dedupeSources` 接受第二參數 `pendingBefore`，同 key 已有 pending 時剩下那側一併轉 `COUPON_MIRROR_AMBIGUOUS`。`COUPON_CODE_MISSING` 沒有券號故 key 為 null，不得因此擋下無關來源 |
+| 3 | 讀快照時非法 header 與加總溢位仍會變成 500 | **確認** | R3 只驗了逐列來源。header 的 legacy Float 若非有限，`new Prisma.Decimal()` 會在加總時直接拋例外；`netPayableTwd`／`storeCollected` 若非整數或超出 INT4 也無法比較。更隱蔽的是逐列都合法、加總後才溢位（`originalAmount` 是 DOUBLE PRECISION 而 `netPayableTwd` 是 INTEGER），`assertIntegerTwdRange` 會拋例外冒泡成 500。新增 `validateSnapshotHeader()` 與不丟例外的 `isIntegerTwdInRange()`，並把 `computeLegacyTotals` 包在 try／catch 內轉成可讀錯誤（未知種類與金額錯誤分開） |
+
+R4 修訂前的凍結雜湊：`c75cf101e3964d0c8ac7fdfdcb1ccd4ebb1260c2ba06e83f588727fb98663dd2`（commit `9ca4c46`）。
 
 ---
 
@@ -173,6 +187,7 @@ R3 修訂前的凍結雜湊：`c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e8815
 - 預覽必須排除**已被 active canonical 唯一鍵占用**的來源。寄賣銷售可靠 `MerchantStockTxn.settlementId` 過濾，但券與代收付款沒有欄位鎖，它們的鎖就是該唯一鍵；不排除會讓已結過的金額重複出現在暫計，送出時才被資料庫擋下。
 - 排除是「已結過」，不是「待確認」：這些來源只出現在已送出紀錄，不得混進待確認清單。UI 可顯示被排除筆數。
 - 跨店不得互相影響：唯一鍵是 `(merchantId, sourceKey)`，查詢必須限定本店。
+- **讀不到鎖定狀態不等於沒有鎖。** 缺表環境的 `available: false` 不得當成空的鎖集合繼續：那會算出偏高的暫計。操作序號（已作廢嘗試次數）讀不到時更嚴重，會算出錯的冪等 key、撤回後可能重用已被占用的 key。兩者任一讀不到就必須擋下送出並顯示可讀原因，且預覽與送出必須共用同一個就緒判斷，不得各自解讀。伺服器端擋下，不只隱藏 UI 按鈕。
 
 **待確認（pending，不計金額、不鎖定、不占唯一鍵）**
 
@@ -241,6 +256,7 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 同 key 同 payload → 回傳既有結算；同 key 不同 payload → 拒絕；部分重疊 → 整批拒絕。
 - **重送優先於重算**：送出時必須先用預覽當時的 key 查本店原單，找到就回傳原單。送出成功會鎖住來源而讓它們從新預覽消失，撤回會讓操作序號改變，兩者都會算出不同的新 key；若先算新 key 再寫入，重按一次就會變成「沒有可結算項目」或直接開出第二張結算。原 key 查詢必須限定本店，且找到的原單指紋與預覽不符時拒絕。
 - 瀏覽器帶回的 key 與指紋只用於比對與查詢，永遠不參與金額計算、也不得用來建立新結算。
+- **就緒判斷必須在建立草稿之前**：寫入 flag、來源鎖定狀態與操作序號三者任一讀不到，都必須在進入交易前擋下並回傳可讀原因，不得以預設值（空鎖集合、序號 0）繼續。操作序號讀不到尤其不可放行：它會算出錯的冪等 key，撤回後可能重用已被占用的 key。此判斷必須是預覽與送出**共用的同一個函式**，不得兩邊各自解讀；且必須在伺服器端執行，不得只靠 UI 隱藏按鈕。
 - header、明細、來源鎖必須在**同一個交易**內完成。
 - 真正的防線是資料庫唯一約束，不是先讀後寫。
 - 寄賣銷售鎖 `MerchantStockTxn.settlementId` 時必須帶 `settlementId: null` 條件並做**筆數斷言**；筆數不符即回滾（修復既有搶鎖缺陷，屬本測試版必要修復）。
@@ -265,17 +281,21 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 已撤回（`cancelled`）的結算必須仍可查閱其送出當時的快照：header 以**保留的全部稽核來源**驗證，不因明細被標 `voidedAt` 而判為損毀，也不得把歷史金額清零。
 - 撤回是**整張**的操作，不是逐筆的：`cancelled` 必須每一列都已作廢，其他狀態必須每一列都仍在 active。部分作廢代表資料被半套改動，必須 fail closed，不得照 header 顯示金額。
 - 來源列本身無法解讀時同樣必須是可讀錯誤而非 500：未知 `sourceKind`／`direction`、非有限金額，以及寄賣銷售缺 `quantity`／`unitPrice`／`commissionAmount`，都必須在任何加總之前擋下。未知 `sourceKind` **不得**被默默當成代收現金加進淨額。
+- **header 本身也必須先驗**：legacy Float 欄位非有限、整數欄位非整數或超出 INT4 範圍時，必須是可讀錯誤而非 500。另必須處理「逐列都合法、加總後才溢位」的情況（來源原值是 DOUBLE PRECISION，淨額是 INTEGER），加總過程拋出的範圍與未知種類錯誤都要轉成可讀訊息，兩者代碼分開。範圍檢查必須另備**不丟例外**的版本供讀取端使用。
 - HQ 新版分支讀逐筆來源快照與共用淨額；legacy `calcSettlement` 路徑完全不變。
 - POS 必須把**暫計**、**待確認**、**已送出紀錄**分開呈現，已送出者顯示同一編號與狀態。
 - 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。
 - 沿用既有 UI 元件與樣式，手機與桌機都必須可用。
 - 新版伺服器寫入 flag 預設關閉；關閉時 UI 必須顯示可讀提示且**不得假裝成功**。flag 關閉不得讓任何已存在的新版紀錄從讀取面消失。
-- 缺 schema 的環境同樣必須顯示可讀提示。
+- 缺 schema 的環境同樣必須顯示可讀提示。無法送出的原因必須由伺服器提供、UI 原樣顯示，不得在前端寫死成單一句子（否則鎖定狀態讀不到會被說成 flag 關閉）。手機版固定底欄也必須看得到該原因，不得只放在桌機側欄。
+- 無法送出時送出按鈕必須同時改變文字，不得維持可送出的外觀。
 - 不得改動正式環境 flag。
 
 ### 1.11 測試
 
 必須涵蓋：76.5 半元保留；正負半元；兩端同值一致；缺價與歸屬不可靠的券不鎖定；跨店拒絕；同 key／不同 payload／部分重疊／編號碰撞分類；零來源／零淨額；撤回競態／不復活；新舊分支與完整性錯誤；已鎖來源不入暫計；重送依原 key 回原單；同碼券顧客／店家不符與歧義；撤回狀態與明細不一致；未知來源種類與非法金額。
+
+R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被擋下並回同一個可讀原因（含 flag 關閉仍優先回報 flag）；歧義券在分類階段轉 pending 後同 canonical key 的另一鏡像也全列 pending，而無券號的 pending 不得擋下無關來源；非法 header 與逐列合法但加總溢位都回可讀錯誤。加總溢位必須在真實 PostgreSQL 上驗（逐列 DOUBLE PRECISION 寫入後讀取），不得只用單元測試模擬。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
@@ -369,13 +389,18 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 
 | 項目 | 結果 |
 |---|---|
-| `npx tsc --noEmit` | 通過 |
-| `lib/settlements/__tests__/*.test.ts`（純邏輯） | 85／85 通過 |
+| `npx tsc --noEmit` | 通過（R4 後重跑） |
+| `lib/settlements/__tests__/source-snapshot.test.ts` | 33／33 通過（R4#2 追加 3 案） |
+| `lib/settlements/__tests__/read-snapshot.test.ts` | 31／31 通過（R4#3 追加 4 案） |
+| `lib/settlements/__tests__/write-settlement.test.ts` | 33／33 通過（R4#1 追加 5 案） |
 | `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉） |
 | `lib/pos/__tests__/store-settlement-v1.test.ts` | 15／15 通過 |
-| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，測試如實 SKIP 並列出理由 |
+| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 14 個真 DB 案例待獨立驗收者執行（R4#3 追加「逐列合法、加總溢位」1 案） |
+| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 321／321 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
 
-合計 116 項純邏輯測試通過。實作端全程未連任何資料庫、未套用 migration。
+白名單指定測試合計 128 項通過；連同兩個測試目錄的既有測試共 321 項通過。實作端全程未連任何資料庫、未套用 migration。
+
+以上為實作端自跑結果，**不等於獨立驗收**。真 DB 行為與畫面操作仍須由 Codex 在自己的隔離庫與環境確認。
 
 ### 3.2 未執行項目
 
@@ -403,4 +428,4 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 5. **writer flag**：`POS_SETTLEMENT_WRITE_ENABLED` 預設關閉，只讀伺服器環境變數。
    先在 Preview 開啟驗收，正式環境另行授權後才開。
 
-**結論：本 PR 仍不具備上線條件。** 缺正式 drift 驗證與實機操作驗收。
+**結論：程式端已完成，上線與否取決於 §3.3 五項檢查。** 使用者已授權正式部署，故「只准測試」的舊限制不再適用；但 §3.3 第 1 項（正式 drift）與 §3.2 的實機操作驗收仍未完成，且實作端無權執行。部署必須由 Codex 完成獨立驗收後依 §3.3 第 4 項次序執行。

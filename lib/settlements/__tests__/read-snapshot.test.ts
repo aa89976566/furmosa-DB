@@ -7,6 +7,7 @@ import {
 import {
   SETTLEMENT_INCOMPLETE_SALE_ERROR,
   SETTLEMENT_INVALID_AMOUNT_ERROR,
+  SETTLEMENT_INVALID_HEADER_ERROR,
   SETTLEMENT_SNAPSHOT_BROKEN_ERROR,
   SETTLEMENT_SNAPSHOT_EMPTY_ERROR,
   SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR,
@@ -17,6 +18,7 @@ import {
   hasSourceSnapshot,
   isPosSettlementVersion,
   loadActiveSourceKeys,
+  validateSnapshotHeader,
   verifySnapshotIntegrity,
   type SettlementHeaderRow,
   type SettlementSourceRow,
@@ -412,5 +414,71 @@ describe('R3#1：已被 active 唯一鍵鎖住的來源不得再出現在暫計'
     const result = await loadActiveSourceKeys(missing, 'm-1', ['coupon:pt10-200']);
     assert.equal(result.available, false);
     assert.equal(result.lockedKeys.size, 0);
+  });
+});
+
+describe('R4#3：非法 header 與整數溢位必須是可讀錯誤', () => {
+  it('legacy Float 欄位非有限時不進 Decimal 加總', () => {
+    const sources = sampleSources();
+    for (const field of [
+      'grossSales',
+      'commissionAmount',
+      'rewardPayout',
+      'shippingFee',
+      'merchantOwesUs',
+      'payable',
+    ] as const) {
+      for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+        const header = headerFor(sources, { [field]: bad });
+        const result = buildSnapshotView(header, sources);
+        assert.equal(result.ok, false, `${field}=${bad} 應該 fail closed`);
+        if (result.ok) return;
+        assert.equal(result.error, SETTLEMENT_INVALID_HEADER_ERROR);
+      }
+    }
+  });
+
+  it('已存整數淨額不是整數或超出可儲存範圍時 fail closed', () => {
+    const sources = sampleSources();
+    for (const bad of [520.5, Number.NaN, 2147483648, -2147483649]) {
+      const netResult = buildSnapshotView(headerFor(sources, { netPayableTwd: bad }), sources);
+      assert.equal(netResult.ok, false, `netPayableTwd=${bad} 應該 fail closed`);
+      if (!netResult.ok) assert.equal(netResult.error, SETTLEMENT_INVALID_HEADER_ERROR);
+
+      const collectedResult = buildSnapshotView(
+        headerFor(sources, { storeCollected: bad }),
+        sources,
+      );
+      assert.equal(collectedResult.ok, false, `storeCollected=${bad} 應該 fail closed`);
+      if (!collectedResult.ok) {
+        assert.equal(collectedResult.error, SETTLEMENT_INVALID_HEADER_ERROR);
+      }
+    }
+  });
+
+  it('validateSnapshotHeader 對正常 header 放行', () => {
+    const sources = sampleSources();
+    assert.deepEqual(validateSnapshotHeader(headerFor(sources)), { ok: true });
+  });
+
+  it('逐列合法但加總後溢位時回傳可讀錯誤，不冒泡成 500', () => {
+    // 每一列都是有限數值，過得了逐列檢查；加總後才超出整數台幣範圍。
+    const huge = [
+      sourceRow({ id: 'big-1', originalAmount: 2e9, quantity: 1, unitPrice: 2e9, commissionAmount: 0 }),
+      sourceRow({
+        id: 'big-2',
+        sourceKey: 'consignment_sale:t2',
+        originalAmount: 2e9,
+        quantity: 1,
+        unitPrice: 2e9,
+        commissionAmount: 0,
+      }),
+    ];
+    // header 的數字本身合法，所以一定是加總那一步丟錯。
+    const header = headerFor(sampleSources(), { grossSales: 4e9, merchantOwesUs: 4e9, payable: 0 });
+    const result = buildSnapshotView(header, huge);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_INVALID_AMOUNT_ERROR);
   });
 });

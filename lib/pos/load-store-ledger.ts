@@ -26,6 +26,7 @@ import {
 } from '@/lib/settlements/source-snapshot';
 import {
   buildSettlementDraft,
+  settlementReadiness,
   settlementWriteEnabled,
   type SettlementDraft,
   type SettlementPaymentMethod,
@@ -95,8 +96,10 @@ export type StoreLedgerPageData = {
   summary: StoreLedgerSummary;
   entries: LedgerEntryView[];
   refillRows: ReturnType<typeof groupRefillReconciliations>;
-  /** 伺服器端寫入開關。關閉時 UI 必須顯示可讀提示，不得假裝成功。 */
+  /** 伺服器端寫入開關與鎖定狀態都就緒才為 true。false 時 UI 必須顯示可讀提示。 */
   persistAvailable: boolean;
+  /** 不能送出的原因。null 表示可以送出。 */
+  persistBlockedReason: string | null;
   amountNotes: string[];
   preview: SettlementPreview;
   pending: PendingSourceView[];
@@ -141,8 +144,17 @@ function previewFromDraft(draft: SettlementDraft, lockedSourceCount: number): Se
 }
 
 export async function loadStoreLedgerPageData(options: LoadOptions): Promise<StoreLedgerPageData> {
-  const { entries, summary, amountNotes, storeLabel, storeId, sources, lockedSourceCount, pending } =
-    await loadStoreLedger(options);
+  const {
+    entries,
+    summary,
+    amountNotes,
+    storeLabel,
+    storeId,
+    sources,
+    lockedSourceCount,
+    lockStateAvailable,
+    pending,
+  } = await loadStoreLedger(options);
 
   const [attempts, history] = await Promise.all([
     countVoidedAttempts(
@@ -152,6 +164,13 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     ),
     loadMerchantSettlementHistory(prisma, storeId),
   ]);
+
+  // 預覽與送出共用同一個就緒判斷：讀不到鎖定狀態不得當成沒有鎖繼續。
+  const readiness = settlementReadiness({
+    writeEnabled: settlementWriteEnabled(),
+    lockStateAvailable,
+    operationSeqAvailable: attempts.available,
+  });
 
   const draft = buildSettlementDraft({
     merchantId: storeId,
@@ -170,7 +189,8 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     summary,
     entries: sortLedgerEntries(entries).map(toLedgerEntryView),
     refillRows: groupRefillReconciliations(entries),
-    persistAvailable: settlementWriteEnabled(),
+    persistAvailable: readiness.ok,
+    persistBlockedReason: readiness.ok ? null : readiness.error,
     amountNotes,
     preview: previewFromDraft(draft, lockedSourceCount),
     pending: pending.map((item) => ({
@@ -214,6 +234,12 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   sources: SettlementSourceDraft[];
   /** 已被其他結帳單鎖住而排除的來源筆數。 */
   lockedSourceCount: number;
+  /**
+   * 是否真的讀到了鎖定狀態。缺表環境讀不到時為 false。
+   *
+   * false **不等於沒有鎖**，所以不能當成空的鎖集合繼續送出；由呼叫端擋下寫入。
+   */
+  lockStateAvailable: boolean;
   /** 待確認來源。不計金額、不寫入、不占唯一鍵。 */
   pending: PendingSource[];
 }> {
@@ -230,6 +256,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       amountNotes: [],
       sources: [],
       lockedSourceCount: 0,
+      lockStateAvailable: true,
       pending: [],
     };
   }
@@ -615,7 +642,8 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     );
   }
 
-  const deduped = dedupeSources(rawSources);
+  // 分類階段已擋下的待確認要一起傳進去：歧義券的另一側不得單獨認列。
+  const deduped = dedupeSources(rawSources, pending);
   pending.push(...deduped.conflicts);
 
   // 已被其他結帳單鎖住的來源必須從暫計裡排除。
@@ -641,6 +669,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     amountNotes,
     sources,
     lockedSourceCount,
+    lockStateAvailable: lock.available,
     pending: pending.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
   };
 }

@@ -36,6 +36,9 @@ export const SETTLEMENT_WRITE_DISABLED_ERROR =
 
 export const SETTLEMENT_NO_SOURCES_ERROR = '這段期間沒有可以結算的項目，不會建立結帳紀錄。';
 
+export const SETTLEMENT_LOCK_STATE_UNKNOWN_ERROR =
+  '目前讀不到這期的結帳鎖定狀態，為了避免重複結算已暫時停用送出。畫面數字僅供參考，請聯絡總部確認資料庫更新。';
+
 export const SETTLEMENT_STALE_PREVIEW_ERROR =
   '畫面上的資料已經變動，請重新整理後再送出，避免結錯金額。';
 
@@ -137,6 +140,7 @@ export function buildSettlementDraft(input: {
 export type SettlementWriteFailureCode =
   | 'WRITE_DISABLED'
   | 'SCHEMA_MISSING'
+  | 'LOCK_STATE_UNKNOWN'
   | 'NO_SOURCES'
   | 'STALE_PREVIEW'
   | 'PAYLOAD_CONFLICT'
@@ -158,6 +162,7 @@ export type SettlementWriteResult =
 const FAILURE_MESSAGE: Record<SettlementWriteFailureCode, string> = {
   WRITE_DISABLED: SETTLEMENT_WRITE_DISABLED_ERROR,
   SCHEMA_MISSING: SETTLEMENT_SCHEMA_MISSING_ERROR,
+  LOCK_STATE_UNKNOWN: SETTLEMENT_LOCK_STATE_UNKNOWN_ERROR,
   NO_SOURCES: SETTLEMENT_NO_SOURCES_ERROR,
   STALE_PREVIEW: SETTLEMENT_STALE_PREVIEW_ERROR,
   PAYLOAD_CONFLICT: SETTLEMENT_PAYLOAD_CONFLICT_ERROR,
@@ -168,6 +173,31 @@ const FAILURE_MESSAGE: Record<SettlementWriteFailureCode, string> = {
 
 export function settlementWriteFailure(code: SettlementWriteFailureCode): SettlementWriteResult {
   return { ok: false, code, error: FAILURE_MESSAGE[code] };
+}
+
+/**
+ * 送出前的就緒判斷。預覽與送出共用同一個結論，不各自解讀。
+ *
+ * `loadActiveSourceKeys` 與 `countVoidedAttempts` 的 `available: false` 只代表
+ * **讀不到**，不代表「沒有鎖」或「操作序號是 0」。當成空集合繼續會算出錯的暫計，
+ * 也會算出錯的冪等 key（撤回後可能重用已被占用的 key）。因此一律擋下並說明原因。
+ */
+export function settlementReadiness(input: {
+  writeEnabled: boolean;
+  lockStateAvailable: boolean;
+  operationSeqAvailable: boolean;
+}): { ok: true } | { ok: false; code: SettlementWriteFailureCode; error: string } {
+  if (!input.writeEnabled) {
+    return { ok: false, code: 'WRITE_DISABLED', error: SETTLEMENT_WRITE_DISABLED_ERROR };
+  }
+  if (!input.lockStateAvailable || !input.operationSeqAvailable) {
+    return {
+      ok: false,
+      code: 'LOCK_STATE_UNKNOWN',
+      error: SETTLEMENT_LOCK_STATE_UNKNOWN_ERROR,
+    };
+  }
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

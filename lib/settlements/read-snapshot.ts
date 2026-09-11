@@ -21,7 +21,9 @@ import {
   POS_SETTLEMENT_RULES_VERSION,
   SETTLEMENT_SOURCE_DIRECTIONS,
   SETTLEMENT_SOURCE_KINDS,
+  UnknownSourceKindError,
   computeLegacyTotals,
+  isIntegerTwdInRange,
   withinLegacyTolerance,
   type SettlementSourceDirection,
 } from '@/lib/settlements/source-snapshot';
@@ -46,6 +48,9 @@ export const SETTLEMENT_INCOMPLETE_SALE_ERROR =
 
 export const SETTLEMENT_VOID_STATE_ERROR =
   '這張結帳單的撤回狀態和來源明細對不起來，為了避免看到錯誤金額已經停止顯示。請聯絡總部檢查，資料沒有被改動。';
+
+export const SETTLEMENT_INVALID_HEADER_ERROR =
+  '這張結帳單存下的總額欄位無法解讀，為了避免顯示錯誤數字已經停止顯示。請聯絡總部檢查，資料沒有被改動。';
 
 /** 不計入有效財務總計的狀態。cancelled 是撤回後的稽核殘留。 */
 export const SETTLEMENT_EXCLUDED_STATUSES = ['cancelled'] as const;
@@ -176,6 +181,38 @@ export function validateSnapshotSources(
 }
 
 /**
+ * header 存下的總額欄位本身是否可解讀。
+ *
+ * 必須在把 header 餵進 Decimal 加總之前跑完：非有限的 legacy Float 會讓
+ * `new Prisma.Decimal()` 直接拋例外，而超出整數台幣範圍的 netPayableTwd／
+ * storeCollected 無法與重算值比較。兩者都要變成可讀錯誤，不是 500。
+ */
+export function validateSnapshotHeader(
+  header: SettlementHeaderRow,
+): { ok: true } | { ok: false; error: string } {
+  const legacyFloats = [
+    header.grossSales,
+    header.commissionAmount,
+    header.rewardPayout,
+    header.shippingFee,
+    header.merchantOwesUs,
+    header.payable,
+  ];
+  if (legacyFloats.some((value) => !Number.isFinite(value))) {
+    return { ok: false, error: SETTLEMENT_INVALID_HEADER_ERROR };
+  }
+
+  if (
+    !isIntegerTwdInRange(header.netPayableTwd as number) ||
+    !isIntegerTwdInRange(header.storeCollected as number)
+  ) {
+    return { ok: false, error: SETTLEMENT_INVALID_HEADER_ERROR };
+  }
+
+  return { ok: true };
+}
+
+/**
  * 撤回是整張的操作，不是逐筆的。
  *
  * cancelled 必須每一列都已作廢；其他狀態必須每一列都還在 active。
@@ -201,6 +238,9 @@ export function verifySnapshotIntegrity(
     return { ok: false, error: SETTLEMENT_SNAPSHOT_EMPTY_ERROR };
   }
 
+  const readableHeader = validateSnapshotHeader(header);
+  if (!readableHeader.ok) return readableHeader;
+
   const readable = validateSnapshotSources(auditSources);
   if (!readable.ok) return readable;
 
@@ -208,7 +248,21 @@ export function verifySnapshotIntegrity(
   if (!voidState.ok) return voidState;
 
   // 與寫入端完全相同的 Decimal 口徑，S 取 header 已存的 legacy 運費。
-  const totals = computeLegacyTotals(auditSources, { shippingFee: header.shippingFee });
+  // 逐列都已驗過是有限數值，但加總後仍可能超出整數台幣範圍（例如被外部
+  // 直接寫入的極大值）。那時 computeLegacyTotals 會丟例外，必須在這裡
+  // 轉成可讀錯誤，不能讓它冒泡成 500。
+  let totals: ReturnType<typeof computeLegacyTotals>;
+  try {
+    totals = computeLegacyTotals(auditSources, { shippingFee: header.shippingFee });
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof UnknownSourceKindError
+          ? SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR
+          : SETTLEMENT_INVALID_AMOUNT_ERROR,
+    };
+  }
 
   const floatChecks: Array<[number, number]> = [
     [header.grossSales, totals.grossSales],

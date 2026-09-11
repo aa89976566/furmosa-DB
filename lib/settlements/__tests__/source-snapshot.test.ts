@@ -59,6 +59,25 @@ function couponDraft(overrides: Partial<SettlementSourceDraft> = {}): Settlement
   };
 }
 
+/** 與 couponDraft 同一張券（正規化後 key 相同），用來測兩側鏡像。 */
+function couponInput(
+  overrides: Partial<Parameters<typeof classifyCouponSource>[0]> = {},
+): Parameters<typeof classifyCouponSource>[0] {
+  return {
+    id: 'cpn-1',
+    model: 'grooming_coupon',
+    rawCouponCode: 'PT10-200',
+    faceValue: 200,
+    redeemedAt: at('2024-05-19T15:00:00'),
+    storeAttributionReliable: true,
+    storeKey: 'm-1',
+    customerId: 'cus-1',
+    customerName: '王小姐',
+    relatedOrderId: null,
+    ...overrides,
+  };
+}
+
 describe('精度：只在最終淨額進位一次', () => {
   it('half-away-from-zero 在正負半元都遠離零', () => {
     assert.equal(halfAwayFromZero(76.5), 77);
@@ -352,6 +371,54 @@ describe('R2#6：券跨來源去重不得靜默選一邊', () => {
       ),
       'same',
     );
+  });
+
+  it('R4#2：歧義的一側已在分類階段待確認時，另一側鏡像也不得單獨認列', () => {
+    const ambiguous = classifyCouponSource(
+      couponInput({
+        // 券號可靠但只靠店名比對到本店：歸屬不可靠，分類階段就是待確認。
+        storeAttributionReliable: false,
+        storeKey: null,
+      }),
+    );
+    assert.equal(ambiguous.kind, 'pending');
+    if (ambiguous.kind !== 'pending') return;
+    assert.equal(ambiguous.pending.reason, 'COUPON_STORE_AMBIGUOUS');
+    // 券號算得出 canonical key，必須帶上才能與另一側關聯。
+    assert.equal(ambiguous.pending.sourceKey, couponSourceKey('pt10-200'));
+
+    // 另一側是完全可信的鏡像。若不看已待確認的一側就會被單獨認列。
+    const survivor = couponDraft({ sourceSnapshot: { model: 'grooming_coupon' } });
+    assert.equal(survivor.sourceKey, ambiguous.pending.sourceKey);
+
+    const withoutContext = dedupeSources([survivor]);
+    assert.equal(withoutContext.sources.length, 1, '沒有帶入待確認時會單獨認列（缺口本身）');
+
+    const result = dedupeSources([survivor], [ambiguous.pending]);
+    assert.equal(result.sources.length, 0, '同 canonical key 已有待確認，這側也不得認列');
+    assert.equal(result.conflicts.length, 1);
+    assert.equal(result.conflicts[0]?.reason, 'COUPON_MIRROR_AMBIGUOUS');
+    assert.equal(result.conflicts[0]?.sourceKey, survivor.sourceKey);
+  });
+
+  it('R4#2：沒有可靠券號的待確認算不出 key，不得誤擋其他來源', () => {
+    const noCode = classifyCouponSource(couponInput({ rawCouponCode: null }));
+    assert.equal(noCode.kind, 'pending');
+    if (noCode.kind !== 'pending') return;
+    assert.equal(noCode.pending.reason, 'COUPON_CODE_MISSING');
+    assert.equal(noCode.pending.sourceKey, null);
+
+    const result = dedupeSources([couponDraft()], [noCode.pending]);
+    assert.equal(result.sources.length, 1, 'key 為 null 不得變成擋下全部');
+    assert.equal(result.conflicts.length, 0);
+  });
+
+  it('R4#2：dedupe 自己產生的衝突也帶 canonical key，可再往下關聯', () => {
+    const result = dedupeSources([
+      couponDraft({ originalAmount: 200 }),
+      couponDraft({ originalAmount: 250, sourceSnapshot: { model: 'reward_redemption' } }),
+    ]);
+    assert.equal(result.conflicts[0]?.sourceKey, couponSourceKey('pt10-200'));
   });
 
   it('非券來源的鍵重複屬上游程式錯誤，直接拋錯', () => {
