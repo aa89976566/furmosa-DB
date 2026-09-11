@@ -417,6 +417,7 @@ R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被�
 
 1. **正式 drift**：`docs/POS-02-MIGRATION-PLAN.md` §2 的閘門必須先關閉，才可在正式庫建立
    `20260911160000_pos_settlement_sources`。文件內的證據句已過期，閘門本身未失效。
+   使用者第十輪已提供唯讀 drift 證據，分析與最小處理方案見 §3.4。
 2. **隔離庫並行／回滾驗收**：以 `SETTLEMENT_TEST_DATABASE_URL` 執行
    `postgres-settlement.test.ts`，確認 partial unique index、完整性 CHECK、
    `ON DELETE RESTRICT`、同 key 並行收斂、來源衝突與鎖定衝突的零殘留回滾。
@@ -428,4 +429,60 @@ R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被�
 5. **writer flag**：`POS_SETTLEMENT_WRITE_ENABLED` 預設關閉，只讀伺服器環境變數。
    先在 Preview 開啟驗收，正式環境另行授權後才開。
 
-**結論：程式端已完成，上線與否取決於 §3.3 五項檢查。** 使用者已授權正式部署，故「只准測試」的舊限制不再適用；但 §3.3 第 1 項（正式 drift）與 §3.2 的實機操作驗收仍未完成，且實作端無權執行。部署必須由 Codex 完成獨立驗收後依 §3.3 第 4 項次序執行。
+### 3.4 正式庫 migration drift：唯讀證據與最小處理方案
+
+本節只做風險分析與方案建議。**未恢復任何舊 migration、未修改任何 migration 檔案、未修改 `_prisma_migrations`、未動 ledger、未啟用其他功能、未接觸正式資料。**
+
+#### 使用者提供的唯讀證據（Production `ukjjopridghvwzobrsus`）
+
+| 項目 | 數值 |
+|---|---|
+| `_prisma_migrations` 紀錄數 | 76 |
+| repo migration 數 | 55（含本包 1 個未套用） |
+| 正式名稱無對應檔案 | 19 |
+| checksum 不一致 | 3：`ensure_zhuwo_banqiao`、`shopify_order_review_gate`、`shipment_received_fields` |
+| 未完成紀錄 | 無 |
+| 本包結構 | `SettlementSourceItem` 與 `Settlement` 7 個新欄位皆未建立 |
+
+「7 個欄位」與本包 migration 內容一致：`rulesVersion`、`idempotencyKey`、`payloadFingerprint`、`createdSource`、`intendedPaymentMethod`、`netPayableTwd`、`storeCollected`。
+
+#### 本包補充查證（全部為 repo 唯讀，未連任何資料庫）
+
+1. **現行部署不會跑 migration。** `package.json` 的 `build` 是 `prisma generate && next build`；`vercel.json` 無 `buildCommand` override。commit `7452746 security: remove build-time database mutations` 明確把 `prisma migrate deploy`、`migrate resolve` 與 `ensure-demo-admin` 從 build 移除。`DEPLOY.md` Step 4 仍寫 build 會跑 `migrate deploy`，**該段已過期**，依 AGENTS.md 不得照舊文件操作。
+   → 部署程式碼與 drift **完全解耦**：drift 不會讓部署失敗，但本包 migration 也不會被自動套用。
+   → 仍須唯讀確認 Vercel 專案設定沒有在 Dashboard 覆寫 Build Command（`vercel.json` 看不到這層）。
+
+2. **`prisma migrate deploy` 不檢查 drift。** 5.22.0 的 CLI 實作只呼叫 `listMigrationDirectories()` 與 `applyMigrations()`，**不呼叫** `diagnoseMigrationHistory()`。「已套用但本地缺檔」與「套用後被修改」兩段訊息都位於引擎的 `diagnose_migration_history.rs`（`migrate status`／`migrate dev` 才用）；`apply_migrations.rs` 只有「檢查失敗的 migration」（P3009）。
+   → 19 個缺檔與 3 個 checksum 不一致**都不會**擋下套用；「沒有未完成紀錄」也排除了 P3009。
+
+3. **3 個 checksum 不一致中有 2 個檔案從未被編輯過。** `shopify_order_review_gate` 只有 commit `8b866ae`、`shipment_received_fields` 只有 commit `c41f53a`；只有 `ensure_zhuwo_banqiao` 有兩次（`2f591d0` → `fc535c6`「改純 SQL」），屬檔案端的真實改動。
+   `shopify_order_review_gate` 檔案實際 SHA-256 為 `c272853eee75584e28d7ab1f29bcf44828508174c05e738661648f549c2f4ee0`，與 `docs/SHOPIFY-OMS-PREVIEW-MIGRATION.md` 記錄的值相同；該文件載明當時「使用實際 SQL 檔 SHA-256，於同一交易寫入 `_prisma_migrations` 完成紀錄；未全面執行 migrate deploy」。
+   → 這 2 筆的不一致指向**紀錄端（人工寫入）**而非檔案端。不需要、也不應該改檔案去迎合紀錄。
+
+4. **證據有一處算不通，需補一個唯讀數字。** 76 − 19 = 57 筆紀錄有對應檔，但 repo 扣掉本包只有 54 個既有檔案，多出的 3 筆只能是**同名重複列**。歷史上 build 曾長期執行 `migrate resolve --rolled-back` 後接 `--applied`（commit `b4cd2c8` 至 `7452746`），正是會產生同名多列的操作。
+   決定安全性的數字不是 76，而是「**repo 內有幾個 migration 在 `_prisma_migrations` 沒有已套用紀錄**」：
+   - 若為 1（只有本包）→ `migrate deploy` 剛好只套用本包，安全。
+   - 若 > 1 → `migrate deploy` 會嘗試重跑舊 migration。舊檔並非全部冪等（例如 `20260512102047_init`），中途失敗會留下未完成紀錄，此後**所有** `migrate deploy` 都被 P3009 擋死，必須人工 `migrate resolve` 才能恢復。
+   唯讀取得方式：`npx prisma migrate status`，或 `SELECT migration_name, count(*) FROM _prisma_migrations WHERE rolled_back_at IS NULL GROUP BY 1 ORDER BY 2 DESC`。
+
+#### 部署風險評估
+
+| 風險 | 等級 | 依據 |
+|---|---|---|
+| drift 擋下程式部署 | **無** | build 不跑 migration（查證 1） |
+| checksum 不一致擋下套用 | **無** | `migrate deploy` 不做該檢查（查證 2） |
+| 未完成紀錄造成 P3009 | **無** | 使用者已確認沒有未完成紀錄 |
+| 全量 `migrate deploy` 重跑舊 migration | **中～高** | 取決於查證 4 的數字，目前未知 |
+| 19 筆缺檔代表的結構落差 | **未知，本包不處理** | 正式庫有 repo 不知道的結構。本包不依賴那 19 筆，且已確認本包自有物件皆不存在 |
+| 本包 migration 自身 | **低** | 全部 `IF NOT EXISTS` 或 `DO $$ ... EXCEPTION WHEN duplicate_object`，可重複執行；新欄位全 nullable、不 backfill；取 ACCESS EXCLUSIVE 鎖的只有 `Settlement`（月結表，列數小）。`datasource` 已設 `directUrl`，migrate 走 `DIRECT_URL`，不受 pooler 對 `DO $$` 的限制 |
+
+#### 最小處理方案：只套用本包一筆，不碰歷史
+
+1. **先唯讀確認 pending 筆數**：`npx prisma migrate status`。預期「只有 `20260911160000_pos_settlement_sources` 未套用」。
+2. **若 pending 只有本包一筆** → 直接 `npx prisma migrate deploy`（需 `DIRECT_URL`）。它只會套用本包，歷史 drift 原樣保留。
+3. **若 pending 超過一筆** → **不要**跑全量 deploy。改為在單一交易內只執行本包 SQL（先設 `lock_timeout`／`statement_timeout`），再用 `npx prisma migrate resolve --applied 20260911160000_pos_settlement_sources` 寫入紀錄。**用 `migrate resolve` 而不要手寫 `INSERT`**：Prisma 會自行從檔案算出正確 checksum，手寫紀錄正是造成目前 drift 的成因，不應再增加一筆。
+4. **若套用中途失敗** → 本包 SQL 全部冪等，修正成因後可安全重跑；但必須先 `npx prisma migrate resolve --rolled-back 20260911160000_pos_settlement_sources` 清掉未完成紀錄，否則後續 deploy 會被 P3009 擋死。
+5. **3 個 checksum 不一致與 19 筆缺檔：本包不處理。** 不恢復舊 migration、不改檔案、不改既有紀錄。理由是本包不依賴它們，而動它們會把一個可控的新增動作擴大成歷史資料風險。留給獨立的 drift reconcile 工作包依 `docs/POS-02-MIGRATION-PLAN.md` §2 程序處理（readonly snapshot → 三方 diff → 人工核准 → Preview 演練 → backup／forward-only／validation）。
+6. **若決定完全不套用 migration** → 程式仍可安全部署：讀取端對缺表 fail closed、寫入 flag 預設關閉，POS 會顯示缺表的可讀提示，不會假裝成功。
+
+**結論：程式端已完成，上線與否取決於 §3.3 五項檢查。** 使用者已授權正式部署，故「只准測試」的舊限制不再適用；但 §3.3 第 1 項（正式 drift，見 §3.4）與 §3.2 的實機操作驗收仍未完成，且實作端無權執行。部署必須由 Codex 完成獨立驗收後依 §3.3 第 4 項次序執行。
