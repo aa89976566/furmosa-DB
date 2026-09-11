@@ -6,7 +6,7 @@ import { Check, ChevronDown, Search, X } from 'lucide-react';
 import { ProductCover } from '@/components/pos/product-cover';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider, useRestockCart } from '@/components/pos/restock-cart-provider';
-import { PosAccountMenu } from '@/components/pos/account-menu';
+import { PosPageTools } from '@/components/pos/page-tools';
 import type { PosAccount } from '@/lib/pos/account';
 import type { InventoryProduct } from '@/lib/pos/load-inventory';
 import {
@@ -356,8 +356,8 @@ function InventoryWorkspaceInner({
         <main className="min-w-0 flex-1 md:flex md:h-full md:flex-col md:overflow-hidden">
           <header className="flex items-center justify-between px-4 pb-3 pt-5 md:px-6">
             <h1 className="text-2xl font-semibold">庫存</h1>
-            <div className="md:hidden">
-              <PosAccountMenu account={account} />
+            <div>
+              <PosPageTools account={account} />
             </div>
           </header>
           <div className="px-4 md:px-6">

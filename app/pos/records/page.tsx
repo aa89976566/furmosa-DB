@@ -4,10 +4,10 @@ import { QueryBoard } from '@/components/pos/query-board';
 import { loadPosAccount } from '@/lib/pos/account';
 import { loadQueryFeed } from '@/lib/pos/load-query-feed';
 
-export const metadata = { title: '查詢 · Furmosa 店家' };
+export const metadata = { title: '紀錄 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
-export default async function PosRecordsPage() {
+export default async function PosRecordsPage({ searchParams }: { searchParams?: { q?: string } }) {
   const session = await requireMerchantSession();
   const [account, items] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
@@ -16,9 +16,9 @@ export default async function PosRecordsPage() {
 
   return (
     <PosShell storeName={account.storeName} account={account}>
-      <div className="px-4 py-6 pr-16">
-        <h1 className="mb-4 text-xl font-semibold text-navy">查詢</h1>
-        <QueryBoard items={items} />
+      <div className="px-4 py-6">
+        <h1 className="mb-4 text-xl font-semibold text-navy">紀錄</h1>
+        <QueryBoard key={searchParams?.q ?? ""} items={items} initialQuery={searchParams?.q ?? ""} />
       </div>
     </PosShell>
   );

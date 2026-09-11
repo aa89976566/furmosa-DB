@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Eye, Search, Wallet } from 'lucide-react';
+import { PosPageTools } from '@/components/pos/page-tools';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
 import type { PosAccount } from '@/lib/pos/account';
@@ -358,13 +359,14 @@ function SettleWorkspaceInner({
       <InventorySideNav account={account} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="bg-transparent px-4 pb-2 pt-5 md:px-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-[28px] font-semibold tracking-tight text-zinc-900">結帳</h1>
+              <h1 className="text-[28px] font-semibold tracking-tight text-zinc-900">對帳</h1>
               <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
             </div>
-            {tab === 'overview' ? periodStoreFilter : null}
+            <PosPageTools account={account} />
           </div>
+          {tab === 'overview' ? <div className="mt-4">{periodStoreFilter}</div> : null}
           <div className="mt-5 flex gap-6 border-b border-neutral-200">
             {TABS.map((item) => (
               <button

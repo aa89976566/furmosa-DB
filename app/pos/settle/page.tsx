@@ -4,7 +4,7 @@ import { loadStoreLedgerPageData } from '@/lib/pos/load-store-ledger';
 import { defaultTaipeiMonthToTodayInputs, parseTaipeiDateRange } from '@/lib/taipei-date';
 import { SettleWorkspace } from '@/components/pos/settle-workspace';
 
-export const metadata = { title: '結帳 · Furmosa 店家' };
+export const metadata = { title: '對帳 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
 type SearchParams = {
