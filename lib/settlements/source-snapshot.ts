@@ -29,6 +29,30 @@ const INT4_MAX = 2147483647;
 export type SettlementSourceKind = 'consignment_sale' | 'store_collection' | 'coupon_subsidy';
 export type SettlementSourceDirection = 'STORE_TO_FURMOSA' | 'FURMOSA_TO_STORE';
 
+export const SETTLEMENT_SOURCE_KINDS: readonly SettlementSourceKind[] = [
+  'consignment_sale',
+  'store_collection',
+  'coupon_subsidy',
+];
+
+export const SETTLEMENT_SOURCE_DIRECTIONS: readonly SettlementSourceDirection[] = [
+  'STORE_TO_FURMOSA',
+  'FURMOSA_TO_STORE',
+];
+
+/**
+ * 同一張券跨來源模型比對用的身分。
+ *
+ * 面額與方向相同不足以證明是同一張券：同一個券號可能在兩個系統分別綁到不同顧客
+ * 或不同店家。任一邊缺少可比對身分時必須視為歧義，不得自行認定為鏡像。
+ */
+export type CouponMatchIdentity = {
+  /** 顧客身分。null 代表這個來源模型沒有可信顧客歸屬。 */
+  customerId: string | null;
+  /** 券歸屬的店家可信 key。null 代表歸屬不可靠。 */
+  storeKey: string | null;
+};
+
 export type SettlementSourceDraft = {
   sourceKind: SettlementSourceKind;
   sourceKey: string;
@@ -44,6 +68,8 @@ export type SettlementSourceDraft = {
   relatedOrderId: string | null;
   label: string;
   sourceSnapshot: Record<string, unknown>;
+  /** 只有券來源會帶。跨來源去重時用來確認是否真的是同一張券。 */
+  matchIdentity?: CouponMatchIdentity;
 };
 
 export type PendingSourceReason =
@@ -54,6 +80,7 @@ export type PendingSourceReason =
   | 'COUPON_CODE_MISSING'
   | 'COUPON_STORE_AMBIGUOUS'
   | 'COUPON_SOURCE_CONFLICT'
+  | 'COUPON_MIRROR_AMBIGUOUS'
   | 'UNSUPPORTED_LEDGER_AMOUNT';
 
 const PENDING_REASON_LABEL: Record<PendingSourceReason, string> = {
@@ -64,7 +91,9 @@ const PENDING_REASON_LABEL: Record<PendingSourceReason, string> = {
   COUPON_CODE_MISSING: '這張券沒有可靠券號，無法確認是否重複，需要人工確認。',
   COUPON_STORE_AMBIGUOUS: '這張券只能靠店名比對到本店，歸屬不可靠，需要人工確認。',
   COUPON_SOURCE_CONFLICT:
-    '同一張券在兩個系統裡的面額或歸屬對不起來，需要人工確認，系統不會自行選一邊。',
+    '同一張券在兩個系統裡的面額、顧客或店家對不起來，需要人工確認，系統不會自行選一邊。',
+  COUPON_MIRROR_AMBIGUOUS:
+    '同一張券在兩個系統裡缺少可比對的顧客或店家歸屬，無法確認是不是同一張，需要人工確認。',
   UNSUPPORTED_LEDGER_AMOUNT: '這筆金額目前沒有對應的結算欄位，需要人工確認。',
 };
 
@@ -186,6 +215,13 @@ export type LegacySummableSource = {
   commissionAmount: number | null;
 };
 
+export class UnknownSourceKindError extends Error {
+  constructor(public readonly sourceKind: string) {
+    super(`未知的來源種類：${sourceKind}`);
+    this.name = 'UnknownSourceKindError';
+  }
+}
+
 export function computeLegacyTotals(
   sources: readonly LegacySummableSource[],
   options: { shippingFee?: number } = {},
@@ -202,8 +238,12 @@ export function computeLegacyTotals(
       commission = commission.plus(decimal(source.commissionAmount));
     } else if (source.sourceKind === 'coupon_subsidy') {
       reward = reward.plus(decimal(source.originalAmount));
-    } else {
+    } else if (source.sourceKind === 'store_collection') {
       collected = collected.plus(decimal(source.originalAmount));
+    } else {
+      // 未知 sourceKind 的語意未知。不得默默當成代收現金加進淨額；
+      // 讀取端必須先驗證並顯示可讀錯誤，不讓這裡變成沉默的錯帳。
+      throw new UnknownSourceKindError(source.sourceKind);
     }
   }
 
@@ -442,6 +482,10 @@ export type CouponSourceInput = {
   redeemedAt: Date;
   /** 歸屬是否可靠。只靠中文店名比對時必須為 false。 */
   storeAttributionReliable: boolean;
+  /** 可信的店家 key（例如 Merchant.id）。歸屬不可靠時為 null。 */
+  storeKey: string | null;
+  /** 顧客身分。缺少時同券號比對只能判為歧義。 */
+  customerId: string | null;
   customerName: string;
   relatedOrderId: string | null;
 };
@@ -492,6 +536,7 @@ export function classifyCouponSource(coupon: CouponSourceInput): ClassifiedSourc
       occurredAt: coupon.redeemedAt,
       relatedOrderId: coupon.relatedOrderId,
       label,
+      matchIdentity: { customerId: coupon.customerId, storeKey: coupon.storeKey },
       sourceSnapshot: {
         model: coupon.model,
         rowId: coupon.id,
@@ -499,7 +544,9 @@ export function classifyCouponSource(coupon: CouponSourceInput): ClassifiedSourc
         normalizedCouponCode: normalized,
         faceValue: coupon.faceValue,
         redeemedAt: coupon.redeemedAt.toISOString(),
+        customerId: coupon.customerId,
         customerName: coupon.customerName,
+        storeKey: coupon.storeKey,
         relatedOrderId: coupon.relatedOrderId,
       },
     },
@@ -538,27 +585,54 @@ export type DedupeResult = {
   conflicts: PendingSource[];
 };
 
-/** 兩筆是否為同一張券的鏡像：面額與方向都相同才算。 */
-function sameCouponValue(left: SettlementSourceDraft, right: SettlementSourceDraft): boolean {
-  return (
+export type CouponMirrorVerdict = 'same' | 'different' | 'ambiguous';
+
+/**
+ * 兩筆同券號來源是不是同一張券。
+ *
+ * 面額與方向只是必要條件。顧客與店家歸屬也必須一致，否則同一個券號在兩個系統
+ * 綁到不同人或不同店時會被誤認成鏡像而少認列一筆。任一邊缺身分即為歧義。
+ */
+export function compareCouponMirror(
+  left: SettlementSourceDraft,
+  right: SettlementSourceDraft,
+): CouponMirrorVerdict {
+  const leftId = left.matchIdentity;
+  const rightId = right.matchIdentity;
+  if (
+    !leftId ||
+    !rightId ||
+    leftId.customerId == null ||
+    rightId.customerId == null ||
+    leftId.storeKey == null ||
+    rightId.storeKey == null
+  ) {
+    return 'ambiguous';
+  }
+
+  const sameValue =
     left.direction === right.direction &&
-    new Prisma.Decimal(left.originalAmount).equals(new Prisma.Decimal(right.originalAmount))
-  );
+    new Prisma.Decimal(left.originalAmount).equals(new Prisma.Decimal(right.originalAmount));
+  const sameOwner =
+    leftId.customerId === rightId.customerId && leftId.storeKey === rightId.storeKey;
+
+  return sameValue && sameOwner ? 'same' : 'different';
 }
 
 /**
  * 同一正規化券號在兩個來源模型同時出現時：
- * - 面額與方向完全一致（同一張券的鏡像）→ 只認列一次，以 GroomingCoupon 為準。
- * - 面額或歸屬衝突 → **兩邊都不認列**，產生待確認。系統不得自行選一邊把真實衝突解掉。
+ * - 面額、方向、顧客與店家全部一致 → 只認列一次，以 GroomingCoupon 為準。
+ * - 任一項不一致 → **兩邊都不認列**，產生待確認。系統不得自行選一邊把真實衝突解掉。
+ * - 任一邊缺可比對身分 → 同樣兩邊都不認列，理由是歧義而非衝突。
  *
  * 其餘 sourceKey 重複代表上游查詢有誤，視為程式錯誤而非資料歧義。
  */
 export function dedupeSources(sources: readonly SettlementSourceDraft[]): DedupeResult {
   const byKey = new Map<string, SettlementSourceDraft>();
-  const conflictKeys = new Map<string, SettlementSourceDraft>();
+  const conflicts = new Map<string, { source: SettlementSourceDraft; reason: PendingSourceReason }>();
 
   for (const source of sources) {
-    if (conflictKeys.has(source.sourceKey)) continue;
+    if (conflicts.has(source.sourceKey)) continue;
 
     const existing = byKey.get(source.sourceKey);
     if (!existing) {
@@ -570,9 +644,13 @@ export function dedupeSources(sources: readonly SettlementSourceDraft[]): Dedupe
       source.sourceKind === 'coupon_subsidy' && existing.sourceKind === 'coupon_subsidy';
     if (!isCouponPair) throw new Error(`來源鍵重複：${source.sourceKey}`);
 
-    if (!sameCouponValue(existing, source)) {
+    const verdict = compareCouponMirror(existing, source);
+    if (verdict !== 'same') {
       byKey.delete(source.sourceKey);
-      conflictKeys.set(source.sourceKey, source);
+      conflicts.set(source.sourceKey, {
+        source,
+        reason: verdict === 'ambiguous' ? 'COUPON_MIRROR_AMBIGUOUS' : 'COUPON_SOURCE_CONFLICT',
+      });
       continue;
     }
 
@@ -586,9 +664,9 @@ export function dedupeSources(sources: readonly SettlementSourceDraft[]): Dedupe
 
   return {
     sources: [...byKey.values()].sort((a, b) => a.sourceKey.localeCompare(b.sourceKey)),
-    conflicts: [...conflictKeys.values()].map((source) =>
+    conflicts: [...conflicts.values()].map(({ source, reason }) =>
       pendingSource({
-        reason: 'COUPON_SOURCE_CONFLICT',
+        reason,
         sourceKind: source.sourceKind,
         sourceRef: source.sourceKey,
         occurredAt: source.occurredAt,

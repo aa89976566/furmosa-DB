@@ -275,6 +275,20 @@ function existingResult(row: {
 }
 
 /**
+ * 送出時由瀏覽器帶回的預覽指紋。
+ *
+ * 只用來比對與查詢，永遠不參與金額計算，也不用來建立新結算，
+ * 因此瀏覽器就算亂填也只會讓自己被拒絕，不會改變任何金額。
+ */
+export type SubmittedPreview = {
+  sourceKeysDigest: string;
+  amountsDigest: string;
+  /** 預覽當時的 key／fingerprint。重送時先用它找原單，避免另建第二張。 */
+  idempotencyKey?: string;
+  payloadFingerprint?: string;
+};
+
+/**
  * 建立 POS 待核對草稿。
  *
  * 送出時必須重新驗證來源集合與金額摘要；改變即拒絕，不得靜默改變整批內容。
@@ -283,9 +297,25 @@ function existingResult(row: {
 export async function persistSettlementDraft(
   client: PrismaClient,
   draft: SettlementDraft,
-  expected: { sourceKeysDigest: string; amountsDigest: string },
+  expected: SubmittedPreview,
 ): Promise<SettlementWriteResult> {
   if (!settlementWriteEnabled()) return settlementWriteFailure('WRITE_DISABLED');
+
+  // 重送優先：先用預覽當時的 key 找原單。
+  // 送出成功後來源會被鎖住而從新預覽裡消失，撤回也會讓操作序號改變，
+  // 兩者都會算出不同的新 key。若不先查原 key，重按一次就會變成
+  // 「沒有可結算項目」或直接開出第二張結算單。
+  const priorKey = expected.idempotencyKey;
+  if (priorKey && priorKey !== draft.idempotencyKey) {
+    const prior = await findSubmittedSettlement(client, draft.merchantId, priorKey);
+    if (prior) {
+      return expected.payloadFingerprint == null ||
+        prior.payloadFingerprint === expected.payloadFingerprint
+        ? existingResult(prior)
+        : settlementWriteFailure('PAYLOAD_CONFLICT');
+    }
+  }
+
   if (draft.sources.length === 0) return settlementWriteFailure('NO_SOURCES');
   if (
     draft.sourceKeysDigest !== expected.sourceKeysDigest ||
@@ -321,6 +351,29 @@ export async function persistSettlementDraft(
   }
 
   return settlementWriteFailure('LOCK_CONFLICT');
+}
+
+/** 依 key 找原單，並限定本店。瀏覽器帶回的 key 不得用來讀別家店的結算。 */
+async function findSubmittedSettlement(
+  client: PrismaClient,
+  merchantId: string,
+  idempotencyKey: string,
+) {
+  try {
+    return await client.settlement.findFirst({
+      where: { idempotencyKey, merchantId },
+      select: {
+        id: true,
+        settlementId: true,
+        status: true,
+        netPayableTwd: true,
+        payloadFingerprint: true,
+      },
+    });
+  } catch (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw error;
+  }
 }
 
 async function findByIdempotencyKey(client: PrismaClient, idempotencyKey: string) {

@@ -5,13 +5,18 @@ import {
   computeLegacyTotals,
 } from '@/lib/settlements/source-snapshot';
 import {
+  SETTLEMENT_INCOMPLETE_SALE_ERROR,
+  SETTLEMENT_INVALID_AMOUNT_ERROR,
   SETTLEMENT_SNAPSHOT_BROKEN_ERROR,
   SETTLEMENT_SNAPSHOT_EMPTY_ERROR,
+  SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR,
   SETTLEMENT_UNKNOWN_VERSION_ERROR,
+  SETTLEMENT_VOID_STATE_ERROR,
   buildSnapshotView,
   countsTowardValidTotals,
   hasSourceSnapshot,
   isPosSettlementVersion,
+  loadActiveSourceKeys,
   verifySnapshotIntegrity,
   type SettlementHeaderRow,
   type SettlementSourceRow,
@@ -262,17 +267,150 @@ describe('R2#1：撤回後仍可查閱送出當時的快照', () => {
     assert.equal(countsTowardValidTotals('paid'), true);
   });
 
-  it('部分撤回時仍以保留的全部稽核來源驗算', () => {
+  it('R3#4：撤回是整張的，draft 卻有部分明細被作廢必須 fail closed', () => {
     const sources = sampleSources();
     const header = headerFor(sources);
     const partial = sources.map((row, index) =>
       index === 0 ? { ...row, voidedAt: at('2024-05-22T09:00:00') } : row,
     );
     const result = buildSnapshotView(header, partial);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_VOID_STATE_ERROR);
+  });
+
+  it('R3#4：cancelled 卻仍有 active 明細也必須 fail closed', () => {
+    const sources = sampleSources();
+    const header = headerFor(sources, { status: 'cancelled' });
+    const partial = sources.map((row, index) =>
+      index === 0 ? row : { ...row, voidedAt: at('2024-05-22T09:00:00') },
+    );
+    const result = buildSnapshotView(header, partial);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_VOID_STATE_ERROR);
+  });
+});
+
+describe('R3#5：無法解讀的來源列必須是可讀錯誤而不是 500', () => {
+  it('未知 sourceKind 不得被默默當成代收現金', () => {
+    const sources = sampleSources();
+    const header = headerFor(sources);
+    const tampered = sources.map((row, index) =>
+      index === 2 ? { ...row, sourceKind: 'mystery_kind' } : row,
+    );
+    const result = buildSnapshotView(header, tampered);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR);
+  });
+
+  it('未知 direction 同樣 fail closed', () => {
+    const sources = sampleSources();
+    const header = headerFor(sources);
+    const tampered = sources.map((row, index) =>
+      index === 0 ? { ...row, direction: 'SIDEWAYS' } : row,
+    );
+    const result = buildSnapshotView(header, tampered);
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR);
+  });
+
+  it('非有限金額回傳可讀錯誤，不讓加總拋例外', () => {
+    const sources = sampleSources();
+    const header = headerFor(sources);
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const tampered = sources.map((row, index) =>
+        index === 0 ? { ...row, originalAmount: bad } : row,
+      );
+      const result = buildSnapshotView(header, tampered);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, SETTLEMENT_INVALID_AMOUNT_ERROR);
+    }
+  });
+
+  it('寄賣銷售缺數量、單價或分潤時回傳可讀錯誤', () => {
+    const sources = sampleSources();
+    const header = headerFor(sources);
+    for (const missing of [{ quantity: null }, { unitPrice: null }, { commissionAmount: null }]) {
+      const tampered = sources.map((row, index) => (index === 0 ? { ...row, ...missing } : row));
+      const result = buildSnapshotView(header, tampered);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, SETTLEMENT_INCOMPLETE_SALE_ERROR);
+    }
+  });
+
+  it('券與代收現金沒有數量單價是正常的，不得誤判', () => {
+    const sources = sampleSources();
+    const result = buildSnapshotView(headerFor(sources), sources);
     assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.equal(result.view.activeSources.length, 2);
-    assert.equal(result.view.voidedSources.length, 1);
-    assert.equal(result.view.withdrawn, false);
+  });
+});
+
+describe('R3#1：已被 active 唯一鍵鎖住的來源不得再出現在暫計', () => {
+  function lockClient(rows: Array<{ merchantId: string; sourceKey: string; voidedAt: Date | null }>) {
+    return {
+      settlementSourceItem: {
+        findMany: async ({ where }: { where: Record<string, unknown> }) =>
+          rows.filter(
+            (row) =>
+              row.merchantId === where.merchantId &&
+              ((where.sourceKey as { in: string[] }).in ?? []).includes(row.sourceKey) &&
+              (where.voidedAt === null ? row.voidedAt == null : true),
+          ),
+      },
+    } as unknown as Parameters<typeof loadActiveSourceKeys>[0];
+  }
+
+  it('只把未作廢的來源視為已鎖，撤回過的要放回暫計', async () => {
+    const client = lockClient([
+      { merchantId: 'm-1', sourceKey: 'coupon:pt10-200', voidedAt: null },
+      { merchantId: 'm-1', sourceKey: 'store_collection:pay-1', voidedAt: at('2024-05-22T09:00:00') },
+    ]);
+    const result = await loadActiveSourceKeys(client, 'm-1', [
+      'coupon:pt10-200',
+      'store_collection:pay-1',
+      'consignment_sale:t1',
+    ]);
+    assert.equal(result.available, true);
+    assert.deepEqual([...result.lockedKeys], ['coupon:pt10-200']);
+  });
+
+  it('不跨店：別家店鎖住同一個券號不影響本店', async () => {
+    const client = lockClient([
+      { merchantId: 'm-2', sourceKey: 'coupon:pt10-200', voidedAt: null },
+    ]);
+    const result = await loadActiveSourceKeys(client, 'm-1', ['coupon:pt10-200']);
+    assert.equal(result.lockedKeys.size, 0);
+  });
+
+  it('沒有來源鍵時不查資料庫', async () => {
+    const exploding = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('不應該連資料庫');
+        },
+      },
+    ) as Parameters<typeof loadActiveSourceKeys>[0];
+    const result = await loadActiveSourceKeys(exploding, 'm-1', []);
+    assert.equal(result.available, true);
+    assert.equal(result.lockedKeys.size, 0);
+  });
+
+  it('缺表環境標記 unavailable，不假裝沒有鎖', async () => {
+    const missing = {
+      settlementSourceItem: {
+        findMany: async () => {
+          throw Object.assign(new Error('missing'), { code: 'P2021' });
+        },
+      },
+    } as unknown as Parameters<typeof loadActiveSourceKeys>[0];
+    const result = await loadActiveSourceKeys(missing, 'm-1', ['coupon:pt10-200']);
+    assert.equal(result.available, false);
+    assert.equal(result.lockedKeys.size, 0);
   });
 });

@@ -19,6 +19,8 @@ import type { PrismaClient } from '@prisma/client';
 import {
   LEGACY_FLOAT_TOLERANCE,
   POS_SETTLEMENT_RULES_VERSION,
+  SETTLEMENT_SOURCE_DIRECTIONS,
+  SETTLEMENT_SOURCE_KINDS,
   computeLegacyTotals,
   withinLegacyTolerance,
   type SettlementSourceDirection,
@@ -32,6 +34,18 @@ export const SETTLEMENT_SNAPSHOT_EMPTY_ERROR =
 
 export const SETTLEMENT_UNKNOWN_VERSION_ERROR =
   '這張結帳單是這個版本的系統還看不懂的結算版本，為了避免算錯金額已經停止顯示。請聯絡總部，資料沒有被改動。';
+
+export const SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR =
+  '這張結帳單裡有這個版本的系統還看不懂的來源種類，為了避免算錯金額已經停止顯示。請聯絡總部，資料沒有被改動。';
+
+export const SETTLEMENT_INVALID_AMOUNT_ERROR =
+  '這張結帳單裡有無法計算的金額，為了避免顯示錯誤數字已經停止顯示。請聯絡總部檢查，資料沒有被改動。';
+
+export const SETTLEMENT_INCOMPLETE_SALE_ERROR =
+  '這張結帳單裡有寄賣銷售缺少數量、單價或分潤，無法重現當時的金額。請聯絡總部檢查，資料沒有被改動。';
+
+export const SETTLEMENT_VOID_STATE_ERROR =
+  '這張結帳單的撤回狀態和來源明細對不起來，為了避免看到錯誤金額已經停止顯示。請聯絡總部檢查，資料沒有被改動。';
 
 /** 不計入有效財務總計的狀態。cancelled 是撤回後的稽核殘留。 */
 export const SETTLEMENT_EXCLUDED_STATUSES = ['cancelled'] as const;
@@ -123,6 +137,59 @@ export type SettlementSnapshotResult =
  * legacy Float 合計允許 0.01 的比較容差（浮點加總誤差）；
  * 已存的整數欄位（netPayableTwd、storeCollected）必須完全相等，不得套用任何容差。
  */
+/**
+ * 來源列本身是否可解讀。
+ *
+ * 必須在任何加總之前跑完：未知種類、非有限金額或缺必要欄位都要變成可讀錯誤，
+ * 不能讓加總拋例外變成 500 白畫面，也不能被默默當成別種來源加進淨額。
+ */
+export function validateSnapshotSources(
+  auditSources: readonly SettlementSourceRow[],
+): { ok: true } | { ok: false; error: string } {
+  const finite = (value: number | null): boolean => value == null || Number.isFinite(value);
+
+  for (const row of auditSources) {
+    if (!(SETTLEMENT_SOURCE_KINDS as readonly string[]).includes(row.sourceKind)) {
+      return { ok: false, error: SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR };
+    }
+    if (!(SETTLEMENT_SOURCE_DIRECTIONS as readonly string[]).includes(row.direction)) {
+      return { ok: false, error: SETTLEMENT_UNKNOWN_SOURCE_KIND_ERROR };
+    }
+    if (
+      !Number.isFinite(row.originalAmount) ||
+      !finite(row.unitPrice) ||
+      !finite(row.commissionAmount) ||
+      !finite(row.companyRevenue) ||
+      (row.quantity != null && !Number.isSafeInteger(row.quantity))
+    ) {
+      return { ok: false, error: SETTLEMENT_INVALID_AMOUNT_ERROR };
+    }
+    if (
+      row.sourceKind === 'consignment_sale' &&
+      (row.quantity == null || row.unitPrice == null || row.commissionAmount == null)
+    ) {
+      return { ok: false, error: SETTLEMENT_INCOMPLETE_SALE_ERROR };
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * 撤回是整張的操作，不是逐筆的。
+ *
+ * cancelled 必須每一列都已作廢；其他狀態必須每一列都還在 active。
+ * 部分作廢代表資料被半套改動過，必須 fail closed，不得照著 header 顯示金額。
+ */
+export function verifyVoidState(
+  header: SettlementHeaderRow,
+  auditSources: readonly SettlementSourceRow[],
+): { ok: true } | { ok: false; error: string } {
+  const voided = auditSources.filter((row) => row.voidedAt != null).length;
+  const expectedVoided = header.status === 'cancelled' ? auditSources.length : 0;
+  return voided === expectedVoided ? { ok: true } : { ok: false, error: SETTLEMENT_VOID_STATE_ERROR };
+}
+
 export function verifySnapshotIntegrity(
   header: SettlementHeaderRow,
   auditSources: readonly SettlementSourceRow[],
@@ -133,6 +200,12 @@ export function verifySnapshotIntegrity(
   if (auditSources.length === 0) {
     return { ok: false, error: SETTLEMENT_SNAPSHOT_EMPTY_ERROR };
   }
+
+  const readable = validateSnapshotSources(auditSources);
+  if (!readable.ok) return readable;
+
+  const voidState = verifyVoidState(header, auditSources);
+  if (!voidState.ok) return voidState;
 
   // 與寫入端完全相同的 Decimal 口徑，S 取 header 已存的 legacy 運費。
   const totals = computeLegacyTotals(auditSources, { shippingFee: header.shippingFee });
@@ -291,6 +364,33 @@ export async function countVoidedAttempts(
     return { available: true, operationSeq: rows.length };
   } catch (error) {
     if (isMissingSchemaRead(error)) return { available: false, operationSeq: 0 };
+    throw error;
+  }
+}
+
+/**
+ * 已被 active canonical 唯一鍵占用的來源。
+ *
+ * 寄賣銷售有 `MerchantStockTxn.settlementId` 可以過濾，但券與代收付款沒有欄位鎖，
+ * 它們的鎖就是這個唯一鍵。預覽若不排除，已結過的券會重複出現在暫計金額裡，
+ * 送出時才被資料庫擋下，變成店員看得到卻永遠送不出去的數字。
+ *
+ * 缺表環境回傳 unavailable，由呼叫端決定如何誠實說明，不在這裡假裝沒有鎖。
+ */
+export async function loadActiveSourceKeys(
+  client: PrismaClient,
+  merchantId: string,
+  sourceKeys: readonly string[],
+): Promise<{ available: boolean; lockedKeys: Set<string> }> {
+  if (sourceKeys.length === 0) return { available: true, lockedKeys: new Set() };
+  try {
+    const rows = await client.settlementSourceItem.findMany({
+      where: { merchantId, sourceKey: { in: [...sourceKeys] }, voidedAt: null },
+      select: { sourceKey: true },
+    });
+    return { available: true, lockedKeys: new Set(rows.map((row) => row.sourceKey)) };
+  } catch (error) {
+    if (isMissingSchemaRead(error)) return { available: false, lockedKeys: new Set() };
     throw error;
   }
 }

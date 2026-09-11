@@ -32,6 +32,7 @@ import {
 } from '@/lib/settlements/write-settlement';
 import {
   countVoidedAttempts,
+  loadActiveSourceKeys,
   loadMerchantSettlementHistory,
 } from '@/lib/settlements/read-snapshot';
 
@@ -48,6 +49,11 @@ export type SettlementPreview = {
   direction: SettlementDraft['totals']['direction'];
   sourceKeysDigest: string;
   amountsDigest: string;
+  /** 重送時用來找原單，避免另建第二張。只供比對與查詢，不參與金額計算。 */
+  idempotencyKey: string;
+  payloadFingerprint: string;
+  /** 已被其他結帳單鎖住而未列入暫計的筆數。 */
+  lockedSourceCount: number;
   lines: Array<{
     sourceKey: string;
     sourceKind: SettlementSourceDraft['sourceKind'];
@@ -108,9 +114,12 @@ function paidPayment(status: string, paidAt: Date | null): boolean {
   return status === 'paid' && paidAt != null;
 }
 
-function previewFromDraft(draft: SettlementDraft): SettlementPreview {
+function previewFromDraft(draft: SettlementDraft, lockedSourceCount: number): SettlementPreview {
   return {
     sourceCount: draft.sources.length,
+    lockedSourceCount,
+    idempotencyKey: draft.idempotencyKey,
+    payloadFingerprint: draft.payloadFingerprint,
     grossSales: draft.totals.grossSales,
     commissionAmount: draft.totals.commissionAmount,
     rewardPayout: draft.totals.rewardPayout,
@@ -132,7 +141,7 @@ function previewFromDraft(draft: SettlementDraft): SettlementPreview {
 }
 
 export async function loadStoreLedgerPageData(options: LoadOptions): Promise<StoreLedgerPageData> {
-  const { entries, summary, amountNotes, storeLabel, storeId, sources, pending } =
+  const { entries, summary, amountNotes, storeLabel, storeId, sources, lockedSourceCount, pending } =
     await loadStoreLedger(options);
 
   const [attempts, history] = await Promise.all([
@@ -163,7 +172,7 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     refillRows: groupRefillReconciliations(entries),
     persistAvailable: settlementWriteEnabled(),
     amountNotes,
-    preview: previewFromDraft(draft),
+    preview: previewFromDraft(draft, lockedSourceCount),
     pending: pending.map((item) => ({
       reason: item.reason,
       reasonLabel: item.reasonLabel,
@@ -201,8 +210,10 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   entries: LedgerEntry[];
   summary: StoreLedgerSummary;
   amountNotes: string[];
-  /** 可認列的結算來源。缺價或歸屬不可靠者不在此列。 */
+  /** 可認列的結算來源。缺價、歸屬不可靠或已被其他結帳單鎖住者不在此列。 */
   sources: SettlementSourceDraft[];
+  /** 已被其他結帳單鎖住而排除的來源筆數。 */
+  lockedSourceCount: number;
   /** 待確認來源。不計金額、不寫入、不占唯一鍵。 */
   pending: PendingSource[];
 }> {
@@ -218,6 +229,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       summary: summarizeStoreLedger([]),
       amountNotes: [],
       sources: [],
+      lockedSourceCount: 0,
       pending: [],
     };
   }
@@ -537,13 +549,18 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   );
   for (const coupon of coupons) {
     if (!coupon.redeemedAt) continue;
+    const reliable = reliableStoreKeys.has(coupon.storeId ?? '');
     const classified = classifyCouponSource({
       id: coupon.id,
       model: 'grooming_coupon',
       rawCouponCode: coupon.couponCode,
       faceValue: coupon.discountAmount,
       redeemedAt: coupon.redeemedAt,
-      storeAttributionReliable: reliableStoreKeys.has(coupon.storeId ?? ''),
+      storeAttributionReliable: reliable,
+      // 歸屬 key 一律正規化成 Merchant.id。GroomingCoupon.storeId 可能存 slug、
+      // merchantId 或 Store.id，直接拿原值比對會把同一家店判成兩家。
+      storeKey: reliable ? merchant.id : null,
+      customerId: coupon.customerId,
       customerName: coupon.customer.name,
       relatedOrderId: null,
     });
@@ -560,6 +577,8 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       redeemedAt: redemption.usedAt,
       // partnerMerchantId 是直接外鍵，歸屬可靠。
       storeAttributionReliable: true,
+      storeKey: merchant.id,
+      customerId: redemption.customerId,
       customerName: redemption.customer.name,
       relatedOrderId: null,
     });
@@ -599,6 +618,17 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   const deduped = dedupeSources(rawSources);
   pending.push(...deduped.conflicts);
 
+  // 已被其他結帳單鎖住的來源必須從暫計裡排除。
+  // 寄賣銷售靠 MerchantStockTxn.settlementId 過濾，但券與代收付款沒有欄位鎖，
+  // 它們的鎖就是 active canonical 唯一鍵；不排除就會讓已結過的金額重複出現。
+  const lock = await loadActiveSourceKeys(
+    prisma,
+    merchant.id,
+    deduped.sources.map((source) => source.sourceKey),
+  );
+  const sources = deduped.sources.filter((source) => !lock.lockedKeys.has(source.sourceKey));
+  const lockedSourceCount = deduped.sources.length - sources.length;
+
   amountNotes.push('進貨單沒有可信成交價，不列入本期金額，會列在待確認。');
   amountNotes.push('忘帶空罐補差額目前是客人線上付給匠寵，不會算進店家應付。');
   amountNotes.push('10 點優惠券是獨立補貼流水，不會只在訂單總額上減掉。');
@@ -609,7 +639,8 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     entries,
     summary: summarizeStoreLedger(entries),
     amountNotes,
-    sources: deduped.sources,
+    sources,
+    lockedSourceCount,
     pending: pending.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
   };
 }

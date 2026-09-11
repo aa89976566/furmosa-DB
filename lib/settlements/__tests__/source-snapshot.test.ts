@@ -6,6 +6,7 @@ import {
   buildIdempotencyKey,
   classifyConsignmentSaleTxn,
   classifyCouponSource,
+  compareCouponMirror,
   computeLegacyTotals,
   consignmentSaleSourceKey,
   consignmentSaleTxnIdFromKey,
@@ -52,6 +53,7 @@ function couponDraft(overrides: Partial<SettlementSourceDraft> = {}): Settlement
     occurredAt: at('2024-05-19T15:00:00'),
     relatedOrderId: null,
     label: '王小姐 集點兌換券 PT10-200',
+    matchIdentity: { customerId: 'cus-1', storeKey: 'm-1' },
     sourceSnapshot: { model: 'grooming_coupon' },
     ...overrides,
   };
@@ -222,6 +224,8 @@ describe('來源分類：只認可信成交價', () => {
       faceValue: 200,
       redeemedAt: at('2024-05-19T15:00:00'),
       storeAttributionReliable: true,
+      storeKey: 'm-1',
+      customerId: 'cus-1',
       customerName: '王小姐',
       relatedOrderId: null,
     });
@@ -235,6 +239,8 @@ describe('來源分類：只認可信成交價', () => {
       faceValue: 200,
       redeemedAt: at('2024-05-19T15:00:00'),
       storeAttributionReliable: false,
+      storeKey: null,
+      customerId: 'cus-1',
       customerName: '王小姐',
       relatedOrderId: null,
     });
@@ -287,6 +293,65 @@ describe('R2#6：券跨來源去重不得靜默選一邊', () => {
     ]);
     assert.equal(result.sources.length, 0);
     assert.equal(result.conflicts.length, 1);
+  });
+
+  it('R3#3：面額相同但顧客不同，不是同一張券，兩邊都不認列', () => {
+    const result = dedupeSources([
+      couponDraft({
+        matchIdentity: { customerId: 'cus-1', storeKey: 'm-1' },
+        sourceSnapshot: { model: 'grooming_coupon' },
+      }),
+      couponDraft({
+        matchIdentity: { customerId: 'cus-2', storeKey: 'm-1' },
+        sourceSnapshot: { model: 'reward_redemption' },
+      }),
+    ]);
+    assert.equal(result.sources.length, 0);
+    assert.equal(result.conflicts.length, 1);
+    assert.equal(result.conflicts[0]?.reason, 'COUPON_SOURCE_CONFLICT');
+  });
+
+  it('R3#3：面額與顧客相同但店家不同，兩邊都不認列', () => {
+    const result = dedupeSources([
+      couponDraft({ matchIdentity: { customerId: 'cus-1', storeKey: 'm-1' } }),
+      couponDraft({
+        matchIdentity: { customerId: 'cus-1', storeKey: 'm-2' },
+        sourceSnapshot: { model: 'reward_redemption' },
+      }),
+    ]);
+    assert.equal(result.sources.length, 0);
+    assert.equal(result.conflicts.length, 1);
+    assert.equal(result.conflicts[0]?.reason, 'COUPON_SOURCE_CONFLICT');
+  });
+
+  it('R3#3：任一鏡像缺顧客或店家歸屬時判為歧義，兩邊都不認列', () => {
+    const missingCustomer = dedupeSources([
+      couponDraft({ matchIdentity: { customerId: 'cus-1', storeKey: 'm-1' } }),
+      couponDraft({
+        matchIdentity: { customerId: null, storeKey: 'm-1' },
+        sourceSnapshot: { model: 'reward_redemption' },
+      }),
+    ]);
+    assert.equal(missingCustomer.sources.length, 0);
+    assert.equal(missingCustomer.conflicts[0]?.reason, 'COUPON_MIRROR_AMBIGUOUS');
+    assert.match(missingCustomer.conflicts[0]?.reasonLabel ?? '', /無法確認是不是同一張/);
+
+    const missingIdentity = dedupeSources([
+      couponDraft({ matchIdentity: undefined }),
+      couponDraft({ sourceSnapshot: { model: 'reward_redemption' } }),
+    ]);
+    assert.equal(missingIdentity.sources.length, 0);
+    assert.equal(missingIdentity.conflicts[0]?.reason, 'COUPON_MIRROR_AMBIGUOUS');
+  });
+
+  it('R3#3：顧客與店家都相同才判為同一張券', () => {
+    assert.equal(
+      compareCouponMirror(
+        couponDraft(),
+        couponDraft({ sourceSnapshot: { model: 'reward_redemption' } }),
+      ),
+      'same',
+    );
   });
 
   it('非券來源的鍵重複屬上游程式錯誤，直接拋錯', () => {

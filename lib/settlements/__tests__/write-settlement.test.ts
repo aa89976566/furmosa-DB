@@ -85,6 +85,15 @@ function expectedOf(draft: SettlementDraft) {
   return { sourceKeysDigest: draft.sourceKeysDigest, amountsDigest: draft.amountsDigest };
 }
 
+/** 送出時瀏覽器帶回的完整預覽指紋，含預覽當時的 key。 */
+function submittedOf(draft: SettlementDraft) {
+  return {
+    ...expectedOf(draft),
+    idempotencyKey: draft.idempotencyKey,
+    payloadFingerprint: draft.payloadFingerprint,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 記憶體假 client。只實作本模組會用到的呼叫，交易以同步套用模擬。
 // ---------------------------------------------------------------------------
@@ -542,6 +551,114 @@ describe('R2#4：撤回後必須能用新操作序號重新結算', () => {
     });
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.code, 'NOT_WITHDRAWABLE');
+  });
+});
+
+describe('R3#2：重送必須先依原 key 找原單，不另建第二張', () => {
+  it('送出成功後來源被鎖住，新預覽變空，重送仍回原單而不是「沒有可結算項目」', async () => {
+    enableWrites();
+    const { client, settlements } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, first, submittedOf(first));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    // 重新整理後的預覽：來源已被自己那張鎖住，因此暫計是空的。
+    const emptyPreview = draftFor([]);
+    assert.notEqual(emptyPreview.idempotencyKey, first.idempotencyKey);
+
+    const resend = await persistSettlementDraft(client, emptyPreview, {
+      ...expectedOf(emptyPreview),
+      idempotencyKey: first.idempotencyKey,
+      payloadFingerprint: first.payloadFingerprint,
+    });
+    assert.equal(resend.ok, true);
+    if (!resend.ok) return;
+    assert.equal(resend.duplicate, true);
+    assert.equal(resend.id, created.id);
+    assert.equal(settlements.length, 1);
+  });
+
+  it('撤回讓操作序號變動後，帶原 key 重送仍回原本那張 cancelled', async () => {
+    enableWrites();
+    const { client, settlements } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, first, submittedOf(first));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+    await withdrawSettlementDraft(client, { merchantId: 'm-1', settlementId: created.id });
+
+    // 撤回後同一組來源的操作序號變成 1，算出來的 key 不同。
+    const afterWithdraw = draftFor([saleSource('t1', 255, 76.5)], { operationSeq: 1 });
+    assert.notEqual(afterWithdraw.idempotencyKey, first.idempotencyKey);
+
+    const resend = await persistSettlementDraft(client, afterWithdraw, {
+      ...expectedOf(afterWithdraw),
+      idempotencyKey: first.idempotencyKey,
+      payloadFingerprint: first.payloadFingerprint,
+    });
+    assert.equal(resend.ok, true);
+    if (!resend.ok) return;
+    assert.equal(resend.id, created.id);
+    assert.equal(resend.status, 'cancelled');
+    assert.equal(settlements.length, 1);
+  });
+
+  it('原 key 找得到但預覽指紋不符時拒絕，不回傳不相符的原單', async () => {
+    enableWrites();
+    const { client } = fakeClient({
+      txns: [{ id: 't1', merchantId: 'm-1', settlementId: null }],
+    });
+    const first = draftFor([saleSource('t1', 255, 76.5)]);
+    await persistSettlementDraft(client, first, submittedOf(first));
+
+    const emptyPreview = draftFor([]);
+    const result = await persistSettlementDraft(client, emptyPreview, {
+      ...expectedOf(emptyPreview),
+      idempotencyKey: first.idempotencyKey,
+      payloadFingerprint: 'tampered-fingerprint',
+    });
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, 'PAYLOAD_CONFLICT');
+  });
+
+  it('瀏覽器帶別家店的 key 找不到原單，不得回傳別家店的結算', async () => {
+    enableWrites();
+    const { client, settlements } = fakeClient({
+      txns: [
+        { id: 't1', merchantId: 'm-1', settlementId: null },
+        { id: 't9', merchantId: 'm-2', settlementId: null },
+      ],
+    });
+    const other = draftFor([saleSource('t1', 255, 76.5)]);
+    const created = await persistSettlementDraft(client, other, submittedOf(other));
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    const mine = draftFor([saleSource('t9', 100, 10)], { merchantId: 'm-2' });
+    const result = await persistSettlementDraft(client, mine, {
+      ...expectedOf(mine),
+      idempotencyKey: other.idempotencyKey,
+      payloadFingerprint: other.payloadFingerprint,
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.notEqual(result.id, created.id);
+    assert.equal(result.duplicate, false);
+    assert.equal(settlements.length, 2);
+  });
+
+  it('沒有帶原 key 時行為不變：空來源仍回「沒有可結算項目」', async () => {
+    enableWrites();
+    const { client } = fakeClient();
+    const emptyPreview = draftFor([]);
+    const result = await persistSettlementDraft(client, emptyPreview, expectedOf(emptyPreview));
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.code, 'NO_SOURCES');
   });
 });
 

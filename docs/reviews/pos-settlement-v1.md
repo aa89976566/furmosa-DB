@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R2（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2 規格缺陷修訂；詳見 §0.1–§0.3） |
-| 凍結文字 SHA256 | `c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e88159ce9b0e10935312` |
+| Prompt 版本 | v2-R3（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3 規格缺陷修訂；詳見 §0.1–§0.4） |
+| 凍結文字 SHA256 | `c75cf101e3964d0c8ac7fdfdcb1ccd4ebb1260c2ba06e83f588727fb98663dd2` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -66,6 +66,22 @@
 | 5 | `amountsDigest` 漏 `quantity`／`unitPrice`／`companyRevenue` | **確認** | `2×100` 改 `4×50` 時 `originalAmount` 不變即被當成同 payload。補齊三個欄位 |
 | 6 | `dedupeSources` 無條件取 `GroomingCoupon` | **確認** | 面額或歸屬衝突被靜默解掉。改為僅在兩邊完全一致時視為同一張券鏡像；衝突則**兩邊都不認列**、產生 `COUPON_SOURCE_CONFLICT` 待確認、不占唯一鍵 |
 | 7 | `SettlementSourceItem.merchant` 用 `onDelete: Cascade` | **確認（審核追加）** | 刪店家會連帶刪掉新帳務稽核列。改 `Restrict`；既有 `Settlement.merchant` 不動。同時補上 migration 完整性 CHECK 漏掉的 `storeCollected` |
+
+### 0.4 R3 規格缺陷審核紀錄
+
+使用者第八輪（獨立測試 `81c7ae8`：82／82 通過）提出五項缺陷。全部經審核**確認為真實缺陷**，其中第 3 項在審核時再收緊一層。
+
+五項都屬**原規格本身的缺口**，不只是實作偏差；使用者在 R3 已明確指示所需行為，故依授權最小幅度修訂 §1.5、§1.8、§1.10、§1.11 對應條文並重新計算凍結雜湊。舊雜湊保留於 §0.1、§0.2、本節作為證據。其餘條文未變更，白名單未擴張。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | 預覽未排除已被 active canonical 鎖定的券與付款 | **確認** | 寄賣銷售靠 `MerchantStockTxn.settlementId` 過濾，但券與代收付款沒有欄位鎖，唯一鍵就是它們的鎖。已結過的金額會重複出現在暫計，送出才被資料庫擋下，變成看得到卻永遠送不出去的數字。新增 `loadActiveSourceKeys()`（限定本店）並在預覽排除，另回傳被排除筆數供 UI 說明 |
+| 2 | 重送會另建新單 | **確認** | 送出成功會鎖住來源而使新預覽變空、撤回會讓操作序號改變，兩者都算出新 key。原實作先算新 key 再寫，重按一次會得到「沒有可結算項目」或第二張結算。改為**先用預覽當時的 key 查本店原單**，找到即回原單；指紋不符則拒絕；瀏覽器帶回的 key 只用於查詢比對，不參與金額也不用於建立 |
+| 3 | 同碼券只比面額與方向 | **確認（審核再收緊）** | 同一券號可能在兩系統綁到不同顧客或不同店。改為面額、方向、顧客與店家**全部一致**才算鏡像。審核追加：兩模型的店家歸屬必須先正規化成 `Merchant.id`，否則 slug／`merchantId`／`Store.id` 會把同一家店判成兩家；且「不一致」與「缺身分」必須分開代碼（`COUPON_SOURCE_CONFLICT`／`COUPON_MIRROR_AMBIGUOUS`），兩者都全列 pending |
+| 4 | 快照未驗撤回狀態一致性 | **確認** | 撤回是整張操作。`cancelled` 必須全列已作廢、其他狀態必須全列 active；原測試接受 draft 部分作廢並宣稱「仍以全部稽核來源驗算」，等於允許半套資料照 header 顯示金額。新增 `verifyVoidState()` 並改寫該測試為 fail closed |
+| 5 | 未知 `sourceKind`／非法金額／缺必要 sale 欄位會變成 500 | **確認** | `computeLegacyTotals` 的 `else` 分支把未知種類默默當成代收現金加進淨額，`assertIntegerTwdRange` 遇 NaN 直接拋例外。新增 `validateSnapshotSources()` 於任何加總之前擋下並回可讀訊息；`computeLegacyTotals` 對未知種類改拋 `UnknownSourceKindError` 而非沉默錯帳 |
+
+R3 修訂前的凍結雜湊：`c0ea26fc084632914c9676f26b26b36e5c97d48c3d00e88159ce9b0e10935312`（commit `7ed36a1`）。
 
 ---
 
@@ -149,7 +165,14 @@
 - 只認已核銷且店家歸屬可靠者。歸屬可靠＝券的 `storeId` 命中 store slug、`merchant.merchantId` 或 `Store.id`。**只靠中文店名比對不算可靠**，列待確認。
 - 面額例外規則保留：標準 200、豬窩 250，依既有資料，不重算。
 - 兩個來源模型（`GroomingCoupon`、`RewardRedemption`）都必須有可靠 canonical key：`coupon:<正規化券號>`。券號缺失或空白 → 待確認。**禁止以資料列 id 充當券號再宣稱已去重。**
-- 同一正規化券號在兩模型同時出現時：**只有**面額與方向完全一致（同一張券的鏡像）才以 `GroomingCoupon` 為準、`RewardRedemption` 不重複計列。面額或歸屬衝突時**兩邊都不認列**，產生待確認，不占唯一鍵，不得自行選一邊。
+- 同一正規化券號在兩模型同時出現時：**只有**面額、方向、顧客與店家歸屬**全部一致**才視為同一張券的鏡像，以 `GroomingCoupon` 為準、`RewardRedemption` 不重複計列。面額或方向只是必要條件，**不得只比面額與方向**就認定是同一張券。任一項不一致時**兩邊都不認列**，產生 `COUPON_SOURCE_CONFLICT` 待確認。任一邊缺少可比對的顧客或店家歸屬時同樣**兩邊都不認列**，產生 `COUPON_MIRROR_AMBIGUOUS` 待確認。兩者都不占唯一鍵，不得自行選一邊。
+- 比對用的店家歸屬必須先正規化成同一個穩定 key（`Merchant.id`）；`GroomingCoupon.storeId` 可能存 slug、`merchantId` 或 `Store.id`，直接比對原值會把同一家店判成兩家。
+
+**已被鎖定的來源（不列入暫計）**
+
+- 預覽必須排除**已被 active canonical 唯一鍵占用**的來源。寄賣銷售可靠 `MerchantStockTxn.settlementId` 過濾，但券與代收付款沒有欄位鎖，它們的鎖就是該唯一鍵；不排除會讓已結過的金額重複出現在暫計，送出時才被資料庫擋下。
+- 排除是「已結過」，不是「待確認」：這些來源只出現在已送出紀錄，不得混進待確認清單。UI 可顯示被排除筆數。
+- 跨店不得互相影響：唯一鍵是 `(merchantId, sourceKey)`，查詢必須限定本店。
 
 **待確認（pending，不計金額、不鎖定、不占唯一鍵）**
 
@@ -216,6 +239,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 付款方式**納入** key 與 fingerprint。送出後付款方式不可改；送出前改選會產生新的操作 key。
 - 送出時伺服器必須重新計算來源集合並與預覽摘要比對，改變即拒絕，不得靜默改變整批內容。
 - 同 key 同 payload → 回傳既有結算；同 key 不同 payload → 拒絕；部分重疊 → 整批拒絕。
+- **重送優先於重算**：送出時必須先用預覽當時的 key 查本店原單，找到就回傳原單。送出成功會鎖住來源而讓它們從新預覽消失，撤回會讓操作序號改變，兩者都會算出不同的新 key；若先算新 key 再寫入，重按一次就會變成「沒有可結算項目」或直接開出第二張結算。原 key 查詢必須限定本店，且找到的原單指紋與預覽不符時拒絕。
+- 瀏覽器帶回的 key 與指紋只用於比對與查詢，永遠不參與金額計算、也不得用來建立新結算。
 - header、明細、來源鎖必須在**同一個交易**內完成。
 - 真正的防線是資料庫唯一約束，不是先讀後寫。
 - 寄賣銷售鎖 `MerchantStockTxn.settlementId` 時必須帶 `settlementId: null` 條件並做**筆數斷言**；筆數不符即回滾（修復既有搶鎖缺陷，屬本測試版必要修復）。
@@ -238,6 +263,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 新版身份**只按 `rulesVersion`** 判定，不得以「有沒有明細」猜測。
 - 新版結算缺明細或版本未知 → 顯示可讀的完整性錯誤，不得 fallback、不得 500 白畫面。**未知的非空版本必須 fail closed**，不得套用本版公式解讀；缺必要欄位（`netPayableTwd`、`storeCollected`）同樣 fail closed，不得以 0 代替。
 - 已撤回（`cancelled`）的結算必須仍可查閱其送出當時的快照：header 以**保留的全部稽核來源**驗證，不因明細被標 `voidedAt` 而判為損毀，也不得把歷史金額清零。
+- 撤回是**整張**的操作，不是逐筆的：`cancelled` 必須每一列都已作廢，其他狀態必須每一列都仍在 active。部分作廢代表資料被半套改動，必須 fail closed，不得照 header 顯示金額。
+- 來源列本身無法解讀時同樣必須是可讀錯誤而非 500：未知 `sourceKind`／`direction`、非有限金額，以及寄賣銷售缺 `quantity`／`unitPrice`／`commissionAmount`，都必須在任何加總之前擋下。未知 `sourceKind` **不得**被默默當成代收現金加進淨額。
 - HQ 新版分支讀逐筆來源快照與共用淨額；legacy `calcSettlement` 路徑完全不變。
 - POS 必須把**暫計**、**待確認**、**已送出紀錄**分開呈現，已送出者顯示同一編號與狀態。
 - 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。
@@ -248,7 +275,7 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 
 ### 1.11 測試
 
-必須涵蓋：76.5 半元保留；正負半元；兩端同值一致；缺價與歸屬不可靠的券不鎖定；跨店拒絕；同 key／不同 payload／部分重疊／編號碰撞分類；零來源／零淨額；撤回競態／不復活；新舊分支與完整性錯誤。
+必須涵蓋：76.5 半元保留；正負半元；兩端同值一致；缺價與歸屬不可靠的券不鎖定；跨店拒絕；同 key／不同 payload／部分重疊／編號碰撞分類；零來源／零淨額；撤回競態／不復活；新舊分支與完整性錯誤；已鎖來源不入暫計；重送依原 key 回原單；同碼券顧客／店家不符與歧義；撤回狀態與明細不一致；未知來源種類與非法金額。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
