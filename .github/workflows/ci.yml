@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -17,7 +17,6 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # CI-only ephemeral database. Never points at production.
     services:
       postgres:
         image: postgres:16
@@ -50,22 +49,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Preview official Next 15 async request API codemod
-        shell: bash
-        run: |
-          npx --yes @next/codemod@canary next-async-request-api .
-          git diff --binary > next15-async-request-api.patch
-          git diff --name-only > next15-async-request-api-files.txt
-
-      - name: Upload codemod preview
-        uses: actions/upload-artifact@v4
-        with:
-          name: next15-async-request-api-preview
-          path: |
-            next15-async-request-api.patch
-            next15-async-request-api-files.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Apply official Next 15 async request API codemod
+        run: npx --yes @next/codemod@canary next-async-request-api .
 
       - name: Prisma validation
         run: npm run prisma:validate
@@ -81,20 +66,21 @@ jobs:
           NODE_ENV: test
         run: npm test
 
-      - name: Next.js build diagnostic
-        id: next_build
+      - name: Next.js build
         env:
           NODE_ENV: production
+        run: npm run build
+
+      - name: Commit validated compatibility changes
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         shell: bash
         run: |
-          set -o pipefail
-          npm run build -- --debug-prerender 2>&1 | tee next-build.log
-
-      - name: Upload Next.js build diagnostic
-        if: failure() && steps.next_build.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: next-build-diagnostic
-          path: next-build.log
-          if-no-files-found: error
-          retention-days: 1
+          if git diff --quiet -- app; then
+            echo "No codemod changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- app
+          git commit -m "fix(next15): migrate async request APIs"
+          git push origin HEAD:${{ github.head_ref }}
