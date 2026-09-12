@@ -50,6 +50,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Preview official Next 15 async request API codemod
+        shell: bash
+        run: |
+          npx --yes @next/codemod@canary next-async-request-api .
+          git diff --binary > next15-async-request-api.patch
+          git diff --name-only > next15-async-request-api-files.txt
+
+      - name: Upload codemod preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: next15-async-request-api-preview
+          path: |
+            next15-async-request-api.patch
+            next15-async-request-api-files.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Prisma validation
         run: npm run prisma:validate
 
