@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R7（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5／R6／R7 規格缺陷修訂；詳見 §0.1–§0.8） |
-| 凍結文字 SHA256 | `7046a154bb150182ee2b6a64932e5a1fa209d6aa224f59768b33c0dc8cfd02af` |
+| Prompt 版本 | v2-R8（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5／R6／R7／R8 規格缺陷修訂；詳見 §0.1–§0.9） |
+| 凍結文字 SHA256 | `d47eb926bda644395e56bdf3f91907c5c551a33482587d0cd9363a80328ce244` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -147,6 +147,28 @@ Codex 對 `7a7d32b` 的獨立驗收通過（指定純測試 158 案、typecheck�
 | 4 | 整份新 migration 沒有 `BEGIN/COMMIT`，緊接 `REVOKE` 不代表 autocommit 建表沒有曝險空窗 | **確認** | 查證結論：Prisma 的 `render_begin_transaction` **只對 MSSQL 實作**，PostgreSQL 不會自行送出 `BEGIN`；官方指定的 opt-in 就是在 migration 檔內自己寫 `BEGIN;`／`COMMIT;`，因此不存在交易嵌套衝突。以 autocommit 方式套用（例如 §3.4 人工補救路徑的 `psql -f`）時 `CREATE TABLE` 會先 commit，在 `REVOKE` 生效前出現曝險空窗，中途失敗也會留下半套結構。本檔沒有任何不能在交易內執行的語句（無 `INDEX CONCURRENTLY`、無 `VACUUM`）。**不動任何既有 migration** |
 
 R7 修訂前的凍結雜湊：`a78f2f4fb50824a7bfa3e673ea90fee8e89aa54ccbb7c1bd5313d57e1e5fa37c`（commit `7a7d32b`）。
+
+### 0.9 R8 時區審核紀錄（HQ 新版頁面期間少一天）
+
+Codex 對 `e7dda07` 的獨立驗收通過（指定純測試 177 案、隔離 PostgreSQL 19 案、新庫 migration／RLS、雲端 build），並在隔離實機上發現同一張結帳單的期間顯示不一致：POS 顯示 `2026/09/01–09/12`，HQ 同一張的新版頁首與快照摘要卻顯示 `2026/08/31–09/12`。
+
+逐檔核對後**確認為真實缺陷**，且屬**原規格的缺口**：§1.10 規定了「同一畫面不得出現兩套結算金額」與「來源金額必須顯示原始小數」，卻從未規定**日期的時區口徑**。前七輪（R1–R7）修的都是金額與流程，沒有任何一輪檢查過日期顯示。白名單未擴張——修正只落在原第 4、5、9、18 項。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | HQ 新版頁首與快照摘要的「期間」少一天 | **確認** | 期間是 `parseTaipeiDateRange` 以 `+08:00` 建出來的，起日 `2026-09-01` 存成 `2026-08-31T16:00:00.000Z`。HQ 走 `lib/format.ts` 的 `formatDate`（date-fns），用的是**執行環境本機時區**；伺服器與 CI 都是 UTC，於是同一個時刻被顯示成 `2026/08/31`。POS 端一直明確指定 `timeZone: 'Asia/Taipei'`，所以兩邊差一天。新增 `formatTaipeiDate()`／`formatTaipeiDateTime()`（`lib/settlements/read-snapshot.ts`），日期沿用既有台北工具 `taipeiDateInput()`（`en-CA`，固定 `YYYY-MM-DD`）只換分隔符號，時間固定 `hourCycle: 'h23'`（午夜為 `00:00` 而非 `24:00`）。已實測其輸出與 POS 既有口徑逐字相同 |
+| 2 | 快照摘要的「撥款時間」與來源列的「時間」同樣走本機時區 | **確認** | 同一個 `formatDateTime` 根因。`paidAt` 與 `occurredAt` 都改用 `formatTaipeiDateTime`；`snapshot-detail.tsx` 已不再引用 `formatDate`／`formatDateTime`，以測試斷言鎖住 |
+| 3 | POS 歷史 `paidAt` 是否也有同樣問題 | **核對後無缺陷，未修改** | `load-store-ledger.ts` 以 `toISOString()` 序列化，`settle-workspace.tsx` 的 `taipeiDay`／`taipeiDateTime` 都明確帶 `timeZone: 'Asia/Taipei'`，`paidAt` 顯示另有 `status === 'paid'` 守衛。依使用者指示「證實問題才改」，POS 端**一行未動**，僅新增回歸斷言鎖住其台北口徑不被後續改掉 |
+
+三項刻意不處理（誠實列出，不靜默擴張）：
+
+1. **不改 `lib/format.ts`**。使用者明確禁止，且該檔被全站大量引用，改動等於改變所有既有頁面的日期顯示。格式化函式放在白名單模組，與 R5 的 `formatSourceAmount()` 同一處理方式。
+2. **不改 legacy 分支**。`app/(main)/merchants/(hub)/settlements/[id]/page.tsx` 的 `calcSettlement` 路徑（頁首、摘要期間、撥款時間、流水時間）維持原 `formatDate`／`formatDateTime` 不變，測試以出現次數斷言鎖住。legacy 路徑同樣有時區偏移，但屬**另一個工作包**。
+3. **不加「（台北時間）」字樣**。使用者要求的是統一時區口徑，不是新增標註；POS 端也沒有標註，加了會造成兩邊版面不一致。
+
+不改任何資料庫日期：`Settlement.periodStart`／`periodEnd`／`paidAt` 與 `SettlementSourceItem.occurredAt` 的存值完全未動，本輪只改顯示。
+
+R8 修訂前的凍結雜湊：`7046a154bb150182ee2b6a64932e5a1fa209d6aa224f59768b33c0dc8cfd02af`（commit `e7dda07`）。
 
 ---
 
@@ -363,6 +385,7 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - **兩張應收應付卡的說明必須與它們實際顯示的數字一致（R7）**：它們是同一個淨額的正負兩面（抵扣後），不是抵扣前的兩邊，其中一張永遠是 0。標題必須寫明「抵扣後」，說明不得列舉抵扣前的組成項目，也不得提及尚未實作的科目。不得顯示「一邊 − 另一邊 = 淨額」這種永遠成立且無資訊的等式；若要改為顯示抵扣前兩邊，必須另提供**未進位**的精確欄位，不可用已進位的 `storeCollected` 相減（`round(a) − round(b) ≠ round(a−b)`）。既有 legacy 流水拆解裡的明細列不因此刪除。
 - 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。`paid` 但缺 `paidAt` 是資料不一致，必須顯示成待確認並且不得使用完成色；未知狀態原樣顯示，不得猜成已撥款。
 - **來源原值與店家分潤必須顯示原始小數**，不得四捨五入：分潤是售價的 20%／30%，半元很常見，四捨五入後畫面數字與快照存下的來源值不符，對帳查不出差額來源。只有整數口徑的欄位（`netPayableTwd`、`storeCollected`）才可無小數顯示。此格式化函式必須放在白名單內模組，不得修改白名單外的 `lib/format.ts`。
+- **所有日期與時間都必須以 `Asia/Taipei` 顯示（R8）**：期間是由 `parseTaipeiDateRange` 以 `+08:00` 建立的，`lib/format.ts` 的 `formatDate`／`formatDateTime` 走 date-fns 本機時區，在 UTC 伺服器上會把台北 9/1 00:00 顯示成 8/31，與 POS 差一天。新版頁首、快照摘要期間、撥款時間與來源列時間都必須用白名單模組內的台北格式化函式，日期優先沿用既有台北工具（`lib/taipei-date.ts` 的 `taipeiDateInput`），輸出必須與 POS 既有口徑逐字相同。時間固定 h23，午夜顯示 `00:00`。空值與無法解讀的時間顯示破折號，不得出現 `Invalid Date`。**不得修改 `lib/format.ts`、不得改動資料庫存的日期值、不得改動 legacy `calcSettlement` 分支的既有日期顯示。**
 - 沿用既有 UI 元件與樣式，手機與桌機都必須可用。
 - 新版伺服器寫入 flag 預設關閉；關閉時 UI 必須顯示可讀提示且**不得假裝成功**。flag 關閉不得讓任何已存在的新版紀錄從讀取面消失。
 - 缺 schema 的環境同樣必須顯示可讀提示。無法送出的原因必須由伺服器提供、UI 原樣顯示，不得在前端寫死成單一句子（否則鎖定狀態讀不到會被說成 flag 關閉）。手機版固定底欄也必須看得到該原因，不得只放在桌機側欄。
@@ -385,6 +408,8 @@ R7 追加必測：
 - **撥款事實**：新建草稿帶出 `paidAt = null`；重送回原單帶出資料庫裡真實的 `paidAt`；`paid` 但缺 `paidAt` 時照實帶出 null 且訊息不得宣稱撥款完成；撤回結果同樣帶出 `paidAt`；本店查得到原單、別家店查不到；缺表時查詢回 null 而不讓送出流程 500。
 - **畫面文字回歸**：以讀取元件原始碼並斷言文字的既有慣例，驗兩張卡已標明「抵扣後」、卡片說明不再列舉抵扣前組成與未實作科目、永遠成立的相減等式已移除、流水註記不再聲稱已鎖定的券不在流水裡。
 - **migration 交易邊界**：靜態檢查（不需資料庫，因此必須放在 skip 閘門外）驗整份 migration 第一個語句是 `BEGIN`、最後一個是 `COMMIT`、只有一組交易、無 `ROLLBACK`、防護段排在 `CREATE TABLE` 之後且在 `COMMIT` 之前，且沒有任何無法在交易內執行的語句。真實資料庫演練：過濾掉 `BEGIN`／`COMMIT`（`$transaction` 已管理交易）後把全部語句送進單一交易並整包回滾，證明每個語句都能在交易內執行、整份可重複套用（P3009 補救路徑需要），回滾後既有結構與 RLS 狀態完好。
+
+R8 追加必測（日期時區，純函式，不需資料庫）：台北期間起日的邊界時刻 `2026-08-31T16:00:00.000Z` 必須顯示成 `2026/09/01` 與台北時間 `00:00`（同時斷言該時刻的 UTC 日曆確實是 8/31，證明缺陷會少一天）；迄日 `23:59:59.999` 仍留在同一個台北日曆日；整段期間顯示為 `2026/09/01 ~ 2026/09/12`；與 POS 既有台北口徑逐字相同；**必須在 `TZ=UTC` 與至少一個非台北時區下各執行一次**，並在測試內以會算出不同日曆日的時區（如 `America/New_York` 與 `Pacific/Kiritimati`）證明結果不受執行環境時區影響；空值與無法解讀的時間回破折號；午夜不得顯示 `24:00`。另以讀取原始碼斷言：新版快照元件已不再引用 `formatDate`／`formatDateTime`、HQ 明細頁只有新版頁首改台北而 legacy 分支的既有 `formatDate`／`formatDateTime` 出現次數不變、POS 歷史的期間與撥款時間仍明確帶 `Asia/Taipei`。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
@@ -478,19 +503,20 @@ R7 追加必測：
 
 | 項目 | 結果 |
 |---|---|
-| `npx tsc --noEmit` | 通過（R7 後重跑） |
+| `npx tsc --noEmit` | 通過（R8 後重跑） |
 | `lib/settlements/__tests__/source-snapshot.test.ts` | 33／33 通過（R4#2 追加 3 案） |
-| `lib/settlements/__tests__/read-snapshot.test.ts` | 37／37 通過（R4#3 追加 4 案、R5#5 追加 6 案） |
+| `lib/settlements/__tests__/read-snapshot.test.ts` | 47／47 通過（R4#3 追加 4 案、R5#5 追加 6 案、R8 追加 10 案）。`TZ=UTC`、`TZ=America/New_York`、`TZ=Pacific/Kiritimati` 三種時區下各跑一次都是 47／47 |
+| R8 負面對照（證明測試有效） | 把 `formatTaipeiDate` 暫時換成本機時區實作後，`TZ=UTC` 下 47 案中 4 案失敗（期間起日、整段期間、與 POS 逐字比對、時區獨立性），還原後恢復全綠。證明這批斷言真的能擋住本機時區實作，不是恆真斷言 |
 | `lib/settlements/__tests__/write-settlement.test.ts` | 47／47 通過（R4#1 追加 5 案、R5#4 追加 6 案、R7#1–#2 追加 8 案） |
 | `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5／R7 未在此檔加案，遵守白名單第 24 項） |
 | `lib/pos/__tests__/store-settlement-v1.test.ts` | 44／44 通過（R5#1–#3 追加 18 案；R7 追加 11 案：送出順序 7、`paid` 缺 `paidAt` 訊息 1、畫面文字回歸 3） |
 | `lib/settlements/__tests__/postgres-settlement.test.ts`（靜態部分） | 1／1 通過。R7 新增的 migration 交易邊界靜態檢查刻意放在 skip 閘門**外**，因此不需要資料庫也會執行 |
 | `lib/settlements/__tests__/postgres-settlement.test.ts`（真 DB 部分） | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 18 個真 DB 案例待獨立驗收者執行（R4#3 追加 1 案；R6 追加曝險防護 3 案；R7 追加整包交易演練 1 案） |
-| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 371／371 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
-| `npm test`（全量，R7 後重跑） | 1051／1051 ＋ 18／18 通過、0 失敗、0 skipped |
+| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 381／381 通過、0 失敗（含本包以外的既有測試，確認未造成回歸）。`TZ=UTC` 與 `TZ=America/New_York` 各跑一次都是 381／381 |
+| `npm test`（全量，R8 後重跑） | 1051／1051 ＋ 18／18 通過、0 失敗、0 skipped |
 | R6 防護段純文字驗證（不連資料庫） | 以臨時腳本確認：標記可正確擷取防護段、dollar-quote 切分得到恰好 3 個語句且 `DO $guard$` 區塊完整、`migration.sql` 通過全部必含與必不含的斷言。R7 之後整份 migration 的語句數由 20 變為 22（新增 `BEGIN`／`COMMIT`），交易邊界改由測試內的靜態檢查斷言，不再依賴臨時腳本 |
 
-白名單指定測試合計 178 項通過（原 158 ＋ R7 的 19 案 ＋ migration 靜態檢查 1 案）。
+白名單指定測試合計 188 項通過（原 158 ＋ R7 的 19 案 ＋ migration 靜態檢查 1 案 ＋ R8 的 10 案）。
 
 `npm test` 本輪已執行一次：R5 動到了 `lib/pos/store-ledger.ts`（新增純顯示函式）與 HQ server action，必須確認沒有回歸。指令只跑 `node --import tsx --test`，實測未建立任何資料庫連線、未寫入任何資料；原先「禁止 `npm test`」的理由（`lib/jar-exchange` 會寫資料庫）在本次執行中未出現寫入行為。實作端全程未連任何資料庫、未套用 migration。
 
@@ -505,7 +531,7 @@ R7 追加必測：
 | 正式 drift reconcile 驗證 | **未執行** | 需讀正式庫，未授權 |
 | `npm run build` | **未執行** | 可能觸發資料庫遷移，未授權 |
 | `package.json` 的 `test` script 補上 `lib/settlements/__tests__/*` | **未執行** | `package.json` 不在白名單。目前 `npm test` 不會跑本包的 `lib/settlements` 測試，必須另行手動指定路徑；需使用者授權才能補上 |
-| POS／HQ 畫面實機操作 | **未執行** | 需要可登入的執行環境與資料庫。R5 的畫面行為以純函式測試覆蓋（`buildSettleOverview`、`settlementHistoryStatusView`、`resolveRequestedPaymentMethod`、`submittedSettlementMessage`、`formatSourceAmount`），但**不等於**實機點擊驗收 |
+| POS／HQ 畫面實機操作 | **未執行** | 需要可登入的執行環境與資料庫。R5 的畫面行為以純函式測試覆蓋（`buildSettleOverview`、`settlementHistoryStatusView`、`resolveRequestedPaymentMethod`、`submittedSettlementMessage`、`formatSourceAmount`），R8 的日期以 `formatTaipeiDate`／`formatTaipeiDateTime` 純函式測試加原始碼斷言覆蓋，但**都不等於**實機點擊驗收。R8 的缺陷本身正是由 Codex 在隔離實機上發現的，修正後的 HQ 頁面必須再回到實機確認期間顯示為 `2026/09/01 ~ 2026/09/12` |
 
 ### 3.3 上線前必須完成的檢查
 
