@@ -511,7 +511,7 @@ R8 追加必測（日期時區，純函式，不需資料庫）：台北期間�
 | `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5／R7 未在此檔加案，遵守白名單第 24 項） |
 | `lib/pos/__tests__/store-settlement-v1.test.ts` | 44／44 通過（R5#1–#3 追加 18 案；R7 追加 11 案：送出順序 7、`paid` 缺 `paidAt` 訊息 1、畫面文字回歸 3） |
 | `lib/settlements/__tests__/postgres-settlement.test.ts`（靜態部分） | 1／1 通過。R7 新增的 migration 交易邊界靜態檢查刻意放在 skip 閘門**外**，因此不需要資料庫也會執行 |
-| `lib/settlements/__tests__/postgres-settlement.test.ts`（真 DB 部分） | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 18 個真 DB 案例待獨立驗收者執行（R4#3 追加 1 案；R6 追加曝險防護 3 案；R7 追加整包交易演練 1 案） |
+| `lib/settlements/__tests__/postgres-settlement.test.ts`（真 DB 部分） | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 18 個真 DB 案例待獨立驗收者執行（R4#3 追加 1 案；R6 追加曝險防護 3 案；R7 追加整包交易演練 1 案）。該檔 `it` 總數為 19，其中 1 個是上一列的靜態檢查，因此 Codex 回報的「19 案」與本檔的「18 個真 DB 案」是同一批，只是計入方式不同 |
 | `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 381／381 通過、0 失敗（含本包以外的既有測試，確認未造成回歸）。`TZ=UTC` 與 `TZ=America/New_York` 各跑一次都是 381／381 |
 | `npm test`（全量，R8 後重跑） | 1051／1051 ＋ 18／18 通過、0 失敗、0 skipped |
 | R6 防護段純文字驗證（不連資料庫） | 以臨時腳本確認：標記可正確擷取防護段、dollar-quote 切分得到恰好 3 個語句且 `DO $guard$` 區塊完整、`migration.sql` 通過全部必含與必不含的斷言。R7 之後整份 migration 的語句數由 20 變為 22（新增 `BEGIN`／`COMMIT`），交易邊界改由測試內的靜態檢查斷言，不再依賴臨時腳本 |
