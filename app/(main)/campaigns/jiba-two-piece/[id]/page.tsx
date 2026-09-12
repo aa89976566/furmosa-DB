@@ -39,11 +39,12 @@ function parseMessageText(contentJson: string): string {
   }
 }
 
-export default async function JibaReviewDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function JibaReviewDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const app = await prisma.campaignApplication
     .findUnique({
       where: { id: params.id },

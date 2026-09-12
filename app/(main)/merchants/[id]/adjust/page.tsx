@@ -14,11 +14,12 @@ import { loadMerchantStockSnapshot, loadUnpostedMerchantRestocks } from '@/lib/m
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantAdjustPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function MerchantAdjustPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const [catalog, stockSnapshot, unpostedRestocks] = await Promise.all([
     loadActiveMerchantProductCatalog(params.id),
     loadMerchantStockSnapshot(params.id),

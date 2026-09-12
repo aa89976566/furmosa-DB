@@ -5,18 +5,19 @@ import { loadMerchantSettlementPageData } from '@/lib/merchant-settlement-page';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantSettlementPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: {
-    settle_from?: string;
-    settle_to?: string;
-    settle_shipping?: string;
-    settle_reward?: string;
-  };
-}) {
+export default async function MerchantSettlementPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{
+      settle_from?: string;
+      settle_to?: string;
+      settle_shipping?: string;
+      settle_reward?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const data = await loadMerchantSettlementPageData(params.id, searchParams);
   if (!data) notFound();
 

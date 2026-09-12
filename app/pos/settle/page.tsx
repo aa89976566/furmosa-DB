@@ -13,11 +13,12 @@ type SearchParams = {
   tab?: string;
 };
 
-export default async function PosSettlePage({
-  searchParams,
-}: {
-  searchParams?: SearchParams;
-}) {
+export default async function PosSettlePage(
+  props: {
+    searchParams?: Promise<SearchParams>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await requireMerchantSession();
   const fallback = defaultTaipeiMonthToTodayInputs();
   const from = searchParams?.from || fallback.from;

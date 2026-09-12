@@ -13,11 +13,12 @@ export const dynamic = 'force-dynamic';
 
 const TABS = ['codes', 'ledger', 'rewards'] as const;
 
-export default async function JarExchangeManagePage({
-  searchParams,
-}: {
-  searchParams?: { tab?: string; q?: string; member?: string; page?: string };
-}) {
+export default async function JarExchangeManagePage(
+  props: {
+    searchParams?: Promise<{ tab?: string; q?: string; member?: string; page?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const tab = TABS.includes(searchParams?.tab as (typeof TABS)[number])
     ? (searchParams!.tab as (typeof TABS)[number])
     : 'codes';

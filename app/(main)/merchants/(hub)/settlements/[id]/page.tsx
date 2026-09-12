@@ -28,7 +28,8 @@ const NEXT_STATUS: Record<string, { value: string; label: string; icon: typeof S
   paid: null,
 };
 
-export default async function SettlementDetailPage({ params }: { params: { id: string } }) {
+export default async function SettlementDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const settlement = await prisma.settlement.findUnique({
     where: { id: params.id },
     include: { merchant: true },

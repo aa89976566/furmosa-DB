@@ -9,18 +9,19 @@ import { ShipmentsQueueBody } from './shipments-queue-body';
 
 export const dynamic = 'force-dynamic';
 
-export default function ShipmentsPage({
-  searchParams,
-}: {
-  searchParams?: {
-    status?: string;
-    type?: string;
-    s?: string;
-    q?: string;
-    error?: string;
-    delivered?: string;
-  };
-}) {
+export default async function ShipmentsPage(
+  props: {
+    searchParams?: Promise<{
+      status?: string;
+      type?: string;
+      s?: string;
+      q?: string;
+      error?: string;
+      delivered?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const status = searchParams?.status;
   const rawType = searchParams?.type;
   const actionError = (searchParams?.error ?? '').trim();

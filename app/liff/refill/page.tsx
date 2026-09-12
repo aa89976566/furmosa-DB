@@ -3,11 +3,12 @@ import { LiffRefillClient } from './refill-client';
 
 export const dynamic = 'force-dynamic';
 
-export default function LiffRefillPage({
-  searchParams,
-}: {
-  searchParams?: { storeId?: string; orderId?: string; paid?: string };
-}) {
+export default async function LiffRefillPage(
+  props: {
+    searchParams?: Promise<{ storeId?: string; orderId?: string; paid?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const liffId = getLiffIdIfConfigured('refill') ?? getLiffIdIfConfigured('register');
   if (!liffId) {
     return (

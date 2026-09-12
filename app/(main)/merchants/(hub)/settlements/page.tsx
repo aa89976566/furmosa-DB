@@ -37,11 +37,12 @@ function pickParam(
   return typeof v === 'string' ? v : undefined;
 }
 
-export default async function MerchantsSettlementsPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
+export default async function MerchantsSettlementsPage(
+  props: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const isCreateView = pickParam(searchParams, 'view') === 'create';
   const filters = parseSettlementListSearchParams(searchParams);
   const where = buildSettlementWhere(filters);

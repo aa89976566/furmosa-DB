@@ -9,7 +9,8 @@ import { loadCustomerDetail } from '@/lib/customers/load-customer-detail';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CustomerJarExchangeActionsPage({ params }: { params: { id: string } }) {
+export default async function CustomerJarExchangeActionsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const data = await loadCustomerDetail(params.id);
   if (!data?.hasJar || !data.jar) notFound();
 

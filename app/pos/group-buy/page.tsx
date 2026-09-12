@@ -8,7 +8,8 @@ import { formatCurrency } from '@/lib/format';
 export const metadata = { title: '活動／團購 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
-export default async function PosGroupBuyPage({ searchParams }: { searchParams?: { q?: string | string[] } }) {
+export default async function PosGroupBuyPage(props: { searchParams?: Promise<{ q?: string | string[] }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireMerchantSession();
   const query = posSearchQuery(searchParams?.q);
   const [account, prices] = await Promise.all([

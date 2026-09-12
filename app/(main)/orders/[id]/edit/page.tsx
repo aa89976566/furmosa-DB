@@ -12,13 +12,14 @@ import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditOrderPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { returnTo?: string };
-}) {
+export default async function EditOrderPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ returnTo?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const returnTo = safeOrderEditReturnTo(searchParams?.returnTo);
   const order = await prisma.order.findUnique({
     where: { id: params.id },

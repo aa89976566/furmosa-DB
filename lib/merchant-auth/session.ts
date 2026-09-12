@@ -114,7 +114,8 @@ export async function readMerchantSession(
 }
 
 export async function setMerchantSessionCookie(token: string) {
-  cookies().set(MERCHANT_SESSION_COOKIE, token, {
+  const cookieStore = await cookies();
+  cookieStore.set(MERCHANT_SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -124,7 +125,8 @@ export async function setMerchantSessionCookie(token: string) {
 }
 
 export async function clearMerchantSessionCookie() {
-  cookies().set(MERCHANT_SESSION_COOKIE, '', {
+  const cookieStore = await cookies();
+  cookieStore.set(MERCHANT_SESSION_COOKIE, '', {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -134,7 +136,8 @@ export async function clearMerchantSessionCookie() {
 }
 
 export async function getMerchantSessionFromCookies(): Promise<MerchantSessionPayload | null> {
-  const token = cookies().get(MERCHANT_SESSION_COOKIE)?.value;
+  const cookieStore = await cookies();
+  const token = cookieStore.get(MERCHANT_SESSION_COOKIE)?.value;
   return readMerchantSession(token);
 }
 

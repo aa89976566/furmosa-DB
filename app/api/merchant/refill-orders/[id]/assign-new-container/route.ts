@@ -6,10 +6,8 @@ import { toRefillHttp } from '@/lib/refill/errors';
 export const dynamic = 'force-dynamic';
 
 /** 綁定新罐並完成交付（與 complete 相同 transaction） */
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRefillMerchantSession();
     const body = (await req.json()) as { serial?: string; oldSerial?: string };

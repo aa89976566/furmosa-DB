@@ -5,10 +5,8 @@ import { toRefillHttp } from '@/lib/refill/errors';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const session = await requireRefillMerchantSession();
     const body = (await req.json()) as { newSerial?: string; oldSerial?: string };

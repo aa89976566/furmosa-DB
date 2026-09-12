@@ -4,11 +4,12 @@ export const metadata = {
   title: "店家登入 · Furmosa",
 };
 
-export default function PosLoginPage({
-  searchParams,
-}: {
-  searchParams: { next?: string };
-}) {
+export default async function PosLoginPage(
+  props: {
+    searchParams: Promise<{ next?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col justify-center px-4 py-10">
       <div className="mb-8 text-left">

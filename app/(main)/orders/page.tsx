@@ -167,11 +167,12 @@ async function OrdersTableSection({
   );
 }
 
-export default function OrdersPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default async function OrdersPage(
+  props: {
+    searchParams: Promise<SearchParams>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const activeWork = activeWorkFilter(searchParams);
   return (
     <>

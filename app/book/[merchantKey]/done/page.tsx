@@ -5,13 +5,14 @@ import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 
 export const metadata = { title: '預約已送出 · Furmosa' };
 
-export default async function PublicBookDonePage({
-  params,
-  searchParams,
-}: {
-  params: { merchantKey: string };
-  searchParams?: { id?: string };
-}) {
+export default async function PublicBookDonePage(
+  props: {
+    params: Promise<{ merchantKey: string }>;
+    searchParams?: Promise<{ id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const merchant = await prisma.merchant.findFirst({
     where: {
       status: 'active',

@@ -11,11 +11,12 @@ import { Building2, Plus } from 'lucide-react';
 /** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
 export const dynamic = 'force-dynamic';
 
-export default async function VendorsPage({
-  searchParams,
-}: {
-  searchParams?: { v?: string };
-}) {
+export default async function VendorsPage(
+  props: {
+    searchParams?: Promise<{ v?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const vendors = await prisma.vendor.findMany({
     include: { _count: { select: { products: true } } },
     orderBy: { vendorId: 'asc' },

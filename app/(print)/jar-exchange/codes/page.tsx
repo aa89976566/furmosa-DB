@@ -14,11 +14,12 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export default async function JarCodesPrintPage({
-  searchParams,
-}: {
-  searchParams?: { batch?: string; status?: string; all?: string; limit?: string };
-}) {
+export default async function JarCodesPrintPage(
+  props: {
+    searchParams?: Promise<{ batch?: string; status?: string; all?: string; limit?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const batch = (searchParams?.batch ?? '').trim();
   const status =
     searchParams?.status === 'used' || searchParams?.status === 'unused'

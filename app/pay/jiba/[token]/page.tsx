@@ -11,7 +11,8 @@ import { requireJibaTransferAccount } from '@/lib/campaigns/jiba-two-piece/trans
 export const dynamic = 'force-dynamic';
 
 /** 轉帳說明頁（無線上金流）。入帳由壽司匠在後台確認。缺 env 時 fail closed。 */
-export default async function JibaPayPage({ params }: { params: { token: string } }) {
+export default async function JibaPayPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const app = await prisma.campaignApplication.findUnique({
     where: { paymentToken: params.token },
     include: { campaign: true },

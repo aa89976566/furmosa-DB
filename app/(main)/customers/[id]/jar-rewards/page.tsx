@@ -17,11 +17,12 @@ import { formatDateTime } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CustomerJarRewardsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function CustomerJarRewardsPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const customer = await prisma.customer.findUnique({
     where: { id: params.id },
     select: { id: true, name: true, customerId: true },

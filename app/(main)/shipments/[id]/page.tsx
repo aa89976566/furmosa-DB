@@ -51,11 +51,12 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export default async function ShipmentDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ShipmentDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const shipment = await prisma.shipment.findUnique({
     where: { id: params.id },
     include: {

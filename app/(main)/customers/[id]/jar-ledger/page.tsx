@@ -18,11 +18,12 @@ import { ledgerSourceLabel } from '@/lib/jar-exchange/labels';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CustomerJarLedgerPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function CustomerJarLedgerPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const customer = await prisma.customer.findUnique({
     where: { id: params.id },
     select: { id: true, name: true, customerId: true },

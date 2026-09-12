@@ -22,7 +22,8 @@ import { MerchantProductsHistorySection } from '@/components/merchants/merchant-
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantProductsPage({ params }: { params: { id: string } }) {
+export default async function MerchantProductsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const data = await loadMerchantProductListRows(params.id);
   if (!data) notFound();
 

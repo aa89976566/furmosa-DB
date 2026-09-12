@@ -9,11 +9,12 @@ import { toPosRefillOrderCard } from '@/lib/pos/refill-view';
 export const metadata = { title: '換罐 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
-export default async function PosRefillHubPage({
-  searchParams,
-}: {
-  searchParams?: { order?: string };
-}) {
+export default async function PosRefillHubPage(
+  props: {
+    searchParams?: Promise<{ order?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const session = await requireMerchantSession();
   const [account, rows, merchant] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
