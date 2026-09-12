@@ -34,11 +34,12 @@ const STATUSES = [
   { key: 'cancelled', label: '已取消' },
 ] as const;
 
-export default async function SubscriptionsPage({
-  searchParams,
-}: {
-  searchParams?: { status?: string; q?: string };
-}) {
+export default async function SubscriptionsPage(
+  props: {
+    searchParams?: Promise<{ status?: string; q?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const status = searchParams?.status;
   const q = (searchParams?.q ?? '').trim();
   const subscriptionWhere: Record<string, unknown> = {

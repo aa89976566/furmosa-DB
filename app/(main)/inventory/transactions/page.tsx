@@ -27,11 +27,12 @@ const INVENTORY_TXN_TYPES = [
 
 export const dynamic = 'force-dynamic';
 
-export default async function InventoryTxnsPage({
-  searchParams,
-}: {
-  searchParams: { type?: string };
-}) {
+export default async function InventoryTxnsPage(
+  props: {
+    searchParams: Promise<{ type?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const where: any = {};
   if (
     searchParams.type &&

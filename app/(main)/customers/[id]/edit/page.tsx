@@ -14,7 +14,8 @@ function toDateInput(d: Date | null): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
+export default async function EditCustomerPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const customer = await prisma.customer.findUnique({
     where: { id: params.id },
     select: {

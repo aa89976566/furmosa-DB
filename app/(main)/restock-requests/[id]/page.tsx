@@ -14,11 +14,12 @@ import { HqRestockDetailForm } from './hq-restock-form';
 
 export const metadata = { title: '補貨申請詳情 · Furmosa HQ' };
 
-export default async function HqRestockRequestDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function HqRestockRequestDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const req = await prisma.restockRequest.findUnique({
     where: { id: params.id },
     include: {

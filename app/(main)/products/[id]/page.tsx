@@ -25,7 +25,8 @@ import { summarizeVariations } from '@/lib/product-variations';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProductDetailPage({ params }: { params: { id: string } }) {
+export default async function ProductDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const [product, vendors] = await Promise.all([
     prisma.product.findUnique({
       where: { id: params.id },

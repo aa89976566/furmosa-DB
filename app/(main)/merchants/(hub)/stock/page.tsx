@@ -25,11 +25,12 @@ import { Badge } from '@/components/ui/badge';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantStockPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>;
-}) {
+export default async function MerchantStockPage(
+  props: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const view = searchParams.view === 'levels' ? 'levels' : 'txns';
   const filters = parseMerchantStockLedgerSearchParams(searchParams);
   const merchantId = filters.merchantId;

@@ -43,11 +43,12 @@ const stockTxnTypeStyle: Record<string, BadgeVariant> = {
   return: 'secondary',
 };
 
-export default async function MerchantOverviewPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function MerchantOverviewPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const [merchant, shell] = await Promise.all([
     prisma.merchant.findUnique({
       where: { id: params.id },

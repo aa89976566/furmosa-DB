@@ -9,11 +9,12 @@ import { createProduct } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewProductPage({
-  searchParams,
-}: {
-  searchParams?: { vendorId?: string };
-}) {
+export default async function NewProductPage(
+  props: {
+    searchParams?: Promise<{ vendorId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const preselectedVendorId = searchParams?.vendorId ?? null;
 
   const vendors = await prisma.vendor.findMany({

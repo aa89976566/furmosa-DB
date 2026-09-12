@@ -26,13 +26,14 @@ function resolveInitialPercent(
   return suggestMerchantCommissionPercent(product);
 }
 
-export default async function MerchantRulePage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { productId?: string };
-}) {
+export default async function MerchantRulePage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ productId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const merchant = await prisma.merchant.findUnique({
     where: { id: params.id },
     include: {

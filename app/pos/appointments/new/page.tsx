@@ -16,11 +16,12 @@ import { ManualAppointmentForm } from './manual-form';
 
 export const metadata = { title: '手動新增預約 · Furmosa 店家' };
 
-export default async function PosAppointmentNewPage({
-  searchParams,
-}: {
-  searchParams?: { date?: string };
-}) {
+export default async function PosAppointmentNewPage(
+  props: {
+    searchParams?: Promise<{ date?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
   const dateStr = searchParams?.date || formatLocalDate(new Date());

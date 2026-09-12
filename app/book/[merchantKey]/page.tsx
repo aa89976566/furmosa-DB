@@ -24,13 +24,14 @@ async function resolveMerchant(key: string) {
   });
 }
 
-export default async function PublicBookPage({
-  params,
-  searchParams,
-}: {
-  params: { merchantKey: string };
-  searchParams?: { date?: string };
-}) {
+export default async function PublicBookPage(
+  props: {
+    params: Promise<{ merchantKey: string }>;
+    searchParams?: Promise<{ date?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const merchant = await resolveMerchant(params.merchantKey);
   if (!merchant) notFound();
 

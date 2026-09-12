@@ -62,11 +62,12 @@ async function MerchantsReportSection({
   return <MerchantsOperationsDashboard report={report} />;
 }
 
-export default function MerchantsOverviewPage({
-  searchParams,
-}: {
-  searchParams?: { period?: string; q?: string };
-}) {
+export default async function MerchantsOverviewPage(
+  props: {
+    searchParams?: Promise<{ period?: string; q?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const period: MerchantReportPeriod = searchParams?.period === 'week' ? 'week' : 'month';
   const q = (searchParams?.q ?? '').trim();
 

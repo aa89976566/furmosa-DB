@@ -23,11 +23,12 @@ import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantsRestockPage({
-  searchParams,
-}: {
-  searchParams?: { merchantId?: string };
-}) {
+export default async function MerchantsRestockPage(
+  props: {
+    searchParams?: Promise<{ merchantId?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const merchants = await listMerchantsForSelect();
   const selectedMerchantId = resolveSelectedMerchantId(merchants, searchParams?.merchantId);
   const selectedMerchant = merchants.find((merchant) => merchant.id === selectedMerchantId);

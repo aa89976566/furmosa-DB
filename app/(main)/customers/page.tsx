@@ -21,11 +21,12 @@ import { Plus, Repeat } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CustomersPage({
-  searchParams,
-}: {
-  searchParams?: { filter?: string; q?: string };
-}) {
+export default async function CustomersPage(
+  props: {
+    searchParams?: Promise<{ filter?: string; q?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const filter = searchParams?.filter;
   const q = (searchParams?.q ?? '').trim();
 

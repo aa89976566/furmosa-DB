@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> | { id: string } },
+  props: { params: Promise<Promise<{ id: string }> | { id: string }> }
 ) {
+  const params = await props.params;
   try {
     const { id } = await Promise.resolve(params);
     const body = (await req.json()) as { idToken?: string };

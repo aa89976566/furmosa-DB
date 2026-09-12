@@ -16,13 +16,14 @@ const RECEIPT_MESSAGE: Record<string, { text: string; failed: boolean }> = {
   failed: { text: '現在不能確認收貨，請再試一次。', failed: true },
 };
 
-export default async function PosDirectShipmentPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { receipt?: string };
-}) {
+export default async function PosDirectShipmentPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ receipt?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const session = await requireMerchantSession();
   const merchantId = session.merchantId;
   const [account, loaded] = await Promise.all([

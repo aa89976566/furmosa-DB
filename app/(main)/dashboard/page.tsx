@@ -8,9 +8,10 @@ import { DashboardBodyFallback, DashboardBodySection, DashboardTasksFallback } f
 
 export const dynamic = 'force-dynamic';
 
-type DashboardPageProps = { searchParams: { view?: string } };
+type DashboardPageProps = { searchParams: Promise<{ view?: string }> };
 
-export default function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardPage(props: DashboardPageProps) {
+  const searchParams = await props.searchParams;
   const insights = searchParams.view === 'insights';
   return <>
     <PageHeader tone="overview" title="營運首頁"

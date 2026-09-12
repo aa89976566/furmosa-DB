@@ -18,7 +18,8 @@ import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantShipmentsPage({ params }: { params: { id: string } }) {
+export default async function MerchantShipmentsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const merchant = await prisma.merchant.findUnique({
     where: { id: params.id },
     select: { id: true },

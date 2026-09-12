@@ -11,11 +11,12 @@ import { saveMerchantWholesalePrices } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantWholesalePricesPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function MerchantWholesalePricesPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const merchant = await prisma.merchant.findUnique({
     where: { id: params.id },
     select: { id: true, name: true, type: true },

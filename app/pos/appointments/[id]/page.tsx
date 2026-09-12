@@ -14,11 +14,12 @@ import { AppointmentActions } from './appointment-actions';
 
 export const metadata = { title: '預約詳情 · Furmosa 店家' };
 
-export default async function PosAppointmentDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function PosAppointmentDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
   const row = await prisma.appointment.findFirst({

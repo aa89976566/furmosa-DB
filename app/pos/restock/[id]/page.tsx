@@ -19,13 +19,14 @@ import { loadPosAccount } from '@/lib/pos/account';
 
 export const metadata = { title: '補貨單 · Furmosa 店家' };
 
-export default async function PosRestockDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { ok?: string };
-}) {
+export default async function PosRestockDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams?: Promise<{ ok?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
   const [account, req] = await Promise.all([

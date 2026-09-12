@@ -8,7 +8,8 @@ import { loadQueryFeed } from '@/lib/pos/load-query-feed';
 export const metadata = { title: '紀錄 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
 
-export default async function PosRecordsPage({ searchParams }: { searchParams?: { q?: string | string[] } }) {
+export default async function PosRecordsPage(props: { searchParams?: Promise<{ q?: string | string[] }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireMerchantSession();
   const query = posSearchQuery(searchParams?.q);
   const [account, items] = await Promise.all([

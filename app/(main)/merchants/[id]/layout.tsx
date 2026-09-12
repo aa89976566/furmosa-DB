@@ -7,13 +7,18 @@ import { MerchantTabs } from './merchant-tabs';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MerchantLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: { id: string };
-}) {
+export default async function MerchantLayout(
+  props: {
+    children: React.ReactNode;
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
   const shell = await getMerchantShell(params.id);
 
   return (

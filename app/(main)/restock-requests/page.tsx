@@ -5,11 +5,12 @@ import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = { title: '補貨申請 · Furmosa HQ' };
 
-export default async function HqRestockRequestsPage({
-  searchParams,
-}: {
-  searchParams: { status?: string };
-}) {
+export default async function HqRestockRequestsPage(
+  props: {
+    searchParams: Promise<{ status?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const statusFilter = searchParams.status?.trim();
   const rows = await prisma.restockRequest.findMany({
     where: statusFilter

@@ -25,11 +25,12 @@ export const dynamic = 'force-dynamic';
 
 const VALID_STATUSES = ['active', 'inactive', 'draft'] as const;
 
-export default async function ProductsPage({
-  searchParams,
-}: {
-  searchParams?: { q?: string; status?: string };
-}) {
+export default async function ProductsPage(
+  props: {
+    searchParams?: Promise<{ q?: string; status?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const q = (searchParams?.q ?? '').trim();
   const status =
     searchParams?.status && (VALID_STATUSES as readonly string[]).includes(searchParams.status)
