@@ -64,7 +64,20 @@ jobs:
           NODE_ENV: test
         run: npm test
 
-      - name: Next.js build
+      - name: Next.js build diagnostic
+        id: next_build
         env:
           NODE_ENV: production
-        run: npm run build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build -- --debug-prerender 2>&1 | tee next-build.log
+
+      - name: Upload Next.js build diagnostic
+        if: failure() && steps.next_build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build-diagnostic
+          path: next-build.log
+          if-no-files-found: error
+          retention-days: 1
