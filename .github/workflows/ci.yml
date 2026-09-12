@@ -47,8 +47,17 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      # Temporary incident branch bootstrap: resolve a lockfile for the framework upgrade.
+      # This is reverted to npm ci before merge.
+      - name: Resolve upgraded dependencies
+        run: npm install
+
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: incident-237-package-lock
+          path: package-lock.json
+          if-no-files-found: error
 
       - name: Prisma validation
         run: npm run prisma:validate
