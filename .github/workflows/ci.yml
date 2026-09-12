@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -17,6 +17,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # CI-only ephemeral database. Never points at production.
     services:
       postgres:
         image: postgres:16
@@ -39,8 +40,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -50,24 +49,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Apply official Next 15 async request API codemod
-        run: npx --yes @next/codemod@canary next-async-request-api .
-
-      - name: Commit codemod output to incident branch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app
-          if git diff --cached --quiet; then
-            echo "No codemod changes to commit"
-          else
-            git diff --cached --check
-            git commit -m "fix(next15): apply async request API codemod"
-            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-          fi
 
       - name: Prisma validation
         run: npm run prisma:validate
