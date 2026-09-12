@@ -19,9 +19,10 @@ import { SettlementsViewTabs } from '@/components/settlements/settlements-view-t
 import { SettlementCreatePanel } from '@/components/settlements/settlement-create-panel';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format';
 import {
+  buildSettlementFinancialWhere,
   buildSettlementWhere,
   parseSettlementListSearchParams,
-  SETTLEMENT_STATUSES,
+  SETTLEMENT_FINANCIAL_STATUSES,
 } from '@/lib/settlement-list-query';
 import { formatTaipeiMonthLabel } from '@/lib/taipei-date';
 import { listMerchantsForSelect, resolveSelectedMerchantId } from '@/lib/merchant-operation-options';
@@ -80,7 +81,7 @@ export default async function MerchantsSettlementsPage(
     }),
     filters.month
       ? prisma.settlement.aggregate({
-          where,
+          where: buildSettlementFinancialWhere(filters),
           _sum: {
             grossSales: true,
             commissionAmount: true,
@@ -93,6 +94,8 @@ export default async function MerchantsSettlementsPage(
   ]);
 
   const monthLabel = filters.month ? formatTaipeiMonthLabel(filters.month) : null;
+  const cancelledCount =
+    totals.find((t) => t.status === 'cancelled')?._count._all ?? 0;
 
   return (
     <MerchantWorkspace>
@@ -131,7 +134,9 @@ export default async function MerchantsSettlementsPage(
             <Card>
               <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">{monthLabel} 結算筆數</p>
+                  <p className="text-xs text-muted-foreground">
+                    {monthLabel} 結算筆數（不含已撤回）
+                  </p>
                   <p className="text-2xl font-semibold tabular-nums">{periodSummary._count._all}</p>
                 </div>
                 <div>
@@ -157,7 +162,7 @@ export default async function MerchantsSettlementsPage(
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {SETTLEMENT_STATUSES.map((s) => {
+            {SETTLEMENT_FINANCIAL_STATUSES.map((s) => {
               const row = totals.find((t) => t.status === s);
               return (
                 <Card key={s}>
@@ -174,6 +179,12 @@ export default async function MerchantsSettlementsPage(
               );
             })}
           </div>
+
+          {cancelledCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              另有 {cancelledCount} 筆已撤回，金額不計入上方總計。
+            </p>
+          )}
 
           {settlements.length === 0 ? (
             <Card>

@@ -927,6 +927,13 @@ V2 表第一個 migration 就必須帶：
 
 ## 8. 唯一金額型別：BigInt 整數 TWD
 
+> **本包例外註記（POS 結算 v1）**
+> `docs/reviews/pos-settlement-v1.md` 的工作包是延伸既有 HQ `Settlement`，
+> 不建平行新表，因此 legacy `Float` 欄位型別不動，只新增整數台幣欄位
+> （`netPayableTwd`、`storeCollected`，型別為 `Int`／`INTEGER`）。
+> 本節的「新表金額一律 BigInt」仍是**新表**的規則，未被取消；
+> 該包的例外範圍只限那兩個欄位與既有 legacy 欄位。
+
 ### 8.1 選定，不再寫「或」
 
 **唯一方案：PostgreSQL `BIGINT` ↔ Prisma `BigInt` ↔ 領域整數 TWD。**
@@ -1069,6 +1076,12 @@ Production 數過列數。
 POS-01 程式仍未凍結此規則；本節只修正文件，不覆蓋 POS-01 程式。
 
 ### 11.2 結算
+
+> **本包例外註記（POS 結算 v1）**
+> `docs/reviews/pos-settlement-v1.md` 的工作包沒有 V2 表，它是在既有
+> `Settlement` 上以 `rulesVersion` 分支：新版讀已存快照與整數 `netPayableTwd`，
+> 舊版維持原本的 `calcSettlement` 路徑，兩者**不混算**（本節這一條仍然成立）。
+> 該包的 legacy Float 欄位只用於兼容舊 HQ 顯示，不參與新版淨額計算。
 
 - 新月結只讀 V2 整數列（BigInt）。
 - 不與 legacy Float 混算。

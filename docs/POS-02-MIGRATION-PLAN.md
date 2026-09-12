@@ -48,6 +48,13 @@
 
 ## 2. Prerequisite：drift 未 reconcile 不可建 migration
 
+> **本包例外註記（POS 結算 v1）**
+> 下一行的證據句已過期：base `d55164e` 上另有 `20260818233000` 至 `20260907170000` 共 8 筆 migration。
+> 但**閘門本身仍然有效**：正式庫 `_prisma_migrations` 現況未經驗證。
+> `docs/reviews/pos-settlement-v1.md` 所產生的
+> `prisma/migrations/20260911160000_pos_settlement_sources/` 只產生、不套用，
+> 上線前必須先完成本節的 drift reconcile。此處不重寫舊規則。
+
 `origin/main` 最後一筆 migration 仍是 `20260729170000_refill_flavours_stock`。
 Draft PR **#112–#115** 記錄 Production `_prisma_migrations` 另有 12 筆 `202608*`，
 repo 沒有對應檔。

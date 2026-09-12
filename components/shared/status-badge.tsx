@@ -48,6 +48,7 @@ const settlementStatusVariant: Record<string, Variant> = {
   reviewing: 'warning',
   approved: 'info',
   paid: 'success',
+  cancelled: 'muted',
 };
 
 const taskStatusVariant: Record<string, Variant> = {

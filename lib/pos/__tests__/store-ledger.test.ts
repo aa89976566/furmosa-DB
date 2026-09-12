@@ -26,6 +26,10 @@ import {
   runSettlementTransaction,
   selectSettlementItems,
 } from '@/lib/pos/store-settlement';
+import {
+  SETTLEMENT_WRITE_FLAG_ENV,
+  buildSettlementDraft,
+} from '@/lib/settlements/write-settlement';
 
 const STORE = 'store-paopao';
 const at = (stamp: string) => new Date(`${stamp}+08:00`);
@@ -469,15 +473,32 @@ describe('store settlement snapshot and atomic persist', () => {
     assert.deepEqual(calls, ['find']);
   });
 
-  it('does not persist until StoreSettlement exists', async () => {
-    const snapshot = buildSettlementSnapshot({
-      ...samplePeriod(),
-      entries: periodEntries(),
-      paymentMethod: 'BANK_TRANSFER',
+  // 原案為「StoreSettlement 表不存在所以不寫入」。該表不再是本流程的寫入目標，
+  // 現在的寫入目標是 HQ Settlement ＋ SettlementSourceItem，並由伺服器端 flag 控制。
+  // 因此本案改為驗證「寫入開關關閉時拒寫並回傳明確 code」，且過程不連任何資料庫。
+  it('refuses to persist while the server-side write flag is off', async () => {
+    delete process.env[SETTLEMENT_WRITE_FLAG_ENV];
+    const period = samplePeriod();
+    const draft = buildSettlementDraft({
+      merchantId: period.storeId,
+      periodStart: period.periodStart,
+      periodEnd: period.periodEnd,
+      intendedPaymentMethod: 'BANK_TRANSFER',
+      operationSeq: 0,
+      sources: [],
     });
-    const result = await persistStoreSettlement(snapshot);
+    const result = await persistStoreSettlement({
+      draft,
+      submitted: {
+        sourceKeysDigest: draft.sourceKeysDigest,
+        amountsDigest: draft.amountsDigest,
+      },
+    });
     assert.equal(result.ok, false);
-    assert.equal(result.code, 'SCHEMA_MISSING');
+    if (!result.ok) {
+      assert.equal(result.code, 'WRITE_DISABLED');
+      assert.match(result.error, /尚未啟用/);
+    }
   });
 
   it('returns the same totals when the same entries are summarized again', () => {
