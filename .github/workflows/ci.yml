@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -38,8 +38,10 @@ jobs:
       AUTH_SECRET: ci-only-not-a-production-secret
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:
-      - name: Checkout
+      - name: Checkout incident branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -47,17 +49,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Temporary incident branch bootstrap: resolve a lockfile for the framework upgrade.
-      # This is reverted to npm ci before merge.
+      # Temporary incident branch bootstrap: resolve and commit the lockfile for the framework upgrade.
+      # This entire bootstrap is reverted to canonical npm ci before merge.
       - name: Resolve upgraded dependencies
         run: npm install
 
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: incident-237-package-lock
-          path: package-lock.json
-          if-no-files-found: error
+      - name: Commit generated lockfile when changed
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore(deps): refresh lockfile for Next.js 15.5.25"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
 
       - name: Prisma validation
         run: npm run prisma:validate
