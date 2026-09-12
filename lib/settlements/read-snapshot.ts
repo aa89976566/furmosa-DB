@@ -16,6 +16,7 @@
  */
 
 import type { PrismaClient } from '@prisma/client';
+import { taipeiDateInput } from '@/lib/taipei-date';
 import {
   LEGACY_FLOAT_TOLERANCE,
   POS_SETTLEMENT_RULES_VERSION,
@@ -101,6 +102,45 @@ export function formatSourceAmount(amount: number): string {
   const [whole = '0', fraction] = text.split('.');
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${sign}NT$${fraction ? `${grouped}.${fraction}` : grouped}`;
+}
+
+/** 台北時區的時：分。固定 h23，午夜是 00:00 而不是 24:00。 */
+const TAIPEI_CLOCK = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Taipei',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function toDisplayDate(value: Date | string | null | undefined): Date | null {
+  if (value == null || value === '') return null;
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * 期間日期的台北顯示格式（`YYYY/MM/DD`）。
+ *
+ * `lib/format.ts` 的 `formatDate` 走 date-fns，用的是**執行環境本機時區**。伺服器與
+ * CI 都是 UTC，所以期間起日 `2026-08-31T16:00:00.000Z`（＝台北 9/1 00:00）會被顯示成
+ * `2026/08/31`，同一張結帳單在 POS 顯示 09/01、HQ 卻顯示 08/31。期間是由
+ * `parseTaipeiDateRange` 以 `+08:00` 建出來的，顯示時必須回到同一個時區才不會少一天。
+ *
+ * 日期直接沿用既有的 `taipeiDateInput`（`en-CA`，固定 `YYYY-MM-DD`）再換分隔符號，
+ * 不依賴各執行環境的 `zh-TW` 排版。此格式化函式必須留在白名單模組，
+ * 不得改白名單外的 `lib/format.ts`，以免影響其他頁面的既有顯示。
+ */
+export function formatTaipeiDate(value: Date | string | null | undefined): string {
+  const date = toDisplayDate(value);
+  if (!date) return '—';
+  return taipeiDateInput(date).replaceAll('-', '/');
+}
+
+/** 時間點的台北顯示格式（`YYYY/MM/DD HH:mm`）。時區理由同 `formatTaipeiDate`。 */
+export function formatTaipeiDateTime(value: Date | string | null | undefined): string {
+  const date = toDisplayDate(value);
+  if (!date) return '—';
+  return `${taipeiDateInput(date).replaceAll('-', '/')} ${TAIPEI_CLOCK.format(date)}`;
 }
 
 export type SettlementSourceRow = {

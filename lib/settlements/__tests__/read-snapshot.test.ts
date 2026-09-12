@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   POS_SETTLEMENT_RULES_VERSION,
@@ -16,6 +17,8 @@ import {
   buildSnapshotView,
   countsTowardValidTotals,
   formatSourceAmount,
+  formatTaipeiDate,
+  formatTaipeiDateTime,
   hasSourceSnapshot,
   isPosSettlementVersion,
   loadActiveSourceKeys,
@@ -517,5 +520,128 @@ describe('R5#5：來源與分潤必須顯示原始小數', () => {
   it('多位小數不截斷：三成分潤的零頭要看得到', () => {
     assert.equal(formatSourceAmount(85.25), 'NT$85.25');
     assert.equal(formatSourceAmount(25.575), 'NT$25.575');
+  });
+});
+
+/**
+ * 台北期間起日的邊界時刻：`parseTaipeiDateRange('2026-09-01', ...)` 產生的起日，
+ * 在 UTC 日曆上是 8/31。HQ 原本用 `lib/format.ts` 的 date-fns 口徑（本機時區），
+ * 在 UTC 伺服器上就顯示成 2026/08/31，和 POS 的 2026/09/01 差一天。
+ */
+const PERIOD_START_UTC = '2026-08-31T16:00:00.000Z';
+/** 台北期間迄日 2026-09-12 23:59:59.999，UTC 日曆上仍是 9/12。 */
+const PERIOD_END_UTC = '2026-09-12T15:59:59.999Z';
+
+/** POS `settle-workspace.tsx` 既有的台北顯示口徑，用來交叉比對 HQ 是否真的一致。 */
+function posTaipeiDay(iso: string): string {
+  return new Date(iso).toLocaleDateString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
+
+function posTaipeiDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function readRepoFile(relativePath: string): string {
+  return readFileSync(new URL(`../../../${relativePath}`, import.meta.url), 'utf8');
+}
+
+describe('R8：HQ 新版頁面的日期必須與 POS 同為台北時區', () => {
+  it('台北 9/1 00:00 的期間起日顯示 2026/09/01，不是 UTC 日曆的 08/31', () => {
+    // UTC 日曆確實是 8/31：這就是原缺陷會少一天的原因。
+    assert.equal(PERIOD_START_UTC.slice(0, 10), '2026-08-31');
+    assert.equal(formatTaipeiDate(PERIOD_START_UTC), '2026/09/01');
+    assert.equal(formatTaipeiDate(new Date(PERIOD_START_UTC)), '2026/09/01');
+  });
+
+  it('同一時刻的時間顯示是台北時間 00:00，且午夜不得寫成 24:00', () => {
+    assert.equal(formatTaipeiDateTime(PERIOD_START_UTC), '2026/09/01 00:00');
+    assert.equal(formatTaipeiDateTime(new Date(PERIOD_START_UTC)), '2026/09/01 00:00');
+  });
+
+  it('期間迄日 23:59:59.999 仍留在同一個台北日曆日', () => {
+    assert.equal(formatTaipeiDate(PERIOD_END_UTC), '2026/09/12');
+    assert.equal(formatTaipeiDateTime(PERIOD_END_UTC), '2026/09/12 23:59');
+  });
+
+  it('隔離實機看到的整段期間：HQ 顯示 2026/09/01 ~ 2026/09/12', () => {
+    const label = `${formatTaipeiDate(PERIOD_START_UTC)} ~ ${formatTaipeiDate(PERIOD_END_UTC)}`;
+    assert.equal(label, '2026/09/01 ~ 2026/09/12');
+  });
+
+  it('與 POS 既有台北口徑逐字相同，不是各算一套', () => {
+    for (const iso of [PERIOD_START_UTC, PERIOD_END_UTC, '2026-09-05T04:07:00.000Z']) {
+      assert.equal(formatTaipeiDate(iso), posTaipeiDay(iso));
+      assert.equal(formatTaipeiDateTime(iso), posTaipeiDateTime(iso));
+    }
+  });
+
+  it('不受執行環境時區影響：UTC 與其他非台北時區都得到同一個字串', () => {
+    // 這幾個時區會把同一時刻算成不同日曆日（紐約 8/31、Kiritimati 9/1），
+    // 所以只要實作有殘留本機時區依賴，這個斷言就會失敗。
+    const original = process.env.TZ;
+    try {
+      for (const tz of ['UTC', 'America/New_York', 'Pacific/Kiritimati', 'Europe/London']) {
+        process.env.TZ = tz;
+        assert.equal(formatTaipeiDate(PERIOD_START_UTC), '2026/09/01', tz);
+        assert.equal(formatTaipeiDateTime(PERIOD_START_UTC), '2026/09/01 00:00', tz);
+        assert.equal(formatTaipeiDate(PERIOD_END_UTC), '2026/09/12', tz);
+      }
+    } finally {
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
+    }
+  });
+
+  it('空值與無法解讀的時間顯示破折號，不得出現 Invalid Date', () => {
+    for (const value of [null, undefined, '', '不是日期', new Date(Number.NaN)]) {
+      assert.equal(formatTaipeiDate(value), '—');
+      assert.equal(formatTaipeiDateTime(value), '—');
+    }
+  });
+
+  it('新版快照元件的期間、撥款時間與來源時間都不再走本機時區', () => {
+    const source = readRepoFile('components/settlements/snapshot-detail.tsx');
+    assert.match(source, /formatTaipeiDate\(header\.periodStart\)/);
+    assert.match(source, /formatTaipeiDate\(header\.periodEnd\)/);
+    assert.match(source, /formatTaipeiDateTime\(header\.paidAt\)/);
+    assert.match(source, /formatTaipeiDateTime\(row\.occurredAt\)/);
+    assert.doesNotMatch(source, /\bformatDate\b/);
+    assert.doesNotMatch(source, /\bformatDateTime\b/);
+  });
+
+  it('HQ 明細頁只有新版頁首改台北，legacy 分支的既有顯示不動', () => {
+    const source = readRepoFile('app/(main)/merchants/(hub)/settlements/[id]/page.tsx');
+    assert.equal(
+      source.match(/formatTaipeiDate\(settlement\.period(Start|End)\)/g)?.length,
+      2,
+      '新版分支頁首必須用台北口徑',
+    );
+    // legacy 分支（calcSettlement 路徑）仍使用原本的 lib/format 口徑，未經授權不得變更。
+    assert.equal(
+      source.match(/formatDate\(settlement\.period(Start|End)\)/g)?.length,
+      4,
+      'legacy 頁首與摘要的既有 formatDate 必須保留',
+    );
+    assert.match(source, /formatDateTime\(settlement\.paidAt\)/);
+  });
+
+  it('POS 歷史的期間與撥款時間仍明確指定台北，沒有被本輪改動', () => {
+    const source = readRepoFile('components/pos/settle-workspace.tsx');
+    assert.match(source, /taipeiDay\(row\.periodStart\)/);
+    assert.match(source, /row\.paidAt && row\.status === 'paid' \? taipeiDateTime\(row\.paidAt\)/);
+    assert.equal(source.match(/timeZone: 'Asia\/Taipei'/g)?.length, 2);
   });
 });

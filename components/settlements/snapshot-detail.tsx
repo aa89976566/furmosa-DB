@@ -11,10 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { updateSettlementStatus } from '@/app/(main)/settlements/actions';
 import {
   formatSourceAmount,
+  formatTaipeiDate,
+  formatTaipeiDateTime,
   type SettlementSnapshotView,
 } from '@/lib/settlements/read-snapshot';
 
@@ -66,9 +68,10 @@ export function SnapshotDetail({
               </Link>
             }
           />
+          {/* 期間是以 +08:00 建出來的，顯示必須回到台北時區，否則起日會少一天。 */}
           <Row
             label="期間"
-            value={`${formatDate(header.periodStart)} ~ ${formatDate(header.periodEnd)}`}
+            value={`${formatTaipeiDate(header.periodStart)} ~ ${formatTaipeiDate(header.periodEnd)}`}
           />
           {/* 這四個是 legacy Float 口徑，必須顯示原始小數；下面兩個是整數口徑。 */}
           <Row label="寄賣銷售額" value={formatSourceAmount(header.grossSales)} />
@@ -90,7 +93,7 @@ export function SnapshotDetail({
             <Row label="預定付款方式" value={header.intendedPaymentMethod} />
           ) : null}
           {header.paidAt && header.status === 'paid' ? (
-            <Row label="撥款時間" value={formatDateTime(header.paidAt)} />
+            <Row label="撥款時間" value={formatTaipeiDateTime(header.paidAt)} />
           ) : null}
           {header.note ? <Row label="備註" value={header.note} /> : null}
         </dl>
@@ -170,7 +173,7 @@ export function SnapshotDetail({
               {view.auditSources.map((row) => (
                 <TableRow key={row.id} className={row.voidedAt ? 'bg-muted/40' : ''}>
                   <TableCell className="text-xs text-muted-foreground">
-                    {formatDateTime(row.occurredAt)}
+                    {formatTaipeiDateTime(row.occurredAt)}
                   </TableCell>
                   <TableCell>{SOURCE_KIND_LABEL[row.sourceKind] ?? row.sourceKind}</TableCell>
                   <TableCell className="font-mono text-xs">{row.sourceKey}</TableCell>

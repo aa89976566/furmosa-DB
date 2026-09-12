@@ -16,7 +16,11 @@ import {
 } from '@/components/ui/table';
 import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/lib/format';
 import { calcSettlement } from '@/lib/settlement-calc';
-import { hasSourceSnapshot, loadSettlementSnapshot } from '@/lib/settlements/read-snapshot';
+import {
+  formatTaipeiDate,
+  hasSourceSnapshot,
+  loadSettlementSnapshot,
+} from '@/lib/settlements/read-snapshot';
 import { SnapshotDetail, SnapshotUnavailable } from '@/components/settlements/snapshot-detail';
 import { ArrowLeft, CheckCircle2, Send, FileCheck2, DollarSign, Trash2 } from 'lucide-react';
 import { updateSettlementStatus, deleteSettlement } from '@/app/(main)/settlements/actions';
@@ -43,9 +47,10 @@ export default async function SettlementDetailPage({ params }: { params: { id: s
     const snapshot = await loadSettlementSnapshot(prisma, settlement.id);
     return (
       <>
+        {/* 期間以 +08:00 建立，頁首必須與 POS 同一個台北口徑，否則起日會少一天。 */}
         <PageHeader
           title={settlement.settlementId}
-          description={`${settlement.merchant.name} · ${formatDate(settlement.periodStart)} ~ ${formatDate(settlement.periodEnd)}`}
+          description={`${settlement.merchant.name} · ${formatTaipeiDate(settlement.periodStart)} ~ ${formatTaipeiDate(settlement.periodEnd)}`}
           actions={
             <Button variant="outline" size="sm" asChild>
               <Link href="/merchants/settlements">
