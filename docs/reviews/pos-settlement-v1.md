@@ -6,8 +6,8 @@
 |---|---|
 | 審核結果 | **v2 審核通過** |
 | 審查模型 | Claude Opus 5（本檔作者）；提案原稿由 Grok 產出 |
-| Prompt 版本 | v2-R6（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5／R6 規格缺陷修訂；詳見 §0.1–§0.7） |
-| 凍結文字 SHA256 | `a78f2f4fb50824a7bfa3e673ea90fee8e89aa54ccbb7c1bd5313d57e1e5fa37c` |
+| Prompt 版本 | v2-R7（＝v2 全文 ＋ R1／R1 補充白名單更正 ＋ R2／R3／R4／R5／R6／R7 規格缺陷修訂；詳見 §0.1–§0.8） |
+| 凍結文字 SHA256 | `7046a154bb150182ee2b6a64932e5a1fa209d6aa224f59768b33c0dc8cfd02af` |
 | 雜湊計算方式 | `awk '/^<!-- FROZEN-PROMPT-BEGIN -->$/{f=1;next}/^<!-- FROZEN-PROMPT-END -->$/{f=0}f' docs/reviews/pos-settlement-v1.md \| sha256sum` |
 | base commit | `d55164e0670f91a47ff488e177f09a2f46560098`（`origin/main`） |
 | 分支 | `cursor/pos-settlement-v1-2033`（自上述 base 建立） |
@@ -135,6 +135,19 @@ R5 修訂前的凍結雜湊：`e0d634f2614a6e387e5428f90ec8be7293d84c05d6fb00b5d
 
 R6 修訂前的凍結雜湊：`fe0e5eac9fca5872a83ffffc27f53fb8f714301bc32eb69b94d9578900f762e4`（commit `aa17a22`）。
 
+### 0.8 R7 實際接線缺口審核紀錄（送出順序、撥款事實、卡片語意、migration 交易）
+
+Codex 對 `7a7d32b` 的獨立驗收通過（指定純測試 158 案、typecheck、隔離 PostgreSQL 含 RLS 共 17 案），但指出四項實際接線缺口。逐檔核對後**四項全部確認為真實缺陷**，且**都是原規格的缺口**而非實作違規：§1.8 只規定了 writer 內部的重送行為，沒有規定 **action 的呼叫順序**；§1.10 規定了歷史列表不得由 status 宣稱撥款，沒有同時規定**送出訊息**；§1.6 只要求「一次帶齊全部約束」，沒有規定**交易邊界**。白名單未擴張。
+
+| # | 缺陷 | 判定 | 根因與修法 |
+|---|---|---|---|
+| 1 | `confirmStoreSettlementAction` 先載入過濾後 sources 並驗付款方向，最後才由 writer 查原 key，導致首次送出成功後無法回原單 | **確認** | 第一次送出成功後來源全部被鎖，重新載入的 `sources` 為空 → `direction` 為 `NONE` → `payer` 為 `NONE` → `allowedPaymentMethods` 只回 `['NONE']`，因此 `BANK_TRANSFER` 先被 `SETTLEMENT_PAYMENT_METHOD_INVALID_ERROR` 擋下，writer 的重送查詢永遠走不到。把順序抽成 `confirmStoreSettlement(input, deps)`：寫入開關 → **本店 + 原 key + 完整 fingerprint** 查既有單並回報其真實狀態 → 只有查不到原單才重算來源、驗就緒狀態與付款方式。相依全部注入，順序本身可在無資料庫環境回歸 |
+| 2 | `submittedSettlementMessage` 的 `paid` 分支只看 `status` 就宣稱撥款完成 | **確認** | `status` 只是標記，證明撥款事實的是 `paidAt`。`paidAt` 現在由資料庫 `select` 一路帶到 `SettlementWriteResult`、action 結果與訊息；`paid` 但 `paidAt = null` 改為明說資料不一致、要求聯絡總部、不得當成已收款，與 R5 已套用於歷史列表的 `settlementHistoryStatusView` 同一條規則 |
+| 3 | 兩張主卡其實是淨額的正負兩面，說明卻列舉抵扣前的組成項目，且含未實作的「活動返利」 | **確認** | 採使用者選項（a）。改名為「（抵扣後）」並改寫說明；移除永遠成立的相減等式，改為直接說明淨結果。選項（b）被否決：`SettlementLegacyTotals` 只暴露**已進位**的 `storeCollected`，要顯示抵扣前兩邊必須另加精確欄位，且 `round(a) − round(b) ≠ round(a−b)`，會重新引入 R5 才修掉的「畫面等式不精確」問題。既有 `流水拆解` 區塊裡的 legacy `活動返利` 明細列**保留不刪**（AGENTS.md「不要刪除既有功能」），只修正錯誤的區塊註記——`load-store-ledger.ts` 其實把所有券無條件放進 `entries`，只在 `sources` 過濾鎖定來源，因此「已被其他結帳單結過的項目不在這裡」是假陳述 |
+| 4 | 整份新 migration 沒有 `BEGIN/COMMIT`，緊接 `REVOKE` 不代表 autocommit 建表沒有曝險空窗 | **確認** | 查證結論：Prisma 的 `render_begin_transaction` **只對 MSSQL 實作**，PostgreSQL 不會自行送出 `BEGIN`；官方指定的 opt-in 就是在 migration 檔內自己寫 `BEGIN;`／`COMMIT;`，因此不存在交易嵌套衝突。以 autocommit 方式套用（例如 §3.4 人工補救路徑的 `psql -f`）時 `CREATE TABLE` 會先 commit，在 `REVOKE` 生效前出現曝險空窗，中途失敗也會留下半套結構。本檔沒有任何不能在交易內執行的語句（無 `INDEX CONCURRENTLY`、無 `VACUUM`）。**不動任何既有 migration** |
+
+R7 修訂前的凍結雜湊：`a78f2f4fb50824a7bfa3e673ea90fee8e89aa54ccbb7c1bd5313d57e1e5fa37c`（commit `7a7d32b`）。
+
 ---
 
 ## 1. 凍結 Prompt v2 全文
@@ -152,7 +165,8 @@ R6 修訂前的凍結雜湊：`fe0e5eac9fca5872a83ffffc27f53fb8f714301bc32eb69b9
 - 上線阻擋（必須在 PR 中誠實列出，缺一不可上線）：
   1. 正式 drift 未驗證；
   2. 真實資料庫並行與失敗注入測試未執行；
-  3. 新表曝險防護（RLS ＋ `REVOKE`）未在正式庫以唯讀方式實測確認，見 §1.6 與 §3.3 第 6–7 項。
+  3. 新表曝險防護（RLS ＋ `REVOKE`）未在正式庫以唯讀方式實測確認，見 §1.6 與 §3.3 第 6–7 項；
+  4. 本包 migration 的單一交易套用尚未在正式庫實際執行過，只在隔離庫演練，見 §1.6 交易邊界與 §3.3 第 8 項。
 - 禁止：正式 migration、`db push`、seed、reset、資料更動、部署、正式 cron、正式環境變數操作。
 - 禁止讀取或輸出密碼、金鑰、環境秘密與無關個資。
 
@@ -268,6 +282,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - **不**收回 `service_role`：它需要伺服器機密才能使用，風險層級不同，不在本輪指示範圍。
 - 防護段三個語句全部可重複執行；表已存在（`CREATE TABLE IF NOT EXISTS` 跳過）時重跑仍會補上防護。
 
+**交易邊界（R7）**：整份 `migration.sql` 必須以單一 `BEGIN;` … `COMMIT;` 包住。Prisma 對 PostgreSQL **不會**自行送出 `BEGIN`（`render_begin_transaction` 只對 MSSQL 實作），官方指定的 opt-in 就是在 migration 檔內自己寫，因此不存在交易嵌套衝突。若以 autocommit 方式套用（例如 §3.4 人工補救路徑的 `psql -f`），`CREATE TABLE` 會先 commit，在上述 `REVOKE` 生效前出現曝險空窗；中途失敗也會留下半套結構。本檔不得出現任何無法在交易內執行的語句（`INDEX CONCURRENTLY`、`VACUUM`、`CREATE DATABASE`、`ALTER SYSTEM`）。**不得修改任何既有 migration**。
+
 ### 1.7 精度與 legacy 公式
 
 - 來源原值逐欄保留，**不以容差抹掉半元**（例如 255 × 30% = 76.5 必須原樣存）。
@@ -307,7 +323,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - 瀏覽器送出的付款方式必須是**穩定代碼**，不得是 UI 顯示文字。
 - 送出時伺服器必須重新計算來源集合並與預覽摘要比對，改變即拒絕，不得靜默改變整批內容。
 - 同 key 同 payload → 回傳既有結算；同 key 不同 payload → 拒絕；部分重疊 → 整批拒絕。
-- **重送優先於重算**：送出時必須先用預覽當時的 key 查本店原單，找到就回傳原單。送出成功會鎖住來源而讓它們從新預覽消失，撤回會讓操作序號改變，兩者都會算出不同的新 key；若先算新 key 再寫入，重按一次就會變成「沒有可結算項目」或直接開出第二張結算。原 key 查詢必須限定本店，且找到的原單指紋與預覽不符時拒絕。
+- **重送優先於重算**：送出時必須先用預覽當時的 key 查本店原單，找到就回傳原單。送出成功會鎖住來源而讓它們從新預覽消失，撤回會讓操作序號改變，兩者都會算出不同的新 key；若先算新 key 再寫入，重按一次就會變成「沒有可結算項目」或直接開出第二張結算。原 key 查詢必須限定本店，且找到的原單指紋與預覽不符（含完全沒帶指紋）時拒絕。
+- **這個順序必須落在 server action 的入口，不能只落在 writer 裡（R7）**：驗證 session 與期間之後，緊接著就是寫入開關與「本店 + 原 key + 完整 fingerprint」查既有單，只有查不到原單的真正新送出才可以載入來源、驗就緒狀態與付款方式。若先載入過濾後的來源並驗收付方向，首次送出成功後來源全被鎖住，`payer` 變成 `NONE`，重送會先被「結帳方式不適用」擋下，writer 的重送查詢永遠走不到。跨店由查詢限定 `merchantId` 擋下：別家店的 key 查不到原單，落入新送出分支後再由來源／摘要比對拒絕。此順序必須以**注入相依**的方式實作，讓順序本身能在沒有資料庫的環境回歸測試；writer 內部保留自己的重送查詢作為並行情況的第二層防線。
 - 瀏覽器帶回的 key 與指紋只用於比對與查詢，永遠不參與金額計算、也不得用來建立新結算。
 - **就緒判斷必須在建立草稿之前**：寫入 flag、來源鎖定狀態與操作序號三者任一讀不到，都必須在進入交易前擋下並回傳可讀原因，不得以預設值（空鎖集合、序號 0）繼續。操作序號讀不到尤其不可放行：它會算出錯的冪等 key，撤回後可能重用已被占用的 key。此判斷必須是預覽與送出**共用的同一個函式**，不得兩邊各自解讀；且必須在伺服器端執行，不得只靠 UI 隱藏按鈕。
 - header、明細、來源鎖必須在**同一個交易**內完成。
@@ -329,6 +346,7 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - **HQ 推進新版結算狀態必須驗合法下一步**：只允許 `draft → reviewing → approved → paid`，`paid` 與 `cancelled` 皆為終點，不得往回改。只擋 `cancelled` 是不夠的：被降回 `draft` 的新版結算會重新符合 POS 撤回條件，店家就能撤回一張已撥款的結算並釋放來源鎖。
 - 新版狀態更新必須以**原狀態**當資料庫條件（不是「不等於 `cancelled`」）並做筆數斷言，競態時整筆不動並回可讀訊息。legacy（`rulesVersion == null`）條件與訊息完全不變；缺表／缺欄位環境讀不到 `rulesVersion` 時一律視為 legacy。
 - 重送若命中的原單已 `cancelled`／`paid`／`reviewing`／`approved`，回應訊息必須說明**實際狀態**，不得一律說「待核對」。
+- **送出訊息的撥款事實只能取自 `paidAt`，不得由 `status` 推導（R7）**：`paidAt` 必須從資料庫 `select` 出來，一路帶到寫入結果、action 結果與訊息。`status = 'paid'` 但 `paidAt` 為 null 是資料不一致，訊息必須說明不一致並要求聯絡總部，**不得宣稱撥款完成**。這與 §1.10 對歷史列表的規則是同一條，兩處不得各自解讀。
 
 ### 1.10 讀取與 UI
 
@@ -341,7 +359,8 @@ legacy 欄位型別與語意**完全不變**（`grossSales`、`commissionRate`�
 - HQ 新版分支讀逐筆來源快照與共用淨額；legacy `calcSettlement` 路徑完全不變。
 - POS 必須把**暫計**、**待確認**、**已送出紀錄**分開呈現，已送出者顯示同一編號與狀態。
 - **同一個畫面不得出現兩套結算金額。** POS 總覽的應收應付卡、收付方向與主要總額只能有一個來源：本次可結算來源的 Decimal totals。legacy `summarizeStoreLedger(entries)` 不得用於這些欄位——`entries` 少了寄賣銷售、含已被別張結帳單鎖住的券、且進貨款以 0 列入，必然與要送出的金額不同。已結算金額改讀**已送出快照**（同期間且計入有效統計者），不得用 legacy 摘要的已結清欄位。
-- legacy 流水拆解區可保留（不刪除既有功能），但標題與說明必須讓人看得出它是**流水分類參考**而非結算金額，且小計不等於本期結算結果。
+- legacy 流水拆解區可保留（不刪除既有功能），但標題與說明必須讓人看得出它是**流水分類參考**而非結算金額，且小計不等於本期結算結果。**區塊註記必須與 `load-store-ledger.ts` 的實際行為一致（R7）**：券無論是否已被別張結帳單鎖定都會進 `entries`，只有 `sources` 會過濾鎖定來源，因此不得聲稱「已被其他結帳單結過的項目不在這裡」；正確說法是寄賣銷售不在流水裡、已結過的券仍會列出。
+- **兩張應收應付卡的說明必須與它們實際顯示的數字一致（R7）**：它們是同一個淨額的正負兩面（抵扣後），不是抵扣前的兩邊，其中一張永遠是 0。標題必須寫明「抵扣後」，說明不得列舉抵扣前的組成項目，也不得提及尚未實作的科目。不得顯示「一邊 − 另一邊 = 淨額」這種永遠成立且無資訊的等式；若要改為顯示抵扣前兩邊，必須另提供**未進位**的精確欄位，不可用已進位的 `storeCollected` 相減（`round(a) − round(b) ≠ round(a−b)`）。既有 legacy 流水拆解裡的明細列不因此刪除。
 - 只有 `status = 'paid'` 且有 `paidAt` 才可顯示已撥款字樣。`paid` 但缺 `paidAt` 是資料不一致，必須顯示成待確認並且不得使用完成色；未知狀態原樣顯示，不得猜成已撥款。
 - **來源原值與店家分潤必須顯示原始小數**，不得四捨五入：分潤是售價的 20%／30%，半元很常見，四捨五入後畫面數字與快照存下的來源值不符，對帳查不出差額來源。只有整數口徑的欄位（`netPayableTwd`、`storeCollected`）才可無小數顯示。此格式化函式必須放在白名單內模組，不得修改白名單外的 `lib/format.ts`。
 - 沿用既有 UI 元件與樣式，手機與桌機都必須可用。
@@ -359,6 +378,13 @@ R4 追加必測：鎖定狀態或操作序號讀不到時預覽與送出都被�
 R5 追加必測（畫面與入口串接，全部為純函式測試，不需資料庫）：收付方向由 Decimal 淨額推導且零淨額只允許「本期無需付款」；不適用的付款方式被擋下而非 fallback，且 UI 文字不被當成合法輸入；每個可選方式的 key 與 fingerprint 互不相同而金額相同；重送命中 `cancelled`／`paid`／`reviewing`／`approved` 的訊息各自正確；`paid` 缺 `paidAt` 不顯示已撥款且不用完成色；總覽四張卡只有一方有數字、零淨額顯示相抵、已送出金額只計同期間且排除已撤回、舊流程缺 `netPayableTwd` 時退回 `merchantOwesUs`；HQ 新版狀態只允許逐步推進並以原狀態當條件，legacy 條件與行為完全不變；來源金額格式化保留半元與多位小數、非有限值不顯示成金額。
 
 R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從**實際出貨的 `migration.sql`** 以標記擷取防護段來執行，不得抄寫副本，否則 migration 被改掉時測試還會通過。內容需涵蓋：出貨的防護段含三個語句且不含 `FORCE ROW LEVEL SECURITY`、`CREATE POLICY`、`ALTER DEFAULT PRIVILEGES` 與 schema 層授權；在隔離庫建立 `anon`／`authenticated` 並 `GRANT ALL` ＋ 關閉 RLS 以**重現** Supabase 預設授權（必須先斷言漏洞真的被重現，否則後續通過沒有意義）；套用防護段後 `relrowsecurity` 為真、`relforcerowsecurity` 為假、policy 數為 0、兩個角色的 SELECT／INSERT／UPDATE／DELETE `has_table_privilege` 皆為假，且實際 `SET LOCAL ROLE` 後讀寫都被權限擋下；伺服器（表擁有者）交易在 RLS 啟用後仍可寫入並讀回自己的來源明細；以及在可回滾的交易內臨時 `GRANT SELECT` 給 `anon` 時，無 policy 的 RLS 仍讓它讀到 0 列。測試只改這一張新表的權限，不改全域 default privileges，結束時隔離庫停在「已防護」狀態。
+
+R7 追加必測：
+
+- **送出順序回歸（純函式，不需資料庫）**：以注入相依驗「首次送出成功後來源全鎖、重送同 key 仍回原單，且回原單的路徑完全不讀來源、不驗付款方式、不寫入」；查不到原單才載入來源並驗付款方式；指紋不符拒絕；別家店的 key 查不到原單而不得沿用別人的結算；寫入開關關閉時連原單都不查；鎖定狀態或操作序號讀不到時擋在收付方向判斷之前；操作序號一路傳進草稿。**不得只測 writer**——R7#1 的缺陷正在 action 的呼叫順序，writer 本身是對的。
+- **撥款事實**：新建草稿帶出 `paidAt = null`；重送回原單帶出資料庫裡真實的 `paidAt`；`paid` 但缺 `paidAt` 時照實帶出 null 且訊息不得宣稱撥款完成；撤回結果同樣帶出 `paidAt`；本店查得到原單、別家店查不到；缺表時查詢回 null 而不讓送出流程 500。
+- **畫面文字回歸**：以讀取元件原始碼並斷言文字的既有慣例，驗兩張卡已標明「抵扣後」、卡片說明不再列舉抵扣前組成與未實作科目、永遠成立的相減等式已移除、流水註記不再聲稱已鎖定的券不在流水裡。
+- **migration 交易邊界**：靜態檢查（不需資料庫，因此必須放在 skip 閘門外）驗整份 migration 第一個語句是 `BEGIN`、最後一個是 `COMMIT`、只有一組交易、無 `ROLLBACK`、防護段排在 `CREATE TABLE` 之後且在 `COMMIT` 之前，且沒有任何無法在交易內執行的語句。真實資料庫演練：過濾掉 `BEGIN`／`COMMIT`（`$transaction` 已管理交易）後把全部語句送進單一交易並整包回滾，證明每個語句都能在交易內執行、整份可重複套用（P3009 補救路徑需要），回滾後既有結構與 RLS 狀態完好。
 
 - 保留 `lib/pos/__tests__/store-ledger.test.ts` 既有 15 個案例不變；第 16 個 `SCHEMA_MISSING` 案例改寫為「寫入 flag 關閉時拒寫並回傳明確 code」，並在 PR 說明改寫原因。
 - 允許：`npx prisma generate`（純程式碼產生，**不得連資料庫**）、`npx tsc --noEmit`、`git diff --check`、以 `node --import tsx --test` 執行指定的 `lib/pos/__tests__/*.test.ts`。
@@ -452,18 +478,19 @@ R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從
 
 | 項目 | 結果 |
 |---|---|
-| `npx tsc --noEmit` | 通過（R5 後重跑） |
+| `npx tsc --noEmit` | 通過（R7 後重跑） |
 | `lib/settlements/__tests__/source-snapshot.test.ts` | 33／33 通過（R4#2 追加 3 案） |
 | `lib/settlements/__tests__/read-snapshot.test.ts` | 37／37 通過（R4#3 追加 4 案、R5#5 追加 6 案） |
-| `lib/settlements/__tests__/write-settlement.test.ts` | 39／39 通過（R4#1 追加 5 案、R5#4 追加 6 案） |
-| `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5 未在此檔加案，遵守白名單第 24 項） |
-| `lib/pos/__tests__/store-settlement-v1.test.ts` | 33／33 通過（R5#1–#3 追加 18 案：收付方向與付款方式 5、送出訊息 5、結帳紀錄狀態 3、總覽金額 5） |
-| `lib/settlements/__tests__/postgres-settlement.test.ts` | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 17 個真 DB 案例待獨立驗收者執行（R4#3 追加「逐列合法、加總溢位」1 案；R6 追加曝險防護 3 案） |
-| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 351／351 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
-| `npm test`（全量，R5 後一次性回歸；R6 後再跑一次確認） | 1040／1040 ＋ 18／18 通過、0 失敗、0 skipped |
-| R6 防護段純文字驗證（不連資料庫） | 以臨時腳本確認：標記可正確擷取防護段、dollar-quote 切分得到恰好 3 個語句且 `DO $guard$` 區塊完整、整份 migration 切分得到 20 個語句（與逐一清點一致）、`migration.sql` 通過全部必含與必不含的斷言 |
+| `lib/settlements/__tests__/write-settlement.test.ts` | 47／47 通過（R4#1 追加 5 案、R5#4 追加 6 案、R7#1–#2 追加 8 案） |
+| `lib/pos/__tests__/store-ledger.test.ts` | 16／16 通過（既有 15 案不變，第 16 案依 §1.11 改寫為寫入 flag 關閉；R5／R7 未在此檔加案，遵守白名單第 24 項） |
+| `lib/pos/__tests__/store-settlement-v1.test.ts` | 44／44 通過（R5#1–#3 追加 18 案；R7 追加 11 案：送出順序 7、`paid` 缺 `paidAt` 訊息 1、畫面文字回歸 3） |
+| `lib/settlements/__tests__/postgres-settlement.test.ts`（靜態部分） | 1／1 通過。R7 新增的 migration 交易邊界靜態檢查刻意放在 skip 閘門**外**，因此不需要資料庫也會執行 |
+| `lib/settlements/__tests__/postgres-settlement.test.ts`（真 DB 部分） | **本端未執行**：白名單閘門未通過，整個 suite 如實 SKIP 並印出理由「未設定 `SETTLEMENT_TEST_DATABASE_URL`」。共 18 個真 DB 案例待獨立驗收者執行（R4#3 追加 1 案；R6 追加曝險防護 3 案；R7 追加整包交易演練 1 案） |
+| `lib/settlements/__tests__` ＋ `lib/pos/__tests__` 全量 | 371／371 通過、0 失敗（含本包以外的既有測試，確認未造成回歸） |
+| `npm test`（全量，R7 後重跑） | 1051／1051 ＋ 18／18 通過、0 失敗、0 skipped |
+| R6 防護段純文字驗證（不連資料庫） | 以臨時腳本確認：標記可正確擷取防護段、dollar-quote 切分得到恰好 3 個語句且 `DO $guard$` 區塊完整、`migration.sql` 通過全部必含與必不含的斷言。R7 之後整份 migration 的語句數由 20 變為 22（新增 `BEGIN`／`COMMIT`），交易邊界改由測試內的靜態檢查斷言，不再依賴臨時腳本 |
 
-白名單指定測試合計 158 項通過；連同兩個測試目錄的既有測試共 351 項通過。
+白名單指定測試合計 178 項通過（原 158 ＋ R7 的 19 案 ＋ migration 靜態檢查 1 案）。
 
 `npm test` 本輪已執行一次：R5 動到了 `lib/pos/store-ledger.ts`（新增純顯示函式）與 HQ server action，必須確認沒有回歸。指令只跑 `node --import tsx --test`，實測未建立任何資料庫連線、未寫入任何資料；原先「禁止 `npm test`」的理由（`lib/jar-exchange` 會寫資料庫）在本次執行中未出現寫入行為。實作端全程未連任何資料庫、未套用 migration。
 
@@ -509,6 +536,11 @@ R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從
    若兩者都不成立，RLS 會讓讀取靜默回 0 列。此情況會 fail closed（快照讀不到來源會回
    可讀錯誤，而唯一索引與 RLS 可見性無關，並行寫入仍得到 P2002 轉 `SOURCE_CONFLICT`），
    但仍必須在開 flag 前確認，不可事後才發現。
+8. **migration 以單一交易套用（R7，上線阻擋）**：本包 migration 已自帶 `BEGIN;`／`COMMIT;`，
+   必須以會照原文送出整份檔案的方式套用（`prisma migrate deploy`，或 §3.4 人工路徑的
+   `psql -f`）。**不得**逐句拆開送出或以只送單句的 client 套用，否則交易邊界失效、
+   建表與收權之間會出現曝險空窗。套用後以 §3.3 第 6 項唯讀驗證防護確實生效。
+   隔離庫已演練整包在單一交易內執行並整包回滾，但**正式庫尚未實際套用過**。
 
 ### 3.4 正式庫 migration drift：唯讀證據與最小處理方案
 
@@ -546,6 +578,15 @@ R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從
    - 若 > 1 → `migrate deploy` 會嘗試重跑舊 migration。舊檔並非全部冪等（例如 `20260512102047_init`），中途失敗會留下未完成紀錄，此後**所有** `migrate deploy` 都被 P3009 擋死，必須人工 `migrate resolve` 才能恢復。
    唯讀取得方式：`npx prisma migrate status`，或 `SELECT migration_name, count(*) FROM _prisma_migrations WHERE rolled_back_at IS NULL GROUP BY 1 ORDER BY 2 DESC`。
 
+#### 使用者第十三輪補充的 drift 證據（R7）
+
+| 項目 | 結果 | 對本節結論的影響 |
+|---|---|---|
+| repo 有檔但正式庫無已套用紀錄（repoOnly） | **只有本包一筆** | 直接回答了查證 4 的未知數字。落在「若為 1」的分支：`migrate deploy` 剛好只套用本包，不會重跑任何舊 migration。§3.4 處理方案第 2 步可用，第 3 步（單筆交易 ＋ `migrate resolve`）降為備援 |
+| 從所有 Git 物件找回的原始 SQL | 17 份精確 checksum，含 3 筆 mismatch | 只作為存證，**未啟用、未恢復任何舊 migration** |
+| 因此得到的方法論修正 | 不能只靠路徑 log 認定檔案從未被改或紀錄造假 | 上面查證 3 的推論（「2 筆不一致指向紀錄端」）是**依 commit 路徑歷史**得出的，強度不足：檔案可能以 Git 物件存在而不出現在該路徑的 log。故查證 3 降級為「與 `docs/SHOPIFY-OMS-PREVIEW-MIGRATION.md` 記載一致的一種解釋」，不再作為判斷依據。**這不影響本包決策**——處理方案第 5 步本來就是「這 3 筆與 19 筆缺檔本包一律不處理」 |
+| 正式庫角色／owner 與部署目標確認 | 由 Codex 後續驗收 | §3.3 第 7 項（連線角色是否為表擁有者或具 `BYPASSRLS`）的執行者已明確為 Codex，實作端不連任何資料庫 |
+
 #### 部署風險評估
 
 | 風險 | 等級 | 依據 |
@@ -553,17 +594,17 @@ R6 追加必測（新表曝險防護，需隔離 PostgreSQL）：測試必須從
 | drift 擋下程式部署 | **無** | build 不跑 migration（查證 1） |
 | checksum 不一致擋下套用 | **無** | `migrate deploy` 不做該檢查（查證 2） |
 | 未完成紀錄造成 P3009 | **無** | 使用者已確認沒有未完成紀錄 |
-| 全量 `migrate deploy` 重跑舊 migration | **中～高** | 取決於查證 4 的數字，目前未知 |
+| 全量 `migrate deploy` 重跑舊 migration | **低** | 使用者第十三輪已確認 repoOnly 只有本包一筆，故 deploy 只會套用本包（見上表）。仍須在執行當下以 `migrate status` 再確認一次 |
 | 19 筆缺檔代表的結構落差 | **未知，本包不處理** | 正式庫有 repo 不知道的結構。本包不依賴那 19 筆，且已確認本包自有物件皆不存在 |
 | 本包 migration 自身 | **低** | 全部 `IF NOT EXISTS` 或 `DO $$ ... EXCEPTION WHEN duplicate_object`，可重複執行；新欄位全 nullable、不 backfill；取 ACCESS EXCLUSIVE 鎖的只有 `Settlement`（月結表，列數小）。`datasource` 已設 `directUrl`，migrate 走 `DIRECT_URL`，不受 pooler 對 `DO $$` 的限制 |
 
 #### 最小處理方案：只套用本包一筆，不碰歷史
 
-1. **先唯讀確認 pending 筆數**：`npx prisma migrate status`。預期「只有 `20260911160000_pos_settlement_sources` 未套用」。
-2. **若 pending 只有本包一筆** → 直接 `npx prisma migrate deploy`（需 `DIRECT_URL`）。它只會套用本包，歷史 drift 原樣保留。
-3. **若 pending 超過一筆** → **不要**跑全量 deploy。改為在單一交易內只執行本包 SQL（先設 `lock_timeout`／`statement_timeout`），再用 `npx prisma migrate resolve --applied 20260911160000_pos_settlement_sources` 寫入紀錄。**用 `migrate resolve` 而不要手寫 `INSERT`**：Prisma 會自行從檔案算出正確 checksum，手寫紀錄正是造成目前 drift 的成因，不應再增加一筆。
+1. **先唯讀確認 pending 筆數**：`npx prisma migrate status`。預期「只有 `20260911160000_pos_settlement_sources` 未套用」——使用者第十三輪的 repoOnly 證據已指向這個結果，但執行當下仍須再確認一次。
+2. **若 pending 只有本包一筆** → 直接 `npx prisma migrate deploy`（需 `DIRECT_URL`）。它只會套用本包，歷史 drift 原樣保留。本包 migration 自帶 `BEGIN;`／`COMMIT;`，`migrate deploy` 會照原文送出，因此建表與收權在同一個交易內完成。
+3. **若 pending 超過一筆** → **不要**跑全量 deploy。改為只執行本包 SQL（`psql -f` 整份檔案，交易邊界由檔案內的 `BEGIN;`／`COMMIT;` 提供；先設 `lock_timeout`／`statement_timeout`），再用 `npx prisma migrate resolve --applied 20260911160000_pos_settlement_sources` 寫入紀錄。**不得逐句拆開送出**，否則交易失效。**用 `migrate resolve` 而不要手寫 `INSERT`**：Prisma 會自行從檔案算出正確 checksum，手寫紀錄正是造成目前 drift 的成因，不應再增加一筆。
 4. **若套用中途失敗** → 本包 SQL 全部冪等，修正成因後可安全重跑；但必須先 `npx prisma migrate resolve --rolled-back 20260911160000_pos_settlement_sources` 清掉未完成紀錄，否則後續 deploy 會被 P3009 擋死。
 5. **3 個 checksum 不一致與 19 筆缺檔：本包不處理。** 不恢復舊 migration、不改檔案、不改既有紀錄。理由是本包不依賴它們，而動它們會把一個可控的新增動作擴大成歷史資料風險。留給獨立的 drift reconcile 工作包依 `docs/POS-02-MIGRATION-PLAN.md` §2 程序處理（readonly snapshot → 三方 diff → 人工核准 → Preview 演練 → backup／forward-only／validation）。
 6. **若決定完全不套用 migration** → 程式仍可安全部署：讀取端對缺表 fail closed、寫入 flag 預設關閉，POS 會顯示缺表的可讀提示，不會假裝成功。
 
-**結論：程式端已完成，上線與否取決於 §3.3 五項檢查。** 使用者已授權正式部署，故「只准測試」的舊限制不再適用；但 §3.3 第 1 項（正式 drift，見 §3.4）與 §3.2 的實機操作驗收仍未完成，且實作端無權執行。部署必須由 Codex 完成獨立驗收後依 §3.3 第 4 項次序執行。
+**結論：程式端已完成，上線與否取決於 §3.3 八項檢查。** 使用者已授權正式部署，故「只准測試」的舊限制不再適用；但 §3.3 第 1 項（正式 drift，見 §3.4）、第 6–8 項（新表曝險防護、連線角色、單一交易套用）與 §3.2 的實機操作驗收仍未完成，且實作端無權執行。部署必須由 Codex 完成獨立驗收後依 §3.3 第 4 項次序執行。
