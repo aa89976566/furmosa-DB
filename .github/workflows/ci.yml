@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -52,19 +54,20 @@ jobs:
       - name: Apply official Next 15 async request API codemod
         run: npx --yes @next/codemod@canary next-async-request-api .
 
-      - name: Export codemod-modified app files
+      - name: Commit codemod output to incident branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         shell: bash
         run: |
-          git diff --name-only -z -- app > next15-codemod-files.list0
-          tar --null -T next15-codemod-files.list0 -czf next15-codemod-files.tgz
-
-      - name: Upload codemod files
-        uses: actions/upload-artifact@v4
-        with:
-          name: next15-codemod-files
-          path: next15-codemod-files.tgz
-          if-no-files-found: error
-          retention-days: 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app
+          if git diff --cached --quiet; then
+            echo "No codemod changes to commit"
+          else
+            git diff --cached --check
+            git commit -m "fix(next15): apply async request API codemod"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
 
       - name: Prisma validation
         run: npm run prisma:validate
