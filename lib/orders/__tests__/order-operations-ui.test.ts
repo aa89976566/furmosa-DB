@@ -39,10 +39,13 @@ test('訂單使用單一自適應 Resource List，不重複產生桌機與手機
   assert.match(resourceListStyles, /@container \(min-width: 900px\)/);
 });
 
-test('列表優先顯示訂單編號與問題分類，不堆疊日期及完整配送資訊', () => {
+test('列表優先顯示訂單編號與問題分類，搜尋結果才補充訂單日期', () => {
   assert.match(listSource, /className=\{styles\.orderNumber\}/);
   assert.match(listSource, /ISSUE_CATEGORY/);
   assert.match(listSource, /className=\{`\$\{styles\.issueTag\}/);
+  assert.match(listSource, /showOrderDate/);
+  assert.match(listSource, /訂單日期/);
+  assert.match(ordersPageSource, /showOrderDate=\{isSearching\}/);
   assert.equal(listSource.includes('formatDateTime'), false);
   assert.equal(listSource.includes('logistics.destination'), false);
 });

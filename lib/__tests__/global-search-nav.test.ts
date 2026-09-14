@@ -21,10 +21,10 @@ describe('global-search-nav', () => {
     );
   });
 
-  it('on list page updates q and clears page', () => {
+  it('order search starts from all orders and clears existing filters', () => {
     assert.equal(
-      resolveGlobalSearchHref('/orders', 'source=line&page=3', '曼'),
-      '/orders?source=line&q=%E6%9B%BC',
+      resolveGlobalSearchHref('/orders', 'source=line&work=now&status=draft&page=3', '曼'),
+      '/orders?q=%E6%9B%BC',
     );
   });
 
