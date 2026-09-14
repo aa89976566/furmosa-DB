@@ -177,21 +177,21 @@ function OrderLineItemsTable({
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-sm font-medium">{title}</div>
           {hint ? (
             <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
           ) : null}
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={addItem}>
+        <Button type="button" size="sm" variant="outline" onClick={addItem} className="self-end">
           <Plus className="mr-1 h-4 w-4" />
           新增一筆
         </Button>
       </div>
 
-      <Table className="min-w-[760px] table-fixed">
-        <colgroup>
+      <Table className="block w-full min-w-0 table-fixed md:table md:min-w-[760px]">
+        <colgroup className="hidden md:table-column-group">
           <col className="w-[30%]" />
           <col className="w-[20%]" />
           <col className="w-[11%]" />
@@ -200,7 +200,7 @@ function OrderLineItemsTable({
           <col className="w-[7%]" />
           <col className="w-[6%]" />
         </colgroup>
-        <TableHeader>
+        <TableHeader className="hidden md:table-header-group">
           <TableRow>
             <TableHead>商品</TableHead>
             <TableHead>規格</TableHead>
@@ -211,7 +211,7 @@ function OrderLineItemsTable({
             <TableHead />
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="block space-y-3 md:table-row-group md:space-y-0">
           {items.map((it) => {
             const buyerLineSubtotal = it.isGift ? 0 : it.quantity * it.unitPrice;
             const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
@@ -220,8 +220,14 @@ function OrderLineItemsTable({
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
             return (
-              <TableRow key={it.key}>
-                <TableCell>
+              <TableRow
+                key={it.key}
+                className="grid grid-cols-2 gap-3 rounded-xl border p-3 md:table-row md:rounded-none md:border-x-0 md:border-t-0 md:p-0"
+              >
+                <TableCell className="col-span-2 block min-w-0 p-0 md:table-cell md:p-3">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
+                    商品
+                  </span>
                   <ProductSearchSelect
                     products={products}
                     value={it.productId}
@@ -230,14 +236,17 @@ function OrderLineItemsTable({
                     required={rowRequired}
                   />
                   {prod ? (
-                    <div className="mt-1 text-[11px] text-muted-foreground">
+                    <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
                       基礎單位：{prod.unit} · 售價 {formatCurrency(prod.price)} · 總部庫存{' '}
                       {prod.availableStock}
                       {prod.cost > 0 ? ` · 成本 ${formatCurrency(prod.cost)}` : ''}
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell>
+                <TableCell className="col-span-2 block p-0 md:table-cell md:p-3">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
+                    規格
+                  </span>
                   <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
@@ -276,7 +285,10 @@ function OrderLineItemsTable({
                     <span className="text-xs text-muted-foreground">請先選商品</span>
                   )}
                 </TableCell>
-                <TableCell className="align-middle">
+                <TableCell className="block p-0 align-middle md:table-cell md:p-3">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
+                    數量
+                  </span>
                   <Input
                     name="quantity"
                     type="number"
@@ -289,10 +301,13 @@ function OrderLineItemsTable({
                       })
                     }
                     required={rowRequired && Boolean(it.productId)}
-                    className="h-9 min-w-[4.5rem] text-right tabular-nums"
+                    className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
                   />
                 </TableCell>
-                <TableCell className="align-middle">
+                <TableCell className="block p-0 align-middle md:table-cell md:p-3">
+                  <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
+                    單價
+                  </span>
                   <Input
                     name="unitPrice"
                     type="number"
@@ -307,7 +322,7 @@ function OrderLineItemsTable({
                       })
                     }
                     required={rowRequired && Boolean(it.productId) && !it.isGift}
-                    className="h-9 min-w-[5.5rem] text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60"
+                    className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
                   />
                   {!it.isGift && it.productId && it.unitPrice <= 0 ? (
                     <p className="mt-1 text-[10px] text-destructive">
@@ -320,7 +335,10 @@ function OrderLineItemsTable({
                     </p>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
+                <TableCell className="col-span-2 flex items-center justify-between border-t p-0 pt-3 text-right tabular-nums md:table-cell md:border-0 md:p-3">
+                  <span className="text-xs font-medium text-muted-foreground md:hidden">
+                    小計
+                  </span>
                   {it.isGift ? (
                     <div className="space-y-0.5">
                       <Badge variant="secondary" className="font-normal">
@@ -334,17 +352,20 @@ function OrderLineItemsTable({
                     formatCurrency(buyerLineSubtotal)
                   )}
                 </TableCell>
-                <TableCell className="text-center align-middle">
-                  <input
-                    type="checkbox"
-                    checked={it.isGift}
-                    disabled={!it.productId}
-                    title="贈品不計入買家應付，計入公司成本"
-                    className="h-4 w-4 rounded border-input"
-                    onChange={(e) => onToggleGift(it.key, e.target.checked)}
-                  />
+                <TableCell className="block p-0 text-center align-middle md:table-cell md:p-3">
+                  <label className="flex h-9 items-center gap-2 text-xs font-medium text-muted-foreground md:justify-center">
+                    <input
+                      type="checkbox"
+                      checked={it.isGift}
+                      disabled={!it.productId}
+                      title="贈品不計入買家應付，計入公司成本"
+                      className="h-4 w-4 rounded border-input"
+                      onChange={(e) => onToggleGift(it.key, e.target.checked)}
+                    />
+                    <span className="md:hidden">設為贈品</span>
+                  </label>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="block p-0 text-right md:table-cell md:p-3">
                   <Button
                     type="button"
                     variant="ghost"
@@ -354,6 +375,7 @@ function OrderLineItemsTable({
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
+                    <span className="ml-1 md:hidden">移除</span>
                   </Button>
                 </TableCell>
               </TableRow>
