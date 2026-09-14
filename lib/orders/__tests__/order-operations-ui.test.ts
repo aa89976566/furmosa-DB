@@ -29,6 +29,10 @@ const resourceListStyles = readFileSync(
 );
 const globalStyles = readFileSync(new URL('../../../app/globals.css', import.meta.url), 'utf8');
 const buttonSource = readFileSync(new URL('../../../components/ui/button.tsx', import.meta.url), 'utf8');
+const orderFormSource = readFileSync(
+  new URL('../../../app/(main)/orders/new/order-form.tsx', import.meta.url),
+  'utf8',
+);
 
 test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
   assert.equal(listSource.includes('VirtualCardList'), false);
@@ -58,6 +62,14 @@ test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
 test('一般訂單可複製成可編輯商品的新訂單', () => {
   assert.match(detailSource, /複製訂單/);
   assert.match(detailSource, /\/orders\/new\?copyFrom=/);
+});
+
+test('新增與複製訂單的商品明細在手機改用完整卡片，不需水平滑動', () => {
+  assert.match(orderFormSource, /block w-full min-w-0 table-fixed md:table md:min-w-\[760px\]/);
+  assert.match(orderFormSource, /grid grid-cols-2 gap-3 rounded-xl border p-3 md:table-row/);
+  for (const label of ['商品', '規格', '數量', '單價', '小計', '設為贈品', '移除']) {
+    assert.match(orderFormSource, new RegExp(label));
+  }
 });
 
 test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {
