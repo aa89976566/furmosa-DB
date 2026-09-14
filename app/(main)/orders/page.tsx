@@ -36,6 +36,7 @@ function OrdersTotalsFallback() {
 }
 
 function activeWorkFilter(searchParams: SearchParams) {
+  if ((searchParams.q ?? '').trim()) return 'all';
   if (searchParams.deleted === 'true') return 'all';
   if (searchParams.work) return searchParams.work;
   if (searchParams.oms === 'READY') return 'ready';
@@ -79,14 +80,20 @@ async function OrdersTableSection({
 }: {
   searchParams: SearchParams;
 }) {
+  const q = (searchParams.q ?? '').trim();
+  const isSearching = q.length > 0;
   const activeWork = activeWorkFilter(searchParams);
   const where: Record<string, unknown> = { AND: [
-    searchParams.deleted === 'true' ? { deletedAt: { not: null } } : workbenchVisibleWhere,
-    activeWork === 'all' ? {} : orderWorkWhere(activeWork),
+    isSearching
+      ? workbenchVisibleWhere
+      : searchParams.deleted === 'true'
+        ? { deletedAt: { not: null } }
+        : workbenchVisibleWhere,
+    isSearching || activeWork === 'all' ? {} : orderWorkWhere(activeWork),
   ] };
   const sourceFilter =
     searchParams.source === 'restock' ? 'consignment' : searchParams.source;
-  if (sourceFilter && (ORDER_SOURCES as readonly string[]).includes(sourceFilter)) {
+  if (!isSearching && sourceFilter && (ORDER_SOURCES as readonly string[]).includes(sourceFilter)) {
     where.source = sourceFilter;
   }
   const activeStatuses = [
@@ -99,6 +106,7 @@ async function OrdersTableSection({
     'completed',
   ] as const;
   if (
+    !isSearching &&
     searchParams.status &&
     (activeStatuses as readonly string[]).includes(
       searchParams.status as (typeof activeStatuses)[number],
@@ -106,7 +114,6 @@ async function OrdersTableSection({
   ) {
     where.status = searchParams.status;
   }
-  const q = (searchParams.q ?? '').trim();
   const searchClause = orderSearchWhere(q);
   if (searchClause) {
     Object.assign(where, mergeSearchWhere(where, { OR: [searchClause, omsSourceSearchWhere(q)] }));
@@ -147,7 +154,7 @@ async function OrdersTableSection({
         }
         label="筆訂單"
       />
-      <OrderListTable orders={orders} />
+      <OrderListTable orders={orders} showOrderDate={isSearching} />
       {pages > 1 ? (
         <ListPagination
           page={safePage}

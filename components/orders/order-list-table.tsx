@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatDate } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
@@ -68,17 +68,23 @@ function issueCategory(order: OrderListRow) {
   return { label: ISSUE_CATEGORY[issue.code], tone: issue.severity === 'blocking' ? 'blocking' as const : 'warning' as const };
 }
 
-export function OrderListTable({ orders }: { orders: OrderListRow[] }) {
+export function OrderListTable({
+  orders,
+  showOrderDate = false,
+}: {
+  orders: OrderListRow[];
+  showOrderDate?: boolean;
+}) {
   if (orders.length === 0) {
     return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
   }
 
   return <section className={styles.list} aria-label="訂單列表">
-    {orders.map((order) => <OrderResourceRow key={order.id} order={order} />)}
+    {orders.map((order) => <OrderResourceRow key={order.id} order={order} showOrderDate={showOrderDate} />)}
   </section>;
 }
 
-function OrderResourceRow({ order }: { order: OrderListRow }) {
+function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showOrderDate: boolean }) {
   const customer = orderCustomer(order);
   const item = orderItemSummary(order);
   const logistics = resolveLogisticsForOrderList(order);
@@ -89,6 +95,7 @@ function OrderResourceRow({ order }: { order: OrderListRow }) {
   return <article className={styles.row}>
     <div className={styles.identity}>
       <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
+      {showOrderDate ? <p className={styles.orderDate}>訂單日期 {formatDate(order.orderedAt)}</p> : null}
       <div className={styles.tags}>
         <StatusBadge kind="orderSource" value={order.source} />
         <span className={`${styles.issueTag} ${styles[issue.tone]}`}>{issue.label}</span>

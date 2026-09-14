@@ -91,7 +91,10 @@ export function resolveGlobalSearchHref(
     return `${listPath}?q=${encodeURIComponent(trimmed)}`;
   }
 
-  const params = new URLSearchParams(currentSearch.replace(/^\?/, ''));
+  // 訂單搜尋永遠從「全部訂單」開始，不沿用工作階段、來源或狀態篩選。
+  const params = listPath === '/orders' && trimmed
+    ? new URLSearchParams()
+    : new URLSearchParams(currentSearch.replace(/^\?/, ''));
   if (trimmed) params.set('q', trimmed);
   else params.delete('q');
   // 換關鍵字時回到第一頁，避免停在空的 page=N
