@@ -33,6 +33,12 @@
 }
 
 .orderNumber:hover, a.customer:hover { text-decoration: underline; }
+.orderDate {
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
 .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 
 .issueTag {
