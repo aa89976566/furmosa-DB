@@ -55,6 +55,11 @@ test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
   assert.match(detailSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
 });
 
+test('一般訂單可複製成可編輯商品的新訂單', () => {
+  assert.match(detailSource, /複製訂單/);
+  assert.match(detailSource, /\/orders\/new\?copyFrom=/);
+});
+
 test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {
   for (const label of ['1. 店家與配送資料', '2. 訂單處理', '3. 商品內容', '4. 訂單資訊與處理紀錄']) {
     assert.match(detailSource, new RegExp(label.replace('.', '\\.')));

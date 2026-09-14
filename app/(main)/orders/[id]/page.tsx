@@ -44,6 +44,7 @@ import {
   Package,
   ClipboardList,
   CheckCircle2,
+  CopyPlus,
   Pencil,
 } from 'lucide-react';
 import {
@@ -206,6 +207,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <Link href={`/orders/${order.id}/edit`}>
                   <Pencil className="mr-1 h-4 w-4" />
                   修改訂單
+                </Link>
+              </Button>
+            ) : null}
+            {!order.omsStatus ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/orders/new?copyFrom=${encodeURIComponent(order.id)}`}>
+                  <CopyPlus className="mr-1 h-4 w-4" />
+                  複製訂單
                 </Link>
               </Button>
             ) : null}

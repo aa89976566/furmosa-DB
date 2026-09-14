@@ -1,6 +1,8 @@
 import type { Order, OrderItem, Shipment } from '@prisma/client';
 import type { ProductOption } from '@/app/(main)/orders/new/order-form';
 import type { MerchantOrderMode } from '@/lib/orders/merchant-order-mode';
+import { resolveOrderItemUnitCost } from '@/lib/order-item-cost';
+import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
 
 export type OrderEditInitial = {
   orderId: string;
@@ -33,6 +35,8 @@ export type OrderEditInitial = {
   shippingAddress: string;
   note: string;
 };
+
+export type OrderCreateInitial = Omit<OrderEditInitial, 'orderId' | 'orderNumber'>;
 
 function genKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -166,6 +170,49 @@ export function buildOrderEditInitial(
     shippingAddress: order.shippingAddress ?? shipment?.recipientAddress ?? '',
     note: order.note ?? '',
   };
+}
+
+/**
+ * 複製舊訂單為一張尚未送出的新單。
+ * 對象、配送與品項沿用；付款重設，價格依目前商品主檔重新計算。
+ */
+export function buildOrderCreateInitial(
+  order: Order & { items: OrderItem[] },
+  shipment: Shipment | null | undefined,
+  products: ProductOption[],
+): OrderCreateInitial {
+  const { orderId: _orderId, orderNumber: _orderNumber, ...initial } =
+    buildOrderEditInitial(order, shipment, products);
+
+  const items = initial.items.map((item) => {
+    const product = products.find((candidate) => candidate.id === item.productId);
+    if (!product) return item;
+
+    const tier = product.priceTiers.find((candidate) => candidate.id === item.tierId);
+    const catalogPrice = tier?.price ?? product.price;
+    const wholesalePrice = findMerchantWholesalePrice(
+      product.wholesalePrices,
+      initial.merchantId,
+      product.id,
+      item.tierId,
+    ) ?? 0;
+    const retailUnitPrice = initial.orderType === 'customer'
+      ? catalogPrice
+      : initial.merchantOrderMode === 'consignment'
+        ? product.merchantSuggestedPrice ?? catalogPrice
+        : initial.merchantOrderMode === 'wholesale'
+          ? wholesalePrice
+          : 0;
+
+    return {
+      ...item,
+      unitPrice: item.isGift ? 0 : retailUnitPrice,
+      retailUnitPrice,
+      unitCost: resolveOrderItemUnitCost(product, item.tierId),
+    };
+  });
+
+  return { ...initial, items, paymentStatus: 'unpaid' };
 }
 
 export function isOrderEditable(order: Pick<Order, 'status' | 'subscriptionId'>) {
