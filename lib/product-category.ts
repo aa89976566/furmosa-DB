@@ -29,6 +29,13 @@ export function productProgramLabel(
   return isJarExchangeProductCategory(category) ? '換罐計劃' : null;
 }
 
+/** 一般寄賣收銀／分潤只處理 STANDARD；換罐必須走獨立流程。 */
+export function isConsignmentProductCategory(
+  category: string | null | undefined,
+): boolean {
+  return category === 'STANDARD';
+}
+
 export function isProductCategory(value: string): value is ProductCategory {
   return (PRODUCT_CATEGORIES as readonly string[]).includes(value);
 }

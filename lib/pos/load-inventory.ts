@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
 import { inventoryGroupForProduct, type InventoryGroupId } from '@/lib/pos/inventory-groups';
+import { productProgramLabel } from '@/lib/product-category';
 
 export type InventoryProduct = {
   productId: string;
@@ -12,6 +13,8 @@ export type InventoryProduct = {
   quantity: number;
   imageUrl: string | null;
   suggestedQty: number;
+  productCategory: string;
+  programLabel: '換罐計劃' | null;
 };
 
 export async function loadMerchantInventory(
@@ -31,6 +34,7 @@ export async function loadMerchantInventory(
         category: true,
         style: true,
         imageUrl: true,
+        productCategory: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -67,6 +71,8 @@ export async function loadMerchantInventory(
         quantity,
         imageUrl: resolveFurmosaProductImage(product.name, product.imageUrl),
         suggestedQty: suggestedRestockQty(quantity),
+        productCategory: product.productCategory,
+        programLabel: productProgramLabel(product.productCategory),
       };
     })
     .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, 'zh-Hant'));

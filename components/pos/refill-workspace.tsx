@@ -14,6 +14,7 @@ import {
   RefillSuccessPanel,
 } from "@/components/pos/refill-order-panel";
 import type { PosAccount } from "@/lib/pos/account";
+import type { RefillRewardPolicy } from "@/lib/coupons/store-discount";
 import { mapRefillStaffError } from "@/lib/pos/refill-staff-errors";
 import {
   customerInitial,
@@ -35,11 +36,13 @@ function RefillWorkspaceInner({
   initialOrders,
   initialOrderId = null,
   payQrUrl,
+  rewardPolicy,
 }: {
   account: PosAccount;
   initialOrders: PosRefillOrderCard[];
   initialOrderId?: string | null;
   payQrUrl: string | null;
+  rewardPolicy: RefillRewardPolicy;
 }) {
   const [orders, setOrders] = useState(initialOrders);
   const [selectedId, setSelectedId] = useState<string | null>(initialOrderId);
@@ -175,6 +178,14 @@ function RefillWorkspaceInner({
             </header>
 
             <div className="flex-1 space-y-8 px-4 pb-28 md:overflow-y-auto md:px-6 md:pb-8">
+              <section className="rounded-2xl border-2 border-zinc-900 bg-neutral-50 px-4 py-3">
+                <p className="text-sm font-semibold">
+                  換罐集點｜{rewardPolicy.points} 點折 {rewardPolicy.discountAmount} 元
+                </p>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">
+                  折抵後由匠寵補給店家。這是換罐分潤，不算一般寄賣 20%／30%。
+                </p>
+              </section>
               <section>
                 <p className="mb-3 text-sm font-semibold">1. 找到客人的訂單</p>
                 <JarSerialPanel
@@ -322,11 +333,13 @@ export function RefillWorkspace({
   initialOrders,
   initialOrderId = null,
   payQrUrl,
+  rewardPolicy,
 }: {
   account: PosAccount;
   initialOrders: PosRefillOrderCard[];
   initialOrderId?: string | null;
   payQrUrl: string | null;
+  rewardPolicy: RefillRewardPolicy;
 }) {
   return (
     <RestockCartProvider>
@@ -335,6 +348,7 @@ export function RefillWorkspace({
         initialOrders={initialOrders}
         initialOrderId={initialOrderId}
         payQrUrl={payQrUrl}
+        rewardPolicy={rewardPolicy}
       />
     </RestockCartProvider>
   );

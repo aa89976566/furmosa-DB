@@ -5,6 +5,7 @@ import {
   type MerchantCommissionPercent,
 } from '@/lib/merchant-commission';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
+import { isConsignmentProductCategory } from '@/lib/product-category';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -14,6 +15,7 @@ type ProductForRule = {
   category: string;
   price: number;
   priceTiers?: { price: number }[];
+  productCategory?: string | null;
 };
 
 /**
@@ -27,6 +29,10 @@ export async function upsertSuggestedMerchantRule(
   product: ProductForRule,
   options?: { forcePercent?: MerchantCommissionPercent; overwrite?: boolean },
 ) {
+  // 換罐是獨立專案：不得建立或覆寫一般寄賣 20%／30% 規則。
+  if (!isConsignmentProductCategory(product.productCategory ?? 'STANDARD')) {
+    return null;
+  }
   const percent =
     options?.forcePercent ??
     suggestMerchantCommissionPercent({ name: product.name, category: product.category });
@@ -97,8 +103,8 @@ export async function autoFillMerchantCommissionRulesForMerchant(
 
   let updated = 0;
   for (const product of products) {
-    await upsertSuggestedMerchantRule(db, merchantId, product, { overwrite: true });
-    updated += 1;
+    const rule = await upsertSuggestedMerchantRule(db, merchantId, product, { overwrite: true });
+    if (rule) updated += 1;
   }
   return { updated };
 }

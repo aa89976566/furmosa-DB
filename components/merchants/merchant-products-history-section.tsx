@@ -48,6 +48,47 @@ export function MerchantProductsHistorySection({
 
       {open ? (
         <div className="overflow-hidden rounded-lg border">
+          <div className="divide-y md:hidden">
+            {rows.map((r) => {
+              const badge = commissionBadgeLabel(r.commissionMode, r.commissionValue);
+              return (
+                <article key={r.productInternalId} className="space-y-3 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/products/${r.productInternalId}`} className="font-medium text-foreground hover:underline">
+                        {r.productName}
+                      </Link>
+                      <p className="mt-1 font-mono text-xs">{r.sku}</p>
+                    </div>
+                    <Badge variant="secondary">{r.programLabel ?? badge ?? '一般寄賣'}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span>庫存 0</span>
+                    <span>最近進貨 {r.lastRestockAt ? formatDate(r.lastRestockAt) : '-'}</span>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1 border-t pt-3">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/merchants/${merchantId}/ledger`}>看流水</Link>
+                    </Button>
+                    {!r.programLabel ? (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}>分潤</Link>
+                      </Button>
+                    ) : null}
+                    <MerchantProductDeleteButton
+                      merchantId={merchantId}
+                      productId={r.productInternalId}
+                      productName={r.productName}
+                      quantity={0}
+                      redirectTo={`/merchants/${merchantId}/products`}
+                      label="移出列表"
+                    />
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -75,7 +116,9 @@ export function MerchantProductsHistorySection({
                     </TableCell>
                     <TableCell className="text-right font-mono text-destructive">0</TableCell>
                     <TableCell className="text-center">
-                      {badge ? <Badge variant="secondary">{badge}</Badge> : '—'}
+                      {r.programLabel ? (
+                        <Badge variant="secondary">{r.programLabel}</Badge>
+                      ) : badge ? <Badge variant="secondary">{badge}</Badge> : '—'}
                       {r.suggestedPrice != null ? (
                         <div className="text-[10px]">
                           售價 {formatCurrency(r.suggestedPrice)}
@@ -90,14 +133,14 @@ export function MerchantProductsHistorySection({
                         <Button asChild variant="ghost" size="sm">
                           <Link href={`/merchants/${merchantId}/ledger`}>看流水</Link>
                         </Button>
-                        <Button asChild variant="ghost" size="sm">
-                          <Link
-                            href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}
-                          >
-                            <Pencil className="mr-1 h-3 w-3" />
-                            分潤
-                          </Link>
-                        </Button>
+                        {!r.programLabel ? (
+                          <Button asChild variant="ghost" size="sm">
+                            <Link href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}>
+                              <Pencil className="mr-1 h-3 w-3" />
+                              分潤
+                            </Link>
+                          </Button>
+                        ) : null}
                         <MerchantProductDeleteButton
                           merchantId={merchantId}
                           productId={r.productInternalId}
@@ -113,8 +156,9 @@ export function MerchantProductsHistorySection({
               })}
             </TableBody>
           </Table>
+          </div>
           <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-            「移出列表」清除此店寄賣庫存與分潤規則；過去銷售仍可在{' '}
+            「移出列表」會移除目前商品設定；過去銷售與換罐紀錄仍可在{' '}
             <Link href={`/merchants/${merchantId}/ledger`} className="text-primary hover:underline">
               動作流水
             </Link>

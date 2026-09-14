@@ -1,11 +1,18 @@
 export const GROOMING_COUPON_DISCOUNT_ZHUWO = 250;
 export const GROOMING_COUPON_DISCOUNT_DEFAULT = 200;
+export const REFILL_REWARD_POINTS = 10;
+
+export type RefillRewardPolicy = {
+  points: number;
+  discountAmount: number;
+  tier: 'standard_200' | 'zhuwo_250';
+};
 
 /** 未綁定店家時的籠統說明（清單不列金額；綁定後由系統偵測對應面額） */
 export const GROOMING_COUPON_DISCOUNT_LABEL = '依你綁定的合作門市';
 
 export function isZhuwoPartnerStore(storeId: string, storeName?: string | null): boolean {
-  const id = storeId.trim().toLowerCase();
+  const id = storeId.trim().toLowerCase().replace(/-/g, '_');
   // zhuwo_* 分店；mer_0016 為舊版單一「豬窩」；mer_0019／mer_0020 為寄賣分店編號對應 slug
   if (
     id.startsWith('zhuwo_') ||
@@ -15,17 +22,32 @@ export function isZhuwoPartnerStore(storeId: string, storeName?: string | null):
   ) {
     return true;
   }
-  if (storeName?.includes('豬窩')) return true;
+  // 舊會員可能只有店名快照；僅接受三間正式分店的完整名稱，不做模糊包含判斷。
+  if (storeName && ['豬窩 中和店', '豬窩 板橋店', '豬窩 土城店'].includes(storeName.trim())) {
+    return true;
+  }
   return false;
+}
+
+export function getRefillRewardPolicyForStore(
+  storeId: string,
+  storeName?: string | null,
+): RefillRewardPolicy {
+  const zhuwo = isZhuwoPartnerStore(storeId, storeName);
+  return {
+    points: REFILL_REWARD_POINTS,
+    discountAmount: zhuwo
+      ? GROOMING_COUPON_DISCOUNT_ZHUWO
+      : GROOMING_COUPON_DISCOUNT_DEFAULT,
+    tier: zhuwo ? 'zhuwo_250' : 'standard_200',
+  };
 }
 
 export function getGroomingCouponDiscountForStore(
   storeId: string,
   storeName?: string | null,
 ): number {
-  return isZhuwoPartnerStore(storeId, storeName)
-    ? GROOMING_COUPON_DISCOUNT_ZHUWO
-    : GROOMING_COUPON_DISCOUNT_DEFAULT;
+  return getRefillRewardPolicyForStore(storeId, storeName).discountAmount;
 }
 
 export function getGroomingCouponTypeForDiscount(amount: number): string {

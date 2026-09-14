@@ -13,6 +13,7 @@ import {
   merchantCommissionKindLabel,
   type MerchantCommissionPercent,
 } from '@/lib/merchant-commission';
+import { getRefillRewardPolicyForStore } from '@/lib/coupons/store-discount';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,41 @@ export default async function MerchantRulePage(
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) notFound();
+
+  if (product.productCategory === 'JAR_EXCHANGE') {
+    const policy = getRefillRewardPolicyForStore(merchant.merchantId, merchant.name);
+    return (
+      <>
+        <PageHeader
+          title="換罐計劃商品"
+          description={`${merchant.name} × ${product.name}`}
+          actions={
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/merchants/${merchant.id}/products`}>
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                返回商品列表
+              </Link>
+            </Button>
+          }
+        />
+        <div className="p-6">
+          <SectionCard
+            title={`${policy.points} 點折 NT$${policy.discountAmount}`}
+            description="這是匠寵提供給店家的換罐分潤，不是一般寄賣抽成。"
+          >
+            <div className="space-y-3 text-sm">
+              <p className="rounded-xl bg-muted/30 px-4 py-3">
+                此商品不套用凍乾 30%／其他商品 20%，也不會出現在一般寄賣收銀。
+              </p>
+              <Button asChild>
+                <Link href="/jar-exchange/manage?tab=rewards">前往換罐管理</Link>
+              </Button>
+            </div>
+          </SectionCard>
+        </div>
+      </>
+    );
+  }
 
   const stocks = await prisma.merchantStock.findMany({
     where: { merchantId: merchant.id, productId },

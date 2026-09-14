@@ -63,7 +63,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'ten-points',
     question: '集滿 10 點可以做什麼？',
-    answer: '可於帳號綁定的合作美容店折抵 NT$200 美容費。',
+    answer: '可於帳號綁定的合作美容店折抵美容費：一般合作店 NT$200，豬窩各門市 NT$250。折抵由匠寵補貼店家。',
   },
   {
     id: 'points-share',

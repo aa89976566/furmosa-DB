@@ -11,7 +11,7 @@ export function AutoFillCommissionButton({ merchantId }: { merchantId: string })
       onSubmit={(e) => {
         if (
           !confirm(
-            '這會把本店所有商品的分潤比例，依商品名稱重新判斷一次（凍乾 30%、其餘 20%）。已手動調整過的規則也會被覆蓋，確定嗎？',
+            '這會重新判斷一般寄賣商品的分潤（凍乾 30%、其餘 20%）。換罐商品會略過，不會套用寄賣分潤。已手動調整過的一般寄賣規則也會被覆蓋，確定嗎？',
           )
         ) {
           e.preventDefault();

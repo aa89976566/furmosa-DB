@@ -48,6 +48,7 @@ import { randomUUID } from 'node:crypto';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
 import { isValidMerchantBusinessId, nextMerchantBusinessId, canRepairMerchantBusinessId } from '@/lib/merchant-business-id';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
+import { isJarExchangeProductCategory } from '@/lib/product-category';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -388,6 +389,9 @@ export async function adjustMerchantStock(formData: FormData) {
     delta,
     String(formData.get('reason') ?? ''),
   );
+  if (reasonMeta.countsAsSale && isJarExchangeProductCategory(product.productCategory)) {
+    throw new Error('換罐商品交付請走 POS「換罐」；庫存更正請選盤點或報廢原因');
+  }
   if (reasonMeta.value === 'damage' && !note) {
     throw new Error('盤損／報廢請填寫備註');
   }
@@ -575,6 +579,9 @@ export async function createMerchantSale(formData: FormData) {
     },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
+  if (products.some((product) => isJarExchangeProductCategory(product.productCategory))) {
+    throw new Error('換罐商品不可建立一般寄賣銷售，請改走 POS「換罐」流程');
+  }
 
   // 計算
   let subtotal = 0;
@@ -698,6 +705,9 @@ export async function recordMerchantQuickSale(formData: FormData) {
     },
   });
   if (!product) throw new Error('商品不存在');
+  if (isJarExchangeProductCategory(product.productCategory)) {
+    throw new Error('換罐商品不可快速登記寄賣銷售，請改走 POS「換罐」流程');
+  }
 
   const tiers: MerchantProductTierOption[] = product.priceTiers.map((tier) => ({
     id: tier.id,
@@ -789,6 +799,15 @@ export async function upsertMerchantRule(formData: FormData) {
 
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
   if (!Number.isFinite(suggestedPrice) || suggestedPrice <= 0) throw new Error('建議售價不合法');
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { productCategory: true },
+  });
+  if (!product) throw new Error('商品不存在');
+  if (product.productCategory !== 'STANDARD') {
+    throw new Error('換罐商品使用換罐分潤，不可設定一般寄賣 20%／30%');
+  }
 
   await prisma.merchantProductRule.upsert({
     where: { merchantId_productId: { merchantId, productId } },

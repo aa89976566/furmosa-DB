@@ -459,6 +459,14 @@ function SettleWorkspaceInner({
               </button>
             ))}
           </div>
+          <div className="mt-3 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-zinc-700">
+            <span className="font-semibold">
+              換罐：{ledger.rewardPolicy.points} 點折 {formatNtd(ledger.rewardPolicy.discountAmount)}
+            </span>
+            <span className="ml-2 text-xs text-zinc-500">
+              匠寵補貼店家，不套用寄賣 20%／30%
+            </span>
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-28 md:px-6 md:pb-8">

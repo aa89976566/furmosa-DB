@@ -45,6 +45,7 @@ import {
   loadActiveSourceKeys,
   loadMerchantSettlementHistory,
 } from '@/lib/settlements/read-snapshot';
+import { getRefillRewardPolicyForStore, type RefillRewardPolicy } from '@/lib/coupons/store-discount';
 
 const BILLABLE_RESTOCK_STATUSES = ['approved', 'converted_to_shipment'] as const;
 
@@ -129,6 +130,7 @@ export type StoreLedgerPageData = {
   pending: PendingSourceView[];
   history: SettlementHistoryRow[];
   historyAvailable: boolean;
+  rewardPolicy: RefillRewardPolicy;
 };
 
 type LoadOptions = {
@@ -188,6 +190,7 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     lockedSourceCount,
     lockStateAvailable,
     pending,
+    rewardPolicy,
   } = await loadStoreLedger(options);
 
   const [attempts, history] = await Promise.all([
@@ -263,6 +266,7 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     })),
     history: historyRows,
     historyAvailable: history.available,
+    rewardPolicy,
   };
 }
 
@@ -284,6 +288,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   lockStateAvailable: boolean;
   /** 待確認來源。不計金額、不寫入、不占唯一鍵。 */
   pending: PendingSource[];
+  rewardPolicy: RefillRewardPolicy;
 }> {
   const merchant = await prisma.merchant.findFirst({
     where: { id: options.merchantId },
@@ -300,6 +305,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
       lockedSourceCount: 0,
       lockStateAvailable: true,
       pending: [],
+      rewardPolicy: getRefillRewardPolicyForStore('', null),
     };
   }
 
@@ -713,5 +719,6 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
     lockedSourceCount,
     lockStateAvailable: lock.available,
     pending: pending.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
+    rewardPolicy: getRefillRewardPolicyForStore(merchant.merchantId, merchant.name),
   };
 }

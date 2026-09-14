@@ -64,7 +64,8 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
   }
 
   const products = await prisma.product.findMany({
-    where: { id: { in: productIds }, status: 'active' },
+    // 一般收銀只處理寄賣商品。換罐商品必須走 /pos/refill，避免重複計算分潤。
+    where: { id: { in: productIds }, status: 'active', productCategory: 'STANDARD' },
     select: {
       id: true,
       name: true,

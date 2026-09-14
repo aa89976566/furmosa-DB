@@ -19,6 +19,7 @@ import { MerchantProductsStockCell } from '@/components/merchants/merchant-produ
 import { AutoFillCommissionButton } from '@/components/merchants/auto-fill-commission-button';
 import { loadMerchantProductListRows } from '@/lib/merchants/load-merchant-products';
 import { MerchantProductsHistorySection } from '@/components/merchants/merchant-products-history-section';
+import { getRefillRewardPolicyForStore } from '@/lib/coupons/store-discount';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,14 +29,15 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
   if (!data) notFound();
 
   const { merchantId, rows } = data;
+  const rewardPolicy = getRefillRewardPolicyForStore(data.merchantCode, data.merchantName);
   const activeRows = rows.filter((r) => r.quantity > 0);
   const historyRows = rows.filter((r) => r.quantity <= 0);
 
   return (
     <div className="space-y-6 p-6">
       <SectionCard
-        title="寄賣商品 × 庫存 × 分潤"
-        description="點庫存數字就地清點：變少預設記售出，變多預設記補登進貨。已無貨品項收在下方歷史區，可移出列表；銷售紀錄仍在動作流水／訂單。"
+        title="商品 × 庫存 × 合作方式"
+        description="一般商品走寄賣分潤；換罐商品走獨立換罐結算。兩者不會重複計算。"
         action={
           <div className="flex flex-wrap gap-2">
             <AutoFillCommissionButton merchantId={merchantId} />
@@ -54,9 +56,17 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
           </div>
         }
       >
+        <div className="mb-4 rounded-xl border bg-muted/20 px-4 py-3 text-sm">
+          <p className="font-medium">
+            此店換罐：集滿 {rewardPolicy.points} 點折 {formatCurrency(rewardPolicy.discountAmount)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            折抵由匠寵補給店家；換罐商品不套用凍乾 30%／其他 20%。
+          </p>
+        </div>
         {rows.length === 0 ? (
           <div className="space-y-3 py-10 text-center">
-            <p className="text-sm text-muted-foreground">這家店還沒設定寄賣商品</p>
+            <p className="text-sm text-muted-foreground">這家店還沒有商品與庫存設定</p>
             <Button size="sm" variant="outline" asChild>
               <Link href={`/merchants/${merchantId}/restock`}>
                 <PackagePlus className="mr-1 h-4 w-4" />
@@ -68,16 +78,82 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
           <div className="space-y-6">
             {activeRows.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-                目前沒有庫存中的寄賣商品。已無貨品項見下方歷史區。
+                目前沒有庫存中的商品。已無貨品項見下方歷史區。
               </div>
             ) : (
+              <>
+              <div className="space-y-3 md:hidden">
+                {activeRows.map((r) => {
+                  const badge = commissionBadgeLabel(r.commissionMode, r.commissionValue);
+                  return (
+                    <article key={r.productInternalId} className="rounded-xl border bg-background p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/products/${r.productInternalId}`} className="font-medium hover:underline">
+                            {r.productName}
+                          </Link>
+                          <p className="mt-1 font-mono text-xs text-muted-foreground">{r.sku}</p>
+                        </div>
+                        {r.programLabel ? (
+                          <Badge variant="secondary">{r.programLabel}</Badge>
+                        ) : badge ? (
+                          <Badge variant={r.commissionValue === 30 ? 'success' : 'info'}>{badge}</Badge>
+                        ) : (
+                          <Badge variant="outline">寄賣未設定</Badge>
+                        )}
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">庫存</p>
+                          <MerchantProductsStockCell
+                            merchantId={merchantId}
+                            productId={r.productInternalId}
+                            productName={r.productName}
+                            totalQuantity={r.quantity}
+                            tierStocks={r.tierStocks}
+                            unitPrice={r.suggestedPrice}
+                            commissionPercent={r.commissionMode === 'percent' ? r.commissionValue : null}
+                            isRefill={Boolean(r.programLabel)}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">合作結算</p>
+                          <p className="mt-1 font-medium">
+                            {r.programLabel
+                              ? `${rewardPolicy.points} 點折 ${formatCurrency(rewardPolicy.discountAmount)}`
+                              : badge ?? '尚未設定'}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {r.programLabel ? '匠寵換罐補貼' : '一般寄賣分潤'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                        <span>最近進貨 {r.lastRestockAt ? formatDate(r.lastRestockAt) : '-'}</span>
+                        {r.programLabel ? (
+                          <Button asChild variant="outline" size="sm">
+                            <Link href="/jar-exchange/manage?tab=rewards">查看換罐</Link>
+                          </Button>
+                        ) : (
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}>
+                              {r.ruleId ? '編輯分潤' : '設定分潤'}
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>商品</TableHead>
                     <TableHead className="text-right">店家庫存</TableHead>
                     <TableHead className="text-right">建議售價</TableHead>
-                    <TableHead className="text-center">寄賣分潤</TableHead>
+                    <TableHead className="text-center">合作方式／分潤</TableHead>
                     <TableHead className="text-right">公司實收</TableHead>
                     <TableHead className="text-right">最近進貨</TableHead>
                     <TableHead className="w-px"></TableHead>
@@ -111,6 +187,7 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
                             commissionPercent={
                               r.commissionMode === 'percent' ? r.commissionValue : null
                             }
+                            isRefill={Boolean(r.programLabel)}
                           />
                           {r.quantity > 0 && r.quantity <= 3 && (
                             <div className="flex items-center justify-end gap-1 text-[10px] text-warning">
@@ -123,7 +200,14 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
                           {r.suggestedPrice ? formatCurrency(r.suggestedPrice) : '-'}
                         </TableCell>
                         <TableCell className="text-center">
-                          {badge ? (
+                          {r.programLabel ? (
+                            <div className="space-y-0.5">
+                              <Badge variant="secondary">{r.programLabel}</Badge>
+                              <div className="text-[10px] text-muted-foreground">
+                                {rewardPolicy.points} 點折 {formatCurrency(rewardPolicy.discountAmount)}
+                              </div>
+                            </div>
+                          ) : badge ? (
                             <div className="space-y-0.5">
                               <Badge
                                 variant={
@@ -151,7 +235,9 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
                           )}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-success">
-                          {r.companyRevenuePerUnit != null
+                          {r.programLabel
+                            ? '獨立結算'
+                            : r.companyRevenuePerUnit != null
                             ? formatCurrency(r.companyRevenuePerUnit)
                             : '-'}
                         </TableCell>
@@ -160,14 +246,18 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex items-center justify-end">
-                            <Button asChild variant="ghost" size="sm">
-                              <Link
-                                href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}
-                              >
-                                <Pencil className="mr-1 h-3 w-3" />
-                                {r.ruleId ? '編輯' : '設定'}
-                              </Link>
-                            </Button>
+                            {r.programLabel ? (
+                              <Button asChild variant="ghost" size="sm">
+                                <Link href="/jar-exchange/manage?tab=rewards">換罐</Link>
+                              </Button>
+                            ) : (
+                              <Button asChild variant="ghost" size="sm">
+                                <Link href={`/merchants/${merchantId}/rule?productId=${r.productInternalId}`}>
+                                  <Pencil className="mr-1 h-3 w-3" />
+                                  {r.ruleId ? '編輯' : '設定'}
+                                </Link>
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -175,6 +265,8 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
                   })}
                 </TableBody>
               </Table>
+              </div>
+              </>
             )}
 
             <MerchantProductsHistorySection merchantId={merchantId} rows={historyRows} />
