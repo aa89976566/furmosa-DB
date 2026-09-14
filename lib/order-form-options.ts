@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import {
   getCustomersByIdsForOrderForm,
-  getProductsByIdsForOrderForm,
+  getProductsByIdentitiesForOrderForm,
   searchCustomersForOrderForm,
   searchProductsForOrderForm,
   type OrderFormCustomerHit,
@@ -30,6 +30,7 @@ export type OrderFormMerchantOption = {
 export async function loadOrderFormOptions(seed?: {
   customerIds?: string[];
   productIds?: string[];
+  productSkus?: string[];
 }): Promise<[OrderFormMerchantOption[], OrderFormCustomerHit[], OrderFormProductHit[]]> {
   const [merchants, seedCustomers, seedProducts, customerProducts, extraCustomers, extraProducts] =
     await Promise.all([
@@ -53,7 +54,10 @@ export async function loadOrderFormOptions(seed?: {
       searchProductsForOrderForm('', 40),
       searchProductsForOrderForm('', 40, 'customer_standard'),
       getCustomersByIdsForOrderForm(seed?.customerIds ?? []),
-      getProductsByIdsForOrderForm(seed?.productIds ?? []),
+      getProductsByIdentitiesForOrderForm(
+        seed?.productIds ?? [],
+        seed?.productSkus ?? [],
+      ),
     ]);
 
   const customersById = new Map<string, OrderFormCustomerHit>();

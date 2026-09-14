@@ -30,9 +30,13 @@ export default async function NewOrderPage(props: {
   const productIds = sourceOrder
     ? [...new Set(sourceOrder.items.map((item) => item.productId))]
     : [];
+  const productSkus = sourceOrder
+    ? [...new Set(sourceOrder.items.map((item) => item.sku).filter(Boolean))]
+    : [];
   const [merchants, customers, products] = await loadOrderFormOptions({
     customerIds: sourceOrder?.customerId ? [sourceOrder.customerId] : [],
     productIds,
+    productSkus,
   });
   const initial = sourceOrder
     ? buildOrderCreateInitial(sourceOrder, sourceOrder.shipments[0], products)
@@ -56,6 +60,12 @@ export default async function NewOrderPage(props: {
       />
       <div className="p-6">
         <SectionCard title="訂單資訊" className="max-w-5xl">
+          {sourceOrder ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              已複製 {sourceOrder.items.length} 個品項，共{' '}
+              {sourceOrder.items.reduce((sum, item) => sum + item.quantity, 0)} 件商品。
+            </p>
+          ) : null}
           <OrderForm merchants={merchants} customers={customers} products={products} initial={initial} />
           <p className="mt-4 text-[11px] text-muted-foreground">
             訂單編號（ORD-YYYYMM-XXX）會在儲存時自動產生。

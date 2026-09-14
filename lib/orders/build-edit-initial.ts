@@ -94,6 +94,24 @@ function resolveTierId(
   return prod.priceTiers[0]?.id ?? '';
 }
 
+function normalizeSku(sku: string | null | undefined) {
+  return sku?.trim().toLowerCase() ?? '';
+}
+
+/**
+ * 歷史訂單畫面使用保存於 OrderItem 的名稱／SKU；複製時也必須以該快照為準。
+ * SKU 唯一符合時優先使用，避免舊 productId 對到目前不同的商品。
+ */
+function resolveCopiedProduct(item: OrderItem, products: ProductOption[]) {
+  const sourceSku = normalizeSku(item.sku);
+  if (sourceSku) {
+    const skuMatches = products.filter((product) => normalizeSku(product.sku) === sourceSku);
+    if (skuMatches.length === 1) return skuMatches[0];
+    return undefined;
+  }
+  return products.find((product) => product.id === item.productId);
+}
+
 export function buildOrderEditInitial(
   order: Order & { items: OrderItem[] },
   shipment: Shipment | null | undefined,
@@ -184,17 +202,27 @@ export function buildOrderCreateInitial(
   const { orderId: _orderId, orderNumber: _orderNumber, ...initial } =
     buildOrderEditInitial(order, shipment, products);
 
-  const items = initial.items.map((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId);
-    if (!product) return item;
+  const items = initial.items.map((item, index) => {
+    const sourceItem = order.items[index];
+    const product = sourceItem
+      ? resolveCopiedProduct(sourceItem, products)
+      : products.find((candidate) => candidate.id === item.productId);
+    if (!product) {
+      return sourceItem?.sku?.trim()
+        ? { ...item, productId: '', tierId: '', quantity: sourceItem.quantity }
+        : item;
+    }
 
-    const tier = product.priceTiers.find((candidate) => candidate.id === item.tierId);
+    const tierId = sourceItem
+      ? resolveTierId({ ...sourceItem, productId: product.id }, products)
+      : item.tierId;
+    const tier = product.priceTiers.find((candidate) => candidate.id === tierId);
     const catalogPrice = tier?.price ?? product.price;
     const wholesalePrice = findMerchantWholesalePrice(
       product.wholesalePrices,
       initial.merchantId,
       product.id,
-      item.tierId,
+      tierId,
     ) ?? 0;
     const retailUnitPrice = initial.orderType === 'customer'
       ? catalogPrice
@@ -206,9 +234,14 @@ export function buildOrderCreateInitial(
 
     return {
       ...item,
+      productId: product.id,
+      tierId,
+      quantity: sourceItem?.quantity ?? item.quantity,
       unitPrice: item.isGift ? 0 : retailUnitPrice,
       retailUnitPrice,
-      unitCost: resolveOrderItemUnitCost(product, item.tierId),
+      unitCost: resolveOrderItemUnitCost(product, tierId),
+      weightGrams: sourceItem?.weightGrams ?? tier?.weightGrams ?? null,
+      unit: sourceItem?.unit ?? tier?.unit ?? product.unit ?? null,
     };
   });
 

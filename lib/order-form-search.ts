@@ -195,9 +195,28 @@ export async function getCustomersByIdsForOrderForm(
 export async function getProductsByIdsForOrderForm(
   ids: string[],
 ): Promise<OrderFormProductHit[]> {
-  if (ids.length === 0) return [];
+  return getProductsByIdentitiesForOrderForm(ids, []);
+}
+
+/**
+ * 複製歷史訂單時同時用商品 ID 與當時保存的 SKU 取回候選商品。
+ * 舊資料的關聯 ID 可能已不再代表當時品項，因此 SKU 也必須納入。
+ */
+export async function getProductsByIdentitiesForOrderForm(
+  ids: string[],
+  skus: string[],
+): Promise<OrderFormProductHit[]> {
+  const normalizedIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  const normalizedSkus = [...new Set(skus.map((sku) => sku.trim()).filter(Boolean))];
+  if (normalizedIds.length === 0 && normalizedSkus.length === 0) return [];
+
   const rows = await prisma.product.findMany({
-    where: { id: { in: ids } },
+    where: {
+      OR: [
+        ...(normalizedIds.length > 0 ? [{ id: { in: normalizedIds } }] : []),
+        ...normalizedSkus.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' as const } })),
+      ],
+    },
     select: productSelect,
   });
   return rows.map((row) => ({

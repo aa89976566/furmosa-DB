@@ -74,4 +74,37 @@ describe('buildOrderCreateInitial', () => {
     assert.equal(result.items[0]?.unitPrice, 150);
     assert.equal(result.items[0]?.unitCost, 45);
   });
+
+  it('copies every quantity and resolves a historical item by its saved SKU before productId', () => {
+    const order = {
+      id: 'order-2', orderNumber: 'ORD-2', source: 'website', merchantId: null,
+      customerId: 'customer-1', discount: 0, shippingFeeType: 'free',
+      paymentStatus: 'paid', shippingMethod: 'home', cvsBrand: null,
+      cvsStoreName: null, shippingAddress: '台北市', note: null, status: 'completed',
+      subscriptionId: null,
+      items: [{
+        id: 'item-2', productId: 'stale-product-id', productName: '原味雞霸', sku: 'FUR-0002',
+        weightGrams: null, unit: null, quantity: 6, unitPrice: 89, unitCost: null, isGift: false,
+      }],
+    };
+    const products = [
+      {
+        id: 'stale-product-id', name: '雞排', sku: 'FUR-OTHER', productCategory: 'STANDARD',
+        unit: '片', price: 100, cost: 50, merchantSuggestedPrice: null, wholesalePrices: [],
+        priceTiers: [],
+      },
+      {
+        id: 'original-product-id', name: '原味雞霸', sku: 'fur-0002', productCategory: 'STANDARD',
+        unit: '片', price: 89, cost: 40, merchantSuggestedPrice: null, wholesalePrices: [],
+        priceTiers: [],
+      },
+    ];
+
+    const result = buildOrderCreateInitial(order as never, null, products as never);
+
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0]?.productId, 'original-product-id');
+    assert.equal(result.items[0]?.quantity, 6);
+    assert.equal(result.items[0]?.unitPrice, 89);
+  });
 });
