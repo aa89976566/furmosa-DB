@@ -43,7 +43,7 @@ import {
 import { createOrder, updateOrder, searchCustomersForOrder, searchProductsForOrder } from '../actions';
 import { isRedirectError } from '@/lib/redirect-error';
 import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
-import type { OrderEditInitial } from '@/lib/orders/build-edit-initial';
+import type { OrderCreateInitial, OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
@@ -370,32 +370,35 @@ export function OrderForm({
   customers: initialCustomers,
   products,
   edit,
+  initial,
   returnTo,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
   products: ProductOption[];
   edit?: OrderEditInitial;
+  initial?: OrderCreateInitial;
   returnTo?: string;
 }) {
   const isEdit = Boolean(edit);
+  const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [orderType, setOrderType] = useState<OrderType>(edit?.orderType ?? 'customer');
+  const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
-    edit?.customerSource ?? 'social',
+    seed?.customerSource ?? 'social',
   );
-  const [customerId, setCustomerId] = useState<string>(edit?.customerId ?? '');
-  const [merchantId, setMerchantId] = useState<string>(edit?.merchantId ?? '');
+  const [customerId, setCustomerId] = useState<string>(seed?.customerId ?? '');
+  const [merchantId, setMerchantId] = useState<string>(seed?.merchantId ?? '');
   const [merchantOrderMode, setMerchantOrderMode] = useState<MerchantOrderMode>(
-    edit?.merchantOrderMode ?? 'consignment',
+    seed?.merchantOrderMode ?? 'consignment',
   );
   const selectedMerchant = useMemo(
     () => merchants.find((m) => m.id === merchantId),
     [merchants, merchantId],
   );
   const [items, setItems] = useState<LineItem[]>(
-    edit?.items ?? [
+    seed?.items ?? [
       {
         key: genKey(),
         productId: '',
@@ -410,22 +413,22 @@ export function OrderForm({
       },
     ],
   );
-  const [discount, setDiscount] = useState<number>(edit?.discount ?? 0);
+  const [discount, setDiscount] = useState<number>(seed?.discount ?? 0);
   const [shippingFeeType, setShippingFeeType] = useState<
     'free' | 'prepaid' | 'unpaid' | 'cod'
-  >(edit?.shippingFeeType ?? 'unpaid');
+  >(seed?.shippingFeeType ?? 'unpaid');
   const [paymentStatus, setPaymentStatus] = useState<
     'unpaid' | 'partial' | 'paid' | 'cod' | 'refunded'
-  >(edit?.paymentStatus ?? 'unpaid');
-  const [recipientName, setRecipientName] = useState<string>(edit?.recipientName ?? '');
-  const [recipientPhone, setRecipientPhone] = useState<string>(edit?.recipientPhone ?? '');
+  >(seed?.paymentStatus ?? 'unpaid');
+  const [recipientName, setRecipientName] = useState<string>(seed?.recipientName ?? '');
+  const [recipientPhone, setRecipientPhone] = useState<string>(seed?.recipientPhone ?? '');
   const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience' | 'delivery'>(
-    edit?.shippingMethod ?? 'home',
+    seed?.shippingMethod ?? 'home',
   );
-  const [cvsBrand, setCvsBrand] = useState<string>(edit?.cvsBrand ?? '711');
-  const [cvsStoreName, setCvsStoreName] = useState<string>(edit?.cvsStoreName ?? '');
-  const [shippingAddress, setShippingAddress] = useState<string>(edit?.shippingAddress ?? '');
-  const [note, setNote] = useState<string>(edit?.note ?? '');
+  const [cvsBrand, setCvsBrand] = useState<string>(seed?.cvsBrand ?? '711');
+  const [cvsStoreName, setCvsStoreName] = useState<string>(seed?.cvsStoreName ?? '');
+  const [shippingAddress, setShippingAddress] = useState<string>(seed?.shippingAddress ?? '');
+  const [note, setNote] = useState<string>(seed?.note ?? '');
 
   // 客戶／商品清單（種子 + typeahead 合併）
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
@@ -785,12 +788,12 @@ export function OrderForm({
   }
 
   useEffect(() => {
-    if (isEdit) return;
+    if (isEdit || initial) return;
     if (orderType === 'merchant' && selectedMerchant) {
       applyMerchantShipping(selectedMerchant);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderType, isEdit]);
+  }, [orderType, isEdit, initial]);
 
   function onCustomerChange(id: string) {
     setCustomerId(id);
