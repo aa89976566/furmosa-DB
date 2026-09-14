@@ -26,6 +26,7 @@ export function MerchantStockInlineMovement({
   quantity,
   unitPrice,
   commissionPercent,
+  isRefill = false,
   compact = false,
 }: {
   merchantId: string;
@@ -36,6 +37,7 @@ export function MerchantStockInlineMovement({
   quantity: number;
   unitPrice: number | null;
   commissionPercent: number | null;
+  isRefill?: boolean;
   /** 手機卡片用較大控件 */
   compact?: boolean;
 }) {
@@ -56,7 +58,9 @@ export function MerchantStockInlineMovement({
   }, [value, quantity]);
 
   const defaultReason: StockMovementReason =
-    delta != null && delta < 0 ? 'sale' : 'restock_correction';
+    delta != null && delta < 0
+      ? isRefill ? 'count_correction' : 'sale'
+      : 'restock_correction';
   const activeReason = showAlt ? reason : defaultReason;
   const altOptions =
     delta != null && delta < 0
@@ -148,7 +152,11 @@ export function MerchantStockInlineMovement({
           onClick={() => {
             setValue(String(quantity));
             setShowAlt(false);
-            setReason(delta != null && delta > 0 ? 'restock_correction' : 'sale');
+            setReason(
+              delta != null && delta > 0
+                ? 'restock_correction'
+                : isRefill ? 'count_correction' : 'sale',
+            );
             setNote('');
             setError(null);
             setOpen(true);
@@ -224,7 +232,9 @@ export function MerchantStockInlineMovement({
                   }
                 }}
               >
-                {delta < 0 ? '不是賣出？' : '不是補登進貨？'}
+                {delta < 0
+                  ? isRefill ? '選擇更正原因' : '不是賣出？'
+                  : '不是補登進貨？'}
               </button>
               {showAlt ? (
                 <div className="mt-1 space-y-1">

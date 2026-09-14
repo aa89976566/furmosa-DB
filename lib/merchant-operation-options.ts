@@ -14,6 +14,7 @@ import {
   resolveMerchantShippingDefaults,
   type MerchantShippingDefaults,
 } from '@/lib/merchant-shipping-defaults';
+import { productProgramLabel } from '@/lib/product-category';
 
 export async function listMerchantsForSelect() {
   return prisma.merchant.findMany({
@@ -121,6 +122,8 @@ export type MerchantStockSnapshotRow = {
   lastRestockAt: Date | null;
   lastSaleAt: Date | null;
   lastCountAt: Date | null;
+  productCategory: string;
+  programLabel: '換罐計劃' | null;
 };
 
 /** 清點頁：該店已進貨／現有庫存（多規格商品拆成各克數一列） */
@@ -138,6 +141,7 @@ export async function loadMerchantStockSnapshot(
           id: true,
           name: true,
           sku: true,
+          productCategory: true,
           priceTiers: { orderBy: { price: 'asc' } },
         },
       },
@@ -200,6 +204,8 @@ export async function loadMerchantStockSnapshot(
           lastRestockAt: tierStock.lastRestockAt ?? legacyStock?.lastRestockAt ?? null,
           lastSaleAt: tierStock.lastSaleAt,
           lastCountAt: tierStock.lastCountAt,
+          productCategory: product.productCategory,
+          programLabel: productProgramLabel(product.productCategory),
         });
       }
 
@@ -216,6 +222,8 @@ export async function loadMerchantStockSnapshot(
           lastRestockAt: legacyStock.lastRestockAt,
           lastSaleAt: legacyStock.lastSaleAt,
           lastCountAt: legacyStock.lastCountAt,
+          productCategory: product.productCategory,
+          programLabel: productProgramLabel(product.productCategory),
         });
       }
       continue;
@@ -242,6 +250,8 @@ export async function loadMerchantStockSnapshot(
       lastRestockAt: stock.lastRestockAt,
       lastSaleAt: stock.lastSaleAt,
       lastCountAt: stock.lastCountAt,
+      productCategory: product.productCategory,
+      programLabel: productProgramLabel(product.productCategory),
     });
   }
 

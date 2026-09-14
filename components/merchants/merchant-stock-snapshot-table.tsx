@@ -66,7 +66,7 @@ export function MerchantStockSnapshotTable({
               params.set('mode', 'sold');
               const href = `${basePath}?${params.toString()}`;
               const active = selectedProductId === row.productId;
-              const canSell = row.quantity > 0;
+              const canSell = row.quantity > 0 && !row.programLabel;
               return (
                 <TableRow
                   key={row.rowKey}
@@ -81,7 +81,11 @@ export function MerchantStockSnapshotTable({
                           {row.tierLabel}
                         </Badge>
                       ) : null}
-                      {row.isConsigned ? (
+                      {row.programLabel ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {row.programLabel}
+                        </Badge>
+                      ) : row.isConsigned ? (
                         <Badge variant="secondary" className="text-[10px]">
                           寄賣
                         </Badge>
@@ -103,7 +107,14 @@ export function MerchantStockSnapshotTable({
                     {formatDate(row.lastRestockAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {canSell ? (
+                    {row.programLabel ? (
+                      <Link
+                        href="/jar-exchange/manage?tab=stock"
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        換罐管理
+                      </Link>
+                    ) : canSell ? (
                       <Link
                         href={href}
                         className="text-xs font-medium text-primary hover:underline"
@@ -120,7 +131,9 @@ export function MerchantStockSnapshotTable({
           </TableBody>
         </Table>
       </div>
-      <p className="text-xs text-muted-foreground">點「登記賣出」帶入下方表單，輸入件數後即時結算並扣庫存。</p>
+      <p className="text-xs text-muted-foreground">
+        一般商品可登記寄賣售出；換罐商品請走換罐管理，不會套用寄賣分潤。
+      </p>
     </div>
   );
 }

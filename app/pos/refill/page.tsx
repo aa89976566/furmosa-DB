@@ -5,6 +5,7 @@ import { loadPosAccount } from '@/lib/pos/account';
 import { RefillWorkspace } from '@/components/pos/refill-workspace';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { toPosRefillOrderCard } from '@/lib/pos/refill-view';
+import { getRefillRewardPolicyForStore } from '@/lib/coupons/store-discount';
 
 export const metadata = { title: '換罐 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function PosRefillHubPage(
     }),
     prisma.merchant.findFirst({
       where: { id: session.merchantId },
-      select: { merchantId: true },
+      select: { merchantId: true, name: true },
     }),
   ]);
 
@@ -40,6 +41,10 @@ export default async function PosRefillHubPage(
       initialOrders={rows.map(toPosRefillOrderCard)}
       initialOrderId={searchParams?.order ?? null}
       payQrUrl={payQrUrl}
+      rewardPolicy={getRefillRewardPolicyForStore(
+        merchant?.merchantId ?? '',
+        merchant?.name ?? null,
+      )}
     />
   );
 }

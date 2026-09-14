@@ -185,7 +185,14 @@ function InventoryWorkspaceInner({
   const detail = selected && selectedStatus ? (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-900">{selected.name}</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-900">{selected.name}</h2>
+          {selected.programLabel ? (
+            <span className="mt-1 inline-flex rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white">
+              {selected.programLabel}
+            </span>
+          ) : null}
+        </div>
         <button
           type="button"
           className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500"
@@ -217,6 +224,11 @@ function InventoryWorkspaceInner({
       </div>
 
       <div className="mt-6">
+        {selected.programLabel ? (
+          <p className="mb-4 rounded-xl bg-neutral-100 px-3 py-2 text-xs leading-5 text-zinc-600">
+            此商品走換罐流程，不會套用一般寄賣 20%／30% 分潤。
+          </p>
+        ) : null}
         {restockControlsVisible ? (
           <div>
             <p className="text-sm font-medium text-zinc-900">
@@ -437,6 +449,11 @@ function InventoryWorkspaceInner({
                           />
                         </div>
                         <p className="mt-3 truncate font-medium">{item.name}</p>
+                        {item.programLabel ? (
+                          <span className="mt-1 w-fit rounded-full bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-white">
+                            {item.programLabel}
+                          </span>
+                        ) : null}
                         <div className="mt-2 flex items-end justify-between gap-2">
                           <p className="text-sm text-zinc-500">庫存 {item.quantity}</p>
                           <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_PILL[status.tone]}`}>

@@ -6,6 +6,7 @@ import {
   type MerchantProductTierStock,
 } from '@/lib/merchant-product-tier-stocks';
 import type { MerchantProductTierOption } from '@/lib/merchant-product-tier';
+import { productProgramLabel } from '@/lib/product-category';
 
 export type MerchantProductListRow = {
   productId: string;
@@ -23,6 +24,8 @@ export type MerchantProductListRow = {
   multiWeightTiers: boolean;
   priceTiers: MerchantProductTierOption[];
   tierStocks: MerchantProductTierStock[];
+  productCategory: string;
+  programLabel: '換罐計劃' | null;
 };
 
 const productSelect = {
@@ -30,6 +33,7 @@ const productSelect = {
   productId: true,
   name: true,
   sku: true,
+  productCategory: true,
   priceTiers: {
     select: {
       id: true,
@@ -52,6 +56,7 @@ export async function loadMerchantProductListRows(merchantId: string) {
     where: { id: merchantId },
     select: {
       id: true,
+      merchantId: true,
       name: true,
       stocks: {
         select: {
@@ -129,6 +134,8 @@ export async function loadMerchantProductListRows(merchantId: string) {
       multiWeightTiers: isMultiWeightProduct(tiers),
       priceTiers: tiers,
       tierStocks: built.tierStocks,
+      productCategory: product.productCategory,
+      programLabel: productProgramLabel(product.productCategory),
     });
   }
 
@@ -143,11 +150,12 @@ export async function loadMerchantProductListRows(merchantId: string) {
     const built = buildMerchantProductTierStocks(product.id, tiers, stockRows);
     const existing = rows.get(rule.productId);
     if (existing) {
+      const isRefill = product.productCategory === 'JAR_EXCHANGE';
       existing.suggestedPrice = rule.suggestedPrice;
-      existing.commissionMode = rule.commissionMode;
-      existing.commissionValue = rule.commissionValue;
-      existing.commissionPerUnit = perUnit;
-      existing.companyRevenuePerUnit = rule.suggestedPrice - perUnit;
+      existing.commissionMode = isRefill ? null : rule.commissionMode;
+      existing.commissionValue = isRefill ? null : rule.commissionValue;
+      existing.commissionPerUnit = isRefill ? null : perUnit;
+      existing.companyRevenuePerUnit = isRefill ? null : rule.suggestedPrice - perUnit;
       existing.ruleId = rule.id;
       existing.multiWeightTiers = isMultiWeightProduct(tiers);
       existing.priceTiers = tiers;
@@ -161,21 +169,25 @@ export async function loadMerchantProductListRows(merchantId: string) {
         productInternalId: product.id,
         quantity: built.totalQuantity,
         suggestedPrice: rule.suggestedPrice,
-        commissionMode: rule.commissionMode,
-        commissionValue: rule.commissionValue,
-        commissionPerUnit: perUnit,
-        companyRevenuePerUnit: rule.suggestedPrice - perUnit,
+        commissionMode: product.productCategory === 'JAR_EXCHANGE' ? null : rule.commissionMode,
+        commissionValue: product.productCategory === 'JAR_EXCHANGE' ? null : rule.commissionValue,
+        commissionPerUnit: product.productCategory === 'JAR_EXCHANGE' ? null : perUnit,
+        companyRevenuePerUnit:
+          product.productCategory === 'JAR_EXCHANGE' ? null : rule.suggestedPrice - perUnit,
         ruleId: rule.id,
         lastRestockAt: null,
         multiWeightTiers: isMultiWeightProduct(tiers),
         priceTiers: tiers,
         tierStocks: built.tierStocks,
+        productCategory: product.productCategory,
+        programLabel: productProgramLabel(product.productCategory),
       });
     }
   }
 
   return {
     merchantId: merchant.id,
+    merchantCode: merchant.merchantId,
     merchantName: merchant.name,
     rows: [...rows.values()].sort((a, b) =>
       a.productName.localeCompare(b.productName, 'zh-Hant'),

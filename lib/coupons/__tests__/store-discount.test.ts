@@ -8,6 +8,7 @@ import {
   isZhuwoPartnerStore,
   formatLineStorePickerLabel,
   buildPostBindPointsHint,
+  getRefillRewardPolicyForStore,
 } from '@/lib/coupons/store-discount';
 
 describe('grooming coupon store discount', () => {
@@ -27,10 +28,23 @@ describe('grooming coupon store discount', () => {
     assert.equal(isZhuwoPartnerStore('mer_0020'), true);
   });
 
-  it('identifies zhuwo stores by name', () => {
+  it('only accepts exact legacy zhuwo names, not fuzzy names', () => {
     assert.equal(isZhuwoPartnerStore('unknown_slug', '豬窩 中和店'), true);
-    assert.equal(isZhuwoPartnerStore('custom', '豬窩'), true);
-    assert.equal(isZhuwoPartnerStore('custom', '豬窩 板橋店'), true);
+    assert.equal(isZhuwoPartnerStore('custom', '豬窩'), false);
+    assert.equal(isZhuwoPartnerStore('custom', '新豬窩合作店'), false);
+  });
+
+  it('returns an explicit refill reward tier', () => {
+    assert.deepEqual(getRefillRewardPolicyForStore('MER-0019', '豬窩 板橋店'), {
+      points: 10,
+      discountAmount: 250,
+      tier: 'zhuwo_250',
+    });
+    assert.deepEqual(getRefillRewardPolicyForStore('MER-0014', '柒沐寵物美容'), {
+      points: 10,
+      discountAmount: 200,
+      tier: 'standard_200',
+    });
   });
 
   it('returns 250 for zhuwo and 200 for other partner stores', () => {

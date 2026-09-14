@@ -17,6 +17,7 @@ import {
 import { merchantStockTierMapKey } from '@/lib/merchant-stock-key';
 import { createMerchantSale } from '../actions';
 import { SaleForm } from './sale-form';
+import { isConsignmentProductCategory } from '@/lib/product-category';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,9 @@ export default async function MerchantSalePage(props: { params: Promise<{ id: st
   const { merchant, products, ruleByProduct, stockByProduct, stockByProductTier, consignedProductIds } =
     catalog;
 
-  const items = products.map((product) => {
+  const items = products.filter((product) =>
+    isConsignmentProductCategory(product.productCategory),
+  ).map((product) => {
     const rule = ruleByProduct.get(product.id);
     const suggestedPrice = merchantSuggestedUnitPrice(product, rule);
     const commissionPerUnit = merchantCommissionPerUnit(rule, suggestedPrice);

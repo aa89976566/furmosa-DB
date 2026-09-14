@@ -120,6 +120,7 @@ function ActiveStockRow({
       commissionPercent={
         product?.commissionMode === 'percent' ? product.commissionValue : null
       }
+      isRefill={Boolean(row.programLabel)}
       compact={compact}
     />
   );
@@ -232,7 +233,11 @@ export function MerchantAdjustWorkspace({
                                 {row.tierLabel}
                               </Badge>
                             ) : null}
-                            {row.isConsigned ? (
+                            {row.programLabel ? (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {row.programLabel}
+                              </Badge>
+                            ) : row.isConsigned ? (
                               <Badge variant="secondary" className="text-[10px]">
                                 寄賣
                               </Badge>
@@ -275,7 +280,11 @@ export function MerchantAdjustWorkspace({
                                 <span className="font-mono text-xs text-muted-foreground">
                                   {row.sku}
                                 </span>
-                                {row.isConsigned ? (
+                                {row.programLabel ? (
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    {row.programLabel}
+                                  </Badge>
+                                ) : row.isConsigned ? (
                                   <Badge variant="secondary" className="text-[10px]">
                                     寄賣
                                   </Badge>

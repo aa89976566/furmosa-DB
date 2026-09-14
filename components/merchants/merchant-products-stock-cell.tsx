@@ -14,6 +14,7 @@ export function MerchantProductsStockCell({
   tierStocks,
   unitPrice,
   commissionPercent,
+  isRefill = false,
 }: {
   merchantId: string;
   productId: string;
@@ -23,6 +24,7 @@ export function MerchantProductsStockCell({
   returnTo?: string;
   unitPrice?: number | null;
   commissionPercent?: number | null;
+  isRefill?: boolean;
 }) {
   const rows =
     tierStocks.length > 0
@@ -55,6 +57,7 @@ export function MerchantProductsStockCell({
             quantity={tier.quantity}
             unitPrice={unitPrice ?? null}
             commissionPercent={commissionPercent ?? null}
+            isRefill={isRefill}
           />
         </div>
       ))}
