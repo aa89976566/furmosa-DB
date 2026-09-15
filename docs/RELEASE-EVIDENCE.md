@@ -102,12 +102,14 @@ git diff --check：PASS
 23. **LINE 活動請求仍可能在 runtime 執行 DDL／seed。** `ensureJibaCampaignSchema()` 會在活動查詢或 LINE 報名遇到缺表時，以 `$executeRawUnsafe` 動態 `CREATE TABLE`／index／FK，並 `INSERT` 固定活動資料；註解還假設 production build 的 migration 是 soft-fail，但實際 build 根本不執行 migration。這讓一般業務請求兼具 schema 管理權限，無 migration history、無完整原子性，部分 FK 失敗還會被 soft-skip，可能產生「頁面能用但資料約束不完整」的漂移狀態。應列為 P0：移除 runtime DDL，使用最小權限 runtime DB 帳號，將 schema 與 seed 納入可審核 migration／一次性 release job，並加入 schema drift gate；本工作包不觸發該函式、不修改資料庫。
 24. **健康檢查與告警只能證明程序活著，不能證明系統可作業。** `/api/health` 與 `/api/health/live` 都固定回 200，不驗 DB 連線、schema revision、cron 最近成功時間、Shopify／LINE 積壓或 POS 結帳旗標；專案亦未見 Sentry／APM／OpenTelemetry instrumentation、錯誤率或業務不變量告警，背景失敗多半只 `console.error`。本次 Vercel 過去一小時日誌為 Warning／Error／Fatal 皆 0，只是短時間觀察，不能偵測「cron 全部 401」這類靜默失效。應在受保護的 readiness／營運面板加入 DB/schema、最後成功排程、webhook lag、孤兒 Order／Shipment、負庫存與對帳差異，並為 P0 不變量設告警；公開 liveness 保持不碰 DB。
 25. **POS「紀錄」不是完整訂單來源，且銷售可能重複顯示。** `loadQueryFeed()` 讀取銷售交易、換罐單、補貨申請與全部庫存流水，沒有讀 `Order`／`Shipment`；因此它不能作為 HQ 與 POS 的店家訂單清單。第一個查詢已把 `merchantStockTxn(type: sale)` 分組成銷售項目，第四個查詢又讀取未排除 `sale` 的全部 `merchantStockTxn`，再把兩者合併，實際銷售可能同時以「銷售」及「庫存異動」出現。現有測試用不同 fixture 避開了重疊，未覆蓋同一 sale row。應另案先定義「訂單」與「操作流水」兩個資訊架構，再讓店家訂單直接讀同一 Order／Shipment 真相，流水排除已分組 sale 或用 canonical event id 去重。
+26. **資料庫維運指令缺 production deny guard，名稱亦可能誤導。** `db:check` 實際先執行 `prisma migrate deploy`，不是唯讀檢查；`db:reset` 直接使用 `prisma migrate reset --force`，另有 seed、import、clear 指令直接取用目前環境的資料庫 URL。尤其 `prisma/seed.ts` 的開頭即逐表 `deleteMany`，之後建立固定預設帳號／密碼；`prisma/clear.ts` 也大量刪除業務資料並可能補建預設 admin。只有 `ensure-demo-admin` 明確看到 production fail-closed，通用 reset／seed／clear／deploy script 沒有相同包裝；`DEPLOY.md` 雖已加頂部警告，內文仍保留建立示範帳號、匯入與重置說明。應列 P0 維運安全包：把唯讀 status 與變更 deploy 分名、所有破壞性指令加入環境身分與手動 challenge、CI 禁止 production secret，並把歷史操作移到不可直接複製的封存文件。
 
 ## 修復權重與順序
 
 | 優先級 | 工作包 | 先完成的原因 |
 |---|---|---|
 | P0-1 | 資料庫身分、備份／PITR、schema revision 與 migration release job | 不先證明資料庫與 schema，任何登入後 E2E 或寫入旗標都可能碰錯環境或遇到缺欄位。 |
+| P0-1 | 封鎖 production reset／seed／clear／import，拆分唯讀 check | 目前部分一行指令可對當前 URL 大量刪除並建立預設帳密，需與資料庫身分保護同批先處理。 |
 | P0-2 | 移除 runtime DDL／seed，收窄 runtime DB 權限 | 一般 LINE 請求不應能改 schema；先消除不可控漂移來源。 |
 | P0-3 | HQ 店家補貨單原子化與編號併發鎖 | 防止 Order／Shipment 半張單，直接保護 HQ→出貨→POS 收貨主流程。 |
 | P0-4 | ECPay 正式設定、付款狀態回查與 callback 併發冪等 | 防止付款功能不可用、誤報成功或重複通知；須先在沙盒與隔離 DB 驗證。 |
