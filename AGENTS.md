@@ -1,5 +1,19 @@
 # 專案工作規則
 
+## 開工前必讀
+
+所有 ChatGPT、Codex、Cursor、Claude 與人工協作者，在修改 Furmosa HQ 前必須完整閱讀：
+
+1. `AGENTS.md`
+2. `docs/FURMOSA-HQ-UX-SYSTEM.md`
+3. `docs/FURMOSA-HQ-WORDING.md`
+4. `docs/CURRENT-WORK.md`
+
+- 上述 GitHub 文件是共同依據；聊天紀錄與 AI 記憶不能取代文件。
+- 若文件互相衝突、缺少或與程式現況不一致，先停下回報。
+- 不得在未讀文件的情況下設計、修改、部署或操作正式資料。
+- 完成一個工作圈後，必須同步更新 `docs/CURRENT-WORK.md`。
+
 ## 溝通方式
 
 - 使用繁體中文向我說明。
