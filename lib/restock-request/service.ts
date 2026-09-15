@@ -10,6 +10,7 @@ import { isRestockableProductCategory } from '@/lib/product-category';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
 import type { MerchantType } from '@/lib/merchant-types';
 import { getMerchantTypes } from '@/lib/merchant-types-persist';
+import { resolveRestockShipping } from './shipping';
 import { resolveRestockItems } from '@/lib/restock-request/service-variant';
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -130,13 +131,21 @@ export async function listMerchantRestockCatalog(
     });
 }
 
+export async function assertMerchantRestockSelection(merchantId: string, productIds: string[]) {
+  const catalog = await listMerchantRestockCatalog(merchantId);
+  const allowed = new Set(catalog.map((product) => product.id));
+  if (productIds.some((id) => !allowed.has(id))) {
+    throw new Error('這項商品不在本店可補貨清單，請重新整理後選擇');
+  }
+}
+
 export async function assertJarExchangeProducts(productIds: string[]) {
   if (productIds.length === 0) return;
   const rows = await prisma.product.findMany({
     where: { id: { in: productIds } },
     select: { id: true, productCategory: true, name: true },
   });
-  if (rows.length !== productIds.length) {
+  if (rows.length !== new Set(productIds).size) {
     throw new Error('有商品不存在');
   }
   const bad = rows.filter((r) => !isRestockableProductCategory(r.productCategory));
@@ -147,9 +156,10 @@ export async function assertJarExchangeProducts(productIds: string[]) {
 
 export function assertApprovableRestockProducts(
   products: { productCategory: string }[],
-  lines: { productId: string }[],
+  lines: { productId: string; variantKey?: string | null }[],
 ) {
-  if (products.length !== lines.length) {
+  const identities = new Set(lines.map((line) => JSON.stringify([line.productId, line.variantKey ?? null])));
+  if (identities.size !== lines.length || products.length !== new Set(lines.map((line) => line.productId)).size) {
     throw new Error('商品資料不完整');
   }
   const bad = products.filter((p) => !isRestockableProductCategory(p.productCategory));
@@ -405,6 +415,8 @@ export async function approveAndConvertRestockRequest(input: {
       throw new Error('此申請目前無法核准');
     }
 
+    const shipping = resolveRestockShipping(current.merchant);
+
     const lines = await resolveRestockItems(current.items
       .map((it) => ({
         productId: it.productId,
@@ -457,10 +469,7 @@ export async function approveAndConvertRestockRequest(input: {
           unit: l.unit ?? productById.get(l.productId)?.unit ?? null,
         })),
         products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
-        recipientName: current.merchant.contactName ?? current.merchant.name,
-        recipientPhone: current.merchant.phone,
-        recipientAddress: current.merchant.address,
-        carrier: current.merchant.preferredCarrier,
+        ...shipping,
         notes: noteParts.join(' · '),
       },
       tx,

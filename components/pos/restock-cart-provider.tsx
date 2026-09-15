@@ -9,7 +9,7 @@ import {
   type RestockCartLine,
 } from '@/lib/pos/restock-cart';
 
-const STORAGE_KEY = 'furmosa-pos-restock-cart-v1';
+import { readRestockDraft, writeRestockDraft } from '@/lib/pos/restock-draft';
 
 type RestockCartContextValue = {
   lines: RestockCartLine[];
@@ -23,32 +23,23 @@ type RestockCartContextValue = {
 
 const RestockCartContext = createContext<RestockCartContextValue | null>(null);
 
-function readStoredCart(): RestockCartLine[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as RestockCartLine[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((line) => line?.productId && line.quantity > 0);
-  } catch {
-    return [];
-  }
+export function RestockCartProvider({ merchantId, children }: { merchantId: string; children: React.ReactNode }) {
+  return <ScopedRestockCart key={merchantId} merchantId={merchantId}>{children}</ScopedRestockCart>;
 }
 
-export function RestockCartProvider({ children }: { children: React.ReactNode }) {
+function ScopedRestockCart({ merchantId, children }: { merchantId: string; children: React.ReactNode }) {
   const [lines, setLines] = useState<RestockCartLine[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setLines(readStoredCart());
+    setLines(readRestockDraft(window.sessionStorage, merchantId));
     setReady(true);
-  }, []);
+  }, [merchantId]);
 
   useEffect(() => {
     if (!ready) return;
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
-  }, [lines, ready]);
+    writeRestockDraft(window.sessionStorage, merchantId, lines);
+  }, [lines, ready, merchantId]);
 
   const add = useCallback((line: Omit<RestockCartLine, 'quantity'> & { quantity: number }) => {
     setLines((prev) => addRestockCartLine(prev, line));

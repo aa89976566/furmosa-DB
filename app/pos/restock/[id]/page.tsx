@@ -215,8 +215,8 @@ export default async function PosRestockDetailPage(
               <p className="text-sm font-medium">HQ 核准內容</p>
               <ul className="space-y-2 text-sm">
                 {snapshot
-                  ? snapshot.map((line) => (
-                      <li key={line.productId} className="flex justify-between gap-2">
+                  ? snapshot.map((line, idx) => (
+                      <li key={`${line.productId}:${line.variantKey ?? idx}`} className="flex justify-between gap-2">
                         <span className="min-w-0 break-words">{formatRestockItemSpec(line.productName, line.weightGrams, line.unit)}</span>
                         <span className="shrink-0 font-medium">{line.quantity}</span>
                       </li>

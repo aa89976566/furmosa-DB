@@ -21,7 +21,7 @@ import { restockTierLabel, type RestockTier } from '@/lib/restock-request/varian
 
 const initial: PosRestockFormState = {};
 
-export function RestockPicker({ products }: { products: RestockProductOption[] }) {
+export function RestockPicker({ products, merchantId }: { products: RestockProductOption[]; merchantId: string }) {
   const [qty, setQty] = useState<Record<string, number>>(() =>
     Object.fromEntries(products.map((p) => [p.id, p.suggestedQty])),
   );
@@ -61,6 +61,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
         </ul>
         <p className="text-sm text-muted-foreground">共 {totalPieces} 件</p>
         <form action={action} className="space-y-3">
+          <input type="hidden" name="expectedMerchantId" value={merchantId} />
           {selected.map((p) => (
             <span key={p.id}>
               <input type="hidden" name="productId" value={p.id} />
