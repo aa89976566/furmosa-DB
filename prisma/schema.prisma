@@ -625,6 +625,7 @@ model MerchantUser {
   merchantId   String    @map("merchant_id")
   username     String    @unique
   passwordHash String    @map("password_hash")
+  encryptedPassword String? @map("encrypted_password")
   displayName  String?   @map("display_name")
   isActive     Boolean   @default(true) @map("is_active")
   lastLoginAt  DateTime? @map("last_login_at")
@@ -1555,4 +1556,16 @@ model PartnerStoreIdentityDecision {
   @@index([merchantId, scope])
   @@index([legacySlug, scope])
   @@map("partner_store_identity_decisions")
+}
+
+// Contains metadata only; never passwords, hashes, or ciphertext.
+model PosPasswordAccessLog {
+  id String @id @default(cuid())
+  adminId String @map("admin_id")
+  merchantUserId String @map("merchant_user_id")
+  action String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([merchantUserId, createdAt])
+  @@map("pos_password_access_logs")
 }

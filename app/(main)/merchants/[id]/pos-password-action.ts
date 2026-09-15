@@ -21,6 +21,7 @@ export async function resetPosPasswordWithFeedback(
       '缺少店家或 POS 帳號',
       '密碼需為 8–64 位',
       'POS 帳號不存在或不屬於此店家',
+      'POS 密碼保管功能尚未設定',
     ];
     return {
       status: 'error',

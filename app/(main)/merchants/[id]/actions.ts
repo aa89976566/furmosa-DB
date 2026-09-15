@@ -46,6 +46,8 @@ import {
 } from '@/lib/orders/merchant-wholesale-price';
 import { randomUUID } from 'node:crypto';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
+import { encryptPosPassword } from '@/lib/pos/password-vault';
+import { requirePasswordAdmin } from '@/lib/pos/password-vault-service';
 import { isValidMerchantBusinessId, nextMerchantBusinessId, canRepairMerchantBusinessId } from '@/lib/merchant-business-id';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { isJarExchangeProductCategory } from '@/lib/product-category';
@@ -62,8 +64,8 @@ function toNullableField(value: FormDataEntryValue | null) {
 }
 
 async function requireAdmin() {
-  const user = await getCurrentUser();
-  if (!user || user.role !== 'admin') throw new Error('只有管理員可以管理店家帳號');
+  try { return await requirePasswordAdmin(prisma, await getCurrentUser()); }
+  catch { throw new Error('只有管理員可以管理店家帳號'); }
 }
 
 export async function repairMerchantBusinessId(formData: FormData) {
@@ -94,7 +96,7 @@ export async function repairMerchantBusinessId(formData: FormData) {
 }
 
 export async function createMerchantPosUser(formData: FormData) {
-  await requireAdmin();
+  const adminId = await requireAdmin();
   const merchantId = String(formData.get('merchantId') ?? '').trim();
   const username = String(formData.get('username') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
@@ -113,20 +115,18 @@ export async function createMerchantPosUser(formData: FormData) {
   });
   if (activeCount > 0) throw new Error('此店家已有啟用中的 POS 帳號');
 
-  await prisma.merchantUser.create({
-    data: {
-      merchantId,
-      username,
-      passwordHash: await hashPassword(password),
-      displayName: username,
-      isActive: true,
-    },
+  const id = randomUUID();
+  const passwordHash = await hashPassword(password);
+  const encryptedPassword = encryptPosPassword(password, id, passwordHash);
+  await prisma.$transaction(async (tx) => {
+    await tx.merchantUser.create({ data: { id, merchantId, username, passwordHash, encryptedPassword, displayName: username, isActive: true } });
+    await tx.posPasswordAccessLog.create({ data: { adminId, merchantUserId: id, action: 'create' } });
   });
   revalidatePath(`/merchants/${merchantId}`);
 }
 
 export async function resetMerchantPosUserPassword(formData: FormData) {
-  await requireAdmin();
+  const adminId = await requireAdmin();
   const merchantId = String(formData.get('merchantId') ?? '').trim();
   const userId = String(formData.get('userId') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -141,9 +141,11 @@ export async function resetMerchantPosUserPassword(formData: FormData) {
   });
   if (!user) throw new Error('POS 帳號不存在或不屬於此店家');
 
-  await prisma.merchantUser.update({
-    where: { id: user.id },
-    data: { passwordHash: await hashPassword(password) },
+  const passwordHash = await hashPassword(password);
+  const encryptedPassword = encryptPosPassword(password, user.id, passwordHash);
+  await prisma.$transaction(async (tx) => {
+    await tx.merchantUser.update({ where: { id: user.id }, data: { passwordHash, encryptedPassword } });
+    await tx.posPasswordAccessLog.create({ data: { adminId, merchantUserId: user.id, action: 'reset' } });
   });
   revalidatePath(`/merchants/${merchantId}`);
 }

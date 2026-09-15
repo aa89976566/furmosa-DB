@@ -1,3 +1,5 @@
+import { PosPasswordView } from '@/components/merchants/pos-password-view';
+import { getCurrentUser } from '@/lib/auth';
 import { PosPasswordForm } from '@/components/merchants/pos-password-form';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -55,7 +57,7 @@ export default async function MerchantOverviewPage(
       include: {
         productRules: { select: { id: true } },
         stocks: { select: { quantity: true, productId: true } },
-        users: { select: { id: true, username: true, displayName: true, isActive: true } },
+        users: { select: { id: true, username: true, displayName: true, isActive: true, updatedAt: true } },
         stockTxns: {
           include: { product: true },
           orderBy: { createdAt: 'desc' },
@@ -66,6 +68,10 @@ export default async function MerchantOverviewPage(
     getMerchantShell(params.id),
   ]);
   if (!merchant) notFound();
+
+  const session = await getCurrentUser();
+  const currentUser = session && await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } });
+  const canManagePasswords = currentUser?.role === 'admin';
 
   const industry = shell.industry;
   const types = shell.types;
@@ -247,16 +253,19 @@ export default async function MerchantOverviewPage(
                     </li>
                   ))}
                 </ul>
-                <PosPasswordForm merchantId={merchant.id} users={merchant.users} />
+                {canManagePasswords && <>
+                  {merchant.users.map((user) => <PosPasswordView key={`${user.id}:${user.updatedAt.getTime()}`} merchantId={merchant.id} userId={user.id} username={user.username} />)}
+                  <PosPasswordForm merchantId={merchant.id} users={merchant.users} />
+                </>}
               </>
-            ) : (
+            ) : canManagePasswords ? (
               <form action={createMerchantPosUser} className="mt-3 space-y-3">
                 <input type="hidden" name="merchantId" value={merchant.id} />
                 <Input name="username" placeholder="POS 帳號" required minLength={4} maxLength={32} />
                 <Input name="password" type="password" placeholder="密碼（至少 8 位）" required minLength={8} maxLength={64} />
                 <Button type="submit" size="sm">建立 POS 帳號</Button>
               </form>
-            )}
+            ) : null}
             <Link href="/pos/login" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
               POS 登入頁面
             </Link>
