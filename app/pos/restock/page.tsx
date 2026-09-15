@@ -19,7 +19,7 @@ export default async function PosRestockPage() {
       <div className="px-4 py-6 pr-16">
         <h1 className="mb-1 text-xl font-semibold text-navy">補貨</h1>
         <p className="mb-5 text-sm text-muted-foreground">選要補的數量，再送出給匠寵。</p>
-        <RestockPicker products={products} />
+        <RestockPicker key={account.merchantId} merchantId={account.merchantId} products={products} />
       </div>
     </PosShell>
   );

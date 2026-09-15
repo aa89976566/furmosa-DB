@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { clearRestockDrafts } from '@/lib/pos/restock-draft';
 import { MoreHorizontal, UserRound } from 'lucide-react';
 import { posLogoutAction } from '@/app/pos/actions';
 import { FURMOSA_CONTACT } from '@/lib/pos/contact';
@@ -66,7 +67,7 @@ export function PosAccountMenu({
           </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <form action={posLogoutAction}>
+        <form action={posLogoutAction} onSubmit={() => clearRestockDrafts(window.sessionStorage)}>
           <button
             type="submit"
             className="flex min-h-[44px] w-full items-center rounded-xl px-2 text-sm text-destructive"

@@ -1,3 +1,4 @@
+import { resolveRestockShipping } from '@/lib/restock-request/shipping';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Check, Clock3, PackageCheck } from 'lucide-react';
@@ -44,6 +45,9 @@ export default async function HqRestockRequestDetailPage(
   if (!req) notFound();
 
   const catalog = await listJarExchangeProductsForRestock();
+  let shippingError = '';
+  try { resolveRestockShipping(req.merchant); }
+  catch (error) { shippingError = error instanceof Error ? error.message : '收件資料不完整'; }
   const locked =
     Boolean(req.shipmentId) ||
     req.status === 'converted_to_shipment' ||
@@ -87,6 +91,12 @@ export default async function HqRestockRequestDetailPage(
             </div>
           ) : null}
 
+          {shippingError ? (
+            <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm">
+              <p>尚不能轉出貨：{shippingError}</p>
+              <Link className="mt-2 inline-block underline" href={`/merchants/${req.merchantId}`}>前往店家資料補齊收件資訊</Link>
+            </div>
+          ) : null}
           <HqRestockDetailForm
             requestId={req.id}
             locked={false}

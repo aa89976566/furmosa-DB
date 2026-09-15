@@ -1,3 +1,4 @@
+import { ClearRestockDrafts } from "@/components/pos/clear-restock-drafts";
 import { PosLoginForm } from "./login-form";
 
 export const metadata = {
@@ -25,6 +26,7 @@ export default async function PosLoginPage(
           </p>
         </div>
       </div>
+      <ClearRestockDrafts />
       <PosLoginForm next={searchParams.next} />
       <p className="mt-6 text-left text-xs text-muted-foreground">
         問題請聯繫 Furmosa 總部

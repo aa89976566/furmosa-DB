@@ -138,8 +138,8 @@ export function HqRestockDetailForm({
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="hqNote" value={note} />
       <input type="hidden" name="expectedArrivalDate" value={arrival} />
-      {items.map((it) => (
-        <span key={it.productId}>
+      {items.map((it, idx) => (
+        <span key={`${it.productId}:${idx}`}>
           <input type="hidden" name="productId" value={it.productId} />
           <input
             type="hidden"
@@ -181,7 +181,7 @@ export function HqRestockDetailForm({
 
               return (
                 <li
-                  key={it.productId}
+                  key={`${it.productId}:${idx}`}
                   className="space-y-2 rounded-lg border p-3"
                 >
                   <div className="flex flex-wrap items-center gap-2">

@@ -1132,7 +1132,7 @@ export function SettleWorkspace({
   initialTab: string;
 }) {
   return (
-    <RestockCartProvider>
+    <RestockCartProvider merchantId={account.merchantId}>
       <SettleWorkspaceInner
         account={account}
         ledger={ledger}

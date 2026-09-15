@@ -56,7 +56,7 @@ test('approval carries the selected identity through order, shipment, snapshot a
   const { applyMerchantRestockFromShipment } = await import('@/lib/merchant-restock-inventory');
   const writes: Record<string, any> = {};
   const product = {id:'p',name:'豬耳朵條',sku:'P',unit:'包',productCategory:'STANDARD',priceTiers:tiers};
-  const request = {id:'r',merchantId:'m',shipmentId:null,items:[{productId:'p',approvedQuantity:3,weightGrams:50,variantKey:'tier50'}],merchant:{name:'店家',preferredCarrier:null},approvedAt:null};
+  const request = {id:'r',merchantId:'m',shipmentId:null,items:[{productId:'p',approvedQuantity:3,weightGrams:50,variantKey:'tier50'}],merchant:{name:'店家',preferredCarrier:'送貨',contactName:'收件人',phone:'0912345678',address:'測試地址'},approvedAt:null};
   const tx: any = {
     restockRequest: {updateMany:async () => ({count:1}),findUnique:async () => request,update:async ({data}:any) => {writes.snapshot=data.approvedSnapshot;return data;}},
     product: {findMany:async () => [product]},
@@ -75,6 +75,11 @@ test('approval carries the selected identity through order, shipment, snapshot a
     assert.equal(writes.shipment.items.create[0].variantKey,'tier50');
     await applyMerchantRestockFromShipment(tx,{shipmentNumber:writes.shipment.shipmentNumber,merchantId:'m',items:[{id:'si',...writes.shipment.items.create[0]}]},new Date());
     assert.equal(writes.stock.tierId,'tier50');assert.equal(writes.stock.quantity,3);assert.equal(writes.stock.merchantId,'m');
+    delete writes.order; delete writes.shipment;
+    request.merchant.phone = '';
+    await assert.rejects(approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')}), /電話/);
+    assert.equal(writes.order, undefined); assert.equal(writes.shipment, undefined);
+    request.merchant.phone = '0912345678';
     request.items[0].weightGrams = null as any; request.items[0].variantKey = null as any;
     delete writes.order; delete writes.shipment;
     await assert.rejects(approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')}),/規格/);
@@ -91,4 +96,21 @@ test('a confirmed 50g piece preserves its existing tier identity and counting un
   assert.deepEqual(result,{weightGrams:50,variantKey:'piece-existing',unit:'片'});
   assert.equal(restockTierLabel(piece),'1 片（50g）');
   assert.equal(formatRestockItemSpec('原味雞霸',50,'片'),'原味雞霸 50g／片');
+});
+
+test('different variants of one product can be submitted and approved together', async () => {
+  const { assertApprovableRestockProducts } = await import('../service');
+  const products = [{ id: 'p', name: '雞肉', productCategory: 'STANDARD', priceTiers: tiers }];
+  const items = [{ productId: 'p', quantity: 2, variantKey: 'tier30' }, { productId: 'p', quantity: 3, variantKey: 'tier50' }];
+  assert.doesNotThrow(() => assertApprovableRestockProducts(products, items));
+  assert.throws(() => assertApprovableRestockProducts(products, [items[0], items[0]]), /商品資料不完整/);
+  const read = prisma.product.findMany;
+  const create = prisma.restockRequest.create;
+  let written: any;
+  prisma.product.findMany = (async () => products) as any;
+  prisma.restockRequest.create = (async ({ data }: any) => { written = data; return data; }) as any;
+  try {
+    await submitSelfSelectRestockRequest({ merchantId: 'm', merchantUserId: 'u', items });
+    assert.deepEqual(written.items.create.map((line: any) => [line.variantKey, line.requestedQuantity]), [['tier30', 2], ['tier50', 3]]);
+  } finally { prisma.product.findMany = read; prisma.restockRequest.create = create; }
 });
