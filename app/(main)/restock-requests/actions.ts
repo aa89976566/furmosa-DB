@@ -56,12 +56,16 @@ export async function saveRestockRequestHqAction(
   const productIds = formData.getAll('productId').map(String);
   const approvedQtys = formData.getAll('approvedQuantity').map(String);
   const requestedQtys = formData.getAll('requestedQuantity').map(String);
+  const weights = formData.getAll('weightGrams').map(String);
+  const variants = formData.getAll('variantKey').map(String);
 
   const items = productIds
     .map((productId, i) => ({
       productId,
       approvedQuantity: Number(approvedQtys[i] ?? 0),
       requestedQuantity: requestedQtys[i] ? Number(requestedQtys[i]) : null,
+      weightGrams: weights[i] ? Number(weights[i]) : null,
+      variantKey: variants[i] || null,
     }))
     .filter((it) => it.productId);
 
@@ -95,6 +99,8 @@ export async function approveRestockRequestAction(
   if (productIds.length > 0) {
     const approvedQtys = formData.getAll('approvedQuantity').map(String);
     const requestedQtys = formData.getAll('requestedQuantity').map(String);
+  const weights = formData.getAll('weightGrams').map(String);
+  const variants = formData.getAll('variantKey').map(String);
     try {
       await updateRestockRequestAsHq({
         requestId,
@@ -104,6 +110,8 @@ export async function approveRestockRequestAction(
           productId,
           approvedQuantity: Number(approvedQtys[i] ?? 0),
           requestedQuantity: requestedQtys[i] ? Number(requestedQtys[i]) : null,
+      weightGrams: weights[i] ? Number(weights[i]) : null,
+      variantKey: variants[i] || null,
         })),
       });
     } catch (e) {

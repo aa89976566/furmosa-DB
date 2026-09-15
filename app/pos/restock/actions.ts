@@ -31,6 +31,9 @@ function toMerchantError(e: unknown): string {
   if (msg.includes('不存在')) {
     return '有商品找不到了，請重新整理後再試。';
   }
+  if (msg.includes('規格') || msg.includes('請選擇具體規格')) {
+    return msg; // 規格驗證錯誤直接呈現給使用者
+  }
   return '送出失敗，請再試一次。';
 }
 
@@ -43,12 +46,16 @@ export async function submitSelfSelectRestockAction(
 
   const productIds = formData.getAll('productId').map(String);
   const quantities = formData.getAll('quantity').map(String);
+  const variantKeys = formData.getAll('variantKey').map(String);
+  const weightGramsList = formData.getAll('weightGrams').map(String);
   const merchantNote = String(formData.get('merchantNote') ?? '').trim();
 
   const items = productIds
     .map((productId, i) => ({
       productId,
       quantity: Number(quantities[i] ?? 0),
+      weightGrams: weightGramsList[i] ? Number(weightGramsList[i]) : null,
+      variantKey: variantKeys[i] || null,
     }))
     .filter((it) => it.productId);
 

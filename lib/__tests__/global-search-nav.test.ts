@@ -7,56 +7,31 @@ import {
 } from '../global-search-nav';
 
 describe('global-search-nav', () => {
-  it('maps nested order pages to orders list', () => {
-    assert.equal(resolveGlobalSearchListPath('/orders/new'), '/orders');
-    assert.equal(resolveGlobalSearchListPath('/orders/abc/edit'), '/orders');
-    assert.equal(isGlobalSearchListPath('/orders/new'), false);
-    assert.equal(isGlobalSearchListPath('/orders'), true);
+  it('maps every feature page to global results', () => {
+    assert.equal(resolveGlobalSearchListPath('/orders/new'), '/search');
+    assert.equal(resolveGlobalSearchListPath('/vendors'), '/search');
+    assert.equal(resolveGlobalSearchListPath('/dashboard'), '/search');
+    assert.equal(isGlobalSearchListPath('/orders'), false);
+    assert.equal(isGlobalSearchListPath('/search'), true);
   });
 
-  it('from /orders/new navigates to list with q (the mobile bug)', () => {
+  it('does not carry feature-list filters into global search', () => {
     assert.equal(
-      resolveGlobalSearchHref('/orders/new', '', '曼'),
-      '/orders?q=%E6%9B%BC',
+      resolveGlobalSearchHref('/orders', 'source=line&work=now&page=3', '曼'),
+      '/search?q=%E6%9B%BC',
     );
   });
 
-  it('order search starts from all orders and clears existing filters', () => {
+  it('updates and clears the query on the results page', () => {
     assert.equal(
-      resolveGlobalSearchHref('/orders', 'source=line&work=now&status=draft&page=3', '曼'),
-      '/orders?q=%E6%9B%BC',
+      resolveGlobalSearchHref('/search', 'q=%E6%9B%BC&page=3', '星汪'),
+      '/search?q=%E6%98%9F%E6%B1%AA',
     );
+    assert.equal(resolveGlobalSearchHref('/search', 'q=%E6%9B%BC', ''), '/search');
+    assert.equal(resolveGlobalSearchHref('/search', 'q=%E6%9B%BC', '曼'), null);
   });
 
-  it('clearing q on list removes it', () => {
-    assert.equal(resolveGlobalSearchHref('/orders', 'q=%E6%9B%BC', ''), '/orders');
-  });
-
-  it('noop when already on same href', () => {
-    assert.equal(resolveGlobalSearchHref('/orders', 'q=%E6%9B%BC', '曼'), null);
-  });
-
-  it('vendors section searches products', () => {
-    assert.equal(resolveGlobalSearchListPath('/vendors'), '/products');
-    assert.equal(
-      resolveGlobalSearchHref('/vendors/new', '', '飼料'),
-      '/products?q=%E9%A3%BC%E6%96%99',
-    );
-  });
-
-  it('jar-exchange ops falls back to members list', () => {
-    assert.equal(resolveGlobalSearchListPath('/jar-exchange/ops'), '/jar-exchange/members');
-    assert.equal(
-      resolveGlobalSearchHref('/jar-exchange/ops', '', '0912'),
-      '/jar-exchange/members?q=0912',
-    );
-  });
-
-  it('dashboard defaults to orders', () => {
-    assert.equal(resolveGlobalSearchListPath('/dashboard'), '/orders');
-    assert.equal(
-      resolveGlobalSearchHref('/dashboard', '', '陳'),
-      '/orders?q=%E9%99%B3',
-    );
+  it('ignores empty search outside the results page', () => {
+    assert.equal(resolveGlobalSearchHref('/dashboard', '', '  '), null);
   });
 });

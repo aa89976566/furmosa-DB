@@ -28,6 +28,7 @@ export async function confirmMerchantRestockReceipt(input: {
             productId: true,
             quantity: true,
             weightGrams: true,
+            variantKey: true,
           },
         },
       },

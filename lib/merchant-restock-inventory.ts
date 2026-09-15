@@ -13,6 +13,7 @@ export type RestockShipmentForInventory = {
     productId: string;
     quantity: number;
     weightGrams: number | null;
+    variantKey?: string | null;
   }>;
 };
 
@@ -166,6 +167,7 @@ export async function applyMerchantRestockFromShipment(
     const tierId = resolveTierIdFromWeightGrams(
       tiersByProduct.get(item.productId) ?? [],
       item.weightGrams,
+      item.variantKey,
     );
     const stockWhere = merchantStockUniqueWhere(
       shipment.merchantId,

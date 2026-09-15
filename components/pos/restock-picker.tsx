@@ -14,7 +14,10 @@ export type RestockProductOption = {
   unit: string;
   stockQty: number;
   suggestedQty: number;
+  priceTiers: RestockTier[];
 };
+
+import { restockTierLabel, type RestockTier } from '@/lib/restock-request/variant';
 
 const initial: PosRestockFormState = {};
 
@@ -22,6 +25,8 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
   const [qty, setQty] = useState<Record<string, number>>(() =>
     Object.fromEntries(products.map((p) => [p.id, p.suggestedQty])),
   );
+  const [variants, setVariants] = useState<Record<string, string>>({});
+  const selectedTier = (p: RestockProductOption) => p.priceTiers.find(t => t.id === variants[p.id]) ?? (p.priceTiers.length === 1 ? p.priceTiers[0] : null);
   const [step, setStep] = useState<'edit' | 'confirm'>('edit');
   const [state, action] = useFormState(submitSelfSelectRestockAction, initial);
 
@@ -29,6 +34,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
     () => products.filter((p) => (qty[p.id] ?? 0) > 0).map((p) => ({ ...p, count: qty[p.id] ?? 0 })),
     [products, qty],
   );
+  const missingVariant = selected.some(p => p.priceTiers.length > 1 && !selectedTier(p));
   const totalPieces = selected.reduce((sum, p) => sum + p.count, 0);
 
   if (products.length === 0) {
@@ -48,7 +54,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
         <ul className="space-y-3">
           {selected.map((p) => (
             <li key={p.id} className="flex items-center justify-between rounded-2xl bg-card px-4 py-3 shadow-card">
-              <span className="font-medium text-navy">{p.name}</span>
+              <span className="font-medium text-navy">{p.name}{selectedTier(p) ? ` ${restockTierLabel(selectedTier(p)!)}` : ""}</span>
               <span className="tabular-nums text-muted-foreground">× {p.count}</span>
             </li>
           ))}
@@ -59,6 +65,8 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
             <span key={p.id}>
               <input type="hidden" name="productId" value={p.id} />
               <input type="hidden" name="quantity" value={p.count} />
+              <input type="hidden" name="variantKey" value={selectedTier(p)?.id ?? ""} />
+              <input type="hidden" name="weightGrams" value={selectedTier(p)?.weightGrams ?? ""} />
             </span>
           ))}
           {state.error ? (
@@ -82,6 +90,14 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
             >
               <div className="min-w-0">
                 <p className="font-medium text-navy">{p.name}</p>
+                {p.priceTiers.length > 1 ? (
+                  <select aria-label={`${p.name} 規格`} value={variants[p.id] ?? ''}
+                    onChange={e => setVariants(prev => ({ ...prev, [p.id]: e.target.value }))}
+                    className="mt-2 h-11 max-w-full rounded-lg border bg-card px-2 text-sm">
+                    <option value="">請選擇規格</option>
+                    {p.priceTiers.map(t => <option key={t.id} value={t.id}>{restockTierLabel(t)}</option>)}
+                  </select>
+                ) : p.priceTiers[0] ? <p className="text-sm">{restockTierLabel(p.priceTiers[0])}</p> : null}
                 <p className="text-sm text-muted-foreground">
                   現在 {p.stockQty}
                   {p.suggestedQty > 0 ? `　建議補 ${p.suggestedQty}` : ''}
@@ -120,10 +136,10 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
         <Button
           type="button"
           className="min-h-[52px] w-full text-base shadow-card"
-          disabled={totalPieces === 0}
+          disabled={totalPieces === 0 || missingVariant}
           onClick={() => setStep('confirm')}
         >
-          確認補貨
+          {missingVariant ? "請先選擇商品規格" : "確認補貨"}
         </Button>
       </div>
     </div>
