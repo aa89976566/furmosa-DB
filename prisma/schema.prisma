@@ -850,6 +850,10 @@ model RestockRequestItem {
   productId         String   @map("product_id")
   requestedQuantity Int?     @map("requested_quantity")
   approvedQuantity  Int?     @map("approved_quantity")
+  /// 商品規格：克數（30/50/100 等）；無規格商品為 null
+  weightGrams       Int?     @map("weight_grams")
+  /// 商品規格key（ProductPriceTier.id）；無規格商品為 null
+  variantKey        String?  @map("variant_key")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -861,6 +865,7 @@ model RestockRequestItem {
   @@map("restock_request_items")
 }
 
+
 model ShipmentItem {
   id          String  @id @default(cuid())
   shipmentId  String
@@ -869,6 +874,7 @@ model ShipmentItem {
   sku         String
   quantity    Int
   weightGrams Int? // 每件重量（g）— 同商品可有不同 g 數
+  variantKey  String? // ProductPriceTier.id，補貨規格的明確身分
   unit        String? // 片 / 包 / 支 / 件...
   notes       String?
 
