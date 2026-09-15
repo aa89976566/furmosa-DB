@@ -1,5 +1,9 @@
 # 上線指南 — Supabase Postgres + Vercel
 
+> **歷史文件警告（2026-09-15）：禁止直接照本文件操作正式環境。**
+>
+> 目前 `package.json` 的 build 是 `prisma generate && next build`；build 不會、也不應執行 migration。下方仍有舊的自動 migration、seed、import、預設帳密與重置正式資料庫說明，僅保留作為歷史背景。正式發布必須使用獨立 migration 工作包、明確批准、備份／回復計畫、同一 revision 的 CI／Preview E2E，以及發布後唯讀 smoke。請以 `docs/RELEASE-EVIDENCE.md` 的 Gate 為準。
+
 照這份做完，你會拿到 `https://furmosa-hq.vercel.app`（或自訂網域）並有真實資料可登入。
 預估 30–60 分鐘。
 
