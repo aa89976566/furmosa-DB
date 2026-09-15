@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { bulkConsumption } from '../inventory/bulk';
+import { createPrismaShopifyStore } from '../shopify/webhook-store';
+import { syncShopifyCancellation } from '../shopify/shipment-events';
 
 test('bulk units use master tiers, reject missing or ambiguous identity', () => {
  const p = {unit:'克',priceTiers:[{id:'a',weightGrams:30,unit:'g',unitQty:1},{id:'b',weightGrams:50,unit:'g',unitQty:1}]};
@@ -49,6 +51,17 @@ test('HQ ledger is atomic, idempotent, reversible, isolated from POS and histori
  const q=await db.product.create({data:{productId:randomUUID(),sku:randomUUID(),name:'quail',category:'freeze_dried',unit:'隻',price:1,priceTiers:{create:[{unit:'隻',unitQty:1,price:1},{unit:'隻',unitQty:3,price:3}]},inventoryBalances:{create:{warehouseId:wh.id,quantity:4,unit:'隻',lastCountedAt:new Date()}}},include:{priceTiers:true}});
  const qs=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',items:{create:{productId:q.id,productName:q.name,sku:q.sku,quantity:1,variantKey:q.priceTiers.find(t=>t.unitQty===3)!.id}}}});
  await db.shipment.update({where:{id:qs.id},data:{status:'shipped'}});assert.equal((await db.inventoryBalance.findUniqueOrThrow({where:{productId_warehouseId:{productId:q.id,warehouseId:wh.id}}})).quantity,1);
+ // A signed/versioned Shopify cancellation reaches the same inverse ledger,
+ // including after physical shipment; repeats stay idempotent.
+ const externalId=randomUUID();
+ const shopOrder=await db.order.create({data:{orderNumber:randomUUID(),source:'shopify',externalStore:'hq-test.myshopify.com',externalOrderId:externalId,subtotal:1,total:1}});
+ const shopShipment=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',orderId:shopOrder.id,items:{create:{productId:p.id,productName:p.name,sku:p.sku,quantity:1,weightGrams:30}}}});
+ const beforeShopify=await stock();
+ await db.shipment.update({where:{id:shopShipment.id},data:{status:'shipped'}});assert.equal(await stock(),beforeShopify-30);
+ const cancelInput={topic:'orders/cancelled' as const,shopDomain:'hq-test.myshopify.com',webhookId:randomUUID(),orderId:externalId,sourceUpdatedAt:new Date().toISOString(),db:createPrismaShopifyStore(db)};
+ await syncShopifyCancellation(cancelInput);assert.equal(await stock(),beforeShopify);
+ await syncShopifyCancellation(cancelInput);assert.equal(await stock(),beforeShopify);
+ assert.equal((await db.order.findUniqueOrThrow({where:{id:shopOrder.id}})).status,'cancelled');
  // Two concurrent sources cannot both spend the same final 30g.
  await db.inventoryBalance.update({where:{productId_warehouseId:{productId:p.id,warehouseId:wh.id}},data:{quantity:30}});
  const c1=await shipment(),c2=await shipment();const outcomes=await Promise.allSettled([c1,c2].map(s=>db.shipment.update({where:{id:s.id},data:{status:'shipped'}})));assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);assert.equal(await stock(),0);

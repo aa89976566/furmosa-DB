@@ -117,6 +117,7 @@ export type ShopifyAuditRow = {
 };
 
 export type ShopifyWebhookTx = {
+  cancelHqInventory?: (orderId: string) => Promise<boolean>;
   order: {
     findByExternal: (externalStore: string, externalOrderId: string) => Promise<ShopifyOrderRecord | null>;
     nextNumber: (prefix: string) => Promise<string>;

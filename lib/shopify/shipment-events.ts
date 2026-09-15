@@ -214,6 +214,16 @@ export async function syncShopifyCancellation(input: {
         });
       }
 
+      if (await tx.cancelHqInventory?.(existing.id)) {
+        await writeAudit(tx, {
+          topic: input.topic, shopDomain: externalStore, externalOrderId: input.orderId,
+          webhookId: input.webhookId, sourceUpdatedAt: input.sourceUpdatedAt,
+          fieldGroup: 'cancellation', decision: 'accepted',
+        }, previous, 'cancelled');
+        return { ignored: false, created: false, updated: true, decision: 'accepted' as const,
+          order: await tx.order.findByExternal(externalStore, input.orderId) };
+      }
+
       if (!shipment) {
         return ignoreEvent(tx, {
           shopDomain: externalStore,
