@@ -10,8 +10,8 @@ import {
 } from '@/lib/global-search-nav';
 
 /**
- * 全站搜尋：輸入時只更新本地 state，按 Enter 或點右側按鈕才導航。
- * 子頁（如新增訂單）會導回對應列表並帶 ?q=，避免掛在無篩選頁上看起來「沒反應」。
+ * 全站搜尋：統一導向分類結果頁。跨頁時用完整導頁，避免手機 RSC 導航失敗
+ * 讓目前畫面直接落入錯誤邊界；結果頁內換字則保留快速的 client navigation。
  */
 export function GlobalSearch() {
   const router = useRouter();
@@ -28,9 +28,9 @@ export function GlobalSearch() {
   const navigateWithQuery = (raw: string) => {
     const next = resolveGlobalSearchHref(pathname, searchParams.toString(), raw);
     if (!next) return;
-    // 離開目前子頁時用 push，方便返回；列表就地篩選用 replace
+    // iOS 上跨頁 RSC 曾偶發中斷；完整導頁可保留瀏覽器原生重試能力。
     if (onList) router.replace(next, { scroll: false });
-    else router.push(next);
+    else window.location.assign(next);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -52,6 +52,7 @@ export function GlobalSearch() {
         enterKeyHint="search"
         autoComplete="off"
         inputMode="search"
+        maxLength={80}
       />
       <button
         type="submit"
