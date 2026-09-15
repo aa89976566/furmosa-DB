@@ -42,6 +42,8 @@
 
 一般工作仍須先讀相關檔案、確認需求、說明作法，再實作、測試並如實回報。下列專案不變條件持續生效。
 
+所有涉及 HQ、POS、Shopify、LINE／換罐、付款、庫存、出貨、結算、migration 或正式發布的工作包，另須遵守 [工程交付與正式發布程序](docs/ENGINEERING-DELIVERY-PROCEDURE.md)。該文件是工作包、資料庫發布、測試分層、GO／NO-GO、分批上線、觀察與事故回復的唯一程序來源；不得另建互相矛盾的流程副本。
+
 ## Furmosa DB 技術架構
 
 - 固定使用 Next.js 14 App Router、React、TypeScript、Tailwind CSS、shadcn/ui、Prisma、PostgreSQL 與 Supabase。
