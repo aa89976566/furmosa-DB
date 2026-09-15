@@ -29,7 +29,7 @@
 | build 無 migrate／seed／db push／示範帳號寫入 | PASS | `build-zero-write-security.test.ts` 6/6 |
 | migration 有獨立命令 | PASS（靜態） | `npm run prisma:deploy` |
 | DEPLOY 指引可直接操作 | FAIL | 舊內容仍描述自動 migration／正式重置；已加禁止操作警告 |
-| production-mode build 可完成 | PASS（CI） | GitHub Actions run `34955114366`；候選 SHA `3ad742e` |
+| production-mode build 可完成 | PASS（CI） | GitHub Actions run `34958986711`；候選 SHA `6ee6ef6`；完整 job 2m40s |
 
 ## 必要發布 Gate
 
@@ -63,7 +63,7 @@
 package-lock.json 精確版本安裝
 
 本機核心測試（未接 DB，最新 main 基準）：tests 1063; pass 1063; fail 0
-前一候選 CI 核心測試（一次性 PostgreSQL 16）：tests 1059; pass 1059; fail 0；包含 2 項換罐序號／點數真 DB 測試；最新 head 須由新一輪 CI 取代
+最新候選 CI：一次性 PostgreSQL 16 migration、typecheck、完整測試與 production-mode Next.js build 全部 PASS；run 34958986711，2m40s
 middleware／公開換罐入口／health：tests 18; pass 18; fail 0
 關鍵流程契約加跑（訂單、審核、出貨、POS 收貨、換罐、LINE 簽章、Shopify webhook、對帳）：tests 150; pass 150; fail 0
 ECPay 簽章／金額／外部副作用 choke：tests 14; pass 14; fail 0（未涵蓋 route 回跳與 callback 併發）
@@ -90,7 +90,7 @@ git diff --check：PASS
 11. **管理端存在有副作用的 GET。** `app/api/admin/ensure-zhuwo/route.ts` 的 `GET()` 直接轉呼叫 `POST()`，會補建／更新店家分店；授權只檢查任一 HQ 登入，沒有管理員角色與專用 CSRF／重認證閘門。HQ cookie 為 `SameSite=Lax`，跨站頂層 GET 仍可能帶 cookie。應另案改為只允許受權限保護的 POST，並加入「GET 永不寫入」與角色測試；本工作包不改行為。
 12. **主分支與正式發布沒有強制保護。** GitHub Repository Rulesets 顯示尚未建立任何 ruleset，傳統 Branch protection 也未設定。名為 `Production` 的 GitHub Environment 雖存在，但 Required reviewers 與 Wait timer 均未啟用，Deployment branches and tags 為 `No restriction`，管理員繞過亦允許。故目前沒有平台層保證「PR、必要 checks、指定分支、人工批准」均成立後才可發布；在補齊保護規則前維持 NO-GO。本工作包只記錄，不改 repository／environment 設定。
 13. **正式排程目前會安全拒絕，營運整理工作不會執行。** `vercel.json` 已排程 `/api/cron/expire-coupons` 與 `/api/cron/maintain-shipments`；兩條路由在 Preview／Production 都透過 `authorizeCronRequest` 強制要求 `CRON_SECRET`。2026-09-15 在 Vercel 專案環境變數搜尋 `CRON_SECRET` 為 `No Results Found`，因此平台觸發時會回 401。這會停止優惠券到期、出貨佇列完整性、訂閱出貨同步、店家 ensure、KPI snapshot 與預約提醒等工作。需另案產生高熵密鑰、同時設定 Vercel Cron 與 Production／Preview scope，並以隔離環境驗證 401／200 與零重複執行；本工作包不建立或傳送密鑰。
-14. **GitHub Actions 供應鏈沒有 SHA 固定。** Repository Actions permissions 目前允許所有來源的 action／reusable workflow，且 `Require actions to be pinned to a full-length commit SHA` 未啟用；工作流程使用 `actions/checkout@v4`、`actions/setup-node@v4`、`anthropics/claude-code-action@v1` 等可移動 tag。預設 `GITHUB_TOKEN` 是 read-only、Actions 不可自行批准 PR，這兩點是正向控制；但 Claude workflow 會針對受信任成員的 `@claude` 事件取得 contents／PR／issues write 與 id-token write。正式化前應以完整 commit SHA 固定第三方 action、最小化 Claude job 權限並加入 CODEOWNERS／受保護分支；本工作包不改自動化設定。
+14. **GitHub Actions 供應鏈沒有 SHA 固定。** Repository Actions permissions 目前允許所有來源的 action／reusable workflow，且 `Require actions to be pinned to a full-length commit SHA` 未啟用；工作流程使用 `actions/checkout@v4`、`actions/setup-node@v4`、`anthropics/claude-code-action@v1` 等可移動 tag。最新 CI 另明確警告 checkout/setup-node v4 仍以已淘汰的 Node 20 為目標，平台正在強制改用 Node 24。預設 `GITHUB_TOKEN` 是 read-only、Actions 不可自行批准 PR，這兩點是正向控制；但 Claude workflow 會針對受信任成員的 `@claude` 事件取得 contents／PR／issues write 與 id-token write。正式化前應升級並以完整 commit SHA 固定第三方 action、最小化 Claude job 權限並加入 CODEOWNERS／受保護分支；本工作包不改自動化設定。
 15. **LINE 入口缺 webhook 級去重，獎勵兌換亦缺提交冪等。** Shopify 已以 `shopDomain + topic + eventId` 唯一鍵與 advisory lock 防重送；LINE webhook 的事件型別與路由則未保存 webhook event id／redelivery 狀態，事件會逐筆直接執行。LINE Reply／Push、ID token verify、profile 與 loading 的 `fetch` 也未設定 AbortSignal timeout；webhook 逐筆同步等待業務處理，最長 runtime 30 秒，外部服務卡住時容易逾時後被 LINE 重送。瓶底序號入點本身使用 `updateMany(... status: unused)` 原子搶占，能拒絕同碼重複；但 LIFF 獎勵兌換只帶 `idToken + rewardIndex`，沒有客戶端 idempotency key，點數餘額以「讀最後一筆再寫新 balance」實作，未見 customer-level lock／序列化，`MemberPointsLedger` 的 `sourceType + sourceRefId` 也只有 index 而非 unique。快速雙擊、網路重試或並行請求可能造成重複兌換、序號碰撞錯誤或不一致 balance。需另案增加 webhook inbox／快速 ACK、外呼 timeout、兌換 idempotency key、客戶級鎖／原子餘額模型與並行 PostgreSQL 測試；本工作包不改 LINE／點數行為。
 16. **換罐付款在正式環境尚未配置完成。** Vercel Project 顯示 `LINE_CHANNEL_SECRET`／`LINE_CHANNEL_ACCESS_TOKEN` 已套 Production，`LINE_LIFF_ID_REFILL` 已有 Production and Preview；但 Project 與 Shared 均查無程式實際要求的 `ECPAY_MERCHANT_ID`、`ECPAY_HASH_KEY`、`ECPAY_HASH_IV`，因此 `initiateRefillPayment` 會在任何 Prisma 寫入前回 `ECPAY_NOT_CONFIGURED`／503。現有 `ECPAY_LOGISTICS_LIVE_*` 是物流電子地圖設定，不能代替金流憑證。另外，若只補三項金鑰而沒有設定 `ECPAY_PAYMENT_URL`，程式預設值是 `payment-stage.ecpay.com.tw`，仍非正式金流。需另案由付款管理者確認商店身分、正式 callback URL、簽章與金額，於沙盒通過後再以人工核准導入 Production；本工作包不讀取、不建立或傳送付款密鑰。
 17. **HQ／POS session 缺撤銷與登入防暴力控制。** HQ JWT 預設 180 天，Vercel 查無 `HQ_SESSION_DAYS` 覆寫；POS 程式預設 168 小時，Production and Preview 有 `SESSION_HOURS` 變數但介面不顯示其值，故實際效期尚待管理者核對。兩者 middleware 與 server helper 都只驗 JWT 簽章／到期，不回查帳號的 `isActive`、密碼版本或 session version；停用帳號或重設密碼後，既有 token 仍可持續到期。HQ 登入會分別回「帳號不存在」與「密碼錯誤」，HQ／POS 都未見 persistent rate limit／lockout；`loginAction` 對 `next` 只驗 `startsWith('/')`，也未排除 protocol-relative `//host`。另 `verifySessionEdge` 對必填 claims 直接 `String(undefined)`，缺 claim 的已簽 token 不會因結構不完整而 fail closed。需另案加入通用錯誤、IP＋帳號節流、短效 session、server-side revocation/version、嚴格 same-origin next validator 與完整 claim schema；本工作包不更改帳號或登入行為。
