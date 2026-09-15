@@ -8,3 +8,4 @@ CREATE TABLE "pos_password_access_logs" (
 );
 CREATE INDEX "pos_password_access_logs_merchant_user_id_created_at_idx"
   ON "pos_password_access_logs"("merchant_user_id", "created_at");
+ALTER TABLE "pos_password_access_logs" ENABLE ROW LEVEL SECURITY;
