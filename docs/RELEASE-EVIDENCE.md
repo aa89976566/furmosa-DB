@@ -11,12 +11,12 @@
 | 項目 | 結果 |
 |---|---|
 | Repository | `aa89976566/furmosa-DB` |
-| Base revision | `780046272ac0c947fd23c94b6302a75f616ee537` |
+| Base revision | `c688b943b5bd24d9b3846593f02fdd5bd18366d3` |
 | Base | 2026-09-15 已 fetch 並核對 GitHub 遠端 main |
 | Worktree | 隔離工作樹，建立後為乾淨 detached HEAD |
-| Validated application revision | `3ad742ee9423cd844f977105c6eafff2e227c708`；其後只允許本證據文件的 commit |
-| Pull request | `#244`；上一輪 GitHub 3/3 checks PASS、無衝突、Preview Ready；證據更新送出後須以最新 head 重跑 |
-| Production revision | `780046272ac0c947fd23c94b6302a75f616ee537`；Vercel deployment `5mgVwpkh3uhc6dfaYMX74VfucmY5`，Ready |
+| Validated application revision | `c688b943b5bd24d9b3846593f02fdd5bd18366d3`；其後只允許本證據文件的 commit |
+| Pull request | `#244`；已合入最新 main 基準；最新 head 的 GitHub CI／Preview 須重跑完成 |
+| Production revision | `c688b943b5bd24d9b3846593f02fdd5bd18366d3`；Vercel deployment `9rzbVqzrDmdcWz7AHfSPcs5zb4PY`，Ready；schema 未驗證 |
 | Schema／migration production status | **未驗證** |
 
 先前使用的 `codex/oms-claude-cursor-rule` 位於 `0e7f1a3b...`，比本機 `origin/main` 落後 44 commits，不得作為發布候選。
@@ -53,17 +53,17 @@
 
 | Journey | Revision | Environment | Result | Test namespace | Evidence |
 |---|---|---|---|---|---|
-| 店家／POS | `3ad742e` | local pure contracts | PARTIAL | 交易、收貨、庫存、結帳 | 150 項關鍵流程契約的一部分通過；未做 DB/browser E2E |
-| 一般客戶／Shopify | `3ad742e` | local pure contracts | PARTIAL | webhook order/fulfillment | 事件順序、重送、未知 SKU、取消與履約單調性通過；未送真 webhook |
-| LINE／換罐 | `3ad742e` | local pure contracts | PARTIAL | 簽章、序號解析、付款狀態機 | 外部訊息 Preview choke 通過；序號／點數真 DB suite 未執行 |
+| 店家／POS | `c688b94` | local pure contracts | PARTIAL | 交易、收貨、庫存、結帳 | 核心與補貨規格契約通過；未做 DB/browser E2E |
+| 一般客戶／Shopify | `c688b94` | local pure contracts | PARTIAL | webhook order/fulfillment | 事件順序、重送、未知 SKU、取消與履約單調性通過；未送真 webhook |
+| LINE／換罐 | `c688b94` | local pure contracts | PARTIAL | 簽章、序號解析、付款狀態機 | 外部訊息 Preview choke 通過；序號／點數真 DB suite 未執行 |
 
 ## 本工作包的實際測試
 
 ```text
 package-lock.json 精確版本安裝
 
-本機核心測試（未接 DB）：tests 1057; pass 1057; fail 0
-CI 核心測試（一次性 PostgreSQL 16）：tests 1059; pass 1059; fail 0；包含 2 項換罐序號／點數真 DB 測試
+本機核心測試（未接 DB，最新 main 基準）：tests 1063; pass 1063; fail 0
+前一候選 CI 核心測試（一次性 PostgreSQL 16）：tests 1059; pass 1059; fail 0；包含 2 項換罐序號／點數真 DB 測試；最新 head 須由新一輪 CI 取代
 middleware／公開換罐入口／health：tests 18; pass 18; fail 0
 關鍵流程契約加跑（訂單、審核、出貨、POS 收貨、換罐、LINE 簽章、Shopify webhook、對帳）：tests 150; pass 150; fail 0
 ECPay 簽章／金額／外部副作用 choke：tests 14; pass 14; fail 0（未涵蓋 route 回跳與 callback 併發）
@@ -103,6 +103,7 @@ git diff --check：PASS
 24. **健康檢查與告警只能證明程序活著，不能證明系統可作業。** `/api/health` 與 `/api/health/live` 都固定回 200，不驗 DB 連線、schema revision、cron 最近成功時間、Shopify／LINE 積壓或 POS 結帳旗標；專案亦未見 Sentry／APM／OpenTelemetry instrumentation、錯誤率或業務不變量告警，背景失敗多半只 `console.error`。本次 Vercel 過去一小時日誌為 Warning／Error／Fatal 皆 0，只是短時間觀察，不能偵測「cron 全部 401」這類靜默失效。應在受保護的 readiness／營運面板加入 DB/schema、最後成功排程、webhook lag、孤兒 Order／Shipment、負庫存與對帳差異，並為 P0 不變量設告警；公開 liveness 保持不碰 DB。
 25. **POS「紀錄」不是完整訂單來源，且銷售可能重複顯示。** `loadQueryFeed()` 讀取銷售交易、換罐單、補貨申請與全部庫存流水，沒有讀 `Order`／`Shipment`；因此它不能作為 HQ 與 POS 的店家訂單清單。第一個查詢已把 `merchantStockTxn(type: sale)` 分組成銷售項目，第四個查詢又讀取未排除 `sale` 的全部 `merchantStockTxn`，再把兩者合併，實際銷售可能同時以「銷售」及「庫存異動」出現。現有測試用不同 fixture 避開了重疊，未覆蓋同一 sale row。應另案先定義「訂單」與「操作流水」兩個資訊架構，再讓店家訂單直接讀同一 Order／Shipment 真相，流水排除已分組 sale 或用 canonical event id 去重。
 26. **資料庫維運指令缺 production deny guard，名稱亦可能誤導。** `db:check` 實際先執行 `prisma migrate deploy`，不是唯讀檢查；`db:reset` 直接使用 `prisma migrate reset --force`，另有 seed、import、clear 指令直接取用目前環境的資料庫 URL。尤其 `prisma/seed.ts` 的開頭即逐表 `deleteMany`，之後建立固定預設帳號／密碼；`prisma/clear.ts` 也大量刪除業務資料並可能補建預設 admin。只有 `ensure-demo-admin` 明確看到 production fail-closed，通用 reset／seed／clear／deploy script 沒有相同包裝；`DEPLOY.md` 雖已加頂部警告，內文仍保留建立示範帳號、匯入與重置說明。應列 P0 維運安全包：把唯讀 status 與變更 deploy 分名、所有破壞性指令加入環境身分與手動 challenge、CI 禁止 production secret，並把歷史操作移到不可直接複製的封存文件。
+27. **最新 main 已自動部署程式，但同版 migration 明確尚未完成。** 稽核期間 main 由 `7800462` 前進到 `db33edb`、`c688b94`，Vercel 已自動把兩者發布為 Production；`c688b94` 新增 `restock_request_items.weight_grams`／`variant_key` 與 `ShipmentItem.variantKey`，應用查詢也已開始選取／寫入這些欄位。該變更自己的 runbook 明載 production migration／repair 尚未完成，而 Vercel build 不會跑 migration。除非另有人已人工套用且留下證據，正式補貨頁可能因缺欄位失敗。不得以 Vercel Ready 當作 schema Ready；應立即唯讀核對 `_prisma_migrations` 與欄位、在結果明確前暫停相關寫入。這項核對需要資料庫授權，本工作包沒有連正式 DB。
 
 ## 修復權重與順序
 
@@ -135,7 +136,7 @@ git diff --check：PASS
 
 ## Production 基線唯讀 smoke
 
-2026-09-15 對 `https://furmosa-db.vercel.app` 執行固定、無 cookie、禁止跟隨 redirect 的 6 個 GET：6/6 PASS。涵蓋 `/api/health`、HQ/POS 登入頁、HQ/POS 未登入 redirect，以及店家換罐 API 未登入 401。Vercel 顯示正式網域目前對應 main commit `7800462`，deployment `5mgVwpkh3uhc6dfaYMX74VfucmY5` Ready；上一個 Ready production deployment 為 `F71Y7HFAJ35DLwse4D75TG8vkxT9`（commit `0311a9a`），可作為緊急回滾候選，但回滾本身仍需另行授權。此基線不能用來證明 PR #244 候選功能。
+2026-09-15 對 `https://furmosa-db.vercel.app` 執行固定、無 cookie、禁止跟隨 redirect 的 6 個 GET：6/6 PASS。涵蓋 `/api/health`、HQ/POS 登入頁、HQ/POS 未登入 redirect，以及店家換罐 API 未登入 401。稽核開始時正式網域對應 `7800462`；其後 main 被其他流程推進並自動發布為 `c688b94`（deployment `9rzbVqzrDmdcWz7AHfSPcs5zb4PY`，Ready）。這只證明平台完成建置，不能證明同版 migration 已套用；本工作包沒有觸發這兩次正式發布，也沒有在版本切換後對正式資料執行寫入。此基線不能用來證明 PR #244 候選功能。
 
 ## Production Side Effects
 
@@ -143,7 +144,7 @@ git diff --check：PASS
 
 ## Rollback 邊界
 
-- 應用程式：上一個已知 Ready 的 production deployment 是 `F71Y7HFAJ35DLwse4D75TG8vkxT9`（commit `0311a9a`），只能列為候選，實際 rollback 仍須人工批准與唯讀 smoke。
+- 應用程式：`c688b94` 前一個已知 Ready production deployment 是 `8GKfJqG7tgUpNx1WPaYc6PERDYiB`（commit `db33edb`），只能列為候選；若新 schema 尚未套用，回退應用可降低新欄位查詢風險，但實際 rollback 仍須人工批准與唯讀 smoke。
 - 資料庫：尚未取得 production schema revision、備份／PITR 與還原演練證據，因此目前**沒有可聲稱有效的資料庫 rollback**；不得以 `rollback.sql` 或 Prisma reset 代替還原計畫。
 - 外部事件：Shopify／LINE／ECPay 已送出的 webhook、訊息或付款不能靠回滾程式撤回；事件 inbox／冪等與人工對帳程序未完備前，外部整合發布維持 NO-GO。
 - 停止條件：schema 身分不符、Preview 與 Production DB 身分不明、migration preflight 失敗、付款金額差異、跨店資料可見或單一 Golden Journey 失敗，立即停止，不在正式環境現場修補。
