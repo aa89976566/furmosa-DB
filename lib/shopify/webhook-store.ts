@@ -259,6 +259,17 @@ function toOrderRecord(order: {
 function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
   const include = { items: true, shipments: true } as const;
   return {
+    cancelHqInventory: async (orderId) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, select: {
+        hqInventoryEligible: true, shipments: { select: { hqInventoryEligible: true } },
+      } });
+      if (!order || !(order.hqInventoryEligible || order.shipments.some(s => s.hqInventoryEligible))) return false;
+      // Only new HQ-enrolled sources change. Deferred database triggers write
+      // inverse entries atomically with cancellation; historical sources stay unchanged.
+      await tx.order.update({ where: { id: orderId }, data: { status: 'cancelled' } });
+      await tx.shipment.updateMany({ where: { orderId, hqInventoryEligible: true }, data: { status: 'cancelled', cancelledAt: new Date() } });
+      return true;
+    },
     order: {
       findByExternal: async (externalStore, externalOrderId) => {
         const row = await tx.order.findUnique({
