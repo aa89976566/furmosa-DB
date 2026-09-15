@@ -86,9 +86,10 @@ export default async function InventoryPage() {
                   p.inventoryBalances.find((b) => b.warehouse.code === 'WH-CONSIGN')?.quantity ??
                   0;
                 const mainBalance = p.inventoryBalances.find(b => b.warehouse.code === "WH-MAIN");
+                const isFood = ["staple_food", "treats", "freeze_dried", "health"].includes(p.category);
                 const counted = Boolean(mainBalance?.unit && mainBalance.lastCountedAt);
                 const total = main + south + consign;
-                const low = !counted || main === 0;
+                const low = isFood ? !counted || main === 0 : total <= p.reorderPoint;
                 return (
                   <TableRow key={p.id}>
                     <TableCell>
@@ -111,7 +112,7 @@ export default async function InventoryPage() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{formatNumber(main)} {mainBalance?.unit ?? "（舊數字，待盤點）"}</TableCell>
+                    <TableCell className="text-right">{formatNumber(main)} {mainBalance?.unit ?? (isFood ? "（舊數字，待盤點）" : p.unit)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {formatNumber(south)}
                     </TableCell>
@@ -122,12 +123,12 @@ export default async function InventoryPage() {
                     <TableCell className="text-right text-sm text-muted-foreground">
                       {counted ? "待設定實際單位門檻" : formatNumber(p.reorderPoint)}
                     </TableCell>
-                    <TableCell className="text-sm">{formatDateTime(mainBalance?.lastCountedAt)}<div className="text-xs text-muted-foreground">{mainBalance?.countNote}</div></TableCell>
+                    <TableCell className="text-sm">{mainBalance?.countNote?.includes("未提供精確時間") ? mainBalance.lastCountedAt?.toISOString().slice(0, 10) : formatDateTime(mainBalance?.lastCountedAt)}<div className="text-xs text-muted-foreground">{mainBalance?.countNote}</div></TableCell>
                     <TableCell>
                       {low ? (
                         <Badge variant="warning">
                           <AlertTriangle className="mr-1 h-3 w-3" />
-                          {counted ? "補貨" : "待實體盤點"}
+                          {!isFood || counted ? "補貨" : "待實體盤點"}
                         </Badge>
                       ) : (
                         <Badge variant="success">正常</Badge>
