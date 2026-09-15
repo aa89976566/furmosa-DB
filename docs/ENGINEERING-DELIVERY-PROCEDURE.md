@@ -215,7 +215,7 @@ Base main SHA：
 
 在繼續擴充新功能前，依序完成：
 
-1. **P0：資料庫發布安全**——確認 Production DB 身分、schema revision、備份／PITR；建立獨立 migration job；封鎖 production reset／seed／clear／import。
+1. **P0：資料庫發布安全**——確認 Production DB 身分、schema revision、備份／PITR；建立獨立 migration job；封鎖 production reset／seed／clear／import。執行清單見 `docs/work-packs/P0-01-DATABASE-RELEASE-SAFETY.md`。
 2. **P0：交易完整性**——HQ 補貨核准至 Order／Shipment 原子化、編號併發保護、故障回滾測試。
 3. **P0：外部事件與付款**——LINE inbox、兌換冪等、ECPay 狀態回查／callback claim、timeout 與 sandbox 驗收。
 4. **P0：營運自動化**——正確配置 cron 驗證並保存每項排程最後成功與可重跑證據。
