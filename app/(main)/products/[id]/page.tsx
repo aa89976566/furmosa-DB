@@ -201,7 +201,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {b.warehouse.code}
                     </TableCell>
-                    <TableCell className="text-right">{formatNumber(b.quantity)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(b.quantity)} {b.unit ?? "（舊數字）"}<div className="text-xs text-muted-foreground">最近盤點：{b.lastCountedAt ? b.lastCountedAt.toISOString().slice(0, 10) : "尚未盤點"}</div></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -234,7 +234,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
                     <StatusBadge kind="inventory" value={t.type} />
                   </TableCell>
                   <TableCell className="text-sm">{t.warehouse.name}</TableCell>
-                  <TableCell className="text-right">{formatNumber(t.quantity)}</TableCell>
+                  <TableCell className="text-right">{formatNumber(t.quantity)} {t.unit ?? "（舊紀錄）"}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {t.reference ?? '-'}
                   </TableCell>

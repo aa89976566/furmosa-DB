@@ -73,7 +73,7 @@ function fakeDb(catalog = [cloneMooncake()], stock = 20, source = snapshot, form
         return false;
       }));
     } },
-    shipmentItem: { groupBy: async () => reservations.map(row => ({ productId: row.productId, _sum: { quantity: row.quantity } })) },
+    shipmentItem: { findMany: async () => reservations.map(row => ({ productId: row.productId, quantity: row.quantity, weightGrams: 50, unit: "顆" })) },
     orderItem: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { createdItems.push(...data); return {}; } },
     shipment: { create: async ({ data }: any) => {
       shipmentCreates++;

@@ -1,3 +1,4 @@
+import { bulkConsumption } from '../inventory/bulk';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-policy';
 import { fulfillmentPlanHash, parseFrozenFulfillmentPlan } from './fulfillment-plan';
@@ -91,12 +92,20 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         ...(draftIds.length ? [{ id: { in: draftIds } }] : []),
         { sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU },
       ] },
-      include: { inventoryBalances: true, priceTiers: true },
+      include: { inventoryBalances: { include: { warehouse: true } }, priceTiers: true },
     });
-    const reservations = await tx.shipmentItem.groupBy({ by: ['productId'], where: {
+    const reservations = await tx.shipmentItem.findMany({ where: {
       productId: { in: products.map(p => p.id) }, shipment: { status: { in: ['pending', 'packed'] }, OR: [{ orderId: null }, { orderId: { not: order.id } }] },
-    }, _sum: { quantity: true } });
-    const reserved = new Map(reservations.map(r => [r.productId, r._sum.quantity ?? 0]));
+    } });
+    const reserved = new Map<string, number>();
+    for (const line of reservations) {
+      const product = products.find(p => p.id === line.productId)!;
+      let amount = line.quantity;
+      if (['staple_food', 'treats', 'freeze_dried', 'health'].includes(product.category)) {
+        try { amount = bulkConsumption(product, line); } catch { amount = Infinity; }
+      }
+      reserved.set(line.productId, (reserved.get(line.productId) ?? 0) + amount);
+    }
     const contact = string(snapshot.order.email) || string(snapshot.order.phone) || string(record(snapshot.order.shipping_address).phone);
     const duplicate = contact ? await tx.order.findFirst({ where: {
       id: { not: order.id }, externalStore: order.externalStore, total: order.total,
@@ -106,7 +115,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         { shopifySnapshot: { path: ['order', 'shipping_address', 'phone'], equals: contact } } ],
     }, select: { id: true } }) : null;
     const result = checkReview(snapshot, draft, products.map(p => ({ ...p,
-      available: p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
+      hqBulk: ['staple_food', 'treats', 'freeze_dried', 'health'].includes(p.category),
+      available: ['staple_food', 'treats', 'freeze_dried', 'health'].includes(p.category)
+        ? (() => { const balance = p.inventoryBalances.find(b => b.warehouse.code === 'WH-MAIN'); return balance?.unit && balance.lastCountedAt ? balance.quantity - (reserved.get(p.id) ?? 0) : null; })()
+        : p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
     const now = new Date();
     if (command.action === 'check') {

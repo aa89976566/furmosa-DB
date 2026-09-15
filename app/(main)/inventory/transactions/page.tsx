@@ -113,7 +113,7 @@ export default async function InventoryTxnsPage(
                     <div className="text-xs text-muted-foreground">{t.product.sku}</div>
                   </TableCell>
                   <TableCell className="text-sm">{t.warehouse.name}</TableCell>
-                  <TableCell className="text-right">{formatNumber(t.quantity)}</TableCell>
+                  <TableCell className="text-right">{formatNumber(t.quantity)} {t.unit ?? "（舊紀錄）"}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {t.reference ?? '-'}
                   </TableCell>
