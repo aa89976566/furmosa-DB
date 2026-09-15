@@ -1,3 +1,4 @@
+import { bulkConsumption } from '../inventory/bulk';
 import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
 import { buildFulfillmentPlan, type FulfillmentPlan } from './fulfillment-plan';
 import type { OmsIssue } from './oms';
@@ -9,7 +10,7 @@ export type ReviewDraft = {
 };
 export type ReviewProduct = {
   id: string; name: string; sku: string; status: string; available: number | null;
-  sourceSku?: string | null; cost?: number | null; unit?: string | null;
+  hqBulk?: boolean; sourceSku?: string | null; cost?: number | null; unit?: string | null;
   productCategory?: string | null; defaultTemperature?: string | null;
   priceTiers?: { id?: string; weightGrams: number | null; unit: string; unitQty: number; cost?: number | null }[];
 };
@@ -40,6 +41,12 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
     const product = products.find(item => item.id === id);
     if (!product) continue;
     if (product.available === null || !Number.isFinite(product.available)) add('STOCK_UNKNOWN', `${product.name}：尚無可用庫存資料`);
+    else if (product.hqBulk) {
+      try {
+        const needed = plan.items.filter(item => item.productId === id).reduce((sum, item) => sum + bulkConsumption(product, item), 0);
+        if (product.available < needed) add('STOCK_INSUFFICIENT', `${product.name}：HQ 庫存不足（可用 ${product.available}，需要 ${needed} ${product.unit}）`);
+      } catch { add('STOCK_UNKNOWN', `${product.name}：散裝耗用規格尚未確認`); }
+    }
     else if (product.available < quantity) add('STOCK_INSUFFICIENT', `${product.name}：庫存不足（可用 ${product.available}，需要 ${quantity}）`);
   }
   const physical = rows.some(row => row.requires_shipping !== false);

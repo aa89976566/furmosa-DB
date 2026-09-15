@@ -82,6 +82,7 @@ function resolveTierId(
 ): string {
   const prod = products.find((p) => p.id === item.productId);
   if (!prod || prod.priceTiers.length === 0) return '';
+  if (item.variantKey) return prod.priceTiers.some(t => t.id === item.variantKey) ? item.variantKey : '';
 
   if (item.weightGrams != null) {
     const byWeight = prod.priceTiers.find((t) => t.weightGrams === item.weightGrams);

@@ -764,6 +764,7 @@ model MerchantWholesalePrice {
 // merchant_restock 可再 → received。DB CHECK：status='received' 僅允許 type='merchant_restock'
 // =====================================================
 model Shipment {
+  hqInventoryEligible Boolean @default(false)
   id             String @id @default(cuid())
   shipmentNumber String @unique // SHP-202605-0001
   type           String // merchant_restock / customer_order / subscription
@@ -946,6 +947,9 @@ model MerchantStockTxn {
 // =====================================================
 
 model InventoryBalance {
+  unit String? // null = legacy quantity, awaiting physical count
+  lastCountedAt DateTime?
+  countNote String?
   id          String   @id @default(cuid())
   productId   String
   warehouseId String
@@ -960,6 +964,11 @@ model InventoryBalance {
 }
 
 model InventoryTransaction {
+  unit String?
+  eventKey String? @unique
+  reversesId String? @unique
+  reverses InventoryTransaction? @relation("HqReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversal InventoryTransaction? @relation("HqReversal")
   id          String   @id @default(cuid())
   txnNumber   String   @unique // INV-202605-001
   type        String // purchase_in / sales_out / transfer / adjustment / stocktake / return_in / return_out
@@ -1028,6 +1037,7 @@ model ShopifyWebhookEvent {
 }
 
 model Order {
+  hqInventoryEligible Boolean @default(false)
   id                String    @id @default(cuid())
   orderNumber       String    @unique // ORD-202605-001
   source            String // website / line / consignment / subscription / manual
@@ -1095,6 +1105,7 @@ model Order {
 }
 
 model OrderItem {
+  variantKey String? // selected ProductPriceTier identity
   id          String  @id @default(cuid())
   orderId     String
   productId   String

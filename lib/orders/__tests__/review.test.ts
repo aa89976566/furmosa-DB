@@ -65,7 +65,7 @@ function fakeDb(source = snapshot) {
     order: { findUnique: async () => order, findUniqueOrThrow: async () => order,
       findFirst: async () => null, update: async ({ data }: any) => { order = { ...order, ...data }; return order; } },
     product: { findMany: async () => [{ ...products[0], productCategory: 'STANDARD', inventoryBalances: [{ quantity: stock }], priceTiers: [] }] },
-    shipmentItem: { groupBy: async () => [] },
+    shipmentItem: { findMany: async () => [] },
     orderItem: { deleteMany: async () => ({}), createMany: async () => ({}) },
     shipment: { create: async ({ data }: any) => { shipmentCreates++; order.shipments.push(data); return data; } },
     statusAuditLog: { findFirst: async () => audits.filter(a => a.entityType === 'oms_review').at(-1) ?? null,

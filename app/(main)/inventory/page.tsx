@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatDateTime, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
 import { AlertTriangle, ArrowUpRight } from 'lucide-react';
 
@@ -27,12 +27,16 @@ export default async function InventoryPage() {
       name: true,
       sku: true,
       category: true,
+      unit: true,
       reorderPoint: true,
       cost: true,
       vendor: { select: { name: true, id: true } },
       inventoryBalances: {
         select: {
           quantity: true,
+          unit: true,
+          lastCountedAt: true,
+          countNote: true,
           warehouse: { select: { code: true } },
         },
       },
@@ -44,7 +48,7 @@ export default async function InventoryPage() {
     <>
       <PageHeader
         title="即時庫存"
-        description="所有商品在各倉庫的當前數量，含補貨點警示"
+        description="HQ 主倉以散裝實際單位管理；未盤點的舊數字僅供核對"
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/inventory/transactions">
@@ -68,6 +72,7 @@ export default async function InventoryPage() {
                 <TableHead className="text-right">寄賣</TableHead>
                 <TableHead className="text-right">合計</TableHead>
                 <TableHead className="text-right">補貨點</TableHead>
+                <TableHead>最近實體盤點</TableHead>
                 <TableHead>狀態</TableHead>
               </TableRow>
             </TableHeader>
@@ -80,8 +85,10 @@ export default async function InventoryPage() {
                 const consign =
                   p.inventoryBalances.find((b) => b.warehouse.code === 'WH-CONSIGN')?.quantity ??
                   0;
+                const mainBalance = p.inventoryBalances.find(b => b.warehouse.code === "WH-MAIN");
+                const counted = Boolean(mainBalance?.unit && mainBalance.lastCountedAt);
                 const total = main + south + consign;
-                const low = total <= p.reorderPoint;
+                const low = !counted || main === 0;
                 return (
                   <TableRow key={p.id}>
                     <TableCell>
@@ -104,22 +111,23 @@ export default async function InventoryPage() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">{formatNumber(main)}</TableCell>
+                    <TableCell className="text-right">{formatNumber(main)} {mainBalance?.unit ?? "（舊數字，待盤點）"}</TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {formatNumber(south)}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {formatNumber(consign)}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatNumber(total)}</TableCell>
+                    <TableCell className="text-right font-semibold">{counted ? `${formatNumber(main)} ${mainBalance?.unit}（HQ）` : `${formatNumber(total)}（舊合計）`}</TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">
-                      {formatNumber(p.reorderPoint)}
+                      {counted ? "待設定實際單位門檻" : formatNumber(p.reorderPoint)}
                     </TableCell>
+                    <TableCell className="text-sm">{formatDateTime(mainBalance?.lastCountedAt)}<div className="text-xs text-muted-foreground">{mainBalance?.countNote}</div></TableCell>
                     <TableCell>
                       {low ? (
                         <Badge variant="warning">
                           <AlertTriangle className="mr-1 h-3 w-3" />
-                          補貨
+                          {counted ? "補貨" : "待實體盤點"}
                         </Badge>
                       ) : (
                         <Badge variant="success">正常</Badge>
