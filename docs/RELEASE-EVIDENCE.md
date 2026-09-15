@@ -15,7 +15,7 @@
 | Base | 2026-09-15 已 fetch 並核對 GitHub 遠端 main |
 | Worktree | 隔離工作樹，建立後為乾淨 detached HEAD |
 | Validated application revision | `c688b943b5bd24d9b3846593f02fdd5bd18366d3`；其後只允許本證據文件的 commit |
-| Pull request | `#244`；已合入最新 main 基準；最新 head 的 GitHub CI／Preview 須重跑完成 |
+| Pull request | `#244`；已合入最新 main 基準；head `7cb6120` 的 GitHub CI／Preview 均完成 |
 | Production revision | `c688b943b5bd24d9b3846593f02fdd5bd18366d3`；Vercel deployment `9rzbVqzrDmdcWz7AHfSPcs5zb4PY`，Ready；schema 未驗證 |
 | Schema／migration production status | **未驗證** |
 
@@ -29,7 +29,7 @@
 | build 無 migrate／seed／db push／示範帳號寫入 | PASS | `build-zero-write-security.test.ts` 6/6 |
 | migration 有獨立命令 | PASS（靜態） | `npm run prisma:deploy` |
 | DEPLOY 指引可直接操作 | FAIL | 舊內容仍描述自動 migration／正式重置；已加禁止操作警告 |
-| production-mode build 可完成 | PASS（CI） | GitHub Actions run `34958986711`；候選 SHA `6ee6ef6`；完整 job 2m40s |
+| production-mode build 可完成 | PASS（CI） | GitHub Actions run `34959330400`；候選 SHA `7cb6120` |
 
 ## 必要發布 Gate
 
@@ -63,7 +63,7 @@
 package-lock.json 精確版本安裝
 
 本機核心測試（未接 DB，最新 main 基準）：tests 1063; pass 1063; fail 0
-最新候選 CI：一次性 PostgreSQL 16 migration、typecheck、完整測試與 production-mode Next.js build 全部 PASS；run 34958986711，2m40s
+最新候選 CI：一次性 PostgreSQL 16 migration、typecheck、完整測試與 production-mode Next.js build 全部 PASS；run 34959330400
 middleware／公開換罐入口／health：tests 18; pass 18; fail 0
 關鍵流程契約加跑（訂單、審核、出貨、POS 收貨、換罐、LINE 簽章、Shopify webhook、對帳）：tests 150; pass 150; fail 0
 ECPay 簽章／金額／外部副作用 choke：tests 14; pass 14; fail 0（未涵蓋 route 回跳與 callback 併發）
@@ -78,7 +78,7 @@ git diff --check：PASS
 ## 目前發布阻擋
 
 1. **Preview 資料隔離尚未完整證明。** Vercel 實際設定顯示 `DATABASE_URL` 僅套 Production，而 Preview 使用 Supabase integration 提供的 `POSTGRES_PRISMA_URL`／`POSTGRES_URL`；這符合分離方向，但目前沒有可安全比對的資料庫專案身分證據。另有高風險舊腳本 `scripts/sync-vercel-db-env.sh`，會把同一組 `DATABASE_URL` 與 `DIRECT_URL` 同時寫入 `production`、`preview`，不得再直接執行。在資料庫身分完成核對前，禁止在 Preview 登入後建立、修改或刪除測試資料。
-2. **本機未重跑 Production build，但候選 CI 已完成。** GitHub Actions run `34955114366` 在一次性 PostgreSQL 16 服務上依序通過 Prisma validate、migration deploy、typecheck、`npm test` 與 production-mode Next.js build；整體 2m58s。CI 使用 Node 22，Vercel runtime 設定為 Node 24.x，環境版本仍未對齊。
+2. **本機未重跑 Production build，但候選 CI 已完成。** GitHub Actions run `34959330400` 在一次性 PostgreSQL 16 服務上依序通過 Prisma validate、migration deploy、typecheck、`npm test` 與 production-mode Next.js build。CI 使用 Node 22，Vercel runtime 設定為 Node 24.x，環境版本仍未對齊。
 3. **Golden Journeys 尚未取得資料層證據。** HQ／POS 的未登入 redirect 已在 Preview 通過，但登入 redirect 不等於 authenticated E2E。
 4. **相依套件安全警示未處理。** `npm audit` 回報 11 項（high 7、moderate 2、low 2、critical 0）。直接相依為 `postcss`（high）及被其影響的 `next`（moderate）；其餘為 axios、baseline-browser-mapping、brace-expansion、browserslist、esbuild、form-data、js-yaml、nanoid、postcss-selector-parser 等轉接相依。audit 對 Next 的建議是升到 16.3.5（major），不可自動套用；需另開相依套件安全工作包，逐項判斷 runtime 可達性與非破壞性升級路徑。
 5. **專案規則與現況不一致。** `AGENTS.md` 宣告固定 Next.js 14，實際 `package.json`／lockfile 為 Next.js 15.5.25。不得在本工作包升降版，需由架構決策明確選定並同步規則。
