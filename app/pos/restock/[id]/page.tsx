@@ -1,3 +1,4 @@
+import { formatRestockItemSpec } from '@/lib/restock-request/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
@@ -197,7 +198,7 @@ export default async function PosRestockDetailPage(
               <ul className="space-y-2 text-sm">
                 {requestedItems.map((it) => (
                   <li key={it.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 break-words">{it.product.name}</span>
+                    <span className="min-w-0 break-words">{formatRestockItemSpec(it.product.name, it.weightGrams)}</span>
                     <span className="shrink-0 text-muted-foreground">
                       {it.requestedQuantity}
                     </span>
@@ -216,7 +217,7 @@ export default async function PosRestockDetailPage(
                 {snapshot
                   ? snapshot.map((line) => (
                       <li key={line.productId} className="flex justify-between gap-2">
-                        <span className="min-w-0 break-words">{line.productName}</span>
+                        <span className="min-w-0 break-words">{formatRestockItemSpec(line.productName, line.weightGrams)}</span>
                         <span className="shrink-0 font-medium">{line.quantity}</span>
                       </li>
                     ))
@@ -224,7 +225,7 @@ export default async function PosRestockDetailPage(
                       .filter((it) => (it.approvedQuantity ?? 0) > 0)
                       .map((it) => (
                         <li key={it.id} className="flex justify-between gap-2">
-                          <span className="min-w-0 break-words">{it.product.name}</span>
+                          <span className="min-w-0 break-words">{formatRestockItemSpec(it.product.name, it.weightGrams)}</span>
                           <span className="shrink-0 font-medium">{it.approvedQuantity}</span>
                         </li>
                       ))}

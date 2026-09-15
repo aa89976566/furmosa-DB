@@ -34,6 +34,7 @@ type RestockLine = {
   productId: string;
   quantity: number;
   weightGrams: number | null;
+  variantKey?: string | null;
   unit: string | null;
 };
 
@@ -138,6 +139,7 @@ export async function createRestockOrderWithShipment(
             sku: p.sku,
             quantity: it.quantity,
             weightGrams: it.weightGrams && it.weightGrams > 0 ? it.weightGrams : null,
+            variantKey: it.variantKey ?? null,
             unit: it.unit,
           };
         }),

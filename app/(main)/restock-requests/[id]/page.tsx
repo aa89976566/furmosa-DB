@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { listJarExchangeProductsForRestock } from '@/lib/restock-request/service';
 import {
+  formatRestockItemSpec,
   restockRequestTypeLabel,
   restockStatusLabelForHq,
 } from '@/lib/restock-request/constants';
@@ -24,7 +25,7 @@ export default async function HqRestockRequestDetailPage(
     where: { id: params.id },
     include: {
       merchant: true,
-      items: { include: { product: true } },
+      items: { include: { product: { include: { priceTiers: true } } } },
       shipment: {
         select: {
           id: true,
@@ -98,10 +99,13 @@ export default async function HqRestockRequestDetailPage(
             items={req.items.map((it) => ({
               productId: it.productId,
               productName: it.product.name,
+              weightGrams: it.weightGrams,
+              variantKey: it.variantKey,
+              priceTiers: it.product.priceTiers,
               requestedQuantity: it.requestedQuantity,
               approvedQuantity: it.approvedQuantity ?? it.requestedQuantity ?? 0,
             }))}
-            catalog={catalog.map((p) => ({ id: p.id, name: p.name }))}
+            catalog={catalog.map((p) => ({ id: p.id, name: p.name, priceTiers: p.priceTiers }))}
           />
         </>
       )}
@@ -130,6 +134,7 @@ type CompletedRequest = {
   } | null;
   items: Array<{
     id: string;
+    weightGrams: number | null;
     requestedQuantity: number | null;
     approvedQuantity: number | null;
     product: { name: string; sku: string };
@@ -220,7 +225,7 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
                 className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_7rem] sm:items-center sm:gap-4"
               >
                 <div>
-                  <p className="font-medium">{item.product.name}</p>
+                  <p className="font-medium">{formatRestockItemSpec(item.product.name, item.weightGrams)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {item.product.sku}
                   </p>
