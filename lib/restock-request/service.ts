@@ -10,6 +10,10 @@ import { isRestockableProductCategory } from '@/lib/product-category';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
 import type { MerchantType } from '@/lib/merchant-types';
 import { getMerchantTypes } from '@/lib/merchant-types-persist';
+import {
+  validateRestockItemVariants,
+  checkProductsRequireVariant,
+} from '@/lib/restock-request/service-variant';
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -17,7 +21,7 @@ export type SubmitSelfSelectInput = {
   merchantId: string;
   merchantUserId: string;
   merchantNote?: string | null;
-  items: { productId: string; quantity: number }[];
+  items: { productId: string; quantity: number; weightGrams?: number | null }[];
 };
 
 export type SubmitAutoReplenishInput = {
@@ -153,11 +157,15 @@ export function assertApprovableRestockProducts(
   }
 }
 
+/**
+ * SELF_SELECT 補貨申請 - 支援規格選擇並強制驗證
+ */
 export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInput) {
   const cleaned = input.items
     .map((it) => ({
       productId: it.productId,
       quantity: Math.floor(Number(it.quantity)),
+      weightGrams: it.weightGrams ? Math.floor(it.weightGrams) : null,
     }))
     .filter((it) => it.productId && it.quantity > 0);
 
@@ -165,7 +173,14 @@ export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInpu
     throw new Error('請至少選一個商品。數量需要大於 0。');
   }
 
+  // 驗證商品存在且可補貨
   await assertJarExchangeProducts(cleaned.map((c) => c.productId));
+
+  // 驗證多規格商品必須選規格
+  const variantValidation = await validateRestockItemVariants(cleaned);
+  if (!variantValidation.valid) {
+    throw new Error(variantValidation.errors.join('\n'));
+  }
 
   return prisma.restockRequest.create({
     data: {
@@ -179,6 +194,7 @@ export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInpu
           productId: it.productId,
           requestedQuantity: it.quantity,
           approvedQuantity: it.quantity,
+          weightGrams: it.weightGrams,
         })),
       },
     },
@@ -239,6 +255,7 @@ export type HqItemUpdate = {
   productId: string;
   requestedQuantity?: number | null;
   approvedQuantity: number;
+  weightGrams?: number | null;
 };
 
 export async function updateRestockRequestAsHq(input: {
@@ -278,6 +295,7 @@ export async function updateRestockRequestAsHq(input: {
           productId: it.productId,
           requestedQuantity: it.requestedQuantity ?? null,
           approvedQuantity: Math.floor(it.approvedQuantity),
+          weightGrams: it.weightGrams ?? null,
         })),
       });
     }
@@ -331,6 +349,7 @@ export async function rejectRestockRequest(input: {
 /**
  * Approve + convert to merchant_restock shipment in one transaction.
  * Idempotent: if already converted, returns existing shipmentId.
+ * 現在保留 weightGrams 傳給 Shipment,確保規格一致性
  */
 export async function approveAndConvertRestockRequest(input: {
   requestId: string;
@@ -387,6 +406,7 @@ export async function approveAndConvertRestockRequest(input: {
       .map((it) => ({
         productId: it.productId,
         quantity: Math.floor(it.approvedQuantity ?? 0),
+        weightGrams: it.weightGrams,
       }))
       .filter((it) => it.quantity > 0);
 
@@ -407,6 +427,7 @@ export async function approveAndConvertRestockRequest(input: {
         productName: p.name,
         sku: p.sku,
         quantity: l.quantity,
+        weightGrams: l.weightGrams,
       };
     });
 
@@ -425,7 +446,7 @@ export async function approveAndConvertRestockRequest(input: {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
-          weightGrams: null,
+          weightGrams: l.weightGrams,
           unit: productById.get(l.productId)?.unit ?? null,
         })),
         products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
@@ -470,3 +491,4 @@ export async function ensureMerchantSettings(merchantId: string, db: Db = prisma
     update: {},
   });
 }
+

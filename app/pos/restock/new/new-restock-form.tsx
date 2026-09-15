@@ -11,12 +11,15 @@ import {
   submitSelfSelectRestockAction,
   type PosRestockFormState,
 } from '../actions';
+import { formatRestockItemSpec } from '@/lib/restock-request/constants';
 
 type ProductOption = {
   id: string;
   name: string;
   unit: string;
   stockQty: number | null;
+  // 規格資訊
+  priceTiers?: Array<{ weightGrams: number | null; id: string }>;
 };
 
 type Mode = 'SELF_SELECT' | 'AUTO_REPLENISH';
@@ -27,6 +30,7 @@ const DRAFT_KEY = 'furmosa_pos_restock_draft_v1';
 type Draft = {
   mode: Mode | null;
   qty: Record<string, number>;
+  weights: Record<string, number | null>;
   selfNote: string;
   autoNote: string;
 };
@@ -61,6 +65,7 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
   const [hydrated, setHydrated] = useState(false);
   const [mode, setMode] = useState<Mode | null>(initialMode);
   const [qty, setQty] = useState<Record<string, number>>({});
+  const [weights, setWeights] = useState<Record<string, number | null>>({});
   const [selfNote, setSelfNote] = useState('');
   const [autoNote, setAutoNote] = useState('');
 
@@ -72,6 +77,7 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
     if (draft) {
       if (!initialMode && draft.mode) setMode(draft.mode);
       if (draft.qty) setQty(draft.qty);
+      if (draft.weights) setWeights(draft.weights);
       if (draft.selfNote) setSelfNote(draft.selfNote);
       if (draft.autoNote) setAutoNote(draft.autoNote);
     }
@@ -81,8 +87,8 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    saveDraft({ mode, qty, selfNote, autoNote });
-  }, [hydrated, mode, qty, selfNote, autoNote]);
+    saveDraft({ mode, qty, weights, selfNote, autoNote });
+  }, [hydrated, mode, qty, weights, selfNote, autoNote]);
 
   const selectedCount = useMemo(
     () => Object.values(qty).filter((n) => n > 0).length,
@@ -171,64 +177,101 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
             <div className="space-y-3">
               {products.map((p) => {
                 const value = qty[p.id] ?? 0;
+                const selectedWeight = weights[p.id];
+                const hasMultipleWeights =
+                  p.priceTiers && p.priceTiers.filter((t) => t.weightGrams).length > 1;
+                const availableWeights = p.priceTiers
+                  ?.filter((t) => t.weightGrams)
+                  ?.sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0)) || [];
+
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3"
+                    className="space-y-2 rounded-xl border border-border/70 bg-card p-3"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words font-medium leading-snug">{p.name}</p>
-                      {p.stockQty !== null ? (
-                        <p className="text-xs text-muted-foreground">
-                          門市現有 {p.stockQty} {p.unit}
-                        </p>
-                      ) : null}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words font-medium leading-snug">{p.name}</p>
+                        {p.stockQty !== null ? (
+                          <p className="text-xs text-muted-foreground">
+                            門市現有 {p.stockQty} {p.unit}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <input type="hidden" name="productId" value={p.id} />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-11 min-h-[44px] p-0"
+                          aria-label={`${p.name} 減少`}
+                          onClick={() =>
+                            setQty((prev) => ({
+                              ...prev,
+                              [p.id]: Math.max(0, (prev[p.id] ?? 0) - 1),
+                            }))
+                          }
+                        >
+                          −
+                        </Button>
+                        <Input
+                          name="quantity"
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          className="h-11 w-14 text-center text-base"
+                          value={value}
+                          onChange={(e) =>
+                            setQty((prev) => ({
+                              ...prev,
+                              [p.id]: Math.max(0, Number(e.target.value) || 0),
+                            }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-11 min-h-[44px] p-0"
+                          aria-label={`${p.name} 增加`}
+                          onClick={() =>
+                            setQty((prev) => ({
+                              ...prev,
+                              [p.id]: (prev[p.id] ?? 0) + 1,
+                            }))
+                          }
+                        >
+                          +
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <input type="hidden" name="productId" value={p.id} />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-11 min-h-[44px] p-0"
-                        aria-label={`${p.name} 減少`}
-                        onClick={() =>
-                          setQty((prev) => ({
-                            ...prev,
-                            [p.id]: Math.max(0, (prev[p.id] ?? 0) - 1),
-                          }))
-                        }
-                      >
-                        −
-                      </Button>
-                      <Input
-                        name="quantity"
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        className="h-11 w-14 text-center text-base"
-                        value={value}
-                        onChange={(e) =>
-                          setQty((prev) => ({
-                            ...prev,
-                            [p.id]: Math.max(0, Number(e.target.value) || 0),
-                          }))
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-11 min-h-[44px] p-0"
-                        aria-label={`${p.name} 增加`}
-                        onClick={() =>
-                          setQty((prev) => ({
-                            ...prev,
-                            [p.id]: (prev[p.id] ?? 0) + 1,
-                          }))
-                        }
-                      >
-                        +
-                      </Button>
-                    </div>
+
+                    {/* 規格選擇 - 多規格商品強制選擇 */}
+                    {hasMultipleWeights && (
+                      <div className="space-y-1.5 border-t border-border/50 pt-2">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          規格 *
+                        </label>
+                        <select
+                          name="weightGrams"
+                          value={selectedWeight ?? ''}
+                          onChange={(e) =>
+                            setWeights((prev) => ({
+                              ...prev,
+                              [p.id]: e.target.value ? Number(e.target.value) : null,
+                            }))
+                          }
+                          required={value > 0}
+                          className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm"
+                        >
+                          <option value="">-- 請選擇規格 --</option>
+                          {availableWeights.map((w) => (
+                            <option key={w.id} value={w.weightGrams ?? ''}>
+                              {w.weightGrams}g
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -246,7 +289,7 @@ export function NewRestockForm({ products }: { products: ProductOption[] }) {
               />
             </div>
             {state.error ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive whitespace-pre-wrap">
                 {state.error}
               </p>
             ) : null}
@@ -279,3 +322,4 @@ function Submit({
     </Button>
   );
 }
+

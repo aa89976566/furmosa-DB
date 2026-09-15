@@ -24,6 +24,8 @@ export type ApprovedSnapshotLine = {
   productName: string;
   sku: string;
   quantity: number;
+  /// 商品規格:克數(30/50/100等);無規格商品為undefined
+  weightGrams?: number;
 };
 
 /** Merchant-facing status labels (no enum jargon). */
@@ -78,3 +80,19 @@ export function restockStatusLabelForHq(status: string): string {
       return status;
   }
 }
+
+/**
+ * 格式化商品規格顯示
+ * @example formatRestockItemSpec("原味雞霸", 50) => "原味雞霸 50g"
+ * @example formatRestockItemSpec("雞肉罐", undefined) => "雞肉罐"
+ */
+export function formatRestockItemSpec(
+  productName: string,
+  weightGrams?: number,
+): string {
+  if (weightGrams && weightGrams > 0) {
+    return `${productName} ${weightGrams}g`;
+  }
+  return productName;
+}
+

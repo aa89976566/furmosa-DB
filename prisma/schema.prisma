@@ -845,11 +845,16 @@ model RestockRequest {
 }
 
 model RestockRequestItem {
+model RestockRequestItem {
   id                String   @id @default(cuid())
   restockRequestId  String   @map("restock_request_id")
   productId         String   @map("product_id")
   requestedQuantity Int?     @map("requested_quantity")
   approvedQuantity  Int?     @map("approved_quantity")
+  /// 商品規格：克數（30/50/100 等）；無規格商品為 null
+  weightGrams       Int?     @map("weight_grams")
+  /// 商品規格key（ProductPriceTier.id 或 "base"）；無規格商品為 null
+  variantKey        String?  @map("variant_key")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -860,6 +865,7 @@ model RestockRequestItem {
   @@index([productId])
   @@map("restock_request_items")
 }
+
 
 model ShipmentItem {
   id          String  @id @default(cuid())

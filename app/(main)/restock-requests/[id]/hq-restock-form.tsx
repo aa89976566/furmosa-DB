@@ -11,12 +11,15 @@ import {
   saveRestockRequestHqAction,
   type HqRestockActionState,
 } from '../actions';
+import { formatRestockItemSpec } from '@/lib/restock-request/constants';
 
 type ItemRow = {
   productId: string;
   productName: string;
   requestedQuantity: number | null;
   approvedQuantity: number;
+  weightGrams?: number | null;
+  priceTiers?: Array<{ weightGrams: number | null; id: string }>;
 };
 
 type CatalogItem = { id: string; name: string };
@@ -115,6 +118,7 @@ export function HqRestockDetailForm({
         productName: p.name,
         requestedQuantity: null,
         approvedQuantity: 1,
+        weightGrams: null,
       },
     ]);
     setAddProductId('');
@@ -141,6 +145,11 @@ export function HqRestockDetailForm({
             name="requestedQuantity"
             value={it.requestedQuantity == null ? '' : String(it.requestedQuantity)}
           />
+          <input
+            type="hidden"
+            name="weightGrams"
+            value={it.weightGrams == null ? '' : String(it.weightGrams)}
+          />
         </span>
       ))}
     </>
@@ -155,47 +164,86 @@ export function HqRestockDetailForm({
             尚無品項（「請幫我配」請先新增商品）
           </p>
         ) : (
-          <ul className="mb-3 space-y-2">
-            {items.map((it, idx) => (
-              <li
-                key={it.productId}
-                className="flex flex-wrap items-center gap-2 rounded-lg border p-2 text-sm"
-              >
-                <span className="min-w-[12rem] flex-1 font-medium">
-                  {it.productName}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  申請 {it.requestedQuantity ?? '—'}
-                </span>
-                <Input
-                  type="number"
-                  min={0}
-                  className="h-10 w-24"
-                  disabled={locked}
-                  value={it.approvedQuantity}
-                  onChange={(e) => {
-                    const v = Math.max(0, Number(e.target.value) || 0);
-                    setItems((prev) =>
-                      prev.map((row, i) =>
-                        i === idx ? { ...row, approvedQuantity: v } : row,
-                      ),
-                    );
-                  }}
-                />
-                {!locked ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="min-h-[40px]"
-                    onClick={() =>
-                      setItems((prev) => prev.filter((_, i) => i !== idx))
-                    }
-                  >
-                    刪除
-                  </Button>
-                ) : null}
-              </li>
-            ))}
+          <ul className="mb-3 space-y-3">
+            {items.map((it, idx) => {
+              const hasMultipleWeights =
+                it.priceTiers &&
+                it.priceTiers.filter((t) => t.weightGrams).length > 1;
+              const availableWeights = it.priceTiers
+                ?.filter((t) => t.weightGrams)
+                ?.sort((a, b) => (a.weightGrams ?? 0) - (b.weightGrams ?? 0)) || [];
+
+              return (
+                <li
+                  key={it.productId}
+                  className="space-y-2 rounded-lg border p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-[12rem] flex-1 font-medium">
+                      {formatRestockItemSpec(it.productName, it.weightGrams)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      申請 {it.requestedQuantity ?? '—'}
+                    </span>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="h-10 w-24"
+                      disabled={locked}
+                      value={it.approvedQuantity}
+                      onChange={(e) => {
+                        const v = Math.max(0, Number(e.target.value) || 0);
+                        setItems((prev) =>
+                          prev.map((row, i) =>
+                            i === idx ? { ...row, approvedQuantity: v } : row,
+                          ),
+                        );
+                      }}
+                    />
+                    {!locked ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="min-h-[40px]"
+                        onClick={() =>
+                          setItems((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        刪除
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {/* 規格選擇 - 若有多規格顯示選擇器 */}
+                  {hasMultipleWeights && !locked && (
+                    <div className="ml-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        規格選擇
+                      </label>
+                      <select
+                        value={it.weightGrams ?? ''}
+                        onChange={(e) => {
+                          const w = e.target.value ? Number(e.target.value) : null;
+                          setItems((prev) =>
+                            prev.map((row, i) =>
+                              i === idx ? { ...row, weightGrams: w } : row,
+                            ),
+                          );
+                        }}
+                        className="h-9 rounded-lg border border-input bg-card px-2 text-sm"
+                      >
+                        <option value="">-- 未指定 --</option>
+                        {availableWeights.map((w) => (
+                          <option key={w.id} value={w.weightGrams ?? ''}>
+                            {w.weightGrams}g
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -325,3 +373,4 @@ function SubmitButton({
     </Button>
   );
 }
+
