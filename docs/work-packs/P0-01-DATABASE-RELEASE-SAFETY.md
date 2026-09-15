@@ -71,6 +71,8 @@
 
 ### C. 安全控制實作（需新的凍結工作包）
 
+第一個凍結工作包見 [`P0-01A-DB-IDENTITY-STATUS.md`](P0-01A-DB-IDENTITY-STATUS.md)；目前只有規格，尚未實作或取得 Production 權限。
+
 最小預期能力：
 
 - `db:status`：固定唯讀，只顯示去敏身分與 schema 狀態。
