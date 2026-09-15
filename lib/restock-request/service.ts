@@ -433,6 +433,7 @@ export async function approveAndConvertRestockRequest(input: {
         quantity: l.quantity,
         weightGrams: l.weightGrams,
         variantKey: l.variantKey,
+        unit: l.unit,
       };
     });
 

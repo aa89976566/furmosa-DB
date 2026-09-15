@@ -18,6 +18,7 @@ import { restockTierLabel, type RestockTier } from '@/lib/restock-request/varian
 type ItemRow = {
   productId: string;
   productName: string;
+  unit?: string | null;
   requestedQuantity: number | null;
   approvedQuantity: number;
   weightGrams?: number | null;
@@ -185,7 +186,7 @@ export function HqRestockDetailForm({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="min-w-[12rem] flex-1 font-medium">
-                      {formatRestockItemSpec(it.productName, it.weightGrams)}
+                      {formatRestockItemSpec(it.productName, it.weightGrams, it.unit)}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       申請 {it.requestedQuantity ?? '—'}
@@ -231,7 +232,7 @@ export function HqRestockDetailForm({
                           const tier = availableWeights.find(t => t.id === e.target.value);
                           setItems((prev) =>
                             prev.map((row, i) =>
-                              i === idx ? { ...row, weightGrams: tier?.weightGrams ?? null, variantKey: tier?.id ?? null } : row,
+                              i === idx ? { ...row, weightGrams: tier?.weightGrams ?? null, variantKey: tier?.id ?? null, unit: tier?.unit ?? null } : row,
                             ),
                           );
                         }}

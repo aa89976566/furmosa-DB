@@ -12,7 +12,12 @@ export type ProductVariation = {
 };
 
 export function variationLabel(variation: Pick<ProductVariation, 'weightGrams' | 'unit' | 'unitQty'>) {
-  if (variation.weightGrams) return `${variation.weightGrams}g`;
+  if (variation.weightGrams) {
+    const weight = `${variation.weightGrams}g`;
+    return ['片', '隻', '支', '件'].includes(variation.unit)
+      ? `${variation.unitQty} ${variation.unit}（${weight}）`
+      : weight;
+  }
   return `${variation.unitQty} ${variation.unit}`;
 }
 

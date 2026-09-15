@@ -99,6 +99,7 @@ export default async function HqRestockRequestDetailPage(
             items={req.items.map((it) => ({
               productId: it.productId,
               productName: it.product.name,
+              unit: it.product.unit,
               weightGrams: it.weightGrams,
               variantKey: it.variantKey,
               priceTiers: it.product.priceTiers,
@@ -137,7 +138,7 @@ type CompletedRequest = {
     weightGrams: number | null;
     requestedQuantity: number | null;
     approvedQuantity: number | null;
-    product: { name: string; sku: string };
+    product: { name: string; sku: string; unit: string };
   }>;
 };
 
@@ -225,7 +226,7 @@ function CompletedRestockRequest({ request }: { request: CompletedRequest }) {
                 className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_7rem_7rem] sm:items-center sm:gap-4"
               >
                 <div>
-                  <p className="font-medium">{formatRestockItemSpec(item.product.name, item.weightGrams)}</p>
+                  <p className="font-medium">{formatRestockItemSpec(item.product.name, item.weightGrams, item.product.unit)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {item.product.sku}
                   </p>

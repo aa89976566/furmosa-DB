@@ -27,6 +27,7 @@ export type ApprovedSnapshotLine = {
   /// 商品規格:克數(30/50/100等);無規格商品為undefined
   weightGrams?: number | null;
   variantKey?: string | null;
+  unit?: string | null;
 };
 
 /** Merchant-facing status labels (no enum jargon). */
@@ -90,9 +91,10 @@ export function restockStatusLabelForHq(status: string): string {
 export function formatRestockItemSpec(
   productName: string,
   weightGrams?: number | null,
+  unit?: string | null,
 ): string {
   if (weightGrams && weightGrams > 0) {
-    return `${productName} ${weightGrams}g`;
+    return `${productName} ${weightGrams}g${unit && ["片", "隻", "支", "件"].includes(unit) ? `／${unit}` : ""}`;
   }
   return productName;
 }

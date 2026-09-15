@@ -11,7 +11,7 @@
 - 出貨狀態 pending，stockPostedAt 空，四個 ShipmentItem 沒有入庫流水。
 - 申請明細數量 4/3/3/4，沒有 weight_grams / variant_key 欄位；approved_snapshot 也沒有規格。
 - ShipmentItem / OrderItem：原味雞霸重量空；另外三項已是 50g。此為本次查詢前既有狀態。
-- ProductPriceTier：原味雞霸 FUR-0002 **只有 1 片**（tier `cmpo2s6r6001hoseb1o5evkd8`），售價 89，成本 40，weightGrams 空；不能猜測它等於 50g。
+- ProductPriceTier：原味雞霸 FUR-0002 **只有 1 片**（tier `cmpo2s6r6001hoseb1o5evkd8`），售價 89，成本 40，weightGrams 原為空；使用者已於 2026-09-15 明確確認一片為 50g、以片計算。沿用同一 tier ID、單位、價格及成本，只補重量。
 - 另外三項 50g tier：豬耳朵條 `cmpo2s605000voseb2hh5zong`；雞肉南瓜乾 `cmpo2s6mi001dosebcvjdepqo`；鴨喉嚨 `cmpo2s54o0005osebrei2lcvf`。
 - `_prisma_migrations` 沒有本次 sandbox migration；查得的舊失敗紀錄皆已有 rolled_back_at。
 
@@ -25,7 +25,7 @@
 
 ## 執行順序與影響範圍
 
-1. 先取得使用者對原味雞霸規格的澄清；不能新增猜測價格的 50g tier，也不能改寫既有 1 片規格。
+1. 使用者已確認原味雞霸每片 50g；修復交易會先核對既有單一片規格的 ID、unitQty、價格與成本，再補重量。
 2. 重新跑 `restock-0008-50g-preflight.sql`，必須四行 READY，再核對 production schema/migration 是否有新變動。
 3. 本分支 migration 僅增加 restock_request_items.weight_grams / variant_key、ShipmentItem.variantKey，以及正重量 CHECK；不修改既有值。先執行這一份 SQL 並使用 Prisma migrate resolve 記錄此份檔案已套用；不得無條件執行全量待辦 migrations。
 4. 備份此單 ShipmentItem、OrderItem、RestockRequestItem 與 approved_snapshot 的原值，再執行 `restock-0008-50g-repair.sql`。一個交易完成四層同步；任何主檔、數量、店家、狀態或入庫檢查失敗即回滾。
@@ -37,7 +37,7 @@
 ## 已完成的本地驗證
 
 - Prisma generate 與 TypeScript 檢查。
-- 439 項補貨、POS 與共用函式測試通過，含 SELF_SELECT 拒絕缺規格／不合法規格，核准→Order/Shipment/snapshot→庫存 tier identity。
-- PGlite 隔離 PostgreSQL 實際執行 schema + repair SQL：缺50g、錯店家、錯數量、已入庫、重複50g 五種失敗均回滾；成功案例保存數量及其他單／庫存；重跑冪等。
+- 440 項補貨、POS 與共用函式測試通過，含 SELF_SELECT 拒絕缺規格／不合法規格，核准→Order/Shipment/snapshot→庫存 tier identity。
+- PGlite 隔離 PostgreSQL 實際執行 schema + repair SQL：其他商品缺50g、錯店家、錯數量、已入庫、重複50g 五種失敗均回滾；成功案例保存數量及其他單／庫存；重跑冪等。
 - Lint 尚未設定：next lint 進入初始設定提示，未新增設定，不能算通過。
-- 未完成：原味雞霸澄清、production migration/repair/deploy、Preview 與 production 畫面驗收。
+- 未完成：production migration/repair/deploy、Preview 與 production 畫面驗收。

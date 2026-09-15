@@ -1,4 +1,5 @@
--- Run ONLY after additive schema migration and all four preflight rows are READY.
+-- User confirmed 原味雞霸: one existing piece is 50g; keep tier ID, unit, price and cost.
+-- Run after additive schema migration and preflight, with this explicit clarification.
 -- Does not create tiers, infer prices, post stock, change quantities or ship orders.
 BEGIN;
 SET LOCAL lock_timeout = '5s';
@@ -27,6 +28,10 @@ BEGIN
  AND r.id='cmtr4yv2n000110kn5gqwglf3' AND r.status='converted_to_shipment'
  AND o.id='cmtudbj1b00079i64wr978h73';
  IF n<>1 THEN RAISE EXCEPTION 'STOP: target identity or workflow changed'; END IF;
+ IF (SELECT count(*) FROM "ProductPriceTier" WHERE "productId"='cmp2idsu60006qw9lwk1thk62')<>1
+ OR NOT EXISTS(SELECT 1 FROM "ProductPriceTier" WHERE id='cmpo2s6r6001hoseb1o5evkd8' AND "productId"='cmp2idsu60006qw9lwk1thk62' AND unit='片' AND "unitQty"=1 AND price=89 AND cost=40 AND ("weightGrams" IS NULL OR "weightGrams"=50))
+ THEN RAISE EXCEPTION 'STOP: existing chicken piece tier changed'; END IF;
+ UPDATE "ProductPriceTier" SET "weightGrams"=50 WHERE id='cmpo2s6r6001hoseb1o5evkd8';
  IF EXISTS(SELECT 1 FROM repair_expected e WHERE (SELECT count(*) FROM "ProductPriceTier" t WHERE t."productId"=e.product_id AND t."weightGrams"=50)<>1)
  THEN RAISE EXCEPTION 'STOP: each product must have exactly one real 50g ProductPriceTier'; END IF;
  IF (SELECT count(*) FROM "ShipmentItem" WHERE "shipmentId"='cmtudbjqc000e9i644e4htxy4')<>4
@@ -50,9 +55,9 @@ CREATE TEMP TABLE repair_tiers ON COMMIT DROP AS SELECT e.*,t.id AS tier_id FROM
 -- Preserve full before-images for verification within this transaction.
 CREATE TEMP TABLE repair_stock_before ON COMMIT DROP AS SELECT * FROM "MerchantStock" WHERE "merchantId"='cmp2idqtk0003qw9lhd4mpk61';
 UPDATE restock_request_items ri SET weight_grams=50,variant_key=t.tier_id FROM repair_tiers t WHERE ri.restock_request_id='cmtr4yv2n000110kn5gqwglf3' AND ri.product_id=t.product_id;
-UPDATE "ShipmentItem" si SET "weightGrams"=50,"variantKey"=t.tier_id FROM repair_tiers t WHERE si."shipmentId"='cmtudbjqc000e9i644e4htxy4' AND si."productId"=t.product_id;
-UPDATE "OrderItem" oi SET "weightGrams"=50 FROM repair_tiers t WHERE oi."orderId"='cmtudbj1b00079i64wr978h73' AND oi."productId"=t.product_id;
-UPDATE restock_requests r SET approved_snapshot=(SELECT jsonb_agg(a.value || jsonb_build_object('weightGrams',50,'variantKey',t.tier_id) ORDER BY a.ordinality) FROM jsonb_array_elements(r.approved_snapshot) WITH ORDINALITY a JOIN repair_tiers t ON t.product_id=a.value->>'productId') WHERE r.id='cmtr4yv2n000110kn5gqwglf3';
+UPDATE "ShipmentItem" si SET "weightGrams"=50,"variantKey"=t.tier_id,unit=CASE WHEN t.product_id='cmp2idsu60006qw9lwk1thk62' THEN '片' ELSE si.unit END FROM repair_tiers t WHERE si."shipmentId"='cmtudbjqc000e9i644e4htxy4' AND si."productId"=t.product_id;
+UPDATE "OrderItem" oi SET "weightGrams"=50,unit=CASE WHEN t.product_id='cmp2idsu60006qw9lwk1thk62' THEN '片' ELSE oi.unit END FROM repair_tiers t WHERE oi."orderId"='cmtudbj1b00079i64wr978h73' AND oi."productId"=t.product_id;
+UPDATE restock_requests r SET approved_snapshot=(SELECT jsonb_agg(a.value || jsonb_build_object('weightGrams',50,'variantKey',t.tier_id) || CASE WHEN t.product_id='cmp2idsu60006qw9lwk1thk62' THEN jsonb_build_object('unit','片') ELSE '{}'::jsonb END ORDER BY a.ordinality) FROM jsonb_array_elements(r.approved_snapshot) WITH ORDINALITY a JOIN repair_tiers t ON t.product_id=a.value->>'productId') WHERE r.id='cmtr4yv2n000110kn5gqwglf3';
 DO $$
 DECLARE n int;
 BEGIN

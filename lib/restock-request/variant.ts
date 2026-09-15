@@ -1,3 +1,5 @@
+import { variationLabel } from '@/lib/product-variations';
+
 export type RestockTier = { id: string; weightGrams: number | null; unit: string; unitQty: number };
 export type RestockVariantInput = { weightGrams?: number | null; variantKey?: string | null };
 
@@ -18,5 +20,5 @@ export function resolveRestockVariant(tiers: RestockTier[], input: RestockVarian
 }
 
 export function restockTierLabel(tier: RestockTier) {
-  return tier.weightGrams != null ? `${tier.weightGrams}g${tier.unitQty > 1 ? ` ×${tier.unitQty}` : ''}` : `${tier.unitQty}${tier.unit}`;
+  return variationLabel(tier);
 }

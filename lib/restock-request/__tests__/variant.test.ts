@@ -81,3 +81,14 @@ test('approval carries the selected identity through order, shipment, snapshot a
     assert.equal(writes.order,undefined);assert.equal(writes.shipment,undefined);
   } finally { prisma.$transaction=original; }
 });
+
+
+test('a confirmed 50g piece preserves its existing tier identity and counting unit', async () => {
+  const { restockTierLabel } = await import('../variant');
+  const { formatRestockItemSpec } = await import('../constants');
+  const piece = {id:'piece-existing',weightGrams:50,unit:'片',unitQty:1};
+  const result = resolveRestockVariant([piece], {});
+  assert.deepEqual(result,{weightGrams:50,variantKey:'piece-existing',unit:'片'});
+  assert.equal(restockTierLabel(piece),'1 片（50g）');
+  assert.equal(formatRestockItemSpec('原味雞霸',50,'片'),'原味雞霸 50g／片');
+});
