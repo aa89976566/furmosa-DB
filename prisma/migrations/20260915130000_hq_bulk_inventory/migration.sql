@@ -21,6 +21,9 @@ BEGIN
  IF TG_OP = 'INSERT' THEN
    NEW."hqInventoryEligible" := NEW.status IN ('shipped','delivered','received','completed');
  ELSE
+   IF OLD."hqInventoryEligible" AND OLD.status IN ('cancelled','returned') AND NEW.status IN ('shipped','delivered','received','completed') THEN
+     RAISE EXCEPTION '已取消或退貨的 HQ 出貨不能重新啟用，請建立新單';
+   END IF;
    IF OLD."hqInventoryEligible" AND OLD.status IN ('shipped','delivered','received','completed') AND NEW.status IN ('pending','pending_review','draft','confirmed','packed') THEN
      RAISE EXCEPTION '已出貨不能退回未完成狀態，請使用取消／退貨留下回補紀錄';
    END IF;

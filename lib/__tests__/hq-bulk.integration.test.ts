@@ -35,6 +35,8 @@ test('HQ ledger is atomic, idempotent, reversible, isolated from POS and histori
  await db.shipment.update({where:{id:mixed.id},data:{status:'cancelled'}});assert.equal(await stock(),1170);
  await db.shipment.update({where:{id:a.id},data:{status:'cancelled'}});assert.equal(await stock(),1200);
  await db.shipment.update({where:{id:a.id},data:{status:'cancelled'}});assert.equal(await stock(),1200);
+ await assert.rejects(db.shipment.update({where:{id:a.id},data:{status:'shipped'}}));
+ assert.equal(await stock(),1200);
  const ledger=await db.inventoryTransaction.findMany({where:{reference:`shipment:${a.id}`}});assert.equal(ledger.length,2);assert.equal(ledger.find(t=>t.type==='return_in')?.reversesId,ledger.find(t=>t.type==='sales_out')?.id);
  await assert.rejects(db.inventoryTransaction.delete({where:{id:ledger[0].id}}));
  await assert.rejects(db.shipmentItem.updateMany({where:{shipmentId:a.id},data:{quantity:9}}));
