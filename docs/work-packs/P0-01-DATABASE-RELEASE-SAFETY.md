@@ -53,7 +53,8 @@
 - [ ] 列出所有需要新欄位的程式路徑及其 fail-closed 行為。
 - [ ] 產出最小實作白名單、測試矩陣與 rollback 設計。
 
-輸出：靜態指令清冊、風險分級、建議 diff；不得執行列出的變更命令。
+輸出：靜態指令清冊、風險分級、建議 diff；不得執行列出的變更命令。第一版清冊見
+[`P0-01-DATABASE-COMMAND-INVENTORY.md`](P0-01-DATABASE-COMMAND-INVENTORY.md)。
 
 ### B. Production 唯讀身分核對（需另行明確授權）
 
