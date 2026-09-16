@@ -168,6 +168,36 @@ describe('Shopify order webhook event ordering and persistence', () => {
     assert.equal(order?.cvsStoreName, '市府');
   });
 
+  it('maps Ako pickup data from the Shopify shipping address', async () => {
+    const store = storeWithProduct();
+    const created = await post(
+      store,
+      'orders/create',
+      orderPayload({
+        shipping_address: {
+          name: '測試客戶',
+          phone: '0912345678',
+          address1: '新北市石碇區碇坪路一段50之1號50之2號(超商)',
+          address2: '211594 石碇門市(UNIMARTC2C)',
+          city: '新北市',
+          province: '新北市',
+          zip: '223',
+        },
+        shipping_lines: [{ title: '7-11 取貨（店到店）' }],
+      }),
+      'wh-ako-create',
+    );
+
+    assert.equal(created.status, 200);
+    const order = store.getOrder(SHOP, '2001');
+    assert.equal(order?.shippingMethod, 'convenience');
+    assert.equal(order?.cvsBrand, '711');
+    assert.equal(order?.cvsStoreId, '211594');
+    assert.equal(order?.cvsStoreName, '石碇門市');
+    assert.match(order?.shippingAddress ?? '', /石碇門市/);
+    assert.doesNotMatch(order?.note ?? '', /門市資料待確認/);
+  });
+
   it('ignores same-timestamp, stale-timestamp, duplicate retries and missing timestamps after a version exists', async () => {
     const store = storeWithProduct();
     await post(store, 'orders/create', orderPayload(), 'wh-create');

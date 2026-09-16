@@ -96,9 +96,36 @@ function attribute(order: ShopifyPaidOrder, ...names: string[]): string | null {
   return cleanShopifyText(row?.value);
 }
 
+function shippingText(order: ShopifyPaidOrder): string {
+  return [
+    ...(order.shipping_lines ?? []).map((line) => line.title),
+    order.shipping_address?.company,
+    order.shipping_address?.address1,
+    order.shipping_address?.address2,
+  ]
+    .map(cleanShopifyText)
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Ako writes the selected store as e.g. `211594 石碇門市(UNIMARTC2C)`. */
+function akoPickupFromAddress(order: ShopifyPaidOrder) {
+  const address2 = cleanShopifyText(order.shipping_address?.address2);
+  const match = address2?.match(/(?:^|\s)(\d{6})\s+(.+?)(?:\s*\([^)]*\))?$/);
+  return {
+    storeId: match?.[1] ?? null,
+    storeName: cleanShopifyText(match?.[2]),
+  };
+}
+
+function pickupDistrict(order: ShopifyPaidOrder): string | null {
+  const address = cleanShopifyText(order.shipping_address?.address1);
+  return address?.match(/([^縣市\s]{1,8}(?:區|鄉|鎮|市))/)?.[1] ?? null;
+}
+
 export function shopifyPickupInfo(order: ShopifyPaidOrder): ShopifyPickupInfo {
   const brandValue = attribute(order, '超商品牌', '取貨超商', 'cvs_brand');
-  const brandText = brandValue?.toLowerCase() ?? '';
+  const brandText = [brandValue, shippingText(order)].filter(Boolean).join(' ').toLowerCase();
   const brand = /全家|family/.test(brandText)
     ? 'familymart'
     : /萊爾富|hilife/.test(brandText)
@@ -107,18 +134,21 @@ export function shopifyPickupInfo(order: ShopifyPaidOrder): ShopifyPickupInfo {
         ? '711'
         : cleanShopifyText(brandValue);
 
+  const akoPickup = akoPickupFromAddress(order);
   return {
     brand,
-    city: attribute(order, '取貨縣市', '門市縣市', 'cvs_city'),
-    district: attribute(order, '取貨區域', '門市區域', 'cvs_district'),
-    storeName: attribute(order, '取貨門市名稱', '門市名稱', 'cvs_store_name'),
-    storeId: attribute(order, '取貨門市店號', '門市店號', 'cvs_store_id'),
+    city: attribute(order, '取貨縣市', '門市縣市', 'cvs_city')
+      ?? cleanShopifyText(order.shipping_address?.city)
+      ?? cleanShopifyText(order.shipping_address?.province),
+    district: attribute(order, '取貨區域', '門市區域', 'cvs_district') ?? pickupDistrict(order),
+    storeName: attribute(order, '取貨門市名稱', '門市名稱', 'cvs_store_name') ?? akoPickup.storeName,
+    storeId: attribute(order, '取貨門市店號', '門市店號', 'cvs_store_id') ?? akoPickup.storeId,
   };
 }
 
 export function hasCompleteShopifyPickupInfo(order: ShopifyPaidOrder): boolean {
   const pickup = shopifyPickupInfo(order);
-  return Boolean(pickup.brand && pickup.city && pickup.district && pickup.storeName);
+  return Boolean(pickup.brand && pickup.city && pickup.district && pickup.storeName && pickup.storeId);
 }
 
 export function shopifyAddressText(order: ShopifyPaidOrder): string | null {
@@ -132,16 +162,7 @@ export function shopifyAddressText(order: ShopifyPaidOrder): string | null {
 
 export function isConveniencePickup(order: ShopifyPaidOrder): boolean {
   const pickup = shopifyPickupInfo(order);
-  const text = [
-    ...(order.shipping_lines ?? []).map((line) => line.title),
-    order.shipping_address?.company,
-    order.shipping_address?.address1,
-    order.shipping_address?.address2,
-  ]
-    .map(cleanShopifyText)
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+  const text = shippingText(order).toLowerCase();
   return Boolean(pickup.brand || pickup.storeName) || /7-?11|7-eleven|全家|超商|店到店/.test(text);
 }
 
