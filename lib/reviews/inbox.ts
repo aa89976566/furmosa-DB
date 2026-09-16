@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { formatDate } from '@/lib/format';
 import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import { activeOrderWhere } from '@/lib/order-list';
@@ -123,12 +124,13 @@ export function shopifyReviewTitle(order: {
   orderNumber: string;
   externalOrderName?: string | null;
   customerName?: string | null;
+  orderedAt: Date;
   shopifySnapshot?: unknown;
 }) {
   const snapshot = snapshotView(order.shopifySnapshot);
   const name = snapshot?.recipient.trim() || order.customerName?.trim() || '未提供客戶名稱';
   const reference = order.externalOrderName?.trim() || snapshot?.name.trim() || order.orderNumber.trim();
-  return `${name} · ${reference}`;
+  return `${formatDate(order.orderedAt)} · ${name} · ${reference}`;
 }
 
 async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
@@ -158,6 +160,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       orderNumber: order.orderNumber,
       externalOrderName: order.externalOrderName,
       customerName: order.customer?.name,
+      orderedAt: order.orderedAt ?? order.createdAt,
       shopifySnapshot: order.shopifySnapshot,
     });
     return {
