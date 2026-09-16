@@ -1,3 +1,4 @@
+import { checkShopifySource, shopifySourceDraft, shopifyShippingLabel, SOURCE_REVIEW_VERSION } from './shopify-source-review';
 import { bulkConsumption } from '../inventory/bulk';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-policy';
@@ -36,7 +37,7 @@ export class ReviewError extends Error {
   }
 }
 export type ReviewCommand = { orderId: string; actorId: string; sourceHash: string;
-  action: ReviewAction; draft?: ReviewDraft };
+  action: ReviewAction; draft?: ReviewDraft; sourceOnly?: boolean };
 
 const shippingNext = (label: string) => ({ label, href: '#oms-shipping' });
 const paymentPendingNotes = [
@@ -78,9 +79,15 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const audit = await tx.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     let saved: Record<string, unknown> = {};
     try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* fail closed below */ }
-    const draft = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);
+    let draft = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);
+    if (command.sourceOnly) {
+      draft = shopifySourceDraft(snapshot, [], Boolean(command.draft?.duplicateConfirmed));
+      if (command.action !== 'check' && saved.reviewMode !== SOURCE_REVIEW_VERSION) throw new ReviewError('審核規則已更新，請先儲存並檢查', { kind: 'blocked' });
+    }
     if (command.action !== 'check' && saved.sourceHash !== command.sourceHash) throw new ReviewError('請先儲存並檢查目前版本', { kind: 'blocked' });
-    if (command.action !== 'check' && JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft)) throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
+    if (command.action !== 'check' && (command.sourceOnly
+      ? Boolean(command.draft?.duplicateConfirmed) !== reviewDraft(saved.draft).duplicateConfirmed
+      : JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft))) throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
     if (command.action === 'ship') {
       if (order.omsStatus !== 'READY' || !order.omsReviewedAt || !order.omsReviewedById) throw new ReviewError('需要先由人員確認訂單');
       // Serializes new OMS reservations; legacy fulfillment still requires its own final stock check.
@@ -88,12 +95,13 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     }
     const draftIds = draft.lines.map(l => l.productId).filter(Boolean);
     const products = await tx.product.findMany({
-      where: { OR: [
+      where: command.sourceOnly ? { status: 'active' } : { OR: [
         ...(draftIds.length ? [{ id: { in: draftIds } }] : []),
         { sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU },
       ] },
       include: { inventoryBalances: { include: { warehouse: true } }, priceTiers: true },
     });
+    if (command.sourceOnly) draft = shopifySourceDraft(snapshot, products.map(p => ({ ...p, available: null })), draft.duplicateConfirmed);
     const reservations = await tx.shipmentItem.findMany({ where: {
       productId: { in: products.map(p => p.id) }, shipment: { status: { in: ['pending', 'packed'] }, OR: [{ orderId: null }, { orderId: { not: order.id } }] },
     } });
@@ -120,6 +128,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         ? (() => { const balance = p.inventoryBalances.find(b => b.warehouse.code === 'WH-MAIN'); return balance?.unit && balance.lastCountedAt ? balance.quantity - (reserved.get(p.id) ?? 0) : null; })()
         : p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
+    if (command.sourceOnly && command.action !== 'ship') {
+      result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed);
+    }
     const now = new Date();
     if (command.action === 'check') {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'REVIEW',
@@ -128,6 +139,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id,
         previousStatus: order.omsStatus, newStatus: 'REVIEW', actorType: 'user', actorId: actor.id,
         metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft,
+          reviewMode: command.sourceOnly ? SOURCE_REVIEW_VERSION : undefined,
           planVersion: result.plan.planVersion, rulesVersion: result.plan.rulesVersion,
           fulfillmentPlan: result.plan.frozen }) } });
       const blocking = result.issues.filter(issue => issue.severity === 'blocking').map(issue => issue.message);
@@ -138,7 +150,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       });
     }
     const savedPlan = parseFrozenFulfillmentPlan(saved.fulfillmentPlan);
-    if (!savedPlan || fulfillmentPlanHash(savedPlan) !== result.plan.frozenHash || savedPlan.sourceHash !== command.sourceHash) {
+    if (!command.sourceOnly && (!savedPlan || fulfillmentPlanHash(savedPlan) !== result.plan.frozenHash || savedPlan.sourceHash !== command.sourceHash)) {
       throw new ReviewError('出貨計畫已變更或不完整，請重新檢查', { kind: 'error' });
     }
     if (command.action === 'approve' && order.omsStatus === 'READY' && order.omsReviewedAt && order.omsReviewedById) {
@@ -157,8 +169,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
       await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
-        carrier: draft.method === 'convenience' ? '7-11' : '黑貓',
-        notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature}；門市：${draft.storeId} ${draft.storeName}`,
+        carrier: command.sourceOnly ? shopifyShippingLabel(snapshot) : draft.method === 'convenience' ? '7-11' : '黑貓',
+        notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
         items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
           { productId, productName, sku, quantity, weightGrams, unit })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',

@@ -24,7 +24,7 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   let result;
   try {
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
-      sourceHash: field('sourceHash'), action, draft });
+      sourceHash: field('sourceHash'), action, draft, sourceOnly: true });
   } catch (error) {
     return emptyReviewResult({
       ok: false,

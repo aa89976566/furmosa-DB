@@ -80,6 +80,18 @@ function fakeDb(source = snapshot) {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('Shopify source review accepts a source product without an HQ mapping or temperature override', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '測試地址' },
+      shipping_lines: [{ title: '一般配送', code: 'HOME' }],
+      line_items: [{ ...raw.line_items[0], sku: 'SHOPIFY-ONLY' }],
+    });
+    const f = fakeDb(source);
+    const result = await f.run('check', { sourceOnly: true, draft: { ...draft, lines: [], temperature: '', method: '' } });
+    assert.equal(result.ok, true);
+    assert.equal(result.blockers.some(message => message.includes('對應有效商品') || message.includes('溫層')), false);
+  });
+
   it('deleted orders cannot be checked, approved or shipped', async () => {
     const f = fakeDb(); f.order.deletedAt = new Date();
     for (const action of ['check', 'approve', 'ship'] as const) await assert.rejects(f.run(action), /已從 HQ 刪除/);
