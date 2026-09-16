@@ -66,7 +66,7 @@ export function merchantShippingToOrderFields(
       d.pickupStore.replace(/^7-11\s*[·•]\s*/i, '').trim() ||
       d.pickupStore;
     const shippingAddress =
-      merchant.address?.trim() || (storeName ? format711RecipientAddress(storeName) : '');
+      storeName ? format711RecipientAddress(storeName) : merchant.address?.trim() || '';
 
     return {
       recipientName,
