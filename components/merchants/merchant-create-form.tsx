@@ -18,7 +18,7 @@ import {
   MerchantSection,
 } from '@/components/merchants/merchant-ui';
 
-type CarrierMode = '' | typeof CARRIER_711 | '黑貓';
+type CarrierMode = '' | typeof CARRIER_711 | '黑貓' | '送貨';
 
 const initialState: CreateMerchantState = { error: null };
 
@@ -69,7 +69,7 @@ export function MerchantCreateForm() {
       <MerchantSection
         step={2}
         title="運輸與地址"
-        description="建立後進貨會自動帶入；寄賣分潤請至「商品與庫存」設定。"
+        description="可同時設定 7-11 門市與到府地址；預設物流只決定進貨時先選哪一種。"
       >
         <div className="space-y-5">
           <div className="space-y-2">
@@ -80,6 +80,7 @@ export function MerchantCreateForm() {
                   ['', '未設定'],
                   [CARRIER_711, '7-11'],
                   ['黑貓', '黑貓'],
+                  ['送貨', '到府'],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -110,35 +111,26 @@ export function MerchantCreateForm() {
             </MerchantField>
           </div>
 
-          {carrier === CARRIER_711 && (
-            <MerchantField label="7-11 門市名稱" required>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <MerchantField label="7-11 門市名稱" required={carrier === CARRIER_711}>
               <Input
                 name="pickupStoreName"
-                required
+                required={carrier === CARRIER_711}
                 maxLength={80}
                 placeholder="例：淡水復興門市"
               />
             </MerchantField>
-          )}
-
-          {carrier === '黑貓' && (
-            <MerchantField label="黑貓收件地址" required>
+            <MerchantField label="到府／黑貓收件地址" required={carrier === '黑貓' || carrier === '送貨'}>
               <textarea
                 name="address"
-                required
-                rows={3}
+                required={carrier === '黑貓' || carrier === '送貨'}
+                rows={2}
                 maxLength={300}
                 placeholder="完整收件地址"
                 className="block w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </MerchantField>
-          )}
-
-          {carrier === '' && (
-            <MerchantField label="備用地址（選填）">
-              <Input name="address" maxLength={300} />
-            </MerchantField>
-          )}
+          </div>
         </div>
       </MerchantSection>
 

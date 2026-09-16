@@ -24,9 +24,7 @@ export function parseMerchantShippingFromForm(formData: FormData): MerchantShipp
     if (!pickupStoreName) {
       return { preferredCarrier, pickupStoreName: null, address: null, error: '請填寫 7-11 門市名稱' };
     }
-    address = null;
   } else if (preferredCarrier === '黑貓') {
-    pickupStoreName = null;
     if (!address) {
       return { preferredCarrier, pickupStoreName: null, address: null, error: '請填寫黑貓收件地址' };
     }
