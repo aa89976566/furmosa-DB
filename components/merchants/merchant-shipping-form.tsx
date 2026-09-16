@@ -178,7 +178,6 @@ export function MerchantShippingForm({
             className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </MerchantField>
-        </MerchantField>
       </div>
 
       <MerchantFormActions className="border-t-0 pt-0">
