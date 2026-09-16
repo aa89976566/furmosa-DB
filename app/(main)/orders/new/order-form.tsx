@@ -406,6 +406,7 @@ export function OrderForm({
   const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 8 : 1);
   const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     seed?.customerSource ?? 'social',
@@ -470,6 +471,10 @@ export function OrderForm({
     preferredCvsStoreName: '',
   });
   const [creatingCustomer, startCreateCustomer] = useTransition();
+
+  const revealThrough = useCallback((step: number) => {
+    setRevealedStep((current) => Math.max(current, step));
+  }, []);
 
   const productMap = useMemo(
     () =>
@@ -676,6 +681,7 @@ export function OrderForm({
       unitPrice: isGift ? 0 : pricing.unitPrice,
       retailUnitPrice: pricing.unitPrice,
     });
+    revealThrough(5);
   }
   function onSelectTier(key: string, productId: string, tierId: string) {
     const p = productMap.get(productId);
@@ -772,6 +778,7 @@ export function OrderForm({
     })));
     const m = merchants.find((x) => x.id === id);
     if (m) {
+      revealThrough(3);
       applyMerchantShipping(m);
       const availableModes = merchantOrderModesForTypes(m.types);
       const nextMode = availableModes.includes(merchantOrderMode)
@@ -793,9 +800,11 @@ export function OrderForm({
       unit: null,
     })));
     if (mode !== 'consignment') setCustomerId('');
+    revealThrough(4);
   }
 
   function changeOrderType(nextType: OrderType) {
+    revealThrough(2);
     if (nextType === orderType) return;
     setOrderType(nextType);
     setItems((current) => current.map((item) => ({
@@ -820,7 +829,10 @@ export function OrderForm({
   function onCustomerChange(id: string) {
     setCustomerId(id);
     const c = customers.find((x) => x.id === id);
-    if (c) applyCustomerPreference(c);
+    if (c) {
+      applyCustomerPreference(c);
+      revealThrough(4);
+    }
   }
 
   function submitNewCustomer() {
@@ -856,6 +868,7 @@ export function OrderForm({
         setCustomerId(created.id);
         // 自動把客戶的運輸偏好套用到訂單
         applyCustomerPreference(created);
+        revealThrough(4);
         // 收起 form 並清空
         setShowNewCustomer(false);
         setNewCustomer({
@@ -951,9 +964,9 @@ export function OrderForm({
       </section>
 
       {/* Step 2A: 客戶模式 */}
-      {orderType === 'customer' && (
+      {revealedStep >= 2 && orderType === 'customer' && (
         <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="text-sm font-medium">② 客戶資訊</div>
+          <div className="text-sm font-medium">② 這張訂單從哪裡來？</div>
 
           <div>
             <label className="mb-1 block text-[11px] text-muted-foreground">
@@ -964,7 +977,10 @@ export function OrderForm({
             </label>
             <SegmentedControl
               value={customerSource}
-              onChange={setCustomerSource}
+              onChange={(source) => {
+                setCustomerSource(source);
+                revealThrough(3);
+              }}
               disabled={isEdit}
               options={CUSTOMER_SOURCES.map((cs) => ({
                 value: cs.value,
@@ -977,7 +993,8 @@ export function OrderForm({
             </p>
           </div>
 
-          <div>
+          {revealedStep >= 3 ? <div className="border-t pt-4">
+            <div className="mb-3 text-sm font-medium">③ 這張訂單是哪一位客戶的？</div>
             <div className="mb-1 flex items-center justify-between">
               <label className="block text-[11px] text-muted-foreground">
                 客戶 <span className="text-destructive">*</span>
@@ -1014,9 +1031,9 @@ export function OrderForm({
                 輸入姓名／編號／電話搜尋客戶，或點「新增客戶」。
               </p>
             )}
-          </div>
+          </div> : null}
 
-          {showMerchantOptional && (
+          {revealedStep >= 3 && showMerchantOptional && (
             <div>
               <label className="mb-1 block text-[11px] text-muted-foreground">
                 透過哪家寄賣店成交（選填）
@@ -1040,10 +1057,10 @@ export function OrderForm({
       )}
 
       {/* Step 2B: 合作店家模式 */}
-      {orderType === 'merchant' && (
+      {revealedStep >= 2 && orderType === 'merchant' && (
         <section className="space-y-3 rounded-lg border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium">② 訂購店家</div>
+            <div className="text-sm font-medium">② 這張訂單是哪一家店的？</div>
             <Button asChild type="button" size="sm" variant="outline">
               <Link href="/merchants/new">
                 <Store className="mr-1 h-4 w-4" />
@@ -1072,7 +1089,7 @@ export function OrderForm({
             </select>
           </div>
 
-          {selectedMerchant ? (
+          {revealedStep >= 3 && selectedMerchant ? (
             <div className="space-y-3">
               <div className="rounded-xl border bg-muted/20 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1117,8 +1134,8 @@ export function OrderForm({
                 ) : null}
               </div>
 
-              <label className="mb-2 block text-[11px] text-muted-foreground">
-                這次要做什麼？ <span className="text-destructive">*</span>
+              <label className="mb-2 block border-t pt-4 text-sm font-medium">
+                ③ 這次要做什麼？ <span className="text-destructive">*</span>
               </label>
               {merchantOrderModesForTypes(selectedMerchant.types).length > 0 ? (
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -1156,8 +1173,8 @@ export function OrderForm({
       )}
 
       {/* Step 3: 商品明細 */}
-      <OrderLineItemsTable
-        title="③ 商品明細"
+      {revealedStep >= 4 ? <OrderLineItemsTable
+        title="④ 要加入哪些商品？"
         hint={
           orderType === 'customer'
             ? '顯示上架中的一般商品；庫存數量會標示在商品旁。'
@@ -1180,11 +1197,11 @@ export function OrderForm({
         updateItem={updateItem}
         addItem={addItem}
         removeItem={removeItem}
-      />
+      /> : null}
 
       {/* Step 4: 金額 + 出貨資訊 */}
-      <section className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="text-sm font-medium">④ 金額與出貨</div>
+      {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
+        <div className="text-sm font-medium">⑤ 運費由誰負擔？</div>
 
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1192,52 +1209,52 @@ export function OrderForm({
               active={shippingFeeType === 'free'}
               icon={<Truck className="h-4 w-4" />}
               title="包郵"
-              onClick={() => setShippingFeeType('free')}
+              onClick={() => { setShippingFeeType('free'); revealThrough(6); }}
             />
             <FeeTypeCard
               active={shippingFeeType === 'prepaid'}
               icon={<CheckCircle2 className="h-4 w-4" />}
               title="已付費"
-              onClick={() => setShippingFeeType('prepaid')}
+              onClick={() => { setShippingFeeType('prepaid'); revealThrough(6); }}
             />
             <FeeTypeCard
               active={shippingFeeType === 'unpaid'}
               icon={<Coins className="h-4 w-4" />}
               title="不包郵"
-              onClick={() => setShippingFeeType('unpaid')}
+              onClick={() => { setShippingFeeType('unpaid'); revealThrough(6); }}
             />
             <FeeTypeCard
               active={shippingFeeType === 'cod'}
               icon={<HandCoins className="h-4 w-4" />}
               title="運費貨到付"
-              onClick={() => setShippingFeeType('cod')}
+              onClick={() => { setShippingFeeType('cod'); revealThrough(6); }}
             />
           </div>
         </FieldInline>
 
         {/* 付款狀態 */}
-        <FieldInline label="付款狀態">
+        {revealedStep >= 6 ? <FieldInline label="⑥ 目前付款狀態是什麼？">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <PayCard
               active={paymentStatus === 'unpaid'}
               icon={<Banknote className="h-4 w-4" />}
               title="未付款"
               desc="尚未收到貨款"
-              onClick={() => setPaymentStatus('unpaid')}
+              onClick={() => { setPaymentStatus('unpaid'); revealThrough(7); }}
             />
             <PayCard
               active={paymentStatus === 'paid'}
               icon={<CreditCard className="h-4 w-4" />}
               title="已付款"
               desc="貨款已收齊（轉帳 / 信用卡）"
-              onClick={() => setPaymentStatus('paid')}
+              onClick={() => { setPaymentStatus('paid'); revealThrough(7); }}
             />
             <PayCard
               active={paymentStatus === 'cod'}
               icon={<HandCoins className="h-4 w-4" />}
               title="貨到付款"
               desc="送達時由買家現場付款"
-              onClick={() => setPaymentStatus('cod')}
+              onClick={() => { setPaymentStatus('cod'); revealThrough(7); }}
             />
           </div>
           {isEdit ? (
@@ -1247,26 +1264,26 @@ export function OrderForm({
                 icon={<Coins className="h-4 w-4" />}
                 title="部分付款"
                 desc="已收部分款項"
-                onClick={() => setPaymentStatus('partial')}
+                onClick={() => { setPaymentStatus('partial'); revealThrough(7); }}
               />
               <PayCard
                 active={paymentStatus === 'refunded'}
                 icon={<X className="h-4 w-4" />}
                 title="已退款"
                 desc="款項已退回"
-                onClick={() => setPaymentStatus('refunded')}
+                onClick={() => { setPaymentStatus('refunded'); revealThrough(7); }}
               />
             </div>
           ) : null}
-        </FieldInline>
+        </FieldInline> : null}
 
-        {giftCostTotal > 0 ? (
+        {revealedStep >= 7 && giftCostTotal > 0 ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             贈品成本 {formatCurrency(giftCostTotal)} 不計入買家合計，建立訂單時會記為公司開銷。
           </p>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        {revealedStep >= 7 ? <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
           <Stat
             label={orderType === 'merchant' && merchantOrderMode === 'consignment'
               ? '寄賣參考貨值（非業績）'
@@ -1314,15 +1331,15 @@ export function OrderForm({
               ? '尚未登記'
               : formatCurrency(collection.outstandingAmount)}
           />
-        </div>
+        </div> : null}
 
-        {collection.note ? (
+        {revealedStep >= 7 && collection.note ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             {collection.note}
           </p>
         ) : null}
 
-        <FieldInline label="出貨與收件">
+        {revealedStep >= 7 ? <FieldInline label="⑦ 商品要寄到哪裡？">
           <div className="space-y-3">
             {selectedMerchant ? (
               <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
@@ -1337,7 +1354,10 @@ export function OrderForm({
                 <Input
                   name="recipientName"
                   value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
+                  onChange={(e) => {
+                    setRecipientName(e.target.value);
+                    if (e.target.value.trim()) revealThrough(8);
+                  }}
                   placeholder="例：王小明"
                   maxLength={80}
                   required
@@ -1364,7 +1384,7 @@ export function OrderForm({
             <div className="inline-flex flex-wrap gap-1 rounded-md border bg-background p-0.5">
               <button
                 type="button"
-                onClick={() => setShippingMethod('home')}
+                onClick={() => { setShippingMethod('home'); revealThrough(8); }}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'home'
                     ? 'bg-primary text-primary-foreground'
@@ -1375,7 +1395,7 @@ export function OrderForm({
               </button>
               <button
                 type="button"
-                onClick={() => setShippingMethod('convenience')}
+                onClick={() => { setShippingMethod('convenience'); revealThrough(8); }}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'convenience'
                     ? 'bg-primary text-primary-foreground'
@@ -1386,7 +1406,7 @@ export function OrderForm({
               </button>
               <button
                 type="button"
-                onClick={() => setShippingMethod('delivery')}
+                onClick={() => { setShippingMethod('delivery'); revealThrough(8); }}
                 className={`rounded px-3 py-1.5 text-xs ${
                   shippingMethod === 'delivery'
                     ? 'bg-primary text-primary-foreground'
@@ -1476,9 +1496,9 @@ export function OrderForm({
               </div>
             )}
           </div>
-        </FieldInline>
+        </FieldInline> : null}
 
-        <FieldInline label="備註">
+        {revealedStep >= 8 ? <FieldInline label="⑧ 還有需要記錄的事情嗎？（選填）">
           <textarea
             name="note"
             value={note}
@@ -1487,8 +1507,8 @@ export function OrderForm({
             maxLength={500}
             className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
-        </FieldInline>
-      </section>
+        </FieldInline> : null}
+      </section> : null}
 
       {submitError ? (
         <div
@@ -1502,7 +1522,7 @@ export function OrderForm({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-end gap-2 border-t pt-4">
+      {revealedStep >= 8 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
         <div className="mr-auto flex items-center gap-2 text-sm">
           {isEdit && edit ? (
             <>
@@ -1523,7 +1543,7 @@ export function OrderForm({
           )}
         </div>
         <SaveButton isEdit={isEdit} />
-      </div>
+      </div> : null}
     </form>
   );
 }

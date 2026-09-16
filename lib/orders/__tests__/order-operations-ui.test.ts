@@ -72,6 +72,18 @@ test('新增與複製訂單的商品明細在手機改用完整卡片，不需�
   }
 });
 
+test('新增訂單逐題展開，已回答區塊保留且不需要下一題按鈕', () => {
+  assert.match(orderFormSource, /revealedStep/);
+  assert.match(orderFormSource, /revealThrough\(2\)/);
+  assert.match(orderFormSource, /revealThrough\(8\)/);
+  assert.match(orderFormSource, /這張訂單從哪裡來/);
+  assert.match(orderFormSource, /這張訂單是哪一家店的/);
+  assert.match(orderFormSource, /要加入哪些商品/);
+  assert.match(orderFormSource, /目前付款狀態是什麼/);
+  assert.match(orderFormSource, /商品要寄到哪裡/);
+  assert.equal(orderFormSource.includes('下一題'), false);
+});
+
 test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {
   for (const label of ['1. 店家與配送資料', '2. 訂單處理', '3. 商品內容', '4. 訂單資訊與處理紀錄']) {
     assert.match(detailSource, new RegExp(label.replace('.', '\\.')));
