@@ -505,10 +505,7 @@ export function OrderForm({
       }
       const category = merchantOrderProductCategory(merchantOrderMode);
       return productCatalog.filter(
-        (product) =>
-          product.productCategory === category &&
-          (merchantOrderMode !== 'wholesale' ||
-            product.wholesalePrices.some((price) => price.merchantId === merchantId)),
+        (product) => product.productCategory === category,
       );
     },
     [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
@@ -628,7 +625,7 @@ export function OrderForm({
       orderType === 'customer' || merchantOrderMode === 'consignment';
     const wholesalePrice = (tierId: string) =>
       merchantOrderMode === 'wholesale'
-        ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ?? 0
+        ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId)
         : 0;
     if (p.priceTiers.length > 0) {
       const t = p.priceTiers.find((x) => x.id === tierId) ?? p.priceTiers[0];
@@ -636,7 +633,7 @@ export function OrderForm({
         tierId: t.id,
         unitPrice: useCatalogPrice
           ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? t.price : t.price)
-          : wholesalePrice(t.id),
+          : wholesalePrice(t.id) ?? t.price,
         unitCost: resolveOrderItemUnitCost(p, t.id),
         weightGrams: t.weightGrams,
         unit: t.unit,
@@ -646,7 +643,7 @@ export function OrderForm({
       tierId: '',
       unitPrice: useCatalogPrice
         ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? p.price : p.price)
-        : wholesalePrice(''),
+        : wholesalePrice('') ?? p.price,
       unitCost: resolveOrderItemUnitCost(p),
       weightGrams: null,
       unit: p.unit,
@@ -1164,7 +1161,7 @@ export function OrderForm({
             : merchantOrderMode === 'jar_exchange'
               ? '只顯示換罐計畫商品；本張補貨單不計營收。'
               : merchantOrderMode === 'wholesale'
-                ? '只顯示已設定店家進貨價的商品；選擇規格後會自動帶入。'
+                ? '顯示所有一般商品；有設定店家進貨價時優先帶入，否則使用商品原價。'
                 : '只顯示一般商品；寄賣補貨於售出後再對帳。'
         }
         items={items}

@@ -284,10 +284,11 @@ export async function parseOrderFormData(
         prod.id,
         hasTiers ? it.tierId : null,
       );
-      if (configuredPrice == null) {
-        throw new Error(`「${prod.name}」尚未設定此規格的店家進貨價`);
-      }
-      it.unitPrice = it.isGift ? 0 : configuredPrice;
+      // 販售店家可使用所有一般商品；店家專屬進貨價存在時優先使用，
+      // 否則以商品主檔／規格原價建立訂單，折扣由表單的百分比欄位處理。
+      it.unitPrice = it.isGift
+        ? 0
+        : configuredPrice ?? resolveOrderItemUnitPrice(prod, it.tierId || null);
     } else if (
       opts?.catalogPricing &&
       !it.isGift &&

@@ -168,10 +168,9 @@ export async function searchProductsForOrderForm(
 
   if (merchantOrderMode === 'wholesale') {
     const wholesalePrices = await loadMerchantWholesalePrices(merchantId);
-    const configuredProductIds = new Set(wholesalePrices.map((price) => price.productId));
-    return rows
-      .filter((row) => configuredProductIds.has(row.id))
-      .map((row) => toOrderFormProductHit(row, wholesalePrices));
+    // 販售店家可使用所有啟用中的一般商品；有設定店家進貨價時優先使用，
+    // 未設定者由訂單表單回退到商品原價，避免商品因未預先設定而消失。
+    return rows.map((row) => toOrderFormProductHit(row, wholesalePrices));
   }
 
   const rules = await prisma.merchantProductRule.findMany({

@@ -86,13 +86,16 @@ export async function loadMerchantProductListRows(merchantId: string) {
     ]),
   ];
 
-  const products =
-    productIds.length === 0
-      ? []
-      : await prisma.product.findMany({
-          where: { id: { in: productIds } },
-          select: productSelect,
-        });
+  const products = await prisma.product.findMany({
+    where: {
+      status: 'active',
+      OR: [
+        { productCategory: 'STANDARD' },
+        ...(productIds.length > 0 ? [{ id: { in: productIds } }] : []),
+      ],
+    },
+    select: productSelect,
+  });
 
   const productById = new Map(products.map((p) => [p.id, p]));
   const stockRows = merchant.stocks.map((s) => ({
@@ -183,6 +186,33 @@ export async function loadMerchantProductListRows(merchantId: string) {
         programLabel: productProgramLabel(product.productCategory),
       });
     }
+  }
+
+  // 一般商品即使尚未進貨或建立規則，也要顯示在店家商品清單，
+  // 讓販售／寄賣店家可以直接套用所有一般商品。換罐商品不走這個預設集合。
+  for (const product of products) {
+    if (product.productCategory !== 'STANDARD' || rows.has(product.id)) continue;
+    const tiers = toMerchantProductTierOptions(product.priceTiers);
+    const built = buildMerchantProductTierStocks(product.id, tiers, stockRows);
+    rows.set(product.id, {
+      productId: product.productId,
+      productName: product.name,
+      sku: product.sku,
+      productInternalId: product.id,
+      quantity: built.totalQuantity,
+      suggestedPrice: tiers[0]?.price ?? null,
+      commissionMode: null,
+      commissionValue: null,
+      commissionPerUnit: null,
+      companyRevenuePerUnit: null,
+      ruleId: null,
+      lastRestockAt: null,
+      multiWeightTiers: isMultiWeightProduct(tiers),
+      priceTiers: tiers,
+      tierStocks: built.tierStocks,
+      productCategory: product.productCategory,
+      programLabel: null,
+    });
   }
 
   return {

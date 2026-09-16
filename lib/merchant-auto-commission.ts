@@ -75,29 +75,13 @@ export async function upsertSuggestedMerchantRule(
   });
 }
 
-/** 針對某店所有有庫存／已有規則的商品，依品名覆寫分潤 */
+/** 針對某店所有啟用中的一般商品，依品名覆寫分潤。換罐商品維持獨立流程。 */
 export async function autoFillMerchantCommissionRulesForMerchant(
   db: Db,
   merchantId: string,
 ) {
-  const [stocks, rules] = await Promise.all([
-    db.merchantStock.findMany({
-      where: { merchantId },
-      select: { productId: true },
-      distinct: ['productId'],
-    }),
-    db.merchantProductRule.findMany({
-      where: { merchantId },
-      select: { productId: true },
-    }),
-  ]);
-  const productIds = [
-    ...new Set([...stocks.map((s) => s.productId), ...rules.map((r) => r.productId)]),
-  ];
-  if (productIds.length === 0) return { updated: 0 };
-
   const products = await db.product.findMany({
-    where: { id: { in: productIds } },
+    where: { status: 'active', productCategory: 'STANDARD' },
     include: { priceTiers: { orderBy: { price: 'asc' }, take: 1 } },
   });
 
