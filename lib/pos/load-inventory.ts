@@ -1,3 +1,4 @@
+import type { RestockTier } from '@/lib/restock-request/variant';
 import { prisma } from '@/lib/prisma';
 import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
@@ -6,6 +7,7 @@ import { productProgramLabel } from '@/lib/product-category';
 
 export type InventoryProduct = {
   productId: string;
+  priceTiers: RestockTier[];
   name: string;
   sku: string;
   sourceSku: string | null;
@@ -35,6 +37,7 @@ export async function loadMerchantInventory(
         style: true,
         imageUrl: true,
         productCategory: true,
+        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
       },
       orderBy: { name: 'asc' },
     }),
@@ -60,6 +63,7 @@ export async function loadMerchantInventory(
       const quantity = qtyByProduct.get(product.id) ?? 0;
       return {
         productId: product.id,
+        priceTiers: product.priceTiers,
         name: product.name,
         sku: product.sku,
         sourceSku: product.sourceSku,

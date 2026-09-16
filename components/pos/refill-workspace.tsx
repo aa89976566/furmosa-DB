@@ -342,7 +342,7 @@ export function RefillWorkspace({
   rewardPolicy: RefillRewardPolicy;
 }) {
   return (
-    <RestockCartProvider>
+    <RestockCartProvider merchantId={account.merchantId}>
       <RefillWorkspaceInner
         account={account}
         initialOrders={initialOrders}

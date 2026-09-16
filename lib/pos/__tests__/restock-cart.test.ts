@@ -44,3 +44,16 @@ describe('restock cart', () => {
     assert.equal(removeRestockCartLine(updated, 'p1').length, 0);
   });
 });
+
+it('keeps two variants separate and edits only the selected variant', async () => {
+  const { restockCartLineKey } = await import('../restock-cart');
+  const base = { productId: 'p', name: '雞肉', imageUrl: null, quantity: 2 };
+  let lines = addRestockCartLine([], { ...base, variantKey: '30g' });
+  lines = addRestockCartLine(lines, { ...base, variantKey: '50g' });
+  lines = addRestockCartLine(lines, { ...base, variantKey: '50g' });
+  assert.deepEqual(lines.map((l) => l.quantity), [2, 4]);
+  const key = restockCartLineKey(lines[1]);
+  lines = setRestockCartQty(lines, key, 6);
+  assert.deepEqual(lines.map((l) => l.quantity), [2, 6]);
+  assert.equal(removeRestockCartLine(lines, key)[0].variantKey, '30g');
+});

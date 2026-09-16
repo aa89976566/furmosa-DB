@@ -57,7 +57,7 @@ export default async function PosHomePage() {
       loadHomeTasks(session.merchantId),
     ]);
     return (
-      <RestockCartProvider>
+      <RestockCartProvider merchantId={account.merchantId}>
         <div className="min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
           <div className="md:flex md:h-full">
             <InventorySideNav account={account} />

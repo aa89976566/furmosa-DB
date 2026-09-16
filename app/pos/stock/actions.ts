@@ -5,7 +5,7 @@ import {
   getAuthenticatedMerchantId,
   requireMerchantSession,
 } from '@/lib/merchant-auth';
-import { submitSelfSelectRestockRequest } from '@/lib/restock-request/service';
+import { submitSelfSelectRestockRequest, assertMerchantRestockSelection } from '@/lib/restock-request/service';
 import { adjustStoreProductQuantity } from '@/lib/pos/adjust-store-stock';
 
 export type InventoryActionResult =
@@ -19,6 +19,7 @@ function toMerchantError(error: unknown): string {
   if (msg.includes('至少選擇') || msg.includes('數量大於')) {
     return '請至少選一個商品。數量需要大於 0。';
   }
+  if (msg.includes('規格') || msg.includes('本店可補貨清單')) return msg;
   if (msg.includes('不能補貨')) return '這項商品目前不能補貨，請聯絡匠寵。';
   if (msg.includes('不存在')) return '有商品找不到了，請重新整理後再試。';
   return '送出失敗，請再試一次。';
@@ -46,11 +47,16 @@ export async function adjustInventoryQuantityAction(
 }
 
 export async function submitInventoryRestockCartAction(
-  items: { productId: string; quantity: number }[],
+  items: { productId: string; quantity: number; variantKey?: string | null; weightGrams?: number | null }[],
+  expectedMerchantId: string,
 ): Promise<InventoryActionResult> {
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
+  if (expectedMerchantId !== merchantId) {
+    return { ok: false, error: '登入分店已變更，請重新整理並確認補貨單' };
+  }
   try {
+    await assertMerchantRestockSelection(merchantId, items.map((item) => item.productId));
     const req = await submitSelfSelectRestockRequest({
       merchantId,
       merchantUserId: session.merchantUserId,

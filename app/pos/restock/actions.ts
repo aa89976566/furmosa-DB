@@ -9,6 +9,7 @@ import {
 } from '@/lib/merchant-auth';
 import {
   submitAutoReplenishRestockRequest,
+  assertMerchantRestockSelection,
   submitSelfSelectRestockRequest,
 } from '@/lib/restock-request/service';
 
@@ -31,6 +32,7 @@ function toMerchantError(e: unknown): string {
   if (msg.includes('不存在')) {
     return '有商品找不到了，請重新整理後再試。';
   }
+  if (msg.includes('本店可補貨清單')) return msg;
   if (msg.includes('規格') || msg.includes('請選擇具體規格')) {
     return msg; // 規格驗證錯誤直接呈現給使用者
   }
@@ -43,6 +45,10 @@ export async function submitSelfSelectRestockAction(
 ): Promise<PosRestockFormState> {
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();
+
+  if (String(formData.get('expectedMerchantId') ?? '') !== merchantId) {
+    return { error: '登入分店已變更，請重新整理並確認補貨單' };
+  }
 
   const productIds = formData.getAll('productId').map(String);
   const quantities = formData.getAll('quantity').map(String);
@@ -60,6 +66,7 @@ export async function submitSelfSelectRestockAction(
     .filter((it) => it.productId);
 
   try {
+    await assertMerchantRestockSelection(merchantId, items.map((item) => item.productId));
     const req = await submitSelfSelectRestockRequest({
       merchantId,
       merchantUserId: session.merchantUserId,
