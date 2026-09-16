@@ -30,11 +30,11 @@ test('審核結果保持可見，稽核紀錄更新不會重建表單', () => {
   assert.ok(formSource.indexOf('role="status"') < formSource.indexOf('<Actions status={status}'));
 });
 
-test('Shopify 訂單只提供來源審核按鈕，並刷新待審核清單', () => {
+test('Shopify 訂單先完成來源審核，READY 後才提供建立出貨單', () => {
   for (const action of ['check', 'approve']) {
     assert.match(formSource, new RegExp(`type="submit" name="action" value="${action}"`));
   }
-  assert.doesNotMatch(formSource, /type="submit" name="action" value="ship"/);
+  assert.match(formSource, /status === 'READY'.*type="submit" name="action" value="ship"/s);
   assert.match(formSource, /以 Shopify 訂單為準/);
   assert.match(actionSource, /'\/reviews'/);
 });

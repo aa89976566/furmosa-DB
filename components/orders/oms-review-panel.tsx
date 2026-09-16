@@ -41,7 +41,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
       {status === 'READY' ? <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm">
         <p className="font-semibold text-success">訂單已確認</p>
-        <p className="mt-1 text-muted-foreground">商品與配送內容維持以 Shopify 訂單為準。</p>
+        <p className="mt-1 text-muted-foreground">商品與配送內容維持以 Shopify 訂單為準。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
     <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={status}
