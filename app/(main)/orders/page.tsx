@@ -20,7 +20,7 @@ import { Plus } from 'lucide-react';
 import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
-type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; work?: string; deleted?: string };
+type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; work?: string; deleted?: string; archived?: string };
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,6 +36,7 @@ function OrdersTotalsFallback() {
 }
 
 function activeWorkFilter(searchParams: SearchParams) {
+  if (searchParams.archived === 'true') return 'history';
   if ((searchParams.q ?? '').trim()) return 'all';
   if (searchParams.deleted === 'true') return 'all';
   if (searchParams.work) return searchParams.work;
@@ -47,14 +48,15 @@ function activeWorkFilter(searchParams: SearchParams) {
 }
 
 async function OrdersWorkSummary({ active }: { active: string }) {
-  const [summary] = await prisma.$queryRaw<Array<{ all_orders: bigint; now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint }>>`
+  const [summary] = await prisma.$queryRaw<Array<{ all_orders: bigint; now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint; history: bigint }>>`
     SELECT
-      COUNT(*) AS all_orders,
-      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" IN ('paid', 'cod')) AS now,
-      COUNT(*) FILTER (WHERE oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" NOT IN ('paid', 'cod')) AS waiting,
-      COUNT(*) FILTER (WHERE oms_status = 'READY') AS ready,
-      COUNT(*) FILTER (WHERE oms_status = 'FULFILLMENT_PENDING') AS shipping,
-      COUNT(*) FILTER (WHERE oms_status = 'FULFILLED') AS done
+      COUNT(*) FILTER (WHERE archived_at IS NULL) AS all_orders,
+      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" IN ('paid', 'cod')) AS now,
+      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" NOT IN ('paid', 'cod')) AS waiting,
+      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status = 'READY') AS ready,
+      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status = 'FULFILLMENT_PENDING') AS shipping,
+      COUNT(*) FILTER (WHERE oms_status = 'FULFILLED' AND archived_at IS NULL) AS done,
+      COUNT(*) FILTER (WHERE archived_at IS NOT NULL) AS history
     FROM "Order"
     WHERE deleted_at IS NULL
   `;
@@ -65,10 +67,11 @@ async function OrdersWorkSummary({ active }: { active: string }) {
     { key: 'ready', label: '可出貨', count: Number(summary?.ready ?? 0), help: '建立物流單' },
     { key: 'shipping', label: '待交寄', count: Number(summary?.shipping ?? 0), help: '物流單已建立' },
     { key: 'done', label: '已完成', count: Number(summary?.done ?? 0) },
+    { key: 'history', label: '歷史訂單', count: Number(summary?.history ?? 0) },
   ];
   return <nav aria-label="訂單工作階段">
     <div className="flex flex-wrap gap-2">
-      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border px-2.5 text-sm font-medium transition sm:gap-2 sm:px-3.5 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
+      {cards.map(card => <Link key={card.key} href={card.key === 'history' ? '/orders?archived=true' : `/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border px-2.5 text-sm font-medium transition sm:gap-2 sm:px-3.5 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
         <span>{card.label}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
       </Link>)}
     </div>
@@ -84,12 +87,14 @@ async function OrdersTableSection({
   const isSearching = q.length > 0;
   const activeWork = activeWorkFilter(searchParams);
   const where: Record<string, unknown> = { AND: [
-    isSearching
+    searchParams.archived === 'true'
+      ? { deletedAt: null, archivedAt: { not: null } }
+      : isSearching
       ? workbenchVisibleWhere
       : searchParams.deleted === 'true'
         ? { deletedAt: { not: null } }
         : workbenchVisibleWhere,
-    isSearching || activeWork === 'all' ? {} : orderWorkWhere(activeWork),
+    searchParams.archived === 'true' || isSearching || activeWork === 'all' ? {} : orderWorkWhere(activeWork),
   ] };
   const sourceFilter =
     searchParams.source === 'restock' ? 'consignment' : searchParams.source;
@@ -136,7 +141,7 @@ async function OrdersTableSection({
     source: searchParams.source,
     status: searchParams.status,
     q: searchParams.q,
-    work: activeWork, deleted: searchParams.deleted,
+    work: activeWork, deleted: searchParams.deleted, archived: searchParams.archived,
   };
 
   return (
@@ -216,6 +221,7 @@ export default async function OrdersPage(
           </details>
         </div>
         {searchParams.deleted === 'true' ? <p className="text-sm">目前顯示已移出的訂單 · <Link className="underline" href="/orders">返回一般清單</Link></p> : null}
+        {searchParams.archived === 'true' ? <p className="text-sm">目前顯示歷史訂單；原始金額、付款與出貨資料均保留。 · <Link className="underline" href="/orders">返回工作清單</Link></p> : null}
 
         <Suspense
           key={JSON.stringify(searchParams)}

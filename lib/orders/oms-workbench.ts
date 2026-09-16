@@ -40,11 +40,13 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
 /** Every enrolled order stays visible, including cancelled/refunded exceptions. Legacy behavior is unchanged. */
 export const workbenchVisibleWhere: Prisma.OrderWhereInput = {
   deletedAt: null,
+  archivedAt: null,
   OR: [{ omsStatus: { not: null } }, { AND: [{ omsStatus: null }, activeOrderWhere] }],
 };
 /** Conservative problem bucket includes warnings and incomplete checks, not only red blockers. */
 export const omsProblemsWhere: Prisma.OrderWhereInput = {
   deletedAt: null,
+  archivedAt: null,
   omsStatus: { not: null },
   OR: [ { omsCheckedAt: null }, { omsIssueFlags: { equals: Prisma.DbNull } },
     { omsIssueFlags: { equals: Prisma.JsonNull } }, { NOT: { omsIssueFlags: { equals: [] } } } ],

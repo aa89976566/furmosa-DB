@@ -42,21 +42,27 @@ export const ORDER_LIST_INCLUDE = {
   },
 } as const;
 
-/** 已退貨或已取消 → 歷史訂單 */
+/** 已封存、已退貨或已取消 → 歷史訂單 */
 export function isHistoricalOrder(order: {
   status: string;
   fulfillmentStatus: string;
+  archivedAt?: Date | null;
 }) {
-  return order.fulfillmentStatus === 'returned' || order.status === 'cancelled';
+  return Boolean(order.archivedAt) || order.fulfillmentStatus === 'returned' || order.status === 'cancelled';
 }
 
 export const historicalOrderWhere = {
   deletedAt: null,
-  OR: [{ fulfillmentStatus: 'returned' as const }, { status: 'cancelled' as const }],
+  OR: [
+    { archivedAt: { not: null } },
+    { fulfillmentStatus: 'returned' as const },
+    { status: 'cancelled' as const },
+  ],
 };
 
 export const activeOrderWhere = {
   deletedAt: null,
+  archivedAt: null,
   fulfillmentStatus: { not: 'returned' as const },
   status: { not: 'cancelled' as const },
 };

@@ -59,6 +59,7 @@ import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { OMS_LABELS } from '@/lib/orders/oms';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
+import { OrderArchiveForm } from '@/components/orders/order-archive-form';
 import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
 
 export const dynamic = 'force-dynamic';
@@ -143,11 +144,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         </div>
       </header>
       <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+        {order.archivedAt ? <p className="rounded-lg border bg-muted/40 p-3 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p> : null}
         {order.deletedAt ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">此訂單已從 HQ 刪除，不會進入待審核或出貨流程。</p> : null}
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="min-w-0 space-y-4">
-            {!order.deletedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單已刪除，審核表單已停用。</div>}
+            {!order.deletedAt && !order.archivedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單目前不在待審核流程。</div>}
             <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
               <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
               {order.shipments.length > 0 ? (
@@ -188,6 +190,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               </div>
             </section>
             <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
+            {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
           </aside>
         </div>
       </main>
@@ -229,6 +232,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       />
 
       <div className="flex flex-col gap-6 p-6">
+        {order.archivedAt && <p className="rounded border bg-muted/40 p-4 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p>}
         {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
 
         <SectionCard tone="logistics" icon={Truck} title="1. 店家與配送資料">
@@ -303,6 +307,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </div>
           )}
         </section>
+        {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && (!order.omsStatus || ['NEW', 'REVIEW'].includes(order.omsStatus)))) ? <div className="ml-auto w-full max-w-sm"><OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /></div> : null}
         {order.omsStatus && <div className="ml-auto max-w-sm"><OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} /></div>}
         <SecondaryInformation>
         <HorizontalSectionBand>

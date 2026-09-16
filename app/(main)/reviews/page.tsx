@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
 import { loadReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
+import { ArchiveOlderOrdersForm } from '@/components/orders/archive-older-orders-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +22,14 @@ export default async function ReviewInboxPage() {
       />
       <div className="space-y-6 p-6">
         <Card>
-          <CardContent className="flex flex-wrap gap-4 p-4 text-sm">
+          <CardContent className="flex flex-wrap items-center gap-4 p-4 text-sm">
             <div>
               全部待審核 <span className="font-semibold">{total}</span>
             </div>
             <div className="text-muted-foreground">訂單 {counts.shopify_order}</div>
             <div className="text-muted-foreground">UGC 審核 {counts.ugc}</div>
             <div className="text-muted-foreground">補貨申請 {counts.restock}</div>
+            <div className="w-full border-t pt-3"><ArchiveOlderOrdersForm /></div>
           </CardContent>
         </Card>
 

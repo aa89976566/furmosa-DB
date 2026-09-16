@@ -92,6 +92,7 @@ model User {
   partnerStoreDecisionsDecided PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityDecidedBy")
   partnerStoreDecisionsRevoked PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
   omsReviewedOrders  Order[]                @relation("OmsReviewedBy")
+  archivedOrders     Order[]                @relation("OrderArchivedBy")
 }
 
 model UserPushSubscription {
@@ -1055,6 +1056,8 @@ model Order {
   shopifyLastEventId String?   @map("shopify_last_event_id")
   omsReviewedById   String?    @map("oms_reviewed_by_id")
   omsReviewedAt     DateTime?  @map("oms_reviewed_at")
+  archivedAt        DateTime?  @map("archived_at")
+  archivedById      String?    @map("archived_by_id")
   deletedAt         DateTime?  @map("deleted_at")
   deletedById       String?    @map("deleted_by_id")
   deletionReason    String?    @map("deletion_reason")
@@ -1085,6 +1088,7 @@ model Order {
 
   customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
   omsReviewedBy     User?              @relation("OmsReviewedBy", fields: [omsReviewedById], references: [id], onDelete: SetNull)
+  archivedBy        User?              @relation("OrderArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
   merchant          Merchant?          @relation(fields: [merchantId], references: [id], onDelete: SetNull)
   subscription      Subscription?      @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   items             OrderItem[]
@@ -1102,6 +1106,8 @@ model Order {
   @@unique([externalStore, externalOrderId])
   @@index([omsStatus, orderedAt])
   @@index([omsReviewedById])
+  @@index([archivedAt])
+  @@index([archivedById])
 }
 
 model OrderItem {
