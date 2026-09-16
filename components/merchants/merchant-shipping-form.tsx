@@ -64,7 +64,7 @@ export function MerchantShippingForm({
       <input type="hidden" name="preferredCarrier" value={carrier} />
 
       <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">預設物流</p>
+        <p className="text-xs font-medium text-muted-foreground">預設物流（進貨時先選用）</p>
         <div className="inline-flex flex-wrap rounded-lg border border-border/70 bg-muted/40 p-0.5">
           {(
             [
@@ -152,8 +152,8 @@ export function MerchantShippingForm({
         </div>
       </div>
 
-      {carrier === CARRIER_711 && (
-        <MerchantField label="7-11 門市" required hint="進貨時自動帶入">
+      <div className={cn('grid gap-3', !compact && 'sm:grid-cols-2')}>
+        <MerchantField label="7-11 門市" required={carrier === CARRIER_711} hint="進貨時自動帶入">
           <Input
             name="pickupStoreName"
             defaultValue={merchant.pickupStoreName ?? ''}
@@ -163,45 +163,22 @@ export function MerchantShippingForm({
             className="h-9"
           />
         </MerchantField>
-      )}
-
-      {carrier === '黑貓' && (
-        <MerchantField label="黑貓收件地址" hint="進貨時自動帶入">
+        <MerchantField
+          label="到府／黑貓地址"
+          required={carrier === '黑貓' || carrier === '送貨'}
+          hint="進貨時自動帶入"
+        >
           <textarea
             name="address"
             defaultValue={merchant.address ?? ''}
             rows={compact ? 2 : 3}
             maxLength={300}
+            required={carrier === '黑貓' || carrier === '送貨'}
             placeholder="例：新北市淡水區復興路 100 號"
             className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </MerchantField>
-      )}
-
-      {carrier === '送貨' && (
-        <MerchantField label="送貨地址" hint="新增訂單選送貨時自動帶入">
-          <textarea
-            name="address"
-            defaultValue={merchant.address ?? ''}
-            rows={compact ? 2 : 3}
-            maxLength={300}
-            placeholder="例：新北市淡水區…"
-            className="block w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </MerchantField>
-      )}
-
-      {carrier === '' && (
-        <MerchantField label="備用地址（選填）">
-          <Input
-            name="address"
-            defaultValue={merchant.address ?? ''}
-            maxLength={300}
-            placeholder="尚未指定物流時可先填"
-            className="h-9"
-          />
-        </MerchantField>
-      )}
+      </div>
 
       <MerchantFormActions className="border-t-0 pt-0">
         <Button type="submit" size="sm">

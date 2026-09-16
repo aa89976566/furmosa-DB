@@ -188,10 +188,10 @@ export async function updateMerchantShipping(formData: FormData) {
 
   if (preferredCarrier === CARRIER_711) {
     if (!pickupStoreName) throw new Error('請填寫 7-11 門市名稱');
-    address = null;
   } else if (preferredCarrier === '黑貓') {
-    pickupStoreName = null;
     if (!address) throw new Error('請填寫黑貓收件地址');
+  } else if (preferredCarrier === '送貨') {
+    if (!address) throw new Error('請填寫送貨地址');
   }
 
   await prisma.$executeRaw`
