@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
+import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import {
   ArrowLeft,
   Package,
@@ -63,7 +64,19 @@ export default async function ShipmentDetailPage(
       customer: true,
       order: true,
       subscriptionShipment: { include: { subscription: { include: { plan: true } } } },
-      items: { include: { product: true } },
+      items: {
+        include: {
+          product: {
+            include: {
+              priceTiers: true,
+              inventoryBalances: {
+                where: { warehouse: { code: 'WH-MAIN' } },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
     },
   });
   if (!shipment) notFound();
@@ -88,6 +101,7 @@ export default async function ShipmentDetailPage(
     recipientAddress: shipment.recipientAddress,
     merchant: shipment.merchant,
   });
+  const inventoryWarnings = shipmentInventoryAdvisories(shipment.items);
 
   // 運輸人員需要的收款資訊：是否要當面跟客戶收錢
   const order = shipment.order;
@@ -476,6 +490,7 @@ export default async function ShipmentDetailPage(
               defaultPickupStore={shipCarrierDefaults.pickupStore}
               defaultPickupName={shipCarrierDefaults.pickupName}
               defaultPickupPhone={shipCarrierDefaults.pickupPhone}
+              inventoryWarnings={inventoryWarnings}
             />
           </SectionCard>
         )}
