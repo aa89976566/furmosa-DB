@@ -1,151 +1,97 @@
-# 上線指南 — Supabase Postgres + Vercel
+# 正式發布指南 — Railway + Supabase + Vercel Preview
 
-照這份做完，你會拿到 `https://furmosa-hq.vercel.app`（或自訂網域）並有真實資料可登入。
-預估 30–60 分鐘。
+本文件是正式發布的唯一操作入口。舊的「Vercel Production 自動跑 migration」流程已停用。
 
----
+## 平台責任
 
-## Step 1 — 在 Supabase 建專案（5 分）
+| 平台 | 唯一責任 | 禁止事項 |
+|---|---|---|
+| GitHub | 原始碼、CI、受控 Release 與稽核紀錄 | 不得略過 exact SHA 與 CI |
+| Railway | 唯一 Production，從 `main` 自動部署 | 不得部署落後 main 的分支 |
+| Supabase | Production PostgreSQL | 不得由 build/start 自動改 schema |
+| Vercel | Pull Request Preview | 不得視為 Production；不得連正式 DB |
 
-1. 前往 https://supabase.com → **Start your project** → 用 GitHub 登入
-2. **New project**
-   - Name：`furmosa-hq`
-   - Region：選 `Northeast Asia (Tokyo)`（距台灣最近）
-   - DB Password：**設一個你會記得的強密碼**（之後會用到）
-3. 等 1–2 分鐘專案建好。
-4. 左側 **Project Settings → Database → Connection string** 找兩條：
+Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
 
-   - **Connection pooling**（Transaction mode）→ port `6543` → 這是 `DATABASE_URL`
-   - **Direct connection**（Session mode）→ port `5432` → 這是 `DIRECT_URL`
+## 「部署」的固定意義
 
-   兩條的 `[YOUR-PASSWORD]` 換成你剛才設的密碼。
-   `DATABASE_URL` 結尾要加 `?pgbouncer=true&connection_limit=5&pool_timeout=20`。
-   （勿用 `connection_limit=1`：儀表板／列表會並行查詢，太緊會 pool timeout 再重試，點一下可卡約 10 秒。）
+使用者說「部署」，代表執行 GitHub Actions 的 **Deploy Production**，並提供：
 
----
+1. 開啟且 base 為 `main` 的 PR 編號。
+2. 該 PR 當下完整 40 字元 head SHA。
+3. 已核准的 migration plan；沒有 DB 變更時選 `none`。
 
-## Step 2 — 本機切到 Supabase，跑第一次 migration（10 分）
+工作流程依序執行：
 
-> 從這一步開始，本機開發也會直接連 Supabase 雲端資料庫。
+1. 核對 PR、exact head SHA、非 Draft。
+2. 核對同一 SHA 的 `verify` CI 成功。
+3. 核對 PR migration 路徑與所選 plan 完全相容。
+4. 進入 GitHub `production` Environment approval。
+5. 執行限定 migration runner；不執行全量待辦 migration。
+6. 用正式 DB 做唯讀 HQ 密碼、訂單查詢與出貨查詢檢查。
+7. squash merge exact PR head。
+8. 等待 GitHub commit status 中 Railway 對同一 merge commit 回報成功。
+9. 對 Railway 正式網址執行公開唯讀 smoke。
+10. 再執行一次正式 DB 唯讀檢查。
+11. 寫入 GitHub Job Summary，並保存 90 天 JSON release artifact。
 
-1. 編輯 `.env`（不要 commit！），貼入上面兩條 URL：
+任一步驟失敗就停止。migration 失敗發生在 merge 前，不會部署新版；Railway build／healthcheck 失敗時上一版繼續服務。部署後 smoke 失敗時工作流程標示失敗，依該次 artifact 與 Railway 上一個成功 deployment 人工 rollback，不做無限自動重試。
 
-   ```env
-   DATABASE_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&pool_timeout=20"
-   DIRECT_URL="postgresql://postgres.xxx:PASSWORD@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres"
-   AUTH_SECRET="$(openssl rand -base64 32)"
-   ```
+## GitHub 一次性設定
 
-   `AUTH_SECRET` 直接用上面那段 `$(openssl …)` 在 shell 跑出來貼進去。
+Repository → Settings → Environments 建立 `production`：
 
-2. 產生第一份 migration 並推到 Supabase：
+- 啟用 Required reviewers。
+- Deployment branches 僅允許 `main`。
+- Environment variables：
+  - `PRODUCTION_ORIGIN=https://furmosa-hq-production.up.railway.app`
+  - `RAILWAY_STATUS_CONTEXT=furmosa-hq - furmosa-hq`
+- Environment secrets：
+  - `PRODUCTION_DATABASE_URL`：Supabase direct/session PostgreSQL URL，只供 migration/readiness。
+  - `PRODUCTION_SMOKE_HQ_EMAIL`：既有、最低必要權限的 HQ 驗證帳號。
+  - `PRODUCTION_SMOKE_HQ_PASSWORD`：上述帳號密碼。
 
-   ```bash
-   rm -f prisma/dev.db prisma/dev.db-journal     # 清掉舊的 SQLite
-   npx prisma migrate dev --name init            # 會在 prisma/migrations/ 建出 SQL
-   ```
+Secrets 不得放在 Repository variables、程式碼、PR、log 或 artifact。Smoke 帳號不得是新建的示範帳號，也不得用於寫入業務資料。
 
-   完成後 Supabase 的所有 table 都會建好（你可以到 Supabase Dashboard 的
-   **Table Editor** 看到 `User / Vendor / Product / Order …`）。
+Repository → Settings → Actions → General：
 
-3. 灌種子資料 + 真實資料：
+- Workflow permissions 允許 GitHub Actions 建立 PR merge commit。
+- `main` branch rules 要求 `verify` 通過。
+- Railway GitHub integration 保持對 `main` 自動部署與 wait for CI checks。
 
-   ```bash
-   npm run prisma:seed       # 建 4 個登入帳號 + 訂閱方案 + 倉庫 + 示範資料
-   npm run db:import         # 從你 Downloads 的 CSV / 截圖灌真實廠商/商品/訂單
-   ```
+## Migration plan 規則
 
-4. 確認沒問題 — `npm run dev` 開到 `http://localhost:3000` 用
-   `admin@furmosa.com / furmosa2026` 登入，看資料是否齊全。
+可選 plan 定義在 `scripts/release/release-plans.mjs`，workflow choice 必須同步列出同名 plan。每個 plan 明列唯一 runner、允許修改的 migration 目錄及 PR 必須包含的檔案。
 
-5. **重要**：把 `prisma/migrations/` **加入 git** 並 commit：
+目前 plan：
 
-   ```bash
-   git add prisma/migrations package.json .env.example
-   git commit -m "feat: switch to postgres for production"
-   git push
-   ```
+- `none`：PR 不得修改 `prisma/migrations/**`。
+- `hq_inventory_advisory_20260917`：只執行 `scripts/ops/deploy-hq-bulk.mjs`，限定 HQ bulk inventory 兩份 migration 與已核准六筆盤點。
 
----
+新增 migration 時先建立新的 plan 與冪等／交易式 runner，通過 review 後才可提供 Production 使用。不得把 `prisma migrate deploy` 無條件用在目前正式庫，也不得把 migration 塞進 `npm run build`。
 
-## Step 3 — 推 GitHub（如果還沒）
+## 使用方式
 
-```bash
-gh repo create furmosa-hq --private --source=. --push
-# 或在 github.com 手動建 repo 後：
-# git remote add origin <repo url>
-# git push -u origin main
-```
+GitHub → Actions → **Deploy Production** → Run workflow：
 
----
+- `pr_number`：例如 `253`
+- `expected_head_sha`：完整 40 字元 SHA
+- `migration_plan`：依 PR 選擇
 
-## Step 4 — 部署到 Vercel（10 分）
+一般使用者只需要說「部署」。執行者負責解析目前核准的 PR 與 head SHA，不能猜測或自動改選 migration plan。
 
-1. https://vercel.com → **Add New → Project** → 選你的 GitHub repo
-2. **Framework Preset** 會自動偵測為 Next.js。**先不要按 Deploy。**
-3. 展開 **Environment Variables**，加入：
+## 驗證範圍
 
-   | Name | Value |
-   |---|---|
-   | `DATABASE_URL` | 6543 的 pooled URL，**結尾加** `?pgbouncer=true&connection_limit=10&pool_timeout=20`（dashboard 一次發多個 query，太緊會 timeout） |
-   | `DIRECT_URL` | 5432 的 direct URL |
-   | `AUTH_SECRET` | 用 `openssl rand -base64 32` 產一條 **新的**（**不要**和本機共用） |
-   | `HQ_SESSION_DAYS` | `180`（同一網域、同一裝置保持 HQ 登入） |
-   | `SESSION_HOURS` | `168` |
-   | `JIBA_TRANSFER_BANK_NAME` | Production 收款銀行名稱（Preview／本機用 placeholder） |
-   | `JIBA_TRANSFER_BANK_CODE` | Production 銀行代碼 |
-   | `JIBA_TRANSFER_ACCOUNT` | Production 收款帳號（**不要**寫進 Git） |
+公開 HTTP smoke 固定檢查 `/api/health`、HQ／POS 登入頁、未登入 redirect gate 與 merchant API 未授權回應。正式 DB readiness 固定驗證 HQ 密碼 hash、訂單唯讀查詢及出貨唯讀查詢。
 
-4. 按 **Deploy**。Vercel 會跑：
+流程不寄出訂單、不變更狀態、不呼叫物流／付款／webhook、不執行 cron，也不輸出客戶資料、帳號、密碼或資料庫 URL。
 
-   ```
-   npm install
-     → postinstall: prisma generate
-   npm run build
-     → prisma generate && prisma migrate deploy && next build
-   ```
+## 初次導入注意
 
-   `migrate deploy` 會把 `prisma/migrations/` 內所有 SQL **冪等套用**到雲端 DB。
+`Deploy Production` workflow 必須先存在於 default branch 才能從 GitHub UI 執行。因此導入這套流程的第一個 PR 必須依舊有安全人工檢查與合併；自下一個 Release 起一律使用 workflow。Release controller（workflow、`scripts/release/**`、Vercel Preview gate）需用獨立 PR 更新，不能與一般產品 Release 同一批自我修改後立即執行。
 
-5. 完成後得到 `https://furmosa-hq.vercel.app`，用一樣的帳號登入。
+## 回復
 
----
-
-## Step 5 — 第一次上線後的安全清單（5 分）
-
-- [ ] **改掉預設密碼**：4 個系統帳號（admin / finance / ops / wh）目前都是
-      `furmosa2026`。請從 UI 改密碼（或寫一支 admin 工具）。
-- [ ] **AUTH_SECRET 用過就不要再貼到別處**（GitHub、Slack…）。
-- [ ] **Supabase 啟用每日 backup**：Settings → Database → Backups（Free plan
-      會保留 7 天 PITR）。
-- [ ] **Vercel 加自訂網域**（可選）：Settings → Domains。
-
----
-
-## 之後新增 schema 變更怎麼上線？
-
-1. 本機改 `prisma/schema.prisma`
-2. `npx prisma migrate dev --name add_xxx_field`
-   （會在 `prisma/migrations/` 生成新 SQL 並套到本機 Supabase）
-3. `git commit && git push`
-4. Vercel 自動部署，`migrate deploy` 自動把新 SQL 套到 prod
-
-**永遠用 `migrate dev / migrate deploy`，不要再用 `db push`** — 否則 prod
-和 dev 的 schema 會分岔。
-
----
-
-## 故障排解
-
-### `prisma migrate deploy` 在 Vercel 失敗：`Can't reach database server`
-→ `DIRECT_URL` 沒設、或 password 有 `@` `:` 等特殊字元沒 URL-encode。
-
-### Runtime 偶發 `prepared statement already exists`
-→ `DATABASE_URL` 結尾忘了加 `?pgbouncer=true&connection_limit=5&pool_timeout=20`。
-  若仍偶發連線 timeout，勿改回 `connection_limit=1`（會讓導航卡約 10 秒）。
-
-### 改 schema 後 build 報 `column does not exist`
-→ Migration 沒生 / 沒 push。本機跑 `prisma migrate dev` 後務必 `git add prisma/migrations`。
-
-### 想完全重置 prod DB（**會清空所有資料**）
-→ 在 Supabase Dashboard 砍掉所有 table，再下次 deploy 會自動跑 init migration。
+- 程式：從 Railway Deployments 選上一個已記錄的成功 deployment，執行 Rollback。
+- DB：migration 預設採 expand/contract 與相容舊程式設計；不要自動 down migration。需要資料回復時必須另行核准精準 repair plan。
+- 回復後重新執行公開 smoke 與唯讀 DB readiness，並把結果附在事件紀錄。
