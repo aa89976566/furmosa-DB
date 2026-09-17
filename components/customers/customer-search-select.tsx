@@ -176,7 +176,7 @@ export function CustomerSearchSelect({
             </li>
           ) : filtered.length === 0 ? (
             <li className="space-y-2 px-3 py-3 text-center text-xs text-muted-foreground">
-              <div>{onSearch && !query.trim() ? '輸入關鍵字搜尋客戶' : '找不到符合的客戶'}</div>
+              <div>{onSearch && !query.trim() ? '輸入關鍵字搜尋客戶' : '找不到這位客戶'}</div>
               {query.trim() && onCreateNew ? (
                 <button
                   type="button"
@@ -185,7 +185,7 @@ export function CustomerSearchSelect({
                   onClick={() => onCreateNew(query.trim())}
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  新增「{query.trim()}」
+                  建立新客戶
                 </button>
               ) : null}
             </li>
