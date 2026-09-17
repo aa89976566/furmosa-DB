@@ -1,3 +1,5 @@
+import { shopifyRecipientName } from './recipient-name';
+
 /** Safe browser/server projection: never render arbitrary raw snapshot JSON. */
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -29,7 +31,7 @@ export function snapshotView(value: unknown) {
   return {
     name: text(order.name), currency: text(order.currency),
     total: text(order.total_price),
-    recipient: text(shipping.name) || [text(customer.first_name), text(customer.last_name)].filter(Boolean).join(' '),
+    recipient: shopifyRecipientName(value),
     phone: text(shipping.phone) || text(order.phone) || text(customer.phone),
     address: ['zip', 'province', 'city', 'address1', 'address2'].map(key => text(shipping[key])).filter(Boolean).join(' '),
     items: (Array.isArray(order.line_items) ? order.line_items : []).map(value => {
