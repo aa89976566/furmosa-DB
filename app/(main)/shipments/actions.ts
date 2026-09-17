@@ -37,6 +37,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
+import {
+  assertShipmentStatusPersisted,
+  shipmentStatusErrorMessage,
+} from '@/lib/shipment-status-error';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'cancelled'],
@@ -77,8 +81,7 @@ export async function markShipmentStatus(formData: FormData): Promise<void> {
     if (isNextRedirect(error)) throw error;
     console.error('[markShipmentStatus]', error);
     const shipmentId = String(formData.get('shipmentId') ?? '').trim();
-    const message =
-      error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
+    const message = shipmentStatusErrorMessage(error);
     const params = new URLSearchParams();
     params.set('error', message.slice(0, 120));
     if (shipmentId) params.set('s', shipmentId);
@@ -99,9 +102,7 @@ export async function markShipmentStatusFromQueue(
   } catch (error) {
     if (isNextRedirect(error)) throw error;
     console.error('[markShipmentStatusFromQueue]', error);
-    const message =
-      error instanceof Error ? error.message : '更新出貨狀態失敗，請稍後再試';
-    return { ok: false, error: message.slice(0, 120) };
+    return { ok: false, error: shipmentStatusErrorMessage(error) };
   }
 }
 
@@ -343,6 +344,12 @@ async function markShipmentStatusInner(
       }
     }
   });
+
+  const persisted = await prisma.shipment.findUnique({
+    where: { id: shipmentId },
+    select: { status: true },
+  });
+  assertShipmentStatusPersisted(persisted?.status ?? null, next);
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');
