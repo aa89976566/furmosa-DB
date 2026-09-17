@@ -228,7 +228,7 @@ function OrderLineItemsTable({
             const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
             const prod = productMap.get(it.productId);
             const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
-            const hasProduct = Boolean(prod);
+            const hasProduct = Boolean(it.productId && prod);
             const hasSelectedSpec = hasProduct && (!hasTiers || Boolean(it.tierId));
             const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
