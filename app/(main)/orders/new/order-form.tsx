@@ -174,6 +174,10 @@ function OrderLineItemsTable({
   removeItem: (key: string) => void;
 }) {
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
+  const canAddItem = items.every((it) => {
+    const product = productMap.get(it.productId);
+    return Boolean(product && (!product.priceTiers.length || it.tierId) && it.quantity > 0);
+  });
 
   return (
     <section className="space-y-2">
@@ -184,7 +188,14 @@ function OrderLineItemsTable({
             <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
           ) : null}
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={addItem} className="self-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={addItem}
+          disabled={!canAddItem}
+          className="self-end"
+        >
           <Plus className="mr-1 h-4 w-4" />
           新增一筆
         </Button>
@@ -217,6 +228,9 @@ function OrderLineItemsTable({
             const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
             const prod = productMap.get(it.productId);
             const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
+            const hasProduct = Boolean(it.productId && prod);
+            const hasSelectedSpec = hasProduct && (!hasTiers || Boolean(it.tierId));
+            const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
             return (
@@ -235,13 +249,6 @@ function OrderLineItemsTable({
                     onSearch={onSearchProducts}
                     required={rowRequired}
                   />
-                  {prod ? (
-                    <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                      基礎單位：{prod.unit} · 售價 {formatCurrency(prod.price)} · 總部庫存{' '}
-                      {prod.availableStock}
-                      {prod.cost > 0 ? ` · 成本 ${formatCurrency(prod.cost)}` : ''}
-                    </div>
-                  ) : null}
                 </TableCell>
                 <TableCell className="col-span-2 block p-0 md:table-cell md:p-3">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
@@ -250,7 +257,7 @@ function OrderLineItemsTable({
                   <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
-                  {hasTiers ? (
+                  {hasProduct && hasTiers ? (
                     <select
                       value={it.tierId}
                       onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
@@ -263,7 +270,7 @@ function OrderLineItemsTable({
                         </option>
                       ))}
                     </select>
-                  ) : prod ? (
+                  ) : hasProduct ? (
                     <select
                       name="unit"
                       value={it.unit ?? prod.unit}
@@ -289,46 +296,58 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     數量
                   </span>
-                  <Input
-                    name="quantity"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={it.quantity}
-                    onChange={(e) =>
-                      updateItem(it.key, {
-                        quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    required={rowRequired && Boolean(it.productId)}
-                    className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
-                  />
+                  {hasSelectedSpec ? (
+                    <Input
+                      name="quantity"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={it.quantity}
+                      onChange={(e) =>
+                        updateItem(it.key, {
+                          quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      required={rowRequired && Boolean(it.productId)}
+                      className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {hasProduct ? '請先選規格' : '請先選商品'}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="block p-0 align-middle md:table-cell md:p-3">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     單價
                   </span>
-                  <Input
-                    name="unitPrice"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={it.isGift ? 0 : it.unitPrice}
-                    readOnly={it.isGift || unitPriceReadOnly}
-                    onChange={(e) =>
-                      updateItem(it.key, {
-                        unitPrice: Math.max(0, Number(e.target.value) || 0),
-                        retailUnitPrice: Math.max(0, Number(e.target.value) || 0),
-                      })
-                    }
-                    required={rowRequired && Boolean(it.productId) && !it.isGift}
-                    className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
-                  />
-                  {!it.isGift && it.productId && it.unitPrice <= 0 ? (
-                    <p className="mt-1 text-[10px] text-destructive">
-                      商品主檔尚未設定售價
-                    </p>
-                  ) : null}
+                  {hasQuantity ? (
+                    <>
+                      <Input
+                        name="unitPrice"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={it.isGift ? 0 : it.unitPrice}
+                        readOnly={it.isGift || unitPriceReadOnly}
+                        onChange={(e) =>
+                          updateItem(it.key, {
+                            unitPrice: Math.max(0, Number(e.target.value) || 0),
+                            retailUnitPrice: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        required={rowRequired && Boolean(it.productId) && !it.isGift}
+                        className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
+                      />
+                      {!it.isGift && it.unitPrice <= 0 ? (
+                        <p className="mt-1 text-[10px] text-destructive">
+                          商品主檔尚未設定售價
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">完成數量後顯示</span>
+                  )}
                   {it.isGift && it.retailUnitPrice > 0 ? (
                     <p className="mt-0.5 text-[10px] text-muted-foreground line-through">
                       售價 {formatCurrency(it.retailUnitPrice)}
@@ -339,7 +358,9 @@ function OrderLineItemsTable({
                   <span className="text-xs font-medium text-muted-foreground md:hidden">
                     小計
                   </span>
-                  {it.isGift ? (
+                  {!hasQuantity ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  ) : it.isGift ? (
                     <div className="space-y-0.5">
                       <Badge variant="secondary" className="font-normal">
                         贈品
@@ -357,7 +378,7 @@ function OrderLineItemsTable({
                     <input
                       type="checkbox"
                       checked={it.isGift}
-                      disabled={!it.productId}
+                      disabled={!hasQuantity}
                       title="贈品不計入買家應付，計入公司成本"
                       className="h-4 w-4 rounded border-input"
                       onChange={(e) => onToggleGift(it.key, e.target.checked)}
@@ -670,13 +691,16 @@ export function OrderForm({
       });
       return;
     }
-    const pricing = linePricing(p, p.priceTiers[0]?.id ?? '');
+    const hasTiers = p.priceTiers.length > 0;
+    const pricing = linePricing(p, hasTiers ? '' : '');
     const isGift = current?.isGift ?? false;
     updateItem(key, {
       productId,
       ...pricing,
-      unitPrice: isGift ? 0 : pricing.unitPrice,
-      retailUnitPrice: pricing.unitPrice,
+      tierId: hasTiers ? '' : pricing.tierId,
+      unitPrice: hasTiers || isGift ? 0 : pricing.unitPrice,
+      retailUnitPrice: hasTiers ? 0 : pricing.unitPrice,
+      weightGrams: hasTiers ? null : pricing.weightGrams,
     });
     revealThrough(5);
   }
@@ -1104,31 +1128,12 @@ export function OrderForm({
                     </Link>
                   </Button>
                 </div>
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <dt className="text-[11px] text-muted-foreground">合作方式</dt>
-                    <dd className="mt-1 font-medium">{merchantTypeDisplay(selectedMerchant.types)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] text-muted-foreground">聯絡人／電話</dt>
-                    <dd className="mt-1 font-medium">
-                      {[selectedMerchant.contactName, selectedMerchant.phone].filter(Boolean).join(' · ') || '尚未設定'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] text-muted-foreground">預設收件方式</dt>
-                    <dd className="mt-1 font-medium">
-                      {selectedMerchant.preferredCarrier
-                        ? `${selectedMerchant.preferredCarrier}${selectedMerchant.pickupStoreName ? ` · ${selectedMerchant.pickupStoreName}` : ''}`
-                        : selectedMerchant.address || '尚未設定'}
-                    </dd>
-                  </div>
-                </dl>
-                {selectedMerchant.address && selectedMerchant.preferredCarrier ? (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    收件地址：{selectedMerchant.address}
-                  </p>
-                ) : null}
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {merchantTypeDisplay(selectedMerchant.types)} · 已帶入預設收件方式
+                  {selectedMerchant.preferredCarrier
+                    ? `：${selectedMerchant.preferredCarrier}${selectedMerchant.pickupStoreName ? ` ${selectedMerchant.pickupStoreName}` : ''}`
+                    : ''}
+                </p>
               </div>
 
               <label className="mb-2 block border-t pt-4 text-sm font-medium">
@@ -1174,12 +1179,12 @@ export function OrderForm({
         title="④ 要加入哪些商品？"
         hint={
           orderType === 'customer'
-            ? '顯示上架中的一般商品；庫存數量會標示在商品旁。'
+            ? '選商品、規格和數量'
             : merchantOrderMode === 'jar_exchange'
-              ? '只顯示換罐計畫商品；本張補貨單不計營收。'
+              ? '只能選換罐計畫商品'
               : merchantOrderMode === 'wholesale'
-                ? '顯示所有一般商品；有設定店家進貨價時優先帶入，否則使用商品原價。'
-                : '只顯示一般商品；寄賣補貨於售出後再對帳。'
+                ? '可選所有一般商品'
+                : '可選所有一般商品'
         }
         items={items}
         products={visibleProducts}
@@ -1198,7 +1203,7 @@ export function OrderForm({
 
       {/* Step 4: 金額 + 出貨資訊 */}
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="text-sm font-medium">⑤ 運費由誰負擔？</div>
+        <div className="text-sm font-medium">⑤ 運費與付款</div>
 
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1230,7 +1235,7 @@ export function OrderForm({
         </FieldInline>
 
         {/* 付款狀態 */}
-        {revealedStep >= 6 ? <FieldInline label="⑥ 目前付款狀態是什麼？">
+        {revealedStep >= 6 ? <FieldInline label="付款方式">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <PayCard
               active={paymentStatus === 'unpaid'}
@@ -1280,55 +1285,37 @@ export function OrderForm({
           </p>
         ) : null}
 
-        {revealedStep >= 7 ? <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-          <Stat
-            label={orderType === 'merchant' && merchantOrderMode === 'consignment'
-              ? '寄賣參考貨值（非業績）'
-              : orderType === 'merchant' && merchantOrderMode === 'jar_exchange'
-                ? '換罐商品金額'
-                : '商品銷售小計'}
-            value={formatCurrency(
-              orderType === 'merchant' && merchantOrderMode !== 'wholesale'
-                ? referenceMerchandiseValue
-                : subtotal,
-            )}
-          />
-          <FieldInline label="折扣">
+        {revealedStep >= 7 ? <>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Stat
+              label="商品金額"
+              value={formatCurrency(
+                orderType === 'merchant' && merchantOrderMode !== 'wholesale'
+                  ? referenceMerchandiseValue
+                  : subtotal,
+              )}
+            />
+            <FieldInline label="店家折扣">
             <OrderDiscountField
               subtotal={subtotal}
               discount={discount}
               onDiscountChange={setDiscount}
             />
-          </FieldInline>
-          <FieldInline label="運費試算">
-            <div className="space-y-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-              <p className="text-xs text-muted-foreground">
-                {shippingMethodLabel({ shippingMethod, cvsBrand })}
-              </p>
-              <p className="font-mono tabular-nums">
-                買家運費 {formatCurrency(shippingResolved.shippingFee)}
-              </p>
+            </FieldInline>
+            <Stat label="應收金額" value={formatCurrency(total)} highlight />
+          </div>
+          <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">查看金額明細</summary>
+            <div className="mt-3 grid gap-2 text-muted-foreground sm:grid-cols-3">
+              <span>{shippingMethodLabel({ shippingMethod, cvsBrand })}：{formatCurrency(shippingResolved.shippingFee)}</span>
+              <span>已收：{collection.receivedAmount == null ? '尚未登記' : formatCurrency(collection.receivedAmount)}</span>
+              <span>尚未收：{collection.outstandingAmount == null ? '尚未登記' : formatCurrency(collection.outstandingAmount)}</span>
               {shippingResolved.companyShippingCost > 0 ? (
-                <p className="text-xs text-warning">
-                  公司運費成本 {formatCurrency(shippingResolved.companyShippingCost)}（不計入合計）
-                </p>
+                <span className="text-warning">公司運費成本：{formatCurrency(shippingResolved.companyShippingCost)}</span>
               ) : null}
             </div>
-          </FieldInline>
-          <Stat label="訂單應收合計" value={formatCurrency(total)} highlight />
-          <Stat
-            label="實際已收"
-            value={collection.receivedAmount == null
-              ? '尚未登記'
-              : formatCurrency(collection.receivedAmount)}
-          />
-          <Stat
-            label="未收尾款"
-            value={collection.outstandingAmount == null
-              ? '尚未登記'
-              : formatCurrency(collection.outstandingAmount)}
-          />
-        </div> : null}
+          </details>
+        </> : null}
 
         {revealedStep >= 7 && collection.note ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
@@ -1336,7 +1323,7 @@ export function OrderForm({
           </p>
         ) : null}
 
-        {revealedStep >= 7 ? <FieldInline label="⑦ 商品要寄到哪裡？">
+        {revealedStep >= 7 ? <FieldInline label="⑥ 寄到哪裡？">
           <div className="space-y-3">
             {selectedMerchant ? (
               <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
@@ -1375,9 +1362,6 @@ export function OrderForm({
                 />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              選客戶或寄賣店家會自動帶入姓名；可改為實際收件人。
-            </p>
             <div className="inline-flex flex-wrap gap-1 rounded-md border bg-background p-0.5">
               <button
                 type="button"
@@ -1413,10 +1397,6 @@ export function OrderForm({
                 送貨
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              運費依運送方式自動帶入：7-11 {SHIPPING_FEE_CVS_711} 元、黑貓宅配 {SHIPPING_FEE_HOME_BLACK_CAT} 元；送貨為公司派人直送，運費 0 元。
-            </p>
-
             {shippingMethod === 'convenience' ? (
               <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-3">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -1470,7 +1450,7 @@ export function OrderForm({
             ) : (
               <div>
                 <label className="mb-1 block text-[11px] text-muted-foreground">
-                  {shippingMethod === 'delivery' ? '送貨地址' : '完整收件地址（宅配）'}
+                    {shippingMethod === 'delivery' ? '送貨地址' : '完整收件地址（宅配）'} <span className="text-destructive">*</span>
                 </label>
                 <textarea
                   name="shippingAddress"
@@ -1478,6 +1458,7 @@ export function OrderForm({
                   onChange={(e) => setShippingAddress(e.target.value)}
                   rows={3}
                   maxLength={500}
+                  required
                   placeholder={
                     shippingMethod === 'delivery'
                       ? '例：新北市淡水區…（店家地址）'
@@ -1485,11 +1466,6 @@ export function OrderForm({
                   }
                   className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {shippingMethod === 'delivery'
-                    ? '選寄賣店家後可帶入店家地址；公司派人直送至此地址。'
-                    : '選客戶會帶入客戶地址；選寄賣店家會帶入店家運送資料，可再修改。'}
-                </p>
               </div>
             )}
           </div>
