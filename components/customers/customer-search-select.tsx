@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, UserPlus, X } from 'lucide-react';
 
 export type CustomerSearchOption = {
   id: string;
@@ -31,6 +31,7 @@ export function CustomerSearchSelect({
   value,
   onChange,
   onSearch,
+  onCreateNew,
   name = 'customerId',
   required = false,
   allowEmpty = false,
@@ -43,6 +44,8 @@ export function CustomerSearchSelect({
   onChange: (customerId: string) => void;
   /** 提供時改為遠端 typeahead；customers 仍用於已選項顯示與種子清單 */
   onSearch?: (query: string) => Promise<CustomerSearchOption[]>;
+  /** 搜尋無結果時，帶入目前關鍵字開啟新增客戶表單 */
+  onCreateNew?: (query: string) => void;
   name?: string;
   required?: boolean;
   /** 是否允許不選（寄賣店訂單的選填客戶） */
@@ -172,10 +175,19 @@ export function CustomerSearchSelect({
               搜尋中…
             </li>
           ) : filtered.length === 0 ? (
-            <li className="px-3 py-3 text-center text-xs text-muted-foreground">
-              {onSearch && !query.trim()
-                ? '輸入關鍵字搜尋客戶'
-                : '找不到符合的客戶'}
+            <li className="space-y-2 px-3 py-3 text-center text-xs text-muted-foreground">
+              <div>{onSearch && !query.trim() ? '輸入關鍵字搜尋客戶' : '找不到符合的客戶'}</div>
+              {query.trim() && onCreateNew ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onCreateNew(query.trim())}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  新增「{query.trim()}」
+                </button>
+              ) : null}
             </li>
           ) : (
             filtered.map((c) => (

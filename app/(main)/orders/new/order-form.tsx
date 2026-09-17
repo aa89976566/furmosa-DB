@@ -1044,6 +1044,11 @@ export function OrderForm({
                 value={customerId}
                 onChange={onCustomerChange}
                 onSearch={handleSearchCustomers}
+                onCreateNew={(query) => {
+                  setCustomerId('');
+                  setNewCustomer((prev) => ({ ...prev, name: query }));
+                  setShowNewCustomer(true);
+                }}
                 required
               />
             )}
