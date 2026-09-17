@@ -113,9 +113,17 @@ export function resolveLogisticsFromShipment(input: ShipmentLogisticsInput): Log
 
   if (order?.shippingMethod) {
     const fromOrder = resolveLogisticsFromOrder(order);
+    // 超商取貨的作業重點是「去哪一間門市」，不是 Shopify 保存的完整門市地址。
+    // 收件地址仍保留在訂單／出貨明細；隊列優先顯示已確認的門市名稱。
+    const destination =
+      order.shippingMethod === 'convenience' && order.cvsStoreName?.trim()
+        ? `${order.cvsStoreName.trim()}${order.cvsStoreName.trim().endsWith('門市') ? '' : '門市'}${
+            order.cvsStoreId?.trim() ? `（店號 ${order.cvsStoreId.trim()}）` : ''
+          }`
+        : recipientAddress || fromOrder.destination;
     return {
       carrierLabel: carrier || fromOrder.carrierLabel,
-      destination: recipientAddress || fromOrder.destination,
+      destination,
       contactName: recipientName || fromOrder.contactName,
       phone: recipientPhone || fromOrder.phone,
     };
