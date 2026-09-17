@@ -174,6 +174,10 @@ function OrderLineItemsTable({
   removeItem: (key: string) => void;
 }) {
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
+  const canAddItem = items.every((it) => {
+    const product = productMap.get(it.productId);
+    return Boolean(product && (!product.priceTiers.length || it.tierId) && it.quantity > 0);
+  });
 
   return (
     <section className="space-y-2">
@@ -184,7 +188,14 @@ function OrderLineItemsTable({
             <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
           ) : null}
         </div>
-        <Button type="button" size="sm" variant="outline" onClick={addItem} className="self-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={addItem}
+          disabled={!canAddItem}
+          className="self-end"
+        >
           <Plus className="mr-1 h-4 w-4" />
           新增一筆
         </Button>
@@ -217,6 +228,9 @@ function OrderLineItemsTable({
             const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
             const prod = productMap.get(it.productId);
             const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
+            const hasProduct = Boolean(prod);
+            const hasSelectedSpec = hasProduct && (!hasTiers || Boolean(it.tierId));
+            const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
             return (
@@ -243,7 +257,7 @@ function OrderLineItemsTable({
                   <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
-                  {hasTiers ? (
+                  {hasProduct && hasTiers ? (
                     <select
                       value={it.tierId}
                       onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
@@ -256,7 +270,7 @@ function OrderLineItemsTable({
                         </option>
                       ))}
                     </select>
-                  ) : prod ? (
+                  ) : hasProduct ? (
                     <select
                       name="unit"
                       value={it.unit ?? prod.unit}
@@ -282,46 +296,58 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     數量
                   </span>
-                  <Input
-                    name="quantity"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={it.quantity}
-                    onChange={(e) =>
-                      updateItem(it.key, {
-                        quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
-                      })
-                    }
-                    required={rowRequired && Boolean(it.productId)}
-                    className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
-                  />
+                  {hasSelectedSpec ? (
+                    <Input
+                      name="quantity"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={it.quantity}
+                      onChange={(e) =>
+                        updateItem(it.key, {
+                          quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      required={rowRequired && Boolean(it.productId)}
+                      className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {hasProduct ? '請先選規格' : '請先選商品'}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="block p-0 align-middle md:table-cell md:p-3">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     單價
                   </span>
-                  <Input
-                    name="unitPrice"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={it.isGift ? 0 : it.unitPrice}
-                    readOnly={it.isGift || unitPriceReadOnly}
-                    onChange={(e) =>
-                      updateItem(it.key, {
-                        unitPrice: Math.max(0, Number(e.target.value) || 0),
-                        retailUnitPrice: Math.max(0, Number(e.target.value) || 0),
-                      })
-                    }
-                    required={rowRequired && Boolean(it.productId) && !it.isGift}
-                    className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
-                  />
-                  {!it.isGift && it.productId && it.unitPrice <= 0 ? (
-                    <p className="mt-1 text-[10px] text-destructive">
-                      商品主檔尚未設定售價
-                    </p>
-                  ) : null}
+                  {hasQuantity ? (
+                    <>
+                      <Input
+                        name="unitPrice"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={it.isGift ? 0 : it.unitPrice}
+                        readOnly={it.isGift || unitPriceReadOnly}
+                        onChange={(e) =>
+                          updateItem(it.key, {
+                            unitPrice: Math.max(0, Number(e.target.value) || 0),
+                            retailUnitPrice: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        required={rowRequired && Boolean(it.productId) && !it.isGift}
+                        className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
+                      />
+                      {!it.isGift && it.unitPrice <= 0 ? (
+                        <p className="mt-1 text-[10px] text-destructive">
+                          商品主檔尚未設定售價
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">完成數量後顯示</span>
+                  )}
                   {it.isGift && it.retailUnitPrice > 0 ? (
                     <p className="mt-0.5 text-[10px] text-muted-foreground line-through">
                       售價 {formatCurrency(it.retailUnitPrice)}
@@ -332,7 +358,9 @@ function OrderLineItemsTable({
                   <span className="text-xs font-medium text-muted-foreground md:hidden">
                     小計
                   </span>
-                  {it.isGift ? (
+                  {!hasQuantity ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  ) : it.isGift ? (
                     <div className="space-y-0.5">
                       <Badge variant="secondary" className="font-normal">
                         贈品
@@ -350,7 +378,7 @@ function OrderLineItemsTable({
                     <input
                       type="checkbox"
                       checked={it.isGift}
-                      disabled={!it.productId}
+                      disabled={!hasQuantity}
                       title="贈品不計入買家應付，計入公司成本"
                       className="h-4 w-4 rounded border-input"
                       onChange={(e) => onToggleGift(it.key, e.target.checked)}
@@ -663,13 +691,16 @@ export function OrderForm({
       });
       return;
     }
-    const pricing = linePricing(p, p.priceTiers[0]?.id ?? '');
+    const hasTiers = p.priceTiers.length > 0;
+    const pricing = linePricing(p, hasTiers ? '' : '');
     const isGift = current?.isGift ?? false;
     updateItem(key, {
       productId,
       ...pricing,
-      unitPrice: isGift ? 0 : pricing.unitPrice,
-      retailUnitPrice: pricing.unitPrice,
+      tierId: hasTiers ? '' : pricing.tierId,
+      unitPrice: hasTiers || isGift ? 0 : pricing.unitPrice,
+      retailUnitPrice: hasTiers ? 0 : pricing.unitPrice,
+      weightGrams: hasTiers ? null : pricing.weightGrams,
     });
     revealThrough(5);
   }
