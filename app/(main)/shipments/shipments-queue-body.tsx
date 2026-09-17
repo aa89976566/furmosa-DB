@@ -24,6 +24,7 @@ import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
+import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -69,7 +70,23 @@ const shipmentInclude = {
       sku: true,
       quantity: true,
       weightGrams: true,
+      variantKey: true,
       unit: true,
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          category: true,
+          unit: true,
+          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+          inventoryBalances: {
+            where: { warehouse: { code: 'WH-MAIN' } },
+            select: { quantity: true, unit: true, lastCountedAt: true },
+            take: 1,
+          },
+        },
+      },
     },
   },
   subscriptionShipment: {
@@ -260,6 +277,7 @@ function toQueueRow(
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
+    inventoryWarnings: shipmentInventoryAdvisories(s.items),
     items: s.items.map((item) => ({
       productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
