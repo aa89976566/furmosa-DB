@@ -58,6 +58,25 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Select IPv4-compatible production database endpoint
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          node <<'NODE'
+          const { appendFileSync } = require('node:fs')
+          const url = new URL(process.env.PRODUCTION_DATABASE_URL)
+          const directHost = 'db.ukjjopridghvwzobrsus.supabase.co'
+          if (url.hostname === directHost) {
+            url.hostname = 'aws-1-ap-northeast-1.pooler.supabase.com'
+            if (decodeURIComponent(url.username) === 'postgres') {
+              url.username = 'postgres.ukjjopridghvwzobrsus'
+            }
+          }
+          const value = url.toString()
+          console.log(`::add-mask::${value}`)
+          appendFileSync(process.env.GITHUB_ENV, `DATABASE_URL=${value}\nDIRECT_URL=${value}\n`)
+          NODE
+
       - name: Verify exact PR, CI and migration plan
         id: preflight
         env:
@@ -80,14 +99,10 @@ jobs:
 
       - name: Apply explicit production migration plan
         if: steps.preflight.outputs.migration_runner != ''
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: node "${{ steps.preflight.outputs.migration_runner }}"
 
       - name: Verify production DB login, order and shipment reads
         env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           PRODUCTION_SMOKE_HQ_EMAIL: ${{ secrets.PRODUCTION_SMOKE_HQ_EMAIL }}
           PRODUCTION_SMOKE_HQ_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_HQ_PASSWORD }}
         run: node scripts/release/production-readiness.mjs
@@ -121,7 +136,6 @@ jobs:
 
       - name: Recheck production DB reads after deployment
         env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           PRODUCTION_SMOKE_HQ_EMAIL: ${{ secrets.PRODUCTION_SMOKE_HQ_EMAIL }}
           PRODUCTION_SMOKE_HQ_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_HQ_PASSWORD }}
         run: node scripts/release/production-readiness.mjs
