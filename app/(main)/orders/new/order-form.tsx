@@ -257,20 +257,20 @@ function OrderLineItemsTable({
                   <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
-                  {hasProduct && hasTiers ? (
+                  {prod && hasTiers ? (
                     <select
                       value={it.tierId}
                       onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
                       className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
-                      {prod!.priceTiers.map((t) => (
+                      {prod.priceTiers.map((t) => (
                         <option key={t.id} value={t.id}>
                           {tierLabel(t)}
                           {t.notes ? ` · ${t.notes}` : ''}
                         </option>
                       ))}
                     </select>
-                  ) : hasProduct ? (
+                  ) : prod ? (
                     <select
                       name="unit"
                       value={it.unit ?? prod.unit}
