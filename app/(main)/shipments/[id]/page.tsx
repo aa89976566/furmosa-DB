@@ -26,14 +26,11 @@ import {
   shipmentStatusVariant,
   shipmentTypeLabel,
   nextStatuses,
-  nextActionLabel,
   timelineSteps,
-  type ShipmentStatus,
 } from '@/lib/shipment';
 import { productLabel } from '@/lib/product-label';
 import { cn } from '@/lib/utils';
-import { markShipmentStatus } from '../actions';
-import { CarrierSelect } from '@/components/shared/carrier-select';
+import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import {
@@ -42,7 +39,6 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
-  Truck,
   Repeat,
   CalendarClock,
   HandCoins,
@@ -54,9 +50,12 @@ export const dynamic = 'force-dynamic';
 export default async function ShipmentDetailPage(
   props: {
     params: Promise<{ id: string }>;
+    searchParams?: Promise<{ error?: string }>;
   }
 ) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
+  const actionError = (searchParams?.error ?? '').trim();
   const shipment = await prisma.shipment.findUnique({
     where: { id: params.id },
     include: {
@@ -144,6 +143,11 @@ export default async function ShipmentDetailPage(
       />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
+        {actionError ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive lg:col-span-3" role="alert">
+            {actionError}
+          </div>
+        ) : null}
         {needCollect && !isFinal && (
           <div className="rounded-lg border-2 border-warning bg-warning/10 p-4 lg:col-span-3">
             <div className="flex items-start gap-3">
@@ -463,126 +467,20 @@ export default async function ShipmentDetailPage(
             }
             className="lg:col-span-3"
           >
-            <div className="grid gap-4 lg:grid-cols-3">
-              {allowedNext.map((next) => (
-                <StatusActionCard
-                  key={next}
-                  shipmentId={shipment.id}
-                  next={next}
-                  currentStatus={shipment.status}
-                  defaultCarrier={shipCarrierDefaults.defaultCarrier}
-                  defaultTracking={shipment.trackingNumber}
-                  defaultPickupStore={shipCarrierDefaults.pickupStore}
-                  defaultPickupName={shipCarrierDefaults.pickupName}
-                  defaultPickupPhone={shipCarrierDefaults.pickupPhone}
-                />
-              ))}
-            </div>
+            <ShipmentStatusActions
+              shipmentId={shipment.id}
+              currentStatus={shipment.status}
+              allowedNext={allowedNext}
+              defaultCarrier={shipCarrierDefaults.defaultCarrier}
+              defaultTracking={shipment.trackingNumber}
+              defaultPickupStore={shipCarrierDefaults.pickupStore}
+              defaultPickupName={shipCarrierDefaults.pickupName}
+              defaultPickupPhone={shipCarrierDefaults.pickupPhone}
+            />
           </SectionCard>
         )}
       </div>
     </>
-  );
-}
-
-function StatusActionCard({
-  shipmentId,
-  next,
-  currentStatus,
-  defaultCarrier,
-  defaultTracking,
-  defaultPickupStore,
-  defaultPickupName,
-  defaultPickupPhone,
-}: {
-  shipmentId: string;
-  next: ShipmentStatus;
-  currentStatus: string;
-  defaultCarrier: string | null;
-  defaultTracking: string | null;
-  defaultPickupStore?: string | null;
-  defaultPickupName?: string | null;
-  defaultPickupPhone?: string | null;
-}) {
-  const isShipping = next === 'shipped';
-  const isDanger = next === 'cancelled';
-
-  return (
-    <form
-      action={markShipmentStatus}
-      className={cn(
-        'space-y-3 rounded-lg border p-4',
-        isDanger ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20',
-      )}
-    >
-      <input type="hidden" name="shipmentId" value={shipmentId} />
-      <input type="hidden" name="next" value={next} />
-
-      <div className="flex items-center gap-2">
-        {next === 'shipped' && <Truck className="h-4 w-4 text-info" />}
-        {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-success" />}
-        {next === 'cancelled' && <XCircle className="h-4 w-4 text-destructive" />}
-        {next === 'pending' && <Clock className="h-4 w-4 text-warning" />}
-        <h3 className="text-sm font-semibold">{nextActionLabel(next)}</h3>
-      </div>
-
-      {isShipping && (
-        <>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">物流商</label>
-            <CarrierSelect
-              defaultValue={defaultCarrier}
-              defaultPickupStore={defaultPickupStore}
-              defaultPickupName={defaultPickupName}
-              defaultPickupPhone={defaultPickupPhone}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">追蹤碼</label>
-            <input
-              name="trackingNumber"
-              defaultValue={defaultTracking ?? ''}
-              placeholder="1234-5678-9012"
-              className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-        </>
-      )}
-
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">備註（選填）</label>
-        <input
-          name="note"
-          placeholder={
-            next === 'delivered'
-              ? '收件人簽收 / 放置位置...'
-              : next === 'cancelled'
-                ? '取消原因...'
-                : ''
-          }
-          className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
-
-      {next === 'delivered' && currentStatus !== 'shipped' && (
-        <p className="text-xs text-warning">
-          ⚠ 通常要先「已寄出」再「已送達」。確定可以跳過嗎？
-        </p>
-      )}
-      {next === 'delivered' && (
-        <p className="text-xs text-success">
-          ✓ 確認送達後會自動把商品加進對方庫存
-        </p>
-      )}
-
-      <Button
-        type="submit"
-        variant={isDanger ? 'outline' : 'default'}
-        className={cn('w-full', isDanger && 'text-destructive hover:bg-destructive/10')}
-      >
-        {nextActionLabel(next)}
-      </Button>
-    </form>
   );
 }
 
