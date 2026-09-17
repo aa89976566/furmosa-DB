@@ -25,6 +25,7 @@ import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -60,6 +61,8 @@ const shipmentInclude = {
       cvsBrand: true,
       cvsStoreId: true,
       cvsStoreName: true,
+      omsStatus: true,
+      shopifySnapshot: true,
     },
   },
   items: {
@@ -246,7 +249,9 @@ function toQueueRow(
     createdAt: s.createdAt.toISOString(),
     carrier: s.carrier,
     trackingNumber: s.trackingNumber,
-    recipientName: s.recipientName,
+    recipientName: s.order?.omsStatus
+      ? normalizeStoredShopifyRecipient(s.recipientName, s.order.shopifySnapshot)
+      : s.recipientName,
     recipientPhone: s.recipientPhone,
     recipientAddress: s.recipientAddress,
     merchant: s.merchant
