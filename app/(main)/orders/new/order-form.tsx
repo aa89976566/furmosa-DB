@@ -1240,7 +1240,7 @@ export function OrderForm({
         </FieldInline>
 
         {/* 付款狀態 */}
-        {revealedStep >= 6 ? <FieldInline label="付款方式">
+        {revealedStep >= 6 ? <FieldInline label="目前付款狀態是什麼？">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <PayCard
               active={paymentStatus === 'unpaid'}
@@ -1328,7 +1328,7 @@ export function OrderForm({
           </p>
         ) : null}
 
-        {revealedStep >= 7 ? <FieldInline label="⑥ 寄到哪裡？">
+        {revealedStep >= 7 ? <FieldInline label="⑥ 商品要寄到哪裡？">
           <div className="space-y-3">
             {selectedMerchant ? (
               <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
