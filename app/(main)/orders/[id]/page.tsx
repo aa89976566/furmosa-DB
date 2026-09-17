@@ -331,7 +331,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   待審核訂單必須使用下方的專用核准按鈕，不能直接變更狀態。
                 </p>
               ) : (
-                <OrderStatusToggles orderId={order.id} status={order.status} />
+                <OrderStatusToggles
+                  orderId={order.id}
+                  status={order.status}
+                  hasActiveShipment={order.shipments.some((shipment) => shipment.status !== 'cancelled')}
+                />
               )}
               {order.status === 'cancelled' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
@@ -603,7 +607,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   <ul className="mt-1 space-y-0.5 text-muted-foreground">
                     {incomplete.map(({ item, missing }) => (
                       <li key={item.id}>
-                        {canonicalProductName(item.productName)}：缺少
+                        {canonicalProductName(replaceJibaLegacyCatnipName(item.productName))}：缺少
                         {missing.join('、')}
                       </li>
                     ))}
@@ -647,7 +651,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {canonicalProductName(it.productName)}
+                          {canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">
