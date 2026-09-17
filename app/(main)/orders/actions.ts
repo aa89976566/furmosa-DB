@@ -336,9 +336,21 @@ export async function updateOrderStatus(formData: FormData) {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, shippedAt: true, completedAt: true },
+    select: {
+      status: true,
+      shippedAt: true,
+      completedAt: true,
+      shipments: {
+        where: { status: { not: 'cancelled' } },
+        select: { id: true },
+        take: 1,
+      },
+    },
   });
   if (!order) throw new Error('訂單不存在');
+  if (order.shipments.length > 0 && ['shipped', 'delivered', 'completed'].includes(next)) {
+    throw new Error('此訂單已有出貨單，請到出貨隊列更新物流狀態');
+  }
 
   const data: {
     status: string;
