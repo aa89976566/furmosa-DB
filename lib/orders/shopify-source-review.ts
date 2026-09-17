@@ -7,6 +7,21 @@ import type { OmsIssue } from './oms';
 
 export const SOURCE_REVIEW_VERSION = 'shopify-source-v1';
 
+/** Keep Shopify product lines authoritative while allowing HQ to correct fulfillment fields. */
+export function mergeShopifyFulfillmentDraft(source: ReturnType<typeof shopifySourceDraft>, override: ReturnType<typeof reviewDraft>) {
+  return reviewDraft({
+    ...source,
+    method: override.method || source.method,
+    temperature: override.temperature || source.temperature,
+    recipient: override.recipient || source.recipient,
+    phone: override.phone || source.phone,
+    address: override.address || source.address,
+    storeId: override.storeId || source.storeId,
+    storeName: override.storeName || source.storeName,
+    duplicateConfirmed: override.duplicateConfirmed,
+  });
+}
+
 /** Source fields are reconstructed on the server; submitted HQ overrides are never authoritative. */
 export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[] = [], duplicateConfirmed = false) {
   const view = snapshotView(snapshot)!;
@@ -27,10 +42,11 @@ export function shopifyShippingLabel(snapshot: Snapshot) {
 }
 
 /** Reviewing a Shopify order does not require an HQ stock identity or an invented temperature. */
-export function checkShopifySource(snapshot: Snapshot, duplicate: boolean, duplicateConfirmed: boolean): OmsIssue[] {
+export function checkShopifySource(snapshot: Snapshot, duplicate: boolean, duplicateConfirmed: boolean, fulfillmentDraft?: ReturnType<typeof reviewDraft>): OmsIssue[] {
   const issues = intakeSummary(snapshot).issues.slice(1).filter(i => i.code !== 'SKU_MISSING');
   const add = (code: OmsIssue['code'], message: string) => issues.push({ code, severity: 'blocking', message });
-  const draft = shopifySourceDraft(snapshot);
+  const sourceDraft = shopifySourceDraft(snapshot);
+  const draft = fulfillmentDraft ? mergeShopifyFulfillmentDraft(sourceDraft, fulfillmentDraft) : sourceDraft;
   const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
   rows.forEach((row, index) => {
     const quantity = row.quantity;
@@ -49,7 +65,8 @@ export function checkShopifySource(snapshot: Snapshot, duplicate: boolean, dupli
     if (!draft.recipient) add('RECIPIENT_MISSING', 'Shopify 缺少收件人，請在來源訂單補齊');
     if (!/^\+?[\d ()-]{8,25}$/.test(draft.phone)) add('PHONE_MISSING', 'Shopify 缺少有效收件電話，請在來源訂單補齊');
     if (!draft.address) add('ADDRESS_MISSING', 'Shopify 缺少收件地址，請在來源訂單補齊');
-    if (!shopifyShippingLabel(snapshot)) add('SHIPPING_METHOD_UNKNOWN', 'Shopify 缺少配送資訊，請在來源訂單補齊');
+    if (!['home', 'convenience'].includes(draft.method)) add('SHIPPING_METHOD_UNKNOWN', '請確認配送方式');
+    if (draft.method === 'convenience' && (!/^\d{6}$/.test(draft.storeId) || !draft.storeName)) add('PICKUP_STORE_MISSING', '7-11 需要六位數門市店號及門市名稱');
   }
   if (duplicate && !duplicateConfirmed) add('POSSIBLE_DUPLICATE', '相同聯絡資料及金額有近期訂單，請確認不是重複下單');
   return issues;

@@ -37,7 +37,7 @@ async function loadForm() {
   return Form;
 }
 
-test('Shopify 訂單直接呈現來源商品與配送資訊，不渲染 HQ 商品或溫層選擇', async () => {
+test('Shopify 訂單直接呈現來源商品，HQ 只補正履約欄位', async () => {
   assert.equal(existsSync(fileURLToPath(new URL('../../../components/orders/oms-review-form.tsx', import.meta.url))), true);
   const Component = await loadForm();
   const html = renderToStaticMarkup(createElement(Component, {
@@ -47,9 +47,11 @@ test('Shopify 訂單直接呈現來源商品與配送資訊，不渲染 HQ 商�
   }));
   assert.match(html, /◈壕大大◈雞霸/);
   assert.match(html, /7-11 取貨/);
-  assert.match(html, /以 Shopify 訂單為準/);
+  assert.match(html, /商品與數量仍以 Shopify 訂單為準/);
   assert.equal(html.includes('請選擇 HQ 商品'), false);
   assert.equal(html.includes('請確認溫層'), false);
   assert.equal(html.includes('name="productId"'), false);
-  assert.equal(html.includes('name="temperature"'), false);
+  assert.match(html, /name="temperature"/);
+  assert.match(html, /name="recipient"/);
+  assert.match(html, /HQ 可補正/);
 });

@@ -1,4 +1,4 @@
-import { checkShopifySource, shopifySourceDraft, shopifyShippingLabel, SOURCE_REVIEW_VERSION } from './shopify-source-review';
+import { checkShopifySource, mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel, SOURCE_REVIEW_VERSION } from './shopify-source-review';
 import { bulkConsumption } from '../inventory/bulk';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-policy';
@@ -81,12 +81,13 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* fail closed below */ }
     let draft = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);
     if (command.sourceOnly) {
-      draft = shopifySourceDraft(snapshot, [], Boolean(command.draft?.duplicateConfirmed));
+      const override = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);
+      draft = mergeShopifyFulfillmentDraft(shopifySourceDraft(snapshot), override);
       if (command.action !== 'check' && saved.reviewMode !== SOURCE_REVIEW_VERSION) throw new ReviewError('審核規則已更新，請先儲存並檢查', { kind: 'blocked' });
     }
     if (command.action !== 'check' && saved.sourceHash !== command.sourceHash) throw new ReviewError('請先儲存並檢查目前版本', { kind: 'blocked' });
     if (command.action !== 'check' && (command.sourceOnly
-      ? Boolean(command.draft?.duplicateConfirmed) !== reviewDraft(saved.draft).duplicateConfirmed
+      ? JSON.stringify(mergeShopifyFulfillmentDraft(shopifySourceDraft(snapshot), reviewDraft(command.draft))) !== JSON.stringify(draft)
       : JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft))) throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
     if (command.action === 'ship') {
       if (order.omsStatus !== 'READY' || !order.omsReviewedAt || !order.omsReviewedById) throw new ReviewError('需要先由人員確認訂單');
@@ -101,7 +102,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       ] },
       include: { inventoryBalances: { include: { warehouse: true } }, priceTiers: true },
     });
-    if (command.sourceOnly) draft = shopifySourceDraft(snapshot, products.map(p => ({ ...p, available: null })), draft.duplicateConfirmed);
+    if (command.sourceOnly) draft = mergeShopifyFulfillmentDraft(
+      shopifySourceDraft(snapshot, products.map(p => ({ ...p, available: null })), draft.duplicateConfirmed),
+      draft,
+    );
     const reservations = await tx.shipmentItem.findMany({ where: {
       productId: { in: products.map(p => p.id) }, shipment: { status: { in: ['pending', 'packed'] }, OR: [{ orderId: null }, { orderId: { not: order.id } }] },
     } });
@@ -129,7 +133,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         : p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
     if (command.sourceOnly && command.action !== 'ship') {
-      result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed);
+      result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft);
     }
     const now = new Date();
     if (command.action === 'check') {
@@ -169,7 +173,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
       await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
-        carrier: command.sourceOnly ? shopifyShippingLabel(snapshot) : draft.method === 'convenience' ? '7-11' : '黑貓',
+        carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
         items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
           { productId, productName, sku, quantity, weightGrams, unit })) } } });

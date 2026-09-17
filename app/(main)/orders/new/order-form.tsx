@@ -273,7 +273,7 @@ function OrderLineItemsTable({
                   ) : hasProduct ? (
                     <select
                       name="unit"
-                      value={it.unit ?? prod!.unit}
+                      value={it.unit ?? prod?.unit ?? ''}
                       onChange={(e) => updateItem(it.key, { unit: e.target.value })}
                       className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
@@ -283,9 +283,11 @@ function OrderLineItemsTable({
                         </option>
                       ))}
                       {!ORDER_LINE_UNIT_OPTIONS.includes(
-                        (it.unit ?? prod!.unit) as (typeof ORDER_LINE_UNIT_OPTIONS)[number],
+                        (it.unit ?? prod?.unit ?? '') as (typeof ORDER_LINE_UNIT_OPTIONS)[number],
                       ) ? (
-                        <option value={it.unit ?? prod!.unit}>{it.unit ?? prod!.unit}</option>
+                        <option value={it.unit ?? prod?.unit ?? ''}>
+                          {it.unit ?? prod?.unit ?? ''}
+                        </option>
                       ) : null}
                     </select>
                   ) : (
@@ -1240,7 +1242,7 @@ export function OrderForm({
         </FieldInline>
 
         {/* 付款狀態 */}
-        {revealedStep >= 6 ? <FieldInline label="目前付款狀態是什麼？">
+        {revealedStep >= 6 ? <FieldInline label="付款方式">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <PayCard
               active={paymentStatus === 'unpaid'}
@@ -1328,7 +1330,7 @@ export function OrderForm({
           </p>
         ) : null}
 
-        {revealedStep >= 7 ? <FieldInline label="⑥ 商品要寄到哪裡？">
+        {revealedStep >= 7 ? <FieldInline label="⑥ 寄到哪裡？">
           <div className="space-y-3">
             {selectedMerchant ? (
               <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
