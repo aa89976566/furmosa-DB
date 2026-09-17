@@ -13,7 +13,7 @@ import {
   loadJibaChargeSourcesByOrderIds,
   resolveShipmentFulfillmentFee,
 } from '@/lib/campaigns/jiba-two-piece/shipment-charge';
-import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import { canonicalProductName } from '@/lib/product-label';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
@@ -261,7 +261,7 @@ function toQueueRow(
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
     items: s.items.map((item) => ({
-      productName: replaceJibaLegacyCatnipName(item.productName),
+      productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
       quantity: item.quantity,
     })),
