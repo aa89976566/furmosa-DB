@@ -9,6 +9,7 @@ import {
 } from '@/lib/shipment';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, Clock, Truck, XCircle } from 'lucide-react';
+import { useFormStatus } from 'react-dom';
 
 export function ShipmentStatusActions({
   shipmentId,
@@ -150,14 +151,26 @@ function StatusActionCard({
       {next === 'delivered' && currentStatus !== 'shipped' ? (
         <p className="text-xs text-warning">通常要先「已寄出」再「已送達」。確定可以跳過嗎？</p>
       ) : null}
+      {next === 'delivered' ? (
+        <p className="text-xs text-success">確認送達後會自動把商品加進對方庫存</p>
+      ) : null}
 
-      <Button
-        type="submit"
-        variant={isDanger ? 'outline' : 'default'}
-        className={cn('w-full', isDanger && 'text-destructive hover:bg-destructive/10')}
-      >
-        {nextActionLabel(next)}
-      </Button>
+      <StatusSubmitButton next={next} isDanger={isDanger} />
     </form>
+  );
+}
+
+function StatusSubmitButton({ next, isDanger }: { next: ShipmentStatus; isDanger: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      variant={isDanger ? 'outline' : 'default'}
+      className={cn('w-full', isDanger && 'text-destructive hover:bg-destructive/10')}
+    >
+      {pending ? '處理中…' : nextActionLabel(next)}
+    </Button>
   );
 }
