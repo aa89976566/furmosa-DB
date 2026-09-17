@@ -211,6 +211,10 @@ export function ShipmentQueueStatusSelect({
         <p className="text-[11px] leading-snug text-destructive" role="alert">
           {actionError}
         </p>
+      ) : isPending ? (
+        <p className="text-[11px] leading-snug text-muted-foreground" role="status">
+          正在更新出貨狀態…
+        </p>
       ) : null}
     </div>
   );
