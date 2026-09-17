@@ -41,6 +41,7 @@ import {
   assertShipmentStatusPersisted,
   shipmentStatusErrorMessage,
 } from '@/lib/shipment-status-error';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'cancelled'],
@@ -472,7 +473,9 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
     shipmentNumber: shipment.shipmentNumber,
     status: shipment.status,
     type: shipment.type,
-    recipientName: shipment.recipientName,
+    recipientName: shipment.order?.omsStatus
+      ? normalizeStoredShopifyRecipient(shipment.recipientName, shipment.order.shopifySnapshot)
+      : shipment.recipientName,
     recipientPhone: shipment.recipientPhone,
     recipientAddress: shipment.recipientAddress,
     carrier: shipment.carrier,
