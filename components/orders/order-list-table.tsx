@@ -10,6 +10,7 @@ import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { omsNextActionLabel, parseOmsIssues, type OmsIssueCode } from '@/lib/orders/oms';
 import styles from './order-resource-list.module.css';
+import { canonicalProductName } from '@/lib/product-label';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
 
@@ -22,7 +23,10 @@ function orderItemSummary(order: OrderListRow) {
   const sourceItems = snapshotView(order.shopifySnapshot)?.items ?? [];
   const rows = sourceItems.length
     ? sourceItems.map((item) => ({ name: item.title, quantity: item.quantity }))
-    : order.items.map((item) => ({ name: item.productName, quantity: item.quantity }));
+    : order.items.map((item) => ({
+        name: canonicalProductName(item.productName),
+        quantity: item.quantity,
+      }));
   if (!rows.length) return '商品待確認';
   const first = rows[0]!;
   const firstLabel = `${first.name}${first.quantity ? ` × ${first.quantity}` : ''}`;
