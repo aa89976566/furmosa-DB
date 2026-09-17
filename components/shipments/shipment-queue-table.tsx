@@ -55,6 +55,7 @@ export type ShipmentQueueRow = {
   } | null;
   fulfillmentFeeLabel?: string | null;
   paymentReviewHold?: boolean;
+  inventoryWarnings?: string[];
   items: Array<{
     productName: string;
     weightGrams: number | null;
@@ -303,6 +304,7 @@ function ShipmentQueueCard({
           queueStatus={queueStatus}
           queueType={queueType}
           paymentReviewHold={Boolean(shipment.paymentReviewHold)}
+          inventoryWarnings={shipment.inventoryWarnings}
           className="max-w-none"
         />
       </div>
@@ -436,6 +438,7 @@ export function ShipmentQueueTable({
                       queueStatus={queueStatus}
                       queueType={queueType}
                       paymentReviewHold={Boolean(shipment.paymentReviewHold)}
+                      inventoryWarnings={shipment.inventoryWarnings}
                     />
                   </TableCell>
                   <TableCell className="py-3">
