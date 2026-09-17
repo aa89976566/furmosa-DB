@@ -4,6 +4,7 @@ import type { PrismaClient } from '@prisma/client';
 import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
 import { ReviewError, runReview } from '../review-service';
+import { mergeShopifyFulfillmentDraft, shopifySourceDraft } from '../shopify-source-review';
 
 const raw = { id: '123', currency: 'TWD', updated_at: '2026-08-30T01:00:00Z', financial_status: 'paid',
   subtotal_price: '100.10', total_discounts: '0.00', total_price: '160.10',
@@ -17,6 +18,31 @@ const products = [{ id: 'p1', name: '商品', sku: 'A', status: 'active', availa
 const codes = (source = snapshot, data = draft, stock = products, duplicate = false) => checkReview(source, data, stock, duplicate).issues.map(i => i.code);
 
 describe('OMS review checks', () => {
+  it('keeps Shopify product lines authoritative while accepting HQ fulfillment corrections', () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '原收件人', phone: '0911111111', city: '台北市', address1: '原地址' },
+      shipping_lines: [{ title: '一般配送', code: 'HOME' }],
+    });
+    const sourceDraft = shopifySourceDraft(source, products as any);
+    const corrected = mergeShopifyFulfillmentDraft(sourceDraft, reviewDraft({
+      ...draft,
+      method: 'convenience',
+      recipient: '補正收件人',
+      phone: '0922222222',
+      address: '補正門市地址',
+      storeId: '123456',
+      storeName: '測試門市',
+      lines: [{ productId: 'untrusted-product', temperature: 'frozen' }],
+    }));
+    assert.deepEqual(corrected.lines, sourceDraft.lines);
+    assert.equal(corrected.method, 'convenience');
+    assert.equal(corrected.recipient, '補正收件人');
+    assert.equal(corrected.phone, '0922222222');
+    assert.equal(corrected.address, '補正門市地址');
+    assert.equal(corrected.storeId, '123456');
+    assert.equal(corrected.storeName, '測試門市');
+  });
+
   it('accepts mapped paid physical orders and preserves cents', () => {
     const result = checkReview(snapshot, draft, products, false);
     assert.deepEqual(result.issues, []); assert.equal(result.items[0].subtotal, 100.1);
