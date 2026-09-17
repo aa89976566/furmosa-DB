@@ -16,7 +16,7 @@ test('bulk units use master tiers, reject missing or ambiguous identity', () => 
  assert.throws(()=>bulkConsumption(q,{quantity:1}));
 });
 const local = /@(localhost|127\.0\.0\.1):\d+\/(ci|hq_bulk_test)(\?|$)/.test(process.env.DATABASE_URL ?? '');
-test('HQ ledger is atomic, idempotent, reversible, isolated from POS and historical shipments', {skip:!local}, async () => {
+test('HQ ledger is atomic, allows advisory negative stock, skips made-to-order, and stays isolated from POS', {skip:!local}, async () => {
  const db=new PrismaClient(); const key=randomUUID();
  try {
  const wh=await db.warehouse.upsert({where:{code:'WH-MAIN'},update:{},create:{code:'WH-MAIN',name:'HQ test'}});
@@ -40,16 +40,21 @@ test('HQ ledger is atomic, idempotent, reversible, isolated from POS and histori
  const ledger=await db.inventoryTransaction.findMany({where:{reference:`shipment:${a.id}`}});assert.equal(ledger.length,2);assert.equal(ledger.find(t=>t.type==='return_in')?.reversesId,ledger.find(t=>t.type==='sales_out')?.id);
  await assert.rejects(db.inventoryTransaction.delete({where:{id:ledger[0].id}}));
  await assert.rejects(db.shipmentItem.updateMany({where:{shipmentId:a.id},data:{quantity:9}}));
- const huge=await shipment(50,100);await assert.rejects(db.shipment.update({where:{id:huge.id},data:{status:'shipped'}}));assert.equal(await stock(),1200);assert.equal((await db.shipment.findUniqueOrThrow({where:{id:huge.id}})).status,'pending');
- const cancelled=await shipment();await db.shipment.update({where:{id:cancelled.id},data:{status:'cancelled'}});assert.equal(await stock(),1200);
- const invalid=await shipment(99);await assert.rejects(db.shipment.update({where:{id:invalid.id},data:{status:'shipped'}}));assert.equal(await stock(),1200);
+ const huge=await shipment(50,100);await db.shipment.update({where:{id:huge.id},data:{status:'shipped'}});assert.equal(await stock(),-3800);assert.equal((await db.shipment.findUniqueOrThrow({where:{id:huge.id}})).status,'shipped');
+ const cancelled=await shipment();await db.shipment.update({where:{id:cancelled.id},data:{status:'cancelled'}});assert.equal(await stock(),-3800);
+ const invalid=await shipment(99);await assert.rejects(db.shipment.update({where:{id:invalid.id},data:{status:'shipped'}}));assert.equal(await stock(),-3800);
  const order=await db.order.create({data:{orderNumber:randomUUID(),source:'manual',subtotal:1,total:1,items:{create:{productId:p.id,productName:p.name,sku:p.sku,quantity:1,unitPrice:1,subtotal:1,weightGrams:30,unit:'g'}}}});
- await db.order.update({where:{id:order.id},data:{status:'completed'}});assert.equal(await stock(),1170);
- await db.order.update({where:{id:order.id},data:{paymentStatus:'refunded'}});assert.equal(await stock(),1200);
- await db.order.update({where:{id:order.id},data:{paymentStatus:'refunded'}});assert.equal(await stock(),1200);
+ await db.order.update({where:{id:order.id},data:{status:'completed'}});assert.equal(await stock(),-3830);
+ await db.order.update({where:{id:order.id},data:{paymentStatus:'refunded'}});assert.equal(await stock(),-3800);
+ await db.order.update({where:{id:order.id},data:{paymentStatus:'refunded'}});assert.equal(await stock(),-3800);
  const uncounted=await db.product.create({data:{productId:randomUUID(),sku:randomUUID(),name:'uncounted',category:'treats',unit:'g',price:1,priceTiers:{create:{weightGrams:30,unit:'g',price:1}}}});
- const fail=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',items:{create:[{productId:p.id,productName:p.name,sku:p.sku,quantity:1,weightGrams:30},{productId:uncounted.id,productName:uncounted.name,sku:uncounted.sku,quantity:1,weightGrams:30}]}}});
- await assert.rejects(db.shipment.update({where:{id:fail.id},data:{status:'shipped'}}));assert.equal(await stock(),1200);
+ const advisory=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',items:{create:[{productId:p.id,productName:p.name,sku:p.sku,quantity:1,weightGrams:30},{productId:uncounted.id,productName:uncounted.name,sku:uncounted.sku,quantity:1,weightGrams:30}]}}});
+ await db.shipment.update({where:{id:advisory.id},data:{status:'shipped'}});assert.equal(await stock(),-3830);
+ const uncountedBalance=await db.inventoryBalance.findUniqueOrThrow({where:{productId_warehouseId:{productId:uncounted.id,warehouseId:wh.id}}});assert.equal(uncountedBalance.quantity,-30);assert.equal(uncountedBalance.lastCountedAt,null);
+ const madeToOrder=await db.product.create({data:{productId:randomUUID(),sku:'FUR-0002',name:'原味雞霸',category:'treats',unit:'片',price:89,priceTiers:{create:{unit:'片',unitQty:1,price:89}}}});
+ const madeToOrderShipment=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'merchant_restock',items:{create:{productId:madeToOrder.id,productName:madeToOrder.name,sku:madeToOrder.sku,quantity:4,unit:'片'}}}});
+ await db.shipment.update({where:{id:madeToOrderShipment.id},data:{status:'shipped'}});
+ assert.equal(await db.inventoryTransaction.count({where:{reference:`shipment:${madeToOrderShipment.id}`}}),0);
  const q=await db.product.create({data:{productId:randomUUID(),sku:randomUUID(),name:'quail',category:'freeze_dried',unit:'隻',price:1,priceTiers:{create:[{unit:'隻',unitQty:1,price:1},{unit:'隻',unitQty:3,price:3}]},inventoryBalances:{create:{warehouseId:wh.id,quantity:4,unit:'隻',lastCountedAt:new Date()}}},include:{priceTiers:true}});
  const qs=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',items:{create:{productId:q.id,productName:q.name,sku:q.sku,quantity:1,variantKey:q.priceTiers.find(t=>t.unitQty===3)!.id}}}});
  await db.shipment.update({where:{id:qs.id},data:{status:'shipped'}});assert.equal((await db.inventoryBalance.findUniqueOrThrow({where:{productId_warehouseId:{productId:q.id,warehouseId:wh.id}}})).quantity,1);
@@ -64,20 +69,20 @@ test('HQ ledger is atomic, idempotent, reversible, isolated from POS and histori
  await syncShopifyCancellation(cancelInput);assert.equal(await stock(),beforeShopify);
  await syncShopifyCancellation(cancelInput);assert.equal(await stock(),beforeShopify);
  assert.equal((await db.order.findUniqueOrThrow({where:{id:shopOrder.id}})).status,'cancelled');
- // Two concurrent sources cannot both spend the same final 30g.
+ // Concurrent sources both ship; the shared ledger records the resulting negative stock.
  await db.inventoryBalance.update({where:{productId_warehouseId:{productId:p.id,warehouseId:wh.id}},data:{quantity:30}});
- const c1=await shipment(),c2=await shipment();const outcomes=await Promise.allSettled([c1,c2].map(s=>db.shipment.update({where:{id:s.id},data:{status:'shipped'}})));assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,1);assert.equal(await stock(),0);
+ const c1=await shipment(),c2=await shipment();const outcomes=await Promise.allSettled([c1,c2].map(s=>db.shipment.update({where:{id:s.id},data:{status:'shipped'}})));assert.equal(outcomes.filter(o=>o.status==='fulfilled').length,2);assert.equal(await stock(),-30);
  // Historical shipped rows predate this migration and must never be charged on delivery.
  const historical=await db.$transaction(async tx=>{
    await tx.$executeRawUnsafe('SET LOCAL session_replication_role = replica');
    return tx.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',status:'shipped',items:{create:{productId:p.id,productName:p.name,sku:p.sku,quantity:1,weightGrams:30}}}});
  });
- await db.shipment.update({where:{id:historical.id},data:{status:'delivered'}});assert.equal(await stock(),0);
+ await db.shipment.update({where:{id:historical.id},data:{status:'delivered'}});assert.equal(await stock(),-30);
  assert.equal(await db.inventoryTransaction.count({where:{reference:`shipment:${historical.id}`}}),0);
  const blockedOrder=await db.order.create({data:{orderNumber:randomUUID(),source:'shopify',omsStatus:'NEW',subtotal:1,total:1}});
  const blockedShipment=await db.shipment.create({data:{shipmentNumber:randomUUID(),type:'customer_order',orderId:blockedOrder.id,items:{create:{productId:p.id,productName:p.name,sku:p.sku,quantity:1,weightGrams:30}}}});
  await assert.rejects(db.shipment.update({where:{id:blockedShipment.id},data:{status:'shipped'}}),/OMS/);
- assert.equal(await stock(),0);
+ assert.equal(await stock(),-30);
  const posAfter=await db.$queryRaw`SELECT md5(coalesce(string_agg(row_to_json(s)::text, '' ORDER BY s.id),'')) AS hash FROM "MerchantStock" s`;assert.deepEqual(posBefore,posAfter);
  } finally {await db.$disconnect();}
 });
