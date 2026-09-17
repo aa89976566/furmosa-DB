@@ -22,6 +22,7 @@ export function ShipmentStatusActions({
   defaultPickupPhone,
   inline = false,
   queueStatus,
+  inventoryWarnings = [],
 }: {
   shipmentId: string;
   currentStatus: string;
@@ -33,6 +34,7 @@ export function ShipmentStatusActions({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  inventoryWarnings?: string[];
 }) {
   if (allowedNext.length === 0) {
     return (
@@ -55,6 +57,7 @@ export function ShipmentStatusActions({
           defaultPickupPhone={defaultPickupPhone}
           inline={inline}
           queueStatus={queueStatus}
+          inventoryWarnings={inventoryWarnings}
         />
       ))}
     </div>
@@ -72,6 +75,7 @@ function StatusActionCard({
   defaultPickupPhone,
   inline,
   queueStatus,
+  inventoryWarnings,
 }: {
   shipmentId: string;
   next: ShipmentStatus;
@@ -83,6 +87,7 @@ function StatusActionCard({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  inventoryWarnings: string[];
 }) {
   const isShipping = next === 'shipped';
   const isDanger = next === 'cancelled';
@@ -90,6 +95,15 @@ function StatusActionCard({
   return (
     <form
       action={markShipmentStatus}
+      onSubmit={(event) => {
+        if (
+          isShipping &&
+          inventoryWarnings.length > 0 &&
+          !window.confirm(`庫存提醒\n\n${inventoryWarnings.join('\n')}\n\n仍要標記為已寄出嗎？`)
+        ) {
+          event.preventDefault();
+        }
+      }}
       className={cn(
         'space-y-3 rounded-lg border p-4',
         isDanger ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20',
@@ -112,6 +126,12 @@ function StatusActionCard({
 
       {isShipping ? (
         <>
+          {inventoryWarnings.length > 0 ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-medium">庫存不足仍可寄出</p>
+              {inventoryWarnings.map((warning) => <p key={warning} className="mt-1">{warning}</p>)}
+            </div>
+          ) : null}
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">物流商</label>
             <CarrierSelect
