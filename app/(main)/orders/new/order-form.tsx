@@ -273,7 +273,7 @@ function OrderLineItemsTable({
                   ) : hasProduct ? (
                     <select
                       name="unit"
-                      value={it.unit ?? prod.unit}
+                      value={it.unit ?? prod?.unit ?? ''}
                       onChange={(e) => updateItem(it.key, { unit: e.target.value })}
                       className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
@@ -283,9 +283,11 @@ function OrderLineItemsTable({
                         </option>
                       ))}
                       {!ORDER_LINE_UNIT_OPTIONS.includes(
-                        (it.unit ?? prod.unit) as (typeof ORDER_LINE_UNIT_OPTIONS)[number],
+                        (it.unit ?? prod?.unit ?? '') as (typeof ORDER_LINE_UNIT_OPTIONS)[number],
                       ) ? (
-                        <option value={it.unit ?? prod.unit}>{it.unit ?? prod.unit}</option>
+                        <option value={it.unit ?? prod?.unit ?? ''}>
+                          {it.unit ?? prod?.unit ?? ''}
+                        </option>
                       ) : null}
                     </select>
                   ) : (
