@@ -62,6 +62,7 @@ import { OMS_LABELS } from '@/lib/orders/oms';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 import { OrderArchiveForm } from '@/components/orders/order-archive-form';
 import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const editable = isOrderEditable(order);
   const latestShipment = order.shipments[0];
   const recipientName =
-    latestShipment?.recipientName?.trim() ||
+    (order.omsStatus
+      ? normalizeStoredShopifyRecipient(latestShipment?.recipientName, order.shopifySnapshot)
+      : latestShipment?.recipientName?.trim()) ||
     order.customer?.name?.trim() ||
     order.merchant?.contactName?.trim() ||
     '';
