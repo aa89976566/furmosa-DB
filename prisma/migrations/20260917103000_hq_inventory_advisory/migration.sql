@@ -65,8 +65,8 @@ BEGIN
 
    SELECT unit INTO balance_unit FROM "InventoryBalance" WHERE "productId"=row.id AND "warehouseId"=wh;
    IF NOT FOUND THEN
-     INSERT INTO "InventoryBalance" (id,"productId","warehouseId",quantity,unit,"countNote")
-     VALUES ('hqb-'||md5(row.id||':'||wh),row.id,wh,0,actual_unit,'未盤點即出貨；以 0 起算並保留負庫存提醒');
+     INSERT INTO "InventoryBalance" (id,"productId","warehouseId",quantity,unit,"countNote","updatedAt")
+     VALUES ('hqb-'||md5(row.id||':'||wh),row.id,wh,0,actual_unit,'未盤點即出貨；以 0 起算並保留負庫存提醒',now());
    ELSIF balance_unit IS NULL THEN
      UPDATE "InventoryBalance" SET quantity=0,unit=actual_unit,"countNote"='未盤點即出貨；舊數字未採用，以 0 起算並保留負庫存提醒',"updatedAt"=now()
        WHERE "productId"=row.id AND "warehouseId"=wh;
