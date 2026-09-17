@@ -29,6 +29,7 @@ import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import { canonicalProductName } from '@/lib/product-label';
 import {
   loadJibaChargeSourcesByOrderIds,
   resolveShipmentFulfillmentFee,
@@ -602,7 +603,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   <ul className="mt-1 space-y-0.5 text-muted-foreground">
                     {incomplete.map(({ item, missing }) => (
                       <li key={item.id}>
-                        {replaceJibaLegacyCatnipName(item.productName)}：缺少
+                        {canonicalProductName(item.productName)}：缺少
                         {missing.join('、')}
                       </li>
                     ))}
@@ -646,7 +647,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {replaceJibaLegacyCatnipName(it.productName)}
+                          {canonicalProductName(it.productName)}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">
