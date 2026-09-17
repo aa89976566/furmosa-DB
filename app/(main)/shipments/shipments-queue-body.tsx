@@ -13,7 +13,7 @@ import {
   loadJibaChargeSourcesByOrderIds,
   resolveShipmentFulfillmentFee,
 } from '@/lib/campaigns/jiba-two-piece/shipment-charge';
-import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import { canonicalProductName } from '@/lib/product-label';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
@@ -24,6 +24,8 @@ import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
+import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -59,6 +61,8 @@ const shipmentInclude = {
       cvsBrand: true,
       cvsStoreId: true,
       cvsStoreName: true,
+      omsStatus: true,
+      shopifySnapshot: true,
     },
   },
   items: {
@@ -69,7 +73,23 @@ const shipmentInclude = {
       sku: true,
       quantity: true,
       weightGrams: true,
+      variantKey: true,
       unit: true,
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          category: true,
+          unit: true,
+          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+          inventoryBalances: {
+            where: { warehouse: { code: 'WH-MAIN' } },
+            select: { quantity: true, unit: true, lastCountedAt: true },
+            take: 1,
+          },
+        },
+      },
     },
   },
   subscriptionShipment: {
@@ -229,7 +249,9 @@ function toQueueRow(
     createdAt: s.createdAt.toISOString(),
     carrier: s.carrier,
     trackingNumber: s.trackingNumber,
-    recipientName: s.recipientName,
+    recipientName: s.order?.omsStatus
+      ? normalizeStoredShopifyRecipient(s.recipientName, s.order.shopifySnapshot)
+      : s.recipientName,
     recipientPhone: s.recipientPhone,
     recipientAddress: s.recipientAddress,
     merchant: s.merchant
@@ -260,8 +282,9 @@ function toQueueRow(
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
+    inventoryWarnings: shipmentInventoryAdvisories(s.items),
     items: s.items.map((item) => ({
-      productName: replaceJibaLegacyCatnipName(item.productName),
+      productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
       quantity: item.quantity,
     })),

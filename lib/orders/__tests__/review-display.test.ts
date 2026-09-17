@@ -12,6 +12,16 @@ test('顯示同版本已儲存的審核收件資訊', () => {
   assert.equal(currentReviewDraft(snapshot, metadata)?.recipient, '測試收件人');
   assert.equal(currentReviewDraft(snapshot, metadata)?.method, 'home');
 });
+test('舊版 Shopify 名＋姓審核資料顯示為台灣姓＋名', () => {
+  const source: Snapshot = { schemaVersion: 1, order: {
+    id: 'name-order',
+    shipping_address: { name: '芳瑜 高', first_name: '芳瑜', last_name: '高' },
+  } };
+  const saved = JSON.stringify({ schemaVersion: 1, sourceHash: snapshotHash(source), draft: {
+    recipient: '芳瑜 高', phone: '0912345678', address: '台北市', method: 'home', temperature: 'ambient',
+  } });
+  assert.equal(currentReviewDraft(source, saved)?.recipient, '高芳瑜');
+});
 test('來源更新時不沿用舊版審核資料', () => {
   assert.equal(currentReviewDraft({ ...snapshot, order: { ...snapshot.order, updated_at: '2026-09-01T00:00:00Z' } }, metadata), null);
 });

@@ -101,6 +101,7 @@ export function ShipmentQueueStatusSelect({
   queueStatus,
   queueType,
   paymentReviewHold = false,
+  inventoryWarnings = [],
   className,
 }: {
   shipmentId: string;
@@ -108,6 +109,7 @@ export function ShipmentQueueStatusSelect({
   queueStatus?: string;
   queueType?: string;
   paymentReviewHold?: boolean;
+  inventoryWarnings?: string[];
   className?: string;
 }) {
   const router = useRouter();
@@ -136,6 +138,13 @@ export function ShipmentQueueStatusSelect({
 
   function submitNext(next: string) {
     if (next === displayValue || isPending) return;
+    if (
+      next === 'shipped' &&
+      inventoryWarnings.length > 0 &&
+      !window.confirm(`庫存提醒\n\n${inventoryWarnings.join('\n')}\n\n仍要標記為已寄出嗎？`)
+    ) {
+      return;
+    }
     setActionError(null);
     setDisplayValue(next);
     const fd = new FormData();
@@ -211,6 +220,14 @@ export function ShipmentQueueStatusSelect({
         <p className="text-[11px] leading-snug text-destructive" role="alert">
           {actionError}
         </p>
+      ) : isPending ? (
+        <p className="text-[11px] leading-snug text-muted-foreground" role="status">
+          正在更新出貨狀態…
+        </p>
+      ) : inventoryWarnings.length > 0 && status === 'packed' ? (
+        <p className="text-[11px] leading-snug text-amber-700" role="status">
+          庫存提醒：{inventoryWarnings.join('；')}
+        </p>
       ) : null}
     </div>
   );
@@ -222,6 +239,7 @@ export function ShipmentQueueStatusCell({
   queueStatus,
   queueType,
   paymentReviewHold,
+  inventoryWarnings,
   className,
 }: {
   shipmentId: string;
@@ -229,6 +247,7 @@ export function ShipmentQueueStatusCell({
   queueStatus?: string;
   queueType?: string;
   paymentReviewHold?: boolean;
+  inventoryWarnings?: string[];
   className?: string;
 }) {
   return (
@@ -238,6 +257,7 @@ export function ShipmentQueueStatusCell({
       queueStatus={queueStatus}
       queueType={queueType}
       paymentReviewHold={paymentReviewHold}
+      inventoryWarnings={inventoryWarnings}
       className={className}
     />
   );

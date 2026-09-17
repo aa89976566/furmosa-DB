@@ -143,7 +143,7 @@ export const DEFAULT_REFILL_FLAVOURS = [
   { code: 'crystal-fish-10', name: '水晶魚凍乾', weightGrams: 10, sortOrder: 4 },
   { code: 'anchovy-15', name: '丁香魚凍乾', weightGrams: 15, sortOrder: 5 },
   { code: 'duck-throat-15', name: '鴨喉嚨凍乾', weightGrams: 15, sortOrder: 6 },
-  { code: 'pig-ear-30', name: '豬耳朵凍乾', weightGrams: 30, sortOrder: 7 },
+  { code: 'pig-ear-30', name: '豬耳朵條', weightGrams: 30, sortOrder: 7 },
 ] as const;
 
 export function formatFlavourLabel(name: string, weightGrams: number): string {

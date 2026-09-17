@@ -29,6 +29,7 @@ import { LogisticsSummary } from '@/components/shared/logistics-summary';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { isOrderEditable } from '@/lib/orders/build-edit-initial';
 import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
+import { canonicalProductName } from '@/lib/product-label';
 import {
   loadJibaChargeSourcesByOrderIds,
   resolveShipmentFulfillmentFee,
@@ -61,6 +62,7 @@ import { OMS_LABELS } from '@/lib/orders/oms';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 import { OrderArchiveForm } from '@/components/orders/order-archive-form';
 import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +92,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const editable = isOrderEditable(order);
   const latestShipment = order.shipments[0];
   const recipientName =
-    latestShipment?.recipientName?.trim() ||
+    (order.omsStatus
+      ? normalizeStoredShopifyRecipient(latestShipment?.recipientName, order.shopifySnapshot)
+      : latestShipment?.recipientName?.trim()) ||
     order.customer?.name?.trim() ||
     order.merchant?.contactName?.trim() ||
     '';
@@ -330,7 +334,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   待審核訂單必須使用下方的專用核准按鈕，不能直接變更狀態。
                 </p>
               ) : (
-                <OrderStatusToggles orderId={order.id} status={order.status} />
+                <OrderStatusToggles
+                  orderId={order.id}
+                  status={order.status}
+                  hasActiveShipment={order.shipments.some((shipment) => shipment.status !== 'cancelled')}
+                />
               )}
               {order.status === 'cancelled' ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
@@ -602,7 +610,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                   <ul className="mt-1 space-y-0.5 text-muted-foreground">
                     {incomplete.map(({ item, missing }) => (
                       <li key={item.id}>
-                        {replaceJibaLegacyCatnipName(item.productName)}：缺少
+                        {canonicalProductName(replaceJibaLegacyCatnipName(item.productName))}：缺少
                         {missing.join('、')}
                       </li>
                     ))}
@@ -646,7 +654,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {replaceJibaLegacyCatnipName(it.productName)}
+                          {canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">

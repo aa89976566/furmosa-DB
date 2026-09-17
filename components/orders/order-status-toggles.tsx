@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import {
   updateOrderPaymentStatus,
   updateOrderStatus,
@@ -40,20 +40,28 @@ function toggleButtonClass(active: boolean, pending: boolean, danger = false) {
 export function OrderStatusToggles({
   orderId,
   status,
+  hasActiveShipment = false,
 }: {
   orderId: string;
   status: string;
+  hasActiveShipment?: boolean;
 }) {
   const [optimisticStatus, setOptimisticStatus] = useOptimistic(status);
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {ORDER_STATUS_OPTIONS.map((s) => (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+      {ORDER_STATUS_OPTIONS.map((s) => {
+        const managedByShipment =
+          hasActiveShipment && ['shipped', 'delivered', 'completed'].includes(s);
+        return (
         <button
           key={s}
           type="button"
-          disabled={optimisticStatus === s || isPending}
+          disabled={optimisticStatus === s || isPending || managedByShipment}
+          title={managedByShipment ? '請到出貨隊列更新物流狀態' : undefined}
           className={toggleButtonClass(
             optimisticStatus === s,
             isPending,
@@ -61,17 +69,28 @@ export function OrderStatusToggles({
           )}
           onClick={() => {
             startTransition(async () => {
+              setActionError(null);
               setOptimisticStatus(s);
               const fd = new FormData();
               fd.set('orderId', orderId);
               fd.set('status', s);
-              await updateOrderStatus(fd);
+              try {
+                await updateOrderStatus(fd);
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : '更新訂單狀態失敗');
+              }
             });
           }}
         >
           {orderStatusLabel[s] ?? s}
         </button>
-      ))}
+        );
+      })}
+      </div>
+      {hasActiveShipment ? (
+        <p className="text-[11px] text-muted-foreground">已有出貨單；寄出、送達與完成請從出貨隊列更新。</p>
+      ) : null}
+      {actionError ? <p className="text-[11px] text-destructive" role="alert">{actionError}</p> : null}
     </div>
   );
 }

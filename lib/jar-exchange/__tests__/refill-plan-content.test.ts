@@ -21,6 +21,10 @@ describe('refill plan content', () => {
   it('has seven default flavours', () => {
     assert.equal(DEFAULT_REFILL_FLAVOURS.length, 7);
     assert.equal(formatFlavourLabel('牛肉凍乾', 20), '牛肉凍乾｜20g');
+    assert.deepEqual(
+      DEFAULT_REFILL_FLAVOURS.find((flavour) => flavour.code === 'pig-ear-30'),
+      { code: 'pig-ear-30', name: '豬耳朵條', weightGrams: 30, sortOrder: 7 },
+    );
   });
 
   it('FAQ covers price, empty jar, serial, points', () => {
