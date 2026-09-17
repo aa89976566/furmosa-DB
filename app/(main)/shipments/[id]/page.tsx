@@ -34,6 +34,7 @@ import { ShipmentStatusActions } from '@/components/shipments/shipment-status-ac
 import { parsePlanContents } from '@/lib/plan-contents';
 import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
+import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 import {
   ArrowLeft,
   Package,
@@ -94,9 +95,12 @@ export default async function ShipmentDetailPage(
     : nextStatuses(shipment.status);
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'received', 'cancelled'].includes(shipment.status);
+  const displayRecipientName = shipment.order?.omsStatus
+    ? normalizeStoredShopifyRecipient(shipment.recipientName, shipment.order.shopifySnapshot)
+    : shipment.recipientName;
   const shipCarrierDefaults = resolveShipActionCarrierDefaults({
     carrier: shipment.carrier,
-    recipientName: shipment.recipientName,
+    recipientName: displayRecipientName,
     recipientPhone: shipment.recipientPhone,
     recipientAddress: shipment.recipientAddress,
     merchant: shipment.merchant,
@@ -259,11 +263,11 @@ export default async function ShipmentDetailPage(
                     {shipment.customer.name}
                   </Link>
                 ) : (
-                  (shipment.recipientName ?? '-')
+                  (displayRecipientName ?? '-')
                 )
               }
             />
-            <Row label="收件人" value={shipment.recipientName ?? '-'} />
+            <Row label="收件人" value={displayRecipientName ?? '-'} />
             <Row label="電話" value={shipment.recipientPhone ?? '-'} />
             <Row label="地址" value={shipment.recipientAddress ?? '-'} />
             <Row label="物流商" value={shipment.carrier ?? '-'} />
