@@ -79,6 +79,162 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.match(orderFormSource, /這張訂單從哪裡來/);
   assert.match(orderFormSource, /這張訂單是哪一家店的/);
   assert.match(orderFormSource, /要加入哪些商品/);
+  assert.match(orderFormSource, /運費與付款/);
+  assert.match(orderFormSource, /寄到哪裡/);
+  assert.equal(orderFormSource.includes('下一題'), false);
+});
+
+test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {
+  for (const label of ['1. 店家與配送資料', '2. 訂單處理', '3. 商品內容', '4. 訂單資訊與處理紀錄']) {
+    assert.match(detailSource, new RegExp(label.replace('.', '\\.')));
+  }
+  assert.ok(detailSource.indexOf('1. 店家與配送資料') < detailSource.indexOf('2. 訂單處理'));
+  assert.ok(detailSource.indexOf('3. 商品內容') < detailSource.indexOf('4. 訂單資訊與處理紀錄'));
+  assert.match(detailSource, /const paymentLabel = isMerchantRestock/);
+  assert.match(detailSource, /無須計價/);
+  assert.match(detailSource, /更多管理工具/);
+  assert.match(detailSource, /固定以新台幣顯示/);
+});
+
+test('OMS 詳細頁直接顯示訂單內容，不再使用更多資料區塊', () => {
+  assert.match(detailSource, /if \(order\.omsStatus\)/);
+  assert.match(detailSource, /訂單內容/);
+  assert.match(detailSource, /收件與配送/);
+  assert.equal(detailSource.includes('更多資料'), false);
+  assert.match(detailSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+  assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
+});
+
+test('共用視覺基礎維持 Furmosa 黑白系統並使用輕量邊框', () => {
+  assert.match(globalStyles, /Calm monochrome operations UI/);
+  assert.match(globalStyles, /--success: 0 0% 22%/);
+  assert.match(globalStyles, /--warning: 0 0% 32%/);
+  assert.equal(globalStyles.includes('8px 8px 0'), false);
+  assert.match(buttonSource, /border border-primary/);
+  assert.equal(buttonSource.includes('border-2 border-primary'), false);
+});
+
+test('OMS 頁面清楚標示來源單號與 Shopify 商品，不直接使用技術字串當標題', () => {
+  assert.match(detailSource, />Shopify 訂單</);
+  assert.match(detailSource, /訂單編號/);
+  assert.match(detailSource, /order\.externalOrderName \|\| order\.orderNumber/);
+});
+
+test('配送完整性優先使用最新出貨單快照，店家訂單不會被誤判缺少客戶資料', () => {
+  assert.match(detailSource, /const latestShipment = order\.shipments\[0\]/);
+  assert.match(detailSource, /latestShipment\?\.recipientName\?\.trim\(\)/);
+  assert.match(detailSource, /latestShipment\?\.recipientPhone\?\.trim\(\)/);
+  assert.match(detailSource, /latestShipment\?\.recipientAddress\?\.trim\(\)/);
+  assert.doesNotMatch(detailSource, /!order\.customer\?\.phone\?\.trim\(\) \? \['電話'\]/);
+});
+
+test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () => {
+  assert.match(dashboardPageSource, /今日工作/);
+  assert.match(dashboardPageSource, /營運數據/);
+  for (const removed of ['DashboardSearch', 'DashboardTasksSection', '搜尋與今日任務']) {
+    assert.equal(dashboardPageSource.includes(removed), false);
+  }
+});
+
+test('Dashboard 使用明確下一步，不再顯示模糊的有問題分類', () => {
+  for (const action of ['選擇對應商品', '補上 7-11 門市', '建立物流單', '等待付款']) {
+    assert.match(omsSource, new RegExp(action));
+  }
+  assert.equal(dashboardWorkSource.includes('有問題'), false);
+});
+
+test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
+  for (const label of ['待確認', '等待中', '可出貨', '待交寄']) {
+    assert.match(ordersPageSource, new RegExp(label));
+  }
+  assert.equal(ordersPageSource.includes('有問題'), false);
+  for (const removed of ['今天需要處理', 'OMS 篩選只包含', '點選卡片即可', '種類']) {
+    assert.equal(ordersPageSource.includes(removed), false);
+  }
+  assert.match(ordersPageSource, /來源：/);
+  assert.match(ordersPageSource, /同步與管理/);
+});
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const listSource = readFileSync(
+  new URL('../../../components/orders/order-list-table.tsx', import.meta.url),
+  'utf8',
+);
+const detailSource = readFileSync(
+  new URL('../../../app/(main)/orders/[id]/page.tsx', import.meta.url),
+  'utf8',
+);
+const dashboardPageSource = readFileSync(
+  new URL('../../../app/(main)/dashboard/page.tsx', import.meta.url),
+  'utf8',
+);
+const dashboardWorkSource = readFileSync(
+  new URL('../../../components/orders/oms-dashboard.tsx', import.meta.url),
+  'utf8',
+);
+const omsSource = readFileSync(new URL('../oms.ts', import.meta.url), 'utf8');
+const ordersPageSource = readFileSync(
+  new URL('../../../app/(main)/orders/page.tsx', import.meta.url),
+  'utf8',
+);
+const resourceListStyles = readFileSync(
+  new URL('../../../components/orders/order-resource-list.module.css', import.meta.url),
+  'utf8',
+);
+const globalStyles = readFileSync(new URL('../../../app/globals.css', import.meta.url), 'utf8');
+const buttonSource = readFileSync(new URL('../../../components/ui/button.tsx', import.meta.url), 'utf8');
+const orderFormSource = readFileSync(
+  new URL('../../../app/(main)/orders/new/order-form.tsx', import.meta.url),
+  'utf8',
+);
+
+test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
+  assert.equal(listSource.includes('VirtualCardList'), false);
+  assert.equal(listSource.includes('<Table'), false);
+  assert.match(listSource, /OrderResourceRow/);
+  assert.match(resourceListStyles, /container-type: inline-size/);
+  assert.match(resourceListStyles, /@container \(min-width: 600px\)/);
+  assert.match(resourceListStyles, /@container \(min-width: 900px\)/);
+});
+
+test('列表優先顯示訂單編號與問題分類，搜尋結果才補充訂單日期', () => {
+  assert.match(listSource, /className=\{styles\.orderNumber\}/);
+  assert.match(listSource, /ISSUE_CATEGORY/);
+  assert.match(listSource, /className=\{`\$\{styles\.issueTag\}/);
+  assert.match(listSource, /showOrderDate/);
+  assert.match(listSource, /訂單日期/);
+  assert.match(ordersPageSource, /showOrderDate=\{isSearching\}/);
+  assert.equal(listSource.includes('formatDateTime'), false);
+  assert.equal(listSource.includes('logistics.destination'), false);
+});
+
+test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
+  assert.match(listSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
+  assert.match(detailSource, /href=\{`\/customers\/\$\{order\.customer\.id\}`\}/);
+});
+
+test('一般訂單可複製成可編輯商品的新訂單', () => {
+  assert.match(detailSource, /複製訂單/);
+  assert.match(detailSource, /\/orders\/new\?copyFrom=/);
+});
+
+test('新增與複製訂單的商品明細在手機改用完整卡片，不需水平滑動', () => {
+  assert.match(orderFormSource, /block w-full min-w-0 table-fixed md:table md:min-w-\[760px\]/);
+  assert.match(orderFormSource, /grid grid-cols-2 gap-3 rounded-xl border p-3 md:table-row/);
+  for (const label of ['商品', '規格', '數量', '單價', '小計', '設為贈品', '移除']) {
+    assert.match(orderFormSource, new RegExp(label));
+  }
+});
+
+test('新增訂單逐題展開，已回答區塊保留且不需要下一題按鈕', () => {
+  assert.match(orderFormSource, /revealedStep/);
+  assert.match(orderFormSource, /revealThrough\(2\)/);
+  assert.match(orderFormSource, /revealThrough\(8\)/);
+  assert.match(orderFormSource, /這張訂單從哪裡來/);
+  assert.match(orderFormSource, /這張訂單是哪一家店的/);
+  assert.match(orderFormSource, /要加入哪些商品/);
   assert.match(orderFormSource, /目前付款狀態是什麼/);
   assert.match(orderFormSource, /商品要寄到哪裡/);
   assert.equal(orderFormSource.includes('下一題'), false);
