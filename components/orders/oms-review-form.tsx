@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string }[] };
 
@@ -29,8 +31,21 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
 export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary }) {
   const [state, action] = useFormState(omsReviewAction, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
   const ok = state.ok ?? null;
+  const [method, setMethod] = useState(draft.method);
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
-  return <form action={action} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} /><SourceOrderSummary source={sourceSummary} /><section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品、數量、收件資料與運輸狀態均以 Shopify 訂單為準。若需要冷藏或冷凍，請在 Shopify 設定該商品的運輸狀態。</p></section><details className="rounded-lg border bg-muted/20 p-3 text-sm"><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={status} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} /></form>;
+  return <form action={action} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} /><SourceOrderSummary source={sourceSummary} />
+    <section className="space-y-3 rounded-xl border bg-background p-4">
+      <div><h3 className="font-semibold">HQ 履約資料</h3><p className="mt-1 text-sm text-muted-foreground">Shopify 原始資料保留供比對；以下欄位 HQ 可補正，儲存後會用於實際出貨。</p></div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">配送方式</span><select className="h-10 w-full rounded-md border bg-background px-3" name="method" value={method} onChange={event => setMethod(event.target.value)} required><option value="">請選擇</option><option value="home">黑貓宅配</option><option value="convenience">7-11 取貨</option></select></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">配送溫層（選填）</span><select className="h-10 w-full rounded-md border bg-background px-3" name="temperature" defaultValue={draft.temperature}><option value="">依 Shopify 配送設定</option><option value="ambient">常溫</option><option value="chilled">冷藏</option><option value="frozen">冷凍</option></select></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">收件人</span><Input name="recipient" defaultValue={draft.recipient} maxLength={500} required /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">收件電話</span><Input name="phone" defaultValue={draft.phone} maxLength={500} required /></label>
+        <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">地址／門市地址</span><Input name="address" defaultValue={draft.address} maxLength={500} required /></label>
+        {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號</span><Input name="storeId" defaultValue={draft.storeId} placeholder="六位數店號" required /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
+      </div>
+    </section>
+    <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section><details className="rounded-lg border bg-muted/20 p-3 text-sm"><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={status} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} /></form>;
 }
