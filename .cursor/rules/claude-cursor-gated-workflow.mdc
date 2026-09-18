@@ -13,6 +13,7 @@ AGENTS.md 的技術、資安、資料與 OMS 不變條件仍須遵守。使用�
 ## 0. 執行前建立基準
 
 - 讀取相關程式、AGENTS.md、現有 project rules；合併重複協作規則，不建立相互矛盾副本。
+- 讀取 `config/deployment-targets.json` 與 `DEPLOY.md`。不得從目前瀏覽器網址、舊對話或舊文件推測正式環境；Railway 是唯一 Production，Vercel 只可作 Preview。
 - 記錄 repo、branch、base commit、git status、已存在的 staged/unstaged/untracked 變更。
 - 若其他任務同時修改，先協調或使用隔離 checkout；不得覆蓋原有工作。
 - 涉及活動、金額、資格與贈品時，先核對既有系統／Shopify 的來源、日期、口徑、標記與顧客選擇，不能另造矛盾規則。
@@ -61,5 +62,6 @@ AGENTS.md 的技術、資安、資料與 OMS 不變條件仍須遵守。使用�
 
 - 回報 Claude 三題與追問結論、採用分類、最終 Cursor Prompt、Cursor 實際修改、越界與修復、測試結果、是否可部署與剩餘條件。
 - 本次 OMS 與未另行授權的任務：只建 PR，不直接 merge main、不部署 production，不改正式資料／設定。
+- 不得把 Vercel Preview 成功描述成正式部署。只有受控 workflow 驗證 exact SHA、Railway 同一 merge commit 成功，且 manifest Production origin smoke 通過，才能回報「已部署」。
 - 回復以經審核的程式 revert 為主，不重算已出貨歷史或刪除稽核／出貨資料。
 - 本規則持久存在專案版本控制；將來每次 Cursor 任務都重新核對證據，不把一次討論當成永久免審。

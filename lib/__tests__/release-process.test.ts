@@ -30,3 +30,10 @@ test('Vercel skips main and builds PR branches', () => {
   assert.equal(main.status, 0);
   assert.equal(preview.status, 1);
 });
+
+test('shared deployment contract stays valid for every agent and release', () => {
+  const verification = spawnSync(process.execPath, ['scripts/release/verify-deployment-contract.mjs'], {
+    encoding: 'utf8',
+  });
+  assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+});

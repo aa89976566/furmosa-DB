@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "production": {
+    "platform": "railway",
+    "service": "furmosa-hq",
+    "sourceBranch": "main",
+    "origin": "https://furmosa-hq-production.up.railway.app",
+    "releaseWorkflow": ".github/workflows/deploy-production.yml"
+  },
+  "preview": {
+    "platform": "vercel",
+    "productionAllowed": false,
+    "productionDatabaseAllowed": false,
+    "mainBuildAllowed": false
+  },
+  "database": {
+    "productionPlatform": "supabase-postgresql"
+  }
+}

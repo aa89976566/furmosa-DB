@@ -2,6 +2,8 @@
 
 本文件是正式發布的唯一操作入口。舊的「Vercel Production 自動跑 migration」流程已停用。
 
+部署環境角色與正式網址的唯一機器可讀來源是 [`config/deployment-targets.json`](config/deployment-targets.json)。本文件解釋操作流程；兩者若衝突，立即停止 Release，先由獨立 PR 修正衝突，不得臨場猜測。
+
 ## 平台責任
 
 | 平台 | 唯一責任 | 禁止事項 |
@@ -21,6 +23,8 @@ Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Previe
 2. 該 PR 當下完整 40 字元 head SHA。
 3. 已核准的 migration plan；沒有 DB 變更時選 `none`。
 
+瀏覽器目前所在網址不構成部署目標。Vercel 成功只代表 Preview 可供驗收，不能回報為正式上線；也不需要把同一版本再部署一次到 Vercel Production。
+
 工作流程依序執行：
 
 1. 核對 PR、exact head SHA、非 Draft。
@@ -34,6 +38,8 @@ Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Previe
 9. 對 Railway 正式網址執行公開唯讀 smoke。
 10. 再執行一次正式 DB 唯讀檢查。
 11. 寫入 GitHub Job Summary，並保存 90 天 JSON release artifact。
+
+只有第 8 至 10 步都通過後才能向使用者說「已部署」。回報須包含 PR、head SHA、merge SHA、Railway 正式網址及 smoke 結果；缺一項時只能回報「尚未完成」與實際停點。
 
 任一步驟失敗就停止。migration 失敗發生在 merge 前，不會部署新版；Railway build／healthcheck 失敗時上一版繼續服務。部署後 smoke 失敗時工作流程標示失敗，依該次 artifact 與 Railway 上一個成功 deployment 人工 rollback，不做無限自動重試。
 
