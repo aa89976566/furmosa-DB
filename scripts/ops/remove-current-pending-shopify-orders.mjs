@@ -9,7 +9,6 @@ const expectedDigest = process.env.EXPECTED_DIGEST?.trim() ?? '';
 
 const candidateWhere = {
   deletedAt: null,
-  archivedAt: null,
   source: 'shopify',
   OR: [
     { omsStatus: { in: ['NEW', 'REVIEW'] } },
