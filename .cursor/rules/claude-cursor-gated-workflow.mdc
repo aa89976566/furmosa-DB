@@ -14,6 +14,7 @@ AGENTS.md 的技術、資安、資料與 OMS 不變條件仍須遵守。使用�
 
 - 讀取相關程式、AGENTS.md、現有 project rules；合併重複協作規則，不建立相互矛盾副本。
 - 讀取 `config/deployment-targets.json` 與 `DEPLOY.md`。不得從目前瀏覽器網址、舊對話或舊文件推測正式環境；Railway 是唯一 Production，Vercel 只可作 Preview。
+- 分支 push 只更新 Preview；不得直接 push `main` 或把每次修改自動送上正式站。正式發布只能由受控 workflow 鎖定 exact PR/SHA、合併 `main` 後觸發 Railway。
 - 記錄 repo、branch、base commit、git status、已存在的 staged/unstaged/untracked 變更。
 - 若其他任務同時修改，先協調或使用隔離 checkout；不得覆蓋原有工作。
 - 涉及活動、金額、資格與贈品時，先核對既有系統／Shopify 的來源、日期、口徑、標記與顧客選擇，不能另造矛盾規則。

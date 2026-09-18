@@ -15,6 +15,15 @@
 
 Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
 
+## 自動更新邊界
+
+- 開發者 push 功能分支：自動更新 Vercel Preview，正式站不變。
+- PR 測試或審查失敗：停止，正式站不變。
+- `Deploy Production` 鎖定 exact PR/SHA，通過檢查並合併到 `main`：Railway 自動部署該 merge commit。
+- Railway 或 smoke 失敗：不得宣稱已部署，也不得改用 Vercel Production 補上。
+
+因此本專案採「受控合併後自動部署」，不採「每次修改自動上正式站」。同一版本不需要同時部署 Railway Production 與 Vercel Production。
+
 ## 「部署」的固定意義
 
 使用者說「部署」，代表執行 GitHub Actions 的 **Deploy Production**，並提供：
@@ -62,7 +71,7 @@ Secrets 不得放在 Repository variables、程式碼、PR、log 或 artifact。
 Repository → Settings → Actions → General：
 
 - Workflow permissions 允許 GitHub Actions 建立 PR merge commit。
-- `main` branch rules 要求 `verify` 通過。
+- `main` branch rules 禁止直接 push，要求 PR、`verify` 通過及必要 review。
 - Railway GitHub integration 保持對 `main` 自動部署與 wait for CI checks。
 
 ## Migration plan 規則

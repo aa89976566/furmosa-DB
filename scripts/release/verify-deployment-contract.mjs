@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const targets = JSON.parse(read('config/deployment-targets.json'));
 
-assert.equal(targets.schemaVersion, 1, 'Unsupported deployment contract schema');
+assert.equal(targets.schemaVersion, 2, 'Unsupported deployment contract schema');
 assert.deepEqual(
   targets.production,
   {
@@ -28,6 +28,18 @@ assert.deepEqual(
   'Vercel must remain preview-only and isolated from production data',
 );
 assert.equal(targets.database.productionPlatform, 'supabase-postgresql');
+assert.deepEqual(
+  targets.releasePolicy,
+  {
+    branchPushResult: 'preview-only',
+    productionTrigger: 'controlled-workflow-merges-exact-pr-to-main',
+    railwayAutoDeployAfterMainMerge: true,
+    directPushToMainAllowed: false,
+    unreviewedProductionDeployAllowed: false,
+    dualProductionAllowed: false,
+  },
+  'Production must deploy only after the controlled workflow merges an exact reviewed PR to main',
+);
 
 const deploymentGuide = read('DEPLOY.md');
 const agentRules = read('AGENTS.md');
@@ -47,6 +59,8 @@ for (const [name, text] of [
 assert.match(productionWorkflow, /environment:\s*\n\s*name: production/);
 assert.match(productionWorkflow, /PRODUCTION_ORIGIN:\s*\$\{\{ vars\.PRODUCTION_ORIGIN \}\}/);
 assert.match(productionWorkflow, /wait-railway-status\.mjs/);
+assert.match(productionWorkflow, /gh pr merge/);
+assert.match(productionWorkflow, /--match-head-commit/);
 assert.doesNotMatch(productionWorkflow, /vercel\s+(--prod|deploy)/i);
 
 const runVercelGate = (ref) =>

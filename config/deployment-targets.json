@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "production": {
     "platform": "railway",
     "service": "furmosa-hq",
@@ -15,5 +15,13 @@
   },
   "database": {
     "productionPlatform": "supabase-postgresql"
+  },
+  "releasePolicy": {
+    "branchPushResult": "preview-only",
+    "productionTrigger": "controlled-workflow-merges-exact-pr-to-main",
+    "railwayAutoDeployAfterMainMerge": true,
+    "directPushToMainAllowed": false,
+    "unreviewedProductionDeployAllowed": false,
+    "dualProductionAllowed": false
   }
 }

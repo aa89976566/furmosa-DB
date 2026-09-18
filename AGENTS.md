@@ -78,6 +78,8 @@
 - `Railway` 是唯一正式 Production；正式服務為 `furmosa-hq`，正式來源只接受 GitHub `main`。
 - `Vercel` 只用於 Pull Request Preview，不得把 Vercel Preview 或 Vercel Production 當成正式上線完成。
 - `Supabase PostgreSQL` 是正式資料庫；Vercel Preview 必須使用隔離的 Preview/Test 資料庫，不得共用正式資料庫。
+- 自動化採「合併後自動部署」，不是「修改後自動部署」：分支 push 只能更新 Preview；CI 通過並由 `Deploy Production` 鎖定 exact PR/SHA 合併到 `main` 後，Railway 才自動部署該 merge commit。
+- 禁止直接 push `main`、未審查部署、雙 Production，以及把每次存檔／commit／分支 push 當成正式發布觸發條件。
 - 使用者說「部署」時，預設意義是：確認指定 PR 與 CI → 執行該 PR 已核准的限定 migration plan → 合併 PR → 等待 Railway 回報同一 merge commit 部署成功 → 執行唯讀 smoke/readiness → 回報 release 紀錄。
 - 正式發布一律使用 GitHub Actions `Deploy Production`。不得把 migration、seed、repair 或其他資料寫入放回 `npm run build`、Railway build/start command 或 Vercel build。
 - Release 必須指定 PR 編號、完整 expected head SHA 與 migration plan；禁止用「最新分支」或模糊 ref 猜測部署版本。

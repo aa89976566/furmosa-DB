@@ -9,4 +9,6 @@
 
 不得自行從舊對話、舊網址、瀏覽器目前頁面或過期文件推測正式環境。若資訊衝突，以 `config/deployment-targets.json` 為環境角色依據並停止部署，先修正衝突。
 
+分支 push 只能更新 Preview；不得把存檔、commit 或分支 push 當成正式發布。正式版本只可由受控 Release 鎖定 exact PR/SHA、合併 `main` 後交由 Railway 自動部署。
+
 對外回報「已部署」前，必須確認：指定 PR 與 exact SHA 已通過受控 Release、Railway 回報相同 merge commit 成功，且對 manifest 內的 Production origin 完成 smoke。Vercel 成功只能回報為 Preview 成功。
