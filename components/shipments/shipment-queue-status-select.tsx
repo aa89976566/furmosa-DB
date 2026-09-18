@@ -9,12 +9,12 @@ import { cn } from '@/lib/utils';
 export const QUEUE_DELIVERED_LABEL = '貨物到達';
 
 const QUEUE_PENDING_OPTIONS = [
-  { value: 'pending', label: '未備貨' },
-  { value: 'packed', label: '完成備貨' },
+  { value: 'pending', label: '未寄出' },
+  { value: 'shipped', label: '已寄出' },
 ] as const;
 
 const QUEUE_PACKED_OPTIONS = [
-  { value: 'packed', label: '已備妥' },
+  { value: 'packed', label: '未寄出' },
   { value: 'shipped', label: '已寄出' },
 ] as const;
 

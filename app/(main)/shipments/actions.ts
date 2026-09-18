@@ -48,7 +48,7 @@ import {
 } from '@/lib/orders/oms';
 
 const TRANSITIONS: Record<string, string[]> = {
-  pending: ['packed', 'cancelled'],
+  pending: ['packed', 'shipped', 'cancelled'],
   packed: ['shipped', 'pending', 'cancelled'],
   shipped: ['delivered', 'pending'],
   delivered: ['shipped', 'pending'],
@@ -195,7 +195,10 @@ async function markShipmentStatusInner(
   const now = new Date();
   const data: Prisma.ShipmentUpdateInput = { status: next };
   if (next === 'packed') data.packedAt = now;
-  if (next === 'shipped') data.shippedAt = now;
+  if (next === 'shipped') {
+    data.packedAt = shipment.packedAt ?? now;
+    data.shippedAt = now;
+  }
   if (next === 'delivered') data.deliveredAt = now;
   if (next === 'cancelled') data.cancelledAt = now;
   if (next === 'pending') {
