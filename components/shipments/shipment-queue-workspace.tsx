@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ShipmentQueueTable,
@@ -49,7 +49,6 @@ export function ShipmentQueueWorkspace({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const detailRef = useRef<HTMLDivElement>(null);
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(
     initialShipmentId ?? searchParams.get('s'),
   );
@@ -89,9 +88,6 @@ export function ShipmentQueueWorkspace({
       setSelectedShipmentId(shipment.id);
       // 只改 URL，不觸發整頁 RSC 重抓 200 筆出貨佇列
       window.history.replaceState(null, '', buildQueueUrl(shipment.id));
-      window.requestAnimationFrame(() => {
-        detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
     },
     [buildQueueUrl],
   );
@@ -126,45 +122,55 @@ export function ShipmentQueueWorkspace({
       ))}
 
       {selectedShipmentId ? (
-        <section
-          ref={detailRef}
-          className="scroll-mt-6 overflow-hidden rounded-xl border-2 border-primary/20 bg-card shadow-md"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-primary/[0.04] px-4 py-3 sm:px-5 sm:py-4">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-                <ClipboardList className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                  訂單內容
-                </p>
-                <h2 className="mt-0.5 font-mono text-base font-semibold text-navy">
-                  {panelTitle ?? '載入出貨單資料…'}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
-                </p>
+        <>
+          <button
+            type="button"
+            aria-label="關閉訂單內容"
+            onClick={closeDetail}
+            className="fixed inset-0 z-40 bg-navy/30 backdrop-blur-[1px]"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="訂單內容"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l-2 border-primary/20 bg-card shadow-2xl"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-primary/[0.04] px-4 py-3 sm:px-5 sm:py-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+                  <ClipboardList className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                    訂單內容
+                  </p>
+                  <h2 className="mt-0.5 font-mono text-base font-semibold text-navy">
+                    {panelTitle ?? '載入出貨單資料…'}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="inline-flex items-center gap-1 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+                關閉
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={closeDetail}
-              className="inline-flex items-center gap-1 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-              關閉
-            </button>
-          </div>
-          <div className="p-4 sm:p-5">
-            <ShipmentOrderPanel
-              key={`${selectedShipmentId}-${panelRefreshKey}`}
-              shipmentId={selectedShipmentId}
-              queueStatus={statusFilter}
-              onTitleChange={setPanelTitle}
-            />
-          </div>
-        </section>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+              <ShipmentOrderPanel
+                key={`${selectedShipmentId}-${panelRefreshKey}`}
+                shipmentId={selectedShipmentId}
+                queueStatus={statusFilter}
+                onTitleChange={setPanelTitle}
+              />
+            </div>
+          </aside>
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
