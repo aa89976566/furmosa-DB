@@ -2,6 +2,8 @@
 
 本文件是正式發布的唯一操作入口。舊的「Vercel Production 自動跑 migration」流程已停用。
 
+部署環境角色與正式網址的唯一機器可讀來源是 [`config/deployment-targets.json`](config/deployment-targets.json)。本文件解釋操作流程；兩者若衝突，立即停止 Release，先由獨立 PR 修正衝突，不得臨場猜測。
+
 ## 平台責任
 
 | 平台 | 唯一責任 | 禁止事項 |
@@ -13,6 +15,15 @@
 
 Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
 
+## 自動更新邊界
+
+- 開發者 push 功能分支：自動更新 Vercel Preview，正式站不變。
+- PR 測試或審查失敗：停止，正式站不變。
+- `Deploy Production` 鎖定 exact PR/SHA，通過檢查並合併到 `main`：Railway 自動部署該 merge commit。
+- Railway 或 smoke 失敗：不得宣稱已部署，也不得改用 Vercel Production 補上。
+
+因此本專案採「受控合併後自動部署」，不採「每次修改自動上正式站」。同一版本不需要同時部署 Railway Production 與 Vercel Production。
+
 ## 「部署」的固定意義
 
 使用者說「部署」，代表執行 GitHub Actions 的 **Deploy Production**，並提供：
@@ -20,6 +31,8 @@ Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Previe
 1. 開啟且 base 為 `main` 的 PR 編號。
 2. 該 PR 當下完整 40 字元 head SHA。
 3. 已核准的 migration plan；沒有 DB 變更時選 `none`。
+
+瀏覽器目前所在網址不構成部署目標。Vercel 成功只代表 Preview 可供驗收，不能回報為正式上線；也不需要把同一版本再部署一次到 Vercel Production。
 
 工作流程依序執行：
 
@@ -34,6 +47,8 @@ Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Previe
 9. 對 Railway 正式網址執行公開唯讀 smoke。
 10. 再執行一次正式 DB 唯讀檢查。
 11. 寫入 GitHub Job Summary，並保存 90 天 JSON release artifact。
+
+只有第 8 至 10 步都通過後才能向使用者說「已部署」。回報須包含 PR、head SHA、merge SHA、Railway 正式網址及 smoke 結果；缺一項時只能回報「尚未完成」與實際停點。
 
 任一步驟失敗就停止。migration 失敗發生在 merge 前，不會部署新版；Railway build／healthcheck 失敗時上一版繼續服務。部署後 smoke 失敗時工作流程標示失敗，依該次 artifact 與 Railway 上一個成功 deployment 人工 rollback，不做無限自動重試。
 
@@ -56,7 +71,7 @@ Secrets 不得放在 Repository variables、程式碼、PR、log 或 artifact。
 Repository → Settings → Actions → General：
 
 - Workflow permissions 允許 GitHub Actions 建立 PR merge commit。
-- `main` branch rules 要求 `verify` 通過。
+- `main` branch rules 禁止直接 push，要求 PR、`verify` 通過及必要 review。
 - Railway GitHub integration 保持對 `main` 自動部署與 wait for CI checks。
 
 ## Migration plan 規則

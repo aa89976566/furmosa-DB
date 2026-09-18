@@ -26,7 +26,8 @@
     "merchant:ensure-demo-admin": "tsx scripts/ensure-demo-admin.ts",
     "product:ensure-mooncake": "tsx scripts/ensure-mooncake-product.ts",
     "refill:seed-test": "tsx scripts/seed-refill-test-data.ts",
-    "smoke:production": "node scripts/production-smoke.mjs"
+    "smoke:production": "node scripts/production-smoke.mjs",
+    "verify:deployment-contract": "node scripts/verify-deployment-contract.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

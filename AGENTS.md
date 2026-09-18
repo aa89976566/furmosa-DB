@@ -74,9 +74,12 @@
 
 ## 固定 Release 流程
 
+- `config/deployment-targets.json` 是部署環境角色、正式網址與來源分支的唯一機器可讀事實；開始部署或回報網址前必須先讀取。其他文件只能引用，不得另建不同版本。
 - `Railway` 是唯一正式 Production；正式服務為 `furmosa-hq`，正式來源只接受 GitHub `main`。
 - `Vercel` 只用於 Pull Request Preview，不得把 Vercel Preview 或 Vercel Production 當成正式上線完成。
 - `Supabase PostgreSQL` 是正式資料庫；Vercel Preview 必須使用隔離的 Preview/Test 資料庫，不得共用正式資料庫。
+- 自動化採「合併後自動部署」，不是「修改後自動部署」：分支 push 只能更新 Preview；CI 通過並由 `Deploy Production` 鎖定 exact PR/SHA 合併到 `main` 後，Railway 才自動部署該 merge commit。
+- 禁止直接 push `main`、未審查部署、雙 Production，以及把每次存檔／commit／分支 push 當成正式發布觸發條件。
 - 使用者說「部署」時，預設意義是：確認指定 PR 與 CI → 執行該 PR 已核准的限定 migration plan → 合併 PR → 等待 Railway 回報同一 merge commit 部署成功 → 執行唯讀 smoke/readiness → 回報 release 紀錄。
 - 正式發布一律使用 GitHub Actions `Deploy Production`。不得把 migration、seed、repair 或其他資料寫入放回 `npm run build`、Railway build/start command 或 Vercel build。
 - Release 必須指定 PR 編號、完整 expected head SHA 與 migration plan；禁止用「最新分支」或模糊 ref 猜測部署版本。
@@ -84,6 +87,8 @@
 - 任一 preflight、CI、migration、合併、Railway commit status 或 smoke/readiness 失敗時立即停止並如實回報。Railway healthcheck 失敗時保留上一版流量；上線後 smoke 失敗時停止後續動作並依部署紀錄人工 rollback，不得自動反覆修復。
 - GitHub `production` Environment 必須設定 required reviewer，Secrets 只放在該 Environment，不得放入 repo、workflow 文字、log 或 artifact。
 - 只有資料刪除／不可逆 migration、變更平台／權限／秘密、強制略過失敗檢查，或部署目標不明時才再次詢問。一般已核准 Release 不重複詢問 Railway/Vercel 的角色。
+- 不得因瀏覽器目前開著 Vercel 網址，就把它視為正式站或對它執行 Production 部署；網址與角色只依 manifest 判定。
+- 「已部署」只能在 exact merge commit、Railway 成功狀態及 manifest Production origin smoke 三者都驗證後回報；否則必須明確說明停在哪一步。
 
 ## 公開入口與金流
 
