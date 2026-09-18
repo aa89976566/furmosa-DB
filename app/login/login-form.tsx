@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { loginAction, type LoginState } from './actions';
+import { PasskeyLoginButton } from './passkey-login-button';
 
 const initialState: LoginState = {};
 
@@ -49,6 +50,9 @@ export function LoginForm({ next }: { next?: string }) {
           ) : null}
           <SubmitButton />
         </form>
+        <div className="mt-4">
+          <PasskeyLoginButton next={next} />
+        </div>
       </CardContent>
     </Card>
   );

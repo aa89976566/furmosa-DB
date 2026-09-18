@@ -9,7 +9,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut } from 'lucide-react';
+import { LogOut, ScanFace } from 'lucide-react';
+import Link from 'next/link';
 
 const roleLabel: Record<string, string> = {
   admin: '系統管理員',
@@ -50,7 +51,12 @@ export function UserMenu({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>個人資料</DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account/security">
+            <ScanFace className="mr-2 h-4 w-4" />
+            Face ID 登入
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem disabled>系統設定</DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action="/api/auth/logout" method="POST">
