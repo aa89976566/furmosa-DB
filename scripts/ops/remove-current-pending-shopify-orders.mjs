@@ -11,7 +11,10 @@ const candidateWhere = {
   deletedAt: null,
   archivedAt: null,
   source: 'shopify',
-  omsStatus: { in: ['NEW', 'REVIEW'] },
+  OR: [
+    { omsStatus: { in: ['NEW', 'REVIEW'] } },
+    { omsStatus: null, status: { in: ['draft', 'pending_review'] } },
+  ],
 };
 
 const selection = {
@@ -129,7 +132,6 @@ async function main() {
         deletedAt: removedAt,
         deletedById: actor.id,
         deletionReason: '其他',
-        omsStatus: 'NEW',
         omsReviewedAt: null,
         omsReviewedById: null,
         omsCheckedAt: null,
