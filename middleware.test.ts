@@ -63,7 +63,10 @@ register(`data:text/javascript,${encodeURIComponent(loader)}`, pathToFileURL(imp
 
 const { middleware } = await import('./middleware.ts');
 
-function makeReq(url: string, opts: { trapCookies: boolean }) {
+function makeReq(
+  url: string,
+  opts: { trapCookies: boolean; headers?: Record<string, string> },
+) {
   const nextUrl = new URL(url) as URL & { clone: () => URL };
   nextUrl.clone = () => {
     const copied = new URL(nextUrl.toString()) as URL & { clone: () => URL };
@@ -73,6 +76,7 @@ function makeReq(url: string, opts: { trapCookies: boolean }) {
   return {
     url,
     nextUrl,
+    headers: new Headers(opts.headers),
     cookies: {
       get(name: string) {
         cookieReads.push(String(name));
@@ -85,10 +89,14 @@ function makeReq(url: string, opts: { trapCookies: boolean }) {
   };
 }
 
-async function invoke(url: string, trapCookies = false) {
+async function invoke(
+  url: string,
+  trapCookies = false,
+  headers?: Record<string, string>,
+) {
   cookieReads.length = 0;
   authReads.length = 0;
-  return middleware(makeReq(url, { trapCookies }) as never);
+  return middleware(makeReq(url, { trapCookies, headers }) as never);
 }
 
 function headerBlob(res: Response): string {
@@ -194,6 +202,21 @@ describe('custom POS hostname routing', () => {
 
     assert.equal(res.status, 307);
     assert.equal(res.headers.get('location'), `${posOrigin}/pos`);
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('uses Railway forwarded host when the internal request URL has the Railway hostname', async () => {
+    const res = await invoke('https://furmosa-hq-production.up.railway.app/', true, {
+      host: 'furmosa-hq-production.up.railway.app',
+      'x-forwarded-host': 'pos.furmosa.com',
+    });
+
+    assert.equal(res.status, 307);
+    assert.equal(
+      res.headers.get('location'),
+      'https://pos.furmosa.com/pos',
+    );
     assert.equal(cookieReads.length, 0);
     assert.equal(authReads.length, 0);
   });
