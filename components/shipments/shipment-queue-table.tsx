@@ -375,7 +375,7 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
-        <Table>
+        <Table className="min-w-[64rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead className="w-[7.5rem]">{shipments.every((s) => s.type !== 'subscription' && ['pending', 'packed'].includes(s.status)) ? '訂購名稱' : '單號'}</TableHead>
@@ -448,7 +448,7 @@ export function ShipmentQueueTable({
                     {logistics.phone && logistics.phone !== '—' ? (
                       <div className="flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
                         <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="break-all">{logistics.phone}</span>
+                        <span className="whitespace-nowrap">{logistics.phone}</span>
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">-</span>

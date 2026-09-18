@@ -97,6 +97,14 @@ function StatusActionCard({
       action={markShipmentStatus}
       onSubmit={(event) => {
         if (
+          isDanger &&
+          !window.confirm('確定要取消這張出貨單嗎？取消後將無法再變更物流狀態。')
+        ) {
+          event.preventDefault();
+          return;
+        }
+
+        if (
           isShipping &&
           inventoryWarnings.length > 0 &&
           !window.confirm(`庫存提醒\n\n${inventoryWarnings.join('\n')}\n\n仍要標記為已寄出嗎？`)
