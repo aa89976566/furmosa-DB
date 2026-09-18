@@ -211,13 +211,16 @@ export function ShipmentQueueStatusSelect({
                 statusChipClass(option.value, active),
               )}
             >
-              {option.label}
+              {isPending && active ? '處理中…' : option.label}
             </button>
           );
         })}
       </div>
       {actionError ? (
-        <p className="text-[11px] leading-snug text-destructive" role="alert">
+        <p
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11px] font-medium leading-snug text-destructive"
+          role="alert"
+        >
           {actionError}
         </p>
       ) : isPending ? (

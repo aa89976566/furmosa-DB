@@ -55,6 +55,40 @@ const TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
+const SHIPMENT_TRANSACTION_OPTIONS = {
+  maxWait: 15_000,
+  timeout: 30_000,
+} as const;
+
+function isRetryableTransactionError(error: unknown) {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String(error.code)
+      : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return (
+    code === 'P2034' ||
+    /transaction failed to commit|write conflict|deadlock/i.test(message)
+  );
+}
+
+async function commitShipmentStatus(
+  operation: (tx: Prisma.TransactionClient) => Promise<void>,
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt > 0 || !isRetryableTransactionError(error)) throw error;
+      console.warn('[markShipmentStatus] retrying transaction after commit conflict');
+    }
+  }
+  throw lastError;
+}
+
 export type MarkShipmentStatusResult =
   | { ok: true; next: string; shipmentId: string }
   | { ok: false; error: string };
@@ -300,7 +334,7 @@ async function markShipmentStatusInner(
   }
 
   // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
-  await prisma.$transaction(async (tx) => {
+  await commitShipmentStatus(async (tx) => {
     if (shipment.orderId) {
       if (shipment.order?.omsStatus) {
         const freshOrder = await tx.order.findUnique({
