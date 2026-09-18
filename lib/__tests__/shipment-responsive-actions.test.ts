@@ -25,4 +25,20 @@ describe('出貨工作區介面', () => {
     assert.match(source, /前往訂單審核/);
     assert.match(source, /omsStatus: OmsStatus \| null/);
   });
+
+  it('待出貨卡片統一顯示未寄出與已寄出，未備貨也能直接完成交寄', () => {
+    const control = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.doesNotMatch(control, /label: '完成備貨'/);
+    assert.doesNotMatch(control, /label: '已備妥'/);
+    assert.match(control, /value: 'pending', label: '未寄出'/);
+    assert.match(control, /value: 'packed', label: '未寄出'/);
+    assert.equal((control.match(/value: 'shipped', label: '已寄出'/g) ?? []).length >= 2, true);
+    assert.match(action, /pending: \['packed', 'shipped', 'cancelled'\]/);
+    assert.match(action, /data\.packedAt = shipment\.packedAt \?\? now/);
+  });
 });
