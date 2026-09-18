@@ -88,11 +88,34 @@ model User {
   assignedTasks       Task[]                 @relation("AssignedTasks")
   pointsLedgerCreated MemberPointsLedger[]   @relation("PointsLedgerCreatedBy")
   pushSubscriptions   UserPushSubscription[]
+  passkeyCredentials  HqPasskeyCredential[]
   restockApprovals    RestockRequest[]       @relation("RestockApprovedBy")
   partnerStoreDecisionsDecided PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityDecidedBy")
   partnerStoreDecisionsRevoked PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
   omsReviewedOrders  Order[]                @relation("OmsReviewedBy")
   archivedOrders     Order[]                @relation("OrderArchivedBy")
+}
+
+model HqPasskeyCredential {
+  id             String   @id @default(cuid())
+  credentialId   String   @unique @map("credential_id")
+  userId         String   @map("user_id")
+  webauthnUserId String   @map("webauthn_user_id")
+  publicKey      Bytes    @map("public_key")
+  counter        BigInt   @default(0)
+  deviceType     String   @map("device_type")
+  backedUp       Boolean  @default(false) @map("backed_up")
+  transports     String[] @default([])
+  deviceName     String   @default("Face ID 裝置") @map("device_name")
+  userAgent      String?  @map("user_agent")
+  lastUsedAt     DateTime? @map("last_used_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("hq_passkey_credentials")
 }
 
 model UserPushSubscription {
