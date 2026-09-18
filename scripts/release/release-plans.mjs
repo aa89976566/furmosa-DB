@@ -15,6 +15,15 @@ export const RELEASE_PLANS = Object.freeze({
       'scripts/ops/deploy-hq-bulk.mjs',
     ]),
   }),
+  hq_passkeys_20260918: Object.freeze({
+    runner: 'scripts/ops/deploy-hq-passkeys.mjs',
+    migrationPrefixes: Object.freeze([
+      'prisma/migrations/20260918162000_hq_passkeys/',
+    ]),
+    requiredPaths: Object.freeze([
+      'prisma/migrations/20260918162000_hq_passkeys/migration.sql',
+    ]),
+  }),
 });
 
 export function releasePlan(name) {

@@ -19,6 +19,7 @@ on:
         options:
           - none
           - hq_inventory_advisory_20260917
+          - hq_passkeys_20260918
 
 permissions:
   contents: write
