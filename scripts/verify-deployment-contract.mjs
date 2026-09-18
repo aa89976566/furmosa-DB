@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
-const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const targets = JSON.parse(read('config/deployment-targets.json'));
 
 assert.equal(targets.schemaVersion, 2, 'Unsupported deployment contract schema');
@@ -65,7 +65,7 @@ assert.doesNotMatch(productionWorkflow, /vercel\s+(--prod|deploy)/i);
 
 const runVercelGate = (ref) =>
   spawnSync(process.execPath, ['scripts/vercel-ignore-build.mjs'], {
-    cwd: new URL('../..', import.meta.url),
+    cwd: new URL('..', import.meta.url),
     env: { ...process.env, VERCEL_GIT_COMMIT_REF: ref },
     stdio: 'ignore',
   }).status;
