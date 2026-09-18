@@ -118,6 +118,12 @@ test('OMS 詳細頁直接顯示訂單內容，不再使用更多資料區塊', (
   assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
 });
 
+test('出貨面板標題優先顯示收件人，不暴露內部出貨 ID', () => {
+  assert.match(shipmentWorkspaceSource, /shipment\.recipientName\?\.trim\(\)/);
+  assert.match(shipmentWorkspaceSource, /載入出貨單資料/);
+  assert.doesNotMatch(shipmentWorkspaceSource, /: selectedShipmentId/);
+});
+
 test('共用視覺基礎維持 Furmosa 黑白系統並使用輕量邊框', () => {
   assert.match(globalStyles, /Calm monochrome operations UI/);
   assert.match(globalStyles, /--success: 0 0% 22%/);
@@ -157,8 +163,11 @@ test('Dashboard 使用明確下一步，不再顯示模糊的有問題分類', (
 });
 
 test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
-  for (const label of ['待確認', '等待中', '可出貨', '待交寄']) {
+  for (const label of ['待處理', '待出貨', '運送中']) {
     assert.match(ordersPageSource, new RegExp(label));
+  }
+  for (const removed of ['待確認', '等待中', '可出貨', '待交寄']) {
+    assert.equal(ordersPageSource.includes(removed), false);
   }
   assert.equal(ordersPageSource.includes('有問題'), false);
   for (const removed of ['今天需要處理', 'OMS 篩選只包含', '點選卡片即可', '種類']) {

@@ -47,9 +47,9 @@ function nextAction(order: OrderListRow) {
   if (order.status === 'cancelled') return { label: '已取消', hint: '無需處理', active: false };
   if (order.fulfillmentStatus === 'delivered' || order.status === 'completed') return { label: '已完成', hint: '交易完成', active: false };
   if (order.fulfillmentStatus === 'shipped') return { label: '運送中', hint: '等待送達', active: false };
-  if (order.paymentStatus !== 'paid') return { label: '等待付款', hint: '尚未付款', active: false };
-  if (order.status === 'pending_review' || order.status === 'draft') return { label: '確認訂單內容', hint: '現在處理', active: true };
-  return { label: '等待交寄', hint: '查看出貨進度', active: false };
+  if (order.status === 'pending_review' || order.status === 'draft') return { label: '處理訂單', hint: '核對內容', active: true };
+  if (order.status === 'confirmed' || order.status === 'packed') return { label: '處理出貨', hint: '建立物流', active: true };
+  return { label: '查看進度', hint: '查看訂單', active: false };
 }
 
 const ISSUE_CATEGORY: Record<OmsIssueCode, string> = {

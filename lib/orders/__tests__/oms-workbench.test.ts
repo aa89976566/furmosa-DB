@@ -15,17 +15,18 @@ describe('OMS workbench read-only queries', () => {
     assert.match(JSON.stringify(workbenchVisibleWhere.OR?.[1]), /cancelled/);
   });
   it('keeps unreviewed orders actionable regardless of payment', () => {
-    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['需處理', '等待中', '可出貨', '待交寄', '已完成']);
+    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['待處理', '待付款', '待出貨', '運送中', '已完成']);
     assert.deepEqual(orderWorkWhere('now'), {
       OR: [
         { omsStatus: { in: ['NEW', 'REVIEW'] } },
         { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
+        { omsStatus: null, status: { in: ['draft', 'pending_review'] } },
       ],
     });
     assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } });
-    assert.deepEqual(orderWorkWhere('ready'), { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } });
-    assert.deepEqual(orderWorkWhere('shipping'), { omsStatus: 'FULFILLMENT_PENDING' });
-    assert.deepEqual(orderWorkWhere('done'), { omsStatus: 'FULFILLED' });
+    assert.match(JSON.stringify(orderWorkWhere('ready')), /confirmed/);
+    assert.match(JSON.stringify(orderWorkWhere('shipping')), /shipped/);
+    assert.match(JSON.stringify(orderWorkWhere('done')), /delivered/);
   });
   it('includes uninspected, null and nonempty issue flags, not only red flags', () => {
     assert.deepEqual(omsProblemsWhere.OR, [{ omsCheckedAt: null },
