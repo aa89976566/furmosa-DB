@@ -27,9 +27,9 @@ function getShipmentLabel(shipment: ShipmentQueueRow) {
   return (
     shipment.recipientName?.trim() ||
     shipment.customer?.name.trim() ||
-    shipment.order?.orderNumber ??
-    shipment.subscriptionShipment?.subscription?.subscriptionNo ??
-    shipment.subscriptionShipment?.shipmentNo ??
+    shipment.order?.orderNumber ||
+    shipment.subscriptionShipment?.subscription?.subscriptionNo ||
+    shipment.subscriptionShipment?.shipmentNo ||
     shipment.shipmentNumber
   );
 }
