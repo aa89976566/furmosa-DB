@@ -33,6 +33,10 @@ const orderFormSource = readFileSync(
   new URL('../../../app/(main)/orders/new/order-form.tsx', import.meta.url),
   'utf8',
 );
+const shipmentWorkspaceSource = readFileSync(
+  new URL('../../../components/shipments/shipment-queue-workspace.tsx', import.meta.url),
+  'utf8',
+);
 
 test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
   assert.equal(listSource.includes('VirtualCardList'), false);
@@ -81,7 +85,16 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.match(orderFormSource, /要加入哪些商品/);
   assert.match(orderFormSource, /運費與付款/);
   assert.match(orderFormSource, /選擇物流方式與收件資訊/);
+  assert.match(orderFormSource, /<SaveButton isEdit=\{isEdit\} \/>/);
+  assert.match(orderFormSource, /disabled=\{pending\}/);
+  assert.doesNotMatch(orderFormSource, /disabled=\{pending \|\| disabled\}/);
   assert.equal(orderFormSource.includes('下一題'), false);
+});
+
+test('出貨面板標題優先顯示收件人，不暴露內部出貨 ID', () => {
+  assert.match(shipmentWorkspaceSource, /shipment\.recipientName\?\.trim\(\)/);
+  assert.match(shipmentWorkspaceSource, /載入出貨單資料/);
+  assert.doesNotMatch(shipmentWorkspaceSource, /: selectedShipmentId/);
 });
 
 test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端', () => {

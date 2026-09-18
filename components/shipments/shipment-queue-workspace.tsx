@@ -25,6 +25,8 @@ function getShipmentLabel(shipment: ShipmentQueueRow) {
     return shipment.merchant.name;
   }
   return (
+    shipment.recipientName?.trim() ||
+    shipment.customer?.name.trim() ||
     shipment.order?.orderNumber ??
     shipment.subscriptionShipment?.subscription?.subscriptionNo ??
     shipment.subscriptionShipment?.shipmentNo ??
@@ -65,6 +67,11 @@ export function ShipmentQueueWorkspace({
   const selectedShipment = selectedShipmentId
     ? shipmentIndex.get(selectedShipmentId)
     : undefined;
+  const [panelTitle, setPanelTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPanelTitle(selectedShipment ? getShipmentLabel(selectedShipment) : null);
+  }, [selectedShipment, selectedShipmentId]);
 
   const buildQueueUrl = useCallback(
     (shipmentId?: string | null) => {
@@ -133,7 +140,7 @@ export function ShipmentQueueWorkspace({
                   訂單內容
                 </p>
                 <h2 className="mt-0.5 font-mono text-base font-semibold text-navy">
-                  {selectedShipment ? getShipmentLabel(selectedShipment) : selectedShipmentId}
+                  {panelTitle ?? '載入出貨單資料…'}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
@@ -154,6 +161,7 @@ export function ShipmentQueueWorkspace({
               key={`${selectedShipmentId}-${panelRefreshKey}`}
               shipmentId={selectedShipmentId}
               queueStatus={statusFilter}
+              onTitleChange={setPanelTitle}
             />
           </div>
         </section>
