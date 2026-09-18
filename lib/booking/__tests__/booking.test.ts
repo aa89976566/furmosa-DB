@@ -90,7 +90,7 @@ describe('booking LINE notify copy / reminder windows', () => {
       isInReminder1dWindow,
       isInReminder2hWindow,
     } = await import('@/lib/booking/notify-copy');
-    const startsAt = new Date(2026, 6, 28, 10, 0, 0, 0);
+    const startsAt = new Date('2026-07-28T10:00:00+08:00');
     const ctx = {
       merchantName: '測試店',
       serviceName: '美容',
@@ -105,7 +105,7 @@ describe('booking LINE notify copy / reminder windows', () => {
     assert.match(copyReminder2h(ctx), /兩小時後有預約/);
 
     // 1d = 台北日曆「明天」；2h = 90～150 分鐘視窗
-    const dayBefore = new Date(2026, 6, 27, 12, 0, 0, 0);
+    const dayBefore = new Date('2026-07-27T12:00:00+08:00');
     assert.equal(isInReminder1dWindow(startsAt, dayBefore), true);
     assert.equal(isInReminder2hWindow(startsAt, dayBefore), false);
     const near = new Date(startsAt.getTime() - 2 * 60 * 60 * 1000);

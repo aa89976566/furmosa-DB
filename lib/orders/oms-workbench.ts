@@ -11,10 +11,10 @@ export const OMS_FILTERS = [
 ];
 
 export const ORDER_WORK_FILTERS = [
-  { key: 'now', label: '需處理' },
-  { key: 'waiting', label: '等待中' },
-  { key: 'ready', label: '可出貨' },
-  { key: 'shipping', label: '待交寄' },
+  { key: 'now', label: '待處理' },
+  { key: 'waiting', label: '待付款' },
+  { key: 'ready', label: '待出貨' },
+  { key: 'shipping', label: '運送中' },
   { key: 'done', label: '已完成' },
 ] as const;
 
@@ -28,12 +28,41 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
     OR: [
       { omsStatus: { in: ['NEW', 'REVIEW'] } },
       { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
+      { omsStatus: null, status: { in: ['draft', 'pending_review'] } },
     ],
   };
-  if (value === 'waiting') return { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } };
-  if (value === 'ready') return { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } };
-  if (value === 'shipping') return { omsStatus: 'FULFILLMENT_PENDING' };
-  if (value === 'done') return { omsStatus: 'FULFILLED' };
+  if (value === 'waiting') return {
+    omsStatus: 'READY',
+    paymentStatus: { in: ['unpaid', 'partial'] },
+  };
+  if (value === 'ready') return {
+    OR: [
+      { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } },
+      {
+        omsStatus: null,
+        status: { in: ['confirmed', 'packed'] },
+        fulfillmentStatus: { in: ['pending', 'packed'] },
+      },
+    ],
+  };
+  if (value === 'shipping') return {
+    OR: [
+      { omsStatus: 'FULFILLMENT_PENDING' },
+      { omsStatus: null, OR: [{ status: 'shipped' }, { fulfillmentStatus: 'shipped' }] },
+    ],
+  };
+  if (value === 'done') return {
+    OR: [
+      { omsStatus: 'FULFILLED' },
+      {
+        omsStatus: null,
+        OR: [
+          { status: { in: ['delivered', 'completed'] } },
+          { fulfillmentStatus: 'delivered' },
+        ],
+      },
+    ],
+  };
   return {};
 }
 

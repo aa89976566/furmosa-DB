@@ -12,7 +12,7 @@ import {
   parsePage,
   totalPages,
 } from '@/lib/list-pagination';
-import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
@@ -27,9 +27,9 @@ export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
-    <div className="flex flex-wrap gap-2">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-10 w-24 animate-pulse rounded-xl bg-muted/40 sm:w-28" />
+    <div className="grid grid-cols-3 gap-2 sm:flex">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="h-14 animate-pulse rounded-xl bg-muted/40 sm:w-32" />
       ))}
     </div>
   );
@@ -48,31 +48,30 @@ function activeWorkFilter(searchParams: SearchParams) {
 }
 
 async function OrdersWorkSummary({ active }: { active: string }) {
-  const [summary] = await prisma.$queryRaw<Array<{ all_orders: bigint; now: bigint; waiting: bigint; ready: bigint; shipping: bigint; done: bigint; history: bigint }>>`
-    SELECT
-      COUNT(*) FILTER (WHERE archived_at IS NULL) AS all_orders,
-      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" IN ('paid', 'cod')) AS now,
-      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status IN ('NEW', 'REVIEW') AND "paymentStatus" NOT IN ('paid', 'cod')) AS waiting,
-      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status = 'READY') AS ready,
-      COUNT(*) FILTER (WHERE archived_at IS NULL AND oms_status = 'FULFILLMENT_PENDING') AS shipping,
-      COUNT(*) FILTER (WHERE oms_status = 'FULFILLED' AND archived_at IS NULL) AS done,
-      COUNT(*) FILTER (WHERE archived_at IS NOT NULL) AS history
-    FROM "Order"
-    WHERE deleted_at IS NULL
-  `;
+  const count = (work: string) => prisma.order.count({
+    where: { AND: [workbenchVisibleWhere, orderWorkWhere(work)] },
+  });
+  const [now, ready, shipping] = await Promise.all([
+    count('now'),
+    count('ready'),
+    count('shipping'),
+  ]);
   const cards = [
-    { key: 'all', label: '全部', count: Number(summary?.all_orders ?? 0) },
-    { key: 'now', label: '待確認', count: Number(summary?.now ?? 0), help: '核對訂單內容' },
-    { key: 'waiting', label: '等待中', count: Number(summary?.waiting ?? 0), help: '等待付款或回覆' },
-    { key: 'ready', label: '可出貨', count: Number(summary?.ready ?? 0), help: '建立物流單' },
-    { key: 'shipping', label: '待交寄', count: Number(summary?.shipping ?? 0), help: '物流單已建立' },
-    { key: 'done', label: '已完成', count: Number(summary?.done ?? 0) },
-    { key: 'history', label: '歷史訂單', count: Number(summary?.history ?? 0) },
-  ];
-  return <nav aria-label="訂單工作階段">
-    <div className="flex flex-wrap gap-2">
-      {cards.map(card => <Link key={card.key} href={card.key === 'history' ? '/orders?archived=true' : `/orders?work=${card.key}`} prefetch={false} title={card.help} className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border px-2.5 text-sm font-medium transition sm:gap-2 sm:px-3.5 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
-        <span>{card.label}</span><span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs tabular-nums ${active === card.key ? 'bg-background/20' : 'bg-muted'}`}>{card.count}</span>
+    { key: 'now', label: '待處理', count: now, help: '核對新訂單與資料異常' },
+    { key: 'ready', label: '待出貨', count: ready, help: '建立物流或完成備貨' },
+    { key: 'shipping', label: '運送中', count: shipping, help: '追蹤已交寄訂單' },
+  ].filter(card => card.count > 0);
+
+  if (cards.length === 0) {
+    return <p className="text-sm text-muted-foreground">目前沒有需要處理的訂單</p>;
+  }
+
+  return <nav aria-label="目前工作">
+    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">目前工作</p>
+    <div className="grid grid-cols-3 gap-2 sm:flex">
+      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`flex min-h-14 min-w-0 flex-col justify-center rounded-xl border px-3 py-2 transition sm:min-w-32 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
+        <span className="truncate text-xs font-medium sm:text-sm">{card.label}</span>
+        <span className="text-lg font-semibold tabular-nums">{card.count}</span>
       </Link>)}
     </div>
   </nav>;
@@ -88,7 +87,7 @@ async function OrdersTableSection({
   const activeWork = activeWorkFilter(searchParams);
   const where: Record<string, unknown> = { AND: [
     searchParams.archived === 'true'
-      ? { deletedAt: null, archivedAt: { not: null } }
+      ? historicalOrderWhere
       : isSearching
       ? workbenchVisibleWhere
       : searchParams.deleted === 'true'
@@ -191,6 +190,7 @@ export default async function OrdersPage(
       <PageHeader
         tone="orders"
         title="訂單"
+        compact
         actions={
           <Button size="sm" asChild>
             <Link href="/orders/new">
@@ -216,6 +216,12 @@ export default async function OrdersPage(
             <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-lg border bg-card px-3 text-sm font-medium">同步與管理</summary>
             <div className="absolute right-0 top-11 z-30 w-[min(90vw,28rem)] space-y-3 rounded-xl border bg-card p-4 shadow-lg">
               <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
+              <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm">
+                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=all">全部訂單</Link>
+                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=waiting">待付款</Link>
+                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=done">已完成</Link>
+                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?archived=true">歷史訂單</Link>
+              </div>
               <Link className="block text-sm text-info hover:underline" href="/orders?deleted=true">查看已移出的訂單</Link>
             </div>
           </details>
