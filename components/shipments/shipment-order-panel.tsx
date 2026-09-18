@@ -36,9 +36,11 @@ import Link from 'next/link';
 export function ShipmentOrderPanel({
   shipmentId,
   queueStatus,
+  onTitleChange,
 }: {
   shipmentId: string;
   queueStatus?: string;
+  onTitleChange?: (title: string) => void;
 }) {
   const [data, setData] = useState<ShipmentPanelData | null>(null);
   const [programLabelsBySku, setProgramLabelsBySku] = useState<Record<string, string | null>>({});
@@ -60,6 +62,11 @@ export function ShipmentOrderPanel({
           return;
         }
         setData(panel);
+        onTitleChange?.(
+          panel.type === 'merchant_restock'
+            ? panel.merchant?.name || panel.recipientName || panel.shipmentNumber
+            : panel.recipientName || panel.customer?.name || panel.order?.orderNumber || panel.shipmentNumber,
+        );
 
         const skus = panel.items.map((item) => item.sku).filter(Boolean);
         if (skus.length > 0) {
@@ -82,7 +89,7 @@ export function ShipmentOrderPanel({
     return () => {
       cancelled = true;
     };
-  }, [shipmentId]);
+  }, [shipmentId, onTitleChange]);
 
   if (loading) {
     return (
