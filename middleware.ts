@@ -13,11 +13,19 @@ const RETIRED_STORE_REDEEM_DESTINATION = '/pos/login';
 const POS_CUSTOM_HOSTNAME = 'pos.furmosa.com';
 
 function requestHostname(req: NextRequest): string {
-  return req.nextUrl.hostname.toLowerCase();
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const host = forwardedHost || req.headers.get('host') || req.nextUrl.host;
+  return host.toLowerCase().replace(/:\d+$/, '');
 }
 
 function redirectOnSameOrigin(req: NextRequest, pathname: string): NextResponse {
   const url = req.nextUrl.clone();
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  url.hostname = requestHostname(req);
+  url.port = '';
+  if (forwardedProto === 'http' || forwardedProto === 'https') {
+    url.protocol = `${forwardedProto}:`;
+  }
   url.pathname = pathname;
   url.search = '';
   url.hash = '';
