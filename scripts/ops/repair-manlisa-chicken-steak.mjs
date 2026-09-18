@@ -73,11 +73,9 @@ async function loadReplacement(db = prisma) {
   if (!product || product.status !== 'active') {
     throw new Error('STOP: active chicken-steak product FUR-0002 was not found');
   }
-  const tiers = product.priceTiers.filter(
-    (tier) => tier.unit === '片' && tier.unitQty === 1,
-  );
+  const tiers = product.priceTiers;
   if (tiers.length !== 1) {
-    throw new Error(`STOP: expected one chicken-steak piece tier, found ${tiers.length}`);
+    throw new Error(`STOP: expected one FUR-0002 price tier, found ${tiers.length}`);
   }
   return { product, tier: tiers[0] };
 }
@@ -91,7 +89,8 @@ async function main() {
     replacement: {
       sku: product.sku,
       name: product.name,
-      unit: product.unit,
+      storedUnit: product.unit,
+      correctedUnit: '片',
       tier: { id: tier.id, weightGrams: tier.weightGrams, unit: tier.unit, unitQty: tier.unitQty },
     },
   }, null, 2));
@@ -135,7 +134,7 @@ async function main() {
       productName: replacement.product.name,
       sku: replacement.product.sku,
       weightGrams: null,
-      unit: replacement.tier.unit,
+      unit: '片',
     };
     await tx.shipmentItem.update({
       where: { id: wrongShipmentItems[0].id },
@@ -180,7 +179,7 @@ async function main() {
             sku: replacement.product.sku,
             weightGrams: null,
             variantKey: replacement.tier.id,
-            unit: replacement.tier.unit,
+            unit: '片',
           };
         }
         return line;
