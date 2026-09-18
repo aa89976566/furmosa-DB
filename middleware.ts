@@ -10,6 +10,19 @@ import {
 const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
 
 const RETIRED_STORE_REDEEM_DESTINATION = '/pos/login';
+const POS_CUSTOM_HOSTNAME = 'pos.furmosa.com';
+
+function requestHostname(req: NextRequest): string {
+  return req.nextUrl.hostname.toLowerCase();
+}
+
+function redirectOnSameOrigin(req: NextRequest, pathname: string): NextResponse {
+  const url = req.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = '';
+  url.hash = '';
+  return NextResponse.redirect(url);
+}
 
 /** Exact /store-redeem, or /store/<one segment> (legacy /store/[access] only). */
 function isRetiredPublicStoreRedeemPath(pathname: string): boolean {
@@ -27,10 +40,17 @@ function redirectRetiredStoreRedeem(req: NextRequest): NextResponse {
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const isPosCustomDomain = requestHostname(req) === POS_CUSTOM_HOSTNAME;
 
   // Pathname-only. No cookies, session, or DB. Runs before HQ/POS auth.
   if (isRetiredPublicStoreRedeemPath(pathname)) {
     return redirectRetiredStoreRedeem(req);
+  }
+
+  // The custom POS hostname is a friendly entry to the existing /pos app.
+  // Authentication stays path-based below, so HQ and merchant sessions remain separate.
+  if (isPosCustomDomain && (pathname === '/' || pathname === '/login')) {
+    return redirectOnSameOrigin(req, pathname === '/login' ? '/pos/login' : '/pos');
   }
 
   if (
@@ -53,6 +73,15 @@ export async function middleware(req: NextRequest) {
     pathname.match(/\.(svg|png|jpg|jpeg|webp|ico|css|js|webmanifest)$/)
   ) {
     return NextResponse.next();
+  }
+
+  if (
+    isPosCustomDomain &&
+    pathname !== '/pos' &&
+    !pathname.startsWith('/pos/') &&
+    !pathname.startsWith('/api/merchant/')
+  ) {
+    return redirectOnSameOrigin(req, '/pos');
   }
 
   // ----- POS + merchant APIs: merchant session only (HQ cookie never elevates) -----

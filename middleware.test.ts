@@ -186,6 +186,57 @@ describe('public webhook middleware paths', () => {
   });
 });
 
+describe('custom POS hostname routing', () => {
+  const posOrigin = 'https://pos.furmosa.com';
+
+  it('routes the POS hostname root to the existing POS app before auth', async () => {
+    const res = await invoke(`${posOrigin}/`, true);
+
+    assert.equal(res.status, 307);
+    assert.equal(res.headers.get('location'), `${posOrigin}/pos`);
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('routes the friendly login path to the merchant login', async () => {
+    const res = await invoke(`${posOrigin}/login?next=/orders`, true);
+
+    assert.equal(res.status, 307);
+    assert.equal(res.headers.get('location'), `${posOrigin}/pos/login`);
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('does not let an HQ page become the POS hostname entry', async () => {
+    const res = await invoke(`${posOrigin}/orders/123?secret=drop-me`, true);
+
+    assert.equal(res.status, 307);
+    assert.equal(res.headers.get('location'), `${posOrigin}/pos`);
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('keeps public APIs available on the POS hostname', async () => {
+    const res = await invoke(`${posOrigin}/api/health`, true);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-middleware-next'), '1');
+    assert.equal(cookieReads.length, 0);
+    assert.equal(authReads.length, 0);
+  });
+
+  it('keeps the Railway hostname behavior unchanged', async () => {
+    const res = await invoke('https://furmosa-hq-production.up.railway.app/', false);
+
+    assert.equal(res.status, 307);
+    assert.equal(
+      res.headers.get('location'),
+      'https://furmosa-hq-production.up.railway.app/login?next=%2F',
+    );
+    assert.deepEqual(authReads, ['hq']);
+  });
+});
+
 
 describe('health middleware security contract', () => {
   it('keeps only exact /api/health public without auth reads', async () => {
