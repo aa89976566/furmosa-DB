@@ -194,7 +194,7 @@ export function ShipmentQueueWorkspace({
               />
             </div>
           </aside>
-        </>
+        </>,
           document.body,
         )
         : null}
