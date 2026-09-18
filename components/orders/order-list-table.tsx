@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDate } from '@/lib/format';
@@ -79,16 +80,23 @@ export function OrderListTable({
   orders: OrderListRow[];
   showOrderDate?: boolean;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   if (orders.length === 0) {
     return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
   }
 
   return <section className={styles.list} aria-label="訂單列表">
-    {orders.map((order) => <OrderResourceRow key={order.id} order={order} showOrderDate={showOrderDate} />)}
+    {orders.map((order) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('detail', order.id);
+      return <OrderResourceRow key={order.id} order={order} showOrderDate={showOrderDate} detailHref={`/orders?${params.toString()}`} onOpen={() => router.push(`/orders?${params.toString()}`, { scroll: false })} />;
+    })}
   </section>;
 }
 
-function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showOrderDate: boolean }) {
+function OrderResourceRow({ order, showOrderDate, detailHref, onOpen }: { order: OrderListRow; showOrderDate: boolean; detailHref: string; onOpen: () => void }) {
   const customer = orderCustomer(order);
   const item = orderItemSummary(order);
   const logistics = resolveLogisticsForOrderList(order);
@@ -96,9 +104,17 @@ function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showO
   const issue = issueCategory(order);
   const orderReference = order.externalOrderName || order.orderNumber;
 
-  return <article className={styles.row}>
+  return <article className={styles.row} role="link" tabIndex={0} onClick={(event) => {
+    if ((event.target as HTMLElement).closest('a, button')) return;
+    onOpen();
+  }} onKeyDown={(event) => {
+    if (event.key === 'Enter' && event.target === event.currentTarget) onOpen();
+  }}>
     <div className={styles.identity}>
-      <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
+      {order.customer
+        ? <Link href={`/customers/${order.customer.id}`} className={styles.customer}>{customer}</Link>
+        : <span className={styles.customer}>{customer}</span>}
+      <p className={styles.orderNumber}>{orderReference}</p>
       {showOrderDate ? <p className={styles.orderDate}>訂單日期 {formatDate(order.orderedAt)}</p> : null}
       <div className={styles.tags}>
         <StatusBadge kind="orderSource" value={order.source} />
@@ -107,10 +123,6 @@ function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showO
     </div>
 
     <div className={styles.summary}>
-      {order.customer
-        ? <Link href={`/customers/${order.customer.id}`} className={styles.customer}>{customer}</Link>
-        : <span className={styles.customer}>{customer}</span>}
-      <span aria-hidden>·</span>
       <span className={styles.product}>{item}</span>
       <span className={styles.delivery}>{logistics.carrierLabel}</span>
     </div>
@@ -120,7 +132,7 @@ function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showO
       <StatusBadge kind="payment" value={order.paymentStatus} />
     </div>
 
-    <Link href={`/orders/${order.id}`} className={action.active ? styles.primaryAction : styles.secondaryAction} aria-label={`${action.label}：${customer}`}>
+    <Link href={detailHref} scroll={false} className={action.active ? styles.primaryAction : styles.secondaryAction} aria-label={`${action.label}：${customer}`}>
       <span>{action.active ? action.label : '查看'}</span><ChevronRight aria-hidden />
     </Link>
   </article>;
