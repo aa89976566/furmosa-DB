@@ -117,7 +117,8 @@ async function main() {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('hq:remove-current-pending-shopify-orders:v1', 0))`;
     const actor = await tx.user.findUnique({ where: { email: actorEmail }, select: { id: true, role: true } });
-    if (!actor || actor.role !== 'admin') throw new Error('STOP: production actor is not an HQ administrator');
+    const hqRoles = new Set(['admin', 'staff', 'finance', 'warehouse']);
+    if (!actor || !hqRoles.has(actor.role)) throw new Error('STOP: production actor is not a recognized HQ operator');
 
     const current = await loadAndValidate(tx);
     if (digest(current) !== expectedDigest) throw new Error('STOP: pending-order set changed while acquiring the production lock');
@@ -146,6 +147,8 @@ async function main() {
         metadataJson: JSON.stringify({
           reason: '使用者核准移除目前 15 筆待處理資料',
           batchDigest: expectedDigest,
+          actorRole: actor.role,
+          executionMode: 'protected-production-workflow',
           shopifySourcePreserved: true,
         }),
       })),
