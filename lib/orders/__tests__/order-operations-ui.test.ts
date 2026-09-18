@@ -80,7 +80,7 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.match(orderFormSource, /這張訂單是哪一家店的/);
   assert.match(orderFormSource, /要加入哪些商品/);
   assert.match(orderFormSource, /運費與付款/);
-  assert.match(orderFormSource, /寄到哪裡/);
+  assert.match(orderFormSource, /選擇物流方式與收件資訊/);
   assert.equal(orderFormSource.includes('下一題'), false);
 });
 
