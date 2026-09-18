@@ -21,6 +21,15 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
     'prisma/migrations/20260915130000_hq_bulk_inventory/',
     'prisma/migrations/20260917103000_hq_inventory_advisory/',
   ]);
+  assert.equal(RELEASE_PLANS.hq_passkeys_20260918.runner, 'scripts/ops/deploy-hq-passkeys.mjs');
+  assert.deepEqual(RELEASE_PLANS.hq_passkeys_20260918.migrationPrefixes, [
+    'prisma/migrations/20260918162000_hq_passkeys/',
+  ]);
+  assert.deepEqual(RELEASE_PLANS.hq_passkeys_20260918.requiredPaths, [
+    'prisma/migrations/20260918162000_hq_passkeys/migration.sql',
+  ]);
+  const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
+  assert.match(workflow, /- hq_passkeys_20260918/);
 });
 
 test('Vercel skips main and builds PR branches', () => {
