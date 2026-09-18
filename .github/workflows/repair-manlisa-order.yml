@@ -1,0 +1,59 @@
+name: Repair Manlisa Order
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Read-only preflight or approved production repair
+        required: true
+        default: preflight
+        type: choice
+        options:
+          - preflight
+          - apply
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    name: ${{ inputs.mode == 'apply' && 'Apply exact order repair' || 'Preflight exact order repair' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Select IPv4-compatible production database endpoint
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: |
+          node <<'NODE'
+          const { appendFileSync } = require('node:fs')
+          const url = new URL(process.env.PRODUCTION_DATABASE_URL)
+          const directHost = 'db.ukjjopridghvwzobrsus.supabase.co'
+          if (url.hostname === directHost) {
+            url.hostname = 'aws-1-ap-northeast-1.pooler.supabase.com'
+            if (decodeURIComponent(url.username) === 'postgres') {
+              url.username = 'postgres.ukjjopridghvwzobrsus'
+            }
+          }
+          const value = url.toString()
+          console.log(`::add-mask::${value}`)
+          appendFileSync(process.env.GITHUB_ENV, `DATABASE_URL=${value}\nDIRECT_URL=${value}\n`)
+          NODE
+
+      - run: npm ci
+
+      - name: Preflight exact target
+        if: inputs.mode == 'preflight'
+        run: node scripts/ops/repair-manlisa-chicken-steak.mjs
+
+      - name: Apply exact target and verify
+        if: inputs.mode == 'apply'
+        run: node scripts/ops/repair-manlisa-chicken-steak.mjs --apply
