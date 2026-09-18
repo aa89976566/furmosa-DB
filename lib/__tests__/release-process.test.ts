@@ -56,5 +56,7 @@ test('pending Shopify cleanup is bounded, digest-locked and preserves source ide
   assert.match(script, /pending-order set changed/);
   assert.match(script, /deletedAt: removedAt/);
   assert.match(script, /shopifySourcePreserved: true/);
+  assert.match(script, /omsStatus: null, status: \{ in: \['draft', 'pending_review'\] \}/);
+  assert.doesNotMatch(script, /omsStatus: 'NEW'/);
   assert.doesNotMatch(script, /\.order\.deleteMany|\.order\.delete\(/);
 });
