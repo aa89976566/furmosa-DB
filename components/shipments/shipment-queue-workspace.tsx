@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ShipmentQueueTable,
@@ -101,6 +102,16 @@ export function ShipmentQueueWorkspace({
     setSelectedShipmentId(initialShipmentId ?? searchParams.get('s'));
   }, [initialShipmentId, searchParams]);
 
+  useEffect(() => {
+    if (!selectedShipmentId) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedShipmentId]);
+
   return (
     <div className="space-y-6">
       {sections.map((section) => (
@@ -121,7 +132,20 @@ export function ShipmentQueueWorkspace({
         </SectionBlock>
       ))}
 
-      {selectedShipmentId ? (
+      {!selectedShipmentId ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <MousePointerClick className="h-5 w-5" />
+          </span>
+          <p className="text-sm font-medium text-foreground">尚未選取出貨單</p>
+          <p className="max-w-md text-xs text-muted-foreground">
+            點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
+          </p>
+        </div>
+      ) : null}
+
+      {selectedShipmentId && typeof document !== 'undefined'
+        ? createPortal(
         <>
           <button
             type="button"
@@ -171,17 +195,9 @@ export function ShipmentQueueWorkspace({
             </div>
           </aside>
         </>
-      ) : (
-        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <MousePointerClick className="h-5 w-5" />
-          </span>
-          <p className="text-sm font-medium text-foreground">尚未選取出貨單</p>
-          <p className="max-w-md text-xs text-muted-foreground">
-            點列表中的出貨單、訂單／訂閱編號，或整列，即可在此區開啟訂單內容。
-          </p>
-        </div>
-      )}
+          document.body,
+        )
+        : null}
     </div>
   );
 }
