@@ -119,6 +119,7 @@ export type CustomerOption = {
 
 type OrderType = 'merchant' | 'customer';
 type CustomerSource = 'social' | 'line' | 'consignment';
+type SelectableShippingMethod = '' | 'home' | 'convenience' | 'delivery';
 
 type LineItem = {
   key: string;
@@ -468,8 +469,10 @@ export function OrderForm({
   >(seed?.paymentStatus ?? 'unpaid');
   const [recipientName, setRecipientName] = useState<string>(seed?.recipientName ?? '');
   const [recipientPhone, setRecipientPhone] = useState<string>(seed?.recipientPhone ?? '');
-  const [shippingMethod, setShippingMethod] = useState<'home' | 'convenience' | 'delivery'>(
-    seed?.shippingMethod ?? 'home',
+  // 新訂單不能把黑貓當成「看似已選、其實尚未確認」的預設值。
+  // 必須明確選擇物流；店家／客戶既有偏好則仍會自動帶入。
+  const [shippingMethod, setShippingMethod] = useState<SelectableShippingMethod>(
+    seed?.shippingMethod ?? '',
   );
   const [cvsBrand, setCvsBrand] = useState<string>(seed?.cvsBrand ?? '711');
   const [cvsStoreName, setCvsStoreName] = useState<string>(seed?.cvsStoreName ?? '');
@@ -920,6 +923,10 @@ export function OrderForm({
           setSubmitError('請填寫收件人姓名。');
           return;
         }
+        if (!shippingMethod) {
+          setSubmitError('請先選擇物流方式。');
+          return;
+        }
         if (!hasValidLines) {
           setSubmitError('請至少新增一筆商品明細。');
           return;
@@ -1314,7 +1321,12 @@ export function OrderForm({
           <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
             <summary className="cursor-pointer font-medium">查看金額明細</summary>
             <div className="mt-3 grid gap-2 text-muted-foreground sm:grid-cols-3">
-              <span>{shippingMethodLabel({ shippingMethod, cvsBrand })}：{formatCurrency(shippingResolved.shippingFee)}</span>
+              <span>
+                {shippingMethod
+                  ? shippingMethodLabel({ shippingMethod, cvsBrand })
+                  : '尚未選擇物流方式'}
+                ：{shippingMethod ? formatCurrency(shippingResolved.shippingFee) : '—'}
+              </span>
               <span>已收：{collection.receivedAmount == null ? '尚未登記' : formatCurrency(collection.receivedAmount)}</span>
               <span>尚未收：{collection.outstandingAmount == null ? '尚未登記' : formatCurrency(collection.outstandingAmount)}</span>
               {shippingResolved.companyShippingCost > 0 ? (
@@ -1330,7 +1342,7 @@ export function OrderForm({
           </p>
         ) : null}
 
-        {revealedStep >= 7 ? <FieldInline label="⑥ 商品要寄到哪裡？">
+        {revealedStep >= 7 ? <FieldInline label="⑥ 選擇物流方式與收件資訊">
           <div className="space-y-3">
             {selectedMerchant ? (
               <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-[11px] text-muted-foreground">
@@ -1404,7 +1416,11 @@ export function OrderForm({
                 送貨
               </button>
             </div>
-            {shippingMethod === 'convenience' ? (
+            {!shippingMethod ? (
+              <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+                請先點選物流方式。這筆訂單要寄 7‑11，請選「超商・7‑11」。
+              </p>
+            ) : shippingMethod === 'convenience' ? (
               <div className="space-y-3 rounded-md border border-dashed bg-muted/20 p-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -1502,7 +1518,7 @@ export function OrderForm({
         </div>
       ) : null}
 
-      {revealedStep >= 8 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
+      {revealedStep >= 7 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
         <div className="mr-auto flex items-center gap-2 text-sm">
           {isEdit && edit ? (
             <>
@@ -1522,7 +1538,12 @@ export function OrderForm({
             </>
           )}
         </div>
-        <SaveButton isEdit={isEdit} />
+        <div className="flex flex-col items-end gap-1">
+          {!shippingMethod ? (
+            <span className="text-xs text-warning">請先選擇物流方式</span>
+          ) : null}
+          <SaveButton isEdit={isEdit} disabled={!shippingMethod} />
+        </div>
       </div> : null}
     </form>
   );
@@ -1879,10 +1900,10 @@ function Stat({
   );
 }
 
-function SaveButton({ isEdit }: { isEdit?: boolean }) {
+function SaveButton({ isEdit, disabled = false }: { isEdit?: boolean; disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending}>
+    <Button type="submit" size="sm" disabled={pending || disabled}>
       <Save className="mr-1 h-4 w-4" />
       {pending ? (isEdit ? '儲存中…' : '建立中…') : isEdit ? '儲存修改' : '建立訂單'}
     </Button>
