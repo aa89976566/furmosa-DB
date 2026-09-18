@@ -17,4 +17,12 @@ describe('出貨工作區介面', () => {
     assert.match(source, /isDanger\s*&&\s*!window\.confirm/);
     assert.match(source, /確定要取消這張出貨單嗎/);
   });
+
+  it('OMS 尚未建立出貨單時顯示審核入口，不顯示舊流程按鈕', () => {
+    const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
+
+    assert.match(source, /!isOmsShipmentActionable\(omsStatus\)/);
+    assert.match(source, /前往訂單審核/);
+    assert.match(source, /omsStatus: OmsStatus \| null/);
+  });
 });

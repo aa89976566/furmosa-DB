@@ -7,6 +7,28 @@ export const OMS_LABELS: Record<OmsStatus, string> = {
   FULFILLMENT_PENDING: '待出貨', FULFILLED: '已出貨',
 };
 
+/** Only OMS orders with a reviewed, created shipment may use shipment controls. */
+export function isOmsShipmentActionable(status: string | null | undefined): boolean {
+  return status === 'FULFILLMENT_PENDING' || status === 'FULFILLED';
+}
+
+/** Keep the OMS work queue in sync with the operational shipment status. */
+export function omsStatusForShipmentStatus(shipmentStatus: string): OmsStatus | null {
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'delivered') {
+    return 'FULFILLED';
+  }
+  if (shipmentStatus === 'pending' || shipmentStatus === 'packed') {
+    return 'FULFILLMENT_PENDING';
+  }
+  return null;
+}
+
+export function omsStatusLabel(status: string | null | undefined): string {
+  return OMS_STATUSES.includes(status as OmsStatus)
+    ? OMS_LABELS[status as OmsStatus]
+    : 'OMS 訂單';
+}
+
 export const OMS_ISSUE_CODES = [
   'PAYMENT_PENDING', 'PAYMENT_REFUNDED', 'ORDER_CANCELLED',
   'SKU_MISSING', 'PRODUCT_UNMAPPED', 'STOCK_UNKNOWN', 'STOCK_INSUFFICIENT',
