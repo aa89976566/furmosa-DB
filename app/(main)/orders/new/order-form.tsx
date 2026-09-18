@@ -1542,7 +1542,7 @@ export function OrderForm({
           {!shippingMethod ? (
             <span className="text-xs text-warning">請先選擇物流方式</span>
           ) : null}
-          <SaveButton isEdit={isEdit} disabled={!shippingMethod} />
+          <SaveButton isEdit={isEdit} />
         </div>
       </div> : null}
     </form>
@@ -1900,10 +1900,10 @@ function Stat({
   );
 }
 
-function SaveButton({ isEdit, disabled = false }: { isEdit?: boolean; disabled?: boolean }) {
+function SaveButton({ isEdit }: { isEdit?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="sm" disabled={pending || disabled}>
+    <Button type="submit" size="sm" disabled={pending}>
       <Save className="mr-1 h-4 w-4" />
       {pending ? (isEdit ? '儲存中…' : '建立中…') : isEdit ? '儲存修改' : '建立訂單'}
     </Button>
