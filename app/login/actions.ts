@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { loginWithPassword } from '@/lib/auth';
+import { resolveHqLoginDestination } from '@/lib/auth-redirect';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 import { loginFailureMessage } from '@/lib/auth-errors';
 
@@ -37,11 +38,7 @@ export async function loginAction(
     if (!result.ok) {
       return { error: result.error, values: { email: parsed.data.email } };
     }
-    const next =
-      parsed.data.next && parsed.data.next.startsWith('/')
-        ? parsed.data.next
-        : '/dashboard';
-    redirect(next);
+    redirect(resolveHqLoginDestination(parsed.data.next));
   } catch (err) {
     if (isNextRedirect(err)) throw err;
     console.error('[hq/login]', err);
