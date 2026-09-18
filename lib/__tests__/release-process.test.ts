@@ -46,3 +46,15 @@ test('shared deployment contract stays valid for every agent and release', () =>
   });
   assert.equal(verification.status, 0, verification.stderr || verification.stdout);
 });
+
+test('pending Shopify cleanup is bounded, digest-locked and preserves source identity', () => {
+  const workflow = readFileSync('.github/workflows/remove-pending-shopify-orders.yml', 'utf8');
+  const script = readFileSync('scripts/ops/remove-current-pending-shopify-orders.mjs', 'utf8');
+  assert.match(workflow, /environment: production/);
+  assert.match(workflow, /expected_digest/);
+  assert.match(script, /expectedCount = 15/);
+  assert.match(script, /pending-order set changed/);
+  assert.match(script, /deletedAt: removedAt/);
+  assert.match(script, /shopifySourcePreserved: true/);
+  assert.doesNotMatch(script, /\.order\.deleteMany|\.order\.delete\(/);
+});
