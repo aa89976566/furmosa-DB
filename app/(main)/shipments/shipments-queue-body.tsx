@@ -271,6 +271,7 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          omsStatus: s.order.omsStatus,
           status: s.order.status,
           paymentStatus: s.order.paymentStatus,
           shippingFeeType: s.order.shippingFeeType,

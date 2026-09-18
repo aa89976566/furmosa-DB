@@ -42,6 +42,10 @@ import {
   shipmentStatusErrorMessage,
 } from '@/lib/shipment-status-error';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import {
+  isOmsShipmentActionable,
+  omsStatusForShipmentStatus,
+} from '@/lib/orders/oms';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'cancelled'],
@@ -147,8 +151,8 @@ async function markShipmentStatusInner(
     },
   });
   if (!shipment) throw new Error('出貨單不存在');
-  if (shipment.order?.omsStatus) {
-    throw new Error('OMS 訂單尚未完成專用審核與物流流程，不可使用舊出貨操作');
+  if (shipment.order?.omsStatus && !isOmsShipmentActionable(shipment.order.omsStatus)) {
+    throw new Error('請先到訂單頁完成 OMS 審核並建立出貨單，再進行備貨與寄出');
   }
   if (
     shipment.type === 'merchant_restock' &&
@@ -294,8 +298,25 @@ async function markShipmentStatusInner(
 
   // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
   await prisma.$transaction(async (tx) => {
-    if (shipment.orderId) await guardLegacyOrderTx(tx, shipment.orderId);
-    await tx.shipment.update({ where: { id: shipmentId }, data });
+    if (shipment.orderId) {
+      if (shipment.order?.omsStatus) {
+        const freshOrder = await tx.order.findUnique({
+          where: { id: shipment.orderId },
+          select: { omsStatus: true },
+        });
+        if (!freshOrder || !isOmsShipmentActionable(freshOrder.omsStatus)) {
+          throw new Error('請先到訂單頁完成 OMS 審核並建立出貨單，再進行備貨與寄出');
+        }
+      } else {
+        await guardLegacyOrderTx(tx, shipment.orderId);
+      }
+    }
+    const updatedShipment = await tx.shipment.update({
+      where: { id: shipmentId },
+      data,
+      select: { status: true },
+    });
+    assertShipmentStatusPersisted(updatedShipment.status, next);
 
     if (shipment.orderId) {
       const orderUpdate = buildOrderUpdateFromShipmentStatus(next, {
@@ -303,9 +324,15 @@ async function markShipmentStatusInner(
         shipmentShippedAt: next === 'shipped' ? now : shipment.shippedAt,
       });
       if (orderUpdate) {
+        const nextOmsStatus = shipment.order?.omsStatus
+          ? omsStatusForShipmentStatus(next)
+          : null;
         await tx.order.update({
           where: { id: shipment.orderId },
-          data: orderUpdate,
+          data: {
+            ...orderUpdate,
+            ...(nextOmsStatus ? { omsStatus: nextOmsStatus } : {}),
+          },
         });
       }
     }
@@ -345,12 +372,6 @@ async function markShipmentStatusInner(
       }
     }
   });
-
-  const persisted = await prisma.shipment.findUnique({
-    where: { id: shipmentId },
-    select: { status: true },
-  });
-  assertShipmentStatusPersisted(persisted?.status ?? null, next);
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');

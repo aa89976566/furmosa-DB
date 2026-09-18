@@ -19,6 +19,12 @@ import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
+import Link from 'next/link';
+import {
+  isOmsShipmentActionable,
+  omsStatusLabel,
+  type OmsStatus,
+} from '@/lib/orders/oms';
 
 export type ShipmentQueueRow = {
   id: string;
@@ -45,6 +51,7 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    omsStatus: OmsStatus | null;
     status: string;
     paymentStatus: string;
     shippingFeeType?: string;
@@ -70,6 +77,45 @@ export type ShipmentQueueRow = {
     } | null;
   } | null;
 };
+
+function ShipmentStatusControl({
+  shipment,
+  queueStatus,
+  queueType,
+}: {
+  shipment: ShipmentQueueRow;
+  queueStatus?: string;
+  queueType?: string;
+}) {
+  const omsStatus = shipment.order?.omsStatus;
+  if (omsStatus && !isOmsShipmentActionable(omsStatus)) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-medium text-amber-800">
+          OMS：{omsStatusLabel(omsStatus)}
+        </p>
+        <Link
+          href={`/orders/${shipment.order!.id}#oms-review`}
+          className="inline-flex min-h-9 items-center rounded-lg border border-border bg-background px-3 text-[11px] font-medium text-foreground hover:bg-muted"
+        >
+          前往訂單審核
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <ShipmentQueueStatusCell
+      shipmentId={shipment.id}
+      status={shipment.status}
+      queueStatus={queueStatus}
+      queueType={queueType}
+      paymentReviewHold={Boolean(shipment.paymentReviewHold)}
+      inventoryWarnings={shipment.inventoryWarnings}
+      className="max-w-none"
+    />
+  );
+}
 
 type QueueRowView = {
   shipment: ShipmentQueueRow;
@@ -298,14 +344,10 @@ function ShipmentQueueCard({
         <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           運輸狀態
         </p>
-        <ShipmentQueueStatusCell
-          shipmentId={shipment.id}
-          status={shipment.status}
+        <ShipmentStatusControl
+          shipment={shipment}
           queueStatus={queueStatus}
           queueType={queueType}
-          paymentReviewHold={Boolean(shipment.paymentReviewHold)}
-          inventoryWarnings={shipment.inventoryWarnings}
-          className="max-w-none"
         />
       </div>
 
@@ -432,13 +474,10 @@ export function ShipmentQueueTable({
                     onClick={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                   >
-                    <ShipmentQueueStatusCell
-                      shipmentId={shipment.id}
-                      status={shipment.status}
+                    <ShipmentStatusControl
+                      shipment={shipment}
                       queueStatus={queueStatus}
                       queueType={queueType}
-                      paymentReviewHold={Boolean(shipment.paymentReviewHold)}
-                      inventoryWarnings={shipment.inventoryWarnings}
                     />
                   </TableCell>
                   <TableCell className="py-3">
