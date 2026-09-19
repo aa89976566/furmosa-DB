@@ -9,6 +9,7 @@ import {
 } from '@/components/shipments/shipment-queue-table';
 import { ShipmentOrderPanel } from '@/components/shipments/shipment-order-panel';
 import { SectionBlock } from '@/components/shared/section-block';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { SectionTone } from '@/lib/section-tone';
 import { ClipboardList, MousePointerClick, X } from 'lucide-react';
 
@@ -50,6 +51,9 @@ export function ShipmentQueueWorkspace({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const firstVisibleSection =
+    sections.find((section) => section.shipments.length > 0) ?? sections[0];
+  const [activeSectionKey, setActiveSectionKey] = useState(firstVisibleSection?.key ?? '');
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(
     initialShipmentId ?? searchParams.get('s'),
   );
@@ -68,6 +72,8 @@ export function ShipmentQueueWorkspace({
     ? shipmentIndex.get(selectedShipmentId)
     : undefined;
   const [panelTitle, setPanelTitle] = useState<string | null>(null);
+  const activeSection =
+    sections.find((section) => section.key === activeSectionKey) ?? firstVisibleSection;
 
   useEffect(() => {
     setPanelTitle(selectedShipment ? getShipmentLabel(selectedShipment) : null);
@@ -103,6 +109,12 @@ export function ShipmentQueueWorkspace({
   }, [initialShipmentId, searchParams]);
 
   useEffect(() => {
+    if (!sections.some((section) => section.key === activeSectionKey)) {
+      setActiveSectionKey(firstVisibleSection?.key ?? '');
+    }
+  }, [activeSectionKey, firstVisibleSection?.key, sections]);
+
+  useEffect(() => {
     if (!selectedShipmentId) return;
 
     const previousOverflow = document.body.style.overflow;
@@ -114,23 +126,47 @@ export function ShipmentQueueWorkspace({
 
   return (
     <div className="space-y-6">
-      {sections.map((section) => (
+      {sections.length > 1 ? (
+        <Tabs value={activeSection?.key} onValueChange={setActiveSectionKey}>
+          <div className="overflow-x-auto pb-1">
+            <TabsList
+              aria-label="出貨階段"
+              className="h-auto min-w-full justify-start gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0"
+            >
+              {sections.map((section) => (
+                <TabsTrigger
+                  key={section.key}
+                  value={section.key}
+                  className="min-h-10 flex-1 gap-2 px-3 text-xs sm:min-w-28 sm:flex-none sm:text-sm"
+                >
+                  <span>{section.title.replace(/\s*\(\d+\)$/, '')}</span>
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+                    {section.shipments.length}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+        </Tabs>
+      ) : null}
+
+      {activeSection ? (
         <SectionBlock
-          key={section.key}
-          tone={section.tone}
-          title={section.title}
-          description={section.description}
+          key={activeSection.key}
+          tone={activeSection.tone}
+          title={activeSection.title}
+          description={activeSection.description}
         >
           <ShipmentQueueTable
-            shipments={section.shipments}
+            shipments={activeSection.shipments}
             onSelectShipment={openShipment}
             selectedShipmentId={selectedShipmentId}
-            queueStatus={statusFilter ?? section.key}
+            queueStatus={statusFilter ?? activeSection.key}
             queueType={typeFilter}
-            variant={section.tableVariant ?? 'default'}
+            variant={activeSection.tableVariant ?? 'default'}
           />
         </SectionBlock>
-      ))}
+      ) : null}
 
       {!selectedShipmentId ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-8 text-center">
