@@ -199,18 +199,6 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   };
 }
 
-function ItemBulletList({ items }: { items: string[] }) {
-  return (
-    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-      {items.map((item, index) => (
-        <li key={`${index}-${item}`} className="break-words [overflow-wrap:anywhere]">
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function LogisticsBlock({
   view,
   variant,
@@ -242,13 +230,13 @@ function LogisticsBlock({
   );
 }
 
-function ProductsBlock({ view }: { view: QueueRowView }) {
+function ProductsSummary({ view }: { view: QueueRowView }) {
   if (view.productLines.length === 0) {
     return <span className="text-xs text-muted-foreground">-</span>;
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
           {view.itemCountLabel}
@@ -259,19 +247,24 @@ function ProductsBlock({ view }: { view: QueueRowView }) {
           </span>
         ) : null}
       </div>
-      <ItemBulletList items={view.productLines} />
+      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        {view.productLines.slice(0, 2).join('、')}
+        {view.productLines.length > 2 ? `，另 ${view.productLines.length - 2} 項` : ''}
+      </p>
     </div>
   );
 }
 
 function EmptyQueueState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-10 text-center">
-      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <PackageCheck className="h-5 w-5" />
+    <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 px-4 py-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <PackageCheck className="h-4 w-4" />
       </span>
-      <p className="text-sm font-medium text-foreground">此區沒有出貨單</p>
-      <p className="text-xs text-muted-foreground">目前沒有待處理的項目</p>
+      <div>
+        <p className="text-sm font-medium text-foreground">目前沒有待處理的出貨單</p>
+        <p className="text-xs text-muted-foreground">可切換上方其他出貨階段繼續工作。</p>
+      </div>
     </div>
   );
 }
@@ -368,7 +361,7 @@ function ShipmentQueueCard({
 
       {view.productLines.length > 0 ? (
         <div className="mt-3 border-t border-border/60 pt-3">
-          <ProductsBlock view={view} />
+          <ProductsSummary view={view} />
         </div>
       ) : null}
     </div>
@@ -417,14 +410,19 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
-        <Table className="min-w-[64rem] table-fixed">
+        <Table className="min-w-[52rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[7.5rem]">{shipments.every((s) => s.type !== 'subscription' && ['pending', 'packed'].includes(s.status)) ? '訂購名稱' : '單號'}</TableHead>
-              <TableHead className="w-[12.5rem]">運輸狀態</TableHead>
-              <TableHead className="min-w-[12rem]">寄送地</TableHead>
-              <TableHead className="w-[9rem]">電話</TableHead>
-              <TableHead>商品 · 件數</TableHead>
+              <TableHead className="w-[10rem]">
+                {shipments.every(
+                  (s) => s.type !== 'subscription' && ['pending', 'packed'].includes(s.status),
+                )
+                  ? '訂購名稱'
+                  : '單號'}
+              </TableHead>
+              <TableHead className="w-[12rem]">運輸狀態</TableHead>
+              <TableHead className="w-[18rem]">收件資訊</TableHead>
+              <TableHead>商品摘要</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -482,19 +480,15 @@ export function ShipmentQueueTable({
                   </TableCell>
                   <TableCell className="py-3">
                     <LogisticsBlock view={view} variant={variant} />
-                  </TableCell>
-                  <TableCell className="py-3">
                     {logistics.phone && logistics.phone !== '—' ? (
-                      <div className="flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums">
+                      <div className="mt-2 flex items-center gap-1.5 font-mono text-xs font-semibold tabular-nums">
                         <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="whitespace-nowrap">{logistics.phone}</span>
                       </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
+                    ) : null}
                   </TableCell>
                   <TableCell className="py-3">
-                    <ProductsBlock view={view} />
+                    <ProductsSummary view={view} />
                   </TableCell>
                 </TableRow>
               );

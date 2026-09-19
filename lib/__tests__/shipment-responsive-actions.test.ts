@@ -6,9 +6,21 @@ describe('出貨工作區介面', () => {
   it('桌面表格保留可讀欄寬，電話不逐字換行', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 
-    assert.match(source, /<Table className="min-w-\[64rem\] table-fixed">/);
+    assert.match(source, /<Table className="min-w-\[52rem\] table-fixed">/);
     assert.match(source, /<span className="whitespace-nowrap">\{logistics\.phone\}<\/span>/);
     assert.doesNotMatch(source, /<span className="break-all">\{logistics\.phone\}<\/span>/);
+    assert.match(source, />收件資訊<\/TableHead>/);
+    assert.match(source, />商品摘要<\/TableHead>/);
+    assert.doesNotMatch(source, />電話<\/TableHead>/);
+  });
+
+  it('不同出貨階段共用同一工作區頁籤，不再同時堆疊多張表格', () => {
+    const source = readFileSync('components/shipments/shipment-queue-workspace.tsx', 'utf8');
+
+    assert.match(source, /aria-label="出貨階段"/);
+    assert.match(source, /const activeSection =/);
+    assert.match(source, /shipments=\{activeSection\.shipments\}/);
+    assert.doesNotMatch(source, /sections\.map\(\(section\) => \(\s*<SectionBlock/);
   });
 
   it('取消出貨前需要再次確認', () => {
