@@ -49,24 +49,26 @@ function queueOptionsForStatus(status: string) {
   return QUEUE_PENDING_OPTIONS;
 }
 
-/** Soft status chip styles — muted fills, no harsh primaries */
+/** 狀態按鈕固定帶色；目前狀態以較深底色與外框加強辨識。 */
 function statusChipClass(value: string, active: boolean) {
-  if (!active) {
-    return cn(
-      'border-transparent bg-transparent text-muted-foreground',
-      'hover:bg-black/[0.04] hover:text-foreground',
-    );
-  }
   switch (value) {
     case 'delivered':
-      return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 shadow-sm';
+      return active
+        ? 'border-emerald-400 bg-emerald-100 text-emerald-900 shadow-sm'
+        : 'border-emerald-200/80 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100/80';
     case 'shipped':
-      return 'border-sky-200/80 bg-sky-50 text-sky-800 shadow-sm';
+      return active
+        ? 'border-sky-400 bg-sky-100 text-sky-900 shadow-sm'
+        : 'border-sky-200/80 bg-sky-50/70 text-sky-700 hover:bg-sky-100/80';
     case 'packed':
-      return 'border-violet-200/80 bg-violet-50 text-violet-800 shadow-sm';
+      return active
+        ? 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
+        : 'border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/80';
     case 'pending':
     default:
-      return 'border-amber-200/80 bg-amber-50 text-amber-900 shadow-sm';
+      return active
+        ? 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
+        : 'border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/80';
   }
 }
 

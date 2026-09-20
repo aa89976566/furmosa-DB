@@ -434,14 +434,19 @@ export function ShipmentQueueTable({
                   key={shipment.id}
                   className={cn(
                     'relative cursor-pointer align-top transition-colors hover:bg-muted/40',
-                    'before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary before:opacity-0 before:transition-opacity',
                     selectedShipmentId === shipment.id &&
-                      'bg-primary/[0.06] before:opacity-100 hover:bg-primary/[0.06]',
+                      'bg-primary/[0.06] hover:bg-primary/[0.06]',
                   )}
                   onClick={() => onSelectShipment(shipment)}
                   title={`${label} · ${shipment.shipmentNumber}`}
                 >
-                  <TableCell className="py-3">
+                  <TableCell
+                    className={cn(
+                      'relative py-3',
+                      selectedShipmentId === shipment.id &&
+                        'after:absolute after:inset-y-0 after:left-0 after:w-0.5 after:bg-primary',
+                    )}
+                  >
                     <span
                       className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
                       title={shipment.shipmentNumber}
