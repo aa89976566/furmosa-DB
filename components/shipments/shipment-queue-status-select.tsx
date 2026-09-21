@@ -49,27 +49,11 @@ function queueOptionsForStatus(status: string) {
   return QUEUE_PENDING_OPTIONS;
 }
 
-/** 狀態按鈕固定帶色；目前狀態以較深底色與外框加強辨識。 */
-function statusChipClass(value: string, active: boolean) {
-  switch (value) {
-    case 'delivered':
-      return active
-        ? 'border-emerald-400 bg-emerald-100 text-emerald-900 shadow-sm'
-        : 'border-emerald-200/80 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-100/80';
-    case 'shipped':
-      return active
-        ? 'border-sky-400 bg-sky-100 text-sky-900 shadow-sm'
-        : 'border-sky-200/80 bg-sky-50/70 text-sky-700 hover:bg-sky-100/80';
-    case 'packed':
-      return active
-        ? 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
-        : 'border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/80';
-    case 'pending':
-    default:
-      return active
-        ? 'border-amber-400 bg-amber-100 text-amber-950 shadow-sm'
-        : 'border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/80';
-  }
+/** 與系統黑白視覺一致：只有目前狀態使用黑底白字。 */
+function statusChipClass(active: boolean) {
+  return active
+    ? 'border-black bg-black text-white shadow-sm'
+    : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
 function buildInlineSuccessHref(input: {
@@ -210,7 +194,7 @@ export function ShipmentQueueStatusSelect({
                 'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
                 'disabled:cursor-not-allowed',
-                statusChipClass(option.value, active),
+                statusChipClass(active),
               )}
             >
               {isPending && active ? '處理中…' : option.label}

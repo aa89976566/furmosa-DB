@@ -21,16 +21,16 @@ describe('出貨工作區介面', () => {
     assert.match(source, /after:absolute after:inset-y-0 after:left-0/);
   });
 
-  it('未寄出與已寄出按鈕都有固定狀態色', () => {
+  it('只有目前選取的運輸狀態顯示黑底白字', () => {
     const source = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
     );
 
-    assert.match(source, /bg-amber-50\/70/);
-    assert.match(source, /bg-amber-100/);
-    assert.match(source, /bg-sky-50\/70/);
-    assert.match(source, /bg-sky-100/);
+    assert.match(source, /border-black bg-black text-white/);
+    assert.match(source, /border-transparent bg-transparent text-muted-foreground/);
+    assert.doesNotMatch(source, /bg-amber-/);
+    assert.doesNotMatch(source, /bg-sky-/);
   });
 
   it('不同出貨階段共用同一工作區頁籤，不再同時堆疊多張表格', () => {
