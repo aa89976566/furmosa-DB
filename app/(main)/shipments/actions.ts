@@ -75,13 +75,11 @@ function isRetryableTransactionError(error: unknown) {
   );
 }
 
-async function commitShipmentStatus(
-  operation: (tx: Prisma.TransactionClient) => Promise<void>,
-) {
+async function retryShipmentCommit(operation: () => Promise<void>) {
   let lastError: unknown;
   for (let attempt = 0; attempt < SHIPMENT_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
     try {
-      await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
+      await operation();
       return;
     } catch (error) {
       lastError = error;
@@ -95,6 +93,14 @@ async function commitShipmentStatus(
     }
   }
   throw lastError;
+}
+
+async function commitShipmentStatus(
+  operation: (tx: Prisma.TransactionClient) => Promise<void>,
+) {
+  await retryShipmentCommit(async () => {
+    await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
+  });
 }
 
 export type MarkShipmentStatusResult =
@@ -181,6 +187,8 @@ async function markShipmentStatusInner(
           omsStatus: true,
           status: true,
           paymentStatus: true,
+          externalStore: true,
+          externalOrderId: true,
           shippingMethod: true,
           shippingAddress: true,
           cvsBrand: true,
@@ -349,82 +357,112 @@ async function markShipmentStatusInner(
       : `[${next}] ${note}`;
   }
 
-  // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
-  await commitShipmentStatus(async (tx) => {
-    if (shipment.orderId) {
-      if (shipment.order?.omsStatus) {
-        const freshOrder = await tx.order.findUnique({
-          where: { id: shipment.orderId },
-          select: { omsStatus: true },
-        });
-        if (!freshOrder || !isOmsShipmentActionable(freshOrder.omsStatus)) {
-          throw new Error('請先到訂單頁完成 OMS 審核並建立出貨單，再進行備貨與寄出');
-        }
-      } else {
-        await guardLegacyOrderTx(tx, shipment.orderId);
-      }
-    }
-    const updatedShipment = await tx.shipment.update({
-      where: { id: shipmentId },
-      data,
-      select: { status: true },
-    });
-    assertShipmentStatusPersisted(updatedShipment.status, next);
-
-    if (shipment.orderId) {
-      const orderUpdate = buildOrderUpdateFromShipmentStatus(next, {
+  const orderUpdate = shipment.orderId
+    ? buildOrderUpdateFromShipmentStatus(next, {
         existingShippedAt: shipment.shippedAt,
         shipmentShippedAt: next === 'shipped' ? now : shipment.shippedAt,
-      });
-      if (orderUpdate) {
-        const nextOmsStatus = shipment.order?.omsStatus
-          ? omsStatusForShipmentStatus(next)
-          : null;
-        await tx.order.update({
-          where: { id: shipment.orderId },
-          data: {
-            ...orderUpdate,
-            ...(nextOmsStatus ? { omsStatus: nextOmsStatus } : {}),
-          },
-        });
-      }
-    }
+      })
+    : null;
 
-    if (shipment.subscriptionShipmentId) {
-      if (next === 'shipped') {
-        await tx.subscriptionShipment.update({
-          where: { id: shipment.subscriptionShipmentId },
-          data: buildSubscriptionShipmentUpdate('shipped', now),
-        });
-      } else if (next === 'delivered') {
-        await tx.subscriptionShipment.update({
-          where: { id: shipment.subscriptionShipmentId },
-          data: buildSubscriptionShipmentUpdate('delivered', now),
-        });
-      } else if (next === 'pending' || next === 'packed') {
-        await tx.subscriptionShipment.update({
-          where: { id: shipment.subscriptionShipmentId },
-          data: buildSubscriptionShipmentUpdate(
-            next as SubscriptionShipmentStatus,
-            now,
-          ),
-        });
-      } else if (next === 'cancelled') {
-        await tx.subscriptionShipment.update({
-          where: { id: shipment.subscriptionShipmentId },
-          data: buildSubscriptionShipmentUpdate('skipped', now),
-        });
+  // 一般訂單使用單次資料庫交易，縮短連線池持有交易的時間。
+  // Shopify / OMS / 訂閱單仍保留完整鎖定與同步檢查。
+  const useShortAtomicCommit = Boolean(
+    shipment.orderId &&
+      orderUpdate &&
+      !shipment.order?.omsStatus &&
+      !shipment.subscriptionShipmentId &&
+      !(shipment.order?.externalStore && shipment.order?.externalOrderId),
+  );
+
+  if (useShortAtomicCommit && shipment.orderId && orderUpdate) {
+    await retryShipmentCommit(async () => {
+      const [updatedShipment] = await prisma.$transaction([
+        prisma.shipment.update({
+          where: { id: shipmentId },
+          data,
+          select: { status: true },
+        }),
+        prisma.order.update({
+          where: { id: shipment.orderId! },
+          data: orderUpdate,
+        }),
+      ]);
+      assertShipmentStatusPersisted(updatedShipment.status, next);
+    });
+  } else {
+    // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
+    await commitShipmentStatus(async (tx) => {
+      if (shipment.orderId) {
+        if (shipment.order?.omsStatus) {
+          const freshOrder = await tx.order.findUnique({
+            where: { id: shipment.orderId },
+            select: { omsStatus: true },
+          });
+          if (!freshOrder || !isOmsShipmentActionable(freshOrder.omsStatus)) {
+            throw new Error('請先到訂單頁完成 OMS 審核並建立出貨單，再進行備貨與寄出');
+          }
+        } else {
+          await guardLegacyOrderTx(tx, shipment.orderId);
+        }
+      }
+      const updatedShipment = await tx.shipment.update({
+        where: { id: shipmentId },
+        data,
+        select: { status: true },
+      });
+      assertShipmentStatusPersisted(updatedShipment.status, next);
+
+      if (shipment.orderId) {
+        if (orderUpdate) {
+          const nextOmsStatus = shipment.order?.omsStatus
+            ? omsStatusForShipmentStatus(next)
+            : null;
+          await tx.order.update({
+            where: { id: shipment.orderId },
+            data: {
+              ...orderUpdate,
+              ...(nextOmsStatus ? { omsStatus: nextOmsStatus } : {}),
+            },
+          });
+        }
       }
 
-      const subRow = await tx.subscriptionShipment.findUnique({
-        where: { id: shipment.subscriptionShipmentId },
-        select: { subscriptionId: true },
-      });
-      if (subRow) {
-        await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
+      if (shipment.subscriptionShipmentId) {
+        if (next === 'shipped') {
+          await tx.subscriptionShipment.update({
+            where: { id: shipment.subscriptionShipmentId },
+            data: buildSubscriptionShipmentUpdate('shipped', now),
+          });
+        } else if (next === 'delivered') {
+          await tx.subscriptionShipment.update({
+            where: { id: shipment.subscriptionShipmentId },
+            data: buildSubscriptionShipmentUpdate('delivered', now),
+          });
+        } else if (next === 'pending' || next === 'packed') {
+          await tx.subscriptionShipment.update({
+            where: { id: shipment.subscriptionShipmentId },
+            data: buildSubscriptionShipmentUpdate(
+              next as SubscriptionShipmentStatus,
+              now,
+            ),
+          });
+        } else if (next === 'cancelled') {
+          await tx.subscriptionShipment.update({
+            where: { id: shipment.subscriptionShipmentId },
+            data: buildSubscriptionShipmentUpdate('skipped', now),
+          });
+        }
+
+        const subRow = await tx.subscriptionShipment.findUnique({
+          where: { id: shipment.subscriptionShipmentId },
+          select: { subscriptionId: true },
+        });
+        if (subRow) {
+          await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
+        }
       }
-    }
-  });
+    });
+  }
 
   revalidatePath('/shipments');
   revalidatePath('/subscriptions/shipments');

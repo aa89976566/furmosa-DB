@@ -154,6 +154,17 @@ describe('出貨工作區介面', () => {
     assert.match(action, /transaction failed to commit\|write conflict\|deadlock/);
   });
 
+  it('一般訂單使用單次短交易同步出貨與訂單狀態', () => {
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.match(action, /const useShortAtomicCommit = Boolean/);
+    assert.match(action, /!shipment\.order\?\.omsStatus/);
+    assert.match(action, /!shipment\.subscriptionShipmentId/);
+    assert.match(action, /prisma\.\$transaction\(\[\s*prisma\.shipment\.update/);
+    assert.match(action, /prisma\.order\.update/);
+    assert.match(action, /assertShipmentStatusPersisted\(updatedShipment\.status, next\)/);
+  });
+
   it('確認視窗使用自己的原生表單提交，不依賴跨區 form 連結', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
