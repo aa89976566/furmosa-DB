@@ -11,15 +11,13 @@
   <style>
     :root {
       --paper: #fbf6ee;
-      --mint: #d4eec6;
-      --sky: #d3e7f8;
+      --mint: #d5efc8;
+      --sky: #d4e8f8;
       --yellow: #ffe14a;
       --berry: #e23b4a;
-      --ink: #161616;
-      --muted: rgba(22, 22, 22, 0.72);
+      --ink: #171717;
       --round: "Zen Maru Gothic", "Noto Sans TC", sans-serif;
       --sans: "Noto Sans TC", "PingFang TC", sans-serif;
-      --radius: 40px;
     }
 
     * { box-sizing: border-box; }
@@ -29,231 +27,230 @@
       color: var(--ink);
       font-family: var(--sans);
       font-size: 1.08rem;
-      line-height: 1.65;
+      line-height: 1.6;
     }
-    h1, h2, h3, p, ul, figure { margin: 0; }
-    h1, h2, h3, .num, .price {
+    h1, h2, h3, p, figure { margin: 0; }
+    h1, h2, h3, .num, .money {
       font-family: var(--round);
       font-weight: 900;
       letter-spacing: 0;
     }
-    img { display: block; width: 100%; object-fit: cover; border-radius: var(--radius); }
-    .flag {
-      margin: 0;
-      padding: 0.7rem 1rem 0;
-      text-align: center;
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-    .wrap {
-      width: min(1080px, calc(100% - 2.5rem));
-      margin: 0 auto;
-    }
+    img { display: block; max-width: 100%; }
+    .center { text-align: center; }
+
     .hero {
-      padding: clamp(4.2rem, 9vw, 7rem) 0 clamp(2.2rem, 5vw, 3.2rem);
-      text-align: center;
+      padding: clamp(4.5rem, 10vw, 7.2rem) 1.25rem clamp(2.4rem, 5vw, 3.4rem);
     }
     h1 {
-      font-size: clamp(3rem, 7.4vw, 6.1rem);
+      font-size: clamp(3.1rem, 7.2vw, 5.9rem);
       line-height: 1.12;
     }
     h1 .accent { color: var(--berry); }
     .lede {
-      margin: 1.4rem auto 0;
-      max-width: 16em;
-      font-size: clamp(1.15rem, 2vw, 1.45rem);
-      line-height: 1.55;
+      max-width: 18em;
+      margin: 1.35rem auto 0;
+      font-size: clamp(1.15rem, 2vw, 1.4rem);
+      line-height: 1.6;
     }
+
     .wave {
       display: block;
       width: 100%;
-      height: clamp(72px, 9vw, 110px);
+      height: 120px;
       margin-top: -1px;
     }
-    .wave.to-sky { background: #d4eec6; }
-    .wave.to-paper { background: #d3e7f8; }
+    .wave.mint { background: var(--paper); }
+    .wave.paper { background: var(--mint); }
+    .wave.sky { background: var(--paper); }
+    .wave.back { background: var(--sky); }
+
     .how {
       background: var(--mint);
-      text-align: center;
-      padding: clamp(1.5rem, 3vw, 2.2rem) 0 clamp(3rem, 6vw, 4.5rem);
+      padding: 0.4rem 1.25rem clamp(3.2rem, 6vw, 4.8rem);
     }
     h2 {
-      font-size: clamp(2.2rem, 4.6vw, 3.5rem);
+      font-size: clamp(2.3rem, 4.8vw, 3.6rem);
       line-height: 1.2;
-      text-align: center;
     }
-    .how p { margin-top: 0.7rem; font-size: 1.25rem; }
+    .beats {
+      width: min(980px, 100%);
+      margin: 1.8rem auto 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1.2rem;
+      font-family: var(--round);
+      font-weight: 700;
+      font-size: clamp(1.15rem, 2vw, 1.45rem);
+      line-height: 1.45;
+    }
     .how figure {
-      width: min(980px, calc(100% - 2.5rem));
-      margin: clamp(1.6rem, 3vw, 2.4rem) auto 0;
+      width: min(960px, 100%);
+      margin: clamp(1.8rem, 4vw, 2.6rem) auto 0;
     }
     .how img {
+      width: 100%;
       aspect-ratio: 5 / 4;
+      object-fit: cover;
       object-position: 50% 42%;
+      border-radius: 36px;
     }
+
     .steps {
-      background: var(--mint);
-      padding: 0 0 clamp(3.5rem, 7vw, 5.5rem);
+      background: var(--paper);
+      padding: clamp(1.2rem, 3vw, 2rem) 0 clamp(3.5rem, 7vw, 5rem);
     }
-    .grid-2 {
+    .sheet {
+      width: min(1080px, calc(100% - 2.5rem));
+      margin: 0 auto;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.35rem;
-      margin-top: 1.35rem;
+      gap: 1.25rem;
     }
     .card {
       background: var(--yellow);
-      border-radius: var(--radius);
+      border-radius: 36px;
       min-height: 250px;
-      padding: 2rem 1.7rem 1.8rem;
+      padding: 2.1rem 1.5rem 1.8rem;
       text-align: center;
     }
+    .card.wide { grid-column: 1 / -1; min-height: 220px; }
     .num {
-      width: 4.4rem;
-      height: 4.4rem;
-      margin: 0 auto 1rem;
+      width: 4.5rem;
+      height: 4.5rem;
+      margin: 0 auto 0.95rem;
       border-radius: 50%;
       background: var(--berry);
       color: #fff;
       font-size: 2rem;
-      line-height: 4.4rem;
+      line-height: 4.5rem;
+      text-align: center;
     }
     .card h3 {
-      font-size: clamp(1.7rem, 2.6vw, 2.25rem);
-      line-height: 1.25;
+      font-size: clamp(1.55rem, 2.4vw, 2.05rem);
+      line-height: 1.3;
+      font-weight: 700;
     }
     .card p {
-      margin-top: 0.45rem;
+      margin-top: 0.4rem;
       font-size: 1.08rem;
     }
-    .pair {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.35rem;
-      align-items: stretch;
-      margin-top: 1.35rem;
-    }
-    .pair .card { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
-    .pair img {
+    .photo {
+      border-radius: 36px;
+      width: 100%;
       height: 100%;
-      min-height: 420px;
-      aspect-ratio: 4 / 5;
-      object-position: 50% 12%;
+      min-height: 440px;
+      object-fit: cover;
+      object-position: 50% 14%;
     }
-    .pair--flip img { object-position: 50% 16%; }
-    .solo {
-      width: min(520px, 100%);
-      margin: 1.35rem auto 0;
+    .photo.captain { object-position: 50% 16%; }
+    .tall {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 440px;
     }
+
     .rules {
       background: var(--sky);
-      padding: clamp(2rem, 4vw, 3rem) 0 clamp(4rem, 8vw, 6rem);
+      padding: clamp(2rem, 4vw, 3rem) 1.25rem clamp(4rem, 8vw, 5.8rem);
     }
-    .rates {
-      list-style: none;
-      padding: 0;
+    .groups {
+      width: min(860px, 100%);
+      margin: clamp(2rem, 4vw, 3rem) auto 0;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.65rem 4.5rem;
-      width: min(920px, calc(100% - 2.5rem));
-      margin: clamp(2rem, 4vw, 3rem) auto 0;
+      gap: 2.8rem 3.5rem;
     }
-    .rates li {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 1rem;
+    .groups h3 {
+      margin-bottom: 0.7rem;
+      color: var(--berry);
+      font-size: 1.55rem;
+      font-weight: 700;
     }
-    .rates span { font-size: 1.05rem; }
-    .price {
-      font-size: clamp(1.55rem, 2.6vw, 2.3rem);
+    .groups p { margin: 0.2rem 0; font-size: 1.12rem; }
+    .money {
+      font-size: 1.65rem;
       line-height: 1;
-      white-space: nowrap;
     }
-    .price i {
-      font-style: normal;
-      font-size: 0.55em;
-      margin-right: 0.2rem;
-    }
+
     .apply {
       background: var(--paper);
-      padding: clamp(2.2rem, 5vw, 3.5rem) 0 clamp(5rem, 10vw, 7rem);
+      padding: clamp(2rem, 4vw, 3rem) 1.25rem clamp(5rem, 10vw, 7rem);
     }
-    .apply .wrap { width: min(640px, calc(100% - 2.5rem)); }
-    .apply p { margin-top: 0.7rem; text-align: center; }
-    form { margin-top: 1.6rem; }
+    .apply .form {
+      width: min(520px, 100%);
+      margin: 1.6rem auto 0;
+      text-align: left;
+    }
     label {
       display: block;
-      margin: 1rem 0 0.4rem;
+      margin: 0.95rem 0 0.35rem;
       font-size: 0.92rem;
       font-weight: 500;
     }
-    .fields {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0 1rem;
-    }
-    input, select {
+    input {
       width: 100%;
       border: 0;
-      border-radius: 18px;
+      border-radius: 16px;
       background: #fff;
       color: var(--ink);
       font: inherit;
       padding: 0.95rem 1rem;
-      box-shadow: none;
     }
-    input:focus, select:focus {
-      outline: 3px solid var(--berry);
-      outline-offset: 2px;
-    }
+    input:focus { outline: 3px solid var(--berry); outline-offset: 2px; }
     button {
       display: block;
       width: 100%;
-      margin-top: 1.4rem;
-      padding: 1.05rem 1rem;
+      margin-top: 1.3rem;
+      padding: 1.05rem;
       border: 0;
-      border-radius: 18px;
+      border-radius: 16px;
       background: var(--berry);
       color: #fff;
       font-family: var(--round);
-      font-size: 1.2rem;
+      font-size: 1.15rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: none;
     }
-    .fine, .thanks { color: var(--muted); font-size: 0.95rem; }
+    .fine {
+      margin-top: 0.8rem;
+      text-align: center;
+      color: rgba(23, 23, 23, 0.68);
+      font-size: 0.92rem;
+    }
     .thanks {
+      margin-top: 1.2rem;
       font-family: var(--round);
       font-weight: 700;
-      font-size: 1.5rem;
-      color: var(--ink);
+      font-size: 1.45rem;
     }
+
     @media (max-width: 800px) {
-      .grid-2, .pair, .rates, .fields { grid-template-columns: 1fr; }
-      .pair img { min-height: 0; aspect-ratio: 4 / 5; }
-      .pair--flip figure { order: -1; }
-      .rates { gap: 1.2rem; }
+      .beats, .sheet, .groups { grid-template-columns: 1fr; }
+      .card.wide { grid-column: auto; }
+      .photo { min-height: 0; aspect-ratio: 4 / 5; height: auto; }
+      .tall { min-height: 0; }
     }
   </style>
 </head>
 <body>
-  <p class="flag">示意頁，還沒放到 furmosa.com</p>
-
-  <header class="hero">
-    <div class="wrap">
-      <h1>空罐拿回來，<br>人就會<span class="accent">再進門</span>。</h1>
-      <p class="lede">首罐 NT$129，空罐帶回 NT$99。</p>
-    </div>
+  <header class="hero center">
+    <h1>把空罐帶回來，<br>下一罐<span class="accent">少一點</span>。</h1>
+    <p class="lede">第一次買 NT$129；帶空罐回合作店，下一罐 NT$99。</p>
   </header>
 
-  <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-    <path fill="#d4eec6" d="M0,90 L0,48 C240,8 420,78 720,42 C1020,6 1220,72 1440,36 L1440,90 Z"/>
+  <svg class="wave mint" viewBox="0 0 1440 140" preserveAspectRatio="none" aria-hidden="true">
+    <path fill="#d5efc8" d="M0,140 L0,78 C480,140 960,10 1440,72 L1440,140 Z"/>
   </svg>
 
-  <section class="how" aria-labelledby="how-title">
-    <h2 id="how-title">換罐如何運作</h2>
-    <p>下一罐，在櫃檯換。</p>
+  <section class="how center" aria-labelledby="how-title">
+    <h2 id="how-title">換罐，就這麼簡單。</h2>
+    <div class="beats">
+      <p>第一次買</p>
+      <p>吃完</p>
+      <p>空罐洗乾淨帶回店</p>
+      <p>NT$99 換下一罐</p>
+    </div>
     <figure>
       <img
         src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-exchange.png?v=1790019478"
@@ -264,134 +261,106 @@
     </figure>
   </section>
 
-  <section class="steps" aria-labelledby="steps-title">
-    <div class="wrap">
-      <h2 id="steps-title">五個步驟</h2>
-      <div class="grid-2">
-        <article class="card">
-          <p class="num">1</p>
-          <h3>留店名</h3>
-          <p>店型、在哪、想先放什麼。</p>
-        </article>
-        <article class="card">
-          <p class="num">2</p>
-          <h3>選一種</h3>
-          <p>批發、寄售，或換罐據點。</p>
-        </article>
-      </div>
+  <svg class="wave paper" viewBox="0 0 1440 140" preserveAspectRatio="none" aria-hidden="true">
+    <path fill="#fbf6ee" d="M0,140 L0,70 C480,10 960,130 1440,64 L1440,140 Z"/>
+  </svg>
 
-      <div class="pair">
-        <article class="card">
-          <p class="num">3</p>
-          <h3>先少量</h3>
-          <p>不必一次進很多。</p>
-        </article>
-        <figure>
-          <img
-            src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-milo.png?v=1790019478"
-            alt="一隻淺色的狗坐在木地板上，看向鏡頭"
-            width="1076"
-            height="1522"
-          >
-        </figure>
-      </div>
-
-      <div class="pair pair--flip">
-        <figure>
-          <img
-            src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-captain.png?v=1790019477"
-            alt="一個人坐在桌前，手裡拿著貼有標籤的玻璃罐"
-            width="1055"
-            height="1491"
-          >
-        </figure>
-        <article class="card">
-          <p class="num">4</p>
-          <h3>開始換</h3>
-          <p>第一罐 NT$129。空罐帶回 NT$99。</p>
-        </article>
-      </div>
-
-      <article class="card solo">
+  <section class="steps" aria-label="五個步驟">
+    <div class="sheet">
+      <article class="card">
+        <p class="num">1</p>
+        <h3>找一家換罐合作店</h3>
+        <p>看地圖或問店家。</p>
+      </article>
+      <article class="card">
+        <p class="num">2</p>
+        <h3>第一次買</h3>
+        <p>首罐 NT$129。</p>
+      </article>
+      <article class="card tall">
+        <p class="num">3</p>
+        <h3>吃完留下空罐</h3>
+        <p>洗乾淨、不要丟。</p>
+      </article>
+      <img
+        class="photo"
+        src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-milo.png?v=1790019478"
+        alt="一隻淺色的狗坐在木地板上，看向鏡頭"
+        width="1076"
+        height="1522"
+      >
+      <article class="card tall">
+        <p class="num">4</p>
+        <h3>回店換下一罐</h3>
+        <p>空罐回店 NT$99。</p>
+      </article>
+      <img
+        class="photo captain"
+        src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-captain.png?v=1790019477"
+        alt="一個人坐在桌前，手裡拿著貼有標籤的玻璃罐"
+        width="1055"
+        height="1491"
+      >
+      <article class="card wide">
         <p class="num">5</p>
-        <h3>每月對一次</h3>
-        <p>照公開數字算。</p>
+        <h3>照同一套規則再來</h3>
+        <p>每次都算得清楚。</p>
       </article>
     </div>
   </section>
 
-  <svg class="wave to-sky" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-    <path fill="#d3e7f8" d="M0,90 L0,46 C260,8 520,82 780,40 C1040,0 1240,70 1440,34 L1440,90 Z"/>
+  <svg class="wave sky" viewBox="0 0 1440 140" preserveAspectRatio="none" aria-hidden="true">
+    <path fill="#d4e8f8" d="M0,140 L0,74 C480,136 960,8 1440,68 L1440,140 Z"/>
   </svg>
 
-  <section class="rules" aria-labelledby="rules-title">
-    <h2 id="rules-title">換罐規則</h2>
-    <ul class="rates">
-      <li><span>首罐</span><b class="price">NT$129</b></li>
-      <li><span>空罐回店</span><b class="price">NT$99</b></li>
-      <li><span>推薦夥伴新客</span><b class="price">NT$15</b></li>
-      <li><span>推薦夥伴返航</span><b class="price">NT$8</b></li>
-      <li><span>據點自成交</span><b class="price">NT$12–14</b></li>
-      <li><span>推薦夥伴帶回</span><b class="price">NT$6</b></li>
-      <li><span>肉乾批發</span><b class="price"><i>約</i>20%</b></li>
-      <li><span>凍乾批發</span><b class="price">30%</b></li>
-      <li><span>肉乾寄售</span><b class="price">12%</b></li>
-      <li><span>凍乾寄售</span><b class="price">22%</b></li>
-    </ul>
+  <section class="rules center" aria-labelledby="rules-title">
+    <h2 id="rules-title">錢怎麼算，直接公開。</h2>
+    <div class="groups">
+      <div>
+        <h3>客人</h3>
+        <p>首罐 <span class="money">NT$129</span></p>
+        <p>空罐回店 <span class="money">NT$99</span></p>
+      </div>
+      <div>
+        <h3>推薦人</h3>
+        <p>帶來新客 <span class="money">NT$15</span></p>
+        <p>帶回換罐 <span class="money">NT$8</span></p>
+      </div>
+      <div>
+        <h3>合作店</h3>
+        <p>自己完成換罐 <span class="money">NT$12–14</span></p>
+        <p>推薦人帶回 <span class="money">NT$6</span></p>
+      </div>
+      <div>
+        <h3>商品合作</h3>
+        <p>肉乾批發 <span class="money">約 20%</span></p>
+        <p>凍乾批發 <span class="money">30%</span></p>
+        <p>肉乾寄售 <span class="money">12%</span></p>
+        <p>凍乾寄售 <span class="money">22%</span></p>
+      </div>
+    </div>
   </section>
 
-  <svg class="wave to-paper" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-    <path fill="#fbf6ee" d="M0,90 L0,42 C300,86 560,10 820,48 C1080,86 1280,16 1440,44 L1440,90 Z"/>
+  <svg class="wave back" viewBox="0 0 1440 140" preserveAspectRatio="none" aria-hidden="true">
+    <path fill="#fbf6ee" d="M0,140 L0,66 C480,12 960,128 1440,70 L1440,140 Z"/>
   </svg>
 
-  <section class="apply" aria-labelledby="apply-title">
-    <div class="wrap">
-      <h2 id="apply-title">想先放一點。</h2>
-      <p>留下店名，我們回你。</p>
-      <p class="thanks" id="thanks" hidden>收到了。這是示意，還沒送到店裡。</p>
-      <form id="apply-form">
-        <label for="store">店名</label>
-        <input id="store" name="store" type="text" required autocomplete="organization">
-        <div class="fields">
-          <div>
-            <label for="name">你的名字</label>
-            <input id="name" name="name" type="text" required autocomplete="name">
-          </div>
-          <div>
-            <label for="phone">電話</label>
-            <input id="phone" name="phone" type="tel" required autocomplete="tel">
-          </div>
-        </div>
-        <div class="fields">
-          <div>
-            <label for="email">信箱</label>
-            <input id="email" name="email" type="email" required autocomplete="email">
-          </div>
-          <div>
-            <label for="area">店在哪裡</label>
-            <input id="area" name="area" type="text" required>
-          </div>
-        </div>
-        <label for="mode">想怎麼合作</label>
-        <select id="mode" name="mode" required>
-          <option value="" selected disabled>請選</option>
-          <option>換罐據點</option>
-          <option>批發</option>
-          <option>寄售</option>
-          <option>還沒想好</option>
-        </select>
-        <label for="item">想先測的品項</label>
-        <select id="item" name="item" required>
-          <option value="" selected disabled>請選</option>
-          <option>肉乾</option>
-          <option>凍乾</option>
-          <option>換罐</option>
-          <option>先聊聊再決定</option>
-        </select>
-        <button type="submit">送出</button>
-        <p class="fine">這頁只是示意，不會送到正式站。</p>
-      </form>
-    </div>
+  <section class="apply center" aria-labelledby="apply-title">
+    <h2 id="apply-title">想成為換罐合作店？</h2>
+    <p class="lede">留下店名，我們跟你聊。</p>
+    <p class="thanks" id="thanks" hidden>收到了。這是示意，還沒送到店裡。</p>
+    <form class="form" id="apply-form">
+      <label for="store">店名</label>
+      <input id="store" name="store" type="text" required autocomplete="organization">
+      <label for="name">你的名字</label>
+      <input id="name" name="name" type="text" required autocomplete="name">
+      <label for="phone">電話</label>
+      <input id="phone" name="phone" type="tel" required autocomplete="tel">
+      <label for="email">信箱</label>
+      <input id="email" name="email" type="email" required autocomplete="email">
+      <button type="submit">送出</button>
+      <p class="fine">這頁只是示意，不會送到正式站。</p>
+    </form>
   </section>
 
   <script>
