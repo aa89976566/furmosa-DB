@@ -154,7 +154,7 @@ describe('出貨工作區介面', () => {
     assert.match(action, /transaction failed to commit\|write conflict\|deadlock/);
   });
 
-  it('佇列狀態使用原生表單提交，確認交寄後由伺服器處理結果', () => {
+  it('確認視窗使用自己的原生表單提交，不依賴跨區 form 連結', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
@@ -162,11 +162,12 @@ describe('出貨工作區介面', () => {
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
     assert.match(control, /import \{ markShipmentStatus \}/);
-    assert.match(control, /<form id=\{formId\} action=\{markShipmentStatus\}/);
+    assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 2);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
-    assert.match(control, /name="next"/);
+    assert.match(control, /name="next" value="shipped"/);
     assert.match(control, /type="submit"/);
-    assert.match(control, /form=\{formId\}/);
+    assert.doesNotMatch(control, /form=\{formId\}/);
+    assert.match(control, /pending \? '正在標記…' : '確認已寄出'/);
     assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });

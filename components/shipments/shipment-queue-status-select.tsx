@@ -56,6 +56,21 @@ function statusChipClass(active: boolean) {
     : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
+function ConfirmShipSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      autoFocus
+      className="min-h-11 touch-manipulation rounded-xl bg-black px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
+    >
+      {pending ? '正在標記…' : '確認已寄出'}
+    </button>
+  );
+}
+
 export function ShipmentQueueStatusSelect({
   shipmentId,
   status,
@@ -76,7 +91,6 @@ export function ShipmentQueueStatusSelect({
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
   const [confirmShip, setConfirmShip] = useState(false);
-  const formId = `shipment-status-${shipmentId}`;
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -93,7 +107,7 @@ export function ShipmentQueueStatusSelect({
 
   return (
     <>
-    <form id={formId} action={markShipmentStatus} className={cn('space-y-1.5', className)}>
+    <form action={markShipmentStatus} className={cn('space-y-1.5', className)}>
       <input type="hidden" name="shipmentId" value={shipmentId} />
       <input type="hidden" name="inline" value="1" />
       {queueStatus ? <input type="hidden" name="queueStatus" value={queueStatus} /> : null}
@@ -149,25 +163,30 @@ export function ShipmentQueueStatusSelect({
                   {inventoryWarnings.map((warning) => <p key={warning} className="mt-1">{warning}</p>)}
                 </div>
               ) : null}
-              <div className="mt-5 grid grid-cols-2 gap-2">
+              <form
+                action={markShipmentStatus}
+                className="mt-5 grid grid-cols-2 gap-2"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <input type="hidden" name="shipmentId" value={shipmentId} />
+                <input type="hidden" name="next" value="shipped" />
+                <input type="hidden" name="inline" value="1" />
+                {queueStatus ? (
+                  <input type="hidden" name="queueStatus" value={queueStatus} />
+                ) : null}
+                {queueType ? (
+                  <input type="hidden" name="queueType" value={queueType} />
+                ) : null}
                 <button
                   type="button"
-                  className="min-h-11 rounded-xl border border-border bg-background px-4 text-sm font-medium"
+                  className="min-h-11 touch-manipulation rounded-xl border border-border bg-background px-4 text-sm font-medium"
                   onClick={() => setConfirmShip(false)}
                 >
                   取消
                 </button>
-                <button
-                  type="submit"
-                  form={formId}
-                  name="next"
-                  value="shipped"
-                  autoFocus
-                  className="min-h-11 rounded-xl bg-black px-4 text-sm font-semibold text-white"
-                >
-                  確認已寄出
-                </button>
-              </div>
+                <ConfirmShipSubmitButton />
+              </form>
             </div>
           </div>,
           document.body,
