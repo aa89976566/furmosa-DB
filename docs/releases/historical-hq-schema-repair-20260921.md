@@ -24,3 +24,7 @@ business-data writes.
 ## Validation
 
 The release workflow must pass exact-PR, CI, checksum, readiness, Railway, and smoke checks before completion.
+
+## Approved execution
+
+This release request runs the bounded `historical_hq_schema_repair_20260921` plan after exact-head CI passes.
