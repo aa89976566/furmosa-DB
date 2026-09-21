@@ -2,179 +2,94 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-// Exercise the existing shared desktop/mobile label resolver without mounting
-// status controls or importing server actions.
 const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
-const match = source.match(/function rowLabel\(s: ShipmentQueueRow\) \{([\s\S]*?)\n\}/);
-assert.ok(match, 'shared shipment row label resolver exists');
-const rowLabel = new Function('s', match[1]) as (shipment: Record<string, unknown>) => string;
+const orderMatch = source.match(/function rowLabel\(s: ShipmentQueueRow\) \{([\s\S]*?)\n\}/);
+const partyMatch = source.match(/function partyLabel\(s: ShipmentQueueRow\) \{([\s\S]*?)\n\}/);
+assert.ok(orderMatch, 'shared order label resolver exists');
+assert.ok(partyMatch, 'shared party label resolver exists');
 
-const cases = [
-  [
-    "個人收件人優先",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "recipientName": "簡玉珊",
-      "customer": {
-        "name": "下單人"
-      },
-      "order": {
-        "orderNumber": "ORD-202609-015"
-      }
-    },
-    "簡玉珊"
-  ],
-  [
-    "店家名稱優先",
-    {
-      "type": "merchant_restock",
-      "status": "pending",
-      "merchant": {
-        "name": "曼利莎寵物美容"
-      },
-      "recipientName": "黃昊倫"
-    },
-    "曼利莎寵物美容"
-  ],
-  [
-    "舊店家單",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "merchant": {
-        "name": "洗室"
-      },
-      "recipientName": "張旖甯"
-    },
-    "洗室"
-  ],
-  [
-    "無收件人使用客戶姓名",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "recipientName": "  ",
-      "customer": {
-        "name": " 客戶甲 "
-      },
-      "order": {
-        "orderNumber": "ORD-001"
-      }
-    },
-    "客戶甲"
-  ],
-  [
-    "空店名不遮住收件人",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "merchant": {
-        "name": " "
-      },
-      "recipientName": " 收件甲 "
-    },
-    "收件甲"
-  ],
-  [
-    "缺姓名保留訂單號",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "order": {
-        "orderNumber": "ORD-001"
-      }
-    },
-    "ORD-001"
-  ],
-  [
-    "訂閱區保留原訂閱單號",
-    {
-      "type": "subscription",
-      "status": "pending",
-      "recipientName": "訂閱收件人",
-      "subscriptionShipment": {
-        "subscription": {
-          "subscriptionNo": "SUB-1"
-        }
-      }
-    },
-    "SUB-1"
-  ],
-  [
-    "舊訂閱無姓名",
-    {
-      "type": "subscription",
-      "status": "pending",
-      "subscriptionShipment": {
-        "subscription": {
-          "subscriptionNo": "SUB-1"
-        }
-      }
-    },
-    "SUB-1"
-  ],
-  [
-    "孤立出貨單",
-    {
-      "type": "customer_order",
-      "status": "pending",
-      "shipmentNumber": "SHP-001"
-    },
-    "SHP-001"
-  ],
-  [
-    "packed 個人單",
-    {
-      "type": "customer_order",
-      "status": "packed",
-      "recipientName": "收件人",
-      "order": {
-        "orderNumber": "ORD-001"
-      }
-    },
-    "收件人"
-  ],
-  [
-    "shipped 個人單",
-    {
-      "type": "customer_order",
-      "status": "shipped",
-      "recipientName": "收件人",
-      "order": {
-        "orderNumber": "ORD-001"
-      }
-    },
-    "ORD-001"
-  ],
-  [
-    "delivered 個人單",
-    {
-      "type": "customer_order",
-      "status": "delivered",
-      "recipientName": "收件人",
-      "order": {
-        "orderNumber": "ORD-001"
-      }
-    },
-    "ORD-001"
-  ],
-  [
-    "在途店家仍顯示店名",
-    {
-      "type": "merchant_restock",
-      "status": "shipped",
-      "merchant": {
-        "name": "店家"
-      },
-      "recipientName": "聯絡人"
-    },
-    "店家"
-  ]
-] as const;
+const orderLabel = new Function('s', orderMatch[1]) as (
+  shipment: Record<string, unknown>,
+) => string;
+const partyLabel = new Function('s', partyMatch[1]) as (
+  shipment: Record<string, unknown>,
+) => string;
 
-for (const [name, shipment, expected] of cases) {
-  test(name, () => {
-    assert.equal(rowLabel(shipment), expected);
-  });
-}
+test('有訂單時第一欄永遠顯示訂單編號', () => {
+  assert.equal(
+    orderLabel({
+      type: 'customer_order',
+      status: 'pending',
+      recipientName: '高稚媛',
+      order: { orderNumber: 'ORD-202609-015' },
+      shipmentNumber: 'SHP-001',
+    }),
+    'ORD-202609-015',
+  );
+});
+
+test('店家訂單也使用訂單編號，不拿店名當單號', () => {
+  assert.equal(
+    orderLabel({
+      type: 'merchant_restock',
+      merchant: { name: '洗室' },
+      order: { orderNumber: 'ORD-STORE-001' },
+      shipmentNumber: 'SHP-002',
+    }),
+    'ORD-STORE-001',
+  );
+});
+
+test('訂閱單沒有訂單時使用訂閱編號', () => {
+  assert.equal(
+    orderLabel({
+      type: 'subscription',
+      subscriptionShipment: {
+        shipmentNo: 'SUB-SHIP-001',
+        subscription: { subscriptionNo: 'SUB-001' },
+      },
+      shipmentNumber: 'SHP-003',
+    }),
+    'SUB-001',
+  );
+});
+
+test('沒有上游單號才回退出貨編號', () => {
+  assert.equal(
+    orderLabel({ type: 'customer_order', shipmentNumber: 'SHP-004' }),
+    'SHP-004',
+  );
+});
+
+test('第二欄個人訂單顯示收件人姓名', () => {
+  assert.equal(
+    partyLabel({
+      type: 'customer_order',
+      recipientName: ' 高稚媛 ',
+      customer: { name: '下單人' },
+    }),
+    '高稚媛',
+  );
+});
+
+test('第二欄店家補貨顯示店家名稱', () => {
+  assert.equal(
+    partyLabel({
+      type: 'merchant_restock',
+      merchant: { name: ' 洗室 ' },
+      recipientName: '聯絡人',
+    }),
+    '洗室',
+  );
+});
+
+test('個人訂單沒有收件人時回退客戶姓名', () => {
+  assert.equal(
+    partyLabel({
+      type: 'customer_order',
+      recipientName: ' ',
+      customer: { name: ' 客戶甲 ' },
+    }),
+    '客戶甲',
+  );
+});

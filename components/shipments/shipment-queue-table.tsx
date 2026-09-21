@@ -119,7 +119,8 @@ function ShipmentStatusControl({
 
 type QueueRowView = {
   shipment: ShipmentQueueRow;
-  label: string;
+  orderLabel: string;
+  partyLabel: string;
   shortNumber: string;
   logistics: ReturnType<typeof resolveLogisticsFromShipment>;
   productLines: string[];
@@ -137,27 +138,19 @@ function shortShipmentNumber(value: string) {
 }
 
 function rowLabel(s: ShipmentQueueRow) {
-  // Only the operational pending queue uses recipient/store headings.
-  // Keep the in-transit, delivered and subscription sections unchanged.
-  if (s.type === 'subscription' || !['pending', 'packed'].includes(s.status)) {
-    if (s.type === 'merchant_restock' && s.merchant?.name) return s.merchant.name;
-    return s.order?.orderNumber ??
-      s.subscriptionShipment?.subscription?.subscriptionNo ??
-      s.subscriptionShipment?.shipmentNo ??
-      s.shipmentNumber;
-  }
-
-  const merchantName = s.merchant?.name.trim();
-  if (merchantName) return merchantName;
-
-  const recipientName = s.recipientName?.trim() || s.customer?.name.trim();
   return (
-    recipientName ||
     s.order?.orderNumber ||
     s.subscriptionShipment?.subscription?.subscriptionNo ||
     s.subscriptionShipment?.shipmentNo ||
     s.shipmentNumber
   );
+}
+
+function partyLabel(s: ShipmentQueueRow) {
+  if (s.type === 'merchant_restock') {
+    return s.merchant?.name.trim() || s.recipientName?.trim() || '店家未設定';
+  }
+  return s.recipientName?.trim() || s.customer?.name.trim() || '姓名未設定';
 }
 
 function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
@@ -187,7 +180,8 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
 
   return {
     shipment: s,
-    label: rowLabel(s),
+    orderLabel: rowLabel(s),
+    partyLabel: partyLabel(s),
     shortNumber: shortShipmentNumber(s.shipmentNumber),
     logistics,
     productLines,
@@ -225,7 +219,6 @@ function LogisticsBlock({
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">{logistics.destination}</span>
       </div>
-      <div className="pl-5 text-xs text-muted-foreground">{logistics.contactName}</div>
     </div>
   );
 }
@@ -284,7 +277,7 @@ function ShipmentQueueCard({
   queueType?: string;
   onSelect: () => void;
 }) {
-  const { shipment, label, shortNumber, logistics } = view;
+  const { shipment, orderLabel, partyLabel, shortNumber, logistics } = view;
 
   return (
     <div
@@ -305,7 +298,7 @@ function ShipmentQueueCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground">{label}</span>
+            <span className="font-mono text-sm font-semibold text-foreground">{orderLabel}</span>
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
@@ -322,7 +315,10 @@ function ShipmentQueueCard({
               </Badge>
             ) : null}
           </div>
-          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{shortNumber}</p>
+          <p className="mt-1 text-sm font-medium text-foreground">{partyLabel}</p>
+          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            出貨單 {shortNumber}
+          </p>
         </div>
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </div>
@@ -410,16 +406,11 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
-        <Table className="min-w-[52rem] table-fixed">
+        <Table className="min-w-[62rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[10rem]">
-                {shipments.every(
-                  (s) => s.type !== 'subscription' && ['pending', 'packed'].includes(s.status),
-                )
-                  ? '訂購名稱'
-                  : '單號'}
-              </TableHead>
+              <TableHead className="w-[12rem]">單號</TableHead>
+              <TableHead className="w-[10rem]">姓名／店家</TableHead>
               <TableHead className="w-[12rem]">運輸狀態</TableHead>
               <TableHead className="w-[18rem]">收件資訊</TableHead>
               <TableHead>商品摘要</TableHead>
@@ -427,7 +418,7 @@ export function ShipmentQueueTable({
           </TableHeader>
           <TableBody>
             {views.map((view) => {
-              const { shipment, label, shortNumber, logistics } = view;
+              const { shipment, orderLabel, partyLabel, shortNumber, logistics } = view;
 
               return (
                 <TableRow
@@ -438,7 +429,7 @@ export function ShipmentQueueTable({
                       'bg-primary/[0.06] hover:bg-primary/[0.06]',
                   )}
                   onClick={() => onSelectShipment(shipment)}
-                  title={`${label} · ${shipment.shipmentNumber}`}
+                  title={`${orderLabel} · ${partyLabel}`}
                 >
                   <TableCell
                     className={cn(
@@ -449,9 +440,9 @@ export function ShipmentQueueTable({
                   >
                     <span
                       className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
-                      title={shipment.shipmentNumber}
+                      title={orderLabel}
                     >
-                      {label}
+                      {orderLabel}
                     </span>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
@@ -471,6 +462,9 @@ export function ShipmentQueueTable({
                       ) : null}
                       <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
                     </div>
+                  </TableCell>
+                  <TableCell className="py-3 text-sm font-medium text-foreground">
+                    {partyLabel}
                   </TableCell>
                   <TableCell
                     className="py-3"
