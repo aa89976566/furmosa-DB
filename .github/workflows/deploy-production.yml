@@ -21,6 +21,7 @@ on:
           - hq_inventory_advisory_20260917
           - hq_passkeys_20260918
           - historical_hq_schema_repair_20260921
+          - hq_shipment_correction_ledger_20260921
 
 permissions:
   contents: write
