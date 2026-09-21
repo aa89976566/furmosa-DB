@@ -98,6 +98,8 @@ describe('出貨工作區介面', () => {
     assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
     assert.match(control, /確認已完成交寄/);
+    assert.match(control, /確認貨物已到達/);
+    assert.match(control, /確認後會標記為「貨物到達」，並移到待驗收/);
     assert.match(control, /role="dialog"/);
     assert.match(control, /createPortal/);
     assert.doesNotMatch(control, /window\.confirm\(`確定已完成交寄/);
@@ -185,10 +187,11 @@ describe('出貨工作區介面', () => {
     assert.match(control, /import \{ markShipmentStatus \}/);
     assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 2);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
-    assert.match(control, /name="next" value="shipped"/);
+    assert.match(control, /name="next" value=\{confirmNext\}/);
     assert.match(control, /type="submit"/);
     assert.doesNotMatch(control, /form=\{formId\}/);
-    assert.match(control, /pending \? '正在標記…' : '確認已寄出'/);
+    assert.match(control, /確認貨物到達/);
+    assert.match(control, /確認已寄出/);
     assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });
