@@ -21,7 +21,10 @@ test('有訂單時第一欄永遠顯示訂單編號', () => {
       type: 'customer_order',
       status: 'pending',
       recipientName: '高稚媛',
-      order: { orderNumber: 'ORD-202609-015' },
+      order: {
+        orderNumber: 'ORD-202609-015',
+        displayOrderNumber: 'SHP-202609-0020',
+      },
       shipmentNumber: 'SHP-001',
     }),
     'ORD-202609-015',
@@ -33,7 +36,10 @@ test('店家訂單也使用訂單編號，不拿店名當單號', () => {
     orderLabel({
       type: 'merchant_restock',
       merchant: { name: '洗室' },
-      order: { orderNumber: 'ORD-STORE-001' },
+      order: {
+        orderNumber: 'ORD-STORE-001',
+        displayOrderNumber: 'SHP-STORE-001',
+      },
       shipmentNumber: 'SHP-002',
     }),
     'ORD-STORE-001',
