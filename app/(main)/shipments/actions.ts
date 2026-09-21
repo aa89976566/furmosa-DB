@@ -33,6 +33,10 @@ import {
 import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/constants';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
+import {
+  notifyShipmentSentLine,
+  shouldNotifyShipmentSent,
+} from '@/lib/shipment-line-notification';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { Prisma } from '@prisma/client';
@@ -185,6 +189,7 @@ async function markShipmentStatusInner(
       items: true,
       order: {
         select: {
+          orderNumber: true,
           omsStatus: true,
           status: true,
           paymentStatus: true,
@@ -195,6 +200,9 @@ async function markShipmentStatusInner(
           cvsBrand: true,
           cvsStoreName: true,
         },
+      },
+      customer: {
+        select: { name: true, lineUserId: true },
       },
       merchant: {
         select: {
@@ -509,6 +517,28 @@ async function markShipmentStatusInner(
           await refreshSubscriptionNextShipmentDate(tx, subRow.subscriptionId);
         }
       }
+    });
+  }
+
+  // LINE 是出貨完成後的附加通知：未綁定、環境未設定或發送失敗，
+  // 都不能回滾已成功的出貨狀態。只在首次進入 shipped 時通知，避免重送。
+  if (shouldNotifyShipmentSent(shipment.status, next)) {
+    const notification = await notifyShipmentSentLine({
+      shipmentNumber: shipment.shipmentNumber,
+      orderNumber: shipment.order?.orderNumber,
+      customerName: shipment.customer?.name ?? shipment.recipientName,
+      lineUserId: shipment.customer?.lineUserId,
+      carrier: carrier ?? shipment.carrier,
+      trackingNumber: trackingNumber ?? shipment.trackingNumber,
+    }).catch((error) => ({
+      status: 'failed' as const,
+      error: error instanceof Error ? error.message : '未知錯誤',
+    }));
+
+    console.info('[shipment/line-notification]', {
+      shipmentId,
+      status: notification.status,
+      ...(notification.status === 'failed' ? { error: notification.error } : {}),
     });
   }
 
