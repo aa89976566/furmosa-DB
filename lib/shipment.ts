@@ -55,7 +55,7 @@ export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
 export function nextStatuses(current: string): ShipmentStatus[] {
   switch (current) {
     case 'pending':
-      return ['packed', 'cancelled'];
+      return ['shipped', 'cancelled'];
     case 'packed':
       return ['shipped', 'pending', 'cancelled'];
     case 'shipped':

@@ -42,24 +42,58 @@ export function ShipmentStatusActions({
     );
   }
 
+  const primaryNext = allowedNext.find((next) => next !== 'pending' && next !== 'cancelled');
+  const correctionNext = primaryNext
+    ? allowedNext.filter((next) => next !== primaryNext)
+    : allowedNext;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {allowedNext.map((next) => (
-        <StatusActionCard
-          key={next}
-          shipmentId={shipmentId}
-          next={next}
-          currentStatus={currentStatus}
-          defaultCarrier={defaultCarrier}
-          defaultTracking={defaultTracking}
-          defaultPickupStore={defaultPickupStore}
-          defaultPickupName={defaultPickupName}
-          defaultPickupPhone={defaultPickupPhone}
-          inline={inline}
-          queueStatus={queueStatus}
-          inventoryWarnings={inventoryWarnings}
-        />
-      ))}
+    <div className="space-y-3">
+      {primaryNext ? (
+        <div className="max-w-xl">
+          <StatusActionCard
+            shipmentId={shipmentId}
+            next={primaryNext}
+            currentStatus={currentStatus}
+            defaultCarrier={defaultCarrier}
+            defaultTracking={defaultTracking}
+            defaultPickupStore={defaultPickupStore}
+            defaultPickupName={defaultPickupName}
+            defaultPickupPhone={defaultPickupPhone}
+            inline={inline}
+            queueStatus={queueStatus}
+            inventoryWarnings={inventoryWarnings}
+            primary
+          />
+        </div>
+      ) : null}
+
+      {correctionNext.length > 0 ? (
+        <details className="group max-w-xl rounded-lg border border-border/70 bg-muted/10">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-muted-foreground transition hover:text-foreground">
+            <span className="group-open:hidden">需要修正狀態？</span>
+            <span className="hidden group-open:inline">收起狀態修正</span>
+          </summary>
+          <div className="grid gap-3 border-t border-border/70 p-3">
+            {correctionNext.map((next) => (
+              <StatusActionCard
+                key={next}
+                shipmentId={shipmentId}
+                next={next}
+                currentStatus={currentStatus}
+                defaultCarrier={defaultCarrier}
+                defaultTracking={defaultTracking}
+                defaultPickupStore={defaultPickupStore}
+                defaultPickupName={defaultPickupName}
+                defaultPickupPhone={defaultPickupPhone}
+                inline={inline}
+                queueStatus={queueStatus}
+                inventoryWarnings={inventoryWarnings}
+              />
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -76,6 +110,7 @@ function StatusActionCard({
   inline,
   queueStatus,
   inventoryWarnings,
+  primary = false,
 }: {
   shipmentId: string;
   next: ShipmentStatus;
@@ -88,6 +123,7 @@ function StatusActionCard({
   inline?: boolean;
   queueStatus?: string;
   inventoryWarnings: string[];
+  primary?: boolean;
 }) {
   const isShipping = next === 'shipped';
   const isDanger = next === 'cancelled';
@@ -114,7 +150,11 @@ function StatusActionCard({
       }}
       className={cn(
         'space-y-3 rounded-lg border p-4',
-        isDanger ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20',
+        isDanger
+          ? 'border-destructive/40 bg-destructive/5'
+          : primary
+            ? 'border-border bg-card shadow-sm'
+            : 'bg-muted/20',
       )}
     >
       <input type="hidden" name="shipmentId" value={shipmentId} />

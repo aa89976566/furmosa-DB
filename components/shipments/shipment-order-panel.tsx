@@ -152,6 +152,12 @@ export function ShipmentOrderPanel({
         }));
   const displayQty =
     data.items.length > 0 ? totalQty : planContents.length > 0 ? planContents.length : 0;
+  const nextStepHelp =
+    data.status === 'pending' || data.status === 'packed'
+      ? '填寫物流資料後確認寄出，訂單狀態會同步更新。'
+      : data.status === 'shipped'
+        ? '貨物已寄出；收到物流到達資訊後，再確認「貨物到達」。'
+        : '目前狀態已完成，無需再次標記。';
 
   return (
     <div className="min-w-0 space-y-6">
@@ -178,11 +184,6 @@ export function ShipmentOrderPanel({
               <Badge variant="warning">{JIBA_PAYMENT_REVIEW_LABEL}</Badge>
             ) : null}
           </div>
-          {data.type === 'customer_order' ? (
-            <p className="text-xs text-muted-foreground">
-              在此更新物流狀態後，關聯訂單的出貨與訂單狀態會同步。
-            </p>
-          ) : null}
         </div>
         <div className="flex flex-col items-end gap-2">
           {data.order?.editable ? (
@@ -324,11 +325,11 @@ export function ShipmentOrderPanel({
       </div>
 
       <section className="rounded-lg border bg-card p-4">
-        <h3 className="text-sm font-semibold">物流狀態</h3>
+        <h3 className="text-sm font-semibold">下一步</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           {paymentReviewHold
             ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出。`
-            : '寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。'}
+            : nextStepHelp}
         </p>
         <div className="mt-4">
           <ShipmentStatusActions
