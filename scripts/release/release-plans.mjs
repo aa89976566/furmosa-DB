@@ -24,6 +24,13 @@ export const RELEASE_PLANS = Object.freeze({
       'prisma/migrations/20260918162000_hq_passkeys/migration.sql',
     ]),
   }),
+  historical_hq_schema_repair_20260921: Object.freeze({
+    runner: 'scripts/ops/repair-historical-hq-schema-20260921.mjs',
+    migrationPrefixes: Object.freeze([]),
+    requiredPaths: Object.freeze([
+      'docs/releases/historical-hq-schema-repair-20260921.md',
+    ]),
+  }),
 });
 
 export function releasePlan(name) {
