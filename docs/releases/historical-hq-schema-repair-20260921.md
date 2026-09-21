@@ -20,3 +20,7 @@ transaction plus an advisory lock, and rolls back on any failure.
 
 This release does not run stocktake, seed, backfill, unrelated migrations, or
 business-data writes.
+
+## Validation
+
+The release workflow must pass exact-PR, CI, checksum, readiness, Railway, and smoke checks before completion.
