@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>FURMOSA 換罐合作｜示意</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f7f4ec;
+      --mint: #e5f2e6;
+      --mist: #e6f0f8;
+      --ink: #1a1a1a;
+      --navy: #1a3048;
+      --muted: rgba(26, 26, 26, 0.68);
+      --line: rgba(26, 48, 72, 0.16);
+      --round: "Zen Maru Gothic", "Noto Sans TC", sans-serif;
+      --sans: "Noto Sans TC", "PingFang TC", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 1.05rem;
+      line-height: 1.7;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+      border-radius: 28px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1, h2, h3, .num, .price {
+      font-family: var(--round);
+      font-weight: 900;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    .flag {
+      margin: 0;
+      padding: 0.55rem 1rem;
+      background: #efeae0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 2.5rem));
+      margin: 0 auto;
+    }
+
+    .hero {
+      padding: clamp(4.5rem, 10vw, 7.5rem) 0 clamp(3.5rem, 8vw, 5.5rem);
+    }
+
+    h1 {
+      max-width: 7.2em;
+      font-size: clamp(2.8rem, 7vw, 5.6rem);
+    }
+
+    .lede {
+      max-width: 16em;
+      margin-top: 1.5rem;
+      color: var(--navy);
+      font-size: clamp(1.15rem, 2vw, 1.45rem);
+      line-height: 1.6;
+    }
+
+    .how {
+      background: var(--mint);
+      padding: clamp(4rem, 8vw, 6rem) 0;
+    }
+
+    .how h2,
+    .ways h2,
+    .steps h2,
+    .rules h2,
+    .apply h2 {
+      font-size: clamp(2.1rem, 4.4vw, 3.4rem);
+    }
+
+    .how p,
+    .section-line {
+      max-width: 16em;
+      margin-top: 0.8rem;
+      font-size: 1.15rem;
+    }
+
+    .how figure {
+      margin: clamp(1.75rem, 4vw, 2.75rem) 0 0;
+    }
+
+    .how img {
+      aspect-ratio: 5 / 4;
+      object-position: 50% 42%;
+    }
+
+    .ways {
+      background: var(--mist);
+      padding: clamp(4rem, 8vw, 6rem) 0;
+    }
+
+    .ways-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(1.75rem, 4vw, 4rem);
+      margin-top: clamp(2rem, 4vw, 3rem);
+    }
+
+    .ways h3 {
+      font-size: clamp(1.6rem, 2.4vw, 2.1rem);
+      font-weight: 700;
+    }
+
+    .ways p {
+      margin-top: 0.55rem;
+      font-size: 1.08rem;
+    }
+
+    .steps {
+      padding-top: clamp(4rem, 8vw, 6rem);
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 3.2rem 1fr;
+      gap: 0.8rem 1.1rem;
+      max-width: 36rem;
+      padding: 1.35rem 0;
+    }
+
+    .num {
+      color: var(--navy);
+      font-size: 2.4rem;
+      line-height: 0.95;
+    }
+
+    .step h3,
+    .split h3 {
+      font-size: clamp(1.7rem, 3vw, 2.35rem);
+      font-weight: 700;
+    }
+
+    .step p,
+    .split p {
+      margin-top: 0.4rem;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .band {
+      margin-top: clamp(1.5rem, 4vw, 2.5rem);
+    }
+
+    .band--mint { background: var(--mint); }
+    .band--mist { background: var(--mist); }
+
+    .split {
+      width: min(1180px, calc(100% - 2.5rem));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: clamp(1.5rem, 4vw, 4.5rem);
+      align-items: center;
+      padding: clamp(2.5rem, 5vw, 4rem) 0;
+    }
+
+    .split--captain {
+      grid-template-columns: 0.9fr 1.1fr;
+    }
+
+    .split img {
+      aspect-ratio: 3 / 4;
+      object-position: 50% 14%;
+    }
+
+    .split .num { margin-bottom: 0.45rem; }
+
+    .steps-end {
+      padding: clamp(1.5rem, 4vw, 2.5rem) 0 clamp(3rem, 6vw, 4.5rem);
+    }
+
+    .rules {
+      padding: clamp(1rem, 3vw, 2rem) 0 clamp(3rem, 6vw, 4.5rem);
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 5vw, 4.5rem);
+      margin-top: clamp(2rem, 4vw, 3rem);
+    }
+
+    .rule-grid h3 {
+      margin-bottom: 0.35rem;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .rule-grid .group + .group { margin-top: 2rem; }
+
+    .rule {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.15rem 1rem;
+      align-items: baseline;
+      padding: 0.85rem 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .rule span { font-size: 1.02rem; }
+
+    .price {
+      color: var(--navy);
+      font-size: clamp(1.7rem, 2.8vw, 2.45rem);
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rule small {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .apply {
+      padding: 0 0 clamp(5rem, 10vw, 7rem);
+    }
+
+    form {
+      max-width: 38rem;
+      margin-top: 1.75rem;
+    }
+
+    .split-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem 1.1rem;
+    }
+
+    label {
+      display: block;
+      margin: 0.95rem 0 0.35rem;
+      color: var(--navy);
+      font-size: 0.86rem;
+      font-weight: 500;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.85rem 0.95rem;
+      border: 1px solid rgba(26, 26, 26, 0.22);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+
+    input:focus, select:focus {
+      outline: 2px solid var(--navy);
+      outline-offset: 2px;
+    }
+
+    button {
+      margin-top: 1.35rem;
+      padding: 0.9rem 1.7rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--round);
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--navy); }
+
+    .fine, .thanks {
+      margin-top: 0.85rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .thanks {
+      font-family: var(--round);
+      font-weight: 700;
+      font-size: 1.45rem;
+      color: var(--navy);
+    }
+
+    @media (max-width: 800px) {
+      .ways-grid,
+      .rule-grid,
+      .split,
+      .split--captain,
+      .split-fields {
+        grid-template-columns: 1fr;
+      }
+
+      .split figure { order: -1; }
+
+      .how img { aspect-ratio: 1 / 1; }
+    }
+  </style>
+</head>
+<body>
+  <p class="flag">示意頁，還沒放到 furmosa.com</p>
+
+  <header class="hero">
+    <div class="wrap">
+      <h1>空罐拿回來，<br>人就會再進門。</h1>
+      <p class="lede">首罐 NT$129。空罐帶回，NT$99。</p>
+    </div>
+  </header>
+
+  <section class="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <h2 id="how-title">換罐如何運作</h2>
+      <p>下一罐，在櫃檯換。</p>
+      <figure>
+        <img
+          src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-exchange.png?v=1790019478"
+          alt="兩個人在木桌前，把玻璃罐裡的零食交給對方"
+          width="1254"
+          height="1254"
+        >
+      </figure>
+    </div>
+  </section>
+
+  <section class="ways" aria-labelledby="ways-title">
+    <div class="wrap">
+      <h2 id="ways-title">三種合作</h2>
+      <div class="ways-grid">
+        <div>
+          <h3>換罐據點</h3>
+          <p>客人帶空罐回你的店。</p>
+        </div>
+        <div>
+          <h3>批發</h3>
+          <p>肉乾約 20%。<br>凍乾 30%。</p>
+        </div>
+        <div>
+          <h3>寄售</h3>
+          <p>肉乾 12%。<br>凍乾 22%。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="steps" aria-labelledby="steps-title">
+    <div class="wrap">
+      <h2 id="steps-title">五個步驟</h2>
+      <article class="step">
+        <p class="num">1</p>
+        <div>
+          <h3>留店名</h3>
+          <p>店型、在哪、想先放什麼。</p>
+        </div>
+      </article>
+      <article class="step">
+        <p class="num">2</p>
+        <div>
+          <h3>選一種</h3>
+          <p>批發、寄售，或當換罐據點。</p>
+        </div>
+      </article>
+    </div>
+
+    <div class="band band--mint">
+      <div class="split">
+        <figure>
+          <img
+            src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-milo.png?v=1790019478"
+            alt="一隻淺色的狗坐在木地板上，看向鏡頭"
+            width="1076"
+            height="1522"
+            loading="lazy"
+          >
+        </figure>
+        <div>
+          <p class="num">3</p>
+          <h3>先少量</h3>
+          <p>不必一次進很多。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="band band--mist">
+      <div class="split split--captain">
+        <div>
+          <p class="num">4</p>
+          <h3>開始換</h3>
+          <p>第一罐 NT$129。空罐帶回，NT$99。</p>
+        </div>
+        <figure>
+          <img
+            src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-captain.png?v=1790019477"
+            alt="一個人坐在桌前，手裡拿著貼有標籤的玻璃罐"
+            width="1055"
+            height="1491"
+            loading="lazy"
+          >
+        </figure>
+      </div>
+    </div>
+
+    <div class="wrap steps-end">
+      <article class="step">
+        <p class="num">5</p>
+        <div>
+          <h3>每月對一次</h3>
+          <p>新來的、回來的，照公開數字算。</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="rules" aria-labelledby="rules-title">
+    <div class="wrap">
+      <h2 id="rules-title">換罐規則</h2>
+      <p class="section-line">單位都是新台幣。</p>
+      <div class="rule-grid">
+        <div>
+          <h3>客人付的</h3>
+          <div class="rule">
+            <span>首罐</span>
+            <b class="price">NT$129</b>
+            <small>第一次買。</small>
+          </div>
+          <div class="rule">
+            <span>空罐回店</span>
+            <b class="price">NT$99</b>
+            <small>帶空罐回來，換下一罐。</small>
+          </div>
+        </div>
+        <div>
+          <div class="group">
+            <h3>算給團主</h3>
+            <div class="rule">
+              <span>新會員</span>
+              <b class="price">NT$15</b>
+              <small>完成首罐後才算。</small>
+            </div>
+            <div class="rule">
+              <span>返航</span>
+              <b class="price">NT$8</b>
+              <small>回來換罐後才算。</small>
+            </div>
+          </div>
+          <div class="group">
+            <h3>算給據點</h3>
+            <div class="rule">
+              <span>自己成交</span>
+              <b class="price">NT$12–14</b>
+              <small>依方案與品項。</small>
+            </div>
+            <div class="rule">
+              <span>旗下團主返航</span>
+              <b class="price">NT$6</b>
+              <small>依實際返航紀錄。</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="apply" aria-labelledby="apply-title">
+    <div class="wrap">
+      <h2 id="apply-title">想先放一點。</h2>
+      <p class="section-line">留下店名，我們回你。</p>
+      <p class="thanks" id="thanks" hidden>收到了。這是示意，還沒送到店裡。</p>
+      <form id="apply-form">
+        <label for="store">店名</label>
+        <input id="store" name="store" type="text" required autocomplete="organization">
+
+        <div class="split-fields">
+          <div>
+            <label for="name">你的名字</label>
+            <input id="name" name="name" type="text" required autocomplete="name">
+          </div>
+          <div>
+            <label for="phone">電話</label>
+            <input id="phone" name="phone" type="tel" required autocomplete="tel">
+          </div>
+        </div>
+
+        <div class="split-fields">
+          <div>
+            <label for="email">信箱</label>
+            <input id="email" name="email" type="email" required autocomplete="email">
+          </div>
+          <div>
+            <label for="area">店在哪裡</label>
+            <input id="area" name="area" type="text" required placeholder="縣市或區域">
+          </div>
+        </div>
+
+        <div class="split-fields">
+          <div>
+            <label for="kind">店型</label>
+            <select id="kind" name="kind" required>
+              <option value="" selected disabled>請選</option>
+              <option>寵物店</option>
+              <option>咖啡或選品</option>
+              <option>工作室</option>
+              <option>其他</option>
+            </select>
+          </div>
+          <div>
+            <label for="mode">想怎麼合作</label>
+            <select id="mode" name="mode" required>
+              <option value="" selected disabled>請選</option>
+              <option>換罐據點</option>
+              <option>批發</option>
+              <option>寄售</option>
+              <option>還沒想好</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="item">想先測的品項</label>
+        <select id="item" name="item" required>
+          <option value="" selected disabled>請選</option>
+          <option>肉乾</option>
+          <option>凍乾</option>
+          <option>換罐</option>
+          <option>先聊聊再決定</option>
+        </select>
+
+        <button type="submit">送出</button>
+        <p class="fine">這頁只是示意，不會送到正式站。</p>
+      </form>
+    </div>
+  </section>
+
+  <script>
+    document.getElementById("apply-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      document.getElementById("thanks").hidden = false;
+      this.hidden = true;
+    });
+  </script>
+</body>
+</html>
