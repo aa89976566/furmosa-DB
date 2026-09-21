@@ -61,6 +61,7 @@ BEGIN
  LOOP
    SELECT * INTO row FROM "Product" WHERE id=line."productId";
    IF row.category NOT IN ('staple_food','treats','freeze_dried','health') THEN CONTINUE; END IF;
+   IF upper(row.sku)='FUR-0002' THEN CONTINUE; END IF;
    actual_unit := hq_bulk_unit(row.unit);
    IF actual_unit IS NULL THEN RAISE EXCEPTION 'HQ 商品 % 實際單位尚未確認',row.sku; END IF;
    IF line.quantity <= 0 THEN RAISE EXCEPTION 'HQ 出貨數量必須大於零'; END IF;
@@ -81,13 +82,22 @@ BEGIN
      amount := tier."unitQty" * line.quantity;
    END IF;
    SELECT unit INTO balance_unit FROM "InventoryBalance" WHERE "productId"=row.id AND "warehouseId"=wh;
-   IF balance_unit IS DISTINCT FROM actual_unit THEN RAISE EXCEPTION 'HQ 商品 % 尚未完成實際單位盤點',row.sku; END IF;
-   UPDATE "InventoryBalance" SET quantity=quantity-amount,"updatedAt"=now() WHERE "productId"=row.id AND "warehouseId"=wh AND quantity>=amount;
-   IF NOT FOUND THEN RAISE EXCEPTION 'HQ 商品 % 庫存不足，需要 % %',row.sku,amount,actual_unit; END IF;
+   IF NOT FOUND THEN
+     INSERT INTO "InventoryBalance" (id,"productId","warehouseId",quantity,unit,"countNote","updatedAt")
+     VALUES ('hqb-'||md5(row.id||':'||wh),row.id,wh,0,actual_unit,'未盤點即出貨；以 0 起算並保留負庫存提醒',now());
+   ELSIF balance_unit IS NULL THEN
+     UPDATE "InventoryBalance" SET quantity=0,unit=actual_unit,"countNote"='未盤點即出貨；舊數字未採用，以 0 起算並保留負庫存提醒',"updatedAt"=now()
+       WHERE "productId"=row.id AND "warehouseId"=wh;
+   ELSIF balance_unit IS DISTINCT FROM actual_unit THEN
+     RAISE EXCEPTION 'HQ 商品 % 實際單位不一致',row.sku;
+   END IF;
+   UPDATE "InventoryBalance" SET quantity=quantity-amount,"updatedAt"=now()
+     WHERE "productId"=row.id AND "warehouseId"=wh;
    event_key := src||':'||line.id||':cycle:'||post_cycle;
    INSERT INTO "InventoryTransaction" (id,"txnNumber",type,"productId","warehouseId",quantity,reference,note,unit,"eventKey")
    VALUES ('hqo-'||md5(event_key),'HQO-'||md5(event_key),'sales_out',row.id,wh,-amount,src,
-     jsonb_build_array(jsonb_build_object('tierId',tier.id,'quantity',line.quantity,'consumption',amount,'unit',actual_unit))::TEXT,actual_unit,event_key);
+     jsonb_build_array(jsonb_build_object('tierId',tier.id,'quantity',line.quantity,'consumption',amount,'unit',actual_unit))::TEXT,actual_unit,event_key)
+   ON CONFLICT ("eventKey") DO NOTHING;
  END LOOP;
 END $$;
 
