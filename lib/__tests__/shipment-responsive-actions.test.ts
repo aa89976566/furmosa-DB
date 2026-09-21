@@ -90,9 +90,18 @@ describe('出貨工作區介面', () => {
 
   it('待出貨訂單可直接確認寄出，不再額外要求完成備貨', () => {
     const source = readFileSync('lib/shipment.ts', 'utf8');
+    const control = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
 
     assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
+    assert.match(control, /確定已完成交寄/);
+    assert.doesNotMatch(
+      control.match(/if \(input\.next === 'shipped'\) \{([\s\S]*?)\n  \}/)?.[1] ?? '',
+      /params\.set\('s'/,
+    );
   });
 
   it('狀態更新後保留訂單種類，到達後留在待驗收', () => {

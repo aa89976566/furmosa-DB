@@ -65,7 +65,6 @@ function buildInlineSuccessHref(input: {
   const params = new URLSearchParams();
   if (input.next === 'shipped') {
     params.set('status', 'shipped');
-    params.set('s', input.shipmentId);
     if (input.queueType) params.set('type', input.queueType);
     return `/shipments?${params.toString()}`;
   }
@@ -125,12 +124,13 @@ export function ShipmentQueueStatusSelect({
 
   function submitNext(next: string) {
     if (next === displayValue || isPending) return;
-    if (
-      next === 'shipped' &&
-      inventoryWarnings.length > 0 &&
-      !window.confirm(`庫存提醒\n\n${inventoryWarnings.join('\n')}\n\n仍要標記為已寄出嗎？`)
-    ) {
-      return;
+    if (next === 'shipped') {
+      const inventoryMessage = inventoryWarnings.length > 0
+        ? `\n\n庫存提醒：\n${inventoryWarnings.join('\n')}`
+        : '';
+      if (!window.confirm(`確定已完成交寄，要將這張單標記為「已寄出」嗎？${inventoryMessage}`)) {
+        return;
+      }
     }
     setActionError(null);
     setDisplayValue(next);
