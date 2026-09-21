@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { markShipmentStatusFromQueue } from '@/app/(main)/shipments/actions';
+import { markShipmentStatus } from '@/app/(main)/shipments/actions';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
+import { useFormStatus } from 'react-dom';
 
 export const QUEUE_DELIVERED_LABEL = '貨物到達';
 
@@ -56,31 +55,6 @@ function statusChipClass(active: boolean) {
     : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
-function buildInlineSuccessHref(input: {
-  next: string;
-  shipmentId: string;
-  queueStatus?: string;
-  queueType?: string;
-}) {
-  const params = new URLSearchParams();
-  if (input.next === 'shipped') {
-    params.set('status', 'shipped');
-    if (input.queueType) params.set('type', input.queueType);
-    return `/shipments?${params.toString()}`;
-  }
-  if (input.next === 'delivered') {
-    params.set('status', 'delivered');
-    params.set('s', input.shipmentId);
-    params.set('delivered', '1');
-    if (input.queueType) params.set('type', input.queueType);
-    return `/shipments?${params.toString()}`;
-  }
-  params.set('s', input.shipmentId);
-  if (input.queueStatus) params.set('status', input.queueStatus);
-  if (input.queueType) params.set('type', input.queueType);
-  return `/shipments?${params.toString()}`;
-}
-
 export function ShipmentQueueStatusSelect({
   shipmentId,
   status,
@@ -98,16 +72,8 @@ export function ShipmentQueueStatusSelect({
   inventoryWarnings?: string[];
   className?: string;
 }) {
-  const router = useRouter();
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
-  const [displayValue, setDisplayValue] = useState(serverValue);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    setDisplayValue(serverValue);
-  }, [serverValue]);
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -122,104 +88,78 @@ export function ShipmentQueueStatusSelect({
     );
   }
 
-  function submitNext(next: string) {
-    if (next === displayValue || isPending) return;
-    if (next === 'shipped') {
-      const inventoryMessage = inventoryWarnings.length > 0
-        ? `\n\n庫存提醒：\n${inventoryWarnings.join('\n')}`
-        : '';
-      if (!window.confirm(`確定已完成交寄，要將這張單標記為「已寄出」嗎？${inventoryMessage}`)) {
-        return;
-      }
-    }
-    setActionError(null);
-    setDisplayValue(next);
-    const fd = new FormData();
-    fd.set('shipmentId', shipmentId);
-    fd.set('next', next);
-    fd.set('inline', '1');
-    if (queueStatus) fd.set('queueStatus', queueStatus);
-    if (queueType) fd.set('queueType', queueType);
-    startTransition(() => {
-      void (async () => {
-        try {
-          const result = await markShipmentStatusFromQueue(fd);
-          if (!result || result.ok === false) {
-            setDisplayValue(serverValue);
-            setActionError(result?.error ?? '更新出貨狀態失敗，請稍後再試');
-            return;
-          }
-          const href = buildInlineSuccessHref({
-            next: result.next,
-            shipmentId: result.shipmentId,
-            queueStatus,
-            queueType,
-          });
-          router.push(href);
-          router.refresh();
-        } catch (error) {
-          setDisplayValue(serverValue);
-          setActionError(
-            error instanceof Error ? error.message.slice(0, 120) : '更新出貨狀態失敗，請稍後再試',
-          );
-        }
-      })();
-    });
-  }
-
   return (
-    <div className={cn('space-y-1.5', className)}>
+    <form
+      action={markShipmentStatus}
+      onSubmit={(event) => {
+        const submitter = (event.nativeEvent as SubmitEvent).submitter;
+        const next = submitter instanceof HTMLButtonElement ? submitter.value : '';
+        if (next !== 'shipped') return;
+        const inventoryMessage = inventoryWarnings.length > 0
+          ? `\n\n庫存提醒：\n${inventoryWarnings.join('\n')}`
+          : '';
+        if (!window.confirm(`確定已完成交寄，要將這張單標記為「已寄出」嗎？${inventoryMessage}`)) {
+          event.preventDefault();
+        }
+      }}
+      className={cn('space-y-1.5', className)}
+    >
+      <input type="hidden" name="shipmentId" value={shipmentId} />
+      <input type="hidden" name="inline" value="1" />
+      {queueStatus ? (
+        <input type="hidden" name="queueStatus" value={queueStatus} />
+      ) : null}
+      {queueType ? <input type="hidden" name="queueType" value={queueType} /> : null}
       <div
         role="group"
         aria-label="運輸狀態"
-        aria-busy={isPending}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
-        className={cn(
-          'inline-flex w-full max-w-full gap-0.5 rounded-xl border border-border/60 bg-muted/40 p-0.5',
-          isPending && 'pointer-events-none opacity-70',
-        )}
+        className="inline-flex w-full max-w-full gap-0.5 rounded-xl border border-border/60 bg-muted/40 p-0.5"
       >
-        {options.map((option) => {
-          const active = displayValue === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              disabled={isPending}
-              aria-pressed={active}
-              onClick={() => submitNext(option.value)}
-              className={cn(
-                'min-h-[44px] flex-1 touch-manipulation rounded-[10px] border px-2.5 py-1.5',
-                'text-[11px] font-medium tracking-wide',
-                'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
-                'disabled:cursor-not-allowed',
-                statusChipClass(active),
-              )}
-            >
-              {isPending && active ? '處理中…' : option.label}
-            </button>
-          );
-        })}
+        {options.map((option) => (
+          <QueueStatusSubmitButton
+            key={option.value}
+            option={option}
+            active={serverValue === option.value}
+          />
+        ))}
       </div>
-      {actionError ? (
-        <p
-          className="rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11px] font-medium leading-snug text-destructive"
-          role="alert"
-        >
-          {actionError}
-        </p>
-      ) : isPending ? (
-        <p className="text-[11px] leading-snug text-muted-foreground" role="status">
-          正在更新出貨狀態…
-        </p>
-      ) : inventoryWarnings.length > 0 && status === 'packed' ? (
+      {inventoryWarnings.length > 0 && status === 'packed' ? (
         <p className="text-[11px] leading-snug text-amber-700" role="status">
           庫存提醒：{inventoryWarnings.join('；')}
         </p>
       ) : null}
-    </div>
+    </form>
+  );
+}
+
+function QueueStatusSubmitButton({
+  option,
+  active,
+}: {
+  option: { value: string; label: string };
+  active: boolean;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      name="next"
+      value={option.value}
+      disabled={active || pending}
+      aria-pressed={active}
+      className={cn(
+        'min-h-[44px] flex-1 touch-manipulation rounded-[10px] border px-2.5 py-1.5',
+        'text-[11px] font-medium tracking-wide',
+        'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
+        'disabled:cursor-not-allowed',
+        statusChipClass(active),
+      )}
+    >
+      {pending && !active ? '處理中…' : option.label}
+    </button>
   );
 }
 
