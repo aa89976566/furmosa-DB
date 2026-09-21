@@ -3,6 +3,30 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 describe('出貨工作區介面', () => {
+  it('使用精簡工作列，不再顯示大標題與統計卡', () => {
+    const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
+    const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
+
+    assert.doesNotMatch(page, /PageHeader/);
+    assert.doesNotMatch(body, /FilterChip/);
+    assert.doesNotMatch(body, /xl:grid-cols-4/);
+    assert.match(page, /訂單種類：\{activeType\.label\}/);
+    assert.match(page, /aria-label="更多出貨工具"/);
+  });
+
+  it('出貨階段是主分類，訂單種類不再混入運輸階段', () => {
+    const source = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
+
+    assert.match(source, /const STAGE_TABS =/);
+    assert.match(source, /label: '待出貨'/);
+    assert.match(source, /label: '運送中'/);
+    assert.match(source, /label: '待驗收'/);
+    assert.match(source, /label: '已完成'/);
+    assert.match(source, /aria-label="出貨階段"/);
+    assert.match(source, /bg-black text-white shadow-sm/);
+    assert.doesNotMatch(source, /訂閱近期安排/);
+  });
+
   it('桌面表格保留可讀欄寬，電話不逐字換行', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 
@@ -47,6 +71,42 @@ describe('出貨工作區介面', () => {
 
     assert.match(source, /isDanger\s*&&\s*!window\.confirm/);
     assert.match(source, /確定要取消這張出貨單嗎/);
+  });
+
+  it('訂單內容只展開下一個正常動作，退回與取消收進修正區', () => {
+    const actions = readFileSync(
+      'components/shipments/shipment-status-actions.tsx',
+      'utf8',
+    );
+    const panel = readFileSync('components/shipments/shipment-order-panel.tsx', 'utf8');
+
+    assert.match(actions, /const primaryNext =/);
+    assert.match(actions, /需要修正狀態？/);
+    assert.match(actions, /<details/);
+    assert.match(panel, /<h3 className="text-sm font-semibold">下一步<\/h3>/);
+    assert.doesNotMatch(panel, /在此更新物流狀態後/);
+  });
+
+  it('待出貨訂單可直接確認寄出，不再額外要求完成備貨', () => {
+    const source = readFileSync('lib/shipment.ts', 'utf8');
+
+    assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
+    assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
+  });
+
+  it('狀態更新後保留訂單種類，到達後留在待驗收', () => {
+    const actions = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+    const panel = readFileSync('components/shipments/shipment-status-actions.tsx', 'utf8');
+    const inlineControl = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+
+    assert.match(panel, /name="queueType" value=\{queueType\}/);
+    assert.match(actions, /params\.set\('status', 'delivered'\)/);
+    assert.match(actions, /params\.set\('type', queueType\)/);
+    assert.match(inlineControl, /params\.set\('status', 'delivered'\)/);
+    assert.match(inlineControl, /params\.set\('s', input\.shipmentId\)/);
   });
 
   it('OMS 尚未建立出貨單時顯示審核入口，不顯示舊流程按鈕', () => {

@@ -1,10 +1,23 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { PageHeader } from '@/components/shared/page-header';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SHIPMENT_KIND_TABS } from '@/lib/order-hub-kinds';
-import { Package } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ClipboardList,
+  MoreHorizontal,
+  Package,
+} from 'lucide-react';
 import { ShipmentsQueueBody } from './shipments-queue-body';
 
 export const dynamic = 'force-dynamic';
@@ -28,95 +41,106 @@ export default async function ShipmentsPage(
   const deliveredOk = searchParams?.delivered === '1';
   const type =
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
+  const activeType =
+    SHIPMENT_KIND_TABS.find((item) => item.key === (type ?? '')) ?? SHIPMENT_KIND_TABS[0];
 
   return (
-    <>
-      <PageHeader
-        tone="logistics"
-        title="出貨隊列"
-        description="統一出貨工作台 — 寄賣店成交與進貨請看「寄賣」；官網/LINE 請看「直客訂單」"
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/orders" prefetch>
-                訂單列表
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/inventory/transactions">
-                <Package className="mr-1 h-4 w-4" />
-                庫存異動
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-      <div className="grid gap-4 p-4 sm:gap-6 sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="w-full text-xs font-medium text-muted-foreground sm:w-auto">
-            種類
-          </span>
-          {SHIPMENT_KIND_TABS.map((t) => {
-            const active =
-              (type ?? '') === t.key ||
-              (t.key === 'consignment' &&
-                (rawType === 'restock' || rawType === 'merchant_restock'));
-            const params = new URLSearchParams();
-            if (t.key) params.set('type', t.key);
-            if (status) params.set('status', status);
-            const href = params.toString() ? `/shipments?${params}` : '/shipments';
-            return (
-              <Button
-                key={t.key || 'all'}
-                variant={active ? 'default' : 'outline'}
-                size="sm"
-                asChild
-              >
-                <Link href={href} prefetch>
-                  {t.label}
-                </Link>
+    <div className="grid gap-4 p-4 sm:gap-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-4">
+        <h1 className="text-xl font-semibold tracking-tight text-navy sm:text-2xl">出貨</h1>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="min-w-32 justify-between">
+                <span>訂單種類：{activeType.label}</span>
+                <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
               </Button>
-            );
-          })}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>篩選訂單種類</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {SHIPMENT_KIND_TABS.map((item) => {
+                const params = new URLSearchParams();
+                if (item.key) params.set('type', item.key);
+                if (status) params.set('status', status);
+                const href = params.toString() ? `/shipments?${params}` : '/shipments';
+                const active = item.key === (type ?? '');
+                return (
+                  <DropdownMenuItem key={item.key || 'all'} asChild>
+                    <Link
+                      href={href}
+                      prefetch
+                      className="flex min-h-10 items-center justify-between"
+                    >
+                      <span>{item.label}</span>
+                      {active ? <Check className="h-4 w-4" /> : null}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="更多出貨工具">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href="/orders" prefetch className="min-h-10">
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  訂單列表
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/inventory/transactions" className="min-h-10">
+                  <Package className="mr-2 h-4 w-4" />
+                  庫存異動
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-
-        {type === 'customer_order' ? (
-          <div className="rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm text-muted-foreground">
-            <p>
-              「直客訂單」不含寄賣店成交。若剛建立{' '}
-              <strong className="font-medium text-foreground">淡水妞妞、柒沐</strong>{' '}
-              等寄賣店訂單，請改看{' '}
-              <Link
-                href="/shipments?type=consignment"
-                className="font-medium text-info hover:underline"
-                prefetch
-              >
-                寄賣
-              </Link>{' '}
-              分類。
-            </p>
-          </div>
-        ) : null}
-
-        {actionError ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {actionError}
-          </div>
-        ) : null}
-
-        {deliveredOk ? (
-          <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            已標記貨物到達，該單已離開「在途」。
-          </div>
-        ) : null}
-
-        <Suspense
-          key={`${status ?? ''}|${type ?? ''}|${searchParams?.q ?? ''}|${searchParams?.s ?? ''}|${searchParams?.delivered ?? ''}`}
-          fallback={<PageSkeleton variant="workspace" className="p-0" />}
-        >
-          <ShipmentsQueueBody searchParams={searchParams} />
-        </Suspense>
       </div>
-    </>
+
+      {type === 'customer_order' ? (
+        <div className="rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm text-muted-foreground">
+          <p>
+            「直客訂單」不含寄賣店成交。若剛建立{' '}
+            <strong className="font-medium text-foreground">淡水妞妞、柒沐</strong>{' '}
+            等寄賣店訂單，請改看{' '}
+            <Link
+              href="/shipments?type=consignment"
+              className="font-medium text-info hover:underline"
+              prefetch
+            >
+              寄賣
+            </Link>{' '}
+            分類。
+          </p>
+        </div>
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {actionError}
+        </div>
+      ) : null}
+
+      {deliveredOk ? (
+        <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          已標記貨物到達，該單已移至「待驗收」。
+        </div>
+      ) : null}
+
+      <Suspense
+        key={`${status ?? ''}|${type ?? ''}|${searchParams?.q ?? ''}|${searchParams?.s ?? ''}|${searchParams?.delivered ?? ''}`}
+        fallback={<PageSkeleton variant="workspace" className="p-0" />}
+      >
+        <ShipmentsQueueBody searchParams={searchParams} />
+      </Suspense>
+    </div>
   );
 }

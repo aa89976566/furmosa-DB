@@ -3,9 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
 import type { ShipmentQueueRow } from '@/components/shipments/shipment-queue-table';
 import {
-  isPreShipStatus,
   shipmentStatusLabel,
-  shipmentStatusVariant,
   SHIPMENT_STATUSES,
 } from '@/lib/shipment';
 import { SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES } from '@/lib/campaigns/jiba-two-piece/payment';
@@ -109,133 +107,12 @@ const shipmentInclude = {
   },
 } as const;
 
-const QUEUE_SECTIONS = [
-  {
-    status: 'pending',
-    title: '待出貨',
-    description: '點列表在下方開啟訂單內容，點選運輸狀態按鈕可標記已寄出',
-    tone: 'operations' as const,
-  },
-  {
-    status: 'shipped',
-    title: '在途',
-    description: '已寄出 — 點選「貨物到達」後訂單出貨狀態會同步更新（留在本頁）',
-    tone: 'logistics' as const,
-  },
-];
-
-type ChipVariant = 'all' | 'warning' | 'info' | 'success' | 'destructive' | 'secondary';
-
-const CHIP_TONES: Record<
-  ChipVariant,
-  { dot: string; bar: string; accent: string; ring: string; tint: string }
-> = {
-  all: {
-    dot: 'bg-primary',
-    bar: 'bg-primary',
-    accent: 'text-primary',
-    ring: 'ring-primary/30 border-primary/50',
-    tint: 'bg-primary/[0.04]',
-  },
-  warning: {
-    dot: 'bg-warning',
-    bar: 'bg-warning',
-    accent: 'text-amber-700 dark:text-amber-300',
-    ring: 'ring-warning/30 border-warning/50',
-    tint: 'bg-warning/[0.05]',
-  },
-  info: {
-    dot: 'bg-info',
-    bar: 'bg-info',
-    accent: 'text-info',
-    ring: 'ring-info/30 border-info/50',
-    tint: 'bg-info/[0.05]',
-  },
-  success: {
-    dot: 'bg-success',
-    bar: 'bg-success',
-    accent: 'text-success',
-    ring: 'ring-success/30 border-success/50',
-    tint: 'bg-success/[0.05]',
-  },
-  destructive: {
-    dot: 'bg-destructive',
-    bar: 'bg-destructive',
-    accent: 'text-destructive',
-    ring: 'ring-destructive/30 border-destructive/50',
-    tint: 'bg-destructive/[0.05]',
-  },
-  secondary: {
-    dot: 'bg-muted-foreground',
-    bar: 'bg-muted-foreground',
-    accent: 'text-muted-foreground',
-    ring: 'ring-border border-border',
-    tint: 'bg-muted/30',
-  },
-};
-
-function FilterChip({
-  href,
-  label,
-  count,
-  total,
-  active,
-  variant = 'secondary',
-}: {
-  href: string;
-  label: string;
-  count: number;
-  total: number;
-  active?: boolean;
-  variant?: ChipVariant;
-}) {
-  const tone = CHIP_TONES[variant];
-  const share = total > 0 ? Math.round((count / total) * 100) : 0;
-
-  return (
-    <Link
-      href={href}
-      prefetch
-      aria-current={active ? 'page' : undefined}
-      className={cn(
-        'group relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all duration-200',
-        'hover:-translate-y-0.5 hover:shadow-md',
-        active ? cn('ring-2', tone.ring, tone.tint) : 'border-border/70 hover:border-border',
-      )}
-    >
-      <span
-        className={cn(
-          'absolute inset-y-0 left-0 w-1 transition-opacity',
-          tone.bar,
-          active ? 'opacity-100' : 'opacity-0 group-hover:opacity-60',
-        )}
-      />
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span className={cn('inline-block h-2 w-2 rounded-full', tone.dot)} />
-          {label}
-        </div>
-        {variant !== 'all' ? (
-          <span className={cn('text-[11px] font-semibold tabular-nums', tone.accent)}>
-            {share}%
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-3xl font-semibold tabular-nums tracking-tight text-navy">
-          {count}
-        </span>
-        <span className="text-xs text-muted-foreground">張</span>
-      </div>
-      <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
-        <span
-          className={cn('block h-full rounded-full transition-all duration-500', tone.bar)}
-          style={{ width: `${variant === 'all' ? 100 : share}%` }}
-        />
-      </div>
-    </Link>
-  );
-}
+const STAGE_TABS = [
+  { key: 'pending', label: '待出貨' },
+  { key: 'shipped', label: '運送中' },
+  { key: 'delivered', label: '待驗收' },
+  { key: 'received', label: '已完成' },
+] as const;
 
 function toQueueRow(
   s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
@@ -316,7 +193,11 @@ export async function ShipmentsQueueBody({
 }: {
   searchParams?: { status?: string; type?: string; s?: string; q?: string; error?: string };
 }) {
-  const status = searchParams?.status;
+  const requestedStatus = searchParams?.status;
+  const status =
+    requestedStatus && SHIPMENT_STATUSES.includes(requestedStatus as never)
+      ? requestedStatus
+      : 'pending';
   const rawType = searchParams?.type;
   const q = (searchParams?.q ?? '').trim();
   const type =
@@ -352,7 +233,7 @@ export async function ShipmentsQueueBody({
   ) as Prisma.ShipmentWhereInput;
   const countWhere = mergeShipmentWhere(
     {
-      status: { in: ['pending', 'packed', 'shipped', 'delivered'] },
+      status: { in: ['pending', 'packed', 'shipped', 'delivered', 'received'] },
       OR: [
         { orderId: null },
         { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
@@ -372,8 +253,7 @@ export async function ShipmentsQueueBody({
   ]);
 
   const shipments = dedupeShipmentsByOrder(rawShipments);
-  const { byStatus: countByStatus, pendingCount, total } = counts;
-  const grouped = !status;
+  const { byStatus: countByStatus, pendingCount } = counts;
   const panelRefreshKey = shipments
     .map((s) => {
       const updated =
@@ -396,88 +276,56 @@ export async function ShipmentsQueueBody({
     ),
   );
 
-  const subscriptionRows = queueRows
-    .filter((s) => s.type === 'subscription' && (s.status === 'pending' || s.status === 'packed'))
-    .sort((a, b) => {
-      const aDate = new Date(a.subscriptionShipment?.scheduledDate ?? a.createdAt).getTime();
-      const bDate = new Date(b.subscriptionShipment?.scheduledDate ?? b.createdAt).getTime();
-      return aDate - bDate;
-    });
-  const operationalRows = queueRows.filter((s) => s.type !== 'subscription');
-
-  const operationalSections = QUEUE_SECTIONS.map((section) => {
-    const rows = operationalRows.filter((s) =>
-      section.status === 'pending' ? isPreShipStatus(s.status) : s.status === section.status,
-    );
-    return {
-      key: section.status,
-      title: `${section.title} (${rows.length})`,
-      description: section.description,
-      tone: section.tone,
-      tableVariant: 'default' as const,
-      shipments: rows,
-    };
-  });
-  const pendingSection = operationalSections.find((section) => section.key === 'pending');
-  const otherOperationalSections = operationalSections.filter(
-    (section) => section.key !== 'pending',
-  );
-
-  const workspaceSections = grouped
-    ? [
-        ...(pendingSection ? [pendingSection] : []),
-        {
-          key: 'subscription',
-          title: `訂閱近期安排 (${subscriptionRows.length})`,
-          description: '僅顯示未寄出；標記「已寄出」後會移至「在途」',
-          tone: 'subscription' as const,
-          tableVariant: 'subscription' as const,
-          shipments: subscriptionRows,
-        },
-        ...otherOperationalSections,
-      ]
-    : [
-        {
-          key: status!,
-          title: `${shipmentStatusLabel[status!]} (${queueRows.length})`,
-          description: '點列表任一筆，在下方開啟訂單內容；運輸狀態可直接在列表修改',
-          tone: 'logistics' as const,
-          tableVariant: 'default' as const,
-          shipments: queueRows,
-        },
-      ];
+  const workspaceSections = [
+    {
+      key: status,
+      title: `${status === 'pending' ? '待出貨' : shipmentStatusLabel[status]} (${queueRows.length})`,
+      description: '點選列表可查看訂單內容；運輸狀態可直接在列表更新。',
+      tone: status === 'pending' ? ('operations' as const) : ('logistics' as const),
+      tableVariant: type === 'subscription' ? ('subscription' as const) : ('default' as const),
+      shipments: queueRows,
+    },
+  ];
 
   const truncated = rawShipments.length >= SHIPMENT_QUEUE_TAKE;
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-        <FilterChip
-          href="/shipments"
-          label="全部"
-          count={total}
-          total={total}
-          active={!status}
-          variant="all"
-        />
-        {(['pending', 'shipped', 'delivered'] as const).map((s) => (
-          <FilterChip
-            key={s}
-            href={`/shipments?status=${s}`}
-            label={s === 'pending' ? '待出貨' : shipmentStatusLabel[s]}
-            count={
-              s === 'pending'
-                ? pendingCount
-                : s === 'delivered'
-                  ? (countByStatus.delivered ?? 0)
-                  : (countByStatus[s] ?? 0)
-            }
-            total={total}
-            active={status === s || (s === 'pending' && status === 'packed')}
-            variant={shipmentStatusVariant[s === 'pending' ? 'pending' : s]}
-          />
-        ))}
-      </div>
+      <nav aria-label="出貨階段" className="overflow-x-auto pb-1">
+        <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
+          {STAGE_TABS.map((stage) => {
+            const params = new URLSearchParams({ status: stage.key });
+            if (type) params.set('type', type);
+            const count =
+              stage.key === 'pending' ? pendingCount : (countByStatus[stage.key] ?? 0);
+            const active = status === stage.key || (stage.key === 'pending' && status === 'packed');
+            return (
+              <Link
+                key={stage.key}
+                href={`/shipments?${params}`}
+                prefetch
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors sm:min-w-28 sm:flex-none sm:text-sm',
+                  active
+                    ? 'bg-black text-white shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <span>{stage.label}</span>
+                <span
+                  className={cn(
+                    'inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+                    active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {count}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
       {truncated ? (
         <p className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">

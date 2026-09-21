@@ -475,13 +475,13 @@ export default async function ShipmentDetailPage(
 
         {!isFinal && (
           <SectionCard
-            title="推進狀態"
+            title="下一步"
             description={
               paymentReviewHold
                 ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出`
-                : shipment.type === 'customer_order'
-                  ? '物流人員操作 — 狀態會同步更新關聯訂單的出貨與訂單狀態'
-                  : '物流人員操作 — 寄出時要填物流商與追蹤碼'
+                : shipment.status === 'shipped'
+                  ? '貨物已寄出；收到物流到達資訊後，再確認貨物到達'
+                  : '填寫物流資料後確認寄出，關聯訂單會同步更新'
             }
             className="lg:col-span-3"
           >
