@@ -60,6 +60,8 @@ const SHIPMENT_TRANSACTION_OPTIONS = {
   maxWait: 15_000,
   timeout: 30_000,
 } as const;
+const SHIPMENT_TRANSACTION_MAX_ATTEMPTS = 4;
+const SHIPMENT_TRANSACTION_RETRY_BASE_MS = 75;
 
 function isRetryableTransactionError(error: unknown) {
   const code =
@@ -77,14 +79,19 @@ async function commitShipmentStatus(
   operation: (tx: Prisma.TransactionClient) => Promise<void>,
 ) {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < SHIPMENT_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
     try {
       await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
       return;
     } catch (error) {
       lastError = error;
-      if (attempt > 0 || !isRetryableTransactionError(error)) throw error;
-      console.warn('[markShipmentStatus] retrying transaction after commit conflict');
+      const isLastAttempt = attempt === SHIPMENT_TRANSACTION_MAX_ATTEMPTS - 1;
+      if (isLastAttempt || !isRetryableTransactionError(error)) throw error;
+      const retryDelay = SHIPMENT_TRANSACTION_RETRY_BASE_MS * 2 ** attempt;
+      console.warn(
+        `[markShipmentStatus] retrying transaction after commit conflict (${attempt + 1}/${SHIPMENT_TRANSACTION_MAX_ATTEMPTS})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
   }
   throw lastError;
