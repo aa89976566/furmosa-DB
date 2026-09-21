@@ -43,7 +43,7 @@ export function ShipmentStatusActions({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className={cn('grid gap-3', !inline && 'md:grid-cols-2 xl:grid-cols-3')}>
       {allowedNext.map((next) => (
         <StatusActionCard
           key={next}
@@ -113,8 +113,8 @@ function StatusActionCard({
         }
       }}
       className={cn(
-        'space-y-3 rounded-lg border p-4',
-        isDanger ? 'border-destructive/40 bg-destructive/5' : 'bg-muted/20',
+        'space-y-4 rounded-xl border p-5',
+        isDanger ? 'border-destructive/40 bg-destructive/5' : 'border-border/80 bg-muted/20',
       )}
     >
       <input type="hidden" name="shipmentId" value={shipmentId} />
@@ -125,10 +125,10 @@ function StatusActionCard({
       ) : null}
 
       <div className="flex items-center gap-2">
-        {next === 'shipped' && <Truck className="h-4 w-4 text-info" />}
-        {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-success" />}
+        {next === 'shipped' && <Truck className="h-4 w-4 text-foreground" />}
+        {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-foreground" />}
         {next === 'cancelled' && <XCircle className="h-4 w-4 text-destructive" />}
-        {next === 'pending' && <Clock className="h-4 w-4 text-warning" />}
+        {next === 'pending' && <Clock className="h-4 w-4 text-foreground" />}
         <h3 className="text-sm font-semibold">{nextActionLabel(next)}</h3>
       </div>
 

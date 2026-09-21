@@ -154,11 +154,11 @@ export function ShipmentOrderPanel({
     data.items.length > 0 ? totalQty : planContents.length > 0 ? planContents.length : 0;
 
   return (
-    <div className="min-w-0 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+    <div className="min-w-0 space-y-9">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/80 pb-7">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold">{data.shipmentNumber}</span>
+            <span className="font-mono text-base font-semibold tracking-tight">{data.shipmentNumber}</span>
             {data.order ? (
               <span className="font-mono text-sm text-muted-foreground">
                 訂單 {data.order.orderNumber}
@@ -184,7 +184,7 @@ export function ShipmentOrderPanel({
             </p>
           ) : null}
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-3">
           {data.order?.editable ? (
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -206,10 +206,11 @@ export function ShipmentOrderPanel({
         </div>
       </div>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <section className="min-w-0 rounded-lg border bg-card p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Truck className="h-4 w-4 text-info" />
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <section className="min-w-0 rounded-xl border border-border/80 bg-muted/15 p-5">
+          <h3 className="flex items-center gap-3 text-base font-semibold tracking-tight">
+            <span className="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">01</span>
+            <Truck className="h-4 w-4 text-foreground" />
             運輸與收件
           </h3>
           {data.order?.editable ? (
@@ -219,7 +220,7 @@ export function ShipmentOrderPanel({
           ) : data.order?.editBlockedReason ? (
             <p className="mt-2 text-xs text-muted-foreground">{data.order.editBlockedReason}</p>
           ) : null}
-          <dl className="mt-4 space-y-3 text-sm">
+          <dl className="mt-5 space-y-4 text-sm">
             <PanelRow label="物流" value={logistics.carrierLabel} />
             <PanelRow label="收件人" value={logistics.contactName} />
             {logistics.phone !== '—' ? (
@@ -259,9 +260,10 @@ export function ShipmentOrderPanel({
           </dl>
         </section>
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Package className="h-4 w-4 text-info" />
+        <section className="min-w-0 rounded-xl border border-border/80 bg-muted/15 p-5">
+          <h3 className="flex items-center gap-3 text-base font-semibold tracking-tight">
+            <span className="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">02</span>
+            <Package className="h-4 w-4 text-foreground" />
             出貨品項
             <span className="text-xs font-normal text-muted-foreground">
               {displayItems.length} 項 · 共 {displayQty} 件
@@ -273,7 +275,7 @@ export function ShipmentOrderPanel({
               {planContents.length > 0 ? ` · ${formatPlanContents(planContents)}` : ''}
             </p>
           ) : null}
-          <ul className="mt-4 space-y-2 md:hidden">
+          <ul className="mt-5 space-y-2 md:hidden">
             {displayItems.map((item) => (
               <li
                 key={item.key}
@@ -290,7 +292,7 @@ export function ShipmentOrderPanel({
               </li>
             ))}
           </ul>
-          <Table className="mt-4 hidden md:table">
+          <Table className="mt-5 hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>商品</TableHead>
@@ -323,14 +325,19 @@ export function ShipmentOrderPanel({
         </section>
       </div>
 
-      <section className="rounded-lg border bg-card p-4">
-        <h3 className="text-sm font-semibold">物流狀態</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+      <section className="border-t border-border/80 pt-8">
+        <div className="flex items-start gap-3">
+          <span className="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">03</span>
+          <div>
+            <h3 className="text-base font-semibold tracking-tight">下一步</h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
           {paymentReviewHold
             ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出。`
             : '寄出時請填寫物流商與追蹤碼；客戶訂單會一併更新。'}
-        </p>
-        <div className="mt-4">
+            </p>
+          </div>
+        </div>
+        <div className="mt-5">
           <ShipmentStatusActions
             shipmentId={data.id}
             currentStatus={data.status}
@@ -351,9 +358,9 @@ export function ShipmentOrderPanel({
 
 function PanelRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-border/60 pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:gap-4">
-      <dt className="shrink-0 text-xs text-muted-foreground sm:w-14">{label}</dt>
-      <dd className="min-w-0 flex-1 text-sm font-medium break-words [overflow-wrap:anywhere] sm:text-right">
+    <div className="flex flex-col gap-1.5 border-b border-border/60 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:gap-5">
+      <dt className="shrink-0 text-xs font-medium text-muted-foreground sm:w-14">{label}</dt>
+      <dd className="min-w-0 flex-1 text-sm font-semibold break-words [overflow-wrap:anywhere] sm:text-right">
         {value}
       </dd>
     </div>

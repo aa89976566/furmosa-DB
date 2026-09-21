@@ -375,6 +375,72 @@ function ShipmentQueueCard({
   );
 }
 
+function ShipmentQueueCompactRow({
+  view,
+  selected,
+  queueStatus,
+  queueType,
+  onSelect,
+}: {
+  view: QueueRowView;
+  selected: boolean;
+  queueStatus?: string;
+  queueType?: string;
+  onSelect: () => void;
+}) {
+  const { shipment, label, shortNumber, logistics } = view;
+  const productSummary = view.productLines.slice(0, 2).join('、');
+
+  return (
+    <div
+      onClick={onSelect}
+      className={cn(
+        'relative cursor-pointer border border-border/70 bg-card px-4 py-4 text-left transition-colors',
+        'first:rounded-t-xl last:rounded-b-xl [&:not(:first-child)]:border-t-0 hover:bg-muted/35',
+        selected && 'z-10 border-primary bg-primary/[0.06] shadow-sm hover:bg-primary/[0.06]',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono text-sm font-semibold text-foreground">
+            {label}
+          </p>
+          <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+            {shortNumber}
+          </p>
+        </div>
+        <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
+          {view.itemCountLabel}
+        </span>
+      </div>
+
+      <p className="mt-3 truncate text-xs font-medium text-foreground">
+        {productSummary || '未列出商品'}
+      </p>
+      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+        {logistics.carrierLabel} · {logistics.contactName}
+      </p>
+
+      <div
+        className="mt-3"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <ShipmentQueueStatusCell
+          shipmentId={shipment.id}
+          status={shipment.status}
+          queueStatus={queueStatus}
+          queueType={queueType}
+          paymentReviewHold={Boolean(shipment.paymentReviewHold)}
+          inventoryWarnings={shipment.inventoryWarnings}
+          className="max-w-none"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function ShipmentQueueTable({
   shipments,
   onSelectShipment,
@@ -382,6 +448,7 @@ export function ShipmentQueueTable({
   queueStatus,
   queueType,
   variant = 'default',
+  compact = false,
 }: {
   shipments: ShipmentQueueRow[];
   onSelectShipment: (shipment: ShipmentQueueRow) => void;
@@ -389,12 +456,30 @@ export function ShipmentQueueTable({
   queueStatus?: string;
   queueType?: string;
   variant?: 'default' | 'subscription';
+  compact?: boolean;
 }) {
   if (shipments.length === 0) {
     return <EmptyQueueState />;
   }
 
   const views = shipments.map(buildQueueRowView);
+
+  if (compact) {
+    return (
+      <div className="overflow-hidden rounded-xl">
+        {views.map((view) => (
+          <ShipmentQueueCompactRow
+            key={view.shipment.id}
+            view={view}
+            selected={selectedShipmentId === view.shipment.id}
+            queueStatus={queueStatus}
+            queueType={queueType}
+            onSelect={() => onSelectShipment(view.shipment)}
+          />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <>
