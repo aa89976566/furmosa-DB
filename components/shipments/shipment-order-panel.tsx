@@ -64,10 +64,16 @@ export function ShipmentOrderPanel({
           return;
         }
         setData(panel);
+        const orderLabel =
+          panel.order?.orderNumber ||
+          panel.subscription?.subscriptionNo ||
+          panel.shipmentNumber;
+        const partyLabel =
+          (panel.type === 'merchant_restock' ? panel.merchant?.name : null) ||
+          panel.recipientName ||
+          panel.customer?.name;
         onTitleChange?.(
-          panel.type === 'merchant_restock'
-            ? panel.merchant?.name || panel.recipientName || panel.shipmentNumber
-            : panel.recipientName || panel.customer?.name || panel.order?.orderNumber || panel.shipmentNumber,
+          partyLabel ? `${orderLabel} · ${partyLabel}` : orderLabel,
         );
 
         const skus = panel.items.map((item) => item.sku).filter(Boolean);
@@ -160,23 +166,25 @@ export function ShipmentOrderPanel({
       : data.status === 'shipped'
         ? '貨物已寄出；收到物流到達資訊後，再確認「貨物到達」。'
         : '目前狀態已完成，無需再次標記。';
+  const orderLabel =
+    data.order?.orderNumber || data.subscription?.subscriptionNo || data.shipmentNumber;
+  const partyLabel =
+    (data.type === 'merchant_restock' ? data.merchant?.name : null) ||
+    data.recipientName ||
+    data.customer?.name ||
+    '姓名未設定';
 
   return (
     <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold">{data.shipmentNumber}</span>
-            {data.order ? (
-              <span className="font-mono text-sm text-muted-foreground">
-                訂單 {data.order.orderNumber}
-              </span>
-            ) : data.subscription ? (
-              <span className="font-mono text-sm text-muted-foreground">
-                訂閱 {data.subscription.subscriptionNo}
-              </span>
-            ) : null}
+            <span className="font-mono text-sm font-semibold">{orderLabel}</span>
           </div>
+          <p className="text-sm font-medium text-foreground">{partyLabel}</p>
+          <p className="font-mono text-[11px] text-muted-foreground">
+            出貨單 {data.shipmentNumber}
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{shipmentTypeLabel[data.type] ?? data.type}</Badge>
             <Badge variant={shipmentStatusVariant[data.status] ?? 'secondary'}>

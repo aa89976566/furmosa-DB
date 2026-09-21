@@ -23,17 +23,16 @@ type QueueSection = {
 };
 
 function getShipmentLabel(shipment: ShipmentQueueRow) {
-  if (shipment.type === 'merchant_restock' && shipment.merchant?.name) {
-    return shipment.merchant.name;
-  }
-  return (
-    shipment.recipientName?.trim() ||
-    shipment.customer?.name.trim() ||
+  const orderLabel =
     shipment.order?.orderNumber ||
     shipment.subscriptionShipment?.subscription?.subscriptionNo ||
     shipment.subscriptionShipment?.shipmentNo ||
-    shipment.shipmentNumber
-  );
+    shipment.shipmentNumber;
+  const partyLabel =
+    (shipment.type === 'merchant_restock' ? shipment.merchant?.name.trim() : null) ||
+    shipment.recipientName?.trim() ||
+    shipment.customer?.name.trim();
+  return partyLabel ? `${orderLabel} · ${partyLabel}` : orderLabel;
 }
 
 export function ShipmentQueueWorkspace({
