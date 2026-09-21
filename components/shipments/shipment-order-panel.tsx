@@ -65,7 +65,7 @@ export function ShipmentOrderPanel({
         }
         setData(panel);
         const orderLabel =
-          panel.order?.orderNumber ||
+          panel.order?.displayOrderNumber ||
           panel.subscription?.subscriptionNo ||
           panel.shipmentNumber;
         const partyLabel =
@@ -167,7 +167,7 @@ export function ShipmentOrderPanel({
         ? '貨物已寄出；收到物流到達資訊後，再確認「貨物到達」。'
         : '目前狀態已完成，無需再次標記。';
   const orderLabel =
-    data.order?.orderNumber || data.subscription?.subscriptionNo || data.shipmentNumber;
+    data.order?.displayOrderNumber || data.subscription?.subscriptionNo || data.shipmentNumber;
   const partyLabel =
     (data.type === 'merchant_restock' ? data.merchant?.name : null) ||
     data.recipientName ||

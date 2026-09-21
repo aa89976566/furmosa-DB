@@ -51,6 +51,7 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    displayOrderNumber: string;
     omsStatus: OmsStatus | null;
     status: string;
     paymentStatus: string;
@@ -139,7 +140,7 @@ function shortShipmentNumber(value: string) {
 
 function rowLabel(s: ShipmentQueueRow) {
   return (
-    s.order?.orderNumber ||
+    s.order?.displayOrderNumber ||
     s.subscriptionShipment?.subscription?.subscriptionNo ||
     s.subscriptionShipment?.shipmentNo ||
     s.shipmentNumber

@@ -35,6 +35,7 @@ import { parsePlanContents } from '@/lib/plan-contents';
 import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import { displayOrderNumber } from '@/lib/orders/display-order-number';
 import {
   ArrowLeft,
   Package,
@@ -109,6 +110,7 @@ export default async function ShipmentDetailPage(
 
   // 運輸人員需要的收款資訊：是否要當面跟客戶收錢
   const order = shipment.order;
+  const orderDisplayNumber = order ? displayOrderNumber(order) : null;
   const codGoods = order?.paymentStatus === 'cod';
   const codFreight = order?.shippingFeeType === 'cod';
   const needCollect = codGoods || codFreight;
@@ -146,7 +148,7 @@ export default async function ShipmentDetailPage(
             {shipment.order ? (
               <Button variant="default" size="sm" asChild>
                 <Link href={`/orders/${shipment.order.id}`}>
-                  訂單 {shipment.order.orderNumber}
+                  訂單 {orderDisplayNumber}
                 </Link>
               </Button>
             ) : null}
@@ -290,7 +292,7 @@ export default async function ShipmentDetailPage(
                       href={`/orders/${shipment.order.id}`}
                       className="font-mono text-xs hover:underline"
                     >
-                      {shipment.order.orderNumber}
+                      {orderDisplayNumber}
                     </Link>
                   }
                 />

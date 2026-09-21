@@ -2,6 +2,25 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { omsShipmentNotice, snapshotView } from '../snapshot-view';
+import { displayOrderNumber } from '../../orders/display-order-number';
+
+test('Shopify 畫面顯示原始訂單名稱，不改寫 HQ 追蹤單號', () => {
+  assert.equal(displayOrderNumber({
+    orderNumber: 'SHOP-ede728c12dc7-13865975349625',
+    source: 'shopify',
+    externalOrderName: '#1022',
+  }), '#1022');
+  assert.equal(displayOrderNumber({
+    orderNumber: 'SHOP-ede728c12dc7-13865975349625',
+    source: 'shopify',
+    shopifySnapshot: { schemaVersion: 1, order: { name: '#1023' } },
+  }), '#1023');
+  assert.equal(displayOrderNumber({
+    orderNumber: 'ORD-202609-014',
+    source: 'manual',
+    externalOrderName: '#9999',
+  }), 'ORD-202609-014');
+});
 
 test('未審核和已審核未建單，不冒充待出貨', () => {
   assert.equal(omsShipmentNotice('NEW', 0), '尚未審核出貨');

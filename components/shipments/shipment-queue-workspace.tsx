@@ -24,7 +24,7 @@ type QueueSection = {
 
 function getShipmentLabel(shipment: ShipmentQueueRow) {
   const orderLabel =
-    shipment.order?.orderNumber ||
+    shipment.order?.displayOrderNumber ||
     shipment.subscriptionShipment?.subscription?.subscriptionNo ||
     shipment.subscriptionShipment?.shipmentNo ||
     shipment.shipmentNumber;

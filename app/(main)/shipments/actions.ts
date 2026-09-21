@@ -42,6 +42,7 @@ import {
   shipmentStatusErrorMessage,
 } from '@/lib/shipment-status-error';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import { displayOrderNumber } from '@/lib/orders/display-order-number';
 import {
   isOmsShipmentActionable,
   omsStatusForShipmentStatus,
@@ -467,6 +468,7 @@ export type ShipmentPanelData = {
   order: {
     id: string;
     orderNumber: string;
+    displayOrderNumber: string;
     status: string;
     shippingMethod: string;
     cvsBrand: string | null;
@@ -552,6 +554,7 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
       ? {
           id: shipment.order.id,
           orderNumber: shipment.order.orderNumber,
+          displayOrderNumber: displayOrderNumber(shipment.order),
           status: shipment.order.status,
           shippingMethod: shipment.order.shippingMethod,
           cvsBrand: shipment.order.cvsBrand,
