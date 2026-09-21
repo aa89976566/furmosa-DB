@@ -49,25 +49,11 @@ function queueOptionsForStatus(status: string) {
   return QUEUE_PENDING_OPTIONS;
 }
 
-/** Soft status chip styles — muted fills, no harsh primaries */
-function statusChipClass(value: string, active: boolean) {
-  if (!active) {
-    return cn(
-      'border-transparent bg-transparent text-muted-foreground',
-      'hover:bg-black/[0.04] hover:text-foreground',
-    );
-  }
-  switch (value) {
-    case 'delivered':
-      return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 shadow-sm';
-    case 'shipped':
-      return 'border-sky-200/80 bg-sky-50 text-sky-800 shadow-sm';
-    case 'packed':
-      return 'border-violet-200/80 bg-violet-50 text-violet-800 shadow-sm';
-    case 'pending':
-    default:
-      return 'border-amber-200/80 bg-amber-50 text-amber-900 shadow-sm';
-  }
+/** 與系統黑白視覺一致：只有目前狀態使用黑底白字。 */
+function statusChipClass(active: boolean) {
+  return active
+    ? 'border-black bg-black text-white shadow-sm'
+    : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
 function buildInlineSuccessHref(input: {
@@ -208,7 +194,7 @@ export function ShipmentQueueStatusSelect({
                 'transition-[background-color,color,box-shadow,border-color] duration-200 ease-out',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-1',
                 'disabled:cursor-not-allowed',
-                statusChipClass(option.value, active),
+                statusChipClass(active),
               )}
             >
               {isPending && active ? '處理中…' : option.label}

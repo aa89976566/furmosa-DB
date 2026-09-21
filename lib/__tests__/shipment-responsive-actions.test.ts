@@ -14,6 +14,25 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(source, />電話<\/TableHead>/);
   });
 
+  it('選取提示放在第一個儲存格內，不會讓內容比標題多出一欄', () => {
+    const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
+
+    assert.doesNotMatch(source, /before:absolute before:inset-y-0 before:left-0/);
+    assert.match(source, /after:absolute after:inset-y-0 after:left-0/);
+  });
+
+  it('只有目前選取的運輸狀態顯示黑底白字', () => {
+    const source = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+
+    assert.match(source, /border-black bg-black text-white/);
+    assert.match(source, /border-transparent bg-transparent text-muted-foreground/);
+    assert.doesNotMatch(source, /bg-amber-/);
+    assert.doesNotMatch(source, /bg-sky-/);
+  });
+
   it('不同出貨階段共用同一工作區頁籤，不再同時堆疊多張表格', () => {
     const source = readFileSync('components/shipments/shipment-queue-workspace.tsx', 'utf8');
 
