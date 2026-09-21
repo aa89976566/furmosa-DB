@@ -97,7 +97,10 @@ describe('出貨工作區介面', () => {
 
     assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
-    assert.match(control, /確定已完成交寄/);
+    assert.match(control, /確認已完成交寄/);
+    assert.match(control, /role="dialog"/);
+    assert.match(control, /createPortal/);
+    assert.doesNotMatch(control, /window\.confirm\(`確定已完成交寄/);
     assert.doesNotMatch(
       control.match(/if \(input\.next === 'shipped'\) \{([\s\S]*?)\n  \}/)?.[1] ?? '',
       /params\.set\('s'/,

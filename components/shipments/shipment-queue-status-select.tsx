@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { markShipmentStatusFromQueue } from '@/app/(main)/shipments/actions';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
@@ -102,6 +103,7 @@ export function ShipmentQueueStatusSelect({
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
   const [displayValue, setDisplayValue] = useState(serverValue);
+  const [confirmShip, setConfirmShip] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -122,16 +124,8 @@ export function ShipmentQueueStatusSelect({
     );
   }
 
-  function submitNext(next: string) {
+  function applyNext(next: string) {
     if (next === displayValue || isPending) return;
-    if (next === 'shipped') {
-      const inventoryMessage = inventoryWarnings.length > 0
-        ? `\n\n庫存提醒：\n${inventoryWarnings.join('\n')}`
-        : '';
-      if (!window.confirm(`確定已完成交寄，要將這張單標記為「已寄出」嗎？${inventoryMessage}`)) {
-        return;
-      }
-    }
     setActionError(null);
     setDisplayValue(next);
     const fd = new FormData();
@@ -167,7 +161,17 @@ export function ShipmentQueueStatusSelect({
     });
   }
 
+  function submitNext(next: string) {
+    if (next === displayValue || isPending) return;
+    if (next === 'shipped') {
+      setConfirmShip(true);
+      return;
+    }
+    applyNext(next);
+  }
+
   return (
+    <>
     <div className={cn('space-y-1.5', className)}>
       <div
         role="group"
@@ -220,6 +224,58 @@ export function ShipmentQueueStatusSelect({
         </p>
       ) : null}
     </div>
+    {confirmShip && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4"
+            role="presentation"
+            onClick={() => setConfirmShip(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={`confirm-ship-${shipmentId}`}
+              className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 id={`confirm-ship-${shipmentId}`} className="text-lg font-semibold text-foreground">
+                確認已完成交寄？
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                確認後會直接標記為「已寄出」，並移到運送中。
+              </p>
+              {inventoryWarnings.length > 0 ? (
+                <div className="mt-3 rounded-xl border border-border bg-muted/60 p-3 text-xs leading-relaxed text-foreground">
+                  <p className="font-semibold">庫存提醒</p>
+                  {inventoryWarnings.map((warning) => <p key={warning} className="mt-1">{warning}</p>)}
+                </div>
+              ) : null}
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="min-h-11 rounded-xl border border-border bg-background px-4 text-sm font-medium"
+                  onClick={() => setConfirmShip(false)}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  autoFocus
+                  className="min-h-11 rounded-xl bg-black px-4 text-sm font-semibold text-white"
+                  onClick={() => {
+                    setConfirmShip(false);
+                    applyNext('shipped');
+                  }}
+                >
+                  確認已寄出
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null}
+    </>
   );
 }
 
