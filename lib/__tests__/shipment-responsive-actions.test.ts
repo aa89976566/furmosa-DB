@@ -165,6 +165,16 @@ describe('出貨工作區介面', () => {
     assert.match(action, /assertShipmentStatusPersisted\(updatedShipment\.status, next\)/);
   });
 
+  it('舊單缺少單件規格時，先在同一交易補回唯一規格再寄出', () => {
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.match(action, /resolveLegacyPieceVariantRepairs/);
+    assert.match(action, /shipmentItem\.updateMany/);
+    assert.match(action, /where: \{ id: repair\.itemId, variantKey: null \}/);
+    assert.match(action, /if \(legacyPieceRepairs\.length > 0\)/);
+    assert.match(action, /commitShipmentStatus\(async \(tx\)/);
+  });
+
   it('確認視窗使用自己的原生表單提交，不依賴跨區 form 連結', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',

@@ -47,6 +47,7 @@ import {
   isOmsShipmentActionable,
   omsStatusForShipmentStatus,
 } from '@/lib/orders/oms';
+import { resolveLegacyPieceVariantRepairs } from '@/lib/inventory/legacy-piece-variant';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'shipped', 'cancelled'],
@@ -364,6 +365,26 @@ async function markShipmentStatusInner(
       })
     : null;
 
+  let legacyPieceRepairs: Array<{ itemId: string; variantKey: string }> = [];
+  if (next === 'shipped') {
+    const legacyPieceItems = shipment.items.filter(
+      (item) => !item.variantKey && item.weightGrams == null && item.unit,
+    );
+    if (legacyPieceItems.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { id: { in: [...new Set(legacyPieceItems.map((item) => item.productId))] } },
+        select: {
+          id: true,
+          unit: true,
+          priceTiers: {
+            select: { id: true, unit: true, unitQty: true, weightGrams: true },
+          },
+        },
+      });
+      legacyPieceRepairs = resolveLegacyPieceVariantRepairs(legacyPieceItems, products);
+    }
+  }
+
   // 一般訂單使用單次資料庫交易，縮短連線池持有交易的時間。
   // Shopify / OMS / 訂閱單仍保留完整鎖定與同步檢查。
   const useShortAtomicCommit = Boolean(
@@ -375,23 +396,50 @@ async function markShipmentStatusInner(
   );
 
   if (useShortAtomicCommit && shipment.orderId && orderUpdate) {
-    await retryShipmentCommit(async () => {
-      const [updatedShipment] = await prisma.$transaction([
-        prisma.shipment.update({
+    if (legacyPieceRepairs.length > 0) {
+      await commitShipmentStatus(async (tx) => {
+        for (const repair of legacyPieceRepairs) {
+          await tx.shipmentItem.updateMany({
+            where: { id: repair.itemId, variantKey: null },
+            data: { variantKey: repair.variantKey },
+          });
+        }
+        const updatedShipment = await tx.shipment.update({
           where: { id: shipmentId },
           data,
           select: { status: true },
-        }),
-        prisma.order.update({
+        });
+        await tx.order.update({
           where: { id: shipment.orderId! },
           data: orderUpdate,
-        }),
-      ]);
-      assertShipmentStatusPersisted(updatedShipment.status, next);
-    });
+        });
+        assertShipmentStatusPersisted(updatedShipment.status, next);
+      });
+    } else {
+      await retryShipmentCommit(async () => {
+        const [updatedShipment] = await prisma.$transaction([
+          prisma.shipment.update({
+            where: { id: shipmentId },
+            data,
+            select: { status: true },
+          }),
+          prisma.order.update({
+            where: { id: shipment.orderId! },
+            data: orderUpdate,
+          }),
+        ]);
+        assertShipmentStatusPersisted(updatedShipment.status, next);
+      });
+    }
   } else {
     // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
     await commitShipmentStatus(async (tx) => {
+      for (const repair of legacyPieceRepairs) {
+        await tx.shipmentItem.updateMany({
+          where: { id: repair.itemId, variantKey: null },
+          data: { variantKey: repair.variantKey },
+        });
+      }
       if (shipment.orderId) {
         if (shipment.order?.omsStatus) {
           const freshOrder = await tx.order.findUnique({
