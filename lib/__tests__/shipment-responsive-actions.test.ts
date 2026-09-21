@@ -3,6 +3,30 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 describe('出貨工作區介面', () => {
+  it('使用精簡工作列，不再顯示大標題與統計卡', () => {
+    const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
+    const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
+
+    assert.doesNotMatch(page, /PageHeader/);
+    assert.doesNotMatch(body, /FilterChip/);
+    assert.doesNotMatch(body, /xl:grid-cols-4/);
+    assert.match(page, /訂單種類：\{activeType\.label\}/);
+    assert.match(page, /aria-label="更多出貨工具"/);
+  });
+
+  it('出貨階段是主分類，訂單種類不再混入運輸階段', () => {
+    const source = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
+
+    assert.match(source, /const STAGE_TABS =/);
+    assert.match(source, /label: '待出貨'/);
+    assert.match(source, /label: '運送中'/);
+    assert.match(source, /label: '待驗收'/);
+    assert.match(source, /label: '已完成'/);
+    assert.match(source, /aria-label="出貨階段"/);
+    assert.match(source, /bg-black text-white shadow-sm/);
+    assert.doesNotMatch(source, /訂閱近期安排/);
+  });
+
   it('桌面表格保留可讀欄寬，電話不逐字換行', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 
