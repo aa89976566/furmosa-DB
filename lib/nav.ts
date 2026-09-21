@@ -44,7 +44,7 @@ export const navGroups: NavGroup[] = [
         icon: PackageOpen,
       },
       { href: '/orders', label: '訂單', icon: ShoppingCart },
-      { href: '/shipments', label: '出貨', icon: Truck },
+      { href: '/shipments?status=pending', label: '出貨', icon: Truck },
       { href: '/tasks', label: '任務', icon: CheckSquare },
     ],
   },

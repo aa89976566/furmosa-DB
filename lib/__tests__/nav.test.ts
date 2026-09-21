@@ -11,7 +11,7 @@ describe('HQ 側欄', () => {
         { href: '/dashboard', label: '首頁' },
         { href: '/reviews', label: '待審核' },
         { href: '/orders', label: '訂單' },
-        { href: '/shipments', label: '出貨' },
+        { href: '/shipments?status=pending', label: '出貨' },
         { href: '/tasks', label: '任務' },
       ],
     );

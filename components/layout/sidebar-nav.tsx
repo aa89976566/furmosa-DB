@@ -15,6 +15,7 @@ const HOT_PREFETCH = new Set([
   '/orders',
   '/reviews',
   '/shipments',
+  '/shipments?status=pending',
   '/merchants',
   '/customers',
   '/products',
