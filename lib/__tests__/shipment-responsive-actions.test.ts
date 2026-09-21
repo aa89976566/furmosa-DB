@@ -3,6 +3,15 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 describe('出貨工作區介面', () => {
+  it('點擊出貨時預設先開啟待出貨', () => {
+    const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
+    const nav = readFileSync('lib/nav.ts', 'utf8');
+
+    assert.match(page, /new URLSearchParams\(\{ status: 'pending' \}\)/);
+    assert.match(page, /redirect\(`\/shipments\?\$\{params\.toString\(\)\}`\)/);
+    assert.match(nav, /href: '\/shipments\?status=pending'/);
+  });
+
   it('使用精簡工作列，不再顯示大標題與統計卡', () => {
     const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
     const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
