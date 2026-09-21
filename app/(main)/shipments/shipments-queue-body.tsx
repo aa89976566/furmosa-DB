@@ -24,6 +24,7 @@ import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import { displayOrderNumber } from '@/lib/orders/display-order-number';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -52,6 +53,7 @@ const shipmentInclude = {
       id: true,
       orderNumber: true,
       source: true,
+      externalOrderName: true,
       status: true,
       paymentStatus: true,
       shippingFeeType: true,
@@ -148,6 +150,7 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          displayOrderNumber: displayOrderNumber(s.order),
           omsStatus: s.order.omsStatus,
           status: s.order.status,
           paymentStatus: s.order.paymentStatus,
