@@ -30,6 +30,15 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
   ]);
   const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
   assert.match(workflow, /- hq_passkeys_20260918/);
+  assert.equal(
+    RELEASE_PLANS.historical_hq_schema_repair_20260921.runner,
+    'scripts/ops/repair-historical-hq-schema-20260921.mjs',
+  );
+  assert.deepEqual(RELEASE_PLANS.historical_hq_schema_repair_20260921.migrationPrefixes, []);
+  assert.deepEqual(RELEASE_PLANS.historical_hq_schema_repair_20260921.requiredPaths, [
+    'docs/releases/historical-hq-schema-repair-20260921.md',
+  ]);
+  assert.match(workflow, /- historical_hq_schema_repair_20260921/);
 });
 
 test('Vercel skips main and builds PR branches', () => {
