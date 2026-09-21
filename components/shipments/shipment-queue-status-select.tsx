@@ -56,7 +56,7 @@ function statusChipClass(active: boolean) {
     : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
-function ConfirmShipSubmitButton() {
+function ConfirmStatusSubmitButton({ next }: { next: 'shipped' | 'delivered' }) {
   const { pending } = useFormStatus();
 
   return (
@@ -66,7 +66,7 @@ function ConfirmShipSubmitButton() {
       autoFocus
       className="min-h-11 touch-manipulation rounded-xl bg-black px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
     >
-      {pending ? '正在標記…' : '確認已寄出'}
+      {pending ? '正在標記…' : next === 'delivered' ? '確認貨物到達' : '確認已寄出'}
     </button>
   );
 }
@@ -90,7 +90,7 @@ export function ShipmentQueueStatusSelect({
 }) {
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
-  const [confirmShip, setConfirmShip] = useState(false);
+  const [confirmNext, setConfirmNext] = useState<'shipped' | 'delivered' | null>(null);
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -126,7 +126,11 @@ export function ShipmentQueueStatusSelect({
               key={option.value}
               option={option}
               active={active}
-              onConfirmShip={option.value === 'shipped' ? () => setConfirmShip(true) : undefined}
+              onConfirmStatus={
+                option.value === 'shipped' || option.value === 'delivered'
+                  ? () => setConfirmNext(option.value)
+                  : undefined
+              }
             />
           );
         })}
@@ -137,25 +141,27 @@ export function ShipmentQueueStatusSelect({
         </p>
       ) : null}
     </form>
-    {confirmShip && typeof document !== 'undefined'
+    {confirmNext && typeof document !== 'undefined'
       ? createPortal(
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4"
             role="presentation"
-            onClick={() => setConfirmShip(false)}
+            onClick={() => setConfirmNext(null)}
           >
             <div
               role="dialog"
               aria-modal="true"
-              aria-labelledby={`confirm-ship-${shipmentId}`}
+              aria-labelledby={`confirm-status-${shipmentId}`}
               className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-xl"
               onClick={(event) => event.stopPropagation()}
             >
-              <h2 id={`confirm-ship-${shipmentId}`} className="text-lg font-semibold text-foreground">
-                確認已完成交寄？
+              <h2 id={`confirm-status-${shipmentId}`} className="text-lg font-semibold text-foreground">
+                {confirmNext === 'delivered' ? '確認貨物已到達？' : '確認已完成交寄？'}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                確認後會直接標記為「已寄出」，並移到運送中。
+                {confirmNext === 'delivered'
+                  ? '確認後會標記為「貨物到達」，並移到待驗收。'
+                  : '確認後會直接標記為「已寄出」，並移到運送中。'}
               </p>
               {inventoryWarnings.length > 0 ? (
                 <div className="mt-3 rounded-xl border border-border bg-muted/60 p-3 text-xs leading-relaxed text-foreground">
@@ -170,7 +176,7 @@ export function ShipmentQueueStatusSelect({
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <input type="hidden" name="shipmentId" value={shipmentId} />
-                <input type="hidden" name="next" value="shipped" />
+                <input type="hidden" name="next" value={confirmNext} />
                 <input type="hidden" name="inline" value="1" />
                 {queueStatus ? (
                   <input type="hidden" name="queueStatus" value={queueStatus} />
@@ -181,11 +187,11 @@ export function ShipmentQueueStatusSelect({
                 <button
                   type="button"
                   className="min-h-11 touch-manipulation rounded-xl border border-border bg-background px-4 text-sm font-medium"
-                  onClick={() => setConfirmShip(false)}
+                  onClick={() => setConfirmNext(null)}
                 >
                   取消
                 </button>
-                <ConfirmShipSubmitButton />
+                <ConfirmStatusSubmitButton next={confirmNext} />
               </form>
             </div>
           </div>,
@@ -199,21 +205,21 @@ export function ShipmentQueueStatusSelect({
 function QueueStatusSubmitButton({
   option,
   active,
-  onConfirmShip,
+  onConfirmStatus,
 }: {
   option: { value: string; label: string };
   active: boolean;
-  onConfirmShip?: () => void;
+  onConfirmStatus?: () => void;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
-      type={onConfirmShip ? 'button' : 'submit'}
-      name={onConfirmShip ? undefined : 'next'}
+      type={onConfirmStatus ? 'button' : 'submit'}
+      name={onConfirmStatus ? undefined : 'next'}
       value={option.value}
       disabled={active || pending}
       aria-pressed={active}
-      onClick={onConfirmShip}
+      onClick={onConfirmStatus}
       className={cn(
         'min-h-[44px] flex-1 touch-manipulation rounded-[10px] border px-2.5 py-1.5',
         'text-[11px] font-medium tracking-wide',

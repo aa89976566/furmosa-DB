@@ -215,9 +215,9 @@ async function markShipmentStatusInner(
   }
   if (
     shipment.type === 'merchant_restock' &&
-    (shipment.status === 'delivered' || shipment.status === 'received')
+    shipment.status === 'received'
   ) {
-    throw new Error('店家補貨已送達或完成收貨，不可由 HQ 退回或變更狀態');
+    throw new Error('店家補貨已完成收貨，不可由 HQ 退回或變更狀態');
   }
   if (!['pending', 'packed', 'shipped', 'delivered', 'cancelled'].includes(next)) {
     throw new Error('狀態錯誤');

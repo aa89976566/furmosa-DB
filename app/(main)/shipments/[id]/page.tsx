@@ -153,7 +153,7 @@ export default async function ShipmentDetailPage(
               </Button>
             ) : null}
             <Button variant="outline" size="sm" asChild>
-              <Link href="/shipments">
+              <Link href="/shipments?status=pending">
                 <ArrowLeft className="mr-1 h-4 w-4" />
                 返回隊列
               </Link>

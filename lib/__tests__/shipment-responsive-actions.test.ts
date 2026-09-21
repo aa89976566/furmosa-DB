@@ -3,6 +3,15 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 describe('出貨工作區介面', () => {
+  it('點擊出貨時預設先開啟待出貨', () => {
+    const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
+    const nav = readFileSync('lib/nav.ts', 'utf8');
+
+    assert.match(page, /new URLSearchParams\(\{ status: 'pending' \}\)/);
+    assert.match(page, /redirect\(`\/shipments\?\$\{params\.toString\(\)\}`\)/);
+    assert.match(nav, /href: '\/shipments\?status=pending'/);
+  });
+
   it('使用精簡工作列，不再顯示大標題與統計卡', () => {
     const page = readFileSync('app/(main)/shipments/page.tsx', 'utf8');
     const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
@@ -98,6 +107,8 @@ describe('出貨工作區介面', () => {
     assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
     assert.match(control, /確認已完成交寄/);
+    assert.match(control, /確認貨物已到達/);
+    assert.match(control, /確認後會標記為「貨物到達」，並移到待驗收/);
     assert.match(control, /role="dialog"/);
     assert.match(control, /createPortal/);
     assert.doesNotMatch(control, /window\.confirm\(`確定已完成交寄/);
@@ -185,10 +196,11 @@ describe('出貨工作區介面', () => {
     assert.match(control, /import \{ markShipmentStatus \}/);
     assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 2);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
-    assert.match(control, /name="next" value="shipped"/);
+    assert.match(control, /name="next" value=\{confirmNext\}/);
     assert.match(control, /type="submit"/);
     assert.doesNotMatch(control, /form=\{formId\}/);
-    assert.match(control, /pending \? '正在標記…' : '確認已寄出'/);
+    assert.match(control, /確認貨物到達/);
+    assert.match(control, /確認已寄出/);
     assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 import { PageSkeleton } from '@/components/shared/page-skeleton';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,12 @@ export default async function ShipmentsPage(
   }
 ) {
   const searchParams = await props.searchParams;
+  if (!searchParams?.status && !searchParams?.s && !searchParams?.error) {
+    const params = new URLSearchParams({ status: 'pending' });
+    if (searchParams?.type) params.set('type', searchParams.type);
+    if (searchParams?.q) params.set('q', searchParams.q);
+    redirect(`/shipments?${params.toString()}`);
+  }
   const status = searchParams?.status;
   const rawType = searchParams?.type;
   const actionError = (searchParams?.error ?? '').trim();
@@ -63,7 +70,8 @@ export default async function ShipmentsPage(
                 const params = new URLSearchParams();
                 if (item.key) params.set('type', item.key);
                 if (status) params.set('status', status);
-                const href = params.toString() ? `/shipments?${params}` : '/shipments';
+                if (!status) params.set('status', 'pending');
+                const href = `/shipments?${params}`;
                 const active = item.key === (type ?? '');
                 return (
                   <DropdownMenuItem key={item.key || 'all'} asChild>
