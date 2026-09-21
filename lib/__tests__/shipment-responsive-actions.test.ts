@@ -115,8 +115,8 @@ describe('出貨工作區介面', () => {
     assert.match(panel, /name="queueType" value=\{queueType\}/);
     assert.match(actions, /params\.set\('status', 'delivered'\)/);
     assert.match(actions, /params\.set\('type', queueType\)/);
-    assert.match(inlineControl, /params\.set\('status', 'delivered'\)/);
-    assert.match(inlineControl, /params\.set\('s', input\.shipmentId\)/);
+    assert.match(inlineControl, /name="queueType" value=\{queueType\}/);
+    assert.match(inlineControl, /name="inline" value="1"/);
   });
 
   it('OMS 尚未建立出貨單時顯示審核入口，不顯示舊流程按鈕', () => {
@@ -141,5 +141,21 @@ describe('出貨工作區介面', () => {
     assert.equal((control.match(/value: 'shipped', label: '已寄出'/g) ?? []).length >= 2, true);
     assert.match(action, /pending: \['packed', 'shipped', 'cancelled'\]/);
     assert.match(action, /data\.packedAt = shipment\.packedAt \?\? now/);
+  });
+
+  it('佇列狀態以原生表單提交，失敗時由伺服器導回同一頁顯示原因', () => {
+    const control = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.match(control, /import \{ markShipmentStatus \}/);
+    assert.match(control, /<form\s+action=\{markShipmentStatus\}/);
+    assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
+    assert.match(control, /name="next"/);
+    assert.match(control, /type="submit"/);
+    assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
+    assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });
 });
