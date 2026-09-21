@@ -36,10 +36,12 @@ import Link from 'next/link';
 export function ShipmentOrderPanel({
   shipmentId,
   queueStatus,
+  queueType,
   onTitleChange,
 }: {
   shipmentId: string;
   queueStatus?: string;
+  queueType?: string;
   onTitleChange?: (title: string) => void;
 }) {
   const [data, setData] = useState<ShipmentPanelData | null>(null);
@@ -343,6 +345,7 @@ export function ShipmentOrderPanel({
             defaultPickupPhone={shipCarrierDefaults.pickupPhone}
             inline
             queueStatus={queueStatus}
+            queueType={queueType}
           />
         </div>
       </section>

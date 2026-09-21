@@ -22,6 +22,7 @@ export function ShipmentStatusActions({
   defaultPickupPhone,
   inline = false,
   queueStatus,
+  queueType,
   inventoryWarnings = [],
 }: {
   shipmentId: string;
@@ -34,6 +35,7 @@ export function ShipmentStatusActions({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  queueType?: string;
   inventoryWarnings?: string[];
 }) {
   if (allowedNext.length === 0) {
@@ -62,6 +64,7 @@ export function ShipmentStatusActions({
             defaultPickupPhone={defaultPickupPhone}
             inline={inline}
             queueStatus={queueStatus}
+            queueType={queueType}
             inventoryWarnings={inventoryWarnings}
             primary
           />
@@ -88,6 +91,7 @@ export function ShipmentStatusActions({
                 defaultPickupPhone={defaultPickupPhone}
                 inline={inline}
                 queueStatus={queueStatus}
+                queueType={queueType}
                 inventoryWarnings={inventoryWarnings}
               />
             ))}
@@ -109,6 +113,7 @@ function StatusActionCard({
   defaultPickupPhone,
   inline,
   queueStatus,
+  queueType,
   inventoryWarnings,
   primary = false,
 }: {
@@ -122,6 +127,7 @@ function StatusActionCard({
   defaultPickupPhone?: string | null;
   inline?: boolean;
   queueStatus?: string;
+  queueType?: string;
   inventoryWarnings: string[];
   primary?: boolean;
 }) {
@@ -163,6 +169,7 @@ function StatusActionCard({
       {inline && queueStatus ? (
         <input type="hidden" name="queueStatus" value={queueStatus} />
       ) : null}
+      {inline && queueType ? <input type="hidden" name="queueType" value={queueType} /> : null}
 
       <div className="flex items-center gap-2">
         {next === 'shipped' && <Truck className="h-4 w-4 text-info" />}

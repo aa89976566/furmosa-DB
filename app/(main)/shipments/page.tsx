@@ -131,7 +131,7 @@ export default async function ShipmentsPage(
 
       {deliveredOk ? (
         <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          已標記貨物到達，該單已離開「在途」。
+          已標記貨物到達，該單已移至「待驗收」。
         </div>
       ) : null}
 

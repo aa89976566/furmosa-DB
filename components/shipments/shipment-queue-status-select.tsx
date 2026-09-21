@@ -70,7 +70,8 @@ function buildInlineSuccessHref(input: {
     return `/shipments?${params.toString()}`;
   }
   if (input.next === 'delivered') {
-    // 已送達會離開「在途」；回待出貨列表並帶成功提示
+    params.set('status', 'delivered');
+    params.set('s', input.shipmentId);
     params.set('delivered', '1');
     if (input.queueType) params.set('type', input.queueType);
     return `/shipments?${params.toString()}`;

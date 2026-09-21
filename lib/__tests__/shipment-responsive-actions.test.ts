@@ -94,6 +94,21 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
   });
 
+  it('狀態更新後保留訂單種類，到達後留在待驗收', () => {
+    const actions = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+    const panel = readFileSync('components/shipments/shipment-status-actions.tsx', 'utf8');
+    const inlineControl = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+
+    assert.match(panel, /name="queueType" value=\{queueType\}/);
+    assert.match(actions, /params\.set\('status', 'delivered'\)/);
+    assert.match(actions, /params\.set\('type', queueType\)/);
+    assert.match(inlineControl, /params\.set\('status', 'delivered'\)/);
+    assert.match(inlineControl, /params\.set\('s', input\.shipmentId\)/);
+  });
+
   it('OMS 尚未建立出貨單時顯示審核入口，不顯示舊流程按鈕', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 

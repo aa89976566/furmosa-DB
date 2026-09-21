@@ -100,16 +100,20 @@ export async function markShipmentStatus(formData: FormData): Promise<void> {
     const result = await markShipmentStatusInner(formData);
     if (inline) {
       const params = new URLSearchParams();
+      const queueStatus = String(formData.get('queueStatus') ?? '').trim();
+      const queueType = String(formData.get('queueType') ?? '').trim();
+      if (queueType) params.set('type', queueType);
       if (result.next === 'shipped') {
         params.set('s', result.shipmentId);
         params.set('status', 'shipped');
         redirect(`/shipments?${params.toString()}`);
       }
       if (result.next === 'delivered') {
-        redirect('/shipments?delivered=1');
+        params.set('status', 'delivered');
+        params.set('s', result.shipmentId);
+        params.set('delivered', '1');
+        redirect(`/shipments?${params.toString()}`);
       }
-      const queueStatus = String(formData.get('queueStatus') ?? '').trim();
-      const queueType = String(formData.get('queueType') ?? '').trim();
       params.set('s', result.shipmentId);
       if (queueStatus) params.set('status', queueStatus);
       if (queueType) params.set('type', queueType);
@@ -125,6 +129,10 @@ export async function markShipmentStatus(formData: FormData): Promise<void> {
     params.set('error', message.slice(0, 120));
     if (shipmentId) params.set('s', shipmentId);
     if (inline) {
+      const queueStatus = String(formData.get('queueStatus') ?? '').trim();
+      const queueType = String(formData.get('queueType') ?? '').trim();
+      if (queueStatus) params.set('status', queueStatus);
+      if (queueType) params.set('type', queueType);
       redirect(`/shipments?${params.toString()}`);
     }
     redirect(`/shipments/${shipmentId}?${params.toString()}`);

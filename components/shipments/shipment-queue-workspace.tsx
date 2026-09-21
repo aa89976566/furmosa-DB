@@ -226,6 +226,7 @@ export function ShipmentQueueWorkspace({
                 key={`${selectedShipmentId}-${panelRefreshKey}`}
                 shipmentId={selectedShipmentId}
                 queueStatus={statusFilter}
+                queueType={typeFilter}
                 onTitleChange={setPanelTitle}
               />
             </div>
