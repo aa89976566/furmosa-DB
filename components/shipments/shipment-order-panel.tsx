@@ -6,7 +6,6 @@ import {
   type ShipmentPanelData,
 } from '@/app/(main)/shipments/actions';
 import { fetchProductProgramLabels } from '@/app/(main)/shipments/product-program-actions';
-import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,26 +21,19 @@ import { paymentStatusLabel } from '@/lib/labels';
 import { formatPlanContents } from '@/lib/plan-contents';
 import { productLabel } from '@/lib/product-label';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
-import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import {
-  nextStatuses,
   shipmentStatusLabel,
   shipmentStatusVariant,
   shipmentTypeLabel,
-  type ShipmentStatus,
 } from '@/lib/shipment';
 import { Loader2, MapPin, Package, Pencil, Phone, Truck } from 'lucide-react';
 import Link from 'next/link';
 
 export function ShipmentOrderPanel({
   shipmentId,
-  queueStatus,
-  queueType,
   onTitleChange,
 }: {
   shipmentId: string;
-  queueStatus?: string;
-  queueType?: string;
   onTitleChange?: (title: string) => void;
 }) {
   const [data, setData] = useState<ShipmentPanelData | null>(null);
@@ -117,19 +109,7 @@ export function ShipmentOrderPanel({
   }
 
   const paymentReviewHold = data.paymentReviewHold;
-  const allowedNext = (
-    paymentReviewHold
-      ? nextStatuses(data.status).filter((status) => status !== 'shipped' && status !== 'delivered')
-      : nextStatuses(data.status)
-  ) as ShipmentStatus[];
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
-  const shipCarrierDefaults = resolveShipActionCarrierDefaults({
-    carrier: data.carrier,
-    recipientName: data.recipientName,
-    recipientPhone: data.recipientPhone,
-    recipientAddress: data.recipientAddress,
-    merchant: data.merchant,
-  });
   const logistics = resolveLogisticsFromShipment({
     type: data.type,
     carrier: data.carrier,
@@ -160,12 +140,6 @@ export function ShipmentOrderPanel({
         }));
   const displayQty =
     data.items.length > 0 ? totalQty : planContents.length > 0 ? planContents.length : 0;
-  const nextStepHelp =
-    data.status === 'pending' || data.status === 'packed'
-      ? '填寫物流資料後確認寄出，訂單狀態會同步更新。'
-      : data.status === 'shipped'
-        ? '貨物已寄出；收到物流到達資訊後，再確認「貨物到達」。'
-        : '目前狀態已完成，無需再次標記。';
   const orderLabel =
     data.order?.displayOrderNumber || data.subscription?.subscriptionNo || data.shipmentNumber;
   const partyLabel =
@@ -334,29 +308,6 @@ export function ShipmentOrderPanel({
         </section>
       </div>
 
-      <section className="rounded-lg border bg-card p-4">
-        <h3 className="text-sm font-semibold">下一步</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {paymentReviewHold
-            ? `此單仍在${JIBA_PAYMENT_REVIEW_LABEL}，不可標記已寄出。`
-            : nextStepHelp}
-        </p>
-        <div className="mt-4">
-          <ShipmentStatusActions
-            shipmentId={data.id}
-            currentStatus={data.status}
-            allowedNext={allowedNext}
-            defaultCarrier={shipCarrierDefaults.defaultCarrier}
-            defaultTracking={data.trackingNumber}
-            defaultPickupStore={shipCarrierDefaults.pickupStore}
-            defaultPickupName={shipCarrierDefaults.pickupName}
-            defaultPickupPhone={shipCarrierDefaults.pickupPhone}
-            inline
-            queueStatus={queueStatus}
-            queueType={queueType}
-          />
-        </div>
-      </section>
     </div>
   );
 }

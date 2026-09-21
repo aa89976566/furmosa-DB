@@ -208,7 +208,7 @@ export function ShipmentQueueWorkspace({
                     {panelTitle ?? '載入出貨單資料…'}
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    在此查看品項、運輸資訊，並更新物流狀態（會同步訂單）。
+                    在此查看品項與運輸資訊；物流狀態請直接在列表更新。
                   </p>
                 </div>
               </div>
@@ -225,8 +225,6 @@ export function ShipmentQueueWorkspace({
               <ShipmentOrderPanel
                 key={`${selectedShipmentId}-${panelRefreshKey}`}
                 shipmentId={selectedShipmentId}
-                queueStatus={statusFilter}
-                queueType={typeFilter}
                 onTitleChange={setPanelTitle}
               />
             </div>

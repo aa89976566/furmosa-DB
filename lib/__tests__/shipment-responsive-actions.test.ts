@@ -74,7 +74,7 @@ describe('出貨工作區介面', () => {
     assert.match(source, /確定要取消這張出貨單嗎/);
   });
 
-  it('訂單內容只展開下一個正常動作，退回與取消收進修正區', () => {
+  it('列表訂單內容只供查看，不重複顯示物流狀態操作', () => {
     const actions = readFileSync(
       'components/shipments/shipment-status-actions.tsx',
       'utf8',
@@ -84,8 +84,8 @@ describe('出貨工作區介面', () => {
     assert.match(actions, /const primaryNext =/);
     assert.match(actions, /需要修正狀態？/);
     assert.match(actions, /<details/);
-    assert.match(panel, /<h3 className="text-sm font-semibold">下一步<\/h3>/);
-    assert.doesNotMatch(panel, /在此更新物流狀態後/);
+    assert.doesNotMatch(panel, /ShipmentStatusActions/);
+    assert.doesNotMatch(panel, />下一步<\/h3>/);
   });
 
   it('待出貨訂單可直接確認寄出，不再額外要求完成備貨', () => {
