@@ -107,7 +107,9 @@ function inferCarrierFromLegacy(address: string | null | undefined): string {
 }
 
 export function profileDefaults(merchant: MerchantProfile): MerchantShippingDefaults {
-  const pickupName = merchant.contactName?.trim() || merchant.name.trim();
+  const merchantName = typeof merchant.name === 'string' ? merchant.name.trim() : '';
+  const pickupName =
+    merchant.contactName?.trim() || merchantName || (merchant.name == null ? '店家未對應' : '');
   const pickupPhone = merchant.phone?.trim() || '';
   const carrier =
     merchant.preferredCarrier?.trim() ||
@@ -119,11 +121,11 @@ export function profileDefaults(merchant: MerchantProfile): MerchantShippingDefa
     pickupStore =
       merchant.pickupStoreName?.trim() ||
       merchant.address?.trim() ||
-      [merchant.city?.trim(), merchant.name.trim()].filter(Boolean).join(' · ');
+      [merchant.city?.trim(), merchantName].filter(Boolean).join(' · ');
   } else {
     pickupStore =
       merchant.address?.trim() ||
-      [merchant.city?.trim(), merchant.name.trim()].filter(Boolean).join(' · ');
+      [merchant.city?.trim(), merchantName].filter(Boolean).join(' · ');
   }
 
   return { pickupStore, pickupName, pickupPhone, defaultCarrier: carrier };

@@ -30,9 +30,9 @@ function getShipmentLabel(shipment: ShipmentQueueRow) {
     shipment.subscriptionShipment?.shipmentNo ||
     shipment.shipmentNumber;
   const partyLabel =
-    (shipment.type === 'merchant_restock' ? shipment.merchant?.name.trim() : null) ||
+    (shipment.type === 'merchant_restock' ? shipment.merchant?.name?.trim() : null) ||
     shipment.recipientName?.trim() ||
-    shipment.customer?.name.trim();
+    shipment.customer?.name?.trim();
   return partyLabel ? `${orderLabel} · ${partyLabel}` : orderLabel;
 }
 

@@ -16,10 +16,12 @@ import { parsePlanContents } from '@/lib/plan-contents';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
+import { QueueRowBoundary } from '@/components/shipments/queue-row-boundary';
 import { shipmentTypeLabel } from '@/lib/shipment';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
 import Link from 'next/link';
+import { Suspense, type ReactNode } from 'react';
 import {
   isOmsShipmentActionable,
   omsStatusLabel,
@@ -77,6 +79,7 @@ export type ShipmentQueueRow = {
       plan: { name: string; contents: string | null } | null;
     } | null;
   } | null;
+  gaps?: string[];
 };
 
 function ShipmentStatusControl({
@@ -176,7 +179,9 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
     order: s.order,
   });
   const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
-  const planName = s.subscriptionShipment?.subscription?.plan?.name ?? '訂閱方案';
+  const planName =
+    s.subscriptionShipment?.subscription?.plan?.name?.trim() ||
+    (isSub ? '方案未對應' : '');
   const productLines =
     isSub && planContents.length > 0
       ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
@@ -255,6 +260,47 @@ function ProductsSummary({ view }: { view: QueueRowView }) {
   );
 }
 
+function GapsNote({ gaps }: { gaps?: string[] }) {
+  if (!gaps?.length) return null;
+  return <p className="text-[11px] font-medium text-amber-800">{gaps.join('、')}</p>;
+}
+
+function rowFallback(as: 'card' | 'table') {
+  if (as === 'table') {
+    return (
+      <TableRow>
+        <TableCell colSpan={5} className="text-sm text-muted-foreground">
+          資料缺漏
+        </TableCell>
+      </TableRow>
+    );
+  }
+  return <p className="rounded-xl border border-dashed px-3 py-2 text-sm text-muted-foreground">資料缺漏</p>;
+}
+
+function QueueRowFrame({
+  shipment,
+  as = 'card',
+  children,
+}: {
+  shipment: ShipmentQueueRow;
+  as?: 'card' | 'table';
+  children: (view: QueueRowView) => ReactNode;
+}) {
+  let view: QueueRowView;
+  try {
+    view = buildQueueRowView(shipment);
+  } catch (error) {
+    console.error('[shipments-queue] row render', shipment.id, error);
+    return rowFallback(as);
+  }
+  return (
+    <Suspense fallback={rowFallback(as)}>
+      <QueueRowBoundary fallback={rowFallback(as)}>{children(view)}</QueueRowBoundary>
+    </Suspense>
+  );
+}
+
 function EmptyQueueState() {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 px-4 py-3">
@@ -323,6 +369,7 @@ function ShipmentQueueCard({
             ) : null}
           </div>
           <p className="mt-1 text-sm font-medium text-foreground">{partyLabel}</p>
+          <GapsNote gaps={shipment.gaps} />
           <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
             出貨單 {shortNumber}
           </p>
@@ -390,24 +437,26 @@ export function ShipmentQueueTable({
     return <EmptyQueueState />;
   }
 
-  const views = shipments.map(buildQueueRowView);
-
   return (
     <>
       <div className="md:hidden">
         <VirtualCardList
-          items={views}
+          items={shipments}
           estimateSize={320}
-          getKey={(view) => view.shipment.id}
-          renderItem={(view) => (
-            <ShipmentQueueCard
-              view={view}
-              variant={variant}
-              selected={selectedShipmentId === view.shipment.id}
-              queueStatus={queueStatus}
-              queueType={queueType}
-              onSelect={() => onSelectShipment(view.shipment)}
-            />
+          getKey={(shipment) => shipment.id}
+          renderItem={(shipment) => (
+            <QueueRowFrame shipment={shipment}>
+              {(view) => (
+                <ShipmentQueueCard
+                  view={view}
+                  variant={variant}
+                  selected={selectedShipmentId === view.shipment.id}
+                  queueStatus={queueStatus}
+                  queueType={queueType}
+                  onSelect={() => onSelectShipment(view.shipment)}
+                />
+              )}
+            </QueueRowFrame>
           )}
         />
       </div>
@@ -424,10 +473,11 @@ export function ShipmentQueueTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {views.map((view) => {
-              const { shipment, orderLabel, partyLabel, shortNumber, logistics } = view;
-
-              return (
+            {shipments.map((shipment) => (
+              <QueueRowFrame key={shipment.id} as="table" shipment={shipment}>
+                {(view) => {
+                  const { orderLabel, partyLabel, shortNumber, logistics } = view;
+                  return (
                 <TableRow
                   key={shipment.id}
                   className={cn(
@@ -472,6 +522,7 @@ export function ShipmentQueueTable({
                   </TableCell>
                   <TableCell className="py-3 text-sm font-medium text-foreground">
                     {partyLabel}
+                    <GapsNote gaps={shipment.gaps} />
                   </TableCell>
                   <TableCell
                     className="py-3"
@@ -497,8 +548,10 @@ export function ShipmentQueueTable({
                     <ProductsSummary view={view} />
                   </TableCell>
                 </TableRow>
-              );
-            })}
+                  );
+                }}
+              </QueueRowFrame>
+            ))}
           </TableBody>
         </Table>
       </div>
