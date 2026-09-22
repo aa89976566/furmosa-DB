@@ -64,6 +64,7 @@ export async function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname === '/api/internal/preview-demo-bootstrap' ||
     pathname.startsWith('/api/line') ||
     pathname.startsWith('/api/cron') ||
     pathname.startsWith('/api/coupons') ||
