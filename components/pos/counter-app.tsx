@@ -187,9 +187,17 @@ function CounterWorkspace({
               const cartQty = qtyByKey.get(item.key) ?? 0;
               const disabled = catalogAddDisabled(item.stock, cartQty);
               return (
-                <article
+                <button
                   key={item.key}
+                  type="button"
                   className={`${styles.card} ${item.stock <= 0 ? styles.sold : ''}`}
+                  disabled={disabled}
+                  onClick={() => addItem(item)}
+                  aria-label={
+                    disabled
+                      ? `${item.name} ${item.specLabel ?? item.unit}，目前無法加入本單`
+                      : `加入 ${item.name} ${item.specLabel ?? item.unit}`
+                  }
                 >
                   <div className={styles.photo}>
                     <ProductCover
@@ -206,18 +214,10 @@ function CounterWorkspace({
                     </p>
                     <div className={styles.priceRow}>
                       <span className={styles.price}>{formatCurrency(item.unitPrice)}</span>
-                      <button
-                        type="button"
-                        className={styles.add}
-                        disabled={disabled}
-                        onClick={() => addItem(item)}
-                        aria-label={`加入 ${item.name}`}
-                      >
-                        +
-                      </button>
+                      <span className={styles.add} aria-hidden="true">+</span>
                     </div>
                   </div>
-                </article>
+                </button>
               );
             })}
           </div>
