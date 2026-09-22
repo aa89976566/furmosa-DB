@@ -93,7 +93,7 @@ export function ScheduleForm(props: {
       </div>
       <div className="space-y-1.5">
         <label className="text-sm font-medium" htmlFor="bookingNotifyLineUserId">
-          新預約 LINE 通知（選填）
+          店家 LINE 通知（選填）
         </label>
         <Input
           id="bookingNotifyLineUserId"
@@ -103,7 +103,7 @@ export function ScheduleForm(props: {
           className="h-11"
         />
         <p className="text-xs text-muted-foreground">
-          填了才會在客人送出時收到「有新預約」。可向 Furmosa 索取店家綁定用 ID。
+          填寫後會收到新預約及補貨出貨通知。可向 Furmosa 索取店家綁定用 ID。
         </p>
       </div>
       {state.error ? (
