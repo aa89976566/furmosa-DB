@@ -156,7 +156,7 @@ async function ensurePosDemoUser(
   };
 }
 
-export async function ensureDemoAdmin() {
+async function main() {
   const password = assertSafeToRun();
   const prisma = createPrisma();
   try {
@@ -178,17 +178,13 @@ export async function ensureDemoAdmin() {
       password: '(from DEMO_ADMIN_PASSWORD — never logged)',
     };
 
-    return report;
+    console.log(JSON.stringify(report));
   } finally {
     await prisma.$disconnect();
   }
 }
 
-if (process.argv[1]?.endsWith('ensure-demo-admin.ts')) {
-  ensureDemoAdmin()
-    .then((report) => console.log(JSON.stringify(report)))
-    .catch((e) => {
-      console.error('失敗：', e instanceof Error ? e.message : e);
-      process.exit(1);
-    });
-}
+main().catch((e) => {
+  console.error('失敗：', e instanceof Error ? e.message : e);
+  process.exit(1);
+});
