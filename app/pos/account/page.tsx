@@ -6,6 +6,8 @@ import { FURMOSA_CONTACT } from '@/lib/pos/contact';
 import { Card, CardContent } from '@/components/ui/card';
 import { ensureMerchantSettings } from '@/lib/restock-request/service';
 import { NotificationSettingsForm } from './notification-settings-form';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
+import { createMerchantLineBindToken } from '@/lib/pos/line-bind-token';
 
 export const metadata = { title: '店家資料 · Furmosa' };
 export const dynamic = 'force-dynamic';
@@ -15,6 +17,13 @@ export default async function PosAccountPage() {
   const account = await loadPosAccount(session.merchantId, session.username);
   const settings = await ensureMerchantSettings(session.merchantId);
   const heading = storeHeading({ name: account.storeName, city: account.storeCity });
+  const liffUrl = getLiffUrlIfConfigured('profile');
+  const bindToken = liffUrl
+    ? await createMerchantLineBindToken(session.merchantId)
+    : null;
+  const lineBindUrl = liffUrl && bindToken
+    ? `${liffUrl}?${new URLSearchParams({ mode: 'merchant-bind', bindToken })}`
+    : null;
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -35,6 +44,7 @@ export default async function PosAccountPage() {
             <NotificationSettingsForm
               enabled={settings.lineNotificationEnabled}
               lineUserId={settings.bookingNotifyLineUserId ?? ''}
+              lineBindUrl={lineBindUrl}
             />
           </CardContent>
         </Card>

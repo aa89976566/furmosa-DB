@@ -37,3 +37,16 @@ export async function saveNotificationSettingsAction(
     };
   }
 }
+
+export async function unlinkMerchantLineAction(): Promise<void> {
+  const session = await requireMerchantSession();
+  await ensureMerchantSettings(session.merchantId);
+  await prisma.merchantSettings.update({
+    where: { merchantId: session.merchantId },
+    data: {
+      lineNotificationEnabled: false,
+      bookingNotifyLineUserId: null,
+    },
+  });
+  revalidatePath('/pos/account');
+}
