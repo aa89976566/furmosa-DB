@@ -10,9 +10,9 @@ export type PosNavItem = {
 export const POS_NAV: readonly PosNavItem[] = [
   {
     id: 'home',
-    href: '/pos',
-    label: '首頁',
-    match: (p) => p === '/pos',
+    href: '/pos/sell',
+    label: '收銀',
+    match: (p) => p === '/pos' || p === '/pos/sell',
   },
   {
     id: 'stock',
