@@ -3,7 +3,11 @@ import { LiffProfileClient } from './profile-client';
 
 export const dynamic = 'force-dynamic';
 
-export default function LiffProfilePage() {
+export default async function LiffProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string; bindToken?: string }>;
+}) {
   if (!isLiffConfigured()) {
     return (
       <div className="mx-auto max-w-md p-6 text-sm text-muted-foreground">
@@ -12,5 +16,12 @@ export default function LiffProfilePage() {
     );
   }
 
-  return <LiffProfileClient liffId={getLiffId('profile')} />;
+  const params = await searchParams;
+  return (
+    <LiffProfileClient
+      liffId={getLiffId('profile')}
+      mode={params.mode === 'merchant-bind' ? 'merchant-bind' : 'profile'}
+      bindToken={params.bindToken}
+    />
+  );
 }

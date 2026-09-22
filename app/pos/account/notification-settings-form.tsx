@@ -2,9 +2,9 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   saveNotificationSettingsAction,
+  unlinkMerchantLineAction,
   type NotificationSettingsActionState,
 } from './actions';
 
@@ -13,6 +13,7 @@ const initialState: NotificationSettingsActionState = {};
 export function NotificationSettingsForm(props: {
   enabled: boolean;
   lineUserId: string;
+  lineBindUrl: string | null;
 }) {
   const [state, action] = useFormState(saveNotificationSettingsAction, initialState);
 
@@ -33,23 +34,34 @@ export function NotificationSettingsForm(props: {
         />
         <span>啟用店家 LINE 通知</span>
       </label>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="bookingNotifyLineUserId">
-          店家 LINE User ID
-        </label>
-        <Input
-          id="bookingNotifyLineUserId"
-          name="bookingNotifyLineUserId"
-          defaultValue={props.lineUserId}
-          placeholder="U 開頭的 LINE User ID"
-          className="h-11"
-          autoCapitalize="none"
-          autoCorrect="off"
-        />
-        <p className="text-xs text-muted-foreground">
-          尚未綁定時，POS 鈴鐺仍會正常通知，不會影響補貨流程。
+      <input type="hidden" name="bookingNotifyLineUserId" value={props.lineUserId} />
+      {props.lineUserId ? (
+        <div className="rounded-xl border bg-muted/20 p-4">
+          <p className="font-medium text-navy">LINE 已綁定</p>
+          <p className="mt-1 text-xs text-muted-foreground">出貨時會同步通知這個 LINE 帳號。</p>
+          <button
+            type="submit"
+            formAction={unlinkMerchantLineAction}
+            className="mt-3 min-h-[44px] text-sm text-destructive underline underline-offset-4"
+          >
+            解除 LINE 綁定
+          </button>
+        </div>
+      ) : props.lineBindUrl ? (
+        <a
+          href={props.lineBindUrl}
+          className="flex min-h-[48px] w-full items-center justify-center rounded-md bg-[#06C755] px-4 font-medium text-white"
+        >
+          綁定 LINE 接收通知
+        </a>
+      ) : (
+        <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+          LINE 綁定服務尚未設定，POS 鈴鐺仍會正常通知。
         </p>
-      </div>
+      )}
+      <p className="text-xs text-muted-foreground">
+        尚未綁定時，POS 鈴鐺仍會正常通知，不會影響補貨流程。
+      </p>
       {state.error ? <p className="text-sm text-destructive">{state.error}</p> : null}
       {state.ok ? <p className="text-sm text-primary">通知設定已儲存。</p> : null}
       <SubmitButton />
