@@ -22,7 +22,13 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 404 });
   }
 
-  if (!matchesBootstrapKey(request.headers.get('x-preview-bootstrap-key'), process.env.PREVIEW_DEMO_BOOTSTRAP_KEY)) {
+  const formData = await request.formData().catch(() => null);
+  const formKey = formData?.get('key');
+  const submittedKey =
+    request.headers.get('x-preview-bootstrap-key') ??
+    (typeof formKey === 'string' ? formKey : null);
+
+  if (!matchesBootstrapKey(submittedKey, process.env.PREVIEW_DEMO_BOOTSTRAP_KEY)) {
     return new NextResponse(null, { status: 404 });
   }
 
@@ -33,4 +39,15 @@ export async function POST(request: Request) {
     console.error('Preview demo bootstrap failed', error);
     return NextResponse.json({ status: 'error' }, { status: 500 });
   }
+}
+
+export function GET() {
+  if (process.env.VERCEL_ENV === 'production') {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  return new NextResponse(
+    '<!doctype html><title>Preview bootstrap</title><form method="post"><label>One-time key <input name="key" type="password" autocomplete="off" required></label><button type="submit">Create preview demo</button></form>',
+    { headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/html; charset=utf-8' } },
+  );
 }
