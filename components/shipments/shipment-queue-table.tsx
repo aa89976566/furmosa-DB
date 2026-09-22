@@ -155,9 +155,9 @@ function rowLabel(s: ShipmentQueueRow) {
 
 function partyLabel(s: ShipmentQueueRow) {
   if (s.type === 'merchant_restock') {
-    return s.merchant?.name.trim() || s.recipientName?.trim() || '店家未設定';
+    return s.merchant?.name?.trim() || s.recipientName?.trim() || '店家未設定';
   }
-  return s.recipientName?.trim() || s.customer?.name.trim() || '姓名未設定';
+  return s.recipientName?.trim() || s.customer?.name?.trim() || '姓名未設定';
 }
 
 function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {

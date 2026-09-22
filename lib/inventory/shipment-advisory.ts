@@ -12,7 +12,7 @@ type AdvisoryItem = {
   quantity: number;
   weightGrams?: number | null;
   variantKey?: string | null;
-  product: {
+  product?: {
     id: string;
     sku: string;
     name: string;
@@ -20,7 +20,7 @@ type AdvisoryItem = {
     unit?: string | null;
     priceTiers?: BulkTier[];
     inventoryBalances?: AdvisoryBalance[];
-  };
+  } | null;
 };
 
 const TRACKED_CATEGORIES = new Set(['staple_food', 'treats', 'freeze_dried', 'health']);
@@ -38,6 +38,7 @@ export function shipmentInventoryAdvisories(items: AdvisoryItem[]): string[] {
 
   for (const item of items) {
     const product = item.product;
+    if (!product?.category || !product.sku) continue;
     if (!TRACKED_CATEGORIES.has(product.category) || isMadeToOrderHqProduct(product.sku)) continue;
     const unit = bulkUnit(product.unit);
     if (!unit) continue;

@@ -23,6 +23,7 @@ export function formatPercent(value: number | string | null | undefined, fractio
 export function formatDate(date: Date | string | null | undefined, pattern = 'yyyy/MM/dd') {
   if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '-';
   return format(d, pattern, { locale: zhTW });
 }
 
@@ -33,5 +34,6 @@ export function formatDateTime(date: Date | string | null | undefined) {
 export function formatRelative(date: Date | string | null | undefined) {
   if (!date) return '-';
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '-';
   return formatDistanceToNow(d, { addSuffix: true, locale: zhTW });
 }

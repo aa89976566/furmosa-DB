@@ -75,21 +75,6 @@ const shipmentInclude = {
       weightGrams: true,
       variantKey: true,
       unit: true,
-      product: {
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          category: true,
-          unit: true,
-          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
-          inventoryBalances: {
-            where: { warehouse: { code: 'WH-MAIN' } },
-            select: { quantity: true, unit: true, lastCountedAt: true },
-            take: 1,
-          },
-        },
-      },
     },
   },
   subscriptionShipment: {
@@ -98,13 +83,7 @@ const shipmentInclude = {
       shipmentNo: true,
       scheduledDate: true,
       status: true,
-      subscription: {
-        select: {
-          id: true,
-          subscriptionNo: true,
-          plan: { select: { id: true, name: true, contents: true } },
-        },
-      },
+      subscriptionId: true,
     },
   },
 } as const;
@@ -116,16 +95,31 @@ const STAGE_TABS = [
   { key: 'received', label: '已完成' },
 ] as const;
 
+type QueueShipment = Awaited<
+  ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
+>[number];
+
+function isoDate(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function toQueueRow(
-  s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
+  s: QueueShipment,
   fee: ReturnType<typeof resolveShipmentFulfillmentFee>,
+  inventoryWarnings: string[],
+  subscription: {
+    subscriptionNo: string;
+    plan: { name: string; contents: string | null } | null;
+  } | null,
 ): ShipmentQueueRow {
   return {
     id: s.id,
     shipmentNumber: s.shipmentNumber,
     type: s.type,
     status: s.status,
-    createdAt: s.createdAt.toISOString(),
+    createdAt: isoDate(s.createdAt) ?? new Date(0).toISOString(),
     carrier: s.carrier,
     trackingNumber: s.trackingNumber,
     recipientName: s.order?.omsStatus
@@ -163,7 +157,7 @@ function toQueueRow(
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
-    inventoryWarnings: shipmentInventoryAdvisories(s.items),
+    inventoryWarnings,
     items: s.items.map((item) => ({
       productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
@@ -172,20 +166,8 @@ function toQueueRow(
     subscriptionShipment: s.subscriptionShipment
       ? {
           shipmentNo: s.subscriptionShipment.shipmentNo,
-          scheduledDate: s.subscriptionShipment.scheduledDate
-            ? s.subscriptionShipment.scheduledDate.toISOString()
-            : null,
-          subscription: s.subscriptionShipment.subscription
-            ? {
-                subscriptionNo: s.subscriptionShipment.subscription.subscriptionNo,
-                plan: s.subscriptionShipment.subscription.plan
-                  ? {
-                      name: s.subscriptionShipment.subscription.plan.name,
-                      contents: s.subscriptionShipment.subscription.plan.contents,
-                    }
-                  : null,
-              }
-            : null,
+          scheduledDate: isoDate(s.subscriptionShipment.scheduledDate),
+          subscription,
         }
       : null,
   };
@@ -258,26 +240,109 @@ export async function ShipmentsQueueBody({
   const shipments = dedupeShipmentsByOrder(rawShipments);
   const { byStatus: countByStatus, pendingCount } = counts;
   const panelRefreshKey = shipments
-    .map((s) => {
-      const updated =
-        s.updatedAt instanceof Date
-          ? s.updatedAt.toISOString()
-          : new Date(s.updatedAt as string | number).toISOString();
-      return `${s.id}:${s.status}:${updated}`;
-    })
+    .map((s) => `${s.id}:${s.status}:${isoDate(s.updatedAt) ?? ''}`)
     .join('|');
 
-  const jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
-  const queueRows = shipments.map((s) =>
-    toQueueRow(
-      s,
-      resolveShipmentFulfillmentFee({
-        orderStatus: s.order?.status,
-        shippingFeeType: s.order?.shippingFeeType,
-        jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
-      }),
+  const productIds = [
+    ...new Set(shipments.flatMap((s) => s.items.map((item) => item.productId)).filter(Boolean)),
+  ];
+  let products: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    category: string;
+    unit: string | null;
+    priceTiers: Array<{ id: string; weightGrams: number | null; unit: string; unitQty: number }>;
+    inventoryBalances: Array<{ quantity: number; unit: string | null; lastCountedAt: Date | null }>;
+  }> = [];
+  if (productIds.length) {
+    try {
+      products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          category: true,
+          unit: true,
+          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+          inventoryBalances: {
+            where: { warehouse: { code: 'WH-MAIN' } },
+            select: { quantity: true, unit: true, lastCountedAt: true },
+            take: 1,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('[shipments-queue] product lookup skipped', error);
+    }
+  }
+  const productById = new Map(products.map((product) => [product.id, product]));
+
+  const subscriptionIds = [
+    ...new Set(
+      shipments
+        .map((s) => s.subscriptionShipment?.subscriptionId)
+        .filter((id): id is string => Boolean(id)),
     ),
-  );
+  ];
+  const subscriptionById = new Map<
+    string,
+    { subscriptionNo: string; plan: { name: string; contents: string | null } | null }
+  >();
+  if (subscriptionIds.length) {
+    try {
+      const subscriptions = await prisma.subscription.findMany({
+        where: { id: { in: subscriptionIds } },
+        select: { id: true, subscriptionNo: true, planId: true },
+      });
+      const planIds = [...new Set(subscriptions.map((row) => row.planId))];
+      const plans = planIds.length
+        ? await prisma.subscriptionPlan.findMany({
+            where: { id: { in: planIds } },
+            select: { id: true, name: true, contents: true },
+          })
+        : [];
+      const planById = new Map(plans.map((plan) => [plan.id, plan]));
+      for (const row of subscriptions) {
+        const plan = planById.get(row.planId);
+        subscriptionById.set(row.id, {
+          subscriptionNo: row.subscriptionNo,
+          plan: plan ? { name: plan.name, contents: plan.contents } : null,
+        });
+      }
+    } catch (error) {
+      console.error('[shipments-queue] subscription lookup skipped', error);
+    }
+  }
+
+  const jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
+  const queueRows = shipments.flatMap((s) => {
+    try {
+      return [
+        toQueueRow(
+          s,
+          resolveShipmentFulfillmentFee({
+            orderStatus: s.order?.status,
+            shippingFeeType: s.order?.shippingFeeType,
+            jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
+          }),
+          shipmentInventoryAdvisories(
+            s.items.map((item) => ({
+              ...item,
+              product: productById.get(item.productId) ?? null,
+            })),
+          ),
+          s.subscriptionShipment
+            ? subscriptionById.get(s.subscriptionShipment.subscriptionId) ?? null
+            : null,
+        ),
+      ];
+    } catch (error) {
+      console.error('[shipments-queue] skip row', s.id, error);
+      return [];
+    }
+  });
 
   const workspaceSections = [
     {
