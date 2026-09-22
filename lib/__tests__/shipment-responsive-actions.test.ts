@@ -157,6 +157,23 @@ describe('出貨工作區介面', () => {
     assert.match(action, /data\.packedAt = shipment\.packedAt \?\? now/);
   });
 
+  it('運送中可從左側改回未寄出，且修正前需要確認', () => {
+    const control = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+    const inTransitOptions =
+      control.match(/const QUEUE_IN_TRANSIT_OPTIONS = \[([\s\S]*?)\] as const;/)?.[1] ?? '';
+
+    assert.match(
+      inTransitOptions,
+      /value: 'pending', label: '未寄出'[\s\S]*value: 'shipped', label: '已寄出'[\s\S]*value: 'delivered'/,
+    );
+    assert.match(control, /確認改回未寄出/);
+    assert.match(control, /這是物流狀態修正/);
+    assert.match(control, /移回待出貨/);
+  });
+
   it('資料庫交易提交衝突會短暫退避並自動重試', () => {
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 

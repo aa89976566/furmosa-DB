@@ -19,6 +19,7 @@ const QUEUE_PACKED_OPTIONS = [
 ] as const;
 
 const QUEUE_IN_TRANSIT_OPTIONS = [
+  { value: 'pending', label: '未寄出' },
   { value: 'shipped', label: '已寄出' },
   { value: 'delivered', label: QUEUE_DELIVERED_LABEL },
 ] as const;
@@ -56,7 +57,7 @@ function statusChipClass(active: boolean) {
     : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
-function ConfirmStatusSubmitButton({ next }: { next: 'shipped' | 'delivered' }) {
+function ConfirmStatusSubmitButton({ next }: { next: 'pending' | 'shipped' | 'delivered' }) {
   const { pending } = useFormStatus();
 
   return (
@@ -66,7 +67,13 @@ function ConfirmStatusSubmitButton({ next }: { next: 'shipped' | 'delivered' }) 
       autoFocus
       className="min-h-11 touch-manipulation rounded-xl bg-black px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
     >
-      {pending ? '正在標記…' : next === 'delivered' ? '確認貨物到達' : '確認已寄出'}
+      {pending
+        ? '正在標記…'
+        : next === 'delivered'
+          ? '確認貨物到達'
+          : next === 'pending'
+            ? '確認改為未寄出'
+            : '確認已寄出'}
     </button>
   );
 }
@@ -90,7 +97,9 @@ export function ShipmentQueueStatusSelect({
 }) {
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
-  const [confirmNext, setConfirmNext] = useState<'shipped' | 'delivered' | null>(null);
+  const [confirmNext, setConfirmNext] = useState<
+    'pending' | 'shipped' | 'delivered' | null
+  >(null);
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -127,7 +136,9 @@ export function ShipmentQueueStatusSelect({
               option={option}
               active={active}
               onConfirmStatus={
-                option.value === 'shipped' || option.value === 'delivered'
+                option.value === 'pending' ||
+                option.value === 'shipped' ||
+                option.value === 'delivered'
                   ? () => setConfirmNext(option.value)
                   : undefined
               }
@@ -156,12 +167,18 @@ export function ShipmentQueueStatusSelect({
               onClick={(event) => event.stopPropagation()}
             >
               <h2 id={`confirm-status-${shipmentId}`} className="text-lg font-semibold text-foreground">
-                {confirmNext === 'delivered' ? '確認貨物已到達？' : '確認已完成交寄？'}
+                {confirmNext === 'delivered'
+                  ? '確認貨物已到達？'
+                  : confirmNext === 'pending'
+                    ? '確認改回未寄出？'
+                    : '確認已完成交寄？'}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {confirmNext === 'delivered'
                   ? '確認後會標記為「貨物到達」，並移到待驗收。'
-                  : '確認後會直接標記為「已寄出」，並移到運送中。'}
+                  : confirmNext === 'pending'
+                    ? '這是物流狀態修正。確認後會改為「未寄出」，並移回待出貨。'
+                    : '確認後會直接標記為「已寄出」，並移到運送中。'}
               </p>
               {inventoryWarnings.length > 0 ? (
                 <div className="mt-3 rounded-xl border border-border bg-muted/60 p-3 text-xs leading-relaxed text-foreground">
