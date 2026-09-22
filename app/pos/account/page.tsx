@@ -4,6 +4,8 @@ import { loadPosAccount } from '@/lib/pos/account';
 import { storeHeading } from '@/lib/pos/store-display';
 import { FURMOSA_CONTACT } from '@/lib/pos/contact';
 import { Card, CardContent } from '@/components/ui/card';
+import { ensureMerchantSettings } from '@/lib/restock-request/service';
+import { NotificationSettingsForm } from './notification-settings-form';
 
 export const metadata = { title: '店家資料 · Furmosa' };
 export const dynamic = 'force-dynamic';
@@ -11,6 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function PosAccountPage() {
   const session = await requireMerchantSession();
   const account = await loadPosAccount(session.merchantId, session.username);
+  const settings = await ensureMerchantSettings(session.merchantId);
   const heading = storeHeading({ name: account.storeName, city: account.storeCity });
 
   return (
@@ -25,6 +28,14 @@ export default async function PosAccountPage() {
             {account.phone ? <Row label="電話" value={account.phone} /> : null}
             {account.address ? <Row label="地址" value={account.address} /> : null}
             <Row label="店員帳號" value={account.username} />
+          </CardContent>
+        </Card>
+        <Card className="shadow-card">
+          <CardContent className="p-5 text-sm">
+            <NotificationSettingsForm
+              enabled={settings.lineNotificationEnabled}
+              lineUserId={settings.bookingNotifyLineUserId ?? ''}
+            />
           </CardContent>
         </Card>
         <Card className="shadow-card">
