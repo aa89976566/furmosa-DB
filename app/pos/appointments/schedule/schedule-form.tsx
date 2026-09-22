@@ -16,7 +16,6 @@ export function ScheduleForm(props: {
   slotMinutes: number;
   capacityPerSlot: number;
   weekdays: string;
-  bookingNotifyLineUserId: string;
 }) {
   const [state, action] = useFormState(saveBookingScheduleAction, initial);
 
@@ -90,21 +89,6 @@ export function ScheduleForm(props: {
           className="h-11"
           required
         />
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-sm font-medium" htmlFor="bookingNotifyLineUserId">
-          店家 LINE 通知（選填）
-        </label>
-        <Input
-          id="bookingNotifyLineUserId"
-          name="bookingNotifyLineUserId"
-          defaultValue={props.bookingNotifyLineUserId}
-          placeholder="U 開頭的 LINE User ID"
-          className="h-11"
-        />
-        <p className="text-xs text-muted-foreground">
-          填寫後會收到新預約及補貨出貨通知。可向 Furmosa 索取店家綁定用 ID。
-        </p>
       </div>
       {state.error ? (
         <p className="text-sm text-destructive">{state.error}</p>
