@@ -111,6 +111,11 @@ function ShipmentStatusControl({
       status={shipment.status}
       queueStatus={queueStatus}
       queueType={queueType}
+      orderNumber={shipment.order?.displayOrderNumber || shipment.order?.orderNumber || shipment.shipmentNumber}
+      carrier={shipment.carrier}
+      shippingMethod={shipment.order?.shippingMethod}
+      cvsBrand={shipment.order?.cvsBrand}
+      trackingNumber={shipment.trackingNumber}
       paymentReviewHold={Boolean(shipment.paymentReviewHold)}
       inventoryWarnings={shipment.inventoryWarnings}
       className="max-w-none"

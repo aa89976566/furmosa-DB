@@ -27,6 +27,7 @@ import {
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { getCurrentUser } from '@/lib/auth';
+import { orderStatusChangeError } from '@/lib/shipment-dispatch';
 import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
 import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
@@ -329,6 +330,7 @@ export async function updateOrderStatus(formData: FormData) {
   const orderId = String(formData.get('orderId') ?? '');
   const next = String(formData.get('status') ?? '');
   if (!orderId) throw new Error('缺少訂單');
+  const actor = await getCurrentUser();
   await assertLegacyOrderActionAllowed(orderId);
   if (!(VALID_ORDER_STATUSES as readonly string[]).includes(next)) {
     throw new Error('訂單狀態錯誤');
@@ -348,6 +350,15 @@ export async function updateOrderStatus(formData: FormData) {
     },
   });
   if (!order) throw new Error('訂單不存在');
+  const reason = String(formData.get('reason') ?? '').trim();
+  const statusError = orderStatusChangeError({
+    role: actor?.role,
+    current: order.status,
+    next,
+    reason,
+    confirmed: formData.get('statusChangeConfirmed') === '1',
+  });
+  if (statusError) throw new Error(statusError);
   if (order.shipments.length > 0 && ['shipped', 'delivered', 'completed'].includes(next)) {
     throw new Error('此訂單已有出貨單，請到出貨隊列更新物流狀態');
   }
@@ -375,6 +386,19 @@ export async function updateOrderStatus(formData: FormData) {
   await prisma.$transaction(async (tx) => {
     await guardLegacyOrderTx(tx, orderId);
     await tx.order.update({ where: { id: orderId }, data });
+    if (actor && order.status !== next) {
+      await tx.statusAuditLog.create({
+        data: {
+          entityType: 'order',
+          entityId: orderId,
+          previousStatus: order.status,
+          newStatus: next,
+          actorType: 'supervisor',
+          actorId: actor.userId,
+          metadataJson: JSON.stringify({ reason: reason || null }),
+        },
+      });
+    }
 
     if (shipmentUpdate) {
       await tx.shipment.updateMany({

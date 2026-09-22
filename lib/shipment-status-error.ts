@@ -37,6 +37,10 @@ export function shipmentStatusErrorMessage(error: unknown): string {
     return "無法寄出：商品重量規格與 HQ 庫存不一致，請先修正商品規格。";
   }
 
+  if (message.includes("已出貨不能退回")) {
+    return "撤回沒有成功，這張單仍維持原狀態。庫存帳需要先套用已核准的反向帳修正，才能退回待出貨。";
+  }
+
   return message.slice(0, 160);
 }
 

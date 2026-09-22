@@ -106,16 +106,15 @@ describe('出貨工作區介面', () => {
 
     assert.match(source, /case 'pending':\s*return \['shipped', 'cancelled'\]/);
     assert.doesNotMatch(source, /case 'pending':\s*return \['packed'/);
-    assert.match(control, /確認已完成交寄/);
+    const handoff = readFileSync('components/shipments/handoff-control.tsx', 'utf8');
+    assert.match(handoff, /確認已完成交寄/);
     assert.match(control, /確認貨物已到達/);
     assert.match(control, /確認後會標記為「貨物到達」，並移到待驗收/);
     assert.match(control, /role="dialog"/);
-    assert.match(control, /createPortal/);
+    assert.match(handoff, /type="button"/);
+    assert.doesNotMatch(handoff, /autoFocus/);
     assert.doesNotMatch(control, /window\.confirm\(`確定已完成交寄/);
-    assert.doesNotMatch(
-      control.match(/if \(input\.next === 'shipped'\) \{([\s\S]*?)\n  \}/)?.[1] ?? '',
-      /params\.set\('s'/,
-    );
+    assert.doesNotMatch(control, /action=\{markShipmentStatus\}/);
   });
 
   it('狀態更新後保留訂單種類，到達後留在待驗收', () => {
@@ -129,8 +128,9 @@ describe('出貨工作區介面', () => {
     assert.match(panel, /name="queueType" value=\{queueType\}/);
     assert.match(actions, /params\.set\('status', 'delivered'\)/);
     assert.match(actions, /params\.set\('type', queueType\)/);
-    assert.match(inlineControl, /name="queueType" value=\{queueType\}/);
-    assert.match(inlineControl, /name="inline" value="1"/);
+    assert.match(actions, /handoffConfirmed/);
+    assert.match(inlineControl, /type="button"/);
+    assert.doesNotMatch(inlineControl, /autoFocus/);
   });
 
   it('OMS 尚未建立出貨單時顯示審核入口，不顯示舊流程按鈕', () => {
@@ -150,11 +150,11 @@ describe('出貨工作區介面', () => {
 
     assert.doesNotMatch(control, /label: '完成備貨'/);
     assert.doesNotMatch(control, /label: '已備妥'/);
-    assert.match(control, /value: 'pending', label: '未寄出'/);
-    assert.match(control, /value: 'packed', label: '未寄出'/);
-    assert.equal((control.match(/value: 'shipped', label: '已寄出'/g) ?? []).length >= 2, true);
+    assert.match(control, /未寄出/);
+    assert.match(control, /已寄出/);
     assert.match(action, /pending: \['packed', 'shipped', 'cancelled'\]/);
     assert.match(action, /data\.packedAt = shipment\.packedAt \?\? now/);
+    assert.match(action, /請先確認已交寄，系統不會自動標記為已寄出/);
   });
 
   it('運送中可從左側改回未寄出，且修正前需要確認', () => {
@@ -162,16 +162,11 @@ describe('出貨工作區介面', () => {
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
     );
-    const inTransitOptions =
-      control.match(/const QUEUE_IN_TRANSIT_OPTIONS = \[([\s\S]*?)\] as const;/)?.[1] ?? '';
-
-    assert.match(
-      inTransitOptions,
-      /value: 'pending', label: '未寄出'[\s\S]*value: 'shipped', label: '已寄出'[\s\S]*value: 'delivered'/,
-    );
+    assert.match(control, /status === 'shipped' \|\| status === 'delivered'/);
     assert.match(control, /確認改回未寄出/);
     assert.match(control, /這是物流狀態修正/);
     assert.match(control, /移回待出貨/);
+    assert.match(control, /correctionConfirmed/);
   });
 
   it('資料庫交易提交衝突會短暫退避並自動重試', () => {
@@ -188,9 +183,10 @@ describe('出貨工作區介面', () => {
     assert.match(action, /const useShortAtomicCommit = Boolean/);
     assert.match(action, /!shipment\.order\?\.omsStatus/);
     assert.match(action, /!shipment\.subscriptionShipmentId/);
-    assert.match(action, /prisma\.\$transaction\(\[\s*prisma\.shipment\.update/);
-    assert.match(action, /prisma\.order\.update/);
-    assert.match(action, /assertShipmentStatusPersisted\(updatedShipment\.status, next\)/);
+    assert.match(action, /persistShipmentStatus/);
+    assert.match(action, /where: \{ id: input\.shipmentId, status: input\.expectedStatus \}/);
+    assert.match(action, /tx\.order\.update/);
+    assert.match(action, /assertShipmentStatusPersisted\(row\?\.status \?\? null, input\.next\)/);
   });
 
   it('舊單缺少單件規格時，先在同一交易補回唯一規格再寄出', () => {
@@ -199,7 +195,7 @@ describe('出貨工作區介面', () => {
     assert.match(action, /resolveLegacyPieceVariantRepairs/);
     assert.match(action, /shipmentItem\.updateMany/);
     assert.match(action, /where: \{ id: repair\.itemId, variantKey: null \}/);
-    assert.match(action, /if \(legacyPieceRepairs\.length > 0\)/);
+    assert.match(action, /for \(const repair of legacyPieceRepairs\)/);
     assert.match(action, /commitShipmentStatus\(async \(tx\)/);
   });
 
@@ -210,15 +206,16 @@ describe('出貨工作區介面', () => {
     );
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
-    assert.match(control, /import \{ markShipmentStatus \}/);
-    assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 2);
-    assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
-    assert.match(control, /name="next" value=\{confirmNext\}/);
-    assert.match(control, /type="submit"/);
-    assert.doesNotMatch(control, /form=\{formId\}/);
+    const handoff = readFileSync('components/shipments/handoff-control.tsx', 'utf8');
+    assert.match(handoff, /markShipmentStatusFromQueue/);
+    assert.match(handoff, /handoffConfirmed/);
+    assert.match(handoff, /type="button"/);
+    assert.doesNotMatch(handoff, /autoFocus/);
+    assert.doesNotMatch(handoff, /<form/);
+    assert.match(control, /type="button"/);
+    assert.doesNotMatch(control, /<form/);
     assert.match(control, /確認貨物到達/);
-    assert.match(control, /確認已寄出/);
-    assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
+    assert.match(handoff, /確認已寄出/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });
 });

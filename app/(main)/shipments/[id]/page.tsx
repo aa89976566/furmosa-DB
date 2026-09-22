@@ -497,6 +497,9 @@ export default async function ShipmentDetailPage(
               defaultPickupName={shipCarrierDefaults.pickupName}
               defaultPickupPhone={shipCarrierDefaults.pickupPhone}
               inventoryWarnings={inventoryWarnings}
+              orderNumber={orderDisplayNumber || shipment.shipmentNumber}
+              shippingMethod={order?.shippingMethod}
+              cvsBrand={order?.cvsBrand}
             />
           </SectionCard>
         )}

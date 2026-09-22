@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { parseShopifyAuditMetadata, SHOPIFY_AUDIT_METADATA_KEYS } from '@/lib/shopify/event-version';
-import { selectLinkedCustomerShipment } from '@/lib/shopify/shipment-events';
+import { mapShopifyFulfillmentStatus, selectLinkedCustomerShipment } from '@/lib/shopify/shipment-events';
 import { processShopifyWebhook } from '@/lib/shopify/webhook-process';
 import type { MatchableProduct } from '@/lib/shopify/match-line-item';
 import type { ShopifyOrderRecord } from '@/lib/shopify/webhook-store';
@@ -101,6 +101,39 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
     assert.equal(selectLinkedCustomerShipment(baseOrder([pending, cancelled, packed]))?.id, 'shp_packed');
     assert.equal(selectLinkedCustomerShipment(baseOrder([cancelled]))?.id, 'shp_old');
     assert.equal(selectLinkedCustomerShipment(baseOrder([])), null);
+  });
+
+  it('does not mark a fulfillment success without carrier scan as handed over', async () => {
+    assert.equal(mapShopifyFulfillmentStatus({ id: 1, order_id: 1, status: 'success' }), 'packed');
+    assert.equal(
+      mapShopifyFulfillmentStatus({ id: 1, order_id: 1, status: 'success', shipment_status: 'label_printed' }),
+      'packed',
+    );
+    assert.equal(
+      mapShopifyFulfillmentStatus({ id: 1, order_id: 1, status: 'success', shipment_status: 'label_purchased' }),
+      'packed',
+    );
+    assert.equal(
+      mapShopifyFulfillmentStatus({ id: 1, order_id: 1, status: 'success', shipment_status: 'in_transit' }),
+      'shipped',
+    );
+
+    const store = new FakeShopifyStore();
+    store.seedOrder(baseOrder([sampleShipment('pending')]));
+    const created = await processShopifyWebhook(
+      requestFor(
+        'fulfillments/create',
+        { id: 9, order_id: 2001, status: 'success', updated_at: '2026-09-01T07:00:00Z' },
+        'wh-label-only',
+      ),
+      'fulfillments/create',
+      { db: store, secret: SECRET },
+    );
+    assert.equal(created.status, 200);
+    const shipment = store.getOrder(SHOP, '2001')?.shipments[0];
+    assert.equal(shipment?.status, 'packed');
+    assert.equal(shipment?.shippedAt, null);
+    assert.equal(store.inventoryWrites, 0);
   });
 
   it('targets only the live shipment when a cancelled row and a new active row both exist', async () => {

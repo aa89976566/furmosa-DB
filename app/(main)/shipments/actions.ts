@@ -1,7 +1,13 @@
 'use server';
 import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 
+import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import {
+  canMarkHandedOver,
+  canOperateShipment,
+  isValidTrackingNumber,
+} from '@/lib/shipment-dispatch';
 import {
   has711PickupInfo,
   hasConveniencePickupReady,
@@ -105,6 +111,42 @@ async function commitShipmentStatus(
 ) {
   await retryShipmentCommit(async () => {
     await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
+  });
+}
+
+async function persistShipmentStatus(
+  tx: Prisma.TransactionClient,
+  input: {
+    shipmentId: string;
+    expectedStatus: string;
+    next: string;
+    data: Prisma.ShipmentUpdateInput;
+    actorId: string;
+    metadata: Record<string, unknown>;
+  },
+) {
+  const updated = await tx.shipment.updateMany({
+    where: { id: input.shipmentId, status: input.expectedStatus },
+    data: input.data,
+  });
+  if (updated.count !== 1) {
+    throw new Error('出貨狀態已變更，請重新整理後再試');
+  }
+  const row = await tx.shipment.findUnique({
+    where: { id: input.shipmentId },
+    select: { status: true },
+  });
+  assertShipmentStatusPersisted(row?.status ?? null, input.next);
+  await tx.statusAuditLog.create({
+    data: {
+      entityType: 'shipment',
+      entityId: input.shipmentId,
+      previousStatus: input.expectedStatus,
+      newStatus: input.next,
+      actorType: 'supervisor',
+      actorId: input.actorId,
+      metadataJson: JSON.stringify(input.metadata),
+    },
   });
 }
 
@@ -218,6 +260,13 @@ async function markShipmentStatusInner(
     },
   });
   if (!shipment) throw new Error('出貨單不存在');
+  const actor = await getCurrentUser();
+  if (!actor || !canOperateShipment(actor.role)) {
+    throw new Error('沒有變更物流狀態的權限');
+  }
+  if (shipment.status === 'shipped' && next === 'shipped') {
+    return { next, shipmentId };
+  }
   if (shipment.order?.omsStatus && !isOmsShipmentActionable(shipment.order.omsStatus)) {
     throw new Error('請先到訂單頁完成 OMS 審核並建立出貨單，再進行備貨與寄出');
   }
@@ -231,9 +280,40 @@ async function markShipmentStatusInner(
     throw new Error('狀態錯誤');
   }
 
+  const isShippingCorrection =
+    next === 'pending' && ['shipped', 'delivered'].includes(shipment.status);
+  const labelOnly =
+    next === 'packed' &&
+    shipment.status === 'packed' &&
+    formData.get('labelIntent') === '1';
   const allowed = TRANSITIONS[shipment.status] ?? [];
-  if (!allowed.includes(next)) {
+  if (!labelOnly && !allowed.includes(next)) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
+  }
+  if (isShippingCorrection) {
+    if (formData.get('correctionConfirmed') !== '1') {
+      throw new Error('請確認這是誤設出貨後的狀態修正');
+    }
+    if (!note) {
+      throw new Error('請填寫撤回原因，作為物流與庫存修正紀錄');
+    }
+  }
+  if (next === 'packed' && formData.get('labelIntent') === '1' && !isValidTrackingNumber(trackingNumber)) {
+    throw new Error('請填寫有效物流單號後才能建立寄件單');
+  }
+  if (next === 'shipped') {
+    if (formData.get('handoffConfirmed') !== '1') {
+      throw new Error('請先確認已交寄，系統不會自動標記為已寄出');
+    }
+    const effectiveTracking = trackingNumber ?? shipment.trackingNumber;
+    if (
+      !canMarkHandedOver({
+        trackingNumber: effectiveTracking,
+        explicitHandoff: formData.get('explicitHandoff') === '1',
+      })
+    ) {
+      throw new Error('請先建立寄件單並填寫有效物流單號，或明確確認已交寄');
+    }
   }
   if (
     next === 'shipped' &&
@@ -403,42 +483,39 @@ async function markShipmentStatusInner(
       !(shipment.order?.externalStore && shipment.order?.externalOrderId),
   );
 
+  const auditMetadata = {
+    shipmentNumber: shipment.shipmentNumber,
+    orderNumber: shipment.order?.orderNumber ?? null,
+    carrier: carrier ?? shipment.carrier,
+    trackingNumber: trackingNumber ?? shipment.trackingNumber,
+    note,
+    handoffConfirmed: formData.get('handoffConfirmed') === '1',
+    explicitHandoff: formData.get('explicitHandoff') === '1',
+    labelIntent: formData.get('labelIntent') === '1',
+    correction: isShippingCorrection,
+  };
+
   if (useShortAtomicCommit && shipment.orderId && orderUpdate) {
-    if (legacyPieceRepairs.length > 0) {
-      await commitShipmentStatus(async (tx) => {
-        for (const repair of legacyPieceRepairs) {
-          await tx.shipmentItem.updateMany({
-            where: { id: repair.itemId, variantKey: null },
-            data: { variantKey: repair.variantKey },
-          });
-        }
-        const updatedShipment = await tx.shipment.update({
-          where: { id: shipmentId },
-          data,
-          select: { status: true },
+    await commitShipmentStatus(async (tx) => {
+      for (const repair of legacyPieceRepairs) {
+        await tx.shipmentItem.updateMany({
+          where: { id: repair.itemId, variantKey: null },
+          data: { variantKey: repair.variantKey },
         });
-        await tx.order.update({
-          where: { id: shipment.orderId! },
-          data: orderUpdate,
-        });
-        assertShipmentStatusPersisted(updatedShipment.status, next);
+      }
+      await persistShipmentStatus(tx, {
+        shipmentId,
+        expectedStatus: shipment.status,
+        next,
+        data,
+        actorId: actor.userId,
+        metadata: auditMetadata,
       });
-    } else {
-      await retryShipmentCommit(async () => {
-        const [updatedShipment] = await prisma.$transaction([
-          prisma.shipment.update({
-            where: { id: shipmentId },
-            data,
-            select: { status: true },
-          }),
-          prisma.order.update({
-            where: { id: shipment.orderId! },
-            data: orderUpdate,
-          }),
-        ]);
-        assertShipmentStatusPersisted(updatedShipment.status, next);
+      await tx.order.update({
+        where: { id: shipment.orderId! },
+        data: orderUpdate,
       });
-    }
+    });
   } else {
     // 先完成狀態更新；庫存寫入失敗不可讓「已寄出」整頁炸掉
     await commitShipmentStatus(async (tx) => {
@@ -461,12 +538,14 @@ async function markShipmentStatusInner(
           await guardLegacyOrderTx(tx, shipment.orderId);
         }
       }
-      const updatedShipment = await tx.shipment.update({
-        where: { id: shipmentId },
+      await persistShipmentStatus(tx, {
+        shipmentId,
+        expectedStatus: shipment.status,
+        next,
         data,
-        select: { status: true },
+        actorId: actor.userId,
+        metadata: auditMetadata,
       });
-      assertShipmentStatusPersisted(updatedShipment.status, next);
 
       if (shipment.orderId) {
         if (orderUpdate) {

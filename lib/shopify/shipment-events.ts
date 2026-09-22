@@ -57,7 +57,9 @@ export function mapShopifyFulfillmentStatus(fulfillment: ShopifyFulfillmentPaylo
   ) {
     return 'packed';
   }
-  if (status === 'success') return 'shipped';
+  // Shopify fulfillment status=success 只代表履約紀錄建立成功（含只印標籤），
+  // 不是貨物已交給物流。沒有 in_transit / delivered 時停在已建立寄件單。
+  if (status === 'success') return 'packed';
   if (status === 'pending' || status === 'open') return 'pending';
   return null;
 }

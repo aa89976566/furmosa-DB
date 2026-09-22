@@ -35,6 +35,10 @@ import {
   resolveShipmentFulfillmentFee,
 } from '@/lib/campaigns/jiba-two-piece/shipment-charge';
 import { shipmentStatusLabel, shipmentStatusVariant } from '@/lib/shipment';
+import { buildFulfillmentTimeline } from '@/lib/shipment-dispatch';
+import { CopyField } from '@/components/orders/copy-field';
+import { FulfillmentTimeline } from '@/components/orders/fulfillment-timeline';
+import { OrderDispatchBar, OrderShipmentCorrection } from '@/components/orders/order-dispatch-bar';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -91,6 +95,27 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
 
   const editable = isOrderEditable(order);
   const latestShipment = order.shipments[0];
+  const activeShipment = order.shipments.find((shipment) => shipment.status !== 'cancelled') ?? null;
+  const fulfillmentSteps = buildFulfillmentTimeline({
+    paymentStatus: order.paymentStatus,
+    orderedAt: order.orderedAt,
+    orderStatus: order.status,
+    shipmentStatus: activeShipment?.status,
+    packedAt: activeShipment?.packedAt,
+    shippedAt: activeShipment?.shippedAt ?? order.shippedAt,
+    deliveredAt: activeShipment?.deliveredAt,
+    trackingNumber: activeShipment?.trackingNumber,
+  });
+  const dispatchShipment = activeShipment
+    ? {
+        id: activeShipment.id,
+        status: activeShipment.status,
+        carrier: activeShipment.carrier,
+        trackingNumber: activeShipment.trackingNumber,
+        shippingMethod: order.shippingMethod,
+        cvsBrand: order.cvsBrand,
+      }
+    : null;
   const recipientName =
     (order.omsStatus
       ? normalizeStoredShopifyRecipient(latestShipment?.recipientName, order.shopifySnapshot)
@@ -147,7 +172,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           <div className="text-right"><p className="text-xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p><div className="mt-1"><StatusBadge kind="payment" value={order.paymentStatus} /></div></div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+      <main className="mx-auto max-w-6xl space-y-4 p-4 pb-28 sm:p-6">
+        <section className="space-y-3 rounded-xl border bg-card p-4">
+          <p className="text-sm text-muted-foreground">建立時間 {formatDateTime(order.orderedAt)}</p>
+          <FulfillmentTimeline steps={fulfillmentSteps} />
+        </section>
         {order.archivedAt ? <p className="rounded-lg border bg-muted/40 p-3 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p> : null}
         {order.deletedAt ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">此訂單已從 HQ 刪除，不會進入待審核或出貨流程。</p> : null}
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
@@ -186,18 +215,26 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="flex justify-between gap-3"><span className="min-w-0 truncate">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></li>)}</ul></div>
                 <div className="border-t pt-3">
                   <p className="text-xs text-muted-foreground">收件與配送</p>
-                  <p>{sourceView?.recipient || order.customer?.name || '收件人待補'} · {sourceView?.phone || order.customer?.phone || '電話待補'}</p>
-                  <p className="mt-1 break-words text-muted-foreground">{sourceView?.address || '地址待補'}</p>
+                  <div className="mt-2 grid gap-2">
+                    <CopyField label="收件人" value={sourceView?.recipient || order.customer?.name || ''} />
+                    <CopyField label="電話" value={sourceView?.phone || order.customer?.phone || ''} />
+                    <CopyField label="地址" value={sourceView?.address || ''} />
+                  </div>
                 </div>
                 <div className="border-t pt-3"><p className="text-xs text-muted-foreground">下單時間</p><p>{formatDateTime(order.orderedAt)}</p></div>
                 {order.omsReviewedAt ? <div className="border-t pt-3"><p className="text-xs text-muted-foreground">審核</p><p>{order.omsReviewedBy?.name || '原審核者帳號已不存在'} · {formatDateTime(order.omsReviewedAt)}</p></div> : null}
               </div>
             </section>
             <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
+            {activeShipment ? <OrderShipmentCorrection shipmentId={activeShipment.id} status={activeShipment.status} /> : null}
             {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
           </aside>
         </div>
       </main>
+      <OrderDispatchBar
+        orderNumber={order.externalOrderName || order.orderNumber}
+        shipment={dispatchShipment}
+      />
     </>;
   }
 
@@ -209,22 +246,6 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         description={order.merchant ? '店家訂單' : '客戶訂單'}
         actions={
           <div className="flex flex-wrap gap-2">
-            {editable.ok && !order.omsStatus ? (
-              <Button variant="default" size="sm" asChild>
-                <Link href={`/orders/${order.id}/edit`}>
-                  <Pencil className="mr-1 h-4 w-4" />
-                  修改訂單
-                </Link>
-              </Button>
-            ) : null}
-            {!order.omsStatus ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/orders/new?copyFrom=${encodeURIComponent(order.id)}`}>
-                  <CopyPlus className="mr-1 h-4 w-4" />
-                  複製訂單
-                </Link>
-              </Button>
-            ) : null}
             <Button variant="outline" size="sm" asChild>
               <Link href="/orders">
                 <ArrowLeft className="mr-1 h-4 w-4" />
@@ -235,7 +256,17 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         }
       />
 
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-6 p-6 pb-28">
+        <section aria-label="訂單識別" className="rounded-xl border bg-card px-4 py-4 sm:px-5">
+          <p className="text-xs text-muted-foreground">訂單編號</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h2 className="font-mono text-2xl font-semibold tracking-tight">{order.orderNumber}</h2>
+            <StatusBadge kind="order" value={order.status} />
+            <StatusBadge kind="payment" value={order.paymentStatus} />
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">建立時間 {formatDateTime(order.orderedAt)}</p>
+        </section>
+        <FulfillmentTimeline steps={fulfillmentSteps} />
         {order.archivedAt && <p className="rounded border bg-muted/40 p-4 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p>}
         {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
 
@@ -256,10 +287,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               ) : (
                 <p className="mt-1 text-base font-semibold">待補資料</p>
               )}
-              <dl className="mt-3 space-y-2 text-sm">
-                <div><dt className="text-xs text-muted-foreground">聯絡人</dt><dd>{recipientName || '待補'}</dd></div>
-                <div><dt className="text-xs text-muted-foreground">電話</dt><dd className="font-mono">{recipientPhone || '待補'}</dd></div>
-              </dl>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <CopyField label="收件人" value={recipientName} />
+                <CopyField label="電話" value={recipientPhone} />
+                <CopyField label="地址" value={recipientAddress} />
+              </div>
               <Button className="mt-4" variant="outline" size="sm" asChild>
                 <Link href={order.merchant ? `/merchants/${order.merchant.id}` : `/orders/${order.id}/edit`}>
                   修改聯絡資料
@@ -313,7 +345,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         </section>
         {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && (!order.omsStatus || ['NEW', 'REVIEW'].includes(order.omsStatus)))) ? <div className="ml-auto w-full max-w-sm"><OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /></div> : null}
         {order.omsStatus && <div className="ml-auto max-w-sm"><OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} /></div>}
-        <SecondaryInformation>
+        <SecondaryInformation
+          orderId={order.id}
+          editable={editable.ok}
+          shipmentId={activeShipment?.id}
+          shipmentStatus={activeShipment?.status}
+        >
         <HorizontalSectionBand>
           <HorizontalSectionPane tone="orders" icon={ClipboardList} title="訂單摘要">
             <DetailBadgeRow className="mb-3">
@@ -621,6 +658,18 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             ) : null;
           })()}
 
+          <ul className="mb-4 space-y-2 md:hidden">
+            {order.items.map((it) => (
+              <li key={`scan-${it.id}`} className="flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{it.sku || 'SKU 未填'}</p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold tabular-nums">× {it.quantity}</p>
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -719,6 +768,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               })}
             </TableBody>
           </Table>
+          </div>
 
           <div className="mt-6 ml-auto w-full max-w-xs">
             {order.omsStatus ? (
@@ -808,14 +858,52 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </div>
         </SectionCard>
       </div>
+      <OrderDispatchBar
+        orderNumber={order.orderNumber}
+        shipment={dispatchShipment}
+        paymentReviewHold={fulfillmentFee.paymentReviewHold}
+      />
     </>
   );
 }
 
-function SecondaryInformation({ children }: { children: ReactNode }) {
+function SecondaryInformation({
+  children,
+  orderId,
+  editable,
+  shipmentId,
+  shipmentStatus,
+}: {
+  children: ReactNode;
+  orderId: string;
+  editable: boolean;
+  shipmentId?: string;
+  shipmentStatus?: string;
+}) {
   return <details className="order-last rounded-xl border bg-muted/10 p-4">
     <summary className="cursor-pointer font-medium">更多管理工具</summary>
-    <p className="mt-2 text-xs text-muted-foreground">修改舊流程狀態、運費或核對完整物流資料時再展開。</p>
+    <p className="mt-2 text-xs text-muted-foreground">修改、備註、取消與物流狀態修改放在這裡，避免和交寄操作擠在一起。</p>
+    <div className="mt-4 flex flex-wrap gap-2">
+      {editable ? (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/orders/${orderId}/edit`}>
+            <Pencil className="mr-1 h-4 w-4" />
+            修改訂單
+          </Link>
+        </Button>
+      ) : null}
+      <Button variant="outline" size="sm" asChild>
+        <Link href={`/orders/new?copyFrom=${encodeURIComponent(orderId)}`}>
+          <CopyPlus className="mr-1 h-4 w-4" />
+          複製訂單
+        </Link>
+      </Button>
+    </div>
+    {shipmentId && shipmentStatus ? (
+      <div className="mt-4">
+        <OrderShipmentCorrection shipmentId={shipmentId} status={shipmentStatus} />
+      </div>
+    ) : null}
     <div className="mt-4">{children}</div>
   </details>;
 }
