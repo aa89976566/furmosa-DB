@@ -12,6 +12,50 @@ export type MerchantEvent = {
   hqNote: string | null;
 };
 
+export type MerchantEventPreview = Pick<
+  MerchantEvent,
+  'id' | 'title' | 'statusLabel' | 'occurredAt' | 'href'
+>;
+
+const SHIPMENT_PRESENTATION: Record<
+  string,
+  { title: string; status: string; action: boolean }
+> = {
+  pending: { title: '匠寵已建立出貨單', status: '等待備貨', action: false },
+  packed: { title: '商品已完成備貨', status: '已備妥', action: false },
+  shipped: { title: '商品已出貨', status: '運送中', action: false },
+  delivered: { title: '商品已送達，請確認收貨', status: '待驗收', action: true },
+  received: { title: '店家已完成收貨', status: '已收貨', action: false },
+  cancelled: { title: '出貨單已取消', status: '已取消', action: false },
+};
+
+const REQUEST_PRESENTATION: Record<
+  string,
+  { title: string; status: string; action: boolean }
+> = {
+  submitted: { title: '補貨申請已送出', status: '等待匠寵審核', action: false },
+  under_review: { title: '匠寵正在審核補貨申請', status: '審核中', action: false },
+  approved: { title: '補貨申請已核准', status: '已核准', action: false },
+  rejected: { title: '補貨申請未核准', status: '請查看回覆', action: true },
+  cancelled: { title: '補貨申請已取消', status: '已取消', action: false },
+};
+
+function shipmentPresentation(status: string) {
+  return SHIPMENT_PRESENTATION[status] ?? {
+    title: '出貨狀態已更新',
+    status,
+    action: false,
+  };
+}
+
+function requestPresentation(status: string) {
+  return REQUEST_PRESENTATION[status] ?? {
+    title: '補貨申請狀態已更新',
+    status,
+    action: false,
+  };
+}
+
 type ShipmentSummary = {
   id: string;
   shipmentNumber: string;
@@ -97,29 +141,85 @@ export function shipmentEvent(
   shipment: ShipmentSummary,
   href: string | null,
 ): MerchantEvent {
-  const presentation: Record<string, { title: string; status: string; action: boolean }> = {
-    pending: { title: '匠寵已建立出貨單', status: '等待備貨', action: false },
-    packed: { title: '商品已完成備貨', status: '已備妥', action: false },
-    shipped: { title: '商品已出貨', status: '運送中', action: false },
-    delivered: { title: '商品已送達，請確認收貨', status: '待驗收', action: Boolean(href) },
-    received: { title: '店家已完成收貨', status: '已收貨', action: false },
-    cancelled: { title: '出貨單已取消', status: '已取消', action: false },
-  };
-  const state = presentation[shipment.status] ?? {
-    title: '出貨狀態已更新',
-    status: shipment.status,
-    action: false,
-  };
+  const state = shipmentPresentation(shipment.status);
   return {
     id: `shipment-${shipment.id}`,
     title: state.title,
     detail: `${shipment.shipmentNumber} · ${itemSummary(shipment.items)}`,
     statusLabel: state.status,
     occurredAt: shipment.updatedAt,
-    actionRequired: state.action,
+    actionRequired: state.action && Boolean(href),
     href,
     hqNote: null,
   };
+}
+
+/**
+ * 通知鈴鐺專用輕量查詢。不載入品項、庫存入帳證據或 HQ 備註，
+ * 避免每個 POS 頁面為了 5 則預覽重複執行完整通知頁的查詢。
+ */
+export async function loadMerchantEventPreviews(
+  merchantId: string,
+  take = 5,
+): Promise<MerchantEventPreview[]> {
+  const candidateTake = Math.max(1, take);
+  const [requests, directShipments] = await Promise.all([
+    prisma.restockRequest.findMany({
+      where: { merchantId },
+      orderBy: { updatedAt: 'desc' },
+      take: candidateTake,
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+        shipment: {
+          select: { id: true, status: true, updatedAt: true },
+        },
+      },
+    }),
+    prisma.shipment.findMany({
+      where: { merchantId, type: 'merchant_restock', restockRequest: null },
+      orderBy: { updatedAt: 'desc' },
+      take: candidateTake,
+      select: { id: true, status: true, updatedAt: true },
+    }),
+  ]);
+
+  const requestEvents = requests.map<MerchantEventPreview>((request) => {
+    if (request.shipment) {
+      const state = shipmentPresentation(request.shipment.status);
+      return {
+        id: `shipment-${request.shipment.id}`,
+        title: state.title,
+        statusLabel: state.status,
+        occurredAt: request.shipment.updatedAt,
+        href: `/pos/restock/${request.id}`,
+      };
+    }
+    const state = requestPresentation(request.status);
+    return {
+      id: `request-${request.id}`,
+      title: state.title,
+      statusLabel: state.status,
+      occurredAt: request.updatedAt,
+      href: `/pos/restock/${request.id}`,
+    };
+  });
+
+  const directEvents = directShipments.map<MerchantEventPreview>((shipment) => {
+    const state = shipmentPresentation(shipment.status);
+    return {
+      id: `shipment-${shipment.id}`,
+      title: state.title,
+      statusLabel: state.status,
+      occurredAt: shipment.updatedAt,
+      href: `/pos/shipments/${shipment.id}`,
+    };
+  });
+
+  return [...requestEvents, ...directEvents]
+    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
+    .slice(0, take);
 }
 
 export async function loadMerchantEvents(merchantId: string): Promise<MerchantEvent[]> {
@@ -184,18 +284,7 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
         detail: adjustment ? `${event.detail} · ${adjustment}` : event.detail,
       };
     }
-    const presentation: Record<string, { title: string; status: string; action: boolean }> = {
-      submitted: { title: '補貨申請已送出', status: '等待匠寵審核', action: false },
-      under_review: { title: '匠寵正在審核補貨申請', status: '審核中', action: false },
-      approved: { title: '補貨申請已核准', status: '已核准', action: false },
-      rejected: { title: '補貨申請未核准', status: '請查看回覆', action: true },
-      cancelled: { title: '補貨申請已取消', status: '已取消', action: false },
-    };
-    const state = presentation[request.status] ?? {
-      title: '補貨申請狀態已更新',
-      status: request.status,
-      action: false,
-    };
+    const state = requestPresentation(request.status);
     const items = request.items.map((item) => ({
       productName: item.product.name,
       quantity: item.requestedQuantity ?? 0,

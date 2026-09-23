@@ -15,7 +15,6 @@ import { ProductCover } from '@/components/pos/product-cover';
 type Phase = 'edit' | 'confirm' | 'done';
 
 export function CounterTicket({
-  storeName,
   lines,
   phase,
   error,
@@ -25,7 +24,6 @@ export function CounterTicket({
   onCancelConfirm,
   onNewTicket,
 }: {
-  storeName: string;
   lines: CounterCartLine[];
   phase: Phase;
   error: string | null;
@@ -41,9 +39,9 @@ export function CounterTicket({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="px-5 pb-4 pt-5">
-        <p className="text-xs font-medium text-muted-foreground">本單</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight text-navy">{storeName}</h2>
+      <header className="flex items-center justify-between border-b border-border/70 px-5 py-5">
+        <h2 className="text-xl font-semibold tracking-tight text-navy">本單</h2>
+        <span className="text-sm text-muted-foreground">現金</span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-1">

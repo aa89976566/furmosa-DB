@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Search, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PosAccountMenu } from '@/components/pos/account-menu';
@@ -39,6 +39,7 @@ function withNotificationTimeout<T>(request: Promise<T>): Promise<T> {
 }
 
 export function PosPageTools({ account }: { account: PosAccount }) {
+  const pathname = usePathname();
   const router = useRouter();
   const [events, setEvents] = useState<RecentNotifications>([]);
   const [busy, setBusy] = useState(false);
@@ -48,6 +49,8 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   const [inboxFailed, setInboxFailed] = useState(false);
   const [hint, setHint] = useState<UnreadNotice | null>(null);
   const initialInboxLoaded = useRef(false);
+  const lastRefreshAt = useRef(0);
+  const previewCacheKey = `furmosa-pos-notifications-preview:${account.merchantId}`;
 
   const refreshInbox = useCallback(async () => {
     try {
@@ -64,13 +67,29 @@ export function PosPageTools({ account }: { account: PosAccount }) {
           } catch {
             setHint(newest);
           }
+          }
         }
-      }
       if (current.unreadCount === 0) setHint(null);
     } catch {
       setInboxFailed(true);
     }
   }, []);
+
+  const refreshNotifications = useCallback(async () => {
+    const nextEvents = await loadRecentNotifications();
+    const storedAt = Date.now();
+    lastRefreshAt.current = storedAt;
+    setEvents(nextEvents);
+    try {
+      window.sessionStorage.setItem(
+        previewCacheKey,
+        JSON.stringify({ storedAt, events: nextEvents }),
+      );
+    } catch {
+      // 快取不可用時仍可正常載入通知。
+    }
+    return nextEvents;
+  }, [previewCacheKey]);
 
   useEffect(() => {
     void refreshInbox();
@@ -86,6 +105,26 @@ export function PosPageTools({ account }: { account: PosAccount }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [refreshInbox]);
+
+  useEffect(() => {
+    if (pathname === '/pos/notifications') return;
+    let cachedAt = 0;
+    try {
+      const cached = JSON.parse(window.sessionStorage.getItem(previewCacheKey) ?? 'null') as {
+        storedAt?: number;
+        events?: RecentNotifications;
+      } | null;
+      if (cached?.events && Array.isArray(cached.events)) {
+        cachedAt = typeof cached.storedAt === 'number' ? cached.storedAt : 0;
+        lastRefreshAt.current = cachedAt;
+        setEvents(cached.events);
+      }
+    } catch {
+      // 快取損壞時直接回後端更新。
+    }
+    if (Date.now() - cachedAt < 60_000) return;
+    refreshNotifications().catch(() => setFailed(true));
+  }, [pathname, previewCacheKey, refreshNotifications]);
 
   function dismissHint() {
     if (hint && inbox) {
@@ -116,17 +155,14 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   async function onOpenChange(next: boolean) {
     setOpen(next);
     if (!next) return;
+    if (events.length > 0 && !failed && Date.now() - lastRefreshAt.current < 60_000) return;
     setBusy(true);
     setFailed(false);
     const [inboxResult, eventsResult] = await Promise.allSettled([
       withNotificationTimeout(refreshInbox()),
-      withNotificationTimeout(loadRecentNotifications()),
+      withNotificationTimeout(refreshNotifications()),
     ]);
-    if (eventsResult.status === 'fulfilled') {
-      setEvents(eventsResult.value);
-    } else {
-      setFailed(true);
-    }
+    if (eventsResult.status === 'rejected') setFailed(true);
     if (inboxResult.status === 'rejected') setInboxFailed(true);
     setBusy(false);
   }
