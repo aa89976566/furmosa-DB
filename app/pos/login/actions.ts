@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { loginMerchantWithPassword } from '@/lib/merchant-auth';
 import { loginFailureMessage } from '@/lib/auth-errors';
 import { resolvePosLoginDestination } from '@/lib/auth-redirect';
+import { ensurePreviewManlisaDemo } from '@/lib/pos/preview-manlisa-demo';
+import { setMerchantSessionCookie, signMerchantSession } from '@/lib/merchant-auth/session';
 
 const schema = z.object({
   username: z.string().trim().min(1, '請輸入帳號'),
@@ -57,5 +59,19 @@ export async function posLoginAction(
       error: loginFailureMessage(err),
       values: { username: String(formData.get('username') ?? '') },
     };
+  }
+}
+
+export async function previewDemoLoginAction(
+  _prev: PosLoginState,
+  formData: FormData,
+): Promise<PosLoginState> {
+  try {
+    const { merchant, user } = await ensurePreviewManlisaDemo();
+    const { token } = await signMerchantSession({ merchantUserId: user.id, merchantId: merchant.id, username: user.username });
+    await setMerchantSessionCookie(token);
+    return { redirectTo: resolvePosLoginDestination(String(formData.get('next') ?? '')) };
+  } catch {
+    return { error: '這個 Preview 尚未啟用示範登入。' };
   }
 }
