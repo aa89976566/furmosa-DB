@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Bell, Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { PosAccountMenu } from '@/components/pos/account-menu';
@@ -16,12 +17,15 @@ import {
 type RecentNotifications = Awaited<ReturnType<typeof loadRecentNotifications>>;
 
 export function PosPageTools({ account }: { account: PosAccount }) {
+  const pathname = usePathname();
   const [events, setEvents] = useState<RecentNotifications>([]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState<string[]>([]);
+  const lastRefreshAt = useRef(0);
   const storageKey = `furmosa-pos-notifications-seen:${account.merchantId}`;
+  const previewCacheKey = `furmosa-pos-notifications-preview:${account.merchantId}`;
 
   const readSeenKeys = useCallback((): string[] => {
     try {
@@ -36,10 +40,19 @@ export function PosPageTools({ account }: { account: PosAccount }) {
 
   const refreshNotifications = useCallback(async () => {
     const nextEvents = await loadRecentNotifications();
+    lastRefreshAt.current = Date.now();
     setEvents(nextEvents);
     setUnread(unreadNotificationKeys(nextEvents, readSeenKeys()));
+    try {
+      window.sessionStorage.setItem(
+        previewCacheKey,
+        JSON.stringify({ storedAt: Date.now(), events: nextEvents }),
+      );
+    } catch {
+      // 快取不可用時仍可正常載入通知。
+    }
     return nextEvents;
-  }, [readSeenKeys]);
+  }, [previewCacheKey, readSeenKeys]);
 
   const markVisibleNotificationsRead = useCallback(
     (visible = events) => {
@@ -56,8 +69,25 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   );
 
   useEffect(() => {
+    if (pathname === '/pos/notifications') return;
+    let cachedAt = 0;
+    try {
+      const cached = JSON.parse(window.sessionStorage.getItem(previewCacheKey) ?? 'null') as {
+        storedAt?: number;
+        events?: RecentNotifications;
+      } | null;
+      if (cached?.events && Array.isArray(cached.events)) {
+        cachedAt = typeof cached.storedAt === 'number' ? cached.storedAt : 0;
+        lastRefreshAt.current = cachedAt;
+        setEvents(cached.events);
+        setUnread(unreadNotificationKeys(cached.events, readSeenKeys()));
+      }
+    } catch {
+      // 快取損壞時直接回後端更新。
+    }
+    if (Date.now() - cachedAt < 60_000) return;
     refreshNotifications().catch(() => setFailed(true));
-  }, [refreshNotifications]);
+  }, [pathname, previewCacheKey, readSeenKeys, refreshNotifications]);
 
   const unreadSet = useMemo(() => new Set(unread), [unread]);
 
@@ -67,6 +97,7 @@ export function PosPageTools({ account }: { account: PosAccount }) {
       markVisibleNotificationsRead();
       return;
     }
+    if (events.length > 0 && !failed && Date.now() - lastRefreshAt.current < 60_000) return;
     setBusy(true);
     setFailed(false);
     try {
