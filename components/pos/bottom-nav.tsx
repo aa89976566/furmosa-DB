@@ -53,14 +53,7 @@ export function PosSideRail({ storeName }: { storeName?: string }) {
         className="flex h-full w-[104px] flex-col items-center rounded-[28px] border-2 border-foreground bg-card py-5 shadow-card"
         aria-label="店家導航"
       >
-        <Link
-          href="/pos"
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
-          title="回首頁"
-        >
-          F<span className="sr-only">回首頁</span>
-        </Link>
-        <div className="mt-6 flex w-full flex-1 flex-col items-stretch gap-1 px-2">
+        <div className="mt-1 flex w-full flex-1 flex-col items-stretch gap-1 px-2">
           {POS_NAV.map((tab) => {
             const isActive = active === tab.id;
             return (
