@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { submitPasswordResetWithReceipt } from '@/lib/pos/password-reset-receipt';
+import { isNextRedirect } from '@/lib/is-next-redirect';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { resetPosPasswordWithFeedback, type PosPasswordState } from '@/app/(main)/merchants/[id]/pos-password-action';
@@ -42,7 +44,26 @@ function PasswordFields({ users, visible, toggle }: { users: PosUser[]; visible:
 }
 
 export function PosPasswordForm({ merchantId, users }: { merchantId: string; users: PosUser[] }) {
-  const [state, action] = useFormState(resetPosPasswordWithFeedback, initialState);
+  // Keep the server result in the client form state even when the reset action
+  // revalidates the merchant page. The password receipt stays in browser memory
+  // only and is intentionally not rendered now that password vault is available.
+  const [state, action] = useFormState(async (previous: PosPasswordState, data: FormData) => {
+    try {
+      const result = await submitPasswordResetWithReceipt(
+        previous,
+        data,
+        users,
+        resetPosPasswordWithFeedback,
+      );
+      return result.state;
+    } catch (error) {
+      if (isNextRedirect(error)) throw error;
+      return {
+        status: 'error' as const,
+        message: '無法確認密碼是否更新，請先嘗試登入；若仍失敗，請重新設定。',
+      };
+    }
+  }, initialState);
   const [visible, setVisible] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   useEffect(() => {
@@ -56,7 +77,9 @@ export function PosPasswordForm({ merchantId, users }: { merchantId: string; use
       <input type="hidden" name="merchantId" value={merchantId} />
       <p className="text-xs text-muted-foreground">需要變更登入密碼時，可在下方重新設定；新密碼會加密保存。</p>
       <PasswordFields users={users} visible={visible} toggle={() => setVisible((value) => !value)} />
-      {state.message ? <p role={state.status === 'error' ? 'alert' : 'status'} className="rounded-lg border bg-muted/40 p-3 text-sm">{state.message}</p> : null}
+      <div aria-live="polite" aria-atomic="true">
+        {state.message ? <p role={state.status === 'error' ? 'alert' : 'status'} className="rounded-lg border bg-muted/40 p-3 text-sm">{state.message}</p> : null}
+      </div>
     </form>
   );
 }
