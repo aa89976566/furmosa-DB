@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition, type FormEvent } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
-import { markShipmentStatus } from '@/app/(main)/shipments/actions';
+import { useRouter } from 'next/navigation';
+import {
+  markShipmentStatus,
+  markShipmentStatusFromQueue,
+} from '@/app/(main)/shipments/actions';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
 
@@ -57,9 +61,13 @@ function statusChipClass(active: boolean) {
     : 'border-transparent bg-transparent text-muted-foreground hover:bg-black/[0.04] hover:text-foreground';
 }
 
-function ConfirmStatusSubmitButton({ next }: { next: 'pending' | 'shipped' | 'delivered' }) {
-  const { pending } = useFormStatus();
-
+function ConfirmStatusSubmitButton({
+  next,
+  pending,
+}: {
+  next: 'pending' | 'shipped' | 'delivered';
+  pending: boolean;
+}) {
   return (
     <button
       type="submit"
@@ -95,11 +103,42 @@ export function ShipmentQueueStatusSelect({
   inventoryWarnings?: string[];
   className?: string;
 }) {
+  const router = useRouter();
   const options = queueOptionsForStatus(status);
   const serverValue = queueSelectValue(status);
   const [confirmNext, setConfirmNext] = useState<
     'pending' | 'shipped' | 'delivered' | null
   >(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isSubmitting, startTransition] = useTransition();
+
+  function closeConfirmation() {
+    if (isSubmitting) return;
+    setConfirmNext(null);
+    setActionError(null);
+  }
+
+  function submitStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setActionError(null);
+    startTransition(async () => {
+      const result = await markShipmentStatusFromQueue(formData);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+
+      setConfirmNext(null);
+      const params = new URLSearchParams();
+      if (queueType) params.set('type', queueType);
+      params.set('status', result.next === 'shipped' ? 'shipped' : result.next);
+      params.set('s', result.shipmentId);
+      if (result.next === 'delivered') params.set('delivered', '1');
+      router.replace(`/shipments?${params.toString()}`);
+      router.refresh();
+    });
+  }
 
   if (status === 'cancelled') {
     return <span className="text-[10px] text-muted-foreground">已取消</span>;
@@ -157,7 +196,7 @@ export function ShipmentQueueStatusSelect({
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4"
             role="presentation"
-            onClick={() => setConfirmNext(null)}
+            onClick={closeConfirmation}
           >
             <div
               role="dialog"
@@ -187,7 +226,7 @@ export function ShipmentQueueStatusSelect({
                 </div>
               ) : null}
               <form
-                action={markShipmentStatus}
+                onSubmit={submitStatus}
                 className="mt-5 grid grid-cols-2 gap-2"
                 onClick={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -203,12 +242,18 @@ export function ShipmentQueueStatusSelect({
                 ) : null}
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   className="min-h-11 touch-manipulation rounded-xl border border-border bg-background px-4 text-sm font-medium"
-                  onClick={() => setConfirmNext(null)}
+                  onClick={closeConfirmation}
                 >
                   取消
                 </button>
-                <ConfirmStatusSubmitButton next={confirmNext} />
+                <ConfirmStatusSubmitButton next={confirmNext} pending={isSubmitting} />
+                {actionError ? (
+                  <p role="alert" className="col-span-2 text-sm font-medium text-red-700">
+                    無法更新出貨狀態：{actionError}
+                  </p>
+                ) : null}
               </form>
             </div>
           </div>,

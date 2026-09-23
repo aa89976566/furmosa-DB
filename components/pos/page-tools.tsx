@@ -17,6 +17,27 @@ type RecentNotifications = Awaited<ReturnType<typeof loadRecentNotifications>>;
 type Inbox = Awaited<ReturnType<typeof loadUnreadNotifications>>;
 type UnreadNotice = Inbox['notifications'][number];
 
+const NOTIFICATION_LOAD_TIMEOUT_MS = 12_000;
+
+function withNotificationTimeout<T>(request: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(
+      () => reject(new Error('通知載入逾時')),
+      NOTIFICATION_LOAD_TIMEOUT_MS,
+    );
+    request.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function PosPageTools({ account }: { account: PosAccount }) {
   const router = useRouter();
   const [events, setEvents] = useState<RecentNotifications>([]);
@@ -97,14 +118,17 @@ export function PosPageTools({ account }: { account: PosAccount }) {
     if (!next) return;
     setBusy(true);
     setFailed(false);
-    try {
-      await refreshInbox();
-      setEvents(await loadRecentNotifications());
-    } catch {
+    const [inboxResult, eventsResult] = await Promise.allSettled([
+      withNotificationTimeout(refreshInbox()),
+      withNotificationTimeout(loadRecentNotifications()),
+    ]);
+    if (eventsResult.status === 'fulfilled') {
+      setEvents(eventsResult.value);
+    } else {
       setFailed(true);
-    } finally {
-      setBusy(false);
     }
+    if (inboxResult.status === 'rejected') setInboxFailed(true);
+    setBusy(false);
   }
 
   const toolClass = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-zinc-700 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';
