@@ -111,6 +111,7 @@ jobs:
         run: node scripts/release/production-readiness.mjs
 
       - name: Merge exact PR head
+        if: steps.preflight.outputs.already_merged != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
@@ -124,7 +125,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          merge_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${RELEASE_PR_NUMBER}" --jq '.merge_commit_sha')"
+          if [ "${{ steps.preflight.outputs.already_merged }}" = "true" ]; then
+            merge_sha="${{ steps.preflight.outputs.merge_sha }}"
+          else
+            merge_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${RELEASE_PR_NUMBER}" --jq '.merge_commit_sha')"
+          fi
           test -n "$merge_sha" && test "$merge_sha" != "null"
           echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
