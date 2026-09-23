@@ -26,9 +26,10 @@ export default async function PosDirectShipmentPage(
   const searchParams = await props.searchParams;
   const params = await props.params;
   const session = await requireMerchantSession();
+  const merchantId = session.merchantId;
   const [account, loaded] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
-    loadMerchantRestockShipment(params.id, session.merchantId),
+    loadMerchantRestockShipment(params.id, merchantId),
   ]);
   if (!loaded) notFound();
   if (loaded.kind === 'linked_request') redirect(`/pos/restock/${loaded.requestId}`);
