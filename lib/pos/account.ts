@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 
 export type PosAccount = {
+  merchantId?: string;
   storeName: string;
   storeCity: string | null;
   username: string;
@@ -32,6 +33,7 @@ export async function loadPosAccount(
   ]);
   const staffName = staff?.displayName?.trim() || staff?.username || username;
   return {
+    merchantId,
     storeName: merchant?.name ?? '店家',
     storeCity: merchant?.city ?? null,
     username,

@@ -7,6 +7,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { confirmDirectShipmentReceiptAction } from './actions';
+import { PosReceiptSupport } from '@/components/pos/receipt-support';
 
 export const metadata = { title: '出貨單 · Furmosa 店家' };
 
@@ -128,6 +129,7 @@ export default async function PosDirectShipmentPage(
                     確認收到貨
                   </Button>
                 </form>
+                <PosReceiptSupport />
               </div>
             ) : null}
 

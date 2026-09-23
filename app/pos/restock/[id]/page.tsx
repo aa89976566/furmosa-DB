@@ -15,6 +15,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 import { ConfirmReceiptButton } from './confirm-receipt-button';
+import { PosReceiptSupport } from '@/components/pos/receipt-support';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -127,7 +128,10 @@ export default async function PosRestockDetailPage(
                 ) : null}
               </div>
               {shipment.status === 'delivered' ? (
-                <ConfirmReceiptButton requestId={req.id} />
+                <div className="space-y-3">
+                  <ConfirmReceiptButton requestId={req.id} />
+                  <PosReceiptSupport />
+                </div>
               ) : null}
 
               <div className="border-t pt-3">
