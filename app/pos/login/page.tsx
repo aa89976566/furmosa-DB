@@ -1,4 +1,5 @@
 import { PosLoginForm } from "./login-form";
+import { canUsePreviewManlisaDemo } from '@/lib/pos/preview-manlisa-demo';
 
 export const metadata = {
   title: "店家登入 · Furmosa",
@@ -25,7 +26,7 @@ export default async function PosLoginPage(
           </p>
         </div>
       </div>
-      <PosLoginForm next={searchParams.next} />
+      <PosLoginForm next={searchParams.next} showPreviewDemo={canUsePreviewManlisaDemo()} />
       <p className="mt-6 text-left text-xs text-muted-foreground">
         問題請聯繫 Furmosa 總部
       </p>
