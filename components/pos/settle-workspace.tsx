@@ -497,7 +497,7 @@ function SettleWorkspaceInner({
               <section className="rounded-[28px] border border-neutral-200 bg-white px-5 py-6 shadow-sm md:px-10 md:py-8">
                 <p className="text-sm font-medium text-zinc-500">本期結果</p>
                 <div className="mt-4 flex flex-col items-center text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <CircleCheck className="h-8 w-8" aria-hidden />
                   </span>
                   <h2 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-950 md:text-3xl">
@@ -526,9 +526,9 @@ function SettleWorkspaceInner({
               </section>
 
               {ledger.pending.length > 0 ? (
-                <section className="flex flex-col gap-4 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <section className="flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/5 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-7 w-7 shrink-0 text-amber-500" aria-hidden />
+                    <AlertTriangle className="mt-0.5 h-7 w-7 shrink-0 text-primary" aria-hidden />
                     <div>
                       <h2 className="font-semibold text-zinc-950">還有 {ledger.pending.length} 筆需要確認</h2>
                       <p className="mt-1 text-sm text-zinc-600">未確認資料不列入結算</p>
@@ -541,7 +541,7 @@ function SettleWorkspaceInner({
                       setPage(1);
                       setTab('ledger');
                     }}
-                    className="min-h-[48px] rounded-xl bg-zinc-950 px-7 text-sm font-semibold text-white"
+                    className="min-h-[48px] rounded-xl bg-primary px-7 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                   >
                     立即處理
                   </button>
@@ -579,7 +579,7 @@ function SettleWorkspaceInner({
                   type="button"
                   disabled={busy}
                   onClick={onConfirm}
-                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-zinc-950 text-sm font-semibold text-white disabled:opacity-60"
+                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                 >
                   {busy ? '處理中…' : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
                 </button>
