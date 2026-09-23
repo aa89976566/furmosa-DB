@@ -1,17 +1,8 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  AlertTriangle,
-  ChevronRight,
-  CircleCheck,
-  Clock3,
-  Eye,
-  FileText,
-  HelpCircle,
-  Search,
-} from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Eye, Search, Wallet } from 'lucide-react';
 import { PosPageTools } from '@/components/pos/page-tools';
 import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory-nav';
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
@@ -448,21 +439,8 @@ function SettleWorkspaceInner({
             </div>
             <PosPageTools account={account} />
           </div>
-          {tab === 'overview' ? (
-            <div className="mt-4 flex items-end justify-between gap-3">
-              <p className="text-xs text-zinc-400">{periodLabel}</p>
-              <details className="relative">
-                <summary className="flex min-h-[40px] cursor-pointer list-none items-center rounded-xl border border-neutral-200 bg-white px-4 text-sm font-medium text-zinc-800">
-                  變更期間
-                </summary>
-                <div className="absolute right-0 top-12 z-20 w-[min(92vw,520px)] rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl">
-                  {periodStoreFilter}
-                </div>
-              </details>
-            </div>
-          ) : null}
-          {tab !== 'overview' ? <div className="mt-4">{periodStoreFilter}</div> : null}
-          <div className={`${tab === 'overview' ? 'hidden' : 'mt-5 flex'} gap-6 overflow-x-auto border-b border-neutral-200`}>
+          {tab === 'overview' ? <div className="mt-4">{periodStoreFilter}</div> : null}
+          <div className="mt-5 flex gap-6 border-b border-neutral-200">
             {TABS.map((item) => (
               <button
                 key={item.id}
@@ -493,98 +471,159 @@ function SettleWorkspaceInner({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-28 md:px-6 md:pb-8">
           {tab === 'overview' ? (
-            <div className="mx-auto w-full max-w-6xl space-y-4">
-              <section className="rounded-[28px] border border-neutral-200 bg-white px-5 py-6 shadow-sm md:px-10 md:py-8">
-                <p className="text-sm font-medium text-zinc-500">本期結果</p>
-                <div className="mt-4 flex flex-col items-center text-center">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <CircleCheck className="h-8 w-8" aria-hidden />
-                  </span>
-                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-950 md:text-3xl">
-                    {ledger.overview.resultLabel}
-                  </h2>
-                  <p className="mt-2 text-4xl font-semibold tracking-tight text-zinc-950 md:text-5xl">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {/*
+                  這兩張卡是同一個淨額的兩個方向（net > 0 / net < 0），不是抵扣前的兩邊，
+                  所以標題必須寫明「抵扣後」，其中一張一定是 0。
+                */}
+                <SummaryCard
+                  title="店家應付匠寵（抵扣後）"
+                  amount={ledger.overview.storeOwesFurmosa}
+                  hint="兩邊互相抵扣後，由店家付的淨額"
+                  icon={<ArrowUp className="h-4 w-4" />}
+                  iconClass="bg-red-50 text-red-500"
+                />
+                <SummaryCard
+                  title="匠寵應付店家（抵扣後）"
+                  amount={ledger.overview.furmosaOwesStore}
+                  hint="兩邊互相抵扣後，由匠寵付的淨額"
+                  icon={<ArrowDown className="h-4 w-4" />}
+                  iconClass="bg-sky-50 text-sky-600"
+                />
+                <SummaryCard
+                  title="本期已送出"
+                  amount={ledger.overview.submittedNet}
+                  hint={
+                    ledger.overview.submittedCount === 0
+                      ? '本期還沒有送出過結帳'
+                      : `已送出 ${ledger.overview.submittedCount} 張，不重複列入暫計`
+                  }
+                  icon={<Check className="h-4 w-4" />}
+                  iconClass="bg-emerald-50 text-emerald-600"
+                />
+                <div className="rounded-2xl bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-zinc-500">本期結算結果</p>
+                      <p className="mt-1 text-xs text-zinc-400">{ledger.overview.resultLabel}</p>
+                    </div>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+                      <Wallet className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p
+                    className={`mt-4 text-[28px] font-semibold leading-none ${
+                      ledger.overview.netPayableTwd === 0 ? 'text-zinc-900' : 'text-orange-500'
+                    }`}
+                  >
                     {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
                   </p>
                 </div>
-                <div className="mt-7 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 border-t border-neutral-200 pt-5 text-center">
-                  <div>
-                    <p className="text-xs text-zinc-500 md:text-sm">店家代收</p>
-                    <p className="mt-1 text-base font-semibold md:text-xl">{formatNtd(ledger.summary.storeOwesFurmosa)}</p>
+              </div>
+              {/*
+                原本寫成「店家應付匠寵 − 匠寵應付店家 = 淨額」，但兩邊已經是抵扣後的淨額，
+                其中一邊永遠是 0，這條等式永遠成立卻沒有任何資訊。改為直接說明淨結果。
+              */}
+              <p className="rounded-xl bg-neutral-200/60 px-4 py-3 text-sm text-zinc-600">
+                兩邊互相抵扣後，
+                {ledger.overview.netPayableTwd === 0 ? (
+                  <span className="font-semibold text-zinc-900">本期無需付款</span>
+                ) : (
+                  <span className="font-semibold text-orange-500">
+                    {ledger.overview.resultLabel} {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
+                  </span>
+                )}
+                。上面兩張卡是同一個淨額的兩個方向，所以其中一張一定是 0。
+              </p>
+              <h2 className="pt-1 text-base font-semibold">交易流水拆解（參考）</h2>
+              <p className="text-xs text-zinc-400">
+                這裡是換罐與券的流水分類，用來核對明細。寄賣銷售不在這裡，
+                已被其他結帳單結過的券仍然會列出，
+                所以流水小計不等於上面的本期結算結果。
+              </p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <section className="rounded-2xl bg-white p-5 shadow-sm">
+                  <h3 className="flex items-center gap-2 font-medium">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-50 text-red-500">
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </span>
+                    流水分類：店家代收
+                  </h3>
+                  <BreakdownRow label="進貨款" amount={ledger.summary.restockCost} />
+                  <BreakdownRow label="店家代收現金" amount={ledger.summary.storeCollections} />
+                  <div className="ml-3 space-y-1 border-l border-neutral-200 pl-3 text-sm text-zinc-500">
+                    <NestedRow
+                      label={`補差額代收 · ${surchargeRows.length} 筆`}
+                      amount={surchargeRows.reduce((sum, row) => sum + row.amount, 0)}
+                    />
+                    <NestedRow
+                      label={`門市代收其他 · ${otherCollectionRows.length} 筆`}
+                      amount={otherCollectionRows.reduce((sum, row) => sum + row.amount, 0)}
+                    />
                   </div>
-                  <span className="text-xl text-zinc-400">−</span>
-                  <div>
-                    <p className="text-xs text-zinc-500 md:text-sm">匠寵補貼</p>
-                    <p className="mt-1 text-base font-semibold md:text-xl">{formatNtd(ledger.summary.furmosaOwesStore)}</p>
+                  {surchargeRows.length > 0 ? (
+                    <ul className="mt-2 space-y-1 rounded-xl bg-neutral-50 p-3 text-xs text-zinc-500">
+                      {surchargeRows.map((row) => (
+                        <li key={row.id}>
+                          {taipeiDay(row.occurredAt)} {row.customerName} 補差額 {formatNtd(row.amount)} ·{' '}
+                          {row.relatedOrderDisplay}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {ledger.summary.otherStorePayables > 0 ? (
+                    <BreakdownRow label="其他店家應回款" amount={ledger.summary.otherStorePayables} />
+                  ) : null}
+                  <div className="mt-3 flex justify-between border-t border-neutral-200 pt-3 text-sm font-semibold">
+                    <span>流水小計</span>
+                    <span>{formatNtd(ledger.summary.storeOwesFurmosa)}</span>
                   </div>
-                  <span className="text-xl text-zinc-400">=</span>
-                  <div>
-                    <p className="text-xs text-zinc-500 md:text-sm">本期淨額</p>
-                    <p className="mt-1 text-base font-semibold md:text-xl">{formatNtd(Math.abs(ledger.overview.netPayableTwd))}</p>
-                  </div>
-                </div>
-              </section>
-
-              {ledger.pending.length > 0 ? (
-                <section className="flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/5 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 h-7 w-7 shrink-0 text-primary" aria-hidden />
-                    <div>
-                      <h2 className="font-semibold text-zinc-950">還有 {ledger.pending.length} 筆需要確認</h2>
-                      <p className="mt-1 text-sm text-zinc-600">未確認資料不列入結算</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter('暫不列入結算');
-                      setPage(1);
-                      setTab('ledger');
-                    }}
-                    className="min-h-[48px] rounded-xl bg-primary px-7 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-                  >
-                    立即處理
-                  </button>
                 </section>
-              ) : null}
-
-              <nav className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm" aria-label="對帳功能">
-                <button type="button" onClick={() => setTab('ledger')} className="flex min-h-[64px] w-full items-center gap-3 border-b border-neutral-200 px-5 text-left hover:bg-neutral-50">
-                  <FileText className="h-5 w-5" aria-hidden />
-                  <span className="font-medium">查看交易明細</span>
-                  <ChevronRight className="ml-auto h-5 w-5 text-zinc-400" aria-hidden />
-                </button>
-                <button type="button" onClick={() => setTab('history')} className="flex min-h-[64px] w-full items-center gap-3 border-b border-neutral-200 px-5 text-left hover:bg-neutral-50">
-                  <Clock3 className="h-5 w-5" aria-hidden />
-                  <span className="font-medium">查看結帳紀錄</span>
-                  <ChevronRight className="ml-auto h-5 w-5 text-zinc-400" aria-hidden />
-                </button>
-                <details>
-                  <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-5 hover:bg-neutral-50">
-                    <HelpCircle className="h-5 w-5" aria-hidden />
-                    <span className="font-medium">對帳規則</span>
-                    <ChevronRight className="ml-auto h-5 w-5 text-zinc-400" aria-hidden />
-                  </summary>
-                  <ol className="space-y-2 border-t border-neutral-200 px-5 py-4 text-sm text-zinc-600">
-                    <li>1. 客人線上付款：匠寵已收，店家不需回匯。</li>
-                    <li>2. 店家代收現金：列入本期店家應付。</li>
-                    <li>3. 優惠券折抵：由匠寵補給店家。</li>
-                    <li>4. 未確認項目：不列入本期結算。</li>
-                  </ol>
-                </details>
-              </nav>
-
-              {ledger.persistAvailable && ledger.preview.sourceCount > 0 ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={onConfirm}
-                  className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-                >
-                  {busy ? '處理中…' : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
-                </button>
-              ) : null}
-              {message ? <p className="text-sm text-orange-700">{message}</p> : null}
+                <section className="rounded-2xl bg-white p-5 shadow-sm">
+                  <h3 className="flex items-center gap-2 font-medium">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-50 text-sky-600">
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </span>
+                    流水分類：匠寵補貼
+                  </h3>
+                  <BreakdownRow label="優惠券補貼" amount={ledger.summary.couponSubsidy} />
+                  <div className="mb-2 overflow-hidden rounded-xl bg-neutral-50">
+                    <table className="w-full text-left text-xs text-zinc-500">
+                      <thead>
+                        <tr>
+                          <th className="px-3 py-2 font-medium">項目</th>
+                          <th className="px-3 py-2 font-medium">筆數</th>
+                          <th className="px-3 py-2 font-medium">金額</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="px-3 pb-2">集點兌換券</td>
+                          <td className="px-3 pb-2">{couponRows.length} 筆</td>
+                          <td className="px-3 pb-2">{formatNtd(ledger.summary.couponSubsidy)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {couponRows.length > 0 ? (
+                    <ul className="mb-2 space-y-1 rounded-xl bg-neutral-50 p-3 text-xs text-zinc-500">
+                      {couponRows.map((row) => (
+                        <li key={row.id}>
+                          {row.customerName || '客人'} 集點兌換優惠券 {formatNtd(row.amount)}
+                          {row.couponCode ? ` · ${row.couponCode}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <BreakdownRow label="活動返利" amount={ledger.summary.rebates} />
+                  <BreakdownRow label="其他調整" amount={ledger.summary.otherFurmosaPayables} />
+                  <div className="mt-3 flex justify-between border-t border-neutral-200 pt-3 text-sm font-semibold">
+                    <span>流水小計</span>
+                    <span>{formatNtd(ledger.summary.furmosaOwesStore)}</span>
+                  </div>
+                </section>
+              </div>
             </div>
           ) : null}
 
@@ -683,36 +722,32 @@ function SettleWorkspaceInner({
         </div>
       </main>
 
-      {tab === 'ledger' ? (
-        <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
-          {ledgerRight}
-        </aside>
-      ) : null}
+      <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
+        {tab === 'ledger' ? ledgerRight : overviewRight}
+      </aside>
 
-      {tab !== 'overview' ? (
-        <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
-          {/* 手機版看不到右側卡片，停用原因必須在按鈕旁講清楚，不能只是變灰。 */}
-          {ledger.persistBlockedReason ? (
-            <p className="mb-2 rounded-xl bg-white/95 px-3 py-2 text-xs text-zinc-600 shadow-lg">
-              {ledger.persistBlockedReason}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
-            onClick={onConfirm}
-            className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg disabled:opacity-60"
-          >
-            {busy
-              ? '處理中…'
-              : !ledger.persistAvailable
-                ? '目前無法送出'
-                : ledger.preview.sourceCount === 0
-                  ? '本期沒有可結算項目'
-                  : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
-          </button>
-        </div>
-      ) : null}
+      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
+        {/* 手機版看不到右側卡片，停用原因必須在按鈕旁講清楚，不能只是變灰。 */}
+        {ledger.persistBlockedReason ? (
+          <p className="mb-2 rounded-xl bg-white/95 px-3 py-2 text-xs text-zinc-600 shadow-lg">
+            {ledger.persistBlockedReason}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
+          onClick={onConfirm}
+          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg disabled:opacity-60"
+        >
+          {busy
+            ? '處理中…'
+            : !ledger.persistAvailable
+              ? '目前無法送出'
+              : ledger.preview.sourceCount === 0
+                ? '本期沒有可結算項目'
+                : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
+        </button>
+      </div>
 
       <InventoryBottomNav />
     </div>
@@ -724,6 +759,49 @@ function DetailRow({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-3">
       <dt className="text-zinc-500">{label}</dt>
       <dd className="text-right">{value}</dd>
+    </div>
+  );
+}
+
+function SummaryCard({
+  title,
+  amount,
+  hint,
+  icon,
+  iconClass,
+}: {
+  title: string;
+  amount: number;
+  hint: string;
+  icon: ReactNode;
+  iconClass: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between">
+        <p className="text-sm text-zinc-500">{title}</p>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-full ${iconClass}`}>{icon}</span>
+      </div>
+      <p className="mt-4 text-[28px] font-semibold leading-none text-zinc-900">{formatNtd(amount)}</p>
+      <p className="mt-2 text-xs text-zinc-400">{hint}</p>
+    </div>
+  );
+}
+
+function BreakdownRow({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div className="flex items-center justify-between py-2 text-sm">
+      <span>{label}</span>
+      <span>{formatNtd(amount)}</span>
+    </div>
+  );
+}
+
+function NestedRow({ label, amount }: { label: string; amount: number }) {
+  return (
+    <div className="flex items-center justify-between py-0.5">
+      <span>{label}</span>
+      <span>{formatNtd(amount)}</span>
     </div>
   );
 }
