@@ -98,7 +98,7 @@ export function shipmentEvent(
   href: string | null,
 ): MerchantEvent {
   const presentation: Record<string, { title: string; status: string; action: boolean }> = {
-    pending: { title: 'HQ 已建立出貨單', status: '等待備貨', action: false },
+    pending: { title: '匠寵已建立出貨單', status: '等待備貨', action: false },
     packed: { title: '商品已完成備貨', status: '已備妥', action: false },
     shipped: { title: '商品已出貨', status: '運送中', action: false },
     delivered: { title: '商品已送達，請確認收貨', status: '待驗收', action: Boolean(href) },
@@ -185,8 +185,8 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
       };
     }
     const presentation: Record<string, { title: string; status: string; action: boolean }> = {
-      submitted: { title: '補貨申請已送出', status: '等待 HQ 審核', action: false },
-      under_review: { title: 'HQ 正在審核補貨申請', status: '審核中', action: false },
+      submitted: { title: '補貨申請已送出', status: '等待匠寵審核', action: false },
+      under_review: { title: '匠寵正在審核補貨申請', status: '審核中', action: false },
       approved: { title: '補貨申請已核准', status: '已核准', action: false },
       rejected: { title: '補貨申請未核准', status: '請查看回覆', action: true },
       cancelled: { title: '補貨申請已取消', status: '已取消', action: false },

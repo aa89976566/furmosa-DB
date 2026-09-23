@@ -227,7 +227,7 @@ describe('POS 補貨通知文案', () => {
       'utf8',
     );
     assert.match(notifications, /event\.hqNote/);
-    assert.match(notifications, /HQ 回覆：\{event\.hqNote\}/);
+    assert.match(notifications, /匠寵回覆：\{event\.hqNote\}/);
 
     const detail = readFileSync(
       new URL('../../../app/pos/restock/[id]/page.tsx', import.meta.url),

@@ -28,7 +28,7 @@ export default async function PosNotificationsPage() {
             <Bell className="h-5 w-5" aria-hidden />
           </div>
           <h1 className="text-2xl font-semibold">通知</h1>
-          <p className="mt-1 text-sm text-muted-foreground">補貨申請與 HQ 出貨的最新進度</p>
+          <p className="mt-1 text-sm text-muted-foreground">補貨申請與匠寵出貨的最新進度</p>
         </header>
 
         {inbox.unreadCount > 0 ? (
@@ -57,7 +57,7 @@ export default async function PosNotificationsPage() {
         {events.length === 0 ? (
           <section className="rounded-3xl border bg-card p-8 text-center">
             <p className="font-medium">目前沒有店家通知</p>
-            <p className="mt-1 text-sm text-muted-foreground">HQ 更新補貨或出貨狀態後會顯示在這裡。</p>
+            <p className="mt-1 text-sm text-muted-foreground">匠寵更新補貨或出貨狀態後會顯示在這裡。</p>
           </section>
         ) : (
           <section className="space-y-3" aria-label="店家通知列表">
@@ -78,7 +78,7 @@ export default async function PosNotificationsPage() {
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{event.detail}</p>
                     {event.hqNote ? (
-                      <p className="mt-2 rounded-xl bg-secondary/70 px-3 py-2 text-sm">HQ 回覆：{event.hqNote}</p>
+                      <p className="mt-2 rounded-xl bg-secondary/70 px-3 py-2 text-sm">匠寵回覆：{event.hqNote}</p>
                     ) : null}
                     <time className="mt-2 block text-xs text-muted-foreground">
                       {event.occurredAt.toLocaleString('zh-TW')}

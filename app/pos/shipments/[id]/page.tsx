@@ -38,12 +38,12 @@ export default async function PosDirectShipmentPage(
 
   const shipment = loaded.shipment;
   const shipmentCopy = {
-    pending: { label: 'HQ 已建立出貨單，等待備貨', help: 'HQ 正在安排商品與出貨。' },
+    pending: { label: '匠寵已建立出貨單，等待備貨', help: '匠寵正在安排商品與出貨。' },
     packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
-    shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
+    shipped: { label: '商品運送中', help: '商品已由匠寵寄出，請留意物流進度。' },
     delivered: { label: '待確認收貨', help: '請核對這批商品，再確認收到貨。' },
     received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
-    cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
+    cancelled: { label: '出貨已取消', help: '請查看回覆或聯絡匠寵。' },
   }[shipment.status];
   const shipmentTimeline = [
     { label: '完成備貨', done: Boolean(shipment.packedAt) },
@@ -62,8 +62,8 @@ export default async function PosDirectShipmentPage(
         </Link>
 
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-          <p className="font-medium text-foreground">HQ 直接配送｜非本店申請</p>
-          <p className="mt-1 text-muted-foreground">如品項或數量不符，請先聯絡 HQ</p>
+          <p className="font-medium text-foreground">匠寵直接配送｜非本店申請</p>
+          <p className="mt-1 text-muted-foreground">如品項或數量不符，請先聯絡匠寵</p>
         </div>
 
         <div className="flex items-start justify-between gap-3">
@@ -121,7 +121,7 @@ export default async function PosDirectShipmentPage(
                 <div className="rounded-xl bg-background/70 p-3 text-sm">
                   <p className="font-medium">請先核對品項、數量與商品狀況。</p>
                   <p className="mt-1 text-muted-foreground">
-                    如品項或數量不符，請先聯絡 HQ，先不要確認。
+                    如品項或數量不符，請先聯絡匠寵，先不要確認。
                   </p>
                 </div>
                 <form action={confirmDirectShipmentReceiptAction}>
