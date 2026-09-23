@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pos-theme min-h-screen bg-canvas text-foreground">
+    <div className="min-h-screen bg-canvas text-foreground">
       {children}
     </div>
   );

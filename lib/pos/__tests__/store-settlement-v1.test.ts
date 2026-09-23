@@ -699,31 +699,30 @@ describe('R7#1 送出順序：先查本店原單，才驗來源與付款方式',
   });
 });
 
-describe('R7#3 總覽卡與導覽說明必須與實際計算一致', () => {
+describe('R7#3 總覽卡與流水註記的說明必須與實際計算一致', () => {
   const workspace = readFileSync(
     new URL('../../../components/pos/settle-workspace.tsx', import.meta.url),
     'utf8',
   );
 
-  it('首頁以單一淨額呈現，並保留代收與補貼的算式', () => {
-    assert.match(workspace, /本期結果/);
-    assert.match(workspace, /ledger\.overview\.resultLabel/);
-    assert.match(workspace, /店家代收/);
-    assert.match(workspace, /匠寵補貼/);
-    assert.match(workspace, /本期淨額/);
+  it('兩張應付卡標明抵扣後淨額，不再列舉未實作的活動返利', () => {
+    assert.match(workspace, /店家應付匠寵（抵扣後）/);
+    assert.match(workspace, /匠寵應付店家（抵扣後）/);
+    // 卡片說明不得再寫成抵扣前的組成項目。
+    assert.doesNotMatch(workspace, /hint="寄賣分潤 \+ 店家代收現金"/);
+    assert.doesNotMatch(workspace, /hint="優惠券補貼 \+ 活動返利"/);
   });
 
-  it('待確認項目不列入結算，且可直接前往處理', () => {
-    assert.match(workspace, /還有 \{ledger\.pending\.length\} 筆需要確認/);
-    assert.match(workspace, /未確認資料不列入結算/);
-    assert.match(workspace, /setStatusFilter\('暫不列入結算'\)/);
-    assert.match(workspace, /立即處理/);
+  it('不再顯示永遠成立的相減等式，改為直接說明淨結果', () => {
+    assert.doesNotMatch(workspace, /店家應付匠寵 \{formatNtd/);
+    assert.match(workspace, /兩邊互相抵扣後/);
+    assert.match(workspace, /其中一張一定是 0/);
   });
 
-  it('首頁提供一般使用者看得懂的三個主要入口', () => {
-    assert.match(workspace, /查看交易明細/);
-    assert.match(workspace, /查看結帳紀錄/);
-    assert.match(workspace, /對帳規則/);
+  it('流水註記不得聲稱已鎖定的券不在流水裡（load-store-ledger 其實仍列出）', () => {
+    assert.doesNotMatch(workspace, /寄賣銷售與已被其他結帳單結過的項目不在這裡/);
+    assert.match(workspace, /已被其他結帳單結過的券仍然會列出/);
+    assert.match(workspace, /流水小計不等於上面的本期結算結果/);
   });
 });
 
