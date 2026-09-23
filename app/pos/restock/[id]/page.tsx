@@ -71,8 +71,8 @@ export default async function PosRestockDetailPage(
     <PosShell storeName={account.storeName} account={account}>
       <div className="space-y-4 px-4 py-6">
         {justSubmitted ? <ClearDraftOnSuccess /> : null}
-        <Link href="/pos/restock" className="text-xs text-muted-foreground">
-          ← 補貨
+        <Link href="/pos/sell" className="text-xs text-muted-foreground">
+          ← 返回收銀首頁
         </Link>
 
         {justSubmitted ? (

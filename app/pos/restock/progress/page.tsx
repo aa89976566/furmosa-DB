@@ -36,8 +36,8 @@ export default async function PosRestockProgressPage() {
       <div className="px-4 py-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <Link href="/pos/restock" className="text-xs text-muted-foreground">
-              ← 補貨
+            <Link href="/pos/sell" className="text-xs text-muted-foreground">
+              ← 返回收銀首頁
             </Link>
             <h1 className="text-xl font-semibold text-navy">補貨單</h1>
           </div>
