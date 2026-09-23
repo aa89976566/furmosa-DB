@@ -4,14 +4,20 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { loadPosAccount } from '@/lib/pos/account';
 import { loadMerchantEvents } from '@/lib/pos/load-merchant-events';
+import { loadMerchantNotificationInbox } from '@/lib/pos/merchant-notification-inbox';
+import {
+  openMerchantNotification,
+  readMerchantNotification,
+} from '@/app/pos/unread-notification-actions';
 
 export const metadata = { title: '通知 · Furmosa 店家' };
 
 export default async function PosNotificationsPage() {
   const session = await requireMerchantSession();
-  const [account, events] = await Promise.all([
+  const [account, events, inbox] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
     loadMerchantEvents(session.merchantId),
+    loadMerchantNotificationInbox(session, 100),
   ]);
 
   return (
@@ -24,6 +30,29 @@ export default async function PosNotificationsPage() {
           <h1 className="text-2xl font-semibold">通知</h1>
           <p className="mt-1 text-sm text-muted-foreground">補貨申請與 HQ 出貨的最新進度</p>
         </header>
+
+        {inbox.unreadCount > 0 ? (
+          <section className="mb-6 space-y-3" aria-label="未讀通知">
+            <h2 className="text-lg font-semibold">未讀通知 {inbox.unreadCount}</h2>
+            {inbox.notifications.map((notice) => (
+              <article key={notice.id} className="rounded-2xl border-2 border-foreground bg-card p-4">
+                <p className="font-semibold">{notice.title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{notice.shipmentNumber}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <form action={openMerchantNotification.bind(null, notice.id)}>
+                    <button type="submit" className="min-h-11 text-sm font-medium underline underline-offset-4">查看出貨單</button>
+                  </form>
+                  <form action={readMerchantNotification.bind(null, notice.id)}>
+                    <button type="submit" className="min-h-11 rounded-xl border px-4 text-sm">標記已讀</button>
+                  </form>
+                </div>
+              </article>
+            ))}
+            {inbox.unreadCount > inbox.notifications.length ? (
+              <p className="text-sm text-muted-foreground">尚有更早的未讀通知，請聯絡總部協助查詢。</p>
+            ) : null}
+          </section>
+        ) : null}
 
         {events.length === 0 ? (
           <section className="rounded-3xl border bg-card p-8 text-center">

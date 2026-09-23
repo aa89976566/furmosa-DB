@@ -564,6 +564,7 @@ model Merchant {
   stocks       MerchantStock[]
   stockTxns    MerchantStockTxn[]
   shipments    Shipment[]
+  notifications MerchantNotification[]
   users        MerchantUser[]
   settings     MerchantSettings?
   restockRequests RestockRequest[]
@@ -659,6 +660,7 @@ model MerchantUser {
   merchant          Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   restockRequests   RestockRequest[]
   receivedShipments Shipment[]       @relation("ShipmentReceivedBy")
+  notificationReads MerchantNotificationRead[]
 
   @@index([merchantId])
   @@map("merchant_users")
@@ -826,6 +828,7 @@ model Shipment {
   receivedBy           MerchantUser?         @relation("ShipmentReceivedBy", fields: [receivedByMerchantUserId], references: [id], onDelete: Restrict)
   items                ShipmentItem[]
   restockRequest       RestockRequest?
+  merchantNotifications MerchantNotification[]
 
   @@index([status])
   @@index([type])
@@ -836,6 +839,37 @@ model Shipment {
   @@index([status, createdAt])
   @@index([type, status])
   @@index([receivedByMerchantUserId])
+}
+
+// 店家 POS 通知由 HQ 狀態變更產生；已讀按店員各自記錄。
+model MerchantNotification {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  shipmentId String   @map("shipment_id")
+  kind       String   // shipment_shipped
+  title      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  reads    MerchantNotificationRead[]
+
+  @@unique([shipmentId, kind])
+  @@index([merchantId, createdAt])
+  @@map("merchant_notifications")
+}
+
+model MerchantNotificationRead {
+  notificationId String   @map("notification_id")
+  merchantUserId String   @map("merchant_user_id")
+  readAt         DateTime @default(now()) @map("read_at")
+
+  notification MerchantNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  merchantUser MerchantUser @relation(fields: [merchantUserId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, merchantUserId])
+  @@index([merchantUserId])
+  @@map("merchant_notification_reads")
 }
 
 /// POS 一鍵叫貨申請（核准後轉既有 merchant_restock Shipment）
