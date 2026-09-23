@@ -1,4 +1,4 @@
-export type PosNavId = 'home' | 'stock' | 'records' | 'settle';
+export type PosNavId = 'home' | 'stock' | 'refill' | 'records' | 'settle';
 
 export type PosNavItem = {
   id: PosNavId;
@@ -19,6 +19,12 @@ export const POS_NAV: readonly PosNavItem[] = [
     href: '/pos/stock',
     label: '庫存',
     match: (p) => p === '/pos/stock' || p.startsWith('/pos/stock/'),
+  },
+  {
+    id: 'refill',
+    href: '/pos/refill',
+    label: '換罐',
+    match: (p) => p === '/pos/refill' || p.startsWith('/pos/refill/'),
   },
   {
     id: 'records',
