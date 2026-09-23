@@ -47,7 +47,9 @@ export async function confirmMerchantRestockReceipt(input: {
         id: shipment.id,
         merchantId,
         type: 'merchant_restock',
-        status: 'delivered',
+        // Keep the status observed within this transaction as the atomic guard.
+        // This accepts either allowed state while rejecting a concurrent change.
+        status: shipment.status,
       },
       data: {
         status: 'received',
@@ -78,7 +80,7 @@ export async function confirmMerchantRestockReceipt(input: {
       data: {
         entityType: 'shipment',
         entityId: shipment.id,
-        previousStatus: 'delivered',
+        previousStatus: shipment.status,
         newStatus: 'received',
         actorType: 'merchant_user',
         actorId: merchantUserId,
