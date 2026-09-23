@@ -137,8 +137,49 @@ ALTER TABLE "finance_audit_logs"
   ADD CONSTRAINT "finance_audit_logs_actor_user_id_fkey"
   FOREIGN KEY ("actor_user_id") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+-- Supabase 在 public schema 設了 default privileges，把新建表的全部權限授予 anon 與
+-- authenticated。授權是在 CREATE TABLE 當下套用的，所以緊接著在這裡收回，不留空窗。
+-- 兩層防護：REVOKE 讓新表從 Data API 的可見面消失；無 policy 的 RLS 是後備層，
+-- 即使日後有人誤下大範圍 GRANT，資料仍然讀不到。
+--
+-- 刻意不做的事：
+-- * 不用 FORCE ROW LEVEL SECURITY。表擁有者預設繞過 RLS，而 migration 與伺服器是
+--   同一個 owner 角色；一旦 FORCE，伺服器自己就讀不到資料。
+-- * 不新增任何 policy。新表沒有任何「該公開」的列。
+-- * 不改 ALTER DEFAULT PRIVILEGES，不改 schema 層 USAGE，不動既有表。
+-- * 不收回 service_role：它需要伺服器機密才能使用，屬於另一個工作包。
+-- * 不寫入 _prisma_migrations。歷史只由 Prisma migrate deploy 記錄。
+--
+-- anon／authenticated 在隔離的本機測試庫通常不存在，因此以 pg_roles 判存後才 REVOKE。
+-- ===== FINANCE-UNIT-ECONOMICS-EXPOSURE-GUARD-BEGIN =====
 ALTER TABLE "finance_margin_settings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "finance_sku_channel_costs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "finance_cash_plans" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "finance_cash_weeks" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "finance_audit_logs" ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE "finance_margin_settings" FROM PUBLIC;
+REVOKE ALL ON TABLE "finance_sku_channel_costs" FROM PUBLIC;
+REVOKE ALL ON TABLE "finance_cash_plans" FROM PUBLIC;
+REVOKE ALL ON TABLE "finance_cash_weeks" FROM PUBLIC;
+REVOKE ALL ON TABLE "finance_audit_logs" FROM PUBLIC;
+
+DO $guard$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    REVOKE ALL ON TABLE "finance_margin_settings" FROM anon;
+    REVOKE ALL ON TABLE "finance_sku_channel_costs" FROM anon;
+    REVOKE ALL ON TABLE "finance_cash_plans" FROM anon;
+    REVOKE ALL ON TABLE "finance_cash_weeks" FROM anon;
+    REVOKE ALL ON TABLE "finance_audit_logs" FROM anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    REVOKE ALL ON TABLE "finance_margin_settings" FROM authenticated;
+    REVOKE ALL ON TABLE "finance_sku_channel_costs" FROM authenticated;
+    REVOKE ALL ON TABLE "finance_cash_plans" FROM authenticated;
+    REVOKE ALL ON TABLE "finance_cash_weeks" FROM authenticated;
+    REVOKE ALL ON TABLE "finance_audit_logs" FROM authenticated;
+  END IF;
+END
+$guard$;
+-- ===== FINANCE-UNIT-ECONOMICS-EXPOSURE-GUARD-END =====

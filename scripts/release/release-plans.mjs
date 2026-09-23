@@ -33,16 +33,6 @@ export const RELEASE_PLANS = Object.freeze({
       'prisma/migrations/20260922180000_merchant_shipment_notifications/migration.sql',
     ]),
   }),
-  finance_unit_economics_20260923: Object.freeze({
-    runner: 'scripts/ops/deploy-finance-unit-economics.mjs',
-    migrationPrefixes: Object.freeze([
-      'prisma/migrations/20260923180000_finance_unit_economics/',
-    ]),
-    requiredPaths: Object.freeze([
-      'prisma/migrations/20260923180000_finance_unit_economics/migration.sql',
-      'scripts/ops/deploy-finance-unit-economics.mjs',
-    ]),
-  }),
   historical_hq_schema_repair_20260921: Object.freeze({
     runner: 'scripts/ops/repair-historical-hq-schema-20260921.mjs',
     migrationPrefixes: Object.freeze([]),
