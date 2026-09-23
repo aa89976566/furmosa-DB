@@ -4,8 +4,7 @@ import { z } from 'zod';
 import { loginMerchantWithPassword } from '@/lib/merchant-auth';
 import { loginFailureMessage } from '@/lib/auth-errors';
 import { resolvePosLoginDestination } from '@/lib/auth-redirect';
-import { ensurePreviewManlisaDemo } from '@/lib/pos/preview-manlisa-demo';
-import { setMerchantSessionCookie, signMerchantSession } from '@/lib/merchant-auth/session';
+import { canUsePreviewManlisaDemo, PREVIEW_MANLISA_PATH } from '@/lib/pos/preview-manlisa-demo';
 
 const schema = z.object({
   username: z.string().trim().min(1, '請輸入帳號'),
@@ -67,10 +66,8 @@ export async function previewDemoLoginAction(
   formData: FormData,
 ): Promise<PosLoginState> {
   try {
-    const { merchant, user } = await ensurePreviewManlisaDemo();
-    const { token } = await signMerchantSession({ merchantUserId: user.id, merchantId: merchant.id, username: user.username });
-    await setMerchantSessionCookie(token);
-    return { redirectTo: resolvePosLoginDestination(String(formData.get('next') ?? '')) };
+    if (!canUsePreviewManlisaDemo()) return { error: '這個 Preview 尚未啟用示範登入。' };
+    return { redirectTo: PREVIEW_MANLISA_PATH };
   } catch {
     return { error: '這個 Preview 尚未啟用示範登入。' };
   }
