@@ -313,18 +313,15 @@ describe('店家補貨收貨共用服務', () => {
     assert.equal(world.restockRequestTouched, false);
   });
 
-  it('非法狀態拒絕', async () => {
+  it('已寄出的補貨可由實際收到貨的店家確認入庫', async () => {
     world = createWorld({ status: 'shipped' });
 
-    await assert.rejects(
-      () => confirmMerchantRestockReceipt(INPUT),
-      /尚未送達/,
-    );
-    assert.equal(world.shipment.status, 'shipped');
-    assert.equal(world.updateManyWheres.length, 0);
-    assert.equal(world.stockWrites.length, 0);
-    assert.equal(world.txnWrites.length, 0);
-    assert.equal(world.auditWrites.length, 0);
+    const result = await confirmMerchantRestockReceipt(INPUT);
+    assert.equal(result, 'just_received');
+    assert.equal(world.shipment.status, 'received');
+    assert.equal(world.stockWrites.length, 2);
+    assert.equal(world.txnWrites.length, 2);
+    assert.equal(world.auditWrites[0]?.previousStatus, 'shipped');
   });
 
   it('id 與店家相符但 type 不是 merchant_restock 時視為找不到', async () => {
