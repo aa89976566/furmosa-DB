@@ -92,6 +92,18 @@ export async function middleware(req: NextRequest) {
     return redirectOnSameOrigin(req, '/pos');
   }
 
+  // The visual QA page is deliberately public only on its dedicated Vercel
+  // Preview branch. It has no database reads or writes and is never enabled on
+  // production deployments.
+  if (
+    pathname === '/pos/preview/manlisa' &&
+    process.env.VERCEL_ENV === 'preview' &&
+    process.env.PREVIEW_DEMO_LOGIN_ENABLED === 'true' &&
+    process.env.VERCEL_GIT_COMMIT_REF === 'codex/shipment-detail-reference-ux'
+  ) {
+    return NextResponse.next();
+  }
+
   // ----- POS + merchant APIs: merchant session only (HQ cookie never elevates) -----
   if (
     pathname === '/pos' ||
