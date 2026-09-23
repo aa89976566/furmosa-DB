@@ -7,7 +7,7 @@ import { loadMerchantEventPreviews } from '@/lib/pos/load-merchant-events';
 export async function loadRecentNotifications() {
   const session = await requireMerchantSession();
   const events = await loadMerchantEventPreviews(session.merchantId, 5);
-  return events.map(({ id, title, statusLabel, href, occurredAt }) => ({
+  return events.slice(0, 5).map(({ id, title, statusLabel, href, occurredAt }) => ({
     id, title, statusLabel, href, occurredAt: occurredAt.toISOString(),
   }));
 }
