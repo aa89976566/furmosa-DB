@@ -58,7 +58,7 @@ describe('buildHomeTaskCards', () => {
     assert.equal(cards[0]?.kind, 'restock_progress');
   });
 
-  it('shows delivered restocks before other operational tasks', () => {
+  it('shows restocks awaiting store confirmation before other operational tasks', () => {
     const cards = buildHomeTaskCards({
       ...emptyInput(),
       pendingRefillCount: 1,
@@ -68,8 +68,8 @@ describe('buildHomeTaskCards', () => {
     });
     assert.equal(cards[0]?.kind, 'awaiting_restock_receipt');
     assert.equal(cards[0]?.href, '/pos/restock/r2');
-    assert.match(cards[0]?.title ?? '', /請確認收到貨/);
-    assert.equal(cards[0]?.subtitle, '確認品項與數量正確後，商品才會加入可售庫存');
+    assert.match(cards[0]?.title ?? '', /待確認入庫/);
+    assert.equal(cards[0]?.subtitle, '實際收到並核對品項、數量後，即可確認入庫');
   });
 
   it('shows in-transit restocks after receipt work', () => {
@@ -95,7 +95,7 @@ describe('buildHomeTaskCards', () => {
       firstAwaitingRestockReceiptHref: '/pos/shipments/s1',
       firstAwaitingRestockShipmentNumber: 'SHP-OLD-0001',
     });
-    assert.match(withNumber[0]?.subtitle ?? '', /確認品項與數量正確後，商品才會加入可售庫存/);
+    assert.match(withNumber[0]?.subtitle ?? '', /實際收到並核對品項、數量後，即可確認入庫/);
     assert.match(withNumber[0]?.subtitle ?? '', /先處理最早送達的 SHP-OLD-0001/);
     assert.doesNotMatch(withNumber[0]?.subtitle ?? '', /s1/);
 
@@ -105,7 +105,7 @@ describe('buildHomeTaskCards', () => {
       firstAwaitingRestockReceiptHref: '/pos/restock/r2',
       firstAwaitingRestockShipmentNumber: null,
     });
-    assert.equal(nullNumber[0]?.subtitle, '確認品項與數量正確後，商品才會加入可售庫存');
+    assert.equal(nullNumber[0]?.subtitle, '實際收到並核對品項、數量後，即可確認入庫');
     assert.equal(nullNumber[0]?.href, '/pos/restock/r2');
   });
 
@@ -432,13 +432,12 @@ describe('loadHomeTasks awaiting receipt', () => {
     assert.equal(card?.href, '/pos/shipments/ship-direct-1');
   });
 
-  it('shows direct shipped restocks as in transit instead of awaiting receipt', async () => {
+  it('shows direct shipped restocks as awaiting store confirmation', async () => {
     homeWorld = resetHomeWorld({
       directs: [directRow({ status: 'shipped', deliveredAt: null })],
     });
     const result = await loadHomeTasks('merchant-1');
-    const card = result.cards.find((item) => item.kind === 'in_transit_restock');
-    assert.equal(receiptCard(result.cards), undefined);
+    const card = receiptCard(result.cards);
     assert.equal(card?.badge, '1');
     assert.equal(card?.href, '/pos/shipments/ship-direct-1');
   });
@@ -537,7 +536,7 @@ describe('loadHomeTasks awaiting receipt', () => {
     const result = await loadHomeTasks('merchant-1');
     const card = receiptCard(result.cards);
     assert.equal(card?.href, '/pos/restock/request-1');
-    assert.equal(card?.subtitle, '確認品項與數量正確後，商品才會加入可售庫存');
+    assert.equal(card?.subtitle, '實際收到並核對品項、數量後，即可確認入庫');
     assert.equal(result.warning, '部分資料暫時讀取失敗，請稍後再試。');
   });
 
