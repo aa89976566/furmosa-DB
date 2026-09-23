@@ -11,7 +11,7 @@ export function shipmentItemsFingerprint(
 ): string {
   return items
     .slice()
-    .sort((a, b) => a.productId.localeCompare(b.productId))
+    .sort((a, b) => String(a.productId ?? '').localeCompare(String(b.productId ?? '')))
     .map((i) => `${i.productId}:${i.quantity}`)
     .join('|');
 }

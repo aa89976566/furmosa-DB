@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
-import type { ShipmentQueueRow } from '@/components/shipments/shipment-queue-table';
 import {
   shipmentStatusLabel,
   SHIPMENT_STATUSES,
@@ -10,12 +9,13 @@ import { SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES } from '@/lib/campaigns/jiba-two-p
 import {
   loadJibaChargeSourcesByOrderIds,
   resolveShipmentFulfillmentFee,
+  type JibaChargeSource,
 } from '@/lib/campaigns/jiba-two-piece/shipment-charge';
-import { canonicalProductName } from '@/lib/product-label';
 import {
   activeShipmentQueueWhere,
   dedupeShipmentsByOrder,
 } from '@/lib/shipment-queue-filters';
+import { assembleShipmentQueueRow, isoDate } from '@/lib/shipment-queue-rows';
 import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
 import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
 import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
@@ -23,9 +23,6 @@ import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
-import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
-import { displayOrderNumber } from '@/lib/orders/display-order-number';
-
 const merchantLogisticsSelect = {
   id: true,
   name: true,
@@ -37,76 +34,38 @@ const merchantLogisticsSelect = {
   pickupStoreName: true,
 } as const;
 
-const shipmentInclude = {
-  merchant: { select: merchantLogisticsSelect },
-  customer: {
-    select: {
-      id: true,
-      name: true,
-      customerId: true,
-      phone: true,
-      address: true,
-    },
-  },
-  order: {
-    select: {
-      id: true,
-      orderNumber: true,
-      source: true,
-      externalOrderName: true,
-      status: true,
-      paymentStatus: true,
-      shippingFeeType: true,
-      shippingMethod: true,
-      cvsBrand: true,
-      cvsStoreId: true,
-      cvsStoreName: true,
-      omsStatus: true,
-      shopifySnapshot: true,
-    },
-  },
-  items: {
-    select: {
-      id: true,
-      productId: true,
-      productName: true,
-      sku: true,
-      quantity: true,
-      weightGrams: true,
-      variantKey: true,
-      unit: true,
-      product: {
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          category: true,
-          unit: true,
-          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
-          inventoryBalances: {
-            where: { warehouse: { code: 'WH-MAIN' } },
-            select: { quantity: true, unit: true, lastCountedAt: true },
-            take: 1,
-          },
-        },
-      },
-    },
-  },
-  subscriptionShipment: {
-    select: {
-      id: true,
-      shipmentNo: true,
-      scheduledDate: true,
-      status: true,
-      subscription: {
-        select: {
-          id: true,
-          subscriptionNo: true,
-          plan: { select: { id: true, name: true, contents: true } },
-        },
-      },
-    },
-  },
+const shipmentSelect = {
+  id: true,
+  shipmentNumber: true,
+  type: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  merchantId: true,
+  customerId: true,
+  orderId: true,
+  subscriptionShipmentId: true,
+  recipientName: true,
+  recipientPhone: true,
+  recipientAddress: true,
+  carrier: true,
+  trackingNumber: true,
+} as const;
+
+const orderSelect = {
+  id: true,
+  orderNumber: true,
+  source: true,
+  externalOrderName: true,
+  status: true,
+  paymentStatus: true,
+  shippingFeeType: true,
+  shippingMethod: true,
+  cvsBrand: true,
+  cvsStoreId: true,
+  cvsStoreName: true,
+  omsStatus: true,
+  shopifySnapshot: true,
 } as const;
 
 const STAGE_TABS = [
@@ -116,80 +75,7 @@ const STAGE_TABS = [
   { key: 'received', label: '已完成' },
 ] as const;
 
-function toQueueRow(
-  s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
-  fee: ReturnType<typeof resolveShipmentFulfillmentFee>,
-): ShipmentQueueRow {
-  return {
-    id: s.id,
-    shipmentNumber: s.shipmentNumber,
-    type: s.type,
-    status: s.status,
-    createdAt: s.createdAt.toISOString(),
-    carrier: s.carrier,
-    trackingNumber: s.trackingNumber,
-    recipientName: s.order?.omsStatus
-      ? normalizeStoredShopifyRecipient(s.recipientName, s.order.shopifySnapshot)
-      : s.recipientName,
-    recipientPhone: s.recipientPhone,
-    recipientAddress: s.recipientAddress,
-    merchant: s.merchant
-      ? {
-          id: s.merchant.id,
-          name: s.merchant.name,
-          contactName: s.merchant.contactName,
-          phone: s.merchant.phone,
-          address: s.merchant.address,
-          city: s.merchant.city,
-          preferredCarrier: s.merchant.preferredCarrier,
-          pickupStoreName: s.merchant.pickupStoreName,
-        }
-      : null,
-    customer: s.customer ? { id: s.customer.id, name: s.customer.name } : null,
-    order: s.order
-      ? {
-          id: s.order.id,
-          orderNumber: s.order.orderNumber,
-          displayOrderNumber: displayOrderNumber(s.order),
-          omsStatus: s.order.omsStatus,
-          status: s.order.status,
-          paymentStatus: s.order.paymentStatus,
-          shippingFeeType: s.order.shippingFeeType,
-          shippingMethod: s.order.shippingMethod,
-          cvsBrand: s.order.cvsBrand,
-          cvsStoreId: s.order.cvsStoreId,
-          cvsStoreName: s.order.cvsStoreName,
-        }
-      : null,
-    fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
-    paymentReviewHold: fee.paymentReviewHold,
-    inventoryWarnings: shipmentInventoryAdvisories(s.items),
-    items: s.items.map((item) => ({
-      productName: canonicalProductName(item.productName),
-      weightGrams: item.weightGrams,
-      quantity: item.quantity,
-    })),
-    subscriptionShipment: s.subscriptionShipment
-      ? {
-          shipmentNo: s.subscriptionShipment.shipmentNo,
-          scheduledDate: s.subscriptionShipment.scheduledDate
-            ? s.subscriptionShipment.scheduledDate.toISOString()
-            : null,
-          subscription: s.subscriptionShipment.subscription
-            ? {
-                subscriptionNo: s.subscriptionShipment.subscription.subscriptionNo,
-                plan: s.subscriptionShipment.subscription.plan
-                  ? {
-                      name: s.subscriptionShipment.subscription.plan.name,
-                      contents: s.subscriptionShipment.subscription.plan.contents,
-                    }
-                  : null,
-              }
-            : null,
-        }
-      : null,
-  };
-}
+const emptyCounts = { byStatus: {} as Record<string, number>, pendingCount: 0, total: 0 };
 
 export async function ShipmentsQueueBody({
   searchParams,
@@ -213,6 +99,7 @@ export async function ShipmentsQueueBody({
           status: { in: ['pending', 'packed'] },
           OR: [
             { orderId: null },
+            { order: { is: null } },
             { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
           ],
         }
@@ -221,6 +108,7 @@ export async function ShipmentsQueueBody({
             status,
             OR: [
               { orderId: null },
+              { order: { is: null } },
               { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
             ],
           }
@@ -239,45 +127,298 @@ export async function ShipmentsQueueBody({
       status: { in: ['pending', 'packed', 'shipped', 'delivered', 'received'] },
       OR: [
         { orderId: null },
+        { order: { is: null } },
         { order: { status: { notIn: [...SHIPMENT_QUEUE_HIDDEN_ORDER_STATUSES] } } },
       ],
     },
     kindFilter,
   );
 
-  const [rawShipments, counts] = await Promise.all([
-    prisma.shipment.findMany({
-      where,
-      include: shipmentInclude,
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: SHIPMENT_QUEUE_TAKE,
-    }),
-    getShipmentQueueCounts(countWhere),
-  ]);
+  let loadError: string | null = null;
+  let rawShipments: Array<Prisma.ShipmentGetPayload<{ select: typeof shipmentSelect }>> = [];
+  let counts = emptyCounts;
+  try {
+    const [listed, queueCounts] = await Promise.all([
+      prisma.shipment.findMany({
+        where,
+        select: shipmentSelect,
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: SHIPMENT_QUEUE_TAKE,
+      }),
+      getShipmentQueueCounts(countWhere).catch((error: unknown) => {
+        console.error('[shipments-queue] counts skipped', error);
+        return emptyCounts;
+      }),
+    ]);
+    rawShipments = listed;
+    counts = queueCounts;
+  } catch (error) {
+    console.error('[shipments-queue] list query failed', error);
+    loadError = '出貨清單暫時無法載入。請再試一次。';
+  }
 
-  const shipments = dedupeShipmentsByOrder(rawShipments);
+  const shipmentIds = rawShipments.map((shipment) => shipment.id);
+  let itemRows: Array<{
+    shipmentId: string;
+    productId: string;
+    productName: string;
+    quantity: number;
+    weightGrams: number | null;
+    variantKey: string | null;
+    unit: string | null;
+  }> = [];
+  let itemsUnavailable = false;
+  if (shipmentIds.length) {
+    try {
+      itemRows = await prisma.shipmentItem.findMany({
+        where: { shipmentId: { in: shipmentIds } },
+        select: {
+          shipmentId: true,
+          productId: true,
+          productName: true,
+          quantity: true,
+          weightGrams: true,
+          variantKey: true,
+          unit: true,
+        },
+      });
+    } catch (error) {
+      console.error('[shipments-queue] item lookup retry', error);
+      try {
+        const basicItems = await prisma.shipmentItem.findMany({
+          where: { shipmentId: { in: shipmentIds } },
+          select: {
+            shipmentId: true,
+            productId: true,
+            productName: true,
+            quantity: true,
+            weightGrams: true,
+          },
+        });
+        itemRows = basicItems.map((item) => ({ ...item, variantKey: null, unit: null }));
+      } catch (retryError) {
+        console.error('[shipments-queue] item lookup skipped', retryError);
+        itemsUnavailable = true;
+      }
+    }
+  }
+  const itemsByShipment = new Map<string, typeof itemRows>();
+  for (const item of itemRows) {
+    const list = itemsByShipment.get(item.shipmentId) ?? [];
+    list.push(item);
+    itemsByShipment.set(item.shipmentId, list);
+  }
+
+  const shipments = dedupeShipmentsByOrder(
+    rawShipments.map((shipment) => ({
+      ...shipment,
+      items: itemsByShipment.get(shipment.id) ?? [],
+    })),
+  );
   const { byStatus: countByStatus, pendingCount } = counts;
   const panelRefreshKey = shipments
-    .map((s) => {
-      const updated =
-        s.updatedAt instanceof Date
-          ? s.updatedAt.toISOString()
-          : new Date(s.updatedAt as string | number).toISOString();
-      return `${s.id}:${s.status}:${updated}`;
-    })
+    .map((s) => `${s.id}:${s.status}:${isoDate(s.updatedAt) ?? ''}`)
     .join('|');
 
-  const jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
-  const queueRows = shipments.map((s) =>
-    toQueueRow(
-      s,
+  const orderIds = [...new Set(shipments.map((s) => s.orderId).filter((id): id is string => Boolean(id)))];
+  const merchantIds = [...new Set(shipments.map((s) => s.merchantId).filter((id): id is string => Boolean(id)))];
+  const customerIds = [...new Set(shipments.map((s) => s.customerId).filter((id): id is string => Boolean(id)))];
+  const subscriptionShipmentIds = [
+    ...new Set(shipments.map((s) => s.subscriptionShipmentId).filter((id): id is string => Boolean(id))),
+  ];
+
+  let orders: Array<Prisma.OrderGetPayload<{ select: typeof orderSelect }>> = [];
+  if (orderIds.length) {
+    try {
+      orders = await prisma.order.findMany({ where: { id: { in: orderIds } }, select: orderSelect });
+    } catch (error) {
+      console.error('[shipments-queue] order lookup retry', error);
+      try {
+        const basicOrders = await prisma.order.findMany({
+          where: { id: { in: orderIds } },
+          select: {
+            id: true,
+            orderNumber: true,
+            source: true,
+            externalOrderName: true,
+            status: true,
+            paymentStatus: true,
+            shippingFeeType: true,
+            shippingMethod: true,
+            cvsBrand: true,
+            cvsStoreId: true,
+            cvsStoreName: true,
+          },
+        });
+        orders = basicOrders.map((order) => ({ ...order, omsStatus: null, shopifySnapshot: null }));
+      } catch (retryError) {
+        console.error('[shipments-queue] order lookup skipped', retryError);
+      }
+    }
+  }
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+
+  let merchants: Array<Prisma.MerchantGetPayload<{ select: typeof merchantLogisticsSelect }>> = [];
+  if (merchantIds.length) {
+    try {
+      merchants = await prisma.merchant.findMany({
+        where: { id: { in: merchantIds } },
+        select: merchantLogisticsSelect,
+      });
+    } catch (error) {
+      console.error('[shipments-queue] merchant lookup skipped', error);
+    }
+  }
+  const merchantById = new Map(merchants.map((merchant) => [merchant.id, merchant]));
+
+  let customers: Array<{ id: string; name: string }> = [];
+  if (customerIds.length) {
+    try {
+      customers = await prisma.customer.findMany({
+        where: { id: { in: customerIds } },
+        select: { id: true, name: true },
+      });
+    } catch (error) {
+      console.error('[shipments-queue] customer lookup skipped', error);
+    }
+  }
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+  let subscriptionShipments: Array<{
+    id: string;
+    shipmentNo: string;
+    scheduledDate: Date;
+    subscriptionId: string;
+  }> = [];
+  if (subscriptionShipmentIds.length) {
+    try {
+      subscriptionShipments = await prisma.subscriptionShipment.findMany({
+        where: { id: { in: subscriptionShipmentIds } },
+        select: { id: true, shipmentNo: true, scheduledDate: true, subscriptionId: true },
+      });
+    } catch (error) {
+      console.error('[shipments-queue] subscription shipment lookup skipped', error);
+    }
+  }
+  const subscriptionShipmentById = new Map(subscriptionShipments.map((row) => [row.id, row]));
+
+  const productIds = [
+    ...new Set(shipments.flatMap((s) => s.items.map((item) => item.productId)).filter(Boolean)),
+  ];
+  let productLookupFailed = false;
+  let products: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    category: string;
+    unit: string | null;
+    priceTiers: Array<{ id: string; weightGrams: number | null; unit: string; unitQty: number }>;
+    inventoryBalances: Array<{ quantity: number; unit: string | null; lastCountedAt: Date | null }>;
+  }> = [];
+  if (productIds.length) {
+    try {
+      products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          category: true,
+          unit: true,
+          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+          inventoryBalances: {
+            where: { warehouse: { code: 'WH-MAIN' } },
+            select: { quantity: true, unit: true, lastCountedAt: true },
+            take: 1,
+          },
+        },
+      });
+    } catch (error) {
+      productLookupFailed = true;
+      console.error('[shipments-queue] product lookup skipped', error);
+    }
+  }
+  const productById = new Map(products.map((product) => [product.id, product]));
+
+  const subscriptionIds = [
+    ...new Set(subscriptionShipments.map((row) => row.subscriptionId).filter(Boolean)),
+  ];
+  const subscriptionById = new Map<
+    string,
+    { subscriptionNo: string; plan: { name: string; contents: string | null } | null }
+  >();
+  if (subscriptionIds.length) {
+    try {
+      const subscriptions = await prisma.subscription.findMany({
+        where: { id: { in: subscriptionIds } },
+        select: { id: true, subscriptionNo: true, planId: true },
+      });
+      const planIds = [...new Set(subscriptions.map((row) => row.planId))];
+      const plans = planIds.length
+        ? await prisma.subscriptionPlan.findMany({
+            where: { id: { in: planIds } },
+            select: { id: true, name: true, contents: true },
+          })
+        : [];
+      const planById = new Map(plans.map((plan) => [plan.id, plan]));
+      for (const row of subscriptions) {
+        const plan = planById.get(row.planId);
+        subscriptionById.set(row.id, {
+          subscriptionNo: row.subscriptionNo,
+          plan: plan ? { name: plan.name, contents: plan.contents } : null,
+        });
+      }
+    } catch (error) {
+      console.error('[shipments-queue] subscription lookup skipped', error);
+    }
+  }
+
+  let jibaCharges = new Map<string, JibaChargeSource>();
+  try {
+    jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
+  } catch (error) {
+    console.error('[shipments-queue] charge lookup skipped', error);
+  }
+  const queueRows = shipments.map((s) => {
+    const order = s.orderId ? orderById.get(s.orderId) ?? null : null;
+    const subscriptionShipment = s.subscriptionShipmentId
+      ? subscriptionShipmentById.get(s.subscriptionShipmentId) ?? null
+      : null;
+    const subscription = subscriptionShipment
+      ? subscriptionById.get(subscriptionShipment.subscriptionId) ?? null
+      : null;
+    return assembleShipmentQueueRow(
+      {
+        ...s,
+        itemsUnavailable,
+        merchant: s.merchantId ? merchantById.get(s.merchantId) ?? null : null,
+        customer: s.customerId ? customerById.get(s.customerId) ?? null : null,
+        order,
+        items: s.items.map((item) => ({
+          ...item,
+          productFound: productLookupFailed ? undefined : productById.has(item.productId),
+        })),
+        subscriptionShipment: subscriptionShipment
+          ? {
+              shipmentNo: subscriptionShipment.shipmentNo,
+              scheduledDate: subscriptionShipment.scheduledDate,
+              subscription,
+            }
+          : null,
+      },
       resolveShipmentFulfillmentFee({
-        orderStatus: s.order?.status,
-        shippingFeeType: s.order?.shippingFeeType,
+        orderStatus: order?.status,
+        shippingFeeType: order?.shippingFeeType,
         jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
       }),
-    ),
-  );
+      shipmentInventoryAdvisories(
+        s.items.map((item) => ({
+          ...item,
+          product: productById.get(item.productId) ?? null,
+        })),
+      ),
+    );
+  });
 
   const workspaceSections = [
     {
@@ -329,6 +470,12 @@ export async function ShipmentsQueueBody({
           })}
         </div>
       </nav>
+
+      {loadError ? (
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {loadError}
+        </p>
+      ) : null}
 
       {truncated ? (
         <p className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">

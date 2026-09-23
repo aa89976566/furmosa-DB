@@ -26,6 +26,13 @@ function item(input: { sku?: string; quantity?: number; stock?: number; counted?
   };
 }
 
+test('商品主檔缺漏時不讓出貨清單整頁失敗', () => {
+  assert.deepEqual(
+    shipmentInventoryAdvisories([{ quantity: 1, weightGrams: 50, product: null }]),
+    [],
+  );
+});
+
 test('原味雞霸是現做品，不產生 HQ 庫存提醒', () => {
   assert.equal(isMadeToOrderHqProduct('fur-0002'), true);
   assert.deepEqual(shipmentInventoryAdvisories([item({ sku: 'FUR-0002' })]), []);

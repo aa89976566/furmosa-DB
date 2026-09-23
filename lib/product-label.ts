@@ -6,6 +6,7 @@ const LEGACY_PRODUCT_NAMES: Record<string, string> = {
 
 /** 只修正已確認的舊商品快照名稱，保留其他歷史資料。 */
 export function canonicalProductName(name: string): string {
+  if (typeof name !== 'string' || !name) return '';
   return LEGACY_PRODUCT_NAMES[name] ?? replaceJibaLegacyCatnipName(name);
 }
 
@@ -19,10 +20,11 @@ export function productLabel(
   weightGrams?: number | null,
   unit?: string | null,
 ): string {
-  let out = canonicalProductName(name);
+  const safeName = typeof name === 'string' ? name : '';
+  let out = canonicalProductName(safeName);
   if (weightGrams && weightGrams > 0) {
-    const re = new RegExp(`\\b${weightGrams}\\s*g\\b`, 'i');
-    if (!re.test(name)) out = `${out} ${weightGrams}g`;
+    const re = new RegExp(`\\b${Number(weightGrams)}\\s*g\\b`, 'i');
+    if (!re.test(safeName)) out = `${out} ${weightGrams}g`;
   }
   if (unit && unit.trim() && unit !== '件') {
     out = `${out}（${unit}）`;
