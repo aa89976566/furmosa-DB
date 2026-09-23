@@ -68,6 +68,7 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       refillResult,
       deliveredRequestResult,
       directResult,
+      shippedDirectResult,
     ] = await Promise.allSettled([
       prisma.restockRequest.findMany({
         where: {
@@ -126,16 +127,26 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         take: RECEIPT_TAKE,
         order: 'oldest',
       }),
+      loadDirectRestockShipments(merchantId, {
+        statuses: ['shipped'],
+        take: RECEIPT_TAKE,
+        order: 'newest',
+      }),
     ]);
 
-    const failures = [restockResult, stockResult, deliveredRequestResult, directResult].filter(
-      (r) => r.status === 'rejected',
-    );
+    const failures = [
+      restockResult,
+      stockResult,
+      deliveredRequestResult,
+      directResult,
+      shippedDirectResult,
+    ].filter((r) => r.status === 'rejected');
     const openRestocks = settledValue(restockResult, 'restock') ?? [];
     const stockRows = settledValue(stockResult, 'stock');
     const pendingRefillCount = settledValue(refillResult, 'refill') ?? 0;
     const deliveredRequestRows = settledValue(deliveredRequestResult, 'deliveredRequest');
     const directRows = settledValue(directResult, 'direct');
+    const shippedDirectRows = settledValue(shippedDirectResult, 'shippedDirect');
 
     let lowStock: HomeTasksInput['lowStock'] = null;
     if (stockRows && isInventoryReliable(stockRows.length)) {
@@ -175,6 +186,7 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
             }));
 
     const directs: DirectRestockShipment[] = directRows ?? [];
+    const shippedDirects: DirectRestockShipment[] = shippedDirectRows ?? [];
     let postedDirectIds = new Set<string>();
     let evidenceFailed = false;
     let evidenceError: unknown = null;
@@ -217,8 +229,14 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       (directRows?.length === RECEIPT_TAKE);
 
     const ongoingRestocks = openRestocks.filter(
-      (request) => request.shipment?.status !== 'delivered' && request.shipment?.status !== 'received',
+      (request) =>
+        request.shipment?.status !== 'shipped' &&
+        request.shipment?.status !== 'delivered' &&
+        request.shipment?.status !== 'received',
     );
+    const shippedRequests = openRestocks.filter((request) => request.shipment?.status === 'shipped');
+    const firstShippedRequest = shippedRequests[0];
+    const firstShippedDirect = shippedDirects[0];
 
     const input: HomeTasksInput = {
       pendingRefillCount,
@@ -226,6 +244,12 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       firstAwaitingRestockReceiptHref: first?.href ?? null,
       firstAwaitingRestockShipmentNumber: first?.shipmentNumber ?? null,
       awaitingRestockReceiptCountCapped: capped,
+      inTransitRestockCount: shippedRequests.length + shippedDirects.length,
+      firstInTransitRestockHref: firstShippedRequest
+        ? `/pos/restock/${firstShippedRequest.id}`
+        : firstShippedDirect
+          ? `/pos/shipments/${firstShippedDirect.id}`
+          : null,
       lowStock,
       openRestockCount: ongoingRestocks.length,
       firstOpenRestockId: ongoingRestocks[0]?.id ?? null,

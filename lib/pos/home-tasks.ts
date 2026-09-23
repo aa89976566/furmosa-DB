@@ -5,6 +5,7 @@
 export type HomeTaskKind =
   | 'pending_refill'
   | 'awaiting_restock_receipt'
+  | 'in_transit_restock'
   | 'low_stock'
   | 'restock_progress';
 
@@ -23,6 +24,8 @@ export type HomeTasksInput = {
   firstAwaitingRestockReceiptHref: string | null;
   firstAwaitingRestockShipmentNumber: string | null;
   awaitingRestockReceiptCountCapped?: boolean;
+  inTransitRestockCount?: number;
+  firstInTransitRestockHref?: string | null;
   /** null = 庫存不可靠，不顯示庫存不足卡 */
   lowStock: { productName: string; quantity: number }[] | null;
   openRestockCount: number;
@@ -50,6 +53,17 @@ export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
         input.awaitingRestockReceiptCountCapped
           ? `${input.awaitingRestockReceiptCount}+`
           : String(input.awaitingRestockReceiptCount),
+      badgeUnit: '筆',
+    });
+  }
+
+  if ((input.inTransitRestockCount ?? 0) > 0) {
+    cards.push({
+      kind: 'in_transit_restock',
+      title: '補貨運送中',
+      subtitle: `${input.inTransitRestockCount} 筆商品正在配送，送達後請回 POS 確認收貨`,
+      href: input.firstInTransitRestockHref ?? '/pos/notifications',
+      badge: String(input.inTransitRestockCount),
       badgeUnit: '筆',
     });
   }
