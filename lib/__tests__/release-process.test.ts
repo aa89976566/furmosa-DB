@@ -73,6 +73,18 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
     'docs/releases/historical-hq-schema-repair-20260921.md',
   ]);
   assert.match(workflow, /- historical_hq_schema_repair_20260921/);
+  assert.equal(
+    RELEASE_PLANS.finance_unit_economics_20260923.runner,
+    'scripts/ops/deploy-finance-unit-economics.mjs',
+  );
+  assert.deepEqual(RELEASE_PLANS.finance_unit_economics_20260923.migrationPrefixes, [
+    'prisma/migrations/20260923180000_finance_unit_economics/',
+  ]);
+  assert.match(workflow, /- finance_unit_economics_20260923/);
+  const financeRunner = readFileSync('scripts/ops/deploy-finance-unit-economics.mjs', 'utf8');
+  assert.match(financeRunner, /20260923180000_finance_unit_economics/);
+  assert.match(financeRunner, /BEGIN;[\s\S]*COMMIT;/);
+  assert.doesNotMatch(financeRunner, /prisma migrate deploy/);
 });
 
 test('Vercel skips main and builds PR branches', () => {

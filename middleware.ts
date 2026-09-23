@@ -6,6 +6,7 @@ import {
   decidePosAccess,
   verifyMerchantSessionEdge,
 } from '@/lib/merchant-auth/edge';
+import { decideFinanceAccess } from '@/lib/finance/access-policy';
 
 const PUBLIC_PATHS = ['/login', '/store', '/store-redeem', '/book'];
 
@@ -126,6 +127,31 @@ export async function middleware(req: NextRequest) {
   // ----- HQ admin -----
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = await verifySessionEdge(token);
+  const financeDecision = decideFinanceAccess({
+    pathname,
+    hasHqSession: Boolean(session),
+    role: session?.role ?? null,
+  });
+  if (financeDecision === 'login') {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: '請先登入' }, { status: 401 });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = '';
+    url.searchParams.set('next', pathname);
+    return NextResponse.redirect(url);
+  }
+  if (financeDecision === 'forbid') {
+    const message = '只有最高權限管理員可以查看財務與單位經濟';
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: message }, { status: 403 });
+    }
+    return new NextResponse(message, {
+      status: 403,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  }
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
   const decision = decideHqAccess({
     pathname,

@@ -7,12 +7,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { UserMenu } from "@/components/layout/user-menu";
 import { getCurrentUser } from "@/lib/auth";
+import { isHqFinanceAdmin } from "@/lib/finance/guard";
 
 export async function Topbar() {
-  const user = await getCurrentUser();
+  const [user, showFinance] = await Promise.all([getCurrentUser(), isHqFinanceAdmin()]);
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b-2 border-foreground bg-card px-3 sm:gap-4 sm:px-6">
       <MobileNav
+        showFinance={showFinance}
         reviewBadge={
           <Suspense fallback={null}>
             <ReviewInboxBadge />

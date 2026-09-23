@@ -35,7 +35,13 @@ function isHorizontalSwipe(start: TouchPoint, end: TouchPoint, direction: 'left'
   );
 }
 
-export function MobileNav({ reviewBadge }: { reviewBadge?: ReactNode }) {
+export function MobileNav({
+  reviewBadge,
+  showFinance = false,
+}: {
+  reviewBadge?: ReactNode;
+  showFinance?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -191,7 +197,7 @@ export function MobileNav({ reviewBadge }: { reviewBadge?: ReactNode }) {
         <ScrollArea className="min-h-0 flex-1 px-3 py-4">
           <div onClick={() => setOpen(false)}>
             <Suspense fallback={<div className="h-40 animate-pulse rounded-xl bg-muted/50" />}>
-              <SidebarNav itemExtras={{ '/reviews': reviewBadge }} />
+              <SidebarNav showFinance={showFinance} itemExtras={{ '/reviews': reviewBadge }} />
             </Suspense>
           </div>
         </ScrollArea>

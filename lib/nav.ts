@@ -15,6 +15,7 @@ import {
   Truck,
   BarChart3,
   PackageOpen,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionTone } from '@/lib/section-tone';
@@ -93,3 +94,19 @@ export const navGroups: NavGroup[] = [
     ],
   },
 ];
+
+export const financeNavGroup: NavGroup = {
+  label: '財務',
+  tone: 'finance',
+  items: [
+    { href: '/finance/products', label: '商品毛利', icon: BarChart3 },
+    { href: '/finance/channels', label: '通路損益', icon: BarChart3 },
+    { href: '/finance/partners', label: '合作店與換罐', icon: Store },
+    { href: '/finance/cash-flow', label: '13 週現金流', icon: Wallet },
+  ],
+};
+
+export function navGroupsForRole(role: string | null | undefined): NavGroup[] {
+  if (role !== 'admin') return navGroups;
+  return [...navGroups, financeNavGroup];
+}

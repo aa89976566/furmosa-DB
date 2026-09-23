@@ -14,10 +14,14 @@ const authReads: string[] = [];
 const harness = globalThis as typeof globalThis & {
   __MW_COOKIE_READS__: string[];
   __MW_AUTH_READS__: string[];
+  __MW_HQ_SESSION__: { role: string } | null;
 };
 
 harness.__MW_COOKIE_READS__ = cookieReads;
 harness.__MW_AUTH_READS__ = authReads;
+harness.__MW_HQ_SESSION__ = null;
+
+const financePolicyUrl = new URL('./lib/finance/access-policy.ts', import.meta.url).href;
 
 const loader = `
 export async function resolve(specifier, context, nextResolve) {
@@ -46,7 +50,13 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === '@/lib/auth-edge') {
     return {
       shortCircuit: true,
-      url: 'data:text/javascript,export const SESSION_COOKIE_NAME="furmosa_session";export async function verifySessionEdge(){globalThis.__MW_AUTH_READS__.push("hq");return null}',
+      url: 'data:text/javascript,export const SESSION_COOKIE_NAME="furmosa_session";export async function verifySessionEdge(){globalThis.__MW_AUTH_READS__.push("hq");return globalThis.__MW_HQ_SESSION__??null}',
+    };
+  }
+  if (specifier === '@/lib/finance/access-policy') {
+    return {
+      shortCircuit: true,
+      url: ${JSON.stringify(financePolicyUrl)},
     };
   }
   if (specifier === '@/lib/merchant-auth/edge') {
@@ -96,6 +106,7 @@ async function invoke(
 ) {
   cookieReads.length = 0;
   authReads.length = 0;
+  harness.__MW_HQ_SESSION__ = null;
   return middleware(makeReq(url, { trapCookies, headers }) as never);
 }
 
@@ -260,6 +271,35 @@ describe('custom POS hostname routing', () => {
   });
 });
 
+
+describe('finance unit economics middleware', () => {
+  it('sends an unsigned finance page to HQ login and an unsigned API to 401', async () => {
+    const page = await invoke(`${ORIGIN}/finance/products`);
+    assert.equal(page.status, 307);
+    const location = page.headers.get('location');
+    assert.ok(location);
+    const dest = new URL(location);
+    assert.equal(dest.pathname, '/login');
+    assert.equal(dest.searchParams.get('next'), '/finance/products');
+
+    const api = await invoke(`${ORIGIN}/api/finance/cash-flow`);
+    assert.equal(api.status, 401);
+    assert.deepEqual(await api.json(), { error: '請先登入' });
+  });
+
+  it('rejects a signed non-admin on the page and the API', async () => {
+    harness.__MW_HQ_SESSION__ = { role: 'staff' };
+    const page = await middleware(makeReq(`${ORIGIN}/finance/partners`, { trapCookies: false }) as never);
+    assert.equal(page.status, 403);
+    assert.match(await page.text(), /只有最高權限管理員/);
+
+    harness.__MW_HQ_SESSION__ = { role: 'finance' };
+    const api = await middleware(makeReq(`${ORIGIN}/api/finance/products`, { trapCookies: false }) as never);
+    assert.equal(api.status, 403);
+    assert.deepEqual(await api.json(), { error: '只有最高權限管理員可以查看財務與單位經濟' });
+    harness.__MW_HQ_SESSION__ = null;
+  });
+});
 
 describe('health middleware security contract', () => {
   it('keeps only exact /api/health public without auth reads', async () => {

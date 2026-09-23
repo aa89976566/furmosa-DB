@@ -5,6 +5,7 @@ const entries = [
   { href: '/pos/refill', title: '換罐計畫', description: '掃描罐底、查詢客人與處理換罐', icon: Recycle },
   { href: '/pos/sell', title: '寄賣銷售', description: '選購商品，依既有售價與分潤規則記錄銷售', icon: ShoppingBag },
   { href: '/pos/group-buy', title: '活動／團購', description: '查看店家專屬進貨價與合作資訊', icon: Users },
+  { href: '/pos/economics', title: '本店銷售與分潤', description: '只看本店售價、進貨價、可得分潤、庫存與銷售', icon: ShoppingBag },
 ];
 
 export function CooperationEntries() {

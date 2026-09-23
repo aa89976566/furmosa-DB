@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { navGroups } from '@/lib/nav';
+import { navGroupsForRole } from '@/lib/nav';
 import { isNavItemActive } from '@/lib/nav-active';
 import { sectionToneStyles } from '@/lib/section-tone';
 import { cn } from '@/lib/utils';
@@ -24,15 +24,18 @@ const HOT_PREFETCH = new Set([
 
 export function SidebarNav({
   itemExtras,
+  showFinance = false,
 }: {
   itemExtras?: Partial<Record<string, ReactNode>>;
+  showFinance?: boolean;
 }) {
+  const groups = navGroupsForRole(showFinance ? 'admin' : null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   return (
     <nav className="space-y-4">
-      {navGroups.map((group) => {
+      {groups.map((group) => {
         const groupStyles = sectionToneStyles[group.tone];
         const hasActiveItem = group.items.some((item) =>
           isNavItemActive(pathname, searchParams, item.href),
