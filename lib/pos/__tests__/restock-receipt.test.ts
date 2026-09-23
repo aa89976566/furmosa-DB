@@ -66,7 +66,7 @@ const shipment = {
 };
 
 describe('店家補貨確認收貨入庫', () => {
-  it('只允許同店家的補貨出貨單從 delivered 確認收貨', () => {
+  it('只允許同店家的已寄出或已送達補貨出貨單確認收貨', () => {
     assert.equal(
       validateRestockReceiptShipment(
         { merchantId: 'merchant-1', type: 'merchant_restock', status: 'delivered' },
@@ -97,13 +97,12 @@ describe('店家補貨確認收貨入庫', () => {
         ),
       /不是店家補貨/,
     );
-    assert.throws(
-      () =>
-        validateRestockReceiptShipment(
-          { merchantId: 'merchant-1', type: 'merchant_restock', status: 'shipped' },
-          'merchant-1',
-        ),
-      /尚未送達/,
+    assert.equal(
+      validateRestockReceiptShipment(
+        { merchantId: 'merchant-1', type: 'merchant_restock', status: 'shipped' },
+        'merchant-1',
+      ),
+      'ready',
     );
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
+import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   confirmRestockReceiptAction,
@@ -14,8 +15,8 @@ function DialogActions({ onCancel }: { onCancel: () => void }) {
   const { pending } = useFormStatus();
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      <Button type="submit" disabled={pending} className="min-h-[48px] sm:order-2">
-        {pending ? '正在確認收貨…' : '確認完整收到'}
+      <Button type="submit" disabled={pending} className="min-h-[48px] gap-2 sm:order-2">
+        {pending ? '正在確認收貨…' : <><CheckCircle2 className="h-4 w-4" aria-hidden />確認完整收到</>}
       </Button>
       <Button
         data-safe-cancel
@@ -54,7 +55,7 @@ export function ConfirmReceiptButton({ requestId }: { requestId: string }) {
         ref={triggerRef}
         type="button"
         disabled={state.status === 'just_received' || state.status === 'already_received'}
-        className="min-h-[48px] w-full"
+        className="group min-h-[52px] w-full rounded-2xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.22)] active:translate-y-0 active:scale-[0.985]"
         onClick={() => {
           dialogRef.current?.showModal();
           requestAnimationFrame(() =>
@@ -62,7 +63,8 @@ export function ConfirmReceiptButton({ requestId }: { requestId: string }) {
           );
         }}
       >
-        確認收到貨
+        <CheckCircle2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" aria-hidden />
+        收到這批貨，開始核對
       </Button>
 
       {state.status !== 'idle' ? (

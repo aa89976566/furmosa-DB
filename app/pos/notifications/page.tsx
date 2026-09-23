@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bell, ChevronRight } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { PosShell } from '@/components/pos/pos-shell';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { loadPosAccount } from '@/lib/pos/account';
@@ -54,15 +54,28 @@ export default async function PosNotificationsPage() {
                     <time className="mt-2 block text-xs text-muted-foreground">
                       {event.occurredAt.toLocaleString('zh-TW')}
                     </time>
+                    {event.href ? (
+                      <span
+                        className={`mt-3 inline-flex min-h-10 items-center rounded-full px-4 text-sm font-semibold transition duration-200 ${
+                          event.actionRequired
+                            ? 'bg-foreground text-background shadow-[0_8px_20px_rgba(0,0,0,0.14)] group-hover:-translate-y-0.5 group-hover:shadow-[0_12px_24px_rgba(0,0,0,0.2)] group-active:translate-y-0 group-active:scale-[0.98]'
+                            : 'bg-secondary text-foreground group-hover:bg-foreground group-hover:text-background'
+                        }`}
+                      >
+                        {event.actionRequired ? '查看運送並確認收貨' : '查看詳情'}
+                        {event.actionRequired ? (
+                          <span className="ml-2 h-2 w-2 rounded-full bg-lime-300 shadow-[0_0_0_4px_rgba(190,242,100,0.15)]" aria-hidden />
+                        ) : null}
+                      </span>
+                    ) : null}
                   </div>
-                  {event.href ? <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden /> : null}
                 </div>
               );
               return event.href ? (
                 <Link
                   key={event.id}
                   href={event.href}
-                  className="block rounded-2xl border bg-card p-4 transition hover:border-foreground/30"
+                  className="group block rounded-2xl border bg-card p-4 transition duration-200 hover:border-foreground/40 hover:shadow-[0_12px_28px_rgba(0,0,0,0.07)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/80"
                 >
                   {content}
                 </Link>

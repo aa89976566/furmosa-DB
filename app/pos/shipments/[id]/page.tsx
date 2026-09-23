@@ -6,8 +6,8 @@ import { loadPosAccount } from '@/lib/pos/account';
 import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CheckCircle2 } from 'lucide-react';
 import { confirmDirectShipmentReceiptAction } from './actions';
-import { PosReceiptSupport } from '@/components/pos/receipt-support';
 
 export const metadata = { title: '出貨單 · Furmosa 店家' };
 
@@ -52,6 +52,7 @@ export default async function PosDirectShipmentPage(
     { label: '店家確認收貨', done: shipment.status === 'received' },
   ];
   const receipt = searchParams?.receipt ? RECEIPT_MESSAGE[searchParams.receipt] : null;
+  const canConfirmReceipt = shipment.status === 'shipped' || shipment.status === 'delivered';
 
   return (
     <PosShell storeName={account.storeName} account={account}>
@@ -115,7 +116,7 @@ export default async function PosDirectShipmentPage(
               ) : null}
             </div>
 
-            {shipment.status === 'delivered' ? (
+            {canConfirmReceipt ? (
               <div className="space-y-3">
                 <div className="rounded-xl bg-background/70 p-3 text-sm">
                   <p className="font-medium">請先核對品項、數量與商品狀況。</p>
@@ -125,11 +126,11 @@ export default async function PosDirectShipmentPage(
                 </div>
                 <form action={confirmDirectShipmentReceiptAction}>
                   <input type="hidden" name="shipmentId" value={shipment.id} />
-                  <Button type="submit" className="min-h-[48px] w-full">
-                    確認收到貨
+                  <Button type="submit" className="group min-h-[52px] w-full rounded-2xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.22)] active:translate-y-0 active:scale-[0.985]">
+                    <CheckCircle2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" aria-hidden />
+                    收到這批貨，確認入庫
                   </Button>
                 </form>
-                <PosReceiptSupport />
               </div>
             ) : null}
 
