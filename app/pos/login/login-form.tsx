@@ -5,19 +5,21 @@ import { useFormState, useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { posLoginAction, type PosLoginState } from "./actions";
+import { posLoginAction, previewDemoLoginAction, type PosLoginState } from "./actions";
 
 const initialState: PosLoginState = {};
 
-export function PosLoginForm({ next }: { next?: string }) {
+export function PosLoginForm({ next, showPreviewDemo = false }: { next?: string; showPreviewDemo?: boolean }) {
   const [state, formAction] = useFormState(posLoginAction, initialState);
+  const [previewState, previewFormAction] = useFormState(previewDemoLoginAction, initialState);
 
   useEffect(() => {
-    if (!state.redirectTo) return;
+    const destination = state.redirectTo ?? previewState.redirectTo;
+    if (!destination) return;
     // Use a document navigation instead of router.push(). The session cookie is
     // written by the server action and must be included in the POS request.
-    window.location.assign(state.redirectTo);
-  }, [state.redirectTo]);
+    window.location.assign(destination);
+  }, [state.redirectTo, previewState.redirectTo]);
 
   return (
     <Card className="shadow-card">
@@ -58,6 +60,7 @@ export function PosLoginForm({ next }: { next?: string }) {
           ) : null}
           <SubmitButton />
         </form>
+        {showPreviewDemo ? <form action={previewFormAction} className="mt-3"><input type="hidden" name="next" value={next ?? ""} /><Button type="submit" variant="outline" className="min-h-[48px] w-full rounded-xl">直接開啟曼莉莎示範工作台</Button>{previewState.error ? <p className="mt-2 text-sm text-destructive">{previewState.error}</p> : null}</form> : null}
       </CardContent>
     </Card>
   );
