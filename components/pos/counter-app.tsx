@@ -102,7 +102,6 @@ function CounterWorkspace({
 
   const ticket = (
     <CounterTicket
-      storeName={storeName}
       lines={lines}
       phase={phase}
       error={state.error ?? null}

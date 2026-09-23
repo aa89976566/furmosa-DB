@@ -17,7 +17,7 @@ export function PosShell({
   showShipmentAlert?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-canvas text-foreground">
+    <div className="pos-theme min-h-screen bg-canvas text-foreground">
       <div
         className={
           wide
@@ -34,12 +34,23 @@ export function PosShell({
           }
         >
           {account ? (
-            <div className="flex shrink-0 justify-end px-3 pt-3 md:px-4">
+            <header className="flex shrink-0 items-center justify-end border-b border-border/70 bg-card/80 px-3 py-3 backdrop-blur-sm md:grid md:grid-cols-[minmax(0,1fr)_auto_auto] md:gap-5 md:px-6">
+              <div className="hidden min-w-0 md:block">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground">店家收銀</p>
+                <p className="truncate text-lg font-semibold tracking-tight text-foreground">{storeName ?? account.storeName}</p>
+              </div>
+              {showShipmentAlert && account.merchantId ? (
+                <div className="hidden md:block">
+                  <PosShipmentTaskAlert merchantId={account.merchantId} compact />
+                </div>
+              ) : null}
               <PosPageTools account={account} />
-            </div>
+            </header>
           ) : null}
           {showShipmentAlert && account?.merchantId ? (
-            <PosShipmentTaskAlert merchantId={account.merchantId} />
+            <div className="md:hidden">
+              <PosShipmentTaskAlert merchantId={account.merchantId} />
+            </div>
           ) : null}
           {wide ? <div className="min-h-0 flex-1 md:overflow-hidden">{children}</div> : children}
         </div>
