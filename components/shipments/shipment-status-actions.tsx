@@ -227,7 +227,9 @@ function StatusActionCard({
         <p className="text-xs text-warning">通常要先「已寄出」再「已送達」。確定可以跳過嗎？</p>
       ) : null}
       {next === 'delivered' ? (
-        <p className="text-xs text-success">確認送達後會自動把商品加進對方庫存</p>
+        <p className="text-xs text-success">
+          確認送達後會通知店家驗收；店家確認收貨後，商品才會加入可售庫存。
+        </p>
       ) : null}
 
       <StatusSubmitButton next={next} isDanger={isDanger} />

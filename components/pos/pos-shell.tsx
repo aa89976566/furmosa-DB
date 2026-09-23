@@ -1,17 +1,20 @@
 import { PosBottomNav, PosSideRail } from '@/components/pos/bottom-nav';
 import { PosPageTools } from '@/components/pos/page-tools';
 import type { PosAccount } from '@/lib/pos/account';
+import { PosShipmentTaskAlert } from '@/components/pos/shipment-task-alert';
 
 export function PosShell({
   children,
   storeName,
   account,
   wide = false,
+  showShipmentAlert = false,
 }: {
   children: React.ReactNode;
   storeName?: string;
   account?: PosAccount | null;
   wide?: boolean;
+  showShipmentAlert?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-canvas text-foreground">
@@ -34,6 +37,9 @@ export function PosShell({
             <div className="flex shrink-0 justify-end px-3 pt-3 md:px-4">
               <PosPageTools account={account} />
             </div>
+          ) : null}
+          {showShipmentAlert && account?.merchantId ? (
+            <PosShipmentTaskAlert merchantId={account.merchantId} />
           ) : null}
           {wide ? <div className="min-h-0 flex-1 md:overflow-hidden">{children}</div> : children}
         </div>

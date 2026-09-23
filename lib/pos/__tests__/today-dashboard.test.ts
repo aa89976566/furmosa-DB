@@ -72,6 +72,22 @@ describe('buildHomeTaskCards', () => {
     assert.equal(cards[0]?.subtitle, '確認品項與數量正確後，商品才會加入可售庫存');
   });
 
+  it('shows in-transit restocks after receipt work', () => {
+    const cards = buildHomeTaskCards({
+      ...emptyInput(),
+      awaitingRestockReceiptCount: 1,
+      firstAwaitingRestockReceiptHref: '/pos/shipments/delivered-1',
+      inTransitRestockCount: 2,
+      firstInTransitRestockHref: '/pos/shipments/shipped-1',
+    });
+    assert.deepEqual(cards.map((card) => card.kind), [
+      'awaiting_restock_receipt',
+      'in_transit_restock',
+    ]);
+    assert.equal(cards[1]?.title, '補貨運送中');
+    assert.equal(cards[1]?.href, '/pos/shipments/shipped-1');
+  });
+
   it('adds the earliest shipment number only when count > 1 and number is present', () => {
     const withNumber = buildHomeTaskCards({
       ...emptyInput(),
@@ -412,6 +428,17 @@ describe('loadHomeTasks awaiting receipt', () => {
     homeWorld = resetHomeWorld({ directs: [directRow()] });
     const result = await loadHomeTasks('merchant-1');
     const card = receiptCard(result.cards);
+    assert.equal(card?.badge, '1');
+    assert.equal(card?.href, '/pos/shipments/ship-direct-1');
+  });
+
+  it('shows direct shipped restocks as in transit instead of awaiting receipt', async () => {
+    homeWorld = resetHomeWorld({
+      directs: [directRow({ status: 'shipped', deliveredAt: null })],
+    });
+    const result = await loadHomeTasks('merchant-1');
+    const card = result.cards.find((item) => item.kind === 'in_transit_restock');
+    assert.equal(receiptCard(result.cards), undefined);
     assert.equal(card?.badge, '1');
     assert.equal(card?.href, '/pos/shipments/ship-direct-1');
   });

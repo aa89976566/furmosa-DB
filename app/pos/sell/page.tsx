@@ -73,7 +73,7 @@ export default async function PosSellPage() {
     }
 
     return (
-      <PosShell storeName={merchant.name} account={account} wide>
+      <PosShell storeName={merchant.name} account={account} wide showShipmentAlert>
         <CounterApp
           storeName={catalog.merchantName}
           items={catalog.items}
