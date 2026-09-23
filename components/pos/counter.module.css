@@ -12,6 +12,10 @@
   padding: 20px 16px 108px;
 }
 
+.catalogHeader {
+  flex: none;
+}
+
 .top {
   display: flex;
   flex-direction: column;
@@ -43,6 +47,11 @@
   margin-top: 16px;
   overflow-x: auto;
   padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
 }
 
 .chip {
@@ -67,6 +76,12 @@
   grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 18px;
+}
+
+.empty {
+  margin-top: 40px;
+  color: hsl(var(--muted-foreground));
+  font-size: 14px;
 }
 
 .card {
@@ -161,22 +176,39 @@
 .add {
   display: flex;
   height: 36px;
-  width: 36px;
+  min-width: 36px;
   align-items: center;
   justify-content: center;
   border: 0;
   border-radius: 999px;
   background: hsl(var(--navy));
   color: white;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 0 11px;
 }
 
-.add:disabled {
+.addSold {
   background: hsl(var(--muted));
   color: hsl(var(--muted-foreground));
 }
 
+.addSelected {
+  background: hsl(var(--navy));
+}
+
 .sold {
-  opacity: 0.55;
+  opacity: 1;
+}
+
+.sold .photo {
+  filter: grayscale(0.35);
+  opacity: 0.45;
+}
+
+.sold .name,
+.sold .price {
+  color: hsl(var(--muted-foreground));
 }
 
 .dock {
@@ -199,8 +231,25 @@
   }
 
   .catalog {
-    padding: 12px 12px 20px 8px;
-    overflow: auto;
+    overflow: hidden;
+    padding: 12px 0 20px 8px;
+  }
+
+  .catalogHeader {
+    padding-right: 12px;
+  }
+
+  .productScroll {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 12px;
+    scrollbar-width: none;
+  }
+
+  .productScroll::-webkit-scrollbar {
+    display: none;
   }
 
   .top {
@@ -215,7 +264,7 @@
   }
 
   .heading {
-    font-size: 32px;
+    font-size: 30px;
   }
 
   .grid {
