@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CheckCircle2, Circle, PackageCheck, Truck } from 'lucide-react';
 import { requireMerchantSession } from '@/lib/merchant-auth';
-import { loadMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shipment';
+import { loadMerchantRestockShipment, loadNewerMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shipment';
 import { loadPosAccount } from '@/lib/pos/account';
 import { PosShell } from '@/components/pos/pos-shell';
 import { ReceiptManifest } from './receipt-manifest';
@@ -35,6 +35,7 @@ export default async function PosDirectShipmentPage(
   if (loaded.kind === 'linked_request') redirect(`/pos/restock/${loaded.requestId}`);
 
   const shipment = loaded.shipment;
+  const newerShipment = await loadNewerMerchantRestockShipment(merchantId, shipment.id);
   const shipmentCopy = {
     pending: { label: '等待備貨', help: 'HQ 正在安排商品與出貨。' },
     packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
@@ -62,6 +63,7 @@ export default async function PosDirectShipmentPage(
             <span className="w-fit rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">{shipmentCopy?.label ?? shipment.status}</span>
           </div>
           {receipt ? <p role={receipt.failed ? 'alert' : 'status'} aria-live="polite" className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${receipt.failed ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-primary/20 bg-primary/10 font-medium text-primary'}`}>{receipt.text}</p> : null}
+          {newerShipment ? <Link href={`/pos/shipments/${newerShipment.id}`} className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm transition-colors hover:bg-primary/15"><span><span className="block font-medium text-primary">這是較早的出貨單</span><span className="mt-0.5 block text-muted-foreground">HQ 最近寄出的是 {newerShipment.shipmentNumber}，請前往查看最新明細。</span></span><span className="shrink-0 font-medium text-primary">查看最新單</span></Link> : null}
           <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
             <ReceiptManifest shipmentId={shipment.id} items={shipment.items} canConfirmReceipt={canConfirmReceipt} />
             <aside className="space-y-5">
