@@ -13,12 +13,18 @@ test('production workflow is manual, protected and waits for Railway exact commi
   assert.match(workflow, /production-readiness\.mjs/);
   assert.match(workflow, /steps\.preflight\.outputs\.already_merged != 'true'/);
   assert.match(workflow, /steps\.preflight\.outputs\.merge_sha/);
+  assert.match(
+    workflow,
+    /Keep release controller changes separate[\s\S]*if: steps\.preflight\.outputs\.already_merged != 'true'/,
+  );
   assert.doesNotMatch(workflow, /prisma migrate deploy/);
 
   const preflight = readFileSync('scripts/release/verify-pr.mjs', 'utf8');
   assert.match(preflight, /already merged into main/);
   assert.match(preflight, /Merged PR commit is not contained in current main/);
   assert.match(preflight, /already_merged=/);
+  assert.match(preflight, /Production PR must not modify the trusted release controller/);
+  assert.match(preflight, /path\.startsWith\('scripts\/release\/'\)/);
 });
 
 test('none plan rejects migrations by contract and HQ plan stays bounded', () => {

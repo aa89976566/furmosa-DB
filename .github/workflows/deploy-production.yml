@@ -93,6 +93,7 @@ jobs:
           fetch-depth: 0
 
       - name: Keep release controller changes separate
+        if: steps.preflight.outputs.already_merged != 'true'
         run: |
           git fetch origin main --quiet
           git diff --exit-code origin/main -- .github/workflows/deploy-production.yml scripts/release vercel.json scripts/vercel-ignore-build.mjs

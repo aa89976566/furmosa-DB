@@ -61,6 +61,17 @@ for (let page = 1; ; page += 1) {
   files.push(...batch.map((file) => file.filename));
   if (batch.length < 100) break;
 }
+const protectedControllerPaths = [
+  '.github/workflows/deploy-production.yml',
+  'vercel.json',
+  'scripts/vercel-ignore-build.mjs',
+];
+const changesReleaseController = files.some(
+  (path) => protectedControllerPaths.includes(path) || path.startsWith('scripts/release/'),
+);
+if (changesReleaseController) {
+  throw new Error('Production PR must not modify the trusted release controller');
+}
 const changedMigrations = files.filter((path) => path.startsWith('prisma/migrations/'));
 if (planName === 'none' && changedMigrations.length > 0) {
   throw new Error('PR changes migrations but migration_plan is none');
