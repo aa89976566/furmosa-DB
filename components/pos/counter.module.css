@@ -227,16 +227,16 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
     height: 100%;
-    gap: 12px;
+  gap: 16px;
   }
 
   .catalog {
     overflow: hidden;
-    padding: 12px 0 20px 8px;
+  padding: 16px 0 24px 12px;
   }
 
   .catalogHeader {
-    padding-right: 12px;
+  padding-right: 16px;
   }
 
   .productScroll {
@@ -268,7 +268,8 @@
   }
 
   .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 16px;
   }
 
   .dock {
@@ -294,6 +295,6 @@
   }
 
   .workspace {
-    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-columns: minmax(0, 1fr) clamp(360px, 29vw, 420px);
   }
 }
