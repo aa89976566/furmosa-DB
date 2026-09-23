@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, PackageCheck, Truck } from 'lucide-react';
+import { PackageCheck, Truck } from 'lucide-react';
 import { loadHomeTasks } from '@/lib/pos/load-today-dashboard';
 
 export async function PosShipmentTaskAlert({ merchantId }: { merchantId: string }) {
@@ -14,21 +14,20 @@ export async function PosShipmentTaskAlert({ merchantId }: { merchantId: string 
       {receipt ? (
         <Link
           href={receipt.href}
-          className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm transition hover:border-amber-400 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+          className="group flex min-h-[80px] items-center gap-3 rounded-[22px] border border-zinc-950 bg-zinc-950 px-4 py-3 text-white shadow-[0_12px_28px_rgba(0,0,0,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-zinc-800 hover:shadow-[0_16px_32px_rgba(0,0,0,0.24)] active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2"
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-200">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-lime-300 text-zinc-950 shadow-[inset_0_-2px_0_rgba(0,0,0,0.12)]">
             <PackageCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">{receipt.title}</span>
-            <span className="mt-0.5 block whitespace-pre-line text-sm text-amber-900/80">
+            <span className="mt-0.5 block whitespace-pre-line text-sm text-zinc-300">
               {receipt.subtitle}
             </span>
           </span>
-          <span className="shrink-0 rounded-full bg-amber-950 px-3 py-1.5 text-sm font-semibold text-white">
-            {receipt.badge} {receipt.badgeUnit}
+          <span className="shrink-0 rounded-full bg-white px-3 py-2 text-sm font-semibold text-zinc-950 transition group-hover:bg-lime-300">
+            確認入庫
           </span>
-          <ArrowRight className="hidden h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5 sm:block" aria-hidden="true" />
         </Link>
       ) : progress ? (
         <Link
@@ -40,8 +39,7 @@ export async function PosShipmentTaskAlert({ merchantId }: { merchantId: string 
             <span className="block font-semibold">{progress.title}</span>
             <span className="block text-sm text-muted-foreground">{progress.subtitle}</span>
           </span>
-          <span className="text-sm font-medium">查看進度</span>
-          <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+          <span className="shrink-0 rounded-full bg-secondary px-3 py-2 text-sm font-semibold">查看運送</span>
         </Link>
       ) : null}
     </section>
