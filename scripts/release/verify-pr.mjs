@@ -31,12 +31,22 @@ async function github(path) {
 }
 
 const pr = await github(`/pulls/${encodeURIComponent(prNumber)}`);
-if (pr.state !== 'open' || pr.draft) throw new Error('PR must be open and ready for review');
+const alreadyMerged = pr.state === 'closed' && Boolean(pr.merged_at) && Boolean(pr.merge_commit_sha);
+if (!alreadyMerged && (pr.state !== 'open' || pr.draft)) {
+  throw new Error('PR must be open and ready for review, or already merged into main');
+}
 if (pr.base?.ref !== 'main') throw new Error('Production PR base must be main');
 if (String(pr.head?.sha).toLowerCase() !== expectedHead) {
   throw new Error('PR head moved; restart with the new full expected head SHA');
 }
 if (!/^[0-9a-f]{40}$/.test(expectedHead)) throw new Error('Expected head SHA must contain 40 hex characters');
+
+if (alreadyMerged) {
+  const comparison = await github(`/compare/${encodeURIComponent(pr.merge_commit_sha)}...main`);
+  if (!['ahead', 'identical'].includes(comparison.status)) {
+    throw new Error('Merged PR commit is not contained in current main');
+  }
+}
 
 const checkPayload = await github(`/commits/${expectedHead}/check-runs?per_page=100`);
 const verifyChecks = (checkPayload.check_runs ?? []).filter((check) => check.name === 'verify');
@@ -67,4 +77,6 @@ for (const path of plan.requiredPaths) {
 appendFileSync(output, `head_sha=${expectedHead}\n`);
 appendFileSync(output, `migration_runner=${plan.runner ?? ''}\n`);
 appendFileSync(output, `pr_title=${String(pr.title).replace(/[\r\n]/g, ' ')}\n`);
+appendFileSync(output, `already_merged=${alreadyMerged}\n`);
+appendFileSync(output, `merge_sha=${alreadyMerged ? pr.merge_commit_sha : ''}\n`);
 console.log(`Release preflight passed for PR #${prNumber} at ${expectedHead}`);
