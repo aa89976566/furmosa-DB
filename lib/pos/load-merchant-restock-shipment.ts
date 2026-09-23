@@ -25,6 +25,13 @@ export type MerchantRestockShipmentLookup =
   | { kind: 'direct'; shipment: DirectMerchantRestockShipment }
   | { kind: 'linked_request'; requestId: string };
 
+export type NewerMerchantRestockShipment = {
+  id: string;
+  shipmentNumber: string;
+  status: string;
+  shippedAt: Date | null;
+};
+
 export async function loadMerchantRestockShipment(
   shipmentId: string,
   merchantId: string,
@@ -59,4 +66,21 @@ export async function loadMerchantRestockShipment(
     return { kind: 'linked_request', requestId: restockRequest.id };
   }
   return { kind: 'direct', shipment: direct };
+}
+
+export async function loadNewerMerchantRestockShipment(
+  merchantId: string,
+  currentShipmentId: string,
+): Promise<NewerMerchantRestockShipment | null> {
+  return prisma.shipment.findFirst({
+    where: {
+      merchantId,
+      type: 'merchant_restock',
+      id: { not: currentShipmentId },
+      status: { in: ['pending', 'packed', 'shipped', 'delivered'] },
+      shippedAt: { not: null },
+    },
+    orderBy: { shippedAt: 'desc' },
+    select: { id: true, shipmentNumber: true, status: true, shippedAt: true },
+  });
 }
