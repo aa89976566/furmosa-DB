@@ -1,13 +1,11 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { CheckCircle2, Circle, PackageCheck, Truck } from 'lucide-react';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { loadMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shipment';
 import { loadPosAccount } from '@/lib/pos/account';
 import { PosShell } from '@/components/pos/pos-shell';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
-import { confirmDirectShipmentReceiptAction } from './actions';
+import { ReceiptManifest } from './receipt-manifest';
 
 export const metadata = { title: '出貨單 · Furmosa 店家' };
 
@@ -17,11 +15,13 @@ const RECEIPT_MESSAGE: Record<string, { text: string; failed: boolean }> = {
   failed: { text: '現在不能確認收貨，請再試一次。', failed: true },
 };
 
+function formatDate(value: Date | null) {
+  if (!value) return '尚未更新';
+  return value.toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 export default async function PosDirectShipmentPage(
-  props: {
-    params: Promise<{ id: string }>;
-    searchParams?: Promise<{ receipt?: string }>;
-  }
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ receipt?: string }> }
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
@@ -32,148 +32,45 @@ export default async function PosDirectShipmentPage(
     loadMerchantRestockShipment(params.id, merchantId),
   ]);
   if (!loaded) notFound();
-  if (loaded.kind === 'linked_request') {
-    redirect(`/pos/restock/${loaded.requestId}`);
-  }
+  if (loaded.kind === 'linked_request') redirect(`/pos/restock/${loaded.requestId}`);
 
   const shipment = loaded.shipment;
   const shipmentCopy = {
-    pending: { label: '匠寵已建立出貨單，等待備貨', help: '匠寵正在安排商品與出貨。' },
+    pending: { label: '等待備貨', help: '匠寵正在安排商品與出貨。' },
     packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
-    shipped: { label: '商品運送中', help: '商品已由匠寵寄出，請留意物流進度。' },
-    delivered: { label: '待確認收貨', help: '請核對這批商品，再確認收到貨。' },
-    received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
+    shipped: { label: '運送中', help: '商品已由匠寵寄出，請留意物流進度。' },
+    delivered: { label: '待確認收貨', help: '請逐項核對這批商品後確認入庫。' },
+    received: { label: '已確認收貨', help: '商品已加入店家可售庫存。' },
     cancelled: { label: '出貨已取消', help: '請查看回覆或聯絡匠寵。' },
   }[shipment.status];
-  const shipmentTimeline = [
-    { label: '完成備貨', done: Boolean(shipment.packedAt) },
-    { label: '商品出貨', done: Boolean(shipment.shippedAt) },
-    { label: '物流送達', done: Boolean(shipment.deliveredAt) },
-    { label: '店家確認收貨', done: shipment.status === 'received' },
-  ];
-  const receipt = searchParams?.receipt ? RECEIPT_MESSAGE[searchParams.receipt] : null;
   const canConfirmReceipt = shipment.status === 'shipped' || shipment.status === 'delivered';
+  const receipt = searchParams?.receipt ? RECEIPT_MESSAGE[searchParams.receipt] : null;
+  const timeline = [
+    { label: '完成備貨', date: shipment.packedAt, done: Boolean(shipment.packedAt) },
+    { label: '商品出貨', date: shipment.shippedAt, done: Boolean(shipment.shippedAt) },
+    { label: '物流送達', date: shipment.deliveredAt, done: Boolean(shipment.deliveredAt) },
+    { label: '店家確認收貨', date: null, done: shipment.status === 'received' },
+  ];
 
   return (
-    <PosShell storeName={account.storeName} account={account}>
-      <div className="space-y-4 px-4 py-6">
-        <Link href="/pos/notifications" className="text-xs text-muted-foreground">
-          ← 通知
-        </Link>
-
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-          <p className="font-medium text-foreground">匠寵直接配送｜非本店申請</p>
-          <p className="mt-1 text-muted-foreground">如品項或數量不符，請先聯絡匠寵</p>
-        </div>
-
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold text-navy">出貨單</h1>
-            <p className="text-sm text-muted-foreground">{shipment.shipmentNumber}</p>
+    <PosShell storeName={account.storeName} account={account} wide>
+      <main className="h-full overflow-y-auto px-4 py-6 md:px-7 md:py-8">
+        <div className="mx-auto w-full max-w-[1380px] pb-12">
+          <Link href="/pos/notifications" className="inline-flex items-center rounded-lg px-1 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">返回通知</Link>
+          <div className="mt-4 flex flex-col gap-3 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+            <div><p className="text-sm font-medium text-primary">匠寵直接配送</p><h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">出貨單 {shipment.shipmentNumber}</h1><p className="mt-2 text-sm text-muted-foreground">{shipmentCopy?.help ?? '請依出貨狀態處理。'}</p></div>
+            <span className="w-fit rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">{shipmentCopy?.label ?? shipment.status}</span>
           </div>
-          <span className="shrink-0 rounded-full bg-secondary px-3 py-1 text-xs font-medium">
-            {shipmentCopy?.label ?? shipment.status}
-          </span>
+          {receipt ? <p role={receipt.failed ? 'alert' : 'status'} aria-live="polite" className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${receipt.failed ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-primary/20 bg-primary/10 font-medium text-primary'}`}>{receipt.text}</p> : null}
+          <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+            <ReceiptManifest shipmentId={shipment.id} items={shipment.items} canConfirmReceipt={canConfirmReceipt} />
+            <aside className="space-y-5">
+              <section className="rounded-3xl border border-border bg-card p-5 shadow-[0_16px_44px_rgba(22,50,37,0.06)]"><div className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary" aria-hidden /><h2 className="font-semibold">出貨資訊</h2></div><dl className="mt-5 space-y-4 text-sm"><div className="flex items-start justify-between gap-4"><dt className="text-muted-foreground">配送方式</dt><dd className="text-right font-medium">{shipment.carrier ?? '匠寵安排配送'}</dd></div><div className="flex items-start justify-between gap-4"><dt className="text-muted-foreground">追蹤編號</dt><dd className="break-all text-right font-medium">{shipment.trackingNumber ?? '尚未提供'}</dd></div><div className="flex items-start justify-between gap-4"><dt className="text-muted-foreground">出貨單號</dt><dd className="text-right font-medium">{shipment.shipmentNumber}</dd></div></dl></section>
+              <section className="rounded-3xl border border-border bg-card p-5 shadow-[0_16px_44px_rgba(22,50,37,0.06)]"><div className="flex items-center gap-2"><PackageCheck className="h-5 w-5 text-primary" aria-hidden /><h2 className="font-semibold">收貨進度</h2></div><ol className="mt-5 space-y-5">{timeline.map((step, index) => <li key={step.label} className="relative flex gap-3">{index < timeline.length - 1 ? <span className={`absolute left-[11px] top-6 h-[calc(100%+4px)] w-px ${step.done ? 'bg-primary/45' : 'bg-border'}`} aria-hidden /> : null}<span className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${step.done ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground'}`}>{step.done ? <CheckCircle2 className="h-4 w-4" aria-hidden /> : <Circle className="h-3 w-3" aria-hidden />}</span><span className="min-w-0 pb-1"><span className={`block text-sm font-medium ${step.done ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span><span className="mt-1 block text-xs text-muted-foreground">{step.done ? formatDate(step.date) : '等待處理'}</span></span></li>)}</ol></section>
+            </aside>
+          </div>
         </div>
-
-        {receipt ? (
-          <p
-            role={receipt.failed ? 'alert' : 'status'}
-            aria-live="polite"
-            className={receipt.failed ? 'text-sm text-destructive' : 'text-sm font-medium'}
-          >
-            {receipt.text}
-          </p>
-        ) : null}
-
-        <Card className={shipment.status === 'delivered' ? 'border-amber-300 bg-amber-50' : ''}>
-          <CardContent className="space-y-3 p-4">
-            <div>
-              <p className="font-semibold">{shipmentCopy?.label ?? '出貨狀態'}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {shipmentCopy?.help ?? '請依出貨狀態處理。'}
-              </p>
-            </div>
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <p>
-                <span className="text-muted-foreground">出貨單</span>
-                <br />
-                <span className="font-medium">{shipment.shipmentNumber}</span>
-              </p>
-              {shipment.carrier ? (
-                <p>
-                  <span className="text-muted-foreground">配送方式</span>
-                  <br />
-                  <span className="font-medium">{shipment.carrier}</span>
-                </p>
-              ) : null}
-              {shipment.trackingNumber ? (
-                <p>
-                  <span className="text-muted-foreground">追蹤編號</span>
-                  <br />
-                  <span className="font-medium">{shipment.trackingNumber}</span>
-                </p>
-              ) : null}
-            </div>
-
-            {canConfirmReceipt ? (
-              <div className="space-y-3">
-                <div className="rounded-xl bg-background/70 p-3 text-sm">
-                  <p className="font-medium">請先核對品項、數量與商品狀況。</p>
-                  <p className="mt-1 text-muted-foreground">
-                    如品項或數量不符，請先聯絡匠寵，先不要確認。
-                  </p>
-                </div>
-                <form action={confirmDirectShipmentReceiptAction}>
-                  <input type="hidden" name="shipmentId" value={shipment.id} />
-                  <Button type="submit" className="group min-h-[52px] w-full rounded-2xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(0,0,0,0.22)] active:translate-y-0 active:scale-[0.985]">
-                    <CheckCircle2 className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" aria-hidden />
-                    收到這批貨，確認入庫
-                  </Button>
-                </form>
-              </div>
-            ) : null}
-
-            <div className="border-t pt-3">
-              <p className="mb-3 text-sm font-medium">處理進度</p>
-              <ol className="grid gap-2 sm:grid-cols-4">
-                {shipmentTimeline.map((step) => (
-                  <li key={step.label} className="flex items-center gap-2 text-sm sm:block">
-                    <span
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                        step.done
-                          ? 'bg-foreground text-background'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {step.done ? '✓' : '·'}
-                    </span>
-                    <span className="sm:mt-2 sm:block">{step.label}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-medium">出貨明細</p>
-            {shipment.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">尚未加入出貨品項</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {shipment.items.map((item) => (
-                  <li key={item.id} className="flex justify-between gap-2">
-                    <span className="min-w-0 break-words">{item.productName}</span>
-                    <span className="shrink-0 font-medium">{item.quantity}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      </main>
     </PosShell>
   );
 }

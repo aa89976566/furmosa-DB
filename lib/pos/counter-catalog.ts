@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma';
 import { productCategoryLabel } from '@/lib/labels';
 import {
   LEGACY_MERCHANT_STOCK_TIER_ID,
-  merchantStockTierMapKey,
 } from '@/lib/merchant-stock-key';
 import { merchantSuggestedUnitPrice } from '@/lib/merchant-product-catalog';
 import {
@@ -29,80 +28,72 @@ export type CounterCatalog = {
 };
 
 export async function loadCounterCatalog(merchantId: string): Promise<CounterCatalog | null> {
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: merchantId },
-    select: {
-      id: true,
-      name: true,
-      productRules: {
-        select: {
-          productId: true,
-          suggestedPrice: true,
-          commissionMode: true,
-          commissionValue: true,
+  const [merchant, products] = await Promise.all([
+    prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { name: true },
+    }),
+    prisma.product.findMany({
+      // 一般收銀只處理寄賣商品。換罐商品必須走 /pos/refill，避免重複計算分潤。
+      where: {
+        status: 'active',
+        productCategory: 'STANDARD',
+        OR: [
+          { merchantRules: { some: { merchantId } } },
+          { merchantStocks: { some: { merchantId } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        category: true,
+        unit: true,
+        price: true,
+        imageUrl: true,
+        merchantRules: {
+          where: { merchantId },
+          select: {
+            productId: true,
+            suggestedPrice: true,
+            commissionMode: true,
+            commissionValue: true,
+          },
+          take: 1,
+        },
+        merchantStocks: {
+          where: { merchantId },
+          select: { tierId: true, quantity: true },
+        },
+        priceTiers: {
+          select: {
+            id: true,
+            weightGrams: true,
+            unit: true,
+            unitQty: true,
+            price: true,
+            notes: true,
+          },
+          orderBy: { price: 'asc' },
         },
       },
-      stocks: {
-        select: {
-          productId: true,
-          tierId: true,
-          quantity: true,
-        },
-      },
-    },
-  });
+      orderBy: { name: 'asc' },
+    }),
+  ]);
   if (!merchant) return null;
-
-  const productIds = [
-    ...new Set([
-      ...merchant.productRules.map((rule) => rule.productId),
-      ...merchant.stocks.map((stock) => stock.productId),
-    ]),
-  ];
-  if (productIds.length === 0) {
+  if (products.length === 0) {
     return { merchantName: merchant.name, items: [], categories: [], priced: [] };
   }
-
-  const products = await prisma.product.findMany({
-    // 一般收銀只處理寄賣商品。換罐商品必須走 /pos/refill，避免重複計算分潤。
-    where: { id: { in: productIds }, status: 'active', productCategory: 'STANDARD' },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      category: true,
-      unit: true,
-      price: true,
-      imageUrl: true,
-      priceTiers: {
-        select: {
-          id: true,
-          weightGrams: true,
-          unit: true,
-          unitQty: true,
-          price: true,
-          notes: true,
-        },
-        orderBy: { price: 'asc' },
-      },
-    },
-    orderBy: { name: 'asc' },
-  });
-
-  const ruleByProduct = new Map(merchant.productRules.map((rule) => [rule.productId, rule]));
-  const stockByKey = new Map(
-    merchant.stocks.map((stock) => [
-      merchantStockTierMapKey(stock.productId, stock.tierId),
-      stock.quantity,
-    ]),
-  );
 
   const items: CounterCatalogItem[] = [];
   const priced: PricedCounterProduct[] = [];
   const categoryIds = new Set<string>();
 
   for (const product of products) {
-    const rule = ruleByProduct.get(product.id) ?? null;
+    const rule = product.merchantRules[0] ?? null;
+    const stockByTier = new Map(
+      product.merchantStocks.map((stock) => [stock.tierId, stock.quantity]),
+    );
     const tiers: MerchantProductTierOption[] = product.priceTiers.map((tier) => ({
       id: tier.id,
       weightGrams: tier.weightGrams,
@@ -116,10 +107,8 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
 
     for (const tier of offerTiers) {
       const listedTierId = tier?.id ?? LEGACY_MERCHANT_STOCK_TIER_ID;
-      const exactStock = stockByKey.get(merchantStockTierMapKey(product.id, listedTierId));
-      const legacyStock = stockByKey.get(
-        merchantStockTierMapKey(product.id, LEGACY_MERCHANT_STOCK_TIER_ID),
-      );
+      const exactStock = stockByTier.get(listedTierId);
+      const legacyStock = stockByTier.get(LEGACY_MERCHANT_STOCK_TIER_ID);
       const isDefaultTier = !tier || tier.id === defaultTier?.id;
       if (exactStock == null && !isDefaultTier) continue;
 

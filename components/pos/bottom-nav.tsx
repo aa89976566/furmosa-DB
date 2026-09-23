@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { POS_NAV, activePosNavId } from "@/lib/pos/pos-nav";
 
 function navItemClass(isActive: boolean) {
@@ -12,7 +13,16 @@ function navItemClass(isActive: boolean) {
 
 export function PosBottomNav() {
   const pathname = usePathname() || "/pos";
+  const router = useRouter();
   const active = activePosNavId(pathname);
+
+  useEffect(() => {
+    for (const tab of POS_NAV) {
+      if ((tab.id === "home" || tab.id === "stock") && !tab.match(pathname)) {
+        router.prefetch(tab.href);
+      }
+    }
+  }, [pathname, router]);
 
   return (
     <nav
@@ -45,7 +55,16 @@ export function PosBottomNav() {
 
 export function PosSideRail({ storeName }: { storeName?: string }) {
   const pathname = usePathname() || "/pos";
+  const router = useRouter();
   const active = activePosNavId(pathname);
+
+  useEffect(() => {
+    for (const tab of POS_NAV) {
+      if ((tab.id === "home" || tab.id === "stock") && !tab.match(pathname)) {
+        router.prefetch(tab.href);
+      }
+    }
+  }, [pathname, router]);
 
   return (
     <aside className="hidden md:flex md:flex-col md:items-center md:py-5">
