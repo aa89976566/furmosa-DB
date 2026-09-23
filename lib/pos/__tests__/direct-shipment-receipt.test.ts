@@ -477,8 +477,8 @@ describe('HQ 直接 merchant_restock 出貨 POS 入口', () => {
     assert.equal(world.txnWrites.length, 0);
   });
 
-  it('非 delivered 拒絕', async () => {
-    world = createWorld({ status: 'shipped' });
+  it('尚未出貨拒絕', async () => {
+    world = createWorld({ status: 'packed' });
     harness.__TEST_SESSION__ = {
       merchantId: 'merchant-1',
       merchantUserId: 'merchant-user-1',
@@ -488,7 +488,7 @@ describe('HQ 直接 merchant_restock 出貨 POS 入口', () => {
 
     const illegal = await runAction(formDataWith('shipment-1'));
     assert.equal(illegal, '/pos/shipments/shipment-1?receipt=failed');
-    assert.equal(world.shipment.status, 'shipped');
+    assert.equal(world.shipment.status, 'packed');
     assert.equal(world.stockWrites.length, 0);
     assert.equal(world.txnWrites.length, 0);
   });
