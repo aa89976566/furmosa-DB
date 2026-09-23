@@ -25,7 +25,7 @@ function publicAssetUrl(path: string): string {
   const base =
     configured && !looksEphemeral
       ? configured
-      : 'https://furmosa-db.vercel.app';
+      : 'https://hq.furmosa.com';
   const clean = path.startsWith('/') ? path : `/${path}`;
   return `${base.replace(/\/$/, '')}${clean}`;
 }

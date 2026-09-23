@@ -818,7 +818,7 @@ export function paymentUrlForToken(token: string): string {
   const base =
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-    'https://furmosa-db.vercel.app';
+    'https://hq.furmosa.com';
   return `${base.replace(/\/$/, '')}/pay/jiba/${token}`;
 }
 
