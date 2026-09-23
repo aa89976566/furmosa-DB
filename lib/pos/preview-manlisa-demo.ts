@@ -23,7 +23,7 @@ export function canUsePreviewManlisaDemo() {
   return enabled();
 }
 
-/** A branch-scoped fixture. It never reads or writes the production database. */
+/** A branch-scoped fixture. It never reads or writes the production database; the Vercel flag is Preview-only. */
 export async function ensurePreviewManlisaDemo() {
   if (!enabled()) throw new Error('Preview demo is not enabled for this deployment.');
 
