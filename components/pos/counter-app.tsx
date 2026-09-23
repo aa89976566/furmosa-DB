@@ -134,94 +134,101 @@ function CounterWorkspace({
         )}
       />
       <section className={styles.catalog}>
-        <div className={styles.top}>
-          <div>
-            <p className={styles.kicker}>寄賣銷售</p>
-            <h1 className={styles.heading}>店內商品</h1>
-          </div>
-          <div className={styles.search}>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜尋商品"
-                className="h-12 rounded-full border-0 bg-card pl-10 shadow-card"
-                aria-label="搜尋商品"
-              />
+        <div className={styles.catalogHeader}>
+          <div className={styles.top}>
+            <div>
+              <p className={styles.kicker}>寄賣銷售</p>
+              <h1 className={styles.heading}>店內商品</h1>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              掃商品還沒接掃碼槍，請用搜尋找商品。換罐請走「換罐」，不要混進這張帳單。
-            </p>
+            <div className={styles.search}>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜尋商品"
+                  className="h-12 rounded-full border-0 bg-card pl-10 shadow-card"
+                  aria-label="搜尋商品"
+                />
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={styles.chips} role="tablist" aria-label="商品分類">
-          <button
-            type="button"
-            className={`${styles.chip} ${category === 'all' ? styles.chipActive : ''}`}
-            onClick={() => setCategory('all')}
-          >
-            全部
-          </button>
-          {categories.map((item) => (
+          <div className={styles.chips} role="tablist" aria-label="商品分類">
             <button
-              key={item.id}
               type="button"
-              className={`${styles.chip} ${category === item.id ? styles.chipActive : ''}`}
-              onClick={() => setCategory(item.id)}
+              className={`${styles.chip} ${category === 'all' ? styles.chipActive : ''}`}
+              onClick={() => setCategory('all')}
             >
-              {item.label}
+              全部
             </button>
-          ))}
+            {categories.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`${styles.chip} ${category === item.id ? styles.chipActive : ''}`}
+                onClick={() => setCategory(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {visible.length === 0 ? (
-          <p className="mt-10 text-sm text-muted-foreground">
-            {items.length === 0
-              ? '這間店還沒有可結帳的寄賣商品。'
-              : '沒有符合的商品，試試別的分類或關鍵字。'}
-          </p>
-        ) : (
-          <div className={styles.grid}>
-            {visible.map((item) => {
-              const cartQty = qtyByKey.get(item.key) ?? 0;
-              const disabled = catalogAddDisabled(item.stock, cartQty);
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`${styles.card} ${item.stock <= 0 ? styles.sold : ''}`}
-                  disabled={disabled}
-                  onClick={() => addItem(item)}
-                  aria-label={
-                    disabled
-                      ? `${item.name} ${item.specLabel ?? item.unit}，目前無法加入本單`
-                      : `加入 ${item.name} ${item.specLabel ?? item.unit}`
-                  }
-                >
-                  <div className={styles.photo}>
-                    <ProductCover
-                      name={item.name}
-                      imageUrl={item.imageUrl}
-                      markClassName={styles.mark}
-                    />
-                  </div>
-                  <div className={styles.body}>
-                    <h2 className={styles.name}>{item.name}</h2>
-                    <p className={styles.spec}>
-                      {item.specLabel ?? item.unit}
-                      {item.stock > 0 ? ` · 剩 ${item.stock}` : ' · 售完'}
-                    </p>
-                    <div className={styles.priceRow}>
-                      <span className={styles.price}>{formatCurrency(item.unitPrice)}</span>
-                      <span className={styles.add} aria-hidden="true">+</span>
+        <div className={styles.productScroll}>
+          {visible.length === 0 ? (
+            <p className={styles.empty}>
+              {items.length === 0
+                ? '這間店還沒有可結帳的寄賣商品。'
+                : '沒有符合的商品，試試別的分類或關鍵字。'}
+            </p>
+          ) : (
+            <div className={styles.grid}>
+              {visible.map((item) => {
+                const cartQty = qtyByKey.get(item.key) ?? 0;
+                const disabled = catalogAddDisabled(item.stock, cartQty);
+                const soldOut = item.stock <= 0;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`${styles.card} ${soldOut ? styles.sold : ''}`}
+                    disabled={disabled}
+                    onClick={() => addItem(item)}
+                    aria-label={
+                      disabled
+                        ? `${item.name} ${item.specLabel ?? item.unit}，目前無法加入本單`
+                        : `加入 ${item.name} ${item.specLabel ?? item.unit}`
+                    }
+                  >
+                    <div className={styles.photo}>
+                      <ProductCover
+                        name={item.name}
+                        imageUrl={item.imageUrl}
+                        markClassName={styles.mark}
+                      />
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+                    <div className={styles.body}>
+                      <h2 className={styles.name}>{item.name}</h2>
+                      <p className={styles.spec}>
+                        {item.specLabel ?? item.unit}
+                        {item.stock > 0 ? ` · 剩 ${item.stock}` : ' · 售完'}
+                      </p>
+                      <div className={styles.priceRow}>
+                        <span className={styles.price}>{formatCurrency(item.unitPrice)}</span>
+                        <span
+                          className={`${styles.add} ${soldOut ? styles.addSold : ''} ${cartQty > 0 ? styles.addSelected : ''}`}
+                          aria-hidden="true"
+                        >
+                          {soldOut ? '售完' : cartQty > 0 ? `已加 ${cartQty}` : '+'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       <aside className={styles.ticket}>

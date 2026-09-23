@@ -28,8 +28,10 @@ export function validateRestockReceiptShipment(
     throw new Error('這不是店家補貨出貨單');
   }
   if (shipment.status === 'received') return 'already_received';
-  if (shipment.status !== 'delivered') {
-    throw new Error('商品尚未送達，現在不能確認收貨');
+  // 店家才是實際收貨的第一手來源。HQ 標記已寄出後，店家在實物到店、
+  // 核對無誤時即可完成收貨；不依賴 HQ 再補做一次「已送達」。
+  if (shipment.status !== 'shipped' && shipment.status !== 'delivered') {
+    throw new Error('商品尚未出貨，現在不能確認收貨');
   }
   return 'ready';
 }

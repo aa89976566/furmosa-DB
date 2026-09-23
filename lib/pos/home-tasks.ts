@@ -46,8 +46,8 @@ export function buildHomeTaskCards(input: HomeTasksInput): HomeTaskCard[] {
         : '';
     cards.push({
       kind: 'awaiting_restock_receipt',
-      title: '補貨已送達，請確認收到貨',
-      subtitle: `確認品項與數量正確後，商品才會加入可售庫存${secondLine}`,
+      title: '補貨待確認入庫',
+      subtitle: `實際收到並核對品項、數量後，即可確認入庫${secondLine}`,
       href: input.firstAwaitingRestockReceiptHref ?? '/pos/restock/progress',
       badge:
         input.awaitingRestockReceiptCountCapped

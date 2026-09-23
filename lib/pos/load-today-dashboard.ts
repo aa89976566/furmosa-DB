@@ -77,7 +77,17 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
-        select: { id: true, shipment: { select: { status: true } } },
+        select: {
+          id: true,
+          shipment: {
+            select: {
+              id: true,
+              status: true,
+              shipmentNumber: true,
+              deliveredAt: true,
+            },
+          },
+        },
       }),
       prisma.merchantStock.findMany({
         where: { merchantId },
@@ -187,12 +197,23 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
 
     const directs: DirectRestockShipment[] = directRows ?? [];
     const shippedDirects: DirectRestockShipment[] = shippedDirectRows ?? [];
+    const shippedRequests: ReceiptCandidate[] = openRestocks.flatMap((request) =>
+      request.shipment?.status === 'shipped' && request.shipment.id
+        ? [{
+            shipmentId: request.shipment.id,
+            shipmentNumber: request.shipment.shipmentNumber ?? null,
+            deliveredAt: request.shipment.deliveredAt ?? null,
+            href: `/pos/restock/${request.id}`,
+          }]
+        : [],
+    );
+    const receiptDirects = [...directs, ...shippedDirects];
     let postedDirectIds = new Set<string>();
     let evidenceFailed = false;
     let evidenceError: unknown = null;
-    if (directs.length > 0) {
+    if (receiptDirects.length > 0) {
       try {
-        const evidence = await findRestockShipmentsAlreadyPosted(prisma, merchantId, directs);
+        const evidence = await findRestockShipmentsAlreadyPosted(prisma, merchantId, receiptDirects);
         postedDirectIds = evidence.posted;
       } catch (error) {
         evidenceFailed = true;
@@ -209,7 +230,13 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       seenShipmentIds.add(key);
       candidates.push(request);
     }
-    for (const shipment of directs) {
+    for (const request of shippedRequests) {
+      const key = request.shipmentId ?? request.href;
+      if (seenShipmentIds.has(key)) continue;
+      seenShipmentIds.add(key);
+      candidates.push(request);
+    }
+    for (const shipment of receiptDirects) {
       if (postedDirectIds.has(shipment.id)) continue;
       if (seenShipmentIds.has(shipment.id)) continue;
       seenShipmentIds.add(shipment.id);
@@ -234,9 +261,6 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         request.shipment?.status !== 'delivered' &&
         request.shipment?.status !== 'received',
     );
-    const shippedRequests = openRestocks.filter((request) => request.shipment?.status === 'shipped');
-    const firstShippedRequest = shippedRequests[0];
-    const firstShippedDirect = shippedDirects[0];
 
     const input: HomeTasksInput = {
       pendingRefillCount,
@@ -244,12 +268,6 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
       firstAwaitingRestockReceiptHref: first?.href ?? null,
       firstAwaitingRestockShipmentNumber: first?.shipmentNumber ?? null,
       awaitingRestockReceiptCountCapped: capped,
-      inTransitRestockCount: shippedRequests.length + shippedDirects.length,
-      firstInTransitRestockHref: firstShippedRequest
-        ? `/pos/restock/${firstShippedRequest.id}`
-        : firstShippedDirect
-          ? `/pos/shipments/${firstShippedDirect.id}`
-          : null,
       lowStock,
       openRestockCount: ongoingRestocks.length,
       firstOpenRestockId: ongoingRestocks[0]?.id ?? null,

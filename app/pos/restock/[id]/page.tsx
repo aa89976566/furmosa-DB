@@ -15,7 +15,6 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 import { ConfirmReceiptButton } from './confirm-receipt-button';
-import { PosReceiptSupport } from '@/components/pos/receipt-support';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -58,8 +57,9 @@ export default async function PosRestockDetailPage(
         { label: '商品出貨', done: Boolean(shipment.shippedAt) },
         { label: '物流送達', done: Boolean(shipment.deliveredAt) },
         { label: '店家確認收貨', done: shipment.status === 'received' },
-      ]
+    ]
     : [];
+  const canConfirmReceipt = shipment?.status === 'shipped' || shipment?.status === 'delivered';
   const requestedItems = req.items.filter(
     (item) => (item.requestedQuantity ?? 0) > 0,
   );
@@ -71,8 +71,8 @@ export default async function PosRestockDetailPage(
     <PosShell storeName={account.storeName} account={account}>
       <div className="space-y-4 px-4 py-6">
         {justSubmitted ? <ClearDraftOnSuccess /> : null}
-        <Link href="/pos/restock" className="text-xs text-muted-foreground">
-          ← 補貨
+        <Link href="/pos/sell" className="text-xs text-muted-foreground">
+          ← 返回收銀首頁
         </Link>
 
         {justSubmitted ? (
@@ -127,11 +127,8 @@ export default async function PosRestockDetailPage(
                   </p>
                 ) : null}
               </div>
-              {shipment.status === 'delivered' ? (
-                <div className="space-y-3">
-                  <ConfirmReceiptButton requestId={req.id} />
-                  <PosReceiptSupport />
-                </div>
+              {canConfirmReceipt ? (
+                <ConfirmReceiptButton requestId={req.id} />
               ) : null}
 
               <div className="border-t pt-3">
