@@ -1,5 +1,5 @@
 /**
- * 總部 HQ 與店家 POS 黑白 UI contract — 不連資料庫。
+ * HQ 黑白 UI 與 POS 單一綠色操作色 contract — 不連資料庫。
  */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -44,13 +44,18 @@ describe("黑白 UI", () => {
     }
   });
 
-  it("CSS 變數都是無彩度", () => {
+  it("HQ CSS 變數維持無彩度，POS 僅使用單一綠色操作色", () => {
     const css = readRepoFile("app/globals.css");
     const matches = [...css.matchAll(/--([a-z-]+):\s*\d+\s+(\d+)%/g)];
     assert.ok(matches.length > 8, "expected HSL CSS variables");
     for (const match of matches) {
-      assert.equal(match[2], "0", `--${match[1]} saturation should be 0`);
+      const isPosActionToken = ["primary", "ring", "navy", "coral", "success"].includes(match[1]);
+      assert.ok(
+        match[2] === "0" || isPosActionToken,
+        `--${match[1]} should remain achromatic outside POS action tokens`,
+      );
     }
+    assert.match(css, /\.pos-theme\s*\{[\s\S]*--primary:\s*142\s+43%\s+31%/);
   });
 
   it("總部／店家畫面沒有舊品牌色碼", () => {
