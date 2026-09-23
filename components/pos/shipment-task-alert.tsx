@@ -2,12 +2,36 @@ import Link from 'next/link';
 import { PackageCheck, Truck } from 'lucide-react';
 import { loadHomeTasks } from '@/lib/pos/load-today-dashboard';
 
-export async function PosShipmentTaskAlert({ merchantId }: { merchantId: string }) {
+export async function PosShipmentTaskAlert({
+  merchantId,
+  compact = false,
+}: {
+  merchantId: string;
+  compact?: boolean;
+}) {
   const { cards } = await loadHomeTasks(merchantId);
   const receipt = cards.find((card) => card.kind === 'awaiting_restock_receipt');
   const progress = cards.find((card) => card.kind === 'in_transit_restock');
 
   if (!receipt && !progress) return null;
+
+  if (compact) {
+    const card = receipt ?? progress;
+    if (!card) return null;
+
+    return (
+      <Link
+        href={card.href}
+        className="group flex min-h-11 items-center gap-2 rounded-full border border-zinc-200 bg-white py-1.5 pl-3 pr-1.5 text-sm shadow-[0_2px_8px_rgba(24,24,27,0.05)] transition hover:border-zinc-400 hover:shadow-[0_4px_12px_rgba(24,24,27,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary ring-4 ring-primary/15" />
+        <span className="max-w-[11rem] truncate font-semibold text-zinc-800">{card.title}</span>
+        <span className="rounded-full bg-primary px-3 py-1.5 font-semibold text-primary-foreground transition group-hover:brightness-95">
+          {receipt ? '確認入庫' : '查看運送'}
+        </span>
+      </Link>
+    );
+  }
 
   return (
     <section className="shrink-0 px-3 pt-3 md:px-4" aria-label="補貨進度">
