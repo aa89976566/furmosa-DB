@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, Home, Wallet, Warehouse } from "lucide-react";
+import { ClipboardList, Home, RefreshCw, Wallet, Warehouse } from "lucide-react";
 import { POS_NAV, activePosNavId, type PosNavId } from "@/lib/pos/pos-nav";
 import type { PosAccount } from "@/lib/pos/account";
 import { PosAccountMenu } from "@/components/pos/account-menu";
@@ -12,6 +12,7 @@ import { useRestockCart } from "@/components/pos/restock-cart-provider";
 const ICONS: Record<PosNavId, typeof Home> = {
   home: Home,
   stock: Warehouse,
+  refill: RefreshCw,
   records: ClipboardList,
   settle: Wallet,
 };
