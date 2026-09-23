@@ -21,13 +21,82 @@ type Dashboard =
       rewardsRedeemed: number;
     };
 
-type Props = { liffId: string };
+type Props = {
+  liffId: string;
+  mode?: 'profile' | 'merchant-bind';
+  bindToken?: string;
+};
 
-export function LiffProfileClient({ liffId }: Props) {
+export function LiffProfileClient({ liffId, mode = 'profile', bindToken }: Props) {
   return (
-    <LiffShell liffId={liffId} title="會員資料與存罐紀錄">
-      {({ idToken }) => <ProfileBody idToken={idToken} />}
+    <LiffShell
+      liffId={liffId}
+      title={mode === 'merchant-bind' ? '綁定店家 LINE 通知' : '會員資料與存罐紀錄'}
+    >
+      {({ idToken }) =>
+        mode === 'merchant-bind' ? (
+          <MerchantBindBody idToken={idToken} bindToken={bindToken} />
+        ) : (
+          <ProfileBody idToken={idToken} />
+        )
+      }
     </LiffShell>
+  );
+}
+
+function MerchantBindBody({
+  idToken,
+  bindToken,
+}: {
+  idToken: string;
+  bindToken?: string;
+}) {
+  const [status, setStatus] = useState<'binding' | 'done' | 'error'>('binding');
+  const [message, setMessage] = useState('正在綁定 LINE…');
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        if (!bindToken) throw new Error('綁定連結無效，請回 POS 重新點擊綁定。');
+        const res = await fetch('/api/line/liff/merchant-bind', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, bindToken }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(data.error ?? '綁定失敗');
+        if (active) {
+          setStatus('done');
+          setMessage('LINE 綁定完成，之後補貨寄出時會收到通知。');
+        }
+      } catch (error) {
+        if (active) {
+          setStatus('error');
+          setMessage(error instanceof Error ? error.message : '綁定失敗，請重新登入 POS 後再試。');
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [bindToken, idToken]);
+
+  return (
+    <div className="space-y-4">
+      <LiffStatus
+        message={message}
+        variant={status === 'error' ? 'error' : status === 'done' ? 'success' : 'info'}
+      />
+      {status !== 'binding' ? (
+        <a
+          href="/pos/account"
+          className="flex min-h-[48px] w-full items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground"
+        >
+          返回店家資料
+        </a>
+      ) : null}
+    </div>
   );
 }
 

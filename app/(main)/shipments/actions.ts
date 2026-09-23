@@ -34,6 +34,7 @@ import { replaceJibaLegacyCatnipName } from '@/lib/campaigns/jiba-two-piece/cons
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import {
+  notifyMerchantShipmentSentLine,
   notifyShipmentSentLine,
   shouldNotifyShipmentSent,
 } from '@/lib/shipment-line-notification';
@@ -217,6 +218,12 @@ async function markShipmentStatusInner(
           address: true,
           preferredCarrier: true,
           pickupStoreName: true,
+          settings: {
+            select: {
+              lineNotificationEnabled: true,
+              bookingNotifyLineUserId: true,
+            },
+          },
         },
       },
     },
@@ -558,6 +565,29 @@ async function markShipmentStatusInner(
       status: notification.status,
       ...(notification.status === 'failed' ? { error: notification.error } : {}),
     });
+
+    if (shipment.type === 'merchant_restock' && shipment.merchant) {
+      const merchantNotification = await notifyMerchantShipmentSentLine({
+        shipmentNumber: shipment.shipmentNumber,
+        merchantName: shipment.merchant.name,
+        lineUserId: shipment.merchant.settings?.bookingNotifyLineUserId,
+        notificationEnabled: shipment.merchant.settings?.lineNotificationEnabled,
+        carrier: carrier ?? shipment.carrier,
+        trackingNumber: trackingNumber ?? shipment.trackingNumber,
+      }).catch((error) => ({
+        status: 'failed' as const,
+        error: error instanceof Error ? error.message : '未知錯誤',
+      }));
+
+      console.info('[shipment/merchant-line-notification]', {
+        shipmentId,
+        merchantId: shipment.merchant.id,
+        status: merchantNotification.status,
+        ...(merchantNotification.status === 'failed'
+          ? { error: merchantNotification.error }
+          : {}),
+      });
+    }
   }
 
   revalidatePath('/shipments');

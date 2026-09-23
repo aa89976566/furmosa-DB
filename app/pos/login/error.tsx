@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -15,6 +14,13 @@ export default function PosLoginError({
   useEffect(() => {
     console.error('[pos/login]', error);
   }, [error]);
+
+  function reloadLogin() {
+    // Error boundaries retain their failed client state when navigating to the
+    // same route with <Link>. Use a document navigation so a merchant can
+    // actually restart the login flow after a transient server-action error.
+    window.location.assign('/pos/login');
+  }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-4 p-8">
@@ -32,8 +38,8 @@ export default function PosLoginError({
         <Button type="button" onClick={() => reset()}>
           再試一次
         </Button>
-        <Button variant="outline" asChild>
-          <Link href="/pos/login">重新載入登入頁</Link>
+        <Button type="button" variant="outline" onClick={reloadLogin}>
+          重新載入登入頁
         </Button>
       </div>
     </div>
