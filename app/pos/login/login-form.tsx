@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,13 @@ const initialState: PosLoginState = {};
 
 export function PosLoginForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState(posLoginAction, initialState);
+
+  useEffect(() => {
+    if (!state.redirectTo) return;
+    // Use a document navigation instead of router.push(). The session cookie is
+    // written by the server action and must be included in the POS request.
+    window.location.assign(state.redirectTo);
+  }, [state.redirectTo]);
 
   return (
     <Card className="shadow-card">

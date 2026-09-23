@@ -1,10 +1,9 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { loginMerchantWithPassword } from '@/lib/merchant-auth';
-import { isNextRedirect } from '@/lib/is-next-redirect';
 import { loginFailureMessage } from '@/lib/auth-errors';
+import { resolvePosLoginDestination } from '@/lib/auth-redirect';
 
 const schema = z.object({
   username: z.string().trim().min(1, '請輸入帳號'),
@@ -15,6 +14,8 @@ const schema = z.object({
 export type PosLoginState = {
   error?: string;
   values?: { username?: string };
+  /** Full document navigation avoids Server Action redirect responses that some browsers reject. */
+  redirectTo?: string;
 };
 
 export async function posLoginAction(
@@ -45,15 +46,12 @@ export async function posLoginAction(
       };
     }
 
-    const next =
-      parsed.data.next &&
-      parsed.data.next.startsWith('/pos') &&
-      !parsed.data.next.startsWith('/pos/login')
-        ? parsed.data.next
-        : '/pos';
-    redirect(next);
+    // Returning normal action state is intentional. A thrown redirect after a
+    // successful cookie write can be surfaced as an "unexpected response" by
+    // the client, leaving the merchant on the error page even though login
+    // succeeded. The client performs a document navigation after this state.
+    return { redirectTo: resolvePosLoginDestination(parsed.data.next) };
   } catch (err) {
-    if (isNextRedirect(err)) throw err;
     console.error('[pos/login]', err);
     return {
       error: loginFailureMessage(err),
