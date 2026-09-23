@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ClipboardList, Home, Wallet, Warehouse } from "lucide-react";
 import { POS_NAV, activePosNavId, type PosNavId } from "@/lib/pos/pos-nav";
 import type { PosAccount } from "@/lib/pos/account";
@@ -31,7 +32,16 @@ function RestockBadge({ active }: { active: boolean }) {
 
 export function InventorySideNav({ account }: { account: PosAccount }) {
   const pathname = usePathname() || "/pos/stock";
+  const router = useRouter();
   const active = activePosNavId(pathname);
+
+  useEffect(() => {
+    for (const tab of POS_NAV) {
+      if ((tab.id === "home" || tab.id === "stock") && !tab.match(pathname)) {
+        router.prefetch(tab.href);
+      }
+    }
+  }, [pathname, router]);
 
   return (
     <aside className="hidden h-full w-[220px] shrink-0 flex-col border-r border-neutral-200 bg-white md:flex">
@@ -75,8 +85,17 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
 
 export function InventoryBottomNav() {
   const pathname = usePathname() || "/pos/stock";
+  const router = useRouter();
   const active = activePosNavId(pathname);
   const { itemCount } = useRestockCart();
+
+  useEffect(() => {
+    for (const tab of POS_NAV) {
+      if ((tab.id === "home" || tab.id === "stock") && !tab.match(pathname)) {
+        router.prefetch(tab.href);
+      }
+    }
+  }, [pathname, router]);
 
   return (
     <nav
