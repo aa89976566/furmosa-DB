@@ -102,6 +102,9 @@ describe('merchant shipment dispatch notification', () => {
     assert.match(inbox, /\/pos\/shipments\/\$\{notification\.shipment\.id\}/);
     assert.match(ui, /inbox\.unreadCount/);
     assert.match(ui, /sessionStorage\.setItem/);
+    assert.match(ui, /NOTIFICATION_LOAD_TIMEOUT_MS = 12_000/);
+    assert.match(ui, /Promise\.allSettled/);
+    assert.match(ui, /setBusy\(false\)/);
     assert.doesNotMatch(ui, /window\.confirm\(/);
   });
 });

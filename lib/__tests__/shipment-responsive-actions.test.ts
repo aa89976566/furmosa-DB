@@ -203,22 +203,24 @@ describe('出貨工作區介面', () => {
     assert.match(action, /commitShipmentStatus\(async \(tx\)/);
   });
 
-  it('確認視窗使用自己的原生表單提交，不依賴跨區 form 連結', () => {
+  it('確認視窗直接回報佇列更新結果，不把伺服器錯誤藏在重新導向', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
     );
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
-    assert.match(control, /import \{ markShipmentStatus \}/);
-    assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 2);
+    assert.match(control, /markShipmentStatusFromQueue/);
+    assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 1);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
     assert.match(control, /name="next" value=\{confirmNext\}/);
     assert.match(control, /type="submit"/);
     assert.doesNotMatch(control, /form=\{formId\}/);
     assert.match(control, /確認貨物到達/);
     assert.match(control, /確認已寄出/);
-    assert.doesNotMatch(control, /markShipmentStatusFromQueue\(fd\)/);
+    assert.match(control, /await markShipmentStatusFromQueue\(formData\)/);
+    assert.match(control, /無法更新出貨狀態：\{actionError\}/);
+    assert.match(control, /router\.refresh\(\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);
   });
 });

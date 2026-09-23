@@ -17,6 +17,27 @@ type RecentNotifications = Awaited<ReturnType<typeof loadRecentNotifications>>;
 type Inbox = Awaited<ReturnType<typeof loadUnreadNotifications>>;
 type UnreadNotice = Inbox['notifications'][number];
 
+const NOTIFICATION_LOAD_TIMEOUT_MS = 12_000;
+
+function withNotificationTimeout<T>(request: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(
+      () => reject(new Error('通知載入逾時')),
+      NOTIFICATION_LOAD_TIMEOUT_MS,
+    );
+    request.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
 export function PosPageTools({ account }: { account: PosAccount }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -137,14 +158,13 @@ export function PosPageTools({ account }: { account: PosAccount }) {
     if (events.length > 0 && !failed && Date.now() - lastRefreshAt.current < 60_000) return;
     setBusy(true);
     setFailed(false);
-    try {
-      await refreshInbox();
-      await refreshNotifications();
-    } catch {
-      setFailed(true);
-    } finally {
-      setBusy(false);
-    }
+    const [inboxResult, eventsResult] = await Promise.allSettled([
+      withNotificationTimeout(refreshInbox()),
+      withNotificationTimeout(refreshNotifications()),
+    ]);
+    if (eventsResult.status === 'rejected') setFailed(true);
+    if (inboxResult.status === 'rejected') setInboxFailed(true);
+    setBusy(false);
   }
 
   const toolClass = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-zinc-700 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';

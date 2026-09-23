@@ -222,7 +222,7 @@ describe('POS 補貨通知文案', () => {
       events.map(({ id, title, statusLabel }) => ({ id, title, statusLabel })),
       [
         { id: 'shipment-direct-new', title: '商品已出貨', statusLabel: '運送中' },
-        { id: 'request-request-new', title: '補貨申請已送出', statusLabel: '等待 HQ 審核' },
+        { id: 'request-request-new', title: '補貨申請已送出', statusLabel: '等待匠寵審核' },
       ],
     );
   });
@@ -266,7 +266,7 @@ describe('POS 補貨通知文案', () => {
       'utf8',
     );
     assert.match(notifications, /event\.hqNote/);
-    assert.match(notifications, /HQ 回覆：\{event\.hqNote\}/);
+    assert.match(notifications, /匠寵回覆：\{event\.hqNote\}/);
 
     const detail = readFileSync(
       new URL('../../../app/pos/restock/[id]/page.tsx', import.meta.url),

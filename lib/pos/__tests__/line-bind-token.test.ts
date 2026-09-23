@@ -14,8 +14,9 @@ test('LINE 綁定 token 只還原伺服器簽署的店家', async () => {
 test('LINE 綁定 token 拒絕竄改內容', async () => {
   process.env.AUTH_SECRET = 'test-secret-for-merchant-line-binding';
   const token = await createMerchantLineBindToken('merchant-123');
+  const replacement = token.endsWith('x') ? 'y' : 'x';
   await assert.rejects(
-    verifyMerchantLineBindToken(`${token.slice(0, -1)}x`),
+    verifyMerchantLineBindToken(`${token.slice(0, -1)}${replacement}`),
     /綁定連結已失效/,
   );
 });

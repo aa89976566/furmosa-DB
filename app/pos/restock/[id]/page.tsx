@@ -42,17 +42,17 @@ export default async function PosRestockDetailPage(
   const shipment = req.shipment;
   const shipmentCopy = shipment
     ? {
-        pending: { label: 'HQ 已核准，等待備貨', help: 'HQ 正在安排商品與出貨。' },
+        pending: { label: '匠寵已核准，等待備貨', help: '匠寵正在安排商品與出貨。' },
         packed: { label: '商品已備妥', help: '商品已完成備貨，準備交給物流。' },
-        shipped: { label: '商品運送中', help: '商品已離開 HQ，請留意物流進度。' },
+        shipped: { label: '商品運送中', help: '商品已由匠寵寄出，請留意物流進度。' },
         delivered: { label: '待確認收貨', help: '請核對這批商品，再確認收到貨。' },
         received: { label: '店家已確認收貨', help: '商品已加入店家可售庫存。' },
-        cancelled: { label: '出貨已取消', help: '請查看公司回覆或聯絡 HQ。' },
+        cancelled: { label: '出貨已取消', help: '請查看回覆或聯絡匠寵。' },
       }[shipment.status]
     : null;
   const shipmentTimeline = shipment
     ? [
-        { label: 'HQ 核准', done: true },
+        { label: '匠寵核准', done: true },
         { label: '完成備貨', done: Boolean(shipment.packedAt) },
         { label: '商品出貨', done: Boolean(shipment.shippedAt) },
         { label: '物流送達', done: Boolean(shipment.deliveredAt) },
@@ -192,7 +192,7 @@ export default async function PosRestockDetailPage(
             {requestedItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {hasApprovedItems
-                  ? 'HQ 已調整品項，請以下方核准內容為準。'
+                  ? '匠寵已調整品項，請以下方核准內容為準。'
                   : '請公司代為配置'}
               </p>
             ) : (
@@ -213,7 +213,7 @@ export default async function PosRestockDetailPage(
         {hasApprovedItems ? (
           <Card>
             <CardContent className="space-y-2 p-4">
-              <p className="text-sm font-medium">HQ 核准內容</p>
+              <p className="text-sm font-medium">匠寵核准內容</p>
               <ul className="space-y-2 text-sm">
                 {snapshot
                   ? snapshot.map((line) => (
