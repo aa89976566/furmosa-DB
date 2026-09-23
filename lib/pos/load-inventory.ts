@@ -20,11 +20,14 @@ export type InventoryProduct = {
 export async function loadMerchantInventory(
   merchantId: string,
 ): Promise<InventoryProduct[]> {
-  const [products, stocks, rules] = await Promise.all([
-    prisma.product.findMany({
+  const products = await prisma.product.findMany({
       where: {
         status: 'active',
         productCategory: { in: ['JAR_EXCHANGE', 'STANDARD'] },
+        OR: [
+          { merchantStocks: { some: { merchantId } } },
+          { merchantRules: { some: { merchantId } } },
+        ],
       },
       select: {
         id: true,
@@ -35,29 +38,16 @@ export async function loadMerchantInventory(
         style: true,
         imageUrl: true,
         productCategory: true,
+        merchantStocks: {
+          where: { merchantId },
+          select: { quantity: true },
+        },
       },
       orderBy: { name: 'asc' },
-    }),
-    prisma.merchantStock.findMany({
-      where: { merchantId },
-      select: { productId: true, quantity: true },
-    }),
-    prisma.merchantProductRule.findMany({
-      where: { merchantId },
-      select: { productId: true },
-    }),
-  ]);
-
-  const qtyByProduct = new Map<string, number>();
-  for (const stock of stocks) {
-    qtyByProduct.set(stock.productId, (qtyByProduct.get(stock.productId) ?? 0) + stock.quantity);
-  }
-  const inStore = new Set([...qtyByProduct.keys(), ...rules.map((rule) => rule.productId)]);
-
+    });
   return products
-    .filter((product) => inStore.has(product.id))
     .map((product) => {
-      const quantity = qtyByProduct.get(product.id) ?? 0;
+      const quantity = product.merchantStocks.reduce((sum, stock) => sum + stock.quantity, 0);
       return {
         productId: product.id,
         name: product.name,

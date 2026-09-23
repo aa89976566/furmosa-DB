@@ -1,5 +1,4 @@
 import { requireMerchantSession } from '@/lib/merchant-auth';
-import { prisma } from '@/lib/prisma';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 import { posLogoutAction } from '../actions';
 import { PosShell } from '@/components/pos/pos-shell';
@@ -49,21 +48,6 @@ function CounterFallback({
 export default async function PosSellPage() {
   try {
     const session = await requireMerchantSession();
-    let merchant: { id: string; name: string } | null = null;
-    try {
-      merchant = await prisma.merchant.findFirst({
-        where: { id: session.merchantId },
-        select: { id: true, name: true },
-      });
-    } catch (err) {
-      console.error('[pos] sell merchant lookup', err);
-      return <CounterFallback message="資料暫時載不進來。" />;
-    }
-
-    if (!merchant || merchant.id !== session.merchantId) {
-      return <CounterFallback message="找不到店家資料，請重新登入。" showRetryHint={false} />;
-    }
-
     const [catalog, account] = await Promise.all([
       loadCounterCatalog(session.merchantId),
       loadPosAccount(session.merchantId, session.username),
@@ -73,7 +57,7 @@ export default async function PosSellPage() {
     }
 
     return (
-      <PosShell storeName={merchant.name} account={account} wide showShipmentAlert>
+      <PosShell storeName={catalog.merchantName} account={account} wide showShipmentAlert>
         <CounterApp
           storeName={catalog.merchantName}
           items={catalog.items}
