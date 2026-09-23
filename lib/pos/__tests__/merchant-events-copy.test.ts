@@ -166,6 +166,7 @@ function isPrismaRequest(request: string) {
 }
 
 let loadMerchantEvents: (typeof import('@/lib/pos/load-merchant-events'))['loadMerchantEvents'];
+let loadMerchantEventPreviews: (typeof import('@/lib/pos/load-merchant-events'))['loadMerchantEventPreviews'];
 let merchantEventHqNote: (typeof import('@/lib/pos/load-merchant-events'))['merchantEventHqNote'];
 let restockQuantityAdjustmentDetail: (typeof import('@/lib/pos/load-merchant-events'))['restockQuantityAdjustmentDetail'];
 
@@ -179,6 +180,7 @@ describe('POS 補貨通知文案', () => {
     };
     try {
       ({
+        loadMerchantEventPreviews,
         loadMerchantEvents,
         merchantEventHqNote,
         restockQuantityAdjustmentDetail,
@@ -186,6 +188,43 @@ describe('POS 補貨通知文案', () => {
     } finally {
       moduleApi._load = originalLoad;
     }
+  });
+
+  it('通知鈴鐺只組合最新摘要，不查庫存入帳證據', async () => {
+    world = {
+      requests: [
+        requestRow({
+          id: 'request-new',
+          status: 'submitted',
+          updatedAt: new Date('2026-09-05T10:00:00Z'),
+        }),
+      ],
+      shipments: [
+        {
+          id: 'direct-new',
+          merchantId: 'merchant-1',
+          type: 'merchant_restock',
+          restockRequestId: null,
+          shipmentNumber: 'SHP-NEW',
+          status: 'shipped',
+          deliveredAt: null,
+          updatedAt: new Date('2026-09-05T11:00:00Z'),
+          items: [{ id: 'item-1', productName: '雞霸', quantity: 3 }],
+        },
+      ],
+      stockTxns: [],
+      failEvidence: true,
+    };
+
+    const events = await loadMerchantEventPreviews('merchant-1', 5);
+
+    assert.deepEqual(
+      events.map(({ id, title, statusLabel }) => ({ id, title, statusLabel })),
+      [
+        { id: 'shipment-direct-new', title: '商品已出貨', statusLabel: '運送中' },
+        { id: 'request-request-new', title: '補貨申請已送出', statusLabel: '等待 HQ 審核' },
+      ],
+    );
   });
 
   it('調量時通知顯示申請量與核准量', () => {

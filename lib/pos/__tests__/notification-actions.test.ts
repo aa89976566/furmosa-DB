@@ -14,7 +14,7 @@ const mocks = {
     if (!authenticated) throw new Error('POS_LOGIN_REQUIRED');
     return { merchantId: 'merchant-from-pos-session' };
   } },
-  events: { loadMerchantEvents: async (merchantId: string) => {
+  events: { loadMerchantEventPreviews: async (merchantId: string) => {
     requestedMerchants.push(merchantId);
     return events;
   } },
@@ -27,7 +27,7 @@ export async function resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context);
 }
 function mock(key) {
-  const name = key === 'auth' ? 'requireMerchantSession' : 'loadMerchantEvents';
+  const name = key === 'auth' ? 'requireMerchantSession' : 'loadMerchantEventPreviews';
   return { shortCircuit: true, url: 'data:text/javascript,' + encodeURIComponent('export const ' + name + ' = globalThis.__POS_NOTIFICATION_MOCKS__.' + key + '.' + name + ';') };
 }`;
 register(`data:text/javascript,${encodeURIComponent(loader)}`, import.meta.url);
