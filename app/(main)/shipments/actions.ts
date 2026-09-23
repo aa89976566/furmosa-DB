@@ -53,6 +53,10 @@ import {
   omsStatusForShipmentStatus,
 } from '@/lib/orders/oms';
 import { resolveLegacyPieceVariantRepairs } from '@/lib/inventory/legacy-piece-variant';
+import {
+  recordMerchantDispatch,
+  shouldRecordMerchantDispatch,
+} from '@/lib/pos/shipment-dispatch-notification';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'shipped', 'cancelled'],
@@ -267,6 +271,12 @@ async function markShipmentStatusInner(
   }
 
   const now = new Date();
+  const recordDispatch = shouldRecordMerchantDispatch({
+    type: shipment.type,
+    merchantId: shipment.merchantId,
+    previousStatus: shipment.status,
+    nextStatus: next,
+  });
   const data: Prisma.ShipmentUpdateInput = { status: next };
   if (next === 'packed') data.packedAt = now;
   if (next === 'shipped') {
@@ -405,6 +415,7 @@ async function markShipmentStatusInner(
   const useShortAtomicCommit = Boolean(
     shipment.orderId &&
       orderUpdate &&
+      !recordDispatch &&
       !shipment.order?.omsStatus &&
       !shipment.subscriptionShipmentId &&
       !(shipment.order?.externalStore && shipment.order?.externalOrderId),
@@ -474,6 +485,13 @@ async function markShipmentStatusInner(
         select: { status: true },
       });
       assertShipmentStatusPersisted(updatedShipment.status, next);
+      if (recordDispatch && shipment.merchantId) {
+        await recordMerchantDispatch(tx, {
+          merchantId: shipment.merchantId,
+          shipmentId,
+          occurredAt: now,
+        });
+      }
 
       if (shipment.orderId) {
         if (orderUpdate) {

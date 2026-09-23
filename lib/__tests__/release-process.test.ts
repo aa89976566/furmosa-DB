@@ -11,7 +11,20 @@ test('production workflow is manual, protected and waits for Railway exact commi
   assert.match(workflow, /RELEASE_EXPECTED_HEAD_SHA/);
   assert.match(workflow, /wait-railway-status\.mjs/);
   assert.match(workflow, /production-readiness\.mjs/);
+  assert.match(workflow, /steps\.preflight\.outputs\.already_merged != 'true'/);
+  assert.match(workflow, /steps\.preflight\.outputs\.merge_sha/);
+  assert.match(
+    workflow,
+    /Keep release controller changes separate[\s\S]*if: steps\.preflight\.outputs\.already_merged != 'true'/,
+  );
   assert.doesNotMatch(workflow, /prisma migrate deploy/);
+
+  const preflight = readFileSync('scripts/release/verify-pr.mjs', 'utf8');
+  assert.match(preflight, /already merged into main/);
+  assert.match(preflight, /Merged PR commit is not contained in current main/);
+  assert.match(preflight, /already_merged=/);
+  assert.match(preflight, /Production PR must not modify the trusted release controller/);
+  assert.match(preflight, /path\.startsWith\('scripts\/release\/'\)/);
 });
 
 test('none plan rejects migrations by contract and HQ plan stays bounded', () => {
@@ -30,6 +43,27 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
   ]);
   const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
   assert.match(workflow, /- hq_passkeys_20260918/);
+  assert.equal(
+    RELEASE_PLANS.pos_shipment_notifications_20260922.runner,
+    'scripts/ops/deploy-pos-shipment-notifications.mjs',
+  );
+  assert.deepEqual(
+    RELEASE_PLANS.pos_shipment_notifications_20260922.migrationPrefixes,
+    ['prisma/migrations/20260922180000_merchant_shipment_notifications/'],
+  );
+  assert.deepEqual(
+    RELEASE_PLANS.pos_shipment_notifications_20260922.requiredPaths,
+    ['prisma/migrations/20260922180000_merchant_shipment_notifications/migration.sql'],
+  );
+  assert.match(workflow, /- pos_shipment_notifications_20260922/);
+  const notificationRunner = readFileSync(
+    'scripts/ops/deploy-pos-shipment-notifications.mjs',
+    'utf8',
+  );
+  assert.match(notificationRunner, /20260922180000_merchant_shipment_notifications/);
+  assert.match(notificationRunner, /BEGIN;[\s\S]*COMMIT;/);
+  assert.match(notificationRunner, /checksum\/history differs/);
+  assert.doesNotMatch(notificationRunner, /prisma migrate deploy/);
   assert.equal(
     RELEASE_PLANS.historical_hq_schema_repair_20260921.runner,
     'scripts/ops/repair-historical-hq-schema-20260921.mjs',

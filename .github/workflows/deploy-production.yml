@@ -20,6 +20,7 @@ on:
           - none
           - hq_inventory_advisory_20260917
           - hq_passkeys_20260918
+          - pos_shipment_notifications_20260922
           - historical_hq_schema_repair_20260921
 
 permissions:
@@ -92,6 +93,7 @@ jobs:
           fetch-depth: 0
 
       - name: Keep release controller changes separate
+        if: steps.preflight.outputs.already_merged != 'true'
         run: |
           git fetch origin main --quiet
           git diff --exit-code origin/main -- .github/workflows/deploy-production.yml scripts/release vercel.json scripts/vercel-ignore-build.mjs
@@ -110,6 +112,7 @@ jobs:
         run: node scripts/release/production-readiness.mjs
 
       - name: Merge exact PR head
+        if: steps.preflight.outputs.already_merged != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
@@ -123,7 +126,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          merge_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${RELEASE_PR_NUMBER}" --jq '.merge_commit_sha')"
+          if [ "${{ steps.preflight.outputs.already_merged }}" = "true" ]; then
+            merge_sha="${{ steps.preflight.outputs.merge_sha }}"
+          else
+            merge_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${RELEASE_PR_NUMBER}" --jq '.merge_commit_sha')"
+          fi
           test -n "$merge_sha" && test "$merge_sha" != "null"
           echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
