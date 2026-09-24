@@ -17,6 +17,25 @@ function stockTypeLabel(type: string): string {
   }
 }
 
+export function restockFeedStatus(requestStatus: string, shipmentStatus?: string | null): string {
+  if (requestStatus !== 'converted_to_shipment') {
+    return ['submitted', 'under_review', 'approved'].includes(requestStatus)
+      ? '已送出'
+      : restockStatusLabelForMerchant(requestStatus);
+  }
+  switch (shipmentStatus) {
+    case 'shipped':
+    case 'delivered':
+      return '是否已收到？';
+    case 'received':
+      return '已收貨入庫';
+    case 'cancelled':
+      return '出貨已取消';
+    default:
+      return '備貨中';
+  }
+}
+
 export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]> {
   const now = new Date();
   const since = new Date(now);
@@ -56,6 +75,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         id: true,
         createdAt: true,
         status: true,
+        shipment: { select: { status: true } },
         items: {
           take: 3,
           select: {
@@ -121,9 +141,6 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const names = r.items
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
-    const submitted = ['submitted', 'under_review', 'approved', 'converted_to_shipment'].includes(
-      r.status,
-    );
     const at = r.createdAt.toISOString();
     return {
       id: `restock-${r.id}`,
@@ -132,7 +149,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       whenLabel: formatQueryWhen(at, now),
       title: '補貨',
       subtitle: names || '補貨單',
-      status: submitted && r.status !== 'converted_to_shipment' ? '已送出' : restockStatusLabelForMerchant(r.status),
+      status: restockFeedStatus(r.status, r.shipment?.status),
       href: `/pos/restock/${r.id}`,
       searchText: `補貨 ${names} ${r.id}`.toLowerCase(),
     };
