@@ -47,7 +47,6 @@ import type { OrderCreateInitial, OrderEditInitial } from '@/lib/orders/build-ed
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
 import { createCustomer } from '../../customers/actions';
-import { resolveOrderLineTierId } from '@/lib/orders/order-line-tier';
 import { OrderDiscountField } from '@/components/shared/order-discount-field';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { variationLabel } from '@/lib/product-variations';
@@ -231,10 +230,7 @@ function OrderLineItemsTable({
             const prod = productMap.get(it.productId);
             const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
             const hasProduct = Boolean(it.productId && prod);
-            const selectedTierId = prod
-              ? resolveOrderLineTierId(prod.priceTiers, it.tierId)
-              : '';
-            const hasSelectedSpec = hasProduct && (!hasTiers || Boolean(selectedTierId));
+            const hasSelectedSpec = hasProduct && (!hasTiers || Boolean(it.tierId));
             const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
@@ -259,12 +255,12 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     規格
                   </span>
-                  <input type="hidden" name="tierId" value={selectedTierId} />
+                  <input type="hidden" name="tierId" value={it.tierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
                   {prod && hasTiers ? (
                     <select
-                      value={selectedTierId}
+                      value={it.tierId}
                       onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
                       className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
@@ -663,8 +659,7 @@ export function OrderForm({
         ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId)
         : 0;
     if (p.priceTiers.length > 0) {
-      const resolvedTierId = resolveOrderLineTierId(p.priceTiers, tierId);
-      const t = p.priceTiers.find((x) => x.id === resolvedTierId)!;
+      const t = p.priceTiers.find((x) => x.id === tierId) ?? p.priceTiers[0];
       return {
         tierId: t.id,
         unitPrice: useCatalogPrice
@@ -701,13 +696,16 @@ export function OrderForm({
       });
       return;
     }
-    const pricing = linePricing(p, resolveOrderLineTierId(p.priceTiers, ''));
+    const hasTiers = p.priceTiers.length > 0;
+    const pricing = linePricing(p, hasTiers ? '' : '');
     const isGift = current?.isGift ?? false;
     updateItem(key, {
       productId,
       ...pricing,
-      unitPrice: isGift ? 0 : pricing.unitPrice,
-      retailUnitPrice: pricing.unitPrice,
+      tierId: hasTiers ? '' : pricing.tierId,
+      unitPrice: hasTiers || isGift ? 0 : pricing.unitPrice,
+      retailUnitPrice: hasTiers ? 0 : pricing.unitPrice,
+      weightGrams: hasTiers ? null : pricing.weightGrams,
     });
     revealThrough(5);
   }
