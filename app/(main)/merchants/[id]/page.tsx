@@ -28,6 +28,7 @@ import {
 } from './actions';
 import { merchantBusinessIdKind } from '@/lib/merchant-business-id';
 import { Input } from '@/components/ui/input';
+import { MerchantCommercialModules } from './merchant-commercial-modules';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,15 @@ export default async function MerchantOverviewPage(
           orderBy: { createdAt: 'desc' },
           take: 5,
         },
+        commercialModules: {
+          orderBy: { effectiveFrom: 'desc' },
+          select: {
+            id: true,
+            mode: true,
+            effectiveFrom: true,
+            effectiveUntil: true,
+          },
+        },
       },
     }),
     getMerchantShell(params.id),
@@ -96,6 +106,17 @@ export default async function MerchantOverviewPage(
           tone={outOfStock > 0 ? 'danger' : lowStock > 0 ? 'warning' : 'default'}
         />
       </MerchantStatGrid>
+
+      <MerchantSection
+        title="合作模組"
+        description="只管理店家可使用的合作方式與有效期間；商品條件在產品管理，運費在建立訂單時決定。"
+      >
+        <MerchantCommercialModules
+          merchantId={merchant.id}
+          modules={merchant.commercialModules}
+          canEdit={canManagePasswords}
+        />
+      </MerchantSection>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
