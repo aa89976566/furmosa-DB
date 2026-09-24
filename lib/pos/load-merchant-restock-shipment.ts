@@ -18,6 +18,7 @@ export type DirectMerchantRestockShipment = {
   packedAt: Date | null;
   shippedAt: Date | null;
   deliveredAt: Date | null;
+  receivedAt: Date | null;
   items: MerchantRestockShipmentItem[];
 };
 
@@ -47,6 +48,7 @@ export async function loadMerchantRestockShipment(
       packedAt: true,
       shippedAt: true,
       deliveredAt: true,
+      receivedAt: true,
       items: {
         select: {
           id: true,

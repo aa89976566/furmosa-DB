@@ -41,12 +41,14 @@ function queueSelectValue(status: string) {
   return 'pending';
 }
 
-function queueOptionsForStatus(status: string) {
+function queueOptionsForStatus(status: string, shipmentType?: string) {
   if (status === 'delivered') {
     return QUEUE_DELIVERED_OPTIONS;
   }
   if (status === 'shipped') {
-    return QUEUE_IN_TRANSIT_OPTIONS;
+    return shipmentType === 'merchant_restock'
+      ? QUEUE_IN_TRANSIT_OPTIONS.filter((option) => option.value !== 'delivered')
+      : QUEUE_IN_TRANSIT_OPTIONS;
   }
   if (status === 'packed') {
     return QUEUE_PACKED_OPTIONS;
@@ -91,6 +93,7 @@ export function ShipmentQueueStatusSelect({
   status,
   queueStatus,
   queueType,
+  shipmentType,
   paymentReviewHold = false,
   inventoryWarnings = [],
   className,
@@ -99,12 +102,13 @@ export function ShipmentQueueStatusSelect({
   status: string;
   queueStatus?: string;
   queueType?: string;
+  shipmentType?: string;
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
   className?: string;
 }) {
   const router = useRouter();
-  const options = queueOptionsForStatus(status);
+  const options = queueOptionsForStatus(status, shipmentType);
   const serverValue = queueSelectValue(status);
   const [confirmNext, setConfirmNext] = useState<
     'pending' | 'shipped' | 'delivered' | null
@@ -301,6 +305,7 @@ export function ShipmentQueueStatusCell({
   status,
   queueStatus,
   queueType,
+  shipmentType,
   paymentReviewHold,
   inventoryWarnings,
   className,
@@ -309,6 +314,7 @@ export function ShipmentQueueStatusCell({
   status: string;
   queueStatus?: string;
   queueType?: string;
+  shipmentType?: string;
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
   className?: string;
@@ -319,6 +325,7 @@ export function ShipmentQueueStatusCell({
       status={status}
       queueStatus={queueStatus}
       queueType={queueType}
+      shipmentType={shipmentType}
       paymentReviewHold={paymentReviewHold}
       inventoryWarnings={inventoryWarnings}
       className={className}

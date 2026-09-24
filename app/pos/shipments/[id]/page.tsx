@@ -48,8 +48,7 @@ export default async function PosDirectShipmentPage(
   const timeline = [
     { label: '完成備貨', date: shipment.packedAt, done: Boolean(shipment.packedAt) },
     { label: '商品出貨', date: shipment.shippedAt, done: Boolean(shipment.shippedAt) },
-    { label: '物流送達', date: shipment.deliveredAt, done: Boolean(shipment.deliveredAt) },
-    { label: '店家確認收貨', date: null, done: shipment.status === 'received' },
+    { label: '店家確認收貨', date: shipment.receivedAt, done: shipment.status === 'received' },
   ];
 
   return (

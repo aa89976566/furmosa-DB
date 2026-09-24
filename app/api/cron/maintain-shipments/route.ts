@@ -7,6 +7,7 @@ import { ensureZhuwoConsignmentBranches } from '@/lib/stores/ensure-zhuwo-mercha
 import { ensureQimuDeliveryShipping } from '@/lib/stores/ensure-qimu-delivery';
 import { clearJobThrottle } from '@/lib/job-throttle';
 import { processAppointmentReminders } from '@/lib/booking/reminders';
+import { processMerchantReceiptReminders } from '@/lib/pos/shipment-receipt-reminders';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -50,6 +51,10 @@ export async function GET(req: Request) {
     console.error('[cron/maintain-shipments] bookingReminders', error);
     return { error: String(error) };
   });
+  const receiptReminders = await processMerchantReceiptReminders().catch((error) => {
+    console.error('[cron/maintain-shipments] receiptReminders', error);
+    return { error: String(error) };
+  });
 
   return NextResponse.json({
     ok: true,
@@ -58,6 +63,7 @@ export async function GET(req: Request) {
     qimu,
     dashboardKpi,
     bookingReminders,
+    receiptReminders,
   });
 }
 

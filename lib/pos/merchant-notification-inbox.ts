@@ -35,6 +35,7 @@ export async function loadMerchantNotificationInbox(
       take,
       select: {
         id: true,
+        kind: true,
         title: true,
         createdAt: true,
         shipment: {
@@ -52,9 +53,8 @@ export async function loadMerchantNotificationInbox(
     unreadCount,
     notifications: notifications.map((notification) => ({
       id: notification.id,
-      title: notification.shipment.status === 'delivered'
-        ? '商品已送達，請確認收貨'
-        : notification.title,
+      kind: notification.kind,
+      title: notification.title,
       shipmentId: notification.shipment.id,
       shipmentNumber: notification.shipment.shipmentNumber,
       occurredAt: notification.createdAt.toISOString(),
