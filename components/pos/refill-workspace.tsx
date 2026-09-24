@@ -23,8 +23,22 @@ import {
   toPosRefillOrderCard,
   type PosRefillOrderCard,
 } from "@/lib/pos/refill-view";
+import type { MerchantJarExchangeMember } from "@/lib/refill/merchant";
 
 const LIST_PREVIEW = 4;
+
+function memberStatusLabel(status: string) {
+  return status === "active" ? "啟用中" : "暫停中";
+}
+
+function shortDate(value: string | null) {
+  if (!value) return "尚未完成換罐";
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
 
 function showToast(setToast: (value: string | null) => void, text: string) {
   setToast(text);
@@ -34,12 +48,14 @@ function showToast(setToast: (value: string | null) => void, text: string) {
 function RefillWorkspaceInner({
   account,
   initialOrders,
+  initialMembers,
   initialOrderId = null,
   payQrUrl,
   rewardPolicy,
 }: {
   account: PosAccount;
   initialOrders: PosRefillOrderCard[];
+  initialMembers: MerchantJarExchangeMember[];
   initialOrderId?: string | null;
   payQrUrl: string | null;
   rewardPolicy: RefillRewardPolicy;
@@ -55,6 +71,7 @@ function RefillWorkspaceInner({
     customerName: string;
   } | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   const { processable, unpaid, visible } = useMemo(() => {
     const processableOrders = orders.filter(
@@ -73,6 +90,9 @@ function RefillWorkspaceInner({
 
   const selected = orders.find((order) => order.id === selectedId) ?? null;
   const totalCount = processable.length + unpaid.length;
+  const visibleMembers = showAllMembers
+    ? initialMembers
+    : initialMembers.slice(0, LIST_PREVIEW);
 
   async function reloadOrders() {
     try {
@@ -185,6 +205,63 @@ function RefillWorkspaceInner({
                 <p className="mt-1 text-xs leading-5 text-zinc-600">
                   折抵後由匠寵補給店家。這是換罐分潤，不算一般寄賣 20%／30%。
                 </p>
+              </section>
+              <section>
+                <div className="flex items-baseline justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-zinc-900">
+                      已登記換罐會員
+                    </h2>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      本店開戶或已在本店完成換罐的會員
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-xs text-zinc-500">
+                    共 {initialMembers.length} 位
+                  </p>
+                </div>
+                {initialMembers.length === 0 ? (
+                  <p className="mt-3 rounded-2xl border-2 border-dashed border-neutral-300 px-4 py-3 text-sm text-zinc-500">
+                    目前沒有可顯示的換罐會員。
+                  </p>
+                ) : (
+                  <ul className="mt-3 divide-y divide-neutral-200 overflow-hidden rounded-2xl border-2 border-zinc-900">
+                    {visibleMembers.map((member) => (
+                      <li key={member.id} className="flex min-h-[72px] items-center gap-3 bg-white px-4 py-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm font-semibold text-zinc-700">
+                          {customerInitial(member.name)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className="truncate font-medium">{member.name}</p>
+                            <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-zinc-600">
+                              {memberStatusLabel(member.serviceStatus)}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-sm text-zinc-500">
+                            {member.petName ? `${member.petName} · ` : ''}{shortDate(member.lastExchangeAt)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-lg font-semibold tabular-nums text-zinc-900">
+                            {member.points}
+                          </p>
+                          <p className="text-xs text-zinc-500">累積點數</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {initialMembers.length > LIST_PREVIEW ? (
+                  <button
+                    type="button"
+                    className="mt-3 flex w-full items-center justify-center gap-1 py-2 text-sm text-zinc-600"
+                    onClick={() => setShowAllMembers((current) => !current)}
+                  >
+                    {showAllMembers ? '收合會員' : '查看全部會員'}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showAllMembers ? 'rotate-180' : ''}`} />
+                  </button>
+                ) : null}
               </section>
               <section>
                 <p className="mb-3 text-sm font-semibold">1. 找到客人的訂單</p>
@@ -331,12 +408,14 @@ function RefillWorkspaceInner({
 export function RefillWorkspace({
   account,
   initialOrders,
+  initialMembers,
   initialOrderId = null,
   payQrUrl,
   rewardPolicy,
 }: {
   account: PosAccount;
   initialOrders: PosRefillOrderCard[];
+  initialMembers: MerchantJarExchangeMember[];
   initialOrderId?: string | null;
   payQrUrl: string | null;
   rewardPolicy: RefillRewardPolicy;
@@ -346,6 +425,7 @@ export function RefillWorkspace({
       <RefillWorkspaceInner
         account={account}
         initialOrders={initialOrders}
+        initialMembers={initialMembers}
         initialOrderId={initialOrderId}
         payQrUrl={payQrUrl}
         rewardPolicy={rewardPolicy}
