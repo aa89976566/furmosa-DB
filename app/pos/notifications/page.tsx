@@ -40,10 +40,14 @@ export default async function PosNotificationsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">{notice.shipmentNumber}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <form action={openMerchantNotification.bind(null, notice.id)}>
-                    <button type="submit" className="min-h-11 text-sm font-medium underline underline-offset-4">查看出貨單</button>
+                    <button type="submit" className="min-h-11 text-sm font-medium underline underline-offset-4">
+                      {notice.kind === 'shipment_shipped' ? '查看出貨單' : '已收到，開始核對'}
+                    </button>
                   </form>
                   <form action={readMerchantNotification.bind(null, notice.id)}>
-                    <button type="submit" className="min-h-11 rounded-xl border px-4 text-sm">標記已讀</button>
+                    <button type="submit" className="min-h-11 rounded-xl border px-4 text-sm">
+                      {notice.kind === 'shipment_shipped' ? '標記已讀' : '還沒收到'}
+                    </button>
                   </form>
                 </div>
               </article>

@@ -91,9 +91,12 @@ export default async function ShipmentDetailPage(
     jiba: shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null,
   });
   const paymentReviewHold = fee.paymentReviewHold;
-  const allowedNext = paymentReviewHold
+  const allowedByPayment = paymentReviewHold
     ? nextStatuses(shipment.status).filter((status) => status !== 'shipped' && status !== 'delivered')
     : nextStatuses(shipment.status);
+  const allowedNext = shipment.type === 'merchant_restock'
+    ? allowedByPayment.filter((status) => status !== 'delivered')
+    : allowedByPayment;
   const steps = timelineSteps(shipment);
   const isFinal = ['delivered', 'received', 'cancelled'].includes(shipment.status);
   const displayRecipientName = shipment.order?.omsStatus

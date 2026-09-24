@@ -55,7 +55,6 @@ export default async function PosRestockDetailPage(
         { label: '匠寵核准', done: true },
         { label: '完成備貨', done: Boolean(shipment.packedAt) },
         { label: '商品出貨', done: Boolean(shipment.shippedAt) },
-        { label: '物流送達', done: Boolean(shipment.deliveredAt) },
         { label: '店家確認收貨', done: shipment.status === 'received' },
     ]
     : [];
@@ -100,7 +99,7 @@ export default async function PosRestockDetailPage(
         </div>
 
         {shipmentCopy && shipment ? (
-          <Card className={shipment.status === 'delivered' ? 'border-amber-300 bg-amber-50' : ''}>
+          <Card>
             <CardContent className="space-y-3 p-4">
               <div>
                 <p className="font-semibold">{shipmentCopy.label}</p>

@@ -1,13 +1,20 @@
 import type { Prisma } from '@prisma/client';
 
 export const SHIPMENT_DISPATCH_KIND = 'shipment_shipped';
-// Completed receipt is no longer an unread delivery reminder.
-export const VISIBLE_DISPATCH_STATUSES = ['shipped', 'delivered'];
+export const SHIPMENT_RECEIPT_DAY_3_KIND = 'shipment_receipt_day_3';
+export const SHIPMENT_RECEIPT_DAY_5_KIND = 'shipment_receipt_day_5';
+export const MERCHANT_SHIPMENT_NOTIFICATION_KINDS = [
+  SHIPMENT_DISPATCH_KIND,
+  SHIPMENT_RECEIPT_DAY_3_KIND,
+  SHIPMENT_RECEIPT_DAY_5_KIND,
+] as const;
+// 匠寵寄出後就交由店家確認收貨，不再等待 HQ 標記「送達」。
+export const VISIBLE_DISPATCH_STATUSES = ['shipped'];
 
 export function unreadDispatchScope(identity: { merchantId: string; merchantUserId: string }) {
   return {
     merchantId: identity.merchantId,
-    kind: SHIPMENT_DISPATCH_KIND,
+    kind: { in: [...MERCHANT_SHIPMENT_NOTIFICATION_KINDS] },
     shipment: {
       merchantId: identity.merchantId,
       type: 'merchant_restock',
@@ -21,7 +28,7 @@ export function dispatchNoticeScope(identity: { merchantId: string }, notificati
   return {
     id: notificationId,
     merchantId: identity.merchantId,
-    kind: SHIPMENT_DISPATCH_KIND,
+    kind: { in: [...MERCHANT_SHIPMENT_NOTIFICATION_KINDS] },
     shipment: { merchantId: identity.merchantId, type: 'merchant_restock' },
   };
 }
