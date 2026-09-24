@@ -148,6 +148,7 @@ type FeedWorld = {
     id: string;
     createdAt: Date;
     status: string;
+    shipment?: { status: string } | null;
     items: Array<{ requestedQuantity: number; product: { name: string } }>;
   }>;
   stockTxns: Array<{
@@ -210,6 +211,7 @@ function isPrismaRequest(request: string) {
 }
 
 let loadQueryFeed: (typeof import('@/lib/pos/load-query-feed'))['loadQueryFeed'];
+let restockFeedStatus: (typeof import('@/lib/pos/load-query-feed'))['restockFeedStatus'];
 
 function withFrozenNow<T>(now: Date, fn: () => T): T {
   const RealDate = Date;
@@ -238,10 +240,16 @@ describe('loadQueryFeed whenLabel', () => {
       return originalLoad.call(this, request, parent, isMain);
     };
     try {
-      ({ loadQueryFeed } = await import('@/lib/pos/load-query-feed'));
+      ({ loadQueryFeed, restockFeedStatus } = await import('@/lib/pos/load-query-feed'));
     } finally {
       moduleApi._load = originalLoad;
     }
+  });
+
+  it('uses the shipment state after a restock request becomes a shipment', () => {
+    assert.equal(restockFeedStatus('converted_to_shipment', 'packed'), '備貨中');
+    assert.equal(restockFeedStatus('converted_to_shipment', 'shipped'), '是否已收到？');
+    assert.equal(restockFeedStatus('converted_to_shipment', 'received'), '已收貨入庫');
   });
 
   it('labels all four item kinds from the same now', async () => {
