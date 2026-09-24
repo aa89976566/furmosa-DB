@@ -34,7 +34,7 @@ function itemMeta(item: ReceiptItem) {
 function SubmitButton({ enabled }: { enabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={!enabled || pending} className="min-h-14 w-full rounded-2xl bg-primary text-base text-primary-foreground shadow-[0_12px_26px_rgba(26,91,62,0.22)] hover:bg-primary/90">
+    <Button type="submit" disabled={!enabled || pending} className="min-h-14 w-full rounded-2xl bg-primary text-base text-primary-foreground shadow-sm hover:bg-primary/90">
       <CheckCircle2 className="h-5 w-5" aria-hidden />
       {pending ? '正在確認入庫…' : '確認全部收到並入庫'}
     </Button>
@@ -48,7 +48,7 @@ export function ConfirmReceiptButton({ requestId, items, canConfirm = true }: { 
   const totalQuantity = items.reduce((total, item) => total + item.quantity, 0);
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-primary/15 bg-card shadow-[0_14px_40px_rgba(22,50,37,0.07)]">
+    <section className="overflow-hidden rounded-3xl border-2 border-primary/15 bg-card shadow-sm">
       <div className="border-b border-border bg-primary/[0.04] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div><h2 className="font-semibold text-foreground">本次應收商品</h2><p className="mt-1 text-sm text-muted-foreground">逐項核對品項、規格與數量。</p></div>

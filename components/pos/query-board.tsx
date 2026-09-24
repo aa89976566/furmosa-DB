@@ -41,13 +41,13 @@ export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[
             <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">匠寵已寄出</span>
           </div>
           {awaitingReceipt.map((item) => (
-            <article key={item.id} className="overflow-hidden rounded-3xl border border-primary/20 bg-card shadow-[0_14px_38px_rgba(22,50,37,0.08)]">
+            <article key={item.id} className="overflow-hidden rounded-3xl border-2 border-primary/20 bg-card shadow-sm">
               <div className="flex gap-4 p-5">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><PackageCheck className="h-6 w-6" aria-hidden /></span>
                 <div className="min-w-0 flex-1"><p className="text-xs text-muted-foreground">{item.whenLabel} 寄出</p><h3 className="mt-1 font-semibold text-foreground">這批補貨收到了嗎？</h3><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.subtitle}</p></div>
               </div>
               <div className="grid gap-2 border-t border-border bg-primary/[0.025] p-4 sm:grid-cols-[1fr_auto]">
-                <Link href={item.href} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-[0_8px_20px_rgba(26,91,62,0.2)] transition hover:bg-primary/90">已收到，開始核對<ArrowRight className="h-4 w-4" aria-hidden /></Link>
+                <Link href={item.href} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90">已收到，開始核對<ArrowRight className="h-4 w-4" aria-hidden /></Link>
                 <Link href="https://line.me/R/ti/p/@furmosa_food" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-primary/20 bg-card px-5 text-sm font-semibold text-primary">尚未收到・聯絡匠寵</Link>
               </div>
               <p className="px-5 pb-4 text-xs text-muted-foreground">尚未收到不用入庫；系統會依寄出時間再次提醒。</p>
@@ -95,7 +95,7 @@ export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[
           沒有符合的資料。
         </div>
       ) : (
-        <ul className="overflow-hidden rounded-3xl border border-border bg-card shadow-[0_12px_32px_rgba(22,50,37,0.05)]">
+        <ul className="overflow-hidden rounded-3xl border-2 border-border bg-card shadow-sm">
           {history.map((item) => (
             <li
               key={item.id}
