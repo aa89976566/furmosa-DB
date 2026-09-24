@@ -26,7 +26,7 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 |----|------|
 | R1 | Phase 1 每個實體門市一個 **active** POS 帳號。schema **不必**封死未來多帳號。 |
 | R2 | 目前所有補貨均為**寄賣**；店內交易由**店家收款**。 |
-| R3 | 一般寄賣佣金以**本單受控覆寫 → 店家 × SKU 特約 → SKU 有效預設 → 商品類型基準**解析：肉乾／一般零食基準 20%，凍乾基準 30%。運費在訂單建立時獨立決定，不參與佣金解析；不使用件數佣金級距。命中規則的優先序以 `docs/FURMOSA-MERCHANT-ACCOUNTING-CONTRACT-v1.md` 為準；缺少必要規則一律 fail closed。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot 商務方案、SKU 商務版本、rate／amount、規則來源及覆寫資料。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
+| R3 | 一般寄賣佣金以**店家 × SKU 特約 → SKU 有效預設 → 商品類型基準**解析：肉乾／一般零食基準 20%，凍乾基準 30%。寄賣補貨不允許逐單覆寫佣金；若未來需要逐批不同佣金，必須先建立批次庫存追蹤。運費在訂單建立時獨立決定，不參與佣金解析；不使用件數佣金級距。命中規則的優先序以 `docs/FURMOSA-MERCHANT-ACCOUNTING-CONTRACT-v1.md` 為準；缺少必要規則一律 fail closed。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot 商務方案、SKU 商務版本、rate／amount與規則來源。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
 | R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；只有 `merchant_restock` 首次進入 **`received`** 才增加店庫存，`delivered` 只表示物流送達。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
@@ -388,7 +388,7 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 | 現況 | 本合約目標 |
 |------|------------|
 | 結算 `approved` 前仍可刪除（`paid` 才禁刪） | `approved` 起 lines／amounts 永久鎖定 |
-| 佣金已可依商品規則使用不同百分比 | 正式規格為肉乾／一般零食 20%、凍乾 30%，並允許 SKU 預設、店家 SKU 特約及本單受控覆寫；按 line snapshot |
+| 佣金已可依商品規則使用不同百分比 | 正式規格為肉乾／一般零食 20%、凍乾 30%，允許 SKU 預設與店家 SKU 特約，但寄賣補貨不得逐單覆寫；按 line snapshot |
 | 金額欄位多為 Float | 新財務真相只用整數台幣 |
 | 美容券可用中文店名辨識豬窩 | 禁止；正式 ID 未決；未知 tier throw |
 | 核銷不檢查服務總額 > 券額 | 必須嚴格大於 |

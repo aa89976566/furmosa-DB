@@ -31,6 +31,9 @@ test('訂單明細保存預設、實際值、來源與覆寫稽核快照', () =>
 
 test('畫面把特殊調整收在次要入口並要求填寫原因', () => {
   assert.match(form, /調整本單條件/);
+  assert.match(form, /merchantOrderMode === 'wholesale' \? \(/);
+  assert.match(form, /寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整/);
+  assert.match(form, /value=\{merchantOrderMode === 'wholesale' && it\.commercialOverrideEnabled/);
   assert.match(form, /name="commercialOverrideReason"/);
   assert.match(form, /minLength=\{4\}/);
   assert.match(form, /showCommercialTerms=\{!isEdit\}/);

@@ -109,6 +109,10 @@ export function resolveMerchantCommercialTerm(input: {
     };
   }
 
+  if (input.orderMode === 'consignment' && input.override) {
+    throw new Error('寄賣佣金不可在補貨單逐單調整，請使用 SKU 預設或店家特約');
+  }
+
   let defaultMode: CommercialValueMode;
   let defaultValue: number;
   let defaultSource: Exclude<CommercialRuleSource, 'order_override'>;

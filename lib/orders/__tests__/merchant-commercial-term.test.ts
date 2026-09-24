@@ -60,28 +60,28 @@ test('買斷先用店家規格特約，再用規格與 SKU 預設', () => {
   assert.equal(tierDefault.appliedCommercialValue, 65);
 });
 
-test('本單覆寫優先且必須留下原因', () => {
+test('買斷本單覆寫優先且必須留下原因', () => {
   const result = resolveMerchantCommercialTerm({
-    orderMode: 'consignment',
+    orderMode: 'wholesale',
     product,
     tier: null,
     merchantException: null,
-    override: { mode: 'percent', value: 1800, reason: '開幕首批優惠' },
+    override: { mode: 'fixed_price', value: 65, reason: '開幕首批優惠' },
   });
   assert.equal(result.commercialRuleSource, 'order_override');
-  assert.equal(result.defaultCommercialValue, 2000);
-  assert.equal(result.appliedCommercialValue, 1800);
+  assert.equal(result.defaultCommercialValue, 70);
+  assert.equal(result.appliedCommercialValue, 65);
   assert.equal(result.commercialOverrideReason, '開幕首批優惠');
   assert.equal(result.isOverride, true);
 });
 
 test('覆寫沒有原因、格式錯誤或缺少必要預設時拒絕', () => {
   assert.throws(() => resolveMerchantCommercialTerm({
-    orderMode: 'consignment', product, tier: null, merchantException: null,
-    override: { mode: 'percent', value: 1800, reason: '優惠' },
+    orderMode: 'wholesale', product, tier: null, merchantException: null,
+    override: { mode: 'fixed_price', value: 65, reason: '優惠' },
   }), /至少 4 個字/);
   assert.throws(() => resolveMerchantCommercialTerm({
-    orderMode: 'consignment', product, tier: null, merchantException: null,
+    orderMode: 'wholesale', product, tier: null, merchantException: null,
     override: { mode: 'amount', value: 50, reason: '特殊合作條件' },
   }), /格式不正確/);
   assert.throws(() => resolveMerchantCommercialTerm({
@@ -105,6 +105,16 @@ test('覆寫沒有原因、格式錯誤或缺少必要預設時拒絕', () => {
     merchantException: { mode: 'unknown', value: 20 },
     override: null,
   }), /特約格式不正確/);
+});
+
+test('寄賣拒絕補貨單逐單覆寫，只接受 SKU 預設或店家特約', () => {
+  assert.throws(() => resolveMerchantCommercialTerm({
+    orderMode: 'consignment',
+    product,
+    tier: null,
+    merchantException: null,
+    override: { mode: 'percent', value: 1800, reason: '不應允許逐單調整' },
+  }), /不可在補貨單逐單調整/);
 });
 
 test('換罐不套一般商務條件，也不接受覆寫', () => {

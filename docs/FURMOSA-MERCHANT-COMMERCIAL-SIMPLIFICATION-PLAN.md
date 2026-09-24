@@ -9,7 +9,7 @@
 - 店家管理只保存可使用的合作模組與有效期間。
 - 一張店家訂單只能是寄賣、買斷或換罐其中一種。
 - 訂單建立時選擇運費負擔並保存快照。
-- 訂單可受控覆寫 SKU 預設；覆寫必須有原因與稽核資料。
+- 買斷訂單可受控覆寫 SKU 預設，且必須有原因與稽核資料；寄賣補貨不得逐單覆寫佣金。
 - 換罐維持獨立商品、點數、券與補貼流程，不進一般寄賣佣金。
 
 ## 2. 沿用現有能力
@@ -60,7 +60,7 @@
 - `Order.merchantOrderMode`：只在店家訂單保存 `consignment | wholesale | jar_exchange`；不再只靠 `source` 反推。
 - `OrderItem.variantKey`：沿用現有規格 identity。
 - `OrderItem.businessTierSnapshot`、`commercialTermsVersionSnapshot`。
-- `OrderItem.commercialRuleSource`: `order_override | merchant_exception | product_default | category_baseline`。
+- `OrderItem.commercialRuleSource`: `order_override | merchant_exception | product_default | category_baseline`；`order_override` 第一版只用於買斷，寄賣不得逐單覆寫。
 - `OrderItem.defaultCommercialValue`、`appliedCommercialValue` 與必要的 mode；金額仍以既有 `unitPrice`／`subtotal` 為最終交易快照。
 - `OrderItem.commercialOverrideReason`、`commercialOverrideById`、`commercialOverrideAt`；沒有覆寫時皆為 null。
 - 運費沿用 `shippingFeeType`、`shippingFee`、`companyShippingCost`，不新增重複欄位。
@@ -71,7 +71,7 @@
 
 ## 4. 解析優先順序
 
-1. 本單經授權覆寫。
+1. 買斷本單經授權覆寫（寄賣不適用）。
 2. 店家 × SKU 特約例外。
 3. SKU 有效版本預設。
 4. 缺少必要設定就阻擋，不從店名、歷史訂單或畫面文字猜值。
@@ -127,6 +127,7 @@
 ### P5 — 帳務與回歸
 
 - 寄賣只在實際銷售時形成佣金。
+- 寄賣佣金只取 SKU 預設或店家特約，不允許補貨單逐單覆寫；未來若需逐批不同佣金，必須先建立批次庫存追蹤。
 - 買斷在訂單確認時形成店家應付。
 - 換罐不套一般佣金或買斷價。
 - 保存訂單快照，修改 SKU 不改歷史訂單。
@@ -139,7 +140,7 @@
 2. 一般凍乾寄賣自動帶入 30%。
 3. Premium SKU 使用自身預設，不由操作人選等級。
 4. 店家特約優先於 SKU 預設。
-5. 本單覆寫優先於特約，且沒有原因時拒絕。
+5. 寄賣本單覆寫一律拒絕；買斷本單覆寫優先於特約，且沒有原因時拒絕。
 6. 買斷單不計寄賣佣金。
 7. 寄賣單不形成買斷應收。
 8. 同一張店家訂單不能混合寄賣與買斷。

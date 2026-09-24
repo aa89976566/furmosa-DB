@@ -332,39 +332,45 @@ function OrderLineItemsTable({
                             </span>
                             <strong>
                               {commercialTermValueLabel(
-                                it.commercialOverrideEnabled
+                                merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled
                                   ? it.commercialOverrideMode || commercialTerm.appliedCommercialMode
                                   : commercialTerm.appliedCommercialMode,
-                                it.commercialOverrideEnabled
+                                merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled
                                   ? it.commercialOverrideValue ?? commercialTerm.appliedCommercialValue
                                   : commercialTerm.appliedCommercialValue,
                               )}
                             </strong>
                           </div>
-                          <label className="mt-2 flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(it.commercialOverrideEnabled)}
-                              onChange={(event) => updateItem(it.key, {
-                                commercialOverrideEnabled: event.target.checked,
-                                commercialOverrideMode: event.target.checked
-                                  ? commercialTerm.defaultCommercialMode ?? ''
-                                  : '',
-                                commercialOverrideValue: event.target.checked
-                                  ? commercialTerm.defaultCommercialValue
-                                  : null,
-                                commercialOverrideReason: '',
-                                ...(merchantOrderMode === 'wholesale' && !event.target.checked
-                                  ? {
-                                      unitPrice: commercialTerm.defaultCommercialValue ?? 0,
-                                      retailUnitPrice: commercialTerm.defaultCommercialValue ?? 0,
-                                    }
-                                  : {}),
-                              })}
-                            />
-                            調整本單條件
-                          </label>
-                          {it.commercialOverrideEnabled ? (
+                          {merchantOrderMode === 'wholesale' ? (
+                            <label className="mt-2 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(it.commercialOverrideEnabled)}
+                                onChange={(event) => updateItem(it.key, {
+                                  commercialOverrideEnabled: event.target.checked,
+                                  commercialOverrideMode: event.target.checked
+                                    ? commercialTerm.defaultCommercialMode ?? ''
+                                    : '',
+                                  commercialOverrideValue: event.target.checked
+                                    ? commercialTerm.defaultCommercialValue
+                                    : null,
+                                  commercialOverrideReason: '',
+                                  ...(!event.target.checked
+                                    ? {
+                                        unitPrice: commercialTerm.defaultCommercialValue ?? 0,
+                                        retailUnitPrice: commercialTerm.defaultCommercialValue ?? 0,
+                                      }
+                                    : {}),
+                                })}
+                              />
+                              調整本單條件
+                            </label>
+                          ) : (
+                            <p className="mt-2 text-muted-foreground">
+                              寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。
+                            </p>
+                          )}
+                          {merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? (
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
                               <label>
                                 <span className="mb-1 block text-muted-foreground">
@@ -414,17 +420,17 @@ function OrderLineItemsTable({
                   <input
                     type="hidden"
                     name="commercialOverrideMode"
-                    value={it.commercialOverrideEnabled ? it.commercialOverrideMode ?? '' : ''}
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideMode ?? '' : ''}
                   />
                   <input
                     type="hidden"
                     name="commercialOverrideValue"
-                    value={it.commercialOverrideEnabled ? it.commercialOverrideValue ?? '' : ''}
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideValue ?? '' : ''}
                   />
                   <input
                     type="hidden"
                     name="commercialOverrideReason"
-                    value={it.commercialOverrideEnabled ? it.commercialOverrideReason ?? '' : ''}
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideReason ?? '' : ''}
                   />
                 </TableCell>
                 <TableCell className="col-span-2 block p-0 md:table-cell md:p-3">
