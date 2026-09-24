@@ -30,7 +30,7 @@ Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Previe
 
 1. 開啟且 base 為 `main` 的 PR 編號。
 2. 該 PR 當下完整 40 字元 head SHA。
-3. 已核准的 migration plan；沒有 DB 變更時選 `none`。
+3. 已核准的 migration plan；沒有 DB 變更時選 `none`，一般非破壞性 migration 選 `standard`。
 
 瀏覽器目前所在網址不構成部署目標。Vercel 成功只代表 Preview 可供驗收，不能回報為正式上線；也不需要把同一版本再部署一次到 Vercel Production。
 
@@ -76,14 +76,15 @@ Repository → Settings → Actions → General：
 
 ## Migration plan 規則
 
-可選 plan 定義在 `scripts/release/release-plans.mjs`，workflow choice 必須同步列出同名 plan。每個 plan 明列唯一 runner、允許修改的 migration 目錄及 PR 必須包含的檔案。
+可選 plan 定義在 `scripts/release/release-plans.mjs`。日常安全 migration 共用 `standard`，不再為每個 migration 修改 workflow 或 registry；只有高風險操作才新增專用 plan。
 
 目前 plan：
 
 - `none`：PR 不得修改 `prisma/migrations/**`。
+- `standard`：只執行該 PR 新增／修改的 `prisma/migrations/*/migration.sql`。preflight 會拒絕刪表、刪欄位、`TRUNCATE`、`DELETE FROM`、自行控制交易等高風險內容；runner 會核對 checksum、逐筆交易執行並登錄 Prisma migration history，不會執行其他 pending migration。
 - `hq_inventory_advisory_20260917`：只執行 `scripts/ops/deploy-hq-bulk.mjs`，限定 HQ bulk inventory 兩份 migration 與已核准六筆盤點。
 
-新增 migration 時先建立新的 plan 與冪等／交易式 runner，通過 review 後才可提供 Production 使用。不得把 `prisma migrate deploy` 無條件用在目前正式庫，也不得把 migration 塞進 `npm run build`。
+一般非破壞性 migration 不需再新增 plan；高風險 migration、資料回填、repair、seed 或無法由靜態規則安全判定的 SQL，才建立專用 plan 與冪等／交易式 runner。不得把 `prisma migrate deploy` 無條件用在目前正式庫，也不得把 migration 塞進 `npm run build`。
 
 ## 使用方式
 

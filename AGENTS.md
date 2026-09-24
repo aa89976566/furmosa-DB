@@ -83,7 +83,7 @@
 - 使用者說「部署」時，預設意義是：確認指定 PR 與 CI → 執行該 PR 已核准的限定 migration plan → 合併 PR → 等待 Railway 回報同一 merge commit 部署成功 → 執行唯讀 smoke/readiness → 回報 release 紀錄。
 - 正式發布一律使用 GitHub Actions `Deploy Production`。不得把 migration、seed、repair 或其他資料寫入放回 `npm run build`、Railway build/start command 或 Vercel build。
 - Release 必須指定 PR 編號、完整 expected head SHA 與 migration plan；禁止用「最新分支」或模糊 ref 猜測部署版本。
-- PR 若新增或修改 `prisma/migrations/**`，`migration_plan=none` 必須拒絕；新 migration plan 必須先在受控 workflow registry 明列 runner 與允許的 migration 路徑。
+- PR 若新增或修改 `prisma/migrations/**`，`migration_plan=none` 必須拒絕。一般新增、非破壞性且不含資料刪除／回填的 `migration.sql` 使用共用 `standard` plan：只執行該 PR 精確變更的 migration、核對 checksum、包在交易內，且不得執行其他 pending migration。包含刪除欄位／資料、回填、repair、seed 或其他高風險操作時，才需要在受控 registry 建立專用 plan 與 runner。
 - 任一 preflight、CI、migration、合併、Railway commit status 或 smoke/readiness 失敗時立即停止並如實回報。Railway healthcheck 失敗時保留上一版流量；上線後 smoke 失敗時停止後續動作並依部署紀錄人工 rollback，不得自動反覆修復。
 - GitHub `production` Environment 必須設定 required reviewer，Secrets 只放在該 Environment，不得放入 repo、workflow 文字、log 或 artifact。
 - 只有資料刪除／不可逆 migration、變更平台／權限／秘密、強制略過失敗檢查，或部署目標不明時才再次詢問。一般已核准 Release 不重複詢問 Railway/Vercel 的角色。

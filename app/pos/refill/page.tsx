@@ -1,6 +1,9 @@
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { prisma } from '@/lib/prisma';
-import { listMerchantRefillOrders } from '@/lib/refill/merchant';
+import {
+  listMerchantJarExchangeMembers,
+  listMerchantRefillOrders,
+} from '@/lib/refill/merchant';
 import { loadPosAccount } from '@/lib/pos/account';
 import { RefillWorkspace } from '@/components/pos/refill-workspace';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
@@ -17,11 +20,15 @@ export default async function PosRefillHubPage(
 ) {
   const searchParams = await props.searchParams;
   const session = await requireMerchantSession();
-  const [account, rows, merchant] = await Promise.all([
+  const [account, rows, members, merchant] = await Promise.all([
     loadPosAccount(session.merchantId, session.username),
     listMerchantRefillOrders(session.merchantId).catch((error) => {
       console.error('[pos.refill]', error);
       return [] as Awaited<ReturnType<typeof listMerchantRefillOrders>>;
+    }),
+    listMerchantJarExchangeMembers(session.merchantId).catch((error) => {
+      console.error('[pos.refill.members]', error);
+      return [] as Awaited<ReturnType<typeof listMerchantJarExchangeMembers>>;
     }),
     prisma.merchant.findFirst({
       where: { id: session.merchantId },
@@ -39,6 +46,7 @@ export default async function PosRefillHubPage(
     <RefillWorkspace
       account={account}
       initialOrders={rows.map(toPosRefillOrderCard)}
+      initialMembers={members}
       initialOrderId={searchParams?.order ?? null}
       payQrUrl={payQrUrl}
       rewardPolicy={getRefillRewardPolicyForStore(

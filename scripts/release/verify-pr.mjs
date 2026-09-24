@@ -76,9 +76,31 @@ const changedMigrations = files.filter((path) => path.startsWith('prisma/migrati
 if (planName === 'none' && changedMigrations.length > 0) {
   throw new Error('PR changes migrations but migration_plan is none');
 }
-for (const path of changedMigrations) {
-  if (!plan.migrationPrefixes.some((prefix) => path.startsWith(prefix))) {
-    throw new Error(`Migration is outside the selected production plan: ${path}`);
+if (planName === 'standard') {
+  for (const path of changedMigrations) {
+    if (!/^prisma\/migrations\/[A-Za-z0-9_-]+\/migration\.sql$/.test(path)) {
+      throw new Error(`Standard migration plan only accepts migration.sql files: ${path}`);
+    }
+    const payload = await github(`/contents/${encodeURIComponent(path)}?ref=${expectedHead}`);
+    const sql = Buffer.from(String(payload.content ?? ''), 'base64').toString('utf8');
+    const destructive = [
+      /\bDROP\s+(?:TABLE|SCHEMA|DATABASE|TYPE|FUNCTION)\b/i,
+      /\bALTER\s+TABLE\b[\s\S]*?\bDROP\s+(?:COLUMN|CONSTRAINT)\b/i,
+      /\bTRUNCATE\b/i,
+      /\bDELETE\s+FROM\b/i,
+    ].find((pattern) => pattern.test(sql));
+    if (destructive) {
+      throw new Error(`Standard migration contains a high-risk statement and requires an explicit plan: ${path}`);
+    }
+    if (/\b(?:BEGIN|COMMIT|ROLLBACK)\s*;/i.test(sql)) {
+      throw new Error(`Standard migration must not manage its own transaction: ${path}`);
+    }
+  }
+} else {
+  for (const path of changedMigrations) {
+    if (!plan.migrationPrefixes.some((prefix) => path.startsWith(prefix))) {
+      throw new Error(`Migration is outside the selected production plan: ${path}`);
+    }
   }
 }
 for (const path of plan.requiredPaths) {
@@ -87,6 +109,7 @@ for (const path of plan.requiredPaths) {
 
 appendFileSync(output, `head_sha=${expectedHead}\n`);
 appendFileSync(output, `migration_runner=${plan.runner ?? ''}\n`);
+appendFileSync(output, `migration_paths=${JSON.stringify(changedMigrations.sort())}\n`);
 appendFileSync(output, `pr_title=${String(pr.title).replace(/[\r\n]/g, ' ')}\n`);
 appendFileSync(output, `already_merged=${alreadyMerged}\n`);
 appendFileSync(output, `merge_sha=${alreadyMerged ? pr.merge_commit_sha : ''}\n`);

@@ -29,6 +29,8 @@ test('production workflow is manual, protected and waits for Railway exact commi
 
 test('none plan rejects migrations by contract and HQ plan stays bounded', () => {
   assert.deepEqual(RELEASE_PLANS.none.migrationPrefixes, []);
+  assert.equal(RELEASE_PLANS.standard.runner, 'scripts/release/deploy-standard-migrations.mjs');
+  assert.deepEqual(RELEASE_PLANS.standard.migrationPrefixes, ['prisma/migrations/']);
   assert.equal(RELEASE_PLANS.hq_inventory_advisory_20260917.runner, 'scripts/ops/deploy-hq-bulk.mjs');
   assert.deepEqual(RELEASE_PLANS.hq_inventory_advisory_20260917.migrationPrefixes, [
     'prisma/migrations/20260915130000_hq_bulk_inventory/',
@@ -42,6 +44,8 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
     'prisma/migrations/20260918162000_hq_passkeys/migration.sql',
   ]);
   const workflow = readFileSync('.github/workflows/deploy-production.yml', 'utf8');
+  assert.match(workflow, /- standard/);
+  assert.match(workflow, /RELEASE_MIGRATION_PATHS/);
   assert.match(workflow, /- hq_passkeys_20260918/);
   assert.equal(
     RELEASE_PLANS.pos_shipment_notifications_20260922.runner,
@@ -73,6 +77,20 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
     'docs/releases/historical-hq-schema-repair-20260921.md',
   ]);
   assert.match(workflow, /- historical_hq_schema_repair_20260921/);
+});
+
+test('standard plan is bounded to exact non-destructive PR migrations', () => {
+  const preflight = readFileSync('scripts/release/verify-pr.mjs', 'utf8');
+  const runner = readFileSync('scripts/release/deploy-standard-migrations.mjs', 'utf8');
+
+  assert.match(preflight, /Standard migration plan only accepts migration\.sql files/);
+  assert.match(preflight, /DROP\\s\+\(\?:TABLE\|SCHEMA\|DATABASE\|TYPE\|FUNCTION\)/);
+  assert.match(preflight, /DELETE\\s\+FROM/);
+  assert.match(preflight, /migration_paths=/);
+  assert.match(runner, /RELEASE_MIGRATION_PATHS/);
+  assert.match(runner, /checksum\/history differs/);
+  assert.match(runner, /BEGIN;[\s\S]*COMMIT;/);
+  assert.doesNotMatch(runner, /prisma migrate deploy/);
 });
 
 test('Vercel skips main and builds PR branches', () => {

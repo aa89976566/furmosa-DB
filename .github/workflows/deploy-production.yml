@@ -18,6 +18,7 @@ on:
         type: choice
         options:
           - none
+          - standard
           - hq_inventory_advisory_20260917
           - hq_passkeys_20260918
           - pos_shipment_notifications_20260922
@@ -103,6 +104,8 @@ jobs:
 
       - name: Apply explicit production migration plan
         if: steps.preflight.outputs.migration_runner != ''
+        env:
+          RELEASE_MIGRATION_PATHS: ${{ steps.preflight.outputs.migration_paths }}
         run: node "${{ steps.preflight.outputs.migration_runner }}"
 
       - name: Verify production DB login, order and shipment reads

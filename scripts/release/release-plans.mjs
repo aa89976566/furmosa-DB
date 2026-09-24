@@ -4,6 +4,11 @@ export const RELEASE_PLANS = Object.freeze({
     migrationPrefixes: Object.freeze([]),
     requiredPaths: Object.freeze([]),
   }),
+  standard: Object.freeze({
+    runner: 'scripts/release/deploy-standard-migrations.mjs',
+    migrationPrefixes: Object.freeze(['prisma/migrations/']),
+    requiredPaths: Object.freeze([]),
+  }),
   hq_inventory_advisory_20260917: Object.freeze({
     runner: 'scripts/ops/deploy-hq-bulk.mjs',
     migrationPrefixes: Object.freeze([
