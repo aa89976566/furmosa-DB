@@ -11,6 +11,101 @@ import {
 } from '@/lib/refill/constants';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { initiateRefillPayment } from '@/lib/refill/payment';
+import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
+
+export type MerchantJarExchangeMember = {
+  id: string;
+  customerId: string;
+  name: string;
+  petName: string | null;
+  serviceStatus: string;
+  points: number;
+  lastExchangeAt: string | null;
+};
+
+/**
+ * 店家端的換罐會員名單。
+ *
+ * 會員資料歷經 store slug、Store id、MER 編號與店名幾種舊格式；只在伺服器端
+ * 以目前登入店家解析這些對應，避免把跨店會員資料交給瀏覽器自行篩選。
+ */
+export async function listMerchantJarExchangeMembers(
+  merchantRecordId: string,
+): Promise<MerchantJarExchangeMember[]> {
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantRecordId },
+    select: { id: true, merchantId: true, name: true },
+  });
+  if (!merchant) return [];
+
+  const storeSlug = merchantToStoreSlug(merchant.merchantId);
+  const store = await prisma.store.findFirst({
+    where: {
+      OR: [
+        { slug: storeSlug },
+        { name: { equals: merchant.name, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, slug: true },
+  });
+  const storeKeys = [...new Set([
+    merchant.merchantId,
+    storeSlug,
+    ...(store ? [store.id, store.slug] : []),
+  ])];
+
+  const customers = await prisma.customer.findMany({
+    where: {
+      services: {
+        some: {
+          serviceType: 'jar_exchange',
+          serviceStatus: { in: ['active', 'paused'] },
+        },
+      },
+      OR: [
+        { signupStore: { in: storeKeys } },
+        { storeId: { in: storeKeys } },
+        { storeName: { equals: merchant.name, mode: 'insensitive' } },
+        // 舊會員若尚未寫入開戶店家，僅以本店完成過換罐作為可見依據。
+        { refillOrders: { some: { merchantId: merchant.id, status: 'completed' } } },
+      ],
+    },
+    select: {
+      id: true,
+      customerId: true,
+      name: true,
+      petName: true,
+      services: {
+        where: { serviceType: 'jar_exchange' },
+        select: { serviceStatus: true },
+        take: 1,
+      },
+      pointsLedger: {
+        orderBy: { createdAt: 'desc' },
+        select: { balanceAfter: true },
+        take: 1,
+      },
+      refillOrders: {
+        where: { merchantId: merchant.id, status: 'completed' },
+        orderBy: { completedAt: 'desc' },
+        select: { completedAt: true },
+        take: 1,
+      },
+    },
+    orderBy: { name: 'asc' },
+    take: 200,
+  });
+
+  return customers.map((customer) => ({
+    id: customer.id,
+    customerId: customer.customerId,
+    name: customer.name,
+    petName: customer.petName,
+    serviceStatus: customer.services[0]?.serviceStatus ?? 'paused',
+    points: customer.pointsLedger[0]?.balanceAfter ?? 0,
+    lastExchangeAt: customer.refillOrders[0]?.completedAt?.toISOString() ?? null,
+  }));
+}
 
 export async function listMerchantRefillOrders(merchantId: string) {
   const rows = await prisma.refillOrder.findMany({
