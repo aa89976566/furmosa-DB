@@ -61,11 +61,11 @@ import {
 import {
   merchantOrderModeDescription,
   merchantOrderModeLabel,
-  merchantOrderModesForTypes,
   merchantOrderProductCategory,
   orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
+import { merchantProductAllowsMode } from '@/lib/orders/merchant-commercial-access';
 
 export type ProductTierOption = {
   id: string;
@@ -88,6 +88,9 @@ export type ProductOption = {
   priceTiers: ProductTierOption[];
   wholesalePrices: MerchantWholesalePriceRow[];
   merchantSuggestedPrice: number | null;
+  consignmentEnabled: boolean | null;
+  wholesaleEnabled: boolean | null;
+  jarExchangeEnabled: boolean | null;
 };
 
 function tierLabel(t: ProductTierOption): string {
@@ -104,6 +107,7 @@ export type MerchantOption = {
   preferredCarrier: string | null;
   pickupStoreName: string | null;
   types: MerchantType[];
+  commercialModes: MerchantOrderMode[];
 };
 export type CustomerOption = {
   id: string;
@@ -540,7 +544,9 @@ export function OrderForm({
       }
       const category = merchantOrderProductCategory(merchantOrderMode);
       return productCatalog.filter(
-        (product) => product.productCategory === category,
+        (product) =>
+          product.productCategory === category &&
+          merchantProductAllowsMode(product, merchantOrderMode),
       );
     },
     [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
@@ -808,7 +814,7 @@ export function OrderForm({
     if (m) {
       revealThrough(3);
       applyMerchantShipping(m);
-      const availableModes = merchantOrderModesForTypes(m.types);
+      const availableModes = m.commercialModes;
       const nextMode = availableModes.includes(merchantOrderMode)
         ? merchantOrderMode
         : (availableModes[0] ?? 'consignment');
@@ -988,7 +994,7 @@ export function OrderForm({
               active={orderType === 'merchant'}
               icon={<Store className="h-5 w-5" />}
               title="店家訂單"
-              desc="寄賣、販售或換罐補貨"
+              desc="寄賣、買斷或換罐補貨"
               onClick={() => changeOrderType('merchant')}
             />
           </div>
@@ -1155,9 +1161,9 @@ export function OrderForm({
               <label className="mb-2 block border-t pt-4 text-sm font-medium">
                 ③ 這次要做什麼？ <span className="text-destructive">*</span>
               </label>
-              {merchantOrderModesForTypes(selectedMerchant.types).length > 0 ? (
+              {selectedMerchant.commercialModes.length > 0 ? (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {merchantOrderModesForTypes(selectedMerchant.types).map((mode) => (
+                  {selectedMerchant.commercialModes.map((mode) => (
                     <button
                       key={mode}
                       type="button"

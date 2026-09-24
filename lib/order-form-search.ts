@@ -36,6 +36,9 @@ export type OrderFormProductHit = {
   }[];
   wholesalePrices: MerchantWholesalePriceRow[];
   merchantSuggestedPrice: number | null;
+  consignmentEnabled: boolean | null;
+  wholesaleEnabled: boolean | null;
+  jarExchangeEnabled: boolean | null;
 };
 
 const customerSelect = {
@@ -55,6 +58,9 @@ const productSelect = {
   name: true,
   sku: true,
   productCategory: true,
+  consignmentEnabled: true,
+  wholesaleEnabled: true,
+  jarExchangeEnabled: true,
   price: true,
   cost: true,
   unit: true,
@@ -110,6 +116,9 @@ function toOrderFormProductHit(
     priceTiers: row.priceTiers,
     wholesalePrices: wholesalePrices.filter((price) => price.productId === row.id),
     merchantSuggestedPrice: merchantSuggestedPrices.get(row.id) ?? null,
+    consignmentEnabled: row.consignmentEnabled,
+    wholesaleEnabled: row.wholesaleEnabled,
+    jarExchangeEnabled: row.jarExchangeEnabled,
   };
 }
 
@@ -117,15 +126,26 @@ function findProductsForOrderForm(
   q: string,
   take: number,
   scope: OrderFormProductScope,
+  merchantOrderMode?: 'consignment' | 'wholesale' | 'jar_exchange',
 ) {
   const term = q.trim();
   const search = term ? productSearchWhere(term) : undefined;
 
+  const scopedMode = scope === 'merchant_standard' || scope === 'merchant_jar_exchange'
+    ? merchantOrderMode
+    : undefined;
+  const modeEligibility: Prisma.ProductWhereInput = scopedMode === 'consignment'
+    ? { OR: [{ consignmentEnabled: true }, { consignmentEnabled: null }] }
+    : scopedMode === 'wholesale'
+      ? { OR: [{ wholesaleEnabled: true }, { wholesaleEnabled: null }] }
+      : scopedMode === 'jar_exchange'
+        ? { OR: [{ jarExchangeEnabled: true }, { jarExchangeEnabled: null }] }
+        : {};
+
   return prisma.product.findMany({
     where: {
       status: 'active',
-      ...orderFormProductScopeWhere(scope),
-      ...(search ?? {}),
+      AND: [orderFormProductScopeWhere(scope), modeEligibility, search ?? {}],
     },
     orderBy: { name: 'asc' },
     select: productSelect,
@@ -161,7 +181,7 @@ export async function searchProductsForOrderForm(
   merchantId?: string,
   merchantOrderMode?: 'consignment' | 'wholesale' | 'jar_exchange',
 ): Promise<OrderFormProductHit[]> {
-  const rows = await findProductsForOrderForm(q, take, scope);
+  const rows = await findProductsForOrderForm(q, take, scope, merchantOrderMode);
   if (scope !== 'merchant_standard' || !merchantId) {
     return rows.map((row) => toOrderFormProductHit(row));
   }
@@ -230,5 +250,8 @@ export async function getProductsByIdentitiesForOrderForm(
     priceTiers: row.priceTiers,
     wholesalePrices: [],
     merchantSuggestedPrice: null,
+    consignmentEnabled: row.consignmentEnabled,
+    wholesaleEnabled: row.wholesaleEnabled,
+    jarExchangeEnabled: row.jarExchangeEnabled,
   }));
 }

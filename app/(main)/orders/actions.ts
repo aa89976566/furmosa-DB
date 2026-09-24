@@ -239,7 +239,10 @@ export async function updateOrder(formData: FormData) {
   const editable = isOrderEditable(existing);
   if (!editable.ok) throw new Error(editable.reason);
 
-  const rawPayload = await parseOrderFormData(formData, { extendedPayment: true });
+  const rawPayload = await parseOrderFormData(formData, {
+    extendedPayment: true,
+    enforceMerchantCommercialAccess: false,
+  });
   const payload = applyJarExchangeConsignmentPricing(rawPayload);
   const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
 

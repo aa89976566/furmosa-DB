@@ -5,7 +5,7 @@ import {
   merchantOrderProductCategory,
   merchantOrderSource,
   orderMerchandiseIsBillable,
-} from '@/lib/orders/merchant-order-mode';
+} from '../merchant-order-mode.ts';
 
 test('店家只顯示主檔已登記的合作方式', () => {
   assert.deepEqual(
@@ -14,7 +14,7 @@ test('店家只顯示主檔已登記的合作方式', () => {
   );
 });
 
-test('販售使用獨立訂單來源，寄賣與換罐沿用寄賣來源', () => {
+test('買斷使用獨立訂單來源，寄賣與換罐沿用寄賣來源', () => {
   assert.equal(merchantOrderSource('wholesale'), 'wholesale');
   assert.equal(merchantOrderSource('consignment'), 'consignment');
   assert.equal(merchantOrderSource('jar_exchange'), 'consignment');

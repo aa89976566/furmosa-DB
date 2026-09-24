@@ -19,6 +19,10 @@ import {
 } from '@/lib/orders/merchant-order-mode';
 import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
+import {
+  merchantCommercialModesAt,
+  merchantProductAllowsMode,
+} from '@/lib/orders/merchant-commercial-access';
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
@@ -93,7 +97,11 @@ export type ParsedOrderPayload = {
 
 export async function parseOrderFormData(
   formData: FormData,
-  opts?: { extendedPayment?: boolean; catalogPricing?: boolean },
+  opts?: {
+    extendedPayment?: boolean;
+    catalogPricing?: boolean;
+    enforceMerchantCommercialAccess?: boolean;
+  },
 ): Promise<ParsedOrderPayload> {
   const orderType = String(formData.get('orderType') ?? '');
   if (!['merchant', 'customer'].includes(orderType)) {
@@ -169,11 +177,25 @@ export async function parseOrderFormData(
 
     const merchant = await prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { id: true, type: true, status: true },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        commercialModules: {
+          select: { mode: true, effectiveFrom: true, effectiveUntil: true },
+        },
+      },
     });
     if (!merchant || merchant.status !== 'active') throw new Error('店家不存在或已停用');
     const merchantTypes = await getMerchantTypes(prisma, merchant.id, merchant.type);
-    if (!merchantTypes.includes(merchantOrderMode)) {
+    const commercialModes = merchantCommercialModesAt(
+      merchant.commercialModules,
+      merchantTypes,
+    );
+    if (
+      opts?.enforceMerchantCommercialAccess !== false &&
+      !commercialModes.includes(merchantOrderMode)
+    ) {
       throw new Error('此店家尚未登記這項合作方式');
     }
 
@@ -234,6 +256,9 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
+      consignmentEnabled: true,
+      wholesaleEnabled: true,
+      jarExchangeEnabled: true,
       priceTiers: { select: { id: true, price: true, cost: true } },
     },
   });
@@ -264,13 +289,21 @@ export async function parseOrderFormData(
     const isJarExchangeGift = merchantOrderMode === 'jar_exchange' && it.isGift;
     if (
       merchantOrderMode &&
+      opts?.enforceMerchantCommercialAccess !== false &&
+      !isJarExchangeGift &&
+      !merchantProductAllowsMode(prod, merchantOrderMode)
+    ) {
+      throw new Error('此商品未開放使用目前的店家合作方式');
+    }
+    if (
+      merchantOrderMode &&
       !isJarExchangeGift &&
       prod.productCategory !== merchantOrderProductCategory(merchantOrderMode)
     ) {
       throw new Error(
         merchantOrderMode === 'jar_exchange'
           ? '換罐補貨只能選擇換罐計畫商品'
-          : '寄賣或販售只能選擇一般商品',
+          : '寄賣或買斷只能選擇一般商品',
       );
     }
     if (merchantOrderMode === 'wholesale' && merchantId) {

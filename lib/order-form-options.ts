@@ -9,6 +9,8 @@ import {
 } from '@/lib/order-form-search';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
+import { merchantCommercialModesAt } from '@/lib/orders/merchant-commercial-access';
+import type { MerchantOrderMode } from '@/lib/orders/merchant-order-mode';
 
 export type OrderFormMerchantOption = {
   id: string;
@@ -21,6 +23,7 @@ export type OrderFormMerchantOption = {
   preferredCarrier: string | null;
   pickupStoreName: string | null;
   types: MerchantType[];
+  commercialModes: MerchantOrderMode[];
 };
 
 /**
@@ -48,6 +51,9 @@ export async function loadOrderFormOptions(seed?: {
           city: true,
           preferredCarrier: true,
           pickupStoreName: true,
+          commercialModules: {
+            select: { mode: true, effectiveFrom: true, effectiveUntil: true },
+          },
         },
       }),
       searchCustomersForOrderForm('', 24),
@@ -70,10 +76,16 @@ export async function loadOrderFormOptions(seed?: {
   }
 
   const typesByMerchant = await getMerchantTypesMap(prisma, merchants);
-  const merchantOptions = merchants.map((merchant) => ({
-    ...merchant,
-    types: typesByMerchant.get(merchant.id) ?? ['consignment'],
-  }));
+  const now = new Date();
+  const merchantOptions = merchants.map((merchant) => {
+    const { commercialModules, ...option } = merchant;
+    const types = typesByMerchant.get(merchant.id) ?? ['consignment'];
+    return {
+      ...option,
+      types,
+      commercialModes: merchantCommercialModesAt(commercialModules, types, now),
+    };
+  });
 
   return [merchantOptions, [...customersById.values()], [...productsById.values()]];
 }
