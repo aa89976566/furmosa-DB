@@ -1,7 +1,7 @@
 # Furmosa 店家商務流程簡化執行計畫
 
-狀態：Draft for implementation review  
-基準：現有 HQ 已支援一張店家訂單選擇寄賣／販售／換罐，以及逐單運費；本計畫不建立平行訂單系統。
+狀態：P1 schema design ready for approval
+基準：`origin/main` `f64650476f82b3b2661ea9ab21d8c7beec90f1f3`。現有 HQ 已支援一張店家訂單選擇寄賣／販售／換罐、逐單運費，以及商品規格 `ProductPriceTier`；本計畫不建立平行訂單系統。
 
 ## 1. 固定邊界
 
@@ -25,24 +25,47 @@
 
 ## 3. 需要補齊的資料
 
-### SKU 商務預設
+### 商品層商務預設（`Product`）
 
 - `businessTier`: `standard | premium`
 - `defaultConsignmentCommissionMode`: `percent | amount`
 - `defaultConsignmentCommissionValue`
-- `defaultWholesalePricingMode`: `percent_of_retail | fixed`
-- `defaultWholesalePricingValue`
 - `consignmentEnabled`
 - `wholesaleEnabled`
 - `jarExchangeEnabled`
 - `commercialTermsVersion`
 
+`businessTier` 與允許模式是商品的穩定屬性。寄賣預設目前也放在商品層，與既有 `MerchantProductRule` 的店家 × 商品粒度一致，不建立第二套規格佣金規則。
+
+### 規格層買斷預設（`ProductPriceTier`）
+
+- `defaultWholesaleUnitPrice`
+
+同商品的 30g／50g 等規格可有不同買斷價，因此固定買斷預設放在規格層。沒有規格的商品使用 `Product.defaultWholesaleUnitPrice`。第一版不再同時保存「售價百分比」與「固定價」兩套來源，避免四捨五入與日後售價變更改寫條件；HQ 直接保存每單位台幣固定價。
+
+### 店家模組有效期間
+
+新增獨立 `MerchantCommercialModule`，每筆只表示一個店家的一個模組：
+
+- `merchantId`
+- `mode`: `consignment | wholesale | jar_exchange`
+- `effectiveFrom`
+- `effectiveUntil`（nullable）
+- `createdById`、`createdAt`、`updatedAt`
+
+唯一性與重疊規則由伺服器檢查；同店同模式的有效期間不得重疊。舊 `Merchant.types` 暫時保留作相容讀取，不在 expand migration 刪除或重寫。
+
 ### 訂單／明細快照
 
-- 模式與 SKU 商務版本。
-- 預設值與本單實際值。
-- 是否覆寫、覆寫原因、操作人與時間。
-- 運費負擔方及實際金額。
+- `Order.merchantOrderMode`：只在店家訂單保存 `consignment | wholesale | jar_exchange`；不再只靠 `source` 反推。
+- `OrderItem.variantKey`：沿用現有規格 identity。
+- `OrderItem.businessTierSnapshot`、`commercialTermsVersionSnapshot`。
+- `OrderItem.commercialRuleSource`: `order_override | merchant_exception | product_default | category_baseline`。
+- `OrderItem.defaultCommercialValue`、`appliedCommercialValue` 與必要的 mode；金額仍以既有 `unitPrice`／`subtotal` 為最終交易快照。
+- `OrderItem.commercialOverrideReason`、`commercialOverrideById`、`commercialOverrideAt`；沒有覆寫時皆為 null。
+- 運費沿用 `shippingFeeType`、`shippingFee`、`companyShippingCost`，不新增重複欄位。
+
+所有新金額欄位使用整數台幣；佣金比例使用固定 basis points（例如 20%＝2000），不新增 Float 金額或 Float 比例。
 
 以上欄位只是一份 schema 提案；取得使用者明確同意前不得修改 `schema.prisma` 或建立 migration。
 
@@ -65,10 +88,12 @@
 
 ### P1 — Schema／migration 設計（需另行批准）
 
-- 只做 expand migration，不刪舊欄位。
-- 新欄位先 nullable／有安全預設，舊流程維持相容。
-- 提供 rollback：程式回退後忽略新欄位；migration 不做 destructive down。
-- 提供唯讀 backfill 報告，正式資料 backfill 另行批准。
+- 只做 expand migration，不刪舊欄位；使用最新 release 規則的 `standard` migration plan。
+- 新欄位先 nullable；只有純狀態布林可使用安全預設。缺少財務設定時 fail closed，不自動猜價格或比例。
+- migration 只新增欄位、資料表、外鍵及索引，不含 backfill、repair、seed、`DELETE` 或 `DROP`。
+- rollback：程式回退後忽略新欄位／新表；資料結構保留，不做 destructive down migration。
+- 先產生唯讀缺口報告：商品、規格、店家模組與特約設定缺漏。正式 backfill 另案批准。
+- 舊 `Merchant.types`、`Merchant.commissionRate`、`MerchantProductRule`、`MerchantWholesalePrice` 全部保留，直到新舊雙讀驗證完成後才另案討論收斂。
 
 完成條件：migration、舊資料策略與 rollback 經 review。
 
