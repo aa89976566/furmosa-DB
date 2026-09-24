@@ -111,6 +111,7 @@ function ShipmentStatusControl({
       status={shipment.status}
       queueStatus={queueStatus}
       queueType={queueType}
+      shipmentType={shipment.type}
       paymentReviewHold={Boolean(shipment.paymentReviewHold)}
       inventoryWarnings={shipment.inventoryWarnings}
       className="max-w-none"

@@ -241,6 +241,9 @@ async function markShipmentStatusInner(
   if (!['pending', 'packed', 'shipped', 'delivered', 'cancelled'].includes(next)) {
     throw new Error('狀態錯誤');
   }
+  if (shipment.type === 'merchant_restock' && next === 'delivered') {
+    throw new Error('店家補貨由 POS 確認收貨，匠寵不需要標記送達');
+  }
 
   const allowed = TRANSITIONS[shipment.status] ?? [];
   if (!allowed.includes(next)) {

@@ -51,15 +51,15 @@ describe('merchant shipment dispatch notification', () => {
 
   it('never uses a client-supplied merchant or user to read another store inbox', () => {
     assert.deepEqual(unreadDispatchScope({ merchantId: 'store-a', merchantUserId: 'staff-a' }), {
-      merchantId: 'store-a', kind: 'shipment_shipped',
+      merchantId: 'store-a', kind: { in: ['shipment_shipped', 'shipment_receipt_day_3', 'shipment_receipt_day_5'] },
       shipment: {
         merchantId: 'store-a', type: 'merchant_restock',
-        status: { in: ['shipped', 'delivered'] },
+        status: { in: ['shipped'] },
       },
       reads: { none: { merchantUserId: 'staff-a' } },
     });
     assert.deepEqual(dispatchNoticeScope({ merchantId: 'store-a' }, 'notice-a'), {
-      id: 'notice-a', merchantId: 'store-a', kind: 'shipment_shipped',
+      id: 'notice-a', merchantId: 'store-a', kind: { in: ['shipment_shipped', 'shipment_receipt_day_3', 'shipment_receipt_day_5'] },
       shipment: { merchantId: 'store-a', type: 'merchant_restock' },
     });
 
@@ -75,7 +75,7 @@ describe('merchant shipment dispatch notification', () => {
 
   it('shows only in-transit and awaiting-receipt dispatch notifications', () => {
     const scope = unreadDispatchScope({ merchantId: 'store-a', merchantUserId: 'staff-a' });
-    assert.deepEqual(scope.shipment.status, { in: ['shipped', 'delivered'] });
+    assert.deepEqual(scope.shipment.status, { in: ['shipped'] });
     assert.equal(scope.shipment.status.in.includes('pending'), false);
     assert.equal(scope.shipment.status.in.includes('cancelled'), false);
     assert.equal(scope.shipment.status.in.includes('received'), false);
@@ -97,7 +97,7 @@ describe('merchant shipment dispatch notification', () => {
     assert.match(actions, /readMerchantNotification\([\s\S]*markMerchantNotificationRead\(session, notificationId\)/);
     assert.match(inbox, /merchantUserId: identity\.merchantUserId/);
     assert.match(inbox, /merchantId: identity\.merchantId/);
-    assert.match(inbox, /notification\.shipment\.status === 'delivered'[\s\S]*商品已送達，請確認收貨/);
+    assert.match(inbox, /title: notification\.title/);
     assert.match(inbox, /restockRequest[\s\S]*\/pos\/restock\/\$\{notification\.shipment\.restockRequest\.id\}/);
     assert.match(inbox, /\/pos\/shipments\/\$\{notification\.shipment\.id\}/);
     assert.match(ui, /inbox\.unreadCount/);
