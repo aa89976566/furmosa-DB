@@ -27,15 +27,25 @@ export function parseTierFields(formData: FormData) {
     throw new Error('成本必須大於 0，或留空待後續補齊');
   }
   const notes = toNullableString(formData.get('notes'));
+  const rawWholesalePrice = String(formData.get('defaultWholesaleUnitPrice') ?? '').trim();
+  const defaultWholesaleUnitPrice = rawWholesalePrice === ''
+    ? null
+    : Number(rawWholesalePrice);
+  if (
+    defaultWholesaleUnitPrice != null &&
+    (!Number.isInteger(defaultWholesaleUnitPrice) || defaultWholesaleUnitPrice <= 0)
+  ) {
+    throw new Error('預設買斷價必須是大於 0 的整數，或留空');
+  }
 
   if (mode === 'weight') {
     const weightGrams = toInt(formData.get('weightGrams'));
     if (weightGrams <= 0) throw new Error('重量必須大於 0');
-    return { weightGrams, unit: 'g', unitQty: 1, price, cost, notes };
+    return { weightGrams, unit: 'g', unitQty: 1, price, cost, defaultWholesaleUnitPrice, notes };
   }
 
   const unit = String(formData.get('unit') ?? '').trim();
   if (!unit) throw new Error('單位為必填（例：隻、片、包）');
   const unitQty = Math.max(1, toInt(formData.get('unitQty'), 1));
-  return { weightGrams: null, unit, unitQty, price, cost, notes };
+  return { weightGrams: null, unit, unitQty, price, cost, defaultWholesaleUnitPrice, notes };
 }

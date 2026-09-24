@@ -52,6 +52,15 @@ export default async function NewProductPage(
               vendorId: preselectedVendorId,
               notes: null,
               defaultTemperature: null,
+              productCategory: 'STANDARD',
+              businessTier: 'standard',
+              defaultConsignmentCommissionMode: null,
+              defaultConsignmentCommissionValue: null,
+              defaultWholesaleUnitPrice: null,
+              consignmentEnabled: false,
+              wholesaleEnabled: false,
+              jarExchangeEnabled: false,
+              commercialTermsVersion: null,
             }}
             vendors={vendors}
             saveAction={createProduct}

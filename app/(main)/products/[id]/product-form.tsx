@@ -24,6 +24,15 @@ type ProductInput = {
   vendorId: string | null;
   notes: string | null;
   defaultTemperature: string | null;
+  productCategory: string;
+  businessTier: string | null;
+  defaultConsignmentCommissionMode: string | null;
+  defaultConsignmentCommissionValue: number | null;
+  defaultWholesaleUnitPrice: number | null;
+  consignmentEnabled: boolean | null;
+  wholesaleEnabled: boolean | null;
+  jarExchangeEnabled: boolean | null;
+  commercialTermsVersion: number | null;
 };
 
 type VendorOption = { id: string; name: string; vendorId: string };
@@ -58,6 +67,16 @@ export function ProductForm({
   const variable = productType === 'variable';
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
+  const [consignmentEnabled, setConsignmentEnabled] = useState(Boolean(product.consignmentEnabled));
+  const [wholesaleEnabled, setWholesaleEnabled] = useState(Boolean(product.wholesaleEnabled));
+  const [commissionMode, setCommissionMode] = useState<'percent' | 'amount'>(
+    product.defaultConsignmentCommissionMode === 'amount' ? 'amount' : 'percent',
+  );
+  const commissionDisplayValue = product.defaultConsignmentCommissionValue == null
+    ? ''
+    : product.defaultConsignmentCommissionMode === 'percent'
+      ? product.defaultConsignmentCommissionValue / 100
+      : product.defaultConsignmentCommissionValue;
 
   function handleDelete() {
     if (!product.id || !deleteAction) return;
@@ -82,6 +101,7 @@ export function ProductForm({
       <form action={saveAction} className={studio ? 'space-y-6' : 'space-y-4'}>
         {product.id && <input type="hidden" name="id" value={product.id} />}
         <input type="hidden" name="productType" value={productType} />
+        <input type="hidden" name="productCategory" value={product.productCategory} />
         {variable ? (
           <>
             <input type="hidden" name="price" value={product.price} />
@@ -228,6 +248,113 @@ export function ProductForm({
               ))}
             </select>
           </Field>
+
+          <div className={cn('space-y-4 rounded-xl border p-4', studio && 'md:col-span-2')}>
+            <div>
+              <h3 className="text-sm font-semibold">店家合作條件</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                商品保存預設值；個別店家例外與本單調整會在其他流程處理。
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="商務等級" layout="studio">
+                <select
+                  name="businessTier"
+                  defaultValue={product.businessTier ?? 'standard'}
+                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="standard">一般商品</option>
+                  <option value="premium">Premium Product</option>
+                </select>
+              </Field>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">可使用的合作方式</p>
+                <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="consignmentEnabled"
+                    checked={consignmentEnabled}
+                    onChange={(event) => setConsignmentEnabled(event.target.checked)}
+                  />
+                  寄賣
+                </label>
+                <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
+                  <input
+                    type="checkbox"
+                    name="wholesaleEnabled"
+                    checked={wholesaleEnabled}
+                    onChange={(event) => setWholesaleEnabled(event.target.checked)}
+                  />
+                  買斷
+                </label>
+                {product.productCategory === 'JAR_EXCHANGE' ? (
+                  <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
+                    <input
+                      type="checkbox"
+                      name="jarExchangeEnabled"
+                      defaultChecked={Boolean(product.jarExchangeEnabled)}
+                    />
+                    換罐計畫
+                  </label>
+                ) : null}
+              </div>
+
+              {consignmentEnabled ? (
+                <>
+                  <Field label="寄賣佣金方式" layout="studio">
+                    <select
+                      name="defaultConsignmentCommissionMode"
+                      value={commissionMode}
+                      onChange={(event) => setCommissionMode(event.target.value as 'percent' | 'amount')}
+                      className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="percent">售價百分比</option>
+                      <option value="amount">每件固定金額</option>
+                    </select>
+                  </Field>
+                  <Field
+                    label={commissionMode === 'percent' ? '預設佣金（%）' : '每件佣金（元）'}
+                    layout="studio"
+                  >
+                    <Input
+                      name="defaultConsignmentCommissionDisplayValue"
+                      type="number"
+                      min={commissionMode === 'percent' ? 0.01 : 1}
+                      max={commissionMode === 'percent' ? 100 : undefined}
+                      step={commissionMode === 'percent' ? 0.01 : 1}
+                      defaultValue={commissionDisplayValue}
+                      required
+                    />
+                  </Field>
+                </>
+              ) : null}
+
+              {wholesaleEnabled && !variable ? (
+                <Field label="預設買斷價（元）" layout="studio">
+                  <Input
+                    name="defaultWholesaleUnitPrice"
+                    type="number"
+                    min={1}
+                    step={1}
+                    defaultValue={product.defaultWholesaleUnitPrice ?? ''}
+                  />
+                </Field>
+              ) : null}
+            </div>
+
+            {wholesaleEnabled && variable ? (
+              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                此商品有多個規格，請在上方「商品規格」逐一設定買斷價。
+              </p>
+            ) : null}
+            {product.commercialTermsVersion ? (
+              <p className="text-xs text-muted-foreground">
+                目前商務版本：v{product.commercialTermsVersion}
+              </p>
+            ) : null}
+          </div>
 
           <Field
             label="備註"

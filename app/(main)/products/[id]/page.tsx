@@ -59,6 +59,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     unitQty: tier.unitQty,
     price: tier.price,
     cost: tier.cost,
+    defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice,
     notes: tier.notes,
   }));
   const variationSummary = summarizeVariations(variations);
@@ -133,6 +134,15 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               vendorId: product.vendorId,
               notes: product.notes,
               defaultTemperature: product.defaultTemperature,
+              productCategory: product.productCategory,
+              businessTier: product.businessTier,
+              defaultConsignmentCommissionMode: product.defaultConsignmentCommissionMode,
+              defaultConsignmentCommissionValue: product.defaultConsignmentCommissionValue,
+              defaultWholesaleUnitPrice: product.defaultWholesaleUnitPrice,
+              consignmentEnabled: product.consignmentEnabled,
+              wholesaleEnabled: product.wholesaleEnabled,
+              jarExchangeEnabled: product.jarExchangeEnabled,
+              commercialTermsVersion: product.commercialTermsVersion,
             }}
             vendors={vendors}
             saveAction={updateProduct}
