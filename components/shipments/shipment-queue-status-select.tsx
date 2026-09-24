@@ -234,6 +234,21 @@ export function ShipmentQueueStatusSelect({
                 <input type="hidden" name="shipmentId" value={shipmentId} />
                 <input type="hidden" name="next" value={confirmNext} />
                 <input type="hidden" name="inline" value="1" />
+                {confirmNext === 'pending' ? (
+                  <>
+                    <input type="hidden" name="correctionConfirmed" value="1" />
+                    <label className="col-span-2 space-y-1 text-sm font-medium text-foreground">
+                      <span>撤回原因</span>
+                      <textarea
+                        name="note"
+                        required
+                        autoFocus
+                        placeholder="例如：尚未實際交寄，誤按已寄出"
+                        className="min-h-20 w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </label>
+                  </>
+                ) : null}
                 {queueStatus ? (
                   <input type="hidden" name="queueStatus" value={queueStatus} />
                 ) : null}
