@@ -148,7 +148,7 @@ type FeedWorld = {
     id: string;
     createdAt: Date;
     status: string;
-    shipment?: { status: string } | null;
+    shipment?: { status: string; shippedAt?: Date | null; receivedAt?: Date | null } | null;
     items: Array<{ requestedQuantity: number; product: { name: string } }>;
   }>;
   stockTxns: Array<{
