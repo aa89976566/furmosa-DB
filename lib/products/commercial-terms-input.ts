@@ -76,7 +76,7 @@ export function parseProductCommercialTerms(
 }
 
 export function productCommercialTermsChanged(
-  current: { [Key in keyof ProductCommercialTerms]?: ProductCommercialTerms[Key] | null },
+  current: Partial<Record<keyof ProductCommercialTerms, unknown>>,
   next: ProductCommercialTerms,
 ): boolean {
   return (Object.keys(next) as (keyof ProductCommercialTerms)[]).some(
