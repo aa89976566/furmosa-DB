@@ -23,3 +23,14 @@ test('建立失敗回傳可呈現的結果，表單以頁內訊息保留輸入�
   assert.match(formSource, /您已填寫的內容仍保留在畫面上/);
   assert.match(formSource, /router\.push\(`\/orders\/\$\{result\.orderId\}`\)/);
 });
+
+test('既有訂單也要先確認運費與付款，才顯示物流設定', () => {
+  assert.match(
+    formSource,
+    /useState\(isEdit \|\| Boolean\(seed\) \? 5 : 1\)/,
+  );
+  assert.match(
+    formSource,
+    /revealedStep >= 7 \? <FieldInline label="⑥ 選擇物流方式與收件資訊">/,
+  );
+});

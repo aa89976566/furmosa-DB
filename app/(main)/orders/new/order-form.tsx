@@ -606,7 +606,9 @@ export function OrderForm({
   const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 8 : 1);
+  // 有既有資料時先帶到「運費與付款」，讓使用者依序確認後才展開物流欄位。
+  // 不直接顯示全部步驟，避免物流設定在上一步尚未確認時搶先出現。
+  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 5 : 1);
   const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     seed?.customerSource ?? 'social',
