@@ -2,7 +2,7 @@ type NotificationEvent = {
   id: string;
   title: string;
   statusLabel: string;
-  href: string;
+  href: string | null;
   occurredAt: Date;
 };
 
