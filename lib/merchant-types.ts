@@ -12,7 +12,7 @@ export type MerchantType = (typeof MERCHANT_TYPES)[number];
 
 export const merchantTypeLabel: Record<MerchantType, string> = {
   consignment: '寄賣',
-  wholesale: '販售',
+  wholesale: '買斷',
   pop_up: '快閃',
   flagship: '旗艦',
   partner: '合作夥伴',

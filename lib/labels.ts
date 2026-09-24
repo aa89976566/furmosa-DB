@@ -17,7 +17,7 @@ export const orderSourceLabel: Record<string, string> = {
   website: '官網',
   line: 'LINE',
   consignment: '寄賣',
-  wholesale: '販售',
+  wholesale: '買斷',
   subscription: '訂閱制',
   manual: '手動',
   jar_exchange: '換罐計畫',

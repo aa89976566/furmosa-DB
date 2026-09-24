@@ -63,6 +63,11 @@ import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 import { OrderArchiveForm } from '@/components/orders/order-archive-form';
 import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summary';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import {
+  businessTierLabel,
+  commercialRuleSourceLabel,
+  commercialTermValueLabel,
+} from '@/lib/orders/merchant-commercial-term';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,7 +79,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       customer: true,
       omsReviewedBy: { select: { name: true } },
       merchant: true,
-      items: { include: { product: true } },
+      items: { include: { product: true, commercialOverrideBy: { select: { name: true } } } },
       shipments: { orderBy: { createdAt: 'desc' } },
     },
   });
@@ -662,6 +667,44 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           </Badge>
                         ) : null}
                       </div>
+                      {order.merchant && !it.isGift ? (
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>
+                            {businessTierLabel(it.businessTierSnapshot)}
+                            {' · '}
+                            {commercialRuleSourceLabel(
+                              it.commercialRuleSource as Parameters<typeof commercialRuleSourceLabel>[0],
+                            )}
+                          </p>
+                          {it.appliedCommercialMode ? (
+                            <p>
+                              套用條件：
+                              <span className="font-medium text-foreground">
+                                {commercialTermValueLabel(
+                                  it.appliedCommercialMode as Parameters<typeof commercialTermValueLabel>[0],
+                                  it.appliedCommercialValue,
+                                )}
+                              </span>
+                              {it.commercialRuleSource === 'order_override' ? (
+                                <>
+                                  {' '}（原預設{' '}
+                                  {commercialTermValueLabel(
+                                    it.defaultCommercialMode as Parameters<typeof commercialTermValueLabel>[0],
+                                    it.defaultCommercialValue,
+                                  )}）
+                                </>
+                              ) : null}
+                            </p>
+                          ) : null}
+                          {it.commercialOverrideReason ? (
+                            <p>
+                              調整原因：{it.commercialOverrideReason}
+                              {it.commercialOverrideBy?.name ? ` · ${it.commercialOverrideBy.name}` : ''}
+                              {it.commercialOverrideAt ? ` · ${formatDateTime(it.commercialOverrideAt)}` : ''}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {skuMissing ? (

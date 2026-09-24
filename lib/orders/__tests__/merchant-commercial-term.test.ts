@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveMerchantCommercialTerm } from '../merchant-commercial-term.ts';
+import {
+  businessTierLabel,
+  commercialRuleSourceLabel,
+  commercialTermValueLabel,
+  resolveMerchantCommercialTerm,
+} from '../merchant-commercial-term.ts';
 
 const product = {
   businessTier: 'standard',
@@ -111,4 +116,14 @@ test('換罐不套一般商務條件，也不接受覆寫', () => {
     orderMode: 'jar_exchange', product, tier: null, merchantException: null,
     override: { mode: 'amount', value: 10, reason: '不應套用條件' },
   }), /換罐計畫/);
+});
+
+test('商務快照標籤使用可直接理解的名稱與金額格式', () => {
+  assert.equal(businessTierLabel('standard'), '一般商品');
+  assert.equal(businessTierLabel('premium'), 'Premium Product');
+  assert.equal(commercialRuleSourceLabel('product_default'), 'SKU 預設');
+  assert.equal(commercialRuleSourceLabel('merchant_exception'), '店家特約');
+  assert.equal(commercialRuleSourceLabel('order_override'), '本單調整');
+  assert.equal(commercialTermValueLabel('percent', 2050), '20.50%');
+  assert.equal(commercialTermValueLabel('fixed_price', 70), 'NT$ 70');
 });

@@ -184,3 +184,16 @@ export function commercialTermValueLabel(
   if (mode === 'percent') return `${(value / 100).toFixed(value % 100 === 0 ? 0 : 2)}%`;
   return `NT$ ${value}`;
 }
+
+export function commercialRuleSourceLabel(source: CommercialRuleSource | null): string {
+  if (source === 'order_override') return '本單調整';
+  if (source === 'merchant_exception') return '店家特約';
+  if (source === 'product_default') return 'SKU 預設';
+  return '不適用';
+}
+
+export function businessTierLabel(tier: string | null): string {
+  if (tier === 'premium') return 'Premium Product';
+  if (tier === 'standard') return '一般商品';
+  return tier?.trim() || '未設定';
+}
