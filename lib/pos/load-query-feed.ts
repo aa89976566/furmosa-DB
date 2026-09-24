@@ -75,7 +75,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         id: true,
         createdAt: true,
         status: true,
-        shipment: { select: { status: true } },
+        shipment: { select: { status: true, shippedAt: true, receivedAt: true } },
         items: {
           take: 3,
           select: {
@@ -141,7 +141,12 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const names = r.items
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
-    const at = r.createdAt.toISOString();
+    const occurredAt = r.shipment?.status === 'received'
+      ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.createdAt
+      : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
+        ? r.shipment.shippedAt ?? r.createdAt
+        : r.createdAt;
+    const at = occurredAt.toISOString();
     return {
       id: `restock-${r.id}`,
       kind: 'restock',

@@ -126,9 +126,7 @@ export default async function PosRestockDetailPage(
                   </p>
                 ) : null}
               </div>
-              {canConfirmReceipt ? (
-                <ConfirmReceiptButton requestId={req.id} />
-              ) : null}
+              <ConfirmReceiptButton requestId={req.id} items={shipment.items} canConfirm={canConfirmReceipt} />
 
               <div className="border-t pt-3">
                 <p className="mb-3 text-sm font-medium">處理進度</p>
@@ -153,7 +151,7 @@ export default async function PosRestockDetailPage(
           </Card>
         ) : null}
 
-        <Card>
+        {!shipment ? <Card>
           <CardContent className="space-y-3 p-4 text-sm">
             {req.expectedArrivalDate ? (
               <p>
@@ -183,7 +181,7 @@ export default async function PosRestockDetailPage(
               </p>
             ) : null}
           </CardContent>
-        </Card>
+        </Card> : null}
 
         <Card>
           <CardContent className="space-y-2 p-4">
@@ -209,7 +207,7 @@ export default async function PosRestockDetailPage(
           </CardContent>
         </Card>
 
-        {hasApprovedItems ? (
+        {hasApprovedItems && !shipment ? (
           <Card>
             <CardContent className="space-y-2 p-4">
               <p className="text-sm font-medium">匠寵核准內容</p>
