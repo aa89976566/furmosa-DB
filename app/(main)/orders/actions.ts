@@ -125,6 +125,11 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     const rawPayload = await parseOrderFormData(formData, { catalogPricing: true });
     const payload = applyJarExchangeConsignmentPricing(rawPayload);
     const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
+    const hasCommercialOverride = payload.items.some(
+      (item) => item.commercialRuleSource === 'order_override',
+    );
+    const actor = hasCommercialOverride ? await getCurrentUser() : null;
+    if (hasCommercialOverride && !actor) throw new Error('請先登入 HQ 才能調整本單條件');
 
     created = await prisma.$transaction(async (tx) => {
       const orderNumber = payload.source === 'line'
@@ -141,6 +146,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
         fulfillmentStatus: 'pending',
         customerId: payload.customerId,
         merchantId: payload.merchantId,
+        merchantOrderMode: payload.merchantOrderMode,
         subtotal: payload.subtotal,
         discount: payload.discount,
         shippingFee: payload.shippingFee,
@@ -167,6 +173,16 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
             weightGrams: it.weightGrams,
             variantKey: it.tierId || null,
             unit: it.unit,
+            businessTierSnapshot: it.businessTierSnapshot,
+            commercialTermsVersionSnapshot: it.commercialTermsVersionSnapshot,
+            commercialRuleSource: it.commercialRuleSource,
+            defaultCommercialMode: it.defaultCommercialMode,
+            defaultCommercialValue: it.defaultCommercialValue,
+            appliedCommercialMode: it.appliedCommercialMode,
+            appliedCommercialValue: it.appliedCommercialValue,
+            commercialOverrideReason: it.commercialOverrideReason,
+            commercialOverrideById: it.commercialOverrideReason ? actor!.userId : null,
+            commercialOverrideAt: it.commercialOverrideAt,
           })),
         },
       },
@@ -204,9 +220,14 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     }, { maxWait: 10_000, timeout: 30_000 });
   } catch (error) {
     console.error('[orders/create] 建立訂單交易失敗', error);
+    const safeInputMessage = error instanceof Error && /^(此商品|本單調整|調整本單|換罐計畫)/.test(error.message)
+      ? error.message
+      : null;
     return {
       ok: false,
-      message: '訂單未建立。請確認資料後重試；若仍失敗，請聯絡系統管理員。',
+      message:
+        safeInputMessage ??
+        '訂單未建立。請確認資料後重試；若仍失敗，請聯絡系統管理員。',
     };
   }
 
@@ -232,7 +253,29 @@ export async function updateOrder(formData: FormData) {
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, subscriptionId: true, merchantId: true, customerId: true },
+    select: {
+      id: true,
+      status: true,
+      subscriptionId: true,
+      merchantId: true,
+      customerId: true,
+      items: {
+        select: {
+          productId: true,
+          variantKey: true,
+          businessTierSnapshot: true,
+          commercialTermsVersionSnapshot: true,
+          commercialRuleSource: true,
+          defaultCommercialMode: true,
+          defaultCommercialValue: true,
+          appliedCommercialMode: true,
+          appliedCommercialValue: true,
+          commercialOverrideReason: true,
+          commercialOverrideById: true,
+          commercialOverrideAt: true,
+        },
+      },
+    },
   });
   if (!existing) throw new Error('訂單不存在');
 
@@ -242,9 +285,18 @@ export async function updateOrder(formData: FormData) {
   const rawPayload = await parseOrderFormData(formData, {
     extendedPayment: true,
     enforceMerchantCommercialAccess: false,
+    enforceMerchantCommercialTerms: false,
   });
   const payload = applyJarExchangeConsignmentPricing(rawPayload);
   const isMerchantRestock = rawPayload.orderType === 'merchant' && !payload.customerId;
+  const hasCommercialOverride = payload.items.some(
+    (item) => item.commercialRuleSource === 'order_override',
+  );
+  const actor = hasCommercialOverride ? await getCurrentUser() : null;
+  if (hasCommercialOverride && !actor) throw new Error('請先登入 HQ 才能調整本單條件');
+  const existingCommercialSnapshots = new Map(
+    existing.items.map((item) => [`${item.productId}:${item.variantKey ?? ''}`, item]),
+  );
 
   await prisma.$transaction(async (tx) => {
     await guardLegacyOrderTx(tx, orderId);
@@ -258,6 +310,7 @@ export async function updateOrder(formData: FormData) {
         shippingFeeType: payload.shippingFeeType,
         customerId: payload.customerId,
         merchantId: payload.merchantId,
+        merchantOrderMode: payload.merchantOrderMode,
         subtotal: payload.subtotal,
         discount: payload.discount,
         shippingFee: payload.shippingFee,
@@ -271,19 +324,38 @@ export async function updateOrder(formData: FormData) {
         cvsStoreName: payload.cvsStoreName,
         note: payload.note,
         items: {
-          create: payload.items.map((it) => ({
-            productId: it.productId,
-            productName: it.productName,
-            sku: it.sku,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            subtotal: it.lineSubtotal,
-            isGift: it.isGift,
-            unitCost: it.isGift ? it.unitCost : null,
-            weightGrams: it.weightGrams,
-            variantKey: it.tierId || null,
-            unit: it.unit,
-          })),
+          create: payload.items.map((it) => {
+            const previous = existingCommercialSnapshots.get(
+              `${it.productId}:${it.tierId || ''}`,
+            );
+            return {
+              productId: it.productId,
+              productName: it.productName,
+              sku: it.sku,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              subtotal: it.lineSubtotal,
+              isGift: it.isGift,
+              unitCost: it.isGift ? it.unitCost : null,
+              weightGrams: it.weightGrams,
+              variantKey: it.tierId || null,
+              unit: it.unit,
+              businessTierSnapshot: previous?.businessTierSnapshot ?? it.businessTierSnapshot,
+              commercialTermsVersionSnapshot:
+                previous?.commercialTermsVersionSnapshot ?? it.commercialTermsVersionSnapshot,
+              commercialRuleSource: previous?.commercialRuleSource ?? it.commercialRuleSource,
+              defaultCommercialMode: previous?.defaultCommercialMode ?? it.defaultCommercialMode,
+              defaultCommercialValue: previous?.defaultCommercialValue ?? it.defaultCommercialValue,
+              appliedCommercialMode: previous?.appliedCommercialMode ?? it.appliedCommercialMode,
+              appliedCommercialValue: previous?.appliedCommercialValue ?? it.appliedCommercialValue,
+              commercialOverrideReason:
+                previous?.commercialOverrideReason ?? it.commercialOverrideReason,
+              commercialOverrideById:
+                previous?.commercialOverrideById ??
+                (it.commercialOverrideReason ? actor!.userId : null),
+              commercialOverrideAt: previous?.commercialOverrideAt ?? it.commercialOverrideAt,
+            };
+          }),
         },
       },
       include: { items: true },

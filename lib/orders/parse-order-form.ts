@@ -23,6 +23,11 @@ import {
   merchantCommercialModesAt,
   merchantProductAllowsMode,
 } from '@/lib/orders/merchant-commercial-access';
+import {
+  resolveMerchantCommercialTerm,
+  type CommercialRuleSource,
+  type CommercialValueMode,
+} from '@/lib/orders/merchant-commercial-term';
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
@@ -65,6 +70,15 @@ export type ParsedOrderLine = {
   productCategory: string;
   sku: string;
   lineSubtotal: number;
+  businessTierSnapshot: string | null;
+  commercialTermsVersionSnapshot: number | null;
+  commercialRuleSource: CommercialRuleSource | null;
+  defaultCommercialMode: CommercialValueMode | null;
+  defaultCommercialValue: number | null;
+  appliedCommercialMode: CommercialValueMode | null;
+  appliedCommercialValue: number | null;
+  commercialOverrideReason: string | null;
+  commercialOverrideAt: Date | null;
 };
 
 export type ParsedOrderPayload = {
@@ -72,6 +86,7 @@ export type ParsedOrderPayload = {
   source: string;
   customerId: string | null;
   merchantId: string | null;
+  merchantOrderMode: MerchantOrderMode | null;
   discount: number;
   note: string | null;
   shippingFeeType: string;
@@ -101,6 +116,7 @@ export async function parseOrderFormData(
     extendedPayment?: boolean;
     catalogPricing?: boolean;
     enforceMerchantCommercialAccess?: boolean;
+    enforceMerchantCommercialTerms?: boolean;
   },
 ): Promise<ParsedOrderPayload> {
   const orderType = String(formData.get('orderType') ?? '');
@@ -221,6 +237,9 @@ export async function parseOrderFormData(
   const weightGrams = formData.getAll('weightGrams').map(String);
   const units = formData.getAll('unit').map(String);
   const lineIsGifts = formData.getAll('lineIsGift').map(String);
+  const commercialOverrideModes = formData.getAll('commercialOverrideMode').map(String);
+  const commercialOverrideValues = formData.getAll('commercialOverrideValue').map(String);
+  const commercialOverrideReasons = formData.getAll('commercialOverrideReason').map(String);
 
   const rawLines = productIds
     .map((pid, idx) => {
@@ -229,6 +248,12 @@ export async function parseOrderFormData(
       const u = (units[idx] ?? '').trim();
       const tierId = (tierIds[idx] ?? '').trim();
       const isGift = (lineIsGifts[idx] ?? '0') === '1';
+      const overrideMode = (commercialOverrideModes[idx] ?? '').trim();
+      const overrideValueRaw = (commercialOverrideValues[idx] ?? '').trim();
+      const overrideReason = (commercialOverrideReasons[idx] ?? '').trim();
+      if (!overrideMode && (overrideValueRaw || overrideReason)) {
+        throw new Error('本單調整資料不完整，請重新選擇調整條件');
+      }
       return {
         productId: pid,
         tierId,
@@ -238,6 +263,13 @@ export async function parseOrderFormData(
         unitCost: 0,
         weightGrams: w != null && Number.isFinite(w) && w > 0 ? Math.round(w) : null,
         unit: u.length > 0 ? u : null,
+        commercialOverride: overrideMode
+          ? {
+              mode: overrideMode,
+              value: overrideValueRaw ? Number(overrideValueRaw) : null,
+              reason: overrideReason,
+            }
+          : null,
       };
     })
     .filter((it) => it.productId && it.quantity > 0);
@@ -259,7 +291,14 @@ export async function parseOrderFormData(
       consignmentEnabled: true,
       wholesaleEnabled: true,
       jarExchangeEnabled: true,
-      priceTiers: { select: { id: true, price: true, cost: true } },
+      businessTier: true,
+      defaultConsignmentCommissionMode: true,
+      defaultConsignmentCommissionValue: true,
+      defaultWholesaleUnitPrice: true,
+      commercialTermsVersion: true,
+      priceTiers: {
+        select: { id: true, price: true, cost: true, defaultWholesaleUnitPrice: true },
+      },
     },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
@@ -267,17 +306,27 @@ export async function parseOrderFormData(
     merchantOrderMode === 'wholesale' && merchantId
       ? await loadMerchantWholesalePrices(merchantId)
       : [];
-  const merchantSuggestedPrices =
+  const merchantRules =
     merchantOrderMode === 'consignment' && merchantId
       ? new Map(
           (
             await prisma.merchantProductRule.findMany({
               where: { merchantId, productId: { in: rawLines.map((line) => line.productId) } },
-              select: { productId: true, suggestedPrice: true },
+              select: {
+                productId: true,
+                suggestedPrice: true,
+                commissionMode: true,
+                commissionValue: true,
+              },
             })
-          ).map((rule) => [rule.productId, rule.suggestedPrice]),
+          ).map((rule) => [rule.productId, rule]),
         )
-      : new Map<string, number>();
+      : new Map<string, {
+          productId: string;
+          suggestedPrice: number;
+          commissionMode: string;
+          commissionValue: number;
+        }>();
 
   let giftCost = 0;
   const items: ParsedOrderLine[] = [];
@@ -317,11 +366,23 @@ export async function parseOrderFormData(
         prod.id,
         hasTiers ? it.tierId : null,
       );
-      // 販售店家可使用所有一般商品；店家專屬進貨價存在時優先使用，
-      // 否則以商品主檔／規格原價建立訂單，折扣由表單的百分比欄位處理。
+      const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
+      const commercial = it.isGift || opts?.enforceMerchantCommercialTerms === false
+        ? null
+        : resolveMerchantCommercialTerm({
+            orderMode: merchantOrderMode,
+            product: prod,
+            tier: selectedTier,
+            merchantException: configuredPrice == null
+              ? null
+              : { mode: 'fixed_price', value: configuredPrice },
+            override: it.commercialOverride,
+          });
       it.unitPrice = it.isGift
         ? 0
-        : configuredPrice ?? resolveOrderItemUnitPrice(prod, it.tierId || null);
+        : commercial?.appliedCommercialValue ??
+          configuredPrice ??
+          resolveOrderItemUnitPrice(prod, it.tierId || null);
     } else if (
       opts?.catalogPricing &&
       !it.isGift &&
@@ -335,7 +396,7 @@ export async function parseOrderFormData(
       }
       it.unitPrice =
         merchantOrderMode === 'consignment'
-          ? merchantSuggestedPrices.get(prod.id) ?? resolveOrderItemUnitPrice(prod, it.tierId || null)
+          ? merchantRules.get(prod.id)?.suggestedPrice ?? resolveOrderItemUnitPrice(prod, it.tierId || null)
           : resolveOrderItemUnitPrice(prod, it.tierId || null);
       if (it.unitPrice <= 0) {
         throw new Error(`「${prod.name}」尚未設定售價，請先更新商品主檔`);
@@ -346,6 +407,25 @@ export async function parseOrderFormData(
       unitCost = resolveOrderItemUnitCost(prod, it.tierId || null);
       giftCost += unitCost * it.quantity;
     }
+    const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
+    const configuredWholesalePrice = merchantOrderMode === 'wholesale' && merchantId
+      ? findMerchantWholesalePrice(wholesalePrices, merchantId, prod.id, it.tierId || null)
+      : null;
+    const merchantRule = merchantRules.get(prod.id);
+    const commercial =
+      merchantOrderMode && !it.isGift && opts?.enforceMerchantCommercialTerms !== false
+      ? resolveMerchantCommercialTerm({
+          orderMode: merchantOrderMode,
+          product: prod,
+          tier: selectedTier,
+          merchantException: merchantOrderMode === 'consignment' && merchantRule
+            ? { mode: merchantRule.commissionMode, value: merchantRule.commissionValue }
+            : configuredWholesalePrice == null
+              ? null
+              : { mode: 'fixed_price', value: configuredWholesalePrice },
+          override: it.commercialOverride,
+        })
+      : null;
     items.push({
       ...it,
       unitCost,
@@ -353,6 +433,16 @@ export async function parseOrderFormData(
       productCategory: prod.productCategory,
       sku: prod.sku,
       lineSubtotal: it.unitPrice * it.quantity,
+      businessTierSnapshot: commercial?.businessTierSnapshot ?? prod.businessTier,
+      commercialTermsVersionSnapshot:
+        commercial?.commercialTermsVersionSnapshot ?? prod.commercialTermsVersion,
+      commercialRuleSource: commercial?.commercialRuleSource ?? null,
+      defaultCommercialMode: commercial?.defaultCommercialMode ?? null,
+      defaultCommercialValue: commercial?.defaultCommercialValue ?? null,
+      appliedCommercialMode: commercial?.appliedCommercialMode ?? null,
+      appliedCommercialValue: commercial?.appliedCommercialValue ?? null,
+      commercialOverrideReason: commercial?.commercialOverrideReason ?? null,
+      commercialOverrideAt: commercial?.isOverride ? new Date() : null,
     });
   }
 
@@ -392,6 +482,7 @@ export async function parseOrderFormData(
     source,
     customerId,
     merchantId,
+    merchantOrderMode,
     discount,
     note,
     shippingFeeType,
