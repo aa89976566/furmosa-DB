@@ -58,6 +58,17 @@ describe("黑白 UI", () => {
     assert.match(css, /\.pos-theme\s*\{[\s\S]*--primary:\s*142\s+43%\s+31%/);
   });
 
+  it("庫存工作區與其他 POS 頁面共用綠色操作主題", () => {
+    const inventory = readRepoFile("components/pos/inventory-workspace.tsx");
+    const inventoryNav = readRepoFile("components/pos/inventory-nav.tsx");
+    const settlement = readRepoFile("components/pos/settle-workspace.tsx");
+    assert.match(inventory, /className="pos-theme min-h-screen/);
+    assert.match(inventory, /bg-primary text-primary-foreground/);
+    assert.match(inventoryNav, /bg-primary text-primary-foreground/);
+    assert.match(settlement, /className="pos-theme flex h-\[100dvh\]/);
+    assert.equal(inventoryNav.includes('bg-zinc-900 text-white'), false);
+  });
+
   it("總部／店家畫面沒有舊品牌色碼", () => {
     const dirs = ["app", "components", "features", "public"];
     const hits: string[] = [];
