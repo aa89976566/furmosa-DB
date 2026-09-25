@@ -65,7 +65,7 @@ describe('grooming coupon store discount', () => {
       GROOMING_COUPON_DISCOUNT_DEFAULT,
     );
     assert.equal(
-      getGroomingCouponDiscountForStore('manlisa', '曼利莎寵物美容'),
+      getGroomingCouponDiscountForStore('manlisa', '曼莉莎寵物美容'),
       GROOMING_COUPON_DISCOUNT_DEFAULT,
     );
     assert.equal(

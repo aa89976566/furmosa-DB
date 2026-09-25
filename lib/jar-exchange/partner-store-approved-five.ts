@@ -20,8 +20,8 @@ export const APPROVED_PARTNER_STORE_PAIRS = [
   {
     merchantId: 'MER-0017',
     legacySlug: 'manlisa',
-    label: '曼利莎寵物美容',
-    rationale: '總部確認：曼利莎舊核銷店與 MER-0017 是同一實際門市；舊 slug 繼續作核銷連結。',
+    label: '曼莉莎寵物美容',
+    rationale: '總部確認：曼莉莎舊核銷店與 MER-0017 是同一實際門市；舊 slug 繼續作核銷連結。',
   },
   {
     merchantId: 'MER-0010',
