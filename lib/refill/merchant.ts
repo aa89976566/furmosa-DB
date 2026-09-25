@@ -4,7 +4,10 @@ import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points'
 import { assertTransition } from '@/lib/refill/transitions';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
-import { notifyRefillCompleted } from '@/lib/refill/notify';
+import {
+  enqueueRefillCompletedNotification,
+  safelyEnqueueAndAttempt,
+} from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
   type RefillOrderStatus,
@@ -542,11 +545,12 @@ export async function assignNewAndComplete(input: {
   });
   pointsAwarded = Boolean(done?.pointsAwardedAt);
 
-  try {
-    await notifyRefillCompleted(order.id, pointsAwarded && order.orderType === 'exchange' && !isFirstPath);
-  } catch (e) {
-    console.error('[refill.complete] notify', e);
-  }
+  await safelyEnqueueAndAttempt(() =>
+    enqueueRefillCompletedNotification(
+      order.id,
+      pointsAwarded && order.orderType === 'exchange' && !isFirstPath,
+    ),
+  );
 
   const balance = await getPointsBalance(prisma, order.customerId);
   return {

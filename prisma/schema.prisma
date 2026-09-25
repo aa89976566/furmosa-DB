@@ -1371,6 +1371,34 @@ model Task {
 }
 
 // =====================================================
+// Automation recovery jobs
+// =====================================================
+
+/// 主要交易完成後的外部副作用佇列。所有作業以 jobKey 去重，避免 LINE／物流重送。
+model AutomationJob {
+  id              String    @id @default(cuid())
+  jobKey          String    @unique @map("job_key")
+  type            String
+  status          String    @default("pending") // pending / retrying / processing / completed / fallback_succeeded / manual_required
+  entityType      String?   @map("entity_type")
+  entityId        String?   @map("entity_id")
+  payload         Json
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime  @default(now()) @map("next_attempt_at")
+  lockedUntil     DateTime? @map("locked_until")
+  lastError       String?   @map("last_error")
+  fallbackResult  String?   @map("fallback_result")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, nextAttemptAt])
+  @@index([type, status])
+  @@index([entityType, entityId])
+  @@map("automation_jobs")
+}
+
+// =====================================================
 // Dashboard KPI 預聚合（cron／讀頁共用）
 // =====================================================
 
