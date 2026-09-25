@@ -699,30 +699,31 @@ describe('R7#1 送出順序：先查本店原單，才驗來源與付款方式',
   });
 });
 
-describe('R7#3 總覽卡與流水註記的說明必須與實際計算一致', () => {
+describe('R7#3 對帳總覽必須能追溯淨額來源', () => {
   const workspace = readFileSync(
     new URL('../../../components/pos/settle-workspace.tsx', import.meta.url),
     'utf8',
   );
 
-  it('兩張應付卡標明抵扣後淨額，不再列舉未實作的活動返利', () => {
-    assert.match(workspace, /店家應付匠寵（抵扣後）/);
-    assert.match(workspace, /匠寵應付店家（抵扣後）/);
-    // 卡片說明不得再寫成抵扣前的組成項目。
-    assert.doesNotMatch(workspace, /hint="寄賣分潤 \+ 店家代收現金"/);
-    assert.doesNotMatch(workspace, /hint="優惠券補貼 \+ 活動返利"/);
+  it('淨額公式直接顯示銷售、分潤、券與店家代收', () => {
+    assert.match(workspace, /銷售總額/);
+    assert.match(workspace, /店家分潤/);
+    assert.match(workspace, /優惠券補貼/);
+    assert.match(workspace, /店家代收/);
+    assert.match(workspace, /ledger\.preview\.netPayableTwd/);
   });
 
-  it('不再顯示永遠成立的相減等式，改為直接說明淨結果', () => {
-    assert.doesNotMatch(workspace, /店家應付匠寵 \{formatNtd/);
-    assert.match(workspace, /兩邊互相抵扣後/);
-    assert.match(workspace, /其中一張一定是 0/);
+  it('每筆結算來源都顯示交易內容、原始金額、分潤與計入淨額', () => {
+    assert.match(workspace, /金額組成/);
+    assert.match(workspace, /交易內容/);
+    assert.match(workspace, /原始金額/);
+    assert.match(workspace, /計入淨額/);
+    assert.match(workspace, /ledger\.preview\.lines\.map/);
   });
 
-  it('流水註記不得聲稱已鎖定的券不在流水裡（load-store-ledger 其實仍列出）', () => {
-    assert.doesNotMatch(workspace, /寄賣銷售與已被其他結帳單結過的項目不在這裡/);
-    assert.match(workspace, /已被其他結帳單結過的券仍然會列出/);
-    assert.match(workspace, /流水小計不等於上面的本期結算結果/);
+  it('清楚區分正式結算依據與補充流水', () => {
+    assert.match(workspace, /上方「金額組成」是本期結算依據/);
+    assert.match(workspace, /已被其他結帳單結過的項目不會重複列入本期淨額/);
   });
 });
 
