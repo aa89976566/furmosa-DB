@@ -253,7 +253,7 @@ function SettleWorkspaceInner({
           className="mt-1 block min-h-[40px] min-w-[160px] rounded-xl border border-neutral-200 bg-white px-3 text-sm text-zinc-800"
         />
       </label>
-      <button type="submit" className="min-h-[40px] rounded-xl border border-zinc-900 px-4 text-sm">
+      <button type="submit" className="min-h-[40px] rounded-xl border border-primary px-4 text-sm text-primary">
         套用
       </button>
     </form>
@@ -332,7 +332,7 @@ function SettleWorkspaceInner({
           type="button"
           disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
-          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white disabled:opacity-60"
+          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           {busy
             ? '處理中…'
@@ -417,7 +417,7 @@ function SettleWorkspaceInner({
         <button
           type="button"
           disabled
-          className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white disabled:opacity-40"
+          className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-40"
         >
           {selected.included ? '已列入本期結算' : '這筆不列入本期結算'}
         </button>
@@ -428,7 +428,7 @@ function SettleWorkspaceInner({
   );
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-neutral-100 md:flex-row">
+    <div className="pos-theme flex h-[100dvh] flex-col bg-neutral-100 md:flex-row">
       <InventorySideNav account={account} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="bg-transparent px-4 pb-2 pt-5 md:px-6">
@@ -451,7 +451,7 @@ function SettleWorkspaceInner({
                 }}
                 className={`-mb-px min-h-[40px] whitespace-nowrap pb-2 text-sm ${
                   tab === item.id
-                    ? 'border-b-2 border-zinc-900 font-medium text-zinc-900'
+                    ? 'border-b-2 border-primary font-medium text-primary'
                     : 'text-zinc-400 hover:text-zinc-700'
                 }`}
               >
@@ -737,7 +737,7 @@ function SettleWorkspaceInner({
           type="button"
           disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
-          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg disabled:opacity-60"
+          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground shadow-lg disabled:opacity-60"
         >
           {busy
             ? '處理中…'

@@ -23,7 +23,7 @@ function RestockBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-        active ? "bg-white text-zinc-900" : "bg-zinc-900 text-white"
+        active ? "bg-white text-primary" : "bg-primary text-primary-foreground"
       }`}
     >
       {itemCount}
@@ -66,7 +66,7 @@ export function InventorySideNav({ account }: { account: PosAccount }) {
               aria-current={isActive ? "page" : undefined}
               className={`flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-medium ${
                 isActive
-                  ? "bg-zinc-900 text-white"
+                  ? "bg-primary text-primary-foreground"
                   : "text-zinc-600 hover:bg-neutral-100 hover:text-zinc-900"
               }`}
             >
@@ -116,14 +116,14 @@ export function InventoryBottomNav() {
               }`}
             >
               {isActive ? (
-                <span className="rounded-full bg-zinc-900 px-3 py-2 text-white">
+                <span className="rounded-full bg-primary px-3 py-2 text-primary-foreground">
                   {tab.label}
                 </span>
               ) : (
                 tab.label
               )}
               {tab.id === "stock" && itemCount > 0 ? (
-                <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1 text-[10px] font-semibold text-white">
+                <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                   {itemCount}
                 </span>
               ) : null}

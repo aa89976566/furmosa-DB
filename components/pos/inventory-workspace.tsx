@@ -188,7 +188,7 @@ function InventoryWorkspaceInner({
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">{selected.name}</h2>
           {selected.programLabel ? (
-            <span className="mt-1 inline-flex rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white">
+            <span className="mt-1 inline-flex rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
               {selected.programLabel}
             </span>
           ) : null}
@@ -239,7 +239,7 @@ function InventoryWorkspaceInner({
             </div>
             <button
               type="button"
-              className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl bg-zinc-900 text-sm font-semibold text-white"
+              className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
               onClick={() => addProductToCart(selected, addQty)}
             >
               加入補貨單
@@ -248,7 +248,7 @@ function InventoryWorkspaceInner({
         ) : (
           <button
             type="button"
-            className="flex min-h-[44px] w-full items-center justify-center rounded-xl border border-zinc-900 text-sm font-semibold text-zinc-900"
+            className="flex min-h-[44px] w-full items-center justify-center rounded-xl border border-primary text-sm font-semibold text-primary"
             onClick={() => {
               setRestockOpen(true);
               setAddQty(1);
@@ -361,7 +361,7 @@ function InventoryWorkspaceInner({
   );
 
   return (
-    <div className="min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
+    <div className="pos-theme min-h-screen bg-neutral-100 text-zinc-900 md:h-screen md:overflow-hidden">
       <div className="md:flex md:h-full">
         <InventorySideNav account={account} />
 
@@ -388,7 +388,7 @@ function InventoryWorkspaceInner({
                   key={tab.id}
                   type="button"
                   className={`min-h-[36px] rounded-full px-4 text-sm font-medium ${
-                    group === tab.id ? 'bg-zinc-900 text-white' : 'bg-neutral-200/80 text-zinc-600'
+                    group === tab.id ? 'bg-primary text-primary-foreground' : 'bg-neutral-200/80 text-zinc-600'
                   }`}
                   onClick={() => setGroup(tab.id)}
                 >
@@ -398,14 +398,14 @@ function InventoryWorkspaceInner({
               <button
                 type="button"
                 className={`ml-auto flex min-h-[36px] items-center gap-2 rounded-full px-4 text-sm font-medium ${
-                  lowStockOnly ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-700 ring-1 ring-neutral-200'
+                  lowStockOnly ? 'bg-primary text-primary-foreground' : 'bg-white text-zinc-700 ring-1 ring-neutral-200'
                 }`}
                 onClick={() => setLowStockOnly((value) => !value)}
               >
                 庫存不足
                 <span
                   className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                    lowStockOnly ? 'bg-white text-zinc-900' : 'bg-zinc-900 text-white'
+                    lowStockOnly ? 'bg-white text-primary' : 'bg-primary text-primary-foreground'
                   }`}
                 >
                   {lowCount}
@@ -436,7 +436,7 @@ function InventoryWorkspaceInner({
                         }`}
                       >
                         {isSelected ? (
-                          <span className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-white">
+                          <span className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
                             <Check className="h-3 w-3" />
                           </span>
                         ) : null}
@@ -450,7 +450,7 @@ function InventoryWorkspaceInner({
                         </div>
                         <p className="mt-3 truncate font-medium">{item.name}</p>
                         {item.programLabel ? (
-                          <span className="mt-1 w-fit rounded-full bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-white">
+                          <span className="mt-1 w-fit rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
                             {item.programLabel}
                           </span>
                         ) : null}
@@ -494,7 +494,7 @@ function InventoryWorkspaceInner({
         <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
           <button
             type="button"
-            className="flex min-h-[48px] w-full items-center justify-between rounded-2xl bg-zinc-900 px-4 text-sm font-medium text-white shadow-lg"
+            className="flex min-h-[48px] w-full items-center justify-between rounded-2xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-lg"
             onClick={() => setMobilePanel('cart')}
           >
             <span>補貨單 {cart.itemCount} 項</span>
@@ -518,7 +518,7 @@ function InventoryWorkspaceInner({
       ) : null}
 
       {toast ? (
-        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg md:bottom-8">
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-primary px-4 py-2 text-sm text-primary-foreground shadow-lg md:bottom-8">
           {toast.text}
           {toast.href ? (
             <Link href={toast.href} className="ml-2 underline">
