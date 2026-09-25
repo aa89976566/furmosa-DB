@@ -8,7 +8,7 @@ export const FALLBACK_PARTNER_STORES = [
   { slug: 'zhuwo_banqiao', name: '豬窩 板橋店' },
   { slug: 'zhuwo_tucheng', name: '豬窩 土城店' },
   { slug: 'niuniu', name: '淡水妞妞' },
-  { slug: 'manlisa', name: '曼利莎寵物美容' },
+  { slug: 'manlisa', name: '曼莉莎寵物美容' },
   { slug: 'mer_0018', name: '墨菲寵物美學' },
   { slug: 'mer_0014', name: '柒沐寵物美容' },
   { slug: 'pet99', name: '99寵物美容' },

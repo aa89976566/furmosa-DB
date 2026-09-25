@@ -14,7 +14,7 @@ describe('pickNiuniuMerchant', () => {
 
   it('falls back to name containing 妞妞', () => {
     const picked = pickNiuniuMerchant([
-      { name: '曼利莎' },
+      { name: '曼莉莎' },
       { name: '台北妞妞分店' },
     ]);
     assert.equal(picked?.name, '台北妞妞分店');
