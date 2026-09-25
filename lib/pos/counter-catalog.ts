@@ -14,6 +14,7 @@ import { counterLineKey } from '@/lib/pos/counter-cart';
 import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import type { PricedCounterProduct } from '@/lib/pos/counter-sale-plan';
 import {
+  hasSellableCounterStock,
   resolveCounterSellStock,
   type CounterCatalogItem,
 } from '@/lib/pos/counter-catalog-view';
@@ -119,6 +120,7 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
         legacyStock,
         legacyTierId: LEGACY_MERCHANT_STOCK_TIER_ID,
       });
+      if (!hasSellableCounterStock(stock)) continue;
       const unitPrice = unitPriceForTierSale(tiers, listedTierId, {
         suggestedPrice: rule?.suggestedPrice ?? null,
         hasMerchantRule: Boolean(rule),
