@@ -37,7 +37,11 @@ export default async function NewProductPage(
         }
       />
       <div className="p-6">
-        <SectionCard title="商品主檔" className="max-w-2xl">
+        <SectionCard
+          title="商品主檔"
+          description="步驟 1：建立商品基本資料與合作方式；步驟 2：建立後設定各規格售價與買斷進貨價。"
+          className="max-w-3xl"
+        >
           <ProductForm
             productType="variable"
             product={{
@@ -66,8 +70,8 @@ export default async function NewProductPage(
             saveAction={createProduct}
             submitLabel="建立商品"
           />
-          <p className="mt-4 text-[11px] text-muted-foreground">
-            商品編號（PROD-XXXX）與 SKU（FUR-XXXX）會在儲存時自動產生。建立後請到商品頁新增規格變體與售價。
+          <p className="mt-4 text-xs text-muted-foreground">
+            商品編號與 SKU 會自動產生。商品建立後，系統會帶你到商品頁完成重量／包裝規格、售價及買斷進貨價。
           </p>
         </SectionCard>
       </div>

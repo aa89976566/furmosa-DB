@@ -67,6 +67,7 @@ export function ProductForm({
   const variable = productType === 'variable';
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
+  const [retailCategory, setRetailCategory] = useState(product.category);
   const [consignmentEnabled, setConsignmentEnabled] = useState(Boolean(product.consignmentEnabled));
   const [wholesaleEnabled, setWholesaleEnabled] = useState(Boolean(product.wholesaleEnabled));
   const [commissionMode, setCommissionMode] = useState<'percent' | 'amount'>(
@@ -77,6 +78,12 @@ export function ProductForm({
     : product.defaultConsignmentCommissionMode === 'percent'
       ? product.defaultConsignmentCommissionValue / 100
       : product.defaultConsignmentCommissionValue;
+  const [commissionValue, setCommissionValue] = useState(String(commissionDisplayValue));
+  const recommendedCommission = retailCategory === 'freeze_dried'
+    ? 30
+    : retailCategory === 'treats'
+      ? 20
+      : null;
 
   function handleDelete() {
     if (!product.id || !deleteAction) return;
@@ -131,10 +138,11 @@ export function ProductForm({
             <Input name="name" defaultValue={product.name} required maxLength={120} />
           </Field>
 
-          <Field label="分類" layout={layout}>
+          <Field label="商品類型" layout={layout}>
             <select
               name="category"
-              defaultValue={product.category}
+              value={retailCategory}
+              onChange={(event) => setRetailCategory(event.target.value)}
               className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {Object.entries(productCategoryLabel).map(([value, label]) => (
@@ -143,14 +151,17 @@ export function ProductForm({
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              商品類型會提供分潤建議：肉乾／零食 20%，凍乾 30%。實際比例仍以本商品設定為準。
+            </p>
           </Field>
 
-          <Field label="款式" layout={layout}>
+          <Field label="口味／主要原料（選填）" layout={layout}>
             <Input
               name="style"
               defaultValue={product.style ?? ''}
               maxLength={60}
-              placeholder="例：凍肉 / 蔬果"
+              placeholder="例：丁香魚、雞肉南瓜、牛肉"
             />
           </Field>
 
@@ -249,15 +260,15 @@ export function ProductForm({
             </select>
           </Field>
 
-          <div className={cn('space-y-4 rounded-xl border p-4', studio && 'md:col-span-2')}>
+          <div className={cn('space-y-5 rounded-xl border-2 p-5', studio && 'md:col-span-2')}>
             <div>
-              <h3 className="text-sm font-semibold">店家合作條件</h3>
+              <h3 className="text-base font-semibold">店家合作方式與預設條件</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                商品保存預設值；個別店家例外與本單調整會在其他流程處理。
+                可同時啟用寄賣與買斷。兩種合作方式各自保存設定，不會共用同一個價格或比例。
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg bg-muted/40 p-4">
               <Field label="商務等級" layout="studio">
                 <select
                   name="businessTier"
@@ -267,87 +278,131 @@ export function ProductForm({
                   <option value="standard">一般商品</option>
                   <option value="premium">Premium Product</option>
                 </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  一般／Premium 是商務分級；肉乾／凍乾則是上方的商品類型，兩者用途不同。
+                </p>
               </Field>
+            </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">可使用的合作方式</p>
-                <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className={cn(
+                'space-y-4 rounded-xl border-2 p-4',
+                consignmentEnabled ? 'border-foreground bg-card' : 'border-muted bg-muted/20',
+              )}>
+                <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
                   <input
                     type="checkbox"
                     name="consignmentEnabled"
                     checked={consignmentEnabled}
-                    onChange={(event) => setConsignmentEnabled(event.target.checked)}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      setConsignmentEnabled(enabled);
+                      if (enabled && commissionMode === 'percent' && !commissionValue && recommendedCommission) {
+                        setCommissionValue(String(recommendedCommission));
+                      }
+                    }}
                   />
-                  寄賣
+                  啟用寄賣
                 </label>
-                <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
+                <p className="text-xs text-muted-foreground">
+                  店家售出後，依此比例取得分潤。補貨單不可逐單修改；店家例外在店家設定處管理。
+                </p>
+                {consignmentEnabled ? (
+                  <div className="space-y-4 border-t pt-4">
+                    <Field label="店家分潤計算" layout="studio">
+                      <select
+                        name="defaultConsignmentCommissionMode"
+                        value={commissionMode}
+                        onChange={(event) => {
+                          const nextMode = event.target.value as 'percent' | 'amount';
+                          setCommissionMode(nextMode);
+                          setCommissionValue('');
+                        }}
+                        className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="percent">售價百分比</option>
+                        <option value="amount">每件固定金額</option>
+                      </select>
+                    </Field>
+                    <Field
+                      label={commissionMode === 'percent' ? '店家分潤（%）' : '店家每件分潤（元）'}
+                      layout="studio"
+                    >
+                      <Input
+                        name="defaultConsignmentCommissionDisplayValue"
+                        type="number"
+                        min={commissionMode === 'percent' ? 0.01 : 1}
+                        max={commissionMode === 'percent' ? 100 : undefined}
+                        step={commissionMode === 'percent' ? 0.01 : 1}
+                        value={commissionValue}
+                        onChange={(event) => setCommissionValue(event.target.value)}
+                        required
+                      />
+                      {commissionMode === 'percent' && recommendedCommission ? (
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">
+                            {retailCategory === 'freeze_dried' ? '凍乾' : '肉乾／零食'}建議 {recommendedCommission}%
+                          </span>
+                          <button
+                            type="button"
+                            className="font-medium underline underline-offset-4"
+                            onClick={() => setCommissionValue(String(recommendedCommission))}
+                          >
+                            套用建議
+                          </button>
+                        </div>
+                      ) : null}
+                    </Field>
+                  </div>
+                ) : null}
+              </section>
+
+              <section className={cn(
+                'space-y-4 rounded-xl border-2 p-4',
+                wholesaleEnabled ? 'border-foreground bg-card' : 'border-muted bg-muted/20',
+              )}>
+                <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
                   <input
                     type="checkbox"
                     name="wholesaleEnabled"
                     checked={wholesaleEnabled}
                     onChange={(event) => setWholesaleEnabled(event.target.checked)}
                   />
-                  買斷
+                  啟用買斷
                 </label>
-                {product.productCategory === 'JAR_EXCHANGE' ? (
-                  <label className="flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm">
-                    <input
-                      type="checkbox"
-                      name="jarExchangeEnabled"
-                      defaultChecked={Boolean(product.jarExchangeEnabled)}
-                    />
-                    換罐計畫
-                  </label>
+                <p className="text-xs text-muted-foreground">
+                  店家以進貨價買斷商品。建立訂單時可受控覆寫，系統會保存修改原因與紀錄。
+                </p>
+                {wholesaleEnabled && !variable ? (
+                  <div className="border-t pt-4">
+                    <Field label="預設買斷進貨價（元）" layout="studio">
+                      <Input
+                        name="defaultWholesaleUnitPrice"
+                        type="number"
+                        min={1}
+                        step={1}
+                        defaultValue={product.defaultWholesaleUnitPrice ?? ''}
+                      />
+                    </Field>
+                  </div>
                 ) : null}
-              </div>
-
-              {consignmentEnabled ? (
-                <>
-                  <Field label="寄賣佣金方式" layout="studio">
-                    <select
-                      name="defaultConsignmentCommissionMode"
-                      value={commissionMode}
-                      onChange={(event) => setCommissionMode(event.target.value as 'percent' | 'amount')}
-                      className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="percent">售價百分比</option>
-                      <option value="amount">每件固定金額</option>
-                    </select>
-                  </Field>
-                  <Field
-                    label={commissionMode === 'percent' ? '預設佣金（%）' : '每件佣金（元）'}
-                    layout="studio"
-                  >
-                    <Input
-                      name="defaultConsignmentCommissionDisplayValue"
-                      type="number"
-                      min={commissionMode === 'percent' ? 0.01 : 1}
-                      max={commissionMode === 'percent' ? 100 : undefined}
-                      step={commissionMode === 'percent' ? 0.01 : 1}
-                      defaultValue={commissionDisplayValue}
-                      required
-                    />
-                  </Field>
-                </>
-              ) : null}
-
-              {wholesaleEnabled && !variable ? (
-                <Field label="預設買斷價（元）" layout="studio">
-                  <Input
-                    name="defaultWholesaleUnitPrice"
-                    type="number"
-                    min={1}
-                    step={1}
-                    defaultValue={product.defaultWholesaleUnitPrice ?? ''}
-                  />
-                </Field>
-              ) : null}
+                {wholesaleEnabled && variable ? (
+                  <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                    此商品有多個規格；儲存主檔後，請在上方「商品規格」為每個重量／包裝分別設定買斷進貨價。
+                  </p>
+                ) : null}
+              </section>
             </div>
 
-            {wholesaleEnabled && variable ? (
-              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                此商品有多個規格，請在上方「商品規格」逐一設定買斷價。
-              </p>
+            {product.productCategory === 'JAR_EXCHANGE' ? (
+              <label className="flex min-h-11 items-center gap-3 rounded-xl border-2 px-4 text-sm font-semibold">
+                <input
+                  type="checkbox"
+                  name="jarExchangeEnabled"
+                  defaultChecked={Boolean(product.jarExchangeEnabled)}
+                />
+                啟用換罐計畫
+              </label>
             ) : null}
             {product.commercialTermsVersion ? (
               <p className="text-xs text-muted-foreground">
