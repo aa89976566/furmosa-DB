@@ -50,6 +50,7 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   const [inboxFailed, setInboxFailed] = useState(false);
   const [hint, setHint] = useState<UnreadNotice | null>(null);
   const initialInboxLoaded = useRef(false);
+  const inboxRequest = useRef<Promise<void> | null>(null);
   const lastRefreshAt = useRef(0);
   const previewCacheKey = `furmosa-pos-notifications-preview:${account.merchantId}`;
   const inboxCacheKey = `furmosa-pos-notifications-inbox:${account.merchantId}`;
@@ -73,20 +74,28 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   }, []);
 
   const refreshInbox = useCallback(async () => {
-    try {
-      const current = await loadUnreadNotifications();
-      applyInbox(current);
+    if (inboxRequest.current) return inboxRequest.current;
+
+    const request = (async () => {
       try {
-        sessionStorage.setItem(
-          inboxCacheKey,
-          JSON.stringify({ storedAt: Date.now(), inbox: current }),
-        );
+        const current = await loadUnreadNotifications();
+        applyInbox(current);
+        try {
+          sessionStorage.setItem(
+            inboxCacheKey,
+            JSON.stringify({ storedAt: Date.now(), inbox: current }),
+          );
+        } catch {
+          // 快取不可用時仍可正常載入未讀通知。
+        }
       } catch {
-        // 快取不可用時仍可正常載入未讀通知。
+        setInboxFailed(true);
+      } finally {
+        inboxRequest.current = null;
       }
-    } catch {
-      setInboxFailed(true);
-    }
+    })();
+    inboxRequest.current = request;
+    return request;
   }, [applyInbox, inboxCacheKey]);
 
   const refreshNotifications = useCallback(async () => {
