@@ -66,6 +66,10 @@ import {
   orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
+import {
+  parseOrderFormDraft,
+  serializeOrderFormDraft,
+} from '@/lib/orders/order-form-draft';
 
 export type ProductTierOption = {
   id: string;
@@ -134,6 +138,28 @@ type LineItem = {
   retailUnitPrice: number;
   weightGrams: number | null;
   unit: string | null;
+};
+
+type OrderFormDraftData = {
+  revealedStep: number;
+  orderType: OrderType;
+  customerSource: CustomerSource;
+  customerId: string;
+  merchantId: string;
+  merchantOrderMode: MerchantOrderMode;
+  items: LineItem[];
+  discount: number;
+  shippingFeeType: 'free' | 'prepaid' | 'unpaid' | 'cod';
+  paymentStatus: 'unpaid' | 'partial' | 'paid' | 'cod' | 'refunded';
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: SelectableShippingMethod;
+  cvsBrand: string;
+  cvsStoreName: string;
+  shippingAddress: string;
+  note: string;
+  selectedCustomers: CustomerOption[];
+  selectedProducts: ProductOption[];
 };
 
 const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[] = [
@@ -422,6 +448,7 @@ export function OrderForm({
   edit,
   initial,
   returnTo,
+  draftStorageKey,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
@@ -429,6 +456,7 @@ export function OrderForm({
   edit?: OrderEditInitial;
   initial?: OrderCreateInitial;
   returnTo?: string;
+  draftStorageKey?: string;
 }) {
   const isEdit = Boolean(edit);
   const seed = edit ?? initial;
@@ -484,6 +512,9 @@ export function OrderForm({
   const [cvsStoreName, setCvsStoreName] = useState<string>(seed?.cvsStoreName ?? '');
   const [shippingAddress, setShippingAddress] = useState<string>(seed?.shippingAddress ?? '');
   const [note, setNote] = useState<string>(seed?.note ?? '');
+  const [draftReady, setDraftReady] = useState(!draftStorageKey || isEdit);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   // 客戶／商品清單（種子 + typeahead 合併）
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
@@ -563,6 +594,135 @@ export function OrderForm({
       return [...map.values()];
     });
   }, []);
+
+  useEffect(() => {
+    if (!draftStorageKey || isEdit) return;
+
+    try {
+      const stored = parseOrderFormDraft<OrderFormDraftData>(
+        window.localStorage.getItem(draftStorageKey),
+      );
+      if (!stored) {
+        window.localStorage.removeItem(draftStorageKey);
+        setDraftReady(true);
+        return;
+      }
+
+      const draft = stored.data;
+      setRevealedStep(draft.revealedStep);
+      setOrderType(draft.orderType);
+      setCustomerSource(draft.customerSource);
+      setCustomerId(draft.customerId);
+      setMerchantId(draft.merchantId);
+      setMerchantOrderMode(draft.merchantOrderMode);
+      setItems(draft.items);
+      setDiscount(draft.discount);
+      setShippingFeeType(draft.shippingFeeType);
+      setPaymentStatus(draft.paymentStatus);
+      setRecipientName(draft.recipientName);
+      setRecipientPhone(draft.recipientPhone);
+      setShippingMethod(draft.shippingMethod);
+      setCvsBrand(draft.cvsBrand);
+      setCvsStoreName(draft.cvsStoreName);
+      setShippingAddress(draft.shippingAddress);
+      setNote(draft.note);
+      mergeCustomers(draft.selectedCustomers ?? []);
+      mergeProducts(draft.selectedProducts ?? []);
+      setDraftSavedAt(stored.savedAt);
+      setDraftRestored(true);
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    } finally {
+      setDraftReady(true);
+    }
+  }, [draftStorageKey, isEdit, mergeCustomers, mergeProducts]);
+
+  useEffect(() => {
+    if (!draftStorageKey || isEdit || !draftReady) return;
+
+    const hasMeaningfulData = Boolean(
+      customerId ||
+        merchantId ||
+        items.some((item) => item.productId) ||
+        recipientName.trim() ||
+        recipientPhone.trim() ||
+        shippingAddress.trim() ||
+        cvsStoreName.trim() ||
+        note.trim(),
+    );
+    if (!hasMeaningfulData) {
+      try {
+        window.localStorage.removeItem(draftStorageKey);
+        setDraftSavedAt(null);
+        setDraftRestored(false);
+      } catch {
+        // 瀏覽器拒絕存取時不阻塞表單操作。
+      }
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const selectedProductIds = new Set(items.map((item) => item.productId).filter(Boolean));
+      const data: OrderFormDraftData = {
+        revealedStep,
+        orderType,
+        customerSource,
+        customerId,
+        merchantId,
+        merchantOrderMode,
+        items,
+        discount,
+        shippingFeeType,
+        paymentStatus,
+        recipientName,
+        recipientPhone,
+        shippingMethod,
+        cvsBrand,
+        cvsStoreName,
+        shippingAddress,
+        note,
+        selectedCustomers: customers.filter((customer) => customer.id === customerId),
+        selectedProducts: productCatalog.filter((product) =>
+          selectedProductIds.has(product.id),
+        ),
+      };
+      const savedAt = Date.now();
+      try {
+        window.localStorage.setItem(
+          draftStorageKey,
+          serializeOrderFormDraft(data, savedAt),
+        );
+        setDraftSavedAt(savedAt);
+      } catch {
+        // 瀏覽器拒絕儲存時不阻塞建立訂單；送出失敗仍保留畫面上的資料。
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    customerId,
+    customerSource,
+    customers,
+    cvsBrand,
+    cvsStoreName,
+    discount,
+    draftReady,
+    draftStorageKey,
+    isEdit,
+    items,
+    merchantId,
+    merchantOrderMode,
+    note,
+    orderType,
+    paymentStatus,
+    productCatalog,
+    recipientName,
+    recipientPhone,
+    revealedStep,
+    shippingAddress,
+    shippingFeeType,
+    shippingMethod,
+  ]);
 
   const handleSearchCustomers = useCallback(
     async (query: string) => {
@@ -945,6 +1105,13 @@ export function OrderForm({
               setSubmitError(result.message);
               return;
             }
+            if (draftStorageKey) {
+              try {
+                window.localStorage.removeItem(draftStorageKey);
+              } catch {
+                // 訂單已成功建立；瀏覽器草稿清理失敗不應阻塞導頁。
+              }
+            }
             router.push(`/orders/${result.orderId}`);
           }
         } catch (e) {
@@ -969,6 +1136,25 @@ export function OrderForm({
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
       {isEdit && edit ? <input type="hidden" name="orderId" value={edit.orderId} /> : null}
       {isEdit && returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
+      {!isEdit && draftStorageKey ? (
+        <div
+          className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Save className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {draftRestored
+              ? '已恢復這台裝置上的未完成訂單。後續修改會繼續自動暫存。'
+              : draftSavedAt
+                ? `已自動暫存於這台裝置（${new Date(draftSavedAt).toLocaleTimeString('zh-TW', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}）。建立成功後會自動清除。`
+                : '開始填寫後會自動暫存在這台裝置，重新整理也能繼續。'}
+          </span>
+        </div>
+      ) : null}
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
