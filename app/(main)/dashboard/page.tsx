@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { OmsDashboard } from '@/components/orders/oms-dashboard';
+import { RecoverySummary } from '@/components/automation/recovery-summary';
 import { DashboardBodyFallback, DashboardBodySection, DashboardTasksFallback } from './dashboard-stream';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,10 @@ export default async function DashboardPage(props: DashboardPageProps) {
       </nav>
       {insights
         ? <Suspense fallback={<DashboardBodyFallback />}><DashboardBodySection /></Suspense>
-        : <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>}
+        : <>
+            <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>
+            <Suspense fallback={null}><RecoverySummary /></Suspense>
+          </>}
     </main>
   </>;
 }
