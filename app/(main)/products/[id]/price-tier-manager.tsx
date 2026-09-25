@@ -32,6 +32,7 @@ export type PriceTierRow = {
   unitQty: number;
   price: number;
   cost: number | null;
+  defaultWholesaleUnitPrice: number | null;
   notes: string | null;
 };
 
@@ -104,6 +105,7 @@ export function PriceTierManager({
               <TableHead className="w-[120px]">{weightOnly ? '重量' : '規格'}</TableHead>
               <TableHead className="text-right">售價</TableHead>
               <TableHead className="text-right">成本</TableHead>
+              <TableHead className="text-right">買斷價</TableHead>
               {weightOnly && <TableHead className="text-right">售價 / g</TableHead>}
               <TableHead className="text-right">毛利</TableHead>
               <TableHead>備註</TableHead>
@@ -189,6 +191,11 @@ function TierDisplayRow({
       <TableCell className="text-right text-muted-foreground">
         {tierCost != null ? formatCurrency(tierCost) : '-'}
       </TableCell>
+      <TableCell className="text-right text-muted-foreground">
+        {tier.defaultWholesaleUnitPrice != null
+          ? formatCurrency(tier.defaultWholesaleUnitPrice)
+          : '未設定'}
+      </TableCell>
       {weightOnly && (
         <TableCell className="text-right text-xs text-muted-foreground">
           {perGram != null ? `${perGram.toFixed(2)} /g` : '-'}
@@ -255,7 +262,7 @@ function TierFormRow({
   const tierCostDefault =
     tier != null ? resolveTierCost(tier.cost, tier.weightGrams) : null;
 
-  const colSpan = weightOnly ? 6 : 7;
+  const colSpan = weightOnly ? 8 : 7;
 
   return (
     <TableRow className="bg-muted/30">
@@ -430,6 +437,19 @@ function TierFormRow({
                 step="0.01"
                 defaultValue={tierCostDefault ?? ''}
                 placeholder={mode === 'weight' ? '此規格進貨總成本' : '此規格成本'}
+                autoComplete="off"
+                className="w-28"
+              />
+            </FieldInline>
+
+            <FieldInline label="預設買斷價 (元)">
+              <Input
+                name="defaultWholesaleUnitPrice"
+                type="number"
+                min={1}
+                step={1}
+                defaultValue={tier?.defaultWholesaleUnitPrice ?? ''}
+                placeholder="選填"
                 autoComplete="off"
                 className="w-28"
               />

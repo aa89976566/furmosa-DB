@@ -61,11 +61,16 @@ import {
 import {
   merchantOrderModeDescription,
   merchantOrderModeLabel,
-  merchantOrderModesForTypes,
   merchantOrderProductCategory,
   orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
+import { merchantProductAllowsMode } from '@/lib/orders/merchant-commercial-access';
+import {
+  commercialTermValueLabel,
+  resolveMerchantCommercialTerm,
+  type CommercialValueMode,
+} from '@/lib/orders/merchant-commercial-term';
 
 export type ProductTierOption = {
   id: string;
@@ -74,6 +79,7 @@ export type ProductTierOption = {
   unitQty: number;
   price: number;
   cost: number | null;
+  defaultWholesaleUnitPrice: number | null;
   notes: string | null;
 };
 export type ProductOption = {
@@ -88,6 +94,17 @@ export type ProductOption = {
   priceTiers: ProductTierOption[];
   wholesalePrices: MerchantWholesalePriceRow[];
   merchantSuggestedPrice: number | null;
+  consignmentEnabled: boolean | null;
+  wholesaleEnabled: boolean | null;
+  jarExchangeEnabled: boolean | null;
+  businessTier: string | null;
+  defaultConsignmentCommissionMode: string | null;
+  defaultConsignmentCommissionValue: number | null;
+  defaultWholesaleUnitPrice: number | null;
+  commercialTermsVersion: number | null;
+  merchantCommissionMode: string | null;
+  merchantCommissionValue: number | null;
+  merchantCommercialContextId: string | null;
 };
 
 function tierLabel(t: ProductTierOption): string {
@@ -104,6 +121,7 @@ export type MerchantOption = {
   preferredCarrier: string | null;
   pickupStoreName: string | null;
   types: MerchantType[];
+  commercialModes: MerchantOrderMode[];
 };
 export type CustomerOption = {
   id: string;
@@ -134,6 +152,10 @@ type LineItem = {
   retailUnitPrice: number;
   weightGrams: number | null;
   unit: string | null;
+  commercialOverrideEnabled?: boolean;
+  commercialOverrideMode?: CommercialValueMode | '';
+  commercialOverrideValue?: number | null;
+  commercialOverrideReason?: string;
 };
 
 const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[] = [
@@ -157,6 +179,10 @@ function OrderLineItemsTable({
   onSelectTier,
   onToggleGift,
   unitPriceReadOnly,
+  orderType,
+  merchantOrderMode,
+  merchantId,
+  showCommercialTerms,
   updateItem,
   addItem,
   removeItem,
@@ -171,6 +197,10 @@ function OrderLineItemsTable({
   onSelectTier: (key: string, productId: string, tierId: string) => void;
   onToggleGift: (key: string, isGift: boolean) => void;
   unitPriceReadOnly?: boolean;
+  orderType: OrderType;
+  merchantOrderMode: MerchantOrderMode;
+  merchantId: string;
+  showCommercialTerms: boolean;
   updateItem: (key: string, patch: Partial<LineItem>) => void;
   addItem: () => void;
   removeItem: (key: string) => void;
@@ -238,6 +268,38 @@ function OrderLineItemsTable({
             const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
+            let commercialTerm: ReturnType<typeof resolveMerchantCommercialTerm> | null = null;
+            let commercialError: string | null = null;
+            if (showCommercialTerms && orderType === 'merchant' && prod && !it.isGift) {
+              try {
+                const selectedTier = prod.priceTiers.find((tier) => tier.id === selectedTierId) ?? null;
+                const wholesaleException = merchantOrderMode === 'wholesale'
+                  ? findMerchantWholesalePrice(
+                      prod.wholesalePrices,
+                      merchantId,
+                      prod.id,
+                      selectedTierId || null,
+                    )
+                  : null;
+                commercialTerm = resolveMerchantCommercialTerm({
+                  orderMode: merchantOrderMode,
+                  product: prod,
+                  tier: selectedTier,
+                  merchantException: merchantOrderMode === 'consignment' && prod.merchantCommissionMode
+                    ? {
+                        mode: prod.merchantCommissionMode,
+                        value: prod.merchantCommissionValue ?? 0,
+                      }
+                    : wholesaleException == null
+                      ? null
+                      : { mode: 'fixed_price', value: wholesaleException },
+                  // 畫面先解析可信預設；覆寫的完整格式與原因由送出端再次驗證。
+                  override: null,
+                });
+              } catch (error) {
+                commercialError = error instanceof Error ? error.message : '商務條件無法解析';
+              }
+            }
             return (
               <TableRow
                 key={it.key}
@@ -253,6 +315,122 @@ function OrderLineItemsTable({
                     onChange={(productId) => onSelectProduct(it.key, productId)}
                     onSearch={onSearchProducts}
                     required={rowRequired}
+                  />
+                  {showCommercialTerms && orderType === 'merchant' && prod && merchantOrderMode !== 'jar_exchange' ? (
+                    <div className="mt-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs">
+                      {commercialError ? (
+                        <p className="text-destructive">{commercialError}</p>
+                      ) : commercialTerm ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-muted-foreground">
+                              {merchantOrderMode === 'consignment' ? '寄賣佣金' : '買斷進貨價'}
+                              {' · '}
+                              {commercialTerm.commercialRuleSource === 'merchant_exception'
+                                ? '店家特約'
+                                : 'SKU 預設'}
+                            </span>
+                            <strong>
+                              {commercialTermValueLabel(
+                                merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled
+                                  ? it.commercialOverrideMode || commercialTerm.appliedCommercialMode
+                                  : commercialTerm.appliedCommercialMode,
+                                merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled
+                                  ? it.commercialOverrideValue ?? commercialTerm.appliedCommercialValue
+                                  : commercialTerm.appliedCommercialValue,
+                              )}
+                            </strong>
+                          </div>
+                          {merchantOrderMode === 'wholesale' ? (
+                            <label className="mt-2 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(it.commercialOverrideEnabled)}
+                                onChange={(event) => updateItem(it.key, {
+                                  commercialOverrideEnabled: event.target.checked,
+                                  commercialOverrideMode: event.target.checked
+                                    ? commercialTerm.defaultCommercialMode ?? ''
+                                    : '',
+                                  commercialOverrideValue: event.target.checked
+                                    ? commercialTerm.defaultCommercialValue
+                                    : null,
+                                  commercialOverrideReason: '',
+                                  ...(!event.target.checked
+                                    ? {
+                                        unitPrice: commercialTerm.defaultCommercialValue ?? 0,
+                                        retailUnitPrice: commercialTerm.defaultCommercialValue ?? 0,
+                                      }
+                                    : {}),
+                                })}
+                              />
+                              調整本單條件
+                            </label>
+                          ) : (
+                            <p className="mt-2 text-muted-foreground">
+                              寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。
+                            </p>
+                          )}
+                          {merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? (
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              <label>
+                                <span className="mb-1 block text-muted-foreground">
+                                  {commercialTerm.defaultCommercialMode === 'percent'
+                                    ? '本單佣金（%）'
+                                    : '本單金額（NT$）'}
+                                </span>
+                                <Input
+                                  type="number"
+                                  min={commercialTerm.defaultCommercialMode === 'percent' ? 0.01 : 1}
+                                  step={commercialTerm.defaultCommercialMode === 'percent' ? 0.01 : 1}
+                                  value={commercialTerm.defaultCommercialMode === 'percent'
+                                    ? (it.commercialOverrideValue ?? 0) / 100
+                                    : it.commercialOverrideValue ?? ''}
+                                  onChange={(event) => updateItem(it.key, {
+                                    commercialOverrideValue:
+                                      commercialTerm!.defaultCommercialMode === 'percent'
+                                        ? Math.round((Number(event.target.value) || 0) * 100)
+                                        : Math.round(Number(event.target.value) || 0),
+                                    ...(merchantOrderMode === 'wholesale'
+                                      ? {
+                                          unitPrice: Math.round(Number(event.target.value) || 0),
+                                          retailUnitPrice: Math.round(Number(event.target.value) || 0),
+                                        }
+                                      : {}),
+                                  })}
+                                />
+                              </label>
+                              <label>
+                                <span className="mb-1 block text-muted-foreground">調整原因</span>
+                                <Input
+                                  value={it.commercialOverrideReason ?? ''}
+                                  minLength={4}
+                                  required
+                                  placeholder="例：開幕首批優惠"
+                                  onChange={(event) => updateItem(it.key, {
+                                    commercialOverrideReason: event.target.value,
+                                  })}
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <input
+                    type="hidden"
+                    name="commercialOverrideMode"
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideMode ?? '' : ''}
+                  />
+                  <input
+                    type="hidden"
+                    name="commercialOverrideValue"
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideValue ?? '' : ''}
+                  />
+                  <input
+                    type="hidden"
+                    name="commercialOverrideReason"
+                    value={merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? it.commercialOverrideReason ?? '' : ''}
                   />
                 </TableCell>
                 <TableCell className="col-span-2 block p-0 md:table-cell md:p-3">
@@ -509,28 +687,8 @@ export function OrderForm({
   }, []);
 
   const productMap = useMemo(
-    () =>
-      new Map(
-        productCatalog.map((product) => {
-          if (orderType !== 'merchant' || merchantOrderMode !== 'wholesale') {
-            return [product.id, product] as const;
-          }
-          return [
-            product.id,
-            {
-              ...product,
-              priceTiers: product.priceTiers.filter((tier) =>
-                product.wholesalePrices.some(
-                  (price) =>
-                    price.merchantId === merchantId &&
-                    price.variantKey === tier.id,
-                ),
-              ),
-            },
-          ] as const;
-        }),
-      ),
-    [merchantId, merchantOrderMode, orderType, productCatalog],
+    () => new Map(productCatalog.map((product) => [product.id, product] as const)),
+    [productCatalog],
   );
   const visibleProducts = useMemo(
     () => {
@@ -542,7 +700,10 @@ export function OrderForm({
       }
       const category = merchantOrderProductCategory(merchantOrderMode);
       return productCatalog.filter(
-        (product) => product.productCategory === category,
+        (product) =>
+          product.merchantCommercialContextId === merchantId &&
+          product.productCategory === category &&
+          merchantProductAllowsMode(product, merchantOrderMode),
       );
     },
     [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
@@ -662,7 +823,10 @@ export function OrderForm({
       orderType === 'customer' || merchantOrderMode === 'consignment';
     const wholesalePrice = (tierId: string) =>
       merchantOrderMode === 'wholesale'
-        ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId)
+        ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ??
+          (tierId
+            ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? null
+            : p.defaultWholesaleUnitPrice)
         : 0;
     if (p.priceTiers.length > 0) {
       const resolvedTierId = resolveOrderLineTierId(p.priceTiers, tierId);
@@ -671,7 +835,7 @@ export function OrderForm({
         tierId: t.id,
         unitPrice: useCatalogPrice
           ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? t.price : t.price)
-          : wholesalePrice(t.id) ?? t.price,
+          : wholesalePrice(t.id) ?? 0,
         unitCost: resolveOrderItemUnitCost(p, t.id),
         weightGrams: t.weightGrams,
         unit: t.unit,
@@ -681,7 +845,7 @@ export function OrderForm({
       tierId: '',
       unitPrice: useCatalogPrice
         ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? p.price : p.price)
-        : wholesalePrice('') ?? p.price,
+        : wholesalePrice('') ?? 0,
       unitCost: resolveOrderItemUnitCost(p),
       weightGrams: null,
       unit: p.unit,
@@ -700,6 +864,10 @@ export function OrderForm({
         retailUnitPrice: 0,
         weightGrams: null,
         unit: null,
+        commercialOverrideEnabled: false,
+        commercialOverrideMode: '',
+        commercialOverrideValue: null,
+        commercialOverrideReason: '',
       });
       return;
     }
@@ -710,6 +878,10 @@ export function OrderForm({
       ...pricing,
       unitPrice: isGift ? 0 : pricing.unitPrice,
       retailUnitPrice: pricing.unitPrice,
+      commercialOverrideEnabled: false,
+      commercialOverrideMode: '',
+      commercialOverrideValue: null,
+      commercialOverrideReason: '',
     });
     revealThrough(5);
   }
@@ -726,6 +898,10 @@ export function OrderForm({
       ...pricing,
       unitPrice: isGift ? 0 : pricing.unitPrice,
       retailUnitPrice: pricing.unitPrice,
+      commercialOverrideEnabled: false,
+      commercialOverrideMode: '',
+      commercialOverrideValue: null,
+      commercialOverrideReason: '',
     });
   }
   function onToggleGift(key: string, isGift: boolean) {
@@ -758,6 +934,10 @@ export function OrderForm({
         retailUnitPrice: 0,
         weightGrams: null,
         unit: null,
+        commercialOverrideEnabled: false,
+        commercialOverrideMode: '',
+        commercialOverrideValue: null,
+        commercialOverrideReason: '',
       },
     ]);
   }
@@ -805,12 +985,16 @@ export function OrderForm({
       retailUnitPrice: 0,
       weightGrams: null,
       unit: null,
+      commercialOverrideEnabled: false,
+      commercialOverrideMode: '',
+      commercialOverrideValue: null,
+      commercialOverrideReason: '',
     })));
     const m = merchants.find((x) => x.id === id);
     if (m) {
       revealThrough(3);
       applyMerchantShipping(m);
-      const availableModes = merchantOrderModesForTypes(m.types);
+      const availableModes = m.commercialModes;
       const nextMode = availableModes.includes(merchantOrderMode)
         ? merchantOrderMode
         : (availableModes[0] ?? 'consignment');
@@ -828,6 +1012,10 @@ export function OrderForm({
       retailUnitPrice: 0,
       weightGrams: null,
       unit: null,
+      commercialOverrideEnabled: false,
+      commercialOverrideMode: '',
+      commercialOverrideValue: null,
+      commercialOverrideReason: '',
     })));
     if (mode !== 'consignment') setCustomerId('');
     revealThrough(4);
@@ -990,7 +1178,7 @@ export function OrderForm({
               active={orderType === 'merchant'}
               icon={<Store className="h-5 w-5" />}
               title="店家訂單"
-              desc="寄賣、販售或換罐補貨"
+              desc="寄賣、買斷或換罐補貨"
               onClick={() => changeOrderType('merchant')}
             />
           </div>
@@ -1157,9 +1345,9 @@ export function OrderForm({
               <label className="mb-2 block border-t pt-4 text-sm font-medium">
                 ③ 這次要做什麼？ <span className="text-destructive">*</span>
               </label>
-              {merchantOrderModesForTypes(selectedMerchant.types).length > 0 ? (
+              {selectedMerchant.commercialModes.length > 0 ? (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {merchantOrderModesForTypes(selectedMerchant.types).map((mode) => (
+                  {selectedMerchant.commercialModes.map((mode) => (
                     <button
                       key={mode}
                       type="button"
@@ -1201,8 +1389,8 @@ export function OrderForm({
             : merchantOrderMode === 'jar_exchange'
               ? '只能選換罐計畫商品'
               : merchantOrderMode === 'wholesale'
-                ? '可選所有一般商品'
-                : '可選所有一般商品'
+                ? '依 SKU 與店家特約帶入買斷價；缺少設定時會阻擋送出'
+                : '依 SKU 與店家特約帶入寄賣佣金；缺少設定時會阻擋送出'
         }
         items={items}
         products={visibleProducts}
@@ -1214,6 +1402,10 @@ export function OrderForm({
         unitPriceReadOnly={
           !isEdit || (orderType === 'merchant' && merchantOrderMode === 'wholesale')
         }
+        orderType={orderType}
+        merchantOrderMode={merchantOrderMode}
+        merchantId={merchantId}
+        showCommercialTerms={!isEdit}
         updateItem={updateItem}
         addItem={addItem}
         removeItem={removeItem}

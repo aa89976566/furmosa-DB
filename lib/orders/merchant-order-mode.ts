@@ -10,7 +10,7 @@ export type MerchantOrderMode = (typeof MERCHANT_ORDER_MODES)[number];
 
 export const merchantOrderModeLabel: Record<MerchantOrderMode, string> = {
   consignment: '寄賣',
-  wholesale: '販售',
+  wholesale: '買斷',
   jar_exchange: '換罐計畫',
 };
 
