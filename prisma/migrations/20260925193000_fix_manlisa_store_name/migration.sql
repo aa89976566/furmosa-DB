@@ -2,7 +2,7 @@
 -- 保留 slug、MER 編號及所有現有關聯，不影響會員、庫存或序號。
 UPDATE "Store"
 SET "name" = '曼莉莎寵物美容',
-    "updatedAt" = CURRENT_TIMESTAMP
+    "updated_at" = CURRENT_TIMESTAMP
 WHERE "slug" = 'manlisa'
    OR "name" = '曼利莎寵物美容';
 
