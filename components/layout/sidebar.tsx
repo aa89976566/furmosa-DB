@@ -3,8 +3,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { ReviewInboxBadge } from "@/components/reviews/review-inbox-badge";
 import { PawPrint } from "lucide-react";
+import { isHqFinanceAdmin } from "@/lib/finance/guard";
 
-export function Sidebar() {
+export async function Sidebar() {
+  const showFinance = await isHqFinanceAdmin();
   return (
     <aside className="hidden h-screen w-[248px] shrink-0 flex-col border-r border-border bg-card md:flex">
       <div className="flex h-16 items-center gap-3 px-5">
@@ -24,7 +26,7 @@ export function Sidebar() {
             <div className="h-40 animate-pulse rounded-xl bg-muted/50" />
           }
         >
-          <SidebarNav itemExtras={{ "/reviews": <ReviewInboxBadge /> }} />
+          <SidebarNav showFinance={showFinance} itemExtras={{ "/reviews": <ReviewInboxBadge /> }} />
         </Suspense>
       </ScrollArea>
       <div className="border-t border-border/70 px-5 py-3 text-[11px] text-muted-foreground">

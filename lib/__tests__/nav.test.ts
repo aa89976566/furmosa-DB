@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { navGroups } from '../nav';
+import { financeNavGroup, navGroups, navGroupsForRole } from '../nav';
 
 describe('HQ 側欄', () => {
   it('每天工作在最上面，只放高頻入口', () => {
@@ -34,5 +34,17 @@ describe('HQ 側欄', () => {
     const storeGroup = navGroups.find((group) => group.label === '店家與供應');
     const merchants = storeGroup?.items.find((item) => item.href === '/merchants');
     assert.equal(merchants?.label, '店家');
+  });
+
+  it('財務入口只加在最高權限管理員的導覽', () => {
+    const staffLabels = navGroupsForRole('staff').flatMap((group) => group.items.map((item) => item.label));
+    assert.equal(staffLabels.includes('13 週現金流'), false);
+    assert.equal(navGroups.some((group) => group.label === '財務'), false);
+    const admin = navGroupsForRole('admin');
+    assert.equal(admin.at(-1)?.label, '財務');
+    assert.deepEqual(
+      financeNavGroup.items.map((item) => item.href),
+      ['/finance/products', '/finance/channels', '/finance/partners', '/finance/cash-flow'],
+    );
   });
 });

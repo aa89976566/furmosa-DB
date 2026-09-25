@@ -94,6 +94,7 @@ model User {
   partnerStoreDecisionsRevoked PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
   omsReviewedOrders  Order[]                @relation("OmsReviewedBy")
   archivedOrders     Order[]                @relation("OrderArchivedBy")
+  financeAuditLogs   FinanceAuditLog[]      @relation("FinanceAuditActor")
 }
 
 model HqPasskeyCredential {
@@ -374,6 +375,7 @@ model RefillOrder {
   @@index([merchantId, status])
   @@index([appointmentId])
   @@index([status, createdAt])
+  @@index([productId])
   @@map("refill_orders")
 }
 
@@ -699,6 +701,10 @@ model Product {
   vendorId     String?
   notes        String? // 備註（單價表手寫欄位）
   defaultTemperature ProductTemperature? @map("default_temperature")
+  /// 食品成本（分）。空白代表尚未填寫，不可用 0 代替。
+  foodCostCents       Int? @map("food_cost_cents")
+  /// 包裝成本（分）。空白代表尚未填寫，不可用 0 代替。
+  packagingCostCents  Int? @map("packaging_cost_cents")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -715,6 +721,7 @@ model Product {
   restockRequestItems   RestockRequestItem[]
   appointments          Appointment[]
   refillOrders          RefillOrder[]
+  financeChannelCosts   FinanceSkuChannelCost[]
 
   @@index([productCategory])
   @@index([status])
@@ -1186,6 +1193,7 @@ model OrderItem {
   product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([productId])
 }
 
 // =====================================================
@@ -1642,4 +1650,95 @@ model PosPasswordAccessLog {
 
   @@index([merchantUserId, createdAt])
   @@map("pos_password_access_logs")
+}
+
+// =====================================================
+// 財務與單位經濟（只有最高權限 Admin 可讀寫成本）
+// 金額用整數分，避免再新增 Float。空白欄位代表尚未填寫。
+// =====================================================
+
+/// 貢獻毛利率燈號。greenMinBps 必須大於 yellowMinBps。
+model FinanceMarginSettings {
+  id              String   @id @default("default")
+  greenMinBps     Int      @default(4500) @map("green_min_bps")
+  yellowMinBps    Int      @default(3000) @map("yellow_min_bps")
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("finance_margin_settings")
+}
+
+/// 單一 SKU 在某通路的直接成本。未填的欄位保持 null，不可當成 0。
+model FinanceSkuChannelCost {
+  id                      String   @id @default(cuid())
+  productId               String   @map("product_id")
+  /// website | buyout | consignment | group_buy | pos | refill
+  channel                 String
+  /// 食品與包裝以外的每件直接變動成本（分）
+  otherDirectCostCents    Int?     @map("other_direct_cost_cents")
+  /// 以下四項只用於換罐；其他通路必須是 null
+  cleaningCents           Int?     @map("cleaning_cents")
+  transportCents          Int?     @map("transport_cents")
+  groupLeaderShareCents   Int?     @map("group_leader_share_cents")
+  centerShareCents        Int?     @map("center_share_cents")
+  updatedByUserId         String?  @map("updated_by_user_id")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, channel])
+  @@index([channel])
+  @@map("finance_sku_channel_costs")
+}
+
+/// 13 週現金流的期初與最低現金點。沒有數字就保持 null。
+model FinanceCashPlan {
+  id                   String   @id @default("default")
+  openingBalanceCents  Int?     @map("opening_balance_cents")
+  minimumCashCents     Int?     @map("minimum_cash_cents")
+  /// 第 1 週的週一。尚未設定時由畫面只標第幾週，不捏造金額。
+  anchorMonday         DateTime? @map("anchor_monday") @db.Date
+  updatedByUserId      String?  @map("updated_by_user_id")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  weeks                FinanceCashWeek[]
+
+  @@map("finance_cash_plans")
+}
+
+model FinanceCashWeek {
+  id                    String   @id @default(cuid())
+  planId                String   @map("plan_id")
+  weekIndex             Int      @map("week_index")
+  inflowCents           Int?     @map("inflow_cents")
+  supplierPaymentCents  Int?     @map("supplier_payment_cents")
+  packagingCents        Int?     @map("packaging_cents")
+  payrollCents          Int?     @map("payroll_cents")
+  adsCents              Int?     @map("ads_cents")
+  logisticsCents        Int?     @map("logistics_cents")
+  samplingCents         Int?     @map("sampling_cents")
+  updatedByUserId       String?  @map("updated_by_user_id")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  plan FinanceCashPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, weekIndex])
+  @@map("finance_cash_weeks")
+}
+
+model FinanceAuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String   @map("actor_user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor User @relation("FinanceAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+  @@map("finance_audit_logs")
 }

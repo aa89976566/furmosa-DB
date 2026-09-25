@@ -77,6 +77,8 @@ test('none plan rejects migrations by contract and HQ plan stays bounded', () =>
     'docs/releases/historical-hq-schema-repair-20260921.md',
   ]);
   assert.match(workflow, /- historical_hq_schema_repair_20260921/);
+  assert.equal('finance_unit_economics_20260923' in RELEASE_PLANS, false);
+  assert.doesNotMatch(workflow, /- finance_unit_economics_20260923/);
 });
 
 test('standard plan is bounded to exact non-destructive PR migrations', () => {
