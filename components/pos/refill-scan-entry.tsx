@@ -32,7 +32,7 @@ export function RefillScanEntry() {
     <div className="space-y-3">
       <JarSerialPanel
         title="客人拿空罐來了"
-        primaryLabel="掃描罐底"
+        primaryLabel="輸入罐底序號"
         secondaryLabel="手動輸入序號"
         onSerial={lookup}
         busy={busy}

@@ -175,7 +175,11 @@ function RefillWorkspaceInner({
       onToast={(text) => showToast(setToast, text)}
     />
   ) : (
-    <p className="pt-8 text-sm text-zinc-500">掃罐底或點選待換罐客人</p>
+    <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center">
+      <p className="text-lg font-semibold text-foreground">選擇一筆換罐訂單</p>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">從左側名單選擇，或輸入罐底序號查詢</p>
+      <div className="mt-8 flex items-center gap-3 text-xs font-medium text-muted-foreground"><span>1　確認舊罐</span><span>—</span><span>2　登記新罐</span><span>—</span><span>3　完成換罐</span></div>
+    </div>
   );
 
   return (
@@ -189,7 +193,7 @@ function RefillWorkspaceInner({
               <div>
                 <h1 className="text-2xl font-semibold">換罐</h1>
                 <p className="mt-1 text-sm text-zinc-500">
-                  掃罐底就能找到客人的訂單
+                  輸入罐底序號，找到客人的換罐訂單
                 </p>
               </div>
               <div>
@@ -267,9 +271,9 @@ function RefillWorkspaceInner({
                 <p className="mb-3 text-sm font-semibold">1. 找到客人的訂單</p>
                 <JarSerialPanel
                   variant="cards"
-                  primaryLabel="掃描罐底"
+                  primaryLabel="輸入罐底序號"
                   secondaryLabel="手動輸入序號"
-                  primaryHint="掃描空罐底部 QR Code"
+                  primaryHint="輸入罐底序號或訂單編號"
                   secondaryHint="輸入罐底序號查詢訂單"
                   submitLabel="查詢"
                   busyLabel="查詢中..."

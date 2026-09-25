@@ -214,7 +214,7 @@ export function RefillOrderPanel({
           <ol className="mt-3 space-y-5">
             <StepBlock
               n={1}
-              title="掃描舊罐"
+              title="確認舊罐"
               doneLabel="已完成"
               state={oldDone ? 'done' : currentStep === 1 ? 'active' : 'locked'}
             >
@@ -252,14 +252,14 @@ export function RefillOrderPanel({
                       setRetryAction(null);
                     }}
                   >
-                    重新掃描
+                    重新輸入
                   </button>
                 </div>
               ) : (
                 <JarSerialPanel
                   variant="tile"
-                  primaryLabel="掃描舊罐"
-                  primaryHint="掃描空罐底部 QR Code"
+                  primaryLabel="輸入舊罐序號"
+                  primaryHint="輸入客人帶回的罐底序號"
                   secondaryLabel="手動輸入序號"
                   submitLabel="查詢"
                   busy={busy}
@@ -270,7 +270,7 @@ export function RefillOrderPanel({
 
             <StepBlock
               n={2}
-              title="掃描新罐"
+              title="登記新罐"
               state={newReady ? 'done' : currentStep === 2 ? 'active' : 'locked'}
             >
               {currentStep >= 2 ? (
@@ -300,14 +300,14 @@ export function RefillOrderPanel({
                         setError(null);
                       }}
                     >
-                      重新掃描
+                      重新輸入
                     </button>
                   </div>
                 ) : (
                   <JarSerialPanel
                     variant="tile"
-                    primaryLabel="掃描新罐"
-                    primaryHint="掃描要給客人的新罐"
+                    primaryLabel="輸入新罐序號"
+                    primaryHint="輸入要交給客人的新罐序號"
                     secondaryLabel="手動輸入序號"
                     submitLabel="確認"
                     busy={busy}
@@ -352,7 +352,7 @@ export function RefillOrderPanel({
                 setRetryAction(null);
               }}
             >
-              重新掃描
+              重新輸入
             </button>
           ) : (
             <p className="text-xs text-zinc-400">如果仍失敗，請聯絡匠寵</p>

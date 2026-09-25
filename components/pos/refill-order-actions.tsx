@@ -134,8 +134,8 @@ export function RefillOrderActions({
         <>
           {!scannedOld ? (
             <JarSerialPanel
-              title="掃客人帶來的空罐"
-              primaryLabel="掃描罐底"
+              title="輸入客人帶來的空罐序號"
+              primaryLabel="輸入罐底序號"
               secondaryLabel="手動輸入序號"
               onSerial={(value) => setScannedOld(value)}
               busy={busy}
@@ -200,7 +200,7 @@ export function RefillOrderActions({
           {!scannedNew ? (
             <JarSerialPanel
               title="掃要交給客人的新罐"
-              primaryLabel="掃描新罐"
+              primaryLabel="輸入新罐序號"
               secondaryLabel="手動輸入新罐序號"
               onSerial={(value) => setScannedNew(value)}
               busy={busy}
