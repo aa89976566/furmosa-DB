@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { POS_NAV, activePosNavId } from '@/lib/pos/pos-nav';
 
@@ -27,5 +28,18 @@ describe('POS_NAV', () => {
     assert.equal(activePosNavId('/pos/group-buy'), null);
     assert.equal(activePosNavId('/pos/stock/abc'), 'stock');
     assert.equal(activePosNavId('/pos/stocktaking'), null);
+  });
+
+  it('retires the old jar scanner entry in favor of coupon redemption', () => {
+    const hub = readFileSync('app/pos/refill/page.tsx', 'utf8');
+    const detail = readFileSync('app/pos/refill/[id]/page.tsx', 'utf8');
+    const cooperationEntries = readFileSync('components/pos/cooperation-entries.tsx', 'utf8');
+
+    for (const source of [hub, detail]) {
+      assert.match(source, /redirect\('\/pos\/coupons'\)/);
+      assert.doesNotMatch(source, /RefillWorkspace|requireMerchantSession|罐底|掃描/);
+    }
+    assert.match(cooperationEntries, /href: '\/pos\/coupons'/);
+    assert.doesNotMatch(cooperationEntries, /掃描罐底|\/pos\/refill/);
   });
 });
