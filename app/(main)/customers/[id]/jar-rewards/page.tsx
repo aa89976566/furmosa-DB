@@ -29,10 +29,9 @@ export default async function CustomerJarRewardsPage(
   });
   if (!customer) notFound();
 
-  const redemptions = await prisma.rewardRedemption.findMany({
+  const redemptions = await prisma.groomingCoupon.findMany({
     where: { customerId: customer.id },
-    include: { reward: { select: { rewardName: true } } },
-    orderBy: { issuedAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
     take: 200,
   });
 
@@ -65,7 +64,7 @@ export default async function CustomerJarRewardsPage(
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>禮品</TableHead>
+                  <TableHead>折價券</TableHead>
                   <TableHead>優惠券碼</TableHead>
                   <TableHead className="text-right">扣除點數</TableHead>
                   <TableHead>狀態</TableHead>
@@ -75,21 +74,21 @@ export default async function CustomerJarRewardsPage(
               <TableBody>
                 {redemptions.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.reward.rewardName}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.couponCode ?? '—'}</TableCell>
-                    <TableCell className="text-right tabular-nums">−{r.pointsSpent}</TableCell>
+                    <TableCell className="font-medium">美容折價券 NT${r.discountAmount}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.couponCode}</TableCell>
+                    <TableCell className="text-right tabular-nums">−{r.pointsUsed}</TableCell>
                     <TableCell>
-                      {r.couponStatus === 'issued'
-                        ? '未使用'
-                        : r.couponStatus === 'used'
+                      {r.status === 'available'
+                        ? '可使用'
+                        : r.status === 'redeemed'
                           ? '已核銷'
-                          : r.couponStatus === 'cancelled'
-                            ? '已取消'
-                            : r.couponStatus}
+                          : r.status === 'expired'
+                            ? '已過期'
+                            : r.status}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatDateTime(r.issuedAt)}
-                      {r.usedAt ? <span className="block text-xs">核銷 {formatDateTime(r.usedAt)}</span> : null}
+                      {formatDateTime(r.createdAt)}
+                      {r.redeemedAt ? <span className="block text-xs">{r.redeemedStore ?? '店家'}核銷 {formatDateTime(r.redeemedAt)}</span> : <span className="block text-xs">有效至 {formatDateTime(r.expiresAt)}</span>}
                     </TableCell>
                   </TableRow>
                 ))}
