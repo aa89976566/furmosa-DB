@@ -12,6 +12,8 @@ export type PosAccount = {
 };
 
 export type PosMerchantProfile = {
+  id: string;
+  merchantId: string;
   name: string;
   city: string | null;
   phone: string | null;
@@ -23,6 +25,8 @@ export function loadPosMerchantProfile(merchantId: string): Promise<PosMerchantP
   return prisma.merchant.findFirst({
     where: { id: merchantId },
     select: {
+      id: true,
+      merchantId: true,
       name: true,
       city: true,
       phone: true,

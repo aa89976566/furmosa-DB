@@ -46,6 +46,7 @@ import {
   loadMerchantSettlementHistory,
 } from '@/lib/settlements/read-snapshot';
 import { getRefillRewardPolicyForStore, type RefillRewardPolicy } from '@/lib/coupons/store-discount';
+import { loadPosMerchantProfile, type PosMerchantProfile } from '@/lib/pos/account';
 
 const BILLABLE_RESTOCK_STATUSES = ['approved', 'converted_to_shipment'] as const;
 
@@ -179,11 +180,14 @@ function previewFromDrafts(
   };
 }
 
-export async function loadStoreLedgerPageData(options: LoadOptions): Promise<StoreLedgerPageData> {
+export async function loadStoreLedgerPageData(
+  options: LoadOptions,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(options.merchantId),
+): Promise<StoreLedgerPageData> {
   // 結帳歷史只依店家，不必等待本期流水、來源鎖與摘要全部算完。
   // 先啟動可少一段資料庫串行等待；金額與鎖定判斷仍沿用原本流程。
   const [ledger, history] = await Promise.all([
-    loadStoreLedger(options),
+    loadStoreLedger(options, merchantRequest),
     loadMerchantSettlementHistory(prisma, options.merchantId),
   ]);
   const {
@@ -273,7 +277,10 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
   };
 }
 
-export async function loadStoreLedger(options: LoadOptions): Promise<{
+export async function loadStoreLedger(
+  options: LoadOptions,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(options.merchantId),
+): Promise<{
   storeId: string;
   storeLabel: string;
   entries: LedgerEntry[];
@@ -293,10 +300,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   pending: PendingSource[];
   rewardPolicy: RefillRewardPolicy;
 }> {
-  const merchant = await prisma.merchant.findFirst({
-    where: { id: options.merchantId },
-    select: { id: true, merchantId: true, name: true, city: true },
-  });
+  const merchant = await merchantRequest;
   if (!merchant) {
     return {
       storeId: options.merchantId,
