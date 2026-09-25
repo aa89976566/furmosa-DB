@@ -315,12 +315,12 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   const storeSlug = merchantToStoreSlug(merchant.merchantId);
   const heading = storeHeading({ name: merchant.name, city: merchant.city });
   const amountNotes: string[] = [];
-  const store = await prisma.store.findUnique({
+  const storePromise = prisma.store.findUnique({
     where: { slug: storeSlug },
     select: { id: true, slug: true, name: true },
   });
 
-  const [refillOrders, coupons, redemptions, restocks, stockTxns] = await Promise.all([
+  const [refillOrders, coupons, redemptions, restocks, stockTxns, store] = await Promise.all([
     prisma.refillOrder.findMany({
       where: {
         merchantId: merchant.id,
@@ -361,27 +361,29 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         },
       },
     }),
-    prisma.groomingCoupon.findMany({
-      where: {
-        status: 'redeemed',
-        redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
-        OR: [
-          { storeId: storeSlug },
-          { storeId: merchant.merchantId },
-          ...(store ? [{ storeId: store.id }] : []),
-          { storeName: merchant.name },
-        ],
-      },
-      select: {
-        id: true,
-        couponCode: true,
-        discountAmount: true,
-        redeemedAt: true,
-        customerId: true,
-        storeId: true,
-        customer: { select: { id: true, name: true } },
-      },
-    }),
+    storePromise.then((resolvedStore) =>
+      prisma.groomingCoupon.findMany({
+        where: {
+          status: 'redeemed',
+          redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
+          OR: [
+            { storeId: storeSlug },
+            { storeId: merchant.merchantId },
+            ...(resolvedStore ? [{ storeId: resolvedStore.id }] : []),
+            { storeName: merchant.name },
+          ],
+        },
+        select: {
+          id: true,
+          couponCode: true,
+          discountAmount: true,
+          redeemedAt: true,
+          customerId: true,
+          storeId: true,
+          customer: { select: { id: true, name: true } },
+        },
+      }),
+    ),
     prisma.rewardRedemption.findMany({
       where: {
         partnerMerchantId: merchant.id,
@@ -451,6 +453,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         order: { select: { orderNumber: true } },
       },
     }),
+    storePromise,
   ]);
 
   const storeKey = store?.id ?? storeSlug;
