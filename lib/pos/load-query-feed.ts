@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
-import { formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
 function stockTypeLabel(type: string): string {
   switch (type) {
@@ -129,6 +129,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'refill',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '換罐',
       subtitle,
       status,
@@ -152,6 +154,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'restock',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '補貨',
       subtitle: names || '補貨單',
       status: restockFeedStatus(r.status, r.shipment?.status),
@@ -168,6 +172,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'stock',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '庫存',
       subtitle: `${stockTypeLabel(t.type)}${t.product?.name ?? ''} ${sign}`,
       status: `現在 ${t.balanceAfter}`,

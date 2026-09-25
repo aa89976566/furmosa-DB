@@ -7,6 +7,8 @@ export type QueryFeedItem = {
   kind: QueryKind;
   at: string;
   whenLabel: string;
+  dateLabel?: string;
+  timeLabel?: string;
   title: string;
   subtitle: string;
   status: string;
@@ -53,6 +55,24 @@ export function formatQueryWhen(iso: string, now: Date): string {
   return `${String(at.month).padStart(2, '0')}/${String(at.day).padStart(2, '0')}`;
 }
 
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+export function formatQueryDate(iso: string): string {
+  const date = new Date(iso);
+  if (!isValidDate(date)) return '日期未記錄';
+  const shifted = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${month}/${day}（${WEEKDAYS[shifted.getUTCDay()]}）`;
+}
+
+export function formatQueryTime(iso: string): string {
+  const date = new Date(iso);
+  if (!isValidDate(date)) return '—';
+  const shifted = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  return `${String(shifted.getUTCHours()).padStart(2, '0')}:${String(shifted.getUTCMinutes()).padStart(2, '0')}`;
+}
+
 export function groupSaleLines(
   rows: {
     id: string;
@@ -85,6 +105,8 @@ export function groupSaleLines(
       kind: 'sale' as const,
       at: atIso,
       whenLabel: formatQueryWhen(atIso, now),
+      dateLabel: formatQueryDate(atIso),
+      timeLabel: formatQueryTime(atIso),
       title: names,
       subtitle: formatCurrency(total),
       status: '已完成',

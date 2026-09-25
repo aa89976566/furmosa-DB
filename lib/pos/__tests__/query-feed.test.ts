@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import Module, { register } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { before, describe, it } from 'node:test';
-import { filterQueryFeed, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { filterQueryFeed, formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
 const SAME_DAY_NOW = new Date('2026-09-08T04:00:00.000Z'); // Taipei 12:00
 
@@ -63,6 +63,13 @@ describe('formatQueryWhen', () => {
       return result.stdout;
     });
     assert.deepEqual(labels, ['上午12:05', '上午12:05', '上午12:05']);
+  });
+});
+
+describe('record date grouping', () => {
+  it('formats stable Taipei date and 24-hour time labels', () => {
+    assert.equal(formatQueryDate('2026-09-07T16:05:00.000Z'), '09/08（二）');
+    assert.equal(formatQueryTime('2026-09-07T16:05:00.000Z'), '00:05');
   });
 });
 
