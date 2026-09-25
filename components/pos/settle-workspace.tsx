@@ -716,41 +716,40 @@ function SettlementFormulaPanel({ ledger }: { ledger: StoreLedgerPageData }) {
 
   return (
     <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-neutral-100">
-      <div className="grid gap-5 border-b border-neutral-100 p-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-center">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-zinc-600">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Wallet className="h-4 w-4" />
-            </span>
-            本期預計結算
+      <div className="border-b border-neutral-100 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Wallet className="h-4 w-4" />
+              </span>
+              本期預計結算
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">
+              只計入尚未結清、資料完整的交易；已結算項目不會重複計算。
+            </p>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-zinc-500">
-            <span>
-              銷售總額 <strong className="font-semibold text-zinc-900">{formatNtd(ledger.preview.grossSales)}</strong>
-            </span>
-            <span aria-hidden>−</span>
-            <span>
-              店家分潤 <strong className="font-semibold text-zinc-900">{formatNtd(ledger.preview.commissionAmount)}</strong>
-            </span>
-            <span aria-hidden>−</span>
-            <span>
-              優惠券補貼 <strong className="font-semibold text-zinc-900">{formatNtd(ledger.preview.rewardPayout)}</strong>
-            </span>
-            <span aria-hidden>+</span>
-            <span>
-              店家代收 <strong className="font-semibold text-zinc-900">{formatNtd(ledger.preview.storeCollected)}</strong>
-            </span>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-zinc-400">
-            只計入尚未結清、資料完整的交易；已結算項目不會重複計算。
-          </p>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+            已完成防重複檢查
+          </span>
         </div>
-        <div className="rounded-2xl bg-primary px-5 py-4 text-primary-foreground">
-          <p className="text-xs opacity-75">{ledger.overview.resultLabel}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">
-            {formatNtd(Math.abs(ledger.preview.netPayableTwd))}
-          </p>
-          <p className="mt-2 flex items-center gap-1.5 text-xs opacity-80">
+
+        <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <SettlementMetric label="銷售總額" value={formatNtd(ledger.preview.grossSales)} />
+          <SettlementMetric label="店家分潤" value={`−${formatNtd(ledger.preview.commissionAmount)}`} />
+          <SettlementMetric label="優惠券補貼" value={`−${formatNtd(ledger.preview.rewardPayout)}`} />
+          <SettlementMetric label="店家代收" value={`+${formatNtd(ledger.preview.storeCollected)}`} />
+        </div>
+
+        <div className="mt-4 flex flex-col justify-between gap-4 rounded-2xl bg-primary px-5 py-5 text-primary-foreground sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs opacity-75">本期結算方向</p>
+            <p className="mt-1 text-sm font-medium">{ledger.overview.resultLabel}</p>
+            <p className="mt-2 text-4xl font-semibold tracking-tight">
+              {formatNtd(Math.abs(ledger.preview.netPayableTwd))}
+            </p>
+          </div>
+          <p className="flex items-center gap-1.5 text-xs opacity-80">
             <Check className="h-3.5 w-3.5" />
             由下方 {ledger.preview.sourceCount} 筆交易組成
           </p>
@@ -819,6 +818,15 @@ function SettlementFormulaPanel({ ledger }: { ledger: StoreLedgerPageData }) {
         </table>
       </div>
     </section>
+  );
+}
+
+function SettlementMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-neutral-50 px-4 py-3">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight text-zinc-900">{value}</p>
+    </div>
   );
 }
 
