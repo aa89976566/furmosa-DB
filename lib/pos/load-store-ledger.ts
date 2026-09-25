@@ -180,6 +180,12 @@ function previewFromDrafts(
 }
 
 export async function loadStoreLedgerPageData(options: LoadOptions): Promise<StoreLedgerPageData> {
+  // 結帳歷史只依店家，不必等待本期流水、來源鎖與摘要全部算完。
+  // 先啟動可少一段資料庫串行等待；金額與鎖定判斷仍沿用原本流程。
+  const [ledger, history] = await Promise.all([
+    loadStoreLedger(options),
+    loadMerchantSettlementHistory(prisma, options.merchantId),
+  ]);
   const {
     entries,
     summary,
@@ -191,16 +197,13 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     lockStateAvailable,
     pending,
     rewardPolicy,
-  } = await loadStoreLedger(options);
+  } = ledger;
 
-  const [attempts, history] = await Promise.all([
-    countVoidedAttempts(
-      prisma,
-      storeId,
-      sources.map((source) => source.sourceKey),
-    ),
-    loadMerchantSettlementHistory(prisma, storeId),
-  ]);
+  const attempts = await countVoidedAttempts(
+    prisma,
+    storeId,
+    sources.map((source) => source.sourceKey),
+  );
 
   // 預覽與送出共用同一個就緒判斷：讀不到鎖定狀態不得當成沒有鎖繼續。
   const readiness = settlementReadiness({
