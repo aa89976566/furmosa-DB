@@ -67,6 +67,7 @@ export default async function NewProductPage(
               commercialTermsVersion: null,
             }}
             vendors={vendors}
+            variationCount={0}
             saveAction={createProduct}
             submitLabel="建立商品"
           />

@@ -51,6 +51,7 @@ export function ProductForm({
   submitLabel,
   layout = 'default',
   productType = 'simple',
+  variationCount = 0,
 }: {
   product: ProductInput;
   vendors: VendorOption[];
@@ -61,6 +62,7 @@ export function ProductForm({
   submitLabel?: string;
   layout?: 'default' | 'studio';
   productType?: 'simple' | 'variable';
+  variationCount?: number;
 }) {
   const isEdit = Boolean(product.id);
   const studio = layout === 'studio';
@@ -79,11 +81,13 @@ export function ProductForm({
       ? product.defaultConsignmentCommissionValue / 100
       : product.defaultConsignmentCommissionValue;
   const [commissionValue, setCommissionValue] = useState(String(commissionDisplayValue));
+  const [commissionTouched, setCommissionTouched] = useState(false);
   const recommendedCommission = retailCategory === 'freeze_dried'
     ? 30
     : retailCategory === 'treats'
       ? 20
       : null;
+  const wholesaleLocked = isEdit && variationCount === 0 && !wholesaleEnabled;
 
   function handleDelete() {
     if (!product.id || !deleteAction) return;
@@ -142,7 +146,20 @@ export function ProductForm({
             <select
               name="category"
               value={retailCategory}
-              onChange={(event) => setRetailCategory(event.target.value)}
+              onChange={(event) => {
+                const nextCategory = event.target.value;
+                setRetailCategory(nextCategory);
+                if (!isEdit && !commissionTouched && commissionMode === 'percent') {
+                  const nextRecommendation = nextCategory === 'freeze_dried'
+                    ? 30
+                    : nextCategory === 'treats'
+                      ? 20
+                      : null;
+                  if (nextRecommendation != null) {
+                    setCommissionValue(String(nextRecommendation));
+                  }
+                }
+              }}
               className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {Object.entries(productCategoryLabel).map(([value, label]) => (
@@ -153,6 +170,32 @@ export function ProductForm({
             </select>
             <p className="mt-1 text-xs text-muted-foreground">
               商品類型會提供分潤建議：肉乾／零食 20%，凍乾 30%。實際比例仍以本商品設定為準。
+            </p>
+          </Field>
+
+          <Field label="商務等級" layout={layout}>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex min-h-11 items-center gap-2 rounded-md border bg-background px-3 text-sm">
+                <input
+                  type="radio"
+                  name="businessTier"
+                  value="standard"
+                  defaultChecked={(product.businessTier ?? 'standard') === 'standard'}
+                />
+                一般商品
+              </label>
+              <label className="flex min-h-11 items-center gap-2 rounded-md border bg-background px-3 text-sm">
+                <input
+                  type="radio"
+                  name="businessTier"
+                  value="premium"
+                  defaultChecked={product.businessTier === 'premium'}
+                />
+                Premium Product
+              </label>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              商務等級目前不影響佣金建議；肉乾／凍乾仍以上方商品類型判斷。
             </p>
           </Field>
 
@@ -262,26 +305,10 @@ export function ProductForm({
 
           <div className={cn('space-y-5 rounded-xl border-2 p-5', studio && 'md:col-span-2')}>
             <div>
-              <h3 className="text-base font-semibold">店家合作方式與預設條件</h3>
+              <h3 className="text-base font-semibold">店家合作方式</h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 可同時啟用寄賣與買斷。兩種合作方式各自保存設定，不會共用同一個價格或比例。
               </p>
-            </div>
-
-            <div className="rounded-lg bg-muted/40 p-4">
-              <Field label="商務等級" layout="studio">
-                <select
-                  name="businessTier"
-                  defaultValue={product.businessTier ?? 'standard'}
-                  className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="standard">一般商品</option>
-                  <option value="premium">Premium Product</option>
-                </select>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  一般／Premium 是商務分級；肉乾／凍乾則是上方的商品類型，兩者用途不同。
-                </p>
-              </Field>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
@@ -335,7 +362,10 @@ export function ProductForm({
                         max={commissionMode === 'percent' ? 100 : undefined}
                         step={commissionMode === 'percent' ? 0.01 : 1}
                         value={commissionValue}
-                        onChange={(event) => setCommissionValue(event.target.value)}
+                        onChange={(event) => {
+                          setCommissionTouched(true);
+                          setCommissionValue(event.target.value);
+                        }}
                         required
                       />
                       {commissionMode === 'percent' && recommendedCommission ? (
@@ -346,7 +376,10 @@ export function ProductForm({
                           <button
                             type="button"
                             className="font-medium underline underline-offset-4"
-                            onClick={() => setCommissionValue(String(recommendedCommission))}
+                            onClick={() => {
+                              setCommissionTouched(true);
+                              setCommissionValue(String(recommendedCommission));
+                            }}
                           >
                             套用建議
                           </button>
@@ -359,38 +392,60 @@ export function ProductForm({
 
               <section className={cn(
                 'space-y-4 rounded-xl border-2 p-4',
-                wholesaleEnabled ? 'border-foreground bg-card' : 'border-muted bg-muted/20',
+                isEdit && wholesaleEnabled ? 'border-foreground bg-card' : 'border-muted bg-muted/20',
               )}>
-                <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
-                  <input
-                    type="checkbox"
-                    name="wholesaleEnabled"
-                    checked={wholesaleEnabled}
-                    onChange={(event) => setWholesaleEnabled(event.target.checked)}
-                  />
-                  啟用買斷
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  店家以進貨價買斷商品。建立訂單時可受控覆寫，系統會保存修改原因與紀錄。
-                </p>
-                {wholesaleEnabled && !variable ? (
-                  <div className="border-t pt-4">
-                    <Field label="預設買斷進貨價（元）" layout="studio">
-                      <Input
-                        name="defaultWholesaleUnitPrice"
-                        type="number"
-                        min={1}
-                        step={1}
-                        defaultValue={product.defaultWholesaleUnitPrice ?? ''}
+                {isEdit ? (
+                  <>
+                    <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
+                      <input
+                        type="checkbox"
+                        name={wholesaleLocked ? undefined : 'wholesaleEnabled'}
+                        checked={wholesaleEnabled}
+                        disabled={wholesaleLocked}
+                        onChange={(event) => {
+                          if (!wholesaleLocked) setWholesaleEnabled(event.target.checked);
+                        }}
                       />
-                    </Field>
-                  </div>
-                ) : null}
-                {wholesaleEnabled && variable ? (
-                  <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                    此商品有多個規格；儲存主檔後，請在上方「商品規格」為每個重量／包裝分別設定買斷進貨價。
-                  </p>
-                ) : null}
+                      啟用買斷
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      店家以各規格的進貨價買斷商品，不使用佣金、件數級距或包郵設定。
+                    </p>
+                    {wholesaleLocked ? (
+                      <p className="text-xs text-muted-foreground">請先新增至少一個規格</p>
+                    ) : null}
+                    {wholesaleEnabled && variationCount === 0 ? (
+                      <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        此商品已啟用買斷，但目前沒有規格。可在此關閉；關閉後需先新增規格才能再啟用。
+                      </p>
+                    ) : null}
+                    {wholesaleEnabled && !variable ? (
+                      <div className="border-t pt-4">
+                        <Field label="預設買斷進貨價（元）" layout="studio">
+                          <Input
+                            name="defaultWholesaleUnitPrice"
+                            type="number"
+                            min={1}
+                            step={1}
+                            defaultValue={product.defaultWholesaleUnitPrice ?? ''}
+                          />
+                        </Field>
+                      </div>
+                    ) : null}
+                    {wholesaleEnabled && variable && variationCount > 0 ? (
+                      <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        請在上方「商品規格」為每個重量／包裝分別設定買斷進貨價。
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold">買斷</p>
+                    <p className="text-sm text-muted-foreground">
+                      商品建立並新增規格後，才可開放買斷。
+                    </p>
+                  </>
+                )}
               </section>
             </div>
 

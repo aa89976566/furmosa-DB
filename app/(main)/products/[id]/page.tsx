@@ -145,6 +145,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               commercialTermsVersion: product.commercialTermsVersion,
             }}
             vendors={vendors}
+            variationCount={product.priceTiers.length}
             saveAction={updateProduct}
             deleteAction={deleteProduct}
           />
