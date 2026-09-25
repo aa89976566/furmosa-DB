@@ -18,6 +18,7 @@ type Inbox = Awaited<ReturnType<typeof loadUnreadNotifications>>;
 type UnreadNotice = Inbox['notifications'][number];
 
 const NOTIFICATION_LOAD_TIMEOUT_MS = 12_000;
+const NOTIFICATION_CACHE_TTL_MS = 60_000;
 
 function withNotificationTimeout<T>(request: Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -51,29 +52,42 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   const initialInboxLoaded = useRef(false);
   const lastRefreshAt = useRef(0);
   const previewCacheKey = `furmosa-pos-notifications-preview:${account.merchantId}`;
+  const inboxCacheKey = `furmosa-pos-notifications-inbox:${account.merchantId}`;
+
+  const applyInbox = useCallback((current: Inbox) => {
+    setInbox(current);
+    setInboxFailed(false);
+    if (!initialInboxLoaded.current) {
+      initialInboxLoaded.current = true;
+      const newest = current.notifications[0];
+      if (newest) {
+        const key = `pos-dispatch-hint:${current.sessionKey}:${newest.id}:${newest.occurredAt}`;
+        try {
+          if (!sessionStorage.getItem(key)) setHint(newest);
+        } catch {
+          setHint(newest);
+        }
+      }
+    }
+    if (current.unreadCount === 0) setHint(null);
+  }, []);
 
   const refreshInbox = useCallback(async () => {
     try {
       const current = await loadUnreadNotifications();
-      setInbox(current);
-      setInboxFailed(false);
-      if (!initialInboxLoaded.current) {
-        initialInboxLoaded.current = true;
-        const newest = current.notifications[0];
-        if (newest) {
-          const key = `pos-dispatch-hint:${current.sessionKey}:${newest.id}:${newest.occurredAt}`;
-          try {
-            if (!sessionStorage.getItem(key)) setHint(newest);
-          } catch {
-            setHint(newest);
-          }
-          }
-        }
-      if (current.unreadCount === 0) setHint(null);
+      applyInbox(current);
+      try {
+        sessionStorage.setItem(
+          inboxCacheKey,
+          JSON.stringify({ storedAt: Date.now(), inbox: current }),
+        );
+      } catch {
+        // 快取不可用時仍可正常載入未讀通知。
+      }
     } catch {
       setInboxFailed(true);
     }
-  }, []);
+  }, [applyInbox, inboxCacheKey]);
 
   const refreshNotifications = useCallback(async () => {
     const nextEvents = await loadRecentNotifications();
@@ -92,10 +106,23 @@ export function PosPageTools({ account }: { account: PosAccount }) {
   }, [previewCacheKey]);
 
   useEffect(() => {
-    void refreshInbox();
+    let cachedAt = 0;
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(inboxCacheKey) ?? 'null') as {
+        storedAt?: number;
+        inbox?: Inbox;
+      } | null;
+      if (cached?.inbox) {
+        cachedAt = typeof cached.storedAt === 'number' ? cached.storedAt : 0;
+        applyInbox(cached.inbox);
+      }
+    } catch {
+      // 快取損壞時直接回後端更新。
+    }
+    if (Date.now() - cachedAt >= NOTIFICATION_CACHE_TTL_MS) void refreshInbox();
     const interval = window.setInterval(() => {
       if (!document.hidden) void refreshInbox();
-    }, 60_000);
+    }, NOTIFICATION_CACHE_TTL_MS);
     const onVisible = () => {
       if (!document.hidden) void refreshInbox();
     };
@@ -104,7 +131,7 @@ export function PosPageTools({ account }: { account: PosAccount }) {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [refreshInbox]);
+  }, [applyInbox, inboxCacheKey, refreshInbox]);
 
   useEffect(() => {
     if (pathname === '/pos/notifications') return;

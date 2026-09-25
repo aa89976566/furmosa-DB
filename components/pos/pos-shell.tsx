@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { PosBottomNav, PosSideRail } from '@/components/pos/bottom-nav';
 import { PosPageTools } from '@/components/pos/page-tools';
 import type { PosAccount } from '@/lib/pos/account';
@@ -41,7 +42,9 @@ export function PosShell({
               </div>
               {showShipmentAlert && account.merchantId ? (
                 <div className="hidden md:block">
-                  <PosShipmentTaskAlert merchantId={account.merchantId} compact />
+                  <Suspense fallback={null}>
+                    <PosShipmentTaskAlert merchantId={account.merchantId} compact />
+                  </Suspense>
                 </div>
               ) : null}
               <PosPageTools account={account} />
@@ -49,7 +52,9 @@ export function PosShell({
           ) : null}
           {showShipmentAlert && account?.merchantId ? (
             <div className="md:hidden">
-              <PosShipmentTaskAlert merchantId={account.merchantId} />
+              <Suspense fallback={null}>
+                <PosShipmentTaskAlert merchantId={account.merchantId} />
+              </Suspense>
             </div>
           ) : null}
           {wide ? <div className="min-h-0 flex-1 md:overflow-hidden">{children}</div> : children}
