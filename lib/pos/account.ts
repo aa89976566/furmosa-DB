@@ -11,21 +11,38 @@ export type PosAccount = {
   contactName: string | null;
 };
 
+export type PosMerchantProfile = {
+  id: string;
+  merchantId: string;
+  name: string;
+  city: string | null;
+  phone: string | null;
+  address: string | null;
+  contactName: string | null;
+};
+
+export function loadPosMerchantProfile(merchantId: string): Promise<PosMerchantProfile | null> {
+  return prisma.merchant.findFirst({
+    where: { id: merchantId },
+    select: {
+      id: true,
+      merchantId: true,
+      name: true,
+      city: true,
+      phone: true,
+      address: true,
+      contactName: true,
+    },
+  });
+}
+
 export async function loadPosAccount(
   merchantId: string,
   username: string,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(merchantId),
 ): Promise<PosAccount> {
   const [merchant, staff] = await Promise.all([
-    prisma.merchant.findFirst({
-      where: { id: merchantId },
-      select: {
-        name: true,
-        city: true,
-        phone: true,
-        address: true,
-        contactName: true,
-      },
-    }),
+    merchantRequest,
     prisma.merchantUser.findFirst({
       where: { merchantId, username },
       select: { displayName: true, username: true },

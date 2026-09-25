@@ -1,5 +1,5 @@
 import { requireMerchantSession } from '@/lib/merchant-auth';
-import { loadPosAccount } from '@/lib/pos/account';
+import { loadPosAccount, loadPosMerchantProfile } from '@/lib/pos/account';
 import { loadStoreLedgerPageData } from '@/lib/pos/load-store-ledger';
 import { defaultTaipeiMonthToTodayInputs, parseTaipeiDateRange } from '@/lib/taipei-date';
 import { SettleWorkspace } from '@/components/pos/settle-workspace';
@@ -25,13 +25,17 @@ export default async function PosSettlePage(
   const to = searchParams?.to || fallback.to;
   const range = parseTaipeiDateRange(from, to) ?? parseTaipeiDateRange(fallback.from, fallback.to)!;
 
+  const merchantRequest = loadPosMerchantProfile(session.merchantId);
   const [account, ledger] = await Promise.all([
-    loadPosAccount(session.merchantId, session.username),
-    loadStoreLedgerPageData({
-      merchantId: session.merchantId,
-      periodStart: range.start,
-      periodEnd: range.end,
-    }),
+    loadPosAccount(session.merchantId, session.username, merchantRequest),
+    loadStoreLedgerPageData(
+      {
+        merchantId: session.merchantId,
+        periodStart: range.start,
+        periodEnd: range.end,
+      },
+      merchantRequest,
+    ),
   ]);
 
   return (

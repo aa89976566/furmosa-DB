@@ -46,6 +46,7 @@ import {
   loadMerchantSettlementHistory,
 } from '@/lib/settlements/read-snapshot';
 import { getRefillRewardPolicyForStore, type RefillRewardPolicy } from '@/lib/coupons/store-discount';
+import { loadPosMerchantProfile, type PosMerchantProfile } from '@/lib/pos/account';
 
 const BILLABLE_RESTOCK_STATUSES = ['approved', 'converted_to_shipment'] as const;
 
@@ -179,7 +180,16 @@ function previewFromDrafts(
   };
 }
 
-export async function loadStoreLedgerPageData(options: LoadOptions): Promise<StoreLedgerPageData> {
+export async function loadStoreLedgerPageData(
+  options: LoadOptions,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(options.merchantId),
+): Promise<StoreLedgerPageData> {
+  // 結帳歷史只依店家，不必等待本期流水、來源鎖與摘要全部算完。
+  // 先啟動可少一段資料庫串行等待；金額與鎖定判斷仍沿用原本流程。
+  const [ledger, history] = await Promise.all([
+    loadStoreLedger(options, merchantRequest),
+    loadMerchantSettlementHistory(prisma, options.merchantId),
+  ]);
   const {
     entries,
     summary,
@@ -191,16 +201,13 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
     lockStateAvailable,
     pending,
     rewardPolicy,
-  } = await loadStoreLedger(options);
+  } = ledger;
 
-  const [attempts, history] = await Promise.all([
-    countVoidedAttempts(
-      prisma,
-      storeId,
-      sources.map((source) => source.sourceKey),
-    ),
-    loadMerchantSettlementHistory(prisma, storeId),
-  ]);
+  const attempts = await countVoidedAttempts(
+    prisma,
+    storeId,
+    sources.map((source) => source.sourceKey),
+  );
 
   // 預覽與送出共用同一個就緒判斷：讀不到鎖定狀態不得當成沒有鎖繼續。
   const readiness = settlementReadiness({
@@ -270,7 +277,10 @@ export async function loadStoreLedgerPageData(options: LoadOptions): Promise<Sto
   };
 }
 
-export async function loadStoreLedger(options: LoadOptions): Promise<{
+export async function loadStoreLedger(
+  options: LoadOptions,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(options.merchantId),
+): Promise<{
   storeId: string;
   storeLabel: string;
   entries: LedgerEntry[];
@@ -290,10 +300,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   pending: PendingSource[];
   rewardPolicy: RefillRewardPolicy;
 }> {
-  const merchant = await prisma.merchant.findFirst({
-    where: { id: options.merchantId },
-    select: { id: true, merchantId: true, name: true, city: true },
-  });
+  const merchant = await merchantRequest;
   if (!merchant) {
     return {
       storeId: options.merchantId,
@@ -312,12 +319,12 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
   const storeSlug = merchantToStoreSlug(merchant.merchantId);
   const heading = storeHeading({ name: merchant.name, city: merchant.city });
   const amountNotes: string[] = [];
-  const store = await prisma.store.findUnique({
+  const storePromise = prisma.store.findUnique({
     where: { slug: storeSlug },
     select: { id: true, slug: true, name: true },
   });
 
-  const [refillOrders, coupons, redemptions, restocks, stockTxns] = await Promise.all([
+  const [refillOrders, coupons, redemptions, restocks, stockTxns, store] = await Promise.all([
     prisma.refillOrder.findMany({
       where: {
         merchantId: merchant.id,
@@ -358,27 +365,29 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         },
       },
     }),
-    prisma.groomingCoupon.findMany({
-      where: {
-        status: 'redeemed',
-        redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
-        OR: [
-          { storeId: storeSlug },
-          { storeId: merchant.merchantId },
-          ...(store ? [{ storeId: store.id }] : []),
-          { storeName: merchant.name },
-        ],
-      },
-      select: {
-        id: true,
-        couponCode: true,
-        discountAmount: true,
-        redeemedAt: true,
-        customerId: true,
-        storeId: true,
-        customer: { select: { id: true, name: true } },
-      },
-    }),
+    storePromise.then((resolvedStore) =>
+      prisma.groomingCoupon.findMany({
+        where: {
+          status: 'redeemed',
+          redeemedAt: { gte: options.periodStart, lte: options.periodEnd },
+          OR: [
+            { storeId: storeSlug },
+            { storeId: merchant.merchantId },
+            ...(resolvedStore ? [{ storeId: resolvedStore.id }] : []),
+            { storeName: merchant.name },
+          ],
+        },
+        select: {
+          id: true,
+          couponCode: true,
+          discountAmount: true,
+          redeemedAt: true,
+          customerId: true,
+          storeId: true,
+          customer: { select: { id: true, name: true } },
+        },
+      }),
+    ),
     prisma.rewardRedemption.findMany({
       where: {
         partnerMerchantId: merchant.id,
@@ -448,6 +457,7 @@ export async function loadStoreLedger(options: LoadOptions): Promise<{
         order: { select: { orderNumber: true } },
       },
     }),
+    storePromise,
   ]);
 
   const storeKey = store?.id ?? storeSlug;
