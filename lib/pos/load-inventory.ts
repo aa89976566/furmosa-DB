@@ -23,10 +23,15 @@ export async function loadMerchantInventory(
   const products = await prisma.product.findMany({
       where: {
         status: 'active',
-        productCategory: { in: ['JAR_EXCHANGE', 'STANDARD'] },
         OR: [
-          { merchantStocks: { some: { merchantId } } },
-          { merchantRules: { some: { merchantId } } },
+          { productCategory: 'JAR_EXCHANGE' },
+          {
+            productCategory: 'STANDARD',
+            OR: [
+              { merchantStocks: { some: { merchantId } } },
+              { merchantRules: { some: { merchantId } } },
+            ],
+          },
         ],
       },
       select: {
