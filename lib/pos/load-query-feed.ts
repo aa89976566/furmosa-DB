@@ -2,19 +2,28 @@ import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
 import { formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
-function stockTypeLabel(type: string): string {
+function stockTypeLabel(type: string, quantity: number): string {
   switch (type) {
-    case 'sale':
-      return '銷售';
     case 'restock':
-      return '進貨';
+      return '補登到貨';
     case 'return':
-      return '退回';
+      return '退回匠寵／調撥';
     case 'adjust':
-      return '盤點調整';
+      return quantity < 0 ? '盤損／盤點更正' : '盤盈／盤點更正';
     default:
       return '庫存異動';
   }
+}
+
+export function shouldShowStandaloneStockEvent(input: {
+  type: string;
+  shipmentItemId?: string | null;
+}): boolean {
+  // 銷售扣庫存已有「銷售」事件；出貨明細入庫已有「收貨」事件。
+  // 兩者仍保留在資料庫稽核流水，但不在店員的事件首頁重複顯示。
+  if (input.type === 'sale') return false;
+  if (input.type === 'restock' && input.shipmentItemId) return false;
+  return true;
 }
 
 export function restockFeedStatus(requestStatus: string, shipmentStatus?: string | null): string {
@@ -95,6 +104,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         type: true,
         quantity: true,
         balanceAfter: true,
+        shipmentItemId: true,
+        note: true,
         product: { select: { name: true } },
       },
     }),
@@ -149,14 +160,15 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         ? r.shipment.shippedAt ?? r.createdAt
         : r.createdAt;
     const at = occurredAt.toISOString();
+    const received = r.shipment?.status === 'received';
     return {
       id: `restock-${r.id}`,
-      kind: 'restock',
+      kind: received ? 'receipt' : 'restock',
       at,
       whenLabel: formatQueryWhen(at, now),
       dateLabel: formatQueryDate(at),
       timeLabel: formatQueryTime(at),
-      title: '補貨',
+      title: received ? '收到匠寵補貨' : '補貨',
       subtitle: names || '補貨單',
       status: restockFeedStatus(r.status, r.shipment?.status),
       href: `/pos/restock/${r.id}`,
@@ -164,23 +176,25 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     };
   });
 
-  const stockItems: QueryFeedItem[] = stockTxns.map((t) => {
-    const sign = t.quantity > 0 ? `＋${t.quantity}` : String(t.quantity);
-    const at = t.createdAt.toISOString();
-    return {
-      id: `stock-${t.id}`,
-      kind: 'stock',
-      at,
-      whenLabel: formatQueryWhen(at, now),
-      dateLabel: formatQueryDate(at),
-      timeLabel: formatQueryTime(at),
-      title: '庫存',
-      subtitle: `${stockTypeLabel(t.type)}${t.product?.name ?? ''} ${sign}`,
-      status: `現在 ${t.balanceAfter}`,
-      href: '/pos/stock',
-      searchText: `${t.product?.name ?? ''} ${t.type} ${t.id}`.toLowerCase(),
-    };
-  });
+  const stockItems: QueryFeedItem[] = stockTxns
+    .filter(shouldShowStandaloneStockEvent)
+    .map((t) => {
+      const sign = t.quantity > 0 ? `＋${t.quantity}` : String(t.quantity);
+      const at = t.createdAt.toISOString();
+      return {
+        id: `stock-${t.id}`,
+        kind: 'stock',
+        at,
+        whenLabel: formatQueryWhen(at, now),
+        dateLabel: formatQueryDate(at),
+        timeLabel: formatQueryTime(at),
+        title: stockTypeLabel(t.type, t.quantity),
+        subtitle: `${t.product?.name ?? '商品'} ${sign}`,
+        status: `調整後 ${t.balanceAfter}`,
+        href: '/pos/stock',
+        searchText: `${stockTypeLabel(t.type, t.quantity)} ${t.product?.name ?? ''} ${t.note ?? ''} ${t.type} ${t.id}`.toLowerCase(),
+      };
+    });
 
   return [...saleItems, ...refillItems, ...restockItems, ...stockItems].sort(
     (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),

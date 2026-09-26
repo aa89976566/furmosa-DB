@@ -9,15 +9,18 @@ import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/q
 const TABS: { id: QueryKind | "all"; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "sale", label: "銷售" },
+  { id: "restock", label: "補貨" },
+  { id: "receipt", label: "收貨" },
   { id: "refill", label: "換罐" },
-  { id: "stock", label: "庫存" },
+  { id: "stock", label: "庫存調整" },
 ];
 
 const KIND_LABELS: Record<QueryKind, string> = {
   sale: "銷售",
   refill: "換罐",
   restock: "補貨",
-  stock: "庫存",
+  receipt: "收貨",
+  stock: "庫存調整",
 };
 
 export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[]; initialQuery?: string }) {

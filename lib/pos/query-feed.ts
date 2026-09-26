@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/lib/format';
 
-export type QueryKind = 'sale' | 'refill' | 'restock' | 'stock';
+export type QueryKind = 'sale' | 'refill' | 'restock' | 'receipt' | 'stock';
 
 export type QueryFeedItem = {
   id: string;

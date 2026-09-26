@@ -164,6 +164,8 @@ type FeedWorld = {
     type: string;
     quantity: number;
     balanceAfter: number;
+    shipmentItemId?: string | null;
+    note?: string | null;
     product: { name: string };
   }>;
 };
@@ -219,6 +221,7 @@ function isPrismaRequest(request: string) {
 
 let loadQueryFeed: (typeof import('@/lib/pos/load-query-feed'))['loadQueryFeed'];
 let restockFeedStatus: (typeof import('@/lib/pos/load-query-feed'))['restockFeedStatus'];
+let shouldShowStandaloneStockEvent: (typeof import('@/lib/pos/load-query-feed'))['shouldShowStandaloneStockEvent'];
 
 function withFrozenNow<T>(now: Date, fn: () => T): T {
   const RealDate = Date;
@@ -247,7 +250,7 @@ describe('loadQueryFeed whenLabel', () => {
       return originalLoad.call(this, request, parent, isMain);
     };
     try {
-      ({ loadQueryFeed, restockFeedStatus } = await import('@/lib/pos/load-query-feed'));
+      ({ loadQueryFeed, restockFeedStatus, shouldShowStandaloneStockEvent } = await import('@/lib/pos/load-query-feed'));
     } finally {
       moduleApi._load = originalLoad;
     }
@@ -259,7 +262,21 @@ describe('loadQueryFeed whenLabel', () => {
     assert.equal(restockFeedStatus('converted_to_shipment', 'received'), '已收貨入庫');
   });
 
-  it('labels all four item kinds from the same now', async () => {
+  it('keeps derived sale and shipment receipt rows out of the event feed', () => {
+    assert.equal(shouldShowStandaloneStockEvent({ type: 'sale' }), false);
+    assert.equal(
+      shouldShowStandaloneStockEvent({ type: 'restock', shipmentItemId: 'shipment-item-1' }),
+      false,
+    );
+    assert.equal(
+      shouldShowStandaloneStockEvent({ type: 'restock', shipmentItemId: null }),
+      true,
+    );
+    assert.equal(shouldShowStandaloneStockEvent({ type: 'adjust' }), true);
+    assert.equal(shouldShowStandaloneStockEvent({ type: 'return' }), true);
+  });
+
+  it('labels every business event kind from the same now', async () => {
     const createdAt = new Date('2026-09-08T01:05:00.000Z');
     feedWorld = {
       sales: [
@@ -282,6 +299,13 @@ describe('loadQueryFeed whenLabel', () => {
           status: 'submitted',
           items: [{ requestedQuantity: 2, product: { name: '水晶魚' } }],
         },
+        {
+          id: 'restock-received',
+          createdAt,
+          status: 'converted_to_shipment',
+          shipment: { status: 'received', shippedAt: createdAt, receivedAt: createdAt },
+          items: [{ requestedQuantity: 3, product: { name: '雞肉丁凍乾' } }],
+        },
       ],
       stockTxns: [
         {
@@ -292,12 +316,34 @@ describe('loadQueryFeed whenLabel', () => {
           balanceAfter: 4,
           product: { name: '雞霸' },
         },
+        {
+          id: 'stock-sale-derived',
+          createdAt,
+          type: 'sale',
+          quantity: -1,
+          balanceAfter: 3,
+          product: { name: '雞霸' },
+        },
+        {
+          id: 'stock-receipt-derived',
+          createdAt,
+          type: 'restock',
+          quantity: 3,
+          balanceAfter: 6,
+          shipmentItemId: 'shipment-item-1',
+          product: { name: '雞肉丁凍乾' },
+        },
       ],
     };
 
     const items = await withFrozenNow(SAME_DAY_NOW, () => loadQueryFeed('merchant-1'));
     const kinds = new Set(items.map((item) => item.kind));
-    assert.deepEqual([...kinds].sort(), ['refill', 'restock', 'sale', 'stock']);
+    assert.deepEqual([...kinds].sort(), ['receipt', 'refill', 'restock', 'sale', 'stock']);
+    assert.equal(items.some((item) => item.id === 'stock-stock-sale-derived'), false);
+    assert.equal(items.some((item) => item.id === 'stock-stock-receipt-derived'), false);
+    const receipt = items.find((item) => item.kind === 'receipt');
+    assert.equal(receipt?.title, '收到匠寵補貨');
+    assert.equal(receipt?.status, '已收貨入庫');
     for (const item of items) {
       assert.equal(item.whenLabel, formatQueryWhen(item.at, SAME_DAY_NOW));
       assert.equal(item.whenLabel, '上午9:05');
