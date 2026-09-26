@@ -471,7 +471,8 @@ function SettleWorkspaceInner({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-28 md:px-6 md:pb-8">
           {tab === 'overview' ? (
-            <div className="space-y-4">
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-4">
               <SettlementFormulaPanel ledger={ledger} />
               <h2 className="pt-1 text-base font-semibold">交易流水拆解（參考）</h2>
               <p className="text-xs text-zinc-400">
@@ -560,6 +561,8 @@ function SettleWorkspaceInner({
                   </div>
                 </section>
               </div>
+              </div>
+              <aside className="hidden xl:sticky xl:top-4 xl:block">{overviewRight}</aside>
             </div>
           ) : null}
 
@@ -658,11 +661,14 @@ function SettleWorkspaceInner({
         </div>
       </main>
 
-      <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
-        {tab === 'ledger' ? ledgerRight : overviewRight}
-      </aside>
+      {tab === 'ledger' ? (
+        <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
+          {ledgerRight}
+        </aside>
+      ) : null}
 
-      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
+      {tab === 'overview' ? (
+      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 xl:hidden">
         {/* 手機版看不到右側卡片，停用原因必須在按鈕旁講清楚，不能只是變灰。 */}
         {ledger.persistBlockedReason ? (
           <p className="mb-2 rounded-xl bg-white/95 px-3 py-2 text-xs text-zinc-600 shadow-lg">
@@ -684,6 +690,7 @@ function SettleWorkspaceInner({
                 : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
         </button>
       </div>
+      ) : null}
 
       <InventoryBottomNav />
     </div>
