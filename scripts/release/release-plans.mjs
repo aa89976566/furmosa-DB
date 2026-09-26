@@ -45,6 +45,15 @@ export const RELEASE_PLANS = Object.freeze({
       'docs/releases/historical-hq-schema-repair-20260921.md',
     ]),
   }),
+  hq_shipment_correction_ledger_20260921: Object.freeze({
+    runner: 'scripts/ops/deploy-shipment-correction-ledger-20260921.mjs',
+    migrationPrefixes: Object.freeze([
+      'prisma/migrations/20260921153000_shipment_status_correction_ledger/',
+    ]),
+    requiredPaths: Object.freeze([
+      'prisma/migrations/20260921153000_shipment_status_correction_ledger/migration.sql',
+    ]),
+  }),
 });
 
 export function releasePlan(name) {

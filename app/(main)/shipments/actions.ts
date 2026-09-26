@@ -249,6 +249,16 @@ async function markShipmentStatusInner(
   if (!allowed.includes(next)) {
     throw new Error(`「${shipment.status}」無法直接轉到「${next}」`);
   }
+  const isShippingCorrection =
+    next === 'pending' && ['shipped', 'delivered'].includes(shipment.status);
+  if (isShippingCorrection) {
+    if (formData.get('correctionConfirmed') !== '1') {
+      throw new Error('請確認這是誤設出貨後的狀態修正');
+    }
+    if (!note) {
+      throw new Error('請填寫撤回原因，作為物流與庫存修正紀錄');
+    }
+  }
   if (
     next === 'shipped' &&
     !hasConveniencePickupReady({
