@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { allocateCommonCost, movingAverageCost, type PurchaseCostLine } from './purchase-cost';
+import { allocateCommonCost, receiptAverageCost, type PurchaseCostLine } from './purchase-cost';
 
 export type PurchaseAttachmentInput = { fileName: string; mimeType: string; data: Buffer };
 export type PostPurchaseReceiptInput = {
@@ -17,12 +17,14 @@ export type PostPurchaseReceiptInput = {
   createdById: string;
   items: PurchaseCostLine[];
   attachments: PurchaseAttachmentInput[];
+  purchaseOrderId?: string | null;
 };
 
 const money = (cents: number) => new Prisma.Decimal(cents).div(100);
 const gramCost = (value: number) => new Prisma.Decimal(value.toFixed(6));
+export const purchaseReceiptEventKey = (purchaseOrderId: string, lineId: string) => `purchase-order:${purchaseOrderId}:${lineId}`;
 
-export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseReceiptInput) {
+function receiptCosts(input: PostPurchaseReceiptInput) {
   if (!input.items.length) throw new Error('至少需要一個進貨品項');
   if (new Set(input.items.map((item) => item.productId)).size !== input.items.length) {
     throw new Error('同一商品請合併成一列');
@@ -32,12 +34,31 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
     input.processingCostCents + input.taxAmountCents - input.discountAmountCents;
   const totalCents = subtotalCents + commonCostCents;
   if (totalCents < 0) throw new Error('折扣不可高於本次總成本');
-  const allocations = allocateCommonCost(input.items, commonCostCents);
+  return { subtotalCents, totalCents, allocations: allocateCommonCost(input.items, commonCostCents) };
+}
+
+export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseReceiptInput) {
+  receiptCosts(input);
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
   const date = input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
   const receiptNumber = `PUR-${date}-${suffix}`;
 
-  return db.$transaction(async (tx) => {
+  return db.$transaction((tx) => postPurchaseReceiptInTransaction(tx, input, {
+    receiptNumber,
+    transactionSuffix: suffix,
+    transactionDate: date,
+  }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function postPurchaseReceiptInTransaction(
+  tx: Prisma.TransactionClient,
+  input: PostPurchaseReceiptInput,
+  generated?: { receiptNumber: string; transactionSuffix: string; transactionDate: string },
+) {
+    const { subtotalCents, totalCents, allocations } = receiptCosts(input);
+    const localSuffix = generated?.transactionSuffix ?? randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
+    const localDate = generated?.transactionDate ?? input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
+    const localReceiptNumber = generated?.receiptNumber ?? `PUR-${localDate}-${localSuffix}`;
     const products = await tx.product.findMany({
       where: { id: { in: input.items.map((item) => item.productId) }, status: { not: 'inactive' } },
       select: { id: true, name: true, averageCostPerGram: true },
@@ -46,7 +67,7 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
 
     const receipt = await tx.purchaseReceipt.create({
       data: {
-        receiptNumber,
+        receiptNumber: localReceiptNumber,
         supplierDocumentNumber: input.supplierDocumentNumber,
         receiptDate: input.receiptDate,
         vendorId: input.vendorId,
@@ -60,6 +81,7 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
         totalAmount: money(totalCents),
         note: input.note,
         createdById: input.createdById,
+        purchaseOrderId: input.purchaseOrderId ?? null,
       },
     });
 
@@ -72,29 +94,29 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
         throw new Error(`${product.name} 的現有庫存單位尚未確認為 g，請先完成盤點`);
       }
       const previousStockGrams = balances.reduce((sum, balance) => sum + balance.quantity, 0);
-      if (previousStockGrams < 0) throw new Error(`${product.name} 目前為負庫存，請先處理庫存異常`);
       const allocatedCostCents = allocations[index]!;
       const landedAmountCents = item.rawAmountCents + allocatedCostCents;
       if (landedAmountCents < 0) throw new Error(`${product.name} 分攤後成本不可為負數`);
-      const previousAverage = previousStockGrams > 0
-        ? product.averageCostPerGram == null
-          ? item.openingAverageCostPerGram
-          : Number(product.averageCostPerGram)
-        : 0;
+      const previousAverage = product.averageCostPerGram == null
+        ? previousStockGrams > 0 ? item.openingAverageCostPerGram : 0
+        : Number(product.averageCostPerGram);
       if (previousAverage == null) {
         throw new Error(`${product.name} 已有舊庫存，請填寫首次建檔平均成本/g`);
       }
-      const newAverage = movingAverageCost({
-        previousStockGrams,
-        previousAverageCostPerGram: previousAverage,
-        receivedGrams: item.quantityGrams,
-        landedAmountCents,
-      });
-      const resultingStockGrams = previousStockGrams + item.quantityGrams;
+      let costing;
+      try {
+        costing = receiptAverageCost({ previousStockGrams, previousAverageCostPerGram: previousAverage, receivedGrams: item.quantityGrams, landedAmountCents });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '成本異常';
+        throw new Error(`${product.name} 目前 ${previousStockGrams}g，本次 ${item.quantityGrams}g，${detail}，請先完成盤點`);
+      }
+      const { resultingStockGrams, averageCostPerGram: newAverage } = costing;
       const txn = await tx.inventoryTransaction.create({
         data: {
-          txnNumber: `INV-${date}-${suffix}-${String(index + 1).padStart(2, '0')}`,
-          eventKey: `purchase:${receipt.id}:${item.productId}`,
+          txnNumber: `INV-${localDate}-${localSuffix}-${String(index + 1).padStart(2, '0')}`,
+          eventKey: input.purchaseOrderId
+            ? purchaseReceiptEventKey(input.purchaseOrderId, item.sourceLineId ?? item.productId)
+            : `purchase:${receipt.id}:${item.productId}`,
           type: 'purchase_in',
           productId: item.productId,
           warehouseId: input.warehouseId,
@@ -145,5 +167,4 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
       });
     }
     return receipt;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
