@@ -53,6 +53,7 @@ export default async function InventoryPage() {
         actions={(
           <div className="flex flex-wrap gap-2">
             <Button size="sm" asChild><Link href="/inventory/purchases/new">新增進貨</Link></Button>
+            <Button variant="outline" size="sm" asChild><Link href="/inventory/purchase-orders/new">新增採購單</Link></Button>
             <Button variant="outline" size="sm" asChild><Link href="/inventory/purchases">進貨紀錄<ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
             <Button variant="outline" size="sm" asChild><Link href="/inventory/transactions">異動紀錄<ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
           </div>
@@ -100,6 +101,7 @@ export default async function InventoryPage() {
                       <div className="text-xs text-muted-foreground">
                         {p.productId} · {p.sku}
                       </div>
+                      <Link href={`/inventory/stocktake/${p.id}`} className="mt-1 inline-block text-xs font-medium text-primary hover:underline">調整庫存</Link>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{productCategoryLabel[p.category]}</Badge>

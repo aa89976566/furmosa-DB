@@ -3,6 +3,7 @@ export type PurchaseCostLine = {
   quantityGrams: number;
   rawAmountCents: number;
   openingAverageCostPerGram?: number | null;
+  sourceLineId?: string;
 };
 
 export function parseMoneyToCents(value: FormDataEntryValue | null, label: string): number {
@@ -49,4 +50,20 @@ export function movingAverageCost(input: {
   if (!Number.isSafeInteger(landedAmountCents) || landedAmountCents < 0) throw new Error('到岸成本不正確');
   return ((previousStockGrams * previousAverageCostPerGram) + landedAmountCents / 100) /
     (previousStockGrams + receivedGrams);
+}
+export function receiptAverageCost(input: {
+  previousStockGrams: number;
+  previousAverageCostPerGram: number;
+  receivedGrams: number;
+  landedAmountCents: number;
+}): { resultingStockGrams: number; averageCostPerGram: number } {
+  const resultingStockGrams = input.previousStockGrams + input.receivedGrams;
+  if (resultingStockGrams < 0) throw new Error(`入庫後仍為 ${resultingStockGrams}g`);
+  const averageCostPerGram = input.previousStockGrams < 0
+    ? resultingStockGrams === 0
+      ? 0
+      : ((input.previousStockGrams * input.previousAverageCostPerGram) + input.landedAmountCents / 100) / resultingStockGrams
+    : movingAverageCost(input);
+  if (!Number.isFinite(averageCostPerGram) || averageCostPerGram < 0) throw new Error('入庫後成本異常');
+  return { resultingStockGrams, averageCostPerGram };
 }
