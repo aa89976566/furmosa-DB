@@ -261,6 +261,65 @@ function isPriceTierUniqueConflict(e: unknown): boolean {
   );
 }
 
+type TierBindingInput = {
+  sku: string | null;
+  shopifySku: string | null;
+  shopifyVariantId: string | null;
+};
+
+function foldBinding(value: string | null): string | null {
+  const normalized = value?.trim().toLocaleLowerCase('en-US') ?? '';
+  return normalized || null;
+}
+
+async function assertTierBindingsAvailable(data: TierBindingInput, excludeId?: string) {
+  const skuCandidates = [foldBinding(data.sku), foldBinding(data.shopifySku)].filter(
+    (value): value is string => value != null,
+  );
+  const variantId = data.shopifyVariantId;
+  if (skuCandidates.length === 0 && variantId == null) return;
+
+  const candidates = await prisma.productPriceTier.findMany({
+    where: {
+      status: 'active',
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      OR: [
+        ...skuCandidates.flatMap((value) => [
+          { sku: { equals: value, mode: 'insensitive' as const } },
+          { shopifySku: { equals: value, mode: 'insensitive' as const } },
+        ]),
+        ...(variantId ? [{ shopifyVariantId: variantId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      sku: true,
+      shopifySku: true,
+      shopifyVariantId: true,
+      product: { select: { name: true, productId: true } },
+    },
+  });
+
+  const skuConflict = candidates.find((candidate) => {
+    const existing = [foldBinding(candidate.sku), foldBinding(candidate.shopifySku)];
+    return skuCandidates.some((value) => existing.includes(value));
+  });
+  if (skuConflict) {
+    throw new Error(
+      `SKU 已被「${skuConflict.product.name}」（${skuConflict.product.productId}）的其他規格使用。`,
+    );
+  }
+
+  const variantConflict = candidates.find(
+    (candidate) => variantId != null && candidate.shopifyVariantId === variantId,
+  );
+  if (variantConflict) {
+    throw new Error(
+      `Shopify Variant ID 已綁定「${variantConflict.product.name}」（${variantConflict.product.productId}）。`,
+    );
+  }
+}
+
 async function syncProductBaseFromVariations(productId: string) {
   const [product, tiers] = await Promise.all([
     prisma.product.findUnique({
@@ -306,6 +365,7 @@ export async function createPriceTier(formData: FormData) {
   if (!productId) throw new Error('缺少商品 id');
 
   const data = parseTierFields(formData);
+  await assertTierBindingsAvailable(data);
 
   try {
     await prisma.productPriceTier.create({
@@ -313,7 +373,7 @@ export async function createPriceTier(formData: FormData) {
     });
   } catch (e) {
     if (isPriceTierUniqueConflict(e)) {
-      throw new Error('已存在相同規格（重量 + 單位 + 包裝數量）。請改編輯既有規格。');
+      throw new Error('相同規格、SKU 或 Shopify 綁定已被使用，請檢查後再儲存。');
     }
     throw e;
   }
@@ -331,6 +391,13 @@ export async function updatePriceTier(formData: FormData) {
 
   const data = parseTierFields(formData);
 
+  const existing = await prisma.productPriceTier.findFirst({
+    where: { id, productId },
+    select: { id: true },
+  });
+  if (!existing) throw new Error('找不到這個商品的規格');
+  await assertTierBindingsAvailable(data, id);
+
   try {
     await prisma.productPriceTier.update({
       where: { id },
@@ -338,7 +405,7 @@ export async function updatePriceTier(formData: FormData) {
     });
   } catch (e) {
     if (isPriceTierUniqueConflict(e)) {
-      throw new Error('已存在相同規格（重量 + 單位 + 包裝數量）。');
+      throw new Error('相同規格、SKU 或 Shopify 綁定已被使用，請檢查後再儲存。');
     }
     throw e;
   }

@@ -21,8 +21,29 @@ describe('product price tier input', () => {
       price: 99,
       cost: null,
       defaultWholesaleUnitPrice: null,
+      sku: null,
+      shopifySku: null,
+      shopifyVariantId: null,
       notes: null,
     });
+  });
+
+  it('normalizes optional tier and Shopify identifiers without converting large ids to numbers', () => {
+    const form = weightTier();
+    form.set('sku', '  FD-BEEF-30  ');
+    form.set('shopifySku', '  SHOP-BEEF-30 ');
+    form.set('shopifyVariantId', '900719925474099312345');
+
+    const parsed = parseTierFields(form);
+    assert.equal(parsed.sku, 'FD-BEEF-30');
+    assert.equal(parsed.shopifySku, 'SHOP-BEEF-30');
+    assert.equal(parsed.shopifyVariantId, '900719925474099312345');
+  });
+
+  it('rejects a Shopify Variant ID containing non-digits', () => {
+    const form = weightTier();
+    form.set('shopifyVariantId', 'gid://shopify/ProductVariant/123');
+    assert.throws(() => parseTierFields(form), /只能包含數字/);
   });
 
   it('still rejects zero or negative costs when a cost is supplied', () => {
