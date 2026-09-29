@@ -1,6 +1,7 @@
 import { record, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
-import { matchShopifyItemToProduct } from '@/lib/shopify/match-line-item';
+import { toTierCatalog, type MatchableTierShape } from '@/lib/shopify/match-line-item';
+import { foldSku, matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
 import { reviewDraft, type ReviewDraft } from './review-policy';
 
 type MappingProduct = {
@@ -9,6 +10,7 @@ type MappingProduct = {
   sku: string;
   sourceSku: string | null;
   defaultTemperature: string | null;
+  priceTiers?: MatchableTierShape[];
 };
 
 export type ReviewLineMappingKind = 'auto' | 'saved' | 'conflict' | 'select';
@@ -33,15 +35,16 @@ export function sourceQuantityLabel(quantity: unknown): string {
   return valid ? `×${quantity}` : '數量待確認';
 }
 
-/** Exact sku / sourceSku hits only. The same product counted once; empty SKU matches nothing. */
+/** Trim and case-fold only. FD-01 does not match FD01. Empty SKU matches nothing. */
 export function skuMatchingProducts<T extends { id: string; sku: string; sourceSku: string | null }>(
   sku: string,
   products: T[],
 ): T[] {
-  if (!sku) return [];
+  const folded = foldSku(sku);
+  if (!folded) return [];
   const seen = new Set<string>();
   return products.filter(product => {
-    if (product.sku !== sku && product.sourceSku !== sku) return false;
+    if (foldSku(product.sku) !== folded && foldSku(product.sourceSku) !== folded) return false;
     if (seen.has(product.id)) return false;
     seen.add(product.id);
     return true;
@@ -52,22 +55,14 @@ function sourceLineRows(snapshot: Snapshot) {
   return Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
 }
 
-/**
- * OMS uses the same Shopify identity matcher as order sync.
- * Exact SKU/sourceSku remains highest priority and must be unique; only then may title/known-product fallback run.
- */
+/** Same tier matcher as order sync. Product names, prices and weights are not identities. */
 function autoMatchProduct(row: Record<string, unknown>, products: MappingProduct[]): MappingProduct | null {
-  const sku = string(row.sku);
-  if (sku) {
-    const skuMatches = skuMatchingProducts(sku, products);
-    if (skuMatches.length === 1) return skuMatches[0]!;
-    if (skuMatches.length > 1) return null;
-  }
-  return matchShopifyItemToProduct({
-    title: string(row.title),
-    variant_title: string(row.variant_title),
-    sku,
-  }, products);
+  const decision = matchShopifyLineToTier({
+    variant_id: row.variant_id,
+    sku: string(row.sku),
+  }, toTierCatalog(products));
+  if (decision.outcome !== 'match') return null;
+  return products.find((product) => product.id === decision.productId) ?? null;
 }
 
 function lineMapping(

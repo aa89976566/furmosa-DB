@@ -1,11 +1,64 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { compareShopifySourceVersion } from '../orders/oms';
+import { classifyShopifyLines, type TierCatalogProduct, type TierReviewIssue } from './match-product-tier';
 import { intakeSummary, preserveOperationalOrder, record, snapshotHash, sourceDate, string,
   hasPromotionCapture, stripPromotionCapture,
   type Snapshot, type ShopifyOrderTopic } from './intake-policy';
 
 export type IntakeEvent = { shopDomain: string; topic: ShopifyOrderTopic; eventId: string; snapshot: Snapshot; origin?: 'reconcile' };
+
+async function readTierCatalog(tx: Prisma.TransactionClient): Promise<TierCatalogProduct[]> {
+  const product = (tx as Prisma.TransactionClient & {
+    product?: { findMany?: (args: unknown) => Promise<TierCatalogProduct[]> };
+  }).product;
+  if (!product?.findMany) return [];
+  return product.findMany({
+    where: { status: 'active' },
+    select: {
+      id: true, sku: true, sourceSku: true, name: true, unit: true,
+      priceTiers: {
+        select: {
+          id: true, productId: true, sku: true, shopifyVariantId: true, shopifySku: true, status: true,
+          weightGrams: true, unit: true, unitQty: true, price: true,
+          defaultWholesaleUnitPrice: true, defaultConsignmentCommissionMode: true,
+          defaultConsignmentCommissionValue: true,
+        },
+      },
+    },
+  });
+}
+
+function resolvedOrderItems(snapshot: Snapshot, catalog: TierCatalogProduct[]) {
+  const lines = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const classified = classifyShopifyLines(lines.map((row) => ({ variant_id: row.variant_id, sku: string(row.sku) })), catalog);
+  if (classified.status === 'review') return { items: null, issues: classified.issues };
+  const items = classified.matches.map((decision, index) => {
+    const row = lines[index] ?? {};
+    const product = catalog.find((entry) => entry.id === decision.productId);
+    const quantity = row.quantity;
+    const price = row.price;
+    if (!product || typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity <= 0) return null;
+    if (typeof price !== 'string' || !/^\d+(?:\.\d{1,2})?$/.test(price)) return null;
+    const unitPrice = Number(price);
+    return {
+      productId: product.id,
+      productName: string(row.title) || product.name,
+      sku: string(row.sku) || decision.tier.sku || product.sku,
+      quantity,
+      unitPrice,
+      subtotal: unitPrice * quantity,
+      weightGrams: decision.tier.weightGrams,
+      unit: decision.tier.unit,
+      variantKey: decision.tier.id || null,
+    };
+  });
+  if (items.some((item) => !item)) {
+    const issues: TierReviewIssue[] = [{ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: '商品數量或金額無法安全建檔，需人工審核' }];
+    return { items: null, issues };
+  }
+  return { items: items.filter((item): item is NonNullable<typeof item> => Boolean(item)), issues: [] as TierReviewIssue[] };
+}
 
 /** Short, bounded intake transaction. No product lookup, customer creation or external side effects. */
 export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent) {
@@ -86,6 +139,12 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
         return { created: false, disposition: 'conflict' };
       }
       const summary = intakeSummary(snapshot);
+      const resolved = resolvedOrderItems(snapshot, await readTierCatalog(tx));
+      for (const issue of resolved.issues) {
+        if (!summary.issues.some((existing) => existing.code === issue.code && existing.message === issue.message)) {
+          summary.issues.push(issue);
+        }
+      }
       const shipping = record(snapshot.order.shipping_address);
       const address = ['zip', 'province', 'city', 'address1', 'address2', 'company']
         .map(key => string(shipping[key])).filter(Boolean).join(' ') || null;
@@ -106,6 +165,7 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
           fulfillmentStatus: 'pending', shippingMethod: 'home', shippingAddress: address,
           note: 'Shopify 訂單已保存；明細與收件資料請查看來源快照，完成審核前不可出貨。',
           orderedAt: sourceDate(snapshot.order.created_at) ?? new Date(),
+          ...(resolved.items ? { items: { create: resolved.items } } : {}),
         } });
         await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id,
           newStatus: 'NEW', actorType: 'system', metadataJson: JSON.stringify({ topic, eventId }) } });
@@ -116,6 +176,18 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
             status: snapshot.order.cancelled_at ? 'cancelled' : 'pending_review',
             omsReviewedAt: null, omsReviewedById: null }),
         } });
+        const itemsApi = (tx as Prisma.TransactionClient & {
+          orderItem?: {
+            count?: (args: unknown) => Promise<number>;
+            createMany?: (args: unknown) => Promise<unknown>;
+          };
+        }).orderItem;
+        if (resolved.items && !preserveOperationalOrder(existing) && itemsApi?.count && itemsApi.createMany) {
+          const count = await itemsApi.count({ where: { orderId: existing.id } });
+          if (count === 0) {
+            await itemsApi.createMany({ data: resolved.items.map((item) => ({ ...item, orderId: existing.id })) });
+          }
+        }
       }
       await finish('PROCESSED');
       return { created: !existing, disposition: 'saved' };

@@ -117,6 +117,9 @@ export class FakeShopifyStore implements ShopifyWebhookDb {
           if (data.cvsStoreId !== undefined) current.cvsStoreId = data.cvsStoreId;
           if (data.cvsStoreName !== undefined) current.cvsStoreName = data.cvsStoreName;
           if (data.note !== undefined) current.note = data.note;
+          if (data.omsStatus !== undefined) current.omsStatus = data.omsStatus;
+          if (data.omsIssueFlags !== undefined) current.omsIssueFlags = data.omsIssueFlags;
+          if (data.shopifySnapshot !== undefined) current.shopifySnapshot = data.shopifySnapshot;
           return cloneOrder(current);
         },
       },

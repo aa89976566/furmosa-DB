@@ -28,11 +28,11 @@ const jiba: MatchableProduct = {
 };
 
 describe('shopify line item matching', () => {
-  it('accepts a mooncake line without SKU', () => {
+  it('does not match a mooncake line from its title when SKU and variant are absent', () => {
     const item = { title: '牠的月餅｜地瓜山藥雞肉月餅 50g', quantity: 1, price: '79' };
     assert.equal(shopifyLineItemHasIdentity(item), true);
     assert.equal(isMooncakeShopifyItem(item), true);
-    assert.equal(matchShopifyItemToProduct(item, [mooncake, jiba])?.id, 'p-mooncake');
+    assert.equal(matchShopifyItemToProduct(item, [mooncake, jiba]), null);
     assert.equal(resolvedShopifyItemSku(item, mooncake), 'CK-08');
   });
 

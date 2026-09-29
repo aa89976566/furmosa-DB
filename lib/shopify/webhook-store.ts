@@ -17,6 +17,7 @@ export type ShopifyOrderItemRecord = {
   subtotal: number;
   weightGrams: number | null;
   unit: string | null;
+  variantKey?: string | null;
 };
 
 export type ShopifyShipmentRecord = {
@@ -55,6 +56,9 @@ export type ShopifyOrderRecord = {
   orderedAt: Date;
   items: ShopifyOrderItemRecord[];
   shipments: ShopifyShipmentRecord[];
+  omsStatus?: string | null;
+  omsIssueFlags?: unknown;
+  shopifySnapshot?: unknown;
 };
 
 export type ShopifyOrderCreateData = {
@@ -80,6 +84,10 @@ export type ShopifyOrderCreateData = {
   note: string | null;
   orderedAt: Date;
   items: Array<Omit<ShopifyOrderItemRecord, 'id'>>;
+  omsStatus?: string | null;
+  omsIssueFlags?: unknown;
+  shopifySnapshot?: unknown;
+  shopifySourceUpdatedAt?: Date | null;
 };
 
 export type ShopifyOrderUpdateData = {
@@ -97,6 +105,10 @@ export type ShopifyOrderUpdateData = {
   cvsStoreName?: string | null;
   note?: string | null;
   replaceItems?: Array<Omit<ShopifyOrderItemRecord, 'id'>>;
+  omsStatus?: string | null;
+  omsIssueFlags?: unknown;
+  shopifySnapshot?: unknown;
+  shopifySourceUpdatedAt?: Date | null;
 };
 
 export type ShopifyAuditCreateData = {
@@ -182,13 +194,28 @@ export async function withUniqueConflictRetry<T>(
     : new ShopifyWebhookRetryableError('Shopify webhook 寫入衝突，請稍後重試');
 }
 
+const tierSelect = {
+  id: true,
+  weightGrams: true,
+  unit: true,
+  unitQty: true,
+  price: true,
+  sku: true,
+  shopifyVariantId: true,
+  shopifySku: true,
+  status: true,
+  defaultWholesaleUnitPrice: true,
+  defaultConsignmentCommissionMode: true,
+  defaultConsignmentCommissionValue: true,
+} as const;
+
 function toMatchableProduct(product: {
   id: string;
   name: string;
   sku: string;
   sourceSku: string | null;
   unit: string;
-  priceTiers: { weightGrams: number | null; price: number }[];
+  priceTiers: MatchableProduct['priceTiers'];
 }): MatchableProduct {
   return {
     id: product.id,
@@ -226,6 +253,9 @@ function toOrderRecord(order: {
   orderedAt: Date;
   items: ShopifyOrderItemRecord[];
   shipments: ShopifyShipmentRecord[];
+  omsStatus?: string | null;
+  omsIssueFlags?: unknown;
+  shopifySnapshot?: unknown;
 }): ShopifyOrderRecord {
   return {
     id: order.id,
@@ -253,6 +283,9 @@ function toOrderRecord(order: {
     orderedAt: order.orderedAt,
     items: order.items,
     shipments: order.shipments,
+    omsStatus: order.omsStatus,
+    omsIssueFlags: order.omsIssueFlags,
+    shopifySnapshot: order.shopifySnapshot,
   };
 }
 
@@ -310,18 +343,25 @@ function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
             cvsStoreName: data.cvsStoreName,
             note: data.note,
             orderedAt: data.orderedAt,
-            items: {
-              create: data.items.map((item) => ({
-                productId: item.productId,
-                productName: item.productName,
-                sku: item.sku,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                subtotal: item.subtotal,
-                weightGrams: item.weightGrams,
-                unit: item.unit,
-              })),
-            },
+            omsStatus: data.omsStatus as Prisma.OrderCreateInput['omsStatus'],
+            omsIssueFlags: data.omsIssueFlags as Prisma.InputJsonValue | undefined,
+            shopifySnapshot: data.shopifySnapshot as Prisma.InputJsonValue | undefined,
+            shopifySourceUpdatedAt: data.shopifySourceUpdatedAt,
+            items: data.items.length
+              ? {
+                  create: data.items.map((item) => ({
+                    productId: item.productId,
+                    productName: item.productName,
+                    sku: item.sku,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    subtotal: item.subtotal,
+                    weightGrams: item.weightGrams,
+                    unit: item.unit,
+                    variantKey: item.variantKey ?? null,
+                  })),
+                }
+              : undefined,
           },
           include,
         });
@@ -344,6 +384,10 @@ function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
             cvsStoreId: data.cvsStoreId,
             cvsStoreName: data.cvsStoreName,
             note: data.note,
+            omsStatus: data.omsStatus as Prisma.OrderUpdateInput['omsStatus'],
+            omsIssueFlags: data.omsIssueFlags as Prisma.InputJsonValue | undefined,
+            shopifySnapshot: data.shopifySnapshot as Prisma.InputJsonValue | undefined,
+            shopifySourceUpdatedAt: data.shopifySourceUpdatedAt,
             items: data.replaceItems
               ? {
                   deleteMany: {},
@@ -356,6 +400,7 @@ function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
                     subtotal: item.subtotal,
                     weightGrams: item.weightGrams,
                     unit: item.unit,
+                    variantKey: item.variantKey ?? null,
                   })),
                 }
               : undefined,
@@ -371,12 +416,12 @@ function wrapPrismaTx(tx: Prisma.TransactionClient): ShopifyWebhookTx {
           where: skus.length
             ? { OR: [{ sku: { in: skus } }, { sourceSku: { in: skus } }] }
             : { status: 'active' },
-          include: { priceTiers: { select: { weightGrams: true, price: true } } },
+          include: { priceTiers: { select: tierSelect } },
         });
         if (!skus.length) return matched.map(toMatchableProduct);
         const extras = await tx.product.findMany({
           where: { status: 'active' },
-          include: { priceTiers: { select: { weightGrams: true, price: true } } },
+          include: { priceTiers: { select: tierSelect } },
         });
         const seen = new Set(matched.map((product) => product.id));
         return [...matched, ...extras.filter((product) => !seen.has(product.id))].map(toMatchableProduct);

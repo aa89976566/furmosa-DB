@@ -750,12 +750,22 @@ model ProductPriceTier {
   price                     Float
   cost                      Float? // 此規格成本（選填）
   defaultWholesaleUnitPrice Int?    @map("default_wholesale_unit_price") // integer TWD
+  /// 內部規格 SKU。空白代表尚未設定；不從品名、售價或重量推測。
+  sku                       String? @map("tier_sku")
+  shopifyVariantId          String? @map("shopify_variant_id")
+  shopifySku                String? @map("shopify_sku")
+  /// active / archived。封存後不再參與 Shopify 自動對應。
+  status                    String  @default("active")
+  defaultConsignmentCommissionMode  String? @map("default_consignment_commission_mode") // percent / amount
+  defaultConsignmentCommissionValue Int?    @map("default_consignment_commission_value") // percent: basis points; amount: integer TWD
   notes                     String?
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, weightGrams, unit, unitQty])
   @@index([productId])
+  @@index([status])
+  @@index([shopifyVariantId])
 }
 
 // 店家可使用的商務模組與有效期間。舊 Merchant.types 在雙讀驗證完成前保留。

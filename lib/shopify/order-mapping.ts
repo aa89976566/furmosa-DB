@@ -1,4 +1,5 @@
 import { shopifyLineItemHasIdentity } from '@/lib/shopify/match-line-item';
+import { readShopifyVariantId } from '@/lib/shopify/match-product-tier';
 import { ShopifyWebhookClientError } from '@/lib/shopify/webhook-errors';
 
 export type ShopifyMoney = { amount?: string | null };
@@ -7,6 +8,7 @@ export type ShopifyAttribute = { name?: string | null; value?: string | null };
 export type ShopifyLineItem = {
   title?: string | null;
   variant_title?: string | null;
+  variant_id?: string | number | null;
   sku?: string | null;
   quantity?: number | null;
   price?: string | null;
@@ -238,6 +240,45 @@ export function validatePaidOrderPayload(order: ShopifyPaidOrder) {
   if (order.financial_status && order.financial_status !== 'paid') {
     throw new ShopifyWebhookClientError(`Shopify 訂單尚未付款：${order.financial_status}`);
   }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Review envelope snapshot. Keeps variant ids as strings and does not import the intake module. */
+export function shopifyOrderReviewSnapshot(order: ShopifyPaidOrder) {
+  return {
+    schemaVersion: 1 as const,
+    order: {
+      id: typeof order.id === 'string' ? order.id.trim() : String(order.id),
+      name: order.name ?? null,
+      financial_status: order.financial_status ?? null,
+      currency: 'TWD',
+      line_items: (order.line_items ?? []).map((line) => ({
+        title: line.title ?? null,
+        variant_title: line.variant_title ?? null,
+        variant_id: readShopifyVariantId(line.variant_id).id,
+        sku: line.sku ?? null,
+        quantity: line.quantity ?? null,
+        price: line.price ?? null,
+        grams: line.grams ?? null,
+      })),
+    },
+  };
+}
+
+/** Keep Shopify variant ids as strings. The shared payload parser does not carry this field. */
+export function preserveLineVariantIds(order: ShopifyPaidOrder, payload: Record<string, unknown>): ShopifyPaidOrder {
+  const rawLines = Array.isArray(payload.line_items) ? payload.line_items.filter(isPlainRecord) : [];
+  return {
+    ...order,
+    line_items: (order.line_items ?? []).map((line, index) => {
+      const raw = rawLines[index]?.variant_id;
+      const variantId = typeof raw === 'string' || typeof raw === 'number' ? raw : null;
+      return { ...line, variant_id: variantId };
+    }),
+  };
 }
 
 export function shopifyExternalOrderId(value: unknown): string | null {

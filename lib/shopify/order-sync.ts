@@ -8,28 +8,24 @@ import {
   type ShopifyAuditDecision,
   type ShopifyAuditMetadata,
 } from '@/lib/shopify/event-version';
-import {
-  isMooncakeShopifyItem,
-  matchShopifyItemToProduct,
-  resolvedShopifyItemSku,
-  type MatchableProduct,
-} from '@/lib/shopify/match-line-item';
+import { toTierCatalog } from '@/lib/shopify/match-line-item';
+import { classifyShopifyLines } from '@/lib/shopify/match-product-tier';
 import {
   cleanShopifyText,
   convenienceAddress,
   hasCompleteShopifyPickupInfo,
   isConveniencePickup,
-  resolveShopifyItemWeight,
   shopifyAddressText,
   shopifyMoney,
   shopifyPaymentStatus,
+  shopifyOrderReviewSnapshot,
   shopifyPickupInfo,
   shopifyShippingFeeType,
   validatePaidOrderPayload,
   validateShopifyOrderPayload,
   type ShopifyPaidOrder,
 } from '@/lib/shopify/order-mapping';
-import { ShopifyWebhookClientError, ShopifyWebhookRetryableError } from '@/lib/shopify/webhook-errors';
+import { ShopifyWebhookClientError } from '@/lib/shopify/webhook-errors';
 import type { ShopifyWebhookTopic } from '@/lib/shopify/webhook-verify';
 import { SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import {
@@ -88,51 +84,32 @@ async function writeAudit(
   });
 }
 
-async function resolveSnapshotItems(tx: ShopifyWebhookTx, order: ShopifyPaidOrder) {
+async function classifyOrderLines(tx: ShopifyWebhookTx, order: ShopifyPaidOrder) {
   validateShopifyOrderPayload(order);
   const lineItems = order.line_items ?? [];
-  const skus = [
-    ...new Set(
-      lineItems
-        .map((item) => cleanShopifyText(item.sku))
-        .filter((sku): sku is string => Boolean(sku)),
-    ),
-  ];
-  let products = await tx.product.findMatchable(skus);
-  const resolved: Array<{ item: NonNullable<ShopifyPaidOrder['line_items']>[number]; product: MatchableProduct }> = [];
-  for (const item of lineItems) {
-    let product = matchShopifyItemToProduct(item, products);
-    if (!product && isMooncakeShopifyItem(item)) {
-      const mooncake = await tx.ensureMooncake();
-      if (mooncake) {
-        product = mooncake;
-        products = [...products, mooncake];
-      }
-    }
-    if (!product) {
-      throw new ShopifyWebhookRetryableError(
-        `Furmosa 找不到 Shopify 商品：${cleanShopifyText(item.sku) ?? cleanShopifyText(item.title) ?? '未命名商品'}`,
-      );
-    }
-    resolved.push({ item, product });
-  }
-  return resolved.map(({ item, product }) => {
-    const sku = resolvedShopifyItemSku(item, product);
+  const products = await tx.product.findMatchable([]);
+  const classified = classifyShopifyLines(lineItems, toTierCatalog(products));
+  if (classified.status === 'review') return { resolved: false as const, items: [], issues: classified.issues };
+  const items = classified.matches.map((decision, index) => {
+    const item = lineItems[index]!;
+    const product = products.find((row) => row.id === decision.productId)!;
     const quantity = Number(item.quantity);
     const unitPrice = shopifyMoney(item.price);
-    const weightGrams = resolveShopifyItemWeight(item, product.priceTiers);
-    const itemRecord: Omit<ShopifyOrderItemRecord, 'id'> = {
+    const grams = Number(item.grams);
+    const weightGrams = decision.tier.weightGrams ?? (Number.isInteger(grams) && grams > 0 ? grams : null);
+    return {
       productId: product.id,
       productName: [cleanShopifyText(item.title), cleanShopifyText(item.variant_title)].filter(Boolean).join(' · ') || product.name,
-      sku,
+      sku: cleanShopifyText(item.sku) ?? decision.tier.sku ?? product.sourceSku ?? product.sku,
       quantity,
       unitPrice,
       subtotal: unitPrice * quantity,
       weightGrams,
-      unit: weightGrams ? 'g' : product.unit,
+      unit: decision.tier.unit || (weightGrams ? 'g' : product.unit),
+      variantKey: decision.tier.id || null,
     };
-    return itemRecord;
   });
+  return { resolved: true as const, items, issues: [] };
 }
 
 function snapshotFields(order: ShopifyPaidOrder, items: Array<Omit<ShopifyOrderItemRecord, 'id'>>) {
@@ -297,9 +274,19 @@ export async function syncShopifyOrder(input: ShopifyOrderSyncInput): Promise<Sh
       }
 
       let snapshot: ReturnType<typeof snapshotFields> | null = null;
+      let reviewEnvelope: Pick<ShopifyOrderCreateData, 'omsStatus' | 'omsIssueFlags' | 'shopifySnapshot' | 'shopifySourceUpdatedAt'> | null = null;
       if (applySnapshot) {
-        const items = await resolveSnapshotItems(tx, input.order);
-        snapshot = snapshotFields(input.order, items);
+        const lines = await classifyOrderLines(tx, input.order);
+        if (lines.resolved) {
+          snapshot = snapshotFields(input.order, lines.items);
+        } else if (!existing || existing.items.length === 0) {
+          reviewEnvelope = {
+            omsStatus: 'NEW',
+            omsIssueFlags: lines.issues,
+            shopifySnapshot: shopifyOrderReviewSnapshot(input.order),
+            shopifySourceUpdatedAt: sourceUpdatedAt ? new Date(sourceUpdatedAt) : null,
+          };
+        }
       }
 
       let created = false;
@@ -311,7 +298,13 @@ export async function syncShopifyOrder(input: ShopifyOrderSyncInput): Promise<Sh
           ...base,
           externalStore,
           externalOrderId,
-          ...(snapshot ?? {}),
+          ...(snapshot ?? {
+            subtotal: shopifyMoney(input.order.subtotal_price),
+            discount: shopifyMoney(input.order.total_discounts),
+            shippingFee: shopifyMoney(input.order.total_shipping_price_set?.shop_money?.amount),
+            total: shopifyMoney(input.order.total_price),
+          }),
+          ...(reviewEnvelope ?? {}),
           paymentStatus: applyPayment ? nextPaymentStatus : 'unpaid',
         };
         existing = await tx.order.create(createdData);
@@ -320,6 +313,12 @@ export async function syncShopifyOrder(input: ShopifyOrderSyncInput): Promise<Sh
         const updateData: Parameters<ShopifyWebhookTx['order']['update']>[1] = {};
         if (applyPayment) {
           updateData.paymentStatus = nextPaymentStatus;
+        }
+        if (reviewEnvelope) {
+          updateData.omsStatus = reviewEnvelope.omsStatus;
+          updateData.omsIssueFlags = reviewEnvelope.omsIssueFlags;
+          updateData.shopifySnapshot = reviewEnvelope.shopifySnapshot;
+          updateData.shopifySourceUpdatedAt = reviewEnvelope.shopifySourceUpdatedAt;
         }
         if (applySnapshot && snapshot) {
           updateData.shippingFeeType = snapshot.shippingFeeType;

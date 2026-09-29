@@ -335,10 +335,9 @@ describe('Shopify order webhook event ordering and persistence', () => {
     assert.equal(moneyStore.settlementWrites, 0);
   });
 
-  it('rolls back snapshot replacement when an SKU is unknown', async () => {
+  it('keeps existing items when a later line is unresolved', async () => {
     const store = storeWithProduct();
     await post(store, 'orders/create', orderPayload(), 'wh-create');
-    const auditsBefore = store.audits.length;
     const failed = await post(
       store,
       'orders/updated',
@@ -351,13 +350,12 @@ describe('Shopify order webhook event ordering and persistence', () => {
       }),
       'wh-sku',
     );
-    assert.equal(failed.status, 500);
-    assert.match(String(failed.body.error), /找不到 Shopify 商品/);
+    assert.equal(failed.status, 200);
     const order = store.getOrder(SHOP, '2001');
     assert.equal(order?.items.length, 1);
     assert.equal(order?.items[0]?.sku, 'CK-30');
     assert.equal(order?.items[0]?.quantity, 1);
-    assert.equal(store.audits.length, auditsBefore);
+    assert.equal(store.orders.size, 1);
     assert.equal(store.customerWrites, 0);
     assert.equal(store.inventoryWrites, 0);
     assert.equal(store.settlementWrites, 0);
@@ -412,6 +410,59 @@ describe('Shopify order webhook event ordering and persistence', () => {
     assert.equal(order?.paymentStatus, 'paid');
     assert.equal(order?.customerId, null);
     assert.equal(store.customerWrites, 0);
+  });
+
+  it('saves one review shell and no items when a line cannot be matched', async () => {
+    const store = storeWithProduct();
+    const first = await post(store, 'orders/create', orderPayload({
+      line_items: [{ sku: 'UNKNOWN', title: '不存在商品', quantity: 1, price: '10' }],
+    }), 'wh-review-1');
+    assert.equal(first.status, 200);
+    assert.equal(first.sync?.created, true);
+    const again = await post(store, 'orders/updated', orderPayload({
+      updated_at: '2026-09-01T02:00:00Z',
+      line_items: [{ sku: 'UNKNOWN', title: '不存在商品', quantity: 1, price: '10' }],
+    }), 'wh-review-2');
+    assert.equal(again.status, 200);
+    assert.equal(store.orders.size, 1);
+    const order = store.getOrder(SHOP, '2001');
+    assert.equal(order?.items.length, 0);
+    assert.equal(order?.omsStatus, 'NEW');
+    assert.equal(store.shipmentCreates, 0);
+    assert.equal(store.inventoryWrites, 0);
+    assert.equal(store.settlementWrites, 0);
+  });
+
+  it('matches a variant id larger than a JavaScript safe integer and does not fall back to SKU', async () => {
+    const variantId = '900719925474099312345';
+    const store = new FakeShopifyStore();
+    store.seedProduct({
+      ...product30g,
+      id: 'other',
+      sku: 'OTHER',
+      sourceSku: 'CK-30',
+      priceTiers: [{ id: 'tier-other', weightGrams: 30, price: 84, status: 'active' }],
+    });
+    store.seedProduct({
+      ...product30g,
+      priceTiers: [{ id: 'tier-bound', weightGrams: 30, price: 84, status: 'active', shopifyVariantId: variantId }],
+    });
+    const matched = await post(store, 'orders/create', orderPayload({
+      line_items: [{ sku: 'CK-30', variant_id: variantId, title: '鴨喉嚨', quantity: 1, price: '84' }],
+    }), 'wh-variant');
+    assert.equal(matched.status, 200);
+    assert.equal(store.getOrder(SHOP, '2001')?.items[0]?.productId, 'prod-30');
+    assert.equal(store.getOrder(SHOP, '2001')?.items[0]?.variantKey, 'tier-bound');
+
+    const unbound = new FakeShopifyStore();
+    unbound.seedProduct(product30g);
+    const missed = await post(unbound, 'orders/create', orderPayload({
+      id: 2002,
+      line_items: [{ sku: 'CK-30', variant_id: variantId, title: '鴨喉嚨', quantity: 1, price: '84' }],
+    }), 'wh-unbound');
+    assert.equal(missed.status, 200);
+    assert.equal(unbound.getOrder(SHOP, '2002')?.items.length, 0);
+    assert.equal(unbound.getOrder(SHOP, '2002')?.omsStatus, 'NEW');
   });
 
   it('keeps route files as thin verified ingress wrappers', () => {
