@@ -7,7 +7,7 @@ export const ORDER_SOURCE_TABS = [
   { key: 'website', label: '官網' },
   { key: 'line', label: 'LINE' },
   { key: 'consignment', label: '寄賣' },
-  { key: 'wholesale', label: '販售' },
+  { key: 'wholesale', label: '買斷' },
   { key: 'manual', label: '手動' },
 ] as const;
 
@@ -18,7 +18,7 @@ export const SHIPMENT_KIND_TABS = [
   { key: '', label: '全部' },
   { key: 'customer_order', label: '直客訂單', hint: 'Shopify / 官網 / LINE / 手動，不含寄賣店成交' },
   { key: 'subscription', label: '訂閱', hint: '訂閱制定期出貨' },
-  { key: 'consignment', label: '店家補貨', hint: '寄賣、販售與換罐計畫的店家補貨' },
+  { key: 'consignment', label: '店家補貨', hint: '寄賣、買斷與換罐計畫的店家補貨' },
 ] as const;
 
 export const SHIPMENT_KIND_KEYS = ['customer_order', 'subscription', 'consignment'] as const;

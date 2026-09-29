@@ -1,33 +1,72 @@
 import { isMooncakeSearchTerm, MOONCAKE_CATALOG } from '@/lib/products/mooncake-catalog';
+import { matchShopifyLineToTier, type TierCatalogProduct } from '@/lib/shopify/match-product-tier';
 
 export type ShopifyMatchItem = {
   title?: string | null;
   variant_title?: string | null;
+  variant_id?: unknown;
   sku?: string | null;
+};
+
+export type MatchableTierShape = {
+  id?: string;
+  weightGrams: number | null;
+  price: number;
+  unit?: string;
+  unitQty?: number;
+  sku?: string | null;
+  shopifyVariantId?: string | null;
+  shopifySku?: string | null;
+  status?: string;
+  defaultWholesaleUnitPrice?: number | null;
+  defaultConsignmentCommissionMode?: string | null;
+  defaultConsignmentCommissionValue?: number | null;
 };
 
 export type ProductIdentity = {
   id: string;
   name: string;
   sku: string;
-  sourceSku: string | null;
+  sourceSku?: string | null;
 };
 
 export type MatchableProduct = ProductIdentity & {
   unit: string;
-  priceTiers: { weightGrams: number | null; price: number }[];
+  priceTiers: MatchableTierShape[];
 };
+
+export function toTierCatalog<T extends ProductIdentity>(products: T[]): TierCatalogProduct[] {
+  return products.map((product) => {
+    const matchable = product as T & Partial<MatchableProduct>;
+    const unit = matchable.unit ?? '件';
+    const tiers = matchable.priceTiers ?? [];
+    return {
+      id: product.id,
+      sku: product.sku,
+      sourceSku: product.sourceSku ?? null,
+      name: product.name,
+      unit,
+      priceTiers: tiers.map((tier) => ({
+        id: tier.id ?? '',
+        productId: product.id,
+        sku: tier.sku ?? null,
+        shopifyVariantId: tier.shopifyVariantId ?? null,
+        shopifySku: tier.shopifySku ?? null,
+        status: tier.status ?? 'active',
+        weightGrams: tier.weightGrams,
+        unit: tier.unit ?? unit,
+        unitQty: tier.unitQty ?? 1,
+        price: tier.price,
+        defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice ?? null,
+        defaultConsignmentCommissionMode: tier.defaultConsignmentCommissionMode ?? null,
+        defaultConsignmentCommissionValue: tier.defaultConsignmentCommissionValue ?? null,
+      })),
+    };
+  });
+}
 
 function clean(value: string | null | undefined): string | null {
   return value?.trim() || null;
-}
-
-function normalizeTitle(value: string) {
-  return value
-    .replace(/[◈｜|·・,，.\-—_/*＋+]/g, ' ')
-    .replace(/\d+\s*(?:g|克)/gi, ' ')
-    .replace(/\s+/g, '')
-    .trim();
 }
 
 export function shopifyItemText(item: ShopifyMatchItem) {
@@ -43,41 +82,14 @@ export function isMooncakeShopifyItem(item: ShopifyMatchItem) {
   return text.includes(MOONCAKE_CATALOG.sourceSku) || isMooncakeSearchTerm(text);
 }
 
-/**
- * Shared Shopify -> HQ identity matcher.
- * Callers that require unique-SKU semantics must reject duplicate SKU/sourceSku hits before calling this fallback.
- */
+/** Exact variant binding, otherwise one active tier after trim and case-fold. Names are not used. */
 export function matchShopifyItemToProduct<T extends ProductIdentity>(
   item: ShopifyMatchItem,
   products: T[],
 ): T | null {
-  const sku = clean(item.sku);
-  if (sku) {
-    const bySku = products.find((product) => product.sku === sku || product.sourceSku === sku);
-    if (bySku) return bySku;
-  }
-
-  if (isMooncakeShopifyItem(item)) {
-    const mooncake = products.find(
-      (product) =>
-        product.sourceSku === MOONCAKE_CATALOG.sourceSku || product.name === MOONCAKE_CATALOG.name,
-    );
-    if (mooncake) return mooncake;
-  }
-
-  const title = normalizeTitle(shopifyItemText(item));
-  if (!title) return null;
-
-  const hits = products.filter((product) => {
-    const name = normalizeTitle(product.name);
-    return name.length >= 2 && title.includes(name);
-  });
-  if (hits.length === 1) return hits[0]!;
-  if (hits.length > 1) {
-    hits.sort((a, b) => b.name.length - a.name.length);
-    if (hits[0]!.name.length > hits[1]!.name.length) return hits[0]!;
-  }
-  return null;
+  const decision = matchShopifyLineToTier({ variant_id: item.variant_id, sku: item.sku }, toTierCatalog(products));
+  if (decision.outcome !== 'match') return null;
+  return products.find((product) => product.id === decision.productId) ?? null;
 }
 
 export function resolvedShopifyItemSku(item: ShopifyMatchItem, product: MatchableProduct) {

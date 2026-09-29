@@ -1,10 +1,10 @@
 # POS-01 Domain Contract
 
 > **地位：** POS 帳務／庫存／美容券／結算的單一領域合約（可執行純函式對齊本文件）
-> **版本：** v1.10
-> **日期：** 2026-09-04
+> **版本：** v1.11
+> **日期：** 2026-09-24
 > **基準：** `origin/main` @ `bbe580975af62476d62884813ad8b73bf2984b96`
-> **範圍：** 規格 + `lib/pos/domain-contract.ts` 純函式。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
+> **範圍：** 本版只對齊店家佣金與商務方案規格；`lib/pos/domain-contract.ts` 及 runtime 另案驗證。**不含** schema、migration、UI、API、DB 寫入、runtime caller、部署
 > **對齊：** 既有憲法見 `docs/FURMOSA-OS-DOMAIN-SPEC-v1.md`；本文件凍結 POS 帳務方向與結算鎖定。衝突時，本合約的「已確認規則」優先，且不得猜未決事項
 > **下一步：** 三方 review 通過前不得進入 POS-02
 
@@ -26,7 +26,7 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 |----|------|
 | R1 | Phase 1 每個實體門市一個 **active** POS 帳號。schema **不必**封死未來多帳號。 |
 | R2 | 目前所有補貨均為**寄賣**；店內交易由**店家收款**。 |
-| R3 | 一般佣金率按**店家設定**，同店不同商品不使用不同百分比。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot rate／amount。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
+| R3 | 一般寄賣佣金以**店家 × SKU 特約 → SKU 有效預設 → 商品類型基準**解析：肉乾／一般零食基準 20%，凍乾基準 30%。寄賣補貨不允許逐單覆寫佣金；若未來需要逐批不同佣金，必須先建立批次庫存追蹤。運費在訂單建立時獨立決定，不參與佣金解析；不使用件數佣金級距。命中規則的優先序以 `docs/FURMOSA-MERCHANT-ACCOUNTING-CONTRACT-v1.md` 為準；缺少必要規則一律 fail closed。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot 商務方案、SKU 商務版本、rate／amount與規則來源。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
 | R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；只有 `merchant_restock` 首次進入 **`received`** 才增加店庫存，`delivered` 只表示物流送達。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
@@ -57,10 +57,12 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | ID | 項目 | 為什麼不能猜 |
 |----|------|----------------|
 | O3 | **豬窩三店正式 immutable IDs** | 禁止用「豬窩」店名比對；正式 ID 未定前，券額只能用明確的面額層級（`standard_200`／`zhuwo_250`） |
+| O4 | **SKU 與店家商務設定實際值** | 每家店可獨立啟用寄賣、買斷與換罐模組；SKU 的一般／Premium、寄賣預設、買斷預設，以及店家特約例外尚須由 HQ 設定，不得由工程師猜測 |
 
 O1 退款庫存已凍結為 R11／`POS_01_REFUND_INVENTORY_POLICY`，**不再**列為 OPEN。
 未付款 24 小時失效、已付款不自動 expire，已凍結（R9），**不要**和逾期未領客服規則混為一談。
 O3 在程式裡以 `POS_01_OPEN_DECISIONS` 標註。任何函式都**不得**假裝已決定豬窩正式 ID。
+O4 不影響寄賣基準 20%／30% 的定義，但在 SKU 商務屬性與個別店家模組正式輸入前，不得假裝已知 Premium 或特約條件。同店可以同時有寄賣與買斷；每張店家訂單仍只能使用一種明確帳務語意。
 
 ---
 
@@ -386,7 +388,7 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 | 現況 | 本合約目標 |
 |------|------------|
 | 結算 `approved` 前仍可刪除（`paid` 才禁刪） | `approved` 起 lines／amounts 永久鎖定 |
-| 佣金可依商品規則不同百分比 | 同店單一百分比；按 line snapshot |
+| 佣金已可依商品規則使用不同百分比 | 正式規格為肉乾／一般零食 20%、凍乾 30%，允許 SKU 預設與店家 SKU 特約，但寄賣補貨不得逐單覆寫；按 line snapshot |
 | 金額欄位多為 Float | 新財務真相只用整數台幣 |
 | 美容券可用中文店名辨識豬窩 | 禁止；正式 ID 未決；未知 tier throw |
 | 核銷不檢查服務總額 > 券額 | 必須嚴格大於 |
@@ -394,9 +396,12 @@ fingerprint ＝ server-resolved `inventoryAggregateId` ＋ op ＋ quantity（及
 
 ---
 
-## 12. 可執行模組
+## 12. 可執行模組與本版限制
 
 - `lib/pos/domain-contract.ts` — 唯一純函式實作
 - `lib/pos/__tests__/domain-contract.test.ts` — targeted tests
+- `lib/merchant-commission.ts`／`lib/merchant-auto-commission.ts` — 現有 20%／30% 與店家商品規則來源，仍須在下一工程工作包驗證是否完整符合本版商務方案優先序。
+
+本次文件只修正規格矛盾。未完成 SKU 商務屬性、訂單快照、覆寫稽核與 runtime 驗證前，不得宣稱新商務方案已在正式 POS 生效。
 
 禁止：新增 runtime import、改 schema／migration／package／middleware／routes／UI。

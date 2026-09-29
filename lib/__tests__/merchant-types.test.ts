@@ -8,13 +8,13 @@ import {
   primaryMerchantType,
 } from '@/lib/merchant-types';
 
-test('店家合作方式包含寄賣、販售與換罐', () => {
+test('店家合作方式包含寄賣、買斷與換罐', () => {
   assert.deepEqual(MERCHANT_COOPERATION_TYPES, [
     'consignment',
     'wholesale',
     'jar_exchange',
   ]);
-  assert.equal(merchantTypeLabel.wholesale, '販售');
+  assert.equal(merchantTypeLabel.wholesale, '買斷');
 });
 
 test('店家舊標籤仍保留，避免既有資料遺失', () => {

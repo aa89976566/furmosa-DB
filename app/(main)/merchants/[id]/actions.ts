@@ -51,6 +51,12 @@ import { requirePasswordAdmin } from '@/lib/pos/password-vault-service';
 import { isValidMerchantBusinessId, nextMerchantBusinessId, canRepairMerchantBusinessId } from '@/lib/merchant-business-id';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { isJarExchangeProductCategory } from '@/lib/product-category';
+import {
+  merchantCommercialPeriodsOverlap,
+  parseMerchantCommercialMode,
+  parseMerchantCommercialPeriod,
+  validateMerchantCommercialPeriodWrite,
+} from '@/lib/merchants/commercial-module-input';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -66,6 +72,62 @@ function toNullableField(value: FormDataEntryValue | null) {
 async function requireAdmin() {
   try { return await requirePasswordAdmin(prisma, await getCurrentUser()); }
   catch { throw new Error('只有管理員可以管理店家帳號'); }
+}
+
+export async function saveMerchantCommercialModule(formData: FormData) {
+  const createdById = await requireAdmin();
+  const merchantId = String(formData.get('merchantId') ?? '').trim();
+  const moduleId = String(formData.get('moduleId') ?? '').trim() || null;
+  if (!merchantId) throw new Error('缺少店家');
+
+  const mode = parseMerchantCommercialMode(formData.get('mode'));
+  const period = parseMerchantCommercialPeriod(formData);
+
+  await prisma.$transaction(async (tx) => {
+    const merchant = await tx.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true },
+    });
+    if (!merchant) throw new Error('找不到店家');
+
+    if (moduleId) {
+      const existing = await tx.merchantCommercialModule.findFirst({
+        where: { id: moduleId, merchantId, mode },
+        select: { id: true, effectiveFrom: true, effectiveUntil: true },
+      });
+      if (!existing) throw new Error('合作模組不存在或不屬於此店家');
+      validateMerchantCommercialPeriodWrite(period, existing);
+    } else {
+      validateMerchantCommercialPeriodWrite(period, null);
+    }
+
+    const otherPeriods = await tx.merchantCommercialModule.findMany({
+      where: {
+        merchantId,
+        mode,
+        ...(moduleId ? { id: { not: moduleId } } : {}),
+      },
+      select: { effectiveFrom: true, effectiveUntil: true },
+    });
+    if (otherPeriods.some((other) => merchantCommercialPeriodsOverlap(period, other))) {
+      throw new Error('這個合作模組的生效期間與既有設定重疊');
+    }
+
+    if (moduleId) {
+      await tx.merchantCommercialModule.update({
+        where: { id: moduleId },
+        data: period,
+      });
+    } else {
+      await tx.merchantCommercialModule.create({
+        data: { merchantId, mode, createdById, ...period },
+      });
+    }
+  }, {
+    isolationLevel: 'Serializable',
+  });
+
+  revalidatePath(`/merchants/${merchantId}`);
 }
 
 export async function repairMerchantBusinessId(formData: FormData) {

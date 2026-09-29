@@ -25,6 +25,8 @@ function fakeDb() {
   const orders = new Map<string, Row>();
   const events = new Map<string, Row>();
   let failOrder = false;
+  let catalog: unknown[] = [];
+  let itemWrites = 0;
   let tail = Promise.resolve();
   let lockCalls = 0;
   const key = (where: Row) => JSON.stringify(where.shopDomain_topic_eventId);
@@ -58,6 +60,11 @@ function fakeDb() {
       },
     },
     statusAuditLog: { create: async () => ({}) },
+    product: { findMany: async () => catalog },
+    orderItem: {
+      count: async () => itemWrites,
+      createMany: async ({ data }: { data: unknown[] }) => { itemWrites += data.length; return { count: data.length }; },
+    },
   };
   const db = { shopifyWebhookEvent: eventApi, $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => {
     const previous = tail;
@@ -73,7 +80,8 @@ function fakeDb() {
       throw error;
     } finally { release(); }
   } } as unknown as PrismaClient;
-  return { db, orders, events, fail: () => { failOrder = true; }, recover: () => { failOrder = false; }, locks: () => lockCalls };
+  return { db, orders, events, fail: () => { failOrder = true; }, recover: () => { failOrder = false; }, locks: () => lockCalls,
+    setCatalog: (rows: unknown[]) => { catalog = rows; }, itemWrites: () => itemWrites };
 }
 
 describe('Shopify intake', () => {
@@ -425,6 +433,53 @@ describe('Shopify webhook HTTP boundary', () => {
       assert.equal((await handler(request({ 'x-shopify-topic': topic }))).status, 200);
     }
     assert.equal(keys[0], keys[1]); assert.match(keys[0], /^body:/);
+  });
+});
+
+describe('tier review envelope', () => {
+  const activeTier = {
+    id: 'tier-1', productId: 'product-1', sku: 'FD-01', shopifyVariantId: '900719925474099312345', shopifySku: null,
+    status: 'active', weightGrams: 30, unit: '克', unitQty: 1, price: 84,
+    defaultWholesaleUnitPrice: null, defaultConsignmentCommissionMode: null, defaultConsignmentCommissionValue: null,
+  };
+  const catalog = [{
+    id: 'product-1', sku: 'HQ-01', sourceSku: 'FD-01', name: '鴨喉嚨', unit: '包', priceTiers: [activeTier],
+  }];
+
+  it('stores exactly one review shell and no items when a line is unresolved', async () => {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input());
+    await persistShopifyIntake(fake.db, input({ updated_at: '2026-08-30T04:00:00Z' }, 'again'));
+    assert.equal(fake.orders.size, 1);
+    const order = [...fake.orders.values()][0];
+    assert.equal(order.omsStatus, 'NEW');
+    assert.equal(order.items, undefined);
+    assert.equal(fake.itemWrites(), 0);
+    assert.ok(order.omsIssueFlags.some((issue: { code: string }) => issue.code === 'PRODUCT_UNMAPPED'));
+  });
+
+  it('creates items only when every line resolves, including a large string variant id', async () => {
+    const fake = fakeDb();
+    fake.setCatalog(catalog);
+    const event = input({
+      line_items: [{ sku: 'DIFFERENT', variant_id: '900719925474099312345', title: '鴨喉嚨', quantity: 2, price: '84.00' }],
+    });
+    await persistShopifyIntake(fake.db, event);
+    const order = [...fake.orders.values()][0];
+    assert.equal(order.items.create.length, 1);
+    assert.equal(order.items.create[0].variantKey, 'tier-1');
+    assert.equal(order.items.create[0].quantity, 2);
+    assert.equal(fake.orders.size, 1);
+    assert.equal(fake.itemWrites(), 0);
+  });
+
+  it('does not create items when the variant id is present but unbound', async () => {
+    const fake = fakeDb();
+    fake.setCatalog(catalog);
+    await persistShopifyIntake(fake.db, input({
+      line_items: [{ sku: 'FD-01', variant_id: '404', title: '鴨喉嚨', quantity: 1, price: '84.00' }],
+    }));
+    assert.equal([...fake.orders.values()][0].items, undefined);
   });
 });
 

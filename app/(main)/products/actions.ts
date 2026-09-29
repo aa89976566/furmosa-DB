@@ -10,6 +10,10 @@ import {
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { parseTierFields } from '@/lib/products/price-tier-input';
+import {
+  parseProductCommercialTerms,
+  productCommercialTermsChanged,
+} from '@/lib/products/commercial-terms-input';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -90,6 +94,7 @@ export async function createProduct(formData: FormData) {
   const sku = await nextSku(seq);
 
   const vendorId = toNullableString(formData.get('vendorId'));
+  const commercialTerms = parseProductCommercialTerms(formData, 'STANDARD');
 
   const created = await prisma.product.create({
     data: {
@@ -106,6 +111,8 @@ export async function createProduct(formData: FormData) {
       vendorId,
       notes: toNullableString(formData.get('notes')),
       defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
+      ...commercialTerms,
+      commercialTermsVersion: 1,
     },
   });
 
@@ -125,10 +132,28 @@ export async function updateProduct(formData: FormData) {
   const productType = String(formData.get('productType') ?? 'simple');
   const existing = await prisma.product.findUnique({
     where: { id },
-    select: { price: true, cost: true, unit: true, vendorId: true },
+    select: {
+      price: true,
+      cost: true,
+      unit: true,
+      vendorId: true,
+      productCategory: true,
+      businessTier: true,
+      defaultConsignmentCommissionMode: true,
+      defaultConsignmentCommissionValue: true,
+      defaultWholesaleUnitPrice: true,
+      consignmentEnabled: true,
+      wholesaleEnabled: true,
+      jarExchangeEnabled: true,
+      commercialTermsVersion: true,
+    },
   });
   if (!existing) throw new Error('找不到商品');
   const newVendorId = toNullableString(formData.get('vendorId'));
+  const commercialTerms = parseProductCommercialTerms(formData, existing.productCategory);
+  const commercialTermsVersion = productCommercialTermsChanged(existing, commercialTerms)
+    ? (existing.commercialTermsVersion ?? 0) + 1
+    : existing.commercialTermsVersion;
 
   const price =
     productType === 'variable'
@@ -159,6 +184,8 @@ export async function updateProduct(formData: FormData) {
       vendorId: newVendorId,
       notes: toNullableString(formData.get('notes')),
       defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
+      ...commercialTerms,
+      commercialTermsVersion,
     },
   });
 

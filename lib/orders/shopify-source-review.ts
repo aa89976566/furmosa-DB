@@ -1,6 +1,8 @@
 import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
+import { toTierCatalog } from '../shopify/match-line-item';
+import { matchShopifyLineToTier } from '../shopify/match-product-tier';
 import { snapshotView } from '../shopify/snapshot-view';
-import { deliveryDefaults, skuMatchingProducts } from './review-defaults';
+import { deliveryDefaults } from './review-defaults';
 import { reviewDraft, type ReviewProduct } from './review-policy';
 import { moneyToCents, multiplySafe } from './promotion-resolver';
 import type { OmsIssue } from './oms';
@@ -30,8 +32,9 @@ export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[]
   return reviewDraft({
     ...delivery, recipient: view.recipient, phone: view.phone, address: view.address, duplicateConfirmed,
     lines: rows.map(row => {
-      const matches = skuMatchingProducts(string(row.sku), products.map(p => ({ ...p, sourceSku: p.sourceSku ?? null })));
-      return { productId: matches.length === 1 && matches[0].status === 'active' ? matches[0].id : '', temperature: delivery.temperature };
+      const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku) }, toTierCatalog(products));
+      const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
+      return { productId: product?.status === 'active' ? product.id : '', temperature: delivery.temperature };
     }),
   });
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseTierFields } from '@/lib/products/price-tier-input';
+import { parseTierFields } from '../price-tier-input.ts';
 
 function weightTier(cost?: string) {
   const form = new FormData();
@@ -20,6 +20,7 @@ describe('product price tier input', () => {
       unitQty: 1,
       price: 99,
       cost: null,
+      defaultWholesaleUnitPrice: null,
       notes: null,
     });
   });
@@ -27,5 +28,13 @@ describe('product price tier input', () => {
   it('still rejects zero or negative costs when a cost is supplied', () => {
     assert.throws(() => parseTierFields(weightTier('0')), /成本必須大於 0/);
     assert.throws(() => parseTierFields(weightTier('-1')), /成本必須大於 0/);
+  });
+
+  it('stores an integer default wholesale price', () => {
+    const form = weightTier('20');
+    form.set('defaultWholesaleUnitPrice', '65');
+    assert.equal(parseTierFields(form).defaultWholesaleUnitPrice, 65);
+    form.set('defaultWholesaleUnitPrice', '65.5');
+    assert.throws(() => parseTierFields(form), /整數/);
   });
 });

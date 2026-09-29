@@ -1,5 +1,6 @@
 import { parseSourceUpdatedAt } from '@/lib/shopify/event-version';
 import { syncShopifyOrder, type ShopifySyncResult } from '@/lib/shopify/order-sync';
+import { preserveLineVariantIds } from '@/lib/shopify/order-mapping';
 import {
   parseShopifyFulfillmentPayload,
   parseShopifyOrderPayload,
@@ -60,7 +61,7 @@ async function dispatchVerifiedWebhook(
       topic: verified.topic,
       shopDomain: verified.shopDomain,
       webhookId: verified.webhookId,
-      order: parseShopifyOrderPayload(verified.payload),
+      order: preserveLineVariantIds(parseShopifyOrderPayload(verified.payload), verified.payload),
       db: deps.db,
       sleep: deps.sleep,
     });
