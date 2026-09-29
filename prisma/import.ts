@@ -1035,7 +1035,7 @@ const PRICE_LIST: PriceRow[] = [
   {
     vendor: '寵物村',
     sourceSku: 'FD-08',
-    name: '牛肉丁凍乾',
+    name: '牛肉凍乾',
     category: 'freeze_dried',
     cost: 2.5,
     unit: '克',
@@ -1250,7 +1250,7 @@ async function importPriceList() {
           name: row.name,
           sourceSku: row.sourceSku,
           vendorId,
-          category,
+          category, productCategory: row.sourceSku === 'FD-08' ? 'STANDARD' : undefined,
           cost: row.cost ?? product.cost,
           price: minPrice || product.price,
           unit: row.unit,
@@ -1272,7 +1272,7 @@ async function importPriceList() {
           sku,
           sourceSku: row.sourceSku,
           name: row.name,
-          category,
+          category, productCategory: row.sourceSku === 'FD-08' ? 'STANDARD' : undefined,
           unit: row.unit,
           style: row.style ?? null,
           price: minPrice,
@@ -1386,7 +1386,7 @@ const PENDING_ORDERS: Array<{
         unitPrice: 96,
       },
       // 試算表這列尚未填 SKU 與單價（待客戶/出貨人補）
-      { name: '牛肉丁凍乾', sourceSku: '', weightGrams: 30, unit: '包', qty: 3, unitPrice: 0 },
+      { name: '牛肉凍乾', sourceSku: '', weightGrams: 30, unit: '包', qty: 3, unitPrice: 0 },
       {
         name: '青蛙凍乾',
         sourceSku: 'FD-04',
