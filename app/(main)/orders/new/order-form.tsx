@@ -208,11 +208,6 @@ function OrderLineItemsTable({
   removeItem: (key: string) => void;
 }) {
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
-  const canAddItem = items.every((it) => {
-    const product = productMap.get(it.productId);
-    return Boolean(product && (!product.priceTiers.length || it.tierId) && it.quantity > 0);
-  });
-
   return (
     <section className="space-y-2">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
