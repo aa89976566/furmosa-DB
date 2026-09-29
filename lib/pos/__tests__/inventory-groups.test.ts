@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   filterInventoryItems,
@@ -6,6 +7,7 @@ import {
   inventoryStockStatus,
   isLowOrSoldOutStock,
 } from '@/lib/pos/inventory-groups';
+import { hasSellableCounterStock } from '@/lib/pos/counter-catalog-view';
 
 describe('inventoryStockStatus', () => {
   it('uses 已售完 / 庫存偏低 / 庫存正常', () => {
@@ -40,5 +42,23 @@ describe('filterInventoryItems', () => {
     assert.equal(filterInventoryItems(items, { query: '', group: 'all', lowStockOnly: true }).length, 2);
     assert.equal(filterInventoryItems(items, { query: 'FD-01', group: 'all', lowStockOnly: false })[0]?.name, '柳葉魚凍乾');
     assert.equal(isLowOrSoldOutStock(5), false);
+  });
+});
+
+describe('POS inventory and counter visibility', () => {
+  it('only shows positive stock in the sales counter', () => {
+    assert.equal(hasSellableCounterStock(5), true);
+    assert.equal(hasSellableCounterStock(1), true);
+    assert.equal(hasSellableCounterStock(0), false);
+    assert.equal(hasSellableCounterStock(-1), false);
+    assert.equal(hasSellableCounterStock(Number.NaN), false);
+  });
+
+  it('keeps every active jar-exchange product in store inventory', () => {
+    const source = readFileSync('lib/pos/load-inventory.ts', 'utf8');
+    assert.match(source, /\{ productCategory: 'JAR_EXCHANGE' \}/);
+    assert.match(source, /productCategory: 'STANDARD'/);
+    assert.match(source, /merchantStocks: \{ some: \{ merchantId \} \}/);
+    assert.match(source, /merchantRules: \{ some: \{ merchantId \} \}/);
   });
 });

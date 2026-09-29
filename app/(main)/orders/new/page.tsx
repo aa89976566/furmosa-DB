@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { getCurrentUser } from '@/lib/auth';
 import { OrderForm } from './order-form';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,7 @@ export default async function NewOrderPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const copyFrom = searchParams?.copyFrom?.trim();
+  const user = await getCurrentUser();
   const sourceOrder = copyFrom
     ? await prisma.order.findUnique({
         where: { id: copyFrom },
@@ -66,7 +68,17 @@ export default async function NewOrderPage(props: {
               {sourceOrder.items.reduce((sum, item) => sum + item.quantity, 0)} 件商品。
             </p>
           ) : null}
-          <OrderForm merchants={merchants} customers={customers} products={products} initial={initial} />
+          <OrderForm
+            merchants={merchants}
+            customers={customers}
+            products={products}
+            initial={initial}
+            draftStorageKey={
+              user
+                ? `furmosa:order-draft:v1:${user.userId}:${copyFrom ?? 'new'}`
+                : undefined
+            }
+          />
           <p className="mt-4 text-[11px] text-muted-foreground">
             訂單編號（ORD-YYYYMM-XXX）會在儲存時自動產生。
           </p>

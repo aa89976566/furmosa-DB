@@ -22,9 +22,13 @@ export const POS_NAV: readonly PosNavItem[] = [
   },
   {
     id: 'refill',
-    href: '/pos/refill',
-    label: '換罐',
-    match: (p) => p === '/pos/refill' || p.startsWith('/pos/refill/'),
+    href: '/pos/coupons',
+    label: '美容券',
+    match: (p) =>
+      p === '/pos/coupons' ||
+      p.startsWith('/pos/coupons/') ||
+      p === '/pos/refill' ||
+      p.startsWith('/pos/refill/'),
   },
   {
     id: 'records',

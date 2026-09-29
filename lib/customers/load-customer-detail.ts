@@ -19,6 +19,7 @@ export async function loadCustomerDetail(customerId: string) {
     recentRedeemedCodes,
     usedCodeCount,
     availableCouponCount,
+    recentGroomingCoupons,
   ] = await Promise.all([
     prisma.customer.findUnique({
       where: { id: customerId },
@@ -155,7 +156,7 @@ export async function loadCustomerDetail(customerId: string) {
     prisma.memberPointsLedger.aggregate({
       where: {
         customerId,
-        sourceType: 'reward_redemption',
+        sourceType: { in: ['reward_redemption', 'grooming_coupon_redemption'] },
         pointsChange: { lt: 0 },
       },
       _sum: { pointsChange: true },
@@ -175,8 +176,24 @@ export async function loadCustomerDetail(customerId: string) {
     prisma.jarCode.count({
       where: { redeemedByCustomerId: customerId, status: 'used' },
     }),
-    prisma.rewardRedemption.count({
-      where: { customerId, couponStatus: 'issued' },
+    prisma.groomingCoupon.count({
+      where: { customerId, status: 'available', expiresAt: { gte: new Date() } },
+    }),
+    prisma.groomingCoupon.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        couponCode: true,
+        discountAmount: true,
+        pointsUsed: true,
+        status: true,
+        createdAt: true,
+        expiresAt: true,
+        redeemedAt: true,
+        redeemedStore: true,
+      },
     }),
   ]);
 
@@ -257,6 +274,7 @@ export async function loadCustomerDetail(customerId: string) {
     recentRedeemedCodes,
     usedCodeCount,
     availableCouponCount,
+    recentGroomingCoupons,
   };
 }
 

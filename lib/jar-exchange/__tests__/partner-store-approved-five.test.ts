@@ -25,4 +25,9 @@ describe('approved partner store pairs', () => {
     assert.equal(new Set(APPROVED_PARTNER_STORE_PAIRS.map((row) => row.legacySlug)).size, 5);
     assert.equal(APPROVED_PARTNER_STORE_PAIRS.every((row) => row.rationale.length > 20), true);
   });
+
+  it('使用曼莉莎的正式店名', () => {
+    const manlisa = APPROVED_PARTNER_STORE_PAIRS.find((row) => row.merchantId === 'MER-0017');
+    assert.equal(manlisa?.label, '曼莉莎寵物美容');
+  });
 });

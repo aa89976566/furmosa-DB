@@ -4,7 +4,10 @@ import { getEcpayConfig } from '@/lib/payments/ecpay/config';
 import { assertTransition } from '@/lib/refill/transitions';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { amountsAfterExtraTopup, type RefillOrderStatus } from '@/lib/refill/constants';
-import { notifyRefillPaid } from '@/lib/refill/notify';
+import {
+  enqueueRefillPaidNotification,
+  safelyEnqueueAndAttempt,
+} from '@/lib/automation/line-jobs';
 
 export type EcpayCallbackParams = Record<string, string>;
 
@@ -194,12 +197,10 @@ export async function handleEcpayCallback(
     });
   });
 
-  // LINE notify outside txn
-  try {
-    await notifyRefillPaid(payment.refillOrderId);
-  } catch (e) {
-    console.error('[ecpay.callback] notify', e);
-  }
+  // LINE 是附加效果：先持久化作業，再立即嘗試；失敗不回滾付款。
+  await safelyEnqueueAndAttempt(() =>
+    enqueueRefillPaidNotification(payment.refillOrderId),
+  );
 
   return { ack: '1|OK', updated: true };
 }

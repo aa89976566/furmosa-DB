@@ -255,14 +255,28 @@ export async function confirmCouponRedemptionAtStore(
 
   const verifyingStore = await resolvePartnerStoreBySlug(verifyingStoreId);
   const couponCode = normalizeCouponCode(rawCode);
-  const row = await prisma.groomingCoupon.update({
-    where: { couponCode },
+
+  // 條件式更新是核銷的冪等閘門：同一張券即使連按或網路重送也只有一次成功。
+  const claimed = await prisma.groomingCoupon.updateMany({
+    where: {
+      couponCode,
+      storeId: verifyingStoreId,
+      status: 'available',
+      expiresAt: { gte: now },
+    },
     data: {
       status: 'redeemed',
       redeemedAt: now,
       redeemedStore: verifyingStore?.name ?? verify.coupon.storeName,
       redeemedBy: redeemedBy?.trim() || null,
     },
+  });
+  if (claimed.count !== 1) {
+    return { ok: false, error: '❌ 此優惠券已被核銷，請重新查詢' };
+  }
+
+  const row = await prisma.groomingCoupon.findUniqueOrThrow({
+    where: { couponCode },
     include: { customer: { select: { name: true } } },
   });
 

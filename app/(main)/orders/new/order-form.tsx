@@ -46,6 +46,10 @@ import { paymentCollectionSummary } from '@/lib/orders/payment-collection-summar
 import type { OrderCreateInitial, OrderEditInitial } from '@/lib/orders/build-edit-initial';
 import { CustomerSearchSelect } from '@/components/customers/customer-search-select';
 import { ProductSearchSelect } from '@/components/products/product-search-select';
+import {
+  OrderProductPicker,
+  type OrderProductPickerOption,
+} from '@/components/orders/order-product-picker';
 import { createCustomer } from '../../customers/actions';
 import { resolveOrderLineTierId } from '@/lib/orders/order-line-tier';
 import { OrderDiscountField } from '@/components/shared/order-discount-field';
@@ -71,6 +75,10 @@ import {
   resolveMerchantCommercialTerm,
   type CommercialValueMode,
 } from '@/lib/orders/merchant-commercial-term';
+import {
+  parseOrderFormDraft,
+  serializeOrderFormDraft,
+} from '@/lib/orders/order-form-draft';
 
 export type ProductTierOption = {
   id: string;
@@ -158,6 +166,28 @@ type LineItem = {
   commercialOverrideReason?: string;
 };
 
+type OrderFormDraftData = {
+  revealedStep: number;
+  orderType: OrderType;
+  customerSource: CustomerSource;
+  customerId: string;
+  merchantId: string;
+  merchantOrderMode: MerchantOrderMode;
+  items: LineItem[];
+  discount: number;
+  shippingFeeType: 'free' | 'prepaid' | 'unpaid' | 'cod';
+  paymentStatus: 'unpaid' | 'partial' | 'paid' | 'cod' | 'refunded';
+  recipientName: string;
+  recipientPhone: string;
+  shippingMethod: SelectableShippingMethod;
+  cvsBrand: string;
+  cvsStoreName: string;
+  shippingAddress: string;
+  note: string;
+  selectedCustomers: CustomerOption[];
+  selectedProducts: ProductOption[];
+};
+
 const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[] = [
   { value: 'social', label: '社群', hint: 'IG / FB / 官網等網路通路' },
   { value: 'line', label: 'LINE', hint: 'LINE 官方帳號／私訊' },
@@ -184,7 +214,8 @@ function OrderLineItemsTable({
   merchantId,
   showCommercialTerms,
   updateItem,
-  addItem,
+  onOpenProductPicker,
+  productPickerDisabled,
   removeItem,
 }: {
   title: string;
@@ -202,15 +233,11 @@ function OrderLineItemsTable({
   merchantId: string;
   showCommercialTerms: boolean;
   updateItem: (key: string, patch: Partial<LineItem>) => void;
-  addItem: () => void;
+  onOpenProductPicker: () => void;
+  productPickerDisabled?: boolean;
   removeItem: (key: string) => void;
 }) {
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
-  const canAddItem = items.every((it) => {
-    const product = productMap.get(it.productId);
-    return Boolean(product && (!product.priceTiers.length || it.tierId) && it.quantity > 0);
-  });
-
   return (
     <section className="space-y-2">
       <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -224,12 +251,12 @@ function OrderLineItemsTable({
           type="button"
           size="sm"
           variant="outline"
-          onClick={addItem}
-          disabled={!canAddItem}
+          onClick={onOpenProductPicker}
+          disabled={productPickerDisabled}
           className="self-end"
         >
           <Plus className="mr-1 h-4 w-4" />
-          新增一筆
+          加入商品
         </Button>
       </div>
 
@@ -600,6 +627,7 @@ export function OrderForm({
   edit,
   initial,
   returnTo,
+  draftStorageKey,
 }: {
   merchants: MerchantOption[];
   customers: CustomerOption[];
@@ -607,6 +635,7 @@ export function OrderForm({
   edit?: OrderEditInitial;
   initial?: OrderCreateInitial;
   returnTo?: string;
+  draftStorageKey?: string;
 }) {
   const isEdit = Boolean(edit);
   const seed = edit ?? initial;
@@ -662,11 +691,15 @@ export function OrderForm({
   const [cvsStoreName, setCvsStoreName] = useState<string>(seed?.cvsStoreName ?? '');
   const [shippingAddress, setShippingAddress] = useState<string>(seed?.shippingAddress ?? '');
   const [note, setNote] = useState<string>(seed?.note ?? '');
+  const [draftReady, setDraftReady] = useState(!draftStorageKey || isEdit);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   // 客戶／商品清單（種子 + typeahead 合併）
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
   const [productCatalog, setProductCatalog] = useState<ProductOption[]>(products);
   const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     phone: '',
@@ -724,6 +757,135 @@ export function OrderForm({
       return [...map.values()];
     });
   }, []);
+
+  useEffect(() => {
+    if (!draftStorageKey || isEdit) return;
+
+    try {
+      const stored = parseOrderFormDraft<OrderFormDraftData>(
+        window.localStorage.getItem(draftStorageKey),
+      );
+      if (!stored) {
+        window.localStorage.removeItem(draftStorageKey);
+        setDraftReady(true);
+        return;
+      }
+
+      const draft = stored.data;
+      setRevealedStep(draft.revealedStep);
+      setOrderType(draft.orderType);
+      setCustomerSource(draft.customerSource);
+      setCustomerId(draft.customerId);
+      setMerchantId(draft.merchantId);
+      setMerchantOrderMode(draft.merchantOrderMode);
+      setItems(draft.items);
+      setDiscount(draft.discount);
+      setShippingFeeType(draft.shippingFeeType);
+      setPaymentStatus(draft.paymentStatus);
+      setRecipientName(draft.recipientName);
+      setRecipientPhone(draft.recipientPhone);
+      setShippingMethod(draft.shippingMethod);
+      setCvsBrand(draft.cvsBrand);
+      setCvsStoreName(draft.cvsStoreName);
+      setShippingAddress(draft.shippingAddress);
+      setNote(draft.note);
+      mergeCustomers(draft.selectedCustomers ?? []);
+      mergeProducts(draft.selectedProducts ?? []);
+      setDraftSavedAt(stored.savedAt);
+      setDraftRestored(true);
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    } finally {
+      setDraftReady(true);
+    }
+  }, [draftStorageKey, isEdit, mergeCustomers, mergeProducts]);
+
+  useEffect(() => {
+    if (!draftStorageKey || isEdit || !draftReady) return;
+
+    const hasMeaningfulData = Boolean(
+      customerId ||
+        merchantId ||
+        items.some((item) => item.productId) ||
+        recipientName.trim() ||
+        recipientPhone.trim() ||
+        shippingAddress.trim() ||
+        cvsStoreName.trim() ||
+        note.trim(),
+    );
+    if (!hasMeaningfulData) {
+      try {
+        window.localStorage.removeItem(draftStorageKey);
+        setDraftSavedAt(null);
+        setDraftRestored(false);
+      } catch {
+        // 瀏覽器拒絕存取時不阻塞表單操作。
+      }
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const selectedProductIds = new Set(items.map((item) => item.productId).filter(Boolean));
+      const data: OrderFormDraftData = {
+        revealedStep,
+        orderType,
+        customerSource,
+        customerId,
+        merchantId,
+        merchantOrderMode,
+        items,
+        discount,
+        shippingFeeType,
+        paymentStatus,
+        recipientName,
+        recipientPhone,
+        shippingMethod,
+        cvsBrand,
+        cvsStoreName,
+        shippingAddress,
+        note,
+        selectedCustomers: customers.filter((customer) => customer.id === customerId),
+        selectedProducts: productCatalog.filter((product) =>
+          selectedProductIds.has(product.id),
+        ),
+      };
+      const savedAt = Date.now();
+      try {
+        window.localStorage.setItem(
+          draftStorageKey,
+          serializeOrderFormDraft(data, savedAt),
+        );
+        setDraftSavedAt(savedAt);
+      } catch {
+        // 瀏覽器拒絕儲存時不阻塞建立訂單；送出失敗仍保留畫面上的資料。
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    customerId,
+    customerSource,
+    customers,
+    cvsBrand,
+    cvsStoreName,
+    discount,
+    draftReady,
+    draftStorageKey,
+    isEdit,
+    items,
+    merchantId,
+    merchantOrderMode,
+    note,
+    orderType,
+    paymentStatus,
+    productCatalog,
+    recipientName,
+    recipientPhone,
+    revealedStep,
+    shippingAddress,
+    shippingFeeType,
+    shippingMethod,
+  ]);
 
   const handleSearchCustomers = useCallback(
     async (query: string) => {
@@ -920,26 +1082,31 @@ export function OrderForm({
       });
     }
   }
-  function addItem() {
-    setItems((prev) => [
-      ...prev,
-      {
-        key: genKey(),
-        productId: '',
-        tierId: '',
-        quantity: 1,
-        unitPrice: 0,
-        unitCost: 0,
-        isGift: false,
-        retailUnitPrice: 0,
-        weightGrams: null,
-        unit: null,
-        commercialOverrideEnabled: false,
-        commercialOverrideMode: '',
-        commercialOverrideValue: null,
-        commercialOverrideReason: '',
-      },
-    ]);
+  function addProductFromPicker(product: OrderProductPickerOption, tierId: string) {
+    const pricing = linePricing(product as ProductOption, tierId);
+    const nextLine = (key: string): LineItem => ({
+      key,
+      productId: product.id,
+      ...pricing,
+      quantity: 1,
+      isGift: false,
+      retailUnitPrice: pricing.unitPrice,
+      commercialOverrideEnabled: false,
+      commercialOverrideMode: '',
+      commercialOverrideValue: null,
+      commercialOverrideReason: '',
+    });
+
+    setItems((current) => {
+      const emptyLine = current.find((item) => !item.productId);
+      if (emptyLine) {
+        return current.map((item) =>
+          item.key === emptyLine.key ? nextLine(item.key) : item,
+        );
+      }
+      return [...current, nextLine(genKey())];
+    });
+    revealThrough(5);
   }
   function removeItem(key: string) {
     setItems((prev) => (prev.length <= 1 ? prev : prev.filter((it) => it.key !== key)));
@@ -1133,6 +1300,13 @@ export function OrderForm({
               setSubmitError(result.message);
               return;
             }
+            if (draftStorageKey) {
+              try {
+                window.localStorage.removeItem(draftStorageKey);
+              } catch {
+                // 訂單已成功建立；瀏覽器草稿清理失敗不應阻塞導頁。
+              }
+            }
             router.push(`/orders/${result.orderId}`);
           }
         } catch (e) {
@@ -1157,6 +1331,25 @@ export function OrderForm({
       <input type="hidden" name="paymentStatus" value={paymentStatus} />
       {isEdit && edit ? <input type="hidden" name="orderId" value={edit.orderId} /> : null}
       {isEdit && returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
+      {!isEdit && draftStorageKey ? (
+        <div
+          className="flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Save className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {draftRestored
+              ? '已恢復這台裝置上的未完成訂單。後續修改會繼續自動暫存。'
+              : draftSavedAt
+                ? `已自動暫存於這台裝置（${new Date(draftSavedAt).toLocaleTimeString('zh-TW', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}）。建立成功後會自動清除。`
+                : '開始填寫後會自動暫存在這台裝置，重新整理也能繼續。'}
+          </span>
+        </div>
+      ) : null}
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
@@ -1407,9 +1600,27 @@ export function OrderForm({
         merchantId={merchantId}
         showCommercialTerms={!isEdit}
         updateItem={updateItem}
-        addItem={addItem}
+        onOpenProductPicker={() => setProductPickerOpen(true)}
+        productPickerDisabled={
+          orderType === 'merchant' &&
+          merchantOrderMode === 'wholesale' &&
+          !merchantId
+        }
         removeItem={removeItem}
       /> : null}
+
+      <OrderProductPicker
+        open={productPickerOpen}
+        onOpenChange={setProductPickerOpen}
+        products={visibleProducts.map((product) => productMap.get(product.id) ?? product)}
+        onSearch={handleSearchProducts}
+        onPick={addProductFromPicker}
+        disabled={
+          orderType === 'merchant' &&
+          merchantOrderMode === 'wholesale' &&
+          !merchantId
+        }
+      />
 
       {/* Step 4: 金額 + 出貨資訊 */}
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">

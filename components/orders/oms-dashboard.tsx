@@ -9,6 +9,7 @@ import { getOrderWorkState } from '@/lib/orders/order-work-state';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
+import { taipeiTodayRange } from '@/lib/taipei-date';
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -19,7 +20,8 @@ type WorkRow = {
 
 export async function OmsDashboard() {
   const today = taiwanToday();
-  const [orders, reviewedToday, fulfilledToday] = await Promise.all([
+  const { end: endOfToday } = taipeiTodayRange();
+  const [orders, reviewedToday, fulfilledToday, duePurchaseOrders, duePurchaseOrderCount] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW', 'READY', 'FULFILLMENT_PENDING'] } },
       orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 30,
@@ -32,6 +34,12 @@ export async function OmsDashboard() {
     }),
     prisma.order.count({ where: { deletedAt: null, omsReviewedAt: today } }),
     prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLED', updatedAt: today } }),
+    prisma.purchaseOrder.findMany({
+      where: { status: 'pending_receipt', remindFromDate: { lte: endOfToday } },
+      include: { vendor: { select: { name: true } }, items: { select: { quantityGrams: true } }, _count: { select: { items: true } } },
+      orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'asc' }], take: 6,
+    }),
+    prisma.purchaseOrder.count({ where: { status: 'pending_receipt', remindFromDate: { lte: endOfToday } } }),
   ]);
 
   const rows: WorkRow[] = orders.map((order) => {
@@ -48,15 +56,16 @@ export async function OmsDashboard() {
   const now = rows.filter((row) => row.workState === 'ACTION_REQUIRED');
   const waiting = rows.filter((row) => row.workState === 'WAITING');
   const completedSteps = reviewedToday + fulfilledToday;
-  const total = completedSteps + now.length;
+  const actionCount = now.length + duePurchaseOrderCount;
+  const total = completedSteps + actionCount;
   const progress = total > 0 ? Math.round((completedSteps / total) * 100) : 100;
   const first = now[0];
-  const headline = now.length
-    ? `還有 ${now.length} 件事需要處理`
+  const headline = actionCount
+    ? `還有 ${actionCount} 件事需要處理`
     : waiting.length
       ? '目前沒有需要立即處理的訂單'
       : '目前所有訂單工作都已處理完成';
-  const subline = now.length
+  const subline = actionCount
     ? `今天已完成 ${completedSteps} 個處理步驟；另有 ${waiting.length} 筆等待外部條件。`
     : waiting.length
       ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
@@ -70,14 +79,16 @@ export async function OmsDashboard() {
           <h2 className="text-2xl font-semibold tracking-tight text-navy">{headline}</h2>
           <p className="text-sm text-muted-foreground">{subline}</p>
         </div>
-        {first
-          ? <Button size="lg" asChild><Link href={`/orders/${first.id}`}>繼續處理<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+        {duePurchaseOrders[0] || first
+          ? <Button size="lg" asChild><Link href={duePurchaseOrders[0] ? `/inventory/purchase-orders/${duePurchaseOrders[0].id}` : `/orders/${first!.id}`}>繼續處理<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
           : <CheckCircle2 className="h-11 w-11 text-success" />}
       </div>
       <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted" aria-label={`今日工作完成 ${progress}%`}>
         <div className="h-full rounded-full bg-success transition-all" style={{ width: `${progress}%` }} />
       </div>
     </section>
+
+    {duePurchaseOrders.length ? <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card"><div className="flex items-center justify-between border-b px-5 py-4"><h3 className="flex items-center gap-2 font-semibold"><PackageCheck className="h-5 w-5 text-primary" />待確認收貨</h3><span className="text-sm text-muted-foreground">{duePurchaseOrderCount} 件</span></div><div className="divide-y px-5">{duePurchaseOrders.map(order => <Link key={order.id} href={`/inventory/purchase-orders/${order.id}`} className="group grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-semibold text-navy">{order.vendor?.name ?? '採購單'}待確認</p><p className="mt-1 text-sm text-muted-foreground">{order._count.items} 項・{order.items.reduce((sum, item) => sum + item.quantityGrams, 0).toLocaleString()} g・{formatCurrency(Number(order.totalAmount))}</p></div><span className="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium group-hover:border-primary/40">查看並確認實收</span></Link>)}</div>{duePurchaseOrderCount > duePurchaseOrders.length ? <div className="border-t p-4 text-right"><Button variant="ghost" asChild><Link href="/inventory/purchases?view=pending">查看全部 {duePurchaseOrderCount} 件</Link></Button></div> : null}</section> : null}
 
     <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
 

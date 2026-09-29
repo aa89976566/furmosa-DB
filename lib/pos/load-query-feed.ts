@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
-import { formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
 function stockTypeLabel(type: string): string {
   switch (type) {
@@ -75,7 +75,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         id: true,
         createdAt: true,
         status: true,
-        shipment: { select: { status: true } },
+        shipment: { select: { status: true, shippedAt: true, receivedAt: true } },
         items: {
           take: 3,
           select: {
@@ -129,6 +129,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'refill',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '換罐',
       subtitle,
       status,
@@ -141,12 +143,19 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const names = r.items
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
-    const at = r.createdAt.toISOString();
+    const occurredAt = r.shipment?.status === 'received'
+      ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.createdAt
+      : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
+        ? r.shipment.shippedAt ?? r.createdAt
+        : r.createdAt;
+    const at = occurredAt.toISOString();
     return {
       id: `restock-${r.id}`,
       kind: 'restock',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '補貨',
       subtitle: names || '補貨單',
       status: restockFeedStatus(r.status, r.shipment?.status),
@@ -163,6 +172,8 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'stock',
       at,
       whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDate(at),
+      timeLabel: formatQueryTime(at),
       title: '庫存',
       subtitle: `${stockTypeLabel(t.type)}${t.product?.name ?? ''} ${sign}`,
       status: `現在 ${t.balanceAfter}`,

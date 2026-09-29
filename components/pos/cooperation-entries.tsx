@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { Recycle, ShoppingBag, Users, ArrowUpRight } from 'lucide-react';
+import { TicketCheck, ShoppingBag, Users, ArrowUpRight } from 'lucide-react';
 
 const entries = [
-  { href: '/pos/refill', title: '換罐計畫', description: '掃描罐底、查詢客人與處理換罐', icon: Recycle },
+  { href: '/pos/coupons', title: '美容券', description: '輸入會員折價券序號並完成核銷', icon: TicketCheck },
   { href: '/pos/sell', title: '寄賣銷售', description: '選購商品，依既有售價與分潤規則記錄銷售', icon: ShoppingBag },
   { href: '/pos/group-buy', title: '活動／團購', description: '查看店家專屬進貨價與合作資訊', icon: Users },
 ];

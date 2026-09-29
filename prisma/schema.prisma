@@ -97,6 +97,10 @@ model User {
   archivedOrders                   Order[]                        @relation("OrderArchivedBy")
   merchantCommercialModulesCreated MerchantCommercialModule[]     @relation("MerchantCommercialModuleCreatedBy")
   commercialOrderItemOverrides     OrderItem[]                    @relation("OrderItemCommercialOverrideBy")
+  purchaseReceipts                  PurchaseReceipt[]
+  purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersReceived PurchaseOrder[] @relation("PurchaseOrderReceivedBy")
+  stocktakeAdjustments StocktakeAdjustment[] @relation("StocktakeCreatedBy")
 }
 
 model HqPasskeyCredential {
@@ -155,7 +159,9 @@ model Vendor {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  products Product[]
+  products         Product[]
+  purchaseReceipts PurchaseReceipt[]
+  purchaseOrders   PurchaseOrder[]
 }
 
 // 客戶（人）= 主檔。會員身份、訂閱身份都掛在 Customer 上。
@@ -681,6 +687,9 @@ model Warehouse {
 
   inventoryBalances     InventoryBalance[]
   inventoryTransactions InventoryTransaction[]
+  purchaseReceipts      PurchaseReceipt[]
+  purchaseOrders        PurchaseOrder[]
+  stocktakeAdjustments  StocktakeAdjustment[]
 }
 
 model Product {
@@ -698,6 +707,7 @@ model Product {
   unit                              String              @default("件") // 克 / 隻 / 片 / 包...
   price                             Float // 基礎售價（最小重量級距，方便舊 UI 顯示）
   cost                              Float               @default(0) // 進貨成本（每包/隻/片）
+  averageCostPerGram                Decimal?            @map("average_cost_per_gram") @db.Decimal(18, 6)
   reorderPoint                      Int                 @default(10)
   status                            String              @default("active") // active / inactive / draft
   vendorId                          String?
@@ -719,6 +729,9 @@ model Product {
   orderItems              OrderItem[]
   inventoryBalances       InventoryBalance[]
   inventoryTransactions   InventoryTransaction[]
+  purchaseReceiptItems    PurchaseReceiptItem[]
+  purchaseOrderItems      PurchaseOrderItem[]
+  stocktakeAdjustments    StocktakeAdjustment[]
   merchantRules           MerchantProductRule[]
   merchantWholesalePrices MerchantWholesalePrice[]
   merchantStocks          MerchantStock[]
@@ -1084,10 +1097,191 @@ model InventoryTransaction {
 
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  purchaseReceiptItem PurchaseReceiptItem?
+  stocktakeAdjustment StocktakeAdjustment?
 
   @@index([productId])
   @@index([type])
   @@index([createdAt])
+}
+
+model PurchaseReceipt {
+  id                     String   @id @default(cuid())
+  receiptNumber          String   @unique @map("receipt_number")
+  supplierDocumentNumber String?  @map("supplier_document_number")
+  receiptDate            DateTime @map("receipt_date")
+  status                 String   @default("posted")
+  vendorId               String?  @map("vendor_id")
+  warehouseId            String   @map("warehouse_id")
+  subtotal               Decimal  @db.Decimal(14, 2)
+  shippingCost           Decimal  @default(0) @map("shipping_cost") @db.Decimal(14, 2)
+  packagingCost          Decimal  @default(0) @map("packaging_cost") @db.Decimal(14, 2)
+  processingCost         Decimal  @default(0) @map("processing_cost") @db.Decimal(14, 2)
+  taxAmount              Decimal  @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  discountAmount         Decimal  @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  totalAmount            Decimal  @map("total_amount") @db.Decimal(14, 2)
+  note                   String?
+  postedAt               DateTime @default(now()) @map("posted_at")
+  createdById            String   @map("created_by_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  purchaseOrderId        String?  @unique @map("purchase_order_id")
+
+  vendor      Vendor?                     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  warehouse   Warehouse                   @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy   User                        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items       PurchaseReceiptItem[]
+  attachments PurchaseReceiptAttachment[]
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+
+  @@unique([vendorId, supplierDocumentNumber])
+  @@index([receiptDate])
+  @@index([vendorId, receiptDate])
+  @@map("purchase_receipts")
+}
+
+model PurchaseOrder {
+  id                     String   @id @default(cuid())
+  orderNumber            String   @unique @map("order_number")
+  status                 String   @default("pending_receipt")
+  vendorId               String?  @map("vendor_id")
+  warehouseId            String   @map("warehouse_id")
+  supplierDocumentNumber String?  @map("supplier_document_number")
+  remindFromDate         DateTime @map("remind_from_date")
+  subtotal               Decimal  @db.Decimal(14, 2)
+  shippingCost           Decimal  @default(0) @map("shipping_cost") @db.Decimal(14, 2)
+  packagingCost          Decimal  @default(0) @map("packaging_cost") @db.Decimal(14, 2)
+  processingCost         Decimal  @default(0) @map("processing_cost") @db.Decimal(14, 2)
+  taxAmount              Decimal  @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  discountAmount         Decimal  @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  totalAmount            Decimal  @map("total_amount") @db.Decimal(14, 2)
+  note                   String?
+  createdById            String   @map("created_by_id")
+  receivedById           String?  @map("received_by_id")
+  receivedAt             DateTime? @map("received_at")
+  cancelledAt            DateTime? @map("cancelled_at")
+  cancelReason           String?  @map("cancel_reason")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  vendor       Vendor?                   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  warehouse    Warehouse                 @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy    User                      @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  receivedBy   User?                     @relation("PurchaseOrderReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
+  items        PurchaseOrderItem[]
+  attachments  PurchaseOrderAttachment[]
+  receipt      PurchaseReceipt?
+
+  @@unique([vendorId, supplierDocumentNumber])
+  @@index([status, remindFromDate])
+  @@index([createdAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String   @map("purchase_order_id")
+  lineNumber      Int      @map("line_number")
+  productId       String   @map("product_id")
+  productName     String   @map("product_name")
+  sku             String
+  unit            String   @default("g")
+  quantityGrams   Int      @map("quantity_grams")
+  rawAmount       Decimal  @map("raw_amount") @db.Decimal(14, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([purchaseOrderId, lineNumber])
+  @@unique([purchaseOrderId, productId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model PurchaseOrderAttachment {
+  id              String   @id @default(cuid())
+  purchaseOrderId String   @map("purchase_order_id")
+  fileName        String   @map("file_name")
+  mimeType        String   @map("mime_type")
+  sizeBytes       Int      @map("size_bytes")
+  sha256          String
+  data            Bytes
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_attachments")
+}
+
+model StocktakeAdjustment {
+  id                     String   @id @default(cuid())
+  eventKey               String   @unique @map("event_key")
+  productId              String   @map("product_id")
+  warehouseId            String   @map("warehouse_id")
+  inventoryTransactionId String   @unique @map("inventory_transaction_id")
+  beforeQuantity         Int      @map("before_quantity")
+  afterQuantity          Int      @map("after_quantity")
+  deltaQuantity          Int      @map("delta_quantity")
+  beforeTotalCost        Decimal  @map("before_total_cost") @db.Decimal(14, 2)
+  afterTotalCost         Decimal  @map("after_total_cost") @db.Decimal(14, 2)
+  deltaTotalCost         Decimal  @map("delta_total_cost") @db.Decimal(14, 2)
+  reason                 String
+  createdById            String   @map("created_by_id")
+  reversalOfId           String?  @unique @map("reversal_of_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  product              Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouse            Warehouse            @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  inventoryTransaction InventoryTransaction @relation(fields: [inventoryTransactionId], references: [id], onDelete: Restrict)
+  createdBy            User                 @relation("StocktakeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  reversalOf           StocktakeAdjustment? @relation("StocktakeReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal             StocktakeAdjustment? @relation("StocktakeReversal")
+
+  @@index([productId, warehouseId, createdAt])
+  @@map("stocktake_adjustments")
+}
+
+model PurchaseReceiptItem {
+  id                         String   @id @default(cuid())
+  purchaseReceiptId          String   @map("purchase_receipt_id")
+  productId                  String   @map("product_id")
+  inventoryTransactionId     String   @unique @map("inventory_transaction_id")
+  quantityGrams              Int      @map("quantity_grams")
+  rawAmount                   Decimal  @map("raw_amount") @db.Decimal(14, 2)
+  allocatedCost              Decimal  @map("allocated_cost") @db.Decimal(14, 2)
+  landedAmount               Decimal  @map("landed_amount") @db.Decimal(14, 2)
+  costPerGram                 Decimal  @map("cost_per_gram") @db.Decimal(18, 6)
+  previousStockGrams          Int      @map("previous_stock_grams")
+  resultingStockGrams         Int      @map("resulting_stock_grams")
+  previousAverageCostPerGram  Decimal  @map("previous_average_cost_per_gram") @db.Decimal(18, 6)
+  newAverageCostPerGram       Decimal  @map("new_average_cost_per_gram") @db.Decimal(18, 6)
+  createdAt                   DateTime @default(now()) @map("created_at")
+
+  purchaseReceipt      PurchaseReceipt      @relation(fields: [purchaseReceiptId], references: [id], onDelete: Restrict)
+  product              Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  inventoryTransaction InventoryTransaction @relation(fields: [inventoryTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseReceiptId])
+  @@index([productId, createdAt])
+  @@map("purchase_receipt_items")
+}
+
+model PurchaseReceiptAttachment {
+  id                String   @id @default(cuid())
+  purchaseReceiptId String   @map("purchase_receipt_id")
+  fileName          String   @map("file_name")
+  mimeType          String   @map("mime_type")
+  sizeBytes         Int      @map("size_bytes")
+  sha256            String
+  data              Bytes
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  purchaseReceipt PurchaseReceipt @relation(fields: [purchaseReceiptId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseReceiptId])
+  @@map("purchase_receipt_attachments")
 }
 
 // =====================================================
@@ -1423,6 +1617,34 @@ model Task {
   @@index([status])
   @@index([type])
   @@index([dueDate])
+}
+
+// =====================================================
+// Automation recovery jobs
+// =====================================================
+
+/// 主要交易完成後的外部副作用佇列。所有作業以 jobKey 去重，避免 LINE／物流重送。
+model AutomationJob {
+  id              String    @id @default(cuid())
+  jobKey          String    @unique @map("job_key")
+  type            String
+  status          String    @default("pending") // pending / retrying / processing / completed / fallback_succeeded / manual_required
+  entityType      String?   @map("entity_type")
+  entityId        String?   @map("entity_id")
+  payload         Json
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime  @default(now()) @map("next_attempt_at")
+  lockedUntil     DateTime? @map("locked_until")
+  lastError       String?   @map("last_error")
+  fallbackResult  String?   @map("fallback_result")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, nextAttemptAt])
+  @@index([type, status])
+  @@index([entityType, entityId])
+  @@map("automation_jobs")
 }
 
 // =====================================================

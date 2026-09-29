@@ -12,6 +12,10 @@ export type CounterCatalogItem = {
   unit: string;
 };
 
+export function hasSellableCounterStock(stock: number): boolean {
+  return Number.isFinite(stock) && stock > 0;
+}
+
 export function resolveCounterSellStock(args: {
   listedTierId: string;
   isDefaultTier: boolean;

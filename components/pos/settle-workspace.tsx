@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowUp, Check, Eye, Search, Wallet } from 'lucide-react';
 import { PosPageTools } from '@/components/pos/page-tools';
@@ -253,7 +253,7 @@ function SettleWorkspaceInner({
           className="mt-1 block min-h-[40px] min-w-[160px] rounded-xl border border-neutral-200 bg-white px-3 text-sm text-zinc-800"
         />
       </label>
-      <button type="submit" className="min-h-[40px] rounded-xl border border-zinc-900 px-4 text-sm">
+      <button type="submit" className="min-h-[40px] rounded-xl border border-primary px-4 text-sm text-primary">
         套用
       </button>
     </form>
@@ -332,7 +332,7 @@ function SettleWorkspaceInner({
           type="button"
           disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
-          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white disabled:opacity-60"
+          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           {busy
             ? '處理中…'
@@ -417,7 +417,7 @@ function SettleWorkspaceInner({
         <button
           type="button"
           disabled
-          className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white disabled:opacity-40"
+          className="mt-4 flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground disabled:opacity-40"
         >
           {selected.included ? '已列入本期結算' : '這筆不列入本期結算'}
         </button>
@@ -428,7 +428,7 @@ function SettleWorkspaceInner({
   );
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-neutral-100 md:flex-row">
+    <div className="pos-theme flex h-[100dvh] flex-col bg-neutral-100 md:flex-row">
       <InventorySideNav account={account} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="bg-transparent px-4 pb-2 pt-5 md:px-6">
@@ -451,7 +451,7 @@ function SettleWorkspaceInner({
                 }}
                 className={`-mb-px min-h-[40px] whitespace-nowrap pb-2 text-sm ${
                   tab === item.id
-                    ? 'border-b-2 border-zinc-900 font-medium text-zinc-900'
+                    ? 'border-b-2 border-primary font-medium text-primary'
                     : 'text-zinc-400 hover:text-zinc-700'
                 }`}
               >
@@ -471,76 +471,13 @@ function SettleWorkspaceInner({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-28 md:px-6 md:pb-8">
           {tab === 'overview' ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {/*
-                  這兩張卡是同一個淨額的兩個方向（net > 0 / net < 0），不是抵扣前的兩邊，
-                  所以標題必須寫明「抵扣後」，其中一張一定是 0。
-                */}
-                <SummaryCard
-                  title="店家應付匠寵（抵扣後）"
-                  amount={ledger.overview.storeOwesFurmosa}
-                  hint="兩邊互相抵扣後，由店家付的淨額"
-                  icon={<ArrowUp className="h-4 w-4" />}
-                  iconClass="bg-red-50 text-red-500"
-                />
-                <SummaryCard
-                  title="匠寵應付店家（抵扣後）"
-                  amount={ledger.overview.furmosaOwesStore}
-                  hint="兩邊互相抵扣後，由匠寵付的淨額"
-                  icon={<ArrowDown className="h-4 w-4" />}
-                  iconClass="bg-sky-50 text-sky-600"
-                />
-                <SummaryCard
-                  title="本期已送出"
-                  amount={ledger.overview.submittedNet}
-                  hint={
-                    ledger.overview.submittedCount === 0
-                      ? '本期還沒有送出過結帳'
-                      : `已送出 ${ledger.overview.submittedCount} 張，不重複列入暫計`
-                  }
-                  icon={<Check className="h-4 w-4" />}
-                  iconClass="bg-emerald-50 text-emerald-600"
-                />
-                <div className="rounded-2xl bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-zinc-500">本期結算結果</p>
-                      <p className="mt-1 text-xs text-zinc-400">{ledger.overview.resultLabel}</p>
-                    </div>
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-50 text-orange-500">
-                      <Wallet className="h-4 w-4" />
-                    </span>
-                  </div>
-                  <p
-                    className={`mt-4 text-[28px] font-semibold leading-none ${
-                      ledger.overview.netPayableTwd === 0 ? 'text-zinc-900' : 'text-orange-500'
-                    }`}
-                  >
-                    {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
-                  </p>
-                </div>
-              </div>
-              {/*
-                原本寫成「店家應付匠寵 − 匠寵應付店家 = 淨額」，但兩邊已經是抵扣後的淨額，
-                其中一邊永遠是 0，這條等式永遠成立卻沒有任何資訊。改為直接說明淨結果。
-              */}
-              <p className="rounded-xl bg-neutral-200/60 px-4 py-3 text-sm text-zinc-600">
-                兩邊互相抵扣後，
-                {ledger.overview.netPayableTwd === 0 ? (
-                  <span className="font-semibold text-zinc-900">本期無需付款</span>
-                ) : (
-                  <span className="font-semibold text-orange-500">
-                    {ledger.overview.resultLabel} {formatNtd(Math.abs(ledger.overview.netPayableTwd))}
-                  </span>
-                )}
-                。上面兩張卡是同一個淨額的兩個方向，所以其中一張一定是 0。
-              </p>
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-4">
+              <SettlementFormulaPanel ledger={ledger} />
               <h2 className="pt-1 text-base font-semibold">交易流水拆解（參考）</h2>
               <p className="text-xs text-zinc-400">
-                這裡是換罐與券的流水分類，用來核對明細。寄賣銷售不在這裡，
-                已被其他結帳單結過的券仍然會列出，
-                所以流水小計不等於上面的本期結算結果。
+                上方「金額組成」是本期結算依據；這裡補充換罐、代收與優惠券流水，方便分類核對。
+                已被其他結帳單結過的項目不會重複列入本期淨額。
               </p>
               <div className="grid gap-3 lg:grid-cols-2">
                 <section className="rounded-2xl bg-white p-5 shadow-sm">
@@ -624,6 +561,8 @@ function SettleWorkspaceInner({
                   </div>
                 </section>
               </div>
+              </div>
+              <aside className="hidden xl:sticky xl:top-4 xl:block">{overviewRight}</aside>
             </div>
           ) : null}
 
@@ -722,11 +661,14 @@ function SettleWorkspaceInner({
         </div>
       </main>
 
-      <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
-        {tab === 'ledger' ? ledgerRight : overviewRight}
-      </aside>
+      {tab === 'ledger' ? (
+        <aside className="hidden w-[340px] shrink-0 overflow-y-auto bg-transparent px-4 py-5 md:block">
+          {ledgerRight}
+        </aside>
+      ) : null}
 
-      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 md:hidden">
+      {tab === 'overview' ? (
+      <div className="fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-30 px-4 xl:hidden">
         {/* 手機版看不到右側卡片，停用原因必須在按鈕旁講清楚，不能只是變灰。 */}
         {ledger.persistBlockedReason ? (
           <p className="mb-2 rounded-xl bg-white/95 px-3 py-2 text-xs text-zinc-600 shadow-lg">
@@ -737,7 +679,7 @@ function SettleWorkspaceInner({
           type="button"
           disabled={busy || !ledger.persistAvailable || ledger.preview.sourceCount === 0}
           onClick={onConfirm}
-          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-zinc-900 text-sm font-medium text-white shadow-lg disabled:opacity-60"
+          className="flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-primary text-sm font-medium text-primary-foreground shadow-lg disabled:opacity-60"
         >
           {busy
             ? '處理中…'
@@ -748,6 +690,7 @@ function SettleWorkspaceInner({
                 : `送出待核對 ${formatNtd(Math.abs(ledger.preview.netPayableTwd))}`}
         </button>
       </div>
+      ) : null}
 
       <InventoryBottomNav />
     </div>
@@ -763,27 +706,133 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function SummaryCard({
-  title,
-  amount,
-  hint,
-  icon,
-  iconClass,
-}: {
-  title: string;
-  amount: number;
-  hint: string;
-  icon: ReactNode;
-  iconClass: string;
-}) {
+function SettlementFormulaPanel({ ledger }: { ledger: StoreLedgerPageData }) {
+  const sourceContribution = (line: StoreLedgerPageData['preview']['lines'][number]) => {
+    if (line.sourceKind === 'consignment_sale') {
+      return line.originalAmount - (line.commissionAmount ?? 0);
+    }
+    if (line.sourceKind === 'coupon_subsidy') return -line.originalAmount;
+    return line.originalAmount;
+  };
+
+  const sourceTypeLabel = (kind: string) => {
+    if (kind === 'consignment_sale') return '寄賣銷售';
+    if (kind === 'coupon_subsidy') return '優惠券補貼';
+    return '店家代收';
+  };
+
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between">
-        <p className="text-sm text-zinc-500">{title}</p>
-        <span className={`flex h-9 w-9 items-center justify-center rounded-full ${iconClass}`}>{icon}</span>
+    <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-neutral-100">
+      <div className="border-b border-neutral-100 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-medium text-zinc-700">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Wallet className="h-4 w-4" />
+              </span>
+              本期預計結算
+            </div>
+            <p className="mt-2 text-xs leading-5 text-zinc-400">
+              只計入尚未結清、資料完整的交易；已結算項目不會重複計算。
+            </p>
+          </div>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+            已完成防重複檢查
+          </span>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <SettlementMetric label="銷售總額" value={formatNtd(ledger.preview.grossSales)} />
+          <SettlementMetric label="店家分潤" value={`−${formatNtd(ledger.preview.commissionAmount)}`} />
+          <SettlementMetric label="優惠券補貼" value={`−${formatNtd(ledger.preview.rewardPayout)}`} />
+          <SettlementMetric label="店家代收" value={`+${formatNtd(ledger.preview.storeCollected)}`} />
+        </div>
+
+        <div className="mt-4 flex flex-col justify-between gap-4 rounded-2xl bg-primary px-5 py-5 text-primary-foreground sm:flex-row sm:items-end">
+          <div>
+            <p className="text-xs opacity-75">本期結算方向</p>
+            <p className="mt-1 text-sm font-medium">{ledger.overview.resultLabel}</p>
+            <p className="mt-2 text-4xl font-semibold tracking-tight">
+              {formatNtd(Math.abs(ledger.preview.netPayableTwd))}
+            </p>
+          </div>
+          <p className="flex items-center gap-1.5 text-xs opacity-80">
+            <Check className="h-3.5 w-3.5" />
+            由下方 {ledger.preview.sourceCount} 筆交易組成
+          </p>
+        </div>
       </div>
-      <p className="mt-4 text-[28px] font-semibold leading-none text-zinc-900">{formatNtd(amount)}</p>
-      <p className="mt-2 text-xs text-zinc-400">{hint}</p>
+
+      <div className="flex items-center justify-between gap-3 px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-900">金額組成</h2>
+          <p className="mt-1 text-xs text-zinc-400">逐筆核對商品、交易編號、售價與分潤</p>
+        </div>
+        <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs text-zinc-500">
+          {ledger.preview.sourceCount} 筆
+        </span>
+      </div>
+
+      <div className="overflow-x-auto border-t border-neutral-100">
+        <table className="min-w-[720px] w-full text-left text-sm">
+          <thead className="bg-neutral-50 text-xs text-zinc-400">
+            <tr>
+              <th className="px-5 py-3 font-medium">日期</th>
+              <th className="px-3 py-3 font-medium">類型</th>
+              <th className="px-3 py-3 font-medium">交易內容</th>
+              <th className="px-3 py-3 text-right font-medium">原始金額</th>
+              <th className="px-3 py-3 text-right font-medium">店家分潤</th>
+              <th className="px-5 py-3 text-right font-medium">計入淨額</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ledger.preview.lines.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-10 text-center text-zinc-500">
+                  本期沒有可結算的交易。
+                </td>
+              </tr>
+            ) : (
+              ledger.preview.lines.map((line) => (
+                <tr key={line.sourceKey} className="border-t border-neutral-100">
+                  <td className="whitespace-nowrap px-5 py-3 text-zinc-500">{taipeiDay(line.occurredAt)}</td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                      {sourceTypeLabel(line.sourceKind)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 font-medium text-zinc-800">{line.label}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right">{formatNtd(line.originalAmount)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-right text-zinc-500">
+                    {line.commissionAmount == null ? '—' : `−${formatNtd(line.commissionAmount)}`}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right font-semibold text-zinc-900">
+                    {sourceContribution(line) < 0 ? '−' : '+'}
+                    {formatNtd(Math.abs(sourceContribution(line)))}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          <tfoot className="border-t border-neutral-200 bg-neutral-50 text-sm font-semibold">
+            <tr>
+              <td colSpan={5} className="px-5 py-3 text-right text-zinc-600">本期淨額</td>
+              <td className="whitespace-nowrap px-5 py-3 text-right text-primary">
+                {formatNtd(Math.abs(ledger.preview.netPayableTwd))}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function SettlementMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-neutral-50 px-4 py-3">
+      <p className="text-xs text-zinc-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold tracking-tight text-zinc-900">{value}</p>
     </div>
   );
 }

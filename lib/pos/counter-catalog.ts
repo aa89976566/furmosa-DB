@@ -13,7 +13,9 @@ import {
 import { counterLineKey } from '@/lib/pos/counter-cart';
 import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import type { PricedCounterProduct } from '@/lib/pos/counter-sale-plan';
+import { loadPosMerchantProfile, type PosMerchantProfile } from '@/lib/pos/account';
 import {
+  hasSellableCounterStock,
   resolveCounterSellStock,
   type CounterCatalogItem,
 } from '@/lib/pos/counter-catalog-view';
@@ -27,12 +29,12 @@ export type CounterCatalog = {
   priced: PricedCounterProduct[];
 };
 
-export async function loadCounterCatalog(merchantId: string): Promise<CounterCatalog | null> {
+export async function loadCounterCatalog(
+  merchantId: string,
+  merchantRequest: Promise<PosMerchantProfile | null> = loadPosMerchantProfile(merchantId),
+): Promise<CounterCatalog | null> {
   const [merchant, products] = await Promise.all([
-    prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { name: true },
-    }),
+    merchantRequest,
     prisma.product.findMany({
       // 一般收銀只處理寄賣商品。換罐商品必須走 /pos/refill，避免重複計算分潤。
       where: {
@@ -119,6 +121,7 @@ export async function loadCounterCatalog(merchantId: string): Promise<CounterCat
         legacyStock,
         legacyTierId: LEGACY_MERCHANT_STOCK_TIER_ID,
       });
+      if (!hasSellableCounterStock(stock)) continue;
       const unitPrice = unitPriceForTierSale(tiers, listedTierId, {
         suggestedPrice: rule?.suggestedPrice ?? null,
         hasMerchantRule: Boolean(rule),

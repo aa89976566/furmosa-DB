@@ -27,7 +27,8 @@ export async function notifyRefillPaid(refillOrderId: string) {
     `預約：${date}`,
   ].join('\n');
 
-  await pushLineMessages(order.customer.lineUserId, [{ type: 'text', text }]);
+  const result = await pushLineMessages(order.customer.lineUserId, [{ type: 'text', text }]);
+  if (!result.ok) throw new Error(result.error);
 }
 
 export async function notifyRefillCompleted(refillOrderId: string, pointsAwarded: boolean) {
@@ -55,5 +56,6 @@ export async function notifyRefillCompleted(refillOrderId: string, pointsAwarded
     .filter(Boolean)
     .join('\n');
 
-  await pushLineMessages(order.customer.lineUserId, [{ type: 'text', text }]);
+  const result = await pushLineMessages(order.customer.lineUserId, [{ type: 'text', text }]);
+  if (!result.ok) throw new Error(result.error);
 }

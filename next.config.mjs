@@ -19,7 +19,7 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns'],
     serverActions: {
-      bodySizeLimit: '2mb',
+      bodySizeLimit: '16mb',
     },
   },
 };

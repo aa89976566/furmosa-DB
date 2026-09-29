@@ -19,8 +19,7 @@ export default async function PosRecordsPage(props: { searchParams?: Promise<{ q
 
   return (
     <PosShell storeName={account.storeName} account={account}>
-      <div className="px-4 py-6">
-        <h1 className="mb-4 text-xl font-semibold text-navy">紀錄</h1>
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
         <QueryBoard key={query} items={items} initialQuery={query} />
       </div>
     </PosShell>

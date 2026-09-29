@@ -109,7 +109,7 @@ function CodesList({ data, limit }: { data: CustomerDetailData; limit?: number }
 }
 
 function CouponsList({ data, limit }: { data: CustomerDetailData; limit?: number }) {
-  const allRows = data.jar?.redemptions ?? [];
+  const allRows = data.recentGroomingCoupons;
   const rows = limit ? allRows.slice(0, limit) : allRows;
   if (rows.length === 0) return <CompactEmpty>尚無優惠券兌換紀錄</CompactEmpty>;
 
@@ -118,15 +118,15 @@ function CouponsList({ data, limit }: { data: CustomerDetailData; limit?: number
       {rows.map((row) => (
         <li key={row.id} className="flex min-w-0 items-start justify-between gap-3 py-3 first:pt-1">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{row.reward.rewardName}</p>
-            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{row.couponCode ?? '尚無優惠券碼'}</p>
+            <p className="truncate text-sm font-medium">美容折價券 · {formatCurrency(row.discountAmount)}</p>
+            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{row.couponCode}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatDateTime(row.issuedAt)}{row.usedAt ? ` · 核銷 ${formatDateTime(row.usedAt)}` : ''}
+              {formatDateTime(row.createdAt)}{row.redeemedAt ? ` · ${row.redeemedStore ?? '店家'}核銷 ${formatDateTime(row.redeemedAt)}` : ` · 有效至 ${formatDateTime(row.expiresAt)}`}
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-sm font-medium">{couponStatusLabel[row.couponStatus] ?? row.couponStatus}</p>
-            <p className="mt-1 text-xs tabular-nums text-muted-foreground">−{formatNumber(row.pointsSpent)} 點</p>
+            <p className="text-sm font-medium">{couponStatusLabel[row.status] ?? (row.status === 'available' ? '可使用' : row.status === 'redeemed' ? '已核銷' : row.status === 'expired' ? '已過期' : row.status)}</p>
+            <p className="mt-1 text-xs tabular-nums text-muted-foreground">−{formatNumber(row.pointsUsed)} 點</p>
           </div>
         </li>
       ))}

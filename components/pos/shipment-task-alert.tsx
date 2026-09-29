@@ -1,6 +1,9 @@
+import { cache } from 'react';
 import Link from 'next/link';
 import { PackageCheck, Truck } from 'lucide-react';
 import { loadHomeTasks } from '@/lib/pos/load-today-dashboard';
+
+const loadCachedHomeTasks = cache(loadHomeTasks);
 
 export async function PosShipmentTaskAlert({
   merchantId,
@@ -9,7 +12,7 @@ export async function PosShipmentTaskAlert({
   merchantId: string;
   compact?: boolean;
 }) {
-  const { cards } = await loadHomeTasks(merchantId);
+  const { cards } = await loadCachedHomeTasks(merchantId);
   const receipt = cards.find((card) => card.kind === 'awaiting_restock_receipt');
   const progress = cards.find((card) => card.kind === 'in_transit_restock');
 

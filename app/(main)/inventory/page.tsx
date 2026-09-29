@@ -30,6 +30,7 @@ export default async function InventoryPage() {
       unit: true,
       reorderPoint: true,
       cost: true,
+      averageCostPerGram: true,
       vendor: { select: { name: true, id: true } },
       inventoryBalances: {
         select: {
@@ -49,14 +50,14 @@ export default async function InventoryPage() {
       <PageHeader
         title="即時庫存"
         description="HQ 主倉以散裝實際單位管理；未盤點的舊數字僅供核對"
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/inventory/transactions">
-              查看異動紀錄
-              <ArrowUpRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
-        }
+        actions={(
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" asChild><Link href="/inventory/purchases/new">新增進貨</Link></Button>
+            <Button variant="outline" size="sm" asChild><Link href="/inventory/purchase-orders/new">新增採購單</Link></Button>
+            <Button variant="outline" size="sm" asChild><Link href="/inventory/purchases">進貨紀錄<ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
+            <Button variant="outline" size="sm" asChild><Link href="/inventory/transactions">異動紀錄<ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
+          </div>
+        )}
       />
 
       <div className="p-6">
@@ -72,6 +73,7 @@ export default async function InventoryPage() {
                 <TableHead className="text-right">寄賣</TableHead>
                 <TableHead className="text-right">合計</TableHead>
                 <TableHead className="text-right">補貨點</TableHead>
+                <TableHead className="text-right">平均成本/g</TableHead>
                 <TableHead>最近實體盤點</TableHead>
                 <TableHead>狀態</TableHead>
               </TableRow>
@@ -99,6 +101,7 @@ export default async function InventoryPage() {
                       <div className="text-xs text-muted-foreground">
                         {p.productId} · {p.sku}
                       </div>
+                      <Link href={`/inventory/stocktake/${p.id}`} className="mt-1 inline-block text-xs font-medium text-primary hover:underline">調整庫存</Link>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{productCategoryLabel[p.category]}</Badge>
@@ -122,6 +125,9 @@ export default async function InventoryPage() {
                     <TableCell className="text-right font-semibold">{counted ? `${formatNumber(main)} ${mainBalance?.unit}（HQ）` : `${formatNumber(total)}（舊合計）`}</TableCell>
                     <TableCell className="text-right text-sm text-muted-foreground">
                       {counted ? "待設定實際單位門檻" : formatNumber(p.reorderPoint)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      {p.averageCostPerGram == null ? "尚未建檔" : `NT$${Number(p.averageCostPerGram).toFixed(4)}`}
                     </TableCell>
                     <TableCell className="text-sm">{mainBalance?.countNote?.includes("未提供精確時間") ? mainBalance.lastCountedAt?.toISOString().slice(0, 10) : formatDateTime(mainBalance?.lastCountedAt)}<div className="text-xs text-muted-foreground">{mainBalance?.countNote}</div></TableCell>
                     <TableCell>
