@@ -51,7 +51,6 @@ export function movingAverageCost(input: {
   return ((previousStockGrams * previousAverageCostPerGram) + landedAmountCents / 100) /
     (previousStockGrams + receivedGrams);
 }
-
 export function receiptAverageCost(input: {
   previousStockGrams: number;
   previousAverageCostPerGram: number;
