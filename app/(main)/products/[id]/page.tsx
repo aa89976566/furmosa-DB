@@ -101,18 +101,23 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           <SummaryMetric label="總庫存" value={formatNumber(totalOnHand)} />
         </div>
 
-        <SectionCard
-          title="商品規格"
-          description="依重量（30g / 50g / 100g…）設定各規格的售價與成本"
-          icon={Layers}
-          contentClassName="pt-6"
+        <div
+          id="product-variants"
+          className="scroll-mt-28 rounded-2xl target:ring-4 target:ring-foreground/10"
         >
-          <PriceTierManager
-            productId={product.id}
-            productUnit={product.unit}
-            tiers={variations}
-          />
-        </SectionCard>
+          <SectionCard
+            title="商品規格"
+            description="依重量（30g / 50g / 100g…）設定各規格的售價與成本"
+            icon={Layers}
+            contentClassName="pt-6"
+          >
+            <PriceTierManager
+              productId={product.id}
+              productUnit={product.unit}
+              tiers={variations}
+            />
+          </SectionCard>
+        </div>
 
         <SectionCard
           title="商品主檔"
