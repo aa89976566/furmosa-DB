@@ -32,7 +32,7 @@ import {
   GROOMING_COUPON_POINTS,
 } from '@/lib/coupons/constants';
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
-import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
+import { listPartnerStoresFromDb, type PartnerStoreView } from '@/lib/stores/partner-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyMenuHub } from '@/lib/line/reply-menu';
 import {
@@ -64,11 +64,13 @@ function normalizeStoreInput(value: string): string {
     .toLowerCase();
 }
 
-async function resolveTypedSignupStore(input: string): Promise<string | null> {
+export function resolveTypedSignupStoreFromStores(
+  input: string,
+  stores: Array<Pick<PartnerStoreView, 'slug' | 'name'>>,
+): string | null {
   const normalized = normalizeStoreInput(input);
   if (!normalized) return null;
 
-  const stores = await listPartnerStoresFromDb();
   const exact = stores.find(
     (store) =>
       normalizeStoreInput(store.name) === normalized ||
@@ -87,6 +89,10 @@ async function resolveTypedSignupStore(input: string): Promise<string | null> {
     return storeName === simplified;
   });
   return candidates.length === 1 ? candidates[0]!.slug : null;
+}
+
+async function resolveTypedSignupStore(input: string): Promise<string | null> {
+  return resolveTypedSignupStoreFromStores(input, await listPartnerStoresFromDb());
 }
 
 async function clearExpiredRegisterSession(lineUserId: string) {
