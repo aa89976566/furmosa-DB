@@ -9,6 +9,7 @@ import { handleLineWebhookEvent, type LineWebhookEvent } from '@/lib/line/handle
 import { showLineLoadingAnimation } from '@/lib/line/loading';
 import { replyLineFallback } from '@/lib/line/reply';
 import { verifyLineSignature } from '@/lib/line/verify-signature';
+import { claimLineWebhookEvent, releaseLineWebhookEvent } from '@/lib/line/webhook-dedupe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,9 +63,20 @@ export async function POST(req: Request) {
   }
 
   for (const event of events) {
+    const webhookEventId =
+      'webhookEventId' in event && typeof event.webhookEventId === 'string'
+        ? event.webhookEventId
+        : undefined;
+
+    if (!claimLineWebhookEvent(webhookEventId)) {
+      console.warn('[line/webhook] duplicate event skipped', webhookEventId);
+      continue;
+    }
+
     try {
       await handleLineWebhookEvent(event);
     } catch (e) {
+      releaseLineWebhookEvent(webhookEventId);
       console.error('[line/webhook] event error', e);
       const replyToken =
         'replyToken' in event && typeof event.replyToken === 'string'
