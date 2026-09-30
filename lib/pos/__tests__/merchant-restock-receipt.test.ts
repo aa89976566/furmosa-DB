@@ -23,6 +23,7 @@ type World = {
   shipment: ShipmentRow;
   inTransaction: boolean;
   transactionCount: number;
+  transactionOptions: { maxWait?: number; timeout?: number } | undefined;
   restockRequestTouched: boolean;
   updateManyWheres: Array<Record<string, unknown>>;
   stockWrites: Array<Record<string, unknown>>;
@@ -55,6 +56,7 @@ function createWorld(overrides: Partial<ShipmentRow> = {}): World {
     shipment: baseShipment(overrides),
     inTransaction: false,
     transactionCount: 0,
+    transactionOptions: undefined,
     restockRequestTouched: false,
     updateManyWheres: [],
     stockWrites: [],
@@ -164,13 +166,17 @@ function makeTx() {
 
 const harness = globalThis as typeof globalThis & {
   __TEST_PRISMA__: {
-    $transaction: (fn: (tx: ReturnType<typeof makeTx>) => Promise<unknown>) => Promise<unknown>;
+    $transaction: (
+      fn: (tx: ReturnType<typeof makeTx>) => Promise<unknown>,
+      options?: { maxWait?: number; timeout?: number },
+    ) => Promise<unknown>;
   };
 };
 
 harness.__TEST_PRISMA__ = {
-  $transaction: async (fn) => {
+  $transaction: async (fn, options) => {
     world.transactionCount += 1;
+    world.transactionOptions = options;
     world.inTransaction = true;
     try {
       return await fn(makeTx());
@@ -246,6 +252,7 @@ describe('店家補貨收貨共用服務', () => {
 
     assert.equal(result, 'just_received');
     assert.equal(world.transactionCount, 1);
+    assert.deepEqual(world.transactionOptions, { maxWait: 10_000, timeout: 30_000 });
     assert.equal(world.restockRequestTouched, false);
     assert.equal(world.shipment.status, 'received');
     assert.equal(world.shipment.receivedByMerchantUserId, 'merchant-user-1');
