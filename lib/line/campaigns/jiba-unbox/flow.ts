@@ -599,6 +599,7 @@ function isPausedForRegister(collectedDataJson: string | null | undefined): bool
 async function findActiveJibaConversationPauseFlag(lineUserId: string): Promise<{
   hasSession: boolean;
   pausedForRegister: boolean;
+  updatedAt: Date | null;
 }> {
   const app = await prisma.campaignApplication.findFirst({
     where: {
@@ -607,14 +608,17 @@ async function findActiveJibaConversationPauseFlag(lineUserId: string): Promise<
     },
     select: {
       id: true,
-      conversationSession: { select: { id: true, collectedDataJson: true } },
+      conversationSession: { select: { id: true, collectedDataJson: true, updatedAt: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
-  if (!app?.conversationSession) return { hasSession: false, pausedForRegister: false };
+  if (!app?.conversationSession) {
+    return { hasSession: false, pausedForRegister: false, updatedAt: null };
+  }
   return {
     hasSession: true,
     pausedForRegister: isPausedForRegister(app.conversationSession.collectedDataJson),
+    updatedAt: app.conversationSession.updatedAt,
   };
 }
 
@@ -622,9 +626,11 @@ export const JIBA_SESSION_CAPTURE_TTL_MS = 30 * 60 * 1000;
 
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
   let chatFlow: string | null = null;
+  let chatUpdatedAt: Date | null = null;
   try {
     const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
     chatFlow = chat?.flow ?? null;
+    chatUpdatedAt = chat?.updatedAt ?? null;
     // 開戶進行中：開箱不得搶暱稱／手機／選店等輸入（即使 campaign session 仍在）
     if (chatFlow === 'register') return false;
   } catch (err) {
@@ -641,14 +647,18 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
     // 只有最近互動中的開箱流程可以攔截一般文字。
     // 超過 30 分鐘後，使用者必須重新點「開箱任務」／輸入開箱關鍵字才續接，
     // 避免隔很久後的普通聊天被舊 campaign state 吃掉。
-    const recent =
+    const now = Date.now();
+    const campaignRecent =
       updatedAt instanceof Date &&
-      Date.now() - updatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
+      now - updatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
+    const chatRecent =
+      chatUpdatedAt instanceof Date &&
+      now - chatUpdatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
 
     // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中；
     // 但 lineChatSession 自己也不能無限期攔截。
-    if (chatFlow === 'jiba_unbox') return recent;
-    return hasSession && recent;
+    if (chatFlow === 'jiba_unbox') return chatRecent || campaignRecent;
+    return hasSession && campaignRecent;
   } catch (err) {
     if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);
