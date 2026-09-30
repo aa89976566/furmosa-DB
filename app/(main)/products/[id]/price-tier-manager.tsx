@@ -33,6 +33,9 @@ export type PriceTierRow = {
   price: number;
   cost: number | null;
   defaultWholesaleUnitPrice: number | null;
+  sku: string | null;
+  shopifySku: string | null;
+  shopifyVariantId: string | null;
   notes: string | null;
 };
 
@@ -106,6 +109,7 @@ export function PriceTierManager({
               <TableHead className="text-right">售價</TableHead>
               <TableHead className="text-right">成本</TableHead>
               <TableHead className="text-right">買斷價</TableHead>
+              <TableHead className="min-w-[180px]">SKU 綁定</TableHead>
               {weightOnly && <TableHead className="text-right">售價 / g</TableHead>}
               <TableHead className="text-right">毛利</TableHead>
               <TableHead>備註</TableHead>
@@ -196,6 +200,21 @@ function TierDisplayRow({
           ? formatCurrency(tier.defaultWholesaleUnitPrice)
           : '未設定'}
       </TableCell>
+      <TableCell className="text-xs">
+        {tier.sku || tier.shopifySku || tier.shopifyVariantId ? (
+          <div className="space-y-0.5">
+            <div className="font-mono font-medium">{tier.sku ?? '未設匠寵 SKU'}</div>
+            {tier.shopifySku && (
+              <div className="font-mono text-muted-foreground">Shopify: {tier.shopifySku}</div>
+            )}
+            {tier.shopifyVariantId && (
+              <div className="font-mono text-muted-foreground">Variant: {tier.shopifyVariantId}</div>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted-foreground">尚未綁定</span>
+        )}
+      </TableCell>
       {weightOnly && (
         <TableCell className="text-right text-xs text-muted-foreground">
           {perGram != null ? `${perGram.toFixed(2)} /g` : '-'}
@@ -215,7 +234,14 @@ function TierDisplayRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
-          <Button size="sm" variant="ghost" onClick={onEdit} disabled={disabled}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onEdit}
+            disabled={disabled}
+            aria-label={`編輯 ${label}`}
+            title={`編輯 ${label}`}
+          >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
@@ -224,6 +250,8 @@ function TierDisplayRow({
             onClick={onDelete}
             disabled={disabled}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`刪除 ${label}`}
+            title={`刪除 ${label}`}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -262,7 +290,7 @@ function TierFormRow({
   const tierCostDefault =
     tier != null ? resolveTierCost(tier.cost, tier.weightGrams) : null;
 
-  const colSpan = weightOnly ? 8 : 7;
+  const colSpan = weightOnly ? 9 : 8;
 
   return (
     <TableRow className="bg-muted/30">
@@ -465,6 +493,44 @@ function TierFormRow({
               />
             </FieldInline>
           </div>
+
+          <fieldset className="rounded-lg border bg-background p-3">
+            <legend className="px-1 text-xs font-semibold">銷售 SKU 與 Shopify 綁定</legend>
+            <p className="mb-3 text-xs text-muted-foreground">
+              每個可販售規格使用自己的 SKU。舊商品可暫時留空；設定後，Shopify 訂單會優先用這些欄位精準對應規格。
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
+              <FieldInline label="匠寵規格 SKU">
+                <Input
+                  name="sku"
+                  defaultValue={tier?.sku ?? ''}
+                  maxLength={120}
+                  placeholder="例：FD-BEEF-30"
+                  autoComplete="off"
+                />
+              </FieldInline>
+              <FieldInline label="Shopify SKU">
+                <Input
+                  name="shopifySku"
+                  defaultValue={tier?.shopifySku ?? ''}
+                  maxLength={120}
+                  placeholder="Shopify 規格的 SKU"
+                  autoComplete="off"
+                />
+              </FieldInline>
+              <FieldInline label="Shopify Variant ID">
+                <Input
+                  name="shopifyVariantId"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  defaultValue={tier?.shopifyVariantId ?? ''}
+                  maxLength={32}
+                  placeholder="例：45678901234567"
+                  autoComplete="off"
+                />
+              </FieldInline>
+            </div>
+          </fieldset>
 
           <div className="flex items-center justify-end gap-2 border-t pt-2">
             <Button type="button" size="sm" variant="ghost" onClick={onCancel}>

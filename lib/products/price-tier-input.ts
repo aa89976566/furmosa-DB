@@ -27,6 +27,12 @@ export function parseTierFields(formData: FormData) {
     throw new Error('成本必須大於 0，或留空待後續補齊');
   }
   const notes = toNullableString(formData.get('notes'));
+  const sku = toNullableString(formData.get('sku'));
+  const shopifySku = toNullableString(formData.get('shopifySku'));
+  const shopifyVariantId = toNullableString(formData.get('shopifyVariantId'));
+  if (shopifyVariantId != null && !/^\d+$/.test(shopifyVariantId)) {
+    throw new Error('Shopify Variant ID 只能包含數字');
+  }
   const rawWholesalePrice = String(formData.get('defaultWholesaleUnitPrice') ?? '').trim();
   const defaultWholesaleUnitPrice = rawWholesalePrice === ''
     ? null
@@ -41,11 +47,33 @@ export function parseTierFields(formData: FormData) {
   if (mode === 'weight') {
     const weightGrams = toInt(formData.get('weightGrams'));
     if (weightGrams <= 0) throw new Error('重量必須大於 0');
-    return { weightGrams, unit: 'g', unitQty: 1, price, cost, defaultWholesaleUnitPrice, notes };
+    return {
+      weightGrams,
+      unit: 'g',
+      unitQty: 1,
+      price,
+      cost,
+      defaultWholesaleUnitPrice,
+      sku,
+      shopifySku,
+      shopifyVariantId,
+      notes,
+    };
   }
 
   const unit = String(formData.get('unit') ?? '').trim();
   if (!unit) throw new Error('單位為必填（例：隻、片、包）');
   const unitQty = Math.max(1, toInt(formData.get('unitQty'), 1));
-  return { weightGrams: null, unit, unitQty, price, cost, defaultWholesaleUnitPrice, notes };
+  return {
+    weightGrams: null,
+    unit,
+    unitQty,
+    price,
+    cost,
+    defaultWholesaleUnitPrice,
+    sku,
+    shopifySku,
+    shopifyVariantId,
+    notes,
+  };
 }

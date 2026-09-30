@@ -60,6 +60,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     price: tier.price,
     cost: tier.cost,
     defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice,
+    sku: tier.sku,
+    shopifySku: tier.shopifySku,
+    shopifyVariantId: tier.shopifyVariantId,
     notes: tier.notes,
   }));
   const variationSummary = summarizeVariations(variations);
