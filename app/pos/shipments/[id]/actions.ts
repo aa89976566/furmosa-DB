@@ -5,7 +5,6 @@ import { redirect } from 'next/navigation';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { confirmMerchantRestockReceipt } from '@/lib/merchant-restock-receipt';
 import { loadMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shipment';
-import { isRedirectError } from '@/lib/redirect-error';
 
 export async function confirmDirectShipmentReceiptAction(formData: FormData) {
   const session = await requireMerchantSession();
@@ -19,26 +18,14 @@ export async function confirmDirectShipmentReceiptAction(formData: FormData) {
     redirect(`/pos/restock/${loaded.requestId}`);
   }
 
+  let result: 'just_received' | 'already_received';
   try {
-    const result = await confirmMerchantRestockReceipt({
+    result = await confirmMerchantRestockReceipt({
       shipmentId,
       merchantId,
       merchantUserId,
     });
-
-    revalidatePath('/pos');
-    revalidatePath('/pos/stock');
-    revalidatePath('/pos/notifications');
-    revalidatePath(`/pos/shipments/${shipmentId}`);
-    revalidatePath('/shipments');
-
-    redirect(
-      result === 'just_received'
-        ? `/pos/shipments/${shipmentId}?receipt=just_received`
-        : `/pos/shipments/${shipmentId}?receipt=already_received`,
-    );
   } catch (error) {
-    if (isRedirectError(error)) throw error;
     console.error('[pos-restock-receipt] failed', {
       shipmentId,
       merchantId,
@@ -46,4 +33,19 @@ export async function confirmDirectShipmentReceiptAction(formData: FormData) {
     });
     redirect(`/pos/shipments/${shipmentId}?receipt=failed`);
   }
+
+  // The stock transaction has committed at this point. Keep cache invalidation
+  // outside the transaction error boundary so a post-commit redirect/revalidate
+  // cannot incorrectly tell the merchant that receipt failed.
+  revalidatePath('/pos');
+  revalidatePath('/pos/stock');
+  revalidatePath('/pos/notifications');
+  revalidatePath(`/pos/shipments/${shipmentId}`);
+  revalidatePath('/shipments');
+
+  redirect(
+    result === 'just_received'
+      ? `/pos/shipments/${shipmentId}?receipt=just_received`
+      : `/pos/shipments/${shipmentId}?receipt=already_received`,
+  );
 }
