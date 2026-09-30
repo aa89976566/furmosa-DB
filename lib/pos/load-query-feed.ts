@@ -74,8 +74,10 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       select: {
         id: true,
         createdAt: true,
+        updatedAt: true,
+        expectedArrivalDate: true,
         status: true,
-        shipment: { select: { status: true, shippedAt: true, receivedAt: true } },
+        shipment: { select: { status: true, shippedAt: true, receivedAt: true, updatedAt: true } },
         items: {
           take: 3,
           select: {
@@ -144,10 +146,14 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
     const occurredAt = r.shipment?.status === 'received'
-      ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.createdAt
+      ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.updatedAt
       : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
-        ? r.shipment.shippedAt ?? r.createdAt
-        : r.createdAt;
+        ? r.shipment.shippedAt ?? r.shipment.updatedAt
+        : r.shipment?.updatedAt ?? r.updatedAt;
+    const etaLabel = r.expectedArrivalDate
+      ? `預計到貨 ${formatQueryDate(r.expectedArrivalDate.toISOString()).replace(/（.*）$/, '')}`
+      : null;
+    const subtitle = [etaLabel, names || '補貨單'].filter(Boolean).join(' · ');
     const at = occurredAt.toISOString();
     return {
       id: `restock-${r.id}`,
@@ -157,10 +163,10 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       dateLabel: formatQueryDate(at),
       timeLabel: formatQueryTime(at),
       title: '補貨',
-      subtitle: names || '補貨單',
+      subtitle,
       status: restockFeedStatus(r.status, r.shipment?.status),
       href: `/pos/restock/${r.id}`,
-      searchText: `補貨 ${names} ${r.id}`.toLowerCase(),
+      searchText: `補貨 ${names} ${etaLabel ?? ''} ${restockFeedStatus(r.status, r.shipment?.status)} ${r.id}`.toLowerCase(),
     };
   });
 
