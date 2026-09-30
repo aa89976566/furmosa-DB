@@ -27,8 +27,8 @@ export type LineChatFlow = 'register' | 'jiba_unbox';
 
 export type LineChatPayload = RegisterDraft | JibaUnboxDraft;
 
-/** 未完成開戶流程超過此時間視為過期，不再攔截一般訊息 */
-export const REGISTER_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+/** 未完成開戶流程只在短時間內攔截一般訊息；避免隔天還把普通聊天當開戶欄位。 */
+export const REGISTER_SESSION_TTL_MS = 30 * 60 * 1000;
 
 export function isRegisterSessionExpired(
   session: { updatedAt: Date },
