@@ -5,6 +5,7 @@ import { isRegisterSessionExpired, REGISTER_SESSION_TTL_MS } from '../chat-sessi
 import {
   isRegisterNavLeaveText,
   registerStoreStepAction,
+  resolveTypedSignupStoreFromStores,
 } from '../register-from-chat';
 
 describe('registerStoreStepAction', () => {
@@ -18,6 +19,39 @@ describe('registerStoreStepAction', () => {
     assert.equal(registerStoreStepAction('35085664'), 'reprompt');
     assert.equal(registerStoreStepAction('毛孩來開箱'), 'reprompt');
     assert.equal(registerStoreStepAction(''), 'reprompt');
+  });
+});
+
+
+describe('resolveTypedSignupStoreFromStores', () => {
+  const stores = [
+    { slug: 'senpet', name: '森的汪星' },
+    { slug: 'manlisa', name: '曼莉莎寵物美容' },
+    { slug: 'morphy', name: '墨菲寵物美學' },
+  ];
+
+  it('直接輸入完整店名可解析', () => {
+    assert.equal(resolveTypedSignupStoreFromStores('森的汪星', stores), 'senpet');
+    assert.equal(resolveTypedSignupStoreFromStores('曼莉莎寵物美容', stores), 'manlisa');
+  });
+
+  it('省略美容／美學字樣仍可在唯一匹配時解析', () => {
+    assert.equal(resolveTypedSignupStoreFromStores('曼莉莎', stores), 'manlisa');
+    assert.equal(resolveTypedSignupStoreFromStores('墨菲', stores), 'morphy');
+  });
+
+  it('slug 與常見空白標點輸入可解析，未知店名維持 null', () => {
+    assert.equal(resolveTypedSignupStoreFromStores(' senpet ', stores), 'senpet');
+    assert.equal(resolveTypedSignupStoreFromStores('森 的 汪 星', stores), 'senpet');
+    assert.equal(resolveTypedSignupStoreFromStores('不存在的店', stores), null);
+  });
+
+  it('簡化名稱若有歧義，不可亂綁店', () => {
+    const ambiguous = [
+      { slug: 'a', name: '小白寵物美容' },
+      { slug: 'b', name: '小白寵物美學' },
+    ];
+    assert.equal(resolveTypedSignupStoreFromStores('小白', ambiguous), null);
   });
 });
 
