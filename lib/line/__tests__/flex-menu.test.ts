@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { buildJarHubItems } from '../brand-worlds';
-import { buildMainMenuMessages } from '../flex-menu';
+import { buildMainMenuMessages, buildStorePickerMessages } from '../flex-menu';
 import {
   buildWorldHubMessages,
   buildRegisterGateMessages,
@@ -68,6 +68,19 @@ describe('buildMainMenuMessages', () => {
     assert.match(raw, /"type":"button"/);
     assert.doesNotMatch(raw, /carousel/);
     assert.doesNotMatch(raw, /訂閱爆罐|領福利|產品導購|粉絲專頁/);
+  });
+});
+
+
+describe('開戶合作店按鈕', () => {
+  it('使用純 postback，不附 displayText，避免點一次再產生第二個文字事件', async () => {
+    const msgs = await buildStorePickerMessages();
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const raw = JSON.stringify(msgs[0]);
+    assert.match(raw, /"type":"postback"/);
+    assert.match(raw, /jd=store&c=/);
+    assert.doesNotMatch(raw, /"displayText"/);
   });
 });
 
