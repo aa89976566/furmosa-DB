@@ -1,5 +1,6 @@
 import type { RegisterDraft } from '@/lib/line/chat-session';
-import { REGISTER_SESSION_TTL_MS } from '@/lib/line/chat-session';
+
+export const REGISTER_STEP_PROMPT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /** 同一步驟的驗證提示是否在 24 小時冷卻內 */
 export function isRegisterStepPromptOnCooldown(
@@ -11,7 +12,7 @@ export function isRegisterStepPromptOnCooldown(
   if (!iso) return false;
   const last = new Date(iso);
   if (Number.isNaN(last.getTime())) return false;
-  return now.getTime() - last.getTime() < REGISTER_SESSION_TTL_MS;
+  return now.getTime() - last.getTime() < REGISTER_STEP_PROMPT_COOLDOWN_MS;
 }
 
 export function markRegisterStepPrompt(
