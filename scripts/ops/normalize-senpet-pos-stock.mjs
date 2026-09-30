@@ -192,3 +192,4 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => prisma.$disconnect());
+\n// Deployment trigger: execute the approved 2026-09-30 correction once.\n
