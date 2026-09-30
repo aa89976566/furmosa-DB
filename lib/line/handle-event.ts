@@ -472,9 +472,27 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
     const result = await redeemJarCode(customer.id, parsed.code);
     if (!result.ok) {
+      console.info('[line/jar-redeem]', {
+        messageId: event.message.id,
+        lineUserId,
+        customerId: customer.id,
+        codeSuffix: parsed.code.slice(-4),
+        status: result.status,
+        outcome: 'rejected',
+      });
       await replyLineText(replyToken, result.error);
       return;
     }
+    console.info('[line/jar-redeem]', {
+      messageId: event.message.id,
+      lineUserId,
+      customerId: customer.id,
+      codeSuffix: result.code.slice(-4),
+      ledgerId: result.ledgerId,
+      pointsEarned: result.pointsEarned,
+      balanceAfter: result.balanceAfter,
+      outcome: 'success',
+    });
     const snapshot = await loadVaultSnapshot(customer);
     const { progressLine } = rewardProgress(result.balanceAfter);
     await replyLineMessage(replyToken, [

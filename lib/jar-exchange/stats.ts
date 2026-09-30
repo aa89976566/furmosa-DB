@@ -10,7 +10,7 @@ export async function getJarExchangeStatsForCustomer(customerId: string) {
     prisma.memberPointsLedger
       .findFirst({
         where: { customerId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: { balanceAfter: true },
       })
       .then((r) => r?.balanceAfter ?? 0),
@@ -22,7 +22,7 @@ export async function getJarExchangeStatsForCustomer(customerId: string) {
     }),
     prisma.memberPointsLedger.findFirst({
       where: { customerId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { createdAt: true },
     }),
     prisma.customerService.findUnique({

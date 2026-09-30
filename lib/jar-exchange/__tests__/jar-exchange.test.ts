@@ -7,7 +7,22 @@ import { getPointsBalance } from '@/lib/jar-exchange/points';
 import { syncCustomerServices, ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { generateJarCode, isValidJarCodeFormat, JAR_CODE_LENGTH } from '@/lib/jar-exchange/codes';
 
-const testDatabaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+// Never fall back to runtime or production-looking database settings. This
+// suite creates and deletes business records, so it may only run when an
+// explicitly named, loopback test database is supplied.
+const configuredTestDatabaseUrl = process.env.JAR_EXCHANGE_TEST_DATABASE_URL?.trim();
+let testDatabaseUrl: string | undefined;
+if (configuredTestDatabaseUrl) {
+  try {
+    const parsed = new URL(configuredTestDatabaseUrl);
+    const databaseName = parsed.pathname.replace(/^\//, '').split('?')[0];
+    const loopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+    const testDatabaseName = /^(ci|furmosa_test|jar_exchange_test)$/.test(databaseName);
+    if (loopback && testDatabaseName) testDatabaseUrl = configuredTestDatabaseUrl;
+  } catch {
+    // Invalid or non-isolated URLs leave the suite skipped.
+  }
+}
 
 describe('jar exchange', { skip: !testDatabaseUrl }, () => {
   let prisma: PrismaClient;
@@ -15,6 +30,8 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
   let rewardId: string;
   let codeA: string;
   let codeB: string;
+  let codeC: string;
+  let codeD: string;
 
   before(async () => {
     prisma = new PrismaClient({
@@ -37,12 +54,16 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
 
     codeA = generateJarCode();
     codeB = generateJarCode();
+    codeC = generateJarCode();
+    codeD = generateJarCode();
     assert.ok(isValidJarCodeFormat(codeA));
     assert.equal(codeA.length, JAR_CODE_LENGTH);
     await prisma.jarCode.createMany({
       data: [
         { code: codeA, pointValue: 1, status: 'unused' },
         { code: codeB, pointValue: 1, status: 'unused' },
+        { code: codeC, pointValue: 1, status: 'unused' },
+        { code: codeD, pointValue: 1, status: 'unused' },
       ],
     });
 
@@ -63,7 +84,7 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
     await prisma.marketingCostRecord.deleteMany({ where: { customerId } });
     await prisma.rewardRedemption.deleteMany({ where: { customerId } });
     await prisma.memberPointsLedger.deleteMany({ where: { customerId } });
-    await prisma.jarCode.deleteMany({ where: { code: { in: [codeA, codeB] } } });
+    await prisma.jarCode.deleteMany({ where: { code: { in: [codeA, codeB, codeC, codeD] } } });
     await prisma.customerService.deleteMany({ where: { customerId } });
     await prisma.rewardCatalog.delete({ where: { id: rewardId } }).catch(() => {});
     await prisma.customer.delete({ where: { id: customerId } }).catch(() => {});
@@ -97,5 +118,16 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
     });
     assert.ok(cost);
     assert.equal(cost!.amount, 80);
+  });
+
+  it('serializes concurrent redemptions for the same member', async () => {
+    const [first, second] = await Promise.all([
+      redeemJarCode(customerId, codeC),
+      redeemJarCode(customerId, codeD),
+    ]);
+
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    assert.equal(await getPointsBalance(prisma, customerId), 2);
   });
 });

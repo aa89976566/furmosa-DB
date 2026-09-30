@@ -36,6 +36,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      JAR_EXCHANGE_TEST_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       AUTH_SECRET: ci-only-not-a-production-secret
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     steps:

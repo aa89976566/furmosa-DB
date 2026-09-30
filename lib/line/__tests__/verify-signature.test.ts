@@ -37,4 +37,11 @@ describe('verifyLineSignature', () => {
     assert.doesNotMatch(src, /includes\(\s*['"]開箱['"]\s*\)/);
     assert.match(src, /parsed\.kind === 'jiba_unbox'/);
   });
+
+  it('jar redemption trace includes the LINE event and ledger reference', () => {
+    const src = readFileSync(new URL('../handle-event.ts', import.meta.url), 'utf8');
+    assert.match(src, /\[line\/jar-redeem\]/);
+    assert.match(src, /messageId: event\.message\.id/);
+    assert.match(src, /ledgerId: result\.ledgerId/);
+  });
 });

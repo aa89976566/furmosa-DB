@@ -6,7 +6,13 @@ import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
 import { revalidatePath } from 'next/cache';
 
 export type RedeemJarCodeResult =
-  | { ok: true; pointsEarned: number; balanceAfter: number; code: string }
+  | {
+      ok: true;
+      pointsEarned: number;
+      balanceAfter: number;
+      code: string;
+      ledgerId: string;
+    }
   | { ok: false; error: string; status: number };
 
 export async function redeemJarCode(
@@ -58,6 +64,7 @@ export async function redeemJarCode(
         pointsEarned: row.pointValue,
         balanceAfter: ledger.balanceAfter,
         code,
+        ledgerId: ledger.id,
       };
     });
 
