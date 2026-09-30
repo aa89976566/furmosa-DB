@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { REGISTER_SESSION_TTL_MS } from '../chat-session';
 import {
   isRegisterStepPromptOnCooldown,
   markRegisterStepPrompt,
+  REGISTER_STEP_PROMPT_COOLDOWN_MS,
 } from '../register-step-throttle';
 
 describe('register step prompt throttle', () => {
@@ -22,7 +22,7 @@ describe('register step prompt throttle', () => {
 
   it('超過 24 小時可再次提示', () => {
     const draft = markRegisterStepPrompt({}, 'pet_age', now);
-    const after = new Date(now.getTime() + REGISTER_SESSION_TTL_MS + 1);
+    const after = new Date(now.getTime() + REGISTER_STEP_PROMPT_COOLDOWN_MS + 1);
     assert.equal(isRegisterStepPromptOnCooldown(draft, 'pet_age', after), false);
   });
 
