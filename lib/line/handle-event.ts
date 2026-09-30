@@ -4,7 +4,6 @@ import { getJarExchangeStatsForCustomer } from '@/lib/jar-exchange/stats';
 import { bindLineUserToCustomer, findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { JAR_ENTER_BLOCKED_GUEST } from '@/lib/line/brand-worlds';
 import { clearLineChatSession } from '@/lib/line/chat-session';
-import { runAfterReply } from '@/lib/line/defer';
 import {
   formatJarDepositSuccessMessage,
   formatQuickBalanceMessage,
