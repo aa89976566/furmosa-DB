@@ -470,10 +470,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
 
+    const lineMessageId = 'message' in event ? event.message.id : undefined;
     const result = await redeemJarCode(customer.id, parsed.code);
     if (!result.ok) {
       console.info('[line/jar-redeem]', {
-        messageId: event.message.id,
+        messageId: lineMessageId,
         lineUserId,
         customerId: customer.id,
         codeSuffix: parsed.code.slice(-4),
@@ -484,7 +485,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
       return;
     }
     console.info('[line/jar-redeem]', {
-      messageId: event.message.id,
+      messageId: lineMessageId,
       lineUserId,
       customerId: customer.id,
       codeSuffix: result.code.slice(-4),

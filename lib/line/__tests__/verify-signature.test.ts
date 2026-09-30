@@ -41,7 +41,7 @@ describe('verifyLineSignature', () => {
   it('jar redemption trace includes the LINE event and ledger reference', () => {
     const src = readFileSync(new URL('../handle-event.ts', import.meta.url), 'utf8');
     assert.match(src, /\[line\/jar-redeem\]/);
-    assert.match(src, /messageId: event\.message\.id/);
+    assert.match(src, /const lineMessageId = 'message' in event \? event\.message\.id : undefined/);
     assert.match(src, /ledgerId: result\.ledgerId/);
   });
 });
