@@ -63,9 +63,16 @@ export function buildMainMenuMessages(opts?: {
 
 export async function buildStorePickerMessages(): Promise<LineReplyMessage[]> {
   const stores = await listPartnerStoresFromDb();
-  const storeButtons: FlexButton[] = stores.map((s) =>
-    pbBtn(formatLineStorePickerLabel(s.name, s.slug), `jd=store&c=${s.slug}`),
-  );
+  const storeButtons: FlexButton[] = stores.map((s) => ({
+    type: 'button',
+    style: 'secondary',
+    height: 'sm',
+    action: {
+      type: 'postback',
+      label: formatLineStorePickerLabel(s.name, s.slug),
+      data: `jd=store&c=${s.slug}`,
+    },
+  }));
 
   return [
     {
