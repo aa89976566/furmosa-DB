@@ -303,7 +303,13 @@ export function ProductForm({
             </select>
           </Field>
 
-          <div className={cn('space-y-5 rounded-xl border-2 p-5', studio && 'md:col-span-2')}>
+          <div
+            id="product-commercial"
+            className={cn(
+              'scroll-mt-28 space-y-5 rounded-xl border-2 p-5 target:border-foreground target:ring-4 target:ring-foreground/10',
+              studio && 'md:col-span-2',
+            )}
+          >
             <div>
               <h3 className="text-base font-semibold">店家合作方式</h3>
               <p className="mt-1 text-xs text-muted-foreground">
