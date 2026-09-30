@@ -176,11 +176,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，且先回選單（零 DB）再背景補卡
   if (RICH_MENU_HUB_KINDS.has(parsed.kind)) {
-    runAfterReply(
-      clearLineChatSession(lineUserId).catch((err) => {
-        console.error('[line] clear session on rich-menu failed', err);
-      }),
-    );
+    try {
+      await clearLineChatSession(lineUserId);
+    } catch (err) {
+      console.error('[line] clear session on rich-menu failed', err);
+    }
 
     try {
       if (parsed.kind === 'hub_jar') {
@@ -223,11 +223,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   if (bypassSession) {
     // bind_help（立即開戶）會建立 register session，不可先 clear 掉
     if (parsed.kind !== 'bind_help') {
-      runAfterReply(
-        clearLineChatSession(lineUserId).catch((err) => {
-          console.error('[line] clear session on jar shortcut failed', err);
-        }),
-      );
+      try {
+        await clearLineChatSession(lineUserId);
+      } catch (err) {
+        console.error('[line] clear session on jar shortcut failed', err);
+      }
     }
   } else {
     // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
