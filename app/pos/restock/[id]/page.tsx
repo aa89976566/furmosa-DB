@@ -111,6 +111,17 @@ export default async function PosRestockDetailPage(
                   <br />
                   <span className="font-medium">{shipment.shipmentNumber}</span>
                 </p>
+                {req.expectedArrivalDate ? (
+                  <p>
+                    <span className="text-muted-foreground">預計到貨</span>
+                    <br />
+                    <span className="font-medium">
+                      {req.expectedArrivalDate.toLocaleDateString('zh-TW', {
+                        timeZone: 'Asia/Taipei',
+                      })}
+                    </span>
+                  </p>
+                ) : null}
                 {shipment.carrier ? (
                   <p>
                     <span className="text-muted-foreground">配送方式</span>
