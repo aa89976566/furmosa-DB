@@ -618,6 +618,8 @@ async function findActiveJibaConversationPauseFlag(lineUserId: string): Promise<
   };
 }
 
+export const JIBA_SESSION_CAPTURE_TTL_MS = 30 * 60 * 1000;
+
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
   let chatFlow: string | null = null;
   try {
@@ -631,13 +633,22 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
   }
   // 熱路徑不再每次 upsert 活動列；僅用 lineUserId 查進行中申請
   try {
-    const { hasSession, pausedForRegister } =
+    const { hasSession, pausedForRegister, updatedAt } =
       await findActiveJibaConversationPauseFlag(lineUserId);
     // 開戶期間暫停開箱：選完合作店後也不准搶回對話
     if (pausedForRegister) return false;
-    // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中
-    if (chatFlow === 'jiba_unbox') return true;
-    return hasSession;
+
+    // 只有最近互動中的開箱流程可以攔截一般文字。
+    // 超過 30 分鐘後，使用者必須重新點「開箱任務」／輸入開箱關鍵字才續接，
+    // 避免隔很久後的普通聊天被舊 campaign state 吃掉。
+    const recent =
+      updatedAt instanceof Date &&
+      Date.now() - updatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
+
+    // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中；
+    // 但 lineChatSession 自己也不能無限期攔截。
+    if (chatFlow === 'jiba_unbox') return recent;
+    return hasSession && recent;
   } catch (err) {
     if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);
