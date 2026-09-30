@@ -88,5 +88,8 @@ export async function confirmMerchantRestockReceipt(input: {
       },
     });
     return 'just_received' as const;
+  }, {
+    maxWait: 10_000,
+    timeout: 30_000,
   });
 }
