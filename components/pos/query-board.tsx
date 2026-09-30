@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Search, Truck } from "lucide-react";
+import { Search, Truck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/query-feed";
 
@@ -10,6 +10,7 @@ const TABS: { id: QueryKind | "all"; label: string }[] = [
   { id: "all", label: "全部" },
   { id: "sale", label: "銷售" },
   { id: "refill", label: "換罐" },
+  { id: "restock", label: "補貨" },
   { id: "stock", label: "庫存" },
 ];
 
@@ -84,11 +85,10 @@ export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[
                 <ul className="divide-y divide-border">
                   {group.map((item) => (
                     <li key={item.id}>
-                      <Link href={item.href} className="grid min-h-[70px] grid-cols-[52px_64px_minmax(0,1fr)_20px] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:grid-cols-[64px_84px_minmax(0,1fr)_20px]">
+                      <Link href={item.href} className="grid min-h-[76px] grid-cols-[52px_64px_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:grid-cols-[64px_84px_minmax(0,1fr)]">
                         <time className="text-sm tabular-nums text-muted-foreground">{item.timeLabel ?? item.whenLabel}</time>
                         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-center text-xs font-semibold text-primary">{KIND_LABELS[item.kind]}</span>
-                        <span className="min-w-0"><span className="block truncate font-medium text-foreground">{item.title}</span><span className="block truncate text-sm text-muted-foreground">{item.subtitle}</span></span>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" aria-hidden />
+                        <span className="min-w-0"><span className="flex min-w-0 items-center gap-2"><span className="truncate font-medium text-foreground">{item.title}</span><span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">{item.status}</span></span><span className="mt-0.5 block truncate text-sm text-muted-foreground">{item.subtitle}</span></span>
                       </Link>
                     </li>
                   ))}
