@@ -39,6 +39,11 @@ export async function confirmDirectShipmentReceiptAction(formData: FormData) {
     );
   } catch (error) {
     if (isRedirectError(error)) throw error;
+    console.error('[pos-restock-receipt] failed', {
+      shipmentId,
+      merchantId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     redirect(`/pos/shipments/${shipmentId}?receipt=failed`);
   }
 }

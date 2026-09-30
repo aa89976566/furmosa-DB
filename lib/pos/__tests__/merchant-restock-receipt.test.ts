@@ -252,7 +252,7 @@ describe('店家補貨收貨共用服務', () => {
 
     assert.equal(result, 'just_received');
     assert.equal(world.transactionCount, 1);
-    assert.deepEqual(world.transactionOptions, { maxWait: 10_000, timeout: 30_000 });
+    assert.deepEqual(world.transactionOptions, { maxWait: 30_000, timeout: 60_000 });
     assert.equal(world.restockRequestTouched, false);
     assert.equal(world.shipment.status, 'received');
     assert.equal(world.shipment.receivedByMerchantUserId, 'merchant-user-1');
