@@ -21,6 +21,17 @@ export type CreatePurchaseOrderInput = {
 
 const money = (cents: number) => new Prisma.Decimal(cents).div(100);
 
+export function formatTaipeiCalendarDate(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 function validate(input: CreatePurchaseOrderInput) {
   if (!input.items.length) throw new Error('至少需要一個採購品項');
   if (new Set(input.items.map((item) => item.productId)).size !== input.items.length) throw new Error('同一商品請合併成一列');
@@ -42,7 +53,7 @@ export async function createPurchaseOrder(db: PrismaClient, input: CreatePurchas
     select: { id: true, name: true, sku: true },
   });
   if (products.length !== input.items.length) throw new Error('部分商品不存在或已停用');
-  const stamp = input.remindFromDate.toISOString().slice(0, 10).replaceAll('-', '');
+  const stamp = formatTaipeiCalendarDate(input.remindFromDate).replaceAll('-', '');
   const orderNumber = `PO-${stamp}-${randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase()}`;
   return db.$transaction(async (tx) => tx.purchaseOrder.create({
     data: {
@@ -140,9 +151,7 @@ export async function receivePurchaseOrder(db: PrismaClient, purchaseOrderId: st
 }
 
 export function purchaseOrderIsDue(remindFromDate: Date, reference = new Date()) {
-  const taipeiDay = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(reference);
+  const taipeiDay = formatTaipeiCalendarDate(reference);
   return remindFromDate <= new Date(`${taipeiDay}T23:59:59.999+08:00`);
 }
 

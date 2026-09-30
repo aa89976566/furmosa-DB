@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Prisma } from '@prisma/client';
-import { allPurchaseLinesConfirmed, purchaseOrderIsDue } from '../inventory/purchase-orders';
+import { allPurchaseLinesConfirmed, formatTaipeiCalendarDate, purchaseOrderIsDue } from '../inventory/purchase-orders';
 import { applyStocktake } from '../inventory/stocktake';
 import { receiptAverageCost } from '../inventory/purchase-cost';
 import { purchaseReceiptEventKey } from '../inventory/post-purchase-receipt';
 
 test('採購提醒依台灣日曆日在 11/1 零點開始', () => {
   const reminder = new Date('2026-11-01T00:00:00+08:00');
+  assert.equal(formatTaipeiCalendarDate(reminder), '2026-11-01');
+  assert.equal(reminder.toISOString().slice(0, 10), '2026-10-31');
   assert.equal(purchaseOrderIsDue(reminder, new Date('2026-10-31T15:59:59.999Z')), false);
   assert.equal(purchaseOrderIsDue(reminder, new Date('2026-10-31T16:00:00.000Z')), true);
 });
