@@ -19,9 +19,9 @@ const GIFT_SKU = 'FUR-0002';
 async function loadPlan(db = prisma) {
   const merchant = await db.merchant.findUnique({
     where: { id: MERCHANT_ID },
-    select: { id: true, name: true, merchantCode: true },
+    select: { id: true, name: true, merchantId: true },
   });
-  if (!merchant || merchant.name !== '森的汪星' || merchant.merchantCode !== 'MER-0021') {
+  if (!merchant || merchant.name !== '森的汪星' || merchant.merchantId !== 'MER-0021') {
     throw new Error('STOP: merchant identity no longer matches 森的汪星 / MER-0021');
   }
 
