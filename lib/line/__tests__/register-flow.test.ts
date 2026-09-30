@@ -84,13 +84,13 @@ describe('isRegisterNavLeaveText', () => {
 describe('isRegisterSessionExpired', () => {
   const now = new Date('2026-06-11T12:00:00Z');
 
-  it('超過 24 小時視為過期', () => {
+  it('超過 30 分鐘視為過期', () => {
     const old = new Date(now.getTime() - REGISTER_SESSION_TTL_MS - 1000);
     assert.equal(isRegisterSessionExpired({ updatedAt: old }, now), true);
   });
 
-  it('24 小時內仍有效', () => {
-    const recent = new Date(now.getTime() - 60 * 60 * 1000);
+  it('30 分鐘內仍有效', () => {
+    const recent = new Date(now.getTime() - 10 * 60 * 1000);
     assert.equal(isRegisterSessionExpired({ updatedAt: recent }, now), false);
   });
 });
