@@ -32,6 +32,7 @@ import {
   GROOMING_COUPON_POINTS,
 } from '@/lib/coupons/constants';
 import { isSignupStoreId } from '@/lib/stores/signup-stores';
+import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyMenuHub } from '@/lib/line/reply-menu';
 import {
@@ -54,6 +55,38 @@ const CANCEL_RE = /^(取消|cancel|退出)$/i;
 export function registerStoreStepAction(text: string): 'cancel' | 'reprompt' {
   if (CANCEL_RE.test(text.trim())) return 'cancel';
   return 'reprompt';
+}
+
+function normalizeStoreInput(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/[\s　·・．.，,、()（）\-_/]/g, '')
+    .toLowerCase();
+}
+
+async function resolveTypedSignupStore(input: string): Promise<string | null> {
+  const normalized = normalizeStoreInput(input);
+  if (!normalized) return null;
+
+  const stores = await listPartnerStoresFromDb();
+  const exact = stores.find(
+    (store) =>
+      normalizeStoreInput(store.name) === normalized ||
+      normalizeStoreInput(store.slug) === normalized,
+  );
+  if (exact) return exact.slug;
+
+  // 常見輸入會省略「寵物美容／寵物美學／店」，僅在結果唯一時接受。
+  const simplified = normalized.replace(/寵物美容|寵物美學|美容|美學|店/g, '');
+  if (!simplified) return null;
+  const candidates = stores.filter((store) => {
+    const storeName = normalizeStoreInput(store.name).replace(
+      /寵物美容|寵物美學|美容|美學|店/g,
+      '',
+    );
+    return storeName === simplified;
+  });
+  return candidates.length === 1 ? candidates[0]!.slug : null;
 }
 
 async function clearExpiredRegisterSession(lineUserId: string) {
@@ -189,11 +222,18 @@ export async function handleRegisterFlowMessage(
       });
       return true;
     }
-    // 合作店請點按鈕；保留開戶 session，避免清掉後被開箱對話搶走
-    await replyLineMessage(replyToken, [
-      { type: 'text', text: '請點下面的合作店按鈕選一間喔～（打字選店這步還沒開放）' },
-      ...(await buildStorePickerMessages()),
-    ]);
+
+    // 按鈕之外也接受直接輸入店名，避免 LINE 顯示文字或使用者手打時陷入重複選店。
+    const typedStore = await resolveTypedSignupStore(trimmed);
+    if (typedStore && (await isSignupStoreId(typedStore))) {
+      draft.signupStore = typedStore;
+      await upsertLineChatSession(lineUserId, 'register', 'pet_name', draft);
+      await replyLineText(replyToken, LINE_PET_NAME_PROMPT);
+      return true;
+    }
+
+    // 找不到才重送一次乾淨的店家卡，不再額外回「打字未開放」。
+    await replyLineMessage(replyToken, await buildStorePickerMessages());
     return true;
   }
 
