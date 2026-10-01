@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "evidenceOnly": true,
+  "productionMutationPerformed": false,
+  "capturedFromIncidentPr": 112,
+  "designedFromPlanPr": 113,
+  "entryCount": 12,
+  "capturedAt": "2026-08-14",
+  "incidentCommit": "aa6cfaecd317ac980c978b1bca62fed632ed6501",
+  "designCommit": "b7604c778b3fbdc8780b5caec3ceaaa9d894d92f",
+  "warnings": [
+    "NON-ACTIVE evidence archive under docs/migration-evidence/. Prisma does not read this directory.",
+    "This archive does not change Prisma migration history, does not fix migrate status or drift, and does not mean reconciliation is complete.",
+    "Do not execute these SQL files. Do not delete, rewrite, or migrate resolve the Production _prisma_migrations ledger.",
+    "Moving files into the active prisma/migrations tree, creating a baseline, or any other reconciliation requires a separate later gate after empty-DB and schema-only clone validation plus human approval. This archive does not presuppose that gate."
+  ],
+  "rejectedChecksums": [
+    "43519603aa4aec3fdb3fb061ae356327fc81feb108cdf5b3058a9a4539284161"
+  ],
+  "entries": [
+    {
+      "order": 1,
+      "migrationName": "20260803110000_jar_flavour_product_link",
+      "productionChecksumSha256": "43371057f2924128945b085e48b130cc69036b1acc2fdb501d0fbe45a4991f5e",
+      "sourceCommit": "6ad56dbd933ab8934deea286e5c35c70158ae4cb",
+      "sourcePath": "prisma/migrations/20260803110000_jar_flavour_product_link/migration.sql",
+      "sourcePr": 84,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260803110000_jar_flavour_product_link/migration.sql",
+      "gitBlobSha": "da2383e25e59a1f4ac7cf3ec352bebe84da2b21f",
+      "notes": "Unique source commit. Historical SQL may contain DELETE; do not execute."
+    },
+    {
+      "order": 2,
+      "migrationName": "20260804120000_member_points_ledger_source_unique",
+      "productionChecksumSha256": "49549168d4e4b2f3301acdb8891ae4eec27374fd5ae50d1ea47de9a5e613e7f8",
+      "sourceCommit": "b3c17d3df8558233176065378c08039bb8029b83",
+      "sourcePath": "prisma/migrations/20260804120000_member_points_ledger_source_unique/migration.sql",
+      "sourcePr": 89,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260804120000_member_points_ledger_source_unique/migration.sql",
+      "gitBlobSha": "ad52ab13922d9ad522a57b8efc89d9cfa64e2461",
+      "notes": "Unique source commit. PR #91 contains a matching file but is not a second source."
+    },
+    {
+      "order": 3,
+      "migrationName": "20260804140000_refill_order_flavours",
+      "productionChecksumSha256": "c3b40ff7db5f579cc5d1992324f879df75333fb6a06d9910bc12c7710f697d5d",
+      "sourceCommit": "3adc941326064d40c6605616dd396cfe52c80b5d",
+      "sourcePath": "prisma/migrations/20260804140000_refill_order_flavours/migration.sql",
+      "sourcePr": 90,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260804140000_refill_order_flavours/migration.sql",
+      "gitBlobSha": "8dd9f0f25709f09ba4615343c7b3c7be792c1901",
+      "notes": "This file still matches PR #90 current head. That does not authorize 20260804160000 from #90 current. Historical SQL may contain DELETE; do not execute."
+    },
+    {
+      "order": 4,
+      "migrationName": "20260804160000_payment_order_active_unique",
+      "productionChecksumSha256": "dd723c6f2995961f11072cb767777984f2423d49650fefd5b6c9e61c3bbafa84",
+      "sourceCommit": "155979e2c06775971a49e4ee8926f2acc9edb407",
+      "sourcePath": "prisma/migrations/20260804160000_payment_order_active_unique/migration.sql",
+      "sourcePr": 90,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260804160000_payment_order_active_unique/migration.sql",
+      "gitBlobSha": "43c410430d6fde36591bd84740bfd3bf7ad92040",
+      "notes": "ONLY historical commit 155979e2c06775971a49e4ee8926f2acc9edb407 is accepted. PR #90 current checksum 43519603aa4aec3fdb3fb061ae356327fc81feb108cdf5b3058a9a4539284161 is rejected and is not stored. Historical SQL contains UPDATE; do not execute."
+    },
+    {
+      "order": 5,
+      "migrationName": "20260804172000_payment_paid_dup_guard",
+      "productionChecksumSha256": "66b9ca6855ec1a2b6b2facf582765764941b31ebb656330ade45bcb44bf30e99",
+      "sourceCommit": "1977b27d0bb3f0bf4df5eef3874576aa4732e97c",
+      "sourcePath": "prisma/migrations/20260804172000_payment_paid_dup_guard/migration.sql",
+      "sourcePr": 90,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260804172000_payment_paid_dup_guard/migration.sql",
+      "gitBlobSha": "3bcf2372f4fc0aa9dfba07b59637961419817338",
+      "notes": "Depends on entry 4. Source is #90 current for this file only, not for 20260804160000."
+    },
+    {
+      "order": 6,
+      "migrationName": "20260808060000_line_morning_mvp",
+      "productionChecksumSha256": "e57db4767e3f6ea8256fa167efb26396207f8125b708a7c59f42b5c61a05e009",
+      "sourceCommit": "b3b0740cf1042b52582a67a26acb0f3727243866",
+      "sourcePath": "prisma/migrations/20260808060000_line_morning_mvp/migration.sql",
+      "sourcePr": 96,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260808060000_line_morning_mvp/migration.sql",
+      "gitBlobSha": "75a3c3b5e5bd9f8268184303ad6b498986833051",
+      "notes": "PRESERVE — FEATURE DISABLED. Historical SQL may contain INSERT/DELETE; do not execute. Do not enable send/cron/news fetch."
+    },
+    {
+      "order": 7,
+      "migrationName": "20260808080000_line_morning_news_metadata",
+      "productionChecksumSha256": "c4c953a8a86ba9739af04c6a70d8cb3d46a761d0bd572c467c8fee86153ea29e",
+      "sourceCommit": "d0853e3d3ad69358bef72811bb440840e4814c51",
+      "sourcePath": "prisma/migrations/20260808080000_line_morning_news_metadata/migration.sql",
+      "sourcePr": 96,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260808080000_line_morning_news_metadata/migration.sql",
+      "gitBlobSha": "2ce273b9d315d5c624e5ae70523e9ec800c4f398",
+      "notes": "Depends on entry 6. PRESERVE — FEATURE DISABLED. Do not enable news fetch."
+    },
+    {
+      "order": 8,
+      "migrationName": "20260808120000_campaign_application_line_profile",
+      "productionChecksumSha256": "01254a38b74cd34d8a0fc2cc3744924cad41a30fc46c4d4386b9d0878ef5bf33",
+      "sourceCommit": "138699c78252fdf63e4513874ff387a9cddca44a",
+      "sourcePath": "prisma/migrations/20260808120000_campaign_application_line_profile/migration.sql",
+      "sourcePr": 93,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260808120000_campaign_application_line_profile/migration.sql",
+      "gitBlobSha": "1f6b3b70d322c18c72a5ecbe411c38080508d983",
+      "notes": "Same timestamp as entry 9; no dependency. UNRESOLVED — PRESERVE IN PLACE."
+    },
+    {
+      "order": 9,
+      "migrationName": "20260808120000_line_morning_phase4b_a_domain",
+      "productionChecksumSha256": "9b76f57d43493282555ae84f88755b6d05680211feda7c51888418e6c088aeca",
+      "sourceCommit": "2ecdfecf23c7579473341e72f7874df3dab92c7c",
+      "sourcePath": "prisma/migrations/20260808120000_line_morning_phase4b_a_domain/migration.sql",
+      "sourcePr": 97,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260808120000_line_morning_phase4b_a_domain/migration.sql",
+      "gitBlobSha": "625920a6fa72fdd90350c12ee522ec9974a8c6ba",
+      "notes": "Depends on entries 6 and 7. Same timestamp as entry 8; no dependency on 8. Historical SQL may contain DELETE; do not execute."
+    },
+    {
+      "order": 10,
+      "migrationName": "20260808220000_line_morning_preference_confirm_ledger",
+      "productionChecksumSha256": "b3f1dffe5cdd2a8b974f3c4c677fa1051cd15d04bb28661b5ce57098d99dafdb",
+      "sourceCommit": "d5291877e8f9154a62949cdb5ab2b6c7f8605160",
+      "sourcePath": "prisma/migrations/20260808220000_line_morning_preference_confirm_ledger/migration.sql",
+      "sourcePr": 100,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260808220000_line_morning_preference_confirm_ledger/migration.sql",
+      "gitBlobSha": "52230a2f0de5c709365707cb281b881af6c9e3e8",
+      "notes": "Logical dependency on entry 6. UNRESOLVED — PRESERVE IN PLACE. Do not enable re-opt-in."
+    },
+    {
+      "order": 11,
+      "migrationName": "20260810120000_line_morning_plan_ledger",
+      "productionChecksumSha256": "b82f3ab6dd4089aba5ad89c83b63d3a83663629bd9d915f37e04f8ce5d662f25",
+      "sourceCommit": "94254bd1a5d9066bfb1eb75a75d18b493fd3ec00",
+      "sourcePath": "prisma/migrations/20260810120000_line_morning_plan_ledger/migration.sql",
+      "sourcePr": 101,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260810120000_line_morning_plan_ledger/migration.sql",
+      "gitBlobSha": "ea78624cee891d03368809a136db7ff0ad5d6b17",
+      "notes": "Logical dependency on entry 6. UNRESOLVED — PRESERVE IN PLACE. Do not enable plan runner/cron."
+    },
+    {
+      "order": 12,
+      "migrationName": "20260811043000_refill_exchange_entitlement",
+      "productionChecksumSha256": "28f65cf14d0035d8a4c0d62062e55c73388bbc8cc60adc67436c22a006839224",
+      "sourceCommit": "6c8bdb18067945ac20e8258d3df1392346bf59e5",
+      "sourcePath": "prisma/migrations/20260811043000_refill_exchange_entitlement/migration.sql",
+      "sourcePr": 105,
+      "sourcePrStatus": "OPEN Draft",
+      "evidenceRelativePath": "sql/20260811043000_refill_exchange_entitlement/migration.sql",
+      "gitBlobSha": "a4fc3101a20e80ecfb4db8b3a247c79e8968d175",
+      "notes": "UNRESOLVED — PRESERVE IN PLACE. Historical SQL may contain DELETE; do not execute."
+    }
+  ]
+}
