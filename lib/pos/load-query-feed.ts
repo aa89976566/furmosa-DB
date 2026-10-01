@@ -149,7 +149,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.updatedAt
       : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
         ? r.shipment.shippedAt ?? r.shipment.updatedAt
-        : r.shipment?.updatedAt ?? r.updatedAt;
+        : r.shipment?.updatedAt ?? r.updatedAt ?? r.createdAt;
     const etaLabel = r.expectedArrivalDate
       ? `預計到貨 ${formatQueryDate(r.expectedArrivalDate.toISOString()).replace(/（.*）$/, '')}`
       : null;
