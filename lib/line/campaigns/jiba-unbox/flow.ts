@@ -110,6 +110,7 @@ import {
 } from '@/lib/line/flex-hubs';
 import {
   clearLineChatSession,
+  isLineSessionRecent,
   upsertJibaLineChatSessionIfIdle,
 } from '@/lib/line/chat-session';
 import { replyLineMessage, type LineReplyMessage } from '@/lib/line/reply';
@@ -626,11 +627,10 @@ export const JIBA_SESSION_CAPTURE_TTL_MS = 30 * 60 * 1000;
 
 export async function isJibaUnboxSessionActive(lineUserId: string): Promise<boolean> {
   let chatFlow: string | null = null;
-  let chatUpdatedAt: Date | null = null;
+  let chat: { flow: string | null; updatedAt: Date } | null = null;
   try {
-    const chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
+    chat = await prisma.lineChatSession.findUnique({ where: { lineUserId } });
     chatFlow = chat?.flow ?? null;
-    chatUpdatedAt = chat?.updatedAt ?? null;
     // 開戶進行中：開箱不得搶暱稱／手機／選店等輸入（即使 campaign session 仍在）
     if (chatFlow === 'register') return false;
   } catch (err) {
@@ -643,22 +643,20 @@ export async function isJibaUnboxSessionActive(lineUserId: string): Promise<bool
       await findActiveJibaConversationPauseFlag(lineUserId);
     // 開戶期間暫停開箱：選完合作店後也不准搶回對話
     if (pausedForRegister) return false;
+    // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中
+    if (chatFlow === 'jiba_unbox') {
+      return Boolean(chat && isLineSessionRecent(chat));
+    }
+    if (!hasSession) return false;
 
-    // 只有最近互動中的開箱流程可以攔截一般文字。
-    // 超過 30 分鐘後，使用者必須重新點「開箱任務」／輸入開箱關鍵字才續接，
-    // 避免隔很久後的普通聊天被舊 campaign state 吃掉。
-    const now = Date.now();
-    const campaignRecent =
-      updatedAt instanceof Date &&
-      now - updatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
-    const chatRecent =
-      chatUpdatedAt instanceof Date &&
-      now - chatUpdatedAt.getTime() <= JIBA_SESSION_CAPTURE_TTL_MS;
-
-    // 介紹頁尚無 campaign 列時，仍依 lineChatSession.jiba_unbox 判定進行中；
-    // 但 lineChatSession 自己也不能無限期攔截。
-    if (chatFlow === 'jiba_unbox') return chatRecent || campaignRecent;
-    return hasSession && campaignRecent;
+    const active = await prisma.campaignApplication.findFirst({
+      where: { lineUserId, status: { in: [...ACTIVE_APP_STATUSES] } },
+      select: { conversationSession: { select: { updatedAt: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return Boolean(
+      active?.conversationSession && isLineSessionRecent(active.conversationSession),
+    );
   } catch (err) {
     if (isMissingCampaignTableError(err)) return false;
     console.error('[jiba-unbox] campaign lookup failed', err);

@@ -40,7 +40,13 @@ export type ReplyLineOptions = {
 };
 
 async function postReply(replyToken: string, messages: LineReplyMessage[]) {
-  if (!isLineExternalEffectsAllowed()) return;
+  if (!isLineExternalEffectsAllowed()) {
+    console.error('[line/reply] external effects disabled; reply skipped', {
+      appEnvPresent: Boolean(process.env.APP_ENV),
+      externalEffectsModePresent: Boolean(process.env.EXTERNAL_EFFECTS_MODE),
+    });
+    return;
+  }
   const token = getLineChannelAccessToken();
   const res = await fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'POST',

@@ -63,20 +63,15 @@ export async function POST(req: Request) {
   }
 
   for (const event of events) {
-    const webhookEventId =
-      'webhookEventId' in event && typeof event.webhookEventId === 'string'
-        ? event.webhookEventId
-        : undefined;
-
-    if (!claimLineWebhookEvent(webhookEventId)) {
-      console.warn('[line/webhook] duplicate event skipped', webhookEventId);
+    const eventId = 'webhookEventId' in event ? event.webhookEventId : undefined;
+    if (!claimLineWebhookEvent(eventId)) {
+      console.info('[line/webhook] duplicate event skipped', eventId);
       continue;
     }
-
     try {
       await handleLineWebhookEvent(event);
     } catch (e) {
-      releaseLineWebhookEvent(webhookEventId);
+      releaseLineWebhookEvent(eventId);
       console.error('[line/webhook] event error', e);
       const replyToken =
         'replyToken' in event && typeof event.replyToken === 'string'
