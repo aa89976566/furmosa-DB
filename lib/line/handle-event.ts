@@ -76,6 +76,7 @@ const RICH_MENU_HUB_KINDS = new Set([
 
 type LineMessageEvent = {
   type: 'message';
+  webhookEventId?: string;
   message: { type: string; id: string; text?: string };
   source: { type: string; userId?: string };
   replyToken: string;
@@ -83,6 +84,7 @@ type LineMessageEvent = {
 
 type LinePostbackEvent = {
   type: 'postback';
+  webhookEventId?: string;
   postback: { data: string };
   source: { type: string; userId?: string };
   replyToken: string;
@@ -90,6 +92,7 @@ type LinePostbackEvent = {
 
 type LineFollowEvent = {
   type: 'follow';
+  webhookEventId?: string;
   source: { type: string; userId?: string };
   replyToken: string;
 };
@@ -173,13 +176,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   const parsed = parseLineUserText(msgEvent.message.text);
 
-  // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，且先回選單（零 DB）再背景補卡
+  // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，先清除舊流程再回選單。
   if (RICH_MENU_HUB_KINDS.has(parsed.kind)) {
-    try {
-      await clearLineChatSession(lineUserId);
-    } catch (err) {
+    await clearLineChatSession(lineUserId).catch((err) => {
       console.error('[line] clear session on rich-menu failed', err);
-    }
+    });
 
     try {
       if (parsed.kind === 'hub_jar') {
@@ -222,11 +223,9 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   if (bypassSession) {
     // bind_help（立即開戶）會建立 register session，不可先 clear 掉
     if (parsed.kind !== 'bind_help') {
-      try {
-        await clearLineChatSession(lineUserId);
-      } catch (err) {
+      await clearLineChatSession(lineUserId).catch((err) => {
         console.error('[line] clear session on jar shortcut failed', err);
-      }
+      });
     }
   } else {
     // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉

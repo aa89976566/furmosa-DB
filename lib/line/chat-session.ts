@@ -27,8 +27,19 @@ export type LineChatFlow = 'register' | 'jiba_unbox';
 
 export type LineChatPayload = RegisterDraft | JibaUnboxDraft;
 
-/** 未完成開戶流程只在短時間內攔截一般訊息；避免隔天還把普通聊天當開戶欄位。 */
+/** 未完成流程超過此時間視為過期，不再攔截一般訊息 */
 export const REGISTER_SESSION_TTL_MS = 30 * 60 * 1000;
+
+/** 開箱／開戶對一般文字的攔截視窗，避免舊流程長時間搶走新對話。 */
+export const LINE_CAPTURE_WINDOW_MS = 30 * 60 * 1000;
+
+export function isLineSessionRecent(
+  session: { updatedAt: Date },
+  now: Date = new Date(),
+): boolean {
+  const age = now.getTime() - session.updatedAt.getTime();
+  return age >= 0 && age <= LINE_CAPTURE_WINDOW_MS;
+}
 
 export function isRegisterSessionExpired(
   session: { updatedAt: Date },

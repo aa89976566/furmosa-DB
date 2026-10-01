@@ -90,7 +90,7 @@ describe('isRegisterSessionExpired', () => {
   });
 
   it('30 分鐘內仍有效', () => {
-    const recent = new Date(now.getTime() - 10 * 60 * 1000);
+    const recent = new Date(now.getTime() - 20 * 60 * 1000);
     assert.equal(isRegisterSessionExpired({ updatedAt: recent }, now), false);
   });
 });
