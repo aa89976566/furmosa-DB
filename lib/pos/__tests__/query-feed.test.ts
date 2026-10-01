@@ -279,6 +279,7 @@ describe('loadQueryFeed whenLabel', () => {
         {
           id: 'restock-1',
           createdAt,
+          updatedAt: createdAt,
           status: 'submitted',
           items: [{ requestedQuantity: 2, product: { name: '水晶魚' } }],
         },
