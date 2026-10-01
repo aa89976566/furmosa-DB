@@ -83,6 +83,17 @@ describe('出貨工作區介面', () => {
     assert.match(source, /確定要取消這張出貨單嗎/);
   });
 
+  it('已寄出撤回必須在明細頁確認並留下原因', () => {
+    const source = readFileSync('components/shipments/shipment-status-actions.tsx', 'utf8');
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.match(source, /確認撤回為待出貨/);
+    assert.match(source, /name="correctionConfirmed" value="1"/);
+    assert.match(source, /required=\{isShippingCorrection\}/);
+    assert.match(action, /formData\.get\('correctionConfirmed'\) !== '1'/);
+    assert.match(action, /請填寫撤回原因/);
+  });
+
   it('列表訂單內容只供查看，不重複顯示物流狀態操作', () => {
     const actions = readFileSync(
       'components/shipments/shipment-status-actions.tsx',
