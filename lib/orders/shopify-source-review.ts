@@ -11,15 +11,18 @@ export const SOURCE_REVIEW_VERSION = 'shopify-source-v1';
 
 /** Keep Shopify product lines authoritative while allowing HQ to correct fulfillment fields. */
 export function mergeShopifyFulfillmentDraft(source: ReturnType<typeof shopifySourceDraft>, override: ReturnType<typeof reviewDraft>) {
+  const storeId = override.storeId || source.storeId;
+  const storeName = override.storeName || source.storeName;
+  const method = override.method || source.method || (storeName || storeId ? 'convenience' : '');
   return reviewDraft({
     ...source,
-    method: override.method || source.method,
+    method,
     temperature: override.temperature || source.temperature,
     recipient: override.recipient || source.recipient,
     phone: override.phone || source.phone,
     address: override.address || source.address,
-    storeId: override.storeId || source.storeId,
-    storeName: override.storeName || source.storeName,
+    storeId,
+    storeName,
     duplicateConfirmed: override.duplicateConfirmed,
   });
 }
