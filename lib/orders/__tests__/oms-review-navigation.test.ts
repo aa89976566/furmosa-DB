@@ -16,3 +16,9 @@ test('READY review panel persistently explains the next action', () => {
   assert.match(panel, /訂單已確認/);
   assert.match(panel, /下一步：建立 HQ 出貨單/);
 });
+
+
+test('approve automatically creates the shipment when there are no blockers', () => {
+  assert.match(actions, /action === 'approve' && result\.ok && result\.blockers\.length === 0/);
+  assert.match(actions, /action: 'ship'/);
+});
