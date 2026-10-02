@@ -108,6 +108,19 @@ function fakeDb(source = snapshot) {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('accepts a 7-11 store name without a store number in source-only review', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '門市地址' },
+      shipping_lines: [{ title: '7-11', code: '711' }],
+    });
+    const f = fakeDb(source);
+    const result = await f.run('check', {
+      sourceOnly: true,
+      draft: { ...draft, method: 'convenience', storeId: '', storeName: '昌順門市' },
+    });
+    assert.equal(result.blockers.some(message => message.includes('六位數') || message.includes('門市店號')), false);
+  });
+
   it('Shopify source review accepts a source product without an HQ mapping or temperature override', async () => {
     const source = shopifySnapshot({ ...raw,
       shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '測試地址' },
