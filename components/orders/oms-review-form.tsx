@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useRouter } from 'next/navigation';
 
 type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string }[] };
 
@@ -14,7 +15,7 @@ function Actions({ status, summary, alertText }: { status: string; summary: stri
   const { pending } = useFormStatus();
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
     <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm"><p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p><p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p></div>
-    <div className="flex flex-wrap justify-end gap-2"><Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>儲存並檢查</Button>{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
+    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW') && <Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>儲存並檢查</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
   </div>;
 }
 
@@ -30,8 +31,20 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
 
 export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary }) {
   const [state, action] = useFormState(omsReviewAction, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
+  const router = useRouter();
   const ok = state.ok ?? null;
+  const effectiveStatus = state.ok && state.omsStatus ? state.omsStatus : status;
   const [method, setMethod] = useState(draft.method);
+
+  useEffect(() => {
+    if (!state.ok || !state.action) return;
+    router.refresh();
+    const targetId = state.action === 'ship' ? 'oms-shipping' : 'oms-review';
+    const timer = window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [router, state.action, state.ok, state.omsStatus]);
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
@@ -47,5 +60,5 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
         {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" defaultValue={draft.storeId} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
       </div>
     </section>
-    <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section><details className="rounded-lg border bg-muted/20 p-3 text-sm"><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={status} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} /></form>;
+    <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section><details className="rounded-lg border bg-muted/20 p-3 text-sm"><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} /></form>;
 }
