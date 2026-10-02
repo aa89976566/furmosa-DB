@@ -4,7 +4,7 @@ import { snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
-import { shopifySourceDraft, shopifyShippingLabel } from '@/lib/orders/shopify-source-review';
+import { mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel } from '@/lib/orders/shopify-source-review';
 
 function paymentSummary(source: Snapshot) {
   const financialStatus = string(source.order.financial_status);
@@ -31,7 +31,8 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
 
   const audit = await prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
-  const draft = shopifySourceDraft(source, [], saved?.duplicateConfirmed ?? false);
+  const sourceDraft = shopifySourceDraft(source, [], saved?.duplicateConfirmed ?? false);
+  const draft = saved ? mergeShopifyFulfillmentDraft(sourceDraft, saved) : sourceDraft;
   const payment = paymentSummary(source);
   const shippingLabel = shopifyShippingLabel(source);
 
