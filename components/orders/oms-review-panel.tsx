@@ -32,7 +32,9 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   const audit = await prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
   const sourceDraft = shopifySourceDraft(source, [], saved?.duplicateConfirmed ?? false);
-  const draft = saved ? mergeShopifyFulfillmentDraft(sourceDraft, saved) : sourceDraft;
+  const draft = saved
+    ? mergeShopifyFulfillmentDraft(sourceDraft, saved)
+    : mergeShopifyFulfillmentDraft(sourceDraft, sourceDraft);
   const payment = paymentSummary(source);
   const shippingLabel = shopifyShippingLabel(source);
 
