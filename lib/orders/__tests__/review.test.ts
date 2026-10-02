@@ -67,9 +67,11 @@ describe('OMS review checks', () => {
     assert.equal(reviewDraft({ giftsConfirmed: 'true' }).giftsConfirmed, false);
     assert.ok(codes(snapshot, reviewDraft({})).length > 3);
   });
-  it('blocks missing contacts, pickup store and incompatible temperatures', () => {
+  it('blocks missing contacts, pickup store name and incompatible temperatures', () => {
     const result = codes(snapshot, { ...draft, recipient: '', phone: '', address: '', method: 'convenience', temperature: 'frozen' });
     for (const c of ['RECIPIENT_MISSING', 'PHONE_MISSING', 'ADDRESS_MISSING', 'PICKUP_STORE_MISSING', 'TEMPERATURE_CONFLICT']) assert.ok(result.includes(c as any));
+    const namedStore = codes(snapshot, { ...draft, method: 'convenience', temperature: 'ambient', storeId: '', storeName: '測試門市' });
+    assert.equal(namedStore.includes('PICKUP_STORE_MISSING'), false);
   });
   it('uses deterministic promotion checks and only asks for duplicate acknowledgment when needed', () => {
     assert.equal(codes(snapshot, { ...draft, giftsConfirmed: false }, products, false).includes('GIFT_REVIEW_REQUIRED'), false);
