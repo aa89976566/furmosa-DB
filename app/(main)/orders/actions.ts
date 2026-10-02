@@ -257,6 +257,7 @@ export async function updateOrder(formData: FormData) {
       id: true,
       status: true,
       subscriptionId: true,
+      omsStatus: true,
       merchantId: true,
       customerId: true,
       items: {
