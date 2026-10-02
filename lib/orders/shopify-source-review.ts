@@ -69,7 +69,7 @@ export function checkShopifySource(snapshot: Snapshot, duplicate: boolean, dupli
     if (!/^\+?[\d ()-]{8,25}$/.test(draft.phone)) add('PHONE_MISSING', 'Shopify 缺少有效收件電話，請在來源訂單補齊');
     if (!draft.address) add('ADDRESS_MISSING', 'Shopify 缺少收件地址，請在來源訂單補齊');
     if (!['home', 'convenience'].includes(draft.method)) add('SHIPPING_METHOD_UNKNOWN', '請確認配送方式');
-    if (draft.method === 'convenience' && (!/^\d{6}$/.test(draft.storeId) || !draft.storeName)) add('PICKUP_STORE_MISSING', '7-11 需要六位數門市店號及門市名稱');
+    if (draft.method === 'convenience' && !draft.storeName) add('PICKUP_STORE_MISSING', '7-11 需要門市名稱');
   }
   if (duplicate && !duplicateConfirmed) add('POSSIBLE_DUPLICATE', '相同聯絡資料及金額有近期訂單，請確認不是重複下單');
   return issues;
