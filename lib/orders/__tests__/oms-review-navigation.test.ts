@@ -5,9 +5,9 @@ import test from 'node:test';
 const actions = fs.readFileSync('app/(main)/orders/oms-actions.ts', 'utf8');
 const panel = fs.readFileSync('components/orders/oms-review-panel.tsx', 'utf8');
 
-test('successful OMS transitions navigate to committed server state', () => {
-  assert.match(actions, /result\.ok && result\.action === 'approve'.*redirect\(`\/orders\/\$\{field\('orderId'\)\}#oms-shipping`\)/s);
-  assert.match(actions, /result\.ok && result\.action === 'ship'.*redirect\(`\/orders\/\$\{field\('orderId'\)\}#oms-shipping`\)/s);
+test('successful OMS transitions return committed state without blocking on a server redirect', () => {
+  assert.doesNotMatch(actions, /redirect\(/);
+  assert.match(actions, /return result/);
 });
 
 test('READY review panel persistently explains the next action', () => {
