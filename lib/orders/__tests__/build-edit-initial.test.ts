@@ -4,6 +4,54 @@ import { describe, it } from 'node:test';
 import { buildOrderCreateInitial, buildOrderEditInitial } from '@/lib/orders/build-edit-initial';
 
 describe('buildOrderEditInitial', () => {
+
+  it('hydrates a legacy convenience-store name from the shipment so edit save is not silently blocked', () => {
+    const order = {
+      id: 'order-line-08',
+      orderNumber: 'LINE-08',
+      source: 'line',
+      merchantId: null,
+      customerId: 'customer-1',
+      discount: 0,
+      shippingFeeType: 'prepaid',
+      paymentStatus: 'paid',
+      shippingMethod: 'convenience',
+      cvsBrand: '711',
+      cvsStoreName: null,
+      shippingAddress: null,
+      note: null,
+      status: 'confirmed',
+      subscriptionId: null,
+      items: [{
+        id: 'item-1',
+        productId: 'product-1',
+        weightGrams: 50,
+        unit: 'g',
+        quantity: 1,
+        unitPrice: 160,
+        unitCost: null,
+        isGift: false,
+      }],
+    };
+    const shipment = {
+      recipientName: '余佳臻',
+      recipientPhone: '0905807679',
+      recipientAddress: '聚懋門市',
+    };
+    const products = [{
+      id: 'product-1',
+      productCategory: 'STANDARD',
+      unit: 'g',
+      price: 160,
+      priceTiers: [],
+    }];
+
+    const result = buildOrderEditInitial(order as never, shipment as never, products as never);
+
+    assert.equal(result.cvsStoreName, '聚懋門市');
+    assert.equal(result.shippingAddress, '聚懋門市');
+  });
+
   it('fills a missing historical weight and unit from the resolved product tier', () => {
     const order = {
       id: 'order-1',
