@@ -137,8 +137,16 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   const orders = await prisma.order.findMany({
     where: {
       ...activeOrderWhere,
-      status: 'pending_review',
-      OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+      OR: [
+        {
+          status: 'pending_review',
+          OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+        },
+        {
+          omsStatus: 'READY',
+          shipments: { none: {} },
+        },
+      ],
     },
     select: {
       id: true,
@@ -150,6 +158,8 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       createdAt: true,
       customer: { select: { name: true } },
       items: { select: { productName: true }, take: 4 },
+      omsStatus: true,
+      _count: { select: { shipments: true } },
     },
     orderBy: { orderedAt: 'desc' },
     take: 80,
@@ -171,7 +181,9 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       subtitle: orderContentSummary(order),
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
-      statusLabel: '待審核',
+      statusLabel: order.omsStatus === 'READY' && order._count.shipments === 0
+        ? '已確認・待建出貨單'
+        : '待審核',
     };
   });
 }
@@ -274,8 +286,16 @@ export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
     prisma.order.count({
       where: {
         ...activeOrderWhere,
-        status: 'pending_review',
-        OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+        OR: [
+          {
+            status: 'pending_review',
+            OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+          },
+          {
+            omsStatus: 'READY',
+            shipments: { none: {} },
+          },
+        ],
       },
     }),
     prisma.restockRequest.count({
