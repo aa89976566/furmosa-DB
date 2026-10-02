@@ -30,7 +30,7 @@ export function PetProfileFieldsBlock({
       <div>
         <p className="text-sm font-medium text-foreground">毛孩資料（選填）</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          有填寫時，種類與名字請一併填寫；生日可留空。
+          名字、種類、年齡與生日都可分開填；知道多少先填多少。
         </p>
       </div>
 
