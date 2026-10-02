@@ -294,3 +294,13 @@ describe('OMS review action result contract', () => {
     assert.equal(stock.shipmentCreates, 0);
   });
 });
+
+
+test('infers convenience shipping from a saved store name when Shopify method is blank', () => {
+  const merged = mergeShopifyFulfillmentDraft(
+    reviewDraft({ method: '', storeName: '', storeId: '', recipient: 'A', phone: '0912345678', address: 'X' }),
+    reviewDraft({ method: '', storeName: '昌順門市', storeId: '', recipient: 'A', phone: '0912345678', address: 'X' }),
+  );
+  assert.equal(merged.method, 'convenience');
+  assert.equal(merged.storeName, '昌順門市');
+});
