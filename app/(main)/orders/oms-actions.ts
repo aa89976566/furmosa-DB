@@ -43,7 +43,7 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   // Successful state transitions must render from the committed server state, not rely on
   // transient client form state. A same-page redirect guarantees the next workflow action
   // is visible immediately after approve/ship even if React remounts during revalidation.
-  if (result.ok && result.action === 'approve') redirect(`/orders/${field('orderId')}#oms-review`);
+  if (result.ok && result.action === 'approve') redirect(`/orders/${field('orderId')}#oms-shipping`);
   if (result.ok && result.action === 'ship') redirect(`/orders/${field('orderId')}#oms-shipping`);
 
   return result;
