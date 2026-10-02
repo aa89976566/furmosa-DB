@@ -1276,6 +1276,7 @@ export function OrderForm({
 
   return (
     <form
+      noValidate
       action={async (formData) => {
         setSubmitError(null);
         if (!recipientName.trim()) {
@@ -1284,6 +1285,22 @@ export function OrderForm({
         }
         if (!shippingMethod) {
           setSubmitError('請先選擇物流方式。');
+          return;
+        }
+        if (orderType === 'customer' && !customerId) {
+          setSubmitError('請選擇客戶。');
+          return;
+        }
+        if (orderType === 'merchant' && !merchantId) {
+          setSubmitError('請選擇店家。');
+          return;
+        }
+        if (shippingMethod === 'convenience' && !cvsStoreName.trim()) {
+          setSubmitError('7-11 配送請填寫門市名稱。');
+          return;
+        }
+        if ((shippingMethod === 'home' || shippingMethod === 'delivery') && !shippingAddress.trim()) {
+          setSubmitError('請填寫完整收件地址。');
           return;
         }
         if (!hasValidLines) {
