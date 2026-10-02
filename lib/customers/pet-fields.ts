@@ -69,22 +69,8 @@ export function parsePetFieldsFromFormData(formData: FormData): ParsedPetFields 
 }
 
 export function validatePetFieldsConsistency(p: ParsedPetFields): void {
-  const hasPet =
-    p.petName ||
-    p.petSpecies ||
-    p.petBreed ||
-    (p.petSpeciesOther && p.petSpecies === 'other') ||
-    p.petAgeYears !== null ||
-    p.petBirthday !== null;
-
-  if (!hasPet) return;
-
-  if (!p.petSpecies) {
-    throw new Error('已填毛孩資料時，請選擇種類');
-  }
-  if (!p.petName) {
-    throw new Error('已填毛孩資料時，請填寫毛孩名字');
-  }
+  // 毛孩資料整區皆為選填；允許只知道名字、年齡或生日時先建立客戶，
+  // 後續再補齊種類。唯一需要成對驗證的是「其他」種類本身的文字說明。
   if (p.petSpecies === 'other' && !p.petSpeciesOther?.trim()) {
     throw new Error('請在「其他種類」簡短填寫');
   }
