@@ -253,7 +253,11 @@ export function buildOrderCreateInitial(
   return { ...initial, items, paymentStatus: 'unpaid' };
 }
 
-export function isOrderEditable(order: Pick<Order, 'status' | 'subscriptionId'>) {
+export function isOrderEditable(order: Pick<Order, 'status' | 'subscriptionId' | 'omsStatus'>) {
+  if (order.omsStatus) return {
+    ok: false as const,
+    reason: 'Shopify OMS 訂單請在訂單審核區補正配送資料；商品與數量仍以 Shopify 訂單為準',
+  };
   if (order.subscriptionId) return { ok: false as const, reason: '訂閱衍生訂單請至訂閱管理修改' };
   if (order.status === 'completed') return { ok: false as const, reason: '已完成訂單無法修改' };
   if (order.status === 'cancelled') return { ok: false as const, reason: '已取消訂單無法修改，請先復原狀態' };
