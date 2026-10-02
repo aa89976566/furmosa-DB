@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildOrderCreateInitial, buildOrderEditInitial } from '@/lib/orders/build-edit-initial';
+import { buildOrderCreateInitial, buildOrderEditInitial, isOrderEditable } from '@/lib/orders/build-edit-initial';
 
 describe('buildOrderEditInitial', () => {
 
@@ -154,5 +154,29 @@ describe('buildOrderCreateInitial', () => {
     assert.equal(result.items[0]?.productId, 'original-product-id');
     assert.equal(result.items[0]?.quantity, 6);
     assert.equal(result.items[0]?.unitPrice, 89);
+  });
+});
+
+
+describe('isOrderEditable', () => {
+  it('blocks OMS orders before rendering a legacy edit form', () => {
+    const result = isOrderEditable({
+      status: 'pending_review',
+      subscriptionId: null,
+      omsStatus: 'REVIEW',
+    } as never);
+
+    assert.equal(result.ok, false);
+    assert.match(result.reason ?? '', /OMS|Shopify/);
+  });
+
+  it('keeps ordinary LINE and manual orders editable', () => {
+    const result = isOrderEditable({
+      status: 'confirmed',
+      subscriptionId: null,
+      omsStatus: null,
+    } as never);
+
+    assert.equal(result.ok, true);
   });
 });
