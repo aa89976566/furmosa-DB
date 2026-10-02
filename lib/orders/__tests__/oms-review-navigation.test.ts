@@ -6,7 +6,7 @@ const actions = fs.readFileSync('app/(main)/orders/oms-actions.ts', 'utf8');
 const panel = fs.readFileSync('components/orders/oms-review-panel.tsx', 'utf8');
 
 test('successful OMS transitions navigate to committed server state', () => {
-  assert.match(actions, /result\.ok && result\.action === 'approve'.*redirect\(`\/orders\/\$\{field\('orderId'\)\}#oms-review`\)/s);
+  assert.match(actions, /result\.ok && result\.action === 'approve'.*redirect\(`\/orders\/\$\{field\('orderId'\)\}#oms-shipping`\)/s);
   assert.match(actions, /result\.ok && result\.action === 'ship'.*redirect\(`\/orders\/\$\{field\('orderId'\)\}#oms-shipping`\)/s);
 });
 
