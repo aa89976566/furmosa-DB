@@ -55,7 +55,7 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
   if (!draft.recipient) add('RECIPIENT_MISSING', '缺少收件人');
   if (!/^\+?[\d ()-]{8,25}$/.test(draft.phone)) add('PHONE_MISSING', '請填寫有效收件電話');
   if (!draft.address) add('ADDRESS_MISSING', '缺少收件地址／門市地址');
-  if (draft.method === 'convenience' && (!/^\d{6}$/.test(draft.storeId) || !draft.storeName)) add('PICKUP_STORE_MISSING', '7-11 需要六位數門市店號及門市名稱');
+  if (draft.method === 'convenience' && !draft.storeName) add('PICKUP_STORE_MISSING', '7-11 需要門市名稱');
   if (!['ambient', 'chilled', 'frozen'].includes(draft.temperature)) add('TEMPERATURE_UNKNOWN', '請確認配送溫層');
   if (draft.method === 'convenience' && draft.temperature === 'chilled') add('TEMPERATURE_CONFLICT', '本版未接 7-11 冷藏配送');
   // Promotion/product verification is now system-derived in buildFulfillmentPlan.
