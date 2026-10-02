@@ -185,8 +185,12 @@ export function buildOrderEditInitial(
         ? order.shippingMethod
         : 'home',
     cvsBrand: order.cvsBrand ?? '711',
-    cvsStoreName: order.cvsStoreName ?? '',
-    shippingAddress: order.shippingAddress ?? shipment?.recipientAddress ?? '',
+    // 舊 LINE／手動訂單曾只把 7-11 門市寫進出貨單寄送地。
+    // 編輯時帶回門市名稱，避免瀏覽器 required 驗證讓「儲存修改」看起來完全沒反應。
+    cvsStoreName:
+      order.cvsStoreName?.trim() ||
+      (order.shippingMethod === 'convenience' ? shipment?.recipientAddress?.trim() ?? '' : ''),
+    shippingAddress: order.shippingAddress?.trim() || shipment?.recipientAddress?.trim() || '',
     note: order.note ?? '',
   };
 }
