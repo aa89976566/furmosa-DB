@@ -132,6 +132,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         ? (() => { const balance = p.inventoryBalances.find(b => b.warehouse.code === 'WH-MAIN'); return balance?.unit && balance.lastCountedAt ? balance.quantity - (reserved.get(p.id) ?? 0) : null; })()
         : p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
+    const fulfillmentIssues = result.issues.slice();
     if (command.sourceOnly && command.action !== 'ship') {
       result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft);
     }
@@ -165,13 +166,77 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) },
       command.action === 'ship' ? 'ship' : 'review');
     if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
+    const awaitingPayment = result.issues.some(issue => issue.code === 'PAYMENT_PENDING');
+
+    if (command.action === 'approve' && command.sourceOnly && !awaitingPayment) {
+      // One user action must be atomic from REVIEW to a real shipment. Validate the stricter
+      // fulfillment rules before changing the order to READY, so a failed shipment never
+      // disappears from the review inbox.
+      const shipBlockers = omsApprovalBlockers({
+        omsStatus: 'REVIEW',
+        issues: fulfillmentIssues,
+        checkedAt: order.omsCheckedAt,
+        checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
+        sourceUpdatedAt: order.shopifySourceUpdatedAt,
+        actorId: actor.id,
+        actorCanReview: true,
+        cancelled: Boolean(snapshot.order.cancelled_at),
+      }, 'ship');
+      if (shipBlockers.length) {
+        throw new ReviewError(shipBlockers[0] ?? '尚未符合出貨條件', {
+          blockers: shipBlockers,
+          kind: 'blocked',
+        });
+      }
+
+      await tx.order.update({ where: { id: order.id }, data: {
+        omsStatus: 'READY',
+        omsReviewedAt: now,
+        omsReviewedById: actor.id,
+        omsIssueFlags: result.issues as Prisma.InputJsonValue,
+        omsCheckedAt: now,
+      } });
+      await tx.statusAuditLog.create({ data: {
+        entityType: 'order', entityId: order.id, previousStatus: order.omsStatus,
+        newStatus: 'READY', actorType: 'user', actorId: actor.id,
+        metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id }),
+      } });
+
+      await tx.orderItem.deleteMany({ where: { orderId: order.id } });
+      await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
+      const shipment = await tx.shipment.create({ data: {
+        shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
+        recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
+        carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
+        notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
+        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
+          { productId, productName, sku, quantity, weightGrams, unit })) },
+      } });
+      await tx.order.update({ where: { id: order.id }, data: {
+        omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
+        shippingMethod: draft.method, shippingAddress: draft.address,
+        cvsBrand: draft.method === 'convenience' ? '7-11' : null,
+        cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null,
+      } });
+      await tx.statusAuditLog.create({ data: {
+        entityType: 'order', entityId: order.id, previousStatus: 'READY',
+        newStatus: 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
+        metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id, shipmentId: shipment.id }),
+      } });
+      return emptyReviewResult({
+        ok: true, action: 'ship', message: '訂單已確認並建立出貨單',
+        omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
+        next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` },
+      });
+    }
+
     if (command.action === 'approve') {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
     } else {
       await tx.orderItem.deleteMany({ where: { orderId: order.id } });
       await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
-      const createdShipment = await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
+      await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
@@ -185,7 +250,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       newStatus: command.action === 'approve' ? 'READY' : 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
       metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id }) } });
     if (command.action === 'approve') {
-      return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
+      return approveSuccess(awaitingPayment);
     }
     const shipment = await tx.shipment.findFirst({
       where: { orderId: order.id, status: { not: 'cancelled' } },
