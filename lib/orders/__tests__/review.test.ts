@@ -156,7 +156,7 @@ describe('OMS review transaction contract', () => {
 
   it('source-only paid approval is atomic and creates the shipment before leaving review', async () => {
     const f = fakeDb();
-    const formDraft = { ...draft, lines: [] };
+    const formDraft = { ...draft, lines: [], temperature: '' };
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
@@ -169,7 +169,7 @@ describe('OMS review transaction contract', () => {
 
   it('repeated source-only approve is idempotent after shipment creation', async () => {
     const f = fakeDb();
-    const formDraft = { ...draft, lines: [] };
+    const formDraft = { ...draft, lines: [], temperature: '' };
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const first = await f.run('approve', { sourceOnly: true, draft: formDraft });
     const second = await f.run('approve', { sourceOnly: true, draft: formDraft });
@@ -181,9 +181,18 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1);
   });
 
+  it('normalizes server-derived temperature before comparing approve form', async () => {
+    const f = fakeDb();
+    const formDraft = { ...draft, lines: [], temperature: '' };
+    await f.run('check', { sourceOnly: true, draft: formDraft });
+    const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
+    assert.equal(approved.ok, true);
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+  });
+
   it('source-only approve accepts an empty submitted product-line payload because lines are server-owned', async () => {
     const f = fakeDb();
-    const formDraft = { ...draft, lines: [] };
+    const formDraft = { ...draft, lines: [], temperature: '' };
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
