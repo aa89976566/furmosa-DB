@@ -14,10 +14,16 @@ export function mergeShopifyFulfillmentDraft(source: ReturnType<typeof shopifySo
   const storeId = override.storeId || source.storeId;
   const storeName = override.storeName || source.storeName;
   const method = override.method || source.method || (storeName || storeId ? 'convenience' : '');
+  const temperature = override.temperature || source.temperature;
+  const lines = source.lines.map(line => ({
+    ...line,
+    temperature: line.temperature || temperature,
+  }));
   return reviewDraft({
     ...source,
+    lines,
     method,
-    temperature: override.temperature || source.temperature,
+    temperature,
     recipient: override.recipient || source.recipient,
     phone: override.phone || source.phone,
     address: override.address || source.address,
@@ -32,13 +38,24 @@ export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[]
   const view = snapshotView(snapshot)!;
   const delivery = deliveryDefaults(snapshot);
   const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const lines = rows.map(row => {
+    const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku) }, toTierCatalog(products));
+    const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
+    return {
+      productId: product?.status === 'active' ? product.id : '',
+      temperature: delivery.temperature || string(product?.defaultTemperature),
+    };
+  });
+  const lineTemperatures = [...new Set(lines.map(line => line.temperature).filter(Boolean))];
+  const temperature = delivery.temperature || (lineTemperatures.length === 1 ? lineTemperatures[0]! : '');
   return reviewDraft({
-    ...delivery, recipient: view.recipient, phone: view.phone, address: view.address, duplicateConfirmed,
-    lines: rows.map(row => {
-      const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku) }, toTierCatalog(products));
-      const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
-      return { productId: product?.status === 'active' ? product.id : '', temperature: delivery.temperature };
-    }),
+    ...delivery,
+    temperature,
+    recipient: view.recipient,
+    phone: view.phone,
+    address: view.address,
+    duplicateConfirmed,
+    lines,
   });
 }
 
