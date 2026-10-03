@@ -22,3 +22,11 @@ test('approve automatically creates the shipment when there are no blockers', ()
   assert.match(actions, /action === 'approve' && result\.ok && result\.blockers\.length === 0/);
   assert.match(actions, /action: 'ship'/);
 });
+
+
+test('successful ship navigates to the shipments queue', () => {
+  const form = fs.readFileSync('components/orders/oms-review-form.tsx', 'utf8');
+  assert.match(form, /state\.action === 'ship'.*startsWith\('\/shipments'\).*router\.push\(state\.next\.href\)/s);
+  const service = fs.readFileSync('lib/orders/review-service.ts', 'utf8');
+  assert.match(service, /href: `\/shipments\?s=\$\{encodeURIComponent\(shipment\.id\)\}`/);
+});
