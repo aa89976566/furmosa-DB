@@ -171,7 +171,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     } else {
       await tx.orderItem.deleteMany({ where: { orderId: order.id } });
       await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
-      await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
+      const createdShipment = await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
@@ -187,9 +187,15 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (command.action === 'approve') {
       return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
     }
+    const shipment = await tx.shipment.findFirst({
+      where: { orderId: order.id, status: { not: 'cancelled' } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
     return emptyReviewResult({
       ok: true, action: 'ship', message: '已建立 HQ 內部出貨單；尚未連接物流供應商',
-      omsStatus: 'FULFILLMENT_PENDING', kind: 'success', next: shippingNext('查看出貨單'),
+      omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
+      next: shipment ? { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });
   }, { maxWait: 2000, timeout: 10000 });
 }
