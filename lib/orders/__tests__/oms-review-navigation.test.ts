@@ -18,9 +18,10 @@ test('READY review panel persistently explains the next action', () => {
 });
 
 
-test('approve automatically creates the shipment when there are no blockers', () => {
-  assert.match(actions, /action === 'approve' && result\.ok && result\.blockers\.length === 0/);
-  assert.match(actions, /action: 'ship'/);
+test('OMS action delegates approval to the atomic review service once', () => {
+  const calls = actions.match(/runReview\(/g) ?? [];
+  assert.equal(calls.length, 1);
+  assert.match(actions, /sourceOnly: true/);
 });
 
 
