@@ -34,7 +34,8 @@ describe('OMS review checks', () => {
       storeName: '測試門市',
       lines: [{ productId: 'untrusted-product', temperature: 'frozen' }],
     }));
-    assert.deepEqual(corrected.lines, sourceDraft.lines);
+    assert.equal(corrected.lines[0]?.productId, sourceDraft.lines[0]?.productId);
+    assert.equal(corrected.lines[0]?.temperature, 'ambient');
     assert.equal(corrected.method, 'convenience');
     assert.equal(corrected.recipient, '補正收件人');
     assert.equal(corrected.phone, '0922222222');
@@ -303,4 +304,21 @@ test('infers convenience shipping from a saved store name when Shopify method is
   );
   assert.equal(merged.method, 'convenience');
   assert.equal(merged.storeName, '昌順門市');
+});
+
+
+it('uses product default temperature for shipping when Shopify has no temperature label', () => {
+  const source = shopifySnapshot({
+    ...raw,
+    shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '測試地址' },
+    shipping_lines: [{ title: '一般配送', code: 'HOME' }],
+  });
+  const sourceDraft = shopifySourceDraft(source, [{
+    ...products[0],
+    sourceSku: null,
+    defaultTemperature: 'ambient',
+    available: 2,
+  }] as any);
+  assert.equal(sourceDraft.temperature, 'ambient');
+  assert.equal(sourceDraft.lines[0]?.temperature, 'ambient');
 });
