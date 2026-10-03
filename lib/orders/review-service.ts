@@ -64,10 +64,21 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const snapshot = order.shopifySnapshot as Snapshot | null;
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
-    if (command.action === 'ship' && order.omsStatus === 'FULFILLMENT_PENDING' && order.shipments.some(s => s.shipmentNumber === `OMS-${order.id}`)) {
+    const existingOmsShipment = order.shipments.find(
+      s => s.shipmentNumber === `OMS-${order.id}` && s.status !== 'cancelled',
+    );
+    if (
+      existingOmsShipment &&
+      order.omsStatus === 'FULFILLMENT_PENDING' &&
+      (command.action === 'ship' || command.action === 'approve')
+    ) {
       return emptyReviewResult({
-        ok: true, action: 'ship', message: '出貨單已存在，沒有重複建立', omsStatus: 'FULFILLMENT_PENDING',
-        kind: 'success', next: shippingNext('查看出貨單'),
+        ok: true,
+        action: 'ship',
+        message: '訂單已確認並已有出貨單',
+        omsStatus: 'FULFILLMENT_PENDING',
+        kind: 'success',
+        next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(existingOmsShipment.id)}` },
       });
     }
     if (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
