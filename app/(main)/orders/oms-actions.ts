@@ -22,22 +22,10 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   });
   let result;
   try {
+    // runReview owns the whole transition. For a paid source-only OMS order, approve is
+    // atomic: REVIEW -> READY -> shipment -> FULFILLMENT_PENDING in one transaction.
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
       sourceHash: field('sourceHash'), action, draft, sourceOnly: true });
-
-    // 「確認訂單」對已可出貨的 OMS 訂單應直接完成建立 HQ 出貨單，
-    // 避免 REVIEW -> READY 後從待審核消失、卻尚未出現在出貨區的中間斷層。
-    // 若仍在等付款，approveSuccess 會帶 blockers，此時保留 READY 等付款，不建立出貨單。
-    if (action === 'approve' && result.ok && result.blockers.length === 0) {
-      result = await runReview(prisma, {
-        orderId: field('orderId'),
-        actorId: user.userId,
-        sourceHash: field('sourceHash'),
-        action: 'ship',
-        draft,
-        sourceOnly: true,
-      });
-    }
   } catch (error) {
     return emptyReviewResult({
       ok: false,
