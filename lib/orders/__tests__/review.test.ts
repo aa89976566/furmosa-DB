@@ -96,7 +96,15 @@ function fakeDb(source = snapshot) {
     product: { findMany: async () => [{ ...products[0], productCategory: 'STANDARD', inventoryBalances: [{ quantity: stock }], priceTiers: [] }] },
     shipmentItem: { findMany: async () => [] },
     orderItem: { deleteMany: async () => ({}), createMany: async () => ({}) },
-    shipment: { create: async ({ data }: any) => { shipmentCreates++; order.shipments.push(data); return data; } },
+    shipment: {
+      create: async ({ data }: any) => {
+        shipmentCreates++;
+        const row = { id: `s${shipmentCreates}`, createdAt: new Date(), status: data.status ?? 'pending', ...data };
+        order.shipments.push(row);
+        return row;
+      },
+      findFirst: async () => [...order.shipments].reverse().find((row: any) => row.status !== 'cancelled') ?? null,
+    },
     statusAuditLog: { findFirst: async () => audits.filter(a => a.entityType === 'oms_review').at(-1) ?? null,
       create: async ({ data }: any) => { const a = { id: `a${audits.length}`, ...data }; audits.push(a); return a; } },
   };
@@ -155,7 +163,20 @@ describe('OMS review transaction contract', () => {
     assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);
-    assert.match(approved.next?.href ?? '', /^\/shipments\?s=/);
+    assert.equal(approved.next?.href, '/shipments?s=s1');
+  });
+
+  it('repeated source-only approve is idempotent after shipment creation', async () => {
+    const f = fakeDb();
+    await f.run('check', { sourceOnly: true });
+    const first = await f.run('approve', { sourceOnly: true });
+    const second = await f.run('approve', { sourceOnly: true });
+    assert.equal(first.ok, true);
+    assert.equal(second.ok, true);
+    assert.equal(second.action, 'ship');
+    assert.equal(second.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(second.next?.href, '/shipments?s=s1');
+    assert.equal(f.shipmentCreates, 1);
   });
 
   it('source-only approval stays in REVIEW when shipment validation fails', async () => {
@@ -267,7 +288,7 @@ describe('OMS review action result contract', () => {
     assert.equal(second.ok, true);
     assert.equal(second.action, 'ship');
     assert.equal(second.omsStatus, 'FULFILLMENT_PENDING');
-    assert.equal(second.message, '出貨單已存在，沒有重複建立');
+    assert.equal(second.message, '訂單已確認並已有出貨單');
     assert.equal(f.shipmentCreates, 1);
     assert.deepEqual(serializable(second), second);
   });
