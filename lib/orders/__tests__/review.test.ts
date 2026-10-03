@@ -139,11 +139,32 @@ describe('OMS review transaction contract', () => {
     for (const action of ['check', 'approve', 'ship'] as const) await assert.rejects(f.run(action), /已從 HQ 刪除/);
     assert.equal(f.shipmentCreates, 0);
   });
-  it('check and approval never create shipment; separate ship is idempotent', async () => {
+  it('keeps the legacy two-step contract when sourceOnly is false', async () => {
     const f = fakeDb(); await f.run('check'); assert.equal(f.order.omsStatus, 'REVIEW');
     await f.run('approve'); assert.equal(f.order.omsStatus, 'READY'); assert.equal(f.order.omsReviewedById, 'u1');
     assert.equal(f.shipmentCreates, 0);
     await f.run('ship'); await f.run('ship'); assert.equal(f.shipmentCreates, 1); assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+  });
+
+  it('source-only paid approval is atomic and creates the shipment before leaving review', async () => {
+    const f = fakeDb();
+    await f.run('check', { sourceOnly: true });
+    const approved = await f.run('approve', { sourceOnly: true });
+    assert.equal(approved.ok, true);
+    assert.equal(approved.action, 'ship');
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
+    assert.match(approved.next?.href ?? '', /^\/shipments\?s=/);
+  });
+
+  it('source-only approval stays in REVIEW when shipment validation fails', async () => {
+    const f = fakeDb();
+    await f.run('check', { sourceOnly: true });
+    f.setStock(0);
+    await assert.rejects(f.run('approve', { sourceOnly: true }), /庫存不足/);
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.shipmentCreates, 0);
   });
   it('rejects direct shipping, unauthorized users, stale versions and unsaved forms', async () => {
     const f = fakeDb(); await assert.rejects(f.run('ship'));
