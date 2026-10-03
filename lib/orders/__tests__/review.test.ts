@@ -156,8 +156,9 @@ describe('OMS review transaction contract', () => {
 
   it('source-only paid approval is atomic and creates the shipment before leaving review', async () => {
     const f = fakeDb();
-    await f.run('check', { sourceOnly: true });
-    const approved = await f.run('approve', { sourceOnly: true });
+    const formDraft = { ...draft, lines: [] };
+    await f.run('check', { sourceOnly: true, draft: formDraft });
+    const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
     assert.equal(approved.action, 'ship');
     assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
@@ -168,14 +169,25 @@ describe('OMS review transaction contract', () => {
 
   it('repeated source-only approve is idempotent after shipment creation', async () => {
     const f = fakeDb();
-    await f.run('check', { sourceOnly: true });
-    const first = await f.run('approve', { sourceOnly: true });
-    const second = await f.run('approve', { sourceOnly: true });
+    const formDraft = { ...draft, lines: [] };
+    await f.run('check', { sourceOnly: true, draft: formDraft });
+    const first = await f.run('approve', { sourceOnly: true, draft: formDraft });
+    const second = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(first.ok, true);
     assert.equal(second.ok, true);
     assert.equal(second.action, 'ship');
     assert.equal(second.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(second.next?.href, '/shipments?s=s1');
+    assert.equal(f.shipmentCreates, 1);
+  });
+
+  it('source-only approve accepts an empty submitted product-line payload because lines are server-owned', async () => {
+    const f = fakeDb();
+    const formDraft = { ...draft, lines: [] };
+    await f.run('check', { sourceOnly: true, draft: formDraft });
+    const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
+    assert.equal(approved.ok, true);
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);
   });
 
