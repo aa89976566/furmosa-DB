@@ -97,9 +97,34 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       if (command.action !== 'check' && saved.reviewMode !== SOURCE_REVIEW_VERSION) throw new ReviewError('審核規則已更新，請先儲存並檢查', { kind: 'blocked' });
     }
     if (command.action !== 'check' && saved.sourceHash !== command.sourceHash) throw new ReviewError('請先儲存並檢查目前版本', { kind: 'blocked' });
-    if (command.action !== 'check' && (command.sourceOnly
-      ? JSON.stringify(mergeShopifyFulfillmentDraft(shopifySourceDraft(snapshot), reviewDraft(command.draft))) !== JSON.stringify(draft)
-      : JSON.stringify(reviewDraft(command.draft)) !== JSON.stringify(draft))) throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
+    if (command.action !== 'check') {
+      const submitted = reviewDraft(command.draft);
+      const savedDraft = reviewDraft(saved.draft);
+      const sourceOnlyChanged = command.sourceOnly && JSON.stringify({
+        method: submitted.method,
+        temperature: submitted.temperature,
+        recipient: submitted.recipient,
+        phone: submitted.phone,
+        address: submitted.address,
+        storeId: submitted.storeId,
+        storeName: submitted.storeName,
+        duplicateConfirmed: submitted.duplicateConfirmed,
+      }) !== JSON.stringify({
+        method: savedDraft.method,
+        temperature: savedDraft.temperature,
+        recipient: savedDraft.recipient,
+        phone: savedDraft.phone,
+        address: savedDraft.address,
+        storeId: savedDraft.storeId,
+        storeName: savedDraft.storeName,
+        duplicateConfirmed: savedDraft.duplicateConfirmed,
+      });
+      const legacyChanged = !command.sourceOnly &&
+        JSON.stringify(submitted) !== JSON.stringify(draft);
+      if (sourceOnlyChanged || legacyChanged) {
+        throw new ReviewError('表單內容已修改，請先儲存並檢查', { kind: 'blocked' });
+      }
+    }
     if (command.action === 'ship') {
       if (order.omsStatus !== 'READY' || !order.omsReviewedAt || !order.omsReviewedById) throw new ReviewError('需要先由人員確認訂單');
       // Serializes new OMS reservations; legacy fulfillment still requires its own final stock check.
