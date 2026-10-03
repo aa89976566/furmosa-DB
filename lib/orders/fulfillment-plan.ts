@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { snapshotHash, record, string, type Snapshot } from '../shopify/intake-policy';
 import { MOONCAKE_CATALOG } from '../products/mooncake-catalog';
+import { toTierCatalog } from '../shopify/match-line-item';
+import { matchShopifyLineToTier } from '../shopify/match-product-tier';
 import type { OmsIssue } from './oms';
 import {
   PROMOTION_GIFT_SKU, PROMOTION_RULES_VERSION, moneyToCents, multiplySafe,
@@ -8,7 +10,7 @@ import {
 } from './promotion-resolver';
 import type { ReviewDraft, ReviewProduct } from './review-policy';
 
-export const FULFILLMENT_PLAN_VERSION = 'ck08-555-plan-v2';
+export const FULFILLMENT_PLAN_VERSION = 'ck08-555-plan-v3';
 const MAX_QTY = 2147483647;
 const TEMPS = ['ambient', 'chilled', 'frozen'] as const;
 
@@ -162,10 +164,6 @@ export function resolveCampaignGiftProduct(products: ReviewProduct[]): GiftCatal
 
 function applyMooncakeSpec(product: ReviewProduct, issues: OmsIssue[], label: string) {
   if (!isCk08Product(product)) {
-    if ((product.priceTiers ?? []).length > 0) {
-      issues.push({ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: `${label}包含多規格商品；本版尚未支援規格對應，不能直接出貨` });
-      return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
-    }
     return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
   }
   const tier = canonicalMooncakeTier(product);
@@ -174,6 +172,39 @@ function applyMooncakeSpec(product: ReviewProduct, issues: OmsIssue[], label: st
     return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
   }
   return { weightGrams: MOONCAKE_CATALOG.weightGrams, unit: MOONCAKE_CATALOG.unit, tierId: string(tier.id) || null };
+}
+
+function applySourceSpec(
+  row: Record<string, unknown>,
+  product: ReviewProduct,
+  products: ReviewProduct[],
+  issues: OmsIssue[],
+  label: string,
+) {
+  if (isCk08Product(product)) return applyMooncakeSpec(product, issues, label);
+  const tiers = product.priceTiers ?? [];
+  if (tiers.length === 0) {
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+  }
+
+  const decision = matchShopifyLineToTier(
+    { variant_id: row.variant_id, sku: string(row.sku) },
+    toTierCatalog(products),
+  );
+  if (decision.outcome !== 'match' || decision.productId !== product.id) {
+    issues.push({
+      code: 'PRODUCT_UNMAPPED',
+      severity: 'blocking',
+      message: `${label}無法唯一對應已啟用規格，請重新檢查 Shopify SKU／Variant 綁定`,
+    });
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+  }
+
+  return {
+    weightGrams: decision.tier.weightGrams,
+    unit: decision.tier.unit,
+    tierId: decision.tier.id || null,
+  };
 }
 
 function addNeeded(needed: Record<string, number>, productId: string, quantity: number): boolean {
@@ -370,8 +401,10 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
       canCount = false;
       return;
     }
-    const spec = applyMooncakeSpec(product, issues, `第 ${index + 1} 項`);
-    if (isCk08Product(product) ? !canonicalMooncakeTier(product) : (product.priceTiers ?? []).length > 0) canCount = false;
+    const spec = applySourceSpec(row, product, products, issues, `第 ${index + 1} 項`);
+    if (isCk08Product(product) ? !canonicalMooncakeTier(product) : ((product.priceTiers ?? []).length > 0 && !spec.tierId)) {
+      canCount = false;
+    }
     const unitPrice = campaignGift ? 0 : Number(row.price);
     const subtotal = campaignGift ? 0 : Math.round(Number(row.price) * 100) * quantity / 100;
     const isGift = campaignGift || Number(row.price) === 0;
