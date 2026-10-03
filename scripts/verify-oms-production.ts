@@ -6,6 +6,7 @@ import { shopifySnapshot, snapshotHash } from '../lib/shopify/intake-policy';
 const token = randomUUID().replace(/-/g, '').slice(0, 12);
 const orderNumber = `E2E-OMS-${token}`;
 const sku = `E2E-${token}`;
+const shopifyId = String(Date.now()) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
 let orderId: string | null = null;
 let productId: string | null = null;
 let userId: string | null = null;
@@ -59,7 +60,7 @@ async function main() {
 
   const updatedAt = new Date().toISOString();
   const snapshot = shopifySnapshot({
-    id: `e2e-${token}`,
+    id: shopifyId,
     name: `#E2E-${token}`,
     currency: 'TWD',
     updated_at: updatedAt,
@@ -93,7 +94,7 @@ async function main() {
       orderNumber,
       source: 'shopify',
       externalStore: `e2e-${token}.myshopify.com`,
-      externalOrderId: `e2e-${token}`,
+      externalOrderId: shopifyId,
       externalOrderName: `#E2E-${token}`,
       omsStatus: 'NEW',
       status: 'pending_review',
