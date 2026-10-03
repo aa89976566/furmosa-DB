@@ -51,6 +51,17 @@ async function main() {
       cost: 10,
       status: 'active',
       defaultTemperature: 'ambient',
+      priceTiers: {
+        create: {
+          weightGrams: null,
+          unit: '件',
+          unitQty: 1,
+          price: 100,
+          sku,
+          shopifySku: sku,
+          status: 'active',
+        },
+      },
       inventoryBalances: {
         create: { warehouseId: warehouse.id, quantity: 100, unit: '件', lastCountedAt: new Date() },
       },
