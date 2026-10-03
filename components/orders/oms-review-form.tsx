@@ -39,13 +39,17 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
 
   useEffect(() => {
     if (!state.ok || !state.action) return;
+    if (state.action === 'ship' && state.next?.href?.startsWith('/shipments')) {
+      router.push(state.next.href);
+      return;
+    }
     router.refresh();
     const targetId = state.action === 'ship' ? 'oms-shipping' : 'oms-review';
     const timer = window.setTimeout(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [router, state.action, state.ok, state.omsStatus]);
+  }, [router, state.action, state.next?.href, state.ok, state.omsStatus]);
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
