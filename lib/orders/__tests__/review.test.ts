@@ -56,6 +56,28 @@ describe('OMS review checks', () => {
     assert.ok(codes(shopifySnapshot({ ...raw, fulfillment_status: 'fulfilled' })).includes('ORDER_CHANGED'));
     assert.ok(codes(shopifySnapshot({ ...raw, fulfillment_status: 'partial' })).includes('ORDER_CHANGED'));
   });
+  it('ships an exactly matched active Shopify tier instead of rejecting every tiered product', () => {
+    const tiered = [{
+      ...products[0],
+      sourceSku: 'A',
+      productCategory: 'STANDARD',
+      priceTiers: [{
+        id: 'tier-1',
+        weightGrams: null,
+        unit: '件',
+        unitQty: 1,
+        price: 100.1,
+        sku: 'A',
+        shopifyVariantId: null,
+        shopifySku: 'A',
+        status: 'active',
+      }],
+    }] as any;
+    const result = checkReview(snapshot, draft, tiered, false);
+    assert.equal(result.issues.some(issue => issue.code === 'PRODUCT_UNMAPPED'), false);
+    assert.equal(result.items[0]?.tierId, 'tier-1');
+  });
+
   it('requires mapping, known stock and aggregate quantity availability', () => {
     assert.ok(codes(snapshot, { ...draft, lines: [] }).includes('PRODUCT_UNMAPPED'));
     assert.ok(codes(snapshot, draft, [{ ...products[0], available: null }] as any).includes('STOCK_UNKNOWN'));
