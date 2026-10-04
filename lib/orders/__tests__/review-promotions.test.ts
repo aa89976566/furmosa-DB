@@ -75,12 +75,16 @@ function fakeDb(catalog = [cloneMooncake()], stock = 20, source = snapshot, form
     } },
     shipmentItem: { findMany: async () => reservations.map(row => ({ productId: row.productId, quantity: row.quantity, weightGrams: 50, unit: "顆" })) },
     orderItem: { deleteMany: async () => ({}), createMany: async ({ data }: any) => { createdItems.push(...data); return {}; } },
-    shipment: { create: async ({ data }: any) => {
-      shipmentCreates++;
-      createdShipmentItems.push(...(data.items?.create ?? []));
-      order.shipments.push({ shipmentNumber: data.shipmentNumber, items: data.items?.create ?? [] });
-      return data;
-    } },
+    shipment: {
+      create: async ({ data }: any) => {
+        shipmentCreates++;
+        createdShipmentItems.push(...(data.items?.create ?? []));
+        const row = { id: `s${shipmentCreates}`, createdAt: new Date(), ...data, items: data.items?.create ?? [] };
+        order.shipments.push(row);
+        return row;
+      },
+      findFirst: async () => [...order.shipments].reverse().find((row: any) => row.status !== 'cancelled') ?? null,
+    },
     statusAuditLog: { findFirst: async () => audits.filter(a => a.entityType === 'oms_review').at(-1) ?? null,
       create: async ({ data }: any) => { const a = { id: `a${audits.length}`, ...data }; audits.push(a); return a; } },
   };
