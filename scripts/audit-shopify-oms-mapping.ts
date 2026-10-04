@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma';
 import { toTierCatalog } from '../lib/shopify/match-line-item';
 import { matchShopifyLineToTier } from '../lib/shopify/match-product-tier';
 import { record, string } from '../lib/shopify/intake-policy';
+import { canonicalTierSku } from '../lib/products/canonical-sku';
 
 function lineRows(snapshot: unknown) {
   const root = record(snapshot);
@@ -82,6 +83,28 @@ async function main() {
   const tierMissingIdentity = activeTiers.filter(t => !t.shopifyVariantId && !t.shopifySku && !t.sku)
     .map(t => ({ productName:t.productName, productSku:t.productSku, tierId:t.id, weightGrams:t.weightGrams, unit:t.unit, unitQty:t.unitQty }));
 
+  const canonicalTierSkus = products.flatMap(product => {
+    const active = product.priceTiers.filter(t => t.status === 'active');
+    return active.map(tier => ({
+      productId: product.productId,
+      productName: product.name,
+      sourceSku: product.sourceSku,
+      tierId: tier.id,
+      weightGrams: tier.weightGrams,
+      unit: tier.unit,
+      unitQty: tier.unitQty,
+      canonicalSku: canonicalTierSku(product.sourceSku, tier, active.length),
+      storedTierSku: tier.sku,
+      storedShopifySku: tier.shopifySku,
+      shopifyVariantId: tier.shopifyVariantId,
+    }));
+  });
+  const canonicalMissing = canonicalTierSkus.filter(row => !row.canonicalSku);
+  const canonicalDrift = canonicalTierSkus.filter(row =>
+    row.canonicalSku && row.storedShopifySku &&
+    row.canonicalSku.toLowerCase() !== row.storedShopifySku.trim().toLowerCase()
+  );
+
   const keyMap = new Map<string, Array<Record<string, unknown>>>();
   for (const t of activeTiers) {
     for (const [kind, value] of [['shopifyVariantId',t.shopifyVariantId],['shopifySku',t.shopifySku],['tierSku',t.sku]] as const) {
@@ -114,6 +137,10 @@ async function main() {
       tierMissingIdentity,
       duplicateIdentityCount: duplicateIdentities.length,
       duplicateIdentities,
+      canonicalMissingCount: canonicalMissing.length,
+      canonicalMissing,
+      canonicalDriftCount: canonicalDrift.length,
+      canonicalDrift,
     },
     unmappedSamples: samples,
   }));
