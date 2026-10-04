@@ -248,7 +248,7 @@ describe('reviews page source assertions', () => {
     assert.match(pageSource, /訂單 \{counts\.shopify_order\}/);
     assert.match(pageSource, /UGC \{counts\.ugc\}/);
     assert.match(pageSource, /補貨 \{counts\.restock\}/);
-    assert.match(pageSource, />管理<\/summary>/);
+    assert.match(pageSource, />\s*管理\s*<\/summary>/);
     assert.doesNotMatch(pageSource, /全部待審核/);
   });
 });
