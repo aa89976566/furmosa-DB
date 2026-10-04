@@ -234,8 +234,6 @@ export default async function OrdersPage(
               <Suspense fallback={null}><ShopifyReconcilePanel /></Suspense>
               <div className="grid grid-cols-2 gap-2 border-t pt-3 text-sm">
                 <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=all">全部訂單</Link>
-                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=waiting">待付款</Link>
-                <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?work=done">已完成</Link>
                 <Link className="rounded-lg border px-3 py-2 hover:bg-muted" href="/orders?archived=true">歷史訂單</Link>
               </div>
               <Link className="block text-sm text-info hover:underline" href="/orders?deleted=true">查看已移出的訂單</Link>
