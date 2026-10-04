@@ -7,6 +7,7 @@ import { getPointsBalance } from '@/lib/jar-exchange/points';
 import { syncCustomerServices, ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { generateJarCode, isValidJarCodeFormat, JAR_CODE_LENGTH } from '@/lib/jar-exchange/codes';
 import { voidAvailableJarCode } from '@/lib/jar-exchange/code-management';
+import { protectCustomerHistory } from '@/lib/customers/protect-customer-history';
 
 // Never fall back to runtime or production-looking database settings. This
 // suite creates and deletes business records, so it may only run when an
@@ -138,6 +139,25 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
     await assert.rejects(prisma.$transaction(tx => voidAvailableJarCode(tx, { id: row.id, actorId: 'ci', reason: '測試作廢' })));
     assert.equal((await prisma.jarCode.findUniqueOrThrow({ where: { id: row.id } })).status, 'used');
     assert.equal(await prisma.memberPointsLedger.count({ where: { sourceRefId: row.id } }), before);
+  });
+
+  it('blocks deleting a customer with jar and points history without resetting their serial', async () => {
+    await assert.rejects(prisma.$transaction(tx => protectCustomerHistory(tx, customerId)), /請保留會員/);
+    assert.ok(await prisma.customer.findUnique({ where: { id: customerId } }));
+    assert.equal((await prisma.jarCode.findUniqueOrThrow({ where: { code: codeA } })).status, 'used');
+  });
+
+  it('allows deleting an empty customer using the mapped PostgreSQL table lock', async () => {
+    const customer = await prisma.customer.create({ data: { customerId: `TEST-EMPTY-${Date.now()}`, name: '可刪除測試會員' } });
+    try {
+      await prisma.$transaction(async tx => {
+        await protectCustomerHistory(tx, customer.id);
+        await tx.customer.delete({ where: { id: customer.id } });
+      });
+      assert.equal(await prisma.customer.findUnique({ where: { id: customer.id } }), null);
+    } finally {
+      await prisma.customer.deleteMany({ where: { id: customer.id } });
+    }
   });
 
   it('a concurrent claim and void have only one winner', async () => {
