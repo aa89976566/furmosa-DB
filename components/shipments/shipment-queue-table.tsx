@@ -338,16 +338,23 @@ function ShipmentQueueCard({
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
       </div>
 
-      {/* 勿把 button 放進 role=button；並擋掉列點擊，避免手機點「已寄出」無效 */}
+      {view.productLines.length > 0 ? (
+        <div className="mt-3">
+          <ProductsSummary view={view} />
+        </div>
+      ) : null}
+
+      <div className="mt-3 border-t border-border/60 pt-3">
+        <LogisticsBlock view={view} variant={variant} />
+      </div>
+
+      {/* 高頻物流動作固定放卡片底部，詳細電話與地址點卡片再看。 */}
       <div
         className="mt-3"
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          運輸狀態
-        </p>
         <ShipmentStatusControl
           shipment={shipment}
           queueStatus={queueStatus}
@@ -355,27 +362,6 @@ function ShipmentQueueCard({
           onOptimisticChange={onOptimisticChange}
         />
       </div>
-
-      <div className="mt-3 rounded-xl bg-muted/30 px-3 py-2.5">
-        <LogisticsBlock view={view} variant={variant} />
-        {logistics.phone && logistics.phone !== '—' ? (
-          <a
-            href={`tel:${logistics.phone.replace(/\s/g, '')}`}
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            className="mt-2 inline-flex items-center gap-1.5 font-mono text-sm font-semibold tabular-nums text-foreground"
-          >
-            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            {logistics.phone}
-          </a>
-        ) : null}
-      </div>
-
-      {view.productLines.length > 0 ? (
-        <div className="mt-3 border-t border-border/60 pt-3">
-          <ProductsSummary view={view} />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -468,14 +454,13 @@ export function ShipmentQueueTable({
       </div>
 
       <div className="hidden max-h-[36rem] overflow-auto rounded-xl border border-border/70 md:block">
-        <Table className="min-w-[62rem] table-fixed">
+        <Table className="min-w-[56rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead className="w-[12rem]">單號</TableHead>
-              <TableHead className="w-[10rem]">姓名／店家</TableHead>
-              <TableHead className="w-[12rem]">運輸狀態</TableHead>
-              <TableHead className="w-[18rem]">收件資訊</TableHead>
-              <TableHead>商品摘要</TableHead>
+              <TableHead className="w-[16rem]">訂單</TableHead>
+              <TableHead>商品</TableHead>
+              <TableHead className="w-[20rem]">配送</TableHead>
+              <TableHead className="w-[13rem]">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -501,12 +486,13 @@ export function ShipmentQueueTable({
                     )}
                   >
                     <span
-                      className="block font-mono text-[11px] font-semibold leading-tight text-foreground"
+                      className="block font-mono text-xs font-semibold leading-tight text-foreground"
                       title={orderLabel}
                     >
                       {orderLabel}
                     </span>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                    <p className="mt-1 text-sm font-medium text-foreground">{partyLabel}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
                         {shipmentTypeLabel[shipment.type] ?? shipment.type}
                       </Badge>
@@ -522,11 +508,20 @@ export function ShipmentQueueTable({
                           {JIBA_PAYMENT_REVIEW_LABEL}
                         </Badge>
                       ) : null}
-                      <span className="font-mono text-[10px] text-muted-foreground">{shortNumber}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground">SHP {shortNumber}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-sm font-medium text-foreground">
-                    {partyLabel}
+                  <TableCell className="py-3">
+                    <ProductsSummary view={view} />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <LogisticsBlock view={view} variant={variant} />
+                    {logistics.phone && logistics.phone !== '—' ? (
+                      <div className="mt-2 flex items-center gap-1.5 font-mono text-xs font-semibold tabular-nums">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="whitespace-nowrap">{logistics.phone}</span>
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell
                     className="py-3"
@@ -539,18 +534,6 @@ export function ShipmentQueueTable({
                       queueType={queueType}
                       onOptimisticChange={optimisticHandler(shipment.id)}
                     />
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <LogisticsBlock view={view} variant={variant} />
-                    {logistics.phone && logistics.phone !== '—' ? (
-                      <div className="mt-2 flex items-center gap-1.5 font-mono text-xs font-semibold tabular-nums">
-                        <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        <span className="whitespace-nowrap">{logistics.phone}</span>
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="py-3">
-                    <ProductsSummary view={view} />
                   </TableCell>
                 </TableRow>
               );
