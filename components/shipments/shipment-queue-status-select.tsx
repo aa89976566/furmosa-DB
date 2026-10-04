@@ -144,9 +144,18 @@ export function ShipmentQueueStatusSelect({
       setConfirmNext(null);
       const params = new URLSearchParams();
       if (queueType) params.set('type', queueType);
-      params.set('status', result.next === 'shipped' ? 'shipped' : result.next);
-      params.set('s', result.shipmentId);
-      if (result.next === 'delivered') params.set('delivered', '1');
+
+      // Queue actions should update the queue in place. After "已寄出",
+      // keep the operator on 待出貨 so the completed row disappears and
+      // the next pending shipment is immediately actionable.
+      if (result.next === 'shipped' && queueStatus) {
+        params.set('status', queueStatus);
+      } else {
+        params.set('status', result.next);
+        params.set('s', result.shipmentId);
+        if (result.next === 'delivered') params.set('delivered', '1');
+      }
+
       router.replace(`/shipments?${params.toString()}`);
       router.refresh();
     });
