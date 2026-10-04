@@ -178,4 +178,10 @@ test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
   }
   assert.match(ordersPageSource, /來源：/);
   assert.match(ordersPageSource, /同步與管理/);
+  const managementBlock =
+    ordersPageSource.match(/同步與管理[\s\S]*?查看已移出的訂單/)?.[0] ?? '';
+  assert.match(managementBlock, /全部訂單/);
+  assert.match(managementBlock, /歷史訂單/);
+  assert.doesNotMatch(managementBlock, /待付款/);
+  assert.doesNotMatch(managementBlock, /已完成/);
 });
