@@ -101,6 +101,7 @@ export function ShipmentQueueStatusSelect({
   paymentReviewHold = false,
   inventoryWarnings = [],
   className,
+  onOptimisticChange,
 }: {
   shipmentId: string;
   status: string;
@@ -110,6 +111,10 @@ export function ShipmentQueueStatusSelect({
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
   className?: string;
+  onOptimisticChange?: (
+    phase: 'start' | 'success' | 'error',
+    message?: string,
+  ) => void;
 }) {
   const router = useRouter();
   const options = queueOptionsForStatus(status, shipmentType);
@@ -130,35 +135,50 @@ export function ShipmentQueueStatusSelect({
     setActionError(null);
   }
 
-  function submitStatus(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+  function runStatusChange(formData: FormData, optimisticDispatch = false) {
     setActionError(null);
+    if (optimisticDispatch) onOptimisticChange?.('start');
     startTransition(async () => {
       const result = await markShipmentStatusFromQueue(formData);
       if (!result.ok) {
         setActionError(result.error);
+        if (optimisticDispatch) onOptimisticChange?.('error', result.error);
         return;
       }
 
       setConfirmNext(null);
-      const params = new URLSearchParams();
-      if (queueType) params.set('type', queueType);
 
-      // Queue actions should update the queue in place. After "已寄出",
-      // keep the operator on 待出貨 so the completed row disappears and
-      // the next pending shipment is immediately actionable.
+      // High-frequency dispatch stays in place: the parent removes the row
+      // optimistically, while refresh reconciles counts and server truth.
       if (result.next === 'shipped' && queueStatus) {
-        params.set('status', queueStatus);
-      } else {
-        params.set('status', result.next);
-        params.set('s', result.shipmentId);
-        if (result.next === 'delivered') params.set('delivered', '1');
+        if (optimisticDispatch) onOptimisticChange?.('success');
+        router.refresh();
+        return;
       }
 
+      const params = new URLSearchParams();
+      if (queueType) params.set('type', queueType);
+      params.set('status', result.next);
+      params.set('s', result.shipmentId);
+      if (result.next === 'delivered') params.set('delivered', '1');
       router.replace(`/shipments?${params.toString()}`);
       router.refresh();
     });
+  }
+
+  function submitStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    runStatusChange(new FormData(event.currentTarget));
+  }
+
+  function dispatchNow() {
+    const formData = new FormData();
+    formData.set('shipmentId', shipmentId);
+    formData.set('next', 'shipped');
+    formData.set('inline', '1');
+    if (queueStatus) formData.set('queueStatus', queueStatus);
+    if (queueType) formData.set('queueType', queueType);
+    runStatusChange(formData, true);
   }
 
   if (status === 'cancelled') {
@@ -187,12 +207,14 @@ export function ShipmentQueueStatusSelect({
               option={option}
               active={active}
               onConfirmStatus={
-                option.value === 'pending' ||
-                option.value === 'shipped' ||
-                option.value === 'delivered' ||
-                option.value === 'cancelled'
-                  ? () => setConfirmNext(option.value)
-                  : undefined
+                option.value === 'shipped' &&
+                (status === 'pending' || status === 'packed')
+                  ? dispatchNow
+                  : option.value === 'pending' ||
+                      option.value === 'delivered' ||
+                      option.value === 'cancelled'
+                    ? () => setConfirmNext(option.value)
+                    : undefined
               }
             />
           );
@@ -327,6 +349,7 @@ export function ShipmentQueueStatusCell({
   paymentReviewHold,
   inventoryWarnings,
   className,
+  onOptimisticChange,
 }: {
   shipmentId: string;
   status: string;
@@ -336,6 +359,10 @@ export function ShipmentQueueStatusCell({
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
   className?: string;
+  onOptimisticChange?: (
+    phase: 'start' | 'success' | 'error',
+    message?: string,
+  ) => void;
 }) {
   return (
     <ShipmentQueueStatusSelect
@@ -347,6 +374,7 @@ export function ShipmentQueueStatusCell({
       paymentReviewHold={paymentReviewHold}
       inventoryWarnings={inventoryWarnings}
       className={className}
+      onOptimisticChange={onOptimisticChange}
     />
   );
 }
