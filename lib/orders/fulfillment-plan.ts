@@ -189,7 +189,7 @@ function applySourceSpec(
   }
 
   const decision = matchShopifyLineToTier(
-    { variant_id: row.variant_id, sku: string(row.sku) },
+    { variant_id: row.variant_id, sku: string(row.sku), title: string(row.title) },
     toTierCatalog(products),
   );
   if (decision.outcome !== 'match' || decision.productId !== product.id) {
