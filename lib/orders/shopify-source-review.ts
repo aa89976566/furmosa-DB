@@ -1,6 +1,7 @@
 import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
 import { toTierCatalog } from '../shopify/match-line-item';
 import { matchShopifyLineToTier } from '../shopify/match-product-tier';
+import { effectiveProductTemperature } from '../products/effective-temperature';
 import { snapshotView } from '../shopify/snapshot-view';
 import { deliveryDefaults } from './review-defaults';
 import { reviewDraft, type ReviewProduct } from './review-policy';
@@ -43,7 +44,7 @@ export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[]
     const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
     return {
       productId: product?.status === 'active' ? product.id : '',
-      temperature: delivery.temperature || string(product?.defaultTemperature),
+      temperature: delivery.temperature || effectiveProductTemperature(product),
     };
   });
   const lineTemperatures = [...new Set(lines.map(line => line.temperature).filter(Boolean))];
