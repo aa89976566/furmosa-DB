@@ -2,6 +2,7 @@ import { record, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { toTierCatalog, type MatchableTierShape } from '@/lib/shopify/match-line-item';
 import { foldSku, matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
+import { effectiveProductTemperature } from '@/lib/products/effective-temperature';
 import { reviewDraft, type ReviewDraft } from './review-policy';
 
 type MappingProduct = {
@@ -135,7 +136,7 @@ export function defaultReviewDraft(snapshot: Snapshot, products: MappingProduct[
   const rows = sourceLineRows(snapshot);
   const lines = rows.map(row => {
     const product = autoMatchProduct(row, products);
-    return { productId: product?.id ?? '', temperature: product?.defaultTemperature ?? '' };
+    return { productId: product?.id ?? '', temperature: effectiveProductTemperature(product) };
   });
   const delivery = deliveryDefaults(snapshot);
   const productTemperatures = new Set(lines.map(line => line.temperature).filter(Boolean));
