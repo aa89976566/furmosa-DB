@@ -27,7 +27,7 @@ test('審核結果保持可見，稽核紀錄更新不會重建表單', () => {
   assert.match(panelSource, /<OmsReviewForm key=\{hash\}/);
   assert.doesNotMatch(panelSource, /key=\{`\$\{hash\}-\$\{audit\?\.id/);
   assert.match(formSource, /role="status" aria-live="polite"/);
-  assert.ok(formSource.indexOf('role="status"') < formSource.indexOf('<Actions status={status}'));
+  assert.ok(formSource.indexOf('role="status"') < formSource.indexOf('<Actions status={effectiveStatus}'));
 });
 
 test('所有審核按鈕明確送出表單，並刷新待審核清單', () => {
@@ -71,7 +71,7 @@ test('shipping section is only added in the OMS branch', () => {
 });
 
 test('Actions source order keeps the first status live region before the usage site', () => {
-  const usage = formSource.indexOf('<Actions status={status}');
+  const usage = formSource.indexOf('<Actions status={effectiveStatus}');
   const definition = formSource.indexOf('function Actions');
   assert.ok(definition >= 0 && definition < usage);
   assert.ok(formSource.indexOf('role="status" aria-live="polite"') < usage);
