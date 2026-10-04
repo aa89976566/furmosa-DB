@@ -41,7 +41,7 @@
 
 ## 履約計畫
 
-- `promotion-resolver` 是純函式。`fulfillment-plan` 集中原購買、Shopify 已有贈品、HQ 補贈與總數。計畫版本 `ck08-555-plan-v2`。
+- `promotion-resolver` 是純函式。`fulfillment-plan` 集中原購買、Shopify 已有贈品、HQ 補贈與總數。計畫版本 `ck08-555-plan-v3`。
 - 來源 quantity 不會從 10 改成 11。HQ 贈品是獨立一列，單價與小計 0、`isGift=true`。
 - HQ 補贈與來源已有贈品共用同一套商品主檔驗證：去重後唯一精確 `sku`／`sourceSku` = CK-08、active 一般商品、唯一 50g／顆／unitQty 1 且有 `tier.id`。來源贈品必須對到這個唯一商品。
 - 成本取第一個「有出現」的 `tier.cost`、`product.cost` 或目錄成本。出現但無效（負值、非有限數字）不得往下 fallback；0 合法。不得把無效成本靜默寫成 `unitCost: null` 作出貨。
