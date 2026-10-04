@@ -82,12 +82,12 @@ export function isMooncakeShopifyItem(item: ShopifyMatchItem) {
   return text.includes(MOONCAKE_CATALOG.sourceSku) || isMooncakeSearchTerm(text);
 }
 
-/** Exact variant binding, otherwise one active tier after trim and case-fold. Names are not used. */
+/** Exact variant binding, then unique SKU, then explicit controlled title aliases. */
 export function matchShopifyItemToProduct<T extends ProductIdentity>(
   item: ShopifyMatchItem,
   products: T[],
 ): T | null {
-  const decision = matchShopifyLineToTier({ variant_id: item.variant_id, sku: item.sku }, toTierCatalog(products));
+  const decision = matchShopifyLineToTier({ variant_id: item.variant_id, sku: item.sku, title: item.title }, toTierCatalog(products));
   if (decision.outcome !== 'match') return null;
   return products.find((product) => product.id === decision.productId) ?? null;
 }
