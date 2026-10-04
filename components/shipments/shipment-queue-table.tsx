@@ -292,7 +292,7 @@ function ShipmentQueueCard({
     message?: string,
   ) => void;
 }) {
-  const { shipment, orderLabel, partyLabel, shortNumber, logistics } = view;
+  const { shipment, orderLabel, partyLabel, shortNumber } = view;
 
   return (
     <div
