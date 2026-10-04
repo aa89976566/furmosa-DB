@@ -40,7 +40,7 @@ export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[]
   const delivery = deliveryDefaults(snapshot);
   const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
   const lines = rows.map(row => {
-    const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku) }, toTierCatalog(products));
+    const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku), title: string(row.title) }, toTierCatalog(products));
     const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
     return {
       productId: product?.status === 'active' ? product.id : '',
