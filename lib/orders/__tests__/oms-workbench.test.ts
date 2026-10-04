@@ -24,9 +24,16 @@ describe('OMS workbench read-only queries', () => {
       ],
     });
     assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } });
-    assert.match(JSON.stringify(orderWorkWhere('ready')), /confirmed/);
-    assert.match(JSON.stringify(orderWorkWhere('shipping')), /shipped/);
-    assert.match(JSON.stringify(orderWorkWhere('done')), /delivered/);
+    const ready = JSON.stringify(orderWorkWhere('ready'));
+    const shipping = JSON.stringify(orderWorkWhere('shipping'));
+    const done = JSON.stringify(orderWorkWhere('done'));
+    assert.match(ready, /FULFILLMENT_PENDING/);
+    assert.match(ready, /pending/);
+    assert.match(shipping, /FULFILLED/);
+    assert.match(shipping, /shipped/);
+    assert.doesNotMatch(shipping, /FULFILLMENT_PENDING/);
+    assert.match(done, /FULFILLED/);
+    assert.match(done, /delivered/);
   });
   it('includes uninspected, null and nonempty issue flags, not only red flags', () => {
     assert.deepEqual(omsProblemsWhere.OR, [{ omsCheckedAt: null },
