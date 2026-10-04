@@ -1,4 +1,5 @@
 import { bulkConsumption } from '../inventory/bulk';
+import { isMadeToOrderHqProduct } from '../inventory/shipment-advisory';
 import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
 import { buildFulfillmentPlan, type FulfillmentPlan } from './fulfillment-plan';
 import type { OmsIssue } from './oms';
@@ -40,6 +41,7 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
   for (const [id, quantity] of Object.entries(plan.neededQuantities)) {
     const product = products.find(item => item.id === id);
     if (!product) continue;
+    if (isMadeToOrderHqProduct(product.sku)) continue;
     if (product.available === null || !Number.isFinite(product.available)) add('STOCK_UNKNOWN', `${product.name}：尚無可用庫存資料`);
     else if (product.hqBulk) {
       try {
