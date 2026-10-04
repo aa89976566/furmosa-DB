@@ -14,10 +14,17 @@ const actionStub = { omsReviewAction: async () => emptyReviewResult() };
 const load = (Module as typeof Module & { _load: (...args: unknown[]) => unknown })._load.bind(Module);
 (Module as typeof Module & { _load: (...args: unknown[]) => unknown })._load = function patchedLoad(request: unknown, ...rest: unknown[]) {
   if (String(request).includes('oms-actions')) return actionStub;
+  if (String(request) === 'next/navigation') return { useRouter: () => ({ push() {}, refresh() {} }) };
   return load(request, ...rest);
 };
 const loader = `
 export async function resolve(specifier, context, nextResolve) {
+  if (String(specifier) === 'next/navigation') {
+    return {
+      shortCircuit: true,
+      url: 'data:text/javascript,export function useRouter(){return {push(){},refresh(){}}}',
+    };
+  }
   if (String(specifier).includes('oms-actions')) {
     return {
       shortCircuit: true,
