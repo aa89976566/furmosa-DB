@@ -1,3 +1,5 @@
+import { canonicalTierSku } from '@/lib/products/canonical-sku';
+
 export type MatchableTier = {
   id: string;
   productId: string;
@@ -96,7 +98,12 @@ function skuHits(lineSku: string | null | undefined, products: TierCatalogProduc
   for (const product of products) {
     const active = product.priceTiers.filter(isActive);
     for (const tier of active) {
-      if (foldSku(tier.sku) === folded || foldSku(tier.shopifySku) === folded) remember(tier, hits, seen);
+      const canonical = canonicalTierSku(product.sourceSku, tier, active.length);
+      if (
+        foldSku(tier.sku) === folded ||
+        foldSku(tier.shopifySku) === folded ||
+        foldSku(canonical) === folded
+      ) remember(tier, hits, seen);
     }
     if (active.length === 1 && (foldSku(product.sku) === folded || foldSku(product.sourceSku) === folded)) {
       remember(active[0]!, hits, seen);
