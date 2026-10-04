@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { CustomersListFilters } from '@/components/customers/customers-list-filters';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -85,8 +84,8 @@ export default async function CustomersPage(
   return (
     <>
       <PageHeader
-        title="客戶 Customers"
-        description="一個人 = 一筆資料：含基本聯絡、訂閱、訂單史"
+        title="客戶"
+        description="集中查看聯絡方式、訂閱身份、訂單與累計消費。"
         actions={
           <Button size="sm" asChild>
             <Link href="/customers/new">
@@ -97,27 +96,26 @@ export default async function CustomersPage(
         }
       />
       <div className="space-y-4 p-6">
-        <div className="flex flex-wrap gap-2">
-          {filterTabs.map((t) => {
-            const active = (t.key ?? '') === (filter ?? '');
-            return (
-              <Button
-                key={t.key ?? 'all'}
-                variant={active ? 'default' : 'outline'}
-                size="sm"
-                asChild
-              >
-                <Link href={tabHref(t.key)}>
-                  {t.label}
-                  <span className="ml-2 text-xs opacity-70">{t.count}</span>
+        <nav aria-label="客戶分類" className="overflow-x-auto pb-1">
+          <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
+            {filterTabs.map((t) => {
+              const active = (t.key ?? '') === (filter ?? '');
+              return (
+                <Link
+                  key={t.key ?? 'all'}
+                  href={tabHref(t.key)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors sm:min-w-28 sm:flex-none ${active ? 'bg-black text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  <span>{t.label}</span>
+                  <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${active ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>{t.count}</span>
                 </Link>
-              </Button>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </nav>
 
-        <Card>
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
             <Suspense fallback={null}>
               <CustomersListFilters
                 q={q}
@@ -129,49 +127,45 @@ export default async function CustomersPage(
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>編號</TableHead>
-                  <TableHead>姓名 / LINE</TableHead>
-                  <TableHead>類型</TableHead>
+                  <TableHead className="min-w-[16rem]">客戶</TableHead>
                   <TableHead>身份</TableHead>
-                  <TableHead>電話</TableHead>
-                  <TableHead className="text-right">訂單</TableHead>
-                  <TableHead className="text-right">累計消費</TableHead>
-                  <TableHead>最近下單</TableHead>
+                  <TableHead>聯絡</TableHead>
+                  <TableHead className="text-right">消費</TableHead>
+                  <TableHead>最近活動</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {customers.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-mono text-xs">{c.customerId}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{c.name}</div>
-                      {c.lineUserId && (
-                        <div className="text-xs text-muted-foreground">LINE: {c.lineDisplay ?? c.lineUserId}</div>
-                      )}
+                      <Link href={`/customers/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span className="font-mono">{c.customerId}</span>
+                        <span>·</span>
+                        <span>{customerTypeLabel[c.type]}</span>
+                      </div>
+                      {c.lineUserId ? (
+                        <div className="mt-1 truncate text-xs text-muted-foreground">LINE {c.lineDisplay ?? c.lineUserId}</div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={c.type === 'business' ? 'info' : 'secondary'}>
-                        {customerTypeLabel[c.type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="space-x-1">
                       {c.subscriptions[0] ? (
                         <Badge variant="info" className="gap-1">
                           <Repeat className="h-3 w-3" />
                           {c.subscriptions[0].plan.name}
                         </Badge>
                       ) : (
-                        <span className="text-xs text-muted-foreground">一般</span>
+                        <span className="text-xs text-muted-foreground">一般客戶</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{c.phone}</TableCell>
-                    <TableCell className="text-right">{c._count.orders}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{c.phone || '—'}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(Number(c.totalSpent))}
+                      <div className="font-semibold tabular-nums">{formatCurrency(Number(c.totalSpent))}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{c._count.orders} 筆訂單</div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {c.lastOrderAt ? formatDate(c.lastOrderAt) : '-'}
+                      {c.lastOrderAt ? formatDate(c.lastOrderAt) : '尚無訂單'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
@@ -182,15 +176,14 @@ export default async function CustomersPage(
                 ))}
                 {customers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                       {q ? `找不到符合「${q}」的客戶` : '此分類沒有客戶'}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+        </div>
       </div>
     </>
   );
