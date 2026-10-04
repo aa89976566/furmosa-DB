@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { snapshotHash, record, string, type Snapshot } from '../shopify/intake-policy';
 import { MOONCAKE_CATALOG } from '../products/mooncake-catalog';
+import { effectiveProductTemperature } from '../products/effective-temperature';
 import { toTierCatalog } from '../shopify/match-line-item';
 import { matchShopifyLineToTier } from '../shopify/match-product-tier';
 import type { OmsIssue } from './oms';
@@ -266,7 +267,7 @@ function fingerprintOf(product: ReviewProduct, spec: { tierId: string | null }, 
     productCategory: product.productCategory ?? 'STANDARD',
     tierId: spec.tierId,
     unitCost: cost,
-    catalogTemperature: string(product.defaultTemperature),
+    catalogTemperature: effectiveProductTemperature(product),
   };
 }
 
