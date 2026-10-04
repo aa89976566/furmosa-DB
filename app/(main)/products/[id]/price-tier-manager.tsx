@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/format';
+import { canonicalTierSku } from '@/lib/products/canonical-sku';
 import {
   computeTierMargin,
   isGramUnit,
@@ -46,10 +47,12 @@ const WEIGHT_PRESETS = [30, 50, 100, 150] as const;
 export function PriceTierManager({
   productId,
   productUnit,
+  productSourceSku,
   tiers,
 }: {
   productId: string;
   productUnit: string;
+  productSourceSku: string | null;
   tiers: PriceTierRow[];
 }) {
   const weightOnly = isGramUnit(productUnit);
@@ -145,6 +148,7 @@ export function PriceTierManager({
                   key={t.id}
                   tier={t}
                   weightOnly={weightOnly}
+                  canonicalSku={canonicalTierSku(productSourceSku, t, tiers.length)}
                   onEdit={() => setEdit({ kind: 'edit', id: t.id })}
                   onDelete={() => handleDelete(t.id, tierLabel(t))}
                   disabled={edit.kind !== 'none' || deleting}
@@ -167,12 +171,14 @@ function tierLabel(t: PriceTierRow): string {
 function TierDisplayRow({
   tier,
   weightOnly,
+  canonicalSku,
   onEdit,
   onDelete,
   disabled,
 }: {
   tier: PriceTierRow;
   weightOnly: boolean;
+  canonicalSku: string | null;
   onEdit: () => void;
   onDelete: () => void;
   disabled: boolean;
@@ -203,7 +209,10 @@ function TierDisplayRow({
       <TableCell className="text-xs">
         {tier.sku || tier.shopifySku || tier.shopifyVariantId ? (
           <div className="space-y-0.5">
-            <div className="font-mono font-medium">{tier.sku ?? '未設匠寵 SKU'}</div>
+            <div className="font-mono font-medium">{canonicalSku ?? tier.sku ?? '缺少 canonical SKU'}</div>
+            {tier.sku && canonicalSku && tier.sku.toUpperCase() !== canonicalSku && (
+              <div className="text-amber-700">舊 HQ SKU: {tier.sku}</div>
+            )}
             {tier.shopifySku && (
               <div className="font-mono text-muted-foreground">Shopify: {tier.shopifySku}</div>
             )}
@@ -211,8 +220,13 @@ function TierDisplayRow({
               <div className="font-mono text-muted-foreground">Variant: {tier.shopifyVariantId}</div>
             )}
           </div>
+        ) : canonicalSku ? (
+          <div className="space-y-0.5">
+            <div className="font-mono font-medium">{canonicalSku}</div>
+            <div className="text-muted-foreground">canonical · 尚未綁 Variant ID</div>
+          </div>
         ) : (
-          <span className="text-muted-foreground">尚未綁定</span>
+          <span className="text-destructive">缺少 canonical SKU</span>
         )}
       </TableCell>
       {weightOnly && (
