@@ -29,3 +29,15 @@ export async function safeAvailableJarCodeWhere(db: Pick<Prisma.TransactionClien
   const excludedCodes = [...new Set([...EXCLUDED_JAR_CODES, ...refill.map(row => row.serial).filter((serial): serial is string => Boolean(serial))])];
   return { ...availableJarCodeWhere(), code: { notIn: excludedCodes }, ...(ids.length ? { id: { notIn: ids } } : {}) };
 }
+
+/** Caller owns the transaction so the status change and audit commit together. */
+export async function voidAvailableJarCode(tx: Prisma.TransactionClient, input: { id: string; actorId: string; reason: string }) {
+  const reason = input.reason.trim();
+  if (reason.length < 2 || reason.length > 500) throw new Error('請填寫作廢原因（2–500 字）');
+  const row = await tx.jarCode.findUnique({ where: { id: input.id }, select: { code: true } });
+  if (!row) throw new Error('找不到序號');
+  const where = await safeAvailableJarCodeWhere(tx);
+  const changed = await tx.jarCode.updateMany({ where: { AND: [where, { id: input.id }] }, data: { status: 'expired' } });
+  if (changed.count !== 1) throw new Error('此序號已使用、持有、占用或被排除，不能作廢');
+  await tx.statusAuditLog.create({ data: { entityType: 'jar_code', entityId: input.id, previousStatus: 'unused', newStatus: 'expired', actorType: 'supervisor', actorId: input.actorId, metadataJson: JSON.stringify({ reason, code: row.code }) } });
+}

@@ -22,7 +22,7 @@ import {
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 import { createHash } from 'node:crypto';
 import { getCurrentUser } from '@/lib/auth';
-import { safeAvailableJarCodeWhere } from '@/lib/jar-exchange/code-management';
+import { voidAvailableJarCode } from '@/lib/jar-exchange/code-management';
 import {
   canAdjustMemberPoints,
   formatManualPointsNote,
@@ -183,11 +183,7 @@ export async function deleteJarCode(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const where = await safeAvailableJarCodeWhere(tx);
-      // Conditional update arbitrates concurrent claim/void without changing points.
-      const changed = await tx.jarCode.updateMany({ where: { AND: [where, { id }] }, data: { status: 'expired' } });
-      if (changed.count !== 1) throw new Error('此序號已使用、持有、占用或被排除，不能作廢');
-      await tx.statusAuditLog.create({ data: { entityType: 'jar_code', entityId: id, previousStatus: 'unused', newStatus: 'expired', actorType: 'supervisor', actorId: actor.userId, metadataJson: JSON.stringify({ reason, code: code.code }) } });
+      await voidAvailableJarCode(tx, { id, actorId: actor.userId, reason });
     });
   } catch (e) {
     console.error('deleteJarCode', e);

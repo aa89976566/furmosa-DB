@@ -6,6 +6,7 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getPointsBalance } from '@/lib/jar-exchange/points';
 import { syncCustomerServices, ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { generateJarCode, isValidJarCodeFormat, JAR_CODE_LENGTH } from '@/lib/jar-exchange/codes';
+import { voidAvailableJarCode } from '@/lib/jar-exchange/code-management';
 
 // Never fall back to runtime or production-looking database settings. This
 // suite creates and deletes business records, so it may only run when an
@@ -129,5 +130,32 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
     assert.equal(first.ok, true);
     assert.equal(second.ok, true);
     assert.equal(await getPointsBalance(prisma, customerId), 2);
+  });
+
+  it('cannot void a redeemed code or remove its points', async () => {
+    const row = await prisma.jarCode.findUniqueOrThrow({ where: { code: codeA } });
+    const before = await prisma.memberPointsLedger.count({ where: { sourceRefId: row.id } });
+    await assert.rejects(prisma.$transaction(tx => voidAvailableJarCode(tx, { id: row.id, actorId: 'ci', reason: '測試作廢' })));
+    assert.equal((await prisma.jarCode.findUniqueOrThrow({ where: { id: row.id } })).status, 'used');
+    assert.equal(await prisma.memberPointsLedger.count({ where: { sourceRefId: row.id } }), before);
+  });
+
+  it('a concurrent claim and void have only one winner', async () => {
+    const row = await prisma.jarCode.create({ data: { code: generateJarCode(), status: 'unused' } });
+    try {
+      const [claim, voided] = await Promise.allSettled([
+        prisma.jarCode.updateMany({ where: { id: row.id, status: 'unused' }, data: { status: 'used', redeemedAt: new Date(), redeemedByCustomerId: customerId } }),
+        prisma.$transaction(tx => voidAvailableJarCode(tx, { id: row.id, actorId: 'ci', reason: '並行測試' })),
+      ]);
+      assert.equal(claim.status, 'fulfilled');
+      const claimCount = claim.status === 'fulfilled' ? claim.value.count : 0;
+      assert.equal(claimCount + (voided.status === 'fulfilled' ? 1 : 0), 1);
+      const final = await prisma.jarCode.findUniqueOrThrow({ where: { id: row.id } });
+      assert.equal(final.status, claimCount === 1 ? 'used' : 'expired');
+      assert.equal(await prisma.statusAuditLog.count({ where: { entityType: 'jar_code', entityId: row.id } }), claimCount === 1 ? 0 : 1);
+    } finally {
+      await prisma.statusAuditLog.deleteMany({ where: { entityType: 'jar_code', entityId: row.id } });
+      await prisma.jarCode.delete({ where: { id: row.id } });
+    }
   });
 });
