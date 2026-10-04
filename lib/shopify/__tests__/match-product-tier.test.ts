@@ -87,6 +87,35 @@ describe('Shopify tier matcher', () => {
     if (blank.outcome === 'review') assert.equal(blank.reason, 'unbound');
   });
 
+  it('uses only explicit chicken-fillet title aliases when variant and SKU cannot resolve', () => {
+    const jiba = product({
+      sourceSku: 'CK-05',
+      name: '原味雞霸',
+      priceTiers: [tier({ id: 'jiba-tier', productId: 'product-1', sku: null, shopifySku: null })],
+    });
+    const byTitle = matchShopifyLineToTier(
+      { variant_id: '404', sku: '', title: '◈嚎大大◇雞霸' },
+      [jiba],
+    );
+    assert.equal(byTitle.outcome, 'match');
+    if (byTitle.outcome === 'match') {
+      assert.equal(byTitle.reason, 'title_alias');
+      assert.equal(byTitle.productId, 'product-1');
+    }
+
+    const unknown = matchShopifyLineToTier(
+      { variant_id: '404', sku: '', title: '雞肉凍乾' },
+      [jiba],
+    );
+    assert.equal(unknown.outcome, 'review');
+
+    const carrotTitle = matchShopifyLineToTier(
+      { variant_id: '404', sku: '', title: '胡蘿蔔雞霸' },
+      [jiba],
+    );
+    assert.equal(carrotTitle.outcome, 'review');
+  });
+
   it('case-folds a unique SKU only when no variant id exists, and keeps FD-01 distinct from FD01', () => {
     assert.equal(foldSku(' FD-01 '), 'fd-01');
     assert.notEqual(foldSku('FD-01'), foldSku('FD01'));
