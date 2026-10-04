@@ -232,4 +232,22 @@ describe('reviews page source assertions', () => {
       /\[row\.merchant\.name, summary\.subtitleExtra\]\s*\.filter\(Boolean\)\s*\.join\(' · '\)/,
     );
   });
+
+  it('待審核 inbox 直接顯示真正下一步，不再所有項目都叫審核', () => {
+    assert.match(inboxSource, /actionLabel: order\.omsStatus === 'READY'/);
+    assert.match(inboxSource, /'建立出貨單'/);
+    assert.match(inboxSource, /'審核訂單'/);
+    assert.match(inboxSource, /actionLabel: '審核補貨'/);
+    assert.match(inboxSource, /actionLabel: '審核 UGC'/);
+    assert.equal((pageSource.match(/\{item\.actionLabel\}/g) ?? []).length, 2);
+  });
+
+  it('待審核頁使用 compact summary bar，把封存移到管理選單', () => {
+    assert.match(pageSource, /待處理 \{total\}/);
+    assert.match(pageSource, /訂單 \{counts\.shopify_order\}/);
+    assert.match(pageSource, /UGC \{counts\.ugc\}/);
+    assert.match(pageSource, /補貨 \{counts\.restock\}/);
+    assert.match(pageSource, />管理<\/summary>/);
+    assert.doesNotMatch(pageSource, /全部待審核/);
+  });
 });
