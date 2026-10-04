@@ -43,7 +43,7 @@ function activeWorkFilter(searchParams: SearchParams) {
   if (searchParams.deleted === 'true') return 'all';
   if (searchParams.work) return searchParams.work;
   if (searchParams.oms === 'READY') return 'ready';
-  if (searchParams.oms === 'FULFILLMENT_PENDING') return 'shipping';
+  if (searchParams.oms === 'FULFILLMENT_PENDING') return 'ready';
   if (searchParams.oms === 'FULFILLED') return 'done';
   if (searchParams.oms === 'issues' || searchParams.oms === 'NEW' || searchParams.oms === 'REVIEW') return 'now';
   return 'now';
