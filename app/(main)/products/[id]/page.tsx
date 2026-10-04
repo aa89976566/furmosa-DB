@@ -100,7 +100,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         }
       />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-        <div className="grid overflow-hidden rounded-xl border border-border/70 bg-card sm:grid-cols-2 xl:grid-cols-4 xl:divide-x">
+        <div className="grid divide-y overflow-hidden rounded-xl border border-border/70 bg-card xl:grid-cols-4 xl:divide-x xl:divide-y-0">
           <SummaryMetric label="規格數" value={formatNumber(variationSummary.count)} />
           <SummaryMetric label="售價區間" value={variationSummary.priceRange} />
           <SummaryMetric label="毛利區間" value={variationSummary.marginRange} />
@@ -279,7 +279,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border-b border-border/60 px-4 py-3 last:border-b-0 sm:nth-[2]:border-b-0 xl:border-b-0">
+    <div className="px-4 py-3">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">{value}</p>
     </div>
