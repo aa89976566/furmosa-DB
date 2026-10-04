@@ -34,6 +34,7 @@ export type PriceTierRow = {
   price: number;
   cost: number | null;
   defaultWholesaleUnitPrice: number | null;
+  status: string;
   sku: string | null;
   shopifySku: string | null;
   shopifyVariantId: string | null;
@@ -58,6 +59,8 @@ export function PriceTierManager({
   const weightOnly = isGramUnit(productUnit);
   const [edit, setEdit] = useState<EditState>({ kind: 'none' });
   const [deleting, setDeleting] = useState(false);
+
+  const activeTierCount = tiers.filter((tier) => tier.status === 'active').length;
 
   const existingWeights = new Set(
     tiers.map((t) => t.weightGrams).filter((w): w is number => w != null && w > 0),
@@ -148,7 +151,7 @@ export function PriceTierManager({
                   key={t.id}
                   tier={t}
                   weightOnly={weightOnly}
-                  canonicalSku={canonicalTierSku(productSourceSku, t, tiers.length)}
+                  canonicalSku={canonicalTierSku(productSourceSku, t, activeTierCount)}
                   onEdit={() => setEdit({ kind: 'edit', id: t.id })}
                   onDelete={() => handleDelete(t.id, tierLabel(t))}
                   disabled={edit.kind !== 'none' || deleting}
