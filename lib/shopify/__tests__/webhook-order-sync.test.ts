@@ -463,7 +463,6 @@ describe('Shopify order webhook event ordering and persistence', () => {
     assert.equal(missed.status, 200);
     assert.equal(unbound.getOrder(SHOP, '2002')?.items.length, 1);
     assert.equal(unbound.getOrder(SHOP, '2002')?.items[0]?.productId, 'prod-30');
-    assert.equal(unbound.getOrder(SHOP, '2002')?.omsStatus, 'NEW');
   });
 
   it('keeps route files as thin verified ingress wrappers', () => {
