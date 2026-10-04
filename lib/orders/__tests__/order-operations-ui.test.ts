@@ -155,6 +155,15 @@ test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () =
   }
 });
 
+test('Dashboard 聚焦可執行工作，不重複顯示完成卡或假精準進度條', () => {
+  assert.match(dashboardWorkSource, /countReviewInbox/);
+  assert.match(dashboardWorkSource, /reviewCounts\.ugc \+ reviewCounts\.restock/);
+  assert.match(dashboardWorkSource, /其他待處理/);
+  assert.match(dashboardWorkSource, /今日完成 \{completedSteps\}/);
+  assert.equal(dashboardWorkSource.includes('今日工作完成 ${progress}%'), false);
+  assert.equal(dashboardWorkSource.includes('<h3 className="font-semibold">今天完成</h3>'), false);
+});
+
 test('Dashboard 使用明確下一步，不再顯示模糊的有問題分類', () => {
   for (const action of ['選擇對應商品', '補上 7-11 門市', '建立物流單', '等待付款']) {
     assert.match(omsSource, new RegExp(action));
