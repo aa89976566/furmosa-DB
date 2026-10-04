@@ -462,7 +462,7 @@ describe('Shopify order webhook event ordering and persistence', () => {
     }), 'wh-unbound');
     assert.equal(missed.status, 200);
     assert.equal(unbound.getOrder(SHOP, '2002')?.items.length, 1);
-    assert.equal(unbound.getOrder(SHOP, '2002')?.items[0]?.variantKey, 'tier-30');
+    assert.equal(unbound.getOrder(SHOP, '2002')?.items[0]?.productId, 'prod-30');
     assert.equal(unbound.getOrder(SHOP, '2002')?.omsStatus, 'NEW');
   });
 
