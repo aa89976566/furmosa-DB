@@ -60,6 +60,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     price: tier.price,
     cost: tier.cost,
     defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice,
+    status: tier.status,
     sku: tier.sku,
     shopifySku: tier.shopifySku,
     shopifyVariantId: tier.shopifyVariantId,
