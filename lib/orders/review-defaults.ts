@@ -61,6 +61,7 @@ function autoMatchProduct(row: Record<string, unknown>, products: MappingProduct
   const decision = matchShopifyLineToTier({
     variant_id: row.variant_id,
     sku: string(row.sku),
+    title: string(row.title),
   }, toTierCatalog(products));
   if (decision.outcome !== 'match') return null;
   return products.find((product) => product.id === decision.productId) ?? null;
