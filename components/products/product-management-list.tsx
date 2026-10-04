@@ -74,7 +74,7 @@ export function ProductManagementList({ rows, initialQuery = '' }: {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border-2 bg-card p-4 shadow-card">
+      <div className="rounded-xl border border-border/70 bg-card p-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
           <label className="relative min-w-0 flex-1">
             <span className="sr-only">搜尋商品</span>
@@ -97,7 +97,7 @@ export function ProductManagementList({ rows, initialQuery = '' }: {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className="h-11 rounded-lg border-2 bg-background px-3 text-sm font-medium"
+            className="h-11 rounded-lg border bg-background px-3 text-sm font-medium"
             aria-label="商品狀態"
           >
             <option value="all">全部狀態</option>
@@ -126,7 +126,7 @@ export function ProductManagementList({ rows, initialQuery = '' }: {
         <button
           type="button"
           onClick={() => setSetupFilter('attention')}
-          className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-warning/60 bg-warning/10 px-4 py-3 text-left"
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-warning/50 bg-warning/5 px-4 py-3 text-left"
         >
           <span className="flex min-w-0 items-center gap-2 font-medium">
             <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
@@ -141,7 +141,7 @@ export function ProductManagementList({ rows, initialQuery = '' }: {
       </div>
 
       {visibleRows.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed px-6 py-16 text-center">
+        <div className="rounded-xl border border-dashed px-6 py-12 text-center">
           <p className="font-semibold">
             {setupFilter === 'attention'
               ? '所有已啟用的設定都已完成'
@@ -170,7 +170,7 @@ function FilterButton({ active, subtle = false, onClick, children }: {
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'min-h-10 rounded-lg border-2 px-3 text-sm font-semibold transition-colors',
+        'min-h-10 rounded-lg border px-3 text-sm font-semibold transition-colors',
         active ? 'border-foreground bg-foreground text-background' : 'border-border bg-background hover:bg-muted',
         subtle && !active && 'border-border/70 font-medium text-muted-foreground',
       )}
@@ -182,15 +182,15 @@ function FilterButton({ active, subtle = false, onClick, children }: {
 
 function ProductRow({ row }: { row: ProductManagementRow }) {
   return (
-    <article className="min-w-0 rounded-2xl border-2 bg-card p-4 shadow-card">
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(210px,1.6fr)_repeat(3,minmax(145px,1fr))_auto] xl:items-stretch">
-        <div className="flex min-w-0 gap-3">
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-muted">
+    <article className="min-w-0 rounded-xl border border-border/70 bg-card px-4 py-3 transition-colors hover:bg-muted/15">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(260px,1.5fr)_repeat(3,minmax(150px,1fr))_auto] xl:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg border bg-muted">
             {row.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={row.imageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full items-center justify-center text-[10px] text-muted-foreground">無圖片</div>
+              <div className="flex h-full items-center justify-center text-[9px] text-muted-foreground">無圖</div>
             )}
           </div>
           <div className="min-w-0 flex-1">
@@ -200,26 +200,20 @@ function ProductRow({ row }: { row: ProductManagementRow }) {
               </Link>
               <Badge variant={row.status === 'active' ? 'success' : 'muted'}>{row.statusLabel}</Badge>
             </div>
-            <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{row.productId} · {row.sku}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {row.categoryLabel} · {row.vendorName ?? '未指定廠商'}
-            </p>
+            <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{row.productId} · {row.sku}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {row.priceRange} · 庫存 <span className={row.lowStock ? 'font-semibold text-warning' : 'text-foreground'}>{row.onHand}</span>
+              {row.categoryLabel} · {row.vendorName ?? '未指定廠商'} · {row.priceRange} · 庫存 <span className={row.lowStock ? 'font-semibold text-warning' : 'text-foreground'}>{row.onHand}</span>
             </p>
           </div>
-          <Button variant="outline" size="sm" asChild className="shrink-0 xl:hidden">
-            <Link href={`/products/${row.id}`}><Settings2 className="mr-1 h-4 w-4" />編輯商品</Link>
-          </Button>
         </div>
 
-        <SetupCard title="規格與 SKU" item={row.readiness.variants} productId={row.id} />
-        <SetupCard title="寄賣佣金" item={row.readiness.consignment} productId={row.id} />
-        <SetupCard title="買斷價格" item={row.readiness.wholesale} productId={row.id} />
+        <SetupStatus title="規格 / SKU" item={row.readiness.variants} productId={row.id} />
+        <SetupStatus title="寄賣" item={row.readiness.consignment} productId={row.id} />
+        <SetupStatus title="買斷" item={row.readiness.wholesale} productId={row.id} />
 
-        <div className="hidden items-center xl:flex">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/products/${row.id}`}><Settings2 className="mr-1 h-4 w-4" />編輯商品</Link>
+        <div className="flex items-center justify-end">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/products/${row.id}`}><Settings2 className="mr-1 h-4 w-4" />編輯</Link>
           </Button>
         </div>
       </div>
@@ -227,7 +221,7 @@ function ProductRow({ row }: { row: ProductManagementRow }) {
   );
 }
 
-function SetupCard({ title, item, productId }: {
+function SetupStatus({ title, item, productId }: {
   title: string;
   item: ProductSetupItem;
   productId: string;
@@ -235,26 +229,17 @@ function SetupCard({ title, item, productId }: {
   const Icon = item.state === 'complete' ? CheckCircle2 : item.state === 'incomplete' ? AlertTriangle : Minus;
   const href = `/products/${productId}#product-${item.section}`;
   return (
-    <div className={cn(
-      'min-w-0 rounded-xl border p-3',
-      item.state === 'incomplete' ? 'border-warning/60 bg-warning/5' : 'bg-muted/20',
-    )}>
+    <div className="min-w-0 border-t border-border/60 pt-3 xl:border-0 xl:pt-0">
       <div className="flex min-w-0 items-center gap-2">
         <Icon className={cn(
           'h-4 w-4 shrink-0',
           item.state === 'complete' ? 'text-success' : item.state === 'incomplete' ? 'text-warning' : 'text-muted-foreground',
         )} />
-        <span className="truncate text-sm font-semibold">{title}</span>
+        <span className="truncate text-xs font-semibold">{title}</span>
       </div>
-      <p className="mt-1 min-h-10 break-words text-xs text-muted-foreground">{item.summary}</p>
-      {item.actionLabel ? (
-        <Link
-          href={href}
-          className={cn(
-            'mt-2 inline-flex min-h-9 items-center rounded-md px-2 text-xs font-semibold underline-offset-4',
-            item.state === 'incomplete' ? 'bg-foreground text-background' : 'px-0 hover:underline',
-          )}
-        >
+      <p className="mt-1 truncate text-xs text-muted-foreground">{item.summary}</p>
+      {item.actionLabel && item.state === 'incomplete' ? (
+        <Link href={href} className="mt-1 inline-flex text-xs font-semibold text-foreground underline underline-offset-4">
           {item.actionLabel}
         </Link>
       ) : null}
