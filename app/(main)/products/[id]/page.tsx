@@ -114,6 +114,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
             <PriceTierManager
               productId={product.id}
               productUnit={product.unit}
+              productSourceSku={product.sourceSku}
               tiers={variations}
             />
           </SectionCard>
