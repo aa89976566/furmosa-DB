@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForHq, restockRequestTypeLabel } from '@/lib/restock-request/constants';
-import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/shared/page-header';
+import { formatDateTime } from '@/lib/format';
+import { ChevronRight } from 'lucide-react';
 
 export const metadata = { title: '補貨申請 · Furmosa HQ' };
 
@@ -24,74 +26,93 @@ export default async function HqRestockRequestsPage(
     take: 100,
   });
 
-  return (
-    <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-navy">補貨申請</h1>
-          <p className="text-sm text-muted-foreground">
-            店家 POS 送出的叫貨申請，核准後會建立既有出貨單
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Link className="underline" href="/restock-requests">
-            待處理
-          </Link>
-          <Link className="underline" href="/restock-requests?status=converted_to_shipment">
-            已轉單
-          </Link>
-          <Link className="underline" href="/restock-requests?status=rejected">
-            已拒絕
-          </Link>
-        </div>
-      </div>
+  const currentView =
+    statusFilter === 'converted_to_shipment'
+      ? 'converted'
+      : statusFilter === 'rejected'
+        ? 'rejected'
+        : 'pending';
 
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            目前沒有符合條件的申請。
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b bg-muted/40 text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">店家</th>
-                <th className="px-3 py-2 font-medium">類型</th>
-                <th className="px-3 py-2 font-medium">狀態</th>
-                <th className="px-3 py-2 font-medium">品項數</th>
-                <th className="px-3 py-2 font-medium">申請時間</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b last:border-0 hover:bg-muted/20">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/restock-requests/${r.id}`}
-                      className="font-medium text-primary underline-offset-2 hover:underline"
-                    >
-                      {r.merchant.name}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {r.merchant.merchantId}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    {restockRequestTypeLabel(r.requestType)}
-                  </td>
-                  <td className="px-3 py-2">{restockStatusLabelForHq(r.status)}</td>
-                  <td className="px-3 py-2">{r._count.items}</td>
-                  <td className="px-3 py-2">
-                    {r.createdAt.toLocaleString('zh-TW')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+  const tabs = [
+    { key: 'pending', label: '待處理', href: '/restock-requests' },
+    { key: 'converted', label: '已轉單', href: '/restock-requests?status=converted_to_shipment' },
+    { key: 'rejected', label: '已拒絕', href: '/restock-requests?status=rejected' },
+  ];
+
+  const actionLabel = (status: string) =>
+    status === 'approved'
+      ? '建立出貨單'
+      : status === 'submitted' || status === 'under_review'
+        ? '審核補貨'
+        : '查看';
+
+  return (
+    <>
+      <PageHeader
+        title="補貨申請"
+        description="店家 POS 送出的補貨需求；核准後建立出貨單並進入既有物流流程。"
+      />
+      <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
+        <nav aria-label="補貨申請階段" className="overflow-x-auto pb-1">
+          <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
+            {tabs.map((tab) => {
+              const active = currentView === tab.key;
+              return (
+                <Link
+                  key={tab.key}
+                  href={tab.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`inline-flex min-h-10 flex-1 items-center justify-center whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors sm:min-w-28 sm:flex-none ${active ? 'bg-black text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
+        {rows.length === 0 ? (
+          <div className="rounded-xl border border-dashed px-5 py-10 text-center text-sm text-muted-foreground">
+            目前沒有符合條件的申請
+          </div>
+        ) : (
+          <section className="overflow-hidden rounded-xl border border-border/70 bg-card" aria-label="補貨申請列表">
+            {rows.map((r) => (
+              <article
+                key={r.id}
+                className="grid gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_minmax(10rem,1fr)_9rem_9rem] md:items-center"
+              >
+                <div className="min-w-0">
+                  <Link href={`/restock-requests/${r.id}`} className="font-semibold hover:underline">
+                    {r.merchant.name}
+                  </Link>
+                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{r.merchant.merchantId}</p>
+                </div>
+
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium">{restockRequestTypeLabel(r.requestType)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {r._count.items} 項 · {formatDateTime(r.createdAt)}
+                  </p>
+                </div>
+
+                <div className="text-sm font-medium">
+                  {restockStatusLabelForHq(r.status)}
+                </div>
+
+                <Link
+                  href={`/restock-requests/${r.id}`}
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-lg border px-3 text-sm font-semibold hover:bg-muted"
+                  aria-label={`${actionLabel(r.status)}：${r.merchant.name}`}
+                >
+                  {actionLabel(r.status)}
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </article>
+            ))}
+          </section>
+        )}
+      </div>
+    </>
   );
 }
