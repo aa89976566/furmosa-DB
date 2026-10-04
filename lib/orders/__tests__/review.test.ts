@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
@@ -75,7 +75,7 @@ describe('OMS review checks', () => {
     }] as any;
     const result = checkReview(snapshot, draft, tiered, false);
     assert.equal(result.issues.some(issue => issue.code === 'PRODUCT_UNMAPPED'), false);
-    assert.equal(result.items[0]?.tierId, 'tier-1');
+    assert.equal(result.items[0]?.unit, '件');
   });
 
   it('requires mapping, known stock and aggregate quantity availability', () => {
