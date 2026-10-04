@@ -32,41 +32,57 @@ export async function redeemJarCode(
   if (!customer) return { ok: false, error: '找不到會員', status: 404 };
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const row = await tx.jarCode.findUnique({ where: { code } });
-      if (!row) throw new JarExchangeError('序號不存在', 404);
-      if (row.status === 'used') throw new JarExchangeError('序號已使用', 409);
-      if (row.status === 'expired') throw new JarExchangeError('序號已過期', 409);
+    // 交易只保留不可分割的核銷與點數帳本；建立換罐營收單另行處理，
+    // 避免額外查詢使序號已鎖定的交易逾時、導致會員完全收不到結果。
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const row = await tx.jarCode.findUnique({ where: { code } });
+        if (!row) throw new JarExchangeError('序號不存在', 404);
+        if (row.status === 'used') throw new JarExchangeError('序號已使用', 409);
+        if (row.status === 'expired') throw new JarExchangeError('序號已過期', 409);
 
-      const claimed = await tx.jarCode.updateMany({
-        where: { id: row.id, status: 'unused' },
-        data: {
-          status: 'used',
-          redeemedByCustomerId: customerId,
-          redeemedAt: new Date(),
-        },
-      });
-      if (claimed.count === 0) throw new JarExchangeError('序號已使用', 409);
+        const claimed = await tx.jarCode.updateMany({
+          where: { id: row.id, status: 'unused' },
+          data: {
+            status: 'used',
+            redeemedByCustomerId: customerId,
+            redeemedAt: new Date(),
+          },
+        });
+        if (claimed.count === 0) throw new JarExchangeError('序號已使用', 409);
 
-      await ensureJarExchangeService(tx, customerId);
+        await ensureJarExchangeService(tx, customerId);
 
-      const ledger = await appendPointsLedger(tx, {
+        const ledger = await appendPointsLedger(tx, {
+          customerId,
+          sourceType: 'jar_code_redeem',
+          sourceRefId: row.id,
+          pointsChange: row.pointValue,
+          note: `序號 ${code}`,
+        });
+
+        return {
+          pointsEarned: row.pointValue,
+          balanceAfter: ledger.balanceAfter,
+          code,
+          ledgerId: ledger.id,
+          jarCodeId: row.id,
+        };
+      },
+      { maxWait: 10_000, timeout: 15_000 },
+    );
+
+    // 營收單是可由換罐序號冪等補建的衍生紀錄，不能阻塞會員核銷。
+    // recordJarExchangeSaleOnRedeem 已以序號檢查既有單，重送不會重複入帳。
+    try {
+      await recordJarExchangeSaleOnRedeem(customerId, result.jarCodeId, code);
+    } catch (err) {
+      console.error('[jar-exchange/redeem] sale record deferred', {
+        codeSuffix: code.slice(-4),
         customerId,
-        sourceType: 'jar_code_redeem',
-        sourceRefId: row.id,
-        pointsChange: row.pointValue,
-        note: `序號 ${code}`,
+        err,
       });
-
-      await recordJarExchangeSaleOnRedeem(customerId, row.id, code, tx);
-
-      return {
-        pointsEarned: row.pointValue,
-        balanceAfter: ledger.balanceAfter,
-        code,
-        ledgerId: ledger.id,
-      };
-    });
+    }
 
     try {
       revalidatePath('/dashboard');
@@ -74,7 +90,13 @@ export async function redeemJarCode(
     } catch {
       // 單元測試／非 request 脈絡沒有 static generation store
     }
-    return { ok: true, ...result };
+    return {
+      ok: true,
+      pointsEarned: result.pointsEarned,
+      balanceAfter: result.balanceAfter,
+      code: result.code,
+      ledgerId: result.ledgerId,
+    };
   } catch (e) {
     if (e instanceof JarExchangeError) {
       return { ok: false, error: e.message, status: e.status };
