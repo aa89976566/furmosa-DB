@@ -18,12 +18,12 @@ test('拒絕外部網址與非出貨頁返回位置', () => {
 });
 
 test('待出貨與已出貨訂單都可修改品項', () => {
-  assert.equal(isOrderEditable({ status: 'confirmed', subscriptionId: null }).ok, true);
-  assert.equal(isOrderEditable({ status: 'shipped', subscriptionId: null }).ok, true);
+  assert.equal(isOrderEditable({ status: 'confirmed', subscriptionId: null, omsStatus: null }).ok, true);
+  assert.equal(isOrderEditable({ status: 'shipped', subscriptionId: null, omsStatus: null }).ok, true);
 });
 
 test('完成、取消與訂閱衍生訂單維持鎖定', () => {
-  assert.equal(isOrderEditable({ status: 'completed', subscriptionId: null }).ok, false);
-  assert.equal(isOrderEditable({ status: 'cancelled', subscriptionId: null }).ok, false);
-  assert.equal(isOrderEditable({ status: 'confirmed', subscriptionId: 'sub_1' }).ok, false);
+  assert.equal(isOrderEditable({ status: 'completed', subscriptionId: null, omsStatus: null }).ok, false);
+  assert.equal(isOrderEditable({ status: 'cancelled', subscriptionId: null, omsStatus: null }).ok, false);
+  assert.equal(isOrderEditable({ status: 'confirmed', subscriptionId: 'sub_1', omsStatus: null }).ok, false);
 });
