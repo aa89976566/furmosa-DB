@@ -87,6 +87,19 @@ describe('Shopify tier matcher', () => {
     if (blank.outcome === 'review') assert.equal(blank.reason, 'unbound');
   });
 
+  it('matches canonical source SKU plus tier dimension without Shopify-specific binding', () => {
+    const multi = product({
+      sourceSku: 'DK-01',
+      priceTiers: [
+        tier({ id: 'tier-30', productId: 'product-1', weightGrams: 30, sku: null, shopifySku: null }),
+        tier({ id: 'tier-50', productId: 'product-1', weightGrams: 50, sku: null, shopifySku: null }),
+      ],
+    });
+    const decision = matchShopifyLineToTier({ sku: 'DK-01-50G' }, [multi]);
+    assert.equal(decision.outcome, 'match');
+    if (decision.outcome === 'match') assert.equal(decision.tier.id, 'tier-50');
+  });
+
   it('uses only explicit chicken-fillet title aliases when variant and SKU cannot resolve', () => {
     const jiba = product({
       sourceSku: 'CK-05',
