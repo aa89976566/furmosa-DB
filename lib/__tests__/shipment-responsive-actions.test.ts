@@ -118,6 +118,27 @@ describe('出貨工作區介面', () => {
     );
   });
 
+  it('待出貨標記已寄出後留在待出貨頁，該列移到運送中而不自動切頁', () => {
+    const control = readFileSync(
+      'components/shipments/shipment-queue-status-select.tsx',
+      'utf8',
+    );
+    const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
+
+    assert.match(control, /result\.next === 'shipped' && queueStatus/);
+    assert.match(control, /params\.set\('status', queueStatus\)/);
+    const shippedBranch =
+      control.match(/if \(result\.next === 'shipped' && queueStatus\) \{([\s\S]*?)\} else/)?.[1] ?? '';
+    assert.doesNotMatch(shippedBranch, /params\.set\('s'/);
+
+    assert.match(action, /if \(result\.next === 'shipped'\) \{/);
+    assert.match(action, /if \(queueStatus\) params\.set\('status', queueStatus\)/);
+    assert.doesNotMatch(
+      action.match(/if \(result\.next === 'shipped'\) \{([\s\S]*?)\n      \}/)?.[1] ?? '',
+      /params\.set\('status', 'shipped'\)/,
+    );
+  });
+
   it('狀態更新後保留訂單種類，到達後留在待驗收', () => {
     const actions = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
     const panel = readFileSync('components/shipments/shipment-status-actions.tsx', 'utf8');
