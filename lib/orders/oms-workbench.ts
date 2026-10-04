@@ -28,6 +28,14 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
     OR: [
       { omsStatus: { in: ['NEW', 'REVIEW'] } },
       { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
+      {
+        omsStatus: 'FULFILLMENT_PENDING',
+        shipments: { none: { status: { in: ['pending', 'packed', 'shipped', 'delivered', 'received'] } } },
+      },
+      {
+        omsStatus: 'FULFILLED',
+        shipments: { none: { status: { in: ['shipped', 'delivered', 'received'] } } },
+      },
       { omsStatus: null, status: { in: ['draft', 'pending_review'] } },
     ],
   };
