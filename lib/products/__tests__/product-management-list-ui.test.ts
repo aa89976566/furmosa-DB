@@ -9,18 +9,20 @@ const source = readFileSync(
 const readinessSource = readFileSync(new URL('../readiness.ts', import.meta.url), 'utf8');
 
 test('product management list exposes the three actionable setup areas', () => {
-  for (const label of ['規格與 SKU', '寄賣佣金', '買斷價格']) {
+  for (const label of ['規格 / SKU', '寄賣', '買斷']) {
     assert.match(source, new RegExp(label));
   }
   for (const action of ['新增規格', '補 SKU', '設定佣金', '填買斷價']) {
     assert.match(readinessSource, new RegExp(action));
   }
-  assert.match(source, /編輯商品/);
+  assert.match(source, />編輯<\/Link>/);
 });
 
-test('responsive list avoids the old wide table layout', () => {
-  assert.match(source, /minmax\(210px,1\.6fr\)/);
-  assert.match(source, /min-w-0/);
+test('responsive list avoids nested setup cards and the old wide table layout', () => {
+  assert.match(source, /minmax\(260px,1\.5fr\)/);
+  assert.match(source, /SetupStatus/);
+  assert.doesNotMatch(source, /SetupCard/);
+  assert.match(source, /border-t border-border\/60 pt-3 xl:border-0 xl:pt-0/);
   assert.doesNotMatch(source, /<Table/);
 });
 
