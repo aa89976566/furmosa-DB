@@ -39,6 +39,10 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
     OR: [
       { omsStatus: 'READY', paymentStatus: { in: ['paid', 'cod'] } },
       {
+        omsStatus: 'FULFILLMENT_PENDING',
+        shipments: { some: { status: { in: ['pending', 'packed'] } } },
+      },
+      {
         omsStatus: null,
         status: { in: ['confirmed', 'packed'] },
         fulfillmentStatus: { in: ['pending', 'packed'] },
@@ -47,13 +51,19 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
   };
   if (value === 'shipping') return {
     OR: [
-      { omsStatus: 'FULFILLMENT_PENDING' },
+      {
+        omsStatus: 'FULFILLED',
+        shipments: { some: { status: 'shipped' } },
+      },
       { omsStatus: null, OR: [{ status: 'shipped' }, { fulfillmentStatus: 'shipped' }] },
     ],
   };
   if (value === 'done') return {
     OR: [
-      { omsStatus: 'FULFILLED' },
+      {
+        omsStatus: 'FULFILLED',
+        shipments: { some: { status: { in: ['delivered', 'received'] } } },
+      },
       {
         omsStatus: null,
         OR: [
