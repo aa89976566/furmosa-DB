@@ -115,7 +115,17 @@ function fakeDb(source = snapshot) {
     user: { findUnique: async () => ({ id: 'u1', role }) },
     order: { findUnique: async () => order, findUniqueOrThrow: async () => order,
       findFirst: async () => null, update: async ({ data }: any) => { order = { ...order, ...data }; return order; } },
-    product: { findMany: async () => [{ ...products[0], productCategory: 'STANDARD', inventoryBalances: [{ quantity: stock }], priceTiers: [] }] },
+    product: { findMany: async () => [{
+      ...products[0],
+      sourceSku: 'A',
+      productCategory: 'STANDARD',
+      defaultTemperature: 'ambient',
+      inventoryBalances: [{ quantity: stock }],
+      priceTiers: [{
+        id: 'tier-1', weightGrams: null, unit: '件', unitQty: 1, price: 100.1,
+        sku: 'A', shopifyVariantId: null, shopifySku: 'A', status: 'active',
+      }],
+    }] },
     shipmentItem: { findMany: async () => [] },
     orderItem: { deleteMany: async () => ({}), createMany: async () => ({}) },
     shipment: {
@@ -403,6 +413,10 @@ it('uses product default temperature for shipping when Shopify has no temperatur
     sourceSku: null,
     defaultTemperature: 'ambient',
     available: 2,
+    priceTiers: [{
+      id: 'tier-1', weightGrams: null, unit: '件', unitQty: 1, price: 100.1,
+      sku: 'A', shopifyVariantId: null, shopifySku: 'A', status: 'active',
+    }],
   }] as any);
   assert.equal(sourceDraft.temperature, 'ambient');
   assert.equal(sourceDraft.lines[0]?.temperature, 'ambient');
