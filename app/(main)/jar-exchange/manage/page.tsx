@@ -91,7 +91,7 @@ async function CodesTable({
         <Link href="/jar-exchange/manage?tab=codes&status=available" className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">可發放（已核對）</span><strong className="text-xl">{availableCount}</strong></Link>
         {groups.map(group => <Link key={group.status} href={`/jar-exchange/manage?tab=codes&status=${encodeURIComponent(group.status)}`} className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">{jarCodeStatusLabel[group.status] ?? group.status}</span><strong className="text-xl">{group._count._all}</strong></Link>)}
       </div>
-      <form className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4" method="get">
+      <form key={`${validStatus}:${batch}:${q}`} className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4" method="get">
         <input type="hidden" name="tab" value="codes" />
         <input
           aria-label="搜尋序號"
