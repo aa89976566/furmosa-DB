@@ -84,6 +84,40 @@ describe('OMS review checks', () => {
     const source = shopifySnapshot({ ...raw, line_items: [raw.line_items[0], { ...raw.line_items[0], quantity: 2 }] });
     assert.ok(codes(source, { ...draft, lines: [draft.lines[0], draft.lines[0]] }).includes('STOCK_INSUFFICIENT'));
   });
+  it('does not block made-to-order chicken fillet when HQ stock is uncounted', () => {
+    const madeToOrder = [{
+      ...products[0],
+      sku: 'FUR-0002',
+      sourceSku: 'CK-05',
+      name: '原味雞霸',
+      available: null,
+      hqBulk: true,
+      productCategory: 'STANDARD',
+      priceTiers: [{
+        id: 'tier-jiba',
+        weightGrams: 50,
+        unit: '片',
+        unitQty: 1,
+        price: 165,
+        sku: 'CK-05',
+        shopifyVariantId: null,
+        shopifySku: 'CK-05',
+        status: 'active',
+      }],
+    }] as any;
+    const source = shopifySnapshot({
+      ...raw,
+      line_items: [{ ...raw.line_items[0], sku: 'CK-05', title: '◈嚎大大◈雞霸', price: '165.00' }],
+      subtotal_price: '165.00',
+      total_price: '225.00',
+    });
+    const result = checkReview(source, {
+      ...draft,
+      lines: [{ productId: 'p1', temperature: 'ambient' }],
+    }, madeToOrder, false);
+    assert.equal(result.issues.some(issue => issue.code === 'STOCK_UNKNOWN' || issue.code === 'STOCK_INSUFFICIENT'), false);
+  });
+
   it('does not trust quantities, amounts, boolean strings or incomplete forms', () => {
     for (const quantity of [-1, 0, 0.5, '1', 2147483648]) assert.ok(codes(shopifySnapshot({ ...raw, line_items: [{ ...raw.line_items[0], quantity }] })).includes('ORDER_CHANGED'));
     for (const price of ['NaN', '-1', '1.001', 12]) assert.ok(codes(shopifySnapshot({ ...raw, line_items: [{ ...raw.line_items[0], price }] })).includes('ORDER_CHANGED'));
