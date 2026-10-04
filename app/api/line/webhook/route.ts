@@ -24,6 +24,24 @@ function eventUserId(event: LineWebhookEvent): string | undefined {
   return typeof uid === 'string' ? uid : undefined;
 }
 
+function eventReplyToken(event: LineWebhookEvent): string | undefined {
+  return 'replyToken' in event && typeof event.replyToken === 'string'
+    ? event.replyToken
+    : undefined;
+}
+
+function processLineWebhookEvent(event: LineWebhookEvent, eventId: string | undefined): Promise<void> {
+  return (async () => {
+    try {
+      await handleLineWebhookEvent(event);
+    } catch (e) {
+      releaseLineWebhookEvent(eventId);
+      console.error('[line/webhook] event error', e);
+      await replyLineFallback(eventReplyToken(event));
+    }
+  })();
+}
+
 export async function POST(req: Request) {
   if (!isLineWebhookConfigured()) {
     return NextResponse.json({ error: 'LINE webhook 未設定' }, { status: 503 });
@@ -62,23 +80,15 @@ export async function POST(req: Request) {
     if (uid) void showLineLoadingAnimation(uid, 20);
   }
 
+  // LINE 只給 webhook 很短的回應時間。先確認簽章與事件格式、領取去重鎖，
+  // 再立即回 200；回覆訊息與資料庫工作在同一個程序的背景 task 內完成。
   for (const event of events) {
     const eventId = 'webhookEventId' in event ? event.webhookEventId : undefined;
     if (!claimLineWebhookEvent(eventId)) {
       console.info('[line/webhook] duplicate event skipped', eventId);
       continue;
     }
-    try {
-      await handleLineWebhookEvent(event);
-    } catch (e) {
-      releaseLineWebhookEvent(eventId);
-      console.error('[line/webhook] event error', e);
-      const replyToken =
-        'replyToken' in event && typeof event.replyToken === 'string'
-          ? event.replyToken
-          : undefined;
-      await replyLineFallback(replyToken);
-    }
+    runAfterReply(processLineWebhookEvent(event, eventId));
   }
 
   return NextResponse.json({ ok: true });
