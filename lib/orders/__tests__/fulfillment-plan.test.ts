@@ -175,7 +175,7 @@ describe('fulfillment plan gift lines', () => {
     const snapshot = source([{ sku: 'CK-08', quantity: 10, price: '79.00', requires_shipping: true }]);
     const plan = buildFulfillmentPlan(snapshot, draftFor(snapshot, 'ck08'), [mooncake]);
     const gift = plan.frozen.lines.find(line => line.origin === 'hq-gift');
-    assert.equal(plan.planVersion, 'ck08-555-plan-v2');
+    assert.equal(plan.planVersion, 'ck08-555-plan-v3');
     assert.equal(gift?.tierId, 't50');
     assert.equal(gift?.unitCost, 30);
     assert.equal(gift?.catalogTemperature, 'frozen');
