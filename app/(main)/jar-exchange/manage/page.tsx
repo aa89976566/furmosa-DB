@@ -88,8 +88,28 @@ async function CodesTable({
   return (
     <JarPanel>
       <div className="grid grid-cols-2 gap-3 border-b p-4 lg:grid-cols-6">
-        <Link href="/jar-exchange/manage?tab=codes&status=available" className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">可發放（已核對）</span><strong className="text-xl">{availableCount}</strong></Link>
-        {groups.map(group => <Link key={group.status} href={`/jar-exchange/manage?tab=codes&status=${encodeURIComponent(group.status)}`} className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">{jarCodeStatusLabel[group.status] ?? group.status}</span><strong className="text-xl">{group._count._all}</strong></Link>)}
+        <Link
+          href="/jar-exchange/manage?tab=codes&status=available"
+          aria-current={validStatus === 'available' ? 'page' : undefined}
+          className={`rounded-xl border p-3 transition-colors hover:border-primary/60 ${validStatus === 'available' ? 'border-primary bg-primary/5' : ''}`}
+        >
+          <span className="block text-xs text-muted-foreground">可發放（已核對）</span>
+          <strong className="text-xl">{availableCount}</strong>
+        </Link>
+        {groups.map(group => {
+          const selected = validStatus === group.status;
+          return (
+            <Link
+              key={group.status}
+              href={`/jar-exchange/manage?tab=codes&status=${encodeURIComponent(group.status)}`}
+              aria-current={selected ? 'page' : undefined}
+              className={`rounded-xl border p-3 transition-colors hover:border-primary/60 ${selected ? 'border-primary bg-primary/5' : ''}`}
+            >
+              <span className="block text-xs text-muted-foreground">{jarCodeStatusLabel[group.status] ?? group.status}</span>
+              <strong className="text-xl">{group._count._all}</strong>
+            </Link>
+          );
+        })}
       </div>
       <form key={`${validStatus}:${batch}:${q}`} className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4" method="get">
         <input type="hidden" name="tab" value="codes" />
@@ -108,17 +128,21 @@ async function CodesTable({
         <button className="h-9 rounded-xl bg-primary px-4 text-primary-foreground">搜尋</button>
         <Link className="rounded-xl border px-4 py-2 text-sm" href={`/api/jar-exchange/codes/export${batch ? `?batch=${encodeURIComponent(batch)}` : ''}`}>匯出{batch ? '該批次' : '全部'}可發放 Excel</Link>
       </form>
-      <p className="px-4 py-3 text-xs text-muted-foreground">可發放名單會排除持有、使用、占用、歷史使用與客服指定序號。匯出內容為下載當下的資料快照。</p>
+      <div className="border-b border-border/60 px-4 py-3">
+        <h2 className="text-sm font-semibold">序號清單</h2>
+        <p className="mt-1 text-xs text-muted-foreground">可發放名單會排除持有、使用、占用、歷史使用與客服指定序號。匯出內容為下載當下的資料快照。</p>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
+          <caption className="sr-only">序號管理清單</caption>
           <thead>
             <tr className="border-b text-left text-xs text-muted-foreground">
-              <th className="px-4 py-3">序號</th>
-              <th className="px-4 py-3">批次</th>
-              <th className="px-4 py-3">狀態</th>
-              <th className="px-4 py-3">使用者</th>
-              <th className="px-4 py-3">使用時間</th>
-              <th className="px-4 py-3 text-right">操作</th>
+              <th scope="col" className="px-4 py-3">序號</th>
+              <th scope="col" className="px-4 py-3">批次</th>
+              <th scope="col" className="px-4 py-3">狀態</th>
+              <th scope="col" className="px-4 py-3">使用者</th>
+              <th scope="col" className="px-4 py-3">使用時間</th>
+              <th scope="col" className="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody className="divide-y">
