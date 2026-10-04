@@ -18,7 +18,7 @@ export default async function ReviewInboxPage() {
       <PageHeader
         tone="operations"
         title="待審核"
-        description="Shopify 訂單、UGC 審核與補貨申請，只要還需要人工確認，都會出現在這裡。核准後才會進入出貨。"
+        description="需要人工下一步的訂單、UGC 與補貨申請集中在這裡；每一列直接顯示現在要做什麼。"
       />
       <div className="space-y-6 p-6">
         <Card>
@@ -83,7 +83,7 @@ export default async function ReviewInboxPage() {
                       ) : null}
                     </div>
                     <Button asChild variant="outline" size="sm">
-                      <Link href={item.href}>審核</Link>
+                      <Link href={item.href}>{item.actionLabel}</Link>
                     </Button>
                   </CardContent>
                 </Card>
