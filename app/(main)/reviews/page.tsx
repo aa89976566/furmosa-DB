@@ -21,17 +21,22 @@ export default async function ReviewInboxPage() {
         description="需要人工下一步的訂單、UGC 與補貨申請集中在這裡；每一列直接顯示現在要做什麼。"
       />
       <div className="space-y-6 p-6">
-        <Card>
-          <CardContent className="flex flex-wrap items-center gap-4 p-4 text-sm">
-            <div>
-              全部待審核 <span className="font-semibold">{total}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold">待處理 {total}</span>
+            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">訂單 {counts.shopify_order}</span>
+            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">UGC {counts.ugc}</span>
+            <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">補貨 {counts.restock}</span>
+          </div>
+          <details className="relative">
+            <summary className="cursor-pointer list-none text-xs font-medium text-muted-foreground hover:text-foreground">
+              管理
+            </summary>
+            <div className="absolute right-0 top-7 z-30 w-[min(90vw,24rem)] rounded-xl border bg-card p-3 shadow-lg">
+              <ArchiveOlderOrdersForm />
             </div>
-            <div className="text-muted-foreground">訂單 {counts.shopify_order}</div>
-            <div className="text-muted-foreground">UGC 審核 {counts.ugc}</div>
-            <div className="text-muted-foreground">補貨申請 {counts.restock}</div>
-            <div className="w-full border-t pt-3"><ArchiveOlderOrdersForm /></div>
-          </CardContent>
-        </Card>
+          </details>
+        </div>
 
         {items.length === 0 ? (
           <Card>
@@ -143,7 +148,7 @@ export default async function ReviewInboxPage() {
                       </td>
                       <td className="px-3 py-2 text-right">
                         <Button asChild variant="outline" size="sm">
-                          <Link href={item.href}>審核</Link>
+                          <Link href={item.href}>{item.actionLabel}</Link>
                         </Button>
                       </td>
                     </tr>
