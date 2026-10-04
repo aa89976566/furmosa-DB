@@ -10,6 +10,7 @@ import {
 } from '@/lib/customers/create-customer';
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 import { prisma } from '@/lib/prisma';
+import { protectCustomerHistory } from '@/lib/customers/protect-customer-history';
 
 export type { CustomerCreateInput, CreatedCustomerOption };
 
@@ -78,7 +79,7 @@ export async function updateCustomerFromForm(id: string, formData: FormData) {
 
 /**
  * 刪除客戶。為保留交易紀錄，若客戶已有訂單或訂閱合約則阻擋刪除；
- * 其餘關聯（換罐服務、點數流水、獎勵兌換）會一併清除，已返航序號會退回未使用。
+ * 有序號、點數、獎勵或換罐紀錄亦阻擋刪除，以保留歷史。
  */
 export async function deleteCustomer(formData: FormData) {
   const id = String(formData.get('id') ?? '').trim();
@@ -109,15 +110,7 @@ export async function deleteCustomer(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      // 已返航的序號退回未使用（避免成為無主的已用序號）
-      await tx.jarCode.updateMany({
-        where: { redeemedByCustomerId: id },
-        data: {
-          status: 'unused',
-          redeemedByCustomerId: null,
-          redeemedAt: null,
-        },
-      });
+      await protectCustomerHistory(tx, id);
       // 點數流水、獎勵兌換、換罐服務以 onDelete: Cascade 自動清除
       await tx.customer.delete({ where: { id } });
     });

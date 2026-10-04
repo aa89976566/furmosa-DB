@@ -15,7 +15,7 @@ export const jarCodeStatusLabel: Record<string, string> = {
   issued: '持有中',
   returned: '已回收',
   used: '已返航',
-  expired: '已過期',
+  expired: '已作廢／過期',
 };
 
 export const ledgerSourceLabel: Record<string, string> = {

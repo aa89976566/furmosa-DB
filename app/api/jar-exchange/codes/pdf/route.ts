@@ -3,10 +3,13 @@ import { buildJarCodesPdf } from '@/lib/jar-exchange/build-labels-pdf';
 import { filterValidJarCodes } from '@/lib/jar-exchange/codes';
 import { LABELS_PER_PAGE } from '@/lib/jar-exchange/print-labels';
 import { prisma } from '@/lib/prisma';
+import { safeAvailableJarCodeWhere } from '@/lib/jar-exchange/code-management';
+import { getCurrentUser } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  if (!await getCurrentUser()) return NextResponse.json({ error: '請先登入 HQ' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const batch = (searchParams.get('batch') ?? '').trim();
   const statusParam = searchParams.get('status');
@@ -26,8 +29,8 @@ export async function GET(req: Request) {
       : LABELS_PER_PAGE;
 
   const codes = await prisma.jarCode.findMany({
-    where: { batchNo: batch, status },
-    orderBy: { createdAt: 'asc' },
+    where: { AND: [{ batchNo: batch }, status === 'unused' ? await safeAvailableJarCodeWhere(prisma) : { status }] },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     select: { code: true },
     ...(limit !== undefined ? { take: limit } : {}),
   });

@@ -6,6 +6,8 @@ import { redeemRewardForCustomer } from '@/lib/jar-exchange/redeem-reward';
 import { getPointsBalance } from '@/lib/jar-exchange/points';
 import { syncCustomerServices, ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { generateJarCode, isValidJarCodeFormat, JAR_CODE_LENGTH } from '@/lib/jar-exchange/codes';
+import { voidAvailableJarCode } from '@/lib/jar-exchange/code-management';
+import { protectCustomerHistory } from '@/lib/customers/protect-customer-history';
 
 // Never fall back to runtime or production-looking database settings. This
 // suite creates and deletes business records, so it may only run when an
@@ -129,5 +131,51 @@ describe('jar exchange', { skip: !testDatabaseUrl }, () => {
     assert.equal(first.ok, true);
     assert.equal(second.ok, true);
     assert.equal(await getPointsBalance(prisma, customerId), 2);
+  });
+
+  it('cannot void a redeemed code or remove its points', async () => {
+    const row = await prisma.jarCode.findUniqueOrThrow({ where: { code: codeA } });
+    const before = await prisma.memberPointsLedger.count({ where: { sourceRefId: row.id } });
+    await assert.rejects(prisma.$transaction(tx => voidAvailableJarCode(tx, { id: row.id, actorId: 'ci', reason: '測試作廢' })));
+    assert.equal((await prisma.jarCode.findUniqueOrThrow({ where: { id: row.id } })).status, 'used');
+    assert.equal(await prisma.memberPointsLedger.count({ where: { sourceRefId: row.id } }), before);
+  });
+
+  it('blocks deleting a customer with jar and points history without resetting their serial', async () => {
+    await assert.rejects(prisma.$transaction(tx => protectCustomerHistory(tx, customerId)), /請保留會員/);
+    assert.ok(await prisma.customer.findUnique({ where: { id: customerId } }));
+    assert.equal((await prisma.jarCode.findUniqueOrThrow({ where: { code: codeA } })).status, 'used');
+  });
+
+  it('allows deleting an empty customer using the mapped PostgreSQL table lock', async () => {
+    const customer = await prisma.customer.create({ data: { customerId: `TEST-EMPTY-${Date.now()}`, name: '可刪除測試會員' } });
+    try {
+      await prisma.$transaction(async tx => {
+        await protectCustomerHistory(tx, customer.id);
+        await tx.customer.delete({ where: { id: customer.id } });
+      });
+      assert.equal(await prisma.customer.findUnique({ where: { id: customer.id } }), null);
+    } finally {
+      await prisma.customer.deleteMany({ where: { id: customer.id } });
+    }
+  });
+
+  it('a concurrent claim and void have only one winner', async () => {
+    const row = await prisma.jarCode.create({ data: { code: generateJarCode(), status: 'unused' } });
+    try {
+      const [claim, voided] = await Promise.allSettled([
+        prisma.jarCode.updateMany({ where: { id: row.id, status: 'unused' }, data: { status: 'used', redeemedAt: new Date(), redeemedByCustomerId: customerId } }),
+        prisma.$transaction(tx => voidAvailableJarCode(tx, { id: row.id, actorId: 'ci', reason: '並行測試' })),
+      ]);
+      assert.equal(claim.status, 'fulfilled');
+      const claimCount = claim.status === 'fulfilled' ? claim.value.count : 0;
+      assert.equal(claimCount + (voided.status === 'fulfilled' ? 1 : 0), 1);
+      const final = await prisma.jarCode.findUniqueOrThrow({ where: { id: row.id } });
+      assert.equal(final.status, claimCount === 1 ? 'used' : 'expired');
+      assert.equal(await prisma.statusAuditLog.count({ where: { entityType: 'jar_code', entityId: row.id } }), claimCount === 1 ? 0 : 1);
+    } finally {
+      await prisma.statusAuditLog.deleteMany({ where: { entityType: 'jar_code', entityId: row.id } });
+      await prisma.jarCode.delete({ where: { id: row.id } });
+    }
   });
 });
