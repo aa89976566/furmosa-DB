@@ -27,10 +27,11 @@ export type TierCatalogProduct = {
 export type ShopifyLineIdentity = {
   variant_id?: unknown;
   sku?: string | null;
+  title?: string | null;
 };
 
 export type TierMatch =
-  | { outcome: 'match'; reason: 'variant_id' | 'sku'; tier: MatchableTier; productId: string }
+  | { outcome: 'match'; reason: 'variant_id' | 'sku' | 'title_alias'; tier: MatchableTier; productId: string }
   | {
       outcome: 'review';
       reason: 'missing' | 'duplicate' | 'inactive' | 'other_product' | 'blank' | 'ambiguous' | 'unbound';
@@ -104,6 +105,45 @@ function skuHits(lineSku: string | null | undefined, products: TierCatalogProduc
   return hits;
 }
 
+function foldProductTitle(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const folded = value.normalize('NFKC').toLowerCase().replace(/[\p{P}\p{S}\s]+/gu, '');
+  return folded || null;
+}
+
+/**
+ * Explicit business aliases only. This is intentionally not fuzzy name matching.
+ * Shopify's current chicken-fillet title is the original CK-05 product.
+ */
+const SHOPIFY_TITLE_SOURCE_SKU_ALIASES: Record<string, string> = {
+  嚎大大雞霸: 'CK-05',
+  壕大大雞霸: 'CK-05',
+  豪大大雞霸: 'CK-05',
+};
+
+function titleAliasHits(title: string | null | undefined, products: TierCatalogProduct[]) {
+  const folded = foldProductTitle(title);
+  const sourceSku = folded ? SHOPIFY_TITLE_SOURCE_SKU_ALIASES[folded] : undefined;
+  if (!sourceSku) return [];
+  const hits: MatchableTier[] = [];
+  const seen = new Set<string>();
+  for (const product of products) {
+    if (foldSku(product.sourceSku) !== foldSku(sourceSku)) continue;
+    const active = product.priceTiers.filter(isActive);
+    if (active.length === 1) remember(active[0]!, hits, seen);
+  }
+  return hits;
+}
+
+function aliasFallback(line: ShopifyLineIdentity, products: TierCatalogProduct[]): TierMatch | null {
+  const hits = titleAliasHits(line.title, products);
+  if (hits.length === 1) {
+    return { outcome: 'match', reason: 'title_alias', tier: hits[0]!, productId: hits[0]!.productId };
+  }
+  if (hits.length > 1) return { outcome: 'review', reason: 'ambiguous' };
+  return null;
+}
+
 export function matchShopifyLineToTier(line: ShopifyLineIdentity, products: TierCatalogProduct[]): TierMatch {
   const variant = readShopifyVariantId(line.variant_id);
   if (variant.present) {
@@ -127,13 +167,18 @@ export function matchShopifyLineToTier(line: ShopifyLineIdentity, products: Tier
     if (skuMatch.length === 1) {
       return { outcome: 'match', reason: 'sku', tier: skuMatch[0]!, productId: skuMatch[0]!.productId };
     }
-    return { outcome: 'review', reason: skuMatch.length > 1 ? 'ambiguous' : 'unbound' };
+    if (skuMatch.length > 1) return { outcome: 'review', reason: 'ambiguous' };
+    const alias = aliasFallback(line, products);
+    return alias ?? { outcome: 'review', reason: 'unbound' };
   }
 
-  if (!foldSku(line.sku)) return { outcome: 'review', reason: 'blank' };
+  const foldedSku = foldSku(line.sku);
   const hits = skuHits(line.sku, products);
   if (hits.length === 1) return { outcome: 'match', reason: 'sku', tier: hits[0]!, productId: hits[0]!.productId };
-  return { outcome: 'review', reason: hits.length === 0 ? 'missing' : 'ambiguous' };
+  if (hits.length > 1) return { outcome: 'review', reason: 'ambiguous' };
+  const alias = aliasFallback(line, products);
+  if (alias) return alias;
+  return { outcome: 'review', reason: foldedSku ? 'missing' : 'blank' };
 }
 
 export function classifyShopifyLines(lines: ShopifyLineIdentity[], products: TierCatalogProduct[]): ClassifiedShopifyLines {
