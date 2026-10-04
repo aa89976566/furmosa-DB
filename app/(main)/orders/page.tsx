@@ -27,10 +27,12 @@ export const maxDuration = 60;
 
 function OrdersTotalsFallback() {
   return (
-    <div className="grid grid-cols-3 gap-2 sm:flex">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="h-14 animate-pulse rounded-xl bg-muted/40 sm:w-32" />
-      ))}
+    <div className="overflow-x-auto pb-1">
+      <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="h-10 flex-1 animate-pulse rounded-lg bg-muted/40 sm:w-28 sm:flex-none" />
+        ))}
+      </div>
     </div>
   );
 }
@@ -51,30 +53,44 @@ async function OrdersWorkSummary({ active }: { active: string }) {
   const count = (work: string) => prisma.order.count({
     where: { AND: [workbenchVisibleWhere, orderWorkWhere(work)] },
   });
-  const [now, ready, shipping] = await Promise.all([
+  const [now, waiting, ready, shipping, done] = await Promise.all([
     count('now'),
+    count('waiting'),
     count('ready'),
     count('shipping'),
+    count('done'),
   ]);
-  const cards = [
-    { key: 'now', label: '待處理', count: now, help: '核對新訂單與資料異常' },
-    { key: 'ready', label: '待出貨', count: ready, help: '建立物流或完成備貨' },
-    { key: 'shipping', label: '運送中', count: shipping, help: '追蹤已交寄訂單' },
-  ].filter(card => card.count > 0);
+  const stages = [
+    { key: 'now', label: '待處理', count: now },
+    { key: 'waiting', label: '待付款', count: waiting },
+    { key: 'ready', label: '待出貨', count: ready },
+    { key: 'shipping', label: '運送中', count: shipping },
+    { key: 'done', label: '已完成', count: done },
+  ];
 
-  if (cards.length === 0) {
-    return <p className="text-sm text-muted-foreground">目前沒有需要處理的訂單</p>;
-  }
-
-  return <nav aria-label="目前工作">
-    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">目前工作</p>
-    <div className="grid grid-cols-3 gap-2 sm:flex">
-      {cards.map(card => <Link key={card.key} href={`/orders?work=${card.key}`} prefetch={false} title={card.help} className={`flex min-h-14 min-w-0 flex-col justify-center rounded-xl border px-3 py-2 transition sm:min-w-32 ${active === card.key ? 'border-foreground bg-foreground text-background' : 'bg-card hover:border-primary/40'}`}>
-        <span className="truncate text-xs font-medium sm:text-sm">{card.label}</span>
-        <span className="text-lg font-semibold tabular-nums">{card.count}</span>
-      </Link>)}
-    </div>
-  </nav>;
+  return (
+    <nav aria-label="訂單工作階段" className="overflow-x-auto pb-1">
+      <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
+        {stages.map((stage) => {
+          const isActive = active === stage.key;
+          return (
+            <Link
+              key={stage.key}
+              href={`/orders?work=${stage.key}`}
+              prefetch={false}
+              aria-current={isActive ? 'page' : undefined}
+              className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors sm:min-w-28 sm:flex-none sm:text-sm ${isActive ? 'bg-black text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+            >
+              <span>{stage.label}</span>
+              <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                {stage.count}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
 }
 
 async function OrdersTableSection({
