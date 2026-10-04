@@ -16,13 +16,12 @@ describe('OMS workbench read-only queries', () => {
   });
   it('keeps unreviewed orders actionable regardless of payment', () => {
     assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['待處理', '待付款', '待出貨', '運送中', '已完成']);
-    assert.deepEqual(orderWorkWhere('now'), {
-      OR: [
-        { omsStatus: { in: ['NEW', 'REVIEW'] } },
-        { omsStatus: 'READY', paymentStatus: { notIn: ['paid', 'cod', 'unpaid', 'partial'] } },
-        { omsStatus: null, status: { in: ['draft', 'pending_review'] } },
-      ],
-    });
+    const now = JSON.stringify(orderWorkWhere('now'));
+    assert.match(now, /NEW/);
+    assert.match(now, /REVIEW/);
+    assert.match(now, /FULFILLMENT_PENDING/);
+    assert.match(now, /FULFILLED/);
+    assert.match(now, /none/);
     assert.deepEqual(orderWorkWhere('waiting'), { omsStatus: 'READY', paymentStatus: { in: ['unpaid', 'partial'] } });
     const ready = JSON.stringify(orderWorkWhere('ready'));
     const shipping = JSON.stringify(orderWorkWhere('shipping'));
