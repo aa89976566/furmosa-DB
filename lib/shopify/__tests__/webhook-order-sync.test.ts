@@ -433,7 +433,7 @@ describe('Shopify order webhook event ordering and persistence', () => {
     assert.equal(store.settlementWrites, 0);
   });
 
-  it('matches a variant id larger than a JavaScript safe integer and does not fall back to SKU', async () => {
+  it('matches a bound large variant id and falls back to unique SKU when the variant is unbound', async () => {
     const variantId = '900719925474099312345';
     const store = new FakeShopifyStore();
     store.seedProduct({
@@ -461,7 +461,8 @@ describe('Shopify order webhook event ordering and persistence', () => {
       line_items: [{ sku: 'CK-30', variant_id: variantId, title: '鴨喉嚨', quantity: 1, price: '84' }],
     }), 'wh-unbound');
     assert.equal(missed.status, 200);
-    assert.equal(unbound.getOrder(SHOP, '2002')?.items.length, 0);
+    assert.equal(unbound.getOrder(SHOP, '2002')?.items.length, 1);
+    assert.equal(unbound.getOrder(SHOP, '2002')?.items[0]?.variantKey, 'tier-30');
     assert.equal(unbound.getOrder(SHOP, '2002')?.omsStatus, 'NEW');
   });
 
