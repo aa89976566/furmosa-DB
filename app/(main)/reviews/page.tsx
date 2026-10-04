@@ -1,11 +1,7 @@
-import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { formatDateTime } from '@/lib/format';
 import { loadReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
 import { ArchiveOlderOrdersForm } from '@/components/orders/archive-older-orders-form';
+import { ReviewResourceList } from '@/components/reviews/review-resource-list';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,126 +34,7 @@ export default async function ReviewInboxPage() {
           </details>
         </div>
 
-        {items.length === 0 ? (
-          <Card>
-            <CardContent className="px-3 py-8 text-center text-sm text-muted-foreground">
-              目前沒有待審核項目
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="space-y-3 md:hidden">
-              {items.map((item) => (
-                <Card key={`${item.kind}-${item.id}`}>
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="muted">{item.kindLabel}</Badge>
-                      <Badge variant="default">{item.statusLabel}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDateTime(item.createdAt)}
-                      </span>
-                    </div>
-                    <div>
-                      <Link href={item.href} className="font-medium text-info hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-                        {item.title}
-                      </Link>
-                      <div className="text-sm text-muted-foreground">{item.subtitle || '—'}</div>
-                      {item.lines ? (
-                        <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                          {item.lines.map((line, index) => {
-                            const separator = ' × ';
-                            const separatorIndex = line.lastIndexOf(separator);
-                            if (separatorIndex === -1) {
-                              return (
-                                <div key={index} className="flex items-baseline justify-between gap-3">
-                                  <span className="min-w-0 truncate">{line}</span>
-                                </div>
-                              );
-                            }
-                            return (
-                              <div key={index} className="flex items-baseline justify-between gap-3">
-                                <span className="min-w-0 truncate">{line.slice(0, separatorIndex)}</span>
-                                <span className="shrink-0 tabular-nums">{line.slice(separatorIndex + separator.length)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                      {item.moreLabel ? (
-                        <div className="mt-0.5 text-xs text-muted-foreground">{item.moreLabel}</div>
-                      ) : null}
-                    </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={item.href}>{item.actionLabel}</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <div className="hidden overflow-x-auto rounded-xl border md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2">時間</th>
-                    <th className="px-3 py-2">種類</th>
-                    <th className="px-3 py-2">內容</th>
-                    <th className="px-3 py-2">狀態</th>
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={`${item.kind}-${item.id}`} className="border-t">
-                      <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant="muted">{item.kindLabel}</Badge>
-                      </td>
-                      <td className="max-w-[20rem] px-3 py-2">
-                        <Link href={item.href} className="font-medium text-info hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-                          {item.title}
-                        </Link>
-                        <div className="text-muted-foreground">{item.subtitle || '—'}</div>
-                        {item.lines ? (
-                          <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                            {item.lines.map((line, index) => {
-                              const separator = ' × ';
-                              const separatorIndex = line.lastIndexOf(separator);
-                              if (separatorIndex === -1) {
-                                return (
-                                  <div key={index} className="flex items-baseline justify-between gap-3">
-                                    <span className="min-w-0 truncate">{line}</span>
-                                  </div>
-                                );
-                              }
-                              return (
-                                <div key={index} className="flex items-baseline justify-between gap-3">
-                                  <span className="min-w-0 truncate">{line.slice(0, separatorIndex)}</span>
-                                  <span className="shrink-0 tabular-nums">{line.slice(separatorIndex + separator.length)}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                        {item.moreLabel ? (
-                          <div className="mt-0.5 text-xs text-muted-foreground">{item.moreLabel}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="default">{item.statusLabel}</Badge>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={item.href}>{item.actionLabel}</Link>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <ReviewResourceList items={items} />
       </div>
     </>
   );

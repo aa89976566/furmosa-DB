@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { JarCodeDeleteButton } from '@/components/jar-exchange/jar-code-delete-button';
 import { formatDateTime } from '@/lib/format';
 import { jarCodeStatusLabel } from '@/lib/jar-exchange/labels';
-import { safeAvailableJarCodeWhere, JAR_CODE_ORDER } from '@/lib/jar-exchange/code-management';
+import { safeAvailableJarCodeWhere, JAR_CODE_ORDER, managementJarCodeWhere } from '@/lib/jar-exchange/code-management';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,11 +65,7 @@ async function CodesTable({
 }) {
   const available = await safeAvailableJarCodeWhere(prisma);
   const validStatus = ['available', 'unused', 'issued', 'returned', 'used', 'expired'].includes(status) ? status : '';
-  const where = {
-    ...(validStatus === 'available' ? available : validStatus ? { status: validStatus } : {}),
-    ...(batch ? { batchNo: batch } : {}),
-    ...(q ? { code: { contains: q, mode: 'insensitive' as const } } : {}),
-  };
+  const where = managementJarCodeWhere(available, { status: validStatus, batch, q });
 
   const [rows, total, availableCount, groups] = await Promise.all([
     prisma.jarCode.findMany({

@@ -9,11 +9,14 @@ const pageSource = readFileSync(
 );
 const inboxSource = readFileSync(new URL('../inbox.ts', import.meta.url), 'utf8');
 
-const mobileSection = pageSource.slice(
-  pageSource.indexOf('space-y-3 md:hidden'),
-  pageSource.indexOf('hidden overflow-x-auto'),
+const resourceListSource = readFileSync(
+  new URL('../../../components/reviews/review-resource-list.tsx', import.meta.url),
+  'utf8',
 );
-const desktopSection = pageSource.slice(pageSource.indexOf('hidden overflow-x-auto'));
+const resourceListStyles = readFileSync(
+  new URL('../../../components/reviews/review-resource-list.module.css', import.meta.url),
+  'utf8',
+);
 
 const BUBBLE_ITEMS = [
   { name: '原味雞霸', quantity: 4 },
@@ -209,21 +212,19 @@ describe('restockReviewSummary', () => {
 });
 
 describe('reviews page source assertions', () => {
-  it('page.tsx 手機與桌機各渲染 lines／moreLabel', () => {
-    assert.match(mobileSection, /item\.lines/);
-    assert.match(mobileSection, /item\.moreLabel/);
-    assert.match(desktopSection, /item\.lines/);
-    assert.match(desktopSection, /item\.moreLabel/);
+  it('單一 resource list 渲染 lines／moreLabel，手機桌機共用同一 DOM', () => {
+    assert.match(pageSource, /<ReviewResourceList items=\{items\} \/>/);
+    assert.match(resourceListSource, /item\.lines/);
+    assert.match(resourceListSource, /item\.moreLabel/);
+    assert.match(resourceListStyles, /container-type: inline-size/);
+    assert.match(resourceListStyles, /@container \(min-width: 760px\)/);
   });
 
-  it('兩處皆保有 min-w-0 truncate、shrink-0 tabular-nums 與指定容器 class', () => {
-    for (const section of [mobileSection, desktopSection]) {
-      assert.match(section, /min-w-0 truncate/);
-      assert.match(section, /shrink-0 tabular-nums/);
-      assert.match(section, /mt-1 space-y-0\.5 text-xs text-muted-foreground/);
-      assert.match(section, /flex items-baseline justify-between gap-3/);
-      assert.match(section, /mt-0\.5 text-xs text-muted-foreground/);
-    }
+  it('resource list 保留品項截斷與數量 tabular 顯示', () => {
+    assert.match(resourceListSource, /styles\.line/);
+    assert.match(resourceListSource, /styles\.qty/);
+    assert.match(resourceListStyles, /text-overflow: ellipsis/);
+    assert.match(resourceListStyles, /font-variant-numeric: tabular-nums/);
   });
 
   it('loadPendingRestocks 使用指定 subtitle 組裝', () => {
@@ -239,7 +240,7 @@ describe('reviews page source assertions', () => {
     assert.match(inboxSource, /'審核訂單'/);
     assert.match(inboxSource, /actionLabel: '審核補貨'/);
     assert.match(inboxSource, /actionLabel: '審核 UGC'/);
-    assert.equal((pageSource.match(/\{item\.actionLabel\}/g) ?? []).length, 2);
+    assert.match(resourceListSource, /\{item\.actionLabel\}/);
   });
 
   it('待審核頁使用 compact summary bar，把封存移到管理選單', () => {
@@ -247,7 +248,7 @@ describe('reviews page source assertions', () => {
     assert.match(pageSource, /訂單 \{counts\.shopify_order\}/);
     assert.match(pageSource, /UGC \{counts\.ugc\}/);
     assert.match(pageSource, /補貨 \{counts\.restock\}/);
-    assert.match(pageSource, />管理<\/summary>/);
+    assert.match(pageSource, />\s*管理\s*<\/summary>/);
     assert.doesNotMatch(pageSource, /全部待審核/);
   });
 });

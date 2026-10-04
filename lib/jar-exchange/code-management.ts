@@ -19,6 +19,14 @@ export function availableJarCodeWhere() {
 
 export const JAR_CODE_ORDER = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
 
+export function managementJarCodeWhere(available: Prisma.JarCodeWhereInput, filters: { status: string; batch: string; q: string }): Prisma.JarCodeWhereInput {
+  return { AND: [
+    filters.status === 'available' ? available : filters.status ? { status: filters.status } : {},
+    filters.batch ? { batchNo: filters.batch } : {},
+    filters.q ? { code: { contains: filters.q, mode: 'insensitive' } } : {},
+  ] };
+}
+
 export async function safeAvailableJarCodeWhere(db: Pick<Prisma.TransactionClient, 'memberPointsLedger' | 'statusAuditLog' | 'refillAuditLog'>): Promise<Prisma.JarCodeWhereInput> {
   const [ledger, history, refill] = await Promise.all([
     db.memberPointsLedger.findMany({ where: { sourceType: 'jar_code_redeem', sourceRefId: { not: null } }, select: { sourceRefId: true }, distinct: ['sourceRefId'] }),

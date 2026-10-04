@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
-import { availableJarCodeWhere, safeAvailableJarCodeWhere } from '../code-management';
+import { availableJarCodeWhere, safeAvailableJarCodeWhere, managementJarCodeWhere } from '../code-management';
 import { buildCodesXlsx } from '../codes-xlsx';
 
 it('excludes customer-reported serial and all claim/lock evidence', () => {
@@ -8,6 +8,11 @@ it('excludes customer-reported serial and all claim/lock evidence', () => {
   assert.ok(where.code.notIn.includes('79984418'));
   assert.equal(where.status, 'unused');
   for (const key of ['redeemedByCustomerId', 'redeemedAt', 'issuedAt', 'returnedAt', 'issuedMerchantId', 'returnedMerchantId', 'lockedByRefillOrderId']) assert.equal(where[key as keyof typeof where], null);
+});
+it('searching available serials retains exclusions instead of overwriting the code condition', () => {
+  const available = availableJarCodeWhere();
+  const where = managementJarCodeWhere(available, { status: 'available', batch: 'BATCH', q: '7998' });
+  assert.deepEqual(where.AND, [available, { batchNo: 'BATCH' }, { code: { contains: '7998', mode: 'insensitive' } }]);
 });
 it('excludes historical ledger and status evidence even when current status is unused', async () => {
   const db = {
