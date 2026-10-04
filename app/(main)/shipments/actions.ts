@@ -128,8 +128,10 @@ export async function markShipmentStatus(formData: FormData): Promise<void> {
       const queueType = String(formData.get('queueType') ?? '').trim();
       if (queueType) params.set('type', queueType);
       if (result.next === 'shipped') {
-        params.set('s', result.shipmentId);
-        params.set('status', 'shipped');
+        // Stay in the originating queue after dispatch. The shipped row
+        // disappears from 待出貨 after revalidation and is counted under 運送中.
+        if (queueStatus) params.set('status', queueStatus);
+        else params.set('status', 'pending');
         redirect(`/shipments?${params.toString()}`);
       }
       if (result.next === 'delivered') {
