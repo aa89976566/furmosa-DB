@@ -783,6 +783,7 @@ type PriceRow = {
   unit: string; // 克 / 隻 / 片
   prices: { weightGrams?: number; unitQty?: number; unit?: string; price: number; cost?: number; notes?: string }[];
   isActive?: boolean; // false = 紅色列 (停售)
+  defaultTemperature?: 'ambient' | 'chilled' | 'frozen';
   notes?: string;
 };
 const PRICE_LIST: PriceRow[] = [
@@ -921,6 +922,7 @@ const PRICE_LIST: PriceRow[] = [
     category: 'treats',
     style: '原味',
     unit: '片',
+    defaultTemperature: 'ambient',
     prices: [{ unitQty: 1, price: 89 }],
   },
   {
@@ -930,6 +932,7 @@ const PRICE_LIST: PriceRow[] = [
     category: 'treats',
     style: '蔬果',
     unit: '片',
+    defaultTemperature: 'ambient',
     prices: [{ unitQty: 1, price: 79 }],
   },
   {
@@ -1256,6 +1259,7 @@ async function importPriceList() {
           unit: row.unit,
           style: row.style ?? null,
           notes: row.notes ?? null,
+          defaultTemperature: row.defaultTemperature ?? product.defaultTemperature,
           status: row.isActive === false ? 'inactive' : 'active',
         },
       });
@@ -1279,6 +1283,7 @@ async function importPriceList() {
           cost: row.cost ?? 0,
           vendorId,
           notes: row.notes ?? null,
+          defaultTemperature: row.defaultTemperature ?? null,
           status: row.isActive === false ? 'inactive' : 'active',
         },
       });
