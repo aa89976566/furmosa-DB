@@ -473,13 +473,15 @@ describe('tier review envelope', () => {
     assert.equal(fake.itemWrites(), 0);
   });
 
-  it('does not create items when the variant id is present but unbound', async () => {
+  it('falls back to a unique active SKU when the variant id is present but unbound', async () => {
     const fake = fakeDb();
     fake.setCatalog(catalog);
     await persistShopifyIntake(fake.db, input({
       line_items: [{ sku: 'FD-01', variant_id: '404', title: '鴨喉嚨', quantity: 1, price: '84.00' }],
     }));
-    assert.equal([...fake.orders.values()][0].items, undefined);
+    const order = [...fake.orders.values()][0];
+    assert.equal(order.items.create.length, 1);
+    assert.equal(order.items.create[0].variantKey, 'tier-1');
   });
 });
 
