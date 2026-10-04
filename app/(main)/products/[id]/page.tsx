@@ -77,9 +77,14 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         title={product.name}
         description={
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-mono">{product.productId}</span>
-            <span>·</span>
-            <span className="font-mono text-xs">{product.sku}</span>
+            {product.sourceSku ? (
+              <span className="font-mono font-semibold">{product.sourceSku}</span>
+            ) : (
+              <span className="font-mono font-semibold">{product.sku}</span>
+            )}
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono text-xs text-muted-foreground">HQ {product.sku}</span>
+            <span className="font-mono text-xs text-muted-foreground">{product.productId}</span>
             <Badge variant="secondary">{productCategoryLabel[product.category]}</Badge>
             <Badge variant="info">可變商品</Badge>
             <Badge variant={product.status === 'active' ? 'success' : 'muted'}>{statusLabel}</Badge>
@@ -95,7 +100,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         }
       />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid overflow-hidden rounded-xl border border-border/70 bg-card sm:grid-cols-2 xl:grid-cols-4 xl:divide-x">
           <SummaryMetric label="規格數" value={formatNumber(variationSummary.count)} />
           <SummaryMetric label="售價區間" value={variationSummary.priceRange} />
           <SummaryMetric label="毛利區間" value={variationSummary.marginRange} />
@@ -162,7 +167,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           <dl className="mt-6 grid gap-3 border-t pt-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
             {product.sourceSku && (
               <MetaItem
-                label="單價表 SKU"
+                label="商品家族 SKU"
                 value={<span className="font-mono text-xs">{product.sourceSku}</span>}
               />
             )}
@@ -274,9 +279,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
 function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-card px-4 py-4 shadow-card">
+    <div className="border-b border-border/60 px-4 py-3 last:border-b-0 sm:nth-[2]:border-b-0 xl:border-b-0">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-2 text-xl font-semibold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">{value}</p>
     </div>
   );
 }
