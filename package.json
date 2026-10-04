@@ -28,7 +28,8 @@
     "refill:seed-test": "tsx scripts/seed-refill-test-data.ts",
     "smoke:production": "node scripts/production-smoke.mjs",
     "verify:deployment-contract": "node scripts/verify-deployment-contract.mjs",
-    "automation:process": "tsx scripts/process-automation-jobs.ts"
+    "automation:process": "tsx scripts/process-automation-jobs.ts",
+    "ci:railway": "npm run prisma:validate && npm run typecheck && NODE_ENV=test npm test && npm run build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
