@@ -23,16 +23,15 @@ export function JarCodeDeleteButton({
         type="button"
         size="sm"
         variant="ghost"
-        disabled={pending}
+        disabled={pending || used}
         className="h-7 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
         onClick={() => {
-          const warn = used
-            ? `序號「${code}」已返航。刪除後會撤銷其帶來的點數，並可重新使用此序號。確定刪除？`
-            : `確定要刪除序號「${code}」嗎？此動作無法復原。`;
-          if (!confirm(warn)) return;
+          const reason = prompt(`作廢序號「${code}」會永久停止發放，請填寫原因：`);
+          if (!reason?.trim()) return;
           setError(null);
           const fd = new FormData();
           fd.set('id', id);
+          fd.set('reason', reason.trim());
           startTransition(async () => {
             const res = await deleteJarCode(fd);
             if (!res.ok) setError(res.error);
@@ -40,7 +39,7 @@ export function JarCodeDeleteButton({
         }}
       >
         <Trash2 className="mr-1 h-3.5 w-3.5" />
-        刪除
+        作廢
       </Button>
       {error ? <span className="text-[10px] text-destructive">{error}</span> : null}
     </div>

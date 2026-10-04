@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   filterValidJarCodes,
@@ -23,6 +22,7 @@ import {
 import { parsePetFieldsFromFormData } from '@/lib/customers/pet-fields';
 import { createHash } from 'node:crypto';
 import { getCurrentUser } from '@/lib/auth';
+import { safeAvailableJarCodeWhere } from '@/lib/jar-exchange/code-management';
 import {
   canAdjustMemberPoints,
   formatManualPointsNote,
@@ -165,11 +165,13 @@ export async function importJarCodes(formData: FormData) {
 }
 
 /**
- * 刪除序號（含已返航）。
- * 若序號已被返航，會一併撤銷該序號帶來的點數流水並重算會員餘額，
- * 刪除後此序號號碼即可重新產生／重複使用。
+ * 相容既有 action 名稱，改為永久作廢未發放序號，保留點數與號碼。
  */
 export async function deleteJarCode(formData: FormData) {
+  const actor = await getCurrentUser();
+  if (!actor || actor.role !== 'admin') return { ok: false as const, error: '僅 HQ 管理員可作廢序號' };
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (reason.length < 2 || reason.length > 500) return { ok: false as const, error: '請填寫作廢原因（2–500 字）' };
   const id = String(formData.get('id') ?? '').trim();
   if (!id) return { ok: false as const, error: '缺少序號 ID' };
 
@@ -181,15 +183,11 @@ export async function deleteJarCode(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      if (code.redeemedByCustomerId) {
-        const deleted = await tx.memberPointsLedger.deleteMany({
-          where: { sourceType: 'jar_code_redeem', sourceRefId: id },
-        });
-        if (deleted.count > 0) {
-          await recalcPointsLedgerBalances(tx, code.redeemedByCustomerId);
-        }
-      }
-      await tx.jarCode.delete({ where: { id } });
+      const where = await safeAvailableJarCodeWhere(tx);
+      // Conditional update arbitrates concurrent claim/void without changing points.
+      const changed = await tx.jarCode.updateMany({ where: { AND: [where, { id }] }, data: { status: 'expired' } });
+      if (changed.count !== 1) throw new Error('此序號已使用、持有、占用或被排除，不能作廢');
+      await tx.statusAuditLog.create({ data: { entityType: 'jar_code', entityId: id, previousStatus: 'unused', newStatus: 'expired', actorType: 'supervisor', actorId: actor.userId, metadataJson: JSON.stringify({ reason, code: code.code }) } });
     });
   } catch (e) {
     console.error('deleteJarCode', e);
@@ -198,26 +196,6 @@ export async function deleteJarCode(formData: FormData) {
 
   revalidateJar();
   return { ok: true as const };
-}
-
-/** 重算某會員的點數流水餘額（依時間序累加 pointsChange） */
-async function recalcPointsLedgerBalances(
-  tx: Prisma.TransactionClient,
-  customerId: string,
-) {
-  const rows = await tx.memberPointsLedger.findMany({
-    where: { customerId },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, pointsChange: true },
-  });
-  let balance = 0;
-  for (const r of rows) {
-    balance += r.pointsChange;
-    await tx.memberPointsLedger.update({
-      where: { id: r.id },
-      data: { balanceAfter: balance },
-    });
-  }
 }
 
 export async function adminRedeemJarCode(customerId: string, code: string) {

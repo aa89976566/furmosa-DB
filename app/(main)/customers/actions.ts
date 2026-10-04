@@ -78,7 +78,7 @@ export async function updateCustomerFromForm(id: string, formData: FormData) {
 
 /**
  * 刪除客戶。為保留交易紀錄，若客戶已有訂單或訂閱合約則阻擋刪除；
- * 其餘關聯（換罐服務、點數流水、獎勵兌換）會一併清除，已返航序號會退回未使用。
+ * 有序號、點數、獎勵或換罐紀錄亦阻擋刪除，以保留歷史。
  */
 export async function deleteCustomer(formData: FormData) {
   const id = String(formData.get('id') ?? '').trim();
@@ -109,15 +109,17 @@ export async function deleteCustomer(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      // 已返航的序號退回未使用（避免成為無主的已用序號）
-      await tx.jarCode.updateMany({
-        where: { redeemedByCustomerId: id },
-        data: {
-          status: 'unused',
-          redeemedByCustomerId: null,
-          redeemedAt: null,
-        },
-      });
+      // Block concurrent FK writes while deciding whether deleting this empty customer is safe.
+      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${id} FOR UPDATE`;
+      const [serials, points, rewards, refills, orders, subscriptions] = await Promise.all([
+        tx.jarCode.count({ where: { redeemedByCustomerId: id } }),
+        tx.memberPointsLedger.count({ where: { customerId: id } }),
+        tx.rewardRedemption.count({ where: { customerId: id } }),
+        tx.refillOrder.count({ where: { customerId: id } }),
+        tx.order.count({ where: { customerId: id } }),
+        tx.subscription.count({ where: { customerId: id } }),
+      ]);
+      if (serials || points || rewards || refills || orders || subscriptions) throw new Error('此會員已有交易、序號、點數或換罐紀錄，請保留會員以維持完整歷史');
       // 點數流水、獎勵兌換、換罐服務以 onDelete: Cascade 自動清除
       await tx.customer.delete({ where: { id } });
     });

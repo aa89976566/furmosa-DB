@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { JarCodeDeleteButton } from '@/components/jar-exchange/jar-code-delete-button';
 import { formatDateTime } from '@/lib/format';
 import { jarCodeStatusLabel } from '@/lib/jar-exchange/labels';
+import { safeAvailableJarCodeWhere, JAR_CODE_ORDER } from '@/lib/jar-exchange/code-management';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ const TABS = ['codes', 'ledger', 'rewards'] as const;
 
 export default async function JarExchangeManagePage(
   props: {
-    searchParams?: Promise<{ tab?: string; q?: string; member?: string; page?: string }>;
+    searchParams?: Promise<{ tab?: string; q?: string; member?: string; page?: string; status?: string; batch?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -40,7 +41,7 @@ export default async function JarExchangeManagePage(
       {tab === 'codes' ? (
         <>
           <CodesAdminTools />
-          <CodesTable q={q} page={page} pageSize={pageSize} />
+          <CodesTable q={q} page={page} pageSize={pageSize} status={searchParams?.status ?? ''} batch={searchParams?.batch?.trim() ?? ''} />
         </>
       ) : null}
       {tab === 'ledger' ? <LedgerAdmin member={member} /> : null}
@@ -53,41 +54,65 @@ async function CodesTable({
   q,
   page,
   pageSize,
+  status,
+  batch,
 }: {
   q: string;
   page: number;
   pageSize: number;
+  status: string;
+  batch: string;
 }) {
+  const available = await safeAvailableJarCodeWhere(prisma);
+  const validStatus = ['available', 'unused', 'issued', 'returned', 'used', 'expired'].includes(status) ? status : '';
   const where = {
+    ...(validStatus === 'available' ? available : validStatus ? { status: validStatus } : {}),
+    ...(batch ? { batchNo: batch } : {}),
     ...(q ? { code: { contains: q, mode: 'insensitive' as const } } : {}),
   };
 
-  const [rows, total] = await Promise.all([
+  const [rows, total, availableCount, groups] = await Promise.all([
     prisma.jarCode.findMany({
       where,
       include: {
         redeemedByCustomer: { select: { id: true, name: true, customerId: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: JAR_CODE_ORDER,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
     prisma.jarCode.count({ where }),
+    prisma.jarCode.count({ where: available }),
+    prisma.jarCode.groupBy({ by: ['status'], _count: { _all: true } }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageUrl = (next: number) => `/jar-exchange/manage?${new URLSearchParams({ tab: 'codes', page: String(next), q, status: validStatus, batch })}`;
 
   return (
     <JarPanel>
-      <form className="border-b border-border/60 p-4" method="get">
+      <div className="grid grid-cols-2 gap-3 border-b p-4 lg:grid-cols-6">
+        <Link href="/jar-exchange/manage?tab=codes&status=available" className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">可發放（已核對）</span><strong className="text-xl">{availableCount}</strong></Link>
+        {groups.map(group => <Link key={group.status} href={`/jar-exchange/manage?tab=codes&status=${encodeURIComponent(group.status)}`} className="rounded-xl border p-3"><span className="block text-xs text-muted-foreground">{jarCodeStatusLabel[group.status] ?? group.status}</span><strong className="text-xl">{group._count._all}</strong></Link>)}
+      </div>
+      <form className="flex flex-wrap items-center gap-3 border-b border-border/60 p-4" method="get">
         <input type="hidden" name="tab" value="codes" />
         <input
+          aria-label="搜尋序號"
           name="q"
           defaultValue={q}
           placeholder="搜尋序號…"
           className="h-9 max-w-xs rounded-xl border border-input bg-card px-3 text-sm"
         />
+        <select name="status" defaultValue={validStatus} aria-label="序號狀態" className="h-9 rounded-xl border bg-card px-3 text-sm">
+          <option value="">全部狀態</option><option value="available">可發放（已核對）</option>
+          {Object.entries(jarCodeStatusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <input name="batch" defaultValue={batch} aria-label="批次" placeholder="批次編號" className="h-9 rounded-xl border bg-card px-3 text-sm" />
+        <button className="h-9 rounded-xl bg-primary px-4 text-primary-foreground">搜尋</button>
+        <Link className="rounded-xl border px-4 py-2 text-sm" href={`/api/jar-exchange/codes/export${batch ? `?batch=${encodeURIComponent(batch)}` : ''}`}>匯出{batch ? '該批次' : '全部'}可發放 Excel</Link>
       </form>
+      <p className="px-4 py-3 text-xs text-muted-foreground">可發放名單會排除持有、使用、占用、歷史使用與客服指定序號。匯出內容為下載當下的資料快照。</p>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -103,7 +128,7 @@ async function CodesTable({
           <tbody className="divide-y">
             {rows.map((row) => (
               <tr key={row.id}>
-                <td className="px-4 py-3 font-mono text-xs">{row.code}</td>
+                <td className="px-4 py-3 font-mono text-xs"><Link href={`/jar-exchange/manage/codes/${row.id}`} className="underline underline-offset-4">{row.code}</Link></td>
                 <td className="px-4 py-3 text-muted-foreground">
                   {row.batchNo ? (
                     <Link
@@ -137,7 +162,7 @@ async function CodesTable({
                   {row.redeemedAt ? formatDateTime(row.redeemedAt) : '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <JarCodeDeleteButton id={row.id} code={row.code} used={row.status === 'used'} />
+                  <JarCodeDeleteButton id={row.id} code={row.code} used={row.status !== 'unused' || Boolean(row.redeemedByCustomerId || row.lockedByRefillOrderId || row.issuedAt || row.redeemedAt || row.returnedAt)} />
                 </td>
               </tr>
             ))}
@@ -151,12 +176,12 @@ async function CodesTable({
           </span>
           <div className="flex gap-2">
             {page > 1 ? (
-              <Link href={`/jar-exchange/manage?tab=codes&page=${page - 1}${q ? `&q=${q}` : ''}`}>
+              <Link href={pageUrl(page - 1)}>
                 上一頁
               </Link>
             ) : null}
             {page < totalPages ? (
-              <Link href={`/jar-exchange/manage?tab=codes&page=${page + 1}${q ? `&q=${q}` : ''}`}>
+              <Link href={pageUrl(page + 1)}>
                 下一頁
               </Link>
             ) : null}

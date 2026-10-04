@@ -137,7 +137,7 @@ export function CodesAdminTools() {
         </Button>
         <p className="w-full text-[11px] text-muted-foreground">
           序號僅限 {JAR_CODE_LENGTH} 位純數字。每張 A4 固定 {DEFAULT_BATCH_SIZE} 格（5×14）。
-          PDF 預設只匯出該批次最早 {DEFAULT_BATCH_SIZE} 筆；若舊批次有 90 筆是因先前多寫入，請用新批次或刪除多餘序號。
+          PDF 預設匯出該批次最早 {DEFAULT_BATCH_SIZE} 筆可發放序號；完整名單請使用 Excel 匯出。已使用、持有、占用或被排除的序號不列入發放名單。
         </p>
       </div>
 

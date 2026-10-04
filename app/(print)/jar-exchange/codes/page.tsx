@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { PrintActions } from '@/components/jar-exchange/print-actions';
 import { filterValidJarCodes } from '@/lib/jar-exchange/codes';
+import { safeAvailableJarCodeWhere } from '@/lib/jar-exchange/code-management';
 import {
   COLS,
   LABEL_HEIGHT_MM,
@@ -45,14 +46,15 @@ export default async function JarCodesPrintPage(
     );
   }
 
+  const where = { AND: [{ batchNo: batch }, status === 'unused' ? await safeAvailableJarCodeWhere(prisma) : { status }] };
   const [codes, totalInBatch] = await Promise.all([
     prisma.jarCode.findMany({
-      where: { batchNo: batch, status },
-      orderBy: { createdAt: 'asc' },
+      where,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { code: true },
       ...(limit !== undefined ? { take: limit } : {}),
     }),
-    prisma.jarCode.count({ where: { batchNo: batch, status } }),
+    prisma.jarCode.count({ where }),
   ]);
 
   const numericCodes = filterValidJarCodes(codes.map((c) => c.code));
