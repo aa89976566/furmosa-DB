@@ -53,7 +53,7 @@ async function main() {
       const sku = string(row.sku);
       const variantId = row.variant_id;
       const title = string(row.title);
-      const decision = matchShopifyLineToTier({ sku, variant_id: variantId }, catalog);
+      const decision = matchShopifyLineToTier({ sku, variant_id: variantId, title }, catalog);
       if (decision.outcome === 'match') {
         matched++;
         return;
