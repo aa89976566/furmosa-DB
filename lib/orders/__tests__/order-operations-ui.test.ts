@@ -163,9 +163,12 @@ test('Dashboard 使用明確下一步，不再顯示模糊的有問題分類', (
 });
 
 test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
-  for (const label of ['待處理', '待出貨', '運送中']) {
+  for (const label of ['待處理', '待付款', '待出貨', '運送中', '已完成']) {
     assert.match(ordersPageSource, new RegExp(label));
   }
+  assert.match(ordersPageSource, /aria-label="訂單工作階段"/);
+  assert.match(ordersPageSource, /inline-flex min-w-full gap-1 rounded-xl/);
+  assert.equal(ordersPageSource.includes('目前工作'), false);
   for (const removed of ['待確認', '等待中', '可出貨', '待交寄']) {
     assert.equal(ordersPageSource.includes(removed), false);
   }
