@@ -32,6 +32,12 @@ describe('verifyLineSignature', () => {
     assert.match(src, /handleLineWebhookEvent/);
   });
 
+  it('acknowledges verified webhook events before asynchronous handling', () => {
+    const src = readFileSync(new URL('../../../app/api/line/webhook/route.ts', import.meta.url), 'utf8');
+    assert.match(src, /runAfterReply\(processLineWebhookEvent\(event, eventId\)\)/);
+    assert.doesNotMatch(src, /await handleLineWebhookEvent\(event\)/);
+  });
+
   it('handle-event no longer uses fuzzy includes 開箱', () => {
     const src = readFileSync(new URL('../handle-event.ts', import.meta.url), 'utf8');
     assert.doesNotMatch(src, /includes\(\s*['"]開箱['"]\s*\)/);
