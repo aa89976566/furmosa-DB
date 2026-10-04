@@ -56,7 +56,7 @@ function sourceLineRows(snapshot: Snapshot) {
   return Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
 }
 
-/** Same tier matcher as order sync. Product names, prices and weights are not identities. */
+/** Same tier matcher as order sync. Canonical SKU is primary; controlled title aliases are legacy-only compatibility. */
 function autoMatchProduct(row: Record<string, unknown>, products: MappingProduct[]): MappingProduct | null {
   const decision = matchShopifyLineToTier({
     variant_id: row.variant_id,
