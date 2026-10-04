@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -83,10 +84,15 @@ function ShipmentStatusControl({
   shipment,
   queueStatus,
   queueType,
+  onOptimisticChange,
 }: {
   shipment: ShipmentQueueRow;
   queueStatus?: string;
   queueType?: string;
+  onOptimisticChange?: (
+    phase: 'start' | 'success' | 'error',
+    message?: string,
+  ) => void;
 }) {
   const omsStatus = shipment.order?.omsStatus;
   if (omsStatus && !isOmsShipmentActionable(omsStatus)) {
@@ -115,6 +121,7 @@ function ShipmentStatusControl({
       paymentReviewHold={Boolean(shipment.paymentReviewHold)}
       inventoryWarnings={shipment.inventoryWarnings}
       className="max-w-none"
+      onOptimisticChange={onOptimisticChange}
     />
   );
 }
@@ -272,6 +279,7 @@ function ShipmentQueueCard({
   queueStatus,
   queueType,
   onSelect,
+  onOptimisticChange,
 }: {
   view: QueueRowView;
   variant: 'default' | 'subscription';
@@ -279,6 +287,10 @@ function ShipmentQueueCard({
   queueStatus?: string;
   queueType?: string;
   onSelect: () => void;
+  onOptimisticChange?: (
+    phase: 'start' | 'success' | 'error',
+    message?: string,
+  ) => void;
 }) {
   const { shipment, orderLabel, partyLabel, shortNumber, logistics } = view;
 
@@ -340,6 +352,7 @@ function ShipmentQueueCard({
           shipment={shipment}
           queueStatus={queueStatus}
           queueType={queueType}
+          onOptimisticChange={onOptimisticChange}
         />
       </div>
 
@@ -382,11 +395,56 @@ export function ShipmentQueueTable({
   queueType?: string;
   variant?: 'default' | 'subscription';
 }) {
-  if (shipments.length === 0) {
-    return <EmptyQueueState />;
+  const [optimisticHidden, setOptimisticHidden] = useState<Set<string>>(() => new Set());
+  const [notice, setNotice] = useState<
+    { kind: 'success' | 'error'; text: string } | null
+  >(null);
+
+  useEffect(() => {
+    const visibleIds = new Set(shipments.map((shipment) => shipment.id));
+    setOptimisticHidden((current) => {
+      const next = new Set([...current].filter((id) => visibleIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [shipments]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const views = useMemo(
+    () =>
+      shipments
+        .filter((shipment) => !optimisticHidden.has(shipment.id))
+        .map(buildQueueRowView),
+    [optimisticHidden, shipments],
+  );
+
+  function optimisticHandler(shipmentId: string) {
+    return (phase: 'start' | 'success' | 'error', message?: string) => {
+      if (phase === 'start') {
+        setOptimisticHidden((current) => new Set(current).add(shipmentId));
+        setNotice({ kind: 'success', text: '正在標記寄出…' });
+        return;
+      }
+      if (phase === 'success') {
+        setNotice({ kind: 'success', text: '已標記寄出 · 已移到運送中' });
+        return;
+      }
+      setOptimisticHidden((current) => {
+        const next = new Set(current);
+        next.delete(shipmentId);
+        return next;
+      });
+      setNotice({ kind: 'error', text: message ?? '更新出貨狀態失敗' });
+    };
   }
 
-  const views = shipments.map(buildQueueRowView);
+  if (views.length === 0 && shipments.length === 0) {
+    return <EmptyQueueState />;
+  }
 
   return (
     <>
@@ -403,6 +461,7 @@ export function ShipmentQueueTable({
               queueStatus={queueStatus}
               queueType={queueType}
               onSelect={() => onSelectShipment(view.shipment)}
+              onOptimisticChange={optimisticHandler(view.shipment.id)}
             />
           )}
         />
@@ -478,6 +537,7 @@ export function ShipmentQueueTable({
                       shipment={shipment}
                       queueStatus={queueStatus}
                       queueType={queueType}
+                      onOptimisticChange={optimisticHandler(shipment.id)}
                     />
                   </TableCell>
                   <TableCell className="py-3">
@@ -498,6 +558,20 @@ export function ShipmentQueueTable({
           </TableBody>
         </Table>
       </div>
+
+      {notice ? (
+        <div
+          role={notice.kind === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'fixed bottom-4 left-1/2 z-[90] w-[min(92vw,28rem)] -translate-x-1/2 rounded-lg border px-4 py-3 text-sm shadow-lg',
+            notice.kind === 'error'
+              ? 'border-destructive/30 bg-background text-destructive'
+              : 'border-foreground bg-foreground text-background',
+          )}
+        >
+          {notice.text}
+        </div>
+      ) : null}
     </>
   );
 }
