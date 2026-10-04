@@ -118,18 +118,32 @@ describe('出貨工作區介面', () => {
     );
   });
 
-  it('待出貨標記已寄出後留在待出貨頁，該列移到運送中而不自動切頁', () => {
+  it('待出貨標記已寄出後立即原地移除，不開確認視窗也不自動切頁', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
     );
+    const table = readFileSync(
+      'components/shipments/shipment-queue-table.tsx',
+      'utf8',
+    );
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
-    assert.match(control, /result\.next === 'shipped' && queueStatus/);
-    assert.match(control, /params\.set\('status', queueStatus\)/);
-    const shippedBranch =
-      control.match(/if \(result\.next === 'shipped' && queueStatus\) \{([\s\S]*?)\} else/)?.[1] ?? '';
-    assert.doesNotMatch(shippedBranch, /params\.set\('s'/);
+    assert.match(control, /function dispatchNow\(\)/);
+    assert.match(control, /runStatusChange\(formData, true\)/);
+    assert.match(control, /option\.value === 'shipped'[\s\S]*status === 'pending'/);
+    assert.match(control, /onOptimisticChange\?\.\('start'\)/);
+    assert.match(control, /onOptimisticChange\?\.\('success'\)/);
+    assert.match(control, /onOptimisticChange\?\.\('error', result\.error\)/);
+    assert.doesNotMatch(
+      control.match(/option\.value === 'shipped'[\s\S]*?\? dispatchNow/)?.[0] ?? '',
+      /setConfirmNext/,
+    );
+
+    assert.match(table, /optimisticHidden/);
+    assert.match(table, /filter\(\(shipment\) => !optimisticHidden\.has\(shipment\.id\)\)/);
+    assert.match(table, /已標記寄出 · 已移到運送中/);
+    assert.match(table, /next\.delete\(shipmentId\)/);
 
     assert.match(action, /if \(result\.next === 'shipped'\) \{/);
     assert.match(action, /if \(queueStatus\) params\.set\('status', queueStatus\)/);
