@@ -36,15 +36,17 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(source, /訂閱近期安排/);
   });
 
-  it('桌面表格保留可讀欄寬，電話不逐字換行', () => {
+  it('桌面表格使用營運優先層級，電話不逐字換行', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 
-    assert.match(source, /<Table className="min-w-\[62rem\] table-fixed">/);
+    assert.match(source, /<Table className="min-w-\[56rem\] table-fixed">/);
     assert.match(source, /<span className="whitespace-nowrap">\{logistics\.phone\}<\/span>/);
     assert.doesNotMatch(source, /<span className="break-all">\{logistics\.phone\}<\/span>/);
-    assert.match(source, />收件資訊<\/TableHead>/);
-    assert.match(source, />商品摘要<\/TableHead>/);
-    assert.match(source, />姓名／店家<\/TableHead>/);
+    assert.match(source, />訂單<\/TableHead>/);
+    assert.match(source, />商品<\/TableHead>/);
+    assert.match(source, />配送<\/TableHead>/);
+    assert.match(source, />操作<\/TableHead>/);
+    assert.doesNotMatch(source, />姓名／店家<\/TableHead>/);
     assert.doesNotMatch(source, />電話<\/TableHead>/);
   });
 
