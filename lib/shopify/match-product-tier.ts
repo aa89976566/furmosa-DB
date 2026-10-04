@@ -119,7 +119,15 @@ export function matchShopifyLineToTier(line: ShopifyLineIdentity, products: Tier
     }
     if (bound.length > 0 && active.length === 0) return { outcome: 'review', reason: 'inactive' };
     if (active.length > 1 || bound.length > 1) return { outcome: 'review', reason: 'duplicate' };
-    return { outcome: 'review', reason: 'unbound' };
+
+    // Shopify variants can be recreated while keeping the same SKU.
+    // If this variant id has never been bound in HQ, allow an exact SKU fallback
+    // only when it resolves to exactly one active tier. Ambiguous/blank SKU stays blocked.
+    const skuMatch = skuHits(line.sku, products);
+    if (skuMatch.length === 1) {
+      return { outcome: 'match', reason: 'sku', tier: skuMatch[0]!, productId: skuMatch[0]!.productId };
+    }
+    return { outcome: 'review', reason: skuMatch.length > 1 ? 'ambiguous' : 'unbound' };
   }
 
   if (!foldSku(line.sku)) return { outcome: 'review', reason: 'blank' };
