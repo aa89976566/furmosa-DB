@@ -1,10 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import {
-  MerchantSection,
-  MerchantStat,
-  MerchantStatGrid,
-} from '@/components/merchants/merchant-ui';
+import { MerchantSection } from '@/components/merchants/merchant-ui';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,14 +22,20 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
 
   return (
     <div className="space-y-4">
-      <MerchantSection title="期間銷售" description={periodLabel}>
-        <MerchantStatGrid className="sm:grid-cols-2 xl:grid-cols-4">
-          <MerchantStat label="銷售件數" value={report.totals.soldQty} suffix="件" />
-          <MerchantStat label="銷售額" value={formatCurrency(report.totals.grossSales)} />
-          <MerchantStat label="店家分潤" value={formatCurrency(report.totals.commissionAmount)} />
-          <MerchantStat label="公司實收" value={formatCurrency(report.totals.companyRevenue)} />
-        </MerchantStatGrid>
-      </MerchantSection>
+      <section className="overflow-hidden rounded-xl border border-border/70 bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+          <div>
+            <h2 className="font-semibold">期間銷售</h2>
+            <p className="text-xs text-muted-foreground">{periodLabel}</p>
+          </div>
+        </div>
+        <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          <Metric label="銷售件數" value={`${report.totals.soldQty} 件`} />
+          <Metric label="銷售額" value={formatCurrency(report.totals.grossSales)} />
+          <Metric label="店家分潤" value={formatCurrency(report.totals.commissionAmount)} />
+          <Metric label="公司實收" value={formatCurrency(report.totals.companyRevenue)} />
+        </div>
+      </section>
 
       {report.topProducts.length > 0 && (
         <MerchantSection title="熱銷商品" description="全通路本期間銷售件數" contentClassName="px-0 py-0">
@@ -116,16 +118,11 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>編號</TableHead>
-                <TableHead>店家名稱</TableHead>
-                <TableHead>類型</TableHead>
-                <TableHead>產業</TableHead>
-                <TableHead>城市</TableHead>
+                <TableHead className="min-w-[16rem]">店家</TableHead>
                 <TableHead className="text-right">在店庫存</TableHead>
                 <TableHead className="text-right">期間銷售</TableHead>
-                <TableHead className="text-right">期間銷售額</TableHead>
+                <TableHead className="text-right">銷售額</TableHead>
                 <TableHead className="text-right">分潤</TableHead>
-                <TableHead className="text-right">訂單</TableHead>
                 <TableHead className="text-right">結算</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -133,18 +130,23 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
             <TableBody>
               {report.merchants.map((merchant) => (
                 <TableRow key={merchant.id}>
-                  <TableCell className="font-mono text-xs">{merchant.merchantId}</TableCell>
-                  <TableCell className="font-medium">{merchant.name}</TableCell>
                   <TableCell>
-                    <MerchantTypeBadges types={merchant.types} />
+                    <Link href={`/merchants/${merchant.id}`} className="font-medium hover:underline">{merchant.name}</Link>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <span className="font-mono">{merchant.merchantId}</span>
+                      <span>·</span>
+                      <span>{merchant.city ?? '未填城市'}</span>
+                      <span>·</span>
+                      <span>{merchantIndustryDisplay(merchant.industry)}</span>
+                    </div>
+                    <div className="mt-1"><MerchantTypeBadges types={merchant.types} /></div>
                   </TableCell>
-                  <TableCell>{merchantIndustryDisplay(merchant.industry)}</TableCell>
-                  <TableCell>{merchant.city ?? '-'}</TableCell>
                   <TableCell className="text-right">
                     <StockQty quantity={merchant.stockUnits} />
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {merchant.periodSoldQty}
+                  <TableCell className="text-right">
+                    <div className="font-mono tabular-nums">{merchant.periodSoldQty} 件</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{merchant.orderCount} 筆訂單</div>
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {formatCurrency(merchant.periodGrossSales)}
@@ -152,8 +154,7 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
                   <TableCell className="text-right text-sm">
                     {formatPercent(merchant.commissionRate, 0)}
                   </TableCell>
-                  <TableCell className="text-right">{merchant.orderCount}</TableCell>
-                  <TableCell className="text-right">{merchant.settlementCount}</TableCell>
+                  <TableCell className="text-right">{merchant.settlementCount} 筆</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" asChild>
                       <Link href={`/merchants/${merchant.id}`}>
@@ -195,4 +196,14 @@ function StockQty({ quantity }: { quantity: number }) {
   const tone =
     quantity === 0 ? 'text-destructive' : quantity <= 3 ? 'text-warning' : 'text-foreground';
   return <span className={`font-mono font-semibold tabular-nums ${tone}`}>{quantity}</span>;
+}
+
+
+function Metric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="px-4 py-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</p>
+    </div>
+  );
 }
