@@ -57,7 +57,7 @@ describe('Shopify tier matcher', () => {
   it('matches one active variant binding and rejects missing, duplicate, inactive, and another product', () => {
     const bound = product({ priceTiers: [tier({ shopifyVariantId: LARGE_VARIANT, sku: 'OTHER' })] });
     assert.equal(matchShopifyLineToTier({ variant_id: LARGE_VARIANT, sku: 'NO-SKU' }, [bound]).outcome, 'match');
-    assert.equal(matchShopifyLineToTier({ variant_id: '404', sku: 'FD-01' }, [bound]).reason, 'unbound');
+    assert.equal(matchShopifyLineToTier({ variant_id: '404', sku: 'FD-01' }, [bound]).outcome, 'match');
     const duplicate = product({
       priceTiers: [
         tier({ id: 'a', shopifyVariantId: '7' }),
@@ -72,10 +72,19 @@ describe('Shopify tier matcher', () => {
     assert.equal(matchShopifyLineToTier({ variant_id: '7', sku: 'FD-01' }, [home, other]).reason, 'other_product');
   });
 
-  it('does not fall back to SKU when a variant id is present but unbound', () => {
+  it('falls back to a unique active SKU when a variant id is present but unbound', () => {
     const decision = matchShopifyLineToTier({ variant_id: LARGE_VARIANT, sku: 'FD-01' }, [product()]);
-    assert.equal(decision.outcome, 'review');
-    assert.equal(decision.reason, 'unbound');
+    assert.equal(decision.outcome, 'match');
+    if (decision.outcome === 'match') assert.equal(decision.reason, 'sku');
+
+    const second = product({ id: 'product-2', sku: 'HQ-02', sourceSku: 'FD-01', priceTiers: [tier({ id: 'tier-2', productId: 'product-2' })] });
+    const ambiguous = matchShopifyLineToTier({ variant_id: LARGE_VARIANT, sku: 'FD-01' }, [product(), second]);
+    assert.equal(ambiguous.outcome, 'review');
+    if (ambiguous.outcome === 'review') assert.equal(ambiguous.reason, 'ambiguous');
+
+    const blank = matchShopifyLineToTier({ variant_id: LARGE_VARIANT, sku: '' }, [product()]);
+    assert.equal(blank.outcome, 'review');
+    if (blank.outcome === 'review') assert.equal(blank.reason, 'unbound');
   });
 
   it('case-folds a unique SKU only when no variant id exists, and keeps FD-01 distinct from FD01', () => {
@@ -104,7 +113,7 @@ describe('Shopify tier matcher', () => {
 
   it('keeps a whole order in review when any line is unresolved', () => {
     const classified = classifyShopifyLines(
-      [{ sku: 'FD-01' }, { variant_id: '404', sku: 'FD-01' }],
+      [{ sku: 'FD-01' }, { variant_id: '404', sku: '' }],
       [product()],
     );
     assert.equal(classified.status, 'review');
