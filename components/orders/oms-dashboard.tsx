@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Clock3, PackageCheck } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  ClipboardCheck,
+  Clock3,
+  PackageCheck,
+  ShoppingCart,
+} from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
 import { omsNextActionLabel } from '@/lib/orders/oms';
@@ -11,6 +19,7 @@ import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
 import { taipeiTodayRange } from '@/lib/taipei-date';
 import { countReviewInbox } from '@/lib/reviews/inbox';
+import { buildReorderAlertSummary } from '@/lib/inventory/reorder-alerts';
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -22,7 +31,7 @@ type WorkRow = {
 export async function OmsDashboard() {
   const today = taiwanToday();
   const { end: endOfToday } = taipeiTodayRange();
-  const [orders, reviewedToday, fulfilledToday, duePurchaseOrders, duePurchaseOrderCount, reviewCounts] = await Promise.all([
+  const [orders, reviewedToday, fulfilledToday, duePurchaseOrders, duePurchaseOrderCount, reviewCounts, inventoryProducts, pendingPurchaseItems] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW', 'READY', 'FULFILLMENT_PENDING'] } },
       orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 30,
@@ -42,7 +51,49 @@ export async function OmsDashboard() {
     }),
     prisma.purchaseOrder.count({ where: { status: 'pending_receipt', remindFromDate: { lte: endOfToday } } }),
     countReviewInbox(),
+    prisma.product.findMany({
+      where: {
+        status: 'active',
+        productCategory: 'STANDARD',
+        category: { in: ['staple_food', 'treats', 'freeze_dried', 'health'] },
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        reorderPoint: true,
+        vendor: { select: { name: true } },
+        inventoryBalances: {
+          where: { warehouse: { code: 'WH-MAIN' } },
+          select: { quantity: true, unit: true, lastCountedAt: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.purchaseOrderItem.findMany({
+      where: { purchaseOrder: { status: 'pending_receipt' } },
+      select: { productId: true, quantityGrams: true },
+    }),
   ]);
+
+  const incomingByProduct = new Map<string, number>();
+  for (const item of pendingPurchaseItems) {
+    incomingByProduct.set(item.productId, (incomingByProduct.get(item.productId) ?? 0) + item.quantityGrams);
+  }
+  const reorderAlerts = buildReorderAlertSummary(inventoryProducts.map((product) => {
+    const balance = product.inventoryBalances[0] ?? null;
+    return {
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      reorderPoint: product.reorderPoint,
+      vendorName: product.vendor?.name ?? null,
+      onHand: balance?.quantity ?? 0,
+      unit: balance?.unit ?? null,
+      lastCountedAt: balance?.lastCountedAt ?? null,
+      incoming: incomingByProduct.get(product.id) ?? 0,
+    };
+  }));
 
   const rows: WorkRow[] = orders.map((order) => {
     const snapshot = snapshotView(order.shopifySnapshot);
@@ -59,15 +110,20 @@ export async function OmsDashboard() {
   const waiting = rows.filter((row) => row.workState === 'WAITING');
   const completedSteps = reviewedToday + fulfilledToday;
   const reviewActionCount = reviewCounts.ugc + reviewCounts.restock;
-  const actionCount = now.length + duePurchaseOrderCount + reviewActionCount;
+  const inventoryActionCount = reorderAlerts.orderNow.length + reorderAlerts.stocktake.length;
+  const actionCount = now.length + duePurchaseOrderCount + reviewActionCount + inventoryActionCount;
   const first = now[0];
   const primaryHref = duePurchaseOrders[0]
     ? `/inventory/purchase-orders/${duePurchaseOrders[0].id}`
-    : first
-      ? `/orders/${first.id}`
-      : reviewActionCount > 0
-        ? '/reviews'
-        : null;
+    : reorderAlerts.orderNow.length > 0
+      ? '/inventory/purchase-orders/new'
+      : reorderAlerts.stocktake.length > 0
+        ? '/inventory'
+        : first
+          ? `/orders/${first.id}`
+          : reviewActionCount > 0
+            ? '/reviews'
+            : null;
   const headline = actionCount
     ? `還有 ${actionCount} 件事需要處理`
     : waiting.length
@@ -97,6 +153,64 @@ export async function OmsDashboard() {
         <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">今日完成 {completedSteps}</span>
       </div>
     </section>
+
+    {inventoryActionCount > 0 || reorderAlerts.incoming.length > 0 ? (
+      <section className="overflow-hidden rounded-2xl border border-warning/30 bg-card">
+        <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 font-semibold text-navy">
+              <AlertTriangle className="h-5 w-5 text-warning" />庫存採購警訊
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">已扣除待收貨數量，避免同一商品重複下單。</p>
+          </div>
+          {reorderAlerts.orderNow.length > 0 ? (
+            <Button size="sm" asChild>
+              <Link href="/inventory/purchase-orders/new"><ShoppingCart className="mr-1.5 h-4 w-4" />建立採購單</Link>
+            </Button>
+          ) : null}
+        </div>
+
+        {reorderAlerts.orderNow.length > 0 ? (
+          <div className="divide-y px-5">
+            {reorderAlerts.orderNow.slice(0, 6).map((row) => (
+              <Link key={row.id} href={`/products/${row.id}`} className="group grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.onHand <= 0 ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>
+                      {row.onHand <= 0 ? '已缺貨' : '需訂貨'}
+                    </span>
+                    <span className="font-semibold text-navy">{row.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{row.sku}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    現有 {row.onHand.toLocaleString()} {row.unit ?? 'g'}
+                    {row.incoming > 0 ? ` · 在途 ${row.incoming.toLocaleString()} g` : ''}
+                    {' · '}補貨點 {row.reorderPoint.toLocaleString()} {row.unit ?? 'g'}
+                  </p>
+                </div>
+                <div className="text-sm sm:text-right">
+                  <p className="font-medium">{row.vendorName ?? '尚未指定供應商'}</p>
+                  <p className="mt-1 text-xs text-muted-foreground group-hover:text-foreground">查看商品設定 →</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="px-5 py-5 text-sm text-muted-foreground">目前沒有需要重複下單的商品。</p>
+        )}
+
+        <div className="flex flex-col gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {reorderAlerts.incoming.length > 0 ? <span>已有採購待到貨 {reorderAlerts.incoming.length} 項</span> : null}
+            {reorderAlerts.stocktake.length > 0 ? <span>需先盤點 {reorderAlerts.stocktake.length} 項</span> : null}
+            {reorderAlerts.orderNow.length > 6 ? <span>另有 {reorderAlerts.orderNow.length - 6} 項需訂貨</span> : null}
+          </div>
+          <Link href="/inventory" className="inline-flex items-center gap-1 font-semibold text-foreground hover:underline">
+            <ClipboardCheck className="h-3.5 w-3.5" />查看完整庫存
+          </Link>
+        </div>
+      </section>
+    ) : null}
 
     {duePurchaseOrders.length ? <section className="overflow-hidden rounded-2xl border border-primary/20 bg-card"><div className="flex items-center justify-between border-b px-5 py-4"><h3 className="flex items-center gap-2 font-semibold"><PackageCheck className="h-5 w-5 text-primary" />待確認收貨</h3><span className="text-sm text-muted-foreground">{duePurchaseOrderCount} 件</span></div><div className="divide-y px-5">{duePurchaseOrders.map(order => <Link key={order.id} href={`/inventory/purchase-orders/${order.id}`} className="group grid gap-3 py-4 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-semibold text-navy">{order.vendor?.name ?? '採購單'}待確認</p><p className="mt-1 text-sm text-muted-foreground">{order._count.items} 項・{order.items.reduce((sum, item) => sum + item.quantityGrams, 0).toLocaleString()} g・{formatCurrency(Number(order.totalAmount))}</p></div><span className="inline-flex h-9 items-center rounded-lg border px-3 text-sm font-medium group-hover:border-primary/40">查看並確認實收</span></Link>)}</div>{duePurchaseOrderCount > duePurchaseOrders.length ? <div className="border-t p-4 text-right"><Button variant="ghost" asChild><Link href="/inventory/purchases?view=pending">查看全部 {duePurchaseOrderCount} 件</Link></Button></div> : null}</section> : null}
 
