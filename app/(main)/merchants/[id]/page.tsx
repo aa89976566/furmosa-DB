@@ -29,6 +29,7 @@ import {
 import { merchantBusinessIdKind } from '@/lib/merchant-business-id';
 import { Input } from '@/components/ui/input';
 import { MerchantCommercialModules } from './merchant-commercial-modules';
+import { loadMerchantCommercialModulesSafe } from '@/lib/merchants/load-commercial-modules-safe';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,15 +65,6 @@ export default async function MerchantOverviewPage(
           orderBy: { createdAt: 'desc' },
           take: 5,
         },
-        commercialModules: {
-          orderBy: { effectiveFrom: 'desc' },
-          select: {
-            id: true,
-            mode: true,
-            effectiveFrom: true,
-            effectiveUntil: true,
-          },
-        },
       },
     }),
     getMerchantShell(params.id),
@@ -82,6 +74,7 @@ export default async function MerchantOverviewPage(
   const session = await getCurrentUser();
   const currentUser = session && await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } });
   const canManagePasswords = currentUser?.role === 'admin';
+  const commercialModules = await loadMerchantCommercialModulesSafe(merchant.id);
 
   const industry = shell.industry;
   const types = shell.types;
@@ -111,11 +104,17 @@ export default async function MerchantOverviewPage(
         title="合作模組"
         description="只管理店家可使用的合作方式與有效期間；商品條件在產品管理，運費在建立訂單時決定。"
       >
-        <MerchantCommercialModules
-          merchantId={merchant.id}
-          modules={merchant.commercialModules}
-          canEdit={canManagePasswords}
-        />
+        {commercialModules.status === 'ok' ? (
+          <MerchantCommercialModules
+            merchantId={merchant.id}
+            modules={commercialModules.modules}
+            canEdit={canManagePasswords}
+          />
+        ) : (
+          <p className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+            合作模組資料暫時無法載入，相關操作已停用。
+          </p>
+        )}
       </MerchantSection>
 
       <div className="grid gap-4 lg:grid-cols-3">
