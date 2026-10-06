@@ -18,6 +18,7 @@ export type ReviewInboxItem = {
   href: string;
   createdAt: Date;
   statusLabel: string;
+  actionLabel: string;
   lines?: string[];
   moreLabel?: string;
 };
@@ -173,6 +174,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
       statusLabel: '待審核',
+      actionLabel: '查看訂單',
     };
   });
 }
@@ -221,6 +223,7 @@ async function loadPendingRestocks(): Promise<ReviewInboxItem[]> {
       href: `/restock-requests/${row.id}`,
       createdAt: row.createdAt,
       statusLabel: restockStatusLabelForHq(row.status),
+      actionLabel: '查看補貨',
       lines: summary.lines,
       moreLabel: summary.moreLabel,
     };
@@ -251,6 +254,7 @@ async function loadPendingUgc(): Promise<ReviewInboxItem[]> {
       href: `/campaigns/jiba-two-piece/${app.id}`,
       createdAt: app.createdAt,
       statusLabel: '待審核',
+      actionLabel: '查看申請',
     }));
   } catch (error) {
     if (isMissingCampaignTableError(error)) return [];
@@ -316,6 +320,7 @@ async function loadPendingPartnerApplications(): Promise<ReviewInboxItem[]> {
         href: `/partner-applications/${application.id}`,
         createdAt: application.createdAt,
         statusLabel: '待審核',
+        actionLabel: '查看申請',
         lines: lines.length ? lines : undefined,
         moreLabel:
           jsonArray(application.items).length > lines.length
@@ -387,6 +392,10 @@ export async function loadReviewInbox(): Promise<{
   return { items, counts };
 }
 
-export function reviewInboxTotal(counts: Record<ReviewKind, number>) {
-  return counts.shopify_order + counts.restock + counts.ugc + counts.partner;
+type ReviewInboxCounts =
+  & Record<Exclude<ReviewKind, 'partner'>, number>
+  & Partial<Pick<Record<ReviewKind, number>, 'partner'>>;
+
+export function reviewInboxTotal(counts: ReviewInboxCounts) {
+  return counts.shopify_order + counts.restock + counts.ugc + (counts.partner ?? 0);
 }
