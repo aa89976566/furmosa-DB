@@ -152,6 +152,8 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       createdAt: true,
       customer: { select: { name: true } },
       items: { select: { productName: true }, take: 4 },
+      omsStatus: true,
+      _count: { select: { shipments: true } },
     },
     orderBy: { orderedAt: 'desc' },
     take: 80,
@@ -173,8 +175,14 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       subtitle: orderContentSummary(order),
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
-      statusLabel: '待審核',
-      actionLabel: '查看訂單',
+      statusLabel:
+        order.omsStatus === 'READY' && order._count.shipments === 0
+          ? '已確認・待建出貨單'
+          : '待審核',
+      actionLabel:
+        order.omsStatus === 'READY' && order._count.shipments === 0
+          ? '建立出貨單'
+          : '審核訂單',
     };
   });
 }
@@ -223,7 +231,7 @@ async function loadPendingRestocks(): Promise<ReviewInboxItem[]> {
       href: `/restock-requests/${row.id}`,
       createdAt: row.createdAt,
       statusLabel: restockStatusLabelForHq(row.status),
-      actionLabel: '查看補貨',
+      actionLabel: '審核補貨',
       lines: summary.lines,
       moreLabel: summary.moreLabel,
     };
@@ -254,7 +262,7 @@ async function loadPendingUgc(): Promise<ReviewInboxItem[]> {
       href: `/campaigns/jiba-two-piece/${app.id}`,
       createdAt: app.createdAt,
       statusLabel: '待審核',
-      actionLabel: '查看申請',
+      actionLabel: '審核 UGC',
     }));
   } catch (error) {
     if (isMissingCampaignTableError(error)) return [];
