@@ -91,6 +91,7 @@ model User {
   pushSubscriptions                UserPushSubscription[]
   passkeyCredentials               HqPasskeyCredential[]
   restockApprovals                 RestockRequest[]               @relation("RestockApprovedBy")
+  partnerApplicationReviews       PartnerApplication[]            @relation("PartnerApplicationReviewedBy")
   partnerStoreDecisionsDecided     PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityDecidedBy")
   partnerStoreDecisionsRevoked     PartnerStoreIdentityDecision[] @relation("PartnerStoreIdentityRevokedBy")
   omsReviewedOrders                Order[]                        @relation("OmsReviewedBy")
@@ -979,6 +980,40 @@ model RestockRequestItem {
   @@index([restockRequestId])
   @@index([productId])
   @@map("restock_request_items")
+}
+
+/// 匠寵店家合作申請（由 furmosa-collab 合作頁送入 HQ 待審核）
+model PartnerApplication {
+  id               String    @id @default(cuid())
+  applicationNo    String    @unique @map("application_no")
+  taskId           String    @unique @map("task_id")
+  status           String    @default("pending_review")
+  mode             String
+  storeName        String    @map("store_name")
+  storeType        String?   @map("store_type")
+  contactName      String?   @map("contact_name")
+  phone            String?
+  email            String
+  lineId           String?   @map("line_id")
+  taxId            String?   @map("tax_id")
+  address          String?
+  expectedStart    String?   @map("expected_start")
+  notes            String?
+  items            Json
+  totals           Json
+  terms            Json
+  summary          String?
+  description      String?
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewNote       String?   @map("review_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  reviewedBy User? @relation("PartnerApplicationReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@map("partner_applications")
 }
 
 model ShipmentItem {

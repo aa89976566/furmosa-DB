@@ -6,7 +6,7 @@ import { activeOrderWhere } from '@/lib/order-list';
 import { restockStatusLabelForHq } from '@/lib/restock-request/constants';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 
-export const REVIEW_KINDS = ['shopify_order', 'ugc', 'restock'] as const;
+export const REVIEW_KINDS = ['shopify_order', 'ugc', 'restock', 'partner'] as const;
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
 
 export type ReviewInboxItem = {
@@ -97,6 +97,7 @@ const KIND_LABEL: Record<ReviewKind, string> = {
   shopify_order: 'Shopify 訂單',
   ugc: 'UGC 審核',
   restock: '補貨申請',
+  partner: '店家合作申請',
 };
 
 export function reviewKindLabel(kind: ReviewKind) {
@@ -138,16 +139,8 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   const orders = await prisma.order.findMany({
     where: {
       ...activeOrderWhere,
-      OR: [
-        {
-          status: 'pending_review',
-          OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
-        },
-        {
-          omsStatus: 'READY',
-          shipments: { none: {} },
-        },
-      ],
+      status: 'pending_review',
+      OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
     },
     select: {
       id: true,
@@ -182,12 +175,11 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       subtitle: orderContentSummary(order),
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
-      statusLabel: order.omsStatus === 'READY' && order._count.shipments === 0
-        ? '已確認・待建出貨單'
-        : '待審核',
-      actionLabel: order.omsStatus === 'READY' && order._count.shipments === 0
-        ? '建立出貨單'
-        : '審核訂單',
+      statusLabel:
+        order.omsStatus === 'READY' && order._count.shipments === 0
+          ? '已確認・待建出貨單'
+          : '待審核',
+      actionLabel: order.omsStatus === 'READY' && order._count.shipments === 0 ? '建立出貨單' : '審核訂單',
     };
   });
 }
@@ -275,6 +267,78 @@ async function loadPendingUgc(): Promise<ReviewInboxItem[]> {
   }
 }
 
+function isMissingPartnerApplicationTableError(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      ((error as { code?: string }).code === 'P2021' ||
+        (error as { code?: string }).code === 'P2022'),
+  );
+}
+
+function jsonArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object',
+  );
+}
+
+async function loadPendingPartnerApplications(): Promise<ReviewInboxItem[]> {
+  try {
+    const applications = await prisma.partnerApplication.findMany({
+      where: { status: 'pending_review' },
+      select: {
+        id: true,
+        applicationNo: true,
+        mode: true,
+        storeName: true,
+        contactName: true,
+        email: true,
+        items: true,
+        summary: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+
+    return applications.map((application) => {
+      const lines = jsonArray(application.items)
+        .map((item) => {
+          const name = typeof item.name === 'string' ? item.name.trim() : '';
+          const quantity = typeof item.quantity === 'number' ? item.quantity : null;
+          if (!name) return '';
+          return quantity == null ? name : `${name} × ${quantity}`;
+        })
+        .filter(Boolean)
+        .slice(0, MAX_LINES);
+      const modeLabel = application.mode === 'consign' ? '寄賣合作' : '店家進貨';
+      return {
+        id: application.id,
+        kind: 'partner' as const,
+        kindLabel: KIND_LABEL.partner,
+        title: application.storeName || '店家合作申請',
+        subtitle: [modeLabel, application.contactName, application.email]
+          .filter(Boolean)
+          .join(' · '),
+        href: `/partner-applications/${application.id}`,
+        createdAt: application.createdAt,
+        statusLabel: '待審核',
+        actionLabel: '查看申請',
+        lines: lines.length ? lines : undefined,
+        moreLabel:
+          jsonArray(application.items).length > lines.length
+            ? `…另 ${jsonArray(application.items).length - lines.length} 項`
+            : application.summary || undefined,
+      };
+    });
+  } catch (error) {
+    if (isMissingPartnerApplicationTableError(error)) return [];
+    throw error;
+  }
+}
+
 async function countPendingUgc() {
   try {
     return await prisma.campaignApplication.count({
@@ -286,48 +350,57 @@ async function countPendingUgc() {
   }
 }
 
+async function countPendingPartnerApplications() {
+  try {
+    return await prisma.partnerApplication.count({
+      where: { status: 'pending_review' },
+    });
+  } catch (error) {
+    if (isMissingPartnerApplicationTableError(error)) return 0;
+    throw error;
+  }
+}
+
 /** 側欄／首頁用的待審核筆數，不載入明細。 */
 export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
-  const [shopify_order, restock, ugc] = await Promise.all([
+  const [shopify_order, restock, ugc, partner] = await Promise.all([
     prisma.order.count({
       where: {
         ...activeOrderWhere,
-        OR: [
-          {
-            status: 'pending_review',
-            OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
-          },
-          {
-            omsStatus: 'READY',
-            shipments: { none: {} },
-          },
-        ],
+        status: 'pending_review',
+        OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
       },
     }),
     prisma.restockRequest.count({
       where: { status: { in: ['submitted', 'under_review'] } },
     }),
     countPendingUgc(),
+    countPendingPartnerApplications(),
   ]);
-  return { shopify_order, restock, ugc };
+  return { shopify_order, restock, ugc, partner };
 }
 
 export async function loadReviewInbox(): Promise<{
   items: ReviewInboxItem[];
   counts: Record<ReviewKind, number>;
 }> {
-  const [orders, restocks, ugc, counts] = await Promise.all([
+  const [orders, restocks, ugc, partner, counts] = await Promise.all([
     loadPendingOrders(),
     loadPendingRestocks(),
     loadPendingUgc(),
+    loadPendingPartnerApplications(),
     countReviewInbox(),
   ]);
-  const items = [...orders, ...restocks, ...ugc].sort(
+  const items = [...orders, ...restocks, ...ugc, ...partner].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
   return { items, counts };
 }
 
-export function reviewInboxTotal(counts: Record<ReviewKind, number>) {
-  return counts.shopify_order + counts.restock + counts.ugc;
+type ReviewInboxCounts =
+  & Record<Exclude<ReviewKind, 'partner'>, number>
+  & Partial<Pick<Record<ReviewKind, number>, 'partner'>>;
+
+export function reviewInboxTotal(counts: ReviewInboxCounts) {
+  return counts.shopify_order + counts.restock + counts.ugc + (counts.partner ?? 0);
 }
