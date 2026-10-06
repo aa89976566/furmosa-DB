@@ -66,7 +66,11 @@ import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function OrderDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ saved?: string }>;
+}) {
+  const searchParams = await props.searchParams;
   const params = await props.params;
   const order = await prisma.order.findUnique({
     where: { id: params.id },
@@ -80,6 +84,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   });
   if (!order) notFound();
 
+  const savedNotice = searchParams?.saved === 'created'
+    ? '訂單已建立。'
+    : searchParams?.saved === 'updated'
+      ? '訂單修改已儲存。'
+      : null;
   const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
   const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
   const reviewAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({
@@ -236,6 +245,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       />
 
       <div className="flex flex-col gap-6 p-6">
+        {savedNotice ? (
+          <p role="status" className="rounded-md border px-4 py-3 text-sm">
+            {savedNotice}
+          </p>
+        ) : null}
         {order.archivedAt && <p className="rounded border bg-muted/40 p-4 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p>}
         {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
 

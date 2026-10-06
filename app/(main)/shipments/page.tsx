@@ -32,6 +32,7 @@ export default async function ShipmentsPage(
       q?: string;
       error?: string;
       delivered?: string;
+      saved?: string;
     }>;
   }
 ) {
@@ -46,6 +47,7 @@ export default async function ShipmentsPage(
   const rawType = searchParams?.type;
   const actionError = (searchParams?.error ?? '').trim();
   const deliveredOk = searchParams?.delivered === '1';
+  const savedNotice = searchParams?.saved === 'updated' ? '訂單修改已儲存。' : '';
   const type =
     rawType === 'merchant_restock' || rawType === 'restock' ? 'consignment' : rawType;
   const activeType =
@@ -141,6 +143,11 @@ export default async function ShipmentsPage(
         <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           已標記貨物到達，該單已移至「待驗收」。
         </div>
+      ) : null}
+      {savedNotice ? (
+        <p role="status" className="rounded-xl border px-4 py-3 text-sm">
+          {savedNotice}
+        </p>
       ) : null}
 
       <Suspense

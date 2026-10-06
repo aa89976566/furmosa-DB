@@ -36,11 +36,9 @@
 - 不要在未經我同意的情況下部署到正式環境。
 - 不要在未經我同意的情況下安裝大量套件。
 
-## 工作流程與 Cursor／Claude 協作
+## 工作流程
 
-所有涉及 Cursor 修改的任務必須讀取並遵守 [.cursor/rules/claude-cursor-gated-workflow.mdc](.cursor/rules/claude-cursor-gated-workflow.mdc)。該檔是協作流程唯一來源，包含真實 Claude 三題與雙向追問、凍結 Prompt、範圍控制、逐檔監督、測試與 PR 限制；此處不再複製同一套規則。
-
-一般工作仍須先讀相關檔案、確認需求、說明作法，再實作、測試並如實回報。下列專案不變條件持續生效。
+涉及 Cursor 修改時，仍須先讀取相關檔案、確認需求與影響範圍、說明作法，再實作、測試並如實回報。下列專案不變條件持續生效。
 
 ## Furmosa DB 技術架構
 

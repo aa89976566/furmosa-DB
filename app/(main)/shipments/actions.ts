@@ -708,7 +708,12 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
     shippingFeeType: shipment.order?.shippingFeeType,
     jiba: shipment.orderId ? jibaSources.get(shipment.orderId) ?? null : null,
   });
-  const orderEditable = shipment.order ? isOrderEditable(shipment.order) : null;
+  const orderEditable = shipment.order
+    ? isOrderEditable({
+        ...shipment.order,
+        shipments: [{ status: shipment.status }],
+      })
+    : null;
 
   return {
     id: shipment.id,

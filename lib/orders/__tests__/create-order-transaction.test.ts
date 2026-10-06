@@ -21,13 +21,13 @@ test('建立失敗回傳可呈現的結果，表單以頁內訊息保留輸入�
   assert.match(actionSource, /return \{ ok: true, orderId: created\.id \}/);
   assert.match(formSource, /role="alert"/);
   assert.match(formSource, /您已填寫的內容仍保留在畫面上/);
-  assert.match(formSource, /router\.push\(`\/orders\/\$\{result\.orderId\}`\)/);
+  assert.match(formSource, /router\.push\(withOrderSavedNotice\(`\/orders\/\$\{result\.orderId\}`, 'created'\)\)/);
 });
 
-test('既有訂單也要先確認運費與付款，才顯示物流設定', () => {
+test('修改與複製會直接打開物流與送出，空白新訂單仍逐題展開', () => {
   assert.match(
     formSource,
-    /useState\(isEdit \|\| Boolean\(seed\) \? 5 : 1\)/,
+    /useState\(isEdit \|\| Boolean\(seed\) \? 8 : 1\)/,
   );
   assert.match(
     formSource,

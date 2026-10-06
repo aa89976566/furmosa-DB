@@ -66,6 +66,12 @@ import {
   orderMerchandiseIsBillable,
   type MerchantOrderMode,
 } from '@/lib/orders/merchant-order-mode';
+import {
+  incompatibleLineSwitchPrompt,
+  splitLinesForContext,
+} from '@/lib/orders/order-mode-switch';
+import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
+import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 
 export type ProductTierOption = {
   id: string;
@@ -144,6 +150,21 @@ const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[]
 
 function genKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function blankLine(): LineItem {
+  return {
+    key: genKey(),
+    productId: '',
+    tierId: '',
+    quantity: 1,
+    unitPrice: 0,
+    unitCost: 0,
+    isGift: false,
+    retailUnitPrice: 0,
+    weightGrams: null,
+    unit: null,
+  };
 }
 
 function OrderLineItemsTable({
@@ -303,7 +324,7 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     數量
                   </span>
-                  {hasSelectedSpec ? (
+                  {it.productId ? (
                     <Input
                       name="quantity"
                       type="number"
@@ -315,20 +336,19 @@ function OrderLineItemsTable({
                           quantity: Math.max(0, parseInt(e.target.value, 10) || 0),
                         })
                       }
-                      required={rowRequired && Boolean(it.productId)}
+                      required={rowRequired}
+                      aria-label="數量"
                       className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
                     />
                   ) : (
-                    <span className="text-xs text-muted-foreground">
-                      {hasProduct ? '請先選規格' : '請先選商品'}
-                    </span>
+                    <span className="text-xs text-muted-foreground">請先選商品</span>
                   )}
                 </TableCell>
                 <TableCell className="block p-0 align-middle md:table-cell md:p-3">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     單價
                   </span>
-                  {hasQuantity ? (
+                  {it.productId ? (
                     <>
                       <Input
                         name="unitPrice"
@@ -385,7 +405,7 @@ function OrderLineItemsTable({
                     <input
                       type="checkbox"
                       checked={it.isGift}
-                      disabled={!hasQuantity}
+                      disabled={!it.productId}
                       title="贈品不計入買家應付，計入公司成本"
                       className="h-4 w-4 rounded border-input"
                       onChange={(e) => onToggleGift(it.key, e.target.checked)}
@@ -434,9 +454,14 @@ export function OrderForm({
   const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // 有既有資料時先帶到「運費與付款」，讓使用者依序確認後才展開物流欄位。
-  // 不直接顯示全部步驟，避免物流設定在上一步尚未確認時搶先出現。
-  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 5 : 1);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
+  const [pendingSwitch, setPendingSwitch] = useState<{
+    label: string;
+    removedCount: number;
+    apply: () => void;
+  } | null>(null);
+  // 空白新訂單仍逐題展開。修改與複製已有完整內容，直接打開商品、配送與底部送出。
+  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 8 : 1);
   const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     seed?.customerSource ?? 'social',
@@ -547,6 +572,14 @@ export function OrderForm({
     },
     [isEdit, merchantId, merchantOrderMode, orderType, productCatalog],
   );
+  const selectableProducts = useMemo(() => {
+    const map = new Map(visibleProducts.map((product) => [product.id, product]));
+    for (const item of items) {
+      const product = item.productId ? productMap.get(item.productId) : undefined;
+      if (product) map.set(product.id, product);
+    }
+    return [...map.values()];
+  }, [items, productMap, visibleProducts]);
 
   const mergeCustomers = useCallback((rows: CustomerOption[]) => {
     setCustomers((prev) => {
@@ -607,11 +640,6 @@ export function OrderForm({
       .then(mergeProducts)
       .catch(() => undefined);
   }, [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType]);
-
-  const hasValidLines = useMemo(
-    () => items.some((it) => it.productId && it.quantity > 0),
-    [items],
-  );
 
   const subtotal = useMemo(() => {
     const merchandiseIsBillable = orderMerchandiseIsBillable(orderType, merchantOrderMode);
@@ -818,34 +846,43 @@ export function OrderForm({
     }
   }
 
+  function askContextSwitch(
+    label: string,
+    removed: LineItem[],
+    apply: () => void,
+  ) {
+    if (removed.length === 0) {
+      apply();
+      return;
+    }
+    setPendingSwitch({ label, removedCount: removed.length, apply });
+  }
+
   function changeMerchantOrderMode(mode: MerchantOrderMode) {
-    setMerchantOrderMode(mode);
-    setItems((current) => current.map((item) => ({
-      ...item,
-      productId: '',
-      tierId: '',
-      unitPrice: 0,
-      retailUnitPrice: 0,
-      weightGrams: null,
-      unit: null,
-    })));
-    if (mode !== 'consignment') setCustomerId('');
-    revealThrough(4);
+    if (mode === merchantOrderMode) return;
+    const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), {
+      orderType: 'merchant',
+      merchantOrderMode: mode,
+    });
+    askContextSwitch(merchantOrderModeLabel[mode], removed, () => {
+      setMerchantOrderMode(mode);
+      if (removed.length > 0) setItems(kept.length > 0 ? kept : [blankLine()]);
+      if (mode !== 'consignment') setCustomerId('');
+      revealThrough(4);
+    });
   }
 
   function changeOrderType(nextType: OrderType) {
-    revealThrough(2);
     if (nextType === orderType) return;
-    setOrderType(nextType);
-    setItems((current) => current.map((item) => ({
-      ...item,
-      productId: '',
-      tierId: '',
-      unitPrice: 0,
-      retailUnitPrice: 0,
-      weightGrams: null,
-      unit: null,
-    })));
+    const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), {
+      orderType: nextType,
+      merchantOrderMode,
+    });
+    askContextSwitch(nextType === 'customer' ? '客戶訂單' : '店家訂單', removed, () => {
+      revealThrough(2);
+      setOrderType(nextType);
+      if (removed.length > 0) setItems(kept.length > 0 ? kept : [blankLine()]);
+    });
   }
 
   useEffect(() => {
@@ -923,30 +960,45 @@ export function OrderForm({
     <form
       action={async (formData) => {
         setSubmitError(null);
-        if (!recipientName.trim()) {
-          setSubmitError('請填寫收件人姓名。');
-          return;
-        }
-        if (!shippingMethod) {
-          setSubmitError('請先選擇物流方式。');
-          return;
-        }
-        if (!hasValidLines) {
-          setSubmitError('請至少新增一筆商品明細。');
+        setSubmitNotice(null);
+        const validationError = validateOrderSubmission({
+          orderType,
+          customerId,
+          merchantId,
+          merchantOrderMode,
+          items,
+          discount,
+          recipientName,
+          recipientPhone,
+          shippingMethod,
+          shippingAddress,
+          cvsBrand,
+          cvsStoreName,
+        });
+        if (validationError) {
+          revealThrough(8);
+          setSubmitError(validationError);
           return;
         }
         try {
           if (isEdit && edit) {
             formData.set('orderId', edit.orderId);
-            await updateOrder(formData);
-          } else {
-            const result = await createOrder(formData);
+            const result = await updateOrder(formData);
             if (!result.ok) {
               setSubmitError(result.message);
               return;
             }
-            router.push(`/orders/${result.orderId}`);
+            setSubmitNotice('修改已儲存，正在返回。');
+            router.push(result.href);
+            return;
           }
+          const result = await createOrder(formData);
+          if (!result.ok) {
+            setSubmitError(result.message);
+            return;
+          }
+          setSubmitNotice('訂單已建立，正在前往訂單頁。');
+          router.push(withOrderSavedNotice(`/orders/${result.orderId}`, 'created'));
         } catch (e) {
           if (isRedirectError(e)) throw e;
           setSubmitError(
@@ -1205,7 +1257,7 @@ export function OrderForm({
                 : '可選所有一般商品'
         }
         items={items}
-        products={visibleProducts}
+        products={selectableProducts}
         productMap={productMap}
         onSearchProducts={handleSearchProducts}
         onSelectProduct={onSelectProduct}
@@ -1518,29 +1570,34 @@ export function OrderForm({
         >
           <div className="font-medium">無法儲存訂單</div>
           <div className="mt-1">{submitError}</div>
-          <div className="mt-1 text-xs opacity-80">您已填寫的內容仍保留在畫面上。</div>
+          <div className="mt-1 text-xs opacity-80">您已填寫的內容仍保留在畫面上，還沒有寫入訂單。</div>
+        </div>
+      ) : null}
+      {submitNotice ? (
+        <div role="status" className="rounded-md border px-4 py-3 text-sm">
+          {submitNotice}
         </div>
       ) : null}
 
-      {revealedStep >= 7 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
+      {isEdit || initial ? (
+        <div className="sticky bottom-0 z-20 mt-2 border-t bg-background/95 py-3 backdrop-blur">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              {isEdit
+                ? '修改還沒寫入。按下儲存修改才會更新這張訂單，離開頁面不會自動儲存。'
+                : '尚未建立訂單。這個畫面不會自動儲存，按下建立訂單才會寫入。'}
+            </p>
+            <SaveButton isEdit={isEdit} />
+          </div>
+        </div>
+      ) : revealedStep >= 7 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
         <div className="mr-auto flex items-center gap-2 text-sm">
-          {isEdit && edit ? (
-            <>
-              <Badge variant="secondary">{edit.orderNumber}</Badge>
-              <span className="text-muted-foreground">
-                儲存後會同步更新品項、金額與關聯出貨單收件資訊。
-              </span>
-            </>
-          ) : (
-            <>
-              <Badge variant="secondary">draft</Badge>
-              <span className="text-muted-foreground">
-                {orderType === 'customer'
-                  ? '建立後會自動產生一張待出貨單，可於〈出貨隊列〉看到。'
-                  : '建立後會產生店家補貨單，可於〈出貨隊列〉查看。'}
-              </span>
-            </>
-          )}
+          <Badge variant="secondary">尚未建立</Badge>
+          <span className="text-muted-foreground">
+            {orderType === 'customer'
+              ? '按下建立訂單後，才會產生待出貨單。'
+              : '按下建立訂單後，才會產生店家補貨單。'}
+          </span>
         </div>
         <div className="flex flex-col items-end gap-1">
           {!shippingMethod ? (
@@ -1549,6 +1606,38 @@ export function OrderForm({
           <SaveButton isEdit={isEdit} />
         </div>
       </div> : null}
+      {pendingSwitch ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="order-mode-switch-title"
+            className="w-full max-w-md rounded-lg border bg-background p-4 shadow-lg"
+          >
+            <h2 id="order-mode-switch-title" className="text-base font-semibold">
+              要切換類型嗎？
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {incompatibleLineSwitchPrompt(pendingSwitch.label, pendingSwitch.removedCount)}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPendingSwitch(null)}>
+                取消
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const apply = pendingSwitch.apply;
+                  setPendingSwitch(null);
+                  apply();
+                }}
+              >
+                移除不相容商品並切換
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }

@@ -14,7 +14,6 @@ import {
   fulfillmentStatusFromOrderStatus,
 } from '@/lib/shipment-order-sync';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { sendNewOrderPush } from '@/lib/web-push';
 import {
   applyJarExchangeConsignmentPricing,
@@ -27,7 +26,7 @@ import {
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { getCurrentUser } from '@/lib/auth';
-import { safeOrderEditReturnTo } from '@/lib/orders/order-edit-return';
+import { safeOrderEditReturnTo, withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import type { Prisma } from '@prisma/client';
@@ -225,14 +224,36 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
   return { ok: true, orderId: created.id };
 }
 
-export async function updateOrder(formData: FormData) {
+export type UpdateOrderResult =
+  | { ok: true; href: string }
+  | { ok: false; message: string };
+
+function orderActionMessage(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message.trim() : '';
+  if (message && /[\u4e00-\u9fff]/.test(message) && !/prisma|invocation/i.test(message)) {
+    return message;
+  }
+  return fallback;
+}
+
+export async function updateOrder(formData: FormData): Promise<UpdateOrderResult> {
+  try {
   const orderId = String(formData.get('orderId') ?? '').trim();
   if (!orderId) throw new Error('缺少訂單');
   await assertLegacyOrderActionAllowed(orderId);
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, subscriptionId: true, merchantId: true, customerId: true },
+    select: {
+      id: true,
+      status: true,
+      fulfillmentStatus: true,
+      shippedAt: true,
+      subscriptionId: true,
+      merchantId: true,
+      customerId: true,
+      shipments: { select: { status: true } },
+    },
   });
   if (!existing) throw new Error('訂單不存在');
 
@@ -322,7 +343,14 @@ export async function updateOrder(formData: FormData) {
 
   await revalidateOrderPaths(orderId, payload.merchantId, payload.customerId);
   const returnTo = safeOrderEditReturnTo(String(formData.get('returnTo') ?? ''));
-  redirect(returnTo ?? `/orders/${orderId}`);
+  return { ok: true, href: withOrderSavedNotice(returnTo ?? `/orders/${orderId}`) };
+  } catch (error) {
+    console.error('[orders/update] 更新訂單失敗', error);
+    return {
+      ok: false,
+      message: orderActionMessage(error, '儲存訂單失敗，請稍後重試。'),
+    };
+  }
 }
 
 export async function updateOrderStatus(formData: FormData) {
