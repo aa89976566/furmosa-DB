@@ -179,10 +179,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
         order.omsStatus === 'READY' && order._count.shipments === 0
           ? '已確認・待建出貨單'
           : '待審核',
-      actionLabel:
-        order.omsStatus === 'READY' && order._count.shipments === 0
-          ? '建立出貨單'
-          : '審核訂單',
+      actionLabel: order.omsStatus === 'READY' && order._count.shipments === 0 ? '建立出貨單' : '審核訂單',
     };
   });
 }
