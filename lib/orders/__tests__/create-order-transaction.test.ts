@@ -24,10 +24,10 @@ test('建立失敗回傳可呈現的結果，表單以頁內訊息保留輸入�
   assert.match(formSource, /router\.push\(`\/orders\/\$\{result\.orderId\}`\)/);
 });
 
-test('既有訂單也要先確認運費與付款，才顯示物流設定', () => {
+test('既有訂單直接顯示物流設定與儲存操作', () => {
   assert.match(
     formSource,
-    /useState\(isEdit \|\| Boolean\(seed\) \? 5 : 1\)/,
+    /useState\(isEdit \? 8 : seed \? 5 : 1\)/,
   );
   assert.match(
     formSource,
