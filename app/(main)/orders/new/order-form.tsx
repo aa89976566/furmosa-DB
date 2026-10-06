@@ -641,9 +641,9 @@ export function OrderForm({
   const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // 有既有資料時先帶到「運費與付款」，讓使用者依序確認後才展開物流欄位。
-  // 不直接顯示全部步驟，避免物流設定在上一步尚未確認時搶先出現。
-  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 5 : 1);
+  // 編輯時所有步驟都已有既存答案，必須直接顯示物流欄位與儲存按鈕。
+  // 只有新建（含複製帶入初始值）繼續依序確認，避免物流設定過早出現。
+  const [revealedStep, setRevealedStep] = useState(isEdit ? 8 : seed ? 5 : 1);
   const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     seed?.customerSource ?? 'social',

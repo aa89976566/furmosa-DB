@@ -91,6 +91,15 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.equal(orderFormSource.includes('下一題'), false);
 });
 
+test('修改訂單直接展開已有資料與儲存按鈕', () => {
+  assert.match(
+    orderFormSource,
+    /useState\(isEdit \? 8 : seed \? 5 : 1\)/,
+  );
+  assert.match(orderFormSource, /revealedStep >= 7 \? <div className="flex items-center justify-end/);
+  assert.match(orderFormSource, /isEdit \? '儲存修改' : '建立訂單'/);
+});
+
 test('出貨面板標題優先顯示收件人，不暴露內部出貨 ID', () => {
   assert.match(shipmentWorkspaceSource, /shipment\.recipientName\?\.trim\(\)/);
   assert.match(shipmentWorkspaceSource, /載入出貨單資料/);
