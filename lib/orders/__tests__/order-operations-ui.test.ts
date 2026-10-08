@@ -37,6 +37,14 @@ const shipmentWorkspaceSource = readFileSync(
   new URL('../../../components/shipments/shipment-queue-workspace.tsx', import.meta.url),
   'utf8',
 );
+const quickViewSource = readFileSync(
+  new URL('../../../components/orders/order-quick-view.tsx', import.meta.url),
+  'utf8',
+);
+const quickViewShellSource = readFileSync(
+  new URL('../../../components/orders/order-quick-view-shell.tsx', import.meta.url),
+  'utf8',
+);
 
 test('訂單使用單一自適應 Resource List，不重複產生桌機與手機 DOM', () => {
   assert.equal(listSource.includes('VirtualCardList'), false);
@@ -47,8 +55,8 @@ test('訂單使用單一自適應 Resource List，不重複產生桌機與手機
   assert.match(resourceListStyles, /@container \(min-width: 900px\)/);
 });
 
-test('列表優先顯示訂單編號與問題分類，搜尋結果才補充訂單日期', () => {
-  assert.match(listSource, /className=\{styles\.orderNumber\}/);
+test('列表優先顯示姓名與問題分類，訂單編號降為次要資訊', () => {
+  assert.ok(listSource.indexOf('className={styles.customer}') < listSource.indexOf('className={styles.orderNumber}'));
   assert.match(listSource, /ISSUE_CATEGORY/);
   assert.match(listSource, /className=\{`\$\{styles\.issueTag\}/);
   assert.match(listSource, /showOrderDate/);
@@ -56,6 +64,17 @@ test('列表優先顯示訂單編號與問題分類，搜尋結果才補充訂�
   assert.match(ordersPageSource, /showOrderDate=\{isSearching\}/);
   assert.equal(listSource.includes('formatDateTime'), false);
   assert.equal(listSource.includes('logistics.destination'), false);
+});
+
+test('點擊訂單在固定右側快速詳情開啟，手機不會把內容排到頁面底部', () => {
+  assert.match(listSource, /params\.set\('detail', order\.id\)/);
+  assert.match(listSource, /router\.push\(/);
+  assert.match(ordersPageSource, /<OrderQuickView/);
+  assert.match(quickViewShellSource, /fixed inset-0 z-\[80\]/);
+  assert.match(quickViewShellSource, /absolute inset-y-0 right-0/);
+  assert.match(quickViewShellSource, /sm:max-w-\[34rem\]/);
+  assert.match(quickViewShellSource, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(quickViewSource, /進入完整處理/);
 });
 
 test('列表與詳細頁的既有客戶姓名都連到 CRM 主鍵', () => {
