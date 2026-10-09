@@ -21,6 +21,8 @@ import {
 } from '@/app/pos/actions';
 import { CounterTicket } from '@/components/pos/counter-ticket';
 import { ProductCover } from '@/components/pos/product-cover';
+import { RefillStockSummary } from '@/components/pos/refill-stock-summary';
+import type { PosRefillStockSummary } from '@/lib/pos/refill-stock-summary';
 import styles from './counter.module.css';
 
 type Phase = 'edit' | 'confirm' | 'done';
@@ -31,10 +33,12 @@ export function CounterApp({
   storeName,
   items,
   categories,
+  refillStock,
 }: {
   storeName: string;
   items: CounterCatalogItem[];
   categories: { id: string; label: string }[];
+  refillStock: PosRefillStockSummary;
 }) {
   const [session, setSession] = useState(0);
   return (
@@ -43,6 +47,7 @@ export function CounterApp({
       storeName={storeName}
       items={items}
       categories={categories}
+      refillStock={refillStock}
       onReset={() => setSession((value) => value + 1)}
     />
   );
@@ -52,11 +57,13 @@ function CounterWorkspace({
   storeName,
   items,
   categories,
+  refillStock,
   onReset,
 }: {
   storeName: string;
   items: CounterCatalogItem[];
   categories: { id: string; label: string }[];
+  refillStock: PosRefillStockSummary;
   onReset: () => void;
 }) {
   const router = useRouter();
@@ -171,6 +178,7 @@ function CounterWorkspace({
               </button>
             ))}
           </div>
+          <RefillStockSummary summary={refillStock} />
         </div>
 
         <div className={styles.productScroll}>

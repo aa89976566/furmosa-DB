@@ -5,6 +5,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { CounterApp } from '@/components/pos/counter-app';
 import { loadCounterCatalog } from '@/lib/pos/counter-catalog';
 import { loadPosAccount, loadPosMerchantProfile } from '@/lib/pos/account';
+import { loadPosRefillStockSummary } from '@/lib/pos/refill-stock-summary';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -49,9 +50,10 @@ export default async function PosSellPage() {
   try {
     const session = await requireMerchantSession();
     const merchantRequest = loadPosMerchantProfile(session.merchantId);
-    const [catalog, account] = await Promise.all([
+    const [catalog, account, refillStock] = await Promise.all([
       loadCounterCatalog(session.merchantId, merchantRequest),
       loadPosAccount(session.merchantId, session.username, merchantRequest),
+      loadPosRefillStockSummary(session.merchantId),
     ]);
     if (!catalog) {
       return <CounterFallback message="找不到店家商品。" />;
@@ -63,6 +65,7 @@ export default async function PosSellPage() {
           storeName={catalog.merchantName}
           items={catalog.items}
           categories={catalog.categories}
+          refillStock={refillStock}
         />
       </PosShell>
     );
