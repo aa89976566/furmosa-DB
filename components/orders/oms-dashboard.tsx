@@ -137,6 +137,8 @@ export async function OmsDashboard() {
       : `今天已完成 ${completedSteps} 個處理步驟。`;
 
   return <div className="space-y-6">
+    <DashboardJarWeekActivity />
+
     <section className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
@@ -154,8 +156,6 @@ export async function OmsDashboard() {
         <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">今日完成 {completedSteps}</span>
       </div>
     </section>
-
-    <DashboardJarWeekActivity />
 
     {inventoryActionCount > 0 || reorderAlerts.incoming.length > 0 ? (
       <section className="overflow-hidden rounded-2xl border border-warning/30 bg-card">
@@ -233,8 +233,6 @@ export async function OmsDashboard() {
         </span>
       </Link>
     ) : null}
-
-    <DashboardJarWeekActivity />
 
     <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
 
