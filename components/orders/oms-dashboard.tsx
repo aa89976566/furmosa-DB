@@ -137,7 +137,7 @@ export async function OmsDashboard() {
     : waiting.length
       ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
       : `今天已完成 ${completedSteps} 個處理步驟。`;
-  const shipmentCount = now.filter((row) => ['READY', 'FULFILLMENT_PENDING'].includes(orders.find((order) => order.id === row.id)?.omsStatus ?? '')).length;
+  const shipmentCount = orders.filter((order) => ['READY', 'FULFILLMENT_PENDING'].includes(order.omsStatus)).length;
   const attentionItems = [
     inventoryActionCount > 0 ? { href: '/inventory', label: `有 ${inventoryActionCount} 項商品庫存需處理`, tone: 'bg-warning' } : null,
     shipmentCount > 0 ? { href: '/shipments?status=pending', label: `有 ${shipmentCount} 筆訂單等待出貨`, tone: 'bg-primary' } : null,
@@ -172,7 +172,7 @@ export async function OmsDashboard() {
           <FlowMetric label="訂單" value={now.length} />
           <FlowMetric label="出貨" value={shipmentCount} />
           <FlowMetric label="收貨" value={duePurchaseOrderCount} />
-          <FlowMetric label="完成" value={completedSteps} />
+          <FlowMetric label="完成" value={completedSteps} detail={<>今日完成 {completedSteps}</>} />
         </div>
       </div>
       <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
@@ -282,8 +282,8 @@ function DashboardMetric({ href, label, value, detail, warning = false }: { href
   </Link>;
 }
 
-function FlowMetric({ label, value }: { label: string; value: number }) {
-  return <div className="px-2"><p className="text-sm font-medium text-navy">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-navy">{value}</p><p className="mt-1 text-xs text-muted-foreground">筆待處理</p></div>;
+function FlowMetric({ label, value, detail = '筆待處理' }: { label: string; value: number; detail?: ReactNode }) {
+  return <div className="px-2"><p className="text-sm font-medium text-navy">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-navy">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>;
 }
 
 function WorkList({ title, count, icon, rows, empty }: { title: string; count: number; icon: ReactNode; rows: WorkRow[]; empty: string }) {
