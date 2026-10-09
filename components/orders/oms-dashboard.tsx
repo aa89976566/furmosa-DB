@@ -20,6 +20,7 @@ import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
 import { taipeiTodayRange } from '@/lib/taipei-date';
 import { countReviewInbox } from '@/lib/reviews/inbox';
 import { buildReorderAlertSummary } from '@/lib/inventory/reorder-alerts';
+import { DashboardJarWeekActivity } from '@/components/dashboard/dashboard-jar-week-activity';
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -230,6 +231,8 @@ export async function OmsDashboard() {
         </span>
       </Link>
     ) : null}
+
+    <DashboardJarWeekActivity />
 
     <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
 
