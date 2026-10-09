@@ -155,6 +155,8 @@ export async function OmsDashboard() {
       </div>
     </section>
 
+    <DashboardJarWeekActivity />
+
     {inventoryActionCount > 0 || reorderAlerts.incoming.length > 0 ? (
       <section className="overflow-hidden rounded-2xl border border-warning/30 bg-card">
         <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -231,8 +233,6 @@ export async function OmsDashboard() {
         </span>
       </Link>
     ) : null}
-
-    <DashboardJarWeekActivity />
 
     <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
 
