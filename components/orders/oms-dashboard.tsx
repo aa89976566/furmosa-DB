@@ -21,6 +21,7 @@ import { taipeiTodayRange } from '@/lib/taipei-date';
 import { countReviewInbox } from '@/lib/reviews/inbox';
 import { buildReorderAlertSummary } from '@/lib/inventory/reorder-alerts';
 import { DashboardJarWeekActivity } from '@/components/dashboard/dashboard-jar-week-activity';
+import { loadJarWeekActivity } from '@/lib/jar-exchange/load-week-activity';
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -32,7 +33,7 @@ type WorkRow = {
 export async function OmsDashboard() {
   const today = taiwanToday();
   const { end: endOfToday } = taipeiTodayRange();
-  const [orders, reviewedToday, fulfilledToday, duePurchaseOrders, duePurchaseOrderCount, reviewCounts, inventoryProducts, pendingPurchaseItems] = await Promise.all([
+  const [orders, reviewedToday, fulfilledToday, duePurchaseOrders, duePurchaseOrderCount, reviewCounts, inventoryProducts, pendingPurchaseItems, jarWeekActivity] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW', 'READY', 'FULFILLMENT_PENDING'] } },
       orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 30,
@@ -75,6 +76,7 @@ export async function OmsDashboard() {
       where: { purchaseOrder: { status: 'pending_receipt' } },
       select: { productId: true, quantityGrams: true },
     }),
+    loadJarWeekActivity(),
   ]);
 
   const incomingByProduct = new Map<string, number>();
@@ -135,25 +137,49 @@ export async function OmsDashboard() {
     : waiting.length
       ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
       : `今天已完成 ${completedSteps} 個處理步驟。`;
+  const shipmentCount = now.filter((row) => ['READY', 'FULFILLMENT_PENDING'].includes(orders.find((order) => order.id === row.id)?.omsStatus ?? '')).length;
+  const attentionItems = [
+    inventoryActionCount > 0 ? { href: '/inventory', label: `有 ${inventoryActionCount} 項商品庫存需處理`, tone: 'bg-warning' } : null,
+    shipmentCount > 0 ? { href: '/shipments?status=pending', label: `有 ${shipmentCount} 筆訂單等待出貨`, tone: 'bg-primary' } : null,
+    reviewActionCount > 0 ? { href: '/reviews', label: `有 ${reviewActionCount} 筆資料等待審核`, tone: 'bg-primary' } : null,
+  ].filter(Boolean) as { href: string; label: string; tone: string }[];
 
   return <div className="space-y-6">
-    <DashboardJarWeekActivity />
-
-    <section className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
+    <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-7">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">今天的工作</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-navy">{headline}</h2>
+          <p className="text-sm font-semibold text-primary">今天最重要的一件事</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-navy sm:text-3xl">{headline}</h2>
           <p className="text-sm text-muted-foreground">{subline}</p>
         </div>
-        {primaryHref
-          ? <Button size="lg" asChild><Link href={primaryHref}>繼續處理<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-          : <span className="text-sm font-medium text-muted-foreground">目前沒有待辦</span>}
+        {primaryHref ? <Button size="lg" asChild><Link href={primaryHref}>立即處理</Link></Button> : <span className="text-sm font-medium text-muted-foreground">目前沒有待辦</span>}
       </div>
-      <div className="mt-5 flex flex-wrap gap-2 text-xs">
-        <span className="rounded-full bg-muted px-2.5 py-1 font-medium text-foreground">待處理 {actionCount}</span>
-        <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">等待中 {waiting.length}</span>
-        <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">今日完成 {completedSteps}</span>
+    </section>
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <DashboardMetric href="/shipments?status=pending" label="待出貨" value={shipmentCount} detail="筆訂單等待出貨" />
+      <DashboardMetric href="/inventory" label="低庫存" value={inventoryActionCount} detail="項商品需處理" warning />
+      <DashboardMetric href="/reviews" label="待審核" value={reviewActionCount} detail="筆資料等待審核" />
+      <DashboardMetric href="/jar-exchange/manage?tab=ledger" label="本週換罐" value={jarWeekActivity.totalExchanges} detail="次換罐活動" />
+    </section>
+
+    <DashboardJarWeekActivity />
+
+    <section className="grid gap-5 xl:grid-cols-2">
+      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-navy">今天流程</h3><span className="text-xs text-muted-foreground">即時工作狀態</span></div>
+        <div className="mt-6 grid grid-cols-4 divide-x divide-border/70 text-center">
+          <FlowMetric label="訂單" value={now.length} />
+          <FlowMetric label="出貨" value={shipmentCount} />
+          <FlowMetric label="收貨" value={duePurchaseOrderCount} />
+          <FlowMetric label="完成" value={completedSteps} />
+        </div>
+      </div>
+      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-navy">需要注意</h3><Link href="/inventory" className="text-sm font-medium text-primary hover:underline">查看全部</Link></div>
+        <div className="mt-4 space-y-3">
+          {attentionItems.length ? attentionItems.map((item) => <Link key={item.label} href={item.href} className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted/50"><span className={`h-2.5 w-2.5 rounded-full ${item.tone}`} /><span className="text-sm font-medium">{item.label}</span></Link>) : <p className="py-4 text-sm text-muted-foreground">目前沒有需要注意的異常。</p>}
+        </div>
       </div>
     </section>
 
@@ -246,6 +272,18 @@ export async function OmsDashboard() {
 
 
   </div>;
+}
+
+function DashboardMetric({ href, label, value, detail, warning = false }: { href: string; label: string; value: number; detail: string; warning?: boolean }) {
+  return <Link href={href} className={`rounded-2xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/20 ${warning ? 'border-warning/30 bg-warning/5' : 'border-border/70 bg-card'}`}>
+    <p className={`text-sm font-medium ${warning ? 'text-warning' : 'text-muted-foreground'}`}>{label}</p>
+    <p className="mt-2 text-3xl font-semibold tracking-tight text-navy">{value}</p>
+    <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+  </Link>;
+}
+
+function FlowMetric({ label, value }: { label: string; value: number }) {
+  return <div className="px-2"><p className="text-sm font-medium text-navy">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-navy">{value}</p><p className="mt-1 text-xs text-muted-foreground">筆待處理</p></div>;
 }
 
 function WorkList({ title, count, icon, rows, empty }: { title: string; count: number; icon: ReactNode; rows: WorkRow[]; empty: string }) {
