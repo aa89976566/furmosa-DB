@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/prisma';
-import { taipeiLastNDaysRange } from '@/lib/taipei-date';
 import {
   JAR_WEEK_ACTIVITY_DAYS,
   JAR_WEEK_ACTIVITY_SOURCE_TYPES,
+  jarWeekActivityRange,
   jarActivityStoreName,
   presentJarWeekActivity,
   type JarWeekActivityEntry,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/jar-exchange/week-activity';
 
 export async function loadJarWeekActivity(reference = new Date()): Promise<JarWeekActivityView> {
-  const range = taipeiLastNDaysRange(JAR_WEEK_ACTIVITY_DAYS, reference);
+  const range = jarWeekActivityRange(JAR_WEEK_ACTIVITY_DAYS, reference);
   const where = {
     createdAt: { gte: range.start, lte: range.end },
     sourceType: { in: [...JAR_WEEK_ACTIVITY_SOURCE_TYPES] },

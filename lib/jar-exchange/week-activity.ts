@@ -1,4 +1,44 @@
-import { formatTaipeiDateTime, taipeiLastNDaysRange } from '@/lib/taipei-date';
+const TAIPEI_TIME_ZONE = 'Asia/Taipei';
+
+function taipeiDateKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TAIPEI_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '1970';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+function addTaipeiCalendarDays(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T12:00:00+08:00`);
+  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+  return taipeiDateKey(date);
+}
+
+export function jarWeekActivityRange(days: number, reference = new Date()) {
+  const endKey = taipeiDateKey(reference);
+  const startKey = addTaipeiCalendarDays(endKey, -(days - 1));
+  return {
+    startKey,
+    endKey,
+    start: new Date(`${startKey}T00:00:00+08:00`),
+    end: new Date(`${endKey}T23:59:59.999+08:00`),
+  };
+}
+
+function formatTaipeiDateTime(value: Date): string {
+  const clock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TAIPEI_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(value);
+  return `${taipeiDateKey(value).replaceAll('-', '/')} ${clock}`;
+}
 
 /** 序號返航與換罐交付完成。兩者都寫進點數帳本，不使用會員累積次數。 */
 export const JAR_WEEK_ACTIVITY_SOURCE_TYPES = ['jar_code_redeem', 'refill_completed'] as const;
@@ -64,7 +104,7 @@ export function presentJarWeekActivity(
   entries: JarWeekActivityEntry[],
   reference = new Date(),
 ): JarWeekActivityView {
-  const range = taipeiLastNDaysRange(JAR_WEEK_ACTIVITY_DAYS, reference);
+  const range = jarWeekActivityRange(JAR_WEEK_ACTIVITY_DAYS, reference);
   const inWindow = entries.filter(
     (entry) =>
       isJarWeekActivitySource(entry.sourceType) &&
