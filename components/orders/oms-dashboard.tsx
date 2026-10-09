@@ -137,6 +137,8 @@ export async function OmsDashboard() {
       : `今天已完成 ${completedSteps} 個處理步驟。`;
 
   return <div className="space-y-6">
+    <DashboardJarWeekActivity />
+
     <section className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
