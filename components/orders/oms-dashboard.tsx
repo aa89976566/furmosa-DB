@@ -137,7 +137,7 @@ export async function OmsDashboard() {
     : waiting.length
       ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
       : `今天已完成 ${completedSteps} 個處理步驟。`;
-  const shipmentCount = orders.filter((order) => ['READY', 'FULFILLMENT_PENDING'].includes(order.omsStatus)).length;
+  const shipmentCount = orders.filter((order) => ['READY', 'FULFILLMENT_PENDING'].includes(order.omsStatus ?? '')).length;
   const attentionItems = [
     inventoryActionCount > 0 ? { href: '/inventory', label: `有 ${inventoryActionCount} 項商品庫存需處理`, tone: 'bg-warning' } : null,
     shipmentCount > 0 ? { href: '/shipments?status=pending', label: `有 ${shipmentCount} 筆訂單等待出貨`, tone: 'bg-primary' } : null,
