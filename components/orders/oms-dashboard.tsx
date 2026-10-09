@@ -9,6 +9,7 @@ import { getOrderWorkState } from '@/lib/orders/order-work-state';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
+import { DashboardJarWeekActivity } from '@/components/dashboard/dashboard-jar-week-activity';
 
 type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
@@ -78,6 +79,8 @@ export async function OmsDashboard() {
         <div className="h-full rounded-full bg-success transition-all" style={{ width: `${progress}%` }} />
       </div>
     </section>
+
+    <DashboardJarWeekActivity />
 
     <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
 
