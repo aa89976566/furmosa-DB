@@ -155,6 +155,8 @@ export async function OmsDashboard() {
       </div>
     </section>
 
+    <DashboardJarWeekActivity />
+
     {inventoryActionCount > 0 || reorderAlerts.incoming.length > 0 ? (
       <section className="overflow-hidden rounded-2xl border border-warning/30 bg-card">
         <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
