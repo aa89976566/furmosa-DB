@@ -34,10 +34,10 @@ export type NavGroup = {
 
 export const navGroups: NavGroup[] = [
   {
-    label: '每天工作',
+    label: '工作台',
     tone: 'operations',
     items: [
-      { href: '/dashboard', label: '首頁', icon: LayoutDashboard },
+      { href: '/dashboard', label: '我的工作台', icon: LayoutDashboard },
       {
         href: '/reviews',
         label: '待審核',
@@ -49,33 +49,36 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: '客戶與商品',
+    label: '商品與供應',
     tone: 'master',
     items: [
-      { href: '/customers', label: '客戶', icon: Users },
       { href: '/products', label: '產品', icon: Package },
       { href: '/inventory', label: '庫存', icon: Boxes },
+      { href: '/inventory/transactions', label: '庫存紀錄', icon: Boxes },
+      { href: '/restock-requests', label: '補貨', icon: Package },
+      { href: '/vendors', label: '供應商', icon: Building2 },
     ],
   },
   {
-    label: '店家與供應',
-    tone: 'orders',
+    label: '客戶與通路',
+    tone: 'supply',
     collapsible: true,
     items: [
+      { href: '/customers', label: '客戶', icon: Users },
       { href: '/merchants', label: '店家', icon: Store },
-      { href: '/restock-requests', label: '補貨', icon: Package },
-      { href: '/vendors', label: '廠商', icon: Building2 },
-      { href: '/inventory/transactions', label: '庫存紀錄', icon: Boxes },
+      { href: '/merchants/shipments', label: '店家出貨', icon: Truck },
+      { href: '/merchants/stock', label: '店家庫存', icon: Boxes },
     ],
   },
   {
-    label: '訂閱制',
+    label: '訂閱與計畫',
     tone: 'subscription',
     collapsible: true,
     items: [
       { href: '/subscriptions', label: '訂閱合約', icon: Repeat },
       { href: '/subscriptions/shipments', label: '出貨排程', icon: CalendarClock },
       { href: '/subscriptions/plans', label: '訂閱方案', icon: ListChecks },
+      { href: '/campaigns/jiba-two-piece', label: '雞霸活動', icon: Rocket },
     ],
   },
   {
