@@ -10,6 +10,9 @@ export function isNavItemActive(
   if (href === '/reviews') {
     return pathname === '/reviews' || pathname.startsWith('/campaigns/');
   }
+  if (href === '/mission') {
+    return pathname === '/mission' && !searchParams.has('plan');
+  }
 
   const qIdx = href.indexOf('?');
   const path = qIdx >= 0 ? href.slice(0, qIdx) : href;

@@ -12,6 +12,7 @@ import { ChevronDown } from 'lucide-react';
 /** 高頻工作台：允許 RSC prefetch，其餘關閉以免拖慢側欄 */
 const HOT_PREFETCH = new Set([
   '/dashboard',
+  '/mission',
   '/orders',
   '/reviews',
   '/shipments',
@@ -20,6 +21,11 @@ const HOT_PREFETCH = new Set([
   '/customers',
   '/products',
   '/inventory',
+  '/subscriptions',
+  '/settlements',
+  '/vendors',
+  '/restock-requests',
+  '/campaigns/jiba-two-piece',
 ]);
 
 export function SidebarNav({
