@@ -20,6 +20,12 @@ const HOT_PREFETCH = new Set([
   '/customers',
   '/products',
   '/inventory',
+  '/subscriptions',
+  '/subscriptions/shipments',
+  '/subscriptions/plans',
+  '/vendors',
+  '/restock-requests',
+  '/campaigns/jiba-two-piece',
 ]);
 
 export function SidebarNav({
