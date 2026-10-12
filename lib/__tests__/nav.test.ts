@@ -8,7 +8,7 @@ describe('HQ 側欄', () => {
     assert.deepEqual(
       navGroups[0]?.items.map((item) => ({ href: item.href, label: item.label })),
       [
-        { href: '/dashboard', label: '我的工作台' },
+        { href: '/dashboard?view=workbench', label: '我的工作台' },
         { href: '/reviews', label: '待審核' },
         { href: '/orders', label: '訂單' },
         { href: '/shipments?status=pending', label: '出貨' },

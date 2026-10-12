@@ -37,7 +37,7 @@ export const navGroups: NavGroup[] = [
     label: '工作台',
     tone: 'operations',
     items: [
-      { href: '/dashboard', label: '我的工作台', icon: LayoutDashboard },
+      { href: '/dashboard?view=workbench', label: '我的工作台', icon: LayoutDashboard },
       {
         href: '/reviews',
         label: '待審核',
