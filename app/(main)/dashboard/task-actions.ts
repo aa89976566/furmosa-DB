@@ -136,7 +136,7 @@ export async function addTaskAttachment(taskId: string, formData: FormData) {
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) throw new Error('請選擇圖片');
   if (!file.type.startsWith('image/')) throw new Error('目前只支援圖片');
-  if (file.size > 5 * 1024 * 1024) throw new Error('圖片不能超過 5 MB');
+  if (file.size > 50 * 1024 * 1024) throw new Error('圖片不能超過 50 MB');
   const data = Buffer.from(await file.arrayBuffer());
   await prisma.taskAttachment.create({
     data: {
