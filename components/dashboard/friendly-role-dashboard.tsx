@@ -140,12 +140,6 @@ export function FriendlyRoleDashboard({ initialRole = 'ming', initialTasks = [],
       </div>
     </section>
 
-    <section className="rounded-3xl border border-border/70 bg-card p-5 shadow-card sm:p-7">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-medium text-muted-foreground">公司進度</p><h2 className="mt-1 text-xl font-semibold text-navy">雞霸第一階段</h2></div><Link href="/mission" className="text-sm font-medium text-foreground underline-offset-4 hover:underline">查看共同進度</Link></div>
-      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><p className="text-4xl font-semibold text-emerald-800">620 <span className="text-lg font-normal text-muted-foreground">／ 1,000 片</span></p><p className="text-sm text-muted-foreground">本週速度 92 片</p></div>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[62%] rounded-full bg-emerald-700" /></div><p className="mt-2 text-right text-sm font-medium text-navy">62%</p>
-    </section>
-
     <section>
       <div className="mb-3"><p className="text-sm font-medium text-muted-foreground">快速查看</p><h2 className="mt-1 text-xl font-semibold text-navy">只看你現在需要的地方</h2></div>
       <div className="grid gap-3 md:grid-cols-3">{plan.priorities.map(({ title, href, icon: CardIcon }) => <Link key={title} href={href} className="flex min-h-20 items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-card transition-colors hover:border-foreground/30"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted"><CardIcon className="h-5 w-5 text-primary" /></span><span className="text-sm font-semibold text-navy">{title}</span></Link>)}</div>
