@@ -12,15 +12,15 @@ export default async function PurchaseReceiptsPage(props: { searchParams: Promis
   const { view } = await props.searchParams;
   const pending = view === 'pending';
   const [receipts, orders] = await Promise.all([prisma.purchaseReceipt.findMany({
-    include: { vendor: { select: { name: true } }, warehouse: { select: { name: true } }, items: { select: { productName: true }, orderBy: { lineNumber: 'asc' } }, _count: { select: { items: true, attachments: true } } },
+    include: { vendor: { select: { name: true } }, warehouse: { select: { name: true } }, items: { select: { product: { select: { name: true } } } }, _count: { select: { items: true, attachments: true } } },
     orderBy: [{ receiptDate: 'desc' }, { createdAt: 'desc' }], take: 200,
-  }), prisma.purchaseOrder.findMany({ where: { status: 'pending_receipt' }, include: { vendor: { select: { name: true } }, _count: { select: { items: true, attachments: true } }, items: { select: { productName: true, quantityGrams: true }, orderBy: { lineNumber: 'asc' } }, note: true }, orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'desc' }], take: 200 })]);
+  }), prisma.purchaseOrder.findMany({ where: { status: 'pending_receipt' }, include: { vendor: { select: { name: true } }, _count: { select: { items: true, attachments: true } }, items: { select: { productName: true, quantityGrams: true }, orderBy: { lineNumber: 'asc' } } }, orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'desc' }], take: 200 })]);
   return <>
     <PageHeader title="進貨紀錄" description="待收貨只保存訂購內容；已入庫才會更新庫存與平均成本" actions={<div className="flex gap-2"><Button variant="outline" asChild><Link href="/inventory/purchase-orders/new">新增採購單</Link></Button><Button asChild><Link href="/inventory/purchases/new">新增進貨</Link></Button></div>} />
     <div className="p-4 md:p-6"><nav className="mb-4 inline-flex rounded-xl bg-muted p-1"><Link href="/inventory/purchases" className={`rounded-lg px-4 py-2 text-sm font-medium ${!pending ? 'bg-card shadow-sm' : ''}`}>已入庫</Link><Link href="/inventory/purchases?view=pending" className={`rounded-lg px-4 py-2 text-sm font-medium ${pending ? 'bg-card shadow-sm' : ''}`}>待收貨</Link></nav><Card className="divide-y overflow-hidden">
       {pending ? (orders.length ? orders.map(order => {
         const isYizhaoOrder = order.note?.includes('億兆食品網路官方商店') && order.items.length === 1 && order.items[0]?.quantityGrams === 1000;
-        const productNames = isYizhaoOrder ? '烘烤豬耳朵切條 1000g' : order.items.map(item => item.productName).join('、');
+        const productNames = isYizhaoOrder ? '烘烤豬耳朵切條 1000g' : order.items.map(item => item.product.name).join('、');
         const merchantFromNote = order.note?.match(/實際供應商：([^；\n]+)/)?.[1]?.trim();
         const merchant = merchantFromNote ? `蝦皮｜${merchantFromNote}` : (order.vendor?.name ?? '未指定供應商');
         return <div key={order.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
