@@ -41,7 +41,7 @@ export async function CompanyProgressBar() {
   return (
     <Link
       href="/mission"
-      className="order-3 flex min-w-0 basis-full items-center gap-4 rounded-2xl border border-emerald-900/10 bg-emerald-50 px-4 py-2.5 text-emerald-950 shadow-sm transition-colors hover:bg-emerald-100 sm:order-none sm:min-w-0 sm:flex-1 sm:px-5 sm:py-3"
+      className="order-3 flex min-w-0 basis-full items-center gap-4 rounded-2xl border border-emerald-900/10 bg-emerald-50 px-4 py-2.5 text-emerald-950 shadow-sm transition-colors hover:bg-emerald-100 xl:order-none xl:min-w-0 xl:flex-1 xl:px-5 xl:py-3"
       aria-label={`查看雞霸已出貨進度：本月已出貨 ${progress.shipped} / ${TARGET} 片`}
     >
       <span className="min-w-0 shrink-0">
