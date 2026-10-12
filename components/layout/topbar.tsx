@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { GlobalSearch } from "@/components/layout/global-search";
+import { CompanyProgressBar } from "@/components/layout/company-progress-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { ReviewInboxBadge } from "@/components/reviews/review-inbox-badge";
 import { OrderNotificationBell } from "@/components/layout/order-notification-bell";
@@ -26,6 +27,7 @@ export async function Topbar() {
       >
         <GlobalSearch />
       </Suspense>
+      <CompanyProgressBar />
       <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
         <ThemeToggle />
         <OrderNotificationBell />
