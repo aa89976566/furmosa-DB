@@ -14,4 +14,4 @@ CREATE INDEX "task_attachments_task_id_created_at_idx" ON "task_attachments"("ta
 
 ALTER TABLE "task_attachments"
 ADD CONSTRAINT "task_attachments_task_id_fkey"
-FOREIGN KEY ("task_id") REFERENCES "tasks"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+FOREIGN KEY ("task_id") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
