@@ -20,7 +20,7 @@ export default async function PurchaseReceiptsPage(props: { searchParams: Promis
     <div className="p-4 md:p-6"><nav className="mb-4 inline-flex rounded-xl bg-muted p-1"><Link href="/inventory/purchases" className={`rounded-lg px-4 py-2 text-sm font-medium ${!pending ? 'bg-card shadow-sm' : ''}`}>已入庫</Link><Link href="/inventory/purchases?view=pending" className={`rounded-lg px-4 py-2 text-sm font-medium ${pending ? 'bg-card shadow-sm' : ''}`}>待收貨</Link></nav><Card className="divide-y overflow-hidden">
       {pending ? (orders.length ? orders.map(order => {
         const isYizhaoOrder = order.note?.includes('億兆食品網路官方商店') && order.items.length === 1 && order.items[0]?.quantityGrams === 1000;
-        const productNames = isYizhaoOrder ? '烘烤豬耳朵切條 1000g' : order.items.map(item => item.product.name).join('、');
+        const productNames = isYizhaoOrder ? '烘烤豬耳朵切條 1000g' : order.items.map(item => item.productName).join('、');
         const merchantFromNote = order.note?.match(/實際供應商：([^；\n]+)/)?.[1]?.trim();
         const merchant = merchantFromNote ? `蝦皮｜${merchantFromNote}` : (order.vendor?.name ?? '未指定供應商');
         return <div key={order.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -35,7 +35,7 @@ export default async function PurchaseReceiptsPage(props: { searchParams: Promis
           </div>
         </div>;
       }) : <p className="p-10 text-center text-muted-foreground">目前沒有待收貨採購單。</p>) : receipts.length ? receipts.map(r => <div key={r.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div className="min-w-0"><h2 className="break-words font-semibold">{r.items.map(item => item.productName).join('、') || '已入庫商品'}</h2><p className="mt-1 text-sm text-muted-foreground">{r.vendor?.name ?? '未指定供應商'} · {r.warehouse.name}</p><p className="mt-1 text-xs text-muted-foreground">{r.receiptNumber} · {r.receiptDate.toISOString().slice(0,10)} · {r._count.attachments} 份單據</p></div>
+        <div className="min-w-0"><h2 className="break-words font-semibold">{r.items.map(item => item.product.name).join('、') || '已入庫商品'}</h2><p className="mt-1 text-sm text-muted-foreground">{r.vendor?.name ?? '未指定供應商'} · {r.warehouse.name}</p><p className="mt-1 text-xs text-muted-foreground">{r.receiptNumber} · {r.receiptDate.toISOString().slice(0,10)} · {r._count.attachments} 份單據</p></div>
         <div className="flex items-center justify-between gap-3 md:flex-col md:items-end"><strong>{formatCurrency(Number(r.totalAmount))}</strong><Button size="sm" variant="outline" asChild><Link href={`/inventory/purchases/${r.id}`}>查看入庫明細</Link></Button></div>
       </div>) : <p className="p-10 text-center text-muted-foreground">尚無進貨紀錄。</p>}
     </Card><p className="mt-3 text-xs text-muted-foreground">顯示時間：{formatDateTime(new Date())}</p></div>
