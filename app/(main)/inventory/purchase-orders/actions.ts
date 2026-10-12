@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 'use server';
+import { createHash } from 'node:crypto';
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
