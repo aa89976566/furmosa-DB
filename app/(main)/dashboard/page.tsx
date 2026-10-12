@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { OmsDashboard } from '@/components/orders/oms-dashboard';
-import { getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
+import { getTaskAssignees, getTodayTasksForDashboard } from '@/lib/dashboard-tasks';
 import { getDashboardData } from '@/features/dashboard/queries';
 import { DashboardBodyFallback, DashboardBodySection, DashboardTasksFallback } from './dashboard-stream';
 
@@ -19,9 +19,9 @@ export default async function DashboardPage(props: DashboardPageProps) {
   const searchParams = await props.searchParams;
   const insights = searchParams.view === 'insights';
   const workbench = process.env.HQ_WORKBENCH_PREVIEW === 'true' && !insights;
-  const [todayTasks, dashboardData] = workbench
-    ? await Promise.all([getTodayTasksForDashboard(), getDashboardData()])
-    : [[], null];
+  const [todayTasks, dashboardData, assignees] = workbench
+    ? await Promise.all([getTodayTasksForDashboard(), getDashboardData(), getTaskAssignees()])
+    : [[], null, []];
   return <>
     <PageHeader tone="overview" title={workbench ? '角色工作台預覽' : '營運首頁'}
       description={insights ? '看懂近期營運變化，需要時再深入完整報表。' : workbench ? '用自己的工作視角開始今天，資料仍來自同一套 HQ。' : '先完成今天最重要的工作，系統會告訴你下一步。'}
@@ -34,7 +34,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
       {insights
         ? <Suspense fallback={<DashboardBodyFallback />}><DashboardBodySection /></Suspense>
         : workbench
-          ? <><RoleSwitcher activeRole={searchParams.role} /><WorkbenchEntry initialRole={searchParams.role} initialTasks={todayTasks} kpis={dashboardData?.kpis ?? null} /></>
+          ? <><RoleSwitcher activeRole={searchParams.role} /><WorkbenchEntry initialRole={searchParams.role} initialTasks={todayTasks} assignees={assignees} kpis={dashboardData?.kpis ?? null} /></>
           : <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>}
     </main>
   </>;
