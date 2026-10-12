@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 'use server';
 
 import { redirect } from 'next/navigation';
@@ -88,6 +89,36 @@ export async function confirmPurchaseOrderReceipt(formData: FormData) {
     destination = `/inventory/purchases/${result.receipt.id}?received=1`;
   } catch (error) {
     destination = `/inventory/purchase-orders/${id}?error=${encodeURIComponent(safeError(error, '確認實收失敗，庫存沒有變更'))}`;
+  }
+  redirect(destination);
+}
+
+export async function uploadPurchaseOrderAttachment(formData: FormData) {
+  const id = String(formData.get('purchaseOrderId') ?? '').trim();
+  let destination = `/inventory/purchase-orders/${id}`;
+  try {
+    await requireInventoryUser();
+    const order = await prisma.purchaseOrder.findUnique({ where: { id }, select: { id: true, status: true, _count: { select: { attachments: true } } } });
+    if (!order) throw new Error('找不到採購單');
+    if (order.status !== 'pending_receipt') throw new Error('僅待收貨採購單可補上單據');
+    const files = formData.getAll('attachments').filter((x): x is File => x instanceof File && x.size > 0);
+    if (!files.length) throw new Error('請選擇單據照片');
+    if (order._count.attachments + files.length > 3) throw new Error('每筆採購單最多 3 份單據');
+    const attachments = await Promise.all(files.map(async (file) => {
+      if (!ALLOWED_TYPES.has(file.type) || file.size > MAX_FILE_BYTES) throw new Error('單據只接受 5MB 內的 JPG、PNG、WebP 或 PDF');
+      const data = Buffer.from(await file.arrayBuffer());
+      if (!signatureOk(file.type, data)) throw new Error('單據檔案內容與格式不符');
+      return { purchaseOrderId: id, fileName: file.name.replace(/[\u0000-\u001f\u007f]/g, '').slice(0,180), mimeType: file.type, sizeBytes: data.byteLength, sha256: createHash('sha256').update(data).digest('hex'), data };
+    }));
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.purchaseOrder.findUnique({ where: { id }, select: { status: true, _count: { select: { attachments: true } } } });
+      if (!current || current.status !== 'pending_receipt' || current._count.attachments + attachments.length > 3) throw new Error('採購單已變更，請重新整理');
+      await tx.purchaseOrderAttachment.createMany({ data: attachments });
+    });
+    revalidatePath(destination);
+    destination += '?uploaded=1';
+  } catch (error) {
+    destination += `?error=${encodeURIComponent(safeError(error, '上傳單據失敗'))}`;
   }
   redirect(destination);
 }
