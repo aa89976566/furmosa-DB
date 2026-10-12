@@ -25,7 +25,7 @@ export default async function InventoryPage(props: { searchParams: Promise<{ q?:
     }),
     prisma.purchaseOrder.findMany({
       where: { status: 'pending_receipt' },
-      select: { id: true, remindFromDate: true, totalAmount: true, vendor: { select: { name: true } }, items: { select: { quantityGrams: true } }, _count: { select: { items: true } } },
+      select: { id: true, orderNumber: true, remindFromDate: true, totalAmount: true, vendor: { select: { name: true } }, items: { select: { quantityGrams: true } }, _count: { select: { items: true } } },
       orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'asc' }],
       take: 20,
     }),
@@ -65,6 +65,20 @@ export default async function InventoryPage(props: { searchParams: Promise<{ q?:
             <Link href="/inventory/purchases?view=pending">查看待收貨</Link>
           </Button>
         </div>
+      ) : null}
+
+      {pendingOrders.length > 0 ? (
+        <section aria-label="待收貨採購單" className="rounded-xl border border-border/70 bg-card">
+          <div className="border-b px-4 py-3"><h2 className="font-semibold">待收貨採購單</h2><p className="mt-1 text-xs text-muted-foreground">實際收到商品後，點選「收到商品」並核對全部品項，確認後才會增加庫存及更新成本。</p></div>
+          <div className="divide-y">
+            {pendingOrders.map((order) => (
+              <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div><p className="text-sm font-semibold">{order.vendor?.name ?? '未指定供應商'} <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">{order.orderNumber}</span></p><p className="mt-1 text-xs text-muted-foreground">{order._count.items} 項 · {formatNumber(order.items.reduce((sum, item) => sum + item.quantityGrams, 0))} g · {formatCurrency(Number(order.totalAmount))} · {formatTaipeiCalendarDate(order.remindFromDate)} 起提醒</p></div>
+                <Button asChild size="sm" variant="outline"><Link href={`/inventory/purchase-orders/${order.id}`}>收到商品</Link></Button>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       <div className="space-y-3">
