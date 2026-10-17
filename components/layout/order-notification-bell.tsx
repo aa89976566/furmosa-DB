@@ -95,6 +95,8 @@ export function OrderNotificationBell() {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [recentOrders, setRecentOrders] = useState<NewOrder[]>([]);
   const [statusText, setStatusText] = useState('');
+  const [testStatus, setTestStatus] = useState('');
+  const [testing, setTesting] = useState(false);
   const pollingRef = useRef<number | null>(null);
 
   const poll = useCallback(async () => {
@@ -232,6 +234,32 @@ export function OrderNotificationBell() {
     stopPolling();
   }
 
+  async function sendTestNotification() {
+    setTesting(true);
+    setTestStatus('');
+    try {
+      const response = await fetch('/api/notifications/test', { method: 'POST' });
+      const result = (await response.json()) as {
+        ok?: boolean;
+        delivered?: number;
+        error?: string;
+      };
+      if (!response.ok || !result.ok) {
+        setTestStatus(result.error ?? '測試通知傳送失敗，請稍後再試。');
+        return;
+      }
+      setTestStatus(
+        result.delivered && result.delivered > 1
+          ? `已送到 ${result.delivered} 個裝置`
+          : '測試通知已送出，請查看手機。',
+      );
+    } catch {
+      setTestStatus('網路連線失敗，請稍後再試。');
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -261,10 +289,26 @@ export function OrderNotificationBell() {
         {permission === 'unsupported' ? (
           <p className="px-2 py-2 text-xs text-muted-foreground">此瀏覽器不支援通知。</p>
         ) : enabled ? (
-          <DropdownMenuItem onClick={() => void disableNotifications()}>關閉通知</DropdownMenuItem>
+          <>
+            <DropdownMenuItem
+              disabled={testing}
+              onSelect={(event) => {
+                event.preventDefault();
+                void sendTestNotification();
+              }}
+            >
+              {testing ? '正在傳送測試通知…' : '傳送測試通知'}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void disableNotifications()}>關閉通知</DropdownMenuItem>
+          </>
         ) : (
           <DropdownMenuItem onClick={() => void enableNotifications()}>開啟通知</DropdownMenuItem>
         )}
+        {testStatus ? (
+          <p className="px-2 pb-2 text-[11px] leading-relaxed text-primary" role="status">
+            {testStatus}
+          </p>
+        ) : null}
         <DropdownMenuSeparator />
         <div className="space-y-1 px-2 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
           <p className="font-medium text-foreground">主畫面 App 使用方式</p>
