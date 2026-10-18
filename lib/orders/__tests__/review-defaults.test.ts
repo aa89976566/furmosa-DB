@@ -101,6 +101,25 @@ test('舊審核只補空白欄位，不覆蓋人工內容', () => {
   assert.equal(result.draft.giftsConfirmed, true);
 });
 
+test('既有待審核草稿會補門市店號並移除地址中的門市片段', () => {
+  const saved = reviewDraft({
+    lines: [{ productId: 'manual', temperature: 'ambient' }], method: 'convenience',
+    temperature: 'ambient', recipient: '測試客戶', phone: '0900000000',
+    address: '709006 台南市 台南市 安南區長和一街39號(超商) 254007 長和門市(UNIMARTC2C)',
+    storeId: '', storeName: '長和門市',
+  });
+  const suggested = reviewDraft({
+    ...saved,
+    address: '709006 台南市 台南市 安南區長和一街39號(超商)',
+    storeId: '254007',
+  });
+  const result = fillReviewDraftBlanks(saved, suggested);
+  assert.equal(result.applied, true);
+  assert.equal(result.draft.storeId, '254007');
+  assert.equal(result.draft.storeName, '長和門市');
+  assert.equal(result.draft.address, '709006 台南市 台南市 安南區長和一街39號(超商)');
+});
+
 test('完整人工審核不套用新建議', () => {
   const saved = reviewDraft({ lines: [{ productId: 'manual', temperature: 'frozen' }], method: 'home',
     temperature: 'frozen', recipient: '人工', phone: '0900000000', address: '人工地址',
