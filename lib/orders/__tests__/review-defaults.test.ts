@@ -36,6 +36,23 @@ test('7-11 門市資料由允許的 note attributes 帶入', () => {
   });
 });
 
+test('Ako 門市字串從地址拆成店號與名稱，履約地址不重複包含門市', () => {
+  const source = snapshot({
+    shipping_lines: [{ code: '711_PICKUP', title: '7-11 取貨常溫' }],
+    shipping_address: {
+      name: '測試客戶', phone: '0900000000', zip: '709006', province: '台南市', city: '台南市',
+      address1: '安南區長和一街39號(超商)', address2: '254007 長和門市(UNIMARTC2C)',
+    },
+  });
+  assert.deepEqual(deliveryDefaults(source), {
+    method: 'convenience', temperature: 'ambient', storeId: '254007', storeName: '長和門市',
+  });
+  const draft = defaultReviewDraft(source, []);
+  assert.equal(draft.storeId, '254007');
+  assert.equal(draft.storeName, '長和門市');
+  assert.equal(draft.address, '709006 台南市 台南市 安南區長和一街39號(超商)');
+});
+
 test('SKU 無符合或多筆符合時不猜商品', () => {
   const source = snapshot();
   assert.equal(defaultReviewDraft(source, []).lines[0]?.productId, '');
