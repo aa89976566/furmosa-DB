@@ -190,14 +190,18 @@ export function fillReviewDraftBlanks(saved: ReviewDraft, suggested: ReviewDraft
       temperature: pick(line.temperature, fallback.temperature),
     };
   });
+  const method = pick(saved.method, suggested.method);
+  const sourceAddress = pick(saved.address, suggested.address);
+  const address = fulfillmentAddress(sourceAddress, method);
+  if (address !== sourceAddress) applied = true;
   const draft = {
     ...saved,
     lines,
-    method: pick(saved.method, suggested.method),
+    method,
     temperature: pick(saved.temperature, suggested.temperature),
     recipient: pick(saved.recipient, suggested.recipient),
     phone: pick(saved.phone, suggested.phone),
-    address: pick(saved.address, suggested.address),
+    address,
     storeId: pick(saved.storeId, suggested.storeId),
     storeName: pick(saved.storeName, suggested.storeName),
   };
