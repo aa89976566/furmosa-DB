@@ -416,6 +416,34 @@ describe('Shopify webhook HTTP boundary', () => {
     assert.equal(calls, 0);
     assert.equal((await handler(request())).status, 200); assert.equal(calls, 1);
   });
+  it('acknowledges authenticated Shopify test deliveries without creating an order', async () => {
+    let calls = 0;
+    const handler = shopifyWebhookHandler('orders/create', { secret: () => secret, domain: () => 'test.myshopify.com',
+      persist: async () => { calls++; return { created: true, disposition: 'saved' }; } });
+    const malformedTestBody = '{shopify-admin-test-payload';
+    const testRequest = new Request('https://example.test/api/shopify/webhooks/orders-create', {
+      method: 'POST', body: malformedTestBody,
+      headers: {
+        'x-shopify-hmac-sha256': createHmac('sha256', secret).update(malformedTestBody).digest('base64'),
+        'x-shopify-topic': 'orders/create',
+        'x-shopify-shop-domain': 'test.myshopify.com',
+        'x-shopify-test': 'true',
+      },
+    });
+    const response = await handler(testRequest);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, test: true, disposition: 'test_acknowledged' });
+    assert.equal(calls, 0);
+  });
+  it('does not let a Shopify test header bypass signature, topic, or shop validation', async () => {
+    let calls = 0;
+    const handler = shopifyWebhookHandler('orders/create', { secret: () => secret, domain: () => 'test.myshopify.com',
+      persist: async () => { calls++; return { created: true, disposition: 'saved' }; } });
+    assert.equal((await handler(request({ 'x-shopify-test': 'true', 'x-shopify-hmac-sha256': 'bad' }))).status, 401);
+    assert.equal((await handler(request({ 'x-shopify-test': 'true', 'x-shopify-topic': 'orders/paid' }))).status, 400);
+    assert.equal((await handler(request({ 'x-shopify-test': 'true', 'x-shopify-shop-domain': 'other.myshopify.com' }))).status, 403);
+    assert.equal(calls, 0);
+  });
   it('returns 503 without configuration or failed persistence, without leaking errors', async () => {
     const handler = shopifyWebhookHandler('orders/create', { secret: () => secret, domain: () => 'test.myshopify.com',
       persist: async () => { throw new Error('SECRET_DATABASE_URL'); } });

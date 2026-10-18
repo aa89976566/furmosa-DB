@@ -24,6 +24,10 @@ export function shopifyWebhookHandler(topic: ShopifyOrderTopic, dependencies: {
     }
     const shopDomain = request.headers.get('x-shopify-shop-domain')?.trim().toLowerCase() ?? '';
     if (shopDomain !== allowedDomain) return Response.json({ error: 'INVALID_SHOP' }, { status: 403 });
+    const isShopifyTest = request.headers.get('x-shopify-test')?.trim().toLowerCase() === 'true';
+    if (isShopifyTest) {
+      return Response.json({ ok: true, test: true, disposition: 'test_acknowledged' });
+    }
     let snapshot;
     try { snapshot = shopifySnapshot(JSON.parse(body)); }
     catch { return Response.json({ error: 'INVALID_ORDER_PAYLOAD' }, { status: 400 }); }
