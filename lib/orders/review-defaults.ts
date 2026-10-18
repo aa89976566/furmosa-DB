@@ -28,6 +28,25 @@ const MAX_SOURCE_QUANTITY = 2147483647;
 
 const containsAny = (value: string, words: string[]) => words.some(word => value.includes(word));
 
+const embeddedPickupPattern = /(?:^|\s)(\d{6})\s+([^\s()]{1,40}門市)(?:\s*\([^)]*\))?(?=\s|$)/;
+
+function embeddedPickup(snapshot: Snapshot) {
+  const shipping = record(snapshot.order.shipping_address);
+  const candidates = ['company', 'address1', 'address2']
+    .map(key => string(shipping[key]))
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    const match = candidate.match(embeddedPickupPattern);
+    if (match) return { storeId: match[1] ?? '', storeName: match[2]?.trim() ?? '' };
+  }
+  return { storeId: '', storeName: '' };
+}
+
+function fulfillmentAddress(address: string, method: string) {
+  if (method !== 'convenience') return address;
+  return address.replace(embeddedPickupPattern, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function sourceQuantityLabel(quantity: unknown): string {
   const valid = typeof quantity === 'number'
     && Number.isSafeInteger(quantity)
@@ -124,11 +143,12 @@ export function deliveryDefaults(snapshot: Snapshot) {
     }
   }
   const first = (keys: string[]) => keys.map(key => attributes.get(key)).find(Boolean) ?? '';
+  const embedded = embeddedPickup(snapshot);
   return {
     method,
     temperature,
-    storeId: first(['取貨門市店號', '門市店號', 'cvs_store_id']),
-    storeName: first(['取貨門市名稱', '門市名稱', 'cvs_store_name']),
+    storeId: first(['取貨門市店號', '門市店號', 'cvs_store_id']) || embedded.storeId,
+    storeName: first(['取貨門市名稱', '門市名稱', 'cvs_store_name']) || embedded.storeName,
   };
 }
 
@@ -148,7 +168,7 @@ export function defaultReviewDraft(snapshot: Snapshot, products: MappingProduct[
     temperature,
     recipient: view.recipient,
     phone: view.phone,
-    address: view.address,
+    address: fulfillmentAddress(view.address, delivery.method),
     storeId: delivery.storeId,
     storeName: delivery.storeName,
   });
