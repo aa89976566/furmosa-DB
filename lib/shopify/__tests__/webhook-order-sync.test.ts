@@ -77,6 +77,7 @@ async function post(
   return processShopifyWebhook(requestFor(topic, payload, webhookId), topic, {
     db: store,
     secret: SECRET,
+    expectedShopDomain: SHOP,
     sleep,
   });
 }

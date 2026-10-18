@@ -72,7 +72,11 @@ describe('Shopify webhook ingress verification', () => {
       },
       body: raw,
     });
-    const result = await processShopifyWebhook(req, 'orders/create', { db: store, secret: SECRET });
+    const result = await processShopifyWebhook(req, 'orders/create', {
+      db: store,
+      secret: SECRET,
+      expectedShopDomain: SHOP,
+    });
     assert.equal(result.status, 401);
     assert.equal(store.createAttempts, 0);
   });
@@ -83,12 +87,13 @@ describe('Shopify webhook ingress verification', () => {
     const missing = await processShopifyWebhook(
       requestFor('orders/create', raw, { 'x-shopify-topic': '' }),
       'orders/create',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(missing.status, 400);
     const mismatch = await processShopifyWebhook(requestFor('orders/paid', raw), 'orders/create', {
       db: store,
       secret: SECRET,
+      expectedShopDomain: SHOP,
     });
     assert.equal(mismatch.status, 400);
   });
@@ -99,7 +104,7 @@ describe('Shopify webhook ingress verification', () => {
     const missing = await processShopifyWebhook(
       requestFor('orders/create', raw, { 'x-shopify-shop-domain': ' ' }),
       'orders/create',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(missing.status, 403);
     const mismatch = await processShopifyWebhook(requestFor('orders/create', raw), 'orders/create', {
@@ -122,6 +127,7 @@ describe('Shopify webhook ingress verification', () => {
     const result = await processShopifyWebhook(requestFor('orders/create', raw), 'orders/create', {
       db: store,
       secret: SECRET,
+      expectedShopDomain: SHOP,
     });
     assert.equal(result.status, 400);
     assert.equal(store.createAttempts, 0);
