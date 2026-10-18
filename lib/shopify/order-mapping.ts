@@ -110,14 +110,21 @@ function shippingText(order: ShopifyPaidOrder): string {
     .join(' ');
 }
 
-/** Ako writes the selected store as e.g. `211594 石碇門市(UNIMARTC2C)`. */
+/** Ako writes the selected store as e.g. `211594 石碇門市(UNIMARTC2C)`.
+ * Some Shopify payloads append it to address1 rather than address2. */
 function akoPickupFromAddress(order: ShopifyPaidOrder) {
-  const address2 = cleanShopifyText(order.shipping_address?.address2);
-  const match = address2?.match(/(?:^|\s)(\d{6})\s+(.+?)(?:\s*\([^)]*\))?$/);
-  return {
-    storeId: match?.[1] ?? null,
-    storeName: cleanShopifyText(match?.[2]),
-  };
+  const candidates = [
+    order.shipping_address?.company,
+    order.shipping_address?.address1,
+    order.shipping_address?.address2,
+  ].map(cleanShopifyText).filter((value): value is string => Boolean(value));
+  for (const candidate of candidates) {
+    const match = candidate.match(/(?:^|\s)(\d{6})\s+([^\s()]{1,40}門市)(?:\s*\([^)]*\))?(?=\s|$)/);
+    if (match) {
+      return { storeId: match[1] ?? null, storeName: cleanShopifyText(match[2]) };
+    }
+  }
+  return { storeId: null, storeName: null };
 }
 
 function pickupDistrict(order: ShopifyPaidOrder): string | null {
