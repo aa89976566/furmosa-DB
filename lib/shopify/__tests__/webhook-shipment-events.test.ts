@@ -109,7 +109,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
     const cancelled = await processShopifyWebhook(
       requestFor('orders/cancelled', { id: 2001, updated_at: '2026-09-01T06:00:00Z' }, 'wh-cancel-active'),
       'orders/cancelled',
-      { db: cancelStore, secret: SECRET },
+      { db: cancelStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(cancelled.status, 200);
     assert.equal(cancelled.sync?.updated, true);
@@ -132,7 +132,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-no-resurrect',
       ),
       'fulfillments/create',
-      { db: cancelStore, secret: SECRET },
+      { db: cancelStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(resurrect.status, 200);
     assert.equal(resurrect.body.decision, 'ignored_terminal');
@@ -155,7 +155,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-pack-active',
       ),
       'fulfillments/update',
-      { db: fulfillStore, secret: SECRET },
+      { db: fulfillStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(packed.status, 200);
     assert.equal(packed.sync?.updated, true);
@@ -176,7 +176,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-ship-active',
       ),
       'fulfillments/create',
-      { db: fulfillStore, secret: SECRET },
+      { db: fulfillStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(shipped.status, 200);
     const shippedOrder = fulfillStore.getOrder(SHOP, '2001');
@@ -196,7 +196,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-regress-active',
       ),
       'fulfillments/update',
-      { db: fulfillStore, secret: SECRET },
+      { db: fulfillStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(regress.status, 200);
     assert.equal(regress.sync?.ignored, true);
@@ -215,7 +215,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
       const result = await processShopifyWebhook(
         requestFor('orders/cancelled', { id: 2001, updated_at: '2026-09-01T06:00:00Z' }, `wh-cancel-${allowed}`),
         'orders/cancelled',
-        { db: store, secret: SECRET },
+        { db: store, secret: SECRET, expectedShopDomain: SHOP },
       );
       assert.equal(result.status, 200);
       assert.equal(store.getOrder(SHOP, '2001')?.shipments[0]?.status, 'cancelled');
@@ -229,7 +229,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
       const result = await processShopifyWebhook(
         requestFor('orders/cancelled', { id: 2001, updated_at: '2026-09-01T06:00:00Z' }, `wh-cancel-${blocked}`),
         'orders/cancelled',
-        { db: store, secret: SECRET },
+        { db: store, secret: SECRET, expectedShopDomain: SHOP },
       );
       assert.equal(result.status, 200);
       assert.equal(result.sync?.ignored, true);
@@ -240,7 +240,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
     const noShipment = await processShopifyWebhook(
       requestFor('orders/cancelled', { id: 2001, updated_at: '2026-09-01T06:00:00Z' }, 'wh-cancel-missing'),
       'orders/cancelled',
-      { db: missing, secret: SECRET },
+      { db: missing, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(noShipment.status, 200);
     assert.equal(noShipment.body.decision, 'ignored_missing_order');
@@ -264,7 +264,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-pack',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(packed.status, 200);
     assert.equal(store.getOrder(SHOP, '2001')?.shipments[0]?.status, 'packed');
@@ -282,7 +282,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-ship',
       ),
       'fulfillments/create',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(shipped.status, 200);
     assert.equal(store.getOrder(SHOP, '2001')?.shipments[0]?.status, 'shipped');
@@ -300,7 +300,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-deliv',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(delivered.status, 200);
     assert.equal(store.getOrder(SHOP, '2001')?.shipments[0]?.status, 'delivered');
@@ -318,7 +318,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-regress',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(regress.status, 200);
     assert.equal(regress.sync?.ignored, true);
@@ -337,7 +337,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-ff-stale',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(stale.status, 200);
     assert.equal(stale.body.decision, 'ignored_stale');
@@ -355,7 +355,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-deliv',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(duplicate.sync?.decision, 'ignored_duplicate');
 
@@ -368,7 +368,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-term',
       ),
       'fulfillments/create',
-      { db: cancelledStore, secret: SECRET },
+      { db: cancelledStore, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(terminal.body.decision, 'ignored_terminal');
     assert.equal(cancelledStore.getOrder(SHOP, '2001')?.shipments[0]?.status, 'cancelled');
@@ -380,7 +380,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-unknown',
       ),
       'fulfillments/update',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(unknown.body.decision, 'ignored_unknown_status');
 
@@ -393,7 +393,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-miss-ship',
       ),
       'fulfillments/create',
-      { db: missing, secret: SECRET },
+      { db: missing, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(noShipment.body.decision, 'ignored_missing_shipment');
     assert.equal(missing.shipmentCreates, 0);
@@ -415,7 +415,7 @@ describe('Shopify cancellation, fulfillment and refund webhooks', () => {
         'wh-refund',
       ),
       'refunds/create',
-      { db: store, secret: SECRET },
+      { db: store, secret: SECRET, expectedShopDomain: SHOP },
     );
     assert.equal(result.status, 200);
     assert.equal(result.sync?.ignored, true);
