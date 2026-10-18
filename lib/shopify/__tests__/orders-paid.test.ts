@@ -77,6 +77,27 @@ describe('Shopify orders/paid webhook', () => {
     assert.equal(hasCompleteShopifyPickupInfo(order), true);
   });
 
+  it('reads Ako pickup store id and name when Shopify appends them to an address field', () => {
+    const order: ShopifyPaidOrder = {
+      ...paidOrder,
+      shipping_lines: [{ title: '7-11 取貨（店到店）' }],
+      shipping_address: {
+        zip: '709006',
+        province: '台南市',
+        city: '台南市',
+        address1: '安南區長和一街39號(超商) 254007 長和門市(UNIMARTC2C)',
+      },
+    };
+    assert.deepEqual(shopifyPickupInfo(order), {
+      brand: '711',
+      city: '台南市',
+      district: '安南區',
+      storeName: '長和門市',
+      storeId: '254007',
+    });
+    assert.equal(hasCompleteShopifyPickupInfo(order), true);
+  });
+
   it('keeps pickup details pending when required location fields are missing', () => {
     const order: ShopifyPaidOrder = {
       ...paidOrder,
