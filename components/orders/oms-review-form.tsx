@@ -39,7 +39,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
 
   useEffect(() => {
     if (!state.ok || !state.action) return;
-    if (state.action === 'ship' && state.next?.href?.startsWith('/shipments')) {
+    if (state.next?.href?.startsWith('/shipments')) {
       router.push(state.next.href);
       return;
     }
