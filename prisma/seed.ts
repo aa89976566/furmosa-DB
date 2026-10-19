@@ -262,7 +262,8 @@ async function main() {
       },
     });
   }
-  const products = await prisma.product.findMany();
+  // 商品 SKU-00017 尚未完成實際單位確認；示範訂單不可使用。
+  const products = (await prisma.product.findMany()).filter((product) => product.sku !== 'SKU-00017');
 
   // ===== Inventory =====
   let invSeq = 1;
