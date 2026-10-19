@@ -22,8 +22,8 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   });
   let result;
   try {
-    // runReview owns the whole transition. For a paid source-only OMS order, approve is
-    // atomic: REVIEW -> READY -> shipment -> FULFILLMENT_PENDING in one transaction.
+    // Confirmation and shipment creation are separate steps. Approval persists REVIEW -> READY;
+    // inventory is checked only when the user explicitly creates the HQ shipment.
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
       sourceHash: field('sourceHash'), action, draft, sourceOnly: true });
   } catch (error) {
