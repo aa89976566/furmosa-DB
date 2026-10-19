@@ -69,6 +69,7 @@ export type ShipmentQueueRow = {
     productName: string;
     weightGrams: number | null;
     quantity: number;
+    notes?: string | null;
   }>;
   subscriptionShipment: {
     shipmentNo: string;
@@ -183,9 +184,11 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   const productLines =
     isSub && planContents.length > 0
       ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
-      : s.items.map((item) =>
-          `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`,
-        );
+      : s.items.map((item) => {
+          const label = `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`;
+          const contents = item.notes?.trim();
+          return contents ? `${label}（揀貨內容：${contents}）` : label;
+        });
   const itemTotal = isSub ? productLines.length : totalQty;
 
   return {
