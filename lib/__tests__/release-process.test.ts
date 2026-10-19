@@ -93,12 +93,12 @@ test('standard plan is bounded to exact non-destructive PR migrations', () => {
   assert.doesNotMatch(runner, /prisma migrate deploy/);
 });
 
-test('Vercel skips main and builds PR branches', () => {
+test('Vercel builds main and skips non-main branches', () => {
   const script = 'scripts/vercel-ignore-build.mjs';
   const main = spawnSync(process.execPath, [script], { env: { ...process.env, VERCEL_GIT_COMMIT_REF: 'main' } });
   const preview = spawnSync(process.execPath, [script], { env: { ...process.env, VERCEL_GIT_COMMIT_REF: 'feature/test' } });
-  assert.equal(main.status, 0);
-  assert.equal(preview.status, 1);
+  assert.equal(main.status, 1);
+  assert.equal(preview.status, 0);
 });
 
 test('shared deployment contract stays valid for every agent and release', () => {
