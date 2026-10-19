@@ -31,12 +31,24 @@ const VALID_STATUSES = ['active', 'draft', 'inactive'] as const;
 const VALID_TEMPERATURES = ['ambient', 'chilled', 'frozen'] as const;
 
 async function nextProductId() {
-  const last = await prisma.product.findFirst({
+  const products = await prisma.product.findMany({
     where: { productId: { startsWith: 'PROD-' } },
-    orderBy: { productId: 'desc' },
+    select: { productId: true },
   });
-  const seq = last ? Number(last.productId.slice('PROD-'.length)) + 1 : 1;
-  return `PROD-${pad(seq, 4)}`;
+  const highestSeq = products.reduce((highest, product) => {
+    const seq = Number(product.productId.slice('PROD-'.length));
+    return Number.isSafeInteger(seq) ? Math.max(highest, seq) : highest;
+  }, 0);
+  return `PROD-${pad(highestSeq + 1, 4)}`;
+}
+
+function isProductIdUniqueConflict(error: unknown): boolean {
+  return (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && (error as { code: unknown }).code === 'P2002'
+  );
 }
 
 async function nextSku(productSeq: number) {
@@ -89,32 +101,40 @@ export async function createProduct(formData: FormData) {
   const cost = toNumber(formData.get('cost'));
   if (cost < 0) throw new Error('成本不可為負數');
 
-  const productId = await nextProductId();
-  const seq = Number(productId.slice('PROD-'.length));
-  const sku = await nextSku(seq);
-
   const vendorId = toNullableString(formData.get('vendorId'));
   const commercialTerms = parseProductCommercialTerms(formData, 'STANDARD');
 
-  const created = await prisma.product.create({
-    data: {
-      productId,
-      sku,
-      name,
-      category: parseCategory(formData.get('category')),
-      style: toNullableString(formData.get('style')),
-      unit: String(formData.get('unit') ?? '件').trim() || '件',
-      price,
-      cost,
-      reorderPoint: Math.max(0, toInt(formData.get('reorderPoint'), 10)),
-      status: parseStatus(formData.get('status')),
-      vendorId,
-      notes: toNullableString(formData.get('notes')),
-      defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
-      ...commercialTerms,
-      commercialTermsVersion: 1,
-    },
-  });
+  let created: { id: string } | null = null;
+  for (let attempt = 0; attempt < 3 && created == null; attempt += 1) {
+    const productId = await nextProductId();
+    const seq = Number(productId.slice('PROD-'.length));
+    const sku = await nextSku(seq);
+
+    try {
+      created = await prisma.product.create({
+        data: {
+          productId,
+          sku,
+          name,
+          category: parseCategory(formData.get('category')),
+          style: toNullableString(formData.get('style')),
+          unit: String(formData.get('unit') ?? '件').trim() || '件',
+          price,
+          cost,
+          reorderPoint: Math.max(0, toInt(formData.get('reorderPoint'), 10)),
+          status: parseStatus(formData.get('status')),
+          vendorId,
+          notes: toNullableString(formData.get('notes')),
+          defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
+          ...commercialTerms,
+          commercialTermsVersion: 1,
+        },
+      });
+    } catch (error) {
+      if (!isProductIdUniqueConflict(error) || attempt === 2) throw error;
+    }
+  }
+  if (created == null) throw new Error('無法產生可用的商品編號');
 
   revalidatePath('/products');
   revalidatePath('/vendors');
