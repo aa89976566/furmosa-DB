@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { toTierCatalog } from '@/lib/shopify/match-line-item';
+import { matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
 import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
@@ -31,12 +33,20 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
 
   const audit = await prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
-  const sourceDraft = shopifySourceDraft(source, [], saved?.duplicateConfirmed ?? false);
+  const products = await prisma.product.findMany({
+    where: { status: 'active' },
+    select: {
+      id: true, name: true, sku: true, sourceSku: true, status: true, unit: true, defaultTemperature: true,
+      priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, price: true, sku: true, shopifySku: true, shopifyVariantId: true, status: true, notes: true } },
+    },
+  });
+  const sourceDraft = shopifySourceDraft(source, products, saved?.duplicateConfirmed ?? false);
   const draft = saved
     ? mergeShopifyFulfillmentDraft(sourceDraft, saved)
     : mergeShopifyFulfillmentDraft(sourceDraft, sourceDraft);
   const payment = paymentSummary(source);
   const shippingLabel = shopifyShippingLabel(source);
+  const sourceRows = Array.isArray(source.order.line_items) ? source.order.line_items.map(record) : [];
 
   return <section id="oms-review" tabIndex={-1} className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
     <div className="border-b pb-4">
@@ -58,7 +68,19 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
         phone: sourceView.phone,
         address: sourceView.address,
         shippingLabel,
-        items: sourceView.items.map(item => ({ title: item.title, quantity: item.quantity === null ? '數量待確認' : `×${item.quantity}`, sku: item.sku })),
+        items: sourceView.items.map((item, index) => {
+          const row = sourceRows[index] ?? {};
+          const decision = matchShopifyLineToTier(
+            { variant_id: row.variant_id, sku: string(row.sku) || item.sku, title: string(row.title) || item.title },
+            toTierCatalog(products),
+          );
+          return {
+            title: item.title,
+            quantity: item.quantity === null ? '數量待確認' : `×${item.quantity}`,
+            sku: item.sku,
+            contents: decision.outcome === 'match' ? decision.tier.notes?.trim() || '' : '',
+          };
+        }),
       }} />
   </section>;
 }

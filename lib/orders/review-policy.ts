@@ -13,7 +13,7 @@ export type ReviewProduct = {
   id: string; name: string; sku: string; status: string; available: number | null;
   hqBulk?: boolean; sourceSku?: string | null; cost?: number | null; unit?: string | null;
   productCategory?: string | null; defaultTemperature?: string | null;
-  priceTiers?: { id?: string; weightGrams: number | null; unit: string; unitQty: number; cost?: number | null }[];
+  priceTiers?: { id?: string; weightGrams: number | null; unit: string; unitQty: number; cost?: number | null; notes?: string | null }[];
 };
 
 /** Normalize untrusted form/audit data. Amounts and quantities never come from the form. */
@@ -63,8 +63,8 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
   // Promotion/product verification is now system-derived in buildFulfillmentPlan.
   // A generic human checkbox must not override or duplicate those deterministic checks.
   if (duplicate && !draft.duplicateConfirmed) add('POSSIBLE_DUPLICATE', '相同聯絡資料及金額有近期訂單，請確認不是重複下單');
-  const items = plan.items.map(({ productId, productName, sku, quantity, unitPrice, subtotal, isGift, unitCost, weightGrams, unit }) => ({
-    productId, productName, sku, quantity, unitPrice, subtotal, isGift, unitCost, weightGrams, unit,
+  const items = plan.items.map(({ productId, productName, sku, quantity, unitPrice, subtotal, isGift, unitCost, weightGrams, unit, notes }) => ({
+    productId, productName, sku, quantity, unitPrice, subtotal, isGift, unitCost, weightGrams, unit, notes,
   }));
   return { issues, items, plan };
 }

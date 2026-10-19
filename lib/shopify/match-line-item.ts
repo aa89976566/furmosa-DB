@@ -21,6 +21,7 @@ export type MatchableTierShape = {
   defaultWholesaleUnitPrice?: number | null;
   defaultConsignmentCommissionMode?: string | null;
   defaultConsignmentCommissionValue?: number | null;
+  notes?: string | null;
 };
 
 export type ProductIdentity = {
@@ -60,6 +61,7 @@ export function toTierCatalog<T extends ProductIdentity>(products: T[]): TierCat
         defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice ?? null,
         defaultConsignmentCommissionMode: tier.defaultConsignmentCommissionMode ?? null,
         defaultConsignmentCommissionValue: tier.defaultConsignmentCommissionValue ?? null,
+        notes: tier.notes ?? null,
       })),
     };
   });
