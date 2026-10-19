@@ -53,7 +53,10 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
-  return <form action={action} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} /><SourceOrderSummary source={sourceSummary} />
+  // React 19 resets native controls after a completed form action, including blocked
+  // checks. Keep this review draft until the source changes (the panel's key remounts
+  // it); otherwise method resets to empty while the 7-11 fields remain visible.
+  return <form action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} /><SourceOrderSummary source={sourceSummary} />
     {readyForShipment ? <>
       <input type="hidden" name="method" value={draft.method} />
       <input type="hidden" name="temperature" value={draft.temperature} />
