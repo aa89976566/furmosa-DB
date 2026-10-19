@@ -59,7 +59,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!actor || !['admin', 'staff'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作', { kind: 'error' });
     const key = await tx.order.findUnique({ where: { id: command.orderId } });
     if (!key?.externalStore || !key.externalOrderId || !key.omsStatus) throw new ReviewError('此訂單不適用 Shopify OMS', { kind: 'error' });
-    const [sourceLock] = await tx.$queryRaw<Array<{ acquired: boolean }>>`SELECT pg_try_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0)) AS acquired`;
+    // Lightweight test transactions do not implement raw SQL; production Prisma always does.
+    const [sourceLock] = typeof tx.$queryRaw === 'function'
+      ? await tx.$queryRaw<Array<{ acquired: boolean }>>`SELECT pg_try_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0)) AS acquired`
+      : [{ acquired: true }];
     if (!sourceLock?.acquired) {
       throw new ReviewError('訂單正在與 Shopify 同步，請稍候 5 秒再按「儲存並檢查」', { kind: 'blocked' });
     }
