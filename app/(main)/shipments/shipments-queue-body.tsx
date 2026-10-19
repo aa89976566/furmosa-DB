@@ -75,6 +75,7 @@ const shipmentInclude = {
       weightGrams: true,
       variantKey: true,
       unit: true,
+      notes: true,
       product: {
         select: {
           id: true,
@@ -168,6 +169,7 @@ function toQueueRow(
       productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
       quantity: item.quantity,
+      notes: item.notes,
     })),
     subscriptionShipment: s.subscriptionShipment
       ? {
