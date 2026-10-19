@@ -40,7 +40,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
       priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, price: true, sku: true, shopifySku: true, shopifyVariantId: true, status: true, notes: true } },
     },
   });
-  const sourceDraft = shopifySourceDraft(source, products, saved?.duplicateConfirmed ?? false);
+  const sourceDraft = shopifySourceDraft(source, products.map(product => ({ ...product, available: null })), saved?.duplicateConfirmed ?? false);
   const draft = saved
     ? mergeShopifyFulfillmentDraft(sourceDraft, saved)
     : mergeShopifyFulfillmentDraft(sourceDraft, sourceDraft);
