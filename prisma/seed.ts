@@ -253,7 +253,7 @@ async function main() {
         name: p.name,
         category: p.cat,
         description: `${p.name} - 嚴選原料，無添加香料色素，Furmosa 嚴格把關。`,
-        unit: ['staple_food', 'treats', 'freeze_dried', 'health'].includes(p.cat) ? '包' : '件',
+        unit: '件',
         price: p.price,
         cost: p.cost,
         reorderPoint: randInt(5, 30),
@@ -266,7 +266,6 @@ async function main() {
 
   // ===== Inventory =====
   let invSeq = 1;
-  const seedTxnPrefix = `SEED-${Date.now().toString(36).toUpperCase()}`;
   for (const p of products) {
     const initialQty = randInt(20, 200);
     for (const wh of warehouses) {
@@ -282,7 +281,7 @@ async function main() {
       if (wh.code === 'WH-MAIN') {
         await prisma.inventoryTransaction.create({
           data: {
-            txnNumber: `${seedTxnPrefix}-${monthTag(daysAgo(45))}-${pad(invSeq++, 3)}`,
+            txnNumber: `INV-${monthTag(daysAgo(45))}-${pad(invSeq++, 3)}`,
             type: 'purchase_in',
             productId: p.id,
             warehouseId: wh.id,
@@ -478,8 +477,7 @@ async function main() {
 
   // ===== Orders =====
   const sources = ['website', 'line', 'consignment', 'manual'] as const;
-  // 預覽訂單停留在已確認、未出貨狀態，避免未建規格級距的示範商品觸發 HQ 庫存扣帳。
-  const statuses: Array<'confirmed' | 'packed' | 'shipped' | 'delivered' | 'completed' | 'cancelled'> = ['confirmed'];
+  const statuses = ['confirmed', 'packed', 'shipped', 'delivered', 'completed', 'completed', 'completed', 'cancelled'] as const;
   for (let i = 1; i <= 80; i++) {
     const source = pickOne(sources);
     const status = pickOne(statuses);
@@ -562,7 +560,7 @@ async function main() {
     for (const it of items) {
       await prisma.inventoryTransaction.create({
         data: {
-          txnNumber: `${seedTxnPrefix}-${monthTag(orderedAt)}-${pad(invSeq++, 3)}`,
+          txnNumber: `INV-${monthTag(orderedAt)}-${pad(invSeq++, 3)}`,
           type: 'sales_out',
           productId: it.productId,
           warehouseId: mainWh.id,
@@ -585,7 +583,7 @@ async function main() {
     const type = pickOne(['adjustment', 'stocktake', 'transfer', 'return_in']);
     await prisma.inventoryTransaction.create({
       data: {
-        txnNumber: `${seedTxnPrefix}-${monthTag(daysAgo(randInt(0, 29)))}-${pad(invSeq++, 3)}`,
+        txnNumber: `INV-${monthTag(daysAgo(randInt(0, 29)))}-${pad(invSeq++, 3)}`,
         type,
         productId: p.id,
         warehouseId: wh.id,
