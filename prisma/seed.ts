@@ -253,7 +253,7 @@ async function main() {
         name: p.name,
         category: p.cat,
         description: `${p.name} - 嚴選原料，無添加香料色素，Furmosa 嚴格把關。`,
-        unit: '件',
+        unit: ['staple_food', 'treats', 'freeze_dried', 'health'].includes(p.cat) ? '包' : '件',
         price: p.price,
         cost: p.cost,
         reorderPoint: randInt(5, 30),
@@ -262,8 +262,7 @@ async function main() {
       },
     });
   }
-  // 商品 SKU-00015～SKU-00017 尚未完成實際單位確認；示範訂單不可使用。
-  const products = (await prisma.product.findMany()).filter((product) => !['SKU-00015', 'SKU-00016', 'SKU-00017'].includes(product.sku));
+  const products = await prisma.product.findMany();
 
   // ===== Inventory =====
   let invSeq = 1;
