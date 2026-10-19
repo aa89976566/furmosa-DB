@@ -59,7 +59,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!actor || !['admin', 'staff'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作', { kind: 'error' });
     const key = await tx.order.findUnique({ where: { id: command.orderId } });
     if (!key?.externalStore || !key.externalOrderId || !key.omsStatus) throw new ReviewError('此訂單不適用 Shopify OMS', { kind: 'error' });
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0))`;
+    const [sourceLock] = await tx.$queryRaw<Array<{ acquired: boolean }>>`SELECT pg_try_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0)) AS acquired`;
+    if (!sourceLock?.acquired) {
+      throw new ReviewError('訂單正在與 Shopify 同步，請稍候 5 秒再按「儲存並檢查」', { kind: 'blocked' });
+    }
     const order = await tx.order.findUniqueOrThrow({ where: { id: key.id }, include: { shipments: true } });
     const snapshot = order.shopifySnapshot as Snapshot | null;
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
