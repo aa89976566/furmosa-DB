@@ -14,6 +14,7 @@ export type MatchableTier = {
   defaultWholesaleUnitPrice: number | null;
   defaultConsignmentCommissionMode: string | null;
   defaultConsignmentCommissionValue: number | null;
+  notes?: string | null;
 };
 
 export type TierCatalogProduct = {

@@ -11,7 +11,7 @@ import {
 } from './promotion-resolver';
 import type { ReviewDraft, ReviewProduct } from './review-policy';
 
-export const FULFILLMENT_PLAN_VERSION = 'ck08-555-plan-v3';
+export const FULFILLMENT_PLAN_VERSION = 'ck08-555-plan-v4';
 const MAX_QTY = 2147483647;
 const TEMPS = ['ambient', 'chilled', 'frozen'] as const;
 
@@ -36,6 +36,7 @@ export type FulfillmentItem = {
   unit?: string | null;
   tierId?: string | null;
   sourceIndex?: number;
+  notes?: string | null;
 };
 
 export type PromotionStatus = 'hq_added' | 'shopify_existing' | 'declined' | 'ineligible' | 'uncertain';
@@ -64,7 +65,7 @@ export type FrozenFulfillmentPlan = {
     productId: string; quantity: number; isGift: boolean; origin: FulfillmentOrigin;
     unitPrice: number; subtotal: number; weightGrams: number | null; unit: string | null;
     temperature: string; sku: string; sourceSku: string; status: string; productCategory: string;
-    tierId: string | null; unitCost: number | null; catalogTemperature: string;
+    tierId: string | null; unitCost: number | null; catalogTemperature: string; notes: string | null;
   }[];
 };
 
@@ -165,14 +166,14 @@ export function resolveCampaignGiftProduct(products: ReviewProduct[]): GiftCatal
 
 function applyMooncakeSpec(product: ReviewProduct, issues: OmsIssue[], label: string) {
   if (!isCk08Product(product)) {
-    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null, notes: null as string | null };
   }
   const tier = canonicalMooncakeTier(product);
   if (!tier) {
     issues.push({ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: `${label}不是唯一的 50g／顆規格，不能猜測出貨` });
-    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null, notes: null as string | null };
   }
-  return { weightGrams: MOONCAKE_CATALOG.weightGrams, unit: MOONCAKE_CATALOG.unit, tierId: string(tier.id) || null };
+  return { weightGrams: MOONCAKE_CATALOG.weightGrams, unit: MOONCAKE_CATALOG.unit, tierId: string(tier.id) || null, notes: tier.notes?.trim() || null };
 }
 
 function applySourceSpec(
@@ -185,7 +186,7 @@ function applySourceSpec(
   if (isCk08Product(product)) return applyMooncakeSpec(product, issues, label);
   const tiers = product.priceTiers ?? [];
   if (tiers.length === 0) {
-    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null, notes: null as string | null };
   }
 
   const decision = matchShopifyLineToTier(
@@ -198,13 +199,14 @@ function applySourceSpec(
       severity: 'blocking',
       message: `${label}無法唯一對應已啟用規格，請重新檢查 Shopify SKU／Variant 綁定`,
     });
-    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null };
+    return { weightGrams: null as number | null, unit: null as string | null, tierId: null as string | null, notes: null as string | null };
   }
 
   return {
     weightGrams: decision.tier.weightGrams,
     unit: decision.tier.unit,
     tierId: decision.tier.id || null,
+    notes: decision.tier.notes?.trim() || null,
   };
 }
 
@@ -284,6 +286,7 @@ export function frozenFulfillmentPlan(plan: Pick<FulfillmentPlan, 'planVersion' 
       unit: item.unit ?? null, temperature: item.temperature, sku: item.sku,
       sourceSku: item.sourceSku, status: item.status, productCategory: item.productCategory,
       tierId: item.tierId ?? null, unitCost: item.unitCost ?? null, catalogTemperature: item.catalogTemperature,
+      notes: item.notes?.trim() || null,
     })),
   };
 }
@@ -312,7 +315,7 @@ export function parseFrozenFulfillmentPlan(value: unknown): FrozenFulfillmentPla
     const item = record(row);
     if (!string(item.productId) || !string(item.sku) || (item.origin !== 'source' && item.origin !== 'hq-gift')) return null;
     if (typeof item.sourceSku !== 'string' || typeof item.status !== 'string' || typeof item.productCategory !== 'string') return null;
-    if (!('tierId' in item) || !('unitCost' in item) || typeof item.catalogTemperature !== 'string') return null;
+    if (!('tierId' in item) || !('unitCost' in item) || typeof item.catalogTemperature !== 'string' || (item.notes !== null && typeof item.notes !== 'string')) return null;
     if (item.tierId !== null && typeof item.tierId !== 'string') return null;
     const unitCost = parsedCost(item.unitCost);
     if (unitCost === undefined) return null;
@@ -325,6 +328,7 @@ export function parseFrozenFulfillmentPlan(value: unknown): FrozenFulfillmentPla
       unit: item.unit == null ? null : string(item.unit), temperature: string(item.temperature), sku: string(item.sku),
       sourceSku: item.sourceSku, status: item.status, productCategory: item.productCategory,
       tierId: item.tierId === null ? null : string(item.tierId), unitCost, catalogTemperature: item.catalogTemperature,
+      notes: item.notes === null ? null : string(item.notes),
     };
   });
   if (lines.some(line => line === null)) return null;
@@ -417,7 +421,7 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
     items.push({
       productId: product.id, productName: product.name, sku: product.sku, quantity,
       unitPrice, subtotal, isGift, origin: 'source', temperature,
-      weightGrams: spec.weightGrams, unit: spec.unit,
+      weightGrams: spec.weightGrams, unit: spec.unit, notes: spec.notes,
       sourceIndex: index, includeInTemperature: campaignGift || physical, ...print,
     });
   });
@@ -432,7 +436,7 @@ export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, pro
         productId: giftCatalog.product.id, productName: giftCatalog.product.name, sku: giftCatalog.product.sku,
         quantity: 1, unitPrice: 0, subtotal: 0, isGift: true, origin: 'hq-gift',
         temperature: giftCatalog.temperature,
-        weightGrams: spec.weightGrams, unit: spec.unit, includeInTemperature: true, ...print,
+        weightGrams: spec.weightGrams, unit: spec.unit, notes: spec.notes, includeInTemperature: true, ...print,
       });
     }
   } else if (promotion.giftAction === 'existing') {

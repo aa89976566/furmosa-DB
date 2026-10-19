@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 
-type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string }[] };
+type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string; contents?: string }[] };
 
 function Actions({ status, summary, alertText }: { status: string; summary: string; alertText: string }) {
   const { pending } = useFormStatus();
@@ -25,7 +25,7 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
   return <section className="space-y-3 rounded-xl border bg-background p-4" aria-label="Shopify 原始訂單">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-medium text-muted-foreground">Shopify 原始訂單</p><p className="mt-1 text-sm text-muted-foreground">HQ 直接呈現 Shopify 商品與配送資料，不需重新選擇商品或出貨溫層。</p></div><div className={`rounded-lg border px-3 py-2 text-right ${tone}`}><p className="text-xs text-muted-foreground">付款狀態</p><p className="font-semibold">{source.paymentLabel}</p></div></div>
     <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">訂單金額</p><p className="font-semibold tabular-nums">{total || '待確認'}</p></div><div><p className="text-xs text-muted-foreground">配送</p><p className="font-medium">{source.shippingLabel || 'Shopify 未提供配送資訊'}</p></div><div><p className="text-xs text-muted-foreground">收件人</p><p className="font-medium">{source.recipient || 'Shopify 未提供'}</p></div><div><p className="text-xs text-muted-foreground">電話</p><p className="font-medium">{source.phone || 'Shopify 未提供'}</p></div><div className="sm:col-span-2"><p className="text-xs text-muted-foreground">地址／門市地址</p><p className="break-words font-medium">{source.address || 'Shopify 未提供'}</p></div></div>
-    <div className="border-t pt-3"><p className="text-xs text-muted-foreground">商品明細</p><ul className="mt-2 space-y-1.5 text-sm">{(source.items ?? []).map((item, index) => <li key={`${item.sku}-${index}`} className="flex justify-between gap-3"><span>{item.title}</span><span className="shrink-0 font-medium">{item.quantity}</span></li>)}</ul></div>
+    <div className="border-t pt-3"><p className="text-xs text-muted-foreground">商品明細</p><ul className="mt-2 space-y-2 text-sm">{(source.items ?? []).map((item, index) => <li key={`${item.sku}-${index}`} className="rounded-md bg-muted/30 p-2"><div className="flex justify-between gap-3"><span>{item.title}</span><span className="shrink-0 font-medium">{item.quantity}</span></div>{item.contents ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">出貨內容：{item.contents}</p> : null}</li>)}</ul></div>
   </section>;
 }
 

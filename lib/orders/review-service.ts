@@ -250,9 +250,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
-        notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
-        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
-          { productId, productName, sku, quantity, weightGrams, unit })) },
+        notes: [
+          `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
+          ...result.items.flatMap(item => item.notes?.trim() ? [`揀貨：${item.productName} ×${item.quantity}｜${item.notes.trim()}`] : []),
+        ].join('\n'),
+        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, notes }) => (
+          { productId, productName, sku, quantity, weightGrams, unit, notes })) },
       } });
       await tx.order.update({ where: { id: order.id }, data: {
         omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
@@ -281,9 +284,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
-        notes: `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
-        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit }) => (
-          { productId, productName, sku, quantity, weightGrams, unit })) } } });
+        notes: [
+          `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
+          ...result.items.flatMap(item => item.notes?.trim() ? [`揀貨：${item.productName} ×${item.quantity}｜${item.notes.trim()}`] : []),
+        ].join('\n'),
+        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, notes }) => (
+          { productId, productName, sku, quantity, weightGrams, unit, notes })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });
