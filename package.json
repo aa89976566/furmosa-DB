@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && WATCHPACK_POLLING=true next dev",
-    "build": "if [ \"$VERCEL_ENV\" = \"preview\" ] && [ \"$FURMOSA_BOOTSTRAP_PREVIEW_DB\" = \"1\" ]; then prisma migrate deploy && prisma db seed; fi && prisma generate && next build",
+    "build": "if [ \"$VERCEL_ENV\" = \"preview\" ] && [ \"$FURMOSA_BOOTSTRAP_PREVIEW_DB\" = \"1\" ]; then export DATABASE_URL=\"${DATABASE_URL:-${POSTGRES_PRISMA_URL:-$POSTGRES_URL}}\"; export DIRECT_URL=\"${DIRECT_URL:-${POSTGRES_URL_NON_POOLING:-$POSTGRES_URL}}\"; prisma migrate deploy && prisma db seed; fi && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
