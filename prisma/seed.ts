@@ -479,7 +479,7 @@ async function main() {
   // ===== Orders =====
   const sources = ['website', 'line', 'consignment', 'manual'] as const;
   // 預覽訂單停留在已確認、未出貨狀態，避免未建規格級距的示範商品觸發 HQ 庫存扣帳。
-  const statuses = ['confirmed'] as const;
+  const statuses: Array<'confirmed' | 'packed' | 'shipped' | 'delivered' | 'completed' | 'cancelled'> = ['confirmed'];
   for (let i = 1; i <= 80; i++) {
     const source = pickOne(sources);
     const status = pickOne(statuses);
