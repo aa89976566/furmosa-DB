@@ -266,6 +266,14 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1);
   });
 
+  it('does not write shipment-only notes into OrderItem records', async () => {
+    const f = fakeDb();
+    await f.run('check', { sourceOnly: true });
+    const result = await f.run('approve', { sourceOnly: true });
+    assert.equal(result.ok, true);
+    assert.equal(f.shipmentCreates, 1);
+  });
+
   it('source-only approval does not require inventory before shipment creation', async () => {
     const f = fakeDb();
     await f.run('check', { sourceOnly: true });
