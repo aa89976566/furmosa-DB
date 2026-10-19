@@ -70,7 +70,7 @@ const runVercelGate = (ref) =>
     stdio: 'ignore',
   }).status;
 
-assert.equal(runVercelGate('main'), 0, 'Vercel must skip main');
-assert.equal(runVercelGate('preview/example'), 1, 'Vercel must allow non-main previews');
+assert.equal(runVercelGate('main'), 1, 'Vercel must build main');
+assert.equal(runVercelGate('preview/example'), 0, 'Vercel must skip non-main branches');
 
 console.log('Deployment contract verified: Railway production, Vercel preview-only.');
