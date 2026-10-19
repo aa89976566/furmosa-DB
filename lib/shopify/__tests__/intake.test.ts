@@ -29,6 +29,7 @@ function fakeDb() {
   let itemWrites = 0;
   let tail = Promise.resolve();
   let lockCalls = 0;
+  let transactionOptions: { maxWait?: number; timeout?: number } | undefined;
   const key = (where: Row) => JSON.stringify(where.shopDomain_topic_eventId);
   const eventApi = {
     findUnique: async ({ where }: Row) => events.get(key(where)) ?? null,
@@ -66,7 +67,9 @@ function fakeDb() {
       createMany: async ({ data }: { data: unknown[] }) => { itemWrites += data.length; return { count: data.length }; },
     },
   };
-  const db = { shopifyWebhookEvent: eventApi, $transaction: async (fn: (client: typeof tx) => Promise<unknown>) => {
+  const db = { shopifyWebhookEvent: eventApi, product: tx.product,
+    $transaction: async (fn: (client: typeof tx) => Promise<unknown>, options?: { maxWait?: number; timeout?: number }) => {
+    transactionOptions = options;
     const previous = tail;
     let release!: () => void;
     tail = new Promise(resolve => { release = resolve; });
@@ -81,6 +84,7 @@ function fakeDb() {
     } finally { release(); }
   } } as unknown as PrismaClient;
   return { db, orders, events, fail: () => { failOrder = true; }, recover: () => { failOrder = false; }, locks: () => lockCalls,
+    transactionOptions: () => transactionOptions,
     setCatalog: (rows: unknown[]) => { catalog = rows; }, itemWrites: () => itemWrites };
 }
 
@@ -121,6 +125,11 @@ describe('Shopify intake', () => {
     await Promise.all([persistShopifyIntake(fake.db, input()), persistShopifyIntake(fake.db, input())]);
     assert.equal(fake.orders.size, 1); assert.equal(fake.events.size, 1);
     assert.equal((await persistShopifyIntake(fake.db, input())).disposition, 'duplicate');
+  });
+  it('keeps a production-safe transaction budget for cold database connections', async () => {
+    const fake = fakeDb();
+    await persistShopifyIntake(fake.db, input());
+    assert.deepEqual(fake.transactionOptions(), { maxWait: 2_000, timeout: 8_000 });
   });
   it('updates paid on the same order, ignores older unpaid updates', async () => {
     const fake = fakeDb(); await persistShopifyIntake(fake.db, input());

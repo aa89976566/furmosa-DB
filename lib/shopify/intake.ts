@@ -8,8 +8,10 @@ import { intakeSummary, preserveOperationalOrder, record, snapshotHash, sourceDa
 
 export type IntakeEvent = { shopDomain: string; topic: ShopifyOrderTopic; eventId: string; snapshot: Snapshot; origin?: 'reconcile' };
 
-async function readTierCatalog(tx: Prisma.TransactionClient): Promise<TierCatalogProduct[]> {
-  const product = (tx as Prisma.TransactionClient & {
+const SHOPIFY_INTAKE_TRANSACTION_OPTIONS = { maxWait: 2_000, timeout: 8_000 } as const;
+
+async function readTierCatalog(client: PrismaClient | Prisma.TransactionClient): Promise<TierCatalogProduct[]> {
+  const product = (client as (PrismaClient | Prisma.TransactionClient) & {
     product?: { findMany?: (args: unknown) => Promise<TierCatalogProduct[]> };
   }).product;
   if (!product?.findMany) return [];
@@ -71,6 +73,9 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
     payload: snapshot as Prisma.InputJsonObject, payloadHash: hash,
     payloadExpiresAt: new Date(Date.now() + 30 * 86400000) };
   try {
+    // Product matching is read-only and can be slower on a cold database connection. Keep it
+    // outside the interactive transaction so it cannot consume the transaction's time budget.
+    const tierCatalog = await readTierCatalog(db);
     return await db.$transaction(async tx => {
       // Same shop/order must serialize even before its first row exists. Hash collision only serializes unrelated orders.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`shopify:${shopDomain}:${externalOrderId}`}, 0))`;
@@ -139,7 +144,7 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
         return { created: false, disposition: 'conflict' };
       }
       const summary = intakeSummary(snapshot);
-      const resolved = resolvedOrderItems(snapshot, await readTierCatalog(tx));
+      const resolved = resolvedOrderItems(snapshot, tierCatalog);
       for (const issue of resolved.issues) {
         if (!summary.issues.some((existing) => existing.code === issue.code && existing.message === issue.message)) {
           summary.issues.push(issue);
@@ -191,7 +196,7 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
       }
       await finish('PROCESSED');
       return { created: !existing, disposition: 'saved' };
-    }, { maxWait: 500, timeout: 2500 });
+    }, SHOPIFY_INTAKE_TRANSACTION_OPTIONS);
   } catch (error) {
     // Best-effort metadata only. Never turn a failed order transaction into an HTTP success.
     // A complete DB outage is observable via the sanitized server log and Shopify retry response.
