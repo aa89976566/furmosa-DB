@@ -174,7 +174,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         ? (() => { const balance = p.inventoryBalances.find(b => b.warehouse.code === 'WH-MAIN'); return balance?.unit && balance.lastCountedAt ? balance.quantity - (reserved.get(p.id) ?? 0) : null; })()
         : p.inventoryBalances.length ? p.inventoryBalances.reduce((n, b) => n + b.quantity, 0) - (reserved.get(p.id) ?? 0) : null,
     })), Boolean(duplicate));
-    if (command.sourceOnly && command.action !== 'ship') {
+    if (command.sourceOnly) {
+      // Shopify orders enter the pick queue even before HQ inventory is counted.
+      // Stock remains an advisory for the warehouse, never a reason to lose a confirmed order.
       result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft);
     }
     const now = new Date();
@@ -209,7 +211,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
     const awaitingPayment = result.issues.some(issue => issue.code === 'PAYMENT_PENDING');
 
-    if (command.action === 'approve') {
+    const createsShipment = command.action === 'ship' || command.sourceOnly;
+    if (!createsShipment) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
     } else {
@@ -229,9 +232,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });
     }
     await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id, previousStatus: order.omsStatus,
-      newStatus: command.action === 'approve' ? 'READY' : 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
+      newStatus: createsShipment ? 'FULFILLMENT_PENDING' : 'READY', actorType: 'user', actorId: actor.id,
       metadataJson: JSON.stringify({ sourceHash: command.sourceHash, reviewAuditId: audit!.id }) } });
-    if (command.action === 'approve') {
+    if (!createsShipment) {
       return approveSuccess(awaitingPayment);
     }
     const shipment = await tx.shipment.findFirst({
@@ -240,7 +243,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       select: { id: true },
     });
     return emptyReviewResult({
-      ok: true, action: 'ship', message: '已建立 HQ 內部出貨單；尚未連接物流供應商',
+      ok: true, action: 'ship', message: '訂單已確認，已建立待出貨任務；尚未連接物流供應商',
       omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
       next: shipment ? { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });
