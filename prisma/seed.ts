@@ -267,6 +267,7 @@ async function main() {
 
   // ===== Inventory =====
   let invSeq = 1;
+  const seedTxnPrefix = `SEED-${Date.now().toString(36).toUpperCase()}`;
   for (const p of products) {
     const initialQty = randInt(20, 200);
     for (const wh of warehouses) {
@@ -282,7 +283,7 @@ async function main() {
       if (wh.code === 'WH-MAIN') {
         await prisma.inventoryTransaction.create({
           data: {
-            txnNumber: `INV-${monthTag(daysAgo(45))}-${pad(invSeq++, 3)}`,
+            txnNumber: `${seedTxnPrefix}-${monthTag(daysAgo(45))}-${pad(invSeq++, 3)}`,
             type: 'purchase_in',
             productId: p.id,
             warehouseId: wh.id,
@@ -561,7 +562,7 @@ async function main() {
     for (const it of items) {
       await prisma.inventoryTransaction.create({
         data: {
-          txnNumber: `INV-${monthTag(orderedAt)}-${pad(invSeq++, 3)}`,
+          txnNumber: `${seedTxnPrefix}-${monthTag(orderedAt)}-${pad(invSeq++, 3)}`,
           type: 'sales_out',
           productId: it.productId,
           warehouseId: mainWh.id,
@@ -584,7 +585,7 @@ async function main() {
     const type = pickOne(['adjustment', 'stocktake', 'transfer', 'return_in']);
     await prisma.inventoryTransaction.create({
       data: {
-        txnNumber: `INV-${monthTag(daysAgo(randInt(0, 29)))}-${pad(invSeq++, 3)}`,
+        txnNumber: `${seedTxnPrefix}-${monthTag(daysAgo(randInt(0, 29)))}-${pad(invSeq++, 3)}`,
         type,
         productId: p.id,
         warehouseId: wh.id,
