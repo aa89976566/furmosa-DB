@@ -140,7 +140,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     where: {
       ...activeOrderWhere,
       status: 'pending_review',
-      OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+      OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW', 'READY'] } }],
     },
     select: {
       id: true,
@@ -368,7 +368,7 @@ export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
       where: {
         ...activeOrderWhere,
         status: 'pending_review',
-        OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW'] } }],
+        OR: [{ omsStatus: null }, { omsStatus: { in: ['NEW', 'REVIEW', 'READY'] } }],
       },
     }),
     prisma.restockRequest.count({
