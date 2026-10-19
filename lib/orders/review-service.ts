@@ -217,7 +217,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
     } else {
       await tx.orderItem.deleteMany({ where: { orderId: order.id } });
-      await tx.orderItem.createMany({ data: result.items.map(item => ({ ...item, orderId: order.id })) });
+      await tx.orderItem.createMany({ data: result.items.map(({ notes: _notes, ...item }) => ({ ...item, orderId: order.id })) });
       await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
