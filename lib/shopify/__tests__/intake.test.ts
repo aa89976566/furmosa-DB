@@ -44,6 +44,17 @@ function fakeDb() {
       const entry = [...events].find(([, value]) => value.id === where.id)!;
       events.set(entry[0], { ...entry[1], ...data });
     },
+    updateMany: async ({ where, data }: Row) => {
+      let count = 0;
+      for (const [entryKey, value] of events) {
+        if (value.shopDomain !== where.shopDomain || value.topic !== where.topic || value.eventId !== where.eventId) continue;
+        if (where.status?.in && !where.status.in.includes(value.status)) continue;
+        events.set(entryKey, { ...value, ...data,
+          attempts: data.attempts?.increment ? value.attempts + data.attempts.increment : value.attempts });
+        count++;
+      }
+      return { count };
+    },
   };
   const tx = {
     $executeRaw: async () => { lockCalls++; return 1; },
@@ -182,6 +193,8 @@ describe('Shopify intake', () => {
     const fake = fakeDb(); fake.fail();
     await assert.rejects(() => persistShopifyIntake(fake.db, input()), /INTAKE_FAILED/);
     assert.equal(fake.orders.size, 0); assert.equal([...fake.events.values()][0].status, 'FAILED');
+    assert.equal([...fake.events.values()][0].attempts, 1);
+    assert.ok([...fake.events.values()][0].nextAttemptAt instanceof Date);
     fake.recover(); await persistShopifyIntake(fake.db, input());
     assert.equal(fake.orders.size, 1); assert.equal([...fake.events.values()][0].status, 'PROCESSED');
   });

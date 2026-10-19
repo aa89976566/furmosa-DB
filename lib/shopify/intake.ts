@@ -203,8 +203,20 @@ export async function persistShopifyIntake(db: PrismaClient, input: IntakeEvent)
     const code = error instanceof Error && error.message === 'EVENT_ID_CONFLICT' ? 'EVENT_ID_CONFLICT' : 'INTAKE_FAILED';
     try {
       await db.shopifyWebhookEvent.upsert({ where: eventKey,
-        create: { ...eventData, status: 'FAILED', attempts: 1, lastErrorCode: code },
+        create: { ...eventData, status: 'FAILED', attempts: 0, lastErrorCode: code },
         update: {} }); // Do not overwrite a concurrently committed successful event.
+      await db.shopifyWebhookEvent.updateMany({
+        where: {
+          ...eventKey.shopDomain_topic_eventId,
+          status: { in: ['RECEIVED', 'PROCESSING', 'FAILED'] },
+        },
+        data: {
+          status: 'FAILED',
+          attempts: { increment: 1 },
+          lastErrorCode: code,
+          nextAttemptAt: new Date(Date.now() + 5 * 60_000),
+        },
+      });
     } catch { /* Caller logs a fixed code without payloads or credentials. */ }
     throw new Error(code);
   }
