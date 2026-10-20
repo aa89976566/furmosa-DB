@@ -37,6 +37,7 @@ export function snapshotView(value: unknown) {
     items: (Array.isArray(order.line_items) ? order.line_items : []).map(value => {
       const row = object(value);
       return { title: text(row.title) || '未命名商品', sku: text(row.sku),
+        variantTitle: text(row.variant_title),
         quantity: typeof row.quantity === 'number' ? row.quantity : null, price: text(row.price), lineTotal: sourceLineTotal(row.price, row.quantity) };
     }),
   };

@@ -65,11 +65,14 @@ export type ShipmentQueueRow = {
   fulfillmentFeeLabel?: string | null;
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
+  sourceItems?: string[];
   items: Array<{
     productName: string;
     weightGrams: number | null;
     quantity: number;
     notes?: string | null;
+    sku?: string | null;
+    unit?: string | null;
   }>;
   subscriptionShipment: {
     shipmentNo: string;
@@ -185,7 +188,7 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
     isSub && planContents.length > 0
       ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
       : s.items.map((item) => {
-          const label = `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`;
+          const label = `${productLabel(item.productName, item.weightGrams)} ×${item.quantity} ${item.unit || '件'}${item.sku ? `｜SKU：${item.sku}` : ''}`;
           const contents = item.notes?.trim();
           return contents ? `${label}（揀貨內容：${contents}）` : label;
         });
@@ -253,10 +256,8 @@ function ProductsSummary({ view }: { view: QueueRowView }) {
           </span>
         ) : null}
       </div>
-      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-        {view.productLines.slice(0, 2).join('、')}
-        {view.productLines.length > 2 ? `，另 ${view.productLines.length - 2} 項` : ''}
-      </p>
+      <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">{view.productLines.map((line, index) => <li key={index} className="break-words">{line}</li>)}</ul>
+      {view.shipment.sourceItems?.length ? <details className="pt-1 text-xs"><summary className="cursor-pointer font-medium">核對 Shopify 原始規格</summary><ul className="mt-2 space-y-1">{view.shipment.sourceItems.map((line, index) => <li key={index} className="break-words">{line}</li>)}</ul></details> : null}
     </div>
   );
 }

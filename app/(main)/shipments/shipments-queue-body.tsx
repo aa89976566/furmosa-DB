@@ -24,6 +24,7 @@ import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
+import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { displayOrderNumber } from '@/lib/orders/display-order-number';
 
 const merchantLogisticsSelect = {
@@ -165,11 +166,14 @@ function toQueueRow(
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
     inventoryWarnings: shipmentInventoryAdvisories(s.items),
+    sourceItems: s.order?.omsStatus ? snapshotView(s.order.shopifySnapshot)?.items.map(item => `${item.title}｜${item.variantTitle || '規格未提供'} ×${item.quantity ?? '—'}｜SKU：${item.sku || '未提供'}`) : undefined,
     items: s.items.map((item) => ({
       productName: canonicalProductName(item.productName),
       weightGrams: item.weightGrams,
       quantity: item.quantity,
       notes: item.notes,
+      sku: item.sku,
+      unit: item.unit,
     })),
     subscriptionShipment: s.subscriptionShipment
       ? {

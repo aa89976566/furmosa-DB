@@ -80,7 +80,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       omsReviewedBy: { select: { name: true } },
       merchant: true,
       items: { include: { product: true, commercialOverrideBy: { select: { name: true } } } },
-      shipments: { orderBy: { createdAt: 'desc' } },
+      shipments: { orderBy: { createdAt: 'desc' }, include: { items: true } },
     },
   });
   if (!order) notFound();
@@ -161,6 +161,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             {!order.deletedAt && !order.archivedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單目前不在待審核流程。</div>}
             <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
               <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
+              {order.shipments.filter(shipment => shipment.status !== 'cancelled').map(shipment => <div key={shipment.id} className="mt-3 rounded-lg border p-3"><h3 className="text-sm font-semibold">HQ 實際出貨品項</h3><ul className="mt-2 space-y-3">{shipment.items.map(item => <li key={item.id} className="text-sm"><p className="font-medium">{item.productName} × {item.quantity} {item.unit || '件'}</p><p className="text-xs text-muted-foreground">SKU：{item.sku || '待核對'} · 每單位重量：{item.weightGrams ? `${item.weightGrams}g` : '未登記，請核對來源規格'}</p>{item.notes ? <p className="mt-1 whitespace-pre-line text-sm">揀貨內容：{item.notes}</p> : null}</li>)}</ul></div>)}
+
               {order.shipments.length > 0 ? (
                 <ul className="mt-3 space-y-1.5">
                   {order.shipments.map((shipment) => (
@@ -188,7 +190,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <h2 className="font-semibold">訂單內容</h2>
               <div className="mt-3 space-y-3 text-sm">
                 <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
-                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="flex justify-between gap-3"><span className="min-w-0 truncate">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></li>)}</ul></div>
+                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p></li>)}</ul></div>
                 <div className="border-t pt-3">
                   <p className="text-xs text-muted-foreground">收件與配送</p>
                   <p>{sourceView?.recipient || order.customer?.name || '收件人待補'} · {sourceView?.phone || order.customer?.phone || '電話待補'}</p>
