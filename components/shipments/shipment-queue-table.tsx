@@ -65,14 +65,10 @@ export type ShipmentQueueRow = {
   fulfillmentFeeLabel?: string | null;
   paymentReviewHold?: boolean;
   inventoryWarnings?: string[];
-  sourceItems?: string[];
   items: Array<{
     productName: string;
     weightGrams: number | null;
     quantity: number;
-    notes?: string | null;
-    sku?: string | null;
-    unit?: string | null;
   }>;
   subscriptionShipment: {
     shipmentNo: string;
@@ -137,11 +133,7 @@ type QueueRowView = {
   shortNumber: string;
   logistics: ReturnType<typeof resolveLogisticsFromShipment>;
   productLines: string[];
-  totalQty: number;
-  isSub: boolean;
-  planName: string;
   scheduledDate: Date | string | null;
-  itemCountLabel: string;
 };
 
 function shortShipmentNumber(value: string) {
@@ -168,7 +160,6 @@ function partyLabel(s: ShipmentQueueRow) {
 }
 
 function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
-  const totalQty = s.items.reduce((sum, i) => sum + i.quantity, 0);
   const isSub = s.type === 'subscription';
   const planContents = isSub
     ? parsePlanContents(s.subscriptionShipment?.subscription?.plan?.contents)
@@ -183,16 +174,14 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
     order: s.order,
   });
   const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
-  const planName = s.subscriptionShipment?.subscription?.plan?.name ?? '訂閱方案';
   const productLines =
-    isSub && planContents.length > 0
+    s.items.length > 0
+      ? s.items.map(
+          (item) => `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`,
+        )
+      : isSub && planContents.length > 0
       ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
-      : s.items.map((item) => {
-          const label = `${productLabel(item.productName, item.weightGrams)} ×${item.quantity} ${item.unit || '件'}${item.sku ? `｜SKU：${item.sku}` : ''}`;
-          const contents = item.notes?.trim();
-          return contents ? `${label}（揀貨內容：${contents}）` : label;
-        });
-  const itemTotal = isSub ? productLines.length : totalQty;
+      : [];
 
   return {
     shipment: s,
@@ -201,11 +190,7 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
     shortNumber: shortShipmentNumber(s.shipmentNumber),
     logistics,
     productLines,
-    totalQty,
-    isSub,
-    planName,
     scheduledDate,
-    itemCountLabel: `${productLines.length} 項 · 共 ${itemTotal} 件`,
   };
 }
 
@@ -245,20 +230,13 @@ function ProductsSummary({ view }: { view: QueueRowView }) {
   }
 
   return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
-          {view.itemCountLabel}
-        </span>
-        {view.isSub ? (
-          <span className="inline-flex items-center rounded-md bg-violet-500/12 px-2 py-0.5 text-xs font-medium text-violet-700 dark:text-violet-300">
-            {view.planName}
-          </span>
-        ) : null}
-      </div>
-      <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">{view.productLines.map((line, index) => <li key={index} className="break-words">{line}</li>)}</ul>
-      {view.shipment.sourceItems?.length ? <details className="pt-1 text-xs"><summary className="cursor-pointer font-medium">核對 Shopify 原始規格</summary><ul className="mt-2 space-y-1">{view.shipment.sourceItems.map((line, index) => <li key={index} className="break-words">{line}</li>)}</ul></details> : null}
-    </div>
+    <ul className="space-y-1 text-sm leading-relaxed text-foreground">
+      {view.productLines.map((line, index) => (
+        <li key={index} className="break-words">
+          {line}
+        </li>
+      ))}
+    </ul>
   );
 }
 
