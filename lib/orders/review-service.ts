@@ -177,7 +177,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (command.sourceOnly) {
       // Shopify orders enter the pick queue even before HQ inventory is counted.
       // Stock remains an advisory for the warehouse, never a reason to lose a confirmed order.
-      result.issues = checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft);
+      result.issues = [...checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft), ...result.plan.issues.filter(issue => issue.code === 'PRODUCT_UNMAPPED' || issue.code === 'ORDER_CHANGED')];
     }
     const now = new Date();
     if (command.action === 'check') {

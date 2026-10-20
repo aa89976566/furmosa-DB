@@ -1,3 +1,5 @@
+import { repairShopifyShipment } from '../repair-shopify-shipment';
+import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
@@ -71,8 +73,9 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export default async function OrderDetailPage(props: { params: Promise<{ id: string }> }) {
+export default async function OrderDetailPage(props: { params: Promise<{ id: string }>; searchParams?: Promise<{ repair?: string }> }) {
   const params = await props.params;
+  const repairMessage = (await props.searchParams)?.repair;
   const order = await prisma.order.findUnique({
     where: { id: params.id },
     include: {
@@ -161,6 +164,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             {!order.deletedAt && !order.archivedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單目前不在待審核流程。</div>}
             <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
               <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
+              {repairMessage ? <p role="status" className="mt-2 rounded border p-3 text-sm">{repairMessage}</p> : null}
+              {order.omsStatus === 'FULFILLMENT_PENDING' && !order.deletedAt && !order.archivedAt && order.shipments.filter(s => s.status !== 'cancelled').length === 1 && order.shipments.some(s => s.status === 'pending') ? <form action={repairShopifyShipment} className="mt-3"><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="sourceHash" value={snapshotHash(order.shopifySnapshot as Snapshot)} /><Button type="submit" variant="outline" size="sm">核對並補齊漏掉的出貨品項</Button><p className="mt-1 text-xs text-muted-foreground">依已綁定的 Shopify 規格補齊尚未出貨的品項。</p></form> : null}
               {order.shipments.filter(shipment => shipment.status !== 'cancelled').map(shipment => <div key={shipment.id} className="mt-3 rounded-lg border p-3"><h3 className="text-sm font-semibold">HQ 實際出貨品項</h3><ul className="mt-2 space-y-3">{shipment.items.map(item => <li key={item.id} className="text-sm"><p className="font-medium">{item.productName} × {item.quantity} {item.unit || '件'}</p><p className="text-xs text-muted-foreground">SKU：{item.sku || '待核對'} · 每單位重量：{item.weightGrams ? `${item.weightGrams}g` : '未登記，請核對來源規格'}</p>{item.notes ? <p className="mt-1 whitespace-pre-line text-sm">揀貨內容：{item.notes}</p> : null}</li>)}</ul></div>)}
 
               {order.shipments.length > 0 ? (
