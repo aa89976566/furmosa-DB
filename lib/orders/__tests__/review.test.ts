@@ -196,7 +196,7 @@ describe('OMS review transaction contract', () => {
     assert.equal(result.blockers.some(message => message.includes('六位數') || message.includes('門市店號')), false);
   });
 
-  it('Shopify source review accepts a source product without an HQ mapping or temperature override', async () => {
+  it('Shopify source review blocks unmapped products before creating an incomplete shipment', async () => {
     const source = shopifySnapshot({ ...raw,
       shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '測試地址' },
       shipping_lines: [{ title: '一般配送', code: 'HOME' }],
@@ -204,8 +204,11 @@ describe('OMS review transaction contract', () => {
     });
     const f = fakeDb(source);
     const result = await f.run('check', { sourceOnly: true, draft: { ...draft, lines: [], temperature: '', method: '' } });
-    assert.equal(result.ok, true);
-    assert.equal(result.blockers.some(message => message.includes('對應有效商品') || message.includes('溫層')), false);
+    assert.equal(result.ok, false);
+    assert.equal(result.blockers.some(message => message.includes('對應有效商品')), true);
+    await assert.rejects(f.run('approve', { sourceOnly: true, draft: { ...draft, lines: [], temperature: '', method: '' } }), /對應有效商品/);
+    assert.equal(f.shipmentCreates, 0);
+    assert.equal(f.order.omsStatus, 'REVIEW');
   });
 
   it('deleted orders cannot be checked, approved or shipped', async () => {
