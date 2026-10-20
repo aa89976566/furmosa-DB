@@ -16,9 +16,9 @@ export function ShopifyIntakePanel({ snapshot, status, issues }: { snapshot: unk
   const blocking = issueList.filter(issue => issue.severity === 'blocking');
   const unique = issueList.filter((issue, index) => issueList.findIndex(item => item.code === issue.code) === index);
   return <section className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${blocking.length ? 'border-destructive/30 bg-destructive/5' : issueList.length ? 'border-warning/30 bg-warning/5' : 'border-success/30 bg-success/5'}`} aria-label="訂單處理狀態">
-    <p className="shrink-0 text-sm font-semibold">{blocking.length ? '需要處理' : status === 'READY' ? '可以建立出貨單' : '資料已通過檢查'}</p>
+    <p className="shrink-0 text-sm font-semibold">{blocking.length ? '需要處理' : status === 'READY' ? '可以建立出貨單' : '來源資料檢查結果'}</p>
     <div className="flex flex-wrap gap-1.5">
-      {unique.length ? unique.map(issue => <span title={issue.message} className={`rounded-full border bg-background px-2.5 py-1 text-xs font-medium ${issue.severity === 'blocking' ? 'border-destructive/25 text-destructive' : 'border-warning/25 text-warning'}`} key={issue.code}>{ISSUE_LABEL[issue.code]}</span>) : <span className="rounded-full border border-success/25 bg-background px-2.5 py-1 text-xs font-medium text-success">資料完整</span>}
+      {unique.length ? unique.map(issue => <span title={issue.message} className={`rounded-full border bg-background px-2.5 py-1 text-xs font-medium ${issue.severity === 'blocking' ? 'border-destructive/25 text-destructive' : 'border-warning/25 text-warning'}`} key={issue.code}>{ISSUE_LABEL[issue.code]}</span>) : <span className="rounded-full border border-success/25 bg-background px-2.5 py-1 text-xs font-medium text-success">來源資料無阻擋項目</span>}
     </div>
   </section>;
 }
