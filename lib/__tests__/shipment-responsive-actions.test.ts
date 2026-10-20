@@ -50,6 +50,23 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(source, />電話<\/TableHead>/);
   });
 
+  it('商品欄只顯示商品名、克數與數量', () => {
+    const table = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
+    const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
+
+    assert.match(
+      table,
+      /`\$\{productLabel\(item\.productName, item\.weightGrams\)\} ×\$\{item\.quantity\}`/,
+    );
+    assert.doesNotMatch(table, /核對 Shopify 原始規格/);
+    assert.doesNotMatch(table, /揀貨內容/);
+    assert.doesNotMatch(table, /SKU：/);
+    assert.doesNotMatch(body, /sourceItems:/);
+    assert.doesNotMatch(body, /notes: item\.notes/);
+    assert.doesNotMatch(body, /sku: item\.sku/);
+    assert.doesNotMatch(body, /unit: item\.unit/);
+  });
+
   it('選取提示放在第一個儲存格內，不會讓內容比標題多出一欄', () => {
     const source = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
 
