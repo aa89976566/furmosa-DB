@@ -54,6 +54,10 @@ export async function repairShopifyShipment(form: FormData): Promise<void> {
         const shipmentQty = shipment.items.filter(same).reduce((n, line) => n + line.quantity, 0);
         const orderQty = order.items.filter(line => !line.isGift && same(line)).reduce((n, line) => n + line.quantity, 0);
         if (shipmentQty > item.quantity || orderQty > item.quantity) throw new Error('既有數量超過來源，需人工核對');
+        if (shipment.items.filter(same).some(line => line.variantKey && line.variantKey !== item.variantKey) || order.items.filter(line => !line.isGift && same(line)).some(line => line.variantKey && line.variantKey !== item.variantKey)) throw new Error('既有規格與來源不同，需人工核對');
+        await tx.shipmentItem.updateMany({ where: { shipmentId: shipment.id, productId: item.productId, weightGrams: item.weightGrams }, data: { variantKey: item.variantKey, unit: item.unit, ...(item.notes ? { notes: item.notes } : {}) } });
+        await tx.orderItem.updateMany({ where: { orderId: order.id, productId: item.productId, weightGrams: item.weightGrams, isGift: false }, data: { variantKey: item.variantKey, unit: item.unit } });
+
         if (shipmentQty < item.quantity) {
           const { unitPrice: _unitPrice, ...data } = item;
           await tx.shipmentItem.create({ data: { ...data, quantity: item.quantity - shipmentQty, shipmentId: shipment.id } });
