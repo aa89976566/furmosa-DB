@@ -162,11 +162,18 @@ function toQueueRow(
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
     inventoryWarnings: shipmentInventoryAdvisories(s.items),
-    items: s.items.map((item) => ({
-      productName: canonicalProductName(item.productName),
-      weightGrams: item.weightGrams,
-      quantity: item.quantity,
-    })),
+    items: s.items.map((item) => {
+      const tier = item.variantKey
+        ? item.product.priceTiers.find((candidate) => candidate.id === item.variantKey)
+        : null;
+      return {
+        productName: canonicalProductName(item.productName),
+        weightGrams: item.weightGrams,
+        quantity: item.quantity,
+        packSize: tier?.unitQty ?? null,
+        packUnit: tier?.unit ?? null,
+      };
+    }),
     subscriptionShipment: s.subscriptionShipment
       ? {
           shipmentNo: s.subscriptionShipment.shipmentNo,

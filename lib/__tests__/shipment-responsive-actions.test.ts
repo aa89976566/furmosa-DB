@@ -56,7 +56,7 @@ describe('出貨工作區介面', () => {
 
     assert.match(
       table,
-      /`\$\{productLabel\(item\.productName, item\.weightGrams\)\} ×\$\{item\.quantity\}`/,
+      /s\.items\.map\(shipmentItemSummary\)/,
     );
     assert.doesNotMatch(table, /核對 Shopify 原始規格/);
     assert.doesNotMatch(table, /揀貨內容/);
