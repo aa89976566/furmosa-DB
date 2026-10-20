@@ -74,6 +74,7 @@ const shipmentInclude = {
       quantity: true,
       weightGrams: true,
       variantKey: true,
+      notes: true,
       product: {
         select: {
           id: true,
@@ -172,6 +173,7 @@ function toQueueRow(
             s.order.shopifySnapshot,
             item.productName,
             item.quantity,
+            item.notes,
           )
         : null;
       return {
