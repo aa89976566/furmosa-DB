@@ -12,8 +12,8 @@ import {
 import { ShipmentQueueStatusCell } from '@/components/shipments/shipment-queue-status-select';
 import { formatDate, formatRelative } from '@/lib/format';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
-import { productLabel } from '@/lib/product-label';
 import { parsePlanContents } from '@/lib/plan-contents';
+import { shipmentItemSummary } from '@/lib/shipment-item-summary';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
@@ -69,6 +69,8 @@ export type ShipmentQueueRow = {
     productName: string;
     weightGrams: number | null;
     quantity: number;
+    packSize?: number | null;
+    packUnit?: string | null;
   }>;
   subscriptionShipment: {
     shipmentNo: string;
@@ -176,9 +178,7 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
   const productLines =
     s.items.length > 0
-      ? s.items.map(
-          (item) => `${productLabel(item.productName, item.weightGrams)} ×${item.quantity}`,
-        )
+      ? s.items.map(shipmentItemSummary)
       : isSub && planContents.length > 0
       ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
       : [];
