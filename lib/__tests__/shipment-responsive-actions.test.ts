@@ -50,19 +50,20 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(source, />電話<\/TableHead>/);
   });
 
-  it('商品欄只顯示商品名、克數與數量', () => {
+  it('商品欄顯示商品名、克數、數量與組合內容，但不暴露 SKU', () => {
     const table = readFileSync('components/shipments/shipment-queue-table.tsx', 'utf8');
     const body = readFileSync('app/(main)/shipments/shipments-queue-body.tsx', 'utf8');
 
     assert.match(
       table,
-      /s\.items\.map\(shipmentItemSummary\)/,
+      /s\.items\.map\(\(item\) => \(\{[\s\S]*label: shipmentItemSummary\(item\),[\s\S]*contentsLabel: item\.contentsLabel,[\s\S]*\}\)\)/,
     );
+    assert.match(table, /內含：\{line\.contentsLabel\}/);
     assert.doesNotMatch(table, /核對 Shopify 原始規格/);
     assert.doesNotMatch(table, /揀貨內容/);
     assert.doesNotMatch(table, /SKU：/);
     assert.doesNotMatch(body, /sourceItems:/);
-    assert.doesNotMatch(body, /notes: item\.notes/);
+    assert.match(body, /resolveShopifyBundleDisplay\([\s\S]*item\.notes,/);
     assert.doesNotMatch(body, /sku: item\.sku/);
     assert.doesNotMatch(body, /unit: item\.unit/);
   });
