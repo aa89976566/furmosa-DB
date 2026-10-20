@@ -71,6 +71,8 @@ export type ShipmentQueueRow = {
     quantity: number;
     packSize?: number | null;
     packUnit?: string | null;
+    variantLabel?: string | null;
+    contentsLabel?: string | null;
   }>;
   subscriptionShipment: {
     shipmentNo: string;
@@ -134,7 +136,7 @@ type QueueRowView = {
   partyLabel: string;
   shortNumber: string;
   logistics: ReturnType<typeof resolveLogisticsFromShipment>;
-  productLines: string[];
+  productLines: Array<{ label: string; contentsLabel?: string | null }>;
   scheduledDate: Date | string | null;
 };
 
@@ -178,9 +180,14 @@ function buildQueueRowView(s: ShipmentQueueRow): QueueRowView {
   const scheduledDate = s.subscriptionShipment?.scheduledDate ?? null;
   const productLines =
     s.items.length > 0
-      ? s.items.map(shipmentItemSummary)
+      ? s.items.map((item) => ({
+          label: shipmentItemSummary(item),
+          contentsLabel: item.contentsLabel,
+        }))
       : isSub && planContents.length > 0
-      ? planContents.map((item) => (item.weight ? `${item.name}（${item.weight}）` : item.name))
+      ? planContents.map((item) => ({
+          label: item.weight ? `${item.name}（${item.weight}）` : item.name,
+        }))
       : [];
 
   return {
@@ -233,7 +240,12 @@ function ProductsSummary({ view }: { view: QueueRowView }) {
     <ul className="space-y-1 text-sm leading-relaxed text-foreground">
       {view.productLines.map((line, index) => (
         <li key={index} className="break-words">
-          {line}
+          <span>{line.label}</span>
+          {line.contentsLabel ? (
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+              內含：{line.contentsLabel}
+            </span>
+          ) : null}
         </li>
       ))}
     </ul>

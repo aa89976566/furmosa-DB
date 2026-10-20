@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 import { displayOrderNumber } from '@/lib/orders/display-order-number';
+import { resolveShopifyBundleDisplay } from '@/lib/shopify/bundle-contents';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -166,12 +167,21 @@ function toQueueRow(
       const tier = item.variantKey
         ? item.product.priceTiers.find((candidate) => candidate.id === item.variantKey)
         : null;
+      const bundle = s.order
+        ? resolveShopifyBundleDisplay(
+            s.order.shopifySnapshot,
+            item.productName,
+            item.quantity,
+          )
+        : null;
       return {
         productName: canonicalProductName(item.productName),
         weightGrams: item.weightGrams,
         quantity: item.quantity,
         packSize: tier?.unitQty ?? null,
         packUnit: tier?.unit ?? null,
+        variantLabel: bundle?.variantLabel ?? null,
+        contentsLabel: bundle?.contentsLabel ?? null,
       };
     }),
     subscriptionShipment: s.subscriptionShipment
