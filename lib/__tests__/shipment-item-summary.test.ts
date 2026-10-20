@@ -41,4 +41,16 @@ describe('出貨清單商品摘要', () => {
       '鴨脖凍乾 ×3 組（共 15 隻）',
     );
   });
+
+  it('組合商品可顯示訂單保存的方案', () => {
+    assert.equal(
+      shipmentItemSummary({
+        productName: '貝貝團購好友限定優惠',
+        weightGrams: null,
+        quantity: 1,
+        variantLabel: '人氣款',
+      }),
+      '貝貝團購好友限定優惠・人氣款 ×1 組',
+    );
+  });
 });

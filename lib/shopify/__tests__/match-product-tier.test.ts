@@ -9,6 +9,7 @@ import {
   type MatchableTier,
   type TierCatalogProduct,
 } from '@/lib/shopify/match-product-tier';
+import { BB_BUNDLE_VARIANTS } from '@/lib/shopify/bundle-contents';
 
 const LARGE_VARIANT = '900719925474099312345';
 
@@ -85,6 +86,44 @@ describe('Shopify tier matcher', () => {
     const blank = matchShopifyLineToTier({ variant_id: LARGE_VARIANT, sku: '' }, [product()]);
     assert.equal(blank.outcome, 'review');
     if (blank.outcome === 'review') assert.equal(blank.reason, 'unbound');
+  });
+
+  it('maps both 貝貝 bundle variants by exact Variant ID and SKU', () => {
+    const bundle = product({
+      id: 'bb-bundle',
+      sku: 'FUR-0043',
+      sourceSku: 'BB-BUNDLE',
+      name: '貝貝團購好友限定優惠',
+      unit: '組',
+      priceTiers: BB_BUNDLE_VARIANTS.map((variant, index) =>
+        tier({
+          id: `bb-tier-${index}`,
+          productId: 'bb-bundle',
+          sku: variant.shopifySku,
+          shopifySku: variant.shopifySku,
+          shopifyVariantId: variant.shopifyVariantId,
+          weightGrams: null,
+          unit: '組',
+          price: index === 0 ? 319 : 339,
+        }),
+      ),
+    });
+
+    for (const variant of BB_BUNDLE_VARIANTS) {
+      const exact = matchShopifyLineToTier(
+        { variant_id: variant.shopifyVariantId, sku: variant.shopifySku },
+        [bundle],
+      );
+      assert.equal(exact.outcome, 'match');
+      if (exact.outcome === 'match') assert.equal(exact.reason, 'variant_id');
+
+      const recreatedVariant = matchShopifyLineToTier(
+        { variant_id: '99999999999999', sku: variant.shopifySku },
+        [bundle],
+      );
+      assert.equal(recreatedVariant.outcome, 'match');
+      if (recreatedVariant.outcome === 'match') assert.equal(recreatedVariant.reason, 'sku');
+    }
   });
 
   it('matches canonical source SKU plus tier dimension without Shopify-specific binding', () => {
