@@ -5,6 +5,7 @@ import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
 import { ReviewError, runReview } from '../review-service';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft } from '../shopify-source-review';
+import { currentReviewDraft } from '../review-display';
 
 const raw = { id: '123', currency: 'TWD', updated_at: '2026-08-30T01:00:00Z', financial_status: 'paid',
   subtotal_price: '100.10', total_discounts: '0.00', total_price: '160.10',
@@ -183,6 +184,26 @@ function fakeDb(source = snapshot) {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('persists an address correction with delivery blockers without approving or changing Shopify source', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', address1: '來源地址' },
+      shipping_lines: [],
+    });
+    const f = fakeDb(source);
+    const corrected = { ...draft, method: '', address: 'HQ 更正後地址' };
+    const result = await f.run('check', { sourceOnly: true, draft: corrected });
+    assert.equal(result.ok, false);
+    assert.equal(result.kind, 'blocked');
+    assert.ok(result.blockers.some(message => message.includes('配送方式')));
+    const saved = f.audits.filter(a => a.entityType === 'oms_review').at(-1);
+    assert.equal(currentReviewDraft(source, saved.metadataJson)?.address, corrected.address);
+    assert.equal(f.order.shopifySnapshot.order.shipping_address.address1, '來源地址');
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.shipmentCreates, 0);
+    await assert.rejects(f.run('approve', { sourceOnly: true, draft: corrected }), /配送方式/);
+    assert.equal(f.shipmentCreates, 0);
+  });
+
   it('accepts a 7-11 store name without a store number in source-only review', async () => {
     const source = shopifySnapshot({ ...raw,
       shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '門市地址' },

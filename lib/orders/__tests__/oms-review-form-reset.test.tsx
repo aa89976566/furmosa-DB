@@ -17,6 +17,7 @@ const { act, createElement } = React;
 const { createRoot } = require('react-dom/client');
 const submissions: Record<string, FormDataEntryValue>[] = [];
 const navigation: string[] = [];
+let refreshes = 0;
 let outcome: 'check' | 'blocked' | 'ship' = 'check';
 const actionStub = {
   omsReviewAction: async (_previous: unknown, form: FormData) => {
@@ -38,7 +39,7 @@ internal._load = (request: unknown, ...rest: unknown[]) => {
   if (request === 'next/navigation') return { useRouter: () => router };
   return originalLoad(request, ...rest);
 };
-const router = { refresh() {}, push(href: string) { navigation.push(href); } };
+const router = { refresh() { refreshes++; }, push(href: string) { navigation.push(href); } };
 const { OmsReviewForm } = require('../../../components/orders/oms-review-form');
 const draft: ReviewDraft = {
   lines: [], method: '', temperature: 'ambient', recipient: '測試收件人', phone: '0912345678',
@@ -57,12 +58,49 @@ test('review retains shipping selection through repeated checks and approval', a
   const submit = async (value: string) => {
     const button = container.querySelector(`button[value="${value}"]`) as HTMLButtonElement;
     assert.ok(button);
-    assert.equal((container.querySelector('form') as HTMLFormElement).checkValidity(), true);
+    if (!button.formNoValidate) {
+      assert.equal((container.querySelector('form') as HTMLFormElement).checkValidity(), true);
+    }
     await act(async () => {
-      (container.querySelector('form') as HTMLFormElement).requestSubmit(button);
+      const form = container.querySelector('form') as HTMLFormElement;
+      // JSDOM requestSubmit does not implement the submitter's formNoValidate.
+      // Dispatch the browser's submit event for that button, keeping React's real action lifecycle.
+      if (button.formNoValidate) {
+        form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: button }));
+      } else {
+        form.requestSubmit(button);
+      }
     });
   };
   try {
+    // Address corrections must reach the server even while delivery is unresolved.
+    await act(async () => root.render(createElement(OmsReviewForm, {
+      key: 'address-only', orderId: 'test-order', sourceHash: 'same-source', status: 'REVIEW',
+      draft: { ...draft, method: '', storeId: '', storeName: '' }, sourceSummary,
+    })));
+    const form = container.querySelector('form') as HTMLFormElement;
+    const check = container.querySelector('button[value="check"]') as HTMLButtonElement;
+    const approve = container.querySelector('button[value="approve"]') as HTMLButtonElement;
+    assert.equal(form.checkValidity(), false, 'delivery method is still unresolved');
+    assert.equal(check.formNoValidate, true, 'saving a correction must bypass native required checks');
+    assert.equal(approve.formNoValidate, false, 'confirmation must retain native validation');
+    field('address').value = 'HQ 更正後地址';
+    outcome = 'blocked';
+    const refreshesBeforeSave = refreshes;
+    await submit('check');
+    assert.equal(submissions.length, 1);
+    assert.equal(submissions[0].address, 'HQ 更正後地址');
+    assert.equal(submissions[0].method, '');
+    assert.equal(field('address').value, 'HQ 更正後地址');
+    assert.ok(refreshes > refreshesBeforeSave, 'a saved check must refresh even when approval has blockers');
+    await act(async () => form.requestSubmit(approve));
+    assert.equal(submissions.length, 1, 'an incomplete draft cannot be confirmed');
+    const refreshesBeforeSecondSave = refreshes;
+    field('address').value = 'HQ 再次更正後地址';
+    await submit('check');
+    assert.equal(submissions[1].address, 'HQ 再次更正後地址');
+    assert.ok(refreshes > refreshesBeforeSecondSave, 'each saved check refreshes even with identical blocker status');
+
     for (const method of ['convenience', 'home']) {
       submissions.length = 0;
       navigation.length = 0;

@@ -15,7 +15,7 @@ function Actions({ status, summary, alertText }: { status: string; summary: stri
   const { pending } = useFormStatus();
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
     <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm"><p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p><p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p></div>
-    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{status === 'READY' ? '重新開啟審核' : '儲存並檢查'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
+    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{status === 'READY' ? '重新開啟審核' : '儲存並檢查'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
   </div>;
 }
 
@@ -38,7 +38,9 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const readyForShipment = effectiveStatus === 'READY';
 
   useEffect(() => {
-    if (!state.ok || !state.action) return;
+    // A check commits the fulfillment draft even when other checks still block approval.
+    const draftSaved = state.action === 'check' && state.omsStatus === 'REVIEW' && state.kind !== 'error';
+    if ((!state.ok && !draftSaved) || !state.action) return;
     if (state.next?.href?.startsWith('/shipments')) {
       router.push(state.next.href);
       return;
@@ -49,7 +51,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [router, state.action, state.next?.href, state.ok, state.omsStatus]);
+  }, [router, state]);
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
