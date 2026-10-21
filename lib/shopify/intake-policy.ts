@@ -76,9 +76,10 @@ function promotionGiftProperties(item: unknown): Json[] | undefined {
   const values: Json[] = [];
   const push = (name: unknown, value: unknown) => {
     const propertyName = string(name);
-    if (propertyName !== PROMOTION_GIFT_MARKER && !GIFT_CARD_PROPERTY_NAMES.includes(propertyName as typeof GIFT_CARD_PROPERTY_NAMES[number])) return;
+    const promotionMarker = propertyName === PROMOTION_GIFT_MARKER;
+    if (!promotionMarker && !GIFT_CARD_PROPERTY_NAMES.includes(propertyName as typeof GIFT_CARD_PROPERTY_NAMES[number])) return;
     const propertyValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : string(value);
-    if (!propertyValue) return;
+    if (!promotionMarker && !propertyValue) return;
     values.push({ name: propertyName, value: propertyValue.slice(0, 2000) });
   };
   if (Array.isArray(raw)) for (const row of raw) push(record(row).name, record(row).value);

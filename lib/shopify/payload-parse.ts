@@ -39,7 +39,10 @@ function readLineProperties(value: unknown): ShopifyAttribute[] | null | undefin
   const attributes = readAttributes(value);
   if (!attributes) return attributes;
   const allowed = new Set(['_jc_gift_555', '贈送方式', '收禮毛友', '小卡內容']);
-  return attributes.filter(attribute => allowed.has(attribute.name?.trim() ?? '') && Boolean(attribute.value?.trim()));
+  return attributes.filter(attribute => {
+    const name = attribute.name?.trim() ?? '';
+    return allowed.has(name) && (name === '_jc_gift_555' || Boolean(attribute.value?.trim()));
+  });
 }
 
 function readLineItems(value: unknown): ShopifyLineItem[] | null | undefined {

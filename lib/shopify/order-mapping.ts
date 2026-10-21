@@ -272,7 +272,8 @@ export function shopifyOrderReviewSnapshot(order: ShopifyPaidOrder) {
         price: line.price ?? null,
         grams: line.grams ?? null,
         properties: (line.properties ?? []).filter(property =>
-          ['_jc_gift_555', '贈送方式', '收禮毛友', '小卡內容'].includes(property.name?.trim() ?? '') && Boolean(property.value?.trim()),
+          ['_jc_gift_555', '贈送方式', '收禮毛友', '小卡內容'].includes(property.name?.trim() ?? '')
+            && (property.name?.trim() === '_jc_gift_555' || Boolean(property.value?.trim())),
         ),
       })),
     },
