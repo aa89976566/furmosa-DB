@@ -36,6 +36,25 @@ test('7-11 門市資料由允許的 note attributes 帶入', () => {
   });
 });
 
+test('既有門市資料會保留 7-11 配送，不要求人員重選', () => {
+  const source = snapshot({
+    shipping_lines: [{ code: 'CUSTOM', title: '一般運送' }],
+    note_attributes: [{ name: 'cvs_store_id', value: '123456' }, { name: 'cvs_store_name', value: '原門市' }],
+  });
+  assert.equal(deliveryDefaults(source).method, 'convenience');
+  assert.equal(defaultReviewDraft(source, []).method, 'convenience');
+});
+
+test('辨識 Shopify 7-11 常見代碼與不同連字號，不覆蓋明確宅配', () => {
+  for (const title of ['UNIMARTC2C', '7‑11 取貨', '7－11 取貨']) {
+    assert.equal(deliveryDefaults(snapshot({ shipping_lines: [{ title }] })).method, 'convenience');
+  }
+  assert.equal(deliveryDefaults(snapshot({
+    shipping_lines: [{ title: '黑貓宅配' }],
+    note_attributes: [{ name: 'cvs_store_name', value: '舊門市' }],
+  })).method, 'home');
+});
+
 test('Ako 門市字串從地址拆成店號與名稱，履約地址不重複包含門市', () => {
   const source = snapshot({
     shipping_lines: [{ code: '711_PICKUP', title: '7-11 取貨常溫' }],

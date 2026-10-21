@@ -107,11 +107,20 @@ test('review retains shipping selection through repeated checks and approval', a
       await act(async () => root.render(createElement(OmsReviewForm, {
         key: method, orderId: 'test-order', sourceHash: 'same-source', status: 'REVIEW', draft, sourceSummary,
       })));
+      assert.equal(field('method').value, 'convenience', 'known pickup details retain 7-11 without reselection');
       await act(async () => {
         field('method').value = method;
         field('method').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
         field('address').value = 'HQ 補正地址';
+        if (method === 'convenience') {
+          const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!;
+          setter.call(field('storeName'), '新門市');
+          field('storeName').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        }
       });
+      if (method === 'convenience') {
+        assert.equal(field('storeId').value, '', 'changing the store must clear its former ID');
+      }
       outcome = 'check';
       await submit('check');
       assert.equal(submissions[0].method, method);
@@ -129,6 +138,9 @@ test('review retains shipping selection through repeated checks and approval', a
       await submit('approve');
       assert.equal(submissions.length, 4, 'all actions must reach the server action');
       assert.ok(submissions.every(row => row.method === method && row.address === 'HQ 補正地址'));
+      if (method === 'convenience') {
+        assert.ok(submissions.every(row => row.storeName === '新門市' && row.storeId === ''));
+      }
       assert.deepEqual(navigation, ['/shipments?s=test']);
     }
   } finally {

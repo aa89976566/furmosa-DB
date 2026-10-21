@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
-import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
+import { record, shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
 import { ReviewError, runReview } from '../review-service';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft } from '../shopify-source-review';
@@ -184,6 +184,30 @@ function fakeDb(source = snapshot) {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('saves a changed pickup store/address while retaining 7-11 and dropping the old store ID', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', address1: '原門市地址' },
+      shipping_lines: [{ title: '一般運送' }],
+      note_attributes: [{ name: 'cvs_store_id', value: '123456' }, { name: 'cvs_store_name', value: '原門市' }],
+    });
+    const f = fakeDb(source);
+    const corrected = { ...draft, method: '', address: '新門市地址', storeId: '', storeName: '新門市' };
+    const result = await f.run('check', { sourceOnly: true, draft: corrected });
+    assert.equal(result.ok, true);
+    const saved = currentReviewDraft(source, f.audits.at(-1).metadataJson)!;
+    assert.equal(saved.method, 'convenience');
+    assert.equal(saved.address, '新門市地址');
+    assert.equal(saved.storeName, '新門市');
+    assert.equal(saved.storeId, '', 'the former store ID must not be restored');
+    assert.equal(record(source.order.shipping_address).address1, '原門市地址');
+    assert.equal(f.shipmentCreates, 0, 'saving does not confirm or create a shipment');
+    await f.run('approve', { sourceOnly: true, draft: corrected });
+    assert.equal(f.order.shippingMethod, 'convenience');
+    assert.equal(f.order.shippingAddress, '新門市地址');
+    assert.equal(f.order.cvsStoreName, '新門市');
+    assert.equal(f.order.cvsStoreId, null);
+  });
+
   it('persists an address correction with delivery blockers without approving or changing Shopify source', async () => {
     const source = shopifySnapshot({ ...raw,
       shipping_address: { name: '測試', phone: '0912345678', address1: '來源地址' },

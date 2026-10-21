@@ -126,8 +126,9 @@ export function reviewLineDisplays(
 export function deliveryDefaults(snapshot: Snapshot) {
   const lines = Array.isArray(snapshot.order.shipping_lines)
     ? snapshot.order.shipping_lines.map(record) : [];
-  const shippingText = lines.map(line => `${string(line.code)} ${string(line.title)}`.toLowerCase()).join(' ');
-  const method = containsAny(shippingText, ['7-11', '711', 'seven', '超商', '門市'])
+  const shippingText = lines.map(line => `${string(line.code)} ${string(line.title)}`.toLowerCase()).join(' ')
+    .replace(/[‐‑‒–—−﹣－]/g, '-');
+  const method = containsAny(shippingText, ['7-11', '711', 'seven', 'unimart', '超商', '門市'])
     ? 'convenience' : containsAny(shippingText, ['black cat', 'blackcat', 't-cat', '黑貓', '宅配', 'home'])
       ? 'home' : '';
   const temperature = containsAny(shippingText, ['冷凍', 'frozen', 'freeze'])
@@ -144,11 +145,13 @@ export function deliveryDefaults(snapshot: Snapshot) {
   }
   const first = (keys: string[]) => keys.map(key => attributes.get(key)).find(Boolean) ?? '';
   const embedded = embeddedPickup(snapshot);
+  const storeId = first(['取貨門市店號', '門市店號', 'cvs_store_id']) || embedded.storeId;
+  const storeName = first(['取貨門市名稱', '門市名稱', 'cvs_store_name']) || embedded.storeName;
   return {
-    method,
+    method: method || (storeId || storeName ? 'convenience' : ''),
     temperature,
-    storeId: first(['取貨門市店號', '門市店號', 'cvs_store_id']) || embedded.storeId,
-    storeName: first(['取貨門市名稱', '門市名稱', 'cvs_store_name']) || embedded.storeName,
+    storeId,
+    storeName,
   };
 }
 
