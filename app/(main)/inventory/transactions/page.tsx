@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card } from '@/components/ui/card';
@@ -29,11 +30,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function InventoryTxnsPage(
   props: {
-    searchParams: Promise<{ type?: string }>;
+    searchParams: Promise<{ type?: string; product?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
-  const where: any = {};
+  const where: Prisma.InventoryTransactionWhereInput = {};
+  if (searchParams.product) where.productId = searchParams.product;
   if (
     searchParams.type &&
     (INVENTORY_TXN_TYPES as readonly string[]).includes(searchParams.type)
@@ -66,9 +68,10 @@ export default async function InventoryTxnsPage(
         <div className="flex flex-wrap gap-2">
           {types.map((t) => {
             const active = (searchParams.type ?? '') === t.key;
-            const href = t.key
-              ? `/inventory/transactions?type=${t.key}`
-              : '/inventory/transactions';
+            const params = new URLSearchParams();
+            if (t.key) params.set('type', t.key);
+            if (searchParams.product) params.set('product', searchParams.product);
+            const href = `/inventory/transactions${params.size ? `?${params}` : ''}`;
             return (
               <Button
                 key={t.key}
@@ -115,7 +118,7 @@ export default async function InventoryTxnsPage(
                   <TableCell className="text-sm">{t.warehouse.name}</TableCell>
                   <TableCell className="text-right">{formatNumber(t.quantity)} {t.unit ?? "（舊紀錄）"}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {t.reference ?? '-'}
+                    {t.eventKey?.startsWith('quantity-count:') ? '數量盤點' : t.reference ?? '-'}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {t.note ?? '-'}
