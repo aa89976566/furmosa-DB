@@ -108,17 +108,17 @@ export function PriceTierManager({
           尚無規格 — 可新增各重量（30g、50g…）或按單位（1 條、5 隻…）的售價與成本
         </div>
       ) : (
-        <Table>
+        <Table className="min-w-[960px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">{weightOnly ? '重量' : '規格'}</TableHead>
+              <TableHead className="min-w-[150px]">{weightOnly ? '重量' : '規格'}</TableHead>
               <TableHead className="text-right">售價</TableHead>
               <TableHead className="text-right">成本</TableHead>
               <TableHead className="text-right">買斷價</TableHead>
               <TableHead className="min-w-[180px]">SKU 綁定</TableHead>
               {weightOnly && <TableHead className="text-right">售價 / g</TableHead>}
               <TableHead className="text-right">毛利</TableHead>
-              <TableHead>備註</TableHead>
+              <TableHead className="min-w-[280px]">內容物／備註</TableHead>
               <TableHead className="w-[140px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -187,6 +187,11 @@ function TierDisplayRow({
   disabled: boolean;
 }) {
   const label = tierLabel(tier);
+  const noteParts = tier.notes?.split(/[；\n]/).map(part => part.trim()).filter(Boolean) ?? [];
+  const variantName = noteParts.find(part => part.startsWith('方案：'))?.slice(3).trim();
+  const contentLines = noteParts.filter(part => !part.startsWith('方案：')).flatMap(part =>
+    part.startsWith('組合內容：') ? part.slice(5).split('、') : [part],
+  );
   const perGram = tierPricePerGram(tier);
   const tierCost = tierCostDisplay(tier);
   const margin = computeTierMargin(tier);
@@ -194,6 +199,7 @@ function TierDisplayRow({
   return (
     <TableRow>
       <TableCell className="font-medium">
+        {variantName && <div className="mb-2 whitespace-normal font-semibold">{variantName}</div>}
         <Badge variant="secondary" className="font-mono">
           {label}
         </Badge>
@@ -246,8 +252,12 @@ function TierDisplayRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-        {tier.notes ?? '-'}
+      <TableCell className="min-w-[280px] max-w-[380px] whitespace-normal break-words text-xs leading-6 text-muted-foreground">
+        {contentLines.length ? (
+          <ul className="space-y-1">
+            {contentLines.map((line, index) => <li key={index}>{line}</li>)}
+          </ul>
+        ) : '-'}
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
