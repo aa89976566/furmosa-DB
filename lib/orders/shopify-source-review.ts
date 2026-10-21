@@ -1,4 +1,4 @@
-import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
+import { intakeSummary, record, sourceFulfillmentLines, string, type Snapshot } from '../shopify/intake-policy';
 import { toTierCatalog } from '../shopify/match-line-item';
 import { matchShopifyLineToTier } from '../shopify/match-product-tier';
 import { effectiveProductTemperature } from '../products/effective-temperature';
@@ -38,7 +38,7 @@ export function mergeShopifyFulfillmentDraft(source: ReturnType<typeof shopifySo
 export function shopifySourceDraft(snapshot: Snapshot, products: ReviewProduct[] = [], duplicateConfirmed = false) {
   const view = snapshotView(snapshot)!;
   const delivery = deliveryDefaults(snapshot);
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceFulfillmentLines(snapshot);
   const lines = rows.map(row => {
     const decision = matchShopifyLineToTier({ variant_id: row.variant_id, sku: string(row.sku), title: string(row.title) }, toTierCatalog(products));
     const product = decision.outcome === 'match' ? products.find(entry => entry.id === decision.productId) : undefined;
@@ -71,7 +71,7 @@ export function checkShopifySource(snapshot: Snapshot, duplicate: boolean, dupli
   const add = (code: OmsIssue['code'], message: string) => issues.push({ code, severity: 'blocking', message });
   const sourceDraft = shopifySourceDraft(snapshot);
   const draft = fulfillmentDraft ? mergeShopifyFulfillmentDraft(sourceDraft, fulfillmentDraft) : sourceDraft;
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceFulfillmentLines(snapshot);
   rows.forEach((row, index) => {
     const quantity = row.quantity;
     const cents = moneyToCents(row.price);

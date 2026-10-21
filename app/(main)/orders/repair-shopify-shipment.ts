@@ -2,7 +2,7 @@
 
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { snapshotHash, record, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { snapshotHash, sourceFulfillmentLines, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { toTierCatalog } from '@/lib/shopify/match-line-item';
 import { matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
 import { revalidatePath } from 'next/cache';
@@ -33,7 +33,7 @@ export async function repairShopifyShipment(form: FormData): Promise<void> {
       if (fresh.status !== 'pending') throw new Error('出貨狀態已變更');
       const products = await tx.product.findMany({ where: { status: 'active' }, include: { priceTiers: true } });
       const catalog = toTierCatalog(products);
-      const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+      const rows = sourceFulfillmentLines(snapshot);
       if (!rows.length) throw new Error('來源沒有品項');
       const expected = new Map<string, { productId: string; productName: string; sku: string; quantity: number; weightGrams: number | null; variantKey: string; unit: string; notes: string | null; unitPrice: number }>();
       for (const row of rows) {

@@ -1,4 +1,5 @@
 import { shopifyRecipientName } from './recipient-name';
+import { GIFT_CARD_PROPERTY_NAMES, isGiftCardFeeLine } from './intake-policy';
 
 /** Safe browser/server projection: never render arbitrary raw snapshot JSON. */
 function object(value: unknown): Record<string, unknown> {
@@ -28,17 +29,44 @@ export function snapshotView(value: unknown) {
   const order = object(snapshot.order);
   const shipping = object(order.shipping_address);
   const customer = object(order.customer);
+  const rows = (Array.isArray(order.line_items) ? order.line_items : []).map(object);
+  const lineView = (row: Record<string, unknown>) => ({
+    title: text(row.title) || '未命名商品', sku: text(row.sku), variantId: text(row.variant_id),
+    variantTitle: text(row.variant_title), quantity: typeof row.quantity === 'number' ? row.quantity : null,
+    price: text(row.price), lineTotal: sourceLineTotal(row.price, row.quantity),
+  });
+  const propertyMap = (row: Record<string, unknown>) => new Map(
+    (Array.isArray(row.properties) ? row.properties : []).map(object)
+      .map(property => [text(property.name), text(property.value)] as const)
+      .filter(([name, propertyValue]) => GIFT_CARD_PROPERTY_NAMES.includes(name as typeof GIFT_CARD_PROPERTY_NAMES[number]) && propertyValue),
+  );
+  const giftRows = rows.map(row => ({ row, properties: propertyMap(row) })).filter(entry => entry.properties.size > 0);
+  const feeRows = rows.filter(isGiftCardFeeLine);
+  const feeQuantity = feeRows.reduce((sum, row) => sum + (typeof row.quantity === 'number' && Number.isSafeInteger(row.quantity) && row.quantity > 0 ? row.quantity : 0), 0);
+  const giftQuantity = giftRows.reduce((sum, entry) => sum + (typeof entry.row.quantity === 'number' && Number.isSafeInteger(entry.row.quantity) && entry.row.quantity > 0 ? entry.row.quantity : 0), 0);
+  const warnings: string[] = [];
+  if (feeQuantity > 0 && giftRows.length === 0) warnings.push('已收取小卡費，但來源訂單沒有小卡內容，請先向顧客確認。');
+  if (giftRows.length > 0 && feeQuantity === 0) warnings.push('已有小卡內容，但來源訂單沒有小卡加購費，請先核對 Shopify。');
+  if (giftRows.length > 0 && feeQuantity > 0 && giftQuantity !== feeQuantity) warnings.push(`小卡數量不一致：內容 ${giftQuantity} 份、加購費 ${feeQuantity} 份。`);
   return {
     name: text(order.name), currency: text(order.currency),
     total: text(order.total_price),
     recipient: shopifyRecipientName(value),
     phone: text(shipping.phone) || text(order.phone) || text(customer.phone),
     address: ['zip', 'province', 'city', 'address1', 'address2'].map(key => text(shipping[key])).filter(Boolean).join(' '),
-    items: (Array.isArray(order.line_items) ? order.line_items : []).map(value => {
-      const row = object(value);
-      return { title: text(row.title) || '未命名商品', sku: text(row.sku),
-        variantTitle: text(row.variant_title),
-        quantity: typeof row.quantity === 'number' ? row.quantity : null, price: text(row.price), lineTotal: sourceLineTotal(row.price, row.quantity) };
-    }),
+    items: rows.filter(row => !isGiftCardFeeLine(row)).map(row => ({
+      ...lineView(row),
+      giftCard: propertyMap(row).size ? {
+        delivery: propertyMap(row).get('贈送方式') ?? '',
+        recipient: propertyMap(row).get('收禮毛友') ?? '',
+        message: propertyMap(row).get('小卡內容') ?? '',
+      } : null,
+    })),
+    feeLines: feeRows.map(lineView),
+    giftCard: giftRows.length || feeRows.length ? {
+      hasContent: giftRows.length > 0,
+      feeQuantity,
+      warnings,
+    } : null,
   };
 }

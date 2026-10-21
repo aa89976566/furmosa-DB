@@ -161,6 +161,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="min-w-0 space-y-4">
+            {sourceView?.giftCard ? <section className={cn('rounded-xl border p-4', sourceView.giftCard.warnings.length ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-sky-200 bg-sky-50 text-sky-950')}>
+              <div className="flex items-start gap-3">
+                <StickyNote className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                <div>
+                  <h2 className="font-semibold">這筆訂單需要處理贈禮小卡</h2>
+                  <p className="mt-1 text-sm">包貨前請核對右側訂單內容中的收禮毛友與小卡全文。</p>
+                  {sourceView.giftCard.warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm font-medium">{warning}</p>)}
+                </div>
+              </div>
+            </section> : null}
             {!order.deletedAt && !order.archivedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單目前不在待審核流程。</div>}
             <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
               <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
@@ -195,7 +205,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <h2 className="font-semibold">訂單內容</h2>
               <div className="mt-3 space-y-3 text-sm">
                 <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
-                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p></li>)}</ul></div>
+                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p>{item.giftCard ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-sky-950"><p className="text-xs font-semibold">贈禮小卡</p><dl className="mt-1 space-y-1 text-xs"><div><dt className="inline text-sky-700">贈送方式：</dt><dd className="inline">{item.giftCard.delivery || '來源未提供'}</dd></div><div><dt className="inline text-sky-700">收禮毛友：</dt><dd className="inline">{item.giftCard.recipient || '來源未提供'}</dd></div><div><dt className="text-sky-700">小卡內容：</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{item.giftCard.message || '來源未提供'}</dd></div></dl></div> : null}</li>)}</ul></div>
+                {(sourceView?.feeLines.length ?? 0) > 0 ? <div className="border-t pt-3"><p className="text-xs font-medium text-muted-foreground">加購費用（不需出貨）</p><ul className="mt-1 space-y-1">{sourceView?.feeLines.map((fee, index) => <li key={`${fee.variantId}-${index}`} className="flex justify-between gap-3 text-xs"><span className="break-words">{fee.title}</span><span className="shrink-0 tabular-nums">{sourceView.currency} {fee.lineTotal ?? fee.price}</span></li>)}</ul></div> : null}
                 <div className="border-t pt-3">
                   <p className="text-xs text-muted-foreground">收件與配送</p>
                   <p>{sourceView?.recipient || order.customer?.name || '收件人待補'} · {sourceView?.phone || order.customer?.phone || '電話待補'}</p>

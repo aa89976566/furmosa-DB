@@ -1,4 +1,4 @@
-import { record, string, type Snapshot } from '@/lib/shopify/intake-policy';
+import { record, sourceFulfillmentLines, string, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { toTierCatalog, type MatchableTierShape } from '@/lib/shopify/match-line-item';
 import { foldSku, matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
@@ -72,7 +72,7 @@ export function skuMatchingProducts<T extends { id: string; sku: string; sourceS
 }
 
 function sourceLineRows(snapshot: Snapshot) {
-  return Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  return sourceFulfillmentLines(snapshot);
 }
 
 /** Same tier matcher as order sync. Canonical SKU is primary; controlled title aliases are legacy-only compatibility. */

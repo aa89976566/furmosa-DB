@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { compareShopifySourceVersion } from '../orders/oms';
 import { classifyShopifyLines, type TierCatalogProduct, type TierReviewIssue } from './match-product-tier';
 import { intakeSummary, preserveOperationalOrder, record, snapshotHash, sourceDate, string,
-  hasPromotionCapture, stripPromotionCapture,
+  hasPromotionCapture, stripPromotionCapture, sourceFulfillmentLines,
   type Snapshot, type ShopifyOrderTopic } from './intake-policy';
 
 export type IntakeEvent = { shopDomain: string; topic: ShopifyOrderTopic; eventId: string; snapshot: Snapshot; origin?: 'reconcile' };
@@ -32,7 +32,7 @@ async function readTierCatalog(client: PrismaClient | Prisma.TransactionClient):
 }
 
 function resolvedOrderItems(snapshot: Snapshot, catalog: TierCatalogProduct[]) {
-  const lines = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const lines = sourceFulfillmentLines(snapshot);
   const classified = classifyShopifyLines(lines.map((row) => ({ variant_id: row.variant_id, sku: string(row.sku) })), catalog);
   if (classified.status === 'review') return { items: null, issues: classified.issues };
   const items = classified.matches.map((decision, index) => {

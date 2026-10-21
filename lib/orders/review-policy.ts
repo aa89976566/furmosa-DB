@@ -1,6 +1,6 @@
 import { bulkConsumption } from '../inventory/bulk';
 import { isMadeToOrderHqProduct } from '../inventory/shipment-advisory';
-import { intakeSummary, record, string, type Snapshot } from '../shopify/intake-policy';
+import { intakeSummary, record, sourceFulfillmentLines, string, type Snapshot } from '../shopify/intake-policy';
 import { buildFulfillmentPlan, type FulfillmentPlan } from './fulfillment-plan';
 import type { OmsIssue } from './oms';
 
@@ -37,7 +37,7 @@ export function checkReview(snapshot: Snapshot, draft: ReviewDraft, products: Re
   if (snapshot.order.fulfillment_status && snapshot.order.fulfillment_status !== 'unfulfilled') add('ORDER_CHANGED', 'Shopify 已有履約狀態，請先核對既有出貨，避免重複寄送');
   const plan = buildFulfillmentPlan(snapshot, draft, products);
   issues.push(...plan.issues);
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceFulfillmentLines(snapshot);
   for (const [id, quantity] of Object.entries(plan.neededQuantities)) {
     const product = products.find(item => item.id === id);
     if (!product) continue;

@@ -233,6 +233,23 @@ describe('Shopify intake', () => {
     assert.doesNotMatch(JSON.stringify(snapshot), /SECRET|PRIVATE/);
     assert.equal(hasPromotionCapture(stripPromotionCapture(snapshot)), false);
   });
+  it('stores only approved gift-card properties and excludes the exact fee variant from fulfillment intake', () => {
+    const snapshot = shopifySnapshot({ ...raw, line_items: [
+      { ...raw.line_items[0], properties: [
+        { name: '贈送方式', value: '贈牠的毛友＋小卡' }, { name: '收禮毛友', value: '豆豆' },
+        { name: '小卡內容', value: '生日快樂' }, { name: 'customer_secret', value: 'PRIVATE' },
+      ] },
+      { title: '小卡費', variant_id: 64947813745017, sku: '', quantity: 1, price: '10.00', requires_shipping: false },
+    ] });
+    const encoded = JSON.stringify(snapshot);
+    assert.doesNotMatch(encoded, /customer_secret|PRIVATE/);
+    assert.match(encoded, /生日快樂/);
+    assert.equal(snapshotView(snapshot)?.items.length, 1);
+    assert.equal(snapshotView(snapshot)?.feeLines.length, 1);
+    assert.equal(intakeSummary(shopifySnapshot({ ...raw, line_items: [
+      { title: '小卡費', variant_id: '64947813745017', quantity: 1, price: '10.00', requires_shipping: false },
+    ] })).issues.some(issue => issue.code === 'PRODUCT_UNMAPPED'), true);
+  });
   it('reconcile may supplement capture fields at the same timestamp only when the rest hashes equal', async () => {
     const fake = fakeDb();
     await persistShopifyIntake(fake.db, input());
