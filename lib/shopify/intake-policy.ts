@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { OmsIssue } from '../orders/oms';
+import { GIFT_CARD_PROPERTY_NAMES, isGiftCardFeeLine } from './gift-card';
 
 export const SHOPIFY_ORDER_TOPICS = ['orders/create', 'orders/paid', 'orders/updated'] as const;
 export type ShopifyOrderTopic = (typeof SHOPIFY_ORDER_TOPICS)[number];
@@ -7,8 +8,6 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export const PROMOTION_CAPTURE_VERSION = 1;
 export const PROMOTION_GIFT_MARKER = '_jc_gift_555';
 export const PROMOTION_CHOICE_ATTRIBUTE = 'jc_mooncake_choice';
-export const GIFT_CARD_FEE_VARIANT_ID = '64947813745017';
-export const GIFT_CARD_PROPERTY_NAMES = ['贈送方式', '收禮毛友', '小卡內容'] as const;
 export type Snapshot = { schemaVersion: 1; order: Record<string, Json>; promotionCaptureVersion?: number };
 
 export function record(value: unknown): Record<string, Json> {
@@ -85,10 +84,6 @@ function promotionGiftProperties(item: unknown): Json[] | undefined {
   if (Array.isArray(raw)) for (const row of raw) push(record(row).name, record(row).value);
   else if (raw && typeof raw === 'object') for (const [name, value] of Object.entries(record(raw))) push(name, value);
   return values.length ? values : undefined;
-}
-
-export function isGiftCardFeeLine(value: unknown): boolean {
-  return promotionVariantId(value) === GIFT_CARD_FEE_VARIANT_ID;
 }
 
 export function sourceFulfillmentLines(snapshot: Snapshot): Record<string, Json>[] {

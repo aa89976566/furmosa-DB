@@ -1,5 +1,5 @@
 import { shopifyRecipientName } from './recipient-name';
-import { GIFT_CARD_PROPERTY_NAMES, isGiftCardFeeLine } from './intake-policy';
+import { GIFT_CARD_PROPERTY_NAMES, isGiftCardFeeLine } from './gift-card';
 
 /** Safe browser/server projection: never render arbitrary raw snapshot JSON. */
 function object(value: unknown): Record<string, unknown> {
