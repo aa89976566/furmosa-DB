@@ -36,7 +36,9 @@ function validCommission(mode: string | null, value: number | null) {
 export function deriveProductReadiness(input: ProductReadinessInput): ProductReadiness {
   const activeTiers = input.priceTiers.filter((tier) => tier.status !== 'archived');
   const tierCount = activeTiers.length;
-  const boundTierCount = activeTiers.filter((tier) => Boolean(tier.sku?.trim())).length;
+  const boundTierCount = activeTiers.filter(
+    (tier) => Boolean(tier.sku?.trim() || tier.shopifySku?.trim()),
+  ).length;
   const pricedTierCount = activeTiers.filter(
     (tier) => tier.defaultWholesaleUnitPrice != null && tier.defaultWholesaleUnitPrice > 0,
   ).length;
