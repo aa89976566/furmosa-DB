@@ -42,6 +42,17 @@ test('active tiers report partial SKU and buyout readiness', () => {
   assert.equal(result.needsAttention, true);
 });
 
+test('Shopify SKU counts as a bound sellable identity', () => {
+  const result = deriveProductReadiness({
+    ...base,
+    priceTiers: [
+      { status: 'active', sku: null, shopifySku: 'FD-11-30G', defaultWholesaleUnitPrice: null },
+    ],
+  });
+  assert.equal(result.variants.state, 'complete');
+  assert.equal(result.variants.summary, '1 個規格皆有 SKU');
+});
+
 test('archived tiers are excluded from readiness denominators', () => {
   const result = deriveProductReadiness({
     ...base,
