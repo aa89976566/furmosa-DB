@@ -13,6 +13,7 @@ export type ShopifyLineItem = {
   quantity?: number | null;
   price?: string | null;
   grams?: number | null;
+  properties?: ShopifyAttribute[] | null;
 };
 
 export type ShopifyPaidOrder = {
@@ -270,6 +271,10 @@ export function shopifyOrderReviewSnapshot(order: ShopifyPaidOrder) {
         quantity: line.quantity ?? null,
         price: line.price ?? null,
         grams: line.grams ?? null,
+        properties: (line.properties ?? []).filter(property =>
+          ['_jc_gift_555', '贈送方式', '收禮毛友', '小卡內容'].includes(property.name?.trim() ?? '')
+            && (property.name?.trim() === '_jc_gift_555' || Boolean(property.value?.trim())),
+        ),
       })),
     },
   };

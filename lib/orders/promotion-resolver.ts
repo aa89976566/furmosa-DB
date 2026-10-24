@@ -1,4 +1,4 @@
-import { record, string, sourceDate, hasPromotionCapture, PROMOTION_GIFT_MARKER, PROMOTION_CHOICE_ATTRIBUTE, type Snapshot } from '../shopify/intake-policy';
+import { record, string, sourceDate, hasPromotionCapture, sourceFulfillmentLines, PROMOTION_GIFT_MARKER, PROMOTION_CHOICE_ATTRIBUTE, type Snapshot } from '../shopify/intake-policy';
 import type { OmsIssue } from './oms';
 
 export const PROMOTION_RULES_VERSION = 'ck08-555-v1';
@@ -141,7 +141,7 @@ export function resolvePromotion(snapshot: Snapshot): PromotionResolution {
   const captureComplete = hasPromotionCapture(snapshot);
   const base = { rulesVersion: PROMOTION_RULES_VERSION, captureComplete,
     qualifyingCents: null as number | null, existingGiftIndexes: [] as number[], existingGiftQuantity: 0 };
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceFulfillmentLines(snapshot);
   if (!snapshot.order.currency || snapshot.order.currency !== 'TWD') {
     return { ...base, giftAction: 'uncertain', reason: 'INVALID_MONEY', issues: [issue('非 TWD 不可計算滿額贈品')] };
   }

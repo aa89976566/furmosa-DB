@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { snapshotHash, record, string, type Snapshot } from '../shopify/intake-policy';
+import { snapshotHash, record, sourceFulfillmentLines, string, type Snapshot } from '../shopify/intake-policy';
 import { MOONCAKE_CATALOG } from '../products/mooncake-catalog';
 import { effectiveProductTemperature } from '../products/effective-temperature';
 import { toTierCatalog } from '../shopify/match-line-item';
@@ -340,7 +340,7 @@ export function parseFrozenFulfillmentPlan(value: unknown): FrozenFulfillmentPla
 export function buildFulfillmentPlan(snapshot: Snapshot, draft: ReviewDraft, products: ReviewProduct[]): FulfillmentPlan {
   const promotion = resolvePromotion(snapshot);
   const issues: OmsIssue[] = [...promotion.issues];
-  const rows = Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items.map(record) : [];
+  const rows = sourceFulfillmentLines(snapshot);
   const items: FulfillmentItem[] = [];
   const needed: Record<string, number> = {};
   const campaignGiftSet = new Set(promotion.existingGiftIndexes);

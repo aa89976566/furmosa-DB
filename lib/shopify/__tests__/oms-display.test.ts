@@ -44,6 +44,33 @@ test('來源金額保留小數與幣別，不套用本地運費或浮點運算',
   assert.equal(snapshotView({ schemaVersion: 1, order: {} })?.total, '');
 });
 
+test('贈禮小卡資料掛在母商品，10 元費用獨立顯示且不算出貨商品', () => {
+  const view = snapshotView({ schemaVersion: 1, order: { currency: 'TWD', total_price: '469.00', line_items: [
+    { title: '萬聖節限定組合', sku: 'HALLOWEEN', quantity: 1, price: '459.00', properties: [
+      { name: '贈送方式', value: '贈牠的毛友＋小卡' }, { name: '收禮毛友', value: '豆豆' },
+      { name: '小卡內容', value: '第一行\n第二行' }, { name: '不允許欄位', value: '不應顯示' },
+    ] },
+    { title: '萬聖節贈禮小卡加購', variant_id: '64947813745017', quantity: 1, price: '10.00' },
+  ] } });
+  assert.equal(view?.items.length, 1);
+  assert.equal(view?.feeLines.length, 1);
+  assert.equal(view?.items[0]?.giftCard?.recipient, '豆豆');
+  assert.equal(view?.items[0]?.giftCard?.message, '第一行\n第二行');
+  assert.deepEqual(view?.giftCard?.warnings, []);
+});
+
+test('小卡內容與費用不一致時顯示營運警示，舊 v1 快照仍可讀', () => {
+  const paidOnly = snapshotView({ schemaVersion: 1, order: { line_items: [
+    { title: '小卡費', variant_id: 64947813745017, quantity: 1, price: '10.00' },
+  ] } });
+  assert.match(paidOnly?.giftCard?.warnings[0] ?? '', /沒有小卡內容/);
+  const contentOnly = snapshotView({ schemaVersion: 1, order: { line_items: [
+    { title: '組合', quantity: 1, properties: [{ name: '小卡內容', value: '祝福' }] },
+  ] } });
+  assert.match(contentOnly?.giftCard?.warnings[0] ?? '', /沒有小卡加購費/);
+  assert.equal(snapshotView({ schemaVersion: 1, order: { line_items: [{ title: '舊商品', quantity: 1 }] } })?.items[0]?.title, '舊商品');
+});
+
 // Source guards complement policy tests; browser rendering is verified separately.
 test('OMS 金額和付款區塊採唯讀分支，舊元件仍保留', () => {
   const page = readFileSync(new URL('../../../app/(main)/orders/[id]/page.tsx', import.meta.url), 'utf8');

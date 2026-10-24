@@ -26,6 +26,16 @@ test('Shopify 配送 code 與商品主檔可自動填入正常宅配訂單', () 
   assert.equal(draft.phone, '0912345678');
 });
 
+test('10 元小卡費不進商品對應，未知一般 variant 仍需人工對應', () => {
+  const withFee = snapshot({ line_items: [
+    { title: '冷凍商品', sku: 'SKU-FROZEN', quantity: 1, price: '100.00' },
+    { title: '小卡費', variant_id: '64947813745017', sku: '', quantity: 1, price: '10.00', requires_shipping: false },
+  ] });
+  assert.equal(defaultReviewDraft(withFee, [frozen]).lines.length, 1);
+  const unknown = snapshot({ line_items: [{ title: '未知商品', variant_id: '123', sku: '', quantity: 1, price: '10.00' }] });
+  assert.equal(defaultReviewDraft(unknown, [frozen]).lines[0]?.productId, '');
+});
+
 test('7-11 門市資料由允許的 note attributes 帶入', () => {
   const source = snapshot({
     shipping_lines: [{ code: '711_PICKUP', title: '7-11 取貨常溫' }],

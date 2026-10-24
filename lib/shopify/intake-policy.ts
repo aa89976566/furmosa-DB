@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { OmsIssue } from '../orders/oms';
+import { GIFT_CARD_PROPERTY_NAMES, isGiftCardFeeLine } from './gift-card';
 
 export const SHOPIFY_ORDER_TOPICS = ['orders/create', 'orders/paid', 'orders/updated'] as const;
 export type ShopifyOrderTopic = (typeof SHOPIFY_ORDER_TOPICS)[number];
@@ -73,12 +74,26 @@ function promotionGiftProperties(item: unknown): Json[] | undefined {
   const raw = record(item).properties;
   const values: Json[] = [];
   const push = (name: unknown, value: unknown) => {
-    if (string(name) !== PROMOTION_GIFT_MARKER) return;
-    values.push({ name: PROMOTION_GIFT_MARKER, value: typeof value === 'boolean' ? (value ? 'true' : 'false') : string(value) });
+    const propertyName = string(name);
+    const promotionMarker = propertyName === PROMOTION_GIFT_MARKER;
+    if (!promotionMarker && !GIFT_CARD_PROPERTY_NAMES.includes(propertyName as typeof GIFT_CARD_PROPERTY_NAMES[number])) return;
+    const propertyValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : string(value);
+    if (!promotionMarker && !propertyValue) return;
+    values.push({ name: propertyName, value: propertyValue.slice(0, 2000) });
   };
   if (Array.isArray(raw)) for (const row of raw) push(record(row).name, record(row).value);
   else if (raw && typeof raw === 'object') for (const [name, value] of Object.entries(record(raw))) push(name, value);
   return values.length ? values : undefined;
+}
+
+export function sourceFulfillmentLines(snapshot: Snapshot): Record<string, Json>[] {
+  return (Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items : [])
+    .map(record).filter(row => !isGiftCardFeeLine(row));
+}
+
+export function sourceFeeLines(snapshot: Snapshot): Record<string, Json>[] {
+  return (Array.isArray(snapshot.order.line_items) ? snapshot.order.line_items : [])
+    .map(record).filter(isGiftCardFeeLine);
 }
 
 export function hasPromotionCapture(snapshot: unknown): boolean {
@@ -153,7 +168,7 @@ export function intakeSummary(snapshot: Snapshot) {
   if (order.cancelled_at) issues.push({ code: 'ORDER_CANCELLED', severity: 'blocking', message: 'Shopify 訂單已取消' });
   if (!sourceDate(order.updated_at)) issues.push({ code: 'SOURCE_VERSION_UNKNOWN', severity: 'blocking', message: '缺少有效來源更新時間' });
   if (order.currency !== 'TWD') issues.push({ code: 'ORDER_CHANGED', severity: 'blocking', message: '非 TWD 或幣別缺失；金額不可直接用於本地結算' });
-  const items = Array.isArray(order.line_items) ? order.line_items : [];
+  const items = sourceFulfillmentLines(snapshot);
   if (!items.length) issues.push({ code: 'PRODUCT_UNMAPPED', severity: 'blocking', message: '沒有商品明細，需確認原訂單' });
   for (const row of items) {
     const item = record(row);
