@@ -15,7 +15,7 @@ function Actions({ status, summary, alertText }: { status: string; summary: stri
   const { pending } = useFormStatus();
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
     <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm"><p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p><p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p></div>
-    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{status === 'READY' ? '重新開啟審核' : '儲存並檢查'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
+    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{status === 'READY' ? '重新開啟審核' : '儲存修改'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
   </div>;
 }
 
@@ -34,11 +34,14 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const router = useRouter();
   const ok = state.ok ?? null;
   const effectiveStatus = state.ok && state.omsStatus ? state.omsStatus : status;
-  const [method, setMethod] = useState(draft.method);
+  const [method, setMethod] = useState(draft.method || (draft.storeName || draft.storeId ? 'convenience' : ''));
+  const [storeId, setStoreId] = useState(draft.storeId);
   const readyForShipment = effectiveStatus === 'READY';
 
   useEffect(() => {
-    if (!state.ok || !state.action) return;
+    // A check commits the fulfillment draft even when other checks still block approval.
+    const draftSaved = state.action === 'check' && state.omsStatus === 'REVIEW' && state.kind !== 'error';
+    if ((!state.ok && !draftSaved) || !state.action) return;
     if (state.next?.href?.startsWith('/shipments')) {
       router.push(state.next.href);
       return;
@@ -49,7 +52,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 120);
     return () => window.clearTimeout(timer);
-  }, [router, state.action, state.next?.href, state.ok, state.omsStatus]);
+  }, [router, state]);
   const isError = ok === false && state.kind === 'error';
   const hasBlockers = state.blockers.length > 0;
   const resultTone = isError ? 'border-destructive/40 bg-destructive/5' : (ok === false || hasBlockers) ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5';
@@ -82,14 +85,14 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
         </div>
       </section>
     </> : <section className="space-y-3 rounded-xl border bg-background p-4">
-      <div><h3 className="font-semibold">HQ 履約資料</h3><p className="mt-1 text-sm text-muted-foreground">Shopify 原始資料保留供比對；以下欄位 HQ 可補正，儲存後會用於實際出貨。</p></div>
+      <div><h3 className="font-semibold">HQ 履約資料</h3><p className="mt-1 text-sm text-muted-foreground">可直接修改地址或門市後儲存，原配送方式會保留。其他待確認資料不影響保存；HQ 可補正履約資料，Shopify 原始資料保留供比對。</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">配送方式</span><select className="h-10 w-full rounded-md border bg-background px-3" name="method" value={method} onChange={event => setMethod(event.target.value)} required><option value="">請選擇</option><option value="home">黑貓宅配</option><option value="convenience">7-11 取貨</option></select></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">配送溫層（選填）</span><select className="h-10 w-full rounded-md border bg-background px-3" name="temperature" defaultValue={draft.temperature}><option value="">依 Shopify 配送設定</option><option value="ambient">常溫</option><option value="chilled">冷藏</option><option value="frozen">冷凍</option></select></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">收件人</span><Input name="recipient" defaultValue={draft.recipient} maxLength={500} required /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">收件電話</span><Input name="phone" defaultValue={draft.phone} maxLength={500} required /></label>
         <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">地址／門市地址</span><Input name="address" defaultValue={draft.address} maxLength={500} required /></label>
-        {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" defaultValue={draft.storeId} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
+        {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" value={storeId} onChange={event => setStoreId(event.target.value)} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} onChange={() => setStoreId('')} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
       </div>
     </section>}
     {!readyForShipment ? <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} /></form>;

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
-import { shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
+import { record, shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
 import { checkReview, reviewDraft, type ReviewDraft } from '../review-policy';
 import { ReviewError, runReview } from '../review-service';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft } from '../shopify-source-review';
+import { currentReviewDraft } from '../review-display';
 
 const raw = { id: '123', currency: 'TWD', updated_at: '2026-08-30T01:00:00Z', financial_status: 'paid',
   subtotal_price: '100.10', total_discounts: '0.00', total_price: '160.10',
@@ -183,6 +184,50 @@ function fakeDb(source = snapshot) {
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
 describe('OMS review transaction contract', () => {
+  it('saves a changed pickup store/address while retaining 7-11 and dropping the old store ID', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', address1: '原門市地址' },
+      shipping_lines: [{ title: '一般運送' }],
+      note_attributes: [{ name: 'cvs_store_id', value: '123456' }, { name: 'cvs_store_name', value: '原門市' }],
+    });
+    const f = fakeDb(source);
+    const corrected = { ...draft, method: '', address: '新門市地址', storeId: '', storeName: '新門市' };
+    const result = await f.run('check', { sourceOnly: true, draft: corrected });
+    assert.equal(result.ok, true);
+    const saved = currentReviewDraft(source, f.audits.at(-1).metadataJson)!;
+    assert.equal(saved.method, 'convenience');
+    assert.equal(saved.address, '新門市地址');
+    assert.equal(saved.storeName, '新門市');
+    assert.equal(saved.storeId, '', 'the former store ID must not be restored');
+    assert.equal(record(source.order.shipping_address).address1, '原門市地址');
+    assert.equal(f.shipmentCreates, 0, 'saving does not confirm or create a shipment');
+    await f.run('approve', { sourceOnly: true, draft: corrected });
+    assert.equal(f.order.shippingMethod, 'convenience');
+    assert.equal(f.order.shippingAddress, '新門市地址');
+    assert.equal(f.order.cvsStoreName, '新門市');
+    assert.equal(f.order.cvsStoreId, null);
+  });
+
+  it('persists an address correction with delivery blockers without approving or changing Shopify source', async () => {
+    const source = shopifySnapshot({ ...raw,
+      shipping_address: { name: '測試', phone: '0912345678', address1: '來源地址' },
+      shipping_lines: [],
+    });
+    const f = fakeDb(source);
+    const corrected = { ...draft, method: '', address: 'HQ 更正後地址' };
+    const result = await f.run('check', { sourceOnly: true, draft: corrected });
+    assert.equal(result.ok, false);
+    assert.equal(result.kind, 'blocked');
+    assert.ok(result.blockers.some(message => message.includes('配送方式')));
+    const saved = f.audits.filter(a => a.entityType === 'oms_review').at(-1);
+    assert.equal(currentReviewDraft(source, saved.metadataJson)?.address, corrected.address);
+    assert.equal(f.order.shopifySnapshot.order.shipping_address.address1, '來源地址');
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.shipmentCreates, 0);
+    await assert.rejects(f.run('approve', { sourceOnly: true, draft: corrected }), /配送方式/);
+    assert.equal(f.shipmentCreates, 0);
+  });
+
   it('accepts a 7-11 store name without a store number in source-only review', async () => {
     const source = shopifySnapshot({ ...raw,
       shipping_address: { name: '測試', phone: '0912345678', city: '台北市', address1: '門市地址' },
