@@ -7,14 +7,14 @@ Status: **CURRENT HEALTH CONTRACT ALIGNED**. The canonical public production hea
 - `/api/health` is intentionally public liveness only: no auth, DB, Prisma, env or network access.
 - PR #204 removed the public DB-backed `/api/health/ready` route and narrowed the middleware exemption to exact `/api/health`.
 - Railway production uses `healthcheckPath=/api/health` with a 60-second timeout. Railway healthchecks gate deployments by requiring a successful 2xx response before traffic is switched: https://docs.railway.com/deployments/healthchecks
-- Railway `source.checkSuites` is enabled for the production service.
+- Railway `source.checkSuites` / `Wait for CI` is disabled for the production service. The controlled release workflow verifies PR CI before merging and then waits for Railway's commit status; enabling both waits creates a circular dependency.
 - Production smoke covers `/api/health`, `/login`, `/pos/login`, expected unauthenticated redirects for `/orders` and `/pos`, and the 401 authorization gate for `/api/merchant/refill-orders`. This does not verify authenticated business reads.
 - The smoke script uses only fixed audited GET routes, never follows redirects, never sends sessions and never records response bodies or exception contents.
 
 ## Platform blockers / guardrails
 
 1. `main` branch protection is not currently enforced by GitHub. Keep CI as a merge gate for automated reliability fixes and do not merge a failing PR.
-2. Railway `source.checkSuites` is enabled; preserve it.
+2. Railway `source.checkSuites` / `Wait for CI` is disabled; preserve that setting. PR CI remains mandatory in the controlled release workflow.
 3. Railway currently has pre-existing staged changes. Inspect their exact scope before accepting any environment-level staged deploy; do not commit unknown staged changes as part of an incident fix.
 4. Keep the Railway platform probe at `/api/health`. Do not attach `/api/health/live` or `/api/health/ready`, and do not add a public DB query to satisfy deployment readiness.
 5. Main may change concurrently. Refresh main/head SHAs and CI state immediately before merge.
