@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
 import { postPurchaseReceipt } from '@/lib/inventory/post-purchase-receipt';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -68,6 +69,7 @@ export async function createPurchaseReceipt(formData: FormData) {
       items,
       attachments,
     });
+    await refreshInventoryViews(items.map(item => item.productId));
     destination = `/inventory/purchases/${receipt.id}?created=1`;
   } catch (error) {
     const raw = error instanceof Error ? error.message : '';

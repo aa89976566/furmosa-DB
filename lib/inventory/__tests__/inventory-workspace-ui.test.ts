@@ -12,6 +12,7 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: dom.
 const React = require('react');
 Object.assign(globalThis, { React, IS_REACT_ACT_ENVIRONMENT: true });
 const { act, createElement } = React;
+dom.window.confirm = () => true;
 const { createRoot } = require('react-dom/client');
 const submissions: FormData[] = [];
 const internal = Module as typeof Module & { _load: (...args: any[]) => any };
@@ -26,11 +27,11 @@ const base: InventoryRow = { id: 'bulk', name: '雞肉', sku: 'SOURCE-01', hqSku
   quantity: 400, unit: 'g', version: '2026-10-21T09:00:00.000Z', canCount: true, otherWarehouses: [] };
 const rows = [base, { ...base, id: 'pack', name: 'QiQi凍乾', vendorId: 'qiqi', vendorName: 'QiQi', quantity: 3, unit: '包' },
   { ...base, id: 'unknown', name: '待核對', quantity: null, unit: null, canCount: false, canConfirmUnit: true }];
-test('staff filter, cancel, review and save counts with original version; refresh never rewrites a draft baseline', async () => {
+test('staff filter, cancel, preview differences and save counts with original version; refresh never rewrites a draft baseline', async () => {
   const container = document.getElementById('root')!; const root = createRoot(container);
   const button = (text: string) => Array.from(container.querySelectorAll('button')).find((b: any) => b.textContent === text) as HTMLButtonElement;
   const click = async (text: string) => { assert.ok(button(text), text); await act(async () => button(text).click()); };
-  const input = () => container.querySelector('input[aria-label="雞肉實際剩餘數量（g）"]') as HTMLInputElement;
+  const input = () => container.querySelector('input[aria-label="雞肉本次清點數量（g）"]') as HTMLInputElement;
   const fill = async (value: string) => { await act(async () => {
     Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(input(), value);
     input().dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -38,7 +39,6 @@ test('staff filter, cancel, review and save counts with original version; refres
   try {
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
     assert.equal(container.querySelector('a[href^="/inventory/confirm-unit/"]'), null);
-    assert.ok(container.textContent!.includes('待管理員完成設定'));
     assert.equal(container.textContent!.includes('核對庫存單位'), false);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
     const setup = container.querySelector('a[href="/inventory/confirm-unit/unknown"]')!;
@@ -46,14 +46,16 @@ test('staff filter, cancel, review and save counts with original version; refres
     assert.equal(setup.closest('details')!.hasAttribute('open'), false);
     assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 1);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
-    await click('廠商成品'); assert.ok(container.textContent!.includes('QiQi凍乾')); assert.equal(container.textContent!.includes('SOURCE-01'), true);
+    await act(async () => { const select = container.querySelector('select[aria-label="商品分類"]') as HTMLSelectElement; select.value = 'vendor'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }); assert.ok(container.textContent!.includes('QiQi凍乾')); assert.equal(container.textContent!.includes('SOURCE-01'), true);
     assert.equal(container.querySelectorAll('a[href="/products/bulk"]').length, 0);
-    await click('全部庫存'); await click('盤點數量'); await fill('350'); await click('取消'); assert.equal(submissions.length, 0);
-    await click('盤點數量'); await fill('350');
+    await act(async () => { const select = container.querySelector('select[aria-label="商品分類"]') as HTMLSelectElement; select.value = 'all'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }); await click('盤點庫存'); await fill('350'); await click('取消'); assert.equal(submissions.length, 0);
+    await click('盤點庫存'); await fill('350');
     await act(async () => root.render(createElement(InventoryWorkbench, { rows: rows.map(r => ({ ...r, quantity: 999, version: '2026-10-21T10:00:00.000Z' })), canEdit: true })));
     assert.equal(input().value, '350');
-    await click('核對變更'); assert.ok(container.textContent!.includes('400 →')); assert.equal(submissions.length, 0);
-    await click('確認更新'); assert.equal(submissions.length, 1);
+    assert.ok(container.textContent!.includes('差異 -50 g')); assert.equal(submissions.length, 0);
+    assert.ok(container.textContent!.includes('待管理員完成設定'));
+    assert.equal(container.querySelector('input[aria-label="待核對本次清點數量（null）"]'), null);
+    await click('儲存盤點'); assert.equal(submissions.length, 1);
     const payload = JSON.parse(submissions[0].get('lines') as string);
     assert.deepEqual(payload, [{ productId: 'bulk', quantity: '350', expectedVersion: base.version }]);
     assert.equal(submissions[0].has('date'), false); assert.equal(submissions[0].has('cost'), false);

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
 import { allPurchaseLinesConfirmed, createPurchaseOrder, receivePurchaseOrder } from '@/lib/inventory/purchase-orders';
@@ -67,6 +68,7 @@ export async function createPendingPurchaseOrder(formData: FormData) {
       items,
       attachments,
     });
+    await refreshInventoryViews();
     destination = `/inventory/purchase-orders/${order.id}?created=1`;
   } catch (error) {
     destination = `/inventory/purchase-orders/new?error=${encodeURIComponent(safeError(error, '建立採購單失敗，資料沒有變更'))}`;
@@ -85,7 +87,7 @@ export async function confirmPurchaseOrderReceipt(formData: FormData) {
       throw new Error('請逐項核對全部商品後再確認實收');
     }
     const result = await receivePurchaseOrder(prisma, id, user.userId);
-    revalidatePath('/inventory'); revalidatePath('/inventory/purchases'); revalidatePath('/dashboard');
+    await refreshInventoryViews();
     destination = `/inventory/purchases/${result.receipt.id}?received=1`;
   } catch (error) {
     destination = `/inventory/purchase-orders/${id}?error=${encodeURIComponent(safeError(error, '確認實收失敗，庫存沒有變更'))}`;
