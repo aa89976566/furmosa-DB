@@ -21,7 +21,7 @@ const hqReasonLabel = {
 async function loadAudit() {
   const auth = shopifyAdminAuthConfigFromEnv();
   const token = await getShopifyAdminAccessToken(auth);
-  const [shopifyProducts, hqProducts] = await Promise.all([
+  const [allShopifyProducts, hqProducts] = await Promise.all([
     fetchShopifyCatalog({ domain: auth.domain, token }),
     prisma.product.findMany({
       where: { productCategory: 'STANDARD' },
@@ -50,11 +50,35 @@ async function loadAudit() {
     }),
   ]);
 
+  const shopifyProducts = allShopifyProducts.filter((product) => product.status === 'ACTIVE');
+
   return {
     shopifyProducts,
     hqProducts,
     plan: planShopifyHqCatalogSync(shopifyProducts, hqProducts),
   };
+}
+
+function ReviewSection({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  if (count === 0) return null;
+
+  return (
+    <details className="group border-b border-border last:border-b-0">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-muted/40">
+        <span className="font-medium">{title}</span>
+        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-semibold text-amber-900">{count}</span>
+      </summary>
+      <div className="divide-y divide-border border-t border-border">{children}</div>
+    </details>
+  );
 }
 
 function MetricCard({
@@ -105,7 +129,7 @@ export default async function ShopifyCatalogAuditPage() {
     <>
       <PageHeader
         title="Shopify 商品檢查"
-        description="只讀比較 Shopify 與 HQ，不會修改、合併或刪除商品。"
+        description="只檢查 Shopify 正在上架的商品；不會修改、合併或刪除資料。"
         actions={
           <>
             <Button variant="outline" size="sm" asChild>
@@ -168,7 +192,7 @@ export default async function ShopifyCatalogAuditPage() {
             </section>
 
             <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Shopify 商品" value={audit.shopifyProducts.length} />
+              <MetricCard label="Shopify 上架商品" value={audit.shopifyProducts.length} />
               <MetricCard label="HQ 標準商品" value={audit.hqProducts.length} />
               <MetricCard label="可安全對應規格" value={audit.plan.tierUpdates.length} tone="safe" />
               <MetricCard label="需要人工確認" value={reviewCount} tone={reviewCount ? 'warning' : 'safe'} />
@@ -182,45 +206,48 @@ export default async function ShopifyCatalogAuditPage() {
                 </p>
               </div>
 
-              <div className="divide-y divide-border">
-                {audit.plan.conflicts.map((item) => (
-                  <div key={`${item.code}-${item.ids.join('-')}`} className="px-5 py-4">
-                    <p className="font-medium text-red-800">資料衝突</p>
-                    <p className="mt-1 text-sm">{item.message}</p>
-                  </div>
-                ))}
+              <div>
+                <ReviewSection title="資料衝突" count={audit.plan.conflicts.length}>
+                  {audit.plan.conflicts.slice(0, 50).map((item) => (
+                    <div key={`${item.code}-${item.ids.join('-')}`} className="px-5 py-4">
+                      <p className="font-medium text-red-800">資料衝突</p>
+                      <p className="mt-1 text-sm">{item.message}</p>
+                    </div>
+                  ))}
+                </ReviewSection>
 
-                {audit.plan.blankShopifyVariants.map((item) => (
-                  <div key={item.variantId} className="px-5 py-4">
-                    <p className="font-medium">{item.productTitle}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Shopify 規格「{item.variantTitle}」缺少 SKU
-                    </p>
-                  </div>
-                ))}
+                <ReviewSection title="Shopify 規格缺少 SKU" count={audit.plan.blankShopifyVariants.length}>
+                  {audit.plan.blankShopifyVariants.slice(0, 50).map((item) => (
+                    <div key={item.variantId} className="px-5 py-4">
+                      <p className="font-medium">{item.productTitle}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">規格「{item.variantTitle}」缺少 SKU</p>
+                    </div>
+                  ))}
+                </ReviewSection>
 
-                {audit.plan.unmatchedShopifyVariants.map((item) => (
-                  <div key={item.variantId} className="px-5 py-4">
-                    <p className="font-medium">{item.productTitle}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Shopify SKU {item.sku} 尚未對應 HQ 規格
-                    </p>
-                  </div>
-                ))}
+                <ReviewSection title="Shopify SKU 尚未對應 HQ" count={audit.plan.unmatchedShopifyVariants.length}>
+                  {audit.plan.unmatchedShopifyVariants.slice(0, 50).map((item) => (
+                    <div key={item.variantId} className="px-5 py-4">
+                      <p className="font-medium">{item.productTitle}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">SKU {item.sku}</p>
+                    </div>
+                  ))}
+                </ReviewSection>
 
-                {audit.plan.unmatchedHqTiers.map((item) => (
-                  <div key={item.tierId} className="px-5 py-4">
-                    <p className="font-medium">{item.productName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {hqReasonLabel[item.reason]}
-                    </p>
-                  </div>
-                ))}
+                <ReviewSection title="HQ 規格尚未對應 Shopify" count={audit.plan.unmatchedHqTiers.length}>
+                  {audit.plan.unmatchedHqTiers.slice(0, 50).map((item) => (
+                    <div key={item.tierId} className="px-5 py-4">
+                      <p className="font-medium">{item.productName}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{hqReasonLabel[item.reason]}</p>
+                    </div>
+                  ))}
+                </ReviewSection>
 
                 {reviewCount === 0 ? (
-                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-                    沒有待確認項目。
-                  </div>
+                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有待確認項目。</div>
+                ) : null}
+                {reviewCount > 200 ? (
+                  <p className="px-5 py-3 text-xs text-muted-foreground">各類別最多顯示前 50 筆，避免頁面過長；完整數量仍顯示於標題。</p>
                 ) : null}
               </div>
             </section>
