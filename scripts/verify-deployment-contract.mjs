@@ -24,6 +24,7 @@ assert.deepEqual(
     productionAllowed: false,
     productionDatabaseAllowed: false,
     mainBuildAllowed: false,
+    database: { provider: 'supabase', projectRef: 'psbaygunjtekphtbzbcl', databaseName: 'postgres' },
   },
   'Vercel must remain preview-only and isolated from production data',
 );
@@ -63,14 +64,19 @@ assert.match(productionWorkflow, /gh pr merge/);
 assert.match(productionWorkflow, /--match-head-commit/);
 assert.doesNotMatch(productionWorkflow, /vercel\s+(--prod|deploy)/i);
 
-const runVercelGate = (ref) =>
+const runVercelGate = (ref, environment = 'preview') =>
   spawnSync(process.execPath, ['scripts/vercel-ignore-build.mjs'], {
     cwd: new URL('..', import.meta.url),
-    env: { ...process.env, VERCEL_GIT_COMMIT_REF: ref },
+    env: { ...process.env, VERCEL_GIT_COMMIT_REF: ref, VERCEL_ENV: environment },
     stdio: 'ignore',
   }).status;
 
-assert.equal(runVercelGate('main'), 1, 'Vercel must build main');
-assert.equal(runVercelGate('preview/example'), 0, 'Vercel must skip non-main branches');
+assert.equal(runVercelGate('main'), 0, 'Vercel must skip main');
+assert.equal(runVercelGate('preview/example'), 1, 'Vercel must build previews');
+assert.equal(runVercelGate('preview/example', 'production'), 0, 'Vercel must skip production');
+assert.equal(runVercelGate('', 'preview'), 0, 'Vercel must skip unidentified refs');
+const vercel = JSON.parse(read('vercel.json'));
+assert.equal(vercel.buildCommand, 'node scripts/vercel-preview-build.mjs');
+assert.doesNotMatch(read('scripts/vercel-preview-build.mjs'), /migrate|db push|seed/);
 
 console.log('Deployment contract verified: Railway production, Vercel preview-only.');

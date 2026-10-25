@@ -13,7 +13,7 @@
 | Supabase | Production PostgreSQL | 不得由 build/start 自動改 schema |
 | Vercel | Pull Request Preview | 不得視為 Production；不得連正式 DB |
 
-Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
+Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。 Preview 建置只產生 Prisma Client 與 Next.js 產物，不執行 migration。`config/deployment-targets.json` 的 `preview.database` 固定既有 `furmosa-preview-test` 資源身分；建置前會檢查有效 DATABASE_URL 與 DIRECT_URL（含 integration fallback）是否同屬該測試專案，不符即停止，且不輸出連線字串。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
 
 ## 自動更新邊界
 
@@ -111,3 +111,11 @@ GitHub → Actions → **Deploy Production** → Run workflow：
 - 程式：從 Railway Deployments 選上一個已記錄的成功 deployment，執行 Rollback。
 - DB：migration 預設採 expand/contract 與相容舊程式設計；不要自動 down migration。需要資料回復時必須另行核准精準 repair plan。
 - 回復後重新執行公開 smoke 與唯讀 DB readiness，並把結果附在事件紀錄。
+
+## Preview 收貨驗收前置
+
+- 先確認獨立 Preview 設定修正 PR 的 CI 與實際 Vercel READY 狀態；Ignored/CANCELED 不算建置通過。
+- Preview 資料庫身分依 Vercel 已連接的 Supabase 資源 `furmosa-preview-test`（公開專案 ref：`psbaygunjtekphtbzbcl`）固定於 manifest。這不是密碼或連線字串。
+- 純建置不更新測試資料庫結構。包含 migration 的功能 PR 必須另以受控、精確版本方式更新隔離測試 DB，核對 migration history/checksum；不得為了讓 Preview 開啟而在 build、start、healthcheck 裡執行 migration。
+- 測試資料庫更新完成後，才能進行分批收貨實際操作驗收。不得將缺少欄位誤當作 UI 問題，或借用正式 DB 通過測試。
+- 本控制器修正 PR 與庫存功能 #457 分開；控制器 PR 不得透過改寫自己的 release gate 直接發布。獨立審查後，功能候選版須整合最新 main，再走既有 Deploy Production。

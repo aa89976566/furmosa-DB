@@ -1,4 +1,5 @@
-// Build the production main branch on Vercel; skip non-main branches.
-// Vercel ignore command: exit 0 = skip build, exit 1 = continue build.
+// Vercel ignore command: exit 0 skips, exit 1 builds.
+// Railway remains the only production target; unknown environments fail closed.
 const ref = process.env.VERCEL_GIT_COMMIT_REF?.trim();
-process.exit(ref === 'main' ? 1 : 0);
+const preview = process.env.VERCEL_ENV === 'preview';
+process.exit(preview && ref && ref !== 'main' ? 1 : 0);

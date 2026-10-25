@@ -11,7 +11,12 @@
     "platform": "vercel",
     "productionAllowed": false,
     "productionDatabaseAllowed": false,
-    "mainBuildAllowed": false
+    "mainBuildAllowed": false,
+    "database": {
+      "provider": "supabase",
+      "projectRef": "psbaygunjtekphtbzbcl",
+      "databaseName": "postgres"
+    }
   },
   "database": {
     "productionPlatform": "supabase-postgresql"
