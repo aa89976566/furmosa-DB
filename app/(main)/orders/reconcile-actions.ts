@@ -7,6 +7,7 @@ import { persistShopifyIntake } from '@/lib/shopify/intake';
 import { revalidatePath } from 'next/cache';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { CACHE_TAGS } from '@/lib/cache-tags';
+import { getShopifyAdminAccessToken, ShopifyAdminAuthError, shopifyAdminAuthConfigFromEnv } from '@/lib/shopify/admin-access-token';
 
 export type ReconcileState = { message: string; report?: ReconcileReport };
 export async function reconcileOrdersAction(_previous: ReconcileState, form: FormData): Promise<ReconcileState> {
@@ -18,11 +19,19 @@ export async function reconcileOrdersAction(_previous: ReconcileState, form: For
   const mode = form.get('mode');
   if (mode !== 'inspect' && mode !== 'sync') return { message: '不支援的操作' };
   const domain = process.env.SHOPIFY_SHOP_DOMAIN?.trim().toLowerCase() ?? '';
+  const auth = shopifyAdminAuthConfigFromEnv();
   try {
     const report = await reconcileRecentOrders({ actorId: user.userId, mode, limit: Number(form.get('limit')) }, {
       authorize: async id => (await prisma.user.findUnique({ where: { id }, select: { role: true } }))?.role === 'admin',
       domain,
-      fetch: limit => fetchRecentOrders({ domain, token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? '' }, limit),
+      fetch: async limit => {
+        try {
+          return fetchRecentOrders({ domain, token: await getShopifyAdminAccessToken(auth) }, limit);
+        } catch (error) {
+          if (error instanceof ShopifyAdminAuthError) throw new ReconcileError(error.message);
+          throw error;
+        }
+      },
       existing: async id => {
         const order = await prisma.order.findUnique({ where: { externalStore_externalOrderId: { externalStore: domain, externalOrderId: id } },
           select: { omsStatus: true, shopifySnapshot: true } });
