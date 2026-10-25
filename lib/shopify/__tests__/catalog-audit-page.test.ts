@@ -17,7 +17,7 @@ test('product management exposes the Shopify audit entry point', () => {
 });
 
 test('Shopify audit page is explicitly read-only and reports review categories', () => {
-  assert.match(pageSource, /只讀比較 Shopify 與 HQ/);
+  assert.match(pageSource, /只檢查 Shopify 正在上架的商品/);
   assert.match(pageSource, /blankShopifyVariants/);
   assert.match(pageSource, /unmatchedShopifyVariants/);
   assert.match(pageSource, /unmatchedHqTiers/);
