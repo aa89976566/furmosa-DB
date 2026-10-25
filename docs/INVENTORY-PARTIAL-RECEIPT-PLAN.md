@@ -72,3 +72,7 @@
 ## 授權與開發狀態
 
 使用者於本對話明確回覆「同意 請繼續」，授權依本方案修改 schema 並進行隔離測試。已加入新增式 migration、分批交易服務、實收表單與 CI 隔離 PostgreSQL 測試；正式 migration 尚未執行。多單位、待補成本及日期仍不在本工作包內。
+
+## 隔離測試修正
+
+CI #808 的整合測試清理步驟誤用 inventoryTransaction.deleteMany，被不可刪除帳冊觸發器拒絕。使用者要求繼續後，改為保留測試帳冊與其參照資料，只關閉連線，由 CI 工作結束後銷毀整個臨時 PostgreSQL 容器。保持既有 trigger、權限與所有驗收斷言，不刪除帳冊、不停用保護。這些測試僅接受明確指定的 loopback ci/inventory_test 資料庫，不使用 runtime DATABASE_URL 回退。遠端結果待重新驗證。

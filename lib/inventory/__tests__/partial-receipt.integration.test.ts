@@ -8,8 +8,10 @@ import { createPurchaseOrder, receivePurchaseOrder } from '../purchase-orders';
 const candidate = process.env.INVENTORY_TEST_DATABASE_URL;
 let isolated: string | undefined;
 if (candidate) {
+  try {
   const u = new URL(candidate);
   if (['localhost','127.0.0.1'].includes(u.hostname) && ['ci','inventory_test'].includes(u.pathname.slice(1))) isolated = candidate;
+  } catch { /* Invalid test configuration never falls back to the runtime DB. */ }
 }
 test('PostgreSQL 分批收貨、重送、併發、舊單相容與原子回復', { skip: !isolated }, async () => {
   const db = new PrismaClient({datasources:{db:{url:isolated!}}});
@@ -48,17 +50,12 @@ test('PostgreSQL 分批收貨、重送、併發、舊單相容與原子回復', 
     await assert.rejects(receivePurchaseOrder(db,fail.id,user.id,{key:randomUUID(),lines:[{lineId:fail.line,quantityGrams:400}]}),/單位/);
     assert.equal(await db.purchaseReceipt.count({where:{sourceOrderId:fail.id}}),0);
     assert.equal(await quantity(),1000);
+    assert.equal((await db.purchaseOrder.findUniqueOrThrow({where:{id:fail.id}})).status,'pending_receipt');
+    assert.equal(await db.inventoryTransaction.count({where:{productId:product.id}}),2);
   } finally {
-    const rs = await db.purchaseReceipt.findMany({where:{sourceOrderId:{in:orders}},select:{id:true}});
-    await db.purchaseReceiptItem.deleteMany({where:{purchaseReceiptId:{in:rs.map(x=>x.id)}}});
-    await db.purchaseReceipt.deleteMany({where:{id:{in:rs.map(x=>x.id)}}});
-    await db.purchaseOrderItem.deleteMany({where:{purchaseOrderId:{in:orders}}});
-    await db.purchaseOrder.deleteMany({where:{id:{in:orders}}});
-    await db.inventoryTransaction.deleteMany({where:{productId:product.id}});
-    await db.inventoryBalance.deleteMany({where:{productId:product.id}});
-    await db.product.delete({where:{id:product.id}});
-    await db.warehouse.delete({where:{id:wh.id}});
-    await db.user.delete({where:{id:user.id}});
+    // CI destroys the entire ephemeral PostgreSQL service after this job.
+    // Keep immutable ledger records and their referenced fixtures intact until then.
+    // Do not delete business rows or disable triggers to clean up a test.
     await db.$disconnect();
   }
 });
