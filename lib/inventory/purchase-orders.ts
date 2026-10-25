@@ -93,8 +93,19 @@ export async function createPurchaseOrder(db: PrismaClient, input: CreatePurchas
   }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
+const receiptTransactionOptions = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  maxWait: 15_000,
+  timeout: 90_000,
+};
+
 function isRetryable(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  return error instanceof Prisma.PrismaClientKnownRequestError &&
+    ['P2034', 'P2024', 'P2028'].includes(error.code);
+}
+
+function retryPause(attempt: number) {
+  return new Promise((resolve) => setTimeout(resolve, attempt * 750));
 }
 
 export async function receivePurchaseOrder(db: PrismaClient, purchaseOrderId: string, receivedById: string) {
@@ -142,9 +153,10 @@ export async function receivePurchaseOrder(db: PrismaClient, purchaseOrderId: st
           attachments: [],
         });
         return { receipt, alreadyReceived: false };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      }, receiptTransactionOptions);
     } catch (error) {
       if (!isRetryable(error) || attempt === 3) throw error;
+      await retryPause(attempt);
     }
   }
   throw new Error('確認實收失敗');
