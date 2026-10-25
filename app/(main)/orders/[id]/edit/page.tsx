@@ -47,8 +47,16 @@ export default async function EditOrderPage(
           }
         />
         <div className="p-6">
-          <SectionCard title="無法修改" className="max-w-2xl">
+          <SectionCard title="此訂單為唯讀" className="max-w-2xl">
             <p className="text-sm text-muted-foreground">{editable.reason}</p>
+            <ul className="mt-4 space-y-2 text-sm">
+              {order.items.length > 0 ? order.items.map((item) => (
+                <li key={item.id} className="flex items-center justify-between gap-3 border-b pb-2">
+                  <span className="min-w-0 truncate">{item.productName}</span>
+                  <span className="shrink-0 tabular-nums">數量 {item.quantity}</span>
+                </li>
+              )) : <li className="text-muted-foreground">沒有商品明細</li>}
+            </ul>
           </SectionCard>
         </div>
       </>
