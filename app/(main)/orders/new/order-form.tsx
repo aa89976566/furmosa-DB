@@ -79,6 +79,9 @@ import {
   parseOrderFormDraft,
   serializeOrderFormDraft,
 } from '@/lib/orders/order-form-draft';
+import { incompatibleLineSwitchPrompt, splitLinesForContext } from '@/lib/orders/order-mode-switch';
+import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
+import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 
 export type ProductTierOption = {
   id: string;
@@ -196,6 +199,13 @@ const CUSTOMER_SOURCES: { value: CustomerSource; label: string; hint: string }[]
 
 function genKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function blankLine(): LineItem {
+  return {
+    key: genKey(), productId: '', tierId: '', quantity: 1, unitPrice: 0,
+    unitCost: 0, isGift: false, retailUnitPrice: 0, weightGrams: null, unit: null,
+  };
 }
 
 function OrderLineItemsTable({
@@ -511,6 +521,7 @@ function OrderLineItemsTable({
                   {hasSelectedSpec ? (
                     <Input
                       name="quantity"
+                      aria-label="數量"
                       type="number"
                       min={1}
                       step={1}
@@ -641,9 +652,9 @@ export function OrderForm({
   const seed = edit ?? initial;
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // 編輯時所有步驟都已有既存答案，必須直接顯示物流欄位與儲存按鈕。
-  // 只有新建（含複製帶入初始值）繼續依序確認，避免物流設定過早出現。
-  const [revealedStep, setRevealedStep] = useState(isEdit ? 8 : seed ? 5 : 1);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
+  const [pendingSwitch, setPendingSwitch] = useState<{ label: string; removedCount: number; apply: () => void } | null>(null);
+  const [revealedStep, setRevealedStep] = useState(isEdit || Boolean(seed) ? 8 : 1);
   const [orderType, setOrderType] = useState<OrderType>(seed?.orderType ?? 'customer');
   const [customerSource, setCustomerSource] = useState<CustomerSource>(
     seed?.customerSource ?? 'social',
@@ -1169,38 +1180,30 @@ export function OrderForm({
     }
   }
 
+  function askContextSwitch(label: string, removed: LineItem[], apply: () => void) {
+    if (removed.length === 0) return apply();
+    setPendingSwitch({ label, removedCount: removed.length, apply });
+  }
+
   function changeMerchantOrderMode(mode: MerchantOrderMode) {
-    setMerchantOrderMode(mode);
-    setItems((current) => current.map((item) => ({
-      ...item,
-      productId: '',
-      tierId: '',
-      unitPrice: 0,
-      retailUnitPrice: 0,
-      weightGrams: null,
-      unit: null,
-      commercialOverrideEnabled: false,
-      commercialOverrideMode: '',
-      commercialOverrideValue: null,
-      commercialOverrideReason: '',
-    })));
-    if (mode !== 'consignment') setCustomerId('');
-    revealThrough(4);
+    if (mode === merchantOrderMode) return;
+    const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), { orderType: 'merchant', merchantOrderMode: mode });
+    askContextSwitch(merchantOrderModeLabel[mode], removed, () => {
+      setMerchantOrderMode(mode);
+      if (removed.length > 0) setItems(kept.length > 0 ? kept : [blankLine()]);
+      if (mode !== 'consignment') setCustomerId('');
+      revealThrough(4);
+    });
   }
 
   function changeOrderType(nextType: OrderType) {
-    revealThrough(2);
     if (nextType === orderType) return;
-    setOrderType(nextType);
-    setItems((current) => current.map((item) => ({
-      ...item,
-      productId: '',
-      tierId: '',
-      unitPrice: 0,
-      retailUnitPrice: 0,
-      weightGrams: null,
-      unit: null,
-    })));
+    const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), { orderType: nextType, merchantOrderMode });
+    askContextSwitch(nextType === 'customer' ? '客戶訂單' : '店家訂單', removed, () => {
+      revealThrough(2);
+      setOrderType(nextType);
+      if (removed.length > 0) setItems(kept.length > 0 ? kept : [blankLine()]);
+    });
   }
 
   useEffect(() => {
@@ -1279,44 +1282,18 @@ export function OrderForm({
       noValidate
       action={async (formData) => {
         setSubmitError(null);
-        if (!recipientName.trim()) {
-          setSubmitError('請填寫收件人姓名。');
-          return;
-        }
-        if (!shippingMethod) {
-          setSubmitError('請先選擇物流方式。');
-          return;
-        }
-        if (orderType === 'customer' && !customerId) {
-          setSubmitError('請選擇客戶。');
-          return;
-        }
-        if (orderType === 'merchant' && !merchantId) {
-          setSubmitError('請選擇店家。');
-          return;
-        }
-        if (shippingMethod === 'convenience' && !cvsStoreName.trim()) {
-          setSubmitError('7-11 配送請填寫門市名稱。');
-          return;
-        }
-        if ((shippingMethod === 'home' || shippingMethod === 'delivery') && !shippingAddress.trim()) {
-          setSubmitError('請填寫完整收件地址。');
-          return;
-        }
-        if (!hasValidLines) {
-          setSubmitError('請至少新增一筆商品明細。');
+        setSubmitNotice(null);
+        const validationError = validateOrderSubmission({ orderType, customerId, merchantId, merchantOrderMode, items, discount, recipientName, recipientPhone, shippingMethod, shippingAddress, cvsBrand, cvsStoreName });
+        if (validationError) {
+          revealThrough(8);
+          setSubmitError(validationError);
           return;
         }
         try {
           if (isEdit && edit) {
             formData.set('orderId', edit.orderId);
-            await updateOrder(formData);
-          } else {
-            const result = await createOrder(formData);
-            if (!result.ok) {
-              setSubmitError(result.message);
-              return;
-            }
+            const result = await updateOrder(formData);
+            if (!result.ok) { setSubmitError(result.message); return; }
             if (draftStorageKey) {
               try {
                 window.localStorage.removeItem(draftStorageKey);
@@ -1324,8 +1301,17 @@ export function OrderForm({
                 // 訂單已成功建立；瀏覽器草稿清理失敗不應阻塞導頁。
               }
             }
-            router.push(`/orders/${result.orderId}`);
+            setSubmitNotice('修改已儲存，正在返回。');
+            router.push(result.href);
+            return;
           }
+          const result = await createOrder(formData);
+          if (!result.ok) { setSubmitError(result.message); return; }
+          if (draftStorageKey) {
+            try { window.localStorage.removeItem(draftStorageKey); } catch { /* 建立成功後，草稿清理失敗不阻塞導頁。 */ }
+          }
+          setSubmitNotice('訂單已建立，正在前往訂單頁。');
+          router.push(withOrderSavedNotice(`/orders/${result.orderId}`, 'created'));
         } catch (e) {
           if (isRedirectError(e)) throw e;
           setSubmitError(
@@ -1938,27 +1924,22 @@ export function OrderForm({
         >
           <div className="font-medium">無法儲存訂單</div>
           <div className="mt-1">{submitError}</div>
-          <div className="mt-1 text-xs opacity-80">您已填寫的內容仍保留在畫面上。</div>
+          <div className="mt-1 text-xs opacity-80">您已填寫的內容仍保留在畫面上，還沒有寫入訂單。</div>
         </div>
       ) : null}
+      {submitNotice ? <div role="status" className="rounded-md border px-4 py-3 text-sm">{submitNotice}</div> : null}
 
-      {revealedStep >= 7 ? <div className="flex items-center justify-end gap-2 border-t pt-4">
+      {revealedStep >= 7 ? <div className="sticky bottom-0 z-20 flex items-center justify-end gap-2 border-t bg-background/95 py-3 backdrop-blur">
         <div className="mr-auto flex items-center gap-2 text-sm">
           {isEdit && edit ? (
             <>
               <Badge variant="secondary">{edit.orderNumber}</Badge>
-              <span className="text-muted-foreground">
-                儲存後會同步更新品項、金額與關聯出貨單收件資訊。
-              </span>
+              <span className="text-muted-foreground">修改還沒寫入。按下儲存修改才會更新訂單。</span>
             </>
           ) : (
             <>
               <Badge variant="secondary">draft</Badge>
-              <span className="text-muted-foreground">
-                {orderType === 'customer'
-                  ? '建立後會自動產生一張待出貨單，可於〈出貨隊列〉看到。'
-                  : '建立後會產生店家補貨單，可於〈出貨隊列〉查看。'}
-              </span>
+              <span className="text-muted-foreground">尚未建立訂單。按下建立訂單後才會寫入並產生待出貨單。</span>
             </>
           )}
         </div>
@@ -1969,6 +1950,18 @@ export function OrderForm({
           <SaveButton isEdit={isEdit} />
         </div>
       </div> : null}
+      {pendingSwitch ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div role="dialog" aria-modal="true" aria-labelledby="order-mode-switch-title" className="w-full max-w-md rounded-lg border bg-background p-4 shadow-lg">
+            <h2 id="order-mode-switch-title" className="text-base font-semibold">要切換類型嗎？</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{incompatibleLineSwitchPrompt(pendingSwitch.label, pendingSwitch.removedCount)}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPendingSwitch(null)}>取消</Button>
+              <Button type="button" onClick={() => { const apply = pendingSwitch.apply; setPendingSwitch(null); apply(); }}>移除不相容商品並切換</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }

@@ -94,9 +94,9 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
 test('修改訂單直接展開已有資料與儲存按鈕', () => {
   assert.match(
     orderFormSource,
-    /useState\(isEdit \? 8 : seed \? 5 : 1\)/,
+    /useState\(isEdit \|\| Boolean\(seed\) \? 8 : 1\)/,
   );
-  assert.match(orderFormSource, /revealedStep >= 7 \? <div className="flex items-center justify-end/);
+  assert.match(orderFormSource, /revealedStep >= 7 \? <div className="sticky bottom-0/);
   assert.match(orderFormSource, /isEdit \? '儲存修改' : '建立訂單'/);
 });
 

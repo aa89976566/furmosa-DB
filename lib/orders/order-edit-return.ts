@@ -17,3 +17,13 @@ export function safeOrderEditReturnTo(value: string | null | undefined): string 
     return null;
   }
 }
+
+/** 成功寫入後導回原頁，並附上可顯示一次的成功提示。 */
+export function withOrderSavedNotice(href: string, notice: 'created' | 'updated' = 'updated') {
+  const queryIndex = href.indexOf('?');
+  const path = queryIndex === -1 ? href : href.slice(0, queryIndex);
+  const params = new URLSearchParams(queryIndex === -1 ? '' : href.slice(queryIndex + 1));
+  params.set('saved', notice);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
