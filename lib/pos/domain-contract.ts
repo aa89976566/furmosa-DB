@@ -113,7 +113,7 @@ export type UntrustedClientRefundInput = {
 };
 
 export const SERVER_MUST_RESOLVE_FIELDS = [
-  'merchantOrderMode',
+  'resolvedMerchantOrderMode',
   'buyoutPricingRule',
   'buyoutDiscountBps',
   'buyoutWholesaleUnitPriceTwd',
@@ -142,7 +142,7 @@ export const SERVER_MUST_RESOLVE_FIELDS = [
 ] as const;
 
 export const CLIENT_MAY_SUBMIT_BUSINESS_INPUT = [
-  'merchantOrderMode',
+  'requestedMerchantOrderMode',
   'actualUnitPriceTwd',
   'requestedQuantity',
   'requestedAmountTwd',
