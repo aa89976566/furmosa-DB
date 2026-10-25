@@ -33,6 +33,9 @@ export default async function InventoryPage(props: {
             vendorId: product.vendorId, vendorName: product.vendor?.name ?? '',
             quantity: unit ? balance!.quantity : null, unit, version: balance?.updatedAt.toISOString() ?? null,
             canCount: !!unit && unit === inventoryUnit(product.unit) && product.status === 'active' && product.productCategory === 'STANDARD',
+            canConfirmUnit: !!inventoryUnit(product.unit) && product.status === 'active' && product.productCategory === 'STANDARD'
+                && (!balance || unit !== inventoryUnit(product.unit))
+                && !product.inventoryBalances.some(b => b.warehouse.code !== 'WH-MAIN' && b.quantity !== 0),
             otherWarehouses: product.inventoryBalances.filter(b => b.warehouse.code !== 'WH-MAIN' && b.quantity !== 0)
                 .map(b => ({ name: b.warehouse.name, quantity: b.quantity, unit: inventoryUnit(b.unit) })),
         };
