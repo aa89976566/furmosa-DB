@@ -19,6 +19,7 @@ import {
 } from '@/lib/orders/merchant-order-mode';
 import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
+import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 import {
   merchantCommercialModesAt,
   merchantProductAllowsMode,
@@ -302,6 +303,13 @@ export async function parseOrderFormData(
     },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const quantityByProductId = new Map<string, number>();
+  for (const line of rawLines) {
+    quantityByProductId.set(
+      line.productId,
+      (quantityByProductId.get(line.productId) ?? 0) + line.quantity,
+    );
+  }
   const wholesalePrices =
     merchantOrderMode === 'wholesale' && merchantId
       ? await loadMerchantWholesalePrices(merchantId)
@@ -367,6 +375,13 @@ export async function parseOrderFormData(
         hasTiers ? it.tierId : null,
       );
       const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
+      const automaticQuote = configuredPrice == null
+        ? quoteDefaultBuyoutTier({
+            sku: prod.sku,
+            retailUnitPrice: selectedTier?.price ?? prod.price,
+            quantity: quantityByProductId.get(prod.id) ?? it.quantity,
+          })
+        : null;
       const commercial = it.isGift || opts?.enforceMerchantCommercialTerms === false
         ? null
         : resolveMerchantCommercialTerm({
@@ -377,6 +392,7 @@ export async function parseOrderFormData(
               ? null
               : { mode: 'fixed_price', value: configuredPrice },
             override: it.commercialOverride,
+            automaticWholesaleUnitPrice: automaticQuote?.wholesaleUnitPrice ?? null,
           });
       it.unitPrice = it.isGift
         ? 0
@@ -424,6 +440,14 @@ export async function parseOrderFormData(
               ? null
               : { mode: 'fixed_price', value: configuredWholesalePrice },
           override: it.commercialOverride,
+          automaticWholesaleUnitPrice:
+            merchantOrderMode === 'wholesale' && configuredWholesalePrice == null
+              ? quoteDefaultBuyoutTier({
+                  sku: prod.sku,
+                  retailUnitPrice: selectedTier?.price ?? prod.price,
+                  quantity: quantityByProductId.get(prod.id) ?? it.quantity,
+                })?.wholesaleUnitPrice ?? null
+              : null,
         })
       : null;
     items.push({
