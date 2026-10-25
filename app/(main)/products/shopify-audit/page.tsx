@@ -131,7 +131,8 @@ export default async function ShopifyCatalogAuditPage() {
       for (const tier of product.priceTiers) {
         const identity = tier.sku ?? tier.shopifySku ?? '未設定 SKU';
         const spec = tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`;
-        hqTierLabels.set(tier.id, `${product.name} · ${identity} · ${spec}`);
+        const status = tier.status === 'archived' ? '已封存' : '使用中';
+        hqTierLabels.set(tier.id, `${product.name} · ${identity} · ${spec} · ${status}`);
       }
     }
     for (const product of audit.shopifyProducts) {
