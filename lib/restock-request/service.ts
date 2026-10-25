@@ -64,10 +64,12 @@ export function merchantRestockProductCategories(
     (type) => type === 'consignment' || type === 'wholesale',
   );
 
+  // POS 寄賣叫貨僅供匠寵零食使用；換罐品是店內服務，
+  // 不可因店家同時具換罐資格而進入叫貨目錄。
+  // 只有純換罐店家才保留換罐專屬目錄。
   if (supportsJarExchange && !supportsStandard) return ['JAR_EXCHANGE'];
-  if (supportsJarExchange) return ['JAR_EXCHANGE', 'STANDARD'];
 
-  // 舊資料可能只保留標籤型類別（例如 partner）；維持原本的一般商品行為。
+  // 包含 consignment / wholesale 的店家一律只見 STANDARD 叫貨品項。
   return ['STANDARD'];
 }
 
