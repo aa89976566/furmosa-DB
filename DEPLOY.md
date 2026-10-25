@@ -13,7 +13,7 @@
 | Supabase | Production PostgreSQL | 不得由 build/start 自動改 schema |
 | Vercel | Pull Request Preview | 不得視為 Production；不得連正式 DB |
 
-Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 的 GitHub integration 必須保留 `source.checkSuites`，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。
+Vercel 的 `ignoreCommand` 會略過 `main`，只建立非 main 分支的 Preview。Railway 必須保持 `Wait for CI` 關閉，並以 `/api/health` 作 deployment healthcheck；healthcheck 失敗時 Railway 不切換流量。`Deploy Production` 本身會核對 PR CI，且會等待 Railway 回報同一個 merge commit 的結果；若 Railway 同時等待這個 workflow，兩邊會形成循環等待。
 
 ## 自動更新邊界
 
@@ -72,7 +72,7 @@ Repository → Settings → Actions → General：
 
 - Workflow permissions 允許 GitHub Actions 建立 PR merge commit。
 - `main` branch rules 禁止直接 push，要求 PR、`verify` 通過及必要 review。
-- Railway GitHub integration 保持對 `main` 自動部署與 wait for CI checks。
+- Railway GitHub integration 保持對 `main` 自動部署，但 `Wait for CI` 必須關閉。PR CI 與正式環境核准由 `Deploy Production` workflow 負責；Railway 負責 build 與 `/api/health` 切流量門檻。
 
 ## Migration plan 規則
 
