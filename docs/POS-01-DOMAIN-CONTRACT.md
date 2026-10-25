@@ -25,12 +25,12 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 | ID | 規則 |
 |----|------|
 | R1 | Phase 1 每個實體門市一個 **active** POS 帳號。schema **不必**封死未來多帳號。 |
-| R2 | 店家叫貨必須先選擇**寄賣**或**買斷**，一張訂單不得混用模式；店內零售交易由店家收款。寄賣售出後才認列；買斷於訂單確認後建立 B2B 應收，不進入寄賣月結。 |
+| R2 | **目前店家 POS 只支援寄賣叫貨／補貨**；店內交易由店家收款。買斷僅能由 HQ 後台建立或審核，未完成店家端流程前不得在 POS 顯示或送出。 |
 | R3 | 一般寄賣佣金以**店家 × SKU 特約 → SKU 有效預設 → 商品類型基準**解析：肉乾／一般零食基準 20%，凍乾基準 30%。寄賣補貨不允許逐單覆寫佣金；若未來需要逐批不同佣金，必須先建立批次庫存追蹤。運費在訂單建立時獨立決定，不參與佣金解析。命中規則的優先序以 `docs/FURMOSA-MERCHANT-ACCOUNTING-CONTRACT-v1.md` 為準；缺少必要規則一律 fail closed。每張 completed sale **line** 依該 line **實際成交總額**算一次，並永久 snapshot 商務方案、SKU 商務版本、rate／amount與規則來源。退款 line 另存 `commissionReversalSnapshot`。本筆回沖＝原 commission snapshot − 退後剩餘淨額依原 rate 應得佣金 − 既有已回沖；**不得**每筆只做 `round(退款×rate)`。既有 unique refund lines 的累計回沖必須**精準等於** `原 commission snapshot − round((原成交 − 累計退款金額) × 原 rate)`；少回沖與超回沖都 fail closed。全額退完時累計回沖必須精準等於原 snapshot。月結**只加總 snapshot**。 |
 | R4 | **嚴禁負庫存**。`available = onHand - reserved`，且不可為負。低庫存可一鍵補貨；只有 `merchant_restock` 首次進入 **`received`** 才增加店庫存，`delivered` 只表示物流送達。庫存操作 fingerprint 必須含 server 已解析的 `inventoryAggregateId`（至少 authoritative `merchantStockId`，可唯一代表 merchant＋product＋tier）。client 傳入的聚合 ID **不可直接信任**。 |
 | R5 | 已 `approved` 的結算 **lines／amounts 永久鎖定、不重開**。只允許 `approved → paid` 並寫付款 metadata。錯誤以**次期 adjustment** 處理。 |
 | R6 | 店家可提出額外加減款，**HQ 核准**；店員不可改佣金或結算。 |
-| R7 | 買斷價格由伺服器依 SKU 商務規則重算；匠寵雞霸最低 30 件，30–49 件 25% 折扣、50 件以上 30% 折扣。未達門檻、缺成本審核或缺有效規則一律 fail closed。買斷折扣不是寄賣佣金。 |
+| R7 | 買斷價格由 HQ 後台伺服器依 SKU 商務規則重算；匠寵雞霸最低 30 件，30–49 件 25% 折扣、50 件以上 30% 折扣。此規則不提供 POS 操作。未達門檻、缺成本審核或缺有效規則一律 fail closed。買斷折扣不是寄賣佣金。 |
 | R7 | LINE／綠界由 Furmosa 收款的指定門市訂單，該店仍取得**普通佣金**；必須和店收現金使用**不同帳務方向**。退款／沖銷必須產生**相反方向**的債權與佣金回沖。 |
 | R8 | 美容券**完全獨立於商品**。取消申請的 `voucherId` 必須等於被取消券。HQ 核准產生不可變、冪等的點數 +10 與固定補貼 reversal line（正整數金額；方向表達債權；引用 requestId／redemptionId／voucherId／actor／reason／idempotencyKey）。原補貼未鎖定：`merchant_owes_hq` 抵銷原 `hq_owes_merchant`。原補貼已進 approved／paid：原期不改，次期 `merchant_owes_hq` adjustment。`decideVoucherCancellation` 固定順序：先 parse／驗證 actor allow-list 且必須是 HQ → 再驗 request identity → 再驗 idempotency key → 再查 existing result／比 fingerprint。同內容回 `duplicate=true`，即使目前券已是 `cancelled`、申請已是 `approved`。**approve／reject 重送每次都必須重驗 HQ**，不可因已有結果跳過授權。同 key 但 fingerprint 不同必須 throw。只有沒有既有 result 才檢查券＝`redeemed`、申請＝`pending`。新請求拒絕空／空白 idempotencyKey、requestId、voucherId、redemptionId、reason。`rejected` 同樣走冪等，不可重複改狀態。自然過期不退點。未知 tier throw。 |
 | R9 | 未付款 checkout／payment intent **24 小時**失效；未付款**不** reserve。付款成功才進 `paid_reserved` 並原子 reserve。`paid_reserved` **不**自動 expire／退款／釋放；逾期未領轉客服。 |
@@ -53,9 +53,9 @@ Furmosa 店家 POS 之後會處理寄賣銷售、LINE／綠界收款、庫存、
 
 ---
 
-### 1.1 買斷流程的不可變界線
+### 1.1 HQ 買斷流程的不可變界線
 
-1. POS 選擇模式後，所有商品只顯示該模式可售的 SKU；模式變更必須重建購物車與報價。
+1. POS 只顯示寄賣可售 SKU。買斷由 HQ 後台建立；未來若開放店家端，必須重建購物車與報價，不能沿用寄賣補貨單。
 2. 寄賣：商品入店後仍為 Furmosa 庫存，零售完成才形成店家佣金與月結來源。
 3. 買斷：訂單確認時產生店家對 Furmosa 的 B2B 應收；付款／授信成立與出貨收貨完成後，商品才轉為店家自有庫存。該 SKU 的日後零售不形成寄賣佣金或月結來源。
 4. 匠寵雞霸建議售價 NT$165；買斷 30–49 件單價 NT$123.75、50 件以上 NT$115.50。數量僅可依 SKU 明確彙總，不可跨不同單位湊門檻。
