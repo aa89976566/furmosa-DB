@@ -76,3 +76,13 @@
 ## 隔離測試修正
 
 CI #808 的整合測試清理步驟誤用 inventoryTransaction.deleteMany，被不可刪除帳冊觸發器拒絕。使用者要求繼續後，改為保留測試帳冊與其參照資料，只關閉連線，由 CI 工作結束後銷毀整個臨時 PostgreSQL 容器。保持既有 trigger、權限與所有驗收斷言，不刪除帳冊、不停用保護。這些測試僅接受明確指定的 loopback ci/inventory_test 資料庫，不使用 runtime DATABASE_URL 回退。遠端 CI #810 已通過 PostgreSQL 整合測試與完整建置。整合最新 main 後仍需驗證新 head。
+
+## Preview 操作驗收（2026-10-26）
+
+- 隔離專案 psbaygunjtekphtbzbcl 已套用精確 migration，checksum fd9ea5bc98fc2529e04dc1143b6bf3be8704ed8da3eea3a5dcd8177b4f03ae08；唯讀確認 completed=true、新欄位4、索引3、外鍵2。新空白 SQL 查詢執行前選取/複製全文逐字比對一致，避免舊草稿殘留。
+- 已安全登入 head 5e48a2d2f622e24e2b9a6b07e5498449731b4de6 的 Preview；測試商品 E2E-PARTIAL-20261026 僅在隔離 DB，未寫正式資料。
+- UI 建立進貨單 PO-20261101-CEAA61D0 訂購1000g，建單後總庫存仍0g；從原單先收400g，原單顯示部分到貨/剩600g，總庫存400g。
+- 第二批收600g後原單結案/剩0g，兩筆入庫 PUR-20261025-5FA24621、PUR-20261025-CD8AD86D 可追溯，總庫存1000g。
+- 盤點空白不可儲存；填990g預覽差異-10g，一次儲存後總庫存990g。唯讀對帳僅兩筆purchase_in（400、600）及一筆stocktake（-10），原料金額100.01、運費1.01、總成本101.02、平均成本/g 0.101020，盤點不改平均成本。
+- 顯示修正：採購/入庫金額保留2位小數、日期與時間依台灣時區、待收貨清單區分訂購/已收/待收、已收貨時不再顯示「建單未改庫存」過期提示。相關單元測試加入小數、UTC跨日及新舊關聯去重。
+- 正式 migration 尚未執行；最終 head 需CI/Preview確認後另行準備受控standard發布。

@@ -86,10 +86,10 @@ describe('merchant restock catalog categories', () => {
     ]);
   });
 
-  it('shows both catalogs for a hybrid merchant', () => {
+  it('shows only snack catalog for a consignment merchant that also has jar exchange', () => {
     assert.deepEqual(
       merchantRestockProductCategories(['consignment', 'jar_exchange']),
-      ['JAR_EXCHANGE', 'STANDARD'],
+      ['STANDARD'],
     );
   });
 
