@@ -115,11 +115,11 @@ export default async function ShopifyCatalogAuditPage() {
     errorMessage = error instanceof Error ? error.message : '暫時無法讀取 Shopify 商品';
   }
 
-  const reviewCount = audit
-    ? audit.plan.conflicts.length
-      + audit.plan.blankShopifyVariants.length
-      + audit.plan.unmatchedShopifyVariants.length
-      + audit.plan.unmatchedHqTiers.length
+  const blockingCount = audit
+    ? audit.plan.conflicts.length + audit.plan.unmatchedHqTiers.length
+    : 0;
+  const catalogWorkCount = audit
+    ? audit.plan.blankShopifyVariants.length + audit.plan.unmatchedShopifyVariants.length
     : 0;
   const safeChangeCount = audit
     ? audit.plan.tierUpdates.length + audit.plan.productUpdates.length + audit.plan.tierArchives.length
@@ -165,23 +165,23 @@ export default async function ShopifyCatalogAuditPage() {
         {audit ? (
           <>
             <section className={`rounded-2xl border p-5 ${
-              reviewCount === 0
+              blockingCount === 0
                 ? 'border-emerald-200 bg-emerald-50'
                 : 'border-amber-200 bg-amber-50'
             }`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
-                  {reviewCount === 0 ? (
+                  {blockingCount === 0 ? (
                     <ShieldCheck className="mt-0.5 h-6 w-6 text-emerald-700" />
                   ) : (
                     <TriangleAlert className="mt-0.5 h-6 w-6 text-amber-700" />
                   )}
                   <div>
                     <h2 className="text-lg font-semibold">
-                      {reviewCount === 0 ? '資料可以進入同步確認' : `還有 ${reviewCount} 筆需要人工確認`}
+                      {blockingCount === 0 ? '現有商品可以進入同步確認' : `還有 ${blockingCount} 筆現有商品問題`}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      有待確認項目時，系統會禁止正式套用；本頁本身永遠只讀。
+                      先處理現有 HQ 商品的對應問題；Shopify 新商品另列待建清單。
                     </p>
                   </div>
                 </div>
@@ -191,18 +191,19 @@ export default async function ShopifyCatalogAuditPage() {
               </div>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard label="Shopify 上架商品" value={audit.shopifyProducts.length} />
               <MetricCard label="HQ 標準商品" value={audit.hqProducts.length} />
               <MetricCard label="可安全對應規格" value={audit.plan.tierUpdates.length} tone="safe" />
-              <MetricCard label="需要人工確認" value={reviewCount} tone={reviewCount ? 'warning' : 'safe'} />
+              <MetricCard label="現有商品問題" value={blockingCount} tone={blockingCount ? 'danger' : 'safe'} />
+              <MetricCard label="待建商品／補 SKU" value={catalogWorkCount} tone={catalogWorkCount ? 'warning' : 'safe'} />
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-border bg-card">
               <div className="border-b border-border px-5 py-4">
-                <h2 className="font-semibold">需要人工確認</h2>
+                <h2 className="font-semibold">需要先修正</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  先補齊 SKU 或選擇正確對應；系統不會使用名稱、價格或重量猜測。
+                  以下項目會影響現有 HQ 商品，修正前不建議正式套用。
                 </p>
               </div>
 
@@ -216,24 +217,6 @@ export default async function ShopifyCatalogAuditPage() {
                   ))}
                 </ReviewSection>
 
-                <ReviewSection title="Shopify 規格缺少 SKU" count={audit.plan.blankShopifyVariants.length}>
-                  {audit.plan.blankShopifyVariants.slice(0, 50).map((item) => (
-                    <div key={item.variantId} className="px-5 py-4">
-                      <p className="font-medium">{item.productTitle}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">規格「{item.variantTitle}」缺少 SKU</p>
-                    </div>
-                  ))}
-                </ReviewSection>
-
-                <ReviewSection title="Shopify SKU 尚未對應 HQ" count={audit.plan.unmatchedShopifyVariants.length}>
-                  {audit.plan.unmatchedShopifyVariants.slice(0, 50).map((item) => (
-                    <div key={item.variantId} className="px-5 py-4">
-                      <p className="font-medium">{item.productTitle}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">SKU {item.sku}</p>
-                    </div>
-                  ))}
-                </ReviewSection>
-
                 <ReviewSection title="HQ 規格尚未對應 Shopify" count={audit.plan.unmatchedHqTiers.length}>
                   {audit.plan.unmatchedHqTiers.slice(0, 50).map((item) => (
                     <div key={item.tierId} className="px-5 py-4">
@@ -243,11 +226,38 @@ export default async function ShopifyCatalogAuditPage() {
                   ))}
                 </ReviewSection>
 
-                {reviewCount === 0 ? (
-                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有待確認項目。</div>
+                {blockingCount === 0 ? (
+                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有現有商品問題的項目。</div>
                 ) : null}
-                {reviewCount > 200 ? (
-                  <p className="px-5 py-3 text-xs text-muted-foreground">各類別最多顯示前 50 筆，避免頁面過長；完整數量仍顯示於標題。</p>
+              </div>
+            </section>
+
+            <section className="overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="font-semibold">待建立或補資料</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  這些是 Shopify 新商品或缺少 SKU，與現有 HQ 商品問題分開處理；正式套用仍需完整確認。
+                </p>
+              </div>
+              <div>
+                <ReviewSection title="Shopify 有 SKU，HQ 尚未建立" count={audit.plan.unmatchedShopifyVariants.length}>
+                  {audit.plan.unmatchedShopifyVariants.slice(0, 50).map((item) => (
+                    <div key={item.variantId} className="px-5 py-4">
+                      <p className="font-medium">{item.productTitle}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">SKU {item.sku} · 建立 HQ 商品前需確認單位、成本與庫存規格</p>
+                    </div>
+                  ))}
+                </ReviewSection>
+                <ReviewSection title="Shopify 規格缺少 SKU" count={audit.plan.blankShopifyVariants.length}>
+                  {audit.plan.blankShopifyVariants.slice(0, 50).map((item) => (
+                    <div key={item.variantId} className="px-5 py-4">
+                      <p className="font-medium">{item.productTitle}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">規格「{item.variantTitle}」需要先在 Shopify 補 SKU</p>
+                    </div>
+                  ))}
+                </ReviewSection>
+                {catalogWorkCount === 0 ? (
+                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有待建立或缺 SKU 的商品。</div>
                 ) : null}
               </div>
             </section>
