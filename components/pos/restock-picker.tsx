@@ -38,7 +38,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
   const totalPieces = selected.reduce((sum, p) => sum + p.count, 0);
 
   if (products.length === 0) {
-    return <p className="text-sm text-muted-foreground">目前沒有可補貨的商品。</p>;
+    return <p className="text-sm text-muted-foreground">目前沒有已開放寄賣叫貨的商品。</p>;
   }
 
   if (step === 'confirm') {
@@ -72,7 +72,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
           {state.error ? (
             <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{state.error}</p>
           ) : null}
-          <Submit label="送出補貨單" />
+          <Submit label="送出寄賣叫貨單" />
         </form>
       </div>
     );
@@ -139,7 +139,7 @@ export function RestockPicker({ products }: { products: RestockProductOption[] }
           disabled={totalPieces === 0 || missingVariant}
           onClick={() => setStep('confirm')}
         >
-          {missingVariant ? "請先選擇商品規格" : "確認補貨"}
+          {missingVariant ? "請先選擇商品規格" : "確認寄賣叫貨"}
         </Button>
       </div>
     </div>
