@@ -33,7 +33,7 @@ test('unambiguous single-tier and legacy no-tier products remain supported', () 
   assert.equal(resolveTierIdFromWeightGrams([],null),'');
 });
 test('SELF_SELECT rejects missing or invalid variants before creating any request', async () => {
-  const products = [{id:'p',name:'豬耳朵條',productCategory:'STANDARD',priceTiers:tiers}];
+  const products = [{id:'p',name:'豬耳朵條',productCategory:'STANDARD',consignmentEnabled:true,priceTiers:tiers}];
   const oldRead = prisma.product.findMany;
   const oldCreate = prisma.restockRequest.create;
   const create = mock.fn(async (args: unknown) => args);
