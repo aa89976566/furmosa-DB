@@ -25,7 +25,7 @@ const { InventoryWorkbench } = require('../../../app/(main)/inventory/inventory-
 const base: InventoryRow = { id: 'bulk', name: '雞肉', sku: 'SOURCE-01', hqSku: 'HQ-01', productCode: 'P1', vendorId: null, vendorName: '', category: 'food',
   quantity: 400, unit: 'g', version: '2026-10-21T09:00:00.000Z', canCount: true, otherWarehouses: [] };
 const rows = [base, { ...base, id: 'pack', name: 'QiQi凍乾', vendorId: 'qiqi', vendorName: 'QiQi', quantity: 3, unit: '包' },
-  { ...base, id: 'unknown', name: '待核對', quantity: null, unit: null, canCount: false }];
+  { ...base, id: 'unknown', name: '待核對', quantity: null, unit: null, canCount: false, canConfirmUnit: true }];
 test('staff filter, cancel, review and save counts with original version; refresh never rewrites a draft baseline', async () => {
   const container = document.getElementById('root')!; const root = createRoot(container);
   const button = (text: string) => Array.from(container.querySelectorAll('button')).find((b: any) => b.textContent === text) as HTMLButtonElement;
@@ -36,6 +36,15 @@ test('staff filter, cancel, review and save counts with original version; refres
     input().dispatchEvent(new dom.window.Event('input', { bubbles: true }));
   }); };
   try {
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
+    assert.equal(container.querySelector('a[href^="/inventory/confirm-unit/"]'), null);
+    assert.ok(container.textContent!.includes('待管理員完成設定'));
+    assert.equal(container.textContent!.includes('核對庫存單位'), false);
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
+    const setup = container.querySelector('a[href="/inventory/confirm-unit/unknown"]')!;
+    assert.ok(setup.closest('details'));
+    assert.equal(setup.closest('details')!.hasAttribute('open'), false);
+    assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 1);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
     await click('廠商成品'); assert.ok(container.textContent!.includes('QiQi凍乾')); assert.equal(container.textContent!.includes('SOURCE-01'), true);
     assert.equal(container.querySelectorAll('a[href="/products/bulk"]').length, 0);
