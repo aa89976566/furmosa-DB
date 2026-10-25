@@ -43,7 +43,7 @@ export default async function InventoryPage(props: {
     <div className="space-y-6 p-4 md:p-6">
       <nav aria-label="庫存流程" className="flex flex-wrap gap-2 text-sm"><Link href="/inventory" aria-current="page" className="inline-flex min-h-11 items-center rounded-lg bg-secondary px-4 font-medium">現有庫存</Link><Link href="/inventory/purchases?view=pending" className="inline-flex min-h-11 items-center px-4 text-muted-foreground">待收貨</Link><Link href="/inventory/purchases" className="inline-flex min-h-11 items-center px-4 text-muted-foreground">入庫紀錄</Link></nav>
       {pendingOrders.length ? <section aria-label="待收貨進貨單" className="rounded-xl border bg-card"><div className="flex flex-wrap justify-between gap-3 border-b px-5 py-4"><div><h2 className="text-base font-semibold">待收貨</h2><p className="mt-1 text-sm text-muted-foreground">尚未計入庫存；實際到貨後再核對入庫。</p></div><Link href="/inventory/purchases?view=pending" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">查看全部</Link></div><div className="divide-y">{pendingOrders.slice(0, 3).map(order => <div key={order.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="text-sm font-medium">{order.vendor?.name ?? '未指定供應商'}</p><p className="mt-1 text-xs text-muted-foreground">{order.orderNumber} · {order._count.items} 項</p></div><Button asChild variant="outline" className="min-h-11"><Link href={`/inventory/purchase-orders/${order.id}`}>{canEdit ? '收到商品' : '查看內容'}</Link></Button></div>)}</div></section> : null}
-      <InventoryWorkbench rows={rows} canEdit={canEdit} initialQuery={query.q}/>
+      <InventoryWorkbench rows={rows} canEdit={canEdit} canVerifyUnits={user?.role === 'admin'} initialQuery={query.q}/>
     </div>
   </>;
 }
