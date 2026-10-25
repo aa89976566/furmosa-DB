@@ -83,7 +83,7 @@ export async function listMerchantRestockCatalog(
   const merchantTypes = await getMerchantTypes(prisma, merchantId, merchant.type);
   const allowedCategories = merchantRestockProductCategories(merchantTypes);
 
-  const [jarProducts, stocks, rules] = await Promise.all([
+  const [jarProducts, stocks] = await Promise.all([
     prisma.product.findMany({
       where: {
         status: 'active',
@@ -95,6 +95,7 @@ export async function listMerchantRestockCatalog(
         unit: true,
         priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
         productCategory: true,
+        consignmentEnabled: true,
       },
       orderBy: { name: 'asc' },
     }),
@@ -102,20 +103,19 @@ export async function listMerchantRestockCatalog(
       where: { merchantId },
       select: { productId: true, quantity: true },
     }),
-    prisma.merchantProductRule.findMany({
-      where: { merchantId },
-      select: { productId: true },
-    }),
   ]);
 
   const qtyByProduct = new Map<string, number>();
   for (const s of stocks) {
     qtyByProduct.set(s.productId, (qtyByProduct.get(s.productId) ?? 0) + s.quantity);
   }
-  const inStore = new Set([...qtyByProduct.keys(), ...rules.map((r) => r.productId)]);
+  const consignmentEnabledForMerchant = merchantTypes.includes('consignment');
 
   return jarProducts
-    .filter((p) => p.productCategory === 'JAR_EXCHANGE' || inStore.has(p.id))
+    .filter((p) =>
+      p.productCategory === 'JAR_EXCHANGE' ||
+      (consignmentEnabledForMerchant && p.productCategory === 'STANDARD' && p.consignmentEnabled === true),
+    )
     .map((p) => {
       const stockQty = qtyByProduct.get(p.id) ?? 0;
       return {
@@ -142,6 +142,28 @@ export async function assertJarExchangeProducts(productIds: string[]) {
   const bad = rows.filter((r) => !isRestockableProductCategory(r.productCategory));
   if (bad.length > 0) {
     throw new Error('這項商品目前不能補貨');
+  }
+}
+
+/**
+ * POS 店家叫貨目前僅能建立寄賣補貨。
+ * STANDARD 商品必須由 HQ 明確啟用 consignmentEnabled；不從既有庫存或商品名稱推定。
+ */
+export async function assertPosConsignmentRestockProducts(productIds: string[]) {
+  if (productIds.length === 0) return;
+  const rows = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, productCategory: true, consignmentEnabled: true },
+  });
+  if (rows.length !== productIds.length) throw new Error('有商品不存在');
+  const disabled = rows.filter(
+    (row) => row.productCategory === 'STANDARD' && row.consignmentEnabled !== true,
+  );
+  const unsupported = rows.filter(
+    (row) => !isRestockableProductCategory(row.productCategory),
+  );
+  if (disabled.length > 0 || unsupported.length > 0) {
+    throw new Error('這項商品目前未開放寄賣補貨');
   }
 }
 
@@ -175,8 +197,8 @@ export async function submitSelfSelectRestockRequest(input: SubmitSelfSelectInpu
     throw new Error('請至少選一個商品。數量需要大於 0。');
   }
 
-  // 驗證商品存在且可補貨
-  await assertJarExchangeProducts(cleaned.map((c) => c.productId));
+  // POS 店家叫貨一律是寄賣；STANDARD 商品必須由 HQ 明確啟用。
+  await assertPosConsignmentRestockProducts(cleaned.map((c) => c.productId));
 
   // 驗證多規格商品必須選規格
   cleaned = await resolveRestockItems(cleaned);

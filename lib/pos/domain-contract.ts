@@ -60,7 +60,6 @@ export type UntrustedClientRefundInput = {
 
 export const SERVER_MUST_RESOLVE_FIELDS = [
   'merchantId',
-  'productId',
   'inventory',
   'originalSale',
   'collectionChannel',

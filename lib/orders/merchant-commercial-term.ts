@@ -4,6 +4,7 @@ export type CommercialValueMode = 'percent' | 'amount' | 'fixed_price';
 export type CommercialRuleSource =
   | 'order_override'
   | 'merchant_exception'
+  | 'quantity_tier'
   | 'product_default';
 
 export type CommercialTermProduct = {
@@ -89,6 +90,8 @@ export function resolveMerchantCommercialTerm(input: {
   tier: CommercialTermTier;
   merchantException: CommercialTermMerchantException;
   override: CommercialTermOverride;
+  /** Default calculated from quantity; merchant-specific activity price still wins. */
+  automaticWholesaleUnitPrice?: number | null;
 }): ResolvedCommercialTerm {
   const base = {
     businessTierSnapshot: input.product.businessTier,
@@ -146,6 +149,14 @@ export function resolveMerchantCommercialTerm(input: {
     if (input.merchantException?.mode === 'fixed_price' && exceptionValue != null) {
       defaultValue = exceptionValue;
       defaultSource = 'merchant_exception';
+    } else if (input.automaticWholesaleUnitPrice != null) {
+      const automaticValue = positiveInteger(input.automaticWholesaleUnitPrice)
+        ?? (Number.isFinite(input.automaticWholesaleUnitPrice) && input.automaticWholesaleUnitPrice > 0
+          ? input.automaticWholesaleUnitPrice
+          : null);
+      if (automaticValue == null) throw new Error('買斷級距價格格式不正確');
+      defaultValue = automaticValue;
+      defaultSource = 'quantity_tier';
     } else if (tierValue != null || productValue != null) {
       defaultValue = tierValue ?? productValue!;
       defaultSource = 'product_default';
@@ -154,6 +165,9 @@ export function resolveMerchantCommercialTerm(input: {
     }
   }
 
+  if (defaultSource === 'quantity_tier' && input.override) {
+    throw new Error('買斷級距價格不可在本單手動調整');
+  }
   const override = assertOverride(input.override, defaultMode);
   if (!override || override.value === defaultValue) {
     return {
@@ -192,6 +206,7 @@ export function commercialTermValueLabel(
 export function commercialRuleSourceLabel(source: CommercialRuleSource | null): string {
   if (source === 'order_override') return '本單調整';
   if (source === 'merchant_exception') return '店家特約';
+  if (source === 'quantity_tier') return '買斷數量級距';
   if (source === 'product_default') return 'SKU 預設';
   return '不適用';
 }

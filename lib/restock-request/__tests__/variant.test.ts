@@ -33,7 +33,7 @@ test('unambiguous single-tier and legacy no-tier products remain supported', () 
   assert.equal(resolveTierIdFromWeightGrams([],null),'');
 });
 test('SELF_SELECT rejects missing or invalid variants before creating any request', async () => {
-  const products = [{id:'p',name:'豬耳朵條',productCategory:'STANDARD',priceTiers:tiers}];
+  const products = [{id:'p',name:'豬耳朵條',productCategory:'STANDARD',consignmentEnabled:true,priceTiers:tiers}];
   const oldRead = prisma.product.findMany;
   const oldCreate = prisma.restockRequest.create;
   const create = mock.fn(async (args: unknown) => args);
@@ -49,6 +49,30 @@ test('SELF_SELECT rejects missing or invalid variants before creating any reques
     assert.deepEqual(args.data.items.create[0], {productId:'p',requestedQuantity:3,approvedQuantity:3,weightGrams:50,variantKey:'tier50'});
     assert.equal(args.data.merchantId,'m');
   } finally { prisma.product.findMany = oldRead; prisma.restockRequest.create = oldCreate; }
+});
+
+
+test('SELF_SELECT rejects a standard product not opened for consignment', async () => {
+  const products = [{id:'p',name:'雞霸',productCategory:'STANDARD',consignmentEnabled:false,priceTiers:[]}];
+  const oldRead = prisma.product.findMany;
+  const oldCreate = prisma.restockRequest.create;
+  const create = mock.fn(async (args: unknown) => args);
+  prisma.product.findMany = (async () => products) as any;
+  prisma.restockRequest.create = create as any;
+  try {
+    await assert.rejects(
+      submitSelfSelectRestockRequest({
+        merchantId:'m',
+        merchantUserId:'u',
+        items:[{productId:'p',quantity:30}],
+      }),
+      /未開放寄賣補貨/,
+    );
+    assert.equal(create.mock.callCount(), 0);
+  } finally {
+    prisma.product.findMany = oldRead;
+    prisma.restockRequest.create = oldCreate;
+  }
 });
 
 test('approval carries the selected identity through order, shipment, snapshot and inventory', async () => {
