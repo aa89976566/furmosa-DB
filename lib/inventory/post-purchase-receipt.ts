@@ -18,6 +18,9 @@ export type PostPurchaseReceiptInput = {
   items: PurchaseCostLine[];
   attachments: PurchaseAttachmentInput[];
   purchaseOrderId?: string | null;
+  sourceOrderId?: string;
+  submissionKey?: string;
+  submissionHash?: string;
 };
 
 const money = (cents: number) => new Prisma.Decimal(cents).div(100);
@@ -39,7 +42,7 @@ function receiptCosts(input: PostPurchaseReceiptInput) {
     input.processingCostCents + input.taxAmountCents - input.discountAmountCents;
   const totalCents = subtotalCents + commonCostCents;
   if (totalCents < 0) throw new Error('折扣不可高於本次總成本');
-  return { subtotalCents, totalCents, allocations: allocateCommonCost(input.items, commonCostCents) };
+  return { subtotalCents, totalCents, allocations: subtotalCents === 0 && commonCostCents === 0 && input.sourceOrderId ? input.items.map(() => 0) : allocateCommonCost(input.items, commonCostCents) };
 }
 
 export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseReceiptInput) {
@@ -87,12 +90,15 @@ export async function postPurchaseReceiptInTransaction(
         note: input.note,
         createdById: input.createdById,
         purchaseOrderId: input.purchaseOrderId ?? null,
+        sourceOrderId: input.sourceOrderId,
+        submissionKey: input.submissionKey,
+        submissionHash: input.submissionHash,
       },
     });
 
     for (const [index, item] of input.items.entries()) {
       if (!Number.isSafeInteger(item.quantityGrams) || item.quantityGrams <= 0) throw new Error('實收克數必須為正整數');
-      if (!Number.isSafeInteger(item.rawAmountCents) || item.rawAmountCents <= 0) throw new Error('品項金額必須大於 0');
+      if (!Number.isSafeInteger(item.rawAmountCents) || (input.sourceOrderId ? item.rawAmountCents < 0 : item.rawAmountCents <= 0)) throw new Error('品項金額必須大於 0');
       const product = products.find((row) => row.id === item.productId)!;
       const balances = await tx.inventoryBalance.findMany({ where: { productId: item.productId } });
       if (balances.some((balance) => balance.quantity !== 0 && balance.unit !== 'g')) {
@@ -145,6 +151,7 @@ export async function postPurchaseReceiptInTransaction(
         data: {
           purchaseReceiptId: receipt.id,
           productId: item.productId,
+          sourceOrderItemId: input.sourceOrderId ? item.sourceLineId : null,
           inventoryTransactionId: txn.id,
           quantityGrams: item.quantityGrams,
           rawAmount: money(item.rawAmountCents),

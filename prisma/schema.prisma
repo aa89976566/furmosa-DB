@@ -1160,6 +1160,10 @@ model PurchaseReceipt {
   createdById            String   @map("created_by_id")
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
+  sourceOrderId          String? @map("source_order_id")
+  submissionKey          String? @unique @map("submission_key")
+  submissionHash         String? @map("submission_hash")
+  sourceOrder            PurchaseOrder? @relation("PartialReceipts", fields: [sourceOrderId], references: [id], onDelete: Restrict)
   purchaseOrderId        String?  @unique @map("purchase_order_id")
 
   vendor      Vendor?                     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
@@ -1170,6 +1174,7 @@ model PurchaseReceipt {
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
 
   @@unique([vendorId, supplierDocumentNumber])
+  @@index([sourceOrderId])
   @@index([receiptDate])
   @@index([vendorId, receiptDate])
   @@map("purchase_receipts")
@@ -1205,6 +1210,7 @@ model PurchaseOrder {
   receivedBy   User?                     @relation("PurchaseOrderReceivedBy", fields: [receivedById], references: [id], onDelete: Restrict)
   items        PurchaseOrderItem[]
   attachments  PurchaseOrderAttachment[]
+  receipts     PurchaseReceipt[] @relation("PartialReceipts")
   receipt      PurchaseReceipt?
 
   @@unique([vendorId, supplierDocumentNumber])
@@ -1225,6 +1231,7 @@ model PurchaseOrderItem {
   rawAmount       Decimal  @map("raw_amount") @db.Decimal(14, 2)
   createdAt       DateTime @default(now()) @map("created_at")
 
+  receiptItems PurchaseReceiptItem[]
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
   product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
 
@@ -1279,6 +1286,8 @@ model StocktakeAdjustment {
 }
 
 model PurchaseReceiptItem {
+  sourceOrderItemId String? @map("source_order_item_id")
+  sourceOrderItem PurchaseOrderItem? @relation(fields: [sourceOrderItemId], references: [id], onDelete: Restrict)
   id                         String   @id @default(cuid())
   purchaseReceiptId          String   @map("purchase_receipt_id")
   productId                  String   @map("product_id")
@@ -1298,6 +1307,7 @@ model PurchaseReceiptItem {
   product              Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
   inventoryTransaction InventoryTransaction @relation(fields: [inventoryTransactionId], references: [id], onDelete: Restrict)
 
+  @@index([sourceOrderItemId])
   @@index([purchaseReceiptId])
   @@index([productId, createdAt])
   @@map("purchase_receipt_items")

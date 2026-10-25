@@ -66,6 +66,9 @@
 
 ## WP1 開發驗證紀錄
 
+- 遠端 CI #807（40234808553）通過；同一 head 657c0ed3cfed0099668752ed4c3a468daf23c273 的 Vercel 狀態成功。此為建置檢查，不代表 Preview 操作驗收或正式發布完成。
+- WP2a 分批收貨的具體變更、成本分攤、驗收與回復方案見 [INVENTORY-PARTIAL-RECEIPT-PLAN.md](INVENTORY-PARTIAL-RECEIPT-PLAN.md)；使用者已明確授權依方案修改資料結構及隔離驗證；正式 migration 尚未執行。
+
 - TypeScript 通過。完整測試 1,389 項通過、1 項跳過（需隔離資料庫整合環境），未寫入正式資料。
 - 新增跨頁刷新故障測試；既有盤點測試涵蓋權限、原始版本、篩選、取消與一次儲存。
 - 本地 production build 通過；手機盤點改為商品／目前數量一列、清點輸入下一列，避免三欄擠壓。
