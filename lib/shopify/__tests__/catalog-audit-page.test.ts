@@ -17,11 +17,15 @@ test('product management exposes the Shopify audit entry point', () => {
 });
 
 test('Shopify audit page is explicitly read-only and reports review categories', () => {
-  assert.match(pageSource, /只讀比較 Shopify 與 HQ/);
+  assert.match(pageSource, /只檢查 Shopify 正在上架的商品/);
   assert.match(pageSource, /blankShopifyVariants/);
   assert.match(pageSource, /unmatchedShopifyVariants/);
   assert.match(pageSource, /unmatchedHqTiers/);
   assert.match(pageSource, /系統會禁止正式套用/);
+  assert.match(pageSource, /product\.status === 'ACTIVE'/);
+  assert.match(pageSource, /Shopify 上架商品/);
+  assert.match(pageSource, /<details/);
+  assert.match(pageSource, /slice\(0, 50\)/);
   assert.doesNotMatch(pageSource, /mode:\s*['"]apply['"]/);
   assert.doesNotMatch(pageSource, /prisma\.\$transaction/);
 });
