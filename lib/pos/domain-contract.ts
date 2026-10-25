@@ -34,61 +34,7 @@ export const PHASE_1_POS_ACCOUNT_POLICY = {
   schemaMustNotForbidFutureMultiAccount: true,
 } as const;
 
-export const MERCHANT_ORDER_MODES = ['consignment', 'buyout', 'jar_exchange'] as const;
-export type MerchantOrderMode = (typeof MERCHANT_ORDER_MODES)[number];
-
-/**
- * Legacy restock requests remain consignment-only until their own order flow is migrated.
- * New merchant ordering must resolve the mode server-side with the policy below.
- */
-export const LEGACY_RESTOCK_MODEL = 'consignment' as const;
-
-export const BUYOUT_PRICING_POLICY_V2 = {
-  rulesVersion: 'merchant-buyout-v2-2026-10-25',
-  chicken: {
-    retailPriceTwd: 165,
-    minimumQuantity: 30,
-    tiers: [
-      { minQuantity: 30, discountBps: 2500 },
-      { minQuantity: 50, discountBps: 3000 },
-    ],
-  },
-  minimumCompanyGrossMarginBpsAfterAllocatedShipping: 3000,
-} as const;
-
-export type ChickenBuyoutQuote = {
-  mode: 'buyout';
-  quantity: number;
-  retailUnitPriceTwd: number;
-  discountBps: number;
-  wholesaleUnitPriceTwd: number;
-  subtotalTwd: number;
-  rulesVersion: string;
-};
-
-/** Server-only quote. Never accepts a client price or discount. */
-export function quoteChickenBuyout(quantity: unknown): ChickenBuyoutQuote {
-  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || !Number.isFinite(quantity) || quantity < BUYOUT_PRICING_POLICY_V2.chicken.minimumQuantity) {
-    throw new Error(`雞霸買斷最低 ${BUYOUT_PRICING_POLICY_V2.chicken.minimumQuantity} 件`);
-  }
-  const tier = [...BUYOUT_PRICING_POLICY_V2.chicken.tiers]
-    .reverse()
-    .find((candidate) => quantity >= candidate.minQuantity);
-  if (!tier) throw new Error('買斷規則不完整');
-
-  const wholesaleUnitPriceTwd = Math.round(
-    (BUYOUT_PRICING_POLICY_V2.chicken.retailPriceTwd * (10_000 - tier.discountBps) / 10_000) * 100,
-  ) / 100;
-  return {
-    mode: 'buyout',
-    quantity,
-    retailUnitPriceTwd: BUYOUT_PRICING_POLICY_V2.chicken.retailPriceTwd,
-    discountBps: tier.discountBps,
-    wholesaleUnitPriceTwd,
-    subtotalTwd: wholesaleUnitPriceTwd * quantity,
-    rulesVersion: BUYOUT_PRICING_POLICY_V2.rulesVersion,
-  };
-}
+export const RESTOCK_MODEL = 'consignment' as const;
 
 export const GROOMING_VOUCHER_POINTS = 10;
 export const GROOMING_VOUCHER_VALIDITY_DAYS = 30;
@@ -113,10 +59,6 @@ export type UntrustedClientRefundInput = {
 };
 
 export const SERVER_MUST_RESOLVE_FIELDS = [
-  'resolvedMerchantOrderMode',
-  'buyoutPricingRule',
-  'buyoutDiscountBps',
-  'buyoutWholesaleUnitPriceTwd',
   'merchantId',
   'inventory',
   'originalSale',
@@ -142,7 +84,6 @@ export const SERVER_MUST_RESOLVE_FIELDS = [
 ] as const;
 
 export const CLIENT_MAY_SUBMIT_BUSINESS_INPUT = [
-  'requestedMerchantOrderMode',
   'actualUnitPriceTwd',
   'requestedQuantity',
   'requestedAmountTwd',
