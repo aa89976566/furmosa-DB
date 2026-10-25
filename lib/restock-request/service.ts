@@ -83,7 +83,7 @@ export async function listMerchantRestockCatalog(
   const merchantTypes = await getMerchantTypes(prisma, merchantId, merchant.type);
   const allowedCategories = merchantRestockProductCategories(merchantTypes);
 
-  const [jarProducts, stocks, rules] = await Promise.all([
+  const [jarProducts, stocks] = await Promise.all([
     prisma.product.findMany({
       where: {
         status: 'active',
@@ -103,24 +103,17 @@ export async function listMerchantRestockCatalog(
       where: { merchantId },
       select: { productId: true, quantity: true },
     }),
-    prisma.merchantProductRule.findMany({
-      where: { merchantId },
-      select: { productId: true },
-    }),
   ]);
 
   const qtyByProduct = new Map<string, number>();
   for (const s of stocks) {
     qtyByProduct.set(s.productId, (qtyByProduct.get(s.productId) ?? 0) + s.quantity);
   }
-  const inStore = new Set([...qtyByProduct.keys(), ...rules.map((r) => r.productId)]);
-
   const consignmentEnabledForMerchant = merchantTypes.includes('consignment');
 
   return jarProducts
     .filter((p) =>
       p.productCategory === 'JAR_EXCHANGE' ||
-      inStore.has(p.id) ||
       (consignmentEnabledForMerchant && p.productCategory === 'STANDARD' && p.consignmentEnabled === true),
     )
     .map((p) => {
