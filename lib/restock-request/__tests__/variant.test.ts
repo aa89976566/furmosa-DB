@@ -51,6 +51,30 @@ test('SELF_SELECT rejects missing or invalid variants before creating any reques
   } finally { prisma.product.findMany = oldRead; prisma.restockRequest.create = oldCreate; }
 });
 
+
+test('SELF_SELECT rejects a standard product not opened for consignment', async () => {
+  const products = [{id:'p',name:'雞霸',productCategory:'STANDARD',consignmentEnabled:false,priceTiers:[]}];
+  const oldRead = prisma.product.findMany;
+  const oldCreate = prisma.restockRequest.create;
+  const create = mock.fn(async (args: unknown) => args);
+  prisma.product.findMany = (async () => products) as any;
+  prisma.restockRequest.create = create as any;
+  try {
+    await assert.rejects(
+      submitSelfSelectRestockRequest({
+        merchantId:'m',
+        merchantUserId:'u',
+        items:[{productId:'p',quantity:30}],
+      }),
+      /未開放寄賣補貨/,
+    );
+    assert.equal(create.mock.callCount(), 0);
+  } finally {
+    prisma.product.findMany = oldRead;
+    prisma.restockRequest.create = oldCreate;
+  }
+});
+
 test('approval carries the selected identity through order, shipment, snapshot and inventory', async () => {
   const { approveAndConvertRestockRequest } = await import('../service');
   const { applyMerchantRestockFromShipment } = await import('@/lib/merchant-restock-inventory');
