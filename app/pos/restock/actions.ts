@@ -25,6 +25,9 @@ function toMerchantError(e: unknown): string {
   if (msg.includes('補貨需求') || msg.includes('填寫')) {
     return '請寫一下你需要什麼，再送出。';
   }
+  if (msg.includes('未開放寄賣補貨')) {
+    return '這項商品目前未開放寄賣叫貨，請聯絡匠寵。';
+  }
   if (msg.includes('換罐計畫') || msg.includes('不能補貨')) {
     return '這項商品目前不能補貨，請聯絡匠寵。';
   }
