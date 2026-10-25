@@ -178,10 +178,10 @@ export default async function ShopifyCatalogAuditPage() {
                   )}
                   <div>
                     <h2 className="text-lg font-semibold">
-                      {blockingCount === 0 ? '現有商品可以進入同步確認' : `還有 ${blockingCount} 筆會阻擋同步`}
+                      {blockingCount === 0 ? '現有商品可以進入同步確認' : `還有 ${blockingCount} 筆現有商品問題`}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      只有會影響現有 HQ 商品的問題才阻擋同步；Shopify 新商品另列待建清單。
+                      先處理現有 HQ 商品的對應問題；Shopify 新商品另列待建清單。
                     </p>
                   </div>
                 </div>
@@ -195,7 +195,7 @@ export default async function ShopifyCatalogAuditPage() {
               <MetricCard label="Shopify 上架商品" value={audit.shopifyProducts.length} />
               <MetricCard label="HQ 標準商品" value={audit.hqProducts.length} />
               <MetricCard label="可安全對應規格" value={audit.plan.tierUpdates.length} tone="safe" />
-              <MetricCard label="會阻擋同步" value={blockingCount} tone={blockingCount ? 'danger' : 'safe'} />
+              <MetricCard label="現有商品問題" value={blockingCount} tone={blockingCount ? 'danger' : 'safe'} />
               <MetricCard label="待建商品／補 SKU" value={catalogWorkCount} tone={catalogWorkCount ? 'warning' : 'safe'} />
             </section>
 
@@ -203,7 +203,7 @@ export default async function ShopifyCatalogAuditPage() {
               <div className="border-b border-border px-5 py-4">
                 <h2 className="font-semibold">需要先修正</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  以下項目會影響現有 HQ 商品，修正前系統不會正式套用。
+                  以下項目會影響現有 HQ 商品，修正前不建議正式套用。
                 </p>
               </div>
 
@@ -227,7 +227,7 @@ export default async function ShopifyCatalogAuditPage() {
                 </ReviewSection>
 
                 {blockingCount === 0 ? (
-                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有會阻擋同步的項目。</div>
+                  <div className="px-5 py-8 text-center text-sm text-muted-foreground">沒有現有商品問題的項目。</div>
                 ) : null}
               </div>
             </section>
@@ -236,7 +236,7 @@ export default async function ShopifyCatalogAuditPage() {
               <div className="border-b border-border px-5 py-4">
                 <h2 className="font-semibold">待建立或補資料</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  這些是 Shopify 新商品或缺少 SKU，不會阻擋已正確對應的 HQ 商品更新。
+                  這些是 Shopify 新商品或缺少 SKU，與現有 HQ 商品問題分開處理；正式套用仍需完整確認。
                 </p>
               </div>
               <div>
