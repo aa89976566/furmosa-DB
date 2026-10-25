@@ -77,8 +77,8 @@ export function quoteChickenBuyout(quantity: unknown): ChickenBuyoutQuote {
   if (!tier) throw new Error('買斷規則不完整');
 
   const wholesaleUnitPriceTwd = Math.round(
-    BUYOUT_PRICING_POLICY_V2.chicken.retailPriceTwd * (10_000 - tier.discountBps) / 10_000,
-  );
+    (BUYOUT_PRICING_POLICY_V2.chicken.retailPriceTwd * (10_000 - tier.discountBps) / 10_000) * 100,
+  ) / 100;
   return {
     mode: 'buyout',
     quantity,
