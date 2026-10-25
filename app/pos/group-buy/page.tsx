@@ -23,7 +23,7 @@ export default async function PosGroupBuyPage(props: { searchParams?: Promise<{ 
   const visible = prices.filter(({ product }) => `${product.name} ${product.sku}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   return <PosShell account={account}>
     <main className="space-y-5 px-4 py-6 md:px-6">
-      <header><h1 className="text-2xl font-semibold">活動／團購</h1><p className="mt-2 text-sm text-muted-foreground">店家專屬進貨價。活動期間、數量與訂單請向匠寵確認。</p></header>
+      <header><h1 className="text-2xl font-semibold">活動／團購</h1><p className="mt-2 text-sm text-muted-foreground">這裡只顯示已核准的活動專屬進貨價；不會自動套用一般買斷的雞霸 30／50 件折扣。活動期間、資格、數量與訂單請向匠寵確認。</p></header>
       <form role="search" className="flex gap-2">
         <input name="q" type="search" defaultValue={query} aria-label="搜尋團購商品" placeholder="搜尋商品或 SKU" className="h-11 min-w-0 flex-1 rounded-xl border px-3" />
         <button className="min-h-11 rounded-xl bg-zinc-900 px-4 text-white">搜尋</button>
