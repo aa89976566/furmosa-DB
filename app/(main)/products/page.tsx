@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { productCategoryLabel } from '@/lib/labels';
 import { formatCurrency } from '@/lib/format';
 import { formatPriceRange } from '@/lib/product-variations';
-import { Plus } from 'lucide-react';
+import { Plus, ScanSearch } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { productSearchWhere } from '@/lib/site-search';
 import { deriveProductReadiness } from '@/lib/products/readiness';
@@ -110,12 +110,20 @@ export default async function ProductsPage(
             : `共 ${totalAll} 個商品（上架 ${activeCount}）· 管理規格、SKU 與店家合作條件`
         }
         actions={
-          <Button size="sm" asChild>
-            <Link href="/products/new">
-              <Plus className="mr-1 h-4 w-4" />
-              新增商品
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/products/shopify-audit">
+                <ScanSearch className="mr-1 h-4 w-4" />
+                檢查 Shopify 商品
+              </Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/products/new">
+                <Plus className="mr-1 h-4 w-4" />
+                新增商品
+              </Link>
+            </Button>
+          </>
         }
       />
       <div className="min-w-0 p-4 sm:p-6">
