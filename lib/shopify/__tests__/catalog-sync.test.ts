@@ -68,6 +68,33 @@ test('two HQ products claiming one Shopify product are blocked, not guessed', ()
 test('blank Shopify SKUs are reported and never matched by title or price', () => {
   const plan = planShopifyHqCatalogSync([shop({ variants: [{ id: 'v-blank', title: '30g', sku: null, price: 100 }] })], [hq()]);
   assert.equal(plan.ignoredBlankShopifySkus, 1);
+  assert.deepEqual(plan.blankShopifyVariants, [{
+    productId: 'gid://shopify/Product/1', productTitle: '雞肉丁凍乾', variantId: 'v-blank', variantTitle: '30g',
+  }]);
   assert.equal(plan.tierUpdates.length, 0);
   assert.equal(plan.tierArchives.length, 0);
+});
+
+
+test('unmatched HQ tiers are classified without guessing or modifying them', () => {
+  const product = hq({
+    priceTiers: [
+      { ...hq().priceTiers[0]!, sku: null },
+      { ...hq().priceTiers[1]!, sku: 'UNKNOWN-SKU' },
+    ],
+  });
+  const plan = planShopifyHqCatalogSync([], [product]);
+  assert.deepEqual(plan.unmatchedHqTiers.map((row) => [row.tierId, row.reason]), [
+    ['tier-30', 'no_shopify_match'],
+    ['tier-50', 'no_shopify_match'],
+  ]);
+  assert.equal(plan.tierUpdates.length, 0);
+  assert.equal(plan.productUpdates.length, 0);
+  assert.equal(plan.tierArchives.length, 0);
+});
+
+test('HQ tier without any stable identity is marked missing_identity', () => {
+  const product = hq({ sourceSku: null, priceTiers: [{ ...hq().priceTiers[0]!, sku: null, shopifySku: null }] });
+  const plan = planShopifyHqCatalogSync([], [product]);
+  assert.equal(plan.unmatchedHqTiers[0]?.reason, 'missing_identity');
 });
