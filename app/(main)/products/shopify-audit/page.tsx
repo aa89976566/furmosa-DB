@@ -124,6 +124,22 @@ export default async function ShopifyCatalogAuditPage() {
   const safeChangeCount = audit
     ? audit.plan.tierUpdates.length + audit.plan.productUpdates.length + audit.plan.tierArchives.length
     : 0;
+  const hqTierLabels = new Map<string, string>();
+  const shopifyVariantLabels = new Map<string, string>();
+  if (audit) {
+    for (const product of audit.hqProducts) {
+      for (const tier of product.priceTiers) {
+        const identity = tier.sku ?? tier.shopifySku ?? '未設定 SKU';
+        const spec = tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`;
+        hqTierLabels.set(tier.id, `${product.name} · ${identity} · ${spec}`);
+      }
+    }
+    for (const product of audit.shopifyProducts) {
+      for (const variant of product.variants) {
+        shopifyVariantLabels.set(variant.id, `${product.title} · ${variant.sku ?? '未設定 SKU'} · ${variant.title}`);
+      }
+    }
+  }
 
   return (
     <>
@@ -213,6 +229,11 @@ export default async function ShopifyCatalogAuditPage() {
                     <div key={`${item.code}-${item.ids.join('-')}`} className="px-5 py-4">
                       <p className="font-medium text-red-800">資料衝突</p>
                       <p className="mt-1 text-sm">{item.message}</p>
+                      <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                        {item.ids.map((id) => (
+                          <li key={id}>{shopifyVariantLabels.get(id) ?? hqTierLabels.get(id) ?? id}</li>
+                        ))}
+                      </ul>
                     </div>
                   ))}
                 </ReviewSection>
@@ -222,6 +243,7 @@ export default async function ShopifyCatalogAuditPage() {
                     <div key={item.tierId} className="px-5 py-4">
                       <p className="font-medium">{item.productName}</p>
                       <p className="mt-1 text-sm text-muted-foreground">{hqReasonLabel[item.reason]}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{hqTierLabels.get(item.tierId) ?? item.tierId}</p>
                     </div>
                   ))}
                 </ReviewSection>
