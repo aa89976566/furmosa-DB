@@ -68,7 +68,7 @@ export type ChickenBuyoutQuote = {
 
 /** Server-only quote. Never accepts a client price or discount. */
 export function quoteChickenBuyout(quantity: unknown): ChickenBuyoutQuote {
-  if (!Number.isInteger(quantity) || !Number.isFinite(quantity) || quantity < BUYOUT_PRICING_POLICY_V2.chicken.minimumQuantity) {
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || !Number.isFinite(quantity) || quantity < BUYOUT_PRICING_POLICY_V2.chicken.minimumQuantity) {
     throw new Error(`雞霸買斷最低 ${BUYOUT_PRICING_POLICY_V2.chicken.minimumQuantity} 件`);
   }
   const tier = [...BUYOUT_PRICING_POLICY_V2.chicken.tiers]
