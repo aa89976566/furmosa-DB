@@ -22,6 +22,11 @@ export type PostPurchaseReceiptInput = {
 
 const money = (cents: number) => new Prisma.Decimal(cents).div(100);
 const gramCost = (value: number) => new Prisma.Decimal(value.toFixed(6));
+const receiptTransactionOptions = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  maxWait: 15_000,
+  timeout: 90_000,
+};
 export const purchaseReceiptEventKey = (purchaseOrderId: string, lineId: string) => `purchase-order:${purchaseOrderId}:${lineId}`;
 
 function receiptCosts(input: PostPurchaseReceiptInput) {
@@ -47,7 +52,7 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
     receiptNumber,
     transactionSuffix: suffix,
     transactionDate: date,
-  }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }), receiptTransactionOptions);
 }
 
 export async function postPurchaseReceiptInTransaction(
