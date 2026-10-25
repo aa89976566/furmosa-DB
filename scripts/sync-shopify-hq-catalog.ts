@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { fetchShopifyCatalog } from '../lib/shopify/catalog-source';
 import { planShopifyHqCatalogSync } from '../lib/shopify/catalog-sync';
+import { getShopifyAdminAccessToken, shopifyAdminAuthConfigFromEnv } from '../lib/shopify/admin-access-token';
 
 function option(name: string) {
   const prefix = `--${name}=`;
@@ -20,10 +21,9 @@ async function main() {
     throw new Error('apply 前必須先執行 inspect，並提供 --expected-fingerprint=<完整雜湊>');
   }
 
-  const shopifyProducts = await fetchShopifyCatalog({
-    domain: process.env.SHOPIFY_SHOP_DOMAIN ?? '',
-    token: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ?? '',
-  });
+  const auth = shopifyAdminAuthConfigFromEnv();
+  const token = await getShopifyAdminAccessToken(auth);
+  const shopifyProducts = await fetchShopifyCatalog({ domain: auth.domain, token });
   const hqProducts = await prisma.product.findMany({
     where: { productCategory: 'STANDARD' },
     orderBy: [{ productId: 'asc' }, { id: 'asc' }],
