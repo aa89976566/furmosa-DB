@@ -60,6 +60,8 @@ export type CatalogSyncPlan = {
   tierArchives: Array<{ tierId: string; productId: string; reason: 'not_in_shopify' }>;
   unmatchedShopifyVariants: Array<{ productId: string; productTitle: string; variantId: string; sku: string }>;
   conflicts: Array<{ code: string; message: string; ids: string[] }>;
+  blankShopifyVariants: Array<{ productId: string; productTitle: string; variantId: string; variantTitle: string }>;
+  unmatchedHqTiers: Array<{ productId: string; productName: string; tierId: string; reason: 'missing_identity' | 'no_shopify_match' | 'conflict' }>;
   ignoredBlankShopifySkus: number;
 };
 
@@ -89,13 +91,18 @@ export function planShopifyHqCatalogSync(
 ): CatalogSyncPlan {
   const conflicts: CatalogSyncPlan['conflicts'] = [];
   const shopifyBySku = new Map<string, Array<{ product: ShopifyCatalogProduct; variant: ShopifyCatalogVariant }>>();
-  let ignoredBlankShopifySkus = 0;
+  const blankShopifyVariants: CatalogSyncPlan['blankShopifyVariants'] = [];
 
   for (const product of shopifyProducts) {
     for (const variant of product.variants) {
       const sku = fold(variant.sku);
       if (!sku) {
-        ignoredBlankShopifySkus++;
+        blankShopifyVariants.push({
+          productId: product.id,
+          productTitle: product.title,
+          variantId: variant.id,
+          variantTitle: variant.title,
+        });
         continue;
       }
       const rows = shopifyBySku.get(sku) ?? [];
@@ -214,6 +221,24 @@ export function planShopifyHqCatalogSync(
     }
   }
 
+  const acceptedTierIds = new Set(accepted.map((row) => row.tier.id));
+  const unmatchedHqTiers: CatalogSyncPlan['unmatchedHqTiers'] = [];
+  for (const product of hqProducts) {
+    const active = product.priceTiers.filter((tier) => tier.status !== 'archived');
+    for (const tier of active) {
+      if (acceptedTierIds.has(tier.id)) continue;
+      const identities = [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length)]
+        .map(fold)
+        .filter((value): value is string => Boolean(value));
+      unmatchedHqTiers.push({
+        productId: product.id,
+        productName: product.name,
+        tierId: tier.id,
+        reason: blockedTierIds.has(tier.id) ? 'conflict' : identities.length === 0 ? 'missing_identity' : 'no_shopify_match',
+      });
+    }
+  }
+
   const claimedShopifyVariants = new Set(accepted.map((row) => row.variant.id));
   const unmatchedShopifyVariants = shopifyProducts.flatMap((product) =>
     product.variants.flatMap((variant) => {
@@ -229,6 +254,8 @@ export function planShopifyHqCatalogSync(
     tierArchives,
     unmatchedShopifyVariants,
     conflicts,
-    ignoredBlankShopifySkus,
+    blankShopifyVariants,
+    unmatchedHqTiers,
+    ignoredBlankShopifySkus: blankShopifyVariants.length,
   };
 }
