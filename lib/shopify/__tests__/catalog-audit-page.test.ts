@@ -22,6 +22,10 @@ test('Shopify audit page is explicitly read-only and reports review categories',
   assert.match(pageSource, /unmatchedShopifyVariants/);
   assert.match(pageSource, /unmatchedHqTiers/);
   assert.match(pageSource, /系統會禁止正式套用/);
+  assert.match(pageSource, /product\.status === 'ACTIVE'/);
+  assert.match(pageSource, /Shopify 上架商品/);
+  assert.match(pageSource, /<details/);
+  assert.match(pageSource, /slice\(0, 50\)/);
   assert.doesNotMatch(pageSource, /mode:\s*['"]apply['"]/);
   assert.doesNotMatch(pageSource, /prisma\.\$transaction/);
 });
