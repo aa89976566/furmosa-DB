@@ -17,6 +17,7 @@ async function main() {
   const mode = option('mode') ?? 'inspect';
   if (mode !== 'inspect' && mode !== 'apply') throw new Error('mode 只允許 inspect 或 apply');
   const expectedFingerprint = option('expected-fingerprint');
+  const allowReviewItems = option('allow-review-items') === 'true';
   if (mode === 'apply' && !expectedFingerprint) {
     throw new Error('apply 前必須先執行 inspect，並提供 --expected-fingerprint=<完整雜湊>');
   }
@@ -58,8 +59,10 @@ async function main() {
       legacyTierArchives: plan.tierArchives.length,
     },
     review: {
-      conflicts: plan.conflicts,
+      blankShopifyVariants: plan.blankShopifyVariants,
       unmatchedShopifyVariants: plan.unmatchedShopifyVariants,
+      unmatchedHqTiers: plan.unmatchedHqTiers,
+      conflicts: plan.conflicts,
       ignoredBlankShopifySkus: plan.ignoredBlankShopifySkus,
     },
     plan: {
@@ -72,6 +75,11 @@ async function main() {
   if (mode === 'inspect') {
     console.log(JSON.stringify(report));
     return;
+  }
+  const reviewItemCount = plan.conflicts.length + plan.unmatchedShopifyVariants.length
+    + plan.blankShopifyVariants.length + plan.unmatchedHqTiers.length;
+  if (reviewItemCount > 0 && !allowReviewItems) {
+    throw new Error(`目前仍有 ${reviewItemCount} 筆需人工確認；預設禁止部分同步。確認報告後可加 --allow-review-items=true`);
   }
   if (expectedFingerprint !== planFingerprint) {
     throw new Error('Shopify 或 HQ 商品在 inspect 後已變更；已停止套用，請重新檢查差異');
