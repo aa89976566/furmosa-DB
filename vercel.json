@@ -1,6 +1,6 @@
 {
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "node scripts/vercel-preview-build.mjs",
   "crons": [
     {
       "path": "/api/cron/expire-coupons",

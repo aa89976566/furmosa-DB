@@ -66,10 +66,17 @@
 
 ## WP1 開發驗證紀錄
 
-- 遠端 CI #807（40234808553）通過；同一 head 657c0ed3cfed0099668752ed4c3a468daf23c273 的 Vercel 狀態成功。此為建置檢查，不代表 Preview 操作驗收或正式發布完成。
+- 遠端 CI #807（40234808553）通過；同一 head 657c0ed3cfed0099668752ed4c3a468daf23c273 的 Vercel 狀態雖為 success，後續確認實際是 Ignored/CANCELED，不能當成建置或操作驗收通過。
 - WP2a 分批收貨的具體變更、成本分攤、驗收與回復方案見 [INVENTORY-PARTIAL-RECEIPT-PLAN.md](INVENTORY-PARTIAL-RECEIPT-PLAN.md)；使用者已明確授權依方案修改資料結構及隔離驗證；正式 migration 尚未執行。
 
 - TypeScript 通過。完整測試 1,389 項通過、1 項跳過（需隔離資料庫整合環境），未寫入正式資料。
 - 新增跨頁刷新故障測試；既有盤點測試涵蓋權限、原始版本、篩選、取消與一次儲存。
 - 本地 production build 通過；手機盤點改為商品／目前數量一列、清點輸入下一列，避免三欄擠壓。
 - Preview 驗收及正式發布仍待完成；不得以本地測試替代真實收貨／出貨／POS 整合驗收。
+
+## 2026-10-25 控制器修正與目前驗證
+
+- #457 head 3fa9514dfbd620422b8fbf845af5e5d7713572a9 的 CI #810 已全數成功，含真實隔離 PostgreSQL 分批收貨整合測試；先前帳冊清理問題已改為隨 CI 臨時容器生命週期保留，不停用不可刪除保護。
+- 使用者明確核准獨立控制器 #459 合併；merge 2b2627a3232d4512be821a38ad458a645e8e6b24 已在 Railway deployment 0f956ddd-3792-4064-97b8-325809421779 成功，6 項公開唯讀 smoke 通過，既有登入 HQ 庫存頁重新載入正常。未執行正式 migration。
+- #459 Preview 確認 READY 且只接受既有 furmosa-preview-test。#457 正在整合最新 main 與該修正，必須重新驗收，尚未正式發布庫存改版。
+- 隔離測試 DB 管理入口目前需要 Supabase 登入；登入及核對 migration history 後，才能依精確版本更新測試結構。不借用正式 DB、不在 build 執行 migration。

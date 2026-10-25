@@ -75,4 +75,4 @@
 
 ## 隔離測試修正
 
-CI #808 的整合測試清理步驟誤用 inventoryTransaction.deleteMany，被不可刪除帳冊觸發器拒絕。使用者要求繼續後，改為保留測試帳冊與其參照資料，只關閉連線，由 CI 工作結束後銷毀整個臨時 PostgreSQL 容器。保持既有 trigger、權限與所有驗收斷言，不刪除帳冊、不停用保護。這些測試僅接受明確指定的 loopback ci/inventory_test 資料庫，不使用 runtime DATABASE_URL 回退。遠端結果待重新驗證。
+CI #808 的整合測試清理步驟誤用 inventoryTransaction.deleteMany，被不可刪除帳冊觸發器拒絕。使用者要求繼續後，改為保留測試帳冊與其參照資料，只關閉連線，由 CI 工作結束後銷毀整個臨時 PostgreSQL 容器。保持既有 trigger、權限與所有驗收斷言，不刪除帳冊、不停用保護。這些測試僅接受明確指定的 loopback ci/inventory_test 資料庫，不使用 runtime DATABASE_URL 回退。遠端 CI #810 已通過 PostgreSQL 整合測試與完整建置。整合最新 main 後仍需驗證新 head。
