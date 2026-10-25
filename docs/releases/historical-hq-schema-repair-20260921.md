@@ -28,3 +28,7 @@ The release workflow must pass exact-PR, CI, checksum, readiness, Railway, and s
 ## Approved execution
 
 This release request runs the bounded `historical_hq_schema_repair_20260921` plan after exact-head CI passes.
+
+## Release authorization
+
+- 2026-10-25：正式環境核准執行本受控 repair plan，以修復 HQ 採購入庫所需 schema；範圍仍限上述三筆既有 migration。
