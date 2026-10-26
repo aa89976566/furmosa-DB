@@ -34,6 +34,9 @@ test('failure opens reason dialog, preserves input and submission key, and reope
     await act(async()=>render());
     const input = host.querySelector('input[name="quantityGrams"]') as HTMLInputElement;
     input.value='350';
+    // React may request native form reset after a server action resolves.
+    await act(async()=> (host.querySelector('form') as HTMLFormElement).reset());
+    assert.equal(input.value,'350');
     state={error:'片裝商品的商品單位不是 g，請先確認庫存規格',attempt:1};
     await act(async()=>render());
     assert.ok(host.querySelector('dialog[open]'));
