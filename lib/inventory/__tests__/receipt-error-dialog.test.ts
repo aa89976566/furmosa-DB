@@ -4,7 +4,7 @@ import test from 'node:test';
 const require = createRequire(import.meta.url);
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<!doctype html><div id="root"></div>', {url:'http://localhost'});
-for (const key of ['window','self','document','HTMLElement','HTMLInputElement','Event','MouseEvent'])
+for (const key of ['window','self','document','HTMLElement','HTMLInputElement','Event','MouseEvent','FormData'])
   Object.defineProperty(globalThis,key,{configurable:true,value:dom.window[key]});
 Object.defineProperty(globalThis,'navigator',{configurable:true,value:dom.window.navigator});
 const React = require('react');
@@ -12,12 +12,12 @@ Object.assign(globalThis,{React,IS_REACT_ACT_ENVIRONMENT:true});
 const {act,createElement:h} = React;
 const reactDom = require('react-dom');
 const {createRoot} = require('react-dom/client');
-let state = {error:'',attempt:0};
+let calls = 0;
+let release: ((value: any) => void) | undefined;
 const internal = Module as typeof Module & {_load:(...args:any[])=>any};
 const original = internal._load.bind(Module);
 internal._load = (request,...rest) => {
-  if(request==='react-dom') return {...reactDom,useFormState:()=>[state,undefined]};
-  if(request==='../actions') return {createPurchaseReceipt:()=>{}};
+  if(request==='../actions') return {createPurchaseReceipt: async (_previous: any, data: FormData) => { calls++; assert.equal(data.get('quantityGrams'),'350'); return await new Promise(resolve => {release=resolve;}); }};
   if(request==='@/components/ui/button') return {Button:React.forwardRef((props:any,ref:any)=>h('button',{...props,ref}))};
   return original(request,...rest);
 };
@@ -34,20 +34,22 @@ test('failure opens reason dialog, preserves input and submission key, and reope
     await act(async()=>render());
     const input = host.querySelector('input[name="quantityGrams"]') as HTMLInputElement;
     input.value='350';
-    // React may request native form reset after a server action resolves.
-    await act(async()=> (host.querySelector('form') as HTMLFormElement).reset());
-    assert.equal(input.value,'350');
-    state={error:'片裝商品的商品單位不是 g，請先確認庫存規格',attempt:1};
-    await act(async()=>render());
+    const form = host.querySelector('form')!;
+    const submit = () => form.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+    await act(async()=>{submit(); submit();});
+    assert.equal(calls,1);
+    assert.equal((host.querySelector('button[type="submit"]') as HTMLButtonElement).disabled,true);
+    const error='片裝商品的商品單位不是 g，請先確認庫存規格';
+    await act(async()=>release!({error,attempt:1}));
     assert.ok(host.querySelector('dialog[open]'));
-    assert.ok(host.textContent!.includes(state.error));
+    assert.ok(host.textContent!.includes(error));
     assert.equal(document.activeElement?.textContent,'知道了，返回表單');
-    await act(async()=> (host.querySelector('button') as HTMLButtonElement).click());
+    await act(async()=> (host.querySelector('dialog button') as HTMLButtonElement).click());
     assert.equal(host.querySelector('dialog[open]'),null);
     assert.equal(input.value,'350');
     assert.equal((host.querySelector('input[name="submissionKey"]') as HTMLInputElement).value,'same-key');
-    state={...state,attempt:2};
-    await act(async()=>render());
+    await act(async()=>submit());
+    await act(async()=>release!({error,attempt:2}));
     assert.ok(host.querySelector('dialog[open]'));
     assert.equal(input.value,'350');
   } finally {await act(async()=>root.unmount());}

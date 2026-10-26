@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
-import { FormSubmitButton } from '@/components/shared/form-submit-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PurchaseReceiptForm } from './purchase-receipt-form';
@@ -48,7 +47,6 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
         <label className="block text-sm font-medium">單據照片／PDF（最多 3 個，每個 5MB）<Input className="mt-2" name="attachments" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
         <label className="block text-sm font-medium">備註<textarea name="note" rows={3} className="mt-2 w-full rounded-md border bg-background px-3 py-2" /></label>
       </Card>
-      <div className="sticky bottom-4 flex justify-end"><FormSubmitButton pendingLabel="正在確認入庫…">確認進貨並入庫</FormSubmitButton></div>
     </PurchaseReceiptForm>
   </>;
 }
