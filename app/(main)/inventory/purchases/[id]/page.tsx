@@ -12,7 +12,7 @@ import { formatPurchaseMoney, formatPurchaseDate, formatPurchaseTime } from '@/l
 
 export const dynamic = 'force-dynamic';
 
-export default async function PurchaseReceiptDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; received?: string; metadataSaved?: string; metadataError?: string }> }) {
+export default async function PurchaseReceiptDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; received?: string; metadataSaved?: string; metadataUnchanged?: string; metadataError?: string }> }) {
   const [{ id }, query] = await Promise.all([props.params, props.searchParams]);
   const receipt = await prisma.purchaseReceipt.findUnique({ where: { id }, include: {
     sourceOrder: { select: { id: true, orderNumber: true, supplierDocumentNumber: true } },
@@ -28,6 +28,7 @@ export default async function PurchaseReceiptDetailPage(props: { params: Promise
   return <>
     <PageHeader title={`進貨單 ${receipt.receiptNumber}`} description={`${receipt.vendor?.name ?? '未指定供應商'} · ${receipt.warehouse.name}`} actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
     <div className="space-y-5 p-4 md:p-6">
+      {query.metadataUnchanged ? <p role="status">沒有新增資料，原有資料保持不變。</p> : null}
       {query.metadataSaved ? <p role="status">資料已儲存，庫存數量不變。</p> : null}
       {query.metadataError ? <p role="alert">補填未完成，請重新整理確認資料；可能有同時更新或廠商單號重複。</p> : null}
       {canFill && (!receipt.vendorId || !receipt.receiptDate) ? <Card className="p-5 space-y-3">

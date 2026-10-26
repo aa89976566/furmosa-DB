@@ -13,7 +13,7 @@ export async function completeReceiptMetadata(db: PrismaClient, input: {
     if (receipt.receiptDate && date && receipt.receiptDate.getTime() !== date.getTime()) throw new Error('既有日期不能從補資料流程覆寫');
     const nextVendor = receipt.vendorId ?? vendorId;
     const nextDate = receipt.receiptDate ?? date;
-    if (nextVendor === receipt.vendorId && nextDate === receipt.receiptDate) return;
+    if (nextVendor === receipt.vendorId && nextDate === receipt.receiptDate) return { changed: false };
     if (vendorId && !await tx.vendor.findFirst({ where: { id: vendorId, status: 'active' }, select: { id: true } })) throw new Error('廠商不存在或已停用');
     await tx.purchaseReceipt.update({ where: { id: receipt.id }, data: { vendorId: nextVendor, receiptDate: nextDate } });
     await tx.purchaseReceiptMetadataChange.create({ data: {
@@ -21,5 +21,6 @@ export async function completeReceiptMetadata(db: PrismaClient, input: {
       before: { vendorId: receipt.vendorId, receiptDate: receipt.receiptDate?.toISOString() ?? null },
       after: { vendorId: nextVendor, receiptDate: nextDate?.toISOString() ?? null },
     } });
+    return { changed: true };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

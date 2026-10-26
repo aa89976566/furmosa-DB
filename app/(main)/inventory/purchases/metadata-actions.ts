@@ -11,11 +11,14 @@ export async function fillReceiptMetadata(form: FormData) {
   try {
     const user = await getCurrentUser();
     if (!user || !['admin','warehouse','finance'].includes(user.role)) throw new Error('無權限');
-    await completeReceiptMetadata(prisma, { receiptId: id, vendorId: String(form.get('vendorId') ?? ''), date: String(form.get('receiptDate') ?? ''), actorId: user.userId, actorName: user.name ?? user.userId });
+    const outcome = await completeReceiptMetadata(prisma, { receiptId: id, vendorId: String(form.get('vendorId') ?? ''), date: String(form.get('receiptDate') ?? ''), actorId: user.userId, actorName: user.name ?? user.userId });
+    if (!outcome.changed) result = 'metadataUnchanged=1';
   } catch {
     result = 'metadataError=1';
   }
-  revalidatePath('/inventory/purchases');
-  revalidatePath(`/inventory/purchases/${encodeURIComponent(id)}`);
+  try {
+    revalidatePath('/inventory/purchases');
+    revalidatePath(`/inventory/purchases/${encodeURIComponent(id)}`);
+  } catch { console.error('[inventory] METADATA_VIEW_REFRESH_FAILED'); }
   redirect(`/inventory/purchases/${encodeURIComponent(id)}?${result}`);
 }

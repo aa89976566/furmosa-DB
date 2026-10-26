@@ -29,3 +29,11 @@ test('a conflicting replay is rejected before inventory writes', async () => {
   saved = { id: 'existing', submissionHash: 'different' };
   await assert.rejects(postPurchaseReceipt(db, input), /內容不同/);
 });
+
+test('non-gram product is rejected even with zero or no stock before receipt writes', async () => {
+  const db = { $transaction: async (fn: any) => fn({
+    purchaseReceipt: { findUnique: async () => null, create: async () => { assert.fail('must not create receipt'); } },
+    product: { findMany: async () => [{ id:'product', name:'片裝商品', unit:'片', averageCostPerGram:null }] },
+  }) } as any;
+  await assert.rejects(postPurchaseReceipt(db,input),/商品單位不是 g/);
+});

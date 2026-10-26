@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FormSubmitButton } from '@/components/shared/form-submit-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { createPurchaseReceipt } from '../actions';
+import { PurchaseReceiptForm } from './purchase-receipt-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +15,11 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
     props.searchParams,
     prisma.vendor.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.warehouse.findMany({ orderBy: [{ isDefault: 'desc' }, { name: 'asc' }], select: { id: true, name: true, code: true } }),
-    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD' }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true } }),
+    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD', unit: 'g' }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true } }),
   ]);
   return <>
     <PageHeader title="新增進貨" description="輸入實收重量與單據金額；確認後會一次完成入庫與移動平均成本更新" actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
-    <form action={createPurchaseReceipt} className="space-y-6 p-4 md:p-6" encType="multipart/form-data">
+    <PurchaseReceiptForm>
       <input type="hidden" name="submissionKey" value={submissionKey && /^[0-9a-f-]{36}$/i.test(submissionKey) ? submissionKey : randomUUID()} />
       {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
       <Card className="grid gap-4 p-5 md:grid-cols-2">
@@ -49,6 +49,6 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
         <label className="block text-sm font-medium">備註<textarea name="note" rows={3} className="mt-2 w-full rounded-md border bg-background px-3 py-2" /></label>
       </Card>
       <div className="sticky bottom-4 flex justify-end"><FormSubmitButton pendingLabel="正在確認入庫…">確認進貨並入庫</FormSubmitButton></div>
-    </form>
+    </PurchaseReceiptForm>
   </>;
 }

@@ -25,3 +25,10 @@ test('existing metadata cannot be overwritten by completion', async () => {
     purchaseReceipt: { findUniqueOrThrow: async () => ({id:'r',vendorId:'original',receiptDate:null}) },
   }) } as any, {receiptId:'r',vendorId:'other',date:'',actorId:'u',actorName:'員工'}),/覆寫/);
 });
+
+test('empty completion reports unchanged without audit or update', async () => {
+  const result = await completeReceiptMetadata({ $transaction: async (fn: any) => fn({
+    purchaseReceipt: { findUniqueOrThrow: async () => ({id:'r',vendorId:null,receiptDate:null}) },
+  }) } as any, {receiptId:'r',vendorId:'',date:'',actorId:'u',actorName:'員工'});
+  assert.deepEqual(result,{changed:false});
+});

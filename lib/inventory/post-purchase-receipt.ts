@@ -101,9 +101,11 @@ export async function postPurchaseReceiptInTransaction(
     const localReceiptNumber = generated?.receiptNumber ?? `PUR-${localDate}-${localSuffix}`;
     const products = await tx.product.findMany({
       where: { id: { in: input.items.map((item) => item.productId) }, status: { not: 'inactive' } },
-      select: { id: true, name: true, averageCostPerGram: true },
+      select: { id: true, name: true, unit: true, averageCostPerGram: true },
     });
     if (products.length !== input.items.length) throw new Error('部分商品不存在或已停用');
+    const incompatible = products.find(product => product.unit !== 'g');
+    if (incompatible) throw new Error(`${incompatible.name} 的商品單位不是 g，請先確認庫存規格`);
 
     const receipt = await tx.purchaseReceipt.create({
       data: {

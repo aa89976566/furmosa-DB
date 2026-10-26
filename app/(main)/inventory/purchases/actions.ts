@@ -19,7 +19,7 @@ function hasExpectedSignature(mimeType: string, data: Buffer) {
   return false;
 }
 
-export async function createPurchaseReceipt(formData: FormData) {
+export async function createPurchaseReceipt(_previous: { error: string; attempt: number }, formData: FormData): Promise<{ error: string; attempt: number }> {
   const submissionKey = String(formData.get('submissionKey') ?? '');
   let destination = '/inventory/purchases/new';
   try {
@@ -78,7 +78,7 @@ export async function createPurchaseReceipt(formData: FormData) {
     const message = raw && raw.length <= 180 && !raw.includes('Invalid `prisma') && !raw.includes('DATABASE_URL')
       ? raw
       : '目前無法確認入庫結果，請先查看進貨紀錄；重試時請保留原提交識別';
-    destination = `/inventory/purchases/new?submissionKey=${encodeURIComponent(submissionKey)}&error=${encodeURIComponent(message)}`;
+    return { error: message, attempt: _previous.attempt + 1 };
   }
   redirect(destination);
 }
