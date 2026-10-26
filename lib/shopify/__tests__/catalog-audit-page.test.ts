@@ -47,6 +47,8 @@ test('catalog writes require a fresh admin role, fingerprint and one transaction
   assert.match(actionSource, /audit\.fingerprint !== expectedFingerprint/);
   assert.match(actionSource, /prisma\.\$transaction/);
   assert.match(actionSource, /未確認的商品沒有被新增或覆蓋/);
+  assert.match(actionSource, /applyCatalogSyncPlan/);
+  assert.match(actionSource, /timeout: 60_000/);
   assert.match(actionSource, /stageUnmatchedCatalog/);
   assert.match(actionSource, /timeout: 120_000/);
   assert.match(actionSource, /尚未建立庫存或猜測成本/);
