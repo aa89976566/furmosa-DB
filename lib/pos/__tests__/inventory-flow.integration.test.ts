@@ -17,7 +17,7 @@ test('HQ dispatch → merchant receipt → POS sale: real stock, replay, concurr
   const tag = randomUUID();
   try {
     const warehouse = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'CI warehouse' } });
-    const product = await db.product.create({ data: { productId: tag, sku: tag, name: 'CI 30g', unit: 'g', price: 100,
+    const product = await db.product.create({ data: { productId: tag, sku: tag, name: 'CI 30g', category: 'freeze_dried', unit: 'g', price: 100,
       priceTiers: { create: { weightGrams: 30, unit: 'g', price: 100 } },
       inventoryBalances: { create: { warehouseId: warehouse.id, quantity: 1000, unit: 'g', lastCountedAt: new Date() } },
     }, include: { priceTiers: true } });
