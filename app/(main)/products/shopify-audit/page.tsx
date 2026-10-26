@@ -2,13 +2,9 @@ import Link from 'next/link';
 import { ArrowLeft, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
+import { ShopifySafeSyncForm } from '@/components/products/shopify-safe-sync-form';
 import { prisma } from '@/lib/prisma';
-import { fetchShopifyCatalog } from '@/lib/shopify/catalog-source';
-import { planShopifyHqCatalogSync } from '@/lib/shopify/catalog-sync';
-import {
-  getShopifyAdminAccessToken,
-  shopifyAdminAuthConfigFromEnv,
-} from '@/lib/shopify/admin-access-token';
+import { loadShopifyCatalogAudit } from '@/lib/shopify/catalog-sync-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,44 +15,7 @@ const hqReasonLabel = {
 } as const;
 
 async function loadAudit() {
-  const auth = shopifyAdminAuthConfigFromEnv();
-  const token = await getShopifyAdminAccessToken(auth);
-  const [allShopifyProducts, hqProducts] = await Promise.all([
-    fetchShopifyCatalog({ domain: auth.domain, token }),
-    prisma.product.findMany({
-      where: { productCategory: 'STANDARD' },
-      orderBy: [{ productId: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        productId: true,
-        name: true,
-        status: true,
-        sourceSku: true,
-        priceTiers: {
-          orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }, { id: 'asc' }],
-          select: {
-            id: true,
-            status: true,
-            sku: true,
-            shopifySku: true,
-            shopifyVariantId: true,
-            weightGrams: true,
-            unit: true,
-            unitQty: true,
-            price: true,
-          },
-        },
-      },
-    }),
-  ]);
-
-  const shopifyProducts = allShopifyProducts.filter((product) => product.status === 'ACTIVE');
-
-  return {
-    shopifyProducts,
-    hqProducts,
-    plan: planShopifyHqCatalogSync(shopifyProducts, hqProducts),
-  };
+  return loadShopifyCatalogAudit(prisma);
 }
 
 function ReviewSection({
@@ -146,7 +105,7 @@ export default async function ShopifyCatalogAuditPage() {
     <>
       <PageHeader
         title="Shopify 商品檢查"
-        description="只檢查 Shopify 正在上架的商品；不會修改、合併或刪除資料。"
+        description="先同步唯一可確認的資料；未對應商品留在待處理區，不會猜測或重複建立。"
         actions={
           <>
             <Button variant="outline" size="sm" asChild>
@@ -286,15 +245,20 @@ export default async function ShopifyCatalogAuditPage() {
             </section>
 
             <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-              <h2 className="font-semibold text-emerald-950">可安全對應的預覽</h2>
-              <div className="mt-3 grid gap-2 text-sm text-emerald-950 sm:grid-cols-3">
-                <p>規格與價格：{audit.plan.tierUpdates.length} 筆</p>
-                <p>商品名稱與狀態：{audit.plan.productUpdates.length} 筆</p>
-                <p>舊規格待封存：{audit.plan.tierArchives.length} 筆</p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-semibold text-emerald-950">可安全同步</h2>
+                  <div className="mt-3 grid gap-2 text-sm text-emerald-950 sm:grid-cols-3">
+                    <p>規格與價格：{audit.plan.tierUpdates.length} 筆</p>
+                    <p>商品名稱與狀態：{audit.plan.productUpdates.length} 筆</p>
+                    <p>舊規格待封存：{audit.plan.tierArchives.length} 筆</p>
+                  </div>
+                  <p className="mt-3 text-xs text-emerald-800">
+                    按下同步後會重新核對確認碼；資料若已變動便會停止。未對應商品不會被修改。
+                  </p>
+                </div>
+                <ShopifySafeSyncForm fingerprint={audit.fingerprint} count={safeChangeCount} />
               </div>
-              <p className="mt-3 text-xs text-emerald-800">
-                此區只是預覽。正式套用仍需另外提供完整指紋並再次確認。
-              </p>
             </section>
           </>
         ) : null}

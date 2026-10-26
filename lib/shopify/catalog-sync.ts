@@ -31,6 +31,7 @@ export type HqCatalogProduct = {
   productId: string;
   name: string;
   status: string;
+  price: number;
   sourceSku: string | null;
   priceTiers: HqCatalogTier[];
 };
@@ -184,16 +185,27 @@ export function planShopifyHqCatalogSync(
   }
 
   const accepted = candidates.filter((candidate) => !blockedTierIds.has(candidate.tier.id));
-  const tierUpdates: CatalogTierUpdate[] = accepted.map(({ hqProduct, tier, shopifyProduct, variant }) => ({
-    tierId: tier.id,
-    productId: hqProduct.id,
-    shopifyProductId: shopifyProduct.id,
-    sku: fold(variant.sku)!,
-    shopifySku: fold(variant.sku)!,
-    shopifyVariantId: numericVariantId(variant.id),
-    price: variant.price,
-    status: 'active',
-  }));
+  const tierUpdates: CatalogTierUpdate[] = accepted.flatMap(({ hqProduct, tier, shopifyProduct, variant }) => {
+    const sku = fold(variant.sku)!;
+    const shopifyVariantId = numericVariantId(variant.id);
+    if (
+      fold(tier.sku) === sku
+      && fold(tier.shopifySku) === sku
+      && tier.shopifyVariantId?.trim() === shopifyVariantId
+      && tier.price === variant.price
+      && tier.status === 'active'
+    ) return [];
+    return [{
+      tierId: tier.id,
+      productId: hqProduct.id,
+      shopifyProductId: shopifyProduct.id,
+      sku,
+      shopifySku: sku,
+      shopifyVariantId,
+      price: variant.price,
+      status: 'active',
+    }];
+  });
 
   const acceptedByHqProduct = new Map<string, typeof accepted>();
   for (const row of accepted) {
@@ -207,13 +219,16 @@ export function planShopifyHqCatalogSync(
     const shopifyIds = new Set(rows.map((row) => row.shopifyProduct.id));
     if (shopifyIds.size !== 1) continue;
     const shopifyProduct = rows[0]!.shopifyProduct;
-    productUpdates.push({
+    const update = {
       productId: product.id,
       shopifyProductId: shopifyProduct.id,
       name: shopifyProduct.title,
       price: Math.min(...rows.map((row) => row.variant.price)),
       status: hqStatus(shopifyProduct.status),
-    });
+    } satisfies CatalogProductUpdate;
+    if (product.name !== update.name || product.status !== update.status || product.price !== update.price) {
+      productUpdates.push(update);
+    }
     const matchedTierIds = new Set(rows.map((row) => row.tier.id));
     for (const tier of product.priceTiers) {
       if (tier.status === 'archived' || matchedTierIds.has(tier.id) || blockedTierIds.has(tier.id)) continue;
