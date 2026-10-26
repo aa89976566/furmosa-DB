@@ -14,7 +14,10 @@ export async function loadShopifyCatalogAudit(db: Pick<PrismaClient, 'product'>)
   const [allShopifyProducts, hqProducts] = await Promise.all([
     fetchShopifyCatalog({ domain: auth.domain, token }),
     db.product.findMany({
-      where: { productCategory: 'STANDARD' },
+      // The storefront audit is an action queue for products HQ still intends to sell.
+      // Draft/inactive products keep their historical tiers, but must not block the
+      // active-catalog reconciliation after an operator has deliberately retired them.
+      where: { productCategory: 'STANDARD', status: 'active' },
       orderBy: [{ productId: 'asc' }, { id: 'asc' }],
       select: {
         id: true, productId: true, name: true, status: true, price: true, sourceSku: true,

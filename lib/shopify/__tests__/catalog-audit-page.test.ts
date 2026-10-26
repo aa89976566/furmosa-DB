@@ -14,6 +14,10 @@ const actionSource = readFileSync(
   new URL('../../../app/(main)/products/shopify-audit/actions.ts', import.meta.url),
   'utf8',
 );
+const serviceSource = readFileSync(
+  new URL('../catalog-sync-service.ts', import.meta.url),
+  'utf8',
+);
 
 test('product management exposes the Shopify audit entry point', () => {
   assert.match(productsSource, /href="\/products\/shopify-audit"/);
@@ -52,4 +56,11 @@ test('catalog writes require a fresh admin role, fingerprint and one transaction
   assert.match(actionSource, /stageUnmatchedCatalog/);
   assert.match(actionSource, /timeout: 120_000/);
   assert.match(actionSource, /尚未建立庫存或猜測成本/);
+});
+
+test('retired HQ products retain history without blocking the active catalog audit', () => {
+  assert.match(
+    serviceSource,
+    /where:\s*\{\s*productCategory:\s*'STANDARD',\s*status:\s*'active'\s*\}/,
+  );
 });
