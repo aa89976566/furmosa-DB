@@ -20,6 +20,31 @@ export function resolveOrderItemUnitCost(
   return Number.isFinite(product.cost) ? product.cost : 0;
 }
 
+/**
+ * 贈品可從既有 Shopify 規格中分裝任意克數。
+ * 規格成本代表整個規格的成本；贈品成本依實際贈送克數等比例計算。
+ */
+export function resolveGiftWeightCost(input: {
+  tierCost: number | null | undefined;
+  tierWeightGrams: number | null | undefined;
+  giftWeightGrams: number;
+}): number {
+  const { tierCost, tierWeightGrams, giftWeightGrams } = input;
+  if (
+    tierCost == null ||
+    !Number.isFinite(tierCost) ||
+    tierCost < 0 ||
+    tierWeightGrams == null ||
+    !Number.isFinite(tierWeightGrams) ||
+    tierWeightGrams <= 0 ||
+    !Number.isFinite(giftWeightGrams) ||
+    giftWeightGrams <= 0
+  ) {
+    throw new Error('贈品必須選擇已設定克數與成本的商品規格');
+  }
+  return Math.round((tierCost / tierWeightGrams) * giftWeightGrams * 100) / 100;
+}
+
 /** 新增客戶訂單用：單價一律由商品主檔／所選規格取得。 */
 export type OrderItemPriceProduct = {
   price: number;

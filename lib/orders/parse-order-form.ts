@@ -1,5 +1,9 @@
 import { prisma } from '@/lib/prisma';
-import { resolveOrderItemUnitCost, resolveOrderItemUnitPrice } from '@/lib/order-item-cost';
+import {
+  resolveGiftWeightCost,
+  resolveOrderItemUnitCost,
+  resolveOrderItemUnitPrice,
+} from '@/lib/order-item-cost';
 import {
   assertHomeOrDeliveryRecipient,
   orderTotalFromAmounts,
@@ -236,6 +240,7 @@ export async function parseOrderFormData(
   const quantities = formData.getAll('quantity').map(String);
   const unitPrices = formData.getAll('unitPrice').map(String);
   const weightGrams = formData.getAll('weightGrams').map(String);
+  const giftWeightGrams = formData.getAll('giftWeightGrams').map(String);
   const units = formData.getAll('unit').map(String);
   const lineIsGifts = formData.getAll('lineIsGift').map(String);
   const commercialOverrideModes = formData.getAll('commercialOverrideMode').map(String);
@@ -249,6 +254,7 @@ export async function parseOrderFormData(
       const u = (units[idx] ?? '').trim();
       const tierId = (tierIds[idx] ?? '').trim();
       const isGift = (lineIsGifts[idx] ?? '0') === '1';
+      const giftWeight = toInt(giftWeightGrams[idx]);
       const overrideMode = (commercialOverrideModes[idx] ?? '').trim();
       const overrideValueRaw = (commercialOverrideValues[idx] ?? '').trim();
       const overrideReason = (commercialOverrideReasons[idx] ?? '').trim();
@@ -261,6 +267,7 @@ export async function parseOrderFormData(
         quantity: toInt(quantities[idx]),
         unitPrice: isGift ? 0 : toNumber(unitPrices[idx]),
         isGift,
+        giftWeightGrams: isGift ? giftWeight : null,
         unitCost: 0,
         weightGrams: w != null && Number.isFinite(w) && w > 0 ? Math.round(w) : null,
         unit: u.length > 0 ? u : null,
@@ -298,7 +305,14 @@ export async function parseOrderFormData(
       defaultWholesaleUnitPrice: true,
       commercialTermsVersion: true,
       priceTiers: {
-        select: { id: true, price: true, cost: true, defaultWholesaleUnitPrice: true },
+        select: {
+          id: true,
+          price: true,
+          cost: true,
+          weightGrams: true,
+          unit: true,
+          defaultWholesaleUnitPrice: true,
+        },
       },
     },
   });
@@ -420,8 +434,24 @@ export async function parseOrderFormData(
     }
     let unitCost = 0;
     if (it.isGift) {
-      unitCost = resolveOrderItemUnitCost(prod, it.tierId || null);
-      giftCost += unitCost * it.quantity;
+      const selectedGiftTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
+      if (!selectedGiftTier) {
+        throw new Error(`「${prod.name}」贈品必須選擇 Shopify 商品規格`);
+      }
+      if (!it.giftWeightGrams || it.giftWeightGrams <= 0 || it.giftWeightGrams > 100_000) {
+        throw new Error(`請填寫「${prod.name}」實際贈送克數`);
+      }
+      if (it.quantity !== 1) {
+        throw new Error('自訂克數贈品每列數量固定為 1，請以實際總克數填寫');
+      }
+      unitCost = resolveGiftWeightCost({
+        tierCost: selectedGiftTier.cost,
+        tierWeightGrams: selectedGiftTier.weightGrams,
+        giftWeightGrams: it.giftWeightGrams,
+      });
+      it.weightGrams = it.giftWeightGrams;
+      it.unit = 'g';
+      giftCost += unitCost;
     }
     const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
     const configuredWholesalePrice = merchantOrderMode === 'wholesale' && merchantId
