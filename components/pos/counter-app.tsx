@@ -87,6 +87,7 @@ function CounterWorkspace({
   }, [state.ok, router]);
 
   function addItem(item: CounterCatalogItem) {
+    if (phase === 'done' || !submissionKey) return;
     setPhase('edit');
     setLines((current) =>
       addCartLine(current, {
@@ -187,7 +188,7 @@ function CounterWorkspace({
             <div className={styles.grid}>
               {visible.map((item) => {
                 const cartQty = qtyByKey.get(item.key) ?? 0;
-                const disabled = catalogAddDisabled(item.stock, cartQty);
+                const disabled = phase === 'done' || !submissionKey || catalogAddDisabled(item.stock, cartQty);
                 const soldOut = item.stock <= 0;
                 return (
                   <button

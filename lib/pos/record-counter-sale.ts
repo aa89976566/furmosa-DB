@@ -14,7 +14,7 @@ export async function recordCounterSale(merchantId: string, requested: Requested
   const receiptId = `pos-sale:${merchantId}:${submissionKey}`;
   return db.$transaction(async (tx) => {
     // Serialize counter sales for this merchant, including same-key retries.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`pos-counter:${merchantId}`},0))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`pos-counter:${merchantId}`},0))`;
     const existing = await tx.statusAuditLog.findUnique({ where: { id: receiptId } });
     if (existing) {
       const receipt = JSON.parse(existing.metadataJson ?? '{}');
@@ -27,7 +27,7 @@ export async function recordCounterSale(merchantId: string, requested: Requested
 
     // Serialize counter-sale number reservations across stores. Other writers
     // remain protected by the unique ledger number and atomic rollback.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended('merchant-stock-txn-number:v1',0))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('merchant-stock-txn-number:v1',0))`;
     const txnNumbers = await reserveStockTxnNumbers(tx, planned.length);
     const now = new Date();
 
