@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatNumber } from '@/lib/format';
+import { metadataHistoryLines, metadataSnapshot } from '@/lib/inventory/metadata-history';
 import { formatPurchaseMoney, formatPurchaseDate, formatPurchaseTime } from '@/lib/inventory/purchase-presentation';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,11 @@ export default async function PurchaseReceiptDetailPage(props: { params: Promise
   const user = await getCurrentUser();
   const canFill = !!user && ['admin','warehouse','finance'].includes(user.role);
   const vendors = canFill && !receipt.vendorId ? await prisma.vendor.findMany({ where: { status: 'active' }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [];
-  const changes = await prisma.purchaseReceiptMetadataChange.findMany({ where: { receiptId: id }, orderBy: { createdAt: 'desc' }, take: 20 });
+  const changeRows = await prisma.purchaseReceiptMetadataChange.findMany({ where: { receiptId: id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 21 });
+  const changes = changeRows.slice(0, 20);
+  const vendorIds = [...new Set(changes.flatMap(change => [metadataSnapshot(change.before).vendorId, metadataSnapshot(change.after).vendorId]).filter((value): value is string => value !== null))];
+  const historyVendors = vendorIds.length ? await prisma.vendor.findMany({ where: { id: { in: vendorIds } }, select: { id: true, name: true } }) : [];
+  const vendorNames = new Map(historyVendors.map(vendor => [vendor.id, vendor.name]));
   return <>
     <PageHeader title={`進貨單 ${receipt.receiptNumber}`} description={`${receipt.vendor?.name ?? '未指定供應商'} · ${receipt.warehouse.name}`} actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
     <div className="space-y-5 p-4 md:p-6">
@@ -40,7 +45,7 @@ export default async function PurchaseReceiptDetailPage(props: { params: Promise
           <div><FormSubmitButton>儲存補填資料</FormSubmitButton></div>
         </form>
       </Card> : null}
-      {changes.length ? <Card className="p-5"><h2 className="font-semibold">補資料紀錄</h2>{changes.map(change => <p key={change.id} className="mt-2 text-sm">{change.actorName} · {formatPurchaseTime(change.createdAt)}</p>)}</Card> : null}
+      {changes.length ? <Card className="p-5"><h2 className="font-semibold">補資料紀錄</h2><p className="mt-1 text-xs text-muted-foreground">時間為台灣時間；廠商名稱依目前廠商資料顯示。</p><ol className="mt-3 divide-y">{changes.map(change => <li key={change.id} className="py-3 text-sm"><p className="font-medium">{change.actorName} · {formatPurchaseTime(change.createdAt)}</p><dl className="mt-2 space-y-2">{metadataHistoryLines(change.before, change.after, vendorNames).map(line => <div key={line.label} className="grid gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]"><dt className="text-muted-foreground">{line.label}</dt><dd className="break-words"><span>修改前：{line.before}</span><span className="block">修改後：{line.after}</span></dd></div>)}</dl></li>)}</ol>{changeRows.length > 20 ? <p className="mt-2 text-xs text-muted-foreground">顯示最近 20 筆補填紀錄。</p> : null}</Card> : null}
 
       {query.created ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">進貨已完成，庫存與平均成本已同步更新。</p> : null}
       {query.received ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">實收已確認，庫存與平均成本只更新一次。</p> : null}
