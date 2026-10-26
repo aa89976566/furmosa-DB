@@ -69,7 +69,8 @@ test('blank Shopify SKUs are reported and never matched by title or price', () =
   const plan = planShopifyHqCatalogSync([shop({ variants: [{ id: 'v-blank', title: '30g', sku: null, price: 100 }] })], [hq()]);
   assert.equal(plan.ignoredBlankShopifySkus, 1);
   assert.deepEqual(plan.blankShopifyVariants, [{
-    productId: 'gid://shopify/Product/1', productTitle: '雞肉丁凍乾', variantId: 'v-blank', variantTitle: '30g',
+    productId: 'gid://shopify/Product/1', productTitle: '雞肉丁凍乾', productStatus: 'ACTIVE',
+    variantId: 'v-blank', variantTitle: '30g', price: 100,
   }]);
   assert.equal(plan.tierUpdates.length, 0);
   assert.equal(plan.tierArchives.length, 0);

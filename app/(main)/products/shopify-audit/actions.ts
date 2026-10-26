@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { applyCatalogSyncPlan, loadShopifyCatalogAudit } from '@/lib/shopify/catalog-sync-service';
+import { applyCatalogSyncPlan, loadShopifyCatalogAudit, stageUnmatchedCatalog } from '@/lib/shopify/catalog-sync-service';
 
 export type CatalogSyncState = { ok: boolean; message: string };
 
@@ -33,5 +33,30 @@ export async function applySafeCatalogSyncAction(_previous: CatalogSyncState, fo
   } catch (error) {
     console.error('[SHOPIFY_CATALOG_SYNC_ACTION_FAILED]', error instanceof Error ? error.message : String(error));
     return { ok: false, message: '同步未完成，HQ 沒有套用不確定的資料；請重新檢查後再試' };
+  }
+}
+
+export async function stageUnmatchedCatalogAction(_previous: CatalogSyncState, form: FormData): Promise<CatalogSyncState> {
+  const session = await getCurrentUser();
+  if (!session) return { ok: false, message: '請先登入 HQ' };
+  const role = await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } });
+  if (role?.role !== 'admin') return { ok: false, message: '只有 HQ 管理員可以登記待建商品' };
+
+  const expectedFingerprint = String(form.get('fingerprint') ?? '').trim();
+  if (!/^[a-f0-9]{64}$/.test(expectedFingerprint)) return { ok: false, message: '確認碼不完整，請重新檢查' };
+
+  try {
+    const audit = await loadShopifyCatalogAudit(prisma);
+    if (audit.fingerprint !== expectedFingerprint) {
+      return { ok: false, message: 'Shopify 或 HQ 商品剛有更新，請重新檢查後再登記' };
+    }
+    const result = await prisma.$transaction((tx) => stageUnmatchedCatalog(tx, {
+      plan: audit.plan, fingerprint: audit.fingerprint, actorId: session.userId,
+    }));
+    revalidatePath('/products/shopify-audit');
+    return { ok: true, message: `已完整登記 ${result.candidateCount} 個 Shopify 規格；尚未建立庫存或猜測成本` };
+  } catch (error) {
+    console.error('[SHOPIFY_CATALOG_STAGE_ACTION_FAILED]', error instanceof Error ? error.message : String(error));
+    return { ok: false, message: '待建商品登記未完成，HQ 沒有寫入不完整資料；請重新檢查後再試' };
   }
 }
