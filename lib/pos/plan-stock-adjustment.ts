@@ -10,10 +10,11 @@ export function planProductStockAdjustment(
   rows: StockRowPlan[],
   newQuantity: number,
 ): { previousTotal: number; delta: number; nextRows: StockRowPlan[] } {
-  if (!Number.isFinite(newQuantity) || newQuantity < 0) {
+  if (!Number.isSafeInteger(newQuantity) || newQuantity < 0) {
     throw new Error('庫存數量不合法');
   }
-  const nextQty = Math.floor(newQuantity);
+  if (rows.length > 1) throw new Error('這項商品有多種規格，請由 HQ 依規格盤點，不能修改合計數量');
+  const nextQty = newQuantity;
   const previousTotal = rows.reduce((sum, row) => sum + row.quantity, 0);
   const delta = nextQty - previousTotal;
   if (delta === 0) {

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { confirmMerchantRestockReceipt } from '@/lib/merchant-restock-receipt';
+import { adjustStoreProductQuantity } from '../adjust-store-stock';
 import { recordCounterSale } from '../record-counter-sale';
 import type { loadCounterCatalog } from '../counter-catalog';
 
@@ -39,6 +40,22 @@ test('HQ dispatch → merchant receipt → POS sale: real stock, replay, concurr
     assert.equal(await confirmMerchantRestockReceipt(receipt, db), 'already_received');
     assert.equal(await shop(), 2);
     assert.equal(await hq(), 940);
+    const adjustment = { merchantId: merchant.id, productId: product.id, expectedQuantity: 2, newQuantity: 3 };
+    const failAdjustmentDb = { $transaction: (run: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(tx => run(new Proxy(tx, { get(target, field) {
+      if (field === 'merchantStockTxn') return new Proxy(target.merchantStockTxn, { get(delegate, method) {
+        if (method === 'create') return async () => { throw new Error('CI adjustment ledger failure'); };
+        return Reflect.get(delegate, method);
+      } });
+      return Reflect.get(target, field);
+    } })), options as never) } as unknown as PrismaClient;
+    await assert.rejects(adjustStoreProductQuantity(adjustment, failAdjustmentDb), /CI adjustment ledger failure/);
+    assert.equal(await shop(), 2, 'failed ledger must roll back stock adjustment');
+    await assert.rejects(adjustStoreProductQuantity({...adjustment,expectedQuantity:99},db), /已被更新/);
+    await adjustStoreProductQuantity(adjustment,db);
+    await adjustStoreProductQuantity(adjustment,db);
+    assert.equal(await db.merchantStockTxn.count({where:{merchantId:merchant.id,type:'adjust'}}),1);
+    await adjustStoreProductQuantity({...adjustment,expectedQuantity:3,newQuantity:2},db);
+    assert.equal(await shop(),2);
     // Deliberately stale catalog: the ledger must use the actual post-write balance.
     const catalog = (async () => ({ merchantName: merchant.name, items: [], categories: [], priced: [{ productId: product.id, tierId: tier.id, name: product.name,
       price: 100, priceTiers: [{ price: 100 }], suggestedPrice: 100, commissionMode: 'percent', commissionValue: 20, stock: 2,
@@ -70,6 +87,9 @@ test('HQ dispatch → merchant receipt → POS sale: real stock, replay, concurr
     await recordCounterSale(merchant.id, lines, failKey, db, noCatalog);
     await assert.rejects(recordCounterSale(merchant.id, lines, randomUUID(), db, catalog), /庫存不足/);
     assert.equal(await saleCount(), 2);
+    await db.merchantStock.create({data:{merchantId:merchant.id,productId:product.id,tierId:'',quantity:1}});
+    await assert.rejects(adjustStoreProductQuantity({...adjustment,expectedQuantity:1,newQuantity:5},db), /多種規格/);
+    assert.equal(await shop(),0,'multi-tier count cannot move legacy units into this tier');
     assert.equal(await hq(), 940, 'POS sales must never deduct HQ a second time');
   } finally { await db.$disconnect(); }
 });
