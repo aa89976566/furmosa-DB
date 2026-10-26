@@ -1,7 +1,6 @@
 'use server';
 
 import { parseReceiptDate } from '@/lib/inventory/receipt-date';
-import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
@@ -19,9 +18,8 @@ function hasExpectedSignature(mimeType: string, data: Buffer) {
   return false;
 }
 
-export async function createPurchaseReceipt(_previous: { error: string; attempt: number }, formData: FormData): Promise<{ error: string; attempt: number }> {
+export async function createPurchaseReceipt(_previous: { error: string; attempt: number }, formData: FormData): Promise<{ error: string; attempt: number; receiptId?: string }> {
   const submissionKey = String(formData.get('submissionKey') ?? '');
-  let destination = '/inventory/purchases/new';
   try {
     const user = await getCurrentUser();
     if (!user || !['admin', 'warehouse', 'finance'].includes(user.role)) throw new Error('你沒有進貨入庫權限');
@@ -72,7 +70,7 @@ export async function createPurchaseReceipt(_previous: { error: string; attempt:
       attachments,
     });
     await refreshInventoryViews(items.map(item => item.productId));
-    destination = `/inventory/purchases/${receipt.id}?created=1`;
+    return { error: '', attempt: _previous.attempt, receiptId: receipt.id };
   } catch (error) {
     const raw = error instanceof Error ? error.message : '';
     const message = raw && raw.length <= 180 && !raw.includes('Invalid `prisma') && !raw.includes('DATABASE_URL')
@@ -80,5 +78,4 @@ export async function createPurchaseReceipt(_previous: { error: string; attempt:
       : '目前無法確認入庫結果，請先查看進貨紀錄；重試時請保留原提交識別';
     return { error: message, attempt: _previous.attempt + 1 };
   }
-  redirect(destination);
 }

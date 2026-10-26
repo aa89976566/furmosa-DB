@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { createPurchaseReceipt } from '../actions';
 
 export function PurchaseReceiptForm({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState({ error: '', attempt: 0 });
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
@@ -14,13 +16,23 @@ export function PurchaseReceiptForm({ children }: { children: React.ReactNode })
     const data = new FormData(event.currentTarget);
     inFlight.current = true;
     setPending(true);
+    let completed = false;
     try {
-      setState(await createPurchaseReceipt(state, data));
+      const result = await createPurchaseReceipt(state, data);
+      if (result.receiptId) {
+        completed = true;
+        setState({ error: '', attempt: result.attempt });
+        router.push(`/inventory/purchases/${encodeURIComponent(result.receiptId)}?created=1`);
+        return;
+      }
+      setState(result);
     } catch {
       setState(previous => ({ error: '目前無法確認入庫結果，請稍後使用同一張表單重試，勿另建一筆。', attempt: previous.attempt + 1 }));
     } finally {
-      inFlight.current = false;
-      setPending(false);
+      if (!completed) {
+        inFlight.current = false;
+        setPending(false);
+      }
     }
   }
   const dialog = useRef<HTMLDialogElement>(null);

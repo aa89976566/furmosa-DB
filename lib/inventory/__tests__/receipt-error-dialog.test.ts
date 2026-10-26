@@ -13,10 +13,12 @@ const {act,createElement:h} = React;
 const reactDom = require('react-dom');
 const {createRoot} = require('react-dom/client');
 let calls = 0;
+const navigations: string[] = [];
 let release: ((value: any) => void) | undefined;
 const internal = Module as typeof Module & {_load:(...args:any[])=>any};
 const original = internal._load.bind(Module);
 internal._load = (request,...rest) => {
+  if(request==='next/navigation') return {useRouter:()=>({push:(url:string)=>navigations.push(url)})};
   if(request==='../actions') return {createPurchaseReceipt: async (_previous: any, data: FormData) => { calls++; assert.equal(data.get('quantityGrams'),'350'); return await new Promise(resolve => {release=resolve;}); }};
   if(request==='@/components/ui/button') return {Button:React.forwardRef((props:any,ref:any)=>h('button',{...props,ref}))};
   return original(request,...rest);
@@ -27,6 +29,7 @@ dom.window.HTMLDialogElement.prototype.showModal = function(){this.setAttribute(
 dom.window.HTMLDialogElement.prototype.close = function(){this.removeAttribute('open');};
 
 test('failure opens reason dialog, preserves input and submission key, and reopens for same reason on retry',async()=>{
+  calls=0; navigations.length=0;
   const host = document.getElementById('root')!;
   const root = createRoot(host);
   const render = ()=>root.render(h(PurchaseReceiptForm,null,h('input',{name:'quantityGrams',defaultValue:'100'}),h('input',{name:'submissionKey',type:'hidden',value:'same-key'})));
@@ -52,5 +55,14 @@ test('failure opens reason dialog, preserves input and submission key, and reope
     await act(async()=>release!({error,attempt:2}));
     assert.ok(host.querySelector('dialog[open]'));
     assert.equal(input.value,'350');
+    await act(async()=> (host.querySelector('dialog button') as HTMLButtonElement).click());
+    await act(async()=>submit());
+    await act(async()=>release!({error:'',attempt:2,receiptId:'receipt-123'}));
+    assert.deepEqual(navigations,['/inventory/purchases/receipt-123?created=1']);
+    assert.equal(host.querySelector('dialog[open]'),null);
+    assert.equal((host.querySelector('button[type="submit"]') as HTMLButtonElement).disabled,true);
+    const completedCalls=calls;
+    await act(async()=>submit());
+    assert.equal(calls,completedCalls,'completed receipt stays locked until navigation');
   } finally {await act(async()=>root.unmount());}
 });
