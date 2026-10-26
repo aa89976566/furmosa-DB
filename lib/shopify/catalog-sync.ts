@@ -88,6 +88,25 @@ function hqStatus(status: ShopifyCatalogProduct['status']): CatalogProductUpdate
   return 'inactive';
 }
 
+const VERIFIED_HQ_TIER_SKU_ALIASES: Readonly<Record<string, string>> = {
+  '雞肉南瓜乾|30g': 'CRISPY-CHICKEN-PUMPKIN-30',
+  '雞肉南瓜乾|50g': 'CRISPY-CHICKEN-PUMPKIN-50',
+  '雞肉南瓜乾|100g': 'CRISPY-CHICKEN-PUMPKIN-100',
+  '鵪鶉凍乾|1隻': 'CRUMBLY-QUAIL-1',
+  '鵪鶉凍乾|3隻': 'CRUMBLY-QUAIL-3',
+  '鵪鶉凍乾|5隻': 'CRUMBLY-QUAIL-5',
+  '雞柳條凍乾 40g|40g': 'QIQI-D01-CHK-002',
+  '雞腿柱肉凍乾 40g|40g': 'QIQI-D01-CHK-003',
+  '雞腿肉凍乾 40g|40g': 'QIQI-D01-CHK-004',
+  '虱目魚凍乾 40g|40g': 'QIQI-D01-FSH-001',
+  'QIQI｜鮮蝦凍乾 40g|40g': 'QIQI-D01-SHR-001',
+};
+
+function verifiedHqTierSku(product: HqCatalogProduct, tier: HqCatalogTier) {
+  const dimension = tier.weightGrams != null ? `${tier.weightGrams}g` : `${tier.unitQty}${tier.unit}`;
+  return VERIFIED_HQ_TIER_SKU_ALIASES[`${product.name}|${dimension}`] ?? null;
+}
+
 /**
  * Builds a conservative plan. It never guesses by title, weight, or price:
  * Shopify and HQ can only meet through an exact, unique SKU/variant identity.
@@ -141,7 +160,7 @@ export function planShopifyHqCatalogSync(
     const active = product.priceTiers.filter((tier) => tier.status !== 'archived');
     for (const tier of active) {
       const identities = new Set(
-        [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length)]
+        [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length), verifiedHqTierSku(product, tier)]
           .map(fold)
           .filter((value): value is string => Boolean(value)),
       );
@@ -250,7 +269,7 @@ export function planShopifyHqCatalogSync(
     const active = product.priceTiers.filter((tier) => tier.status !== 'archived');
     for (const tier of active) {
       if (acceptedTierIds.has(tier.id)) continue;
-      const identities = [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length)]
+      const identities = [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length), verifiedHqTierSku(product, tier)]
         .map(fold)
         .filter((value): value is string => Boolean(value));
       unmatchedHqTiers.push({
