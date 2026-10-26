@@ -782,6 +782,32 @@ model ProductPriceTier {
   @@index([shopifyVariantId])
 }
 
+/// Shopify 尚未能安全連到正式 HQ 商品的完整來源快照。
+/// 這裡只做待處理登記，不會建立庫存、成本或可販售商品。
+model ShopifyCatalogCandidate {
+  id                String   @id @default(cuid())
+  shopifyProductId  String   @map("shopify_product_id")
+  shopifyVariantId  String   @unique @map("shopify_variant_id")
+  productTitle      String   @map("product_title")
+  variantTitle      String   @map("variant_title")
+  sku               String?
+  price             Decimal  @db.Decimal(12, 2)
+  shopifyStatus     String   @map("shopify_status")
+  resolution        String   @default("pending") // pending / linked / created / blocked / unavailable
+  linkedProductId   String?  @map("linked_product_id")
+  linkedTierId      String?  @map("linked_tier_id")
+  firstSeenAt       DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  resolvedAt        DateTime? @map("resolved_at")
+  resolvedById      String?  @map("resolved_by_id")
+  notes             String?
+
+  @@index([resolution, lastSeenAt])
+  @@index([shopifyProductId])
+  @@index([sku])
+  @@map("shopify_catalog_candidates")
+}
+
 // 店家可使用的商務模組與有效期間。舊 Merchant.types 在雙讀驗證完成前保留。
 model MerchantCommercialModule {
   id             String    @id @default(cuid())

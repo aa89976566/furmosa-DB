@@ -27,6 +27,8 @@ test('Shopify audit page separates safe sync from review categories', () => {
   assert.match(pageSource, /unmatchedHqTiers/);
   assert.match(pageSource, /現有商品問題/);
   assert.match(pageSource, /待建立或補資料/);
+  assert.match(pageSource, /ShopifyStageCandidatesForm/);
+  assert.match(pageSource, /不建立庫存、不猜成本/);
   assert.match(pageSource, /Shopify 有 SKU，HQ 尚未建立/);
   assert.match(pageSource, /正式套用仍需完整確認/);
   assert.match(pageSource, /Shopify 上架商品/);
@@ -45,4 +47,6 @@ test('catalog writes require a fresh admin role, fingerprint and one transaction
   assert.match(actionSource, /audit\.fingerprint !== expectedFingerprint/);
   assert.match(actionSource, /prisma\.\$transaction/);
   assert.match(actionSource, /未確認的商品沒有被新增或覆蓋/);
+  assert.match(actionSource, /stageUnmatchedCatalog/);
+  assert.match(actionSource, /尚未建立庫存或猜測成本/);
 });

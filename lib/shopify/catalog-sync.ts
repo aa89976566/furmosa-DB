@@ -59,9 +59,15 @@ export type CatalogSyncPlan = {
   tierUpdates: CatalogTierUpdate[];
   productUpdates: CatalogProductUpdate[];
   tierArchives: Array<{ tierId: string; productId: string; reason: 'not_in_shopify' }>;
-  unmatchedShopifyVariants: Array<{ productId: string; productTitle: string; variantId: string; sku: string }>;
+  unmatchedShopifyVariants: Array<{
+    productId: string; productTitle: string; productStatus: ShopifyCatalogProduct['status'];
+    variantId: string; variantTitle: string; sku: string; price: number;
+  }>;
   conflicts: Array<{ code: string; message: string; ids: string[] }>;
-  blankShopifyVariants: Array<{ productId: string; productTitle: string; variantId: string; variantTitle: string }>;
+  blankShopifyVariants: Array<{
+    productId: string; productTitle: string; productStatus: ShopifyCatalogProduct['status'];
+    variantId: string; variantTitle: string; price: number;
+  }>;
   unmatchedHqTiers: Array<{ productId: string; productName: string; tierId: string; reason: 'missing_identity' | 'no_shopify_match' | 'conflict' }>;
   ignoredBlankShopifySkus: number;
 };
@@ -101,8 +107,10 @@ export function planShopifyHqCatalogSync(
         blankShopifyVariants.push({
           productId: product.id,
           productTitle: product.title,
+          productStatus: product.status,
           variantId: variant.id,
           variantTitle: variant.title,
+          price: variant.price,
         });
         continue;
       }
@@ -259,7 +267,10 @@ export function planShopifyHqCatalogSync(
     product.variants.flatMap((variant) => {
       const sku = fold(variant.sku);
       if (!sku || claimedShopifyVariants.has(variant.id)) return [];
-      return [{ productId: product.id, productTitle: product.title, variantId: variant.id, sku }];
+      return [{
+        productId: product.id, productTitle: product.title, productStatus: product.status,
+        variantId: variant.id, variantTitle: variant.title, sku, price: variant.price,
+      }];
     }),
   );
 

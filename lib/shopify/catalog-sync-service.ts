@@ -68,3 +68,50 @@ export async function applyCatalogSyncPlan(tx: CatalogSyncTx, input: {
   });
   return { runId, changeCount };
 }
+
+type CatalogCandidateTx = Pick<Prisma.TransactionClient, 'shopifyCatalogCandidate' | 'statusAuditLog'>;
+
+export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
+  plan: CatalogSyncPlan;
+  fingerprint: string;
+  actorId: string;
+}) {
+  const rows = [
+    ...input.plan.unmatchedShopifyVariants.map((row) => ({ ...row, sku: row.sku })),
+    ...input.plan.blankShopifyVariants.map((row) => ({ ...row, sku: null })),
+  ];
+  if (rows.length > 500) throw new Error(`本次待建商品 ${rows.length} 筆，超過安全上限 500；已停止登記`);
+
+  for (const row of rows) {
+    await tx.shopifyCatalogCandidate.upsert({
+      where: { shopifyVariantId: row.variantId },
+      create: {
+        shopifyProductId: row.productId,
+        shopifyVariantId: row.variantId,
+        productTitle: row.productTitle,
+        variantTitle: row.variantTitle,
+        sku: row.sku,
+        price: row.price,
+        shopifyStatus: row.productStatus,
+      },
+      update: {
+        productTitle: row.productTitle,
+        variantTitle: row.variantTitle,
+        sku: row.sku,
+        price: row.price,
+        shopifyStatus: row.productStatus,
+        lastSeenAt: new Date(),
+      },
+    });
+  }
+
+  const runId = randomUUID();
+  await tx.statusAuditLog.create({
+    data: {
+      entityType: 'shopify_catalog_candidate_import', entityId: runId, newStatus: 'IMPORTED',
+      actorType: 'user', actorId: input.actorId,
+      metadataJson: JSON.stringify({ fingerprint: input.fingerprint, candidateCount: rows.length }),
+    },
+  });
+  return { runId, candidateCount: rows.length };
+}

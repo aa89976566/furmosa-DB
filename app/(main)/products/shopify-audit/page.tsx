@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { ShopifySafeSyncForm } from '@/components/products/shopify-safe-sync-form';
+import { ShopifyStageCandidatesForm } from '@/components/products/shopify-stage-candidates-form';
 import { prisma } from '@/lib/prisma';
 import { loadShopifyCatalogAudit } from '@/lib/shopify/catalog-sync-service';
 
@@ -215,11 +216,14 @@ export default async function ShopifyCatalogAuditPage() {
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-border bg-card">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="font-semibold">待建立或補資料</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  這些是 Shopify 新商品或缺少 SKU，與現有 HQ 商品問題分開處理；正式套用仍需完整確認。
-                </p>
+              <div className="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-semibold">待建立或補資料</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    先把 Shopify 原始資料完整登記進 HQ 待處理區；正式套用仍需完整確認，不建立庫存、不猜成本，也不會直接上架。
+                  </p>
+                </div>
+                <ShopifyStageCandidatesForm fingerprint={audit.fingerprint} count={catalogWorkCount} />
               </div>
               <div>
                 <ReviewSection title="Shopify 有 SKU，HQ 尚未建立" count={audit.plan.unmatchedShopifyVariants.length}>
