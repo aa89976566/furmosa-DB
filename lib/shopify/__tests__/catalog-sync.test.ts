@@ -98,3 +98,29 @@ test('HQ tier without any stable identity is marked missing_identity', () => {
   const plan = planShopifyHqCatalogSync([], [product]);
   assert.equal(plan.unmatchedHqTiers[0]?.reason, 'missing_identity');
 });
+
+test('archived HQ tiers cannot claim or conflict with an active Shopify variant', () => {
+  const active = {
+    ...hq().priceTiers[0]!,
+    id: 'tier-active-30',
+    status: 'active',
+    sku: 'FD-11-30G',
+  };
+  const archived = {
+    ...active,
+    id: 'tier-archived-10',
+    status: 'archived',
+    sku: null,
+    shopifySku: 'FD-11-30G',
+    shopifyVariantId: '30',
+    weightGrams: 10,
+  };
+  const plan = planShopifyHqCatalogSync(
+    [shop({ variants: [shop().variants[0]!] })],
+    [hq({ priceTiers: [archived, active] })],
+  );
+
+  assert.equal(plan.conflicts.some((row) => row.code === 'DUPLICATE_HQ_VARIANT_CLAIM'), false);
+  assert.deepEqual(plan.tierUpdates.map((row) => row.tierId), ['tier-active-30']);
+  assert.equal(plan.unmatchedHqTiers.some((row) => row.tierId === 'tier-archived-10'), false);
+});

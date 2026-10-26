@@ -130,7 +130,7 @@ export function planShopifyHqCatalogSync(
 
   for (const product of hqProducts) {
     const active = product.priceTiers.filter((tier) => tier.status !== 'archived');
-    for (const tier of product.priceTiers) {
+    for (const tier of active) {
       const identities = new Set(
         [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length)]
           .map(fold)
