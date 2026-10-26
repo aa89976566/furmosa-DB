@@ -4,7 +4,7 @@ import { planShopifyHqCatalogSync, type HqCatalogProduct, type ShopifyCatalogPro
 
 function hq(overrides: Partial<HqCatalogProduct> = {}): HqCatalogProduct {
   return {
-    id: 'hq-product-1', productId: 'PROD-1', name: '舊名稱', status: 'active', sourceSku: 'FD-11',
+    id: 'hq-product-1', productId: 'PROD-1', name: '舊名稱', status: 'active', price: 100, sourceSku: 'FD-11',
     priceTiers: [
       { id: 'tier-30', status: 'active', sku: null, shopifySku: null, shopifyVariantId: null, weightGrams: 30, unit: '克', unitQty: 1, price: 100 },
       { id: 'tier-50', status: 'active', sku: 'FD-11-50G', shopifySku: null, shopifyVariantId: null, weightGrams: 50, unit: '克', unitQty: 1, price: 200 },
@@ -69,7 +69,8 @@ test('blank Shopify SKUs are reported and never matched by title or price', () =
   const plan = planShopifyHqCatalogSync([shop({ variants: [{ id: 'v-blank', title: '30g', sku: null, price: 100 }] })], [hq()]);
   assert.equal(plan.ignoredBlankShopifySkus, 1);
   assert.deepEqual(plan.blankShopifyVariants, [{
-    productId: 'gid://shopify/Product/1', productTitle: '雞肉丁凍乾', variantId: 'v-blank', variantTitle: '30g',
+    productId: 'gid://shopify/Product/1', productTitle: '雞肉丁凍乾', productStatus: 'ACTIVE',
+    variantId: 'v-blank', variantTitle: '30g', price: 100,
   }]);
   assert.equal(plan.tierUpdates.length, 0);
   assert.equal(plan.tierArchives.length, 0);
@@ -97,4 +98,45 @@ test('HQ tier without any stable identity is marked missing_identity', () => {
   const product = hq({ sourceSku: null, priceTiers: [{ ...hq().priceTiers[0]!, sku: null, shopifySku: null }] });
   const plan = planShopifyHqCatalogSync([], [product]);
   assert.equal(plan.unmatchedHqTiers[0]?.reason, 'missing_identity');
+});
+
+test('archived HQ tiers cannot claim or conflict with an active Shopify variant', () => {
+  const active = {
+    ...hq().priceTiers[0]!,
+    id: 'tier-active-30',
+    status: 'active',
+    sku: 'FD-11-30G',
+  };
+  const archived = {
+    ...active,
+    id: 'tier-archived-10',
+    status: 'archived',
+    sku: null,
+    shopifySku: 'FD-11-30G',
+    shopifyVariantId: '30',
+    weightGrams: 10,
+  };
+  const plan = planShopifyHqCatalogSync(
+    [shop({ variants: [shop().variants[0]!] })],
+    [hq({ priceTiers: [archived, active] })],
+  );
+
+  assert.equal(plan.conflicts.some((row) => row.code === 'DUPLICATE_HQ_VARIANT_CLAIM'), false);
+  assert.deepEqual(plan.tierUpdates.map((row) => row.tierId), ['tier-active-30']);
+  assert.equal(plan.unmatchedHqTiers.some((row) => row.tierId === 'tier-archived-10'), false);
+});
+
+test('an already synchronized catalog produces no repeated writes', () => {
+  const product = hq({
+    name: '雞肉丁凍乾',
+    price: 175,
+    priceTiers: [
+      { ...hq().priceTiers[0]!, sku: 'FD-11-30G', shopifySku: 'FD-11-30G', shopifyVariantId: '30', price: 175 },
+      { ...hq().priceTiers[1]!, shopifySku: 'FD-11-50G', shopifyVariantId: '50', price: 300 },
+    ],
+  });
+  const plan = planShopifyHqCatalogSync([shop()], [product]);
+  assert.equal(plan.tierUpdates.length, 0);
+  assert.equal(plan.productUpdates.length, 0);
+  assert.equal(plan.tierArchives.length, 0);
 });

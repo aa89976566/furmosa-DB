@@ -1,16 +1,12 @@
-import { createHash, randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { fetchShopifyCatalog } from '../lib/shopify/catalog-source';
 import { planShopifyHqCatalogSync } from '../lib/shopify/catalog-sync';
 import { getShopifyAdminAccessToken, shopifyAdminAuthConfigFromEnv } from '../lib/shopify/admin-access-token';
+import { applyCatalogSyncPlan, catalogSyncFingerprint } from '../lib/shopify/catalog-sync-service';
 
 function option(name: string) {
   const prefix = `--${name}=`;
   return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length) ?? null;
-}
-
-function fingerprint(value: unknown) {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
 async function main() {
@@ -29,11 +25,7 @@ async function main() {
     where: { productCategory: 'STANDARD' },
     orderBy: [{ productId: 'asc' }, { id: 'asc' }],
     select: {
-      id: true,
-      productId: true,
-      name: true,
-      status: true,
-      sourceSku: true,
+      id: true, productId: true, name: true, status: true, price: true, sourceSku: true,
       priceTiers: {
         orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }, { id: 'asc' }],
         select: {
@@ -45,7 +37,7 @@ async function main() {
   });
 
   const plan = planShopifyHqCatalogSync(shopifyProducts, hqProducts);
-  const planFingerprint = fingerprint(plan);
+  const planFingerprint = catalogSyncFingerprint(plan);
   const changeCount = plan.tierUpdates.length + plan.productUpdates.length + plan.tierArchives.length;
   const report = {
     ok: true,
@@ -86,44 +78,9 @@ async function main() {
   }
   if (changeCount > 500) throw new Error(`本次變更 ${changeCount} 筆，超過安全上限 500；已停止套用`);
 
-  const runId = randomUUID();
-  await prisma.$transaction(async (tx) => {
-    for (const row of plan.tierUpdates) {
-      await tx.productPriceTier.update({
-        where: { id: row.tierId },
-        data: {
-          sku: row.sku,
-          shopifySku: row.shopifySku,
-          shopifyVariantId: row.shopifyVariantId,
-          price: row.price,
-          status: row.status,
-        },
-      });
-    }
-    for (const row of plan.tierArchives) {
-      await tx.productPriceTier.update({ where: { id: row.tierId }, data: { status: 'archived' } });
-    }
-    for (const row of plan.productUpdates) {
-      await tx.product.update({
-        where: { id: row.productId },
-        data: { name: row.name, price: row.price, status: row.status },
-      });
-    }
-    await tx.statusAuditLog.create({
-      data: {
-        entityType: 'shopify_hq_catalog_sync',
-        entityId: runId,
-        newStatus: 'APPLIED',
-        actorType: 'system',
-        metadataJson: JSON.stringify({
-          fingerprint: planFingerprint,
-          changes: report.changes,
-          conflictCount: plan.conflicts.length,
-          unmatchedShopifyVariantCount: plan.unmatchedShopifyVariants.length,
-        }),
-      },
-    });
-  });
+  const { runId } = await prisma.$transaction((tx) => applyCatalogSyncPlan(tx, {
+    plan, fingerprint: planFingerprint, actorId: 'catalog-sync-script',
+  }));
 
   console.log(JSON.stringify({ ...report, applied: true, runId }));
 }
