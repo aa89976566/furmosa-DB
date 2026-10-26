@@ -219,7 +219,7 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
     }, { maxWait: 10_000, timeout: 30_000 });
   } catch (error) {
     console.error('[orders/create] 建立訂單交易失敗', error);
-    const safeInputMessage = error instanceof Error && /^(此商品|本單調整|調整本單|換罐計畫)/.test(error.message)
+    const safeInputMessage = error instanceof Error && /^(此商品|本單調整|調整本單|換罐計畫|請填寫|自訂克數|「.+」贈品|贈品必須)/.test(error.message)
       ? error.message
       : null;
     return {

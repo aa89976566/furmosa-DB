@@ -82,6 +82,7 @@ import {
 import { incompatibleLineSwitchPrompt, splitLinesForContext } from '@/lib/orders/order-mode-switch';
 import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
+import { resolveGiftWeightCost } from '@/lib/order-item-cost';
 
 export type ProductTierOption = {
   id: string;
@@ -294,8 +295,9 @@ function OrderLineItemsTable({
         <TableBody className="block space-y-3 md:table-row-group md:space-y-0">
           {items.map((it) => {
             const buyerLineSubtotal = it.isGift ? 0 : it.quantity * it.unitPrice;
-            const giftLineCost = it.isGift ? it.quantity * it.unitCost : 0;
+            const giftLineCost = it.isGift ? it.unitCost : 0;
             const prod = productMap.get(it.productId);
+            const selectedTier = prod?.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
             const hasTiers = (prod?.priceTiers.length ?? 0) > 0;
             const hasProduct = Boolean(it.productId && prod);
             const selectedTierId = prod
@@ -476,6 +478,12 @@ function OrderLineItemsTable({
                   </span>
                   <input type="hidden" name="tierId" value={selectedTierId} />
                   <input type="hidden" name="weightGrams" value={it.weightGrams ?? ''} />
+                  <input type="hidden" name="unit" value={it.unit ?? prod?.unit ?? ''} />
+                  <input
+                    type="hidden"
+                    name="giftWeightGrams"
+                    value={it.isGift ? it.weightGrams ?? '' : ''}
+                  />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
                   {prod && hasTiers ? (
                     <select
@@ -492,7 +500,6 @@ function OrderLineItemsTable({
                     </select>
                   ) : prod ? (
                     <select
-                      name="unit"
                       value={it.unit ?? prod?.unit ?? ''}
                       onChange={(e) => updateItem(it.key, { unit: e.target.value })}
                       className="block w-full rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -518,7 +525,40 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     數量
                   </span>
-                  {hasSelectedSpec ? (
+                  {hasSelectedSpec && it.isGift ? (
+                    <div>
+                      <Input
+                        aria-label="實際贈送克數"
+                        type="number"
+                        min={1}
+                        max={100000}
+                        step={1}
+                        value={it.weightGrams ?? ''}
+                        onChange={(e) => {
+                          const nextWeight = Math.max(0, parseInt(e.target.value, 10) || 0);
+                          let nextCost = 0;
+                          try {
+                            nextCost = resolveGiftWeightCost({
+                              tierCost: selectedTier?.cost,
+                              tierWeightGrams: selectedTier?.weightGrams,
+                              giftWeightGrams: nextWeight,
+                            });
+                          } catch {
+                            nextCost = 0;
+                          }
+                          updateItem(it.key, {
+                            quantity: 1,
+                            weightGrams: nextWeight || null,
+                            unit: 'g',
+                            unitCost: nextCost,
+                          });
+                        }}
+                        required
+                        className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
+                      />
+                      <p className="mt-1 text-[10px] text-muted-foreground">實際贈送總克數</p>
+                    </div>
+                  ) : hasSelectedSpec ? (
                     <Input
                       name="quantity"
                       aria-label="數量"
@@ -1081,15 +1121,39 @@ export function OrderForm({
     const it = items.find((x) => x.key === key);
     if (!it) return;
     if (isGift) {
+      const product = productMap.get(it.productId);
+      const selectedTier = product?.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
+      let giftUnitCost = 0;
+      try {
+        giftUnitCost = resolveGiftWeightCost({
+          tierCost: selectedTier?.cost,
+          tierWeightGrams: selectedTier?.weightGrams,
+          giftWeightGrams: selectedTier?.weightGrams ?? 0,
+        });
+      } catch {
+        giftUnitCost = 0;
+      }
       updateItem(key, {
         isGift: true,
+        quantity: 1,
+        weightGrams: selectedTier?.weightGrams ?? it.weightGrams,
+        unit: selectedTier?.weightGrams ? 'g' : it.unit,
+        unitCost: giftUnitCost,
         retailUnitPrice: it.unitPrice > 0 ? it.unitPrice : it.retailUnitPrice,
         unitPrice: 0,
       });
     } else {
+      const product = productMap.get(it.productId);
+      const selectedTier = product?.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
       updateItem(key, {
         isGift: false,
         unitPrice: it.retailUnitPrice > 0 ? it.retailUnitPrice : it.unitPrice,
+        unitCost: resolveOrderItemUnitCost(product ?? {
+          cost: it.unitCost,
+          priceTiers: [],
+        }, selectedTier?.id ?? null),
+        weightGrams: selectedTier?.weightGrams ?? null,
+        unit: selectedTier?.unit ?? product?.unit ?? it.unit,
       });
     }
   }
