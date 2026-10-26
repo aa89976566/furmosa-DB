@@ -60,6 +60,8 @@ function CounterWorkspace({
   onReset: () => void;
 }) {
   const router = useRouter();
+  const [submissionKey, setSubmissionKey] = useState('');
+  useEffect(() => { setSubmissionKey(crypto.randomUUID()); }, []);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | 'all'>('all');
   const [lines, setLines] = useState<CounterCartLine[]>([]);
@@ -121,6 +123,7 @@ function CounterWorkspace({
 
   return (
     <form action={formAction} className={styles.workspace}>
+      <input type="hidden" name="submissionKey" value={submissionKey} />
       <input
         type="hidden"
         name="lines"

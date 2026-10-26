@@ -38,11 +38,13 @@ export async function checkoutCounterSaleAction(
       tierId: String((line as { tierId?: string }).tierId ?? ''),
       qty: Number((line as { qty?: number }).qty),
     }));
-    const result = await recordCounterSale(session.merchantId, requested);
-    revalidatePath('/pos');
-    revalidatePath('/pos/sell');
-    revalidatePath('/pos/stock');
-    revalidatePath('/pos/records');
+    const result = await recordCounterSale(session.merchantId, requested, String(formData.get('submissionKey') ?? ''));
+    try {
+      revalidatePath('/pos');
+      revalidatePath('/pos/sell');
+      revalidatePath('/pos/stock');
+      revalidatePath('/pos/records');
+    } catch { console.error('[pos-checkout] committed sale view refresh failed'); }
     return { ok: true, total: result.total };
   } catch (err) {
     if (isNextRedirect(err)) throw err;
