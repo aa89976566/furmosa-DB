@@ -54,7 +54,7 @@ export async function stageUnmatchedCatalogAction(_previous: CatalogSyncState, f
       plan: audit.plan, fingerprint: audit.fingerprint, actorId: session.userId,
     }), {
       maxWait: 5_000,
-      timeout: 30_000,
+      timeout: 120_000,
     });
     revalidatePath('/products/shopify-audit');
     return { ok: true, message: `已完整登記 ${result.candidateCount} 個 Shopify 規格；尚未建立庫存或猜測成本` };
