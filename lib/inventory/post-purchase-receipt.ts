@@ -47,15 +47,47 @@ function receiptCosts(input: PostPurchaseReceiptInput) {
 
 export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseReceiptInput) {
   receiptCosts(input);
+  if (!input.submissionKey || !/^[0-9a-f-]{36}$/i.test(input.submissionKey)) {
+    throw new Error('請重新開啟新增進貨頁面再提交');
+  }
+  const submissionHash = createHash('sha256').update(JSON.stringify({
+    ...input, submissionHash: undefined,
+    attachments: input.attachments.map(file => ({
+      fileName: file.fileName, mimeType: file.mimeType,
+      sha256: createHash('sha256').update(file.data).digest('hex'),
+    })),
+  })).digest('hex');
+  input = { ...input, submissionHash };
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
   const date = input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
   const receiptNumber = `PUR-${date}-${suffix}`;
 
-  return db.$transaction((tx) => postPurchaseReceiptInTransaction(tx, input, {
+  try {
+  return await db.$transaction(async (tx) => {
+    const existing = await tx.purchaseReceipt.findUnique({ where: { submissionKey: input.submissionKey } });
+    if (existing) {
+      if (existing.submissionHash !== submissionHash) throw new Error('這次提交已入庫，但內容不同；請先查看進貨紀錄');
+      return existing;
+    }
+    return postPurchaseReceiptInTransaction(tx, input, {
     receiptNumber,
     transactionSuffix: suffix,
     transactionDate: date,
-  }), receiptTransactionOptions);
+  });
+  }, receiptTransactionOptions);
+  } catch (error) {
+    // A competing transaction may have committed this same key while we waited.
+    // Read only after the losing transaction has rolled back completely.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
+      const existing = await db.purchaseReceipt.findUnique({ where: { submissionKey: input.submissionKey } });
+      if (existing) {
+        if (existing.submissionHash !== submissionHash) throw new Error('這次提交已入庫，但內容不同；請先查看進貨紀錄');
+        return existing;
+      }
+      throw new Error('入庫遇到同時更新，請保留原表單重試，並先查看進貨紀錄');
+    }
+    throw error;
+  }
 }
 
 export async function postPurchaseReceiptInTransaction(

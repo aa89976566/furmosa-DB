@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
@@ -8,8 +9,8 @@ import { createPurchaseReceipt } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewPurchaseReceiptPage(props: { searchParams: Promise<{ error?: string }> }) {
-  const [{ error }, vendors, warehouses, products] = await Promise.all([
+export default async function NewPurchaseReceiptPage(props: { searchParams: Promise<{ error?: string; submissionKey?: string }> }) {
+  const [{ error, submissionKey }, vendors, warehouses, products] = await Promise.all([
     props.searchParams,
     prisma.vendor.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.warehouse.findMany({ orderBy: [{ isDefault: 'desc' }, { name: 'asc' }], select: { id: true, name: true, code: true } }),
@@ -18,6 +19,7 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
   return <>
     <PageHeader title="新增進貨" description="輸入實收重量與單據金額；確認後會一次完成入庫與移動平均成本更新" actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
     <form action={createPurchaseReceipt} className="space-y-6 p-4 md:p-6" encType="multipart/form-data">
+      <input type="hidden" name="submissionKey" value={submissionKey && /^[0-9a-f-]{36}$/i.test(submissionKey) ? submissionKey : randomUUID()} />
       {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
       <Card className="grid gap-4 p-5 md:grid-cols-2">
         <label className="space-y-2 text-sm font-medium">供應商<select name="vendorId" className="mt-2 h-10 w-full rounded-md border bg-background px-3"><option value="">未指定</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>

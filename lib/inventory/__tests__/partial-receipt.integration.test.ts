@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import { postPurchaseReceipt } from '../post-purchase-receipt';
 import { createPurchaseOrder, receivePurchaseOrder } from '../purchase-orders';
 
 // Explicit loopback CI database only; never use DATABASE_URL as a fallback.
@@ -52,6 +53,20 @@ test('PostgreSQL 分批收貨、重送、併發、舊單相容與原子回復', 
     assert.equal(await quantity(),1000);
     assert.equal((await db.purchaseOrder.findUniqueOrThrow({where:{id:fail.id}})).status,'pending_receipt');
     assert.equal(await db.inventoryTransaction.count({where:{productId:product.id}}),2);
+    await db.inventoryBalance.update({where:{productId_warehouseId:{productId:product.id,warehouseId:wh.id}},data:{unit:'g'}});
+    const direct = { submissionKey: randomUUID(), vendorId:null, warehouseId:wh.id,
+      supplierDocumentNumber:null, receiptDate:new Date('2026-10-26T04:00:00Z'),
+      shippingCostCents:0, packagingCostCents:0, processingCostCents:0,
+      taxAmountCents:0, discountAmountCents:0, note:null, createdById:user.id,
+      items:[{productId:product.id,quantityGrams:100,rawAmountCents:100}],attachments:[] };
+    const attempts = await Promise.all([postPurchaseReceipt(db,direct),postPurchaseReceipt(db,direct)]);
+    assert.equal(attempts[0].id,attempts[1].id);
+    assert.equal(await quantity(),1100);
+    assert.equal((await postPurchaseReceipt(db,direct)).id,attempts[0].id);
+    await assert.rejects(postPurchaseReceipt(db,{...direct,note:'changed'}),/內容不同/);
+    assert.equal(await quantity(),1100);
+    assert.equal(await db.inventoryTransaction.count({where:{productId:product.id}}),3);
+
   } finally {
     // CI destroys the entire ephemeral PostgreSQL service after this job.
     // Keep immutable ledger records and their referenced fixtures intact until then.

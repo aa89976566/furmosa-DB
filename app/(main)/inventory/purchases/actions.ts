@@ -19,6 +19,7 @@ function hasExpectedSignature(mimeType: string, data: Buffer) {
 }
 
 export async function createPurchaseReceipt(formData: FormData) {
+  const submissionKey = String(formData.get('submissionKey') ?? '');
   let destination = '/inventory/purchases/new';
   try {
     const user = await getCurrentUser();
@@ -55,6 +56,7 @@ export async function createPurchaseReceipt(formData: FormData) {
     const receiptDate = new Date(`${String(formData.get('receiptDate') ?? '')}T12:00:00+08:00`);
     if (Number.isNaN(receiptDate.getTime())) throw new Error('請選擇進貨日期');
     const receipt = await postPurchaseReceipt(prisma, {
+      submissionKey,
       vendorId: String(formData.get('vendorId') ?? '').trim() || null,
       warehouseId: String(formData.get('warehouseId') ?? '').trim(),
       supplierDocumentNumber: String(formData.get('supplierDocumentNumber') ?? '').trim() || null,
@@ -75,8 +77,8 @@ export async function createPurchaseReceipt(formData: FormData) {
     const raw = error instanceof Error ? error.message : '';
     const message = raw && raw.length <= 180 && !raw.includes('Invalid `prisma') && !raw.includes('DATABASE_URL')
       ? raw
-      : '進貨入庫失敗，資料沒有變更，請稍後再試';
-    destination = `/inventory/purchases/new?error=${encodeURIComponent(message)}`;
+      : '目前無法確認入庫結果，請先查看進貨紀錄；重試時請保留原提交識別';
+    destination = `/inventory/purchases/new?submissionKey=${encodeURIComponent(submissionKey)}&error=${encodeURIComponent(message)}`;
   }
   redirect(destination);
 }
