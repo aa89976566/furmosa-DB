@@ -1,6 +1,7 @@
 import { PosPasswordView } from '@/components/merchants/pos-password-view';
 import { getCurrentUser } from '@/lib/auth';
 import { PosPasswordForm } from '@/components/merchants/pos-password-form';
+import { PosAccountForm } from '@/components/merchants/pos-account-form';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -23,11 +24,9 @@ import { merchantCarrierLabel } from '@/lib/merchant-shipping-defaults';
 import { CARRIER_711 } from '@/lib/carrier-cvs';
 import { ChevronRight, MapPin } from 'lucide-react';
 import {
-  createMerchantPosUser,
   repairMerchantBusinessId,
 } from './actions';
 import { merchantBusinessIdKind } from '@/lib/merchant-business-id';
-import { Input } from '@/components/ui/input';
 import { MerchantCommercialModules } from './merchant-commercial-modules';
 import { loadMerchantCommercialModulesSafe } from '@/lib/merchants/load-commercial-modules-safe';
 
@@ -279,12 +278,7 @@ export default async function MerchantOverviewPage(
                 </>}
               </>
             ) : canManagePasswords ? (
-              <form action={createMerchantPosUser} className="mt-3 space-y-3">
-                <input type="hidden" name="merchantId" value={merchant.id} />
-                <Input name="username" placeholder="POS 帳號" required minLength={4} maxLength={32} />
-                <Input name="password" type="password" placeholder="密碼（至少 8 位）" required minLength={8} maxLength={64} />
-                <Button type="submit" size="sm">建立 POS 帳號</Button>
-              </form>
+              <PosAccountForm merchantId={merchant.id} />
             ) : null}
             <Link href="/pos/login" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
               POS 登入頁面
