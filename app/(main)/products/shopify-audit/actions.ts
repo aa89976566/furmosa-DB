@@ -26,7 +26,10 @@ export async function applySafeCatalogSyncAction(_previous: CatalogSyncState, fo
 
     const result = await prisma.$transaction((tx) => applyCatalogSyncPlan(tx, {
       plan: audit.plan, fingerprint: audit.fingerprint, actorId: session.userId,
-    }));
+    }), {
+      maxWait: 5_000,
+      timeout: 60_000,
+    });
     revalidatePath('/products');
     revalidatePath('/products/shopify-audit');
     return { ok: true, message: `已安全同步 ${result.changeCount} 筆；未確認的商品沒有被新增或覆蓋` };
