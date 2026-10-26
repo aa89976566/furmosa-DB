@@ -1,5 +1,6 @@
 'use server';
 
+import { parseReceiptDate } from '@/lib/inventory/receipt-date';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
@@ -53,8 +54,7 @@ export async function createPurchaseReceipt(formData: FormData) {
       if (!hasExpectedSignature(file.type, data)) throw new Error('單據檔案內容與格式不符');
       return { fileName: file.name.slice(0, 180), mimeType: file.type, data };
     }));
-    const receiptDate = new Date(`${String(formData.get('receiptDate') ?? '')}T12:00:00+08:00`);
-    if (Number.isNaN(receiptDate.getTime())) throw new Error('請選擇進貨日期');
+    const receiptDate = parseReceiptDate(String(formData.get('receiptDate') ?? ''));
     const receipt = await postPurchaseReceipt(prisma, {
       submissionKey,
       vendorId: String(formData.get('vendorId') ?? '').trim() || null,

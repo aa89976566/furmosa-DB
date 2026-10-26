@@ -1,3 +1,4 @@
+import { completeReceiptMetadata } from '../complete-receipt-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -66,6 +67,25 @@ test('PostgreSQL 分批收貨、重送、併發、舊單相容與原子回復', 
     await assert.rejects(postPurchaseReceipt(db,{...direct,note:'changed'}),/內容不同/);
     assert.equal(await quantity(),1100);
     assert.equal(await db.inventoryTransaction.count({where:{productId:product.id}}),3);
+    const unknown = await postPurchaseReceipt(db,{...direct,submissionKey:randomUUID(),receiptDate:null,supplierDocumentNumber:'audit-test'});
+    assert.equal(unknown.receiptDate,null);
+    const baselineQty = await quantity();
+    const baselineCost = String((await db.product.findUniqueOrThrow({where:{id:product.id}})).averageCostPerGram);
+    const vendor = await db.vendor.create({data:{vendorId:stamp,name:'CI vendor'}});
+    const metadata = {receiptId:unknown.id,vendorId:vendor.id,date:'2026-10-25',actorId:user.id,actorName:user.name};
+    const concurrentMetadata = await Promise.allSettled([completeReceiptMetadata(db,metadata),completeReceiptMetadata(db,metadata)]);
+    assert.ok(concurrentMetadata.some(x=>x.status==='fulfilled'));
+    await completeReceiptMetadata(db,metadata);
+    assert.equal(await db.purchaseReceiptMetadataChange.count({where:{receiptId:unknown.id}}),1);
+    assert.equal(await quantity(),baselineQty);
+    assert.equal(String((await db.product.findUniqueOrThrow({where:{id:product.id}})).averageCostPerGram),baselineCost);
+    const conflicting = await postPurchaseReceipt(db,{...direct,submissionKey:randomUUID(),receiptDate:null,supplierDocumentNumber:'audit-test'});
+    await assert.rejects(completeReceiptMetadata(db,{...metadata,receiptId:conflicting.id}));
+    const unchanged = await db.purchaseReceipt.findUniqueOrThrow({where:{id:conflicting.id}});
+    assert.equal(unchanged.vendorId,null);
+    assert.equal(unchanged.receiptDate,null);
+    assert.equal(await db.purchaseReceiptMetadataChange.count({where:{receiptId:conflicting.id}}),0);
+
 
   } finally {
     // CI destroys the entire ephemeral PostgreSQL service after this job.

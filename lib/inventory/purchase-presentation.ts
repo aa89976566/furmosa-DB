@@ -2,7 +2,8 @@
 export function formatPurchaseMoney(value: number | string) {
   return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value));
 }
-export function formatPurchaseDate(value: Date) {
+export function formatPurchaseDate(value: Date | null) {
+  if (value === null) return '日期待補';
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
 }
 export function formatPurchaseTime(value: Date) {

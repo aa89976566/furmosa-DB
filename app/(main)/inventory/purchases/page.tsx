@@ -13,7 +13,7 @@ export default async function PurchaseReceiptsPage(props: { searchParams: Promis
   const pending = view === 'pending';
   const [receipts, orders] = await Promise.all([prisma.purchaseReceipt.findMany({
     include: { vendor: { select: { name: true } }, warehouse: { select: { name: true } }, items: { select: { product: { select: { name: true } } } }, _count: { select: { items: true, attachments: true } } },
-    orderBy: [{ receiptDate: 'desc' }, { createdAt: 'desc' }], take: 200,
+    orderBy: [{ receiptDate: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }], take: 200,
   }), prisma.purchaseOrder.findMany({ where: { status: 'pending_receipt' }, include: { vendor: { select: { name: true } }, _count: { select: { items: true, attachments: true } }, receipt: { select: { id: true, purchaseOrderId: true, items: { select: { productId: true, quantityGrams: true, sourceOrderItemId: true } } } }, receipts: { select: { id: true, purchaseOrderId: true, items: { select: { productId: true, quantityGrams: true, sourceOrderItemId: true } } } }, items: { select: { id: true, productId: true, productName: true, quantityGrams: true }, orderBy: { lineNumber: 'asc' } } }, orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'desc' }], take: 200 })]);
   return <>
     <PageHeader title="進貨紀錄" description="待收貨只保存訂購內容；已入庫才會更新庫存與平均成本" actions={<div className="flex gap-2"><Button variant="outline" asChild><Link href="/inventory">返回庫存</Link></Button><Button asChild><Link href="/inventory/new">新增進貨</Link></Button></div>} />

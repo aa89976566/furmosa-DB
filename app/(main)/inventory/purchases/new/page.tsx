@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
+import { FormSubmitButton } from '@/components/shared/form-submit-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { createPurchaseReceipt } from '../actions';
@@ -24,7 +25,7 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
       <Card className="grid gap-4 p-5 md:grid-cols-2">
         <label className="space-y-2 text-sm font-medium">供應商<select name="vendorId" className="mt-2 h-10 w-full rounded-md border bg-background px-3"><option value="">未指定</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
         <label className="space-y-2 text-sm font-medium">入庫倉庫<select name="warehouseId" required className="mt-2 h-10 w-full rounded-md border bg-background px-3">{warehouses.map(w => <option key={w.id} value={w.id}>{w.name} · {w.code}</option>)}</select></label>
-        <label className="space-y-2 text-sm font-medium">進貨日期<Input className="mt-2" type="date" name="receiptDate" required defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+        <label className="space-y-2 text-sm font-medium">進貨日期<Input className="mt-2" type="date" name="receiptDate" aria-describedby="receipt-date-help" /><span id="receipt-date-help" className="block text-xs text-muted-foreground">不確定可留空待補；系統另保留登記時間。</span></label>
         <label className="space-y-2 text-sm font-medium">供應商單號<Input className="mt-2" name="supplierDocumentNumber" placeholder="報價單／Invoice 編號" /></label>
       </Card>
 
@@ -47,7 +48,7 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
         <label className="block text-sm font-medium">單據照片／PDF（最多 3 個，每個 5MB）<Input className="mt-2" name="attachments" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /></label>
         <label className="block text-sm font-medium">備註<textarea name="note" rows={3} className="mt-2 w-full rounded-md border bg-background px-3 py-2" /></label>
       </Card>
-      <div className="sticky bottom-4 flex justify-end"><Button size="lg" type="submit">確認進貨並入庫</Button></div>
+      <div className="sticky bottom-4 flex justify-end"><FormSubmitButton pendingLabel="正在確認入庫…">確認進貨並入庫</FormSubmitButton></div>
     </form>
   </>;
 }

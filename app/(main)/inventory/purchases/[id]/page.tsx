@@ -1,3 +1,6 @@
+import { fillReceiptMetadata } from '../metadata-actions';
+import { FormSubmitButton } from '@/components/shared/form-submit-button';
+import { getCurrentUser } from '@/lib/auth';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -9,7 +12,7 @@ import { formatPurchaseMoney, formatPurchaseDate, formatPurchaseTime } from '@/l
 
 export const dynamic = 'force-dynamic';
 
-export default async function PurchaseReceiptDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; received?: string }> }) {
+export default async function PurchaseReceiptDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; received?: string; metadataSaved?: string; metadataError?: string }> }) {
   const [{ id }, query] = await Promise.all([props.params, props.searchParams]);
   const receipt = await prisma.purchaseReceipt.findUnique({ where: { id }, include: {
     sourceOrder: { select: { id: true, orderNumber: true, supplierDocumentNumber: true } },
@@ -18,9 +21,26 @@ export default async function PurchaseReceiptDetailPage(props: { params: Promise
     attachments: { select: { id: true, fileName: true, mimeType: true, sizeBytes: true } },
   } });
   if (!receipt) notFound();
+  const user = await getCurrentUser();
+  const canFill = !!user && ['admin','warehouse','finance'].includes(user.role);
+  const vendors = canFill && !receipt.vendorId ? await prisma.vendor.findMany({ where: { status: 'active' }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [];
+  const changes = await prisma.purchaseReceiptMetadataChange.findMany({ where: { receiptId: id }, orderBy: { createdAt: 'desc' }, take: 20 });
   return <>
     <PageHeader title={`進貨單 ${receipt.receiptNumber}`} description={`${receipt.vendor?.name ?? '未指定供應商'} · ${receipt.warehouse.name}`} actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
     <div className="space-y-5 p-4 md:p-6">
+      {query.metadataSaved ? <p role="status">資料已儲存，庫存數量不變。</p> : null}
+      {query.metadataError ? <p role="alert">補填未完成，請重新整理確認資料；可能有同時更新或廠商單號重複。</p> : null}
+      {canFill && (!receipt.vendorId || !receipt.receiptDate) ? <Card className="p-5 space-y-3">
+        <h2 className="font-semibold">補齊進貨資料</h2>
+        <form action={fillReceiptMetadata} className="grid gap-4 sm:grid-cols-2">
+          <input type="hidden" name="receiptId" value={id} />
+          {!receipt.vendorId ? <label>廠商<select name="vendorId" className="block w-full rounded-md border p-2"><option value="">待補</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label> : null}
+          {!receipt.receiptDate ? <label>實際進貨日期<input type="date" name="receiptDate" className="block w-full rounded-md border p-2" /></label> : null}
+          <div><FormSubmitButton>儲存補填資料</FormSubmitButton></div>
+        </form>
+      </Card> : null}
+      {changes.length ? <Card className="p-5"><h2 className="font-semibold">補資料紀錄</h2>{changes.map(change => <p key={change.id} className="mt-2 text-sm">{change.actorName} · {formatPurchaseTime(change.createdAt)}</p>)}</Card> : null}
+
       {query.created ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">進貨已完成，庫存與平均成本已同步更新。</p> : null}
       {query.received ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">實收已確認，庫存與平均成本只更新一次。</p> : null}
       {receipt.sourceOrder ? <p className="text-sm">來源進貨單：<Link className="text-primary underline" href={`/inventory/purchase-orders/${receipt.sourceOrder.id}`}>{receipt.sourceOrder.orderNumber}</Link></p> : null}

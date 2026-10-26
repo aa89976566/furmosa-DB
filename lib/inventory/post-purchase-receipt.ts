@@ -7,7 +7,7 @@ export type PostPurchaseReceiptInput = {
   vendorId: string | null;
   warehouseId: string;
   supplierDocumentNumber: string | null;
-  receiptDate: Date;
+  receiptDate: Date | null;
   shippingCostCents: number;
   packagingCostCents: number;
   processingCostCents: number;
@@ -59,7 +59,7 @@ export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseR
   })).digest('hex');
   input = { ...input, submissionHash };
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
-  const date = input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
+  const date = (input.receiptDate ?? new Date()).toISOString().slice(0, 10).replaceAll('-', '');
   const receiptNumber = `PUR-${date}-${suffix}`;
 
   try {
@@ -97,7 +97,7 @@ export async function postPurchaseReceiptInTransaction(
 ) {
     const { subtotalCents, totalCents, allocations } = receiptCosts(input);
     const localSuffix = generated?.transactionSuffix ?? randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
-    const localDate = generated?.transactionDate ?? input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
+    const localDate = generated?.transactionDate ?? (input.receiptDate ?? new Date()).toISOString().slice(0, 10).replaceAll('-', '');
     const localReceiptNumber = generated?.receiptNumber ?? `PUR-${localDate}-${localSuffix}`;
     const products = await tx.product.findMany({
       where: { id: { in: input.items.map((item) => item.productId) }, status: { not: 'inactive' } },
