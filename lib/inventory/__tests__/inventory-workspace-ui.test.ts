@@ -60,7 +60,11 @@ test('staff filter, cancel, preview differences and save counts with original ve
     await act(async () => root.render(createElement(InventoryWorkbench, { rows: rows.map(r => ({ ...r, quantity: 999, version: '2026-10-21T10:00:00.000Z' })), canEdit: true })));
     assert.equal(input().value, '350');
     assert.ok(container.textContent!.includes('差異 -50 g')); assert.equal(submissions.length, 0);
-    assert.ok(container.textContent!.includes('待管理員完成設定'));
+    assert.ok(container.textContent!.includes('庫存單位尚未確認'));
+    assert.ok(container.textContent!.includes('請管理員完成設定後再盤點'));
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]'), null);
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent,'設定單位與首次庫存');
     assert.equal(container.querySelector('input[aria-label="待核對本次清點數量（null）"]'), null);
     await click('儲存盤點'); assert.equal(submissions.length, 1);
     const payload = JSON.parse(submissions[0].get('lines') as string);
