@@ -28,6 +28,15 @@ function fold(value: string | null | undefined) {
   return normalized || null;
 }
 
+const KNOWN_SOURCE_BY_SHOPIFY_SKU = new Map<string, string>([
+  ['sel-xmq-ltm-broth', '怪獸部落'],
+]);
+
+export function resolveKnownShopifySourceName(line: ShopifySourceLine) {
+  const sku = fold(line.sku);
+  return sku ? KNOWN_SOURCE_BY_SHOPIFY_SKU.get(sku) ?? null : null;
+}
+
 function productMatches(line: ShopifySourceLine, product: ProductSourceCatalogItem) {
   const activeTiers = product.priceTiers.filter((tier) => tier.status === 'active');
   const variantId = line.variantId.trim();
