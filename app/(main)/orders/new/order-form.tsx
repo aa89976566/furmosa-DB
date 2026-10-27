@@ -250,6 +250,7 @@ function OrderLineItemsTable({
   productPickerDisabled?: boolean;
   removeItem: (key: string) => void;
 }) {
+  const [expandedLines, setExpandedLines] = useState<string[]>([]);
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
   return (
     <section className="space-y-2">
@@ -344,16 +345,20 @@ function OrderLineItemsTable({
             return (
               <TableRow
                 key={it.key}
+                data-selected={hasProduct ? 'true' : 'false'}
+                data-expanded={!unitPriceReadOnly || expandedLines.includes(it.key) || it.isGift || Boolean(commercialError) || Boolean(it.commercialOverrideEnabled) || (hasQuantity && it.unitPrice <= 0) ? 'true' : 'false'}
                 className="grid grid-cols-2 gap-3 rounded-xl border p-3 md:table-row md:rounded-none md:border-x-0 md:border-t-0 md:p-0"
               >
                 <TableCell className="col-span-2 block min-w-0 p-0 md:table-cell md:p-3">
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     商品
                   </span>
-                  {prod ? <div className="mb-2 flex items-center gap-3">
-                    {prod.imageUrl ? <img src={prod.imageUrl} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-contain" /> : null}
-                    <div><strong className="text-base">{prod.name}</strong><p className="text-xs text-muted-foreground">{selectedTier ? tierLabel(selectedTier) : it.unit ?? prod.unit} · 可用庫存 {prod.availableStock} {prod.unit}{prod.availableStock <= 0 ? ' · 目前無現貨' : ''}</p></div>
+                  {prod ? <div className={styles.lineIdentity}>
+                    {prod.imageUrl ? <img src={prod.imageUrl} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-contain" /> : <span aria-hidden="true" className={styles.productThumb}>{prod.name.replace(/[◈◆｜]/g, '').trim().slice(0, 2)}</span>}
+                    <div className="min-w-0"><strong className="text-base">{prod.name}</strong><p className="text-xs text-muted-foreground">{selectedTier ? tierLabel(selectedTier) : it.unit ?? prod.unit} · 可用庫存 {prod.availableStock} {prod.unit}{prod.availableStock <= 0 ? ' · 目前無現貨' : ''}</p></div>
                   </div> : null}
+                  {prod ? <button type="button" className={styles.lineDetailsToggle} aria-expanded={expandedLines.includes(it.key)} onClick={() => setExpandedLines((current) => current.includes(it.key) ? current.filter((key) => key !== it.key) : [...current, it.key])}>{expandedLines.includes(it.key) ? '收起設定' : '規格與設定'}</button> : null}
+                  <div className={styles.productSelector}>
                   <ProductSearchSelect
                     products={products}
                     value={it.productId}
@@ -361,8 +366,9 @@ function OrderLineItemsTable({
                     onSearch={onSearchProducts}
                     required={rowRequired}
                   />
+                  </div>
                   {showCommercialTerms && orderType === 'merchant' && prod && merchantOrderMode !== 'jar_exchange' ? (
-                    <div className="mt-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs">
+                    <div className={`${styles.commercialDetails} mt-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs`}>
                       {commercialError ? (
                         <p className="text-destructive">{commercialError}</p>
                       ) : commercialTerm ? (
@@ -1669,7 +1675,7 @@ export function OrderForm({
       )}
       </div>
 
-      <div id="order-products" className={styles.products}>
+      <div id="order-products" className={styles.products} data-create={!isEdit ? 'true' : 'false'}>
       {orderType === 'merchant' && merchantId && !isEdit ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">{lastOrderLoading ? '查詢上次訂單中…' : lastOrder ? `上次訂單 ${lastOrder.orderNumber}` : '可直接加入本次補貨商品'}</span>
         {lastOrder ? <Button type="button" size="sm" variant="outline" disabled={hasValidLines} asChild><Link href={`/orders/new?copyFrom=${lastOrder.id}`} aria-disabled={hasValidLines} tabIndex={hasValidLines ? -1 : undefined} onClick={(event) => { if (hasValidLines) event.preventDefault(); }}>複製上次訂單</Link></Button> : null}
@@ -1702,7 +1708,7 @@ export function OrderForm({
         merchantId={merchantId}
         showCommercialTerms={!isEdit}
         updateItem={updateItem}
-        onOpenProductPicker={() => setProductPickerOpen(true)}
+        onOpenProductPicker={() => { if (isEdit) setProductPickerOpen(true); else document.getElementById('order-product-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
         productPickerDisabled={
           orderType === 'merchant' &&
           merchantOrderMode === 'wholesale' &&
@@ -1711,8 +1717,10 @@ export function OrderForm({
         removeItem={removeItem}
       /> : null}
 
+      <div id="order-product-catalog">
       <OrderProductPicker
-        open={productPickerOpen}
+        embedded={!isEdit}
+        open={!isEdit ? revealedStep >= 4 : productPickerOpen}
         onOpenChange={setProductPickerOpen}
         products={visibleProducts.map((product) => productMap.get(product.id) ?? product)}
         onSearch={handleSearchProducts}
@@ -1723,6 +1731,7 @@ export function OrderForm({
           !merchantId
         }
       />
+      </div>
 
       </div>
       </div>
@@ -1740,7 +1749,7 @@ export function OrderForm({
           {selectedMerchant ? <p className="text-xs text-muted-foreground">已帶入店家預設，請核對收件資料</p> : null}
         </div>
         {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{formatCurrency(total)}</strong></div>}
-        <Button type="button" className="mt-5 w-full" disabled={!hasValidLines} onClick={openReview}>確認訂單內容</Button>
+        <Button type="button" className={`${styles.primaryAction} mt-5 w-full`} disabled={!hasValidLines} onClick={openReview}>確認訂單內容</Button>
       </aside>
       </div>
       <div id="order-review" hidden={!reviewOpen && !isEdit} className={styles.review}>
