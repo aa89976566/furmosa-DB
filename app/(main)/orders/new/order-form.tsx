@@ -1476,7 +1476,8 @@ export function OrderForm({
           <button key={label} type="button" aria-current={(reviewOpen ? 2 : revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
             disabled={index > 0 && revealedStep < 4}
             onClick={() => {
-              if (index === 2) { setReviewOpen(true); revealThrough(8); }
+              setReviewOpen(index === 2);
+              if (index === 2) revealThrough(8);
               window.requestAnimationFrame(() => document.getElementById(index === 2 ? 'order-review' : index === 1 ? 'order-products' : 'order-buyer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             }}>
             <span>{index + 1}</span>{label}
