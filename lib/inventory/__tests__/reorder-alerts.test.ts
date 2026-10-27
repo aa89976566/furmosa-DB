@@ -49,3 +49,24 @@ test('缺貨商品排在低庫存商品前面', () => {
   assert.equal(result.orderNow[0]?.id, 'empty');
 });
 
+test('在途量剛好補到安全線時，不產生零缺口採購', () => {
+  const result = buildReorderAlertSummary([product({ incoming: 200 })]);
+  assert.equal(result.orderNow.length, 0);
+  assert.equal(result.incoming[0]?.deficit, 0);
+});
+
+test('負庫存、未知單位與單位不一致需先盤點', () => {
+  const result = buildReorderAlertSummary([
+    product({ id: 'negative', onHand: -30 }),
+    product({ id: 'unknown', unit: null }),
+    product({ id: 'mismatch', unitVerified: false }),
+  ]);
+  assert.equal(result.orderNow.length, 0);
+  assert.equal(result.stocktake.length, 3);
+});
+
+test('接單現做雞霸排除現貨採購與首次盤點待辦', () => {
+  assert.deepEqual(buildReorderAlertSummary([product({ sku: 'fur-0002', lastCountedAt: null })]),
+    { orderNow: [], incoming: [], stocktake: [] });
+});
+

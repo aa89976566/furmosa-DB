@@ -1,0 +1,61 @@
+/* Approved inventory reference: route-scoped HQ operational chrome. */
+[data-dashboard=true] { background:#f7f7f4; --primary:156 42% 24%; --primary-foreground:0 0% 100%; --navy:156 30% 15%; --warning:38 85% 38%; }
+[data-dashboard=true] > aside { width:178px; border:0; background:#183e32; color:#f4f7f3; }
+[data-dashboard=true] > aside a,[data-dashboard=true] > aside button,[data-dashboard=true] > aside span,[data-dashboard=true] > aside svg { color:#edf5ef; }
+[data-dashboard=true] > aside a[href^='/dashboard'] { background:#315d4b; color:white; }
+[data-dashboard=true] header.sticky { display:none; }
+[data-dashboard=true] > div > main { background:#f7f7f4; color:#172b25; }
+[data-dashboard=true] h1 { font-size:24px; }
+[data-dashboard=true] main > div:has(>div h1) { border-bottom:1px solid #dfe4df; }
+[data-dashboard=true] main main { max-width:1440px; padding-top:16px; }
+[data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] { border-radius:0; background:transparent; padding:0; border-bottom:1px solid #dfe4df; display:flex; }
+[data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] a { border-radius:0; box-shadow:none; background:transparent; min-height:44px; }
+[data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] a[aria-current=page] { border-bottom:2px solid #245744; color:#245744; }
+.dashboard-operations > section:first-child { padding:14px 18px; border-radius:8px; background:#eef4ef; }
+.dashboard-operations > section:first-child h2 { font-size:20px; }
+.dashboard-operations > section:first-child p:first-child { display:none; }
+.dashboard-operations > section:nth-child(2) { gap:8px; }
+.dashboard-operations > section:nth-child(2) > a { padding:12px 16px; border-radius:7px; background:white; }
+.dashboard-operations > section:nth-child(2) > a p:nth-child(2) { font-size:24px; margin-top:4px; }
+.dashboard-operations section[aria-labelledby='procurement-title'] > .grid { align-items:start; }
+.dashboard-operations section[aria-labelledby='procurement-title'] { display:flex; flex-direction:column; gap:12px; }
+.dashboard-operations #procurement-title { font-size:22px; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] { display:flex; flex-wrap:wrap; gap:0; border:1px solid #dfe4df; border-radius:7px; background:white; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] a { flex:1; min-width:150px; min-height:48px; padding:8px 14px; border:0; border-radius:0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] a + a { border-left:1px solid #e9ece7; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] svg { display:none; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] p { margin:0; font-size:20px; }
+.dashboard-operations nav[aria-label='庫存待辦分類'] p span { display:none; }
+.dashboard-operations section[id^='purchase-'],.dashboard-operations #shipment-stock-check { border-radius:7px; border-color:#dfe4df; background:white; }
+.dashboard-operations section[id^='purchase-'] > div:first-child,.dashboard-operations #shipment-stock-check > div:first-child { background:#f0f2ee; padding:10px 14px; }
+.dashboard-operations section[id^='purchase-'] > div:nth-child(2),.dashboard-operations #shipment-stock-check > div:nth-child(2) { padding-left:14px; padding-right:14px; }
+.dashboard-operations section[id^='purchase-'] .divide-y > *, .dashboard-operations #shipment-stock-check .divide-y > * { padding-top:10px; padding-bottom:10px; }
+.dashboard-operations #purchase-now .divide-y > * { background:#fff8e9; margin:0 -14px; padding-left:14px; padding-right:14px; }
+.dashboard-operations #purchase-now .divide-y > *:has(.text-destructive.bg-destructive\/10) { background:#fff0f0; }
+.dashboard-operations #purchase-count .divide-y > * { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
+.dashboard-operations #purchase-count .divide-y > * > div { display:grid; grid-template-columns:minmax(0,1fr) minmax(100px,auto); column-gap:14px; }
+.dashboard-operations #purchase-count .divide-y > * p:first-child { font-size:14px; }
+.dashboard-operations #purchase-count .divide-y > * p:nth-child(2) { grid-row:2; margin-top:3px; }
+.dashboard-operations #purchase-count .divide-y > * p:nth-child(3) { grid-column:2; grid-row:1 / 3; align-self:center; margin-top:0; font-size:12px; background:#fff0ce; border-radius:12px; padding:3px 8px; }
+.dashboard-operations a[class*='inline-flex'] { border-radius:7px; }
+@media(min-width:1280px) { .dashboard-operations section[aria-labelledby='procurement-title'] > .grid { grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); } }
+@media(max-width:767px) {
+ [data-dashboard=true] main main { padding:12px; padding-bottom:max(24px,env(safe-area-inset-bottom)); }
+ [data-dashboard=true] h1 { font-size:20px; }
+ .dashboard-operations > section:nth-child(2) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .dashboard-operations > section:first-child { padding:12px; }
+ .dashboard-operations > section:first-child h2 { font-size:18px; }
+ .dashboard-operations > section:first-child a { width:100%; }
+ .dashboard-operations nav[aria-label='庫存待辦分類'] { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .dashboard-operations nav[aria-label='庫存待辦分類'] a { min-width:0; border-bottom:1px solid #e9ece7; padding:10px; }
+ .dashboard-operations #purchase-count .divide-y > * > div { display:block; }
+ .dashboard-operations #purchase-count .divide-y > * p:nth-child(3) { display:inline-block; margin-top:5px; }
+ .dashboard-operations #procurement-title { font-size:20px; }
+}
+
+@media(max-width:767px) {
+ [data-dashboard=true] header.sticky { display:flex; min-height:56px; flex-wrap:nowrap; border-bottom:1px solid #dfe4df; padding:6px 12px; }
+ [data-dashboard=true] header.sticky [role=search], [data-dashboard=true] header.sticky form:has(input[type=search]), [data-dashboard=true] header.sticky > .contents { display:none; }
+ .dashboard-operations section[id^='purchase-'] .divide-y > * { min-width:0; overflow-wrap:anywhere; }
+ .dashboard-operations nav[aria-label='庫存待辦分類'] a:nth-child(odd) { border-left:0; }
+}

@@ -1,3 +1,4 @@
+import './dashboard-reference.css';
 import Link from 'next/link';
 import nextDynamic from 'next/dynamic';
 import { Suspense } from 'react';
@@ -28,8 +29,8 @@ export default async function DashboardPage(props: DashboardPageProps) {
       actions={workbench ? <Button size="sm" variant="outline" asChild><Link href="/dashboard?view=insights">看營運數據</Link></Button> : <Button size="sm" asChild><Link href="/orders/new"><Plus className="mr-1 h-4 w-4" />新增訂單</Link></Button>} />
     <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 sm:py-7">
       <nav aria-label="Dashboard 顯示模式" className="inline-flex rounded-xl bg-muted/70 p-1">
-        <Link href={workbench ? '/dashboard' : '/dashboard'} className={`rounded-lg px-4 py-2 text-sm font-medium ${!insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>今日工作</Link>
-        <Link href="/dashboard?view=insights" className={`rounded-lg px-4 py-2 text-sm font-medium ${insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>營運數據</Link>
+        <Link aria-current={!insights ? 'page' : undefined} href='/dashboard' className={`rounded-lg px-4 py-2 text-sm font-medium ${!insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>今日工作</Link>
+        <Link aria-current={insights ? 'page' : undefined} href="/dashboard?view=insights" className={`rounded-lg px-4 py-2 text-sm font-medium ${insights ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>營運數據</Link>
       </nav>
       {insights
         ? <Suspense fallback={<DashboardBodyFallback />}><DashboardBodySection /></Suspense>
