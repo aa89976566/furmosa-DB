@@ -129,6 +129,8 @@ describe('出貨工作區介面', () => {
     assert.match(control, /確認已完成交寄/);
     assert.match(control, /確認貨物已到達/);
     assert.match(control, /確認後會標記為「貨物到達」，並移到待驗收/);
+    assert.match(control, /value: 'received', label: '已完成'/);
+    assert.match(control, /店家庫存仍要等 POS 驗收後才增加/);
     assert.match(control, /role="dialog"/);
     assert.match(control, /createPortal/);
     assert.doesNotMatch(control, /window\.confirm\(`確定已完成交寄/);

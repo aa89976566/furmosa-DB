@@ -20,6 +20,7 @@ test('shipment handoff updates the OMS work state', () => {
   assert.equal(omsStatusForShipmentStatus('packed'), 'FULFILLMENT_PENDING');
   assert.equal(omsStatusForShipmentStatus('shipped'), 'FULFILLED');
   assert.equal(omsStatusForShipmentStatus('delivered'), 'FULFILLED');
+  assert.equal(omsStatusForShipmentStatus('received'), 'FULFILLED');
   assert.equal(omsStatusForShipmentStatus('cancelled'), null);
 });
 

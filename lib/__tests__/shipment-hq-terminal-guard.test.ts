@@ -8,9 +8,13 @@ const source = readFileSync(
 );
 
 describe('HQ merchant restock terminal-state guard', () => {
-  it('allows only the pre-receipt delivery correction back to transit or pending', () => {
-    assert.match(source, /delivered: \['shipped', 'pending'\]/);
+  it('allows customer completion while keeping received terminal', () => {
+    assert.match(source, /delivered: \['received', 'shipped', 'pending'\]/);
     assert.doesNotMatch(source, /received: \[/);
+    assert.match(
+      source,
+      /shipment\.type === 'merchant_restock' && next === 'received'/,
+    );
   });
 
   it('reads the persisted shipment type and status before applying transitions', () => {

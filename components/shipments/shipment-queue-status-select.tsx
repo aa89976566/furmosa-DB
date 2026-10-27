@@ -32,11 +32,17 @@ const QUEUE_IN_TRANSIT_OPTIONS = [
 
 const QUEUE_DELIVERED_OPTIONS = [
   { value: 'delivered', label: QUEUE_DELIVERED_LABEL },
+  { value: 'received', label: '已完成' },
   { value: 'shipped', label: '已寄出' },
   { value: 'pending', label: '未寄出' },
 ] as const;
 
+const QUEUE_RECEIVED_OPTIONS = [
+  { value: 'received', label: '已完成' },
+] as const;
+
 function queueSelectValue(status: string) {
+  if (status === 'received') return 'received';
   if (status === 'delivered') return 'delivered';
   if (status === 'shipped') return 'shipped';
   if (status === 'packed') return 'packed';
@@ -44,13 +50,14 @@ function queueSelectValue(status: string) {
 }
 
 function queueOptionsForStatus(status: string, shipmentType?: string) {
+  if (status === 'received') return QUEUE_RECEIVED_OPTIONS;
   if (status === 'delivered') {
-    return QUEUE_DELIVERED_OPTIONS;
+    return shipmentType === 'merchant_restock'
+      ? QUEUE_DELIVERED_OPTIONS.filter((option) => option.value !== 'received')
+      : QUEUE_DELIVERED_OPTIONS;
   }
   if (status === 'shipped') {
-    return shipmentType === 'merchant_restock'
-      ? QUEUE_IN_TRANSIT_OPTIONS.filter((option) => option.value !== 'delivered')
-      : QUEUE_IN_TRANSIT_OPTIONS;
+    return QUEUE_IN_TRANSIT_OPTIONS;
   }
   if (status === 'packed') {
     return QUEUE_PACKED_OPTIONS;
@@ -69,7 +76,7 @@ function ConfirmStatusSubmitButton({
   next,
   pending,
 }: {
-  next: 'pending' | 'shipped' | 'delivered' | 'cancelled';
+  next: 'pending' | 'shipped' | 'delivered' | 'received' | 'cancelled';
   pending: boolean;
 }) {
   return (
@@ -81,6 +88,8 @@ function ConfirmStatusSubmitButton({
     >
       {pending
         ? '正在標記…'
+        : next === 'received'
+          ? '確認已完成'
         : next === 'delivered'
           ? '確認貨物到達'
           : next === 'pending'
@@ -124,7 +133,7 @@ export function ShipmentQueueStatusSelect({
       : options;
   const serverValue = queueSelectValue(status);
   const [confirmNext, setConfirmNext] = useState<
-    'pending' | 'shipped' | 'delivered' | 'cancelled' | null
+    'pending' | 'shipped' | 'delivered' | 'received' | 'cancelled' | null
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, startTransition] = useTransition();
@@ -212,6 +221,7 @@ export function ShipmentQueueStatusSelect({
                   ? dispatchNow
                   : option.value === 'pending' ||
                       option.value === 'delivered' ||
+                      option.value === 'received' ||
                       option.value === 'cancelled'
                     ? () => setConfirmNext(option.value)
                     : undefined
@@ -248,6 +258,8 @@ export function ShipmentQueueStatusSelect({
               <h2 id={`confirm-status-${shipmentId}`} className="text-lg font-semibold text-foreground">
                 {confirmNext === 'delivered'
                   ? '確認貨物已到達？'
+                  : confirmNext === 'received'
+                    ? '確認這張客戶訂單已完成？'
                   : confirmNext === 'pending'
                     ? '確認改回未寄出？'
                     : confirmNext === 'cancelled'
@@ -256,7 +268,11 @@ export function ShipmentQueueStatusSelect({
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {confirmNext === 'delivered'
-                  ? '確認後會標記為「貨物到達」，並移到待驗收。'
+                  ? shipmentType === 'merchant_restock'
+                    ? '確認後會標記為「貨物到達」，並移到待驗收；店家庫存仍要等 POS 驗收後才增加。'
+                    : '確認後會標記客戶訂單為已完成。'
+                  : confirmNext === 'received'
+                    ? '確認後會把既有的客戶待驗收訂單移到已完成；不會異動店家庫存。'
                   : confirmNext === 'pending'
                     ? '這是物流狀態修正。確認後會改為「未寄出」，並移回待出貨。'
                     : confirmNext === 'cancelled'
