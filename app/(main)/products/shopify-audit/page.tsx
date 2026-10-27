@@ -79,7 +79,7 @@ export default async function ShopifyCatalogAuditPage() {
     ? audit.plan.conflicts.length + audit.plan.unmatchedHqTiers.length
     : 0;
   const catalogWorkCount = audit
-    ? audit.plan.blankShopifyVariants.length + audit.plan.unmatchedShopifyVariants.length
+    ? audit.plan.unmatchedShopifyVariants.length
     : 0;
   const safeChangeCount = audit
     ? audit.plan.tierUpdates.length + audit.plan.productUpdates.length + audit.plan.tierArchives.length
@@ -179,7 +179,7 @@ export default async function ShopifyCatalogAuditPage() {
               <MetricCard label="HQ 標準商品" value={audit.hqProducts.length} />
               <MetricCard label="可安全對應規格" value={audit.plan.tierUpdates.length} tone="safe" />
               <MetricCard label="現有商品問題" value={blockingCount} tone={blockingCount ? 'danger' : 'safe'} />
-              <MetricCard label="待建商品／補 SKU" value={catalogWorkCount} tone={catalogWorkCount ? 'warning' : 'safe'} />
+              <MetricCard label="待建 HQ 商品" value={catalogWorkCount} tone={catalogWorkCount ? 'warning' : 'safe'} />
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -240,11 +240,11 @@ export default async function ShopifyCatalogAuditPage() {
                     </div>
                   ))}
                 </ReviewSection>
-                <ReviewSection title="Shopify 規格缺少 SKU" count={audit.plan.blankShopifyVariants.length}>
+                <ReviewSection title="Shopify 不需建立 HQ 商品" count={audit.plan.blankShopifyVariants.length}>
                   {audit.plan.blankShopifyVariants.slice(0, 50).map((item) => (
                     <div key={item.variantId} className="px-5 py-4">
                       <p className="font-medium">{item.productTitle}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">規格「{item.variantTitle}」需要先在 Shopify 補 SKU</p>
+                      <p className="mt-1 text-sm text-muted-foreground">規格「{item.variantTitle}」不需 SKU，也不建立 HQ 庫存商品</p>
                     </div>
                   ))}
                 </ReviewSection>

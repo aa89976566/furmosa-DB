@@ -7,7 +7,7 @@ const source = readFileSync(
   'utf8',
 );
 
-test('candidate review page separates records with and without SKU', () => {
+test('candidate review page can identify previously staged records without SKU', () => {
   assert.match(source, /已有 SKU/);
   assert.match(source, /缺少 SKU/);
   assert.match(source, /sku: \{ not: null \}/);
