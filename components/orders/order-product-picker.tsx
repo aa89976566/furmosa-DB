@@ -18,6 +18,7 @@ export type OrderProductPickerTier = {
 export type OrderProductPickerOption = {
   id: string;
   name: string;
+  imageUrl?: string | null;
   sku: string;
   availableStock: number;
   price: number;
@@ -149,9 +150,12 @@ export function OrderProductPicker({
                     return (
                       <article key={product.id} className="rounded-xl border bg-card p-4">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-contain" /> : null}
+                            <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold">{product.name}</h3>
                             <p className="mt-1 font-mono text-[11px] text-muted-foreground">{product.sku}</p>
+                            </div>
                           </div>
                           <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
                             庫存 {product.availableStock}

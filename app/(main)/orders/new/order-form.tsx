@@ -24,7 +24,6 @@ import {
   HandCoins,
   Plus,
   Save,
-  Settings2,
   Store,
   Trash2,
   Truck,
@@ -83,6 +82,8 @@ import { incompatibleLineSwitchPrompt, splitLinesForContext } from '@/lib/orders
 import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 import { resolveGiftWeightCost } from '@/lib/order-item-cost';
+import styles from './order-workbench.module.css';
+import { findLastMerchantOrder } from './workbench-actions';
 
 export type ProductTierOption = {
   id: string;
@@ -97,6 +98,7 @@ export type ProductTierOption = {
 export type ProductOption = {
   id: string;
   name: string;
+  imageUrl?: string | null;
   sku: string;
   productCategory: string;
   availableStock: number;
@@ -348,6 +350,10 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     商品
                   </span>
+                  {prod ? <div className="mb-2 flex items-center gap-3">
+                    {prod.imageUrl ? <img src={prod.imageUrl} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-contain" /> : null}
+                    <div><strong className="text-base">{prod.name}</strong><p className="text-xs text-muted-foreground">{selectedTier ? tierLabel(selectedTier) : it.unit ?? prod.unit} · 可用庫存 {prod.availableStock} {prod.unit}{prod.availableStock <= 0 ? ' · 目前無現貨' : ''}</p></div>
+                  </div> : null}
                   <ProductSearchSelect
                     products={products}
                     value={it.productId}
@@ -559,6 +565,8 @@ function OrderLineItemsTable({
                       <p className="mt-1 text-[10px] text-muted-foreground">實際贈送總克數</p>
                     </div>
                   ) : hasSelectedSpec ? (
+                    <div className={styles.stepper}>
+                      <button type="button" aria-label="減少數量" disabled={it.quantity <= 1} onClick={() => updateItem(it.key, { quantity: Math.max(1, it.quantity - 1) })}>−</button>
                     <Input
                       name="quantity"
                       aria-label="數量"
@@ -574,6 +582,8 @@ function OrderLineItemsTable({
                       required={rowRequired && Boolean(it.productId)}
                       className="h-9 min-w-0 text-right tabular-nums md:min-w-[4.5rem]"
                     />
+                      <button type="button" aria-label="增加數量" onClick={() => updateItem(it.key, { quantity: it.quantity + 1 })}>+</button>
+                    </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">
                       {hasProduct ? '請先選規格' : '請先選商品'}
@@ -691,6 +701,19 @@ export function OrderForm({
   const isEdit = Boolean(edit);
   const seed = edit ?? initial;
   const router = useRouter();
+  const [merchantQuery, setMerchantQuery] = useState('');
+  const [merchantChanging, setMerchantChanging] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [lastOrder, setLastOrder] = useState<{ id: string; orderNumber: string } | null>(null);
+  const [lastOrderLoading, setLastOrderLoading] = useState(false);
+  const [recentMerchantIds, setRecentMerchantIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    try {
+      const value: unknown = JSON.parse(window.localStorage.getItem(`${draftStorageKey}:merchants`) ?? '[]');
+      if (Array.isArray(value)) setRecentMerchantIds(value.filter((id): id is string => typeof id === 'string').slice(0, 5));
+    } catch { /* 店家捷徑不可阻塞開單。 */ }
+  }, [draftStorageKey]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<{ label: string; removedCount: number; apply: () => void } | null>(null);
@@ -704,6 +727,17 @@ export function OrderForm({
   const [merchantOrderMode, setMerchantOrderMode] = useState<MerchantOrderMode>(
     seed?.merchantOrderMode ?? 'consignment',
   );
+  useEffect(() => {
+    let active = true;
+    setLastOrder(null);
+    if (isEdit || orderType !== 'merchant' || !merchantId) { setLastOrderLoading(false); return; }
+    setLastOrderLoading(true);
+    void findLastMerchantOrder(merchantId, merchantOrderMode)
+      .then((order) => { if (active) setLastOrder(order); })
+      .catch(() => { /* 上次訂單入口失敗，不阻塞手動選購。 */ })
+      .finally(() => { if (active) setLastOrderLoading(false); });
+    return () => { active = false; };
+  }, [isEdit, merchantId, merchantOrderMode, orderType]);
   const selectedMerchant = useMemo(
     () => merchants.find((m) => m.id === merchantId),
     [merchants, merchantId],
@@ -1022,6 +1056,15 @@ export function OrderForm({
   const total = Math.max(0, subtotal - discount + shippingResolved.shippingFee);
   const collection = paymentCollectionSummary(total, paymentStatus);
 
+  const selectedLines = items.filter((item) => item.productId && item.quantity > 0);
+  const selectedQuantity = selectedLines.reduce((sum, item) => sum + item.quantity, 0);
+
+  function openReview() {
+    setReviewOpen(true);
+    revealThrough(8);
+    window.requestAnimationFrame(() => document.getElementById('order-review')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }));
+  }
+
   const showMerchantOptional =
     orderType === 'customer' && customerSource === 'consignment';
 
@@ -1219,6 +1262,13 @@ export function OrderForm({
 
   function onMerchantChange(id: string) {
     setMerchantId(id);
+    setMerchantChanging(false);
+    setMerchantQuery('');
+    if (id && draftStorageKey) {
+      const recent = [id, ...recentMerchantIds.filter((value) => value !== id)].slice(0, 5);
+      setRecentMerchantIds(recent);
+      try { window.localStorage.setItem(`${draftStorageKey}:merchants`, JSON.stringify(recent)); } catch { /* 保留正常開單。 */ }
+    }
     setItems((current) => current.map((item) => ({
       ...item,
       productId: '',
@@ -1234,7 +1284,7 @@ export function OrderForm({
     })));
     const m = merchants.find((x) => x.id === id);
     if (m) {
-      revealThrough(3);
+      revealThrough(4);
       applyMerchantShipping(m);
       const availableModes = m.commercialModes;
       const nextMode = availableModes.includes(merchantOrderMode)
@@ -1261,7 +1311,10 @@ export function OrderForm({
   }
 
   function changeOrderType(nextType: OrderType) {
-    if (nextType === orderType) return;
+    if (nextType === orderType) {
+      revealThrough(2);
+      return;
+    }
     const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), { orderType: nextType, merchantOrderMode });
     askContextSwitch(nextType === 'customer' ? '客戶訂單' : '店家訂單', removed, () => {
       revealThrough(2);
@@ -1350,6 +1403,7 @@ export function OrderForm({
         const validationError = validateOrderSubmission({ orderType, customerId, merchantId, merchantOrderMode, items, discount, recipientName, recipientPhone, shippingMethod, shippingAddress, cvsBrand, cvsStoreName });
         if (validationError) {
           revealThrough(8);
+          setReviewOpen(true);
           setSubmitError(validationError);
           return;
         }
@@ -1387,7 +1441,7 @@ export function OrderForm({
           );
         }
       }}
-      className="space-y-6"
+      className={styles.workbench}
     >
       <input type="hidden" name="shippingMethod" value={shippingMethod} />
       <input type="hidden" name="orderType" value={orderType} />
@@ -1417,6 +1471,22 @@ export function OrderForm({
           </span>
         </div>
       ) : null}
+      <nav className={styles.steps} aria-label="開單流程">
+        {['選擇對象', '加入商品', '確認送出'].map((label, index) => (
+          <button key={label} type="button" aria-current={(reviewOpen ? 2 : revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
+            disabled={index > 0 && revealedStep < 4}
+            onClick={() => {
+              setReviewOpen(index === 2);
+              if (index === 2) revealThrough(8);
+              window.requestAnimationFrame(() => document.getElementById(index === 2 ? 'order-review' : index === 1 ? 'order-products' : 'order-buyer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            }}>
+            <span>{index + 1}</span>{label}
+          </button>
+        ))}
+      </nav>
+      <div className={styles.columns}>
+      <div className={styles.editor}>
+      <div id="order-buyer" className={styles.buyer}>
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
@@ -1426,7 +1496,7 @@ export function OrderForm({
             {orderType === 'customer' ? '客戶訂單' : '店家訂單'}）
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             <TypeCard
               active={orderType === 'customer'}
               icon={<User className="h-5 w-5" />}
@@ -1545,104 +1615,69 @@ export function OrderForm({
 
       {/* Step 2B: 合作店家模式 */}
       {revealedStep >= 2 && orderType === 'merchant' && (
-        <section className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm font-medium">② 這張訂單是哪一家店的？</div>
-            <Button asChild type="button" size="sm" variant="outline">
-              <Link href="/merchants/new">
-                <Store className="mr-1 h-4 w-4" />
-                新增店家
-              </Link>
-            </Button>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[11px] text-muted-foreground">
-              店家 <span className="text-destructive">*</span>
-            </label>
-            <select
-              name="merchantId"
-              value={merchantId}
-              onChange={(e) => onMerchantChange(e.target.value)}
-              required
-              className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">— 選擇店家 —</option>
-              {merchants.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.merchantId})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {revealedStep >= 3 && selectedMerchant ? (
-            <div className="space-y-3">
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] text-muted-foreground">目前訂購店家</p>
-                    <p className="mt-1 font-semibold">{selectedMerchant.name}</p>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {selectedMerchant.merchantId}
-                    </p>
-                  </div>
-                  <Button asChild type="button" size="sm" variant="ghost">
-                    <Link href={`/merchants/${selectedMerchant.id}`}>
-                      <Settings2 className="mr-1 h-4 w-4" />
-                      查看店家資料與設定
-                    </Link>
-                  </Button>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {merchantTypeDisplay(selectedMerchant.types)} · 已帶入預設收件方式
-                  {selectedMerchant.preferredCarrier
-                    ? `：${selectedMerchant.preferredCarrier}${selectedMerchant.pickupStoreName ? ` ${selectedMerchant.pickupStoreName}` : ''}`
-                    : ''}
-                </p>
-              </div>
-
-              <label className="mb-2 block border-t pt-4 text-sm font-medium">
-                ③ 這次要做什麼？ <span className="text-destructive">*</span>
-              </label>
-              {selectedMerchant.commercialModes.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {selectedMerchant.commercialModes.map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => changeMerchantOrderMode(mode)}
-                      className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                        merchantOrderMode === mode
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background hover:border-primary/50'
-                      }`}
-                    >
-                      <strong className="block text-sm">{merchantOrderModeLabel[mode]}</strong>
-                      <span className={`mt-1 block text-xs leading-5 ${
-                        merchantOrderMode === mode
-                          ? 'text-primary-foreground/75'
-                          : 'text-muted-foreground'
-                      }`}>
-                        {merchantOrderModeDescription[mode]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
-                  此店家尚未設定合作方式，請先到店家主檔補上。
-                </p>
-              )}
+        <section className="space-y-3" aria-label="這張訂單是哪一家店的">
+          <input type="hidden" name="merchantId" value={merchantId} />
+          {selectedMerchant && !merchantChanging ? (
+            <div className={styles.merchantSummary}>
+              <strong>{selectedMerchant.name}</strong>
+              <Button type="button" variant="ghost" onClick={() => setMerchantChanging(true)}>更換</Button>
             </div>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="order-merchant-search" className="text-sm font-medium">選擇店家</label>
+              <Input id="order-merchant-search" placeholder="搜尋店名、編號或電話" onKeyDown={(event) => { if (event.key === 'Enter') event.preventDefault(); }} value={merchantQuery} onChange={(event) => setMerchantQuery(event.target.value)} />
+              <div className={styles.merchantResults}>
+                {[...merchants].sort((a, b) => {
+                  const rank = (id: string) => recentMerchantIds.includes(id) ? recentMerchantIds.indexOf(id) : 99;
+                  return rank(a.id) - rank(b.id);
+                }).filter((merchant) => `${merchant.name} ${merchant.merchantId} ${merchant.phone ?? ''}`.toLocaleLowerCase('zh-TW').includes(merchantQuery.trim().toLocaleLowerCase('zh-TW'))).map((merchant) => (
+                  <button type="button" key={merchant.id} onClick={() => onMerchantChange(merchant.id)}>
+                    <span>{merchant.name}</span><span className="text-xs text-muted-foreground">{recentMerchantIds.includes(merchant.id) ? '最近使用' : merchant.merchantId}</span>
+                  </button>
+                ))}
+                {!merchants.some((merchant) => `${merchant.name} ${merchant.merchantId} ${merchant.phone ?? ''}`.toLocaleLowerCase('zh-TW').includes(merchantQuery.trim().toLocaleLowerCase('zh-TW'))) ? <p className="p-3 text-sm text-muted-foreground">找不到符合的店家</p> : null}
+                <Link href="/merchants/new" className="block border-t px-3 py-3 text-sm font-medium text-primary">新增店家</Link>
+              </div>
+              {selectedMerchant ? <Button type="button" variant="ghost" onClick={() => setMerchantChanging(false)}>保留目前店家</Button> : null}
+            </div>
+          )}
+          {revealedStep >= 3 && selectedMerchant ? (
+            <>
+              <details className={styles.merchantDetails}>
+                <summary>聯絡資料與合作設定</summary>
+                <p>{selectedMerchant.merchantId} · {merchantTypeDisplay(selectedMerchant.types)}</p>
+                <p>{selectedMerchant.contactName} {selectedMerchant.phone}</p>
+                <Link href={`/merchants/${selectedMerchant.id}`} className="text-primary">查看店家資料與設定</Link>
+              </details>
+              {selectedMerchant.commercialModes.length > 0 ? (
+                <>
+                  <div className={styles.modes} role="group" aria-label="合作方式">
+                    {selectedMerchant.commercialModes.map((mode) => (
+                      <button key={mode} type="button" aria-pressed={merchantOrderMode === mode} onClick={() => { changeMerchantOrderMode(mode); revealThrough(4); }}>
+                        {merchantOrderModeLabel[mode]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{merchantOrderModeDescription[merchantOrderMode]}</p>
+                </>
+              ) : (
+                <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-muted-foreground">此店家尚未設定合作方式，請先到店家主檔補上。</p>
+              )}
+            </>
           ) : null}
-
         </section>
       )}
+      </div>
 
+      <div id="order-products" className={styles.products}>
+      {orderType === 'merchant' && merchantId && !isEdit ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">{lastOrderLoading ? '查詢上次訂單中…' : lastOrder ? `上次訂單 ${lastOrder.orderNumber}` : '可直接加入本次補貨商品'}</span>
+        {lastOrder ? <Button type="button" size="sm" variant="outline" disabled={hasValidLines} asChild><Link href={`/orders/new?copyFrom=${lastOrder.id}`} aria-disabled={hasValidLines} tabIndex={hasValidLines ? -1 : undefined} onClick={(event) => { if (hasValidLines) event.preventDefault(); }}>複製上次訂單</Link></Button> : null}
+        {lastOrder && hasValidLines ? <p className="basis-full text-xs text-muted-foreground">本次已選商品；如需複製，請從訂單列表開啟上次訂單。</p> : null}
+      </div> : null}
       {/* Step 3: 商品明細 */}
       {revealedStep >= 4 ? <OrderLineItemsTable
-        title="④ 要加入哪些商品？"
+        title="要加入哪些商品"
         hint={
           orderType === 'customer'
             ? '選商品、規格和數量'
@@ -1689,6 +1724,26 @@ export function OrderForm({
         }
       />
 
+      </div>
+      </div>
+      <aside className={styles.summary} aria-label="訂單摘要">
+        <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">訂單摘要</h2><Badge variant="secondary">{orderType === 'merchant' ? merchantOrderModeLabel[merchantOrderMode] : '客戶訂單'}</Badge></div>
+        <p className="mt-3 text-sm">{selectedLines.length} 款商品 · {selectedQuantity} 件</p>
+        <div className={styles.summaryLines}>
+          {selectedLines.map((item) => <div key={item.key}><span>{productMap.get(item.productId)?.name}<small>{item.weightGrams ? `${item.weightGrams}g` : item.unit}{item.isGift ? ' · 贈品' : ''}</small></span><strong>× {item.quantity}</strong></div>)}
+          {!hasValidLines ? <p className="text-sm text-muted-foreground">加入商品後，明細會顯示在這裡</p> : null}
+        </div>
+        <div className="space-y-2 border-t pt-4">
+          <div className="flex items-center justify-between"><h3 className="font-medium">收件資料</h3><Button type="button" variant="ghost" onClick={openReview}>編輯</Button></div>
+          <p className="text-sm">{recipientName || '尚未填寫收件人'}</p>
+          <p className="break-words text-sm text-muted-foreground">{shippingMethod === 'convenience' ? `${cvsBrand} ${cvsStoreName}` : shippingAddress || '尚未填寫收件地址'}</p>
+          {selectedMerchant ? <p className="text-xs text-muted-foreground">已帶入店家預設，請核對收件資料</p> : null}
+        </div>
+        {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{formatCurrency(total)}</strong></div>}
+        <Button type="button" className="mt-5 w-full" disabled={!hasValidLines} onClick={openReview}>確認訂單內容</Button>
+      </aside>
+      </div>
+      <div id="order-review" hidden={!reviewOpen && !isEdit} className={styles.review}>
       {/* Step 4: 金額 + 出貨資訊 */}
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
         <div className="text-sm font-medium">⑤ 運費與付款</div>
@@ -1980,6 +2035,7 @@ export function OrderForm({
         </FieldInline> : null}
       </section> : null}
 
+      </div>
       {submitError ? (
         <div
           role="alert"
@@ -1993,7 +2049,7 @@ export function OrderForm({
       ) : null}
       {submitNotice ? <div role="status" className="rounded-md border px-4 py-3 text-sm">{submitNotice}</div> : null}
 
-      {revealedStep >= 7 ? <div className="sticky bottom-0 z-20 flex items-center justify-end gap-2 border-t bg-background/95 py-3 backdrop-blur">
+      {revealedStep >= 7 ? <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-2 border-t bg-background/95 py-3 backdrop-blur" hidden={!reviewOpen && !isEdit}>
         <div className="mr-auto flex items-center gap-2 text-sm">
           {isEdit && edit ? (
             <>
@@ -2013,6 +2069,10 @@ export function OrderForm({
           ) : null}
           <SaveButton isEdit={isEdit} />
         </div>
+      </div> : null}
+      {!reviewOpen && !isEdit ? <div className={styles.mobileBar}>
+        <div><strong>{selectedLines.length} 款 / {selectedQuantity} 件</strong><small>草稿尚未送出</small></div>
+        <Button type="button" disabled={!hasValidLines} onClick={openReview}>查看訂單</Button>
       </div> : null}
       {pendingSwitch ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
@@ -2277,12 +2337,12 @@ function TypeCard({
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-start gap-3 rounded-lg border p-4 text-left transition ${
+      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
         active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
       }`}
     >
       <div
-        className={`flex h-10 w-10 items-center justify-center rounded-md ${
+        className={`flex h-8 w-8 items-center justify-center rounded-md ${
           active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
         }`}
       >

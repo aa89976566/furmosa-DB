@@ -3,10 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { loadOrderFormOptions } from '@/lib/order-form-options';
 import { buildOrderCreateInitial } from '@/lib/orders/build-edit-initial';
-import { PageHeader } from '@/components/shared/page-header';
-import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
 import { getCurrentUser } from '@/lib/auth';
 import { OrderForm } from './order-form';
 
@@ -46,22 +43,19 @@ export default async function NewOrderPage(props: {
 
   return (
     <>
-      <PageHeader
-        title={sourceOrder ? `複製訂單 · ${sourceOrder.orderNumber}` : '新增訂單'}
-        description={sourceOrder
-          ? '已帶入原訂單資料；可先修改商品、數量、規格與配送，再建立新訂單。'
-          : '先選一般客戶或訂購店家；店家訂單會依合作方式顯示適用商品與設定。'}
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href={sourceOrder ? `/orders/${sourceOrder.id}` : '/orders'}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回列表
-            </Link>
-          </Button>
-        }
-      />
-      <div className="p-6">
-        <SectionCard title="訂單資訊" className="max-w-5xl">
+      <header className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3 sm:px-6">
+        <Button variant="ghost" asChild><Link href={sourceOrder ? `/orders/${sourceOrder.id}` : '/orders'}>返回</Link></Button>
+        <h1 className="text-xl font-semibold sm:text-2xl">{sourceOrder ? '複製訂單' : '新增訂單'}</h1>
+        <details className="relative">
+          <summary className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm">更多</summary>
+          <nav aria-label="開單頁更多選項" className="absolute right-0 z-40 grid w-40 gap-1 rounded-lg border bg-card p-2 shadow-lg">
+            <Link className="rounded px-3 py-3 text-sm hover:bg-muted" href="/orders">訂單列表</Link>
+            <Link className="rounded px-3 py-3 text-sm hover:bg-muted" href="/merchants">店家資料</Link>
+            <Link className="rounded px-3 py-3 text-sm hover:bg-muted" href="/dashboard">返回首頁</Link>
+          </nav>
+        </details>
+      </header>
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6">
           {sourceOrder ? (
             <p className="mb-4 text-sm text-muted-foreground">
               已複製 {sourceOrder.items.length} 個品項，共{' '}
@@ -69,6 +63,7 @@ export default async function NewOrderPage(props: {
             </p>
           ) : null}
           <OrderForm
+            key={sourceOrder?.id ?? 'new'}
             merchants={merchants}
             customers={customers}
             products={products}
@@ -82,7 +77,6 @@ export default async function NewOrderPage(props: {
           <p className="mt-4 text-[11px] text-muted-foreground">
             訂單編號（ORD-YYYYMM-XXX）會在儲存時自動產生。
           </p>
-        </SectionCard>
       </div>
     </>
   );
