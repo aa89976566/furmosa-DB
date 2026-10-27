@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { compareShopifySourceVersion } from '../orders/oms';
 import { classifyShopifyLines, type TierCatalogProduct, type TierReviewIssue } from './match-product-tier';
+import { supplierConsignmentSnapshot } from '../vendor-consignment-snapshot';
 import { intakeSummary, preserveOperationalOrder, record, snapshotHash, sourceDate, string,
   hasPromotionCapture, stripPromotionCapture, sourceFulfillmentLines,
   type Snapshot, type ShopifyOrderTopic } from './intake-policy';
@@ -19,6 +20,9 @@ async function readTierCatalog(client: PrismaClient | Prisma.TransactionClient):
     where: { status: 'active' },
     select: {
       id: true, sku: true, sourceSku: true, name: true, unit: true,
+      vendor: {
+        select: { id: true, supplierConsignmentEnabled: true, furmosaShareBps: true },
+      },
       priceTiers: {
         select: {
           id: true, productId: true, sku: true, shopifyVariantId: true, shopifySku: true, status: true,
@@ -53,6 +57,7 @@ function resolvedOrderItems(snapshot: Snapshot, catalog: TierCatalogProduct[]) {
       weightGrams: decision.tier.weightGrams,
       unit: decision.tier.unit,
       variantKey: decision.tier.id || null,
+      ...supplierConsignmentSnapshot(product.vendor),
     };
   });
   if (items.some((item) => !item)) {

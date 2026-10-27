@@ -33,6 +33,7 @@ import {
   type CommercialRuleSource,
   type CommercialValueMode,
 } from '@/lib/orders/merchant-commercial-term';
+import { supplierConsignmentSnapshot } from '@/lib/vendor-consignment-snapshot';
 
 const VALID_SHIPPING_FEE_TYPES = SHIPPING_FEE_TYPES;
 const VALID_PAYMENT_STATUSES_ON_CREATE = ['unpaid', 'paid', 'cod'] as const;
@@ -84,6 +85,8 @@ export type ParsedOrderLine = {
   appliedCommercialValue: number | null;
   commercialOverrideReason: string | null;
   commercialOverrideAt: Date | null;
+  supplierVendorIdSnapshot: string | null;
+  supplierFurmosaShareBpsSnapshot: number | null;
 };
 
 export type ParsedOrderPayload = {
@@ -304,6 +307,9 @@ export async function parseOrderFormData(
       defaultConsignmentCommissionValue: true,
       defaultWholesaleUnitPrice: true,
       commercialTermsVersion: true,
+      vendor: {
+        select: { id: true, supplierConsignmentEnabled: true, furmosaShareBps: true },
+      },
       priceTiers: {
         select: {
           id: true,
@@ -488,6 +494,7 @@ export async function parseOrderFormData(
       sku: prod.sku,
       lineSubtotal: it.unitPrice * it.quantity,
       businessTierSnapshot: commercial?.businessTierSnapshot ?? prod.businessTier,
+      ...supplierConsignmentSnapshot(prod.vendor),
       commercialTermsVersionSnapshot:
         commercial?.commercialTermsVersionSnapshot ?? prod.commercialTermsVersion,
       commercialRuleSource: commercial?.commercialRuleSource ?? null,

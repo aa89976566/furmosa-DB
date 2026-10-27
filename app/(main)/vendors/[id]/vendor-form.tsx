@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
 import { useRef } from 'react';
+import { basisPointsToPercent } from '@/lib/vendor-consignment-settings';
 
 type VendorInput = {
   id?: string;
@@ -18,6 +19,8 @@ type VendorInput = {
   paymentTerms: string | null;
   notes: string | null;
   status: string;
+  supplierConsignmentEnabled: boolean;
+  furmosaShareBps: number | null;
 };
 
 export function VendorForm({
@@ -97,6 +100,45 @@ export function VendorForm({
             placeholder="例：月結 30 天"
           />
         </Field>
+
+        <div className="rounded-lg border bg-muted/20 p-4">
+          <label className="inline-flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              name="supplierConsignmentEnabled"
+              value="1"
+              defaultChecked={vendor.supplierConsignmentEnabled}
+              className="h-4 w-4 rounded border"
+            />
+            啟用供應商寄賣對帳
+          </label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            只用於供應商應付帳款，與店家寄賣佣金分開計算。
+          </p>
+          <div className="mt-3 grid gap-1.5 sm:grid-cols-[120px_1fr] sm:items-center sm:gap-4">
+            <label className="text-xs text-muted-foreground sm:text-right" htmlFor="furmosaSharePercent">
+              匠寵分潤
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="furmosaSharePercent"
+                name="furmosaSharePercent"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="100"
+                step="0.01"
+                defaultValue={basisPointsToPercent(vendor.furmosaShareBps)}
+                placeholder="例：25"
+                className="max-w-40"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground sm:pl-[136px]">
+            例如輸入 25，代表匠寵保留 25%，供應商應付 75%。幣別固定為 TWD。
+          </p>
+        </div>
 
         <Field label="備註">
           <textarea

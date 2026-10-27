@@ -24,6 +24,11 @@ export type TierCatalogProduct = {
   name: string;
   unit: string;
   businessTier?: string | null;
+  vendor?: {
+    id: string;
+    supplierConsignmentEnabled: boolean;
+    furmosaShareBps: number | null;
+  } | null;
   priceTiers: MatchableTier[];
 };
 

@@ -3,6 +3,10 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { parseVendorConsignmentSettings } from '@/lib/vendor-consignment-settings';
+import { createVendorSettlementDraft } from '@/lib/vendor-settlement-service';
+import { parseTaipeiSettlementMonth } from '@/lib/vendor-settlement-period';
+import { getCurrentUser } from '@/lib/auth';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -27,6 +31,10 @@ export async function createVendor(formData: FormData) {
     throw new Error('廠商名稱為必填');
   }
   const vendorId = await nextVendorId();
+  const supplierTerms = parseVendorConsignmentSettings({
+    enabled: formData.has('supplierConsignmentEnabled'),
+    furmosaSharePercent: String(formData.get('furmosaSharePercent') ?? ''),
+  });
 
   const created = await prisma.vendor.create({
     data: {
@@ -39,6 +47,7 @@ export async function createVendor(formData: FormData) {
       paymentTerms: toNullableString(formData.get('paymentTerms')),
       notes: toNullableString(formData.get('notes')),
       status: formData.has('statusActive') ? 'active' : 'inactive',
+      ...supplierTerms,
     },
   });
 
@@ -53,6 +62,10 @@ export async function updateVendor(formData: FormData) {
 
   const name = String(formData.get('name') ?? '').trim();
   if (!name) throw new Error('廠商名稱為必填');
+  const supplierTerms = parseVendorConsignmentSettings({
+    enabled: formData.has('supplierConsignmentEnabled'),
+    furmosaSharePercent: String(formData.get('furmosaSharePercent') ?? ''),
+  });
 
   await prisma.vendor.update({
     where: { id },
@@ -65,6 +78,7 @@ export async function updateVendor(formData: FormData) {
       paymentTerms: toNullableString(formData.get('paymentTerms')),
       notes: toNullableString(formData.get('notes')),
       status: formData.has('statusActive') ? 'active' : 'inactive',
+      ...supplierTerms,
     },
   });
 
@@ -272,4 +286,40 @@ export async function fetchVendorPanel(vendorId: string): Promise<VendorPanelDat
       cost: Number(product.cost),
     })),
   };
+}
+
+export type VendorSettlementActionState = {
+  ok: boolean;
+  message: string;
+  settlementNumber?: string;
+};
+
+export async function createVendorSettlementAction(
+  _previous: VendorSettlementActionState,
+  formData: FormData,
+): Promise<VendorSettlementActionState> {
+  const actor = await getCurrentUser();
+  if (!actor || !['admin', 'staff'].includes(actor.role)) {
+    return { ok: false, message: '需要 HQ 管理或工作人員權限' };
+  }
+  const vendorId = String(formData.get('vendorId') ?? '').trim();
+  const month = String(formData.get('month') ?? '').trim();
+  if (!vendorId) return { ok: false, message: '缺少供應商' };
+
+  try {
+    const period = parseTaipeiSettlementMonth(month);
+    const result = await createVendorSettlementDraft(prisma, { vendorId, ...period });
+    revalidatePath(`/vendors/${vendorId}`);
+    return {
+      ok: true,
+      message: result.created ? '已建立供應商對帳草稿' : '這個月份已有草稿，未重複建立',
+      settlementNumber: result.settlement.settlementNumber,
+    };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message.trim() : '';
+    const safe = raw && /[\u4e00-\u9fff]/.test(raw) && !/prisma|invocation|database|sql/i.test(raw)
+      ? raw.slice(0, 500)
+      : '建立供應商對帳失敗，請稍後重試；若持續發生請聯絡系統管理員';
+    return { ok: false, message: safe };
+  }
 }

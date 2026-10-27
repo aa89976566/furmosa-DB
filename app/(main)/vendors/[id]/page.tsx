@@ -6,10 +6,12 @@ import { SectionCard } from '@/components/shared/section-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ReceiptText } from 'lucide-react';
 import { VendorForm } from './vendor-form';
 import { VendorProductsSection } from '@/components/vendors/vendor-products-section';
 import { updateVendor, deleteVendor } from '../actions';
+import { VendorSettlementSection } from '@/components/vendors/vendor-settlement-section';
+import { currentTaipeiMonth } from '@/lib/vendor-settlement-period';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,11 @@ export default async function VendorDetailPage(props: { params: Promise<{ id: st
     where: { id: params.id },
     include: {
       products: { orderBy: { productId: 'asc' } },
+      vendorSettlements: {
+        orderBy: { periodStart: 'desc' },
+        take: 12,
+        include: { _count: { select: { items: true } } },
+      },
     },
   });
   if (!vendor) notFound();
@@ -85,6 +92,8 @@ export default async function VendorDetailPage(props: { params: Promise<{ id: st
               paymentTerms: vendor.paymentTerms,
               notes: vendor.notes,
               status: vendor.status,
+              supplierConsignmentEnabled: vendor.supplierConsignmentEnabled,
+              furmosaShareBps: vendor.furmosaShareBps,
             }}
             saveAction={updateVendor}
             deleteAction={deleteVendor}
@@ -111,6 +120,34 @@ export default async function VendorDetailPage(props: { params: Promise<{ id: st
             }))}
           />
         </SectionCard>
+
+        {vendor.supplierConsignmentEnabled && vendor.furmosaShareBps != null ? (
+          <SectionCard
+            title="供應商對帳"
+            description="依已付款訂單、實際折扣與訂單建立時保存的分潤比例計算"
+            icon={ReceiptText}
+            tone="operations"
+            className="lg:col-span-3"
+            contentClassName="pt-6"
+          >
+            <VendorSettlementSection
+              vendorId={vendor.id}
+              furmosaShareBps={vendor.furmosaShareBps}
+              currentMonth={currentTaipeiMonth()}
+              settlements={vendor.vendorSettlements.map((settlement) => ({
+                id: settlement.id,
+                settlementNumber: settlement.settlementNumber,
+                periodStart: settlement.periodStart.toISOString(),
+                periodEnd: settlement.periodEnd.toISOString(),
+                grossCollectedTwd: settlement.grossCollectedTwd - settlement.refundTwd,
+                furmosaShareTwd: settlement.furmosaShareTwd,
+                vendorPayableTwd: settlement.vendorPayableTwd,
+                status: settlement.status,
+                itemCount: settlement._count.items,
+              }))}
+            />
+          </SectionCard>
+        ) : null}
       </div>
     </>
   );
