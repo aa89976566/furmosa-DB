@@ -74,12 +74,24 @@ export async function applyCatalogSyncPlan(tx: CatalogSyncTx, input: {
 
 type CatalogCandidateTx = Pick<Prisma.TransactionClient, 'shopifyCatalogCandidate' | 'statusAuditLog'>;
 
+export const SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX = '[system:stale_candidate]';
+export const SHOPIFY_CANDIDATE_NO_SKU_NOTE = 'Shopify 規格不需 SKU；不建立 HQ 庫存商品';
+
+function restoredCandidateNote(note: string | null) {
+  if (note === SHOPIFY_CANDIDATE_NO_SKU_NOTE) return null;
+  if (!note?.startsWith(SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX)) return note;
+  const restored = note.slice(SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX.length).replace(/^\n/, '');
+  return restored || null;
+}
+
 export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
   plan: CatalogSyncPlan;
   fingerprint: string;
   actorId: string;
 }) {
-  const rows = input.plan.unmatchedShopifyVariants.map((row) => ({ ...row, sku: row.sku }));
+  const rows = input.plan.unmatchedShopifyVariants
+    .map((row) => ({ ...row, sku: row.sku }))
+    .sort((left, right) => left.variantId.localeCompare(right.variantId));
   if (rows.length > 500) throw new Error(`本次待建商品 ${rows.length} 筆，超過安全上限 500；已停止登記`);
 
   for (const row of rows) {
@@ -105,6 +117,64 @@ export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
     });
   }
 
+  const rowIds = rows.map((row) => row.variantId);
+  let reopenedCount = 0;
+  if (rowIds.length > 0) {
+    const reopenable = await tx.shopifyCatalogCandidate.findMany({
+      where: {
+        shopifyVariantId: { in: rowIds },
+        resolution: 'unavailable',
+        OR: [
+          { notes: SHOPIFY_CANDIDATE_NO_SKU_NOTE },
+          { notes: { startsWith: SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX } },
+        ],
+      },
+      select: { id: true, notes: true },
+    });
+    for (const candidate of reopenable) {
+      const result = await tx.shopifyCatalogCandidate.updateMany({
+        where: { id: candidate.id, resolution: 'unavailable' },
+        data: {
+          resolution: 'pending',
+          notes: restoredCandidateNote(candidate.notes),
+          resolvedAt: null,
+          resolvedById: null,
+        },
+      });
+      reopenedCount += result.count;
+    }
+  }
+
+  let closedCount = 0;
+  if (rowIds.length > 0) {
+    const currentVariantIds = [
+      ...rowIds,
+      ...input.plan.blankShopifyVariants.map((row) => row.variantId),
+    ];
+    const stale = await tx.shopifyCatalogCandidate.findMany({
+      where: {
+        resolution: 'pending',
+        shopifyVariantId: { notIn: currentVariantIds },
+      },
+      select: { id: true, notes: true },
+    });
+    const resolvedAt = new Date();
+    for (const candidate of stale) {
+      const result = await tx.shopifyCatalogCandidate.updateMany({
+        where: { id: candidate.id, resolution: 'pending' },
+        data: {
+          resolution: 'unavailable',
+          notes: candidate.notes
+            ? `${SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX}\n${candidate.notes}`
+            : SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX,
+          resolvedAt,
+          resolvedById: null,
+        },
+      });
+      closedCount += result.count;
+    }
+  }
+
   // Active Shopify bundle/special variants may intentionally omit SKU. They are
   // visible in the audit for reference, but are not HQ product-creation work.
   if (input.plan.blankShopifyVariants.length > 0) {
@@ -113,7 +183,12 @@ export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
         shopifyVariantId: { in: input.plan.blankShopifyVariants.map((row) => row.variantId) },
         resolution: 'pending',
       },
-      data: { resolution: 'unavailable', notes: 'Shopify 規格不需 SKU；不建立 HQ 庫存商品' },
+      data: {
+        resolution: 'unavailable',
+        notes: SHOPIFY_CANDIDATE_NO_SKU_NOTE,
+        resolvedAt: new Date(),
+        resolvedById: null,
+      },
     });
   }
 
@@ -122,12 +197,14 @@ export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
     data: {
       entityType: 'shopify_catalog_candidate_import', entityId: runId, newStatus: 'IMPORTED',
       actorType: 'user', actorId: input.actorId,
-        metadataJson: JSON.stringify({
-          fingerprint: input.fingerprint,
-          candidateCount: rows.length,
-          ignoredBlankSkuCount: input.plan.blankShopifyVariants.length,
-        }),
+      metadataJson: JSON.stringify({
+        fingerprint: input.fingerprint,
+        candidateCount: rows.length,
+        ignoredBlankSkuCount: input.plan.blankShopifyVariants.length,
+        closedCount,
+        reopenedCount,
+      }),
     },
   });
-  return { runId, candidateCount: rows.length };
+  return { runId, candidateCount: rows.length, closedCount, reopenedCount };
 }
