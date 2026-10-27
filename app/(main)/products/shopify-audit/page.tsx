@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ListChecks, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { ShopifySafeSyncForm } from '@/components/products/shopify-safe-sync-form';
@@ -109,6 +109,12 @@ export default async function ShopifyCatalogAuditPage() {
         description="先同步唯一可確認的資料；未對應商品留在待處理區，不會猜測或重複建立。"
         actions={
           <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/products/shopify-candidates">
+                <ListChecks className="mr-1 h-4 w-4" />
+                查看待建清單
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/products">
                 <ArrowLeft className="mr-1 h-4 w-4" />
