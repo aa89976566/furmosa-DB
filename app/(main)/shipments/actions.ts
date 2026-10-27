@@ -61,8 +61,8 @@ import {
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'shipped', 'cancelled'],
   packed: ['shipped', 'pending', 'cancelled'],
-  shipped: ['delivered', 'pending'],
-  delivered: ['shipped', 'pending'],
+  shipped: ['delivered', 'received', 'pending'],
+  delivered: ['received', 'shipped', 'pending'],
   cancelled: [],
 };
 
@@ -183,7 +183,7 @@ async function markShipmentStatusInner(
   formData: FormData,
 ): Promise<{ next: string; shipmentId: string }> {
   const shipmentId = String(formData.get('shipmentId') ?? '');
-  const next = String(formData.get('next') ?? '');
+  let next = String(formData.get('next') ?? '');
   let carrier = String(formData.get('carrier') ?? '').trim() || null;
   const trackingNumber = String(formData.get('trackingNumber') ?? '').trim() || null;
   const note = String(formData.get('note') ?? '').trim() || null;
@@ -240,11 +240,15 @@ async function markShipmentStatusInner(
   ) {
     throw new Error('店家補貨已完成收貨，不可由 HQ 退回或變更狀態');
   }
-  if (!['pending', 'packed', 'shipped', 'delivered', 'cancelled'].includes(next)) {
+  if (!['pending', 'packed', 'shipped', 'delivered', 'received', 'cancelled'].includes(next)) {
     throw new Error('狀態錯誤');
   }
-  if (shipment.type === 'merchant_restock' && next === 'delivered') {
-    throw new Error('店家補貨由 POS 確認收貨，匠寵不需要標記送達');
+  if (shipment.type === 'merchant_restock' && next === 'received') {
+    throw new Error('店家補貨必須由 POS 驗收後入庫，HQ 不可直接完成');
+  }
+  if (shipment.type !== 'merchant_restock' && next === 'delivered') {
+    // 一般客戶沒有 POS 驗收步驟；確認到貨即完成，避免永久停在待驗收。
+    next = 'received';
   }
 
   const allowed = TRANSITIONS[shipment.status] ?? [];
@@ -289,6 +293,10 @@ async function markShipmentStatusInner(
     data.shippedAt = now;
   }
   if (next === 'delivered') data.deliveredAt = now;
+  if (next === 'received') {
+    data.deliveredAt = shipment.deliveredAt ?? now;
+    data.receivedAt = now;
+  }
   if (next === 'cancelled') data.cancelledAt = now;
   if (next === 'pending') {
     data.shippedAt = null;
@@ -519,7 +527,7 @@ async function markShipmentStatusInner(
             where: { id: shipment.subscriptionShipmentId },
             data: buildSubscriptionShipmentUpdate('shipped', now),
           });
-        } else if (next === 'delivered') {
+        } else if (next === 'delivered' || next === 'received') {
           await tx.subscriptionShipment.update({
             where: { id: shipment.subscriptionShipmentId },
             data: buildSubscriptionShipmentUpdate('delivered', now),

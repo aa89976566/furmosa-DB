@@ -14,7 +14,7 @@ export function isOmsShipmentActionable(status: string | null | undefined): bool
 
 /** Keep the OMS work queue in sync with the operational shipment status. */
 export function omsStatusForShipmentStatus(shipmentStatus: string): OmsStatus | null {
-  if (shipmentStatus === 'shipped' || shipmentStatus === 'delivered') {
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'delivered' || shipmentStatus === 'received') {
     return 'FULFILLED';
   }
   if (shipmentStatus === 'pending' || shipmentStatus === 'packed') {

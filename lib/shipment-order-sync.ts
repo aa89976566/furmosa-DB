@@ -41,6 +41,13 @@ export function buildOrderUpdateFromShipmentStatus(
         shippedAt: ctx.existingShippedAt ?? ctx.shipmentShippedAt ?? now,
         completedAt: now,
       };
+    case 'received':
+      return {
+        fulfillmentStatus: 'delivered',
+        status: 'completed',
+        shippedAt: ctx.existingShippedAt ?? ctx.shipmentShippedAt ?? now,
+        completedAt: now,
+      };
     case 'cancelled':
       return {
         fulfillmentStatus: 'returned',
