@@ -20,9 +20,12 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition(), [refreshing, refreshTransition] = useTransition();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const acknowledge = useRef<HTMLButtonElement>(null);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const eventKey = useRef('');
   const submitting = useRef(false);
-  const blocked = pending || refreshing;
+  const blocked = pending || refreshing || refreshFailed;
   const activeRows = editing ? snapshot : rows;
   const suppliers = useMemo(() => [...new Map(rows.filter(r => r.vendorId).map(r => [r.vendorId!, r.vendorName])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'zh-TW')), [rows]);
   const setupRows = rows.filter(row => row.canConfirmUnit);
@@ -42,10 +45,22 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
   if (changes.length > 100) error = '每次最多更新 100 項商品，請分批盤點';
   const hasDraft = editing && Object.values(draft).some(value => value.trim() !== '');
 
+  useEffect(() => {
+    if (message && !message.ok) {
+      if (!dialog.current?.open) dialog.current?.showModal();
+      acknowledge.current?.focus();
+    }
+  }, [message]);
+
   // Read-only background updates stop for the entire count session, preserving its version baseline.
   useEffect(() => {
     if (editing || blocked) return;
-    const refresh = () => { if (document.visibilityState === 'visible') refreshTransition(() => router.refresh()); };
+    const refresh = () => { if (document.visibilityState === 'visible') refreshTransition(() => {
+      try { router.refresh(); } catch {
+        setRefreshFailed(true);
+        setMessage({ ok: false, text: '畫面無法更新，請重新載入後再開始盤點。' });
+      }
+    }); };
     const timer = window.setInterval(refresh, 30_000);
     window.addEventListener('focus', refresh);
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
@@ -77,7 +92,12 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
         setMessage({ ok: result.ok, text: result.message });
         if (result.ok) {
           setDraft({}); setEditing(false);
-          refreshTransition(() => router.refresh());
+          refreshTransition(() => {
+            try { router.refresh(); } catch {
+              setRefreshFailed(true);
+              setMessage({ ok: true, text: '盤點已儲存；畫面更新失敗，請重新載入確認最新庫存。' });
+            }
+          });
         }
       } catch {
         setMessage({ ok: false, text: '連線中斷，請重新整理確認是否已儲存，再決定是否重試' });
@@ -96,6 +116,7 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
       <select aria-label="依廠商篩選" className={selectClass} value={vendor} onChange={e => setVendor(e.target.value)}><option value="all">全部廠商</option>{suppliers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}<option value="unknown">未指定廠商</option></select>
     </div>
     {message ? <p role={message.ok ? 'status' : 'alert'} className={`rounded-lg border p-4 text-sm ${message.ok ? 'bg-muted/40' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>{message.text}</p> : null}
+    {refreshFailed ? <Button variant="outline" className="min-h-11" onClick={() => window.location.reload()}>重新載入庫存</Button> : null}
     <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"><span>{filtered.length} / {rows.length} 項商品</span><span>{editing ? '盤點中暫停自動更新，儲存時核對庫存版本' : '頁面開啟時每 30 秒更新'}</span></div>
     <div className="overflow-hidden rounded-xl border bg-card">
       <div aria-hidden="true" className={`grid items-center gap-4 bg-muted/30 px-4 py-3 text-sm text-muted-foreground md:px-5 ${editing ? 'grid-cols-[minmax(0,1fr)_7.5rem] md:grid-cols-[minmax(0,1fr)_8rem_10rem]' : 'grid-cols-[minmax(0,1fr)_auto]'}`}><span>商品</span><span className="text-right">{editing ? '目前記錄' : '目前庫存'}</span>{editing ? <span className="hidden text-right md:block">本次清點</span> : null}</div>
@@ -113,5 +134,10 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
       {canVerifyUnits && setupRows.length ? <details className="rounded-xl border p-4 text-sm"><summary className="min-h-11 cursor-pointer py-3 font-medium">管理員設定（{setupRows.length} 項待處理）</summary><p className="pb-3 text-muted-foreground">先完成商品庫存設定，執行人員才可進行盤點。</p><div className="flex flex-wrap gap-2">{setupRows.map(row => <Button asChild key={row.id} variant="outline" className="min-h-11"><Link href={`/inventory/confirm-unit/${row.id}`}>完成設定：{row.name}</Link></Button>)}</div></details> : null}
       <details className="text-sm text-muted-foreground"><summary className="cursor-pointer py-2">成本與進階管理</summary><p className="py-2">快速盤點保留原成本；需要調整成本時，請至原有盤點功能。</p><div className="flex flex-wrap gap-2">{rows.filter(r => inventoryGroup(r) === 'bulk').map(row => <Link key={row.id} href={`/inventory/stocktake/${row.id}`} className="min-h-11 rounded-lg border px-3 py-2">{row.name}：數量與成本</Link>)}</div></details>
     </> : null}
+    <dialog ref={dialog} aria-labelledby="inventory-count-error-title" aria-describedby="inventory-count-error-message" className="w-[calc(100%-2rem)] max-w-md rounded-xl border bg-background p-6 text-foreground shadow-xl backdrop:bg-black/40">
+      <h2 id="inventory-count-error-title" className="text-lg font-semibold">盤點尚未完成</h2>
+      <p id="inventory-count-error-message" className="my-4 text-sm">{message?.text}</p>
+      <Button ref={acknowledge} type="button" onClick={() => dialog.current?.close()}>返回檢查</Button>
+    </dialog>
   </section>;
 }

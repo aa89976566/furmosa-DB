@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import Module, { createRequire } from 'node:module';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import type { InventoryRow } from '../workbench';
 
 const require = createRequire(import.meta.url);
@@ -15,11 +15,18 @@ const { act, createElement } = React;
 dom.window.confirm = () => true;
 const { createRoot } = require('react-dom/client');
 const submissions: FormData[] = [];
+let outcome = { ok: true, message: '已更新' };
+let refreshFails = false;
+let pendingResult: ((result: typeof outcome) => void) | null = null;
+let holdSubmission = false;
+Object.defineProperty(dom.window.HTMLDialogElement.prototype, 'showModal', { value() { this.open = true; } });
+Object.defineProperty(dom.window.HTMLDialogElement.prototype, 'close', { value() { this.open = false; } });
+after(() => { internal._load = originalLoad; });
 const internal = Module as typeof Module & { _load: (...args: any[]) => any };
 const originalLoad = internal._load.bind(Module);
 internal._load = (request, ...rest) => {
-  if (request.includes('quantity-actions')) return { saveInventoryQuantities: async (form: FormData) => { submissions.push(form); return { ok: true, message: '已更新' }; } };
-  if (request === 'next/navigation') return { useRouter: () => ({ refresh() {} }) };
+  if (request.includes('quantity-actions')) return { saveInventoryQuantities: async (form: FormData) => { submissions.push(form); return holdSubmission ? new Promise<typeof outcome>(resolve => { pendingResult = resolve; }) : outcome; } };
+  if (request === 'next/navigation') return { useRouter: () => ({ refresh() { if (refreshFails) throw new Error('refresh failed'); } }) };
   return originalLoad(request, ...rest);
 };
 const { InventoryWorkbench } = require('../../../app/(main)/inventory/inventory-workbench');
@@ -60,5 +67,56 @@ test('staff filter, cancel, preview differences and save counts with original ve
     assert.deepEqual(payload, [{ productId: 'bulk', quantity: '350', expectedVersion: base.version }]);
     assert.equal(submissions[0].has('date'), false); assert.equal(submissions[0].has('cost'), false);
     assert.equal(submissions[0].get('reason'), '例行實體盤點');
-  } finally { await act(async () => root.unmount()); internal._load = originalLoad; dom.window.close(); }
+  } finally { await act(async () => root.unmount()); internal._load = originalLoad; }
+});
+
+
+test('count failure keeps drafts, shows reason, prevents repeated clicks; committed refresh failure stays successful', async () => {
+  const container = document.getElementById('root')!;
+  const root = createRoot(container);
+  const button = (text: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === text) as HTMLButtonElement;
+  const input = () => container.querySelector('input[aria-label="雞肉本次清點數量（g）"]') as HTMLInputElement;
+  const before = submissions.length;
+  try {
+    outcome = { ok: false, message: '雞肉的庫存已變更，請重新清點' };
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
+    await act(async () => button('盤點庫存').click());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(input(), '350');
+      input().dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    holdSubmission = true;
+    await act(async () => { button('儲存盤點').click(); button('儲存盤點')?.click(); });
+    assert.equal(submissions.length, before + 1);
+    await act(async () => pendingResult!(outcome));
+    const dialog = container.querySelector('dialog') as HTMLDialogElement;
+    assert.equal(dialog.open, true);
+    assert.match(dialog.textContent!, /庫存已變更/);
+    assert.equal(input().value, '350');
+    await act(async () => button('返回檢查').click());
+    holdSubmission = false;
+    refreshFails = true;
+    outcome = { ok: true, message: '已更新' };
+    await act(async () => button('儲存盤點').click());
+    assert.equal(submissions.length, before + 2);
+    assert.equal(submissions[before].get('eventKey'), submissions[before + 1].get('eventKey'));
+    assert.equal(dialog.open, false);
+    assert.match(container.textContent!, /盤點已儲存；畫面更新失敗/);
+    assert.equal(button('盤點庫存').disabled, true, 'stale quantities cannot become a new count baseline');
+    assert.ok(button('重新載入庫存'));
+  } finally {
+    holdSubmission = false; refreshFails = false;
+    await act(async () => root.unmount());
+  }
+});
+
+test('read-only staff never see count or unit administration controls', async () => {
+  const container = document.getElementById('root')!;
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: false, canVerifyUnits: false })));
+    assert.equal(container.querySelector('input[inputmode="numeric"]'), null);
+    assert.equal(container.querySelector('a[href^="/inventory/confirm-unit/"]'), null);
+    assert.equal(Array.from(container.querySelectorAll('button')).some(b => b.textContent === '盤點庫存'), false);
+  } finally { await act(async () => root.unmount()); }
 });
