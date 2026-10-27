@@ -16,6 +16,10 @@ export type InventoryRow = {
     vendorId: string | null;
     vendorName: string;
     category: string;
+    reorderPoint?: number;
+    lastCountedAt?: string | null;
+    priceTiers?: { weightGrams: number | null; unit: string; unitQty: number }[];
+    merchantStocks?: { merchantId: string; merchantName: string; quantity: number; tierLabel: string }[];
     quantity: number | null;
     unit: string | null;
     version: string | null;
@@ -40,4 +44,32 @@ export function parseCountQuantity(value: unknown) {
     if (!Number.isSafeInteger(quantity) || quantity > 2147483647)
         throw new Error('數量超過可儲存範圍');
     return quantity;
+}
+
+export type InventoryStockState = 'negative' | 'needs_setup' | 'zero' | 'low' | 'in_stock' | 'inactive' | 'special';
+export function inventoryStockState(row: InventoryRow): InventoryStockState {
+    if (row.status === 'inactive') return 'inactive';
+    if (row.productCategory && row.productCategory !== 'STANDARD') return 'special';
+    if (row.quantity !== null && row.quantity < 0) return 'negative';
+    if (!row.canCount || row.quantity === null || !row.unit) return 'needs_setup';
+    if (row.quantity === 0) return 'zero';
+    if (row.reorderPoint !== undefined && row.quantity <= row.reorderPoint) return 'low';
+    return 'in_stock';
+}
+export const inventoryStateLabels: Record<InventoryStockState, string> = {
+    negative: '負庫存待核對', needs_setup: '待設定', zero: '缺貨', low: '偏低',
+    in_stock: '充足', inactive: '已停用', special: '非一般庫存',
+};
+const stockPriority: Record<InventoryStockState, number> = { negative: 0, needs_setup: 1, zero: 2, low: 3, in_stock: 4, special: 5, inactive: 6 };
+export function compareInventoryUrgency(a: InventoryRow, b: InventoryRow) {
+    // Different base units are never compared or added together.
+    return stockPriority[inventoryStockState(a)] - stockPriority[inventoryStockState(b)]
+        || a.name.localeCompare(b.name, 'zh-TW') || a.id.localeCompare(b.id);
+}
+export function inventoryPackEstimates(row: InventoryRow) {
+    if (row.unit !== 'g' || !row.canCount || row.quantity === null || row.quantity <= 0) return [];
+    const weights = [...new Set((row.priceTiers ?? [])
+        .filter(tier => inventoryUnit(tier.unit) === 'g' && tier.weightGrams != null && Number.isSafeInteger(tier.weightGrams) && tier.weightGrams > 0 && tier.unitQty === 1)
+        .map(tier => tier.weightGrams!))].sort((a, b) => a - b);
+    return weights.map(weight => ({ weight, packs: Math.floor(row.quantity! / weight) }));
 }
