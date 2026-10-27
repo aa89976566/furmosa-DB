@@ -90,3 +90,19 @@ test('unshipped manifest cannot submit; internal errors stay private', async () 
     assert.equal(receiptErrorMessage(new Error('出貨狀態已變更')), '出貨狀態已變更');
   } finally { await act(async () => root.unmount()); }
 });
+
+
+test('a refreshed manifest cannot reuse checks from replaced items', async () => {
+  const root = createRoot(document.getElementById('root')!);
+  try {
+    await act(async () => root.render(createElement(ReceiptManifest, { shipmentId: 's1', items, canConfirmReceipt: true })));
+    await act(async () => (document.querySelector('input[type="checkbox"]') as HTMLInputElement).click());
+    assert.equal((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, false);
+    await act(async () => root.render(createElement(ReceiptManifest, {
+      shipmentId: 's1', items: [{ ...items[0], id: 'replacement-item', productName: '新補貨品項' }], canConfirmReceipt: true,
+    })));
+    assert.equal((document.querySelector('input[type="checkbox"]') as HTMLInputElement).checked, false);
+    assert.equal((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
+    assert.match(document.body.textContent!, /已核對 0\/1 項/);
+  } finally { await act(async () => root.unmount()); }
+});

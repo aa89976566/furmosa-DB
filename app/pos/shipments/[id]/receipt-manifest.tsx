@@ -31,7 +31,7 @@ export function ReceiptManifest({ shipmentId, items, canConfirmReceipt }: { ship
   const dialog = useRef<HTMLDialogElement>(null);
   const acknowledge = useRef<HTMLButtonElement>(null);
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
-  const checkedCount = checkedIds.length;
+  const checkedCount = items.filter((item) => checkedIds.includes(item.id)).length;
   const allChecked = items.length > 0 && checkedCount === items.length;
   const totalQuantity = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
 
