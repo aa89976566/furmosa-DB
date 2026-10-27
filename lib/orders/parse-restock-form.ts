@@ -66,3 +66,19 @@ export function parseRestockShippingFromForm(
     cvsBrand,
   };
 }
+
+/** New forms allow a per-shipment correction; absent fields keep legacy callers compatible. */
+export function restockRecipientFromForm(formData: FormData, profile: {
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
+}) {
+  const value = (key: keyof typeof profile) => formData.has(key)
+    ? String(formData.get(key) ?? '').trim() || null
+    : profile[key];
+  return {
+    recipientName: value('recipientName'),
+    recipientPhone: value('recipientPhone'),
+    recipientAddress: value('recipientAddress'),
+  };
+}

@@ -9,6 +9,7 @@ import {
   MerchantNotice,
 } from '@/components/merchants/merchant-ui';
 import type { MerchantShippingDefaults } from '@/lib/merchant-shipping-defaults';
+import { is711Carrier } from '@/lib/carrier-cvs';
 import { shippingMethodFromCarrier } from '@/lib/orders/parse-restock-form';
 
 export function MerchantRestockCheckout({
@@ -52,6 +53,21 @@ export function MerchantRestockCheckout({
           onCarrierChange={setCarrier}
         />
       </MerchantField>
+
+      {!is711Carrier(carrier) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">收件人姓名 *
+            <input name="recipientName" aria-label="收件人姓名" defaultValue={defaults.pickupName} required maxLength={80} className="block min-h-11 w-full rounded-md border bg-background px-3 py-2" />
+          </label>
+          <label className="space-y-1 text-sm">收件人電話 *
+            <input name="recipientPhone" aria-label="收件人電話" type="tel" defaultValue={defaults.pickupPhone} required maxLength={20} className="block min-h-11 w-full rounded-md border bg-background px-3 py-2" />
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">收件地址 *
+            <input name="recipientAddress" aria-label="收件地址" defaultValue={defaults.recipientAddress ?? ''} required maxLength={240} className="block min-h-11 w-full rounded-md border bg-background px-3 py-2" />
+          </label>
+          <p className="text-xs text-muted-foreground sm:col-span-2">本次修改只用於這張出貨單，不會更改店家主檔。</p>
+        </div>
+      )}
 
       <div className="border-t pt-5">
         <p className="mb-3 text-sm font-medium text-navy">金額與付款</p>

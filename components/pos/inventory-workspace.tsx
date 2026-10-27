@@ -94,6 +94,7 @@ function InventoryWorkspaceInner({
   const [restockOpen, setRestockOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [addQty, setAddQty] = useState(1);
+  const [adjustBaseline, setAdjustBaseline] = useState(0);
   const [adjustQty, setAdjustQty] = useState(0);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'detail' | 'cart' | null>(null);
@@ -126,6 +127,7 @@ function InventoryWorkspaceInner({
     setAdjustOpen(false);
     setAddQty(defaultRestockAddQty(product.suggestedQty));
     setAdjustQty(product.quantity);
+    setAdjustBaseline(product.quantity);
   }, [selectedId]);
 
   function addProductToCart(product: InventoryProduct, quantity?: number) {
@@ -142,22 +144,25 @@ function InventoryWorkspaceInner({
   async function onAdjust() {
     if (!selected) return;
     setAdjusting(true);
-    const result = await adjustInventoryQuantityAction(selected.productId, adjustQty);
-    setAdjusting(false);
-    if (!result.ok) {
-      showToast(setToast, { text: result.error });
-      return;
-    }
-    const nextQty = result.quantity ?? adjustQty;
-    setItems((prev) =>
-      prev.map((item) =>
-        item.productId === selected.productId
-          ? { ...item, quantity: nextQty, suggestedQty: suggestedRestockQty(nextQty) }
-          : item,
-      ),
-    );
-    setAdjustOpen(false);
-    showToast(setToast, { text: '庫存已調整' });
+    try {
+      const result = await adjustInventoryQuantityAction(selected.productId, adjustQty, adjustBaseline);
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+      const nextQty = result.quantity ?? adjustQty;
+      setItems((prev) =>
+        prev.map((item) =>
+          item.productId === selected.productId
+            ? { ...item, quantity: nextQty, suggestedQty: suggestedRestockQty(nextQty) }
+            : item,
+        ),
+      );
+      setAdjustOpen(false);
+      showToast(setToast, { text: '庫存已調整' });
+    } catch {
+      window.alert('目前無法確認盤點結果，請重新整理後核對庫存。');
+    } finally { setAdjusting(false); }
   }
 
   async function onSubmitCart() {
@@ -263,7 +268,7 @@ function InventoryWorkspaceInner({
         <button
           type="button"
           className="flex w-full items-center justify-between py-2 text-sm text-zinc-500"
-          onClick={() => setAdjustOpen((open) => !open)}
+          onClick={() => { if (!adjustOpen) { setAdjustBaseline(selected.quantity); setAdjustQty(selected.quantity); } setAdjustOpen(!adjustOpen); }}
         >
           庫存數量不對？調整
           <ChevronDown className={`h-4 w-4 transition ${adjustOpen ? 'rotate-180' : ''}`} />

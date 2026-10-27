@@ -13,7 +13,9 @@ export type InventoryActionResult =
   | { ok: false; error: string };
 
 function toMerchantError(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'P2034') return '庫存已被更新，請重新整理後再盤點';
   const msg = error instanceof Error ? error.message : '';
+  if (msg.includes('多種規格') || msg.includes('庫存已被更新')) return msg;
   if (msg.includes('數量沒有變化')) return '數量沒有變化';
   if (msg.includes('庫存數量不合法')) return '庫存數量不合法';
   if (msg.includes('至少選擇') || msg.includes('數量大於')) {
@@ -27,6 +29,7 @@ function toMerchantError(error: unknown): string {
 export async function adjustInventoryQuantityAction(
   productId: string,
   newQuantity: number,
+  expectedQuantity: number,
 ): Promise<InventoryActionResult> {
   const session = await requireMerchantSession();
   try {
@@ -34,11 +37,14 @@ export async function adjustInventoryQuantityAction(
       merchantId: session.merchantId,
       productId,
       newQuantity,
+      expectedQuantity,
     });
-    revalidatePath('/pos');
-    revalidatePath('/pos/stock');
-    revalidatePath('/pos/restock');
-    revalidatePath('/pos/records');
+    try {
+      revalidatePath('/pos');
+      revalidatePath('/pos/stock');
+      revalidatePath('/pos/restock');
+      revalidatePath('/pos/records');
+    } catch { console.error('[pos-stock] committed adjustment view refresh failed'); }
     return { ok: true, quantity: result.quantity };
   } catch (error) {
     return { ok: false, error: toMerchantError(error) };

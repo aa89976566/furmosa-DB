@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   applyMerchantRestockFromShipment,
@@ -10,10 +11,10 @@ export async function confirmMerchantRestockReceipt(input: {
   shipmentId: string;
   merchantId: string;
   merchantUserId: string;
-}): Promise<MerchantRestockReceiptResult> {
+}, db: PrismaClient = prisma): Promise<MerchantRestockReceiptResult> {
   const { shipmentId, merchantId, merchantUserId } = input;
 
-  return prisma.$transaction(async (tx) => {
+  return db.$transaction(async (tx) => {
     const shipment = await tx.shipment.findFirst({
       where: { id: shipmentId, merchantId, type: 'merchant_restock' },
       select: {

@@ -93,6 +93,7 @@ type World = {
   postedItemIds: string[];
   evidenceNotes: Array<string | null>;
   failEvidence: boolean;
+  failAudit: boolean;
 };
 
 function createWorld(overrides: Partial<ShipmentRow> = {}): World {
@@ -105,6 +106,7 @@ function createWorld(overrides: Partial<ShipmentRow> = {}): World {
     postedItemIds: [],
     evidenceNotes: [],
     failEvidence: false,
+    failAudit: false,
   };
 }
 
@@ -216,7 +218,7 @@ function makeTx() {
       },
     },
     statusAuditLog: {
-      create: async () => ({}),
+      create: async () => { if (world.failAudit) throw new Error('audit write failed'); return {}; },
     },
   };
 }
@@ -250,9 +252,13 @@ harness.__TEST_REDIRECTS__ = [];
 harness.__TEST_REVALIDATES__ = [];
 harness.__TEST_PRISMA__ = {
   $transaction: async (fn) => {
+    const before = structuredClone(world);
     world.inTransaction = true;
     try {
       return await fn(makeTx());
+    } catch (error) {
+      world = before;
+      throw error;
     } finally {
       world.inTransaction = false;
     }
@@ -381,6 +387,7 @@ function patchedLoad(this: unknown, request: string, parent: unknown, isMain: bo
 
 let loadMerchantRestockShipment: (typeof import('@/lib/pos/load-merchant-restock-shipment'))['loadMerchantRestockShipment'];
 let loadMerchantEvents: (typeof import('@/lib/pos/load-merchant-events'))['loadMerchantEvents'];
+let confirmDirectShipmentReceiptWithFeedback: (typeof import('@/app/pos/shipments/[id]/actions'))['confirmDirectShipmentReceiptWithFeedback'];
 let confirmDirectShipmentReceiptAction: (typeof import('@/app/pos/shipments/[id]/actions'))['confirmDirectShipmentReceiptAction'];
 
 function formDataWith(shipmentId: string, extra?: Record<string, string>) {
@@ -415,10 +422,43 @@ describe('HQ 直接 merchant_restock 出貨 POS 入口', () => {
     try {
       ({ loadMerchantRestockShipment } = await import('@/lib/pos/load-merchant-restock-shipment'));
       ({ loadMerchantEvents } = await import('@/lib/pos/load-merchant-events'));
-      ({ confirmDirectShipmentReceiptAction } = await import('@/app/pos/shipments/[id]/actions'));
+      ({ confirmDirectShipmentReceiptAction, confirmDirectShipmentReceiptWithFeedback } = await import('@/app/pos/shipments/[id]/actions'));
     } finally {
       moduleApi._load = originalLoad;
     }
+  });
+
+  it('feedback 以登入店家驗證：未寄出與跨店保留原因、不寫入庫存', async () => {
+    harness.__TEST_SESSION__ = { merchantId: 'merchant-1', merchantUserId: 'merchant-user-1', username: 'store01' };
+    world = createWorld({ status: 'packed' });
+    assert.deepEqual(await confirmDirectShipmentReceiptWithFeedback(formDataWith('shipment-1')), {
+      status: 'error', message: '商品尚未出貨，現在不能確認收貨',
+    });
+    assert.equal(world.stockWrites.length, 0);
+    harness.__TEST_SESSION__ = { merchantId: 'merchant-2', merchantUserId: 'other-user', username: 'store02' };
+    assert.deepEqual(await confirmDirectShipmentReceiptWithFeedback(formDataWith('shipment-1', { merchantId: 'merchant-1' })), {
+      status: 'error', message: '找不到這張補貨出貨單',
+    });
+    assert.equal(world.stockWrites.length, 0);
+  });
+
+  it('feedback 成功與重送均回傳確定結果，audit 失敗則完整回復', async () => {
+    harness.__TEST_SESSION__ = { merchantId: 'merchant-1', merchantUserId: 'merchant-user-1', username: 'store01' };
+    world = createWorld();
+    world.failAudit = true;
+    const failed = await confirmDirectShipmentReceiptWithFeedback(formDataWith('shipment-1'));
+    assert.equal(failed.status, 'error');
+    assert.equal(world.shipment.status, 'delivered');
+    assert.equal(world.stockWrites.length, 0);
+    world.failAudit = false;
+    assert.deepEqual(await confirmDirectShipmentReceiptWithFeedback(formDataWith('shipment-1')), {
+      status: 'success', href: '/pos/shipments/shipment-1?receipt=just_received',
+    });
+    const writes = world.stockWrites.length;
+    assert.deepEqual(await confirmDirectShipmentReceiptWithFeedback(formDataWith('shipment-1')), {
+      status: 'success', href: '/pos/shipments/shipment-1?receipt=already_received',
+    });
+    assert.equal(world.stockWrites.length, writes);
   });
 
   it('同店無 RestockRequest 的 delivered 出貨成功收貨且庫存只增加一次', async () => {

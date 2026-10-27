@@ -3,18 +3,15 @@ import { describe, it } from 'node:test';
 import { planProductStockAdjustment } from '@/lib/pos/plan-stock-adjustment';
 
 describe('planProductStockAdjustment', () => {
-  it('puts the new total on the largest row and zeros the rest', () => {
-    const plan = planProductStockAdjustment(
-      [
-        { id: 'a', tierId: 't1', quantity: 2 },
-        { id: 'b', tierId: 't2', quantity: 3 },
-      ],
-      8,
-    );
-    assert.equal(plan.previousTotal, 5);
-    assert.equal(plan.delta, 3);
-    assert.equal(plan.nextRows.find((row) => row.id === 'b')?.quantity, 8);
-    assert.equal(plan.nextRows.find((row) => row.id === 'a')?.quantity, 0);
+  it('rejects mixed tiers instead of moving all stock into one specification', () => {
+    assert.throws(() => planProductStockAdjustment([
+      { id: 'a', tierId: '30g', quantity: 2 }, { id: 'b', tierId: '50g', quantity: 3 },
+    ], 8), /多種規格/);
+  });
+  it('updates a single tier and rejects fractional counts', () => {
+    const rows = [{id:'a',tierId:'30g',quantity:2}];
+    assert.deepEqual(planProductStockAdjustment(rows, 4), {previousTotal:2,delta:2,nextRows:[{...rows[0],quantity:4}]});
+    assert.throws(() => planProductStockAdjustment(rows, 2.5), /不合法/);
   });
 
   it('rejects unchanged quantity', () => {

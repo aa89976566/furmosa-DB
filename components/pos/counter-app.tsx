@@ -60,6 +60,8 @@ function CounterWorkspace({
   onReset: () => void;
 }) {
   const router = useRouter();
+  const [submissionKey, setSubmissionKey] = useState('');
+  useEffect(() => { setSubmissionKey(crypto.randomUUID()); }, []);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | 'all'>('all');
   const [lines, setLines] = useState<CounterCartLine[]>([]);
@@ -85,6 +87,7 @@ function CounterWorkspace({
   }, [state.ok, router]);
 
   function addItem(item: CounterCatalogItem) {
+    if (phase === 'done' || !submissionKey) return;
     setPhase('edit');
     setLines((current) =>
       addCartLine(current, {
@@ -121,6 +124,7 @@ function CounterWorkspace({
 
   return (
     <form action={formAction} className={styles.workspace}>
+      <input type="hidden" name="submissionKey" value={submissionKey} />
       <input
         type="hidden"
         name="lines"
@@ -184,7 +188,7 @@ function CounterWorkspace({
             <div className={styles.grid}>
               {visible.map((item) => {
                 const cartQty = qtyByKey.get(item.key) ?? 0;
-                const disabled = catalogAddDisabled(item.stock, cartQty);
+                const disabled = phase === 'done' || !submissionKey || catalogAddDisabled(item.stock, cartQty);
                 const soldOut = item.stock <= 0;
                 return (
                   <button

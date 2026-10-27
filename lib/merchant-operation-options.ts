@@ -62,7 +62,7 @@ export async function loadMerchantShippingDefaults(
     },
   });
 
-  return resolveMerchantShippingDefaults(merchant, lastRestock);
+  return { ...resolveMerchantShippingDefaults(merchant, lastRestock), recipientAddress: merchant.address?.trim() || '' };
 }
 
 export async function loadMerchantRestockProductOptions(merchantId: string) {
