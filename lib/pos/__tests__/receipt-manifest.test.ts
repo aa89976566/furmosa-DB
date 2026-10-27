@@ -104,5 +104,10 @@ test('a refreshed manifest cannot reuse checks from replaced items', async () =>
     assert.equal((document.querySelector('input[type="checkbox"]') as HTMLInputElement).checked, false);
     assert.equal((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
     assert.match(document.body.textContent!, /已核對 0\/1 項/);
+    await act(async () => root.render(createElement(ReceiptManifest, {
+      shipmentId: 's1', items: [{ ...items[0], quantity: 3 }], canConfirmReceipt: true,
+    })));
+    assert.equal((document.querySelector('input[type="checkbox"]') as HTMLInputElement).checked, false, 'changed quantity requires a new physical check');
+    assert.equal((document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, true);
   } finally { await act(async () => root.unmount()); }
 });
