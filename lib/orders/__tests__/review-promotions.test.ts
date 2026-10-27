@@ -118,6 +118,30 @@ describe('review promotions contract', () => {
     assert.ok(saved.fulfillmentPlan);
   });
 
+  it('preserves the supplier share captured at intake when review rebuilds order items', async () => {
+    const currentCatalog = cloneMooncake({
+      vendor: {
+        id: 'qiqi',
+        supplierConsignmentEnabled: true,
+        furmosaShareBps: 3_000,
+      },
+    });
+    const f = fakeDb([currentCatalog]);
+    f.order.items = [{
+      productId: 'ck08',
+      variantKey: 't50',
+      supplierVendorIdSnapshot: 'qiqi',
+      supplierFurmosaShareBpsSnapshot: 2_500,
+    }];
+    await f.run('check');
+    await f.run('approve');
+    await f.run('ship');
+    const purchased = f.createdItems.find((item) => !item.isGift);
+    assert.equal(purchased?.variantKey, 't50');
+    assert.equal(purchased?.supplierVendorIdSnapshot, 'qiqi');
+    assert.equal(purchased?.supplierFurmosaShareBpsSnapshot, 2_500);
+  });
+
   it('blocks shipping when stock is 10 for a 10+1 plan, including reserved quantity', async () => {
     const f = fakeDb([cloneMooncake()], 20);
     await f.run('check'); await f.run('approve');

@@ -34,6 +34,8 @@ export default function NewVendorPage() {
               paymentTerms: null,
               notes: null,
               status: 'active',
+              supplierConsignmentEnabled: false,
+              furmosaShareBps: null,
             }}
             saveAction={createVendor}
             submitLabel="建立廠商"

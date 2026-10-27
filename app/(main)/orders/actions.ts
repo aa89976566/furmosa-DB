@@ -182,6 +182,8 @@ export async function createOrder(formData: FormData): Promise<CreateOrderResult
             commercialOverrideReason: it.commercialOverrideReason,
             commercialOverrideById: it.commercialOverrideReason ? actor!.userId : null,
             commercialOverrideAt: it.commercialOverrideAt,
+            supplierVendorIdSnapshot: it.supplierVendorIdSnapshot,
+            supplierFurmosaShareBpsSnapshot: it.supplierFurmosaShareBpsSnapshot,
           })),
         },
       },
@@ -287,6 +289,8 @@ export async function updateOrder(formData: FormData): Promise<UpdateOrderResult
           commercialOverrideReason: true,
           commercialOverrideById: true,
           commercialOverrideAt: true,
+          supplierVendorIdSnapshot: true,
+          supplierFurmosaShareBpsSnapshot: true,
         },
       },
     },
@@ -368,6 +372,11 @@ export async function updateOrder(formData: FormData): Promise<UpdateOrderResult
                 previous?.commercialOverrideById ??
                 (it.commercialOverrideReason ? actor!.userId : null),
               commercialOverrideAt: previous?.commercialOverrideAt ?? it.commercialOverrideAt,
+              supplierVendorIdSnapshot:
+                previous?.supplierVendorIdSnapshot ?? it.supplierVendorIdSnapshot,
+              supplierFurmosaShareBpsSnapshot:
+                previous?.supplierFurmosaShareBpsSnapshot ??
+                it.supplierFurmosaShareBpsSnapshot,
             };
           }),
         },

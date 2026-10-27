@@ -66,7 +66,20 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!sourceLock?.acquired) {
       throw new ReviewError('訂單正在與 Shopify 同步，請稍候 5 秒再按「儲存並檢查」', { kind: 'blocked' });
     }
-    const order = await tx.order.findUniqueOrThrow({ where: { id: key.id }, include: { shipments: true } });
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: key.id },
+      include: {
+        shipments: true,
+        items: {
+          select: {
+            productId: true,
+            variantKey: true,
+            supplierVendorIdSnapshot: true,
+            supplierFurmosaShareBpsSnapshot: true,
+          },
+        },
+      },
+    });
     const snapshot = order.shopifySnapshot as Snapshot | null;
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
@@ -118,7 +131,13 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         ...(draftIds.length ? [{ id: { in: draftIds } }] : []),
         { sku: PROMOTION_GIFT_SKU }, { sourceSku: PROMOTION_GIFT_SKU },
       ] },
-      include: { inventoryBalances: { include: { warehouse: true } }, priceTiers: true },
+      include: {
+        inventoryBalances: { include: { warehouse: true } },
+        priceTiers: true,
+        vendor: {
+          select: { id: true, supplierConsignmentEnabled: true, furmosaShareBps: true },
+        },
+      },
     });
     if (command.sourceOnly) {
       const sourceWithProducts = shopifySourceDraft(
@@ -216,8 +235,28 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
     } else {
+      const originalSupplierSnapshots = new Map(
+        (order.items ?? []).map((item) => [
+          `${item.productId}:${item.variantKey ?? ''}`,
+          {
+            supplierVendorIdSnapshot: item.supplierVendorIdSnapshot,
+            supplierFurmosaShareBpsSnapshot: item.supplierFurmosaShareBpsSnapshot,
+          },
+        ]),
+      );
       await tx.orderItem.deleteMany({ where: { orderId: order.id } });
-      await tx.orderItem.createMany({ data: result.items.map(({ notes: _notes, ...item }) => ({ ...item, orderId: order.id })) });
+      await tx.orderItem.createMany({
+        data: result.items.map(({ notes: _notes, ...item }) => {
+          const original = originalSupplierSnapshots.get(
+            `${item.productId}:${item.variantKey ?? ''}`,
+          );
+          return {
+            ...item,
+            ...(original ?? {}),
+            orderId: order.id,
+          };
+        }),
+      });
       await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
@@ -225,8 +264,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
           `HQ 內部待出貨單，尚未傳送物流供應商。溫層：${draft.temperature || '依 Shopify 配送設定'}；門市：${draft.storeId} ${draft.storeName}`,
           ...result.items.flatMap(item => item.notes?.trim() ? [`揀貨：${item.productName} ×${item.quantity}｜${item.notes.trim()}`] : []),
         ].join('\n'),
-        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, notes }) => (
-          { productId, productName, sku, quantity, weightGrams, unit, notes })) } } });
+        items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, variantKey, notes }) => (
+          { productId, productName, sku, quantity, weightGrams, unit, variantKey, notes })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });

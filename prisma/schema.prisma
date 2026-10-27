@@ -147,22 +147,27 @@ model UserPushSubscription {
 // =====================================================
 
 model Vendor {
-  id           String   @id @default(cuid())
-  vendorId     String   @unique // VEND-0001
-  name         String
-  contactName  String?
-  phone        String?
-  email        String?
-  address      String?
-  paymentTerms String?
-  notes        String?
-  status       String   @default("active") // active / inactive
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                         String   @id @default(cuid())
+  vendorId                   String   @unique // VEND-0001
+  name                       String
+  contactName                String?
+  phone                      String?
+  email                      String?
+  address                    String?
+  paymentTerms               String?
+  notes                      String?
+  status                     String   @default("active") // active / inactive
+  /// 供應商寄賣分潤。與店家佣金完全分離；2500 = 匠寵保留實收金額的 25%。
+  supplierConsignmentEnabled Boolean  @default(false) @map("supplier_consignment_enabled")
+  furmosaShareBps            Int?     @map("furmosa_share_bps")
+  settlementCurrency         String   @default("TWD") @map("settlement_currency")
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
-  products         Product[]
-  purchaseReceipts PurchaseReceipt[]
-  purchaseOrders   PurchaseOrder[]
+  products          Product[]
+  purchaseReceipts  PurchaseReceipt[]
+  purchaseOrders    PurchaseOrder[]
+  vendorSettlements VendorSettlement[]
 }
 
 // 客戶（人）= 主檔。會員身份、訂閱身份都掛在 Customer 上。
@@ -1477,36 +1482,94 @@ model Order {
 }
 
 model OrderItem {
-  variantKey                     String? // selected ProductPriceTier identity
-  id                             String    @id @default(cuid())
-  orderId                        String
-  productId                      String
-  productName                    String
-  sku                            String
-  quantity                       Int
-  unitPrice                      Float
-  subtotal                       Float
-  isGift                         Boolean   @default(false) // 贈品：買家單價為 0，仍計入公司成本
-  unitCost                       Float? // 贈品／成本紀錄：單件進貨成本
-  weightGrams                    Int? // 每件重量（g）
-  unit                           String? // 片 / 包 / 支 / 件...
-  businessTierSnapshot           String?   @map("business_tier_snapshot")
-  commercialTermsVersionSnapshot Int?      @map("commercial_terms_version_snapshot")
-  commercialRuleSource           String?   @map("commercial_rule_source") // order_override / merchant_exception / product_default / category_baseline
-  defaultCommercialMode          String?   @map("default_commercial_mode") // percent / amount / fixed_price
-  defaultCommercialValue         Int?      @map("default_commercial_value") // basis points or integer TWD, interpreted by mode
-  appliedCommercialMode          String?   @map("applied_commercial_mode")
-  appliedCommercialValue         Int?      @map("applied_commercial_value")
-  commercialOverrideReason       String?   @map("commercial_override_reason")
-  commercialOverrideById         String?   @map("commercial_override_by_id")
-  commercialOverrideAt           DateTime? @map("commercial_override_at")
+  variantKey                      String? // selected ProductPriceTier identity
+  id                              String    @id @default(cuid())
+  orderId                         String
+  productId                       String
+  productName                     String
+  sku                             String
+  quantity                        Int
+  unitPrice                       Float
+  subtotal                        Float
+  isGift                          Boolean   @default(false) // 贈品：買家單價為 0，仍計入公司成本
+  unitCost                        Float? // 贈品／成本紀錄：單件進貨成本
+  weightGrams                     Int? // 每件重量（g）
+  unit                            String? // 片 / 包 / 支 / 件...
+  businessTierSnapshot            String?   @map("business_tier_snapshot")
+  commercialTermsVersionSnapshot  Int?      @map("commercial_terms_version_snapshot")
+  commercialRuleSource            String?   @map("commercial_rule_source") // order_override / merchant_exception / product_default / category_baseline
+  defaultCommercialMode           String?   @map("default_commercial_mode") // percent / amount / fixed_price
+  defaultCommercialValue          Int?      @map("default_commercial_value") // basis points or integer TWD, interpreted by mode
+  appliedCommercialMode           String?   @map("applied_commercial_mode")
+  appliedCommercialValue          Int?      @map("applied_commercial_value")
+  commercialOverrideReason        String?   @map("commercial_override_reason")
+  commercialOverrideById          String?   @map("commercial_override_by_id")
+  commercialOverrideAt            DateTime? @map("commercial_override_at")
+  /// 供應商分潤快照。訂單建立後不因供應商主檔改動而改寫歷史。
+  supplierVendorIdSnapshot        String?   @map("supplier_vendor_id_snapshot")
+  supplierFurmosaShareBpsSnapshot Int?      @map("supplier_furmosa_share_bps_snapshot")
 
-  order                Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product              Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  commercialOverrideBy User?   @relation("OrderItemCommercialOverrideBy", fields: [commercialOverrideById], references: [id], onDelete: SetNull)
+  order                 Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product               Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  commercialOverrideBy  User?                  @relation("OrderItemCommercialOverrideBy", fields: [commercialOverrideById], references: [id], onDelete: SetNull)
+  vendorSettlementItems VendorSettlementItem[]
 
   @@index([orderId])
   @@index([commercialOverrideById])
+}
+
+// 供應商寄賣對帳。金額一律使用整數台幣，避免 Float 精度影響付款。
+model VendorSettlement {
+  id                String    @id @default(cuid())
+  settlementNumber  String    @unique @map("settlement_number")
+  vendorId          String    @map("vendor_id")
+  periodStart       DateTime  @map("period_start")
+  periodEnd         DateTime  @map("period_end")
+  grossCollectedTwd Int       @map("gross_collected_twd")
+  refundTwd         Int       @default(0) @map("refund_twd")
+  furmosaShareTwd   Int       @map("furmosa_share_twd")
+  vendorPayableTwd  Int       @map("vendor_payable_twd")
+  status            String    @default("draft") // draft / reviewing / approved / paid / cancelled
+  rulesVersion      String    @map("rules_version")
+  idempotencyKey    String    @unique @map("idempotency_key")
+  paidAt            DateTime? @map("paid_at")
+  note              String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  vendor Vendor                 @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  items  VendorSettlementItem[]
+
+  @@index([vendorId, periodStart, periodEnd])
+  @@index([status])
+  @@map("vendor_settlements")
+}
+
+// 每筆銷售或退款的供應商對帳快照；作廢只標記，不刪除稽核資料。
+model VendorSettlementItem {
+  id                 String    @id @default(cuid())
+  vendorSettlementId String    @map("vendor_settlement_id")
+  orderItemId        String?   @map("order_item_id")
+  sourceKind         String    @map("source_kind") // sale / refund
+  sourceKey          String    @map("source_key")
+  grossCollectedTwd  Int       @map("gross_collected_twd")
+  refundTwd          Int       @default(0) @map("refund_twd")
+  furmosaShareBps    Int       @map("furmosa_share_bps")
+  furmosaShareTwd    Int       @map("furmosa_share_twd")
+  vendorPayableTwd   Int       @map("vendor_payable_twd")
+  occurredAt         DateTime  @map("occurred_at")
+  sourceSnapshot     Json      @map("source_snapshot")
+  rulesVersion       String    @map("rules_version")
+  voidedAt           DateTime? @map("voided_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  settlement VendorSettlement @relation(fields: [vendorSettlementId], references: [id], onDelete: Restrict)
+  orderItem  OrderItem?       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@index([vendorSettlementId])
+  @@index([orderItemId])
+  @@index([sourceKey])
+  @@map("vendor_settlement_items")
 }
 
 // =====================================================
