@@ -1,3 +1,6 @@
+import { bulkUnit } from './bulk';
+import { isMadeToOrderHqProduct } from './shipment-advisory';
+
 export type ReorderProductInput = {
   id: string;
   name: string;
@@ -8,6 +11,7 @@ export type ReorderProductInput = {
   unit: string | null;
   lastCountedAt: Date | null;
   incoming: number;
+  unitVerified?: boolean;
 };
 
 export type ReorderAlertRow = ReorderProductInput & {
@@ -30,16 +34,17 @@ export function buildReorderAlertSummary(products: ReorderProductInput[]): Reord
   const result: ReorderAlertSummary = { orderNow: [], incoming: [], stocktake: [] };
 
   for (const product of products) {
+    if (isMadeToOrderHqProduct(product.sku)) continue;
     const projected = product.onHand + product.incoming;
     const deficit = Math.max(0, product.reorderPoint - projected);
     const base = { ...product, projected, deficit };
 
-    if (!product.lastCountedAt) {
+    if (!product.lastCountedAt || !bulkUnit(product.unit) || product.unitVerified === false || product.onHand < 0) {
       result.stocktake.push({ ...base, state: 'stocktake' });
       continue;
     }
     if (product.onHand > product.reorderPoint) continue;
-    if (projected > product.reorderPoint) {
+    if (product.incoming > 0 && projected >= product.reorderPoint) {
       result.incoming.push({ ...base, state: 'incoming' });
       continue;
     }

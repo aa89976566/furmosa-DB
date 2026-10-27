@@ -7,36 +7,42 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { createPendingPurchaseOrder } from '../actions';
+import { bulkUnit } from '@/lib/inventory/bulk';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NewPurchaseOrderPage(props: { searchParams: Promise<{ error?: string }> }) {
+export default async function NewPurchaseOrderPage(props: { searchParams: Promise<{ error?: string; productId?: string; quantityGrams?: string }> }) {
   const user = await getCurrentUser();
   if (!user || !COUNT_ROLES.includes(user.role)) return <>
     <PageHeader title="新增進貨" description="此操作需要進貨入庫權限。" />
     <div className="space-y-4 p-4 md:p-6"><p role="alert" className="rounded-xl border p-4 text-sm">目前帳號沒有新增進貨權限，請聯絡管理員確認倉管或財務角色。</p><Button asChild variant="outline"><Link href="/inventory">返回庫存</Link></Button></div>
   </>;
-  const [{ error }, vendors, warehouses, products] = await Promise.all([
+  const [query, vendors, warehouses, products] = await Promise.all([
     props.searchParams,
     prisma.vendor.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.warehouse.findMany({ orderBy: [{ isDefault: 'desc' }, { name: 'asc' }], select: { id: true, name: true, code: true } }),
-    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD' }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true } }),
+    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD' }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true, unit: true, vendorId: true } }),
   ]);
+  const { error } = query;
+  const suggestedProduct = products.find(product => product.id === query.productId && bulkUnit(product.unit) === 'g');
+  const amount = Number(query.quantityGrams);
+  const suggestedGrams = suggestedProduct && Number.isSafeInteger(amount) && amount > 0 && amount <= 2147483647 ? amount : undefined;
   return <>
     <PageHeader title="新增採購單" description="先保存供應商訂單，不會增加庫存；到貨後需另行確認實收。" actions={<Button variant="outline" asChild><Link href="/inventory/purchases?view=pending">返回待收貨</Link></Button>} />
     <form action={createPendingPurchaseOrder} className="mx-auto max-w-6xl space-y-6 p-4 md:p-6" encType="multipart/form-data">
       {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      {suggestedProduct ? <p className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">已帶入 {suggestedProduct.name} 的採購建議，請確認數量、供應商與金額後再建立。</p> : null}
       <Card className="grid gap-4 p-5 md:grid-cols-2">
-        <label className="text-sm font-medium">供應商<select name="vendorId" className="mt-2 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">未指定</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
-        <label className="text-sm font-medium">預計入庫倉庫<select name="warehouseId" required className="mt-2 min-h-11 min-w-0 w-full rounded-md border bg-background px-3">{warehouses.map(w => <option key={w.id} value={w.id}>{w.name} · {w.code}</option>)}</select></label>
+        <label className="text-sm font-medium">供應商<select defaultValue={suggestedProduct?.vendorId ?? ''} name="vendorId" className="mt-2 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">未指定</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label>
+        <label className="text-sm font-medium">預計入庫倉庫<select defaultValue={suggestedProduct ? warehouses.find(warehouse => warehouse.code === 'WH-MAIN')?.id : undefined} name="warehouseId" required className="mt-2 min-h-11 min-w-0 w-full rounded-md border bg-background px-3">{warehouses.map(w => <option key={w.id} value={w.id}>{w.name} · {w.code}</option>)}</select></label>
         <label className="text-sm font-medium">供應商單號<Input className="mt-2 min-h-11 min-w-0 text-base" name="supplierDocumentNumber" placeholder="報價單／Invoice 編號" /></label>
         <label className="text-sm font-medium">開始提醒日<Input className="mt-2 min-h-11 min-w-0 text-base" type="date" name="remindFromDate" required defaultValue="2026-11-01" /></label>
       </Card>
       <Card className="overflow-hidden">
         <div className="border-b p-5"><h2 className="text-lg font-semibold">預計到貨商品</h2><p className="mt-1 text-sm text-muted-foreground">這裡只記錄訂購內容；確認實收前不會更新庫存。</p></div>
         <div className="divide-y">{Array.from({ length: 8 }, (_, index) => <div key={index} className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_180px_180px]">
-          <label className="min-w-0 text-sm">商品<select name="productId" className="mt-1 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">選擇商品</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.sku}</option>)}</select></label>
-          <label className="text-sm">訂購重量（g）<Input className="mt-1 min-h-11 min-w-0 text-base" name="quantityGrams" type="number" min="1" step="1" /></label>
+          <label className="min-w-0 text-sm">商品<select defaultValue={index === 0 ? suggestedProduct?.id ?? '' : ''} name="productId" className="mt-1 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">選擇商品</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.sku}</option>)}</select></label>
+          <label className="text-sm">訂購重量（g）<Input className="mt-1 min-h-11 min-w-0 text-base" name="quantityGrams" defaultValue={index === 0 ? suggestedGrams : undefined} type="number" min="1" step="1" /></label>
           <label className="text-sm">商品金額（NT$）<Input className="mt-1 min-h-11 min-w-0 text-base" name="rawAmount" type="number" min="0.01" step="0.01" /></label>
         </div>)}</div>
       </Card>
