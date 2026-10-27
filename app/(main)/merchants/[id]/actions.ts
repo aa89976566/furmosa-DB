@@ -32,7 +32,8 @@ import { parseMerchantIndustry } from '@/lib/merchant-industry';
 import { persistMerchantTypes } from '@/lib/merchant-types-persist';
 import { getMerchantTypes } from '@/lib/merchant-types-persist';
 import { createRestockOrderWithShipment } from '@/lib/merchant-restock-order';
-import { parseRestockShippingFromForm } from '@/lib/orders/parse-restock-form';
+import { parseRestockShippingFromForm, restockRecipientFromForm } from '@/lib/orders/parse-restock-form';
+import { restockWithFeedbackUsing } from '@/lib/orders/restock-feedback';
 import { shipmentItemsFingerprint } from '@/lib/shipment-queue-filters';
 import {
   parseMerchantTypesFromForm,
@@ -320,6 +321,10 @@ function commissionFor(rule: { commissionMode: string; commissionValue: number; 
 // ============================================================
 // 1. 進貨：建立「待出貨」運送單；標記「已寄出」或「貨物到達」時寫入店家庫存（冪等）
 // ============================================================
+export async function restockMerchantWithFeedback(formData: FormData) {
+  return restockWithFeedbackUsing(restockMerchant, formData);
+}
+
 export async function restockMerchant(formData: FormData) {
   const merchantId = String(formData.get('merchantId') ?? '');
   const carrier = String(formData.get('carrier') ?? '').trim() || null;
@@ -373,9 +378,11 @@ export async function restockMerchant(formData: FormData) {
 
   const pickup711 = resolve711PickupFromForm(formData, carrier);
   const shipping = parseRestockShippingFromForm(formData, carrier);
-  const profileName = merchant.contactName ?? merchant.name;
-  const profilePhone = merchant.phone;
-  const profileAddress = merchant.address;
+  const recipient = restockRecipientFromForm(formData, {
+    recipientName: merchant.contactName ?? merchant.name,
+    recipientPhone: merchant.phone,
+    recipientAddress: merchant.address,
+  });
 
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
@@ -386,9 +393,9 @@ export async function restockMerchant(formData: FormData) {
     merchantId,
     items,
     products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
-    recipientName: pickup711?.recipientName ?? profileName,
-    recipientPhone: pickup711?.recipientPhone ?? profilePhone,
-    recipientAddress: pickup711?.recipientAddress ?? profileAddress,
+    recipientName: pickup711?.recipientName ?? recipient.recipientName,
+    recipientPhone: pickup711?.recipientPhone ?? recipient.recipientPhone,
+    recipientAddress: pickup711?.recipientAddress ?? recipient.recipientAddress,
     carrier,
     notes: note,
     paymentStatus: shipping.paymentStatus,

@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { RestockSubmitButton } from '@/components/merchants/restock-submit-button';
 import { ArrowLeft } from 'lucide-react';
-import { restockMerchant } from '../actions';
+import { RestockActionForm } from '@/components/merchants/restock-action-form';
 import { RestockForm } from './restock-form';
 import { MerchantRestockCheckout } from '@/components/merchants/merchant-restock-checkout';
 import {
@@ -82,7 +82,7 @@ export default async function MerchantRestockPage(props: { params: Promise<{ id:
         }
       />
       <MerchantWorkspace narrow>
-        <form action={restockMerchant} className="space-y-4">
+        <RestockActionForm>
           <input type="hidden" name="merchantId" value={merchant.id} />
 
           <MerchantSection
@@ -134,7 +134,7 @@ export default async function MerchantRestockPage(props: { params: Promise<{ id:
               </MerchantFormActions>
             </div>
           </MerchantSection>
-        </form>
+        </RestockActionForm>
       </MerchantWorkspace>
     </>
   );

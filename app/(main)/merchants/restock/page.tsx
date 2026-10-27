@@ -17,7 +17,7 @@ import {
   loadMerchantShippingDefaults,
   resolveSelectedMerchantId,
 } from '@/lib/merchant-operation-options';
-import { restockMerchant } from '../[id]/actions';
+import { RestockActionForm } from '@/components/merchants/restock-action-form';
 import { RestockForm } from '../[id]/restock/restock-form';
 import { ArrowLeft } from 'lucide-react';
 
@@ -61,7 +61,7 @@ export default async function MerchantsRestockPage(
             <p className="text-sm text-muted-foreground">請先新增店家。</p>
           </MerchantSection>
         ) : (
-          <form action={restockMerchant} className="space-y-4">
+          <RestockActionForm>
             <input type="hidden" name="merchantId" value={selectedMerchantId} />
 
             <MerchantSection
@@ -123,7 +123,7 @@ export default async function MerchantsRestockPage(
                 </MerchantFormActions>
               </div>
             </MerchantSection>
-          </form>
+          </RestockActionForm>
         )}
       </MerchantWorkspace>
     </>

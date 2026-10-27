@@ -2,6 +2,7 @@ import { CARRIER_711, format711RecipientAddress, is711Carrier } from '@/lib/carr
 import { SHIPPING_CARRIER_DELIVERY } from '@/lib/shipping-policy';
 
 export type MerchantShippingDefaults = {
+  recipientAddress?: string;
   pickupStore: string;
   pickupName: string;
   pickupPhone: string;
