@@ -104,7 +104,7 @@ export async function OmsDashboard() {
     reviewActionCount > 0 ? { href: '/reviews', label: `有 ${reviewActionCount} 筆資料等待審核`, tone: 'bg-primary' } : null,
   ].filter(Boolean) as { href: string; label: string; tone: string }[];
 
-  return <div className="space-y-6">
+  return <div className="dashboard-operations space-y-6">
     <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-7">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">

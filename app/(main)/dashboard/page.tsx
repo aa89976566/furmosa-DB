@@ -1,3 +1,4 @@
+import './dashboard-reference.css';
 import Link from 'next/link';
 import nextDynamic from 'next/dynamic';
 import { Suspense } from 'react';
