@@ -7,7 +7,7 @@ export type PostPurchaseReceiptInput = {
   vendorId: string | null;
   warehouseId: string;
   supplierDocumentNumber: string | null;
-  receiptDate: Date;
+  receiptDate: Date | null;
   shippingCostCents: number;
   packagingCostCents: number;
   processingCostCents: number;
@@ -18,6 +18,9 @@ export type PostPurchaseReceiptInput = {
   items: PurchaseCostLine[];
   attachments: PurchaseAttachmentInput[];
   purchaseOrderId?: string | null;
+  sourceOrderId?: string;
+  submissionKey?: string;
+  submissionHash?: string;
 };
 
 const money = (cents: number) => new Prisma.Decimal(cents).div(100);
@@ -39,20 +42,52 @@ function receiptCosts(input: PostPurchaseReceiptInput) {
     input.processingCostCents + input.taxAmountCents - input.discountAmountCents;
   const totalCents = subtotalCents + commonCostCents;
   if (totalCents < 0) throw new Error('折扣不可高於本次總成本');
-  return { subtotalCents, totalCents, allocations: allocateCommonCost(input.items, commonCostCents) };
+  return { subtotalCents, totalCents, allocations: subtotalCents === 0 && commonCostCents === 0 && input.sourceOrderId ? input.items.map(() => 0) : allocateCommonCost(input.items, commonCostCents) };
 }
 
 export async function postPurchaseReceipt(db: PrismaClient, input: PostPurchaseReceiptInput) {
   receiptCosts(input);
+  if (!input.submissionKey || !/^[0-9a-f-]{36}$/i.test(input.submissionKey)) {
+    throw new Error('請重新開啟新增進貨頁面再提交');
+  }
+  const submissionHash = createHash('sha256').update(JSON.stringify({
+    ...input, submissionHash: undefined,
+    attachments: input.attachments.map(file => ({
+      fileName: file.fileName, mimeType: file.mimeType,
+      sha256: createHash('sha256').update(file.data).digest('hex'),
+    })),
+  })).digest('hex');
+  input = { ...input, submissionHash };
   const suffix = randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
-  const date = input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
+  const date = (input.receiptDate ?? new Date()).toISOString().slice(0, 10).replaceAll('-', '');
   const receiptNumber = `PUR-${date}-${suffix}`;
 
-  return db.$transaction((tx) => postPurchaseReceiptInTransaction(tx, input, {
+  try {
+  return await db.$transaction(async (tx) => {
+    const existing = await tx.purchaseReceipt.findUnique({ where: { submissionKey: input.submissionKey } });
+    if (existing) {
+      if (existing.submissionHash !== submissionHash) throw new Error('這次提交已入庫，但內容不同；請先查看進貨紀錄');
+      return existing;
+    }
+    return postPurchaseReceiptInTransaction(tx, input, {
     receiptNumber,
     transactionSuffix: suffix,
     transactionDate: date,
-  }), receiptTransactionOptions);
+  });
+  }, receiptTransactionOptions);
+  } catch (error) {
+    // A competing transaction may have committed this same key while we waited.
+    // Read only after the losing transaction has rolled back completely.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034'].includes(error.code)) {
+      const existing = await db.purchaseReceipt.findUnique({ where: { submissionKey: input.submissionKey } });
+      if (existing) {
+        if (existing.submissionHash !== submissionHash) throw new Error('這次提交已入庫，但內容不同；請先查看進貨紀錄');
+        return existing;
+      }
+      throw new Error('入庫遇到同時更新，請保留原表單重試，並先查看進貨紀錄');
+    }
+    throw error;
+  }
 }
 
 export async function postPurchaseReceiptInTransaction(
@@ -62,13 +97,15 @@ export async function postPurchaseReceiptInTransaction(
 ) {
     const { subtotalCents, totalCents, allocations } = receiptCosts(input);
     const localSuffix = generated?.transactionSuffix ?? randomUUID().replaceAll('-', '').slice(0, 8).toUpperCase();
-    const localDate = generated?.transactionDate ?? input.receiptDate.toISOString().slice(0, 10).replaceAll('-', '');
+    const localDate = generated?.transactionDate ?? (input.receiptDate ?? new Date()).toISOString().slice(0, 10).replaceAll('-', '');
     const localReceiptNumber = generated?.receiptNumber ?? `PUR-${localDate}-${localSuffix}`;
     const products = await tx.product.findMany({
       where: { id: { in: input.items.map((item) => item.productId) }, status: { not: 'inactive' } },
-      select: { id: true, name: true, averageCostPerGram: true },
+      select: { id: true, name: true, unit: true, averageCostPerGram: true },
     });
     if (products.length !== input.items.length) throw new Error('部分商品不存在或已停用');
+    const incompatible = products.find(product => product.unit !== 'g');
+    if (incompatible) throw new Error(`${incompatible.name} 的商品單位不是 g，請先確認庫存規格`);
 
     const receipt = await tx.purchaseReceipt.create({
       data: {
@@ -87,12 +124,15 @@ export async function postPurchaseReceiptInTransaction(
         note: input.note,
         createdById: input.createdById,
         purchaseOrderId: input.purchaseOrderId ?? null,
+        sourceOrderId: input.sourceOrderId,
+        submissionKey: input.submissionKey,
+        submissionHash: input.submissionHash,
       },
     });
 
     for (const [index, item] of input.items.entries()) {
       if (!Number.isSafeInteger(item.quantityGrams) || item.quantityGrams <= 0) throw new Error('實收克數必須為正整數');
-      if (!Number.isSafeInteger(item.rawAmountCents) || item.rawAmountCents <= 0) throw new Error('品項金額必須大於 0');
+      if (!Number.isSafeInteger(item.rawAmountCents) || (input.sourceOrderId ? item.rawAmountCents < 0 : item.rawAmountCents <= 0)) throw new Error('品項金額必須大於 0');
       const product = products.find((row) => row.id === item.productId)!;
       const balances = await tx.inventoryBalance.findMany({ where: { productId: item.productId } });
       if (balances.some((balance) => balance.quantity !== 0 && balance.unit !== 'g')) {
@@ -145,6 +185,7 @@ export async function postPurchaseReceiptInTransaction(
         data: {
           purchaseReceiptId: receipt.id,
           productId: item.productId,
+          sourceOrderItemId: input.sourceOrderId ? item.sourceLineId : null,
           inventoryTransactionId: txn.id,
           quantityGrams: item.quantityGrams,
           rawAmount: money(item.rawAmountCents),

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { inventoryUnit, parseCountQuantity } from '@/lib/inventory/workbench';
@@ -46,7 +46,7 @@ export default async function ConfirmUnitPage(props: {
       error = cause instanceof UnitConfirmationError ? cause.message : '核對未完成，請重新整理確認庫存後再試';
     }
     if (error) redirect(`/inventory/confirm-unit/${encodeURIComponent(productId)}?error=${encodeURIComponent(error)}`);
-    for (const path of ['/inventory', '/inventory/transactions', `/products/${productId}`, '/dashboard']) revalidatePath(path);
+    await refreshInventoryViews([productId]);
     redirect('/inventory');
   }
   return <>

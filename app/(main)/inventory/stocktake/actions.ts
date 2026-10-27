@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
@@ -24,7 +24,7 @@ export async function submitStocktake(formData: FormData) {
       reason: String(formData.get('reason') ?? ''),
       createdById: user.userId,
     });
-    revalidatePath('/inventory'); revalidatePath('/inventory/transactions');
+    await refreshInventoryViews([productId]);
     destination = `/inventory?stocktake=1`;
   } catch (error) {
     const raw = error instanceof Error ? error.message : '';

@@ -4,9 +4,10 @@ import { createHash } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
-import { allPurchaseLinesConfirmed, createPurchaseOrder, receivePurchaseOrder } from '@/lib/inventory/purchase-orders';
+import { createPurchaseOrder, receivePurchaseOrder } from '@/lib/inventory/purchase-orders';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -67,6 +68,7 @@ export async function createPendingPurchaseOrder(formData: FormData) {
       items,
       attachments,
     });
+    await refreshInventoryViews();
     destination = `/inventory/purchase-orders/${order.id}?created=1`;
   } catch (error) {
     destination = `/inventory/purchase-orders/new?error=${encodeURIComponent(safeError(error, '建立採購單失敗，資料沒有變更'))}`;
@@ -76,19 +78,20 @@ export async function createPendingPurchaseOrder(formData: FormData) {
 
 export async function confirmPurchaseOrderReceipt(formData: FormData) {
   const id = String(formData.get('purchaseOrderId') ?? '');
+  const submissionKey = String(formData.get('submissionKey') ?? '');
   let destination = `/inventory/purchase-orders/${id}`;
   try {
     const user = await requireInventoryUser();
-    const checked = formData.getAll('confirmedLine').map(String);
-    const lines = await prisma.purchaseOrderItem.findMany({ where: { purchaseOrderId: id }, select: { id: true } });
-    if (!allPurchaseLinesConfirmed(lines.map((line) => line.id), checked)) {
-      throw new Error('請逐項核對全部商品後再確認實收');
-    }
-    const result = await receivePurchaseOrder(prisma, id, user.userId);
-    revalidatePath('/inventory'); revalidatePath('/inventory/purchases'); revalidatePath('/dashboard');
+    const lineIds = formData.getAll('lineId').map(String);
+    const quantities = formData.getAll('receivedGrams').map(String);
+    const result = await receivePurchaseOrder(prisma, id, user.userId, {
+      key: submissionKey,
+      lines: lineIds.map((lineId,index) => ({ lineId, quantityGrams: Number(quantities[index] ?? '') })),
+    });
+    await refreshInventoryViews();
     destination = `/inventory/purchases/${result.receipt.id}?received=1`;
   } catch (error) {
-    destination = `/inventory/purchase-orders/${id}?error=${encodeURIComponent(safeError(error, '確認實收失敗，庫存沒有變更'))}`;
+    destination = `/inventory/purchase-orders/${id}?submissionKey=${encodeURIComponent(submissionKey)}&error=${encodeURIComponent(safeError(error, '收貨結果尚未確認，請以原提交重新核對，避免重複入庫'))}`;
   }
   redirect(destination);
 }

@@ -1,10 +1,11 @@
 'use server';
 
-import { redirect } from 'next/navigation';
+import { parseReceiptDate } from '@/lib/inventory/receipt-date';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { parseMoneyToCents } from '@/lib/inventory/purchase-cost';
 import { postPurchaseReceipt } from '@/lib/inventory/post-purchase-receipt';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -17,8 +18,8 @@ function hasExpectedSignature(mimeType: string, data: Buffer) {
   return false;
 }
 
-export async function createPurchaseReceipt(formData: FormData) {
-  let destination = '/inventory/purchases/new';
+export async function createPurchaseReceipt(_previous: { error: string; attempt: number }, formData: FormData): Promise<{ error: string; attempt: number; receiptId?: string }> {
+  const submissionKey = String(formData.get('submissionKey') ?? '');
   try {
     const user = await getCurrentUser();
     if (!user || !['admin', 'warehouse', 'finance'].includes(user.role)) throw new Error('你沒有進貨入庫權限');
@@ -51,9 +52,9 @@ export async function createPurchaseReceipt(formData: FormData) {
       if (!hasExpectedSignature(file.type, data)) throw new Error('單據檔案內容與格式不符');
       return { fileName: file.name.slice(0, 180), mimeType: file.type, data };
     }));
-    const receiptDate = new Date(`${String(formData.get('receiptDate') ?? '')}T12:00:00+08:00`);
-    if (Number.isNaN(receiptDate.getTime())) throw new Error('請選擇進貨日期');
+    const receiptDate = parseReceiptDate(String(formData.get('receiptDate') ?? ''));
     const receipt = await postPurchaseReceipt(prisma, {
+      submissionKey,
       vendorId: String(formData.get('vendorId') ?? '').trim() || null,
       warehouseId: String(formData.get('warehouseId') ?? '').trim(),
       supplierDocumentNumber: String(formData.get('supplierDocumentNumber') ?? '').trim() || null,
@@ -68,13 +69,13 @@ export async function createPurchaseReceipt(formData: FormData) {
       items,
       attachments,
     });
-    destination = `/inventory/purchases/${receipt.id}?created=1`;
+    await refreshInventoryViews(items.map(item => item.productId));
+    return { error: '', attempt: _previous.attempt, receiptId: receipt.id };
   } catch (error) {
     const raw = error instanceof Error ? error.message : '';
     const message = raw && raw.length <= 180 && !raw.includes('Invalid `prisma') && !raw.includes('DATABASE_URL')
       ? raw
-      : '進貨入庫失敗，資料沒有變更，請稍後再試';
-    destination = `/inventory/purchases/new?error=${encodeURIComponent(message)}`;
+      : '目前無法確認入庫結果，請先查看進貨紀錄；重試時請保留原提交識別';
+    return { error: message, attempt: _previous.attempt + 1 };
   }
-  redirect(destination);
 }
