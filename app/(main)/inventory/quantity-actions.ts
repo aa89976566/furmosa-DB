@@ -1,11 +1,9 @@
 'use server';
-import { revalidatePath } from 'next/cache';
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { COUNT_ROLES, parseCountQuantity } from '@/lib/inventory/workbench';
 import { countInventoryQuantities, QuantityCountError, type CountLine } from '@/lib/inventory/quantity-count';
-import { bustCacheTags } from '@/lib/runtime-cache';
-import { CACHE_TAGS } from '@/lib/cache-tags';
+import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 export async function saveInventoryQuantities(form: FormData): Promise<{
     ok: boolean;
     message: string;
@@ -37,13 +35,6 @@ export async function saveInventoryQuantities(form: FormData): Promise<{
     catch (error) {
         return { ok: false, message: error instanceof QuantityCountError ? error.message : '更新未完成，請重新整理確認庫存後再試' };
     }
-    try {
-        for (const path of ['/inventory', '/inventory/transactions', '/products', '/dashboard'])
-            revalidatePath(path);
-        await bustCacheTags(CACHE_TAGS.dashboard);
-    }
-    catch {
-        console.error('[inventory.count] CACHE_REFRESH_FAILED');
-    }
+    await refreshInventoryViews(lines.map(line => line.productId));
     return { ok: true, message: `已更新 ${count} 項庫存，時間與操作人員已自動記錄` };
 }
