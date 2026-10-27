@@ -22,6 +22,7 @@ export type InventoryRow = {
         unit: string | null;
     }[];
     canCount: boolean;
+    countBlockedReason?: string;
     canConfirmUnit?: boolean;
 };
 export function inventoryGroup(row: Pick<InventoryRow, 'unit' | 'vendorId'>) {

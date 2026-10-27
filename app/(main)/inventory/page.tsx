@@ -33,6 +33,7 @@ export default async function InventoryPage(props: {
             vendorId: product.vendorId, vendorName: product.vendor?.name ?? '',
             quantity: unit ? balance!.quantity : null, unit, version: balance?.updatedAt.toISOString() ?? null,
             canCount: !!unit && unit === inventoryUnit(product.unit) && product.status === 'active' && product.productCategory === 'STANDARD',
+            countBlockedReason: product.status !== 'active' ? '商品已停用，請先確認商品狀態' : product.productCategory !== 'STANDARD' ? '組合或特殊商品，請盤點實際組成品項' : !inventoryUnit(product.unit) ? '商品尚未設定庫存單位' : product.inventoryBalances.some(b => b.warehouse.code !== 'WH-MAIN' && b.quantity !== 0) && (!balance || unit !== inventoryUnit(product.unit)) ? '其他倉庫有庫存，需一起核對單位' : !balance ? '尚未建立主倉庫存，需先登記首次實盤數量' : unit !== inventoryUnit(product.unit) ? '主倉與商品單位不一致，需先核對' : undefined,
             canConfirmUnit: !!inventoryUnit(product.unit) && product.status === 'active' && product.productCategory === 'STANDARD'
                 && (!balance || unit !== inventoryUnit(product.unit))
                 && !product.inventoryBalances.some(b => b.warehouse.code !== 'WH-MAIN' && b.quantity !== 0),
