@@ -140,3 +140,29 @@ test('an already synchronized catalog produces no repeated writes', () => {
   assert.equal(plan.productUpdates.length, 0);
   assert.equal(plan.tierArchives.length, 0);
 });
+
+
+test('verified legacy HQ aliases bind only their exact dimension to the live Shopify SKU', () => {
+  const product = hq({
+    name: '雞肉南瓜乾',
+    sourceSku: null,
+    priceTiers: [
+      { ...hq().priceTiers[0]!, id: 'pumpkin-30', sku: null, shopifySku: null, weightGrams: 30 },
+      { ...hq().priceTiers[1]!, id: 'pumpkin-50', sku: null, shopifySku: null, weightGrams: 50 },
+    ],
+  });
+  const live = shop({
+    title: '◈金好呷◈雞肉南瓜',
+    variants: [
+      { id: 'gid://shopify/ProductVariant/301', title: '30g', sku: 'crispy-chicken-pumpkin-30', price: 75 },
+      { id: 'gid://shopify/ProductVariant/501', title: '50g', sku: 'crispy-chicken-pumpkin-50', price: 125 },
+    ],
+  });
+  const plan = planShopifyHqCatalogSync([live], [product]);
+  assert.deepEqual(plan.tierUpdates.map((row) => [row.tierId, row.sku]), [
+    ['pumpkin-30', 'CRISPY-CHICKEN-PUMPKIN-30'],
+    ['pumpkin-50', 'CRISPY-CHICKEN-PUMPKIN-50'],
+  ]);
+  assert.equal(plan.unmatchedHqTiers.length, 0);
+  assert.equal(plan.unmatchedShopifyVariants.length, 0);
+});
