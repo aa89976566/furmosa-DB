@@ -17,6 +17,7 @@
 .dashboard-operations > section:nth-child(2) { gap:8px; }
 .dashboard-operations > section:nth-child(2) > a { padding:12px 16px; border-radius:7px; background:white; }
 .dashboard-operations > section:nth-child(2) > a p:nth-child(2) { font-size:24px; margin-top:4px; }
+.dashboard-operations section[aria-labelledby='procurement-title'] > .grid { align-items:start; }
 .dashboard-operations section[aria-labelledby='procurement-title'] { display:flex; flex-direction:column; gap:12px; }
 .dashboard-operations #procurement-title { font-size:22px; }
 .dashboard-operations nav[aria-label='庫存待辦分類'] { display:flex; flex-wrap:wrap; gap:0; border:1px solid #dfe4df; border-radius:7px; background:white; }
