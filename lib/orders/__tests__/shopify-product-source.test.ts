@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  resolveKnownShopifySourceName,
   resolveShopifyProductSources,
   type ProductSourceCatalogItem,
 } from '../shopify-product-source.ts';
@@ -49,4 +50,18 @@ test('does not guess a source when the product is unbound or has no vendor', () 
   assert.deepEqual(resolveShopifyProductSources([
     { title: '商品', sku: 'SEL-XMQ-LTM-BROTH', variantId: '123456' },
   ], [catalog({ vendor: null })]), [null]);
+});
+
+
+test('shows a curated source for a legacy unmapped Shopify SKU', () => {
+  assert.equal(resolveKnownShopifySourceName({
+    title: '匠寵嚴選｜怪獸部落 無膠鮮肉煲',
+    sku: 'SEL-XMQ-LTM-BROTH',
+    variantId: '',
+  }), '怪獸部落');
+  assert.equal(resolveKnownShopifySourceName({
+    title: '未知商品',
+    sku: 'UNKNOWN',
+    variantId: '',
+  }), null);
 });
