@@ -32,7 +32,7 @@ export function snapshotView(value: unknown) {
   const rows = (Array.isArray(order.line_items) ? order.line_items : []).map(object);
   const lineView = (row: Record<string, unknown>) => ({
     title: text(row.title) || '未命名商品', sku: text(row.sku), variantId: text(row.variant_id),
-    variantTitle: text(row.variant_title), quantity: typeof row.quantity === 'number' ? row.quantity : null,
+    variantTitle: text(row.variant_title), vendor: text(row.vendor), quantity: typeof row.quantity === 'number' ? row.quantity : null,
     price: text(row.price), lineTotal: sourceLineTotal(row.price, row.quantity),
   });
   const propertyMap = (row: Record<string, unknown>) => new Map(
