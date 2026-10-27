@@ -1,3 +1,5 @@
+import { getCurrentUser } from '@/lib/auth';
+import { CancelPurchaseOrderForm } from '../cancel-form';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -20,6 +22,8 @@ export default async function PurchaseOrderDetailPage(props: { params: Promise<{
     items: { orderBy: { lineNumber: 'asc' } }, attachments: { select: { id: true, fileName: true, sizeBytes: true } },
   } });
   if (!order) notFound();
+  const user = await getCurrentUser();
+  const canCancel = Boolean(user && ['admin','warehouse','finance'].includes(user.role));
   const pending = order.status === 'pending_receipt';
   const receipts = [...new Map([...(order.receipt ? [order.receipt] : []), ...order.receipts].map(r => [r.id,r])).values()];
   const received = (item: typeof order.items[number]) => purchaseLineReceived(order.id, item, receipts);
@@ -30,7 +34,7 @@ export default async function PurchaseOrderDetailPage(props: { params: Promise<{
       {query.created && receipts.length === 0 && pending ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium text-primary">採購單已建立；庫存與平均成本尚未變更。</p> : null}
       {query.uploaded ? <p role="status" className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-medium">單據照片已儲存。</p> : null}
       {query.error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{query.error}</p> : null}
-      <Card className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><Badge variant={pending ? 'warning' : 'success'}>{pending ? receipts.length ? '部分到貨' : '尚未入庫' : order.status === 'received' ? '已入庫' : '已作廢'}</Badge><h2 className="mt-3 text-xl font-semibold">{order.supplierDocumentNumber ?? '無供應商單號'}</h2><p className="mt-1 text-sm text-muted-foreground">提醒日：{formatTaipeiCalendarDate(order.remindFromDate)}</p></div><div className="text-right"><p className="text-sm text-muted-foreground">採購總額</p><p className="text-2xl font-semibold">{formatPurchaseMoney(Number(order.totalAmount))}</p></div></div><p className="mt-4 border-t pt-4 text-sm text-muted-foreground">{pending ? '確認商品實際到貨後，才能更新庫存與移動平均成本。' : '這張採購單已完成實收入庫。'}</p></Card>
+      <Card className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><Badge variant={pending ? 'warning' : 'success'}>{pending ? receipts.length ? '部分到貨' : '尚未入庫' : order.status === 'received' ? '已入庫' : '已作廢'}</Badge><h2 className="mt-3 text-xl font-semibold">{order.supplierDocumentNumber ?? '無供應商單號'}</h2><p className="mt-1 text-sm text-muted-foreground">提醒日：{formatTaipeiCalendarDate(order.remindFromDate)}</p></div><div className="text-right"><p className="text-sm text-muted-foreground">採購總額</p><p className="text-2xl font-semibold">{formatPurchaseMoney(Number(order.totalAmount))}</p></div></div><p className="mt-4 border-t pt-4 text-sm text-muted-foreground">{pending ? '確認商品實際到貨後，才能更新庫存與移動平均成本。' : order.status === 'cancelled' ? '這張採購單已作廢，不能再次收貨。' : '這張採購單已完成實收入庫。'}</p></Card>
       <Card className="overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">本次收貨</h2><p className="text-sm text-muted-foreground">只填本次實際收到的數量，未到貨留空。</p></div>
         <form action={confirmPurchaseOrderReceipt}>
           <input type="hidden" name="purchaseOrderId" value={order.id} /><input type="hidden" name="submissionKey" value={query.submissionKey && /^[0-9a-f-]{36}$/i.test(query.submissionKey) ? query.submissionKey : randomUUID()} />
@@ -43,6 +47,8 @@ export default async function PurchaseOrderDetailPage(props: { params: Promise<{
       </Card>
       {receipts.length ? <Card className="space-y-3 p-5"><h2 className="font-semibold">收貨紀錄</h2>{receipts.map(receipt => <Link key={receipt.id} className="block text-primary underline" href={`/inventory/purchases/${receipt.id}`}>{receipt.receiptNumber}</Link>)}</Card> : null}
 
+      {order.status === 'cancelled' ? <Card className="p-5"><h2 className="font-semibold">作廢原因</h2><p className="mt-2 whitespace-pre-wrap">{order.cancelReason}</p></Card> : null}
+      {pending && receipts.length === 0 && canCancel ? <CancelPurchaseOrderForm id={order.id} /> : null}
       <div className="grid gap-5 lg:grid-cols-2"><Card className="space-y-3 p-5"><h2 className="font-semibold">單據附件</h2>{order.attachments.length ? order.attachments.map(file => <Button key={file.id} variant="outline" className="w-full justify-between" asChild><a href={`/inventory/purchase-orders/${order.id}/attachments/${file.id}`} target="_blank" rel="noreferrer"><span className="truncate">{file.fileName}</span><span>{Math.ceil(file.sizeBytes/1024)} KB</span></a></Button>) : <p className="text-sm text-muted-foreground">未上傳單據。</p>}
         {pending ? <form action={uploadPurchaseOrderAttachment} encType="multipart/form-data" className="space-y-2 border-t pt-3">
           <input type="hidden" name="purchaseOrderId" value={order.id} />
