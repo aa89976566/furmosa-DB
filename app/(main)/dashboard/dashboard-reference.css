@@ -10,7 +10,7 @@
 [data-dashboard=true] main main { max-width:1440px; padding-top:16px; }
 [data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] { border-radius:0; background:transparent; padding:0; border-bottom:1px solid #dfe4df; display:flex; }
 [data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] a { border-radius:0; box-shadow:none; background:transparent; min-height:44px; }
-[data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] a:first-child { border-bottom:2px solid #245744; color:#245744; }
+[data-dashboard=true] nav[aria-label='Dashboard 顯示模式'] a[aria-current=page] { border-bottom:2px solid #245744; color:#245744; }
 .dashboard-operations > section:first-child { padding:14px 18px; border-radius:8px; background:#eef4ef; }
 .dashboard-operations > section:first-child h2 { font-size:20px; }
 .dashboard-operations > section:first-child p:first-child { display:none; }
@@ -51,4 +51,11 @@
  .dashboard-operations #purchase-count .divide-y > * > div { display:block; }
  .dashboard-operations #purchase-count .divide-y > * p:nth-child(3) { display:inline-block; margin-top:5px; }
  .dashboard-operations #procurement-title { font-size:20px; }
+}
+
+@media(max-width:767px) {
+ [data-dashboard=true] header.sticky { display:flex; min-height:56px; flex-wrap:nowrap; border-bottom:1px solid #dfe4df; padding:6px 12px; }
+ [data-dashboard=true] header.sticky [role=search], [data-dashboard=true] header.sticky form:has(input[type=search]), [data-dashboard=true] header.sticky > .contents { display:none; }
+ .dashboard-operations section[id^='purchase-'] .divide-y > * { min-width:0; overflow-wrap:anywhere; }
+ .dashboard-operations nav[aria-label='庫存待辦分類'] a:nth-child(odd) { border-left:0; }
 }
