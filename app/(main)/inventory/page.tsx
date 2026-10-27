@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 
 import { COUNT_ROLES, inventoryUnit, type InventoryRow } from '@/lib/inventory/workbench';
+import './inventory-overview.css';
 import { InventoryWorkbench } from './inventory-workbench';
 export const dynamic = 'force-dynamic';
 export default async function InventoryPage(props: {
