@@ -54,7 +54,7 @@ test('does not guess a source when the product is unbound or has no vendor', () 
 
 
 test('shows a curated source for a legacy unmapped Shopify SKU', () => {
-  assert.equal(resolveKnownShopifySourceName({
+  assert.deepEqual(resolveKnownShopifySourceName({
     title: '匠寵嚴選｜怪獸部落 無膠鮮肉煲',
     sku: 'SEL-XMQ-LTM-BROTH',
     variantId: '',
