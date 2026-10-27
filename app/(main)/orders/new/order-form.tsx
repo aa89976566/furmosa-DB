@@ -1311,7 +1311,10 @@ export function OrderForm({
   }
 
   function changeOrderType(nextType: OrderType) {
-    if (nextType === orderType) return;
+    if (nextType === orderType) {
+      revealThrough(2);
+      return;
+    }
     const { kept, removed } = splitLinesForContext(items, (id) => productMap.get(id), { orderType: nextType, merchantOrderMode });
     askContextSwitch(nextType === 'customer' ? '客戶訂單' : '店家訂單', removed, () => {
       revealThrough(2);
@@ -1621,7 +1624,7 @@ export function OrderForm({
           ) : (
             <div className="space-y-2">
               <label htmlFor="order-merchant-search" className="text-sm font-medium">選擇店家</label>
-              <Input id="order-merchant-search" placeholder="搜尋店名、編號或電話" value={merchantQuery} onChange={(event) => setMerchantQuery(event.target.value)} />
+              <Input id="order-merchant-search" placeholder="搜尋店名、編號或電話" onKeyDown={(event) => { if (event.key === 'Enter') event.preventDefault(); }} value={merchantQuery} onChange={(event) => setMerchantQuery(event.target.value)} />
               <div className={styles.merchantResults}>
                 {[...merchants].sort((a, b) => {
                   const rank = (id: string) => recentMerchantIds.includes(id) ? recentMerchantIds.indexOf(id) : 99;
