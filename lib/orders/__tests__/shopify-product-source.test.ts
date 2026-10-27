@@ -58,7 +58,10 @@ test('shows a curated source for a legacy unmapped Shopify SKU', () => {
     title: '匠寵嚴選｜怪獸部落 無膠鮮肉煲',
     sku: 'SEL-XMQ-LTM-BROTH',
     variantId: '',
-  }), '怪獸部落');
+  }), {
+    name: '怪獸部落',
+    url: 'https://litomon.com/product/brothcan/',
+  });
   assert.equal(resolveKnownShopifySourceName({
     title: '未知商品',
     sku: 'UNKNOWN',
