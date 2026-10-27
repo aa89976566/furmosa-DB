@@ -70,6 +70,7 @@ import {
   commercialRuleSourceLabel,
   commercialTermValueLabel,
 } from '@/lib/orders/merchant-commercial-term';
+import { resolveShopifyProductSources } from '@/lib/orders/shopify-product-source';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,28 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       : null;
 
   const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
+  const sourceCatalog = sourceView?.items.length
+    ? await prisma.product.findMany({
+        where: { status: 'active' },
+        select: {
+          id: true,
+          sku: true,
+          sourceSku: true,
+          vendor: { select: { id: true, vendorId: true, name: true } },
+          priceTiers: {
+            select: {
+              status: true,
+              sku: true,
+              shopifySku: true,
+              shopifyVariantId: true,
+            },
+          },
+        },
+      })
+    : [];
+  const productSources = sourceView
+    ? resolveShopifyProductSources(sourceView.items, sourceCatalog)
+    : [];
   const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
   const reviewAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({
     where: { entityType: 'oms_review', entityId: order.id },
@@ -212,7 +235,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <h2 className="font-semibold">訂單內容</h2>
               <div className="mt-3 space-y-3 text-sm">
                 <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
-                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p>{item.giftCard ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-sky-950"><p className="text-xs font-semibold">贈禮小卡</p><dl className="mt-1 space-y-1 text-xs"><div><dt className="inline text-sky-700">贈送方式：</dt><dd className="inline">{item.giftCard.delivery || '來源未提供'}</dd></div><div><dt className="inline text-sky-700">收禮毛友：</dt><dd className="inline">{item.giftCard.recipient || '來源未提供'}</dd></div><div><dt className="text-sky-700">小卡內容：</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{item.giftCard.message || '來源未提供'}</dd></div></dl></div> : null}</li>)}</ul></div>
+                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => {
+                  const productSource = productSources[index];
+                  const sourceName = productSource?.vendorName || item.vendor;
+                  return <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p>{sourceName ? <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-950"><Package className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="text-xs text-amber-800">產品貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="min-w-0 break-words text-sm font-semibold underline-offset-2 hover:underline">{sourceName}</Link> : <span className="min-w-0 break-words text-sm font-semibold">{sourceName}</span>}</div> : null}{item.giftCard ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-sky-950"><p className="text-xs font-semibold">贈禮小卡</p><dl className="mt-1 space-y-1 text-xs"><div><dt className="inline text-sky-700">贈送方式：</dt><dd className="inline">{item.giftCard.delivery || '來源未提供'}</dd></div><div><dt className="inline text-sky-700">收禮毛友：</dt><dd className="inline">{item.giftCard.recipient || '來源未提供'}</dd></div><div><dt className="text-sky-700">小卡內容：</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{item.giftCard.message || '來源未提供'}</dd></div></dl></div> : null}</li>;
+                })}</ul></div>
                 {(sourceView?.feeLines.length ?? 0) > 0 ? <div className="border-t pt-3"><p className="text-xs font-medium text-muted-foreground">加購費用（不需出貨）</p><ul className="mt-1 space-y-1">{sourceView?.feeLines.map((fee, index) => <li key={`${fee.variantId}-${index}`} className="flex justify-between gap-3 text-xs"><span className="break-words">{fee.title}</span><span className="shrink-0 tabular-nums">{sourceView.currency} {fee.lineTotal ?? fee.price}</span></li>)}</ul></div> : null}
                 <div className="border-t pt-3">
                   <p className="text-xs text-muted-foreground">收件與配送</p>
