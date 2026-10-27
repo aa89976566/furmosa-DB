@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { productCategoryLabel } from '@/lib/labels';
 import { formatCurrency } from '@/lib/format';
 import { formatPriceRange } from '@/lib/product-variations';
-import { Plus, ScanSearch } from 'lucide-react';
+import { ListChecks, Plus, ScanSearch } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { productSearchWhere } from '@/lib/site-search';
 import { deriveProductReadiness } from '@/lib/products/readiness';
@@ -111,6 +111,12 @@ export default async function ProductsPage(
         }
         actions={
           <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/products/shopify-candidates">
+                <ListChecks className="mr-1 h-4 w-4" />
+                Shopify 待建商品
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/products/shopify-audit">
                 <ScanSearch className="mr-1 h-4 w-4" />

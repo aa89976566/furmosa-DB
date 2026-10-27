@@ -14,7 +14,7 @@ export function ShopifyStageCandidatesForm({ fingerprint, count }: { fingerprint
       <input type="hidden" name="fingerprint" value={fingerprint} />
       <Button type="submit" variant="outline" disabled={pending || count === 0}>
         {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        登記全部待建商品
+        登記 {count} 筆待建商品
       </Button>
       {state.message ? <p className={`max-w-sm text-xs ${state.ok ? 'text-emerald-700' : 'text-red-700'}`}>{state.message}</p> : null}
     </form>
