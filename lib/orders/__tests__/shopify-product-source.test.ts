@@ -60,7 +60,7 @@ test('shows a curated source for a legacy unmapped Shopify SKU', () => {
     variantId: '',
   }), {
     name: '怪獸部落',
-    url: 'https://litomon.com/product/brothcan/',
+    url: 'https://shopee.tw/product/4730308/9234647860',
   });
   assert.equal(resolveKnownShopifySourceName({
     title: '未知商品',
