@@ -29,7 +29,7 @@ function fold(value: string | null | undefined) {
 }
 
 const KNOWN_SOURCE_BY_SHOPIFY_SKU = new Map<string, { name: string; url: string }>([
-  ['sel-xmq-ltm-broth', { name: '怪獸部落', url: 'https://litomon.com/product/brothcan/' }],
+  ['sel-xmq-ltm-broth', { name: '怪獸部落', url: 'https://shopee.tw/product/4730308/9234647860' }],
 ]);
 
 export function resolveKnownShopifySourceName(line: ShopifySourceLine) {
