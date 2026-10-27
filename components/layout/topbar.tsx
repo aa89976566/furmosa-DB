@@ -12,7 +12,7 @@ import { getCurrentUser } from "@/lib/auth";
 export async function Topbar() {
   const user = await getCurrentUser();
   return (
-    <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-3 border-b-2 border-foreground bg-card px-3 py-2 xl:min-h-20 xl:flex-nowrap xl:gap-4 xl:px-6 xl:py-3">
+    <header className="sticky top-0 z-30 flex min-h-16 flex-wrap items-center gap-3 border-b-2 border-foreground bg-card px-3 py-2 xl:min-h-20 xl:flex-nowrap xl:gap-4 xl:px-6 xl:py-3 group-data-[inventory=true]/shell:min-h-14 group-data-[inventory=true]/shell:flex-nowrap group-data-[inventory=true]/shell:border-b group-data-[inventory=true]/shell:border-border group-data-[inventory=true]/shell:py-2">
       <MobileNav
         reviewBadge={
           <Suspense fallback={null}>
@@ -27,7 +27,7 @@ export async function Topbar() {
       >
         <GlobalSearch />
       </Suspense>
-      <CompanyProgressBar />
+      <div className="contents group-data-[inventory=true]/shell:hidden"><CompanyProgressBar /></div>
       <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
         <ThemeToggle />
         <OrderNotificationBell />

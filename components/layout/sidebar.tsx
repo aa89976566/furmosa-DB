@@ -6,12 +6,13 @@ import { PawPrint } from "lucide-react";
 
 export function Sidebar() {
   return (
-    <aside className="hidden h-screen w-[248px] shrink-0 flex-col border-r border-border bg-card md:flex">
-      <div className="flex h-16 items-center gap-3 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
+    <aside className="hidden h-screen w-[248px] shrink-0 flex-col border-r border-border bg-card md:flex group-data-[inventory=true]/shell:w-[208px]">
+      <div className="flex h-16 items-center gap-3 px-5 group-data-[inventory=true]/shell:h-14">
+        <span className="hidden text-lg font-bold tracking-tight group-data-[inventory=true]/shell:block">FURMOSA HQ</span>
+        <div className="group-data-[inventory=true]/shell:hidden flex h-9 w-9 items-center justify-center rounded-xl bg-foreground text-background">
           <PawPrint className="h-4 w-4" />
         </div>
-        <div className="flex flex-col leading-tight">
+        <div className="flex flex-col leading-tight group-data-[inventory=true]/shell:hidden">
           <span className="text-sm font-semibold tracking-tight text-navy">
             Furmosa
           </span>
