@@ -60,6 +60,7 @@ import { ShopifyIntakePanel } from '@/components/orders/shopify-intake-panel';
 import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
 import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { currentReviewDraft } from '@/lib/orders/review-display';
+import { getReviewCatalog, getLatestReviewAudit } from '@/lib/orders/review-data';
 import { OMS_LABELS } from '@/lib/orders/oms';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 import { OrderArchiveForm } from '@/components/orders/order-archive-form';
@@ -97,34 +98,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       : null;
 
   const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
-  const sourceCatalog = sourceView?.items.length
-    ? await prisma.product.findMany({
-        where: { status: 'active' },
-        select: {
-          id: true,
-          sku: true,
-          sourceSku: true,
-          vendor: { select: { id: true, vendorId: true, name: true } },
-          priceTiers: {
-            select: {
-              status: true,
-              sku: true,
-              shopifySku: true,
-              shopifyVariantId: true,
-            },
-          },
-        },
-      })
-    : [];
+  const [sourceCatalog, reviewAudit] = await Promise.all([
+    sourceView?.items.length ? getReviewCatalog() : Promise.resolve([]),
+    order.omsStatus ? getLatestReviewAudit(order.id) : Promise.resolve(null),
+  ]);
   const productSources = sourceView
     ? resolveShopifyProductSources(sourceView.items, sourceCatalog)
     : [];
   const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
-  const reviewAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({
-    where: { entityType: 'oms_review', entityId: order.id },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    select: { metadataJson: true },
-  }) : null;
   const savedReview = order.omsStatus ? currentReviewDraft(order.shopifySnapshot, reviewAudit?.metadataJson) : null;
 
   const editable = isOrderEditable(order);

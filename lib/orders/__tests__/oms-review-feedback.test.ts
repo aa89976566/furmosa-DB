@@ -70,6 +70,20 @@ test('shipping section is only added in the OMS branch', () => {
   assert.equal(pageSource.includes('id="oms-shipping"', shipping + 1), false);
 });
 
+test('legacy order detail does not issue OMS catalog or audit queries', async () => {
+  // Execute the page's query-loading block with null OMS enrollment. Throwing
+  // loaders catch an accidental legacy database read without a production DB.
+  const start = pageSource.indexOf('const sourceView =');
+  const end = pageSource.indexOf('const productSources =', start);
+  assert.ok(start >= 0 && end > start);
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+  const load = new AsyncFunction('order', 'snapshotView', 'getReviewCatalog', 'getLatestReviewAudit',
+    `${pageSource.slice(start, end)}; return { sourceView, sourceCatalog, reviewAudit };`);
+  const unexpected = () => { throw new Error('legacy order must not load OMS data'); };
+  const result = await load({ id: 'legacy-order', omsStatus: null, shopifySnapshot: null }, unexpected, unexpected, unexpected);
+  assert.deepEqual(result, { sourceView: null, sourceCatalog: [], reviewAudit: null });
+});
+
 test('Actions source order keeps the first status live region before the usage site', () => {
   const usage = formSource.indexOf('<Actions status={effectiveStatus}');
   const definition = formSource.indexOf('function Actions');

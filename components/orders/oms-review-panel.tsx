@@ -4,6 +4,7 @@ import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intak
 import { toTierCatalog } from '@/lib/shopify/match-line-item';
 import { matchShopifyLineToTier } from '@/lib/shopify/match-product-tier';
 import { currentReviewDraft } from '@/lib/orders/review-display';
+import { getReviewCatalog, getLatestReviewAudit } from '@/lib/orders/review-data';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel } from '@/lib/orders/shopify-source-review';
@@ -31,16 +32,15 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
   const source = snapshot as Snapshot;
   const hash = snapshotHash(source);
 
-  const audit = await prisma.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  const [audit, products] = await Promise.all([
+    getLatestReviewAudit(orderId),
+    getReviewCatalog(),
+  ]);
   const saved = currentReviewDraft(snapshot, audit?.metadataJson);
-  const products = await prisma.product.findMany({
-    where: { status: 'active' },
-    select: {
-      id: true, name: true, sku: true, sourceSku: true, status: true, unit: true, defaultTemperature: true,
-      priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, price: true, sku: true, shopifySku: true, shopifyVariantId: true, status: true, notes: true } },
-    },
-  });
-  const sourceDraft = shopifySourceDraft(source, products.map(product => ({ ...product, available: null })), saved?.duplicateConfirmed ?? false);
+  const tierCatalog = toTierCatalog(products);
+  // Supplier labels are for the page's source display only. Keep the review
+  // matcher input identical to its former query (no commercial vendor fields).
+  const sourceDraft = shopifySourceDraft(source, products.map(({ vendor: _vendor, ...product }) => ({ ...product, available: null })), saved?.duplicateConfirmed ?? false);
   const draft = saved
     ? mergeShopifyFulfillmentDraft(sourceDraft, saved)
     : mergeShopifyFulfillmentDraft(sourceDraft, sourceDraft);
@@ -72,7 +72,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
           const row = sourceRows[index] ?? {};
           const decision = matchShopifyLineToTier(
             { variant_id: row.variant_id, sku: string(row.sku) || item.sku, title: string(row.title) || item.title },
-            toTierCatalog(products),
+            tierCatalog,
           );
           return {
             title: item.title,

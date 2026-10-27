@@ -12,10 +12,21 @@ import { useRouter } from 'next/navigation';
 type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string; contents?: string }[] };
 
 function Actions({ status, summary, alertText }: { status: string; summary: string; alertText: string }) {
-  const { pending } = useFormStatus();
+  const { pending, data } = useFormStatus();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) { setSlow(false); return; }
+    const timer = window.setTimeout(() => setSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [pending]);
+  const submittedAction = data?.get('action');
+  const pendingText = slow
+    ? '處理時間較長，仍在等待系統確認結果，請勿重複送出'
+    : submittedAction === 'approve' ? '正在確認訂單…'
+      : submittedAction === 'ship' ? '正在建立 HQ 出貨單…' : '正在儲存修改…';
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
-    <div className="flex max-h-8 min-w-0 items-center gap-2 overflow-hidden text-sm"><p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{summary}</p><p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p></div>
-    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{status === 'READY' ? '重新開啟審核' : '儲存修改'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>確認訂單</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>建立 HQ 出貨單</Button>}{pending && <span className="self-center text-sm text-muted-foreground">處理中…</span>}</div>
+    <div className="min-w-0 space-y-1 text-sm"><p role="status" aria-live="polite" className="break-words font-medium">{pending ? pendingText : summary}</p><p role="alert" className="break-words font-medium text-destructive">{pending ? '' : alertText}</p></div>
+    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending} variant={status === 'NEW' ? 'default' : 'outline'}>{pending && submittedAction === 'check' ? '儲存中…' : status === 'READY' ? '重新開啟審核' : '儲存修改'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending}>{pending && submittedAction === 'approve' ? '確認中…' : '確認訂單'}</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending}>{pending && submittedAction === 'ship' ? '建立中…' : '建立 HQ 出貨單'}</Button>}</div>
   </div>;
 }
 

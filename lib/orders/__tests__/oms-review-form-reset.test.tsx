@@ -19,9 +19,11 @@ const submissions: Record<string, FormDataEntryValue>[] = [];
 const navigation: string[] = [];
 let refreshes = 0;
 let outcome: 'check' | 'blocked' | 'ship' = 'check';
+let responseGate: Promise<void> | null = null;
 const actionStub = {
   omsReviewAction: async (_previous: unknown, form: FormData) => {
     submissions.push(Object.fromEntries(form.entries()));
+    if (responseGate) await responseGate;
     return {
       ok: outcome !== 'blocked', action: outcome === 'ship' ? 'ship' : form.get('action'),
       omsStatus: outcome === 'ship' ? 'FULFILLMENT_PENDING' : 'REVIEW',
@@ -73,6 +75,42 @@ test('review retains shipping selection through repeated checks and approval', a
     });
   };
   try {
+    // A slow request must never look like a successful save, and the original
+    // inputs must remain intact until the server's actual outcome arrives.
+    let releaseResponse!: () => void;
+    responseGate = new Promise<void>(resolve => { releaseResponse = resolve; });
+    await act(async () => root.render(createElement(OmsReviewForm, {
+      key: 'pending-feedback', orderId: 'test-order', sourceHash: 'same-source',
+      status: 'REVIEW', draft, sourceSummary,
+    })));
+    field('address').value = '等待儲存的地址';
+    let showSlowFeedback: (() => void) | undefined;
+    const originalSetTimeout = dom.window.setTimeout.bind(dom.window);
+    dom.window.setTimeout = (callback: () => void, delay: number) => {
+      if (delay === 8000) {
+        showSlowFeedback = callback;
+        return originalSetTimeout(() => {}, 0);
+      }
+      return originalSetTimeout(callback, delay);
+    };
+    await submit('check');
+    dom.window.setTimeout = originalSetTimeout;
+    assert.match(container.querySelector('[role="status"]')!.textContent!, /正在儲存修改/);
+    assert.equal((container.querySelector('button[value="check"]') as HTMLButtonElement).disabled, true);
+    assert.equal((container.querySelector('button[value="approve"]') as HTMLButtonElement).disabled, true);
+    assert.equal(container.textContent!.includes('檢查通過'), false);
+    assert.equal(field('address').value, '等待儲存的地址');
+    assert.ok(showSlowFeedback);
+    await act(async () => showSlowFeedback!());
+    assert.match(container.querySelector('[role="status"]')!.textContent!, /仍在等待系統確認結果/);
+    assert.equal(submissions.length, 1, 'slow feedback must not retry the mutation');
+    await act(async () => { releaseResponse(); });
+    responseGate = null;
+    assert.equal((container.querySelector('button[value="check"]') as HTMLButtonElement).disabled, false);
+    assert.equal(container.querySelector('[role="status"]')!.textContent, '檢查通過');
+    assert.equal(field('address').value, '等待儲存的地址');
+    submissions.length = 0;
+
     // Address corrections must reach the server even while delivery is unresolved.
     await act(async () => root.render(createElement(OmsReviewForm, {
       key: 'address-only', orderId: 'test-order', sourceHash: 'same-source', status: 'REVIEW',
