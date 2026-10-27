@@ -125,3 +125,17 @@ export async function uploadPurchaseOrderAttachment(formData: FormData) {
   }
   redirect(destination);
 }
+
+export async function cancelPendingOrder(id: string, reason: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const user = await requireInventoryUser();
+    const { cancelUnreceivedPurchaseOrder } = await import('@/lib/inventory/cancel-purchase-order');
+    await cancelUnreceivedPurchaseOrder(prisma, id, reason, user.userId);
+    await refreshInventoryViews();
+    return { ok: true, message: '已作廢' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const allowed = ['你沒有採購入庫權限', '請填寫 1 至 500 字的作廢原因', '找不到採購單', '此單已有收貨紀錄或已完成，不能作廢；請由管理員核對入庫與成本'];
+    return { ok: false, message: allowed.includes(message) ? message : '作廢結果尚未確認，請重新載入原單核對狀態後再操作。' };
+  }
+}

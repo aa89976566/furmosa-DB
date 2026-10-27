@@ -1,3 +1,4 @@
+import { cancelUnreceivedPurchaseOrder } from '../cancel-purchase-order';
 import { completeReceiptMetadata } from '../complete-receipt-metadata';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -87,6 +88,36 @@ test('PostgreSQL 分批收貨、重送、併發、舊單相容與原子回復', 
     assert.equal(await db.purchaseReceiptMetadataChange.count({where:{receiptId:conflicting.id}}),0);
 
 
+    const cancellable = await order();
+    const beforeCancel = await quantity();
+    const beforeCancelCost = String((await db.product.findUniqueOrThrow({where:{id:product.id}})).averageCostPerGram);
+    await cancelUnreceivedPurchaseOrder(db,cancellable.id,'重複採購',user.id);
+    await cancelUnreceivedPurchaseOrder(db,cancellable.id,'重送',user.id);
+    const cancelled = await db.purchaseOrder.findUniqueOrThrow({where:{id:cancellable.id}});
+    assert.equal(cancelled.status,'cancelled');
+    assert.equal(cancelled.cancelReason,'重複採購');
+    assert.equal(await db.statusAuditLog.count({where:{entityType:'purchase_order',entityId:cancellable.id}}),1);
+    assert.equal(await quantity(),beforeCancel);
+    assert.equal(String((await db.product.findUniqueOrThrow({where:{id:product.id}})).averageCostPerGram),beforeCancelCost);
+    await assert.rejects(receivePurchaseOrder(db,cancellable.id,user.id,{key:randomUUID(),lines:[{lineId:cancellable.line,quantityGrams:100}]}));
+    const partialCancel = await order();
+    await receivePurchaseOrder(db,partialCancel.id,user.id,{key:randomUUID(),lines:[{lineId:partialCancel.line,quantityGrams:100}]});
+    await assert.rejects(cancelUnreceivedPurchaseOrder(db,partialCancel.id,'不可作廢',user.id),/已有收貨/);
+    await assert.rejects(cancelUnreceivedPurchaseOrder(db,partialCancel.id,'   ',user.id),/作廢原因/);
+    const auditFailure = await order();
+    const failingCancelDb = { $transaction: (run: (tx: unknown) => Promise<unknown>, options: unknown) => db.$transaction(tx => run(new Proxy(tx,{get(target,field) {
+      if (field === 'statusAuditLog') return {create: async () => {throw new Error('CI cancellation audit failure');}};
+      return Reflect.get(target,field);
+    }})),options as never) } as unknown as PrismaClient;
+    await assert.rejects(cancelUnreceivedPurchaseOrder(failingCancelDb,auditFailure.id,'驗證交易回復',user.id),/audit failure/);
+    assert.equal((await db.purchaseOrder.findUniqueOrThrow({where:{id:auditFailure.id}})).status,'pending_receipt');
+    const racing = await order();
+    await Promise.allSettled([
+      cancelUnreceivedPurchaseOrder(db,racing.id,'併發取消',user.id),
+      receivePurchaseOrder(db,racing.id,user.id,{key:randomUUID(),lines:[{lineId:racing.line,quantityGrams:100}]})
+    ]);
+    const raceOrder = await db.purchaseOrder.findUniqueOrThrow({where:{id:racing.id},include:{receipts:true}});
+    assert.ok(raceOrder.status !== 'cancelled' || raceOrder.receipts.length === 0,'作廢與收貨不得同時成功');
   } finally {
     // CI destroys the entire ephemeral PostgreSQL service after this job.
     // Keep immutable ledger records and their referenced fixtures intact until then.
