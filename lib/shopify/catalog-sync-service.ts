@@ -79,10 +79,7 @@ export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
   fingerprint: string;
   actorId: string;
 }) {
-  const rows = [
-    ...input.plan.unmatchedShopifyVariants.map((row) => ({ ...row, sku: row.sku })),
-    ...input.plan.blankShopifyVariants.map((row) => ({ ...row, sku: null })),
-  ];
+  const rows = input.plan.unmatchedShopifyVariants.map((row) => ({ ...row, sku: row.sku }));
   if (rows.length > 500) throw new Error(`本次待建商品 ${rows.length} 筆，超過安全上限 500；已停止登記`);
 
   for (const row of rows) {
@@ -108,12 +105,28 @@ export async function stageUnmatchedCatalog(tx: CatalogCandidateTx, input: {
     });
   }
 
+  // Active Shopify bundle/special variants may intentionally omit SKU. They are
+  // visible in the audit for reference, but are not HQ product-creation work.
+  if (input.plan.blankShopifyVariants.length > 0) {
+    await tx.shopifyCatalogCandidate.updateMany({
+      where: {
+        shopifyVariantId: { in: input.plan.blankShopifyVariants.map((row) => row.variantId) },
+        resolution: 'pending',
+      },
+      data: { resolution: 'unavailable', notes: 'Shopify 規格不需 SKU；不建立 HQ 庫存商品' },
+    });
+  }
+
   const runId = randomUUID();
   await tx.statusAuditLog.create({
     data: {
       entityType: 'shopify_catalog_candidate_import', entityId: runId, newStatus: 'IMPORTED',
       actorType: 'user', actorId: input.actorId,
-      metadataJson: JSON.stringify({ fingerprint: input.fingerprint, candidateCount: rows.length }),
+        metadataJson: JSON.stringify({
+          fingerprint: input.fingerprint,
+          candidateCount: rows.length,
+          ignoredBlankSkuCount: input.plan.blankShopifyVariants.length,
+        }),
     },
   });
   return { runId, candidateCount: rows.length };

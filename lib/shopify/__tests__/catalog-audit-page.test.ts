@@ -31,6 +31,8 @@ test('Shopify audit page separates safe sync from review categories', () => {
   assert.match(pageSource, /unmatchedHqTiers/);
   assert.match(pageSource, /現有商品問題/);
   assert.match(pageSource, /待建立或補資料/);
+  assert.match(pageSource, /Shopify 不需建立 HQ 商品/);
+  assert.match(pageSource, /不需 SKU，也不建立 HQ 庫存商品/);
   assert.match(pageSource, /ShopifyStageCandidatesForm/);
   assert.match(pageSource, /不建立庫存、不猜成本/);
   assert.match(pageSource, /Shopify 有 SKU，HQ 尚未建立/);
