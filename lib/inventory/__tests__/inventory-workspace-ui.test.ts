@@ -135,6 +135,12 @@ test('pagination and status filters keep count drafts across pages and submit ev
   const fill = async (name:string,value:string) => { const input = container.querySelector(`input[aria-label="${name}本次清點數量（g）"]`)!; await act(async () => {Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}); };
   try {
     await act(async () => root.render(createElement(InventoryWorkbench,{rows:all,canEdit:true,pendingCount:4})));
+    await act(async () => {
+      const size = container.querySelector('select[aria-label="每頁商品數"]') as HTMLSelectElement;
+      size.value = '10'; size.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const sort = container.querySelector('select[aria-label="庫存排序"]') as HTMLSelectElement;
+      sort.value = 'name'; sort.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    });
     assert.equal(container.querySelector('tbody')!.textContent!.includes('舊停用品'),false);
     assert.equal(container.querySelectorAll('tbody tr').length,10);
     await click('盤點庫存'); await fill('商品0','350');
@@ -148,5 +154,32 @@ test('pagination and status filters keep count drafts across pages and submit ev
     outcome={ok:true,message:'已更新'};const countBefore=submissions.length;
     await click('儲存盤點');assert.equal(submissions.length,countBefore+1);
     assert.deepEqual(JSON.parse(submissions.at(-1)!.get('lines') as string).map((x:any)=>x.productId),['item-0','item-10']);
+  } finally { await act(async () => root.unmount()); }
+});
+
+test('overview defaults to urgency, filters low stock, and separates merchant counts from headquarters grams', async () => {
+  const container = document.getElementById('root')!; const root = createRoot(container);
+  const overviewRows = [{ ...base, quantity: 1000, reorderPoint: 100,
+    priceTiers: [{ weightGrams: 30, unit: 'g', unitQty: 1 }, { weightGrams: 50, unit: 'g', unitQty: 1 }],
+    merchantStocks: [{ merchantId: 'm1', merchantName: '測試店', quantity: 0, tierLabel: '30g' }] },
+    { ...base, id: 'low', name: '低庫存', quantity: 50, reorderPoint: 100 },
+    { ...base, id: 'negative', name: '負數商品', quantity: -5 }];
+  const click = async (text: string) => { const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent === text)!; assert.ok(button, text); await act(async () => button.click()); };
+  try {
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows: overviewRows, canEdit: false })));
+    assert.equal(container.querySelector('tbody tr a')!.textContent, '負數商品');
+    assert.match(container.querySelector('tbody')!.textContent!, /30g × 33包 或 50g × 20包/);
+    assert.match(container.textContent!, /尚未啟用獨立保留量/);
+    await click('低於補貨點');
+    assert.equal(container.querySelectorAll('tbody tr').length, 1);
+    assert.match(container.querySelector('tbody')!.textContent!, /低庫存/);
+    await click('店家寄賣');
+    assert.equal(container.querySelectorAll('tbody tr').length, 1);
+    assert.match(container.querySelector('tbody')!.textContent!, /測試店 · 30g0 件 · 缺貨/);
+    assert.doesNotMatch(container.querySelector('tbody')!.textContent!, /1,000/);
+    assert.equal(container.querySelector('input[inputmode="numeric"]'), null);
+    await click('全通路分布');
+    assert.match(container.querySelector('tbody')!.textContent!, /1,000/);
+    assert.match(container.querySelector('tbody')!.textContent!, /0 件 · 缺貨/);
   } finally { await act(async () => root.unmount()); }
 });

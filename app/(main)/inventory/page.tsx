@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 
 import { COUNT_ROLES, inventoryUnit, type InventoryRow } from '@/lib/inventory/workbench';
+import './inventory-overview.css';
 import { InventoryWorkbench } from './inventory-workbench';
 export const dynamic = 'force-dynamic';
 export default async function InventoryPage(props: {
@@ -13,9 +14,11 @@ export default async function InventoryPage(props: {
         props.searchParams, getCurrentUser(),
         prisma.product.findMany({
             select: { id: true, productId: true, name: true, sku: true, sourceSku: true, category: true, imageUrl: true,
-                unit: true, status: true, productCategory: true, vendorId: true,
+                unit: true, status: true, productCategory: true, vendorId: true, reorderPoint: true,
+                priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+                merchantStocks: { select: { merchantId: true, quantity: true, tierId: true, merchant: { select: { name: true } } } },
                 vendor: { select: { name: true } }, inventoryBalances: { select: {
-                        quantity: true, unit: true, updatedAt: true, warehouse: { select: { code: true, name: true } },
+                        quantity: true, unit: true, updatedAt: true, lastCountedAt: true, warehouse: { select: { code: true, name: true } },
                     } } }, orderBy: [{ name: 'asc' }, { id: 'asc' }],
         }),
         prisma.purchaseOrder.count({ where: { status: 'pending_receipt' } }),
@@ -29,6 +32,13 @@ export default async function InventoryPage(props: {
         return { id: product.id, imageUrl: product.imageUrl, status: product.status, productCategory: product.productCategory, productCode: product.productId, name: product.name,
             sku: product.sourceSku ?? product.sku, hqSku: product.sku, category: product.category,
             vendorId: product.vendorId, vendorName: product.vendor?.name ?? '',
+            reorderPoint: product.reorderPoint, lastCountedAt: balance?.lastCountedAt?.toISOString() ?? null,
+            priceTiers: product.priceTiers,
+            merchantStocks: product.merchantStocks.map(stock => {
+                const tier = product.priceTiers.find(t => t.id === stock.tierId);
+                return { merchantId: stock.merchantId, merchantName: stock.merchant.name, quantity: stock.quantity,
+                    tierLabel: tier ? tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty}${tier.unit}` : '舊規格待核對' };
+            }),
             quantity: unit ? balance!.quantity : null, unit, version: balance?.updatedAt.toISOString() ?? null,
             canCount: !!unit && unit === inventoryUnit(product.unit) && product.status === 'active' && product.productCategory === 'STANDARD',
             countBlockedReason: product.status !== 'active' ? '商品已停用，請先確認商品狀態' : product.productCategory !== 'STANDARD' ? '組合或特殊商品，請盤點實際組成品項' : !inventoryUnit(product.unit) ? '商品尚未設定庫存單位' : product.inventoryBalances.some(b => b.warehouse.code !== 'WH-MAIN' && b.quantity !== 0) && (!balance || unit !== inventoryUnit(product.unit)) ? '其他倉庫有庫存，需一起核對單位' : !balance ? '尚未建立主倉庫存，需先登記首次實盤數量' : unit !== inventoryUnit(product.unit) ? '主倉與商品單位不一致，需先核對' : undefined,

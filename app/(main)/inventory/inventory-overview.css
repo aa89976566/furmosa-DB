@@ -1,0 +1,92 @@
+/* Reference inventory appearance is scoped to this route, including its shared chrome. */
+[data-inventory=true] { background: #f7f7f4; }
+[data-inventory=true] > aside { background: #183e32; color: #f4f7f3; border: 0; width: 178px; }
+[data-inventory=true] > aside a, [data-inventory=true] > aside button, [data-inventory=true] > aside span, [data-inventory=true] > aside svg { color: #edf5ef; }
+[data-inventory=true] > aside a[href='/inventory'] { background: #315d4b; color: white; }
+[data-inventory=true] > aside nav > div > div:first-child { color: #bfd0c6; }
+[data-inventory=true] header.sticky { display: none; }
+.inventory-reference { color: #172b25; font-size: 14px; --inventory-green: #245744; }
+.inventory-heading > div:first-of-type > p:first-child { display: none; }
+.inventory-heading h1 { font-size: 24px; }
+.inventory-reference > [aria-label='庫存摘要'] { max-width: 800px; padding: 0 8px; border-radius: 7px; gap: 0; }
+.inventory-reference > [aria-label='庫存摘要'] button { min-height: 44px; padding: 0 12px; border-radius: 0; background: transparent; }
+.inventory-reference > [aria-label='庫存摘要'] strong { font-size: 16px; }
+.inventory-reference [data-stock-dot=in_stock] { color: #139b70; }
+.inventory-reference [data-stock-dot=low], .inventory-reference [data-stock-dot=needs_setup] { color: #c88b19; }
+.inventory-reference [data-stock-dot=zero], .inventory-reference [data-stock-dot=negative] { color: #e55757; }
+.inventory-reference nav[aria-label='庫存流程'] { display: none; }
+.inventory-controls { padding: 0; gap: 10px; }
+.inventory-reference [aria-label='庫存位置'] { gap: 24px; }
+.inventory-toolbar { display: flex; gap: 10px; }
+.inventory-toolbar > div:first-child { flex: 1; min-width: 180px; }
+.inventory-extra-filters { display: contents; }
+.inventory-toolbar select { width: 150px; font-size: 14px; min-height: 44px; border-radius: 7px; }
+.inventory-toolbar select[aria-label='商品分類'], .inventory-toolbar select[aria-label='依廠商篩選'] { display: none; }
+.inventory-toolbar input { border-width: 1px; box-shadow: none; font-size: 14px; }
+.inventory-reference [aria-label='庫存狀態篩選'] { display: none; }
+.inventory-reference [aria-label='庫存待辦'], .inventory-reference > div > div > details { font-size: 13px; }
+.inventory-reference [aria-label='全商品庫存'] { min-width: 0; }
+.inventory-reference thead { background: #f0f1ee; }
+.inventory-reference th { padding: 9px 12px; font-size: 12px; }
+.inventory-reference th:nth-child(2), .inventory-reference td[data-column=vendor] { display: none; }
+.inventory-reference td { padding: 9px 12px; vertical-align: middle; }
+.inventory-reference td:first-child { width: 34%; }
+.inventory-reference td:first-child img, .inventory-reference td:first-child > div > span { width: 44px; height: 44px; border: 0; border-radius: 6px; }
+.inventory-reference td[data-column=quantity] strong { font-size: 21px; }
+.inventory-reference [data-stock-state=negative], .inventory-reference [data-stock-state=zero] { background: #fff0f0; }
+.inventory-reference [data-stock-state=low] { background: #fff8e9; }
+.inventory-reference [data-stock-badge] { background: #eaf5ef; color: #187154; font-size: 12px; padding: 3px 9px; }
+.inventory-reference [data-stock-badge=negative], .inventory-reference [data-stock-badge=zero] { background: #ffe0df; color: #c33338; }
+.inventory-reference [data-stock-badge=low], .inventory-reference [data-stock-badge=needs_setup] { background: #fff0ce; color: #99630d; }
+.inventory-reference [data-stock-badge=inactive], .inventory-reference [data-stock-badge=special] { background: #eee; color: #666; }
+.inventory-level { display: block; width: 82px; height: 4px; border-radius: 4px; background: #e4e8e3; margin-top: 5px; overflow: hidden; }
+.inventory-level i { display: block; width: 75%; height: 100%; background: #33a37e; }
+[data-stock-state=negative] .inventory-level i, [data-stock-state=zero] .inventory-level i { width: 12%; background: #ef7175; }
+[data-stock-state=low] .inventory-level i { width: 30%; background: #e9b350; }
+[data-stock-state=needs_setup] .inventory-level, [data-stock-state=special] .inventory-level, [data-stock-state=inactive] .inventory-level, [data-stock-state=merchant] .inventory-level { display: none; }
+.inventory-back, .inventory-mobile-nav { display: none; }
+@media(max-width: 1023px) and (min-width: 768px) { .inventory-toolbar { flex-wrap: wrap; } .inventory-toolbar > div:first-child { flex-basis: 100%; } .inventory-toolbar select { flex: 1; } }
+@media(max-width: 767px) {
+ .inventory-reference { padding-bottom: 72px; }
+ .inventory-heading { align-items: center; flex-wrap: nowrap; }
+ .inventory-heading h1 { font-size: 18px; text-align: center; }
+ .inventory-heading > div:first-of-type > p { display: none; }
+ .inventory-back { display: block; color: #245744; font-size: 14px; }
+ .inventory-actions { display: none; }
+ .inventory-reference > [aria-label='庫存摘要'] { flex-wrap: nowrap; overflow-x: auto; }
+ .inventory-reference > [aria-label='庫存摘要'] button { flex: 0 0 auto; }
+ .inventory-reference > [aria-label='庫存摘要'] button:nth-child(-n+2) { display: none; }
+ .inventory-reference [aria-label='庫存位置'] { justify-content: space-between; gap: 0; }
+ .inventory-reference [aria-label='庫存位置'] button { padding: 0 4px; font-size: 14px; }
+ .inventory-toolbar { display: grid; grid-template-columns: minmax(0,1fr) auto; }
+ .inventory-toolbar > div:first-child { min-width: 0; }
+ .inventory-toolbar > button { display: block; font-size: 13px; padding: 0 10px; }
+ .inventory-extra-filters.hidden { display: none; }
+ .inventory-extra-filters.grid { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+ .inventory-extra-filters select { display: block!important; width: 100%; }
+ .inventory-reference table { display: block; }
+ .inventory-reference td { padding: 4px 0; }
+ .inventory-reference td:first-child { width: auto; grid-row: 1 / 3; }
+ .inventory-reference td:first-child > div { gap: 10px; }
+ .inventory-reference td[data-column=quantity] { max-width: 135px; }
+ .inventory-reference td[data-column=quantity] strong { font-size: 20px; }
+ .inventory-reference td[data-column=quantity] > p { display: none; }
+ .inventory-reference [data-stock-badge] { background: transparent; padding: 0; }
+ .inventory-level { display: none; }
+ .inventory-mobile-nav { position: fixed; z-index: 40; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; background: #fff; border-top: 1px solid #e1e5df; padding: 6px 12px max(6px,env(safe-area-inset-bottom)); }
+ .inventory-mobile-nav > * { display: flex; min-height: 48px; min-width: 60px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; color: #6b756e; }
+ .inventory-mobile-nav [aria-current] { color: #245744; font-weight: 600; }
+}
+.inventory-mobile-more { display: none; }
+.inventory-toolbar > button { display: block; min-height: 44px; }
+.inventory-toolbar { flex-wrap: wrap; }
+.inventory-toolbar select[aria-label='庫存排序'] { order: 2; }
+.inventory-toolbar select[aria-label='庫存狀態'] { order: 1; }
+.inventory-toolbar:has(>button[aria-expanded=true]) select[aria-label='商品分類'], .inventory-toolbar:has(>button[aria-expanded=true]) select[aria-label='依廠商篩選'] { display: block; }
+@media(max-width:767px) {
+ .inventory-mobile-more { display: block; position: relative; }
+ .inventory-mobile-more summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: #245744; }
+ .inventory-mobile-more > div { position: absolute; top: 44px; right: 0; z-index: 45; min-width: 150px; padding: 6px; border: 1px solid #dce4dc; background: white; border-radius: 8px; box-shadow: 0 6px 20px #0001; }
+ .inventory-mobile-more > div > * { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 10px; }
+ .inventory-mobile-nav:has(button:disabled) { position: static; }
+}
