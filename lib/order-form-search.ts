@@ -19,6 +19,7 @@ export type OrderFormCustomerHit = {
 export type OrderFormProductHit = {
   id: string;
   name: string;
+  imageUrl?: string | null;
   sku: string;
   productCategory: string;
   availableStock: number;
@@ -66,6 +67,7 @@ const productSelect = {
   id: true,
   name: true,
   sku: true,
+  imageUrl: true,
   productCategory: true,
   businessTier: true,
   defaultConsignmentCommissionMode: true,
@@ -125,6 +127,7 @@ function toOrderFormProductHit(
   return {
     id: row.id,
     name: row.name,
+    imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
     availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
@@ -299,6 +302,7 @@ export async function getProductsByIdentitiesForOrderForm(
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
+    imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
     availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
