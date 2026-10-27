@@ -6,6 +6,9 @@ export function inventoryUnit(value: string | null | undefined) {
 }
 export type InventoryRow = {
     id: string;
+    imageUrl?: string | null;
+    status?: string;
+    productCategory?: string;
     name: string;
     sku: string;
     hqSku: string;

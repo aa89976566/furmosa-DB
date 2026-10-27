@@ -49,9 +49,11 @@ test('staff filter, cancel, preview differences and save counts with original ve
     assert.equal(container.textContent!.includes('核對庫存單位'), false);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
     const setup = container.querySelector('a[href="/inventory/confirm-unit/unknown"]')!;
-    assert.ok(setup.closest('details'));
-    assert.equal(setup.closest('details')!.hasAttribute('open'), false);
-    assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 1);
+    assert.equal(setup.closest('details'), null, 'administrator setup is accessible directly in the row');
+    assert.equal(setup.textContent, '完成設定');
+    const advancedSetup = container.querySelector('details a[href="/inventory/confirm-unit/unknown"]')!;
+    assert.equal(advancedSetup.closest('details')!.hasAttribute('open'), false);
+    assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 2);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
     await act(async () => { const select = container.querySelector('select[aria-label="商品分類"]') as HTMLSelectElement; select.value = 'vendor'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }); assert.ok(container.textContent!.includes('QiQi凍乾')); assert.equal(container.textContent!.includes('SOURCE-01'), true);
     assert.equal(container.querySelectorAll('a[href="/products/bulk"]').length, 0);
@@ -122,5 +124,29 @@ test('read-only staff never see count or unit administration controls', async ()
     assert.equal(container.querySelector('input[inputmode="numeric"]'), null);
     assert.equal(container.querySelector('a[href^="/inventory/confirm-unit/"]'), null);
     assert.equal(Array.from(container.querySelectorAll('button')).some(b => b.textContent === '盤點庫存'), false);
+  } finally { await act(async () => root.unmount()); }
+});
+
+test('pagination and status filters keep count drafts across pages and submit every changed row', async () => {
+  const container = document.getElementById('root')!; const root = createRoot(container);
+  const many = Array.from({length:12},(_,i) => ({...base,id:`item-${i}`,name:`商品${i}`, status:'active'}));
+  const all = [...many,{...base,id:'inactive',name:'舊停用品',status:'inactive'}, {...base,id:'negative',name:'異常負數',quantity:-5,status:'active'}, {...base,id:'empty',name:'零庫存',quantity:0,status:'active'}, rows[2]];
+  const click = async (text: string) => { const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent === text)!; assert.ok(button,text); await act(async () => button.click()); };
+  const fill = async (name:string,value:string) => { const input = container.querySelector(`input[aria-label="${name}本次清點數量（g）"]`)!; await act(async () => {Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value')!.set!.call(input,value);input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}); };
+  try {
+    await act(async () => root.render(createElement(InventoryWorkbench,{rows:all,canEdit:true,pendingCount:4})));
+    assert.equal(container.querySelector('tbody')!.textContent!.includes('舊停用品'),false);
+    assert.equal(container.querySelectorAll('tbody tr').length,10);
+    await click('盤點庫存'); await fill('商品0','350');
+    await act(async () => (container.querySelector('button[aria-label="下一頁"]') as HTMLButtonElement).click());
+    await fill('商品10','300');
+    await act(async () => (container.querySelector('button[aria-label="上一頁"]') as HTMLButtonElement).click());
+    assert.equal((container.querySelector('input[aria-label="商品0本次清點數量（g）"]') as HTMLInputElement).value,'350');
+    await click('負庫存'); assert.ok(container.textContent!.includes('異常負數')); assert.equal(container.querySelectorAll('tbody tr').length,1);
+    await click('無庫存'); assert.ok(container.textContent!.includes('零庫存')); assert.equal(container.querySelectorAll('tbody tr').length,1);
+    await click('已停用'); assert.ok(container.textContent!.includes('舊停用品')); assert.equal(container.querySelectorAll('input[inputmode="numeric"]').length,0);
+    outcome={ok:true,message:'已更新'};const countBefore=submissions.length;
+    await click('儲存盤點');assert.equal(submissions.length,countBefore+1);
+    assert.deepEqual(JSON.parse(submissions.at(-1)!.get('lines') as string).map((x:any)=>x.productId),['item-0','item-10']);
   } finally { await act(async () => root.unmount()); }
 });

@@ -1,9 +1,6 @@
-import Link from 'next/link';
-import { PackagePlus } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { PageHeader } from '@/components/shared/page-header';
-import { Button } from '@/components/ui/button';
+
 import { COUNT_ROLES, inventoryUnit, type InventoryRow } from '@/lib/inventory/workbench';
 import { InventoryWorkbench } from './inventory-workbench';
 export const dynamic = 'force-dynamic';
@@ -12,23 +9,24 @@ export default async function InventoryPage(props: {
         q?: string;
     }>;
 }) {
-    const [query, user, products, pendingOrders] = await Promise.all([
+    const [query, user, products, pendingCount, pendingOrders] = await Promise.all([
         props.searchParams, getCurrentUser(),
         prisma.product.findMany({
-            select: { id: true, productId: true, name: true, sku: true, sourceSku: true, category: true,
+            select: { id: true, productId: true, name: true, sku: true, sourceSku: true, category: true, imageUrl: true,
                 unit: true, status: true, productCategory: true, vendorId: true,
                 vendor: { select: { name: true } }, inventoryBalances: { select: {
                         quantity: true, unit: true, updatedAt: true, warehouse: { select: { code: true, name: true } },
                     } } }, orderBy: [{ name: 'asc' }, { id: 'asc' }],
         }),
+        prisma.purchaseOrder.count({ where: { status: 'pending_receipt' } }),
         prisma.purchaseOrder.findMany({ where: { status: 'pending_receipt' },
-            select: { id: true, orderNumber: true, vendor: { select: { name: true } }, _count: { select: { items: true } } },
-            orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'asc' }], take: 20 }),
+            select: { id: true, orderNumber: true, vendorId: true, warehouseId: true, totalAmount: true, note: true, items: { select: { productId: true, quantityGrams: true, rawAmount: true } }, vendor: { select: { name: true } }, _count: { select: { items: true } } },
+            orderBy: [{ remindFromDate: 'asc' }, { createdAt: 'asc' }], take: 100 }),
     ]);
     const rows: InventoryRow[] = products.map(product => {
         const balance = product.inventoryBalances.find(b => b.warehouse.code === 'WH-MAIN');
         const unit = inventoryUnit(balance?.unit);
-        return { id: product.id, productCode: product.productId, name: product.name,
+        return { id: product.id, imageUrl: product.imageUrl, status: product.status, productCategory: product.productCategory, productCode: product.productId, name: product.name,
             sku: product.sourceSku ?? product.sku, hqSku: product.sku, category: product.category,
             vendorId: product.vendorId, vendorName: product.vendor?.name ?? '',
             quantity: unit ? balance!.quantity : null, unit, version: balance?.updatedAt.toISOString() ?? null,
@@ -42,11 +40,14 @@ export default async function InventoryPage(props: {
         };
     });
     const canEdit = !!user && COUNT_ROLES.includes(user.role);
-    return <>
-    <PageHeader title="庫存" description="確認出貨後扣除，收貨入庫後增加；盤點用來校正現場數量。" actions={canEdit ? <Button asChild className="min-h-11"><Link href="/inventory/new"><PackagePlus className="mr-2 h-4 w-4"/>新增進貨</Link></Button> : undefined}/>
-    <div className="space-y-5 p-4 md:p-6">
-      <nav aria-label="庫存流程" className="flex flex-wrap items-center gap-2 border-b pb-3 text-sm"><Link href="/inventory" aria-current="page" className="inline-flex min-h-11 items-center rounded-lg bg-secondary px-4 font-medium">目前庫存</Link><Link href="/inventory/purchases?view=pending" className="inline-flex min-h-11 items-center px-4 text-muted-foreground">待收貨{pendingOrders.length ? `（${pendingOrders.length}${pendingOrders.length === 20 ? '+' : ''}）` : ''}</Link><Link href="/inventory/purchases" className="inline-flex min-h-11 items-center px-4 text-muted-foreground">進貨紀錄</Link><Link href="/inventory/transactions" className="inline-flex min-h-11 items-center px-4 text-muted-foreground">庫存異動</Link></nav>
-      <InventoryWorkbench rows={rows} canEdit={canEdit} canVerifyUnits={user?.role === 'admin'} initialQuery={query.q}/>
-    </div>
-  </>;
+    const signatures = new Map<string, typeof pendingOrders>();
+    for (const order of pendingOrders) {
+      const key = JSON.stringify([order.vendorId, order.warehouseId, String(order.totalAmount), order.items.map(item => [item.productId, item.quantityGrams, String(item.rawAmount)]).sort((a,b) => String(a[0]).localeCompare(String(b[0])))]);
+      signatures.set(key, [...(signatures.get(key) ?? []), order]);
+    }
+    const alerts = [...signatures.values()].filter(group => group.length > 1).map(group => ({ id: group[0].id, title: `${group[0].vendor?.name ?? '未指定廠商'}：${group.length} 筆採購內容相同`, detail: '請核對是否重複下單，勿直接重複入庫' }));
+    for (const order of pendingOrders) if (/需沖銷|提前入庫|不得重複入庫/.test(order.note ?? '')) alerts.push({ id: order.id, title: `${order.orderNumber} 備註需核對`, detail: '原單註記入庫異常，收貨前請先核對' });
+    return <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
+      <InventoryWorkbench rows={rows} canEdit={canEdit} canVerifyUnits={user?.role === 'admin'} initialQuery={query.q} pendingCount={pendingCount} purchaseAlerts={alerts.slice(0,5)} />
+    </div>;
 }
