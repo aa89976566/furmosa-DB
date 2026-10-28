@@ -57,6 +57,7 @@ import {
   recordMerchantDispatch,
   shouldRecordMerchantDispatch,
 } from '@/lib/pos/shipment-dispatch-notification';
+import { customerDeliveryNote } from '@/lib/order-notes';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'shipped', 'cancelled'],
