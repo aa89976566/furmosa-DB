@@ -26,7 +26,7 @@ import {
   shipmentStatusVariant,
   shipmentTypeLabel,
 } from '@/lib/shipment';
-import { Loader2, MapPin, Package, Pencil, Phone, Truck } from 'lucide-react';
+import { ClipboardList, Loader2, MapPin, Package, Pencil, Phone, StickyNote, Truck } from 'lucide-react';
 import Link from 'next/link';
 
 export function ShipmentOrderPanel({
