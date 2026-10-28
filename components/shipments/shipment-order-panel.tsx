@@ -191,6 +191,31 @@ export function ShipmentOrderPanel({
         </div>
       </div>
 
+      {data.order?.note ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+            <StickyNote className="h-4 w-4" />
+            送貨備註
+          </h3>
+          <p className="mt-3 whitespace-pre-line text-base font-medium leading-relaxed text-amber-950">
+            {data.order.note}
+          </p>
+          <p className="mt-2 text-xs text-amber-800">來源：訂單備註</p>
+        </section>
+      ) : null}
+
+      {data.internalNotes ? (
+        <section className="rounded-lg border border-border/70 bg-muted/30 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            內部備註
+          </h3>
+          <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-foreground">
+            {data.internalNotes}
+          </p>
+        </section>
+      ) : null}
+
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <section className="min-w-0 rounded-lg border bg-card p-4">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
