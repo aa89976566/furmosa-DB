@@ -665,7 +665,9 @@ export type ShipmentPanelData = {
     shippingFee: string;
     editable: boolean;
     editBlockedReason: string | null;
+    note: string | null;
   } | null;
+  internalNotes: string | null;
   fulfillmentFeeLabel: string | null;
   paymentReviewHold: boolean;
   items: Array<{
@@ -751,8 +753,10 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           shippingFee: String(shipment.order.shippingFee),
           editable: orderEditable?.ok ?? false,
           editBlockedReason: orderEditable?.ok ? null : (orderEditable?.reason ?? null),
+          note: customerDeliveryNote(shipment.order.note),
         }
       : null,
+    internalNotes: shipment.notes?.trim() || null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
     items: shipment.items.map((item) => ({
