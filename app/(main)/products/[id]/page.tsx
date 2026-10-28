@@ -132,6 +132,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           contentClassName="pt-6"
         >
           <ProductForm
+            key={`${product.id}:${product.commercialTermsVersion ?? 0}`}
             layout="studio"
             productType="variable"
             product={{
