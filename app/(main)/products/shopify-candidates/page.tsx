@@ -9,17 +9,20 @@ export const dynamic = 'force-dynamic';
 
 const VALID_FILTERS = ['all', 'ready', 'missing-sku'] as const;
 type CandidateFilter = (typeof VALID_FILTERS)[number];
+const VALID_STATUSES = ['pending', 'linked', 'blocked', 'unavailable', 'all'] as const;
+type CandidateStatus = (typeof VALID_STATUSES)[number];
 
-function filterHref(filter: CandidateFilter, q: string) {
+function filterHref(filter: CandidateFilter, status: CandidateStatus, q: string) {
   const params = new URLSearchParams();
   if (filter !== 'all') params.set('filter', filter);
+  if (status !== 'pending') params.set('status', status);
   if (q) params.set('q', q);
   const query = params.toString();
   return `/products/shopify-candidates${query ? `?${query}` : ''}`;
 }
 
 export default async function ShopifyCandidatesPage(props: {
-  searchParams?: Promise<{ q?: string; filter?: string }>;
+  searchParams?: Promise<{ q?: string; filter?: string; status?: string; updated?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const q = (searchParams?.q ?? '').trim();
@@ -27,9 +30,13 @@ export default async function ShopifyCandidatesPage(props: {
   const filter: CandidateFilter = (VALID_FILTERS as readonly string[]).includes(requestedFilter)
     ? requestedFilter as CandidateFilter
     : 'all';
+  const requestedStatus = searchParams?.status ?? 'pending';
+  const status: CandidateStatus = (VALID_STATUSES as readonly string[]).includes(requestedStatus)
+    ? requestedStatus as CandidateStatus
+    : 'pending';
 
   const where: Prisma.ShopifyCatalogCandidateWhereInput = {
-    resolution: 'pending',
+    ...(status === 'all' ? {} : { resolution: status }),
     ...(filter === 'ready' ? { sku: { not: null } } : {}),
     ...(filter === 'missing-sku' ? { sku: null } : {}),
     ...(q
@@ -43,7 +50,7 @@ export default async function ShopifyCandidatesPage(props: {
       : {}),
   };
 
-  const [rows, total, withSku, missingSku] = await Promise.all([
+  const [rows, total, withSku, missingSku, linked, blocked, unavailable] = await Promise.all([
     prisma.shopifyCatalogCandidate.findMany({
       where,
       orderBy: [{ productTitle: 'asc' }, { variantTitle: 'asc' }],
@@ -52,6 +59,9 @@ export default async function ShopifyCandidatesPage(props: {
     prisma.shopifyCatalogCandidate.count({ where: { resolution: 'pending' } }),
     prisma.shopifyCatalogCandidate.count({ where: { resolution: 'pending', sku: { not: null } } }),
     prisma.shopifyCatalogCandidate.count({ where: { resolution: 'pending', sku: null } }),
+    prisma.shopifyCatalogCandidate.count({ where: { resolution: 'linked' } }),
+    prisma.shopifyCatalogCandidate.count({ where: { resolution: 'blocked' } }),
+    prisma.shopifyCatalogCandidate.count({ where: { resolution: 'unavailable' } }),
   ]);
 
   return (
@@ -70,6 +80,11 @@ export default async function ShopifyCandidatesPage(props: {
       />
 
       <div className="space-y-5 p-4 sm:p-6">
+        {searchParams?.updated ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+            {searchParams.updated === 'linked' ? '已安全連結 HQ 商品規格。' : '已標記為不需建立；商品與庫存均未修改。'}
+          </div>
+        ) : null}
         <section className="grid gap-3 sm:grid-cols-3">
           <SummaryCard label="全部待處理" value={total} />
           <SummaryCard label="已有 SKU" value={withSku} tone="safe" />
@@ -80,6 +95,7 @@ export default async function ShopifyCandidatesPage(props: {
           <div className="space-y-4 border-b border-border p-4 sm:p-5">
             <form className="flex gap-2" action="/products/shopify-candidates">
               {filter !== 'all' ? <input type="hidden" name="filter" value={filter} /> : null}
+              {status !== 'pending' ? <input type="hidden" name="status" value={status} /> : null}
               <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3">
                 <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <input
@@ -92,11 +108,17 @@ export default async function ShopifyCandidatesPage(props: {
               <Button type="submit">搜尋</Button>
             </form>
 
-            <nav className="flex flex-wrap gap-2" aria-label="待建商品篩選">
-              <FilterLink active={filter === 'all'} href={filterHref('all', q)}>全部 {total}</FilterLink>
-              <FilterLink active={filter === 'ready'} href={filterHref('ready', q)}>已有 SKU {withSku}</FilterLink>
-              <FilterLink active={filter === 'missing-sku'} href={filterHref('missing-sku', q)}>缺少 SKU {missingSku}</FilterLink>
+            <nav className="flex flex-wrap gap-2" aria-label="處理狀態篩選">
+              <FilterLink active={status === 'pending'} href={filterHref(filter, 'pending', q)}>待處理 {total}</FilterLink>
+              <FilterLink active={status === 'linked'} href={filterHref('all', 'linked', q)}>已連結 {linked}</FilterLink>
+              <FilterLink active={status === 'blocked'} href={filterHref('all', 'blocked', q)}>不需建立 {blocked}</FilterLink>
+              <FilterLink active={status === 'unavailable'} href={filterHref('all', 'unavailable', q)}>Shopify 已無待辦 {unavailable}</FilterLink>
             </nav>
+            {status === 'pending' ? <nav className="flex flex-wrap gap-2" aria-label="SKU 篩選">
+              <FilterLink active={filter === 'all'} href={filterHref('all', status, q)}>全部 {total}</FilterLink>
+              <FilterLink active={filter === 'ready'} href={filterHref('ready', status, q)}>已有 SKU {withSku}</FilterLink>
+              <FilterLink active={filter === 'missing-sku'} href={filterHref('missing-sku', status, q)}>缺少 SKU {missingSku}</FilterLink>
+            </nav> : null}
           </div>
 
           {rows.length ? (
@@ -118,10 +140,11 @@ export default async function ShopifyCandidatesPage(props: {
                     </p>
                   </div>
                   <div className="text-sm sm:text-right">
-                    <p className="font-medium">下一步</p>
-                    <p className="mt-1 text-muted-foreground">
-                      {row.sku ? '確認是否販售、單位、成本與初始庫存' : '先到 Shopify 補上唯一 SKU'}
-                    </p>
+                    <Button asChild variant={row.resolution === 'pending' ? 'default' : 'outline'} className="min-h-11">
+                      <Link href={`/products/shopify-candidates/${row.id}`}>
+                        {row.resolution === 'pending' ? '處理' : '查看'}
+                      </Link>
+                    </Button>
                   </div>
                 </article>
               ))}
