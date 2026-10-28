@@ -26,6 +26,7 @@ import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 import { displayOrderNumber } from '@/lib/orders/display-order-number';
 import { resolveShopifyBundleDisplay } from '@/lib/shopify/bundle-contents';
+import { customerDeliveryNote } from '@/lib/order-notes';
 
 const merchantLogisticsSelect = {
   id: true,
@@ -62,6 +63,7 @@ const shipmentInclude = {
       cvsBrand: true,
       cvsStoreId: true,
       cvsStoreName: true,
+      note: true,
       omsStatus: true,
       shopifySnapshot: true,
     },
@@ -159,6 +161,7 @@ function toQueueRow(
           cvsBrand: s.order.cvsBrand,
           cvsStoreId: s.order.cvsStoreId,
           cvsStoreName: s.order.cvsStoreName,
+          note: customerDeliveryNote(s.order.note),
         }
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
