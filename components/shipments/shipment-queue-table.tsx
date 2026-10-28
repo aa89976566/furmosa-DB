@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
 import { shipmentTypeLabel } from '@/lib/shipment';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
-import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, Truck } from 'lucide-react';
+import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, StickyNote, Truck } from 'lucide-react';
 import Link from 'next/link';
 import {
   isOmsShipmentActionable,
@@ -61,6 +61,7 @@ export type ShipmentQueueRow = {
     cvsBrand: string | null;
     cvsStoreId: string | null;
     cvsStoreName: string | null;
+    note: string | null;
   } | null;
   fulfillmentFeeLabel?: string | null;
   paymentReviewHold?: boolean;
@@ -311,6 +312,12 @@ function ShipmentQueueCard({
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
               {shipmentTypeLabel[shipment.type] ?? shipment.type}
             </Badge>
+            {shipment.order?.note ? (
+              <Badge variant="success" className="h-5 px-1.5 text-[10px] font-normal">
+                <StickyNote className="mr-1 h-3 w-3" />
+                有送貨備註
+              </Badge>
+            ) : null}
             {shipment.fulfillmentFeeLabel ? (
               <Badge
                 variant={shipment.paymentReviewHold ? 'warning' : 'outline'}
@@ -490,6 +497,12 @@ export function ShipmentQueueTable({
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
                         {shipmentTypeLabel[shipment.type] ?? shipment.type}
                       </Badge>
+                      {shipment.order?.note ? (
+                        <Badge variant="success" className="h-4 px-1 text-[9px] font-normal">
+                          <StickyNote className="mr-1 h-3 w-3" />
+                          有備註
+                        </Badge>
+                      ) : null}
                       {shipment.fulfillmentFeeLabel ? (
                         <Badge
                           variant={shipment.paymentReviewHold ? 'warning' : 'outline'}
