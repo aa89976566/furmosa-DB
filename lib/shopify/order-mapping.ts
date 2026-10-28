@@ -27,6 +27,7 @@ export type ShopifyPaidOrder = {
   created_at?: string | null;
   updated_at?: string | null;
   cancelled_at?: string | null;
+  note?: string | null;
   subtotal_price?: string | null;
   total_discounts?: string | null;
   total_price?: string | null;

@@ -57,6 +57,7 @@ import {
   recordMerchantDispatch,
   shouldRecordMerchantDispatch,
 } from '@/lib/pos/shipment-dispatch-notification';
+import { customerDeliveryNote } from '@/lib/order-notes';
 
 const TRANSITIONS: Record<string, string[]> = {
   pending: ['packed', 'shipped', 'cancelled'],
@@ -665,7 +666,9 @@ export type ShipmentPanelData = {
     shippingFee: string;
     editable: boolean;
     editBlockedReason: string | null;
+    note: string | null;
   } | null;
+  internalNotes: string | null;
   fulfillmentFeeLabel: string | null;
   paymentReviewHold: boolean;
   items: Array<{
@@ -751,8 +754,10 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           shippingFee: String(shipment.order.shippingFee),
           editable: orderEditable?.ok ?? false,
           editBlockedReason: orderEditable?.ok ? null : (orderEditable?.reason ?? null),
+          note: customerDeliveryNote(shipment.order.note),
         }
       : null,
+    internalNotes: shipment.notes?.trim() || null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
     items: shipment.items.map((item) => ({

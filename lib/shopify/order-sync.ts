@@ -133,7 +133,8 @@ function snapshotFields(order: ShopifyPaidOrder, items: Array<Omit<ShopifyOrderI
     cvsStoreName: convenience
       ? pickup.storeName ?? cleanShopifyText(order.shipping_address?.company) ?? cleanShopifyText(order.shipping_address?.address1)
       : null,
-    note: `Shopify ${cleanShopifyText(order.name) ?? String(order.id)}\n訂單已同步，${convenience && !hasCompleteShopifyPickupInfo(order) ? '門市資料待確認' : '待客服審核'}`,
+    // 訂單備註是配送人員需要看到的原始指示；沒有顧客備註時才保留系統同步提示。
+    note: cleanShopifyText(order.note) ?? `Shopify ${cleanShopifyText(order.name) ?? String(order.id)}\n訂單已同步，${convenience && !hasCompleteShopifyPickupInfo(order) ? '門市資料待確認' : '待客服審核'}`,
     items,
   };
 }
