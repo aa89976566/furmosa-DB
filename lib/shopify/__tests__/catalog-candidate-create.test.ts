@@ -147,7 +147,9 @@ test('a unique canonical product-name match adds the Shopify package to the exis
   const fixture = transactionFixture({
     input: {
       source: {
+        productId: base.source.productId, variantId: base.source.variantId,
         productTitle: '◈ 走敢若飛 ◈ 鴨翅', variantTitle: '單支', sku: 'CHEW-DUCKWING-1', price: 75,
+        shopifyStatus: base.source.shopifyStatus,
       },
       mode: 'unit', weightGrams: null, unit: '隻', unitQty: 1, cost: 23,
       targetProductId: 'existing-product',
@@ -167,7 +169,9 @@ test('name-based target fails closed when the HQ name is no longer unique', asyn
   const fixture = transactionFixture({
     input: {
       source: {
+        productId: base.source.productId, variantId: base.source.variantId,
         productTitle: '◈ 走敢若飛 ◈ 鴨翅', variantTitle: '單支', sku: 'CHEW-DUCKWING-1', price: 75,
+        shopifyStatus: base.source.shopifyStatus,
       },
       mode: 'unit', weightGrams: null, unit: '隻', unitQty: 1, cost: 23,
       targetProductId: 'existing-product',
