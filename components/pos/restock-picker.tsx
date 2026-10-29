@@ -23,7 +23,7 @@ const initial: PosRestockFormState = {};
 
 export function RestockPicker({ products }: { products: RestockProductOption[] }) {
   const [qty, setQty] = useState<Record<string, number>>(() =>
-    Object.fromEntries(products.map((p) => [p.id, p.suggestedQty])),
+    Object.fromEntries(products.map((p) => [p.id, 0])),
   );
   const [variants, setVariants] = useState<Record<string, string>>({});
   const selectedTier = (p: RestockProductOption) => p.priceTiers.find(t => t.id === variants[p.id]) ?? (p.priceTiers.length === 1 ? p.priceTiers[0] : null);

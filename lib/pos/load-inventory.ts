@@ -15,6 +15,7 @@ export type InventoryProduct = {
   suggestedQty: number;
   productCategory: string;
   programLabel: '換罐計劃' | null;
+  tiers?: { id: string; label: string; quantity: number }[];
 };
 
 export async function loadMerchantInventory(
@@ -45,8 +46,9 @@ export async function loadMerchantInventory(
         productCategory: true,
         merchantStocks: {
           where: { merchantId },
-          select: { quantity: true },
+          select: { quantity: true, tierId: true },
         },
+        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
       },
       orderBy: { name: 'asc' },
     });
@@ -68,6 +70,10 @@ export async function loadMerchantInventory(
         suggestedQty: suggestedRestockQty(quantity),
         productCategory: product.productCategory,
         programLabel: productProgramLabel(product.productCategory),
+        tiers: [
+          ...product.priceTiers.map(tier => ({ id: tier.id, label: tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`, quantity: product.merchantStocks.find(s => s.tierId === tier.id)?.quantity ?? 0 })),
+          ...product.merchantStocks.filter(s => !product.priceTiers.some(t => t.id === s.tierId)).map(s => ({ id: s.tierId, label: '舊庫存（未分規格）', quantity: s.quantity })),
+        ],
       };
     })
     .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, 'zh-Hant'));

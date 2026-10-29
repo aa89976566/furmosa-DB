@@ -95,6 +95,7 @@ function InventoryWorkspaceInner({
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [addQty, setAddQty] = useState(1);
   const [adjustQty, setAdjustQty] = useState(0);
+  const [adjustTier, setAdjustTier] = useState<string | undefined>();
   const [toast, setToast] = useState<ToastState | null>(null);
   const [mobilePanel, setMobilePanel] = useState<'detail' | 'cart' | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -126,6 +127,7 @@ function InventoryWorkspaceInner({
     setAdjustOpen(false);
     setAddQty(defaultRestockAddQty(product.suggestedQty));
     setAdjustQty(product.quantity);
+    setAdjustTier(undefined);
   }, [selectedId]);
 
   function addProductToCart(product: InventoryProduct, quantity?: number) {
@@ -142,7 +144,7 @@ function InventoryWorkspaceInner({
   async function onAdjust() {
     if (!selected) return;
     setAdjusting(true);
-    const result = await adjustInventoryQuantityAction(selected.productId, adjustQty);
+    const result = await adjustInventoryQuantityAction(selected.productId, adjustQty, adjustTier);
     setAdjusting(false);
     if (!result.ok) {
       showToast(setToast, { text: result.error });
@@ -152,7 +154,7 @@ function InventoryWorkspaceInner({
     setItems((prev) =>
       prev.map((item) =>
         item.productId === selected.productId
-          ? { ...item, quantity: nextQty, suggestedQty: suggestedRestockQty(nextQty) }
+          ? { ...item, quantity: nextQty, suggestedQty: suggestedRestockQty(nextQty), tiers: item.tiers?.map(t => t.id === adjustTier ? { ...t, quantity: adjustQty } : t) }
           : item,
       ),
     );
@@ -163,8 +165,9 @@ function InventoryWorkspaceInner({
   async function onSubmitCart() {
     if (cart.lines.length === 0) return;
     setSubmitting(true);
+    try {
     const result = await submitInventoryRestockCartAction(
-      cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+      cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity, variantKey: line.variantKey })),
     );
     setSubmitting(false);
     if (!result.ok) {
@@ -178,6 +181,11 @@ function InventoryWorkspaceInner({
       href: result.requestId ? `/pos/restock/${result.requestId}` : '/pos/restock/progress',
       hrefLabel: '查看補貨單',
     });
+    } catch {
+      showToast(setToast, { text: '連線中斷，補貨單已保留，請稍後再送出' });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const restockControlsVisible = selectedNeedsRestock || restockOpen;
@@ -271,6 +279,13 @@ function InventoryWorkspaceInner({
         {adjustOpen ? (
           <div className="pt-2">
             <p className="text-sm font-medium text-zinc-900">調整庫存</p>
+            {(selected.tiers?.length ?? 0) > 1 ? (
+              <select aria-label="盤點規格" value={adjustTier ?? '__choose__'} className="mt-2 h-11 max-w-full rounded-lg border bg-white px-2 text-sm"
+                onChange={e => { setAdjustTier(e.target.value); setAdjustQty(selected.tiers?.find(t => t.id === e.target.value)?.quantity ?? 0); }}>
+                <option value="__choose__" disabled>請選擇盤點規格</option>
+                {selected.tiers?.map(t => <option key={t.id} value={t.id}>{t.label}（目前 {t.quantity}）</option>)}
+              </select>
+            ) : null}
             <p className="mt-1 text-xs text-zinc-500">實際庫存</p>
             <div className="mt-2">
               <QtyStepper
@@ -282,7 +297,7 @@ function InventoryWorkspaceInner({
             </div>
             <button
               type="button"
-              disabled={adjusting}
+              disabled={adjusting || ((selected.tiers?.length ?? 0) > 1 && adjustTier === undefined)}
               className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl border border-zinc-900 bg-white text-sm font-semibold text-zinc-900 disabled:opacity-60"
               onClick={() => void onAdjust()}
             >
@@ -322,7 +337,16 @@ function InventoryWorkspaceInner({
                   markClassName="text-sm text-neutral-400"
                 />
               </div>
-              <p className="min-w-0 flex-1 truncate text-sm text-zinc-900">{line.name}</p>
+              <div className="min-w-0 flex-1 text-sm text-zinc-900">
+                <p className="truncate">{line.name}</p>
+                {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 ? (
+                  <select aria-label={`${line.name} 補貨規格`} value={line.variantKey ?? ''} className="mt-1 h-11 max-w-full rounded-lg border bg-white px-2"
+                    onChange={e => cart.setVariant(line.productId, e.target.value)}>
+                    <option value="">請選擇規格</option>
+                    {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                ) : null}
+              </div>
               {expandedCartId === line.productId ? (
                 <QtyStepper value={line.quantity} onChange={(next) => cart.setQty(line.productId, next)} />
               ) : (
@@ -348,9 +372,10 @@ function InventoryWorkspaceInner({
       )}
       <div className="mt-4 border-t border-neutral-200 pt-3">
         <p className="text-sm text-zinc-600">共 {cart.pieceCount} 件商品</p>
+        {cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey) ? <p role="status" className="mt-2 text-sm text-orange-700">請先選擇補貨商品規格</p> : null}
         <button
           type="button"
-          disabled={cart.lines.length === 0 || submitting}
+          disabled={cart.lines.length === 0 || submitting || cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey)}
           className="mt-3 flex min-h-[44px] w-full items-center justify-center rounded-xl border border-zinc-900 bg-white text-sm font-semibold text-zinc-900 disabled:opacity-40"
           onClick={() => void onSubmitCart()}
         >

@@ -3,6 +3,7 @@ export type RestockCartLine = {
   name: string;
   imageUrl: string | null;
   quantity: number;
+  variantKey?: string | null;
 };
 
 export function restockCartTotalPieces(lines: RestockCartLine[]): number {
@@ -25,7 +26,7 @@ export function addRestockCartLine(
     return [...lines, { ...incoming, quantity: addQty }];
   }
   return lines.map((line, i) =>
-    i === index ? { ...line, quantity: line.quantity + addQty } : line,
+    i === index ? { ...line, quantity: line.quantity + addQty, variantKey: incoming.variantKey ?? line.variantKey } : line,
   );
 }
 

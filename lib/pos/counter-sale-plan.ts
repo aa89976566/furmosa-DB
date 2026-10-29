@@ -18,6 +18,7 @@ export type PricedCounterProduct = {
   commissionMode: string | null;
   commissionValue: number | null;
   stock: number;
+  unitPrice?: number;
 };
 
 export type PlannedCounterSaleLine = {
@@ -76,6 +77,7 @@ export function planCounterSale(
       { price: item.price, priceTiers: item.priceTiers },
       rule,
       qty,
+      item.unitPrice,
     );
 
     planned.push({

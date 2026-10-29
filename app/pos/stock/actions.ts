@@ -21,12 +21,14 @@ function toMerchantError(error: unknown): string {
   }
   if (msg.includes('不能補貨')) return '這項商品目前不能補貨，請聯絡匠寵。';
   if (msg.includes('不存在')) return '有商品找不到了，請重新整理後再試。';
+  if (msg.includes('規格') || msg.includes('重新整理') || msg.includes('未開放')) return msg;
   return '送出失敗，請再試一次。';
 }
 
 export async function adjustInventoryQuantityAction(
   productId: string,
   newQuantity: number,
+  tierId?: string,
 ): Promise<InventoryActionResult> {
   const session = await requireMerchantSession();
   try {
@@ -34,6 +36,7 @@ export async function adjustInventoryQuantityAction(
       merchantId: session.merchantId,
       productId,
       newQuantity,
+      tierId,
     });
     revalidatePath('/pos');
     revalidatePath('/pos/stock');
@@ -46,7 +49,7 @@ export async function adjustInventoryQuantityAction(
 }
 
 export async function submitInventoryRestockCartAction(
-  items: { productId: string; quantity: number }[],
+  items: { productId: string; quantity: number; variantKey?: string | null }[],
 ): Promise<InventoryActionResult> {
   const session = await requireMerchantSession();
   const merchantId = await getAuthenticatedMerchantId();

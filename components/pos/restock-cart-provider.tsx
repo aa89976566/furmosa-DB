@@ -19,6 +19,7 @@ type RestockCartContextValue = {
   setQty: (productId: string, quantity: number) => void;
   remove: (productId: string) => void;
   clear: () => void;
+  setVariant: (productId: string, variantKey: string) => void;
 };
 
 const RestockCartContext = createContext<RestockCartContextValue | null>(null);
@@ -60,6 +61,9 @@ export function RestockCartProvider({ children }: { children: React.ReactNode })
     setLines((prev) => removeRestockCartLine(prev, productId));
   }, []);
   const clear = useCallback(() => setLines([]), []);
+  const setVariant = useCallback((productId: string, variantKey: string) => {
+    setLines(prev => prev.map(line => line.productId === productId ? { ...line, variantKey } : line));
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -70,8 +74,9 @@ export function RestockCartProvider({ children }: { children: React.ReactNode })
       setQty,
       remove,
       clear,
+      setVariant,
     }),
-    [add, clear, lines, remove, setQty],
+    [add, clear, lines, remove, setQty, setVariant],
   );
 
   return <RestockCartContext.Provider value={value}>{children}</RestockCartContext.Provider>;

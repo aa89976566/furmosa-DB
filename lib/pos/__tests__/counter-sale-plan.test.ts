@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { planCounterSale } from '@/lib/pos/counter-sale-plan';
+import { unitPriceForTierSale } from '@/lib/merchant-product-tier';
 import {
   filterCounterItems,
   resolveCounterSellStock,
@@ -22,6 +23,20 @@ const priced = [
 ];
 
 describe('planCounterSale', () => {
+  it('uses the authoritative tier price for both display and checkout', () => {
+    const tiers = [
+      { id: '30', price: 90, weightGrams: 30, unit: '包', unitQty: 1, notes: null },
+      { id: '50', price: 150, weightGrams: 50, unit: '包', unitQty: 1, notes: null },
+    ];
+    for (const hasMerchantRule of [true, false]) {
+      const unitPrice = unitPriceForTierSale(tiers, '50', { suggestedPrice: 90, hasMerchantRule });
+      assert.equal(unitPrice, 150);
+      const plan = planCounterSale([{ productId: 'p1', tierId: 't1', qty: 2 }], [{ ...priced[0]!, price: 90, priceTiers: tiers, unitPrice }]);
+      assert.equal(plan[0]?.unitPrice, 150);
+      assert.equal(plan[0]?.commissionAmount, 60);
+      assert.equal(plan[0]?.companyRevenue, 240);
+    }
+  });
   it('fail closed when qty exceeds stock', () => {
     assert.throws(
       () => planCounterSale([{ productId: 'p1', tierId: 't1', qty: 4 }], priced),
