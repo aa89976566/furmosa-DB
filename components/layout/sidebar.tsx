@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { ReviewInboxBadge } from "@/components/reviews/review-inbox-badge";
-import { PawPrint } from "lucide-react";
+import { LogOut, PawPrint } from "lucide-react";
 
 export function Sidebar() {
   return (
@@ -28,8 +28,17 @@ export function Sidebar() {
           <SidebarNav itemExtras={{ "/reviews": <ReviewInboxBadge /> }} />
         </Suspense>
       </ScrollArea>
-      <div className="border-t border-border/70 px-5 py-3 text-[11px] text-muted-foreground">
-        <p>Furmosa HQ</p>
+      <div className="space-y-2 border-t border-border/70 px-3 py-3">
+        <form action="/api/auth/logout" method="POST">
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            <span>登出／切換帳號</span>
+          </button>
+        </form>
+        <p className="px-3 text-[11px] text-muted-foreground">Furmosa HQ</p>
       </div>
     </aside>
   );
