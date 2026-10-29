@@ -17,6 +17,10 @@ import {
   type LiveCandidateSource,
 } from '@/lib/shopify/catalog-candidate-resolution';
 import { loadShopifyCatalogAudit } from '@/lib/shopify/catalog-sync-service';
+import {
+  candidateCreateMessage,
+  createCatalogCandidate,
+} from '@/lib/shopify/catalog-candidate-create';
 
 export type CandidateActionState = { ok: boolean; message: string };
 
@@ -28,6 +32,17 @@ const linkSchema = commonSchema.extend({ tierId: z.string().min(1) });
 const blockSchema = commonSchema.extend({
   reason: z.enum(CANDIDATE_BLOCK_REASONS),
   note: z.string().max(500).optional(),
+});
+const createSchema = commonSchema.extend({
+  category: z.enum(['staple_food', 'treats', 'health', 'freeze_dried', 'toys', 'accessories', 'other']),
+  mode: z.enum(['weight', 'unit']),
+  cost: z.coerce.number().finite().positive(),
+  weightGrams: z.coerce.number().int().positive().optional(),
+  unit: z.string().max(20).optional(),
+  unitQty: z.coerce.number().int().positive().optional(),
+}).superRefine((value, context) => {
+  if (value.mode === 'weight' && !value.weightGrams) context.addIssue({ code: 'custom', path: ['weightGrams'], message: '請填寫淨重' });
+  if (value.mode === 'unit' && (!value.unit || !value.unitQty)) context.addIssue({ code: 'custom', path: ['unit'], message: '請填寫單位與數量' });
 });
 
 async function requireFreshAdmin() {
@@ -142,4 +157,63 @@ export async function blockCandidateAction(
   revalidatePath('/products/shopify-candidates');
   revalidatePath(`/products/shopify-candidates/${parsed.data.candidateId}`);
   redirect(`/products/shopify-candidates/${parsed.data.candidateId}?updated=blocked`);
+}
+
+export async function createCandidateAction(
+  _previous: CandidateActionState,
+  formData: FormData,
+): Promise<CandidateActionState> {
+  const actor = await requireFreshAdmin();
+  if (!actor) return { ok: false, message: '只有 HQ 管理員可以建立商品。' };
+  const parsed = createSchema.safeParse({
+    candidateId: String(formData.get('candidateId') ?? ''),
+    expectedFingerprint: String(formData.get('expectedFingerprint') ?? ''),
+    category: String(formData.get('category') ?? ''),
+    mode: String(formData.get('mode') ?? ''),
+    cost: String(formData.get('cost') ?? ''),
+    weightGrams: formData.get('weightGrams') ? String(formData.get('weightGrams')) : undefined,
+    unit: formData.get('unit') ? String(formData.get('unit')) : undefined,
+    unitQty: formData.get('unitQty') ? String(formData.get('unitQty')) : undefined,
+  });
+  if (!parsed.success) return { ok: false, message: '請完整填寫商品分類、實際包裝規格與大於 0 的整包進貨成本。' };
+  try {
+    const existing = await prisma.shopifyCatalogCandidate.findUnique({ where: { id: parsed.data.candidateId } });
+    if (existing?.resolution === 'created') {
+      const config = shopifyAdminAuthConfigFromEnv();
+      await createCatalogCandidate(prisma, {
+        ...parsed.data,
+        shopDomain: config.domain,
+        source: {
+          productId: existing.shopifyProductId,
+          variantId: existing.shopifyVariantId,
+          productTitle: existing.productTitle,
+          variantTitle: existing.variantTitle,
+          sku: existing.sku ?? '',
+          price: Number(existing.price),
+          shopifyStatus: existing.shopifyStatus,
+        },
+        actorId: actor.id,
+        weightGrams: parsed.data.weightGrams ?? null,
+        unit: parsed.data.unit ?? null,
+        unitQty: parsed.data.unitQty ?? null,
+      });
+    } else {
+      const live = await liveCandidateSource(parsed.data.candidateId);
+      await createCatalogCandidate(prisma, {
+        ...parsed.data,
+        ...live,
+        actorId: actor.id,
+        weightGrams: parsed.data.weightGrams ?? null,
+        unit: parsed.data.unit ?? null,
+        unitQty: parsed.data.unitQty ?? null,
+      });
+    }
+  } catch (error) {
+    console.error('[SHOPIFY_CANDIDATE_CREATE_FAILED]', error instanceof Error ? error.message : String(error));
+    return { ok: false, message: candidateCreateMessage(error) };
+  }
+  revalidatePath('/products');
+  revalidatePath('/products/shopify-candidates');
+  revalidatePath(`/products/shopify-candidates/${parsed.data.candidateId}`);
+  redirect(`/products/shopify-candidates/${parsed.data.candidateId}?updated=created`);
 }

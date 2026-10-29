@@ -14,8 +14,7 @@ import {
   parseProductCommercialTerms,
   productCommercialTermsChanged,
 } from '@/lib/products/commercial-terms-input';
-
-const pad = (n: number, width = 4) => String(n).padStart(width, '0');
+import { allocateNextProductIdentity } from '@/lib/products/product-id';
 
 const VALID_CATEGORIES = [
   'staple_food',
@@ -30,18 +29,6 @@ const VALID_CATEGORIES = [
 const VALID_STATUSES = ['active', 'draft', 'inactive'] as const;
 const VALID_TEMPERATURES = ['ambient', 'chilled', 'frozen'] as const;
 
-async function nextProductId() {
-  const products = await prisma.product.findMany({
-    where: { productId: { startsWith: 'PROD-' } },
-    select: { productId: true },
-  });
-  const highestSeq = products.reduce((highest, product) => {
-    const seq = Number(product.productId.slice('PROD-'.length));
-    return Number.isSafeInteger(seq) ? Math.max(highest, seq) : highest;
-  }, 0);
-  return `PROD-${pad(highestSeq + 1, 4)}`;
-}
-
 function isProductIdUniqueConflict(error: unknown): boolean {
   return (
     typeof error === 'object'
@@ -49,11 +36,6 @@ function isProductIdUniqueConflict(error: unknown): boolean {
     && 'code' in error
     && (error as { code: unknown }).code === 'P2002'
   );
-}
-
-async function nextSku(productSeq: number) {
-  // 跟 import.ts 一致用 FUR-XXXX
-  return `FUR-${pad(productSeq, 4)}`;
 }
 
 function toNullableString(v: FormDataEntryValue | null): string | null {
@@ -106,9 +88,7 @@ export async function createProduct(formData: FormData) {
 
   let created: { id: string } | null = null;
   for (let attempt = 0; attempt < 3 && created == null; attempt += 1) {
-    const productId = await nextProductId();
-    const seq = Number(productId.slice('PROD-'.length));
-    const sku = await nextSku(seq);
+    const { productId, sku } = await allocateNextProductIdentity(prisma);
 
     try {
       created = await prisma.product.create({
