@@ -5,15 +5,6 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, History, PackageCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { saveInventoryQuantities } from '../../inventory/quantity-actions';
 
@@ -115,24 +106,21 @@ export function OperatorProductStock({
             </div>
           </div>
 
-          <Dialog open={open} onOpenChange={(value) => {
-            setOpen(value);
-            if (value) {
-              setNextQuantity(quantity == null ? '' : String(quantity));
-              setMessage(null);
-            }
+          <Button size="lg" disabled={!canCount} className="min-h-12 w-full px-7 lg:w-auto" onClick={() => {
+            setNextQuantity(quantity == null ? '' : String(quantity));
+            setMessage(null);
+            setOpen(true);
           }}>
-            <DialogTrigger asChild>
-              <Button size="lg" disabled={!canCount} className="min-h-12 w-full px-7 lg:w-auto">
-                <ClipboardCheck className="mr-2 h-5 w-5" />
-                調整庫存
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>更新實際庫存</DialogTitle>
-                <DialogDescription>只填現場剩餘的總克數。30g、50g 是販售規格，不需要分開盤點。</DialogDescription>
-              </DialogHeader>
+            <ClipboardCheck className="mr-2 h-5 w-5" />
+            調整庫存
+          </Button>
+          {open ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !pending) setOpen(false);
+            }}>
+              <section role="dialog" aria-modal="true" aria-labelledby="stock-dialog-title" aria-describedby="stock-dialog-description" className="w-full max-w-md rounded-2xl border bg-background p-6 shadow-2xl">
+                <h2 id="stock-dialog-title" className="text-lg font-semibold">更新實際庫存</h2>
+                <p id="stock-dialog-description" className="mt-2 text-sm text-muted-foreground">只填現場剩餘的總克數。30g、50g 是販售規格，不需要分開盤點。</p>
               <div className="space-y-5 py-2">
                 <label className="block text-sm font-medium">
                   現場實際剩餘
@@ -161,14 +149,15 @@ export function OperatorProductStock({
                 ) : null}
                 {message ? <p role="alert" className={message.ok ? 'text-sm text-emerald-700' : 'text-sm text-destructive'}>{message.text}</p> : null}
               </div>
-              <DialogFooter>
+              <div className="mt-6 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>取消</Button>
                 <Button onClick={submit} disabled={pending || !quantityValid || unchanged || !reason.trim()}>
                   {pending ? '儲存中…' : '確認更新'}
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </div>
+              </section>
+            </div>
+          ) : null}
         </div>
         {!canCount ? (
           <p className="border-t bg-amber-50 px-6 py-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-100 sm:px-8 lg:px-10">
