@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, ClipboardCheck, Plus, Package, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ClipboardCheck, Plus, Package, ArrowRight, ChevronLeft, ChevronRight, Pencil, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { productCategoryLabel } from '@/lib/labels';
@@ -24,6 +24,7 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [category, setCategory] = useState('all');
   const [editing, setEditing] = useState(false);
+  const [focusProductId, setFocusProductId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<InventoryRow[]>(rows);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -106,9 +107,19 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function begin() {
-    setLocation('hq'); setSnapshot(rows); eventKey.current = crypto.randomUUID(); setMessage(null); setDraft({}); setEditing(true);
+  function begin(productId?: string) {
+    setLocation('hq'); setSnapshot(rows); eventKey.current = crypto.randomUUID(); setMessage(null); setDraft({});
+    setFocusProductId(productId ?? null); setEditing(true);
   }
+  useEffect(() => {
+    if (!editing || !focusProductId) return;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`inventory-count-${focusProductId}`)?.focus();
+      setFocusProductId(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [editing, focusProductId]);
+
   function cancel() {
     if (hasDraft && !window.confirm('放棄這次尚未儲存的盤點數量？')) return;
     setDraft({}); setEditing(false); setMessage(null);
@@ -142,7 +153,7 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
   return <section aria-label="庫存工作台" className="inventory-reference space-y-5">
     <div className="inventory-heading flex flex-wrap items-start justify-between gap-3"><Link href="/dashboard" onClick={navigateAway} className="inventory-back">‹ 返回</Link>
       <div><p className="mb-1 text-xs text-muted-foreground">商品與供應 / 庫存</p><h1 className="text-2xl font-semibold tracking-tight">庫存總覽</h1><p className="mt-1 text-sm text-muted-foreground">所有商品，一眼掌握。</p></div>
-      <details className="inventory-mobile-more"><summary>更多</summary><div><button type="button" onClick={exportInventory}>匯出庫存</button>{canEdit ? <Link href="/inventory/new" onClick={navigateAway}>新增入庫</Link> : null}<Link href="/inventory/purchases" onClick={navigateAway}>進貨與收貨</Link></div></details><div className="inventory-actions flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={exportInventory} className="min-h-11">匯出</Button>{canEdit && !editing ? <Button onClick={begin} disabled={blocked} variant="outline" className="min-h-11"><ClipboardCheck className="mr-2 h-4 w-4"/>盤點庫存</Button> : null}{canEdit ? <Button asChild className="min-h-11 bg-[#245744] text-white hover:bg-[#1b4435]"><Link href="/inventory/new" onClick={navigateAway}><Plus className="mr-2 h-4 w-4"/>新增進貨</Link></Button> : null}</div>
+      <details className="inventory-mobile-more"><summary>更多</summary><div><button type="button" onClick={exportInventory}>匯出庫存</button>{canEdit ? <Link href="/inventory/new" onClick={navigateAway}>新增入庫</Link> : null}<Link href="/inventory/purchases" onClick={navigateAway}>進貨與收貨</Link></div></details><div className="inventory-actions flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={exportInventory} className="min-h-11">匯出</Button>{canEdit && !editing ? <Button onClick={() => begin()} disabled={blocked} variant="outline" className="min-h-11"><ClipboardCheck className="mr-2 h-4 w-4"/>盤點庫存</Button> : null}{canEdit ? <Button asChild className="min-h-11 bg-[#245744] text-white hover:bg-[#1b4435]"><Link href="/inventory/new" onClick={navigateAway}><Plus className="mr-2 h-4 w-4"/>新增進貨</Link></Button> : null}</div>
     </div>
     <div className="flex flex-wrap gap-1 rounded-xl border bg-card p-1" aria-label="庫存摘要">
       {([['all', '全部', stockCounts.all], ['in_stock', '充足', stockCounts.in_stock], ['low', '偏低', stockCounts.low], ['zero', '缺貨', stockCounts.zero], ['negative', '異常', stockCounts.negative], ['needs_setup', '待設定', needsSetup.length]] as const).map(([value, label, count]) =>
@@ -194,7 +205,7 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
                 </td>
                 <td className={`${location === 'hq' ? 'hidden' : 'col-span-2'} px-0 py-1 text-xs text-muted-foreground md:table-cell md:max-w-64 md:px-3 md:py-3 md:text-right`}>{location === 'hq' ? <span className="hidden md:inline" title="系統尚未啟用獨立保留量">—<span className="block text-xs">未啟用</span></span> : location === 'all' ? <StockLocations row={row} includeWarehouses /> : <span>{row.otherWarehouses.length ? '另有其他倉庫庫存，請切換全通路分布' : '與總部數量分開計算'}</span>}</td>
                 <td className="col-start-2 row-start-2 pb-1 text-right md:max-w-44 md:px-3 md:py-3 md:text-left"><span data-stock-badge={state} className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${tone}`}>{location === 'merchant' ? '店家持有' : label}</span><span aria-hidden="true" className="inventory-level"><i /></span>{!row.canCount && editing ? <p className="mt-1 max-w-40 text-xs leading-relaxed text-muted-foreground">{row.countBlockedReason ?? '庫存單位尚未確認'}</p> : null}</td>
-                <td className={`${editing || (canVerifyUnits && row.canConfirmUnit) ? 'col-span-2 flex' : 'hidden'} items-center justify-end border-t border-dashed pt-2 text-right md:table-cell md:w-40 md:border-0 md:px-4 md:py-3`}>{editing && row.canCount && !isInactive ? <div><label className="flex items-center justify-end gap-1"><Input aria-label={`${row.name}本次清點數量（${row.unit}）`} type="text" inputMode="numeric" pattern="[0-9]*" placeholder="不更動" value={draft[row.id] ?? ''} disabled={blocked} onChange={e => setDraft(d => ({ ...d, [row.id]: e.target.value }))} className={`min-h-11 w-24 text-right text-base tabular-nums ${change ? 'border-foreground' : ''}`}/><span className="text-xs text-muted-foreground">{row.unit}</span></label>{change && row.quantity !== null ? <p className="mt-1 text-xs text-muted-foreground">差異 {change.quantity > row.quantity ? '+' : ''}{number(change.quantity-row.quantity)} {row.unit}</p> : null}</div> : canVerifyUnits && row.canConfirmUnit ? <Button asChild variant="outline" className="min-h-10 text-xs"><Link href={`/inventory/confirm-unit/${row.id}`} onClick={navigateAway}>{editing ? '設定單位與首次庫存' : '完成設定'}</Link></Button> : <><Button asChild variant="outline" className="min-h-10 px-4 text-xs"><Link href={`/products/${row.id}`} onClick={navigateAway}>查看</Link></Button>{editing && !row.canCount && !canVerifyUnits ? <p className="mt-1 text-xs text-muted-foreground">請管理員完成設定後再盤點</p> : null}</>}</td>
+                <td className="col-span-2 flex items-center justify-end border-t border-dashed pt-2 text-right md:table-cell md:w-48 md:border-0 md:px-4 md:py-3">{editing && row.canCount && !isInactive ? <div><label className="flex items-center justify-end gap-1"><Input id={`inventory-count-${row.id}`} aria-label={`${row.name}本次清點數量（${row.unit}）`} type="text" inputMode="numeric" pattern="[0-9]*" placeholder="不更動" value={draft[row.id] ?? ''} disabled={blocked} onChange={e => setDraft(d => ({ ...d, [row.id]: e.target.value }))} className={`min-h-11 w-24 text-right text-base tabular-nums ${change ? 'border-foreground' : ''}`}/><span className="text-xs text-muted-foreground">{row.unit}</span></label>{change && row.quantity !== null ? <p className="mt-1 text-xs text-muted-foreground">差異 {change.quantity > row.quantity ? '+' : ''}{number(change.quantity-row.quantity)} {row.unit}</p> : null}</div> : canVerifyUnits && row.canConfirmUnit ? <Button asChild variant="outline" className="min-h-10 text-xs"><Link href={`/inventory/confirm-unit/${row.id}`} onClick={navigateAway}>{editing ? '設定單位與首次庫存' : '完成設定'}</Link></Button> : <div className="flex flex-wrap justify-end gap-2">{canEdit && row.canCount && !isInactive && !editing ? <Button type="button" variant="outline" className="min-h-10 px-3 text-xs" onClick={() => begin(row.id)}><Pencil className="mr-1 h-3.5 w-3.5"/>修改庫存</Button> : null}<Button asChild variant="outline" className="min-h-10 px-3 text-xs"><Link href={`/inventory/transactions?product=${encodeURIComponent(row.id)}`} onClick={navigateAway}><History className="mr-1 h-3.5 w-3.5"/>庫存紀錄</Link></Button><Button asChild variant="outline" className="min-h-10 px-3 text-xs"><Link href={`/products/${row.id}`} onClick={navigateAway}>查看商品</Link></Button>{editing && !row.canCount && !canVerifyUnits ? <p className="mt-1 text-xs text-muted-foreground">請管理員完成設定後再盤點</p> : null}</div>}</td>
               </tr>;
             })}</tbody>
           </table>
@@ -210,7 +221,7 @@ export function InventoryWorkbench({ rows, canEdit, canVerifyUnits = false, init
         <div className="mt-5 space-y-1 border-t pt-4 text-xs leading-relaxed text-muted-foreground"><p>進貨增加主倉 · 出貨扣主倉</p><p>POS 銷售扣店庫存</p><p className="pt-2">{editing ? '盤點中暫停自動更新，儲存時核對庫存版本' : '頁面開啟時每 30 秒更新'}</p></div>
       </aside>
     </div>
-    <nav aria-label="手機庫存導覽" className="inventory-mobile-nav"><Link href="/inventory" onClick={navigateAway} aria-current="page"><Package size={20}/>總覽</Link>{canEdit ? <button type="button" disabled={blocked || editing} onClick={begin}><ClipboardCheck size={20}/>盤點</button> : null}<Link href="/inventory/transactions" onClick={navigateAway}><ClipboardCheck size={20}/>紀錄</Link></nav>
+    <nav aria-label="手機庫存導覽" className="inventory-mobile-nav"><Link href="/inventory" onClick={navigateAway} aria-current="page"><Package size={20}/>總覽</Link>{canEdit ? <button type="button" disabled={blocked || editing} onClick={() => begin()}><ClipboardCheck size={20}/>盤點</button> : null}<Link href="/inventory/transactions" onClick={navigateAway}><ClipboardCheck size={20}/>紀錄</Link></nav>
     <dialog ref={dialog} aria-labelledby="inventory-count-error-title" aria-describedby="inventory-count-error-message" className="w-[calc(100%-2rem)] max-w-md rounded-xl border bg-background p-6 text-foreground shadow-xl backdrop:bg-black/40"><h2 id="inventory-count-error-title" className="text-lg font-semibold">盤點尚未完成</h2><p id="inventory-count-error-message" className="my-4 text-sm">{message?.text}</p><Button ref={acknowledge} type="button" onClick={() => dialog.current?.close()}>返回檢查</Button></dialog>
   </section>;
 }
