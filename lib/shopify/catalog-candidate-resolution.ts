@@ -1,15 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient, ShopifyCatalogCandidate } from '@prisma/client';
+import {
+  CANDIDATE_BLOCK_REASONS,
+  type CandidateBlockReason,
+} from '@/lib/shopify/catalog-candidate-shared';
 
-export const CANDIDATE_BLOCK_REASONS = [
-  '停售',
-  '測試商品',
-  '贈品或組合內容',
-  '不由 HQ 履約',
-  '其他',
-] as const;
-
-export type CandidateBlockReason = (typeof CANDIDATE_BLOCK_REASONS)[number];
+export { CANDIDATE_BLOCK_REASONS } from '@/lib/shopify/catalog-candidate-shared';
+export type { CandidateBlockReason } from '@/lib/shopify/catalog-candidate-shared';
 
 type CandidateSnapshot = Pick<
   ShopifyCatalogCandidate,

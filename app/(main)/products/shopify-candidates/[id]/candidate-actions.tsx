@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { CANDIDATE_BLOCK_REASONS } from '@/lib/shopify/catalog-candidate-resolution';
+import { CANDIDATE_BLOCK_REASONS } from '@/lib/shopify/catalog-candidate-shared';
 import {
   blockCandidateAction,
   linkCandidateAction,
