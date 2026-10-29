@@ -93,9 +93,18 @@ export function CreateCandidateForm(props: {
   sku: string;
   price: number;
   existingProductName?: string | null;
+  prefillCategory?: string;
+  prefillWeightGrams?: number;
+  prefillCost?: number;
 }) {
   const [state, action] = useActionState(createCandidateAction, initialState);
   const [mode, setMode] = useState<'weight' | 'unit'>('weight');
+  const initialCategory = props.prefillCategory ?? '';
+  const initialWeight = props.prefillWeightGrams == null ? '' : String(props.prefillWeightGrams);
+  const initialCost = props.prefillCost == null ? '' : String(props.prefillCost);
+  const [categoryEdited, setCategoryEdited] = useState(false);
+  const [weightEdited, setWeightEdited] = useState(false);
+  const [costEdited, setCostEdited] = useState(false);
   const isExisting = Boolean(props.existingProductName);
   return (
     <form
@@ -131,11 +140,12 @@ export function CreateCandidateForm(props: {
       {!isExisting ? (
         <label className="block space-y-1 text-sm font-medium">
           <span>HQ 商品分類</span>
-          <select name="category" required defaultValue="" className="min-h-11 w-full rounded-lg border border-border bg-background px-3">
+          <select name="category" required defaultValue={initialCategory} onChange={() => setCategoryEdited(true)} className="min-h-11 w-full rounded-lg border border-border bg-background px-3">
             <option value="" disabled>請選擇分類</option>
             <option value="staple_food">主食</option><option value="treats">零食</option><option value="health">保健</option>
             <option value="freeze_dried">凍乾</option><option value="toys">玩具</option><option value="accessories">用品</option><option value="other">其他</option>
           </select>
+          {initialCategory && !categoryEdited ? <span className="block text-xs font-normal text-amber-800">舊表帶入，送出前請確認</span> : null}
         </label>
       ) : <input type="hidden" name="category" value="other" />}
       <fieldset className="space-y-2">
@@ -145,7 +155,11 @@ export function CreateCandidateForm(props: {
           <Button type="button" variant={mode === 'unit' ? 'default' : 'outline'} onClick={() => setMode('unit')}>按數量</Button>
         </div>
         {mode === 'weight' ? (
-          <label className="block space-y-1 text-sm"><span>每包淨重（g）</span><input name="weightGrams" type="number" min="1" step="1" required className="min-h-11 w-full rounded-lg border px-3" placeholder="依包裝標示填寫，不要從名稱猜" /></label>
+          <label className="block space-y-1 text-sm">
+            <span>每包淨重（g）</span>
+            <input name="weightGrams" type="number" min="1" step="1" required defaultValue={initialWeight} onChange={() => setWeightEdited(true)} className="min-h-11 w-full rounded-lg border px-3" placeholder="依包裝標示填寫，不要從名稱猜" />
+            {initialWeight && !weightEdited ? <span className="block text-xs text-amber-800">由 Shopify 規格解析，送出前請確認</span> : null}
+          </label>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-sm"><span>每包數量</span><input name="unitQty" type="number" min="1" step="1" required className="min-h-11 w-full rounded-lg border px-3" /></label>
@@ -155,7 +169,8 @@ export function CreateCandidateForm(props: {
       </fieldset>
       <label className="block space-y-1 text-sm font-medium">
         <span>這個規格整包進貨成本（NT$）</span>
-        <input name="cost" type="number" min="0.01" step="0.01" required className="min-h-11 w-full rounded-lg border px-3" />
+        <input name="cost" type="number" min="0.01" step="0.01" required defaultValue={initialCost} onChange={() => setCostEdited(true)} className="min-h-11 w-full rounded-lg border px-3" />
+        {initialCost && !costEdited ? <span className="block text-xs font-normal text-amber-800">舊表帶入，送出前請確認</span> : null}
         <span className="block text-xs font-normal text-muted-foreground">填供應商向我們收的單包成本，不是 Shopify 售價。</span>
       </label>
       <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
