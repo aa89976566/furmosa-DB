@@ -21,6 +21,7 @@ import {
   candidateCreateMessage,
   createCatalogCandidate,
 } from '@/lib/shopify/catalog-candidate-create';
+import { canManageCatalogCandidates } from '@/lib/shopify/catalog-candidate-permissions';
 
 export type CandidateActionState = { ok: boolean; message: string };
 
@@ -46,14 +47,14 @@ const createSchema = commonSchema.extend({
   if (value.mode === 'unit' && (!value.unit || !value.unitQty)) context.addIssue({ code: 'custom', path: ['unit'], message: '請填寫單位與數量' });
 });
 
-async function requireFreshAdmin() {
+async function requireCatalogCandidateManager() {
   const session = await getCurrentUser();
   if (!session) return null;
   const actor = await prisma.user.findUnique({
     where: { id: session.userId },
     select: { id: true, role: true },
   });
-  return actor?.role === 'admin' ? actor : null;
+  return canManageCatalogCandidates(actor?.role) ? actor : null;
 }
 
 async function liveCandidateSource(candidateId: string): Promise<{
@@ -94,7 +95,7 @@ export async function linkCandidateAction(
   _previous: CandidateActionState,
   formData: FormData,
 ): Promise<CandidateActionState> {
-  const actor = await requireFreshAdmin();
+  const actor = await requireCatalogCandidateManager();
   if (!actor) return { ok: false, message: '只有 HQ 管理員可以連結商品規格。' };
   const parsed = linkSchema.safeParse({
     candidateId: String(formData.get('candidateId') ?? ''),
@@ -129,7 +130,7 @@ export async function blockCandidateAction(
   _previous: CandidateActionState,
   formData: FormData,
 ): Promise<CandidateActionState> {
-  const actor = await requireFreshAdmin();
+  const actor = await requireCatalogCandidateManager();
   if (!actor) return { ok: false, message: '只有 HQ 管理員可以標記這次不建立。' };
   const parsed = blockSchema.safeParse({
     candidateId: String(formData.get('candidateId') ?? ''),
@@ -165,7 +166,7 @@ export async function createCandidateAction(
   _previous: CandidateActionState,
   formData: FormData,
 ): Promise<CandidateActionState> {
-  const actor = await requireFreshAdmin();
+  const actor = await requireCatalogCandidateManager();
   if (!actor) return { ok: false, message: '只有 HQ 管理員可以建立商品。' };
   const parsed = createSchema.safeParse({
     candidateId: String(formData.get('candidateId') ?? ''),

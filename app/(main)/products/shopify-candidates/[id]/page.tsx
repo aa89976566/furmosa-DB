@@ -19,6 +19,7 @@ import {
   type LegacyCatalogReference,
   type LegacyReferenceReason,
 } from '@/lib/shopify/legacy-catalog-reference';
+import { canManageCatalogCandidates } from '@/lib/shopify/catalog-candidate-permissions';
 import { BlockCandidateForm, CreateCandidateForm, LinkCandidateForm } from './candidate-actions';
 
 export const dynamic = 'force-dynamic';
@@ -110,7 +111,7 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
     },
   });
   const shopDomain = shopifyAdminAuthConfigFromEnv().domain;
-  const canManage = actor?.role === 'admin';
+  const canManage = canManageCatalogCandidates(actor?.role);
   const pending = candidates.filter((row) => row.resolution === 'pending').length;
   const parentProductIds = [...new Set(candidates.flatMap((row) =>
     ['linked', 'created'].includes(row.resolution) && row.linkedProductId ? [row.linkedProductId] : [],
@@ -128,7 +129,7 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
         actions={<Button variant="outline" size="sm" asChild><Link href="/products/shopify-candidates"><ArrowLeft className="mr-1 h-4 w-4" />返回清單</Link></Button>}
       />
       <main className="space-y-4 p-4 pb-24 sm:p-6">
-        {!canManage ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">目前為唯讀模式；需要 HQ 管理員權限才能處理。</div> : null}
+        {!canManage ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">目前為唯讀模式；需要商品確認權限才能處理。</div> : null}
         {candidates.map((candidate) => {
           const relevantClaims = claims.filter((claim) => (
             (claim.shopifyVariantId
