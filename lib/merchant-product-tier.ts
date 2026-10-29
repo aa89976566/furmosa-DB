@@ -27,7 +27,7 @@ export function tierWeightGramsValue(tier: MerchantProductTierOption | null) {
   return String(tier.weightGrams);
 }
 
-/** 與銷售表單一致：有店家分潤規則時用建議售價，否則用規格售價 */
+/** 多規格一律依所選規格計價；單規格保留店家議定售價。 */
 export function unitPriceForTierSale(
   tiers: MerchantProductTierOption[],
   tierId: string,
@@ -37,7 +37,7 @@ export function unitPriceForTierSale(
     fallbackPrice?: number;
   },
 ) {
-  if (options.hasMerchantRule && options.suggestedPrice != null) {
+  if (tiers.length <= 1 && options.hasMerchantRule && options.suggestedPrice != null) {
     return options.suggestedPrice;
   }
   const tier = findTier(tiers, tierId) ?? pickDefaultTier(tiers);

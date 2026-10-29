@@ -9,30 +9,33 @@ export type StockRowPlan = {
 export function planProductStockAdjustment(
   rows: StockRowPlan[],
   newQuantity: number,
+  tierId?: string,
 ): { previousTotal: number; delta: number; nextRows: StockRowPlan[] } {
-  if (!Number.isFinite(newQuantity) || newQuantity < 0) {
+  if (!Number.isSafeInteger(newQuantity) || newQuantity < 0) {
     throw new Error('庫存數量不合法');
   }
   const nextQty = Math.floor(newQuantity);
   const previousTotal = rows.reduce((sum, row) => sum + row.quantity, 0);
-  const delta = nextQty - previousTotal;
+  if (tierId === undefined && rows.length > 1) throw new Error('請選擇要盤點的規格');
+  const targetTier = tierId ?? rows[0]?.tierId ?? LEGACY_MERCHANT_STOCK_TIER_ID;
+  const existing = rows.find(row => row.tierId === targetTier);
+  const delta = nextQty - (existing?.quantity ?? 0);
   if (delta === 0) {
     throw new Error('數量沒有變化');
   }
 
-  if (rows.length === 0) {
+  if (!existing) {
     return {
       previousTotal,
       delta,
-      nextRows: [{ id: null, tierId: LEGACY_MERCHANT_STOCK_TIER_ID, quantity: nextQty }],
+      nextRows: [...rows, { id: null, tierId: targetTier, quantity: nextQty }],
     };
   }
 
-  const primary = [...rows].sort((a, b) => b.quantity - a.quantity || a.tierId.localeCompare(b.tierId))[0]!;
   const nextRows = rows.map((row) =>
-    row.id === primary.id && row.tierId === primary.tierId
+    row.tierId === targetTier
       ? { ...row, quantity: nextQty }
-      : { ...row, quantity: 0 },
+      : row,
   );
   return { previousTotal, delta, nextRows };
 }

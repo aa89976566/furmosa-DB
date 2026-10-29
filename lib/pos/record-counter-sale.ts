@@ -32,6 +32,10 @@ export async function recordCounterSale(merchantId: string, requested: Requested
       if (updated.count !== 1) {
         throw new Error(`${line.name} 庫存不足`);
       }
+      const currentStock = await tx.merchantStock.findFirstOrThrow({
+        where: { merchantId, productId: line.productId, tierId: line.tierId },
+        select: { quantity: true },
+      });
       await tx.merchantStockTxn.create({
         data: {
           txnNumber: txnNumbers[i]!,
@@ -39,7 +43,7 @@ export async function recordCounterSale(merchantId: string, requested: Requested
           productId: line.productId,
           type: 'sale',
           quantity: -line.qty,
-          balanceAfter: line.balanceAfter,
+          balanceAfter: currentStock.quantity,
           unitPrice: line.unitPrice,
           commissionAmount: line.commissionAmount,
           companyRevenue: line.companyRevenue,

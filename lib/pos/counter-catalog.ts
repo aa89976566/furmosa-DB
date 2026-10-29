@@ -144,6 +144,7 @@ export async function loadCounterCatalog(
         unit: tier?.unit ?? product.unit,
       });
       priced.push({
+        unitPrice,
         productId: product.id,
         tierId: sellTierId,
         name: product.name,

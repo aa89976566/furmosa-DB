@@ -43,4 +43,11 @@ describe('restock cart', () => {
     assert.equal(updated[0]?.quantity, 3);
     assert.equal(removeRestockCartLine(updated, 'p1').length, 0);
   });
+
+  it('keeps the chosen variant when increasing the existing cart line', () => {
+    const first = addRestockCartLine([], { productId: 'duck', name: '鴨肺', imageUrl: null, quantity: 2, variantKey: '50g' });
+    const second = addRestockCartLine(first, { productId: 'duck', name: '鴨肺', imageUrl: null, quantity: 1 });
+    assert.equal(second[0]?.variantKey, '50g');
+    assert.equal(second[0]?.quantity, 3);
+  });
 });
