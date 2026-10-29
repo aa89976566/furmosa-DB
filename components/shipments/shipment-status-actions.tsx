@@ -24,6 +24,8 @@ export function ShipmentStatusActions({
   queueStatus,
   queueType,
   inventoryWarnings = [],
+  compact = false,
+  primaryLabel,
 }: {
   shipmentId: string;
   currentStatus: string;
@@ -37,6 +39,8 @@ export function ShipmentStatusActions({
   queueStatus?: string;
   queueType?: string;
   inventoryWarnings?: string[];
+  compact?: boolean;
+  primaryLabel?: string;
 }) {
   if (allowedNext.length === 0) {
     return (
@@ -66,6 +70,8 @@ export function ShipmentStatusActions({
             queueStatus={queueStatus}
             queueType={queueType}
             inventoryWarnings={inventoryWarnings}
+            compact={compact}
+            primaryLabel={primaryLabel}
             primary
           />
         </div>
@@ -115,6 +121,8 @@ function StatusActionCard({
   queueStatus,
   queueType,
   inventoryWarnings,
+  compact = false,
+  primaryLabel,
   primary = false,
 }: {
   shipmentId: string;
@@ -129,6 +137,8 @@ function StatusActionCard({
   queueStatus?: string;
   queueType?: string;
   inventoryWarnings: string[];
+  compact?: boolean;
+  primaryLabel?: string;
   primary?: boolean;
 }) {
   const isShipping = next === 'shipped';
@@ -155,7 +165,7 @@ function StatusActionCard({
         }
       }}
       className={cn(
-        'space-y-3 rounded-lg border p-4',
+        compact ? 'space-y-0' : 'space-y-3 rounded-lg border p-4',
         isDanger
           ? 'border-destructive/40 bg-destructive/5'
           : primary
@@ -171,15 +181,33 @@ function StatusActionCard({
       ) : null}
       {inline && queueType ? <input type="hidden" name="queueType" value={queueType} /> : null}
 
-      <div className="flex items-center gap-2">
+      {compact && isShipping ? (
+        <>
+          <input type="hidden" name="carrier" value={defaultCarrier ?? ''} />
+          <input type="hidden" name="trackingNumber" value={defaultTracking ?? ''} />
+          <input type="hidden" name="pickupStore" value={defaultPickupStore ?? ''} />
+          <input type="hidden" name="pickupName" value={defaultPickupName ?? ''} />
+          <input type="hidden" name="pickupPhone" value={defaultPickupPhone ?? ''} />
+        </>
+      ) : null}
+
+      {compact ? (
+        <StatusSubmitButton
+          next={next}
+          isDanger={isDanger}
+          label={primaryLabel}
+        />
+      ) : null}
+
+      {!compact ? <div className="flex items-center gap-2">
         {next === 'shipped' && <Truck className="h-4 w-4 text-info" />}
         {next === 'delivered' && <CheckCircle2 className="h-4 w-4 text-success" />}
         {next === 'cancelled' && <XCircle className="h-4 w-4 text-destructive" />}
         {next === 'pending' && <Clock className="h-4 w-4 text-warning" />}
         <h3 className="text-sm font-semibold">{nextActionLabel(next)}</h3>
-      </div>
+      </div> : null}
 
-      {isShipping ? (
+      {isShipping && !compact ? (
         <>
           {inventoryWarnings.length > 0 ? (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
@@ -208,7 +236,7 @@ function StatusActionCard({
         </>
       ) : null}
 
-      <div className="space-y-1">
+      {!compact ? <div className="space-y-1">
         <label className="text-xs text-muted-foreground">備註（選填）</label>
         <input
           name="note"
@@ -221,23 +249,31 @@ function StatusActionCard({
           }
           className="block w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         />
-      </div>
+      </div> : null}
 
-      {next === 'delivered' && currentStatus !== 'shipped' ? (
+      {!compact && next === 'delivered' && currentStatus !== 'shipped' ? (
         <p className="text-xs text-warning">通常要先「已寄出」再「已送達」。確定可以跳過嗎？</p>
       ) : null}
-      {next === 'delivered' ? (
+      {!compact && next === 'delivered' ? (
         <p className="text-xs text-success">
           確認送達後會通知店家驗收；店家確認收貨後，商品才會加入可售庫存。
         </p>
       ) : null}
 
-      <StatusSubmitButton next={next} isDanger={isDanger} />
+      {!compact ? <StatusSubmitButton next={next} isDanger={isDanger} /> : null}
     </form>
   );
 }
 
-function StatusSubmitButton({ next, isDanger }: { next: ShipmentStatus; isDanger: boolean }) {
+function StatusSubmitButton({
+  next,
+  isDanger,
+  label,
+}: {
+  next: ShipmentStatus;
+  isDanger: boolean;
+  label?: string;
+}) {
   const { pending } = useFormStatus();
   return (
     <Button
@@ -247,7 +283,7 @@ function StatusSubmitButton({ next, isDanger }: { next: ShipmentStatus; isDanger
       variant={isDanger ? 'outline' : 'default'}
       className={cn('w-full', isDanger && 'text-destructive hover:bg-destructive/10')}
     >
-      {pending ? '處理中…' : nextActionLabel(next)}
+      {pending ? '處理中…' : label ?? nextActionLabel(next)}
     </Button>
   );
 }
