@@ -54,7 +54,7 @@ export type LegacyCatalogReference = {
     cost: number | null;
   };
   reference: {
-    matchedBy: 'exact_product_name';
+    matchedBy: 'exact_product_name' | 'product_title_suffix';
     canonicalName: string;
     sourceSku: string;
     vendor: string | null;
@@ -120,7 +120,62 @@ function validateSnapshot(value: unknown): LegacySnapshot | null {
 }
 
 export function normalizeLegacyProductName(value: string) {
-  return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('zh-TW');
+  return value
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('zh-TW');
+}
+
+function codePointLength(value: string) {
+  return Array.from(value).length;
+}
+
+function hasAtLeastTwoHanCharacters(value: string) {
+  return (value.match(/\p{Script=Han}/gu)?.length ?? 0) >= 2;
+}
+
+function findMasterNameMatch(masterItems: MasterItem[], wanted: string): {
+  rows: MasterItem[];
+  normalizedName: string;
+  matchedBy: 'exact_product_name' | 'product_title_suffix';
+} | LegacyReferenceReason {
+  if (!wanted) return 'NO_MATCH';
+
+  const grouped = new Map<string, MasterItem[]>();
+  for (const row of masterItems) {
+    const normalizedName = normalizeLegacyProductName(row.name);
+    if (!normalizedName) continue;
+    grouped.set(normalizedName, [...(grouped.get(normalizedName) ?? []), row]);
+  }
+
+  const exactRows = grouped.get(wanted);
+  if (exactRows) {
+    const sourceSkus = new Set(exactRows.map((row) => row.sourceSku.trim().toUpperCase()));
+    return sourceSkus.size === 1
+      ? { rows: exactRows, normalizedName: wanted, matchedBy: 'exact_product_name' }
+      : 'NAME_CONFLICT';
+  }
+
+  const suffixes = [...grouped.entries()]
+    .filter(([normalizedName]) => (
+      hasAtLeastTwoHanCharacters(normalizedName)
+      && codePointLength(normalizedName) < codePointLength(wanted)
+      && wanted.endsWith(normalizedName)
+    ))
+    .sort(([left], [right]) => codePointLength(right) - codePointLength(left));
+  if (suffixes.length === 0) return 'NO_MATCH';
+
+  const longestLength = codePointLength(suffixes[0]![0]);
+  const longest = suffixes.filter(([normalizedName]) => codePointLength(normalizedName) === longestLength);
+  if (longest.length !== 1) return 'NAME_CONFLICT';
+
+  const [normalizedName, rows] = longest[0]!;
+  const sourceSkus = new Set(rows.map((row) => row.sourceSku.trim().toUpperCase()));
+  return sourceSkus.size === 1
+    ? { rows, normalizedName, matchedBy: 'product_title_suffix' }
+    : 'NAME_CONFLICT';
 }
 
 export function parseShopifyVariantWeight(value: string) {
@@ -178,8 +233,9 @@ export function resolveLegacyCatalogReference(input: {
   const snapshotStale = isOlderThanMonths(snapshotDate, now, HARD_STALE_MONTHS);
 
   const wanted = normalizeLegacyProductName(input.productTitle);
-  const matchingMaster = snapshot.masterItems.filter((row) => normalizeLegacyProductName(row.name) === wanted);
-  if (matchingMaster.length === 0) return blankResult(weightGrams, 'NO_MATCH', snapshot.snapshotDate);
+  const nameMatch = findMasterNameMatch(snapshot.masterItems, wanted);
+  if (typeof nameMatch === 'string') return blankResult(weightGrams, nameMatch, snapshot.snapshotDate);
+  const matchingMaster = nameMatch.rows;
   const sourceSkus = [...new Set(matchingMaster.map((row) => row.sourceSku.trim().toUpperCase()))];
   if (sourceSkus.length !== 1) return blankResult(weightGrams, 'NAME_CONFLICT', snapshot.snapshotDate);
 
@@ -197,7 +253,7 @@ export function resolveLegacyCatalogReference(input: {
     ...priceRows.map((row) => normalizeLegacyProductName(row.name)),
     ...purchaseRows.map((row) => normalizeLegacyProductName(row.name)),
   ])];
-  if (masterNames.length !== 1 || masterCategories.length !== 1 || connectedNames.length !== 1 || connectedNames[0] !== wanted || priceRows.length > 1) {
+  if (masterNames.length !== 1 || masterCategories.length !== 1 || connectedNames.length !== 1 || connectedNames[0] !== nameMatch.normalizedName || priceRows.length > 1) {
     return blankResult(weightGrams, 'SOURCE_CONFLICT', snapshot.snapshotDate);
   }
 
@@ -205,7 +261,7 @@ export function resolveLegacyCatalogReference(input: {
   const priceRow = priceRows[0] ?? null;
   const retailReferences = priceRow?.retail ?? [];
   const reference = {
-    matchedBy: 'exact_product_name' as const,
+    matchedBy: nameMatch.matchedBy,
     canonicalName: master.name,
     sourceSku,
     vendor: priceRow?.vendor ?? null,

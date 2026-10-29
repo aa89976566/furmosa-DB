@@ -44,7 +44,9 @@ test('legacy sheet reference is resolved on the server only for unmatched candid
   assert.match(detail, /resolveLegacyCatalogReference/);
   assert.match(detail, /candidate\.resolution === 'pending' && exact\.length === 0/);
   assert.match(detail, /舊表參考（不會自動寫入）/);
-  assert.match(detail, /依商品名稱比對/);
+  assert.match(detail, /依完全相同的商品名稱參考/);
+  assert.match(detail, /Shopify 標題結尾/);
+  assert.match(detail, /僅作填寫參考/);
   assert.doesNotMatch(clientActions, /legacy-catalog-reference/);
   assert.doesNotMatch(clientActions, /legacy-sheet-catalog-reference\.snapshot/);
 });

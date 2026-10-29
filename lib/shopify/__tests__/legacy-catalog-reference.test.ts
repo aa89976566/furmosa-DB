@@ -25,12 +25,81 @@ function resolve(snapshot: unknown, variantTitle = '100g', productTitle = '柳�
   return resolveLegacyCatalogReference({ productTitle, variantTitle, shopifyPrice, now: NOW, snapshot });
 }
 
-test('normalizes exact product names without fuzzy matching', () => {
+test('normalizes names and prefers exact product-name matches', () => {
   assert.equal(normalizeLegacyProductName('  柳葉魚\u3000凍乾 '), '柳葉魚 凍乾');
-  assert.ok(resolve(fixture(), '100g', '柳葉魚凍乾').reference);
-  assert.equal(resolve(fixture(), '100g', '特選柳葉魚凍乾').reference, null);
-  assert.deepEqual(resolve(fixture(), '100g', '特選柳葉魚凍乾').reasons, ['NO_MATCH']);
+  assert.equal(normalizeLegacyProductName('柳\u200B葉魚凍乾'), '柳葉魚凍乾');
+  assert.equal(resolve(fixture(), '100g', '柳葉魚凍乾').reference?.matchedBy, 'exact_product_name');
   assert.equal(resolve(fixture(), '柳葉魚凍乾 100g', '不存在的商品').reference, null);
+});
+
+test('matches a complete canonical product name at the end of a Shopify marketing title', () => {
+  for (const title of ['◈ 走敢若飛 ◈ 鴨翅', '走敢若飛鴨翅', '◈\u200B走敢若飛◈鴨翅']) {
+    const result = resolve(fixture({
+      masterItems: [{ name: '鴨翅', sourceSku: 'DK-02', category: 'treats' }],
+      priceRows: [{ sourceSku: 'DK-02', name: '鴨翅', vendor: '寵物村', unit: '隻', retail: [] }],
+      purchaseRows: [],
+    }), '單支', title);
+    assert.equal(result.reference?.canonicalName, '鴨翅', title);
+    assert.equal(result.reference?.matchedBy, 'product_title_suffix', title);
+  }
+});
+
+test('uses the longest safe canonical suffix', () => {
+  const result = resolve(fixture({
+    masterItems: [
+      { name: '鴨翅', sourceSku: 'DK-01', category: 'treats' },
+      { name: '辣鴨翅', sourceSku: 'DK-02', category: 'treats' },
+    ],
+    priceRows: [{ sourceSku: 'DK-02', name: '辣鴨翅', vendor: '寵物村', unit: '隻', retail: [] }],
+    purchaseRows: [],
+  }), '單支', '好吃辣鴨翅');
+  assert.equal(result.reference?.canonicalName, '辣鴨翅');
+  assert.equal(result.reference?.sourceSku, 'DK-02');
+});
+
+test('does not use unsafe or fuzzy title matches', () => {
+  const shortName = fixture({
+    masterItems: [{ name: '魚', sourceSku: 'F-01', category: 'freeze_dried' }],
+    priceRows: [], purchaseRows: [],
+  });
+  assert.equal(resolve(shortName, '100g', '好吃魚').reference, null);
+  assert.equal(resolve(shortName, '100g', '魚').reference?.matchedBy, 'exact_product_name');
+
+  for (const title of ['柳葉魚凍乾（5入）', '柳葉魚凍乾 200g', '柳葉魚凍乾禮盒', '柳葉魚', '特選柳葉魚乾']) {
+    assert.equal(resolve(fixture(), '100g', title).reference, null, title);
+  }
+});
+
+test('does not fall back from a conflicted exact name to a shorter suffix', () => {
+  const result = resolve(fixture({
+    masterItems: [
+      { name: '辣鴨翅', sourceSku: 'DK-01', category: 'treats' },
+      { name: '辣鴨翅', sourceSku: 'DK-02', category: 'treats' },
+      { name: '鴨翅', sourceSku: 'DK-03', category: 'treats' },
+    ],
+    priceRows: [], purchaseRows: [],
+  }), '單支', '辣鴨翅');
+  assert.equal(result.reference, null);
+  assert.deepEqual(result.reasons, ['NAME_CONFLICT', 'NO_WEIGHT']);
+});
+
+test('stops when the longest canonical suffix maps to multiple legacy source SKUs', () => {
+  const result = resolve(fixture({
+    masterItems: [
+      { name: '鴨翅', sourceSku: 'DK-01', category: 'treats' },
+      { name: '鴨翅', sourceSku: 'DK-02', category: 'treats' },
+    ],
+    priceRows: [], purchaseRows: [],
+  }), '單支', '◈ 走敢若飛 ◈ 鴨翅');
+  assert.equal(result.reference, null);
+  assert.deepEqual(result.reasons, ['NAME_CONFLICT', 'NO_WEIGHT']);
+});
+
+test('legacy source SKU remains display-only in the reference result', () => {
+  const result = resolve(fixture(), '100g', '◈ 海味仔 ◈ 柳葉魚凍乾');
+  assert.equal(result.reference?.sourceSku, 'FD-07');
+  assert.equal(result.reference?.matchedBy, 'product_title_suffix');
+  assert.deepEqual(result.prefill, { category: 'freeze_dried', cost: 250 });
 });
 
 test('parses only one unambiguous integer gram specification from Shopify', () => {

@@ -30,7 +30,7 @@ const LEGACY_REASON_LABELS: Record<LegacyReferenceReason, string> = {
   SNAPSHOT_INVALID: '舊表參考暫時無法使用，請手動填寫。',
   SNAPSHOT_FUTURE: '舊表資料日期異常，已停止帶入。',
   SNAPSHOT_STALE: '舊表資料已超過 18 個月，僅供查看。',
-  NO_MATCH: '舊表沒有完全相同的商品名稱，未帶入資料。',
+  NO_MATCH: '舊表沒有完全相同、也沒有可安全辨識為標題結尾的商品名稱，未帶入資料。',
   NAME_CONFLICT: '同一名稱對應多個舊代碼，未帶入資料。',
   SOURCE_CONFLICT: '舊表中的名稱與代碼互相衝突，未帶入資料。',
   NO_WEIGHT: 'Shopify 規格沒有唯一、可安全辨識的克數。',
@@ -61,7 +61,9 @@ function LegacyReferenceCard({ result, shopifyPrice }: { result: LegacyCatalogRe
     <details className="mt-3 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-xs">
       <summary className="cursor-pointer font-medium">舊表參考（不會自動寫入）</summary>
       <div className="mt-2 space-y-1 text-muted-foreground">
-        <p>依商品名稱比對 · 資料截至 {result.snapshotDate}</p>
+        <p>{result.reference.matchedBy === 'exact_product_name'
+          ? '依完全相同的商品名稱參考'
+          : `Shopify 標題結尾「${result.reference.canonicalName}」與舊表商品相同，僅作填寫參考`} · 資料截至 {result.snapshotDate}</p>
         <p>舊代碼 {result.reference.sourceSku} · {result.reference.vendor || '未記錄供應商'} · {result.reference.unit || '未記錄單位'}</p>
         {result.reference.costPerGram != null ? <p>最新成本：{result.reference.costDate} · NT${result.reference.costPerGram}/g</p> : null}
         {legacyPrice != null ? <p>舊表零售參考 NT${legacyPrice} · 與 Shopify 相差 NT${(shopifyPrice - legacyPrice).toLocaleString('zh-TW')}</p> : null}
