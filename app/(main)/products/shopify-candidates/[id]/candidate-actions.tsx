@@ -93,6 +93,7 @@ export function CreateCandidateForm(props: {
   sku: string;
   price: number;
   existingProductName?: string | null;
+  targetProductId?: string | null;
   prefillCategory?: string;
   prefillWeightGrams?: number;
   prefillCost?: number;
@@ -131,11 +132,12 @@ export function CreateCandidateForm(props: {
     >
       <input type="hidden" name="candidateId" value={props.candidateId} />
       <input type="hidden" name="expectedFingerprint" value={props.fingerprint} />
+      {props.targetProductId ? <input type="hidden" name="targetProductId" value={props.targetProductId} /> : null}
       <input type="hidden" name="mode" value={mode} />
       <div className="rounded-xl bg-muted/50 p-3 text-sm">
         <p className="font-medium">{props.productTitle}｜{props.variantTitle || '預設規格'}</p>
         <p className="mt-1 text-muted-foreground">SKU {props.sku} · 售價 NT${props.price.toLocaleString('zh-TW')}</p>
-        {isExisting ? <p className="mt-2 font-medium text-emerald-900">將新增到：{props.existingProductName}</p> : null}
+        {isExisting ? <p className="mt-2 font-medium text-emerald-900">依唯一相同商品名，將新增到：{props.existingProductName}</p> : null}
       </div>
       {!isExisting ? (
         <label className="block space-y-1 text-sm font-medium">

@@ -15,6 +15,7 @@ import {
 } from '@/lib/shopify/catalog-candidate-resolution';
 import {
   resolveLegacyCatalogReference,
+  normalizeLegacyProductName,
   type LegacyCatalogReference,
   type LegacyReferenceReason,
 } from '@/lib/shopify/legacy-catalog-reference';
@@ -77,11 +78,15 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
   const [{ id }, session] = await Promise.all([props.params, getCurrentUser()]);
   const selected = await prisma.shopifyCatalogCandidate.findUnique({ where: { id } });
   if (!selected) notFound();
-  const [actor, candidates] = await Promise.all([
+  const [actor, candidates, eligibleProducts] = await Promise.all([
     session ? prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } }) : null,
     prisma.shopifyCatalogCandidate.findMany({
       where: { shopifyProductId: selected.shopifyProductId },
       orderBy: [{ variantTitle: 'asc' }, { id: 'asc' }],
+    }),
+    prisma.product.findMany({
+      where: { status: { in: ['draft', 'active'] } },
+      select: { id: true, name: true, productId: true },
     }),
   ]);
   const searchSkus = candidates.flatMap((row) => row.sku?.trim() ? [row.sku.trim()] : []);
@@ -141,6 +146,14 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
               shopifyPrice: Number(candidate.price),
             })
             : null;
+          const canonicalLegacyName = legacyReference?.reference
+            ? normalizeLegacyProductName(legacyReference.reference.canonicalName)
+            : null;
+          const nameMatchedProducts = canonicalLegacyName
+            ? eligibleProducts.filter((product) => normalizeLegacyProductName(product.name) === canonicalLegacyName)
+            : [];
+          const suggestedProduct = nameMatchedProducts.length === 1 ? nameMatchedProducts[0]! : null;
+          const effectiveParentProduct = parentProduct ?? suggestedProduct;
           return (
             <article key={candidate.id} className="rounded-2xl border border-border bg-card p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -171,7 +184,7 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
                     </div>
                   </section>
                   <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
-                    <div className="flex gap-2"><PackagePlus className="mt-0.5 h-4 w-4 text-emerald-800" /><div><h3 className="font-semibold">{parentProduct ? '新增 HQ 規格' : '建立 HQ 商品'}</h3><p className="mt-1 text-sm text-muted-foreground">只建立商品資料，不會增加庫存。</p></div></div>
+                    <div className="flex gap-2"><PackagePlus className="mt-0.5 h-4 w-4 text-emerald-800" /><div><h3 className="font-semibold">{effectiveParentProduct ? '新增 HQ 規格' : '建立 HQ 商品'}</h3><p className="mt-1 text-sm text-muted-foreground">商品名唯一相同時可新增規格；仍需人工確認，不會增加庫存。</p></div></div>
                     {parentProductIds.length > 1 ? (
                       <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">同一個 Shopify 商品目前對應到不同 HQ 商品，為避免拆錯商品，已停止建立。</p>
                     ) : parentProductMissing ? (
@@ -186,7 +199,8 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
                           variantTitle={candidate.variantTitle}
                           sku={candidate.sku}
                           price={Number(candidate.price)}
-                          existingProductName={parentProduct?.name}
+                          existingProductName={effectiveParentProduct?.name}
+                          targetProductId={!parentProduct && suggestedProduct ? suggestedProduct.id : undefined}
                           prefillCategory={legacyReference?.prefill.category ?? undefined}
                           prefillWeightGrams={legacyReference?.weightGrams ?? undefined}
                           prefillCost={legacyReference?.prefill.cost ?? undefined}

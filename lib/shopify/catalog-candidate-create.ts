@@ -12,6 +12,10 @@ import {
   type CandidateClaim,
   type LiveCandidateSource,
 } from '@/lib/shopify/catalog-candidate-resolution';
+import {
+  normalizeLegacyProductName,
+  resolveLegacyCatalogReference,
+} from '@/lib/shopify/legacy-catalog-reference';
 
 const VALID_CATEGORIES = new Set([
   'staple_food', 'treats', 'health', 'freeze_dried', 'toys', 'accessories', 'other',
@@ -29,6 +33,7 @@ export type CandidateCreateInput = {
   weightGrams?: number | null;
   unit?: string | null;
   unitQty?: number | null;
+  targetProductId?: string | null;
 };
 
 export class CandidateCreateError extends Error {
@@ -70,6 +75,7 @@ function inputDigest(input: CandidateCreateInput, normalized: ReturnType<typeof 
   return createHash('sha256').update(JSON.stringify({
     candidateId: input.candidateId,
     expectedFingerprint: input.expectedFingerprint,
+    targetProductId: input.targetProductId?.trim() || null,
     ...normalized,
   })).digest('hex');
 }
@@ -111,6 +117,7 @@ export async function createCandidateInTransaction(tx: Prisma.TransactionClient,
   const lockKeys = [
     `parent|${input.shopDomain.trim().toLowerCase()}|${input.source.productId}`,
     `sku|${normalizeCandidateSku(input.source.sku) ?? '__NO_SKU__'}`,
+    ...(input.targetProductId ? [`product|${input.targetProductId}`] : []),
   ].sort();
   for (const lockKey of lockKeys) {
     await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
@@ -139,10 +146,36 @@ export async function createCandidateInTransaction(tx: Prisma.TransactionClient,
   const productIds = [...new Set(siblings.flatMap((row) => row.linkedProductId ? [row.linkedProductId] : []))];
   if (productIds.length > 1) throw new CandidateCreateError('PRODUCT_MISMATCH', '同一個 Shopify 商品目前對應到不同 HQ 商品');
 
-  let productId = productIds[0] ?? null;
+  const requestedProductId = input.targetProductId?.trim() || null;
+  if (productIds.length === 1 && requestedProductId && productIds[0] !== requestedProductId) {
+    throw new CandidateCreateError('PRODUCT_MISMATCH', '同一個 Shopify 商品已確認對應另一個 HQ 商品');
+  }
+
+  let productId = productIds[0] ?? requestedProductId;
   let createdProduct = false;
   let effectiveCategory = normalized.category;
   if (productId) {
+    if (requestedProductId && productIds.length === 0) {
+      const reference = resolveLegacyCatalogReference({
+        productTitle: input.source.productTitle,
+        variantTitle: input.source.variantTitle,
+        shopifyPrice: input.source.price,
+      });
+      if (!reference.reference) {
+        throw new CandidateCreateError('PRODUCT_MATCH_UNAVAILABLE', '目前無法依商品名稱安全確認既有 HQ 商品');
+      }
+      const eligibleProducts = await tx.product.findMany({
+        where: { status: { in: ['draft', 'active'] } },
+        select: { id: true, name: true },
+      });
+      const canonicalName = normalizeLegacyProductName(reference.reference.canonicalName);
+      const matchingProducts = eligibleProducts.filter((product) => (
+        normalizeLegacyProductName(product.name) === canonicalName
+      ));
+      if (matchingProducts.length !== 1 || matchingProducts[0]!.id !== requestedProductId) {
+        throw new CandidateCreateError('PRODUCT_MATCH_CHANGED', '同名 HQ 商品不再是唯一一筆，已停止處理');
+      }
+    }
     const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true, status: true, category: true } });
     if (!product || !['draft', 'active'].includes(product.status)) throw new CandidateCreateError('PRODUCT_UNAVAILABLE', '既有 HQ 商品目前不能安全新增規格');
     effectiveCategory = product.category;
@@ -196,7 +229,7 @@ export async function createCandidateInTransaction(tx: Prisma.TransactionClient,
   await tx.statusAuditLog.create({ data: {
     entityType: 'shopify_catalog_candidate', entityId: candidate.id, previousStatus: 'pending', newStatus: 'created',
     actorType: 'user', actorId: input.actorId,
-    metadataJson: JSON.stringify({ candidateId: candidate.id, shopifyProductId: input.source.productId, shopifyVariantId: input.source.variantId, productId, tierId: tier.id, fingerprint: input.expectedFingerprint, inputDigest: digest, category: effectiveCategory, categoryApplied: createdProduct, mode: normalized.mode, packageCost: normalized.cost, weightGrams: normalized.weightGrams, unit: normalized.unit, unitQty: normalized.unitQty }),
+    metadataJson: JSON.stringify({ candidateId: candidate.id, shopifyProductId: input.source.productId, shopifyVariantId: input.source.variantId, productId, tierId: tier.id, fingerprint: input.expectedFingerprint, inputDigest: digest, category: effectiveCategory, categoryApplied: createdProduct, matchedExistingProductByName: Boolean(requestedProductId && productIds.length === 0), mode: normalized.mode, packageCost: normalized.cost, weightGrams: normalized.weightGrams, unit: normalized.unit, unitQty: normalized.unitQty }),
   } });
   return { ok: true as const, noop: false as const, productId, tierId: tier.id, createdProduct };
 }
