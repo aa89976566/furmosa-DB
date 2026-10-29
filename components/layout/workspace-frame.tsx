@@ -7,5 +7,15 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inventory = pathname === '/inventory';
   const orderWorkbench = pathname === '/orders/new';
-  return <div className="group/shell flex min-h-screen" data-dashboard={pathname === "/dashboard" ? "true" : "false"} data-order-workbench={orderWorkbench ? 'true' : 'false'} data-inventory={inventory ? 'true' : 'false'}>{children}</div>;
+
+  return (
+    <div
+      className="group/shell flex min-h-screen"
+      data-dashboard={pathname === '/dashboard' ? 'true' : undefined}
+      data-order-workbench={orderWorkbench ? 'true' : undefined}
+      data-inventory={inventory ? 'true' : undefined}
+    >
+      {children}
+    </div>
+  );
 }
