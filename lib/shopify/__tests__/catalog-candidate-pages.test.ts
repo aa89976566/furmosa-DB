@@ -39,3 +39,32 @@ test('create UX distinguishes catalog creation from inventory receipt', () => {
   assert.match(clientActions, /不是 Shopify 售價/);
   assert.match(clientActions, /Shopify 與訂單狀態不會自動修改/);
 });
+
+test('legacy sheet reference is resolved on the server only for unmatched candidates', () => {
+  assert.match(detail, /resolveLegacyCatalogReference/);
+  assert.match(detail, /candidate\.resolution === 'pending' && exact\.length === 0/);
+  assert.match(detail, /舊表參考（不會自動寫入）/);
+  assert.match(detail, /依完全相同的商品名稱參考/);
+  assert.match(detail, /Shopify 標題結尾/);
+  assert.match(detail, /僅作填寫參考/);
+  assert.doesNotMatch(clientActions, /legacy-catalog-reference/);
+  assert.doesNotMatch(clientActions, /legacy-sheet-catalog-reference\.snapshot/);
+});
+
+test('prefill remains editable and does not add legacy identity fields to the action payload', () => {
+  assert.match(clientActions, /由 Shopify 規格解析，送出前請確認/);
+  assert.match(clientActions, /舊表帶入，送出前請確認/);
+  assert.match(clientActions, /name="candidateId"/);
+  assert.match(clientActions, /name="expectedFingerprint"/);
+  assert.match(clientActions, /name="mode"/);
+  assert.doesNotMatch(clientActions, /name="(?:sourceSku|legacySku|legacySource|sheetRow)"/);
+  assert.doesNotMatch(actions, /legacy-catalog-reference/);
+});
+
+test('create form field names stay exactly compatible with the existing server action', () => {
+  const createFormSource = clientActions.slice(clientActions.indexOf('export function CreateCandidateForm'));
+  const fieldNames = [...createFormSource.matchAll(/name="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(fieldNames)].sort(), [
+    'candidateId', 'category', 'cost', 'expectedFingerprint', 'mode', 'unit', 'unitQty', 'weightGrams',
+  ]);
+});
