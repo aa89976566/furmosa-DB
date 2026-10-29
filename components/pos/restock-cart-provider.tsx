@@ -7,6 +7,7 @@ import {
   restockCartTotalPieces,
   setRestockCartQty,
   type RestockCartLine,
+  restockLineKey,
 } from '@/lib/pos/restock-cart';
 
 const STORAGE_KEY = 'furmosa-pos-restock-cart-v1';
@@ -16,10 +17,10 @@ type RestockCartContextValue = {
   itemCount: number;
   pieceCount: number;
   add: (line: Omit<RestockCartLine, 'quantity'> & { quantity: number }) => void;
-  setQty: (productId: string, quantity: number) => void;
-  remove: (productId: string) => void;
+  setQty: (productId: string, quantity: number, variantKey?: string | null) => void;
+  remove: (productId: string, variantKey?: string | null) => void;
   clear: () => void;
-  setVariant: (productId: string, variantKey: string) => void;
+  setVariant: (productId: string, variantKey: string, previousVariantKey?: string | null) => void;
 };
 
 const RestockCartContext = createContext<RestockCartContextValue | null>(null);
@@ -54,15 +55,19 @@ export function RestockCartProvider({ children }: { children: React.ReactNode })
   const add = useCallback((line: Omit<RestockCartLine, 'quantity'> & { quantity: number }) => {
     setLines((prev) => addRestockCartLine(prev, line));
   }, []);
-  const setQty = useCallback((productId: string, quantity: number) => {
-    setLines((prev) => setRestockCartQty(prev, productId, quantity));
+  const setQty = useCallback((productId: string, quantity: number, variantKey?: string | null) => {
+    setLines((prev) => setRestockCartQty(prev, productId, quantity, variantKey));
   }, []);
-  const remove = useCallback((productId: string) => {
-    setLines((prev) => removeRestockCartLine(prev, productId));
+  const remove = useCallback((productId: string, variantKey?: string | null) => {
+    setLines((prev) => removeRestockCartLine(prev, productId, variantKey));
   }, []);
   const clear = useCallback(() => setLines([]), []);
-  const setVariant = useCallback((productId: string, variantKey: string) => {
-    setLines(prev => prev.map(line => line.productId === productId ? { ...line, variantKey } : line));
+  const setVariant = useCallback((productId: string, variantKey: string, previousVariantKey?: string | null) => {
+    setLines(prev => {
+      const source = prev.find(line => restockLineKey(line) === restockLineKey({productId, variantKey: previousVariantKey}));
+      if (!source) return prev;
+      return addRestockCartLine(removeRestockCartLine(prev, productId, previousVariantKey), { ...source, variantKey });
+    });
   }, []);
 
   const value = useMemo(
