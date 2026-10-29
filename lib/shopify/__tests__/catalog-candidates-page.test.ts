@@ -1,21 +1,21 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
-const source = readFileSync(
-  new URL('../../../app/(main)/products/shopify-candidates/page.tsx', import.meta.url),
-  'utf8',
-);
+const source = fs.readFileSync(path.join(process.cwd(), 'app/(main)/products/shopify-candidates/page.tsx'), 'utf8');
 
-test('candidate review page can identify previously staged records without SKU', () => {
-  assert.match(source, /已有 SKU/);
-  assert.match(source, /缺少 SKU/);
-  assert.match(source, /sku: \{ not: null \}/);
-  assert.match(source, /sku: null/);
+test('candidate list is grouped by Shopify product and exposes safe statuses', () => {
+  assert.match(source, /groups = new Map/);
+  assert.match(source, /shopifyProductId/);
+  assert.match(source, /visibleProductIds/);
+  assert.match(source, /resolution: \{ in: \['pending', 'linked', 'blocked', 'created'\] \}/);
+  assert.match(source, /待確認/);
+  assert.match(source, /已連結/);
+  assert.match(source, /這次不建立/);
 });
 
-test('candidate review page clearly prevents unsafe inventory assumptions', () => {
-  assert.match(source, /不會自動建立庫存、成本或上架商品/);
-  assert.match(source, /先到 Shopify 補上唯一 SKU/);
-  assert.match(source, /確認是否販售、單位、成本與初始庫存/);
+test('candidate list does not offer bulk creation', () => {
+  assert.doesNotMatch(source, /全部建立/);
+  assert.doesNotMatch(source, /自動連結/);
 });
