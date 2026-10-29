@@ -56,7 +56,7 @@ function approveSuccess(awaitingPayment: boolean): ReviewResult {
 export async function runReview(db: PrismaClient, command: ReviewCommand) {
   return db.$transaction(async tx => {
     const actor = await tx.user.findUnique({ where: { id: command.actorId } });
-    if (!actor || !['admin', 'staff'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作', { kind: 'error' });
+    if (!actor || !['admin', 'staff', 'inventory_reviewer'].includes(actor.role)) throw new ReviewError('需要有審核權限的 HQ 人員操作', { kind: 'error' });
     const key = await tx.order.findUnique({ where: { id: command.orderId } });
     if (!key?.externalStore || !key.externalOrderId || !key.omsStatus) throw new ReviewError('此訂單不適用 Shopify OMS', { kind: 'error' });
     // Lightweight test transactions do not implement raw SQL; production Prisma always does.
