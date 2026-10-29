@@ -7,6 +7,7 @@ const root = process.cwd();
 const detail = fs.readFileSync(path.join(root, 'app/(main)/products/shopify-candidates/[id]/page.tsx'), 'utf8');
 const clientActions = fs.readFileSync(path.join(root, 'app/(main)/products/shopify-candidates/[id]/candidate-actions.tsx'), 'utf8');
 const actions = fs.readFileSync(path.join(root, 'app/(main)/products/shopify-candidates/actions.ts'), 'utf8');
+const permissions = fs.readFileSync(path.join(root, 'lib/shopify/catalog-candidate-permissions.ts'), 'utf8');
 
 test('candidate detail groups all variants and exposes guarded create', () => {
   assert.match(detail, /shopifyProductId: selected\.shopifyProductId/);
@@ -26,6 +27,13 @@ test('candidate actions use live Shopify verification and server session actor',
   assert.match(actions, /existing\?\.resolution === 'blocked' && existing\.notes === expectedNote/);
   assert.match(actions, /createCatalogCandidate/);
   assert.match(actions, /actorId: actor\.id/);
+});
+
+test('catalog confirmation grants the inventory reviewer role without granting every admin action', () => {
+  assert.match(permissions, /\['admin', 'inventory_reviewer'\]/);
+  assert.match(detail, /canManageCatalogCandidates\(actor\?\.role\)/);
+  assert.match(actions, /canManageCatalogCandidates\(actor\?\.role\)/);
+  assert.doesNotMatch(permissions, /staff|finance|warehouse/);
 });
 
 test('do-not-create copy preserves order blocking semantics', () => {
