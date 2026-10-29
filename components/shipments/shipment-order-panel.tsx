@@ -6,35 +6,32 @@ import {
   type ShipmentPanelData,
 } from '@/app/(main)/shipments/actions';
 import { fetchProductProgramLabels } from '@/app/(main)/shipments/product-program-actions';
-import { Badge } from '@/components/ui/badge';
+import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { paymentStatusLabel } from '@/lib/labels';
 import { formatPlanContents } from '@/lib/plan-contents';
 import { productLabel } from '@/lib/product-label';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
+import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
 import {
-  shipmentStatusLabel,
-  shipmentStatusVariant,
+  nextStatuses,
   shipmentTypeLabel,
+  type ShipmentStatus,
 } from '@/lib/shipment';
-import { ClipboardList, Loader2, MapPin, Package, Pencil, Phone, StickyNote, Truck } from 'lucide-react';
+import { ClipboardList, Loader2, Package, Pencil, StickyNote, Truck } from 'lucide-react';
 import Link from 'next/link';
 
 export function ShipmentOrderPanel({
   shipmentId,
   onTitleChange,
+  queueStatus,
+  queueType,
 }: {
   shipmentId: string;
   onTitleChange?: (title: string) => void;
+  queueStatus?: string;
+  queueType?: string;
 }) {
   const [data, setData] = useState<ShipmentPanelData | null>(null);
   const [programLabelsBySku, setProgramLabelsBySku] = useState<Record<string, string | null>>({});
@@ -147,29 +144,37 @@ export function ShipmentOrderPanel({
     data.recipientName ||
     data.customer?.name ||
     '姓名未設定';
+  const allowedNext = (
+    paymentReviewHold
+      ? nextStatuses(data.status).filter((status) => status !== 'shipped')
+      : nextStatuses(data.status)
+  ) as ShipmentStatus[];
+  const primaryNext = allowedNext.find((next) => next !== 'pending' && next !== 'cancelled');
+  const shipCarrierDefaults = resolveShipActionCarrierDefaults({
+    carrier: data.carrier,
+    recipientName: data.recipientName,
+    recipientPhone: data.recipientPhone,
+    recipientAddress: data.recipientAddress,
+    merchant: data.merchant,
+  });
+  const quickActionReady = Boolean(
+    primaryNext && (primaryNext !== 'shipped' || shipCarrierDefaults.defaultCarrier),
+  );
 
   return (
-    <div className="min-w-0 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4">
+    <div className="min-w-0 space-y-4">
+      <div className="sticky top-0 z-10 -mx-4 border-b bg-card/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm font-semibold">{orderLabel}</span>
+            <span className="font-mono text-lg font-semibold tracking-tight">{orderLabel}</span>
           </div>
           <p className="text-sm font-medium text-foreground">{partyLabel}</p>
-          <p className="font-mono text-[11px] text-muted-foreground">
-            出貨單 {data.shipmentNumber}
+          <p className="text-xs text-muted-foreground">
+            {shipmentTypeLabel[data.type] ?? data.type} · {data.carrier ?? '物流待確認'}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{shipmentTypeLabel[data.type] ?? data.type}</Badge>
-            <Badge variant={shipmentStatusVariant[data.status] ?? 'secondary'}>
-              {shipmentStatusLabel[data.status] ?? data.status}
-            </Badge>
-            {paymentReviewHold ? (
-              <Badge variant="warning">{JIBA_PAYMENT_REVIEW_LABEL}</Badge>
-            ) : null}
-          </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
           {data.order?.editable ? (
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -180,157 +185,153 @@ export function ShipmentOrderPanel({
               </Link>
             </Button>
           ) : null}
-          {data.carrier || data.trackingNumber ? (
-            <div className="text-right text-xs text-muted-foreground">
-              {data.carrier ? <div>{data.carrier}</div> : null}
-              {data.trackingNumber ? (
-                <div className="font-mono">{data.trackingNumber}</div>
-              ) : null}
-            </div>
+          {primaryNext && quickActionReady ? (
+            <ShipmentStatusActions
+              shipmentId={data.id}
+              currentStatus={data.status}
+              allowedNext={[primaryNext]}
+              defaultCarrier={shipCarrierDefaults.defaultCarrier}
+              defaultTracking={data.trackingNumber}
+              defaultPickupStore={shipCarrierDefaults.pickupStore}
+              defaultPickupName={shipCarrierDefaults.pickupName}
+              defaultPickupPhone={shipCarrierDefaults.pickupPhone}
+              compact
+              inline
+              queueStatus={queueStatus}
+              queueType={queueType}
+              primaryLabel={primaryNext === 'shipped' ? '確認出貨' : undefined}
+            />
           ) : null}
         </div>
       </div>
+      </div>
+
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+        {['pending', 'packed', 'shipped', 'delivered'].map((step, index) => {
+          const order = ['pending', 'packed', 'shipped', 'delivered'];
+          const currentIndex = data.status === 'received'
+            ? order.length - 1
+            : Math.max(0, order.indexOf(data.status));
+          const done = index < currentIndex;
+          const current = index === currentIndex;
+          return (
+            <div key={step} className="flex min-w-0 flex-1 items-center gap-1">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${done || current ? 'bg-primary' : 'bg-border'}`} />
+              <span className={current ? 'font-semibold text-primary' : 'truncate text-muted-foreground'}>
+                {step === 'pending' ? '待出貨' : step === 'packed' ? '備貨中' : step === 'shipped' ? '已出貨' : '已送達'}
+              </span>
+              {index < 3 ? <span className="mx-1 h-px flex-1 bg-border" /> : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {paymentReviewHold ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          {JIBA_PAYMENT_REVIEW_LABEL}
+        </div>
+      ) : null}
 
       {data.order?.note ? (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+        <section className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
             <StickyNote className="h-4 w-4" />
-            送貨備註
+            需要注意
           </h3>
-          <p className="mt-3 whitespace-pre-line text-base font-medium leading-relaxed text-amber-950">
+          <p className="mt-2 whitespace-pre-line text-sm font-medium leading-relaxed">
             {data.order.note}
           </p>
-          <p className="mt-2 text-xs text-amber-800">來源：訂單備註</p>
         </section>
       ) : null}
 
-      {data.internalNotes ? (
-        <section className="rounded-lg border border-border/70 bg-muted/30 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            內部備註
+      <section className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-base font-semibold">
+            <Package className="h-4 w-4" />
+            出貨品項
           </h3>
-          <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-foreground">
-            {data.internalNotes}
+          <span className="text-xs text-muted-foreground">共 {displayQty} 件</span>
+        </div>
+        {data.subscription && data.items.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            訂閱方案：{data.subscription.planName ?? '未命名方案'}
+            {planContents.length > 0 ? ` · ${formatPlanContents(planContents)}` : ''}
           </p>
-        </section>
-      ) : null}
+        ) : null}
+        <ul className="mt-3 space-y-2">
+          {displayItems.map((item) => (
+            <li key={item.key} className="flex items-start gap-3 rounded-md border bg-muted/10 px-3 py-2.5">
+              <span
+                aria-hidden="true"
+                className="mt-1 h-4 w-4 shrink-0 rounded border border-border bg-muted/30"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-medium">{item.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{item.sku}</p>
+              </div>
+              <span className="shrink-0 text-sm font-semibold tabular-nums">{item.quantity} {item.unit ?? ''}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <section className="min-w-0 rounded-lg border bg-card p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Truck className="h-4 w-4 text-info" />
-            運輸與收件
-          </h3>
-          {data.order?.editable ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              可修改商品、數量、金額與收件資料；儲存後會同步更新此出貨單。
-            </p>
-          ) : data.order?.editBlockedReason ? (
-            <p className="mt-2 text-xs text-muted-foreground">{data.order.editBlockedReason}</p>
-          ) : null}
-          <dl className="mt-4 space-y-3 text-sm">
+      <div className="space-y-2">
+        <details className="group rounded-lg border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+            <span className="flex items-center gap-2"><StickyNote className="h-4 w-4 text-muted-foreground" />查看送貨備註</span>
+            <span className="text-xs text-muted-foreground">{data.order?.note ? '有備註' : '無備註'}</span>
+          </summary>
+          <div className="border-t px-4 py-3 text-sm text-muted-foreground">
+            {data.order?.note ? <p className="whitespace-pre-line">{data.order.note}</p> : '目前沒有送貨備註。'}
+            <p className="mt-2 text-xs">來源：訂單備註 · 對外可見</p>
+          </div>
+        </details>
+
+        <details className="group rounded-lg border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+            <span className="flex items-center gap-2"><Truck className="h-4 w-4 text-muted-foreground" />查看收件資訊</span>
+            <span className="text-xs text-muted-foreground">{logistics.contactName}</span>
+          </summary>
+          <div className="grid gap-x-6 gap-y-3 border-t px-4 py-3 sm:grid-cols-2">
             <PanelRow label="物流" value={logistics.carrierLabel} />
             <PanelRow label="收件人" value={logistics.contactName} />
-            {logistics.phone !== '—' ? (
-              <PanelRow
-                label="電話"
-                value={
-                  <span className="inline-flex items-center gap-1 font-mono">
-                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                    {logistics.phone}
-                  </span>
-                }
-              />
-            ) : null}
-            <PanelRow
-              label="寄送地"
-              value={
-                <span className="flex items-start justify-end gap-1">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-                    {logistics.destination}
-                  </span>
-                </span>
-              }
-            />
-            {data.order ? (
-              <>
-                <PanelRow
-                  label="付款"
-                  value={paymentStatusLabel[data.order.paymentStatus] ?? data.order.paymentStatus}
-                />
-                <PanelRow
-                  label="運費"
-                  value={data.fulfillmentFeeLabel ?? data.order.shippingFeeType}
-                />
-              </>
-            ) : null}
-          </dl>
-        </section>
+            {logistics.phone !== '—' ? <PanelRow label="電話" value={logistics.phone} /> : null}
+            <PanelRow label="寄送地" value={logistics.destination} />
+            {data.order ? <PanelRow label="付款" value={paymentStatusLabel[data.order.paymentStatus] ?? data.order.paymentStatus} /> : null}
+            {data.order ? <PanelRow label="運費" value={data.fulfillmentFeeLabel ?? data.order.shippingFeeType} /> : null}
+          </div>
+        </details>
 
-        <section className="min-w-0 rounded-lg border bg-card p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Package className="h-4 w-4 text-info" />
-            出貨品項
-            <span className="text-xs font-normal text-muted-foreground">
-              {displayItems.length} 項 · 共 {displayQty} 件
-            </span>
-          </h3>
-          {data.subscription && data.items.length === 0 ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              訂閱方案：{data.subscription.planName ?? '未命名方案'}
-              {planContents.length > 0 ? ` · ${formatPlanContents(planContents)}` : ''}
-            </p>
-          ) : null}
-          <ul className="mt-4 space-y-2 md:hidden">
-            {displayItems.map((item) => (
-              <li
-                key={item.key}
-                className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 font-medium break-words [overflow-wrap:anywhere]">{item.name}</p>
-                  <span className="shrink-0 text-base font-semibold tabular-nums">×{item.quantity}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span className="font-mono">{item.sku}</span>
-                  {item.programLabel ? <Badge variant="outline">{item.programLabel}</Badge> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-          <Table className="mt-4 hidden md:table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>商品</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>計劃</TableHead>
-                <TableHead className="text-right">數量</TableHead>
-                <TableHead className="text-center">單位</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayItems.map((item) => (
-                <TableRow key={item.key}>
-                  <TableCell className="text-sm font-medium">{item.name}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {item.sku}
-                  </TableCell>
-                  <TableCell>
-                    {item.programLabel ? <Badge variant="outline">{item.programLabel}</Badge> : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold">
-                    {item.quantity}
-                  </TableCell>
-                  <TableCell className="text-center text-sm text-muted-foreground">
-                    {item.unit ?? '-'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </section>
+        {data.internalNotes ? (
+          <details className="group rounded-lg border bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+              <span className="flex items-center gap-2"><ClipboardList className="h-4 w-4 text-muted-foreground" />查看內部備註</span>
+              <span className="text-xs text-muted-foreground">僅團隊可見</span>
+            </summary>
+            <div className="whitespace-pre-line border-t px-4 py-3 text-sm text-muted-foreground">{data.internalNotes}</div>
+          </details>
+        ) : null}
+
+        {!quickActionReady && allowedNext.length > 0 ? (
+          <details className="group rounded-lg border bg-card">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">補充出貨資料</summary>
+            <div className="border-t p-3">
+              <ShipmentStatusActions
+                shipmentId={data.id}
+                currentStatus={data.status}
+                allowedNext={allowedNext}
+                defaultCarrier={shipCarrierDefaults.defaultCarrier}
+                defaultTracking={data.trackingNumber}
+                defaultPickupStore={shipCarrierDefaults.pickupStore}
+                defaultPickupName={shipCarrierDefaults.pickupName}
+                defaultPickupPhone={shipCarrierDefaults.pickupPhone}
+                inline
+                queueStatus={queueStatus}
+                queueType={queueType}
+              />
+            </div>
+          </details>
+        ) : null}
       </div>
 
     </div>
