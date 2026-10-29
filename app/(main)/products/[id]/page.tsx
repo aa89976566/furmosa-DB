@@ -22,12 +22,15 @@ import { updateProduct, deleteProduct } from '../actions';
 import { PriceTierManager } from './price-tier-manager';
 import { VendorInfoCard } from '@/components/vendors/vendor-info-card';
 import { summarizeVariations } from '@/lib/product-variations';
+import { getCurrentUser } from '@/lib/auth';
+import { inventoryUnit } from '@/lib/inventory/workbench';
+import { OperatorProductStock } from './operator-product-stock';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProductDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, vendors] = await Promise.all([
+  const [product, vendors, user] = await Promise.all([
     prisma.product.findUnique({
       where: { id: params.id },
       include: {
@@ -48,10 +51,10 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
       orderBy: { name: 'asc' },
       select: { id: true, name: true, vendorId: true },
     }),
+    getCurrentUser(),
   ]);
   if (!product) notFound();
 
-  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
   const variations = product.priceTiers.map((tier) => ({
     id: tier.id,
     weightGrams: tier.weightGrams,
@@ -66,6 +69,44 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     shopifyVariantId: tier.shopifyVariantId,
     notes: tier.notes,
   }));
+
+  if (user?.role === 'inventory_reviewer') {
+    const mainBalance = product.inventoryBalances.find((balance) => balance.warehouse.code === 'WH-MAIN');
+    const unit = inventoryUnit(mainBalance?.unit);
+    const productUnit = inventoryUnit(product.unit);
+    const canCount = product.status === 'active'
+      && product.productCategory === 'STANDARD'
+      && !!mainBalance
+      && !!unit
+      && unit === productUnit;
+    const blockedReason = product.status !== 'active'
+      ? '商品目前未上架，請由管理員確認商品狀態。'
+      : product.productCategory !== 'STANDARD'
+        ? '此商品不是一般庫存商品，請盤點實際組成品項。'
+        : !mainBalance
+          ? '尚未建立主倉庫存，請由管理員完成首次設定。'
+          : !unit || unit !== productUnit
+            ? '庫存單位尚未確認，請由管理員完成設定。'
+            : undefined;
+    return <OperatorProductStock
+      productId={product.id}
+      productName={product.name}
+      sku={product.sourceSku ?? product.sku}
+      quantity={unit ? mainBalance!.quantity : null}
+      unit={unit}
+      expectedVersion={mainBalance?.updatedAt.toISOString() ?? null}
+      canCount={canCount}
+      blockedReason={blockedReason}
+      lastCountedAt={mainBalance?.lastCountedAt?.toISOString() ?? null}
+      tiers={variations.map((tier) => ({
+        id: tier.id,
+        label: tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty}${tier.unit}`,
+        price: formatCurrency(Number(tier.price)),
+      }))}
+    />;
+  }
+
+  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
   const variationSummary = summarizeVariations(variations);
 
   const statusLabel =
