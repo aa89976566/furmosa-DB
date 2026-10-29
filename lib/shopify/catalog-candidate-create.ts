@@ -13,9 +13,9 @@ import {
   type LiveCandidateSource,
 } from '@/lib/shopify/catalog-candidate-resolution';
 import {
-  normalizeLegacyProductName,
   resolveLegacyCatalogReference,
 } from '@/lib/shopify/legacy-catalog-reference';
+import { matchingExistingProducts } from '@/lib/shopify/catalog-candidate-product-match';
 
 const VALID_CATEGORIES = new Set([
   'staple_food', 'treats', 'health', 'freeze_dried', 'toys', 'accessories', 'other',
@@ -161,17 +161,15 @@ export async function createCandidateInTransaction(tx: Prisma.TransactionClient,
         variantTitle: input.source.variantTitle,
         shopifyPrice: input.source.price,
       });
-      if (!reference.reference) {
-        throw new CandidateCreateError('PRODUCT_MATCH_UNAVAILABLE', '目前無法依商品名稱安全確認既有 HQ 商品');
-      }
       const eligibleProducts = await tx.product.findMany({
         where: { status: { in: ['draft', 'active'] } },
         select: { id: true, name: true },
       });
-      const canonicalName = normalizeLegacyProductName(reference.reference.canonicalName);
-      const matchingProducts = eligibleProducts.filter((product) => (
-        normalizeLegacyProductName(product.name) === canonicalName
-      ));
+      const matchingProducts = matchingExistingProducts({
+        products: eligibleProducts,
+        shopifyProductTitle: input.source.productTitle,
+        canonicalProductName: reference.reference?.canonicalName,
+      });
       if (matchingProducts.length !== 1 || matchingProducts[0]!.id !== requestedProductId) {
         throw new CandidateCreateError('PRODUCT_MATCH_CHANGED', '同名 HQ 商品不再是唯一一筆，已停止處理');
       }

@@ -165,6 +165,26 @@ test('a unique canonical product-name match adds the Shopify package to the exis
   assert.equal(audit.matchedExistingProductByName, true);
 });
 
+test('a unique exact Shopify title reuses an HQ product that still has its marketing prefix', async () => {
+  const fixture = transactionFixture({
+    input: {
+      source: {
+        productId: base.source.productId, variantId: base.source.variantId,
+        productTitle: '◈ 走敢若飛 ◈ 鴨翅', variantTitle: '五支', sku: 'CHEW-DUCKWING-5', price: 385,
+        shopifyStatus: base.source.shopifyStatus,
+      },
+      mode: 'unit', weightGrams: null, unit: '支', unitQty: 5, cost: 115,
+      targetProductId: 'existing-product',
+    },
+    targetProducts: [{ id: 'existing-product', name: '◈ 走敢若飛 ◈ 鴨翅' }],
+  });
+  const result = await createCandidateInTransaction(fixture.tx as never, fixture.input);
+  if (result.noop) throw new Error('expected a new create result');
+  assert.equal(result.productId, 'existing-product');
+  assert.equal(result.createdProduct, false);
+  assert.equal(fixture.calls.some((call) => call.target === 'product'), false);
+});
+
 test('name-based target fails closed when the HQ name is no longer unique', async () => {
   const fixture = transactionFixture({
     input: {

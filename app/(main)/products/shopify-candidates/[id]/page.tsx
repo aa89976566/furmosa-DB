@@ -15,11 +15,11 @@ import {
 } from '@/lib/shopify/catalog-candidate-resolution';
 import {
   resolveLegacyCatalogReference,
-  normalizeLegacyProductName,
   type LegacyCatalogReference,
   type LegacyReferenceReason,
 } from '@/lib/shopify/legacy-catalog-reference';
 import { canManageCatalogCandidates } from '@/lib/shopify/catalog-candidate-permissions';
+import { matchingExistingProducts } from '@/lib/shopify/catalog-candidate-product-match';
 import { BlockCandidateForm, CreateCandidateForm, LinkCandidateForm } from './candidate-actions';
 
 export const dynamic = 'force-dynamic';
@@ -147,12 +147,11 @@ export default async function ShopifyCandidateDetailPage(props: { params: Promis
               shopifyPrice: Number(candidate.price),
             })
             : null;
-          const canonicalLegacyName = legacyReference?.reference
-            ? normalizeLegacyProductName(legacyReference.reference.canonicalName)
-            : null;
-          const nameMatchedProducts = canonicalLegacyName
-            ? eligibleProducts.filter((product) => normalizeLegacyProductName(product.name) === canonicalLegacyName)
-            : [];
+          const nameMatchedProducts = matchingExistingProducts({
+            products: eligibleProducts,
+            shopifyProductTitle: candidate.productTitle,
+            canonicalProductName: legacyReference?.reference?.canonicalName,
+          });
           const suggestedProduct = nameMatchedProducts.length === 1 ? nameMatchedProducts[0]! : null;
           const effectiveParentProduct = parentProduct ?? suggestedProduct;
           return (

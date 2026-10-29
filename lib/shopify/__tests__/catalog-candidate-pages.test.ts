@@ -71,7 +71,7 @@ test('prefill remains editable and does not add legacy identity fields to the ac
 
 test('unique canonical product name can target an existing HQ product without trusting legacy SKU', () => {
   assert.match(detail, /nameMatchedProducts\.length === 1/);
-  assert.match(detail, /normalizeLegacyProductName\(product\.name\)/);
+  assert.match(detail, /matchingExistingProducts/);
   assert.match(detail, /targetProductId=\{!parentProduct && suggestedProduct/);
   assert.match(clientActions, /name="targetProductId"/);
   assert.match(actions, /targetProductId: formData\.get\('targetProductId'\)/);
