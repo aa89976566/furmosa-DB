@@ -42,11 +42,22 @@ test('service source includes transactional lock, CAS, audit and no inventory wr
   assert.doesNotMatch(source, /inventoryBalance|inventoryTransaction|purchaseOrder|orderIssue/);
 });
 
-function transactionFixture(options?: { siblingProductIds?: string[]; casCount?: number; auditFails?: boolean }) {
+function transactionFixture(options?: {
+  siblingProductIds?: string[];
+  casCount?: number;
+  auditFails?: boolean;
+  input?: Partial<CandidateCreateInput> & { source?: Partial<CandidateCreateInput['source']> };
+  targetProducts?: Array<{ id: string; name: string }>;
+}) {
+  const fixtureBase = {
+    ...base,
+    ...options?.input,
+    source: { ...base.source, ...options?.input?.source },
+  } satisfies CandidateCreateInput;
   const candidate = {
-    id: 'candidate-1', shopifyProductId: base.source.productId, shopifyVariantId: base.source.variantId,
-    productTitle: base.source.productTitle, variantTitle: base.source.variantTitle, sku: base.source.sku,
-    price: base.source.price, shopifyStatus: base.source.shopifyStatus, resolution: 'pending',
+    id: 'candidate-1', shopifyProductId: fixtureBase.source.productId, shopifyVariantId: fixtureBase.source.variantId,
+    productTitle: fixtureBase.source.productTitle, variantTitle: fixtureBase.source.variantTitle, sku: fixtureBase.source.sku,
+    price: fixtureBase.source.price, shopifyStatus: fixtureBase.source.shopifyStatus, resolution: 'pending',
     linkedProductId: null as string | null, linkedTierId: null as string | null,
     firstSeenAt: new Date('2026-10-28T09:00:00Z'), lastSeenAt: new Date('2026-10-28T10:00:00Z'),
     resolvedAt: null, resolvedById: null, notes: null,
@@ -72,7 +83,9 @@ function transactionFixture(options?: { siblingProductIds?: string[]; casCount?:
       },
     },
     product: {
-      findMany: async () => [{ productId: 'PROD-0009' }],
+      findMany: async (args?: { select?: { name?: boolean } }) => args?.select?.name
+        ? (options?.targetProducts ?? [])
+        : [{ productId: 'PROD-0009' }],
       findUnique: async () => ({ id: 'existing-product', status: 'active', category: 'treats' }),
       create: async ({ data }: { data: Record<string, unknown> }) => {
         calls.push({ target: 'product', data });
@@ -90,8 +103,8 @@ function transactionFixture(options?: { siblingProductIds?: string[]; casCount?:
     },
   };
   const input = {
-    ...base,
-    expectedFingerprint: candidateResolutionFingerprint({ shopDomain: base.shopDomain, candidate: candidate as never, claims: [] }),
+    ...fixtureBase,
+    expectedFingerprint: candidateResolutionFingerprint({ shopDomain: fixtureBase.shopDomain, candidate: candidate as never, claims: [] }),
   };
   return { candidate, calls, tx, input, getAuditMetadata: () => auditMetadata };
 }
@@ -128,6 +141,44 @@ test('a uniquely claimed parent adds only a Tier to the existing Product', async
   const audit = JSON.parse(String(fixture.calls.find((call) => call.target === 'audit')!.data!.metadataJson));
   assert.equal(audit.category, 'treats');
   assert.equal(audit.categoryApplied, false);
+});
+
+test('a unique canonical product-name match adds the Shopify package to the existing HQ product', async () => {
+  const fixture = transactionFixture({
+    input: {
+      source: {
+        productTitle: '◈ 走敢若飛 ◈ 鴨翅', variantTitle: '單支', sku: 'CHEW-DUCKWING-1', price: 75,
+      },
+      mode: 'unit', weightGrams: null, unit: '隻', unitQty: 1, cost: 23,
+      targetProductId: 'existing-product',
+    },
+    targetProducts: [{ id: 'existing-product', name: '鴨翅' }],
+  });
+  const result = await createCandidateInTransaction(fixture.tx as never, fixture.input);
+  if (result.noop) throw new Error('expected a new create result');
+  assert.equal(result.createdProduct, false);
+  assert.equal(result.productId, 'existing-product');
+  assert.equal(fixture.calls.some((call) => call.target === 'product'), false);
+  const audit = JSON.parse(String(fixture.calls.find((call) => call.target === 'audit')!.data!.metadataJson));
+  assert.equal(audit.matchedExistingProductByName, true);
+});
+
+test('name-based target fails closed when the HQ name is no longer unique', async () => {
+  const fixture = transactionFixture({
+    input: {
+      source: {
+        productTitle: '◈ 走敢若飛 ◈ 鴨翅', variantTitle: '單支', sku: 'CHEW-DUCKWING-1', price: 75,
+      },
+      mode: 'unit', weightGrams: null, unit: '隻', unitQty: 1, cost: 23,
+      targetProductId: 'existing-product',
+    },
+    targetProducts: [
+      { id: 'existing-product', name: '鴨翅' },
+      { id: 'duplicate-product', name: '鴨翅' },
+    ],
+  });
+  await assert.rejects(createCandidateInTransaction(fixture.tx as never, fixture.input), /不再是唯一一筆/);
+  assert.equal(fixture.calls.some((call) => call.target === 'tier'), false);
 });
 
 test('unit create stores package cost without inventing a per-item conversion', async () => {

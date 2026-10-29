@@ -34,6 +34,7 @@ const blockSchema = commonSchema.extend({
   note: z.string().max(500).optional(),
 });
 const createSchema = commonSchema.extend({
+  targetProductId: z.string().min(1).optional(),
   category: z.enum(['staple_food', 'treats', 'health', 'freeze_dried', 'toys', 'accessories', 'other']),
   mode: z.enum(['weight', 'unit']),
   cost: z.coerce.number().finite().positive(),
@@ -99,6 +100,7 @@ export async function linkCandidateAction(
     candidateId: String(formData.get('candidateId') ?? ''),
     tierId: String(formData.get('tierId') ?? ''),
     expectedFingerprint: String(formData.get('expectedFingerprint') ?? ''),
+    targetProductId: formData.get('targetProductId') ? String(formData.get('targetProductId')) : undefined,
   });
   if (!parsed.success) return { ok: false, message: '畫面資料不完整，請重新整理後再試。' };
   const existing = await prisma.shopifyCatalogCandidate.findUnique({

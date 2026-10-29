@@ -61,10 +61,18 @@ test('prefill remains editable and does not add legacy identity fields to the ac
   assert.doesNotMatch(actions, /legacy-catalog-reference/);
 });
 
+test('unique canonical product name can target an existing HQ product without trusting legacy SKU', () => {
+  assert.match(detail, /nameMatchedProducts\.length === 1/);
+  assert.match(detail, /normalizeLegacyProductName\(product\.name\)/);
+  assert.match(detail, /targetProductId=\{!parentProduct && suggestedProduct/);
+  assert.match(clientActions, /name="targetProductId"/);
+  assert.match(actions, /targetProductId: formData\.get\('targetProductId'\)/);
+});
+
 test('create form field names stay exactly compatible with the existing server action', () => {
   const createFormSource = clientActions.slice(clientActions.indexOf('export function CreateCandidateForm'));
   const fieldNames = [...createFormSource.matchAll(/name="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual([...new Set(fieldNames)].sort(), [
-    'candidateId', 'category', 'cost', 'expectedFingerprint', 'mode', 'unit', 'unitQty', 'weightGrams',
+    'candidateId', 'category', 'cost', 'expectedFingerprint', 'mode', 'targetProductId', 'unit', 'unitQty', 'weightGrams',
   ]);
 });
