@@ -1,17 +1,20 @@
 import { record, string, sourceDate, hasPromotionCapture, sourceFulfillmentLines, PROMOTION_GIFT_MARKER, PROMOTION_CHOICE_ATTRIBUTE, type Snapshot } from '../shopify/intake-policy';
 import type { OmsIssue } from './oms';
 
-export const PROMOTION_RULES_VERSION = 'ck08-555-v1';
+export const PROMOTION_RULES_VERSION = 'ck08-555-v2';
 export const PROMOTION_THRESHOLD_CENTS = 55500;
 export const PROMOTION_GIFT_SKU = 'CK-08';
 export const PROMOTION_GIFT_VARIANT_ID = '64368368517497';
 export const PROMOTION_START_MS = Date.parse('2026-08-27T06:55:00+08:00');
+// Exclusive end: all of October 10 remains eligible in Taiwan time.
+export const PROMOTION_END_MS = Date.parse('2026-10-11T00:00:00+08:00');
 const MAX_QTY = 2147483647;
 const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 
 export type PromotionReason =
   | 'INELIGIBLE_BELOW_THRESHOLD'
   | 'INELIGIBLE_BEFORE_CAMPAIGN'
+  | 'INELIGIBLE_AFTER_CAMPAIGN'
   | 'ADD_HQ_GIFT'
   | 'SHOPIFY_EXISTING_GIFT'
   | 'DECLINED'
@@ -244,6 +247,7 @@ export function resolvePromotion(snapshot: Snapshot): PromotionResolution {
       : result('ineligible', 'INELIGIBLE_BELOW_THRESHOLD');
   }
   if (created.getTime() < PROMOTION_START_MS) return result('ineligible', 'INELIGIBLE_BEFORE_CAMPAIGN');
+  if (created.getTime() >= PROMOTION_END_MS) return result('ineligible', 'INELIGIBLE_AFTER_CAMPAIGN');
   if (!reached) return result('ineligible', 'INELIGIBLE_BELOW_THRESHOLD');
   if (!captureComplete) {
     return result('uncertain', 'MISSING_CAPTURE', [issue('達門檻但來源缺少活動標記，請重新同步來源資料後再審核')]);

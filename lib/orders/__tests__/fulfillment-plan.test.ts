@@ -36,6 +36,29 @@ function draftFor(snapshot: Snapshot, productId: string, temperature = 'frozen')
 }
 
 describe('fulfillment plan gift lines', () => {
+  it('does not require the retired gift product after campaign end', () => {
+    const snapshot = source([{ sku: 'FD-01', title: '飼料', quantity: 1, price: '1617.30', requires_shipping: true }], { created_at: '2026-10-29T02:06:00+08:00' });
+    const plan = buildFulfillmentPlan(snapshot, draftFor(snapshot, 'feed', 'ambient'), [feed]);
+    assert.equal(plan.promotion.reason, 'INELIGIBLE_AFTER_CAMPAIGN');
+    assert.equal(plan.items.length, 1);
+    assert.ok(plan.items.every(item => item.origin !== 'hq-gift'));
+    assert.ok(!plan.issues.some(issue => issue.message.includes('CK-08')));
+    assert.equal(plan.display.statusLabel, '活動已結束');
+  });
+
+  it('retains an explicit Shopify gift line after campaign end', () => {
+    const snapshot = source([
+      { sku: 'FD-01', title: '飼料', quantity: 1, price: '790.00', requires_shipping: true },
+      { sku: 'CK-08', title: '月餅', quantity: 1, price: '0.00', requires_shipping: true },
+    ], { created_at: '2026-10-11T00:00:00+08:00' });
+    const draft = draftFor(snapshot, 'feed');
+    draft.lines[1].productId = 'ck08';
+    const plan = buildFulfillmentPlan(snapshot, draft, [feed, mooncake]);
+    assert.equal(plan.items.length, 2);
+    assert.equal(plan.items.find(item => item.productId === 'ck08')?.quantity, 1);
+    assert.ok(plan.items.every(item => item.origin !== 'hq-gift'));
+  });
+
   it('keeps purchased quantity 10 and adds an independent HQ gift of 1 at 50g', () => {
     const snapshot = source([{ sku: 'CK-08', title: '月餅', quantity: 10, price: '79.00', requires_shipping: true }]);
     const plan = buildFulfillmentPlan(snapshot, draftFor(snapshot, 'ck08'), [mooncake]);
