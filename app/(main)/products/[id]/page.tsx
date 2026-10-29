@@ -55,6 +55,21 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
   ]);
   if (!product) notFound();
 
+  const variations = product.priceTiers.map((tier) => ({
+    id: tier.id,
+    weightGrams: tier.weightGrams,
+    unit: tier.unit,
+    unitQty: tier.unitQty,
+    price: tier.price,
+    cost: tier.cost,
+    defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice,
+    status: tier.status,
+    sku: tier.sku,
+    shopifySku: tier.shopifySku,
+    shopifyVariantId: tier.shopifyVariantId,
+    notes: tier.notes,
+  }));
+
   if (user?.role === 'inventory_reviewer') {
     const mainBalance = product.inventoryBalances.find((balance) => balance.warehouse.code === 'WH-MAIN');
     const unit = inventoryUnit(mainBalance?.unit);
@@ -92,20 +107,6 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
   }
 
   const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
-  const variations = product.priceTiers.map((tier) => ({
-    id: tier.id,
-    weightGrams: tier.weightGrams,
-    unit: tier.unit,
-    unitQty: tier.unitQty,
-    price: tier.price,
-    cost: tier.cost,
-    defaultWholesaleUnitPrice: tier.defaultWholesaleUnitPrice,
-    status: tier.status,
-    sku: tier.sku,
-    shopifySku: tier.shopifySku,
-    shopifyVariantId: tier.shopifyVariantId,
-    notes: tier.notes,
-  }));
   const variationSummary = summarizeVariations(variations);
 
   const statusLabel =
