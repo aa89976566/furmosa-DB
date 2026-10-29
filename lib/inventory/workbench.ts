@@ -1,4 +1,4 @@
-export const COUNT_ROLES = ['admin', 'warehouse', 'finance'];
+export const COUNT_ROLES = ['admin', 'warehouse', 'finance', 'inventory_reviewer'];
 const units = new Set(['g', '隻', '片', '顆', '條', '包', '個', '件', '支', '罐', '瓶', '袋', '組']);
 export function inventoryUnit(value: string | null | undefined) {
     const unit = ['克', '公克'].includes(value ?? '') ? 'g' : value;
