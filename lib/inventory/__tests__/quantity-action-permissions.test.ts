@@ -35,7 +35,7 @@ test('inventory write action rejects read-only roles before any write and uses a
     assert.match(result.message, /沒有更新庫存權限/);
   }
   assert.equal(commands.length, 0);
-  for (role of ['admin', 'warehouse', 'finance']) {
+  for (role of ['admin', 'warehouse', 'finance', 'inventory_reviewer']) {
     assert.equal((await saveInventoryQuantities(data())).ok, true);
     assert.equal(commands.at(-1)!.actorId, 'session-staff');
     assert.equal(commands.at(-1)!.lines[0].quantity, 350);

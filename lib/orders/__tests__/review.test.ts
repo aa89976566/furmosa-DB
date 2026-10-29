@@ -331,6 +331,13 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);
   });
+  it('allows the inventory reviewer role to check Shopify orders', async () => {
+    const f = fakeDb();
+    f.setRole('inventory_reviewer');
+    const result = await f.run('check');
+    assert.equal(result.ok, true);
+    assert.equal(f.order.omsStatus, 'REVIEW');
+  });
   it('rejects direct shipping, unauthorized users, stale versions and unsaved forms', async () => {
     const f = fakeDb(); await assert.rejects(f.run('ship'));
     f.setRole('warehouse'); await assert.rejects(f.run('check'), /審核權限/); f.setRole('staff');
