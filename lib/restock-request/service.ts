@@ -138,7 +138,7 @@ export async function assertJarExchangeProducts(productIds: string[]) {
     where: { id: { in: productIds } },
     select: { id: true, productCategory: true, name: true },
   });
-  if (rows.length !== productIds.length) {
+  if (rows.length !== new Set(productIds).size) {
     throw new Error('有商品不存在');
   }
   const bad = rows.filter((r) => !isRestockableProductCategory(r.productCategory));
@@ -157,7 +157,7 @@ export async function assertPosConsignmentRestockProducts(productIds: string[]) 
     where: { id: { in: productIds } },
     select: { id: true, productCategory: true, consignmentEnabled: true },
   });
-  if (rows.length !== productIds.length) throw new Error('有商品不存在');
+  if (rows.length !== new Set(productIds).size) throw new Error('有商品不存在');
   const disabled = rows.filter(
     (row) => row.productCategory === 'STANDARD' && row.consignmentEnabled !== true,
   );
@@ -457,7 +457,7 @@ export async function approveAndConvertRestockRequest(input: {
     const products = await tx.product.findMany({
       where: { id: { in: lines.map((l) => l.productId) } },
     });
-    assertApprovableRestockProducts(products, lines);
+    assertApprovableRestockProducts(products, [...new Map(lines.map(line => [line.productId, line])).values()]);
 
     const productById = new Map(products.map((p) => [p.id, p]));
     const snapshot: ApprovedSnapshotLine[] = lines.map((l) => {

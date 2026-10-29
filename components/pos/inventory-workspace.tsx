@@ -19,7 +19,7 @@ import {
   type InventoryTone,
 } from '@/lib/pos/inventory-groups';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
-import { defaultRestockAddQty } from '@/lib/pos/restock-cart';
+import { defaultRestockAddQty, restockLineKey } from '@/lib/pos/restock-cart';
 import {
   adjustInventoryQuantityAction,
   submitInventoryRestockCartAction,
@@ -93,7 +93,8 @@ function InventoryWorkspaceInner({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [addQty, setAddQty] = useState(1);
+  const [addQty, setAddQty] = useState(0);
+  const [addVariant, setAddVariant] = useState('');
   const [adjustQty, setAdjustQty] = useState(0);
   const [adjustTier, setAdjustTier] = useState<string | undefined>();
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -123,6 +124,7 @@ function InventoryWorkspaceInner({
     if (!selectedId) return;
     const product = items.find((item) => item.productId === selectedId);
     if (!product) return;
+    setAddVariant('');
     setRestockOpen(false);
     setAdjustOpen(false);
     setAddQty(defaultRestockAddQty(product.suggestedQty));
@@ -132,11 +134,13 @@ function InventoryWorkspaceInner({
 
   function addProductToCart(product: InventoryProduct, quantity?: number) {
     const qty = quantity ?? defaultRestockAddQty(product.suggestedQty);
+    if (qty <= 0) return;
     cart.add({
       productId: product.productId,
       name: product.name,
       imageUrl: product.imageUrl,
       quantity: qty,
+      variantKey: addVariant || undefined,
     });
     showToast(setToast, { text: '已加入補貨單' });
   }
@@ -144,6 +148,7 @@ function InventoryWorkspaceInner({
   async function onAdjust() {
     if (!selected) return;
     setAdjusting(true);
+    try {
     const result = await adjustInventoryQuantityAction(selected.productId, adjustQty, adjustTier);
     setAdjusting(false);
     if (!result.ok) {
@@ -160,6 +165,11 @@ function InventoryWorkspaceInner({
     );
     setAdjustOpen(false);
     showToast(setToast, { text: '庫存已調整' });
+    } catch {
+      showToast(setToast, { text: '連線中斷，請重新整理確認庫存後再盤點' });
+    } finally {
+      setAdjusting(false);
+    }
   }
 
   async function onSubmitCart() {
@@ -243,11 +253,18 @@ function InventoryWorkspaceInner({
               {selectedNeedsRestock ? '建議補貨' : '補貨數量'}
             </p>
             <div className="mt-3">
-              <QtyStepper value={addQty} onChange={setAddQty} large />
+              {(selected.tiers ?? []).filter(t => t.id).length > 1 ? (
+                <select aria-label="補貨規格" value={addVariant} onChange={e => setAddVariant(e.target.value)} className="mb-3 h-11 max-w-full rounded-lg border bg-white px-2 text-sm">
+                  <option value="">請選擇規格</option>
+                  {(selected.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              ) : null}
+              <QtyStepper value={addQty} min={0} onChange={setAddQty} large />
             </div>
             <button
               type="button"
               className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+              disabled={addQty <= 0 || ((selected.tiers ?? []).filter(t => t.id).length > 1 && !addVariant)}
               onClick={() => addProductToCart(selected, addQty)}
             >
               加入補貨單
@@ -259,7 +276,7 @@ function InventoryWorkspaceInner({
             className="flex min-h-[44px] w-full items-center justify-center rounded-xl border border-primary text-sm font-semibold text-primary"
             onClick={() => {
               setRestockOpen(true);
-              setAddQty(1);
+              setAddQty(0);
             }}
           >
             補貨
@@ -328,7 +345,7 @@ function InventoryWorkspaceInner({
       ) : (
         <ul className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto">
           {cart.lines.map((line) => (
-            <li key={line.productId} className="flex items-center gap-3">
+            <li key={restockLineKey(line)} className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100">
                 <ProductCover
                   name={line.name}
@@ -341,19 +358,19 @@ function InventoryWorkspaceInner({
                 <p className="truncate">{line.name}</p>
                 {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 ? (
                   <select aria-label={`${line.name} 補貨規格`} value={line.variantKey ?? ''} className="mt-1 h-11 max-w-full rounded-lg border bg-white px-2"
-                    onChange={e => cart.setVariant(line.productId, e.target.value)}>
+                    onChange={e => cart.setVariant(line.productId, e.target.value, line.variantKey)}>
                     <option value="">請選擇規格</option>
                     {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 ) : null}
               </div>
-              {expandedCartId === line.productId ? (
-                <QtyStepper value={line.quantity} onChange={(next) => cart.setQty(line.productId, next)} />
+              {expandedCartId === restockLineKey(line) ? (
+                <QtyStepper value={line.quantity} onChange={(next) => cart.setQty(line.productId, next, line.variantKey)} />
               ) : (
                 <button
                   type="button"
                   className="shrink-0 text-sm tabular-nums text-zinc-700"
-                  onClick={() => setExpandedCartId(line.productId)}
+                  onClick={() => setExpandedCartId(restockLineKey(line))}
                 >
                   × {line.quantity}
                 </button>
@@ -362,7 +379,7 @@ function InventoryWorkspaceInner({
                 type="button"
                 className="text-zinc-400"
                 aria-label={`移除 ${line.name}`}
-                onClick={() => cart.remove(line.productId)}
+                onClick={() => cart.remove(line.productId, line.variantKey)}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -494,7 +511,10 @@ function InventoryWorkspaceInner({
                           }`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            addProductToCart(item);
+                            setSelectedId(item.productId);
+                            setRestockOpen(true);
+                            setMobilePanel('detail');
+                            setAddQty(0);
                           }}
                         >
                           ＋ 補

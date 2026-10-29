@@ -48,6 +48,9 @@ test('SELF_SELECT rejects missing or invalid variants before creating any reques
     const args = create.mock.calls[0].arguments[0] as any;
     assert.deepEqual(args.data.items.create[0], {productId:'p',requestedQuantity:3,approvedQuantity:3,weightGrams:50,variantKey:'tier50'});
     assert.equal(args.data.merchantId,'m');
+    await submitSelfSelectRestockRequest({merchantId:'m',merchantUserId:'u',items:[{productId:'p',quantity:2,variantKey:'tier30'},{productId:'p',quantity:3,variantKey:'tier50'}]});
+    const multi = (create.mock.calls[1].arguments[0] as any).data.items.create;
+    assert.deepEqual(multi.map((line:any) => [line.variantKey,line.requestedQuantity]), [['tier30',2],['tier50',3]]);
   } finally { prisma.product.findMany = oldRead; prisma.restockRequest.create = oldCreate; }
 });
 
@@ -99,6 +102,10 @@ test('approval carries the selected identity through order, shipment, snapshot a
     assert.equal(writes.shipment.items.create[0].variantKey,'tier50');
     await applyMerchantRestockFromShipment(tx,{shipmentNumber:writes.shipment.shipmentNumber,merchantId:'m',items:[{id:'si',...writes.shipment.items.create[0]}]},new Date());
     assert.equal(writes.stock.tierId,'tier50');assert.equal(writes.stock.quantity,3);assert.equal(writes.stock.merchantId,'m');
+    request.items.push({productId:'p',approvedQuantity:2,weightGrams:30,variantKey:'tier30'});
+    await approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')});
+    assert.deepEqual(writes.shipment.items.create.map((line:any) => [line.variantKey,line.quantity]), [['tier50',3],['tier30',2]]);
+    assert.equal(writes.snapshot.length,2);
     request.items[0].weightGrams = null as any; request.items[0].variantKey = null as any;
     delete writes.order; delete writes.shipment;
     await assert.rejects(approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')}),/規格/);

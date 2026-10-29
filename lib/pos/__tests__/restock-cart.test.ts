@@ -27,9 +27,9 @@ describe('restock cart', () => {
     assert.equal(restockCartTotalPieces(second), 8);
   });
 
-  it('uses suggested qty when present, otherwise 1', () => {
-    assert.equal(defaultRestockAddQty(6), 6);
-    assert.equal(defaultRestockAddQty(0), 1);
+  it('starts quick restock at zero regardless of suggestion', () => {
+    assert.equal(defaultRestockAddQty(6), 0);
+    assert.equal(defaultRestockAddQty(0), 0);
   });
 
   it('updates and removes lines', () => {
@@ -46,8 +46,17 @@ describe('restock cart', () => {
 
   it('keeps the chosen variant when increasing the existing cart line', () => {
     const first = addRestockCartLine([], { productId: 'duck', name: '鴨肺', imageUrl: null, quantity: 2, variantKey: '50g' });
-    const second = addRestockCartLine(first, { productId: 'duck', name: '鴨肺', imageUrl: null, quantity: 1 });
+    const second = addRestockCartLine(first, { productId: 'duck', name: '鴨肺', imageUrl: null, quantity: 1, variantKey: '50g' });
     assert.equal(second[0]?.variantKey, '50g');
     assert.equal(second[0]?.quantity, 3);
   });
+});
+
+it('keeps duck lung quantities independent by variant', () => {
+ const first = addRestockCartLine([], {productId:'duck',name:'鴨肺',imageUrl:null,quantity:2,variantKey:'30g'});
+ const both = addRestockCartLine(first, {productId:'duck',name:'鴨肺',imageUrl:null,quantity:3,variantKey:'50g'});
+ assert.equal(both.length,2);
+ assert.deepEqual(setRestockCartQty(both,'duck',4,'30g').map(l => l.quantity),[4,3]);
+ assert.equal(removeRestockCartLine(both,'duck','30g')[0].variantKey,'50g');
+ assert.equal(addRestockCartLine([], {productId:'duck',name:'鴨肺',imageUrl:null,quantity:0}).length,0);
 });
