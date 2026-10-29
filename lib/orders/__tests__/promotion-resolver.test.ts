@@ -64,6 +64,19 @@ describe('promotion resolver eligibility', () => {
     assert.deepEqual(resolvePromotion(oldCheap).issues, []);
   });
 
+  it('ends after October 10 Taiwan time, including UTC boundary and later source updates', () => {
+    assert.equal(resolvePromotion(snap({ created_at: '2026-10-10T23:59:59.999+08:00', updated_at: '2026-10-29T00:00:00Z' })).giftAction, 'add');
+    for (const created_at of ['2026-10-11T00:00:00+08:00', '2026-10-10T16:00:00Z', '2026-10-29T02:06:00+08:00']) {
+      const result = resolvePromotion(snap({ created_at }));
+      assert.equal(result.giftAction, 'ineligible');
+      assert.equal(result.reason, 'INELIGIBLE_AFTER_CAMPAIGN');
+      assert.deepEqual(result.issues, []);
+    }
+    const legacy = stripPromotionCapture(snap({ created_at: '2026-10-29T02:06:00+08:00' }));
+    assert.equal(resolvePromotion(legacy).reason, 'INELIGIBLE_AFTER_CAMPAIGN');
+    assert.deepEqual(resolvePromotion(legacy).issues, []);
+  });
+
   it('fails closed on non-TWD, illegal money, quantity and overflow', () => {
     assert.equal(resolvePromotion(snap({ currency: 'USD' })).reason, 'INVALID_MONEY');
     assert.equal(resolvePromotion(snap({}, [{ sku: 'A', quantity: 1, price: '-1' }])).reason, 'INVALID_MONEY');
@@ -86,7 +99,7 @@ describe('promotion resolver eligibility', () => {
     const cheapImpossible = resolvePromotion(snap({ created_at: '2026-09-31T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '100.00' }]));
     assert.equal(cheapImpossible.reason, 'INELIGIBLE_BELOW_THRESHOLD');
     assert.deepEqual(cheapImpossible.issues, []);
-    assert.equal(resolvePromotion(snap({ created_at: '2028-02-29T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '555.00' }])).giftAction, 'add');
+    assert.equal(resolvePromotion(snap({ created_at: '2028-02-29T00:00:00+08:00' }, [{ sku: 'A', quantity: 1, price: '555.00' }])).reason, 'INELIGIBLE_AFTER_CAMPAIGN');
   });
 });
 

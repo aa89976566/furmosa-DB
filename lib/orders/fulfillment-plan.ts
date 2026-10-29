@@ -219,7 +219,8 @@ function addNeeded(needed: Record<string, number>, productId: string, quantity: 
 }
 
 function ineligibleLabel(reason: PromotionReason): string {
-  return reason === 'INELIGIBLE_BEFORE_CAMPAIGN' ? '活動期間外' : '未達門檻';
+  return reason === 'INELIGIBLE_AFTER_CAMPAIGN' ? '活動已結束'
+    : reason === 'INELIGIBLE_BEFORE_CAMPAIGN' ? '活動期間外' : '未達門檻';
 }
 
 function statusFrom(promotion: PromotionResolution): { status: PromotionStatus; statusLabel: string } {
