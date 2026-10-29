@@ -210,10 +210,10 @@ function RefillWorkspaceInner({
                 <div className="flex items-baseline justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-zinc-900">
-                      已登記換罐會員
+                      本店換罐會員
                     </h2>
                     <p className="mt-1 text-xs text-zinc-500">
-                      本店開戶或已在本店完成換罐的會員
+                      客人在本店完成第一次換罐後會出現在這裡
                     </p>
                   </div>
                   <p className="shrink-0 text-xs text-zinc-500">
@@ -241,12 +241,6 @@ function RefillWorkspaceInner({
                           <p className="mt-0.5 truncate text-sm text-zinc-500">
                             {member.petName ? `${member.petName} · ` : ''}{shortDate(member.lastExchangeAt)}
                           </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-lg font-semibold tabular-nums text-zinc-900">
-                            {member.points}
-                          </p>
-                          <p className="text-xs text-zinc-500">累積點數</p>
                         </div>
                       </li>
                     ))}
