@@ -141,6 +141,7 @@ describe("黑白 UI", () => {
     assert.equal(topbar.includes("backdrop-blur"), false);
     assert.equal(posNav.includes("rounded-full"), false);
     assert.match(query, /overflow-hidden rounded-2xl border border-border/);
+    assert.match(query, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(320px,380px\)\]/);
     assert.equal(query.includes("<Card"), false);
   });
 });
