@@ -169,10 +169,25 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const paymentLabel = isMerchantRestock && Number(order.total) === 0 ? '無須付款' : null;
   const collection = paymentCollectionSummary(Number(order.total), order.paymentStatus);
 
+  const activeShipments = order.shipments.filter(shipment => shipment.status !== 'cancelled');
+  const omsTask = order.deletedAt
+    ? { label: '已刪除', message: '這張訂單已停止處理，不會進入審核或出貨流程。', tone: 'danger' as const }
+    : order.archivedAt
+      ? { label: '已封存', message: '這張訂單已移出目前工作清單。', tone: 'muted' as const }
+      : order.status === 'cancelled'
+        ? { label: '已取消', message: '這張訂單不需要任何出貨動作。', tone: 'danger' as const }
+        : order.omsStatus === 'NEW' || order.omsStatus === 'REVIEW'
+          ? { label: '需要核對', message: '請確認商品、收件資料與配送方式，完成後才能建立出貨。', tone: 'attention' as const }
+          : order.omsStatus === 'READY'
+            ? { label: '內容已核對', message: '訂單資料已完成核對，可以建立出貨。', tone: 'ready' as const }
+            : order.omsStatus === 'FULFILLMENT_PENDING'
+              ? { label: '準備出貨', message: activeShipments.length ? '出貨單已建立，請依下方內容完成揀貨與寄送。' : '請建立出貨單並完成寄送。', tone: 'ready' as const }
+              : { label: '已完成', message: '這張訂單的出貨流程已完成。', tone: 'muted' as const };
+
   if (order.omsStatus) {
     return <>
       <header className="border-b bg-card px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <Link href="/orders" className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" />訂單列表</Link>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -182,28 +197,81 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </div>
             <p className="mt-1 text-sm text-muted-foreground">訂單編號 <span className="font-mono text-foreground">{order.externalOrderName || order.orderNumber}</span></p>
           </div>
-          <div className="text-right"><p className="text-xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p><div className="mt-1"><StatusBadge kind="payment" value={order.paymentStatus} /></div></div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
-        {order.archivedAt ? <p className="rounded-lg border bg-muted/40 p-3 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p> : null}
-        {order.deletedAt ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">此訂單已從 HQ 刪除，不會進入待審核或出貨流程。</p> : null}
-        <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="min-w-0 space-y-4">
+      <main className="mx-auto max-w-5xl space-y-5 p-4 sm:p-6">
+        <section className={cn(
+          'flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6',
+          omsTask.tone === 'danger' && 'border-destructive/30 bg-destructive/5',
+          omsTask.tone === 'attention' && 'border-amber-300 bg-amber-50',
+          omsTask.tone === 'ready' && 'border-emerald-300 bg-emerald-50',
+          omsTask.tone === 'muted' && 'bg-muted/30',
+        )}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">目前狀態</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">{omsTask.label}</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{omsTask.message}</p>
+          </div>
+          <div className="shrink-0 sm:text-right">
+            <p className="text-xs text-muted-foreground">訂單金額</p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
+            <div className="mt-1"><StatusBadge kind="payment" value={order.paymentStatus} /></div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border bg-card">
+          <div className="border-b px-5 py-4 sm:px-6">
+            <h2 className="font-semibold">訂單重點</h2>
+            <p className="mt-1 text-sm text-muted-foreground">揀貨、核對與寄送需要的資料集中在這裡。</p>
+          </div>
+
+          <div className="grid gap-3 border-b px-5 py-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:px-6">
+            <p className="text-xs font-medium text-muted-foreground">客戶</p>
+            <div className="min-w-0">
+              {order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-semibold hover:underline">{order.customer.name}</Link> : <p className="font-semibold">{sourceView?.recipient || '待補資料'}</p>}
+              <p className="mt-0.5 text-sm text-muted-foreground">{sourceView?.phone || order.customer?.phone || '電話待補'}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 border-b px-5 py-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:px-6">
+            <p className="text-xs font-medium text-muted-foreground">商品</p>
+            <ul className="min-w-0 divide-y rounded-xl border">
+              {(sourceView?.items ?? []).map((item, index) => {
+                const productSource = productSources[index];
+                const knownSource = resolveKnownShopifySourceName(item);
+                const sourceName = productSource?.vendorName || item.vendor || knownSource?.name;
+                return <li key={index} className="p-3 sm:p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><p className="font-medium">{item.title}</p><p className="mt-0.5 text-xs text-muted-foreground">{item.variantTitle || '規格待確認'} · SKU {item.sku || '待確認'}</p></div>
+                    <span className="shrink-0 font-semibold tabular-nums">× {item.quantity ?? '—'}</span>
+                  </div>
+                  {sourceName ? <div className="mt-3 flex flex-wrap items-center gap-2 text-sm"><Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" /><span className="text-xs text-muted-foreground">產品貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName}</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}
+                  {item.giftCard ? <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"><p className="font-semibold">贈禮小卡</p><p className="mt-1">收禮毛友：{item.giftCard.recipient || '待補'}</p><p className="mt-1 whitespace-pre-wrap break-words">{item.giftCard.message || '小卡內容待補'}</p></div> : null}
+                </li>;
+              })}
+            </ul>
+          </div>
+
+          <div className="grid gap-3 px-5 py-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:px-6">
+            <p className="text-xs font-medium text-muted-foreground">配送</p>
+            <div className="min-w-0 text-sm"><p className="font-medium">{shippingMethodLabel(order)}</p><p className="mt-1 break-words text-muted-foreground">{sourceView?.address || recipientAddress || '地址待補'}</p></div>
+          </div>
+        </section>
+
+        <div className="space-y-4">
             {sourceView?.giftCard ? <section className={cn('rounded-xl border p-4', sourceView.giftCard.warnings.length ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-sky-200 bg-sky-50 text-sky-950')}>
               <div className="flex items-start gap-3">
                 <StickyNote className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
                 <div>
                   <h2 className="font-semibold">這筆訂單需要處理贈禮小卡</h2>
-                  <p className="mt-1 text-sm">包貨前請核對右側訂單內容中的收禮毛友與小卡全文。</p>
+                  <p className="mt-1 text-sm">包貨前請核對上方商品內容中的收禮毛友與小卡全文。</p>
                   {sourceView.giftCard.warnings.map(warning => <p key={warning} role="alert" className="mt-2 text-sm font-medium">{warning}</p>)}
                 </div>
               </div>
             </section> : null}
-            {!order.deletedAt && !order.archivedAt ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">此訂單目前不在待審核流程。</div>}
+            {!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : null}
             <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-4">
-              <h2 id="oms-shipping-title" className="font-semibold">運送資訊</h2>
+              <h2 id="oms-shipping-title" className="font-semibold">出貨作業</h2>
               {repairMessage ? <p role="status" className="mt-2 rounded border p-3 text-sm">{repairMessage}</p> : null}
               {order.omsStatus === 'FULFILLMENT_PENDING' && !order.deletedAt && !order.archivedAt && order.shipments.filter(s => s.status !== 'cancelled').length === 1 && order.shipments.some(s => s.status === 'pending') ? <form action={repairShopifyShipment} className="mt-3"><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="sourceHash" value={snapshotHash(order.shopifySnapshot as Snapshot)} /><Button type="submit" variant="outline" size="sm">核對並補齊漏掉的出貨品項</Button><p className="mt-1 text-xs text-muted-foreground">依已綁定的 Shopify 規格補齊尚未出貨的品項。</p></form> : null}
               {order.shipments.filter(shipment => shipment.status !== 'cancelled').map(shipment => <div key={shipment.id} className="mt-3 rounded-lg border p-3"><h3 className="text-sm font-semibold">HQ 實際出貨品項</h3><ul className="mt-2 space-y-3">{shipment.items.map(item => <li key={item.id} className="text-sm"><p className="font-medium">{item.productName} × {item.quantity} {item.unit || '件'}</p><p className="text-xs text-muted-foreground">SKU：{item.sku || '待核對'} · 每單位重量：{item.weightGrams ? `${item.weightGrams}g` : '未登記，請核對來源規格'}</p>{item.notes ? <p className="mt-1 whitespace-pre-line text-sm">揀貨內容：{item.notes}</p> : null}</li>)}</ul></div>)}
@@ -229,32 +297,23 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <p className="mt-3 text-sm text-muted-foreground">{omsShipmentNotice(order.omsStatus, 0)}</p>
               )}
             </section>
-          </div>
-          <aside className="space-y-4 lg:sticky lg:top-4">
-            <section className="rounded-xl border bg-card p-4">
-              <h2 className="font-semibold">訂單內容</h2>
-              <div className="mt-3 space-y-3 text-sm">
-                <div><p className="text-xs text-muted-foreground">客戶</p>{order.customer ? <Link href={`/customers/${order.customer.id}`} className="font-medium hover:underline">{order.customer.name}</Link> : <p className="font-medium">{sourceView?.recipient || '待補資料'}</p>}</div>
-                <div><p className="text-xs text-muted-foreground">商品</p><ul className="mt-1 space-y-1.5">{(sourceView?.items ?? []).map((item, index) => {
-                  const productSource = productSources[index];
-                  const knownSource = resolveKnownShopifySourceName(item);
-                  const sourceName = productSource?.vendorName || item.vendor || knownSource?.name;
-                  return <li key={index} className="rounded-md border p-2"><div className="flex justify-between gap-3"><span className="min-w-0 break-words">{item.title}</span><span className="shrink-0 text-muted-foreground">× {item.quantity ?? '—'}</span></div><p className="mt-1 text-xs text-muted-foreground">規格：{item.variantTitle || '來源未提供'} · SKU：{item.sku || '來源未提供'}</p>{sourceName ? <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-950"><Package className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="text-xs text-amber-800">產品貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="min-w-0 break-words text-sm font-semibold underline-offset-2 hover:underline">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="min-w-0 break-words text-sm font-semibold underline underline-offset-2 hover:text-amber-700">{sourceName}</a> : <span className="min-w-0 break-words text-sm font-semibold">{sourceName}</span>}</div> : null}{item.giftCard ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-sky-950"><p className="text-xs font-semibold">贈禮小卡</p><dl className="mt-1 space-y-1 text-xs"><div><dt className="inline text-sky-700">贈送方式：</dt><dd className="inline">{item.giftCard.delivery || '來源未提供'}</dd></div><div><dt className="inline text-sky-700">收禮毛友：</dt><dd className="inline">{item.giftCard.recipient || '來源未提供'}</dd></div><div><dt className="text-sky-700">小卡內容：</dt><dd className="mt-0.5 whitespace-pre-wrap break-words">{item.giftCard.message || '來源未提供'}</dd></div></dl></div> : null}</li>;
-                })}</ul></div>
-                {(sourceView?.feeLines.length ?? 0) > 0 ? <div className="border-t pt-3"><p className="text-xs font-medium text-muted-foreground">加購費用（不需出貨）</p><ul className="mt-1 space-y-1">{sourceView?.feeLines.map((fee, index) => <li key={`${fee.variantId}-${index}`} className="flex justify-between gap-3 text-xs"><span className="break-words">{fee.title}</span><span className="shrink-0 tabular-nums">{sourceView.currency} {fee.lineTotal ?? fee.price}</span></li>)}</ul></div> : null}
-                <div className="border-t pt-3">
-                  <p className="text-xs text-muted-foreground">收件與配送</p>
-                  <p>{sourceView?.recipient || order.customer?.name || '收件人待補'} · {sourceView?.phone || order.customer?.phone || '電話待補'}</p>
-                  <p className="mt-1 break-words text-muted-foreground">{sourceView?.address || '地址待補'}</p>
-                </div>
-                <div className="border-t pt-3"><p className="text-xs text-muted-foreground">下單時間</p><p>{formatDateTime(order.orderedAt)}</p></div>
-                {order.omsReviewedAt ? <div className="border-t pt-3"><p className="text-xs text-muted-foreground">審核</p><p>{order.omsReviewedBy?.name || '原審核者帳號已不存在'} · {formatDateTime(order.omsReviewedAt)}</p></div> : null}
-              </div>
-            </section>
-            <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
-            {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
-          </aside>
         </div>
+
+        <details className="group rounded-2xl border bg-card">
+          <summary className="cursor-pointer list-none px-5 py-4 font-semibold sm:px-6">系統與歷程 <span className="ml-2 text-xs font-normal text-muted-foreground">訂單來源、系統狀態與管理工具</span></summary>
+          <div className="space-y-4 border-t p-4 sm:p-6">
+            <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
+            <dl className="grid gap-4 rounded-xl border p-4 text-sm sm:grid-cols-2">
+              <div><dt className="text-xs text-muted-foreground">系統訂單編號</dt><dd className="mt-1 break-all font-mono text-xs">{order.orderNumber}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">下單時間</dt><dd className="mt-1">{formatDateTime(order.orderedAt)}</dd></div>
+              {order.omsReviewedAt ? <div><dt className="text-xs text-muted-foreground">審核紀錄</dt><dd className="mt-1">{order.omsReviewedBy?.name || '原審核者帳號已不存在'} · {formatDateTime(order.omsReviewedAt)}</dd></div> : null}
+            </dl>
+            <div className="space-y-3">
+              <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
+              {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
+            </div>
+          </div>
+        </details>
       </main>
     </>;
   }
