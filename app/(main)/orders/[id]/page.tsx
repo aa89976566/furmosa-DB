@@ -71,6 +71,7 @@ import {
   commercialTermValueLabel,
 } from '@/lib/orders/merchant-commercial-term';
 import { resolveKnownShopifySourceName, resolveShopifyProductSources } from '@/lib/orders/shopify-product-source';
+import { CopyDeliveryButton } from '@/components/orders/copy-delivery-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -193,47 +194,48 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     const deliveryAddress = sourceView?.address || recipientAddress || '地址待補';
     return <>
       <header className="border-b bg-card px-4 sm:px-6">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between">
-          <Link href="/orders" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" />訂單列表</Link>
-          <p className="font-mono text-xs text-muted-foreground">{order.externalOrderName || order.orderNumber}</p>
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between">
+          <Link href="/orders" className="inline-flex items-center gap-2 text-sm font-semibold hover:text-primary"><ArrowLeft className="h-4 w-4" />訂單列表</Link>
+          <p className="text-sm font-semibold">訂單 {order.externalOrderName || order.orderNumber}</p>
+          <span className="w-20" aria-hidden="true" />
         </div>
       </header>
-      <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
-        <section className="flex flex-col gap-5 border-b pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <main className="mx-auto max-w-[1440px] p-4 sm:p-7 lg:p-10">
+        <section className="flex flex-col gap-5 pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground">SHOPIFY 訂單</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{customerName}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
+            <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">SHOPIFY 訂單</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight">{customerName}</h1>
+            <p className="mt-3 text-base text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
           </div>
           <div className="sm:text-right">
-            <p className="text-3xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
-            <p className={cn('mt-1 text-sm font-medium', omsTask.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}>{omsTask.label}</p>
+            <p className="text-4xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
+            <p className={cn('mt-1 text-sm font-semibold', omsTask.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground')}>{omsTask.label}</p>
           </div>
         </section>
 
-        <section className={cn('mt-5 flex flex-col gap-3 rounded-xl border px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between', omsTask.tone === 'danger' && 'border-destructive/30 bg-destructive/5', omsTask.tone === 'attention' && 'border-amber-300 bg-amber-50 dark:bg-amber-950/20', omsTask.tone === 'ready' && 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20', omsTask.tone === 'muted' && 'bg-muted/30')}>
-          <div><p className="font-semibold">{omsTask.label}</p><p className="mt-0.5 text-sm text-muted-foreground">{omsTask.message}</p></div>
-          <div className="shrink-0"><StatusBadge kind="payment" value={order.paymentStatus} /></div>
+        <section className={cn('flex flex-col gap-4 rounded-2xl border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7', omsTask.tone === 'danger' && 'border-red-200 bg-red-50 text-red-800', omsTask.tone === 'attention' && 'border-amber-200 bg-amber-50', omsTask.tone === 'ready' && 'border-emerald-200 bg-emerald-50', omsTask.tone === 'muted' && 'bg-muted/30')}>
+          <div><p className="text-lg font-semibold">{order.status === 'cancelled' ? '此訂單已取消' : omsTask.label}</p><p className="mt-1 text-sm opacity-80">{order.status === 'cancelled' ? '不需要出貨，保留記錄供查核。' : omsTask.message}</p></div>
+          {order.status === 'cancelled' ? <Button asChild variant="outline" className="shrink-0 border-red-300 bg-transparent text-red-800 hover:bg-red-100"><a href="#system-history">查看取消紀錄</a></Button> : <div className="shrink-0"><StatusBadge kind="payment" value={order.paymentStatus} /></div>}
         </section>
 
-        <div className="mt-5 grid items-start gap-4 min-[850px]:grid-cols-[minmax(0,1.35fr)_minmax(230px,.75fr)]">
+        <div className="mt-6 grid items-start gap-6 min-[850px]:grid-cols-[minmax(0,1.65fr)_minmax(300px,.95fr)]">
           <div className="space-y-5">
-            <section className="overflow-hidden rounded-xl border bg-card">
-              <div className="flex items-center justify-between border-b px-5 py-4">
-                <div><h2 className="text-lg font-semibold">商品與備貨</h2><p className="mt-0.5 text-xs text-muted-foreground">{sourceItemCount} 項商品 · {sourceQuantity} 件</p></div>
-                <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
+            <section className="overflow-hidden rounded-2xl border bg-card">
+              <div className="flex items-center justify-between border-b px-6 py-5">
+                <div><h2 className="text-xl font-semibold">商品與備貨</h2><p className="mt-1 text-sm text-muted-foreground">{sourceItemCount} 項商品 · {sourceQuantity} 件</p></div>
+                <Badge variant="secondary" className="rounded-full px-4 py-2">{OMS_LABELS[order.omsStatus]}</Badge>
               </div>
               <ul className="divide-y">
               {sourceItems.map((item, index) => {
                 const productSource = productSources[index];
                 const knownSource = resolveKnownShopifySourceName(item);
                 const sourceName = productSource?.vendorName || item.vendor || knownSource?.name;
-                return <li key={index} className="p-4 sm:p-5">
+                return <li key={index} className="p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0"><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.variantTitle || '規格待確認'} · SKU {item.sku || '待確認'}</p></div>
                     <span className="shrink-0 text-lg font-semibold tabular-nums">× {item.quantity ?? '—'}</span>
                   </div>
-                  {sourceName ? <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm"><Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" /><span className="text-xs text-muted-foreground">貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName} ↗</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}
+                  {sourceName ? <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-950"><Package className="h-4 w-4" aria-hidden="true" /><span className="text-xs opacity-70">貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName} ↗</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}
                   {item.giftCard ? <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"><p className="font-semibold">贈禮小卡</p><p className="mt-1">收禮毛友：{item.giftCard.recipient || '待補'}</p><p className="mt-1 whitespace-pre-wrap break-words">{item.giftCard.message || '小卡內容待補'}</p></div> : null}
                 </li>;
               })}
@@ -282,11 +284,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </div>
 
           <aside className="space-y-5 min-[850px]:sticky min-[850px]:top-5">
-            <section className="rounded-xl border bg-card p-5">
-              <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">收件與配送</h2><Badge variant="outline">{shippingMethodLabel(order)}</Badge></div>
-              <dl className="mt-5 grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-4 text-sm">
-                <dt className="text-muted-foreground">收件人</dt><dd className="font-semibold">{customerName}<span className="mt-0.5 block font-mono text-xs font-normal text-muted-foreground">{customerPhone}</span></dd>
-                <dt className="text-muted-foreground">地址</dt><dd className="break-words leading-6">{deliveryAddress}</dd>
+            <section className="rounded-2xl border bg-card p-6">
+              <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">收件與配送</h2><CopyDeliveryButton value={`${customerName} ${customerPhone}\n${shippingMethodLabel(order)}\n${deliveryAddress}`} /></div>
+              <dl className="mt-7 grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-5 text-sm">
+                <dt className="text-muted-foreground">收件人</dt><dd className="font-semibold">{customerName} · <span className="font-mono">{customerPhone}</span></dd>
+                <dt className="text-muted-foreground">配送</dt><dd className="font-semibold">{shippingMethodLabel(order)}</dd>
+                <dt className="text-muted-foreground">地址</dt><dd className="break-words font-medium leading-7">{deliveryAddress}</dd>
               </dl>
               <div className="mt-5 border-t pt-4">
                 <p className="text-xs text-muted-foreground">運送單</p>
@@ -296,7 +299,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </aside>
         </div>
 
-        <details className="group mt-5 rounded-xl border bg-card">
+        <details id="system-history" className="group mt-5 rounded-xl border bg-card">
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold sm:px-6">系統與歷程 <span className="ml-2 text-xs font-normal text-muted-foreground">訂單來源、系統狀態與管理工具</span></summary>
           <div className="space-y-4 border-t p-4 sm:p-6">
             <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
