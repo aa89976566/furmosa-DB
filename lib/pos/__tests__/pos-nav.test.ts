@@ -36,17 +36,15 @@ describe('POS_NAV', () => {
     const detail = readFileSync('app/pos/refill/[id]/page.tsx', 'utf8');
     const cooperationEntries = readFileSync('components/pos/cooperation-entries.tsx', 'utf8');
 
-    for (const source of [hub, detail]) {
-      assert.match(source, /RefillWorkspace/);
-      assert.match(source, /requireMerchantSession/);
-      assert.match(source, /listMerchantRefillOrders/);
-      assert.match(source, /listMerchantJarExchangeMembers/);
-      assert.doesNotMatch(source, /redirect\('\/pos\/coupons'\)/);
-    }
-    assert.match(detail, /orders\.some\(\(order\) => order\.id === params\.id\)/);
-    assert.match(detail, /notFound\(\)/);
+    assert.match(hub, /RefillWorkspace/);
+    assert.match(hub, /requireMerchantSession/);
+    assert.match(hub, /loadMerchantRefillDashboard/);
+    assert.doesNotMatch(hub, /listMerchantRefillOrders/);
+    assert.doesNotMatch(hub, /listMerchantJarExchangeMembers/);
+    assert.match(detail, /redirect\('\/pos\/refill'\)/);
+    assert.doesNotMatch(detail, /redirect\('\/pos\/coupons'\)/);
     assert.match(cooperationEntries, /href: '\/pos\/refill'/);
     assert.match(cooperationEntries, /href: '\/pos\/coupons'/);
-    assert.match(cooperationEntries, /查看本店換罐會員/);
+    assert.match(cooperationEntries, /查看本店換罐內容、庫存與 LINE 交易紀錄/);
   });
 });
