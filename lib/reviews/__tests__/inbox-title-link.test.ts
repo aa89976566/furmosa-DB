@@ -12,5 +12,7 @@ test('待審核工作台只渲染一套 responsive DOM，正式動作連回既�
   assert.match(workbench, /\{item\.title\}/);
   assert.match(workbench, /\{item\.actionLabel\}/);
   assert.match(workbench, /onSelect=\{\(\) => setSelectedKey/);
-  assert.match(styles, /@media \(max-width: 900px\)/);
+  assert.match(styles, /@media \(max-width: 1100px\)/);
+  assert.match(styles, /\.detailBody \{[^}]*overflow-y: auto/s);
+  assert.match(styles, /\.actionBar \{[^}]*flex: none/s);
 });

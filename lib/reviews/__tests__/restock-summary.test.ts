@@ -218,8 +218,9 @@ describe('reviews page source assertions', () => {
     assert.match(workbenchSource, /<DetailPanel item=\{selected\} \/>/);
     assert.match(workbenchSource, /item\.lines/);
     assert.match(workbenchSource, /item\.moreLabel/);
-    assert.match(workbenchStyles, /grid-template-columns: minmax\(280px, \.78fr\) minmax\(520px, 1\.55fr\)/);
-    assert.match(workbenchStyles, /@media \(max-width: 900px\)/);
+    assert.match(workbenchStyles, /grid-template-columns: minmax\(260px, \.72fr\) minmax\(0, 1\.55fr\)/);
+    assert.match(workbenchStyles, /@media \(max-width: 1100px\)/);
+    assert.match(workbenchStyles, /height: clamp\(520px, calc\(100dvh - 320px\), 760px\)/);
   });
 
   it('工作台提供搜尋、類型篩選與原有詳情入口', () => {
