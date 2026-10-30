@@ -23,19 +23,21 @@ export default async function MerchantQuotationPage(props: {
     where: { id },
     include: {
       merchant: true,
-      items: { orderBy: { createdAt: 'asc' } },
+      items: true,
     },
   });
 
-  const canQuote =
-    order &&
-    order.merchantId &&
-    order.merchantOrderMode === 'wholesale' &&
-    order.status === 'confirmed' &&
-    !order.deletedAt &&
-    !order.archivedAt;
-
-  if (!canQuote || !order.merchant) notFound();
+  if (
+    !order ||
+    !order.merchant ||
+    !order.merchantId ||
+    order.merchantOrderMode !== 'wholesale' ||
+    order.status !== 'confirmed' ||
+    order.deletedAt ||
+    order.archivedAt
+  ) {
+    notFound();
+  }
 
   const quoteNumber = `QT-${order.orderNumber}`;
   const billableItems = order.items.filter((item) => !item.isGift);
@@ -107,7 +109,7 @@ export default async function MerchantQuotationPage(props: {
         <section className="ml-auto w-full max-w-sm border-t border-slate-300 pt-4 text-sm">
           <div className="flex justify-between gap-6 py-1"><span className="text-slate-600">商品小計</span><span className="tabular-nums">{formatCurrency(Number(order.subtotal))}</span></div>
           {Number(order.discount) > 0 ? <div className="flex justify-between gap-6 py-1"><span className="text-slate-600">折扣</span><span className="tabular-nums">−{formatCurrency(Number(order.discount))}</span></div> : null}
-          <div className="flex justify-between gap-6 py-1"><span className="text-slate-600">運費（{shippingFeeTypeLabel(order.shippingFeeType)}）</span><span className="tabular-nums">{formatCurrency(Number(order.shippingFee))}</span></div>
+          <div className="flex justify-between gap-6 py-1"><span className="text-slate-600">運費（{shippingFeeTypeLabel[order.shippingFeeType] ?? order.shippingFeeType}）</span><span className="tabular-nums">{formatCurrency(Number(order.shippingFee))}</span></div>
           <div className="mt-3 flex justify-between gap-6 border-t-2 border-slate-950 pt-3 text-lg font-semibold"><span>應收合計</span><span className="tabular-nums">{formatCurrency(Number(order.total))}</span></div>
         </section>
 
