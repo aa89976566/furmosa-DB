@@ -134,10 +134,12 @@ test('出貨面板標題優先顯示收件人，不暴露內部出貨 ID', () =>
   assert.doesNotMatch(shipmentWorkspaceSource, /: selectedShipmentId/);
 });
 
-test('共用視覺基礎維持 Furmosa 黑白系統並使用輕量邊框', () => {
-  assert.match(globalStyles, /Calm monochrome operations UI/);
-  assert.match(globalStyles, /--success: 0 0% 22%/);
-  assert.match(globalStyles, /--warning: 0 0% 32%/);
+test('共用視覺基礎使用統一品牌主色、語意狀態與輕量邊框', () => {
+  assert.match(globalStyles, /Unified HQ operations system/);
+  assert.match(globalStyles, /--primary: 156 42% 24%/);
+  assert.match(globalStyles, /--success: 151 52% 30%/);
+  assert.match(globalStyles, /--warning: 38 85% 38%/);
+  assert.match(globalStyles, /--info: 203 36% 42%/);
   assert.equal(globalStyles.includes('8px 8px 0'), false);
   assert.match(buttonSource, /border border-primary/);
   assert.equal(buttonSource.includes('border-2 border-primary'), false);
