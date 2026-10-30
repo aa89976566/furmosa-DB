@@ -93,9 +93,11 @@
 .empty { border: 1px dashed var(--review-green-line); border-radius: 14px; background: var(--review-green-soft); padding: 56px 20px; color: var(--review-green); text-align: center; font-size: 13px; }
 
 @media (max-width: 1100px) {
-  .workspace { height: auto; min-height: 0; grid-template-columns: 1fr; }
-  .queue { max-height: 300px; border-right: 0; border-bottom: 1px solid var(--review-green-line); }
-  .detail { height: min(680px, calc(100dvh - 120px)); min-height: 480px; }
+  .workspace { height: min(760px, calc(100dvh - 80px)); min-height: 560px; grid-template-columns: 1fr; grid-template-rows: minmax(116px, 150px) minmax(0, 1fr); }
+  .queue { max-height: none; border-right: 0; border-bottom: 1px solid var(--review-green-line); }
+  .queue > header { min-height: 48px; }
+  .queueItem { padding-block: 12px; }
+  .detail { height: auto; min-height: 0; }
 }
 
 @media (max-width: 760px) {
@@ -107,7 +109,9 @@
   .filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: none; }
   .filters::-webkit-scrollbar { display: none; }
   .filter, .filterActive { flex: none; }
-  .detail { height: min(720px, calc(100dvh - 84px)); }
+  .workspace { height: auto; min-height: 0; grid-template-rows: auto; overflow: visible; }
+  .queue { max-height: 230px; }
+  .detail { height: min(720px, calc(100dvh - 84px)); min-height: 520px; }
   .detailHeader { min-height: 0; align-items: flex-start; flex-direction: column; gap: 10px; }
   .amountBlock { width: 100%; grid-template-columns: 1fr auto; align-items: end; justify-items: start; }
   .amountBlock strong { justify-self: end; }
