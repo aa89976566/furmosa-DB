@@ -7,19 +7,20 @@ describe('POS_NAV', () => {
   it('opens the shared sales entry from the first navigation destination', () => {
     assert.deepEqual(
       POS_NAV.map((item) => item.label),
-      ['收銀', '庫存', '美容券', '紀錄', '對帳'],
+      ['收銀', '庫存', '換罐', '美容券', '紀錄', '對帳'],
     );
     assert.equal(POS_NAV[0]?.href, '/pos/sell');
     assert.equal(POS_NAV[1]?.href, '/pos/stock');
-    assert.equal(POS_NAV[2]?.href, '/pos/coupons');
-    assert.equal(POS_NAV[3]?.href, '/pos/records');
-    assert.equal(POS_NAV[4]?.href, '/pos/settle');
+    assert.equal(POS_NAV[2]?.href, '/pos/refill');
+    assert.equal(POS_NAV[3]?.href, '/pos/coupons');
+    assert.equal(POS_NAV[4]?.href, '/pos/records');
+    assert.equal(POS_NAV[5]?.href, '/pos/settle');
     assert.equal(activePosNavId('/pos'), 'home');
     assert.equal(activePosNavId('/pos/login'), null);
     assert.equal(activePosNavId('/pos/stock'), 'stock');
     assert.equal(activePosNavId('/pos/refill'), 'refill');
     assert.equal(activePosNavId('/pos/refill/abc'), 'refill');
-    assert.equal(activePosNavId('/pos/coupons'), 'refill');
+    assert.equal(activePosNavId('/pos/coupons'), 'coupons');
     assert.equal(activePosNavId('/pos/notifications'), null);
     assert.equal(activePosNavId('/pos/records'), 'records');
     assert.equal(activePosNavId('/pos/settle'), 'settle');
@@ -30,16 +31,22 @@ describe('POS_NAV', () => {
     assert.equal(activePosNavId('/pos/stocktaking'), null);
   });
 
-  it('retires the old jar scanner entry in favor of coupon redemption', () => {
+  it('keeps jar exchange and coupon redemption as separate merchant tools', () => {
     const hub = readFileSync('app/pos/refill/page.tsx', 'utf8');
     const detail = readFileSync('app/pos/refill/[id]/page.tsx', 'utf8');
     const cooperationEntries = readFileSync('components/pos/cooperation-entries.tsx', 'utf8');
 
     for (const source of [hub, detail]) {
-      assert.match(source, /redirect\('\/pos\/coupons'\)/);
-      assert.doesNotMatch(source, /RefillWorkspace|requireMerchantSession|罐底|掃描/);
+      assert.match(source, /RefillWorkspace/);
+      assert.match(source, /requireMerchantSession/);
+      assert.match(source, /listMerchantRefillOrders/);
+      assert.match(source, /listMerchantJarExchangeMembers/);
+      assert.doesNotMatch(source, /redirect\('\/pos\/coupons'\)/);
     }
+    assert.match(detail, /orders\.some\(\(order\) => order\.id === params\.id\)/);
+    assert.match(detail, /notFound\(\)/);
+    assert.match(cooperationEntries, /href: '\/pos\/refill'/);
     assert.match(cooperationEntries, /href: '\/pos\/coupons'/);
-    assert.doesNotMatch(cooperationEntries, /掃描罐底|\/pos\/refill/);
+    assert.match(cooperationEntries, /查看本店換罐會員/);
   });
 });
