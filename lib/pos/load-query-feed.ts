@@ -2,6 +2,43 @@ import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
 import { formatQueryDate, formatQueryDateHeading, formatQueryMonthDay, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem, type RestockProgressStage } from '@/lib/pos/query-feed';
 
+type RestockLine = {
+  productName: string;
+  quantity: number;
+  unit?: string | null;
+  weightGrams?: number | null;
+};
+
+export function cleanPosProductName(value: string): string {
+  const cleaned = value
+    .normalize('NFKC')
+    .replace(/\uFFFD/g, '')
+    .replace(/^[\s◇◆◈◊⋄|｜·•・]+|[\s◇◆◈◊⋄|｜·•・]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || '商品';
+}
+
+function restockLineLabel(line: RestockLine): string {
+  const name = cleanPosProductName(line.productName);
+  if (!line.weightGrams || new RegExp(`(?:^|\\D)${line.weightGrams}\\s*g(?:$|\\D)`, 'i').test(name)) return name;
+  return `${name} ${line.weightGrams}g`;
+}
+
+function restockLineQuantity(line: RestockLine): string {
+  return `${line.quantity} ${line.unit?.trim() || '件'}`;
+}
+
+export function summarizeRestockLines(lines: RestockLine[]) {
+  const items = lines.map((line) => ({ label: restockLineLabel(line), quantityLabel: restockLineQuantity(line) }));
+  const summaryLabel = items.length === 0
+    ? '品項待確認'
+    : items.length === 1
+      ? `${items[0]!.label} × ${items[0]!.quantityLabel}`
+      : `${items[0]!.label} 等 ${items.length} 項`;
+  return { items, summaryLabel };
+}
+
 function stockTypeLabel(type: string): string {
   switch (type) {
     case 'sale':
@@ -56,7 +93,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
   const since = new Date(now);
   since.setDate(since.getDate() - 60);
 
-  const [sales, refills, restocks, stockTxns] = await Promise.all([
+  const [sales, refills, restocks, directShipments, stockTxns] = await Promise.all([
     prisma.merchantStockTxn.findMany({
       where: { merchantId, type: 'sale', createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
@@ -92,18 +129,32 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         updatedAt: true,
         expectedArrivalDate: true,
         status: true,
-        shipment: { select: { status: true, shippedAt: true, receivedAt: true, updatedAt: true, items: { select: { productName: true, quantity: true, unit: true } } } },
+        shipment: { select: { status: true, shippedAt: true, receivedAt: true, updatedAt: true, items: { select: { productName: true, quantity: true, unit: true, weightGrams: true, product: { select: { name: true } } } } } },
         items: {
-          take: 3,
           select: {
             requestedQuantity: true,
-            product: { select: { name: true } },
+            weightGrams: true,
+            product: { select: { name: true, unit: true } },
           },
         },
       },
     }),
+    prisma.shipment.findMany({
+      where: { merchantId, type: 'merchant_restock', restockRequest: null, createdAt: { gte: since } },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        shippedAt: true,
+        receivedAt: true,
+        items: { select: { productName: true, quantity: true, unit: true, weightGrams: true, product: { select: { name: true } } } },
+      },
+    }),
     prisma.merchantStockTxn.findMany({
-      where: { merchantId, type: { not: 'sale' }, createdAt: { gte: since } },
+      where: { merchantId, type: { notIn: ['sale', 'restock'] }, createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
       take: 80,
       select: {
@@ -157,11 +208,19 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
   });
 
   const restockItems: QueryFeedItem[] = restocks.map((r) => {
-    const requestedNames = r.items
-      .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
-      .join('、');
-    const shipmentNames = r.shipment?.items.map((item) => `${item.productName} × ${item.quantity} ${item.unit ?? '件'}`).join('、');
-    const names = shipmentNames || requestedNames;
+    const requestedLines: RestockLine[] = r.items.map((item) => ({
+      productName: item.product.name,
+      quantity: item.requestedQuantity ?? 0,
+      unit: item.product.unit,
+      weightGrams: item.weightGrams,
+    }));
+    const shipmentLines: RestockLine[] = r.shipment?.items.map((item) => ({
+      productName: item.product?.name || item.productName,
+      quantity: item.quantity,
+      unit: item.unit,
+      weightGrams: item.weightGrams,
+    })) ?? [];
+    const summary = summarizeRestockLines(shipmentLines.length ? shipmentLines : requestedLines);
     const occurredAt = r.shipment?.status === 'received'
       ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.updatedAt
       : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
@@ -170,7 +229,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     const etaLabel = r.expectedArrivalDate
       ? `預計到貨 ${formatQueryDate(r.expectedArrivalDate.toISOString()).replace(/（.*）$/, '')}`
       : null;
-    const subtitle = [etaLabel, names || '補貨單'].filter(Boolean).join(' · ');
+    const subtitle = [etaLabel, summary.summaryLabel].filter(Boolean).join(' · ');
     const at = occurredAt.toISOString();
     const stage = restockProgressStage(r.status, r.shipment?.status);
     const reminderDate = stage === 'in_transit' ? nextReceiptReminderDate(r.shipment?.shippedAt, now) : null;
@@ -181,20 +240,62 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       whenLabel: formatQueryWhen(at, now),
       dateLabel: formatQueryDateHeading(at),
       timeLabel: formatQueryTime(at),
-      title: names || '補貨單',
+      title: '匠寵補貨',
       subtitle,
       status: restockFeedStatus(r.status, r.shipment?.status),
       quantityLabel: restockFeedStatus(r.status, r.shipment?.status),
       restockProgress: {
         stage,
         statusLabel: restockFeedStatus(r.status, r.shipment?.status),
-        itemsLabel: names || '補貨單',
+        summaryLabel: summary.summaryLabel,
+        items: summary.items,
         shippedDateLabel: r.shipment?.shippedAt ? formatQueryMonthDay(r.shipment.shippedAt) : undefined,
         receivedDateLabel: r.shipment?.receivedAt ? formatQueryMonthDay(r.shipment.receivedAt) : undefined,
         reminderDateLabel: reminderDate ? formatQueryMonthDay(reminderDate) : undefined,
       },
       href: `/pos/restock/${r.id}`,
-      searchText: `補貨 ${names} ${etaLabel ?? ''} ${restockFeedStatus(r.status, r.shipment?.status)} ${r.id}`.toLowerCase(),
+      searchText: `補貨 ${summary.items.map((item) => item.label).join(' ')} ${etaLabel ?? ''} ${restockFeedStatus(r.status, r.shipment?.status)} ${r.id}`.toLowerCase(),
+    };
+  });
+
+  const directRestockItems: QueryFeedItem[] = directShipments.map((shipment) => {
+    const summary = summarizeRestockLines(shipment.items.map((item) => ({
+      productName: item.product?.name || item.productName,
+      quantity: item.quantity,
+      unit: item.unit,
+      weightGrams: item.weightGrams,
+    })));
+    const occurredAt = shipment.status === 'received'
+      ? shipment.receivedAt ?? shipment.shippedAt ?? shipment.updatedAt
+      : shipment.status === 'shipped' || shipment.status === 'delivered'
+        ? shipment.shippedAt ?? shipment.updatedAt
+        : shipment.updatedAt ?? shipment.createdAt;
+    const at = occurredAt.toISOString();
+    const stage = restockProgressStage('converted_to_shipment', shipment.status);
+    const reminderDate = stage === 'in_transit' ? nextReceiptReminderDate(shipment.shippedAt, now) : null;
+    const status = restockFeedStatus('converted_to_shipment', shipment.status);
+    return {
+      id: `shipment-${shipment.id}`,
+      kind: 'restock',
+      at,
+      whenLabel: formatQueryWhen(at, now),
+      dateLabel: formatQueryDateHeading(at),
+      timeLabel: formatQueryTime(at),
+      title: '匠寵補貨',
+      subtitle: summary.summaryLabel,
+      status,
+      quantityLabel: status,
+      restockProgress: {
+        stage,
+        statusLabel: status,
+        summaryLabel: summary.summaryLabel,
+        items: summary.items,
+        shippedDateLabel: shipment.shippedAt ? formatQueryMonthDay(shipment.shippedAt) : undefined,
+        receivedDateLabel: shipment.receivedAt ? formatQueryMonthDay(shipment.receivedAt) : undefined,
+        reminderDateLabel: reminderDate ? formatQueryMonthDay(reminderDate) : undefined,
+      },
+      href: `/pos/shipments/${shipment.id}`,
+      searchText: `補貨 ${summary.items.map((item) => item.label).join(' ')} ${status} ${shipment.id}`.toLowerCase(),
     };
   });
 
@@ -218,7 +319,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
     };
   });
 
-  return [...saleItems, ...refillItems, ...restockItems, ...stockItems].sort(
+  return [...saleItems, ...refillItems, ...restockItems, ...directRestockItems, ...stockItems].sort(
     (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
   );
 }

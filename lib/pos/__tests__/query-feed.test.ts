@@ -158,8 +158,9 @@ type FeedWorld = {
     createdAt: Date;
     status: string;
     shipment?: { status: string; shippedAt?: Date | null; receivedAt?: Date | null } | null;
-    items: Array<{ requestedQuantity: number; product: { name: string } }>;
+    items: Array<{ requestedQuantity: number; weightGrams?: number | null; product: { name: string; unit?: string | null } }>;
   }>;
+  directShipments: unknown[];
   stockTxns: Array<{
     id: string;
     createdAt: Date;
@@ -170,22 +171,26 @@ type FeedWorld = {
   }>;
 };
 
-let feedWorld: FeedWorld = { sales: [], refills: [], restocks: [], stockTxns: [] };
+let feedWorld: FeedWorld = { sales: [], refills: [], restocks: [], directShipments: [], stockTxns: [] };
 
 const feedHarness = globalThis as typeof globalThis & {
   __TEST_PRISMA__: {
-    merchantStockTxn: { findMany: (args: { where: { type?: string } }) => Promise<unknown[]> };
+    merchantStockTxn: { findMany: (args: { where: { type?: string | { notIn?: string[] } } }) => Promise<unknown[]> };
     refillOrder: { findMany: () => Promise<unknown[]> };
     restockRequest: { findMany: () => Promise<unknown[]> };
+    shipment: { findMany: () => Promise<unknown[]> };
   };
 };
 
 feedHarness.__TEST_PRISMA__ = {
   merchantStockTxn: {
-    findMany: async ({ where }) => (where.type === 'sale' ? feedWorld.sales : feedWorld.stockTxns),
+    findMany: async ({ where }) => where.type === 'sale'
+      ? feedWorld.sales
+      : feedWorld.stockTxns.filter((row) => !['sale', 'restock'].includes(row.type)),
   },
   refillOrder: { findMany: async () => feedWorld.refills },
   restockRequest: { findMany: async () => feedWorld.restocks },
+  shipment: { findMany: async () => feedWorld.directShipments },
 };
 
 const loader = `
@@ -223,6 +228,8 @@ let loadQueryFeed: (typeof import('@/lib/pos/load-query-feed'))['loadQueryFeed']
 let restockFeedStatus: (typeof import('@/lib/pos/load-query-feed'))['restockFeedStatus'];
 let restockProgressStage: (typeof import('@/lib/pos/load-query-feed'))['restockProgressStage'];
 let nextReceiptReminderDate: (typeof import('@/lib/pos/load-query-feed'))['nextReceiptReminderDate'];
+let cleanPosProductName: (typeof import('@/lib/pos/load-query-feed'))['cleanPosProductName'];
+let summarizeRestockLines: (typeof import('@/lib/pos/load-query-feed'))['summarizeRestockLines'];
 
 function withFrozenNow<T>(now: Date, fn: () => T): T {
   const RealDate = Date;
@@ -251,7 +258,7 @@ describe('loadQueryFeed whenLabel', () => {
       return originalLoad.call(this, request, parent, isMain);
     };
     try {
-      ({ loadQueryFeed, restockFeedStatus, restockProgressStage, nextReceiptReminderDate } = await import('@/lib/pos/load-query-feed'));
+      ({ loadQueryFeed, restockFeedStatus, restockProgressStage, nextReceiptReminderDate, cleanPosProductName, summarizeRestockLines } = await import('@/lib/pos/load-query-feed'));
     } finally {
       moduleApi._load = originalLoad;
     }
@@ -271,6 +278,23 @@ describe('loadQueryFeed whenLabel', () => {
     assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-10-31T02:00:00.000Z'))?.toISOString(), '2026-11-02T02:00:00.000Z');
     assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-11-02T03:00:00.000Z'))?.toISOString(), '2026-11-04T02:00:00.000Z');
     assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-11-04T03:00:00.000Z')), null);
+  });
+
+  it('uses canonical readable names and keeps every received line inside one shipment record', () => {
+    assert.equal(cleanPosProductName('� ◇ 狗屎運 ◇ '), '狗屎運');
+    assert.deepEqual(
+      summarizeRestockLines([
+        { productName: '牛肉地瓜', weightGrams: 30, quantity: 5, unit: '包' },
+        { productName: '鴨肺', quantity: 2, unit: 'g' },
+      ]),
+      {
+        summaryLabel: '牛肉地瓜 30g 等 2 項',
+        items: [
+          { label: '牛肉地瓜 30g', quantityLabel: '5 包' },
+          { label: '鴨肺', quantityLabel: '2 g' },
+        ],
+      },
+    );
   });
 
   it('labels all four item kinds from the same now', async () => {
@@ -297,6 +321,7 @@ describe('loadQueryFeed whenLabel', () => {
           items: [{ requestedQuantity: 2, product: { name: '水晶魚' } }],
         },
       ],
+      directShipments: [],
       stockTxns: [
         {
           id: 'stock-1',
@@ -316,5 +341,40 @@ describe('loadQueryFeed whenLabel', () => {
       assert.equal(item.whenLabel, formatQueryWhen(item.at, SAME_DAY_NOW));
       assert.equal(item.whenLabel, '上午9:05');
     }
+  });
+
+  it('shows a direct HQ shipment once and does not repeat its per-item stock postings', async () => {
+    const createdAt = new Date('2026-09-08T01:05:00.000Z');
+    feedWorld = {
+      sales: [],
+      refills: [],
+      restocks: [],
+      directShipments: [{
+        id: 'shipment-1',
+        status: 'received',
+        createdAt,
+        updatedAt: createdAt,
+        shippedAt: createdAt,
+        receivedAt: createdAt,
+        items: [
+          { productName: '� ◇ 狗屎運 ◇', quantity: 5, unit: '包', weightGrams: 30, product: { name: '牛肉地瓜' } },
+          { productName: '鴨肺', quantity: 2, unit: 'g', weightGrams: null, product: { name: '鴨肺' } },
+        ],
+      }],
+      stockTxns: [
+        { id: 'posted-1', createdAt, type: 'restock', quantity: 5, balanceAfter: 5, product: { name: '牛肉地瓜' } },
+        { id: 'posted-2', createdAt, type: 'restock', quantity: 2, balanceAfter: 2, product: { name: '鴨肺' } },
+      ],
+    };
+
+    const items = await withFrozenNow(SAME_DAY_NOW, () => loadQueryFeed('merchant-1'));
+    assert.equal(items.length, 1);
+    assert.equal(items[0]?.id, 'shipment-shipment-1');
+    assert.equal(items[0]?.title, '匠寵補貨');
+    assert.equal(items[0]?.status, '店家已收貨');
+    assert.deepEqual(items[0]?.restockProgress?.items, [
+      { label: '牛肉地瓜 30g', quantityLabel: '5 包' },
+      { label: '鴨肺', quantityLabel: '2 g' },
+    ]);
   });
 });

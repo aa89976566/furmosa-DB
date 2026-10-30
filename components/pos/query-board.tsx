@@ -36,7 +36,7 @@ function ProgressPanel({ item }: { item: QueryFeedItem }) {
   const title = detail.stage === "cancelled" ? "已取消" : received ? "店家已收貨" : inTransit ? "運送中" : "尚未出貨";
   return <aside className="rounded-[28px] border border-border bg-card p-5 shadow-sm lg:sticky lg:top-6" aria-label="補貨進度">
     <h2 className="text-xl font-bold tracking-tight">補貨進度</h2>
-    <p className="mt-1 text-sm text-muted-foreground">匠寵寄出・{detail.itemsLabel}</p>
+    <p className="mt-1 text-sm text-muted-foreground">匠寵補貨・{detail.summaryLabel}</p>
     <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl bg-primary/[0.07] px-4 py-5 text-primary">
       <Truck className="h-7 w-7" /><strong className="text-2xl">{title}</strong>
     </div>
@@ -52,7 +52,10 @@ function ProgressPanel({ item }: { item: QueryFeedItem }) {
     </div> : null}
     <dl className="mt-6 divide-y divide-border border-y border-border text-sm">
       {detail.shippedDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">寄出日期</dt><dd className="font-medium">{detail.shippedDateLabel}</dd></div> : null}
-      <div className="flex items-start justify-between gap-4 py-3"><dt className="shrink-0 text-muted-foreground">內容</dt><dd className="text-right font-medium">{detail.itemsLabel}</dd></div>
+      <div className="py-3">
+        <dt className="text-muted-foreground">本次品項</dt>
+        <dd className="mt-2 space-y-2">{detail.items.map((product, index) => <div key={`${product.label}-${product.quantityLabel}-${index}`} className="flex items-start justify-between gap-4"><span className="font-medium">{product.label}</span><strong className="shrink-0 text-primary">× {product.quantityLabel}</strong></div>)}</dd>
+      </div>
       {detail.receivedDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">收貨日期</dt><dd className="font-medium">{detail.receivedDateLabel}</dd></div> : detail.reminderDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">收貨提醒</dt><dd className="font-medium">{detail.reminderDateLabel}</dd></div> : null}
     </dl>
     {notReceived ? <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900">已保留「運送中」，不會變更庫存；系統仍會按原定時間再次提醒。</p> : null}
@@ -87,11 +90,11 @@ export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[
       <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-14 rounded-xl border border-border bg-card pl-12 shadow-none" /></div><button type="button" aria-label="篩選紀錄" className="inline-flex h-14 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
       <div className="mt-3 flex gap-7 overflow-x-auto" role="tablist">{TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)} className={`relative min-h-12 shrink-0 px-1 text-sm font-semibold ${kind === tab.id ? "text-primary" : "text-muted-foreground"}`}>{tab.label}{kind === tab.id ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" /> : null}</button>)}</div>
     </section>
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
       <section aria-label="紀錄清單">{visible.length === 0 ? <div className="rounded-[28px] border border-border bg-card p-8 text-center text-sm text-muted-foreground">沒有符合的資料。</div> : <div className="overflow-hidden rounded-3xl border-2 border-foreground bg-card shadow-sm">{groups.map(([date, group]) => <section key={date}><div className="flex items-center justify-between bg-muted/60 px-5 py-3"><h2 className="text-base font-bold sm:text-lg">{date}</h2><span className="text-xs text-muted-foreground">{group.length} 筆異動</span></div><ul className="divide-y divide-border">{group.map((item) => {
         const active = selected?.id === item.id;
-        const row = <><span className={`absolute inset-y-1 left-0 w-1 rounded-r-full ${COLORS[item.kind]}`} /><time className="text-sm tabular-nums text-muted-foreground sm:text-base">{item.timeLabel ?? item.whenLabel}</time><span className="flex items-center gap-2 text-sm text-muted-foreground"><span className={`h-2.5 w-2.5 rounded-full ${COLORS[item.kind]}`} />{item.eventLabel ?? LABELS[item.kind]}</span><span className="min-w-0"><strong className="block truncate text-sm sm:text-base">{item.title}</strong><span className="mt-0.5 block truncate text-xs text-muted-foreground sm:text-sm">{item.subtitle}</span></span><strong className="text-right text-sm text-primary sm:text-lg">{item.quantityLabel ?? item.status}</strong><ChevronRight className="h-5 w-5 text-muted-foreground" /></>;
-        const cls = `relative grid min-h-[82px] w-full grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[64px_82px_minmax(0,1fr)_auto_20px] sm:gap-3 sm:px-5 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
+        const row = <><span className={`absolute inset-y-1 left-0 w-1 rounded-r-full ${COLORS[item.kind]}`} /><time className="text-sm tabular-nums text-muted-foreground sm:text-base">{item.timeLabel ?? item.whenLabel}</time><span className="flex items-center gap-2 text-sm text-muted-foreground"><span className={`h-2.5 w-2.5 rounded-full ${COLORS[item.kind]}`} />{item.eventLabel ?? LABELS[item.kind]}</span><span className="min-w-0"><strong className="block text-sm sm:text-base">{item.title}</strong><span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-muted-foreground sm:text-sm">{item.subtitle}</span></span><strong className="whitespace-nowrap text-right text-sm text-primary sm:text-lg">{item.quantityLabel ?? item.status}</strong><ChevronRight className="h-5 w-5 text-muted-foreground" /></>;
+        const cls = `relative grid min-h-[82px] w-full grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[64px_82px_minmax(220px,1fr)_auto_20px] sm:gap-4 sm:px-5 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
         return <li key={item.id}>{item.restockProgress ? <button type="button" className={cls} onClick={() => setSelectedId(item.id)} aria-pressed={active}>{row}</button> : <Link href={item.href} className={cls}>{row}</Link>}</li>;
       })}</ul></section>)}</div>}</section>
       {selected ? <ProgressPanel key={selected.id} item={selected} /> : null}
