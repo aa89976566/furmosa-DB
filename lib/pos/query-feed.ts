@@ -2,6 +2,9 @@ import { formatCurrency } from '@/lib/format';
 
 export type QueryKind = 'sale' | 'refill' | 'restock' | 'stock';
 
+export type RestockProgressStage = 'not_shipped' | 'in_transit' | 'received' | 'cancelled';
+export type RestockProgressDetail = { stage: RestockProgressStage; statusLabel: string; itemsLabel: string; shippedDateLabel?: string; receivedDateLabel?: string; reminderDateLabel?: string };
+
 export type QueryFeedItem = {
   id: string;
   kind: QueryKind;
@@ -12,6 +15,9 @@ export type QueryFeedItem = {
   title: string;
   subtitle: string;
   status: string;
+  eventLabel?: string;
+  quantityLabel?: string;
+  restockProgress?: RestockProgressDetail;
   href: string;
   searchText: string;
 };
@@ -57,6 +63,19 @@ export function formatQueryWhen(iso: string, now: Date): string {
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
+export function formatQueryDateHeading(iso: string): string {
+  const date = new Date(iso);
+  if (!isValidDate(date)) return '日期未記錄';
+  const shifted = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  return `${shifted.getUTCMonth() + 1}月${shifted.getUTCDate()}日・星期${WEEKDAYS[shifted.getUTCDay()]}`;
+}
+
+export function formatQueryMonthDay(date: Date): string {
+  if (!isValidDate(date)) return '日期未記錄';
+  const shifted = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  return `${shifted.getUTCMonth() + 1}月${shifted.getUTCDate()}日`;
+}
+
 export function formatQueryDate(iso: string): string {
   const date = new Date(iso);
   if (!isValidDate(date)) return '日期未記錄';
@@ -92,9 +111,8 @@ export function groupSaleLines(
   }
   return [...groups.entries()].map(([key, lines]) => {
     const at = lines[0]!.createdAt;
-    const names = lines
-      .map((l) => `${l.productName} × ${Math.abs(l.quantity)}`)
-      .join('、');
+    const names = lines.map((l) => l.productName).join('、');
+    const quantity = lines.reduce((sum, line) => sum + Math.abs(line.quantity), 0);
     const total = lines.reduce(
       (sum, l) => sum + Math.abs(l.quantity) * (l.unitPrice ?? 0),
       0,
@@ -105,11 +123,12 @@ export function groupSaleLines(
       kind: 'sale' as const,
       at: atIso,
       whenLabel: formatQueryWhen(atIso, now),
-      dateLabel: formatQueryDate(atIso),
+      dateLabel: formatQueryDateHeading(atIso),
       timeLabel: formatQueryTime(atIso),
       title: names,
       subtitle: formatCurrency(total),
       status: '已完成',
+      quantityLabel: lines.length === 1 ? `−${quantity}` : `共 ${quantity} 件`,
       href: '/pos/records',
       searchText: `${names} ${total}`.toLowerCase(),
     };

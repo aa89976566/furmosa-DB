@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
-import { formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { formatQueryDate, formatQueryDateHeading, formatQueryMonthDay, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem, type RestockProgressStage } from '@/lib/pos/query-feed';
 
 function stockTypeLabel(type: string): string {
   switch (type) {
     case 'sale':
       return '銷售';
     case 'restock':
-      return '進貨';
+      return '收到貨';
     case 'return':
       return '退回';
     case 'adjust':
@@ -20,20 +20,35 @@ function stockTypeLabel(type: string): string {
 export function restockFeedStatus(requestStatus: string, shipmentStatus?: string | null): string {
   if (requestStatus !== 'converted_to_shipment') {
     return ['submitted', 'under_review', 'approved'].includes(requestStatus)
-      ? '已送出'
+      ? '尚未出貨'
       : restockStatusLabelForMerchant(requestStatus);
   }
   switch (shipmentStatus) {
     case 'shipped':
     case 'delivered':
-      return '是否已收到？';
+      return '運送中';
     case 'received':
-      return '已收貨入庫';
+      return '店家已收貨';
     case 'cancelled':
       return '出貨已取消';
     default:
-      return '備貨中';
+      return '尚未出貨';
   }
+}
+
+export function restockProgressStage(requestStatus: string, shipmentStatus?: string | null): RestockProgressStage {
+  if (shipmentStatus === 'received') return 'received';
+  if (shipmentStatus === 'cancelled' || requestStatus === 'rejected' || requestStatus === 'cancelled') return 'cancelled';
+  if (shipmentStatus === 'shipped' || shipmentStatus === 'delivered') return 'in_transit';
+  return 'not_shipped';
+}
+
+export function nextReceiptReminderDate(shippedAt: Date | null | undefined, now: Date): Date | null {
+  if (!shippedAt) return null;
+  const day3 = new Date(shippedAt.getTime() + 3 * 86400000);
+  if (now < day3) return day3;
+  const day5 = new Date(shippedAt.getTime() + 5 * 86400000);
+  return now < day5 ? day5 : null;
 }
 
 export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]> {
@@ -77,7 +92,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         updatedAt: true,
         expectedArrivalDate: true,
         status: true,
-        shipment: { select: { status: true, shippedAt: true, receivedAt: true, updatedAt: true } },
+        shipment: { select: { status: true, shippedAt: true, receivedAt: true, updatedAt: true, items: { select: { productName: true, quantity: true, unit: true } } } },
         items: {
           take: 3,
           select: {
@@ -88,7 +103,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       },
     }),
     prisma.merchantStockTxn.findMany({
-      where: { merchantId, createdAt: { gte: since } },
+      where: { merchantId, type: { not: 'sale' }, createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
       take: 80,
       select: {
@@ -97,7 +112,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
         type: true,
         quantity: true,
         balanceAfter: true,
-        product: { select: { name: true } },
+        product: { select: { name: true, unit: true } },
       },
     }),
   ]);
@@ -131,7 +146,7 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'refill',
       at,
       whenLabel: formatQueryWhen(at, now),
-      dateLabel: formatQueryDate(at),
+      dateLabel: formatQueryDateHeading(at),
       timeLabel: formatQueryTime(at),
       title: '換罐',
       subtitle,
@@ -142,9 +157,11 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
   });
 
   const restockItems: QueryFeedItem[] = restocks.map((r) => {
-    const names = r.items
+    const requestedNames = r.items
       .map((it) => `${it.product.name} × ${it.requestedQuantity ?? 0}`)
       .join('、');
+    const shipmentNames = r.shipment?.items.map((item) => `${item.productName} × ${item.quantity} ${item.unit ?? '件'}`).join('、');
+    const names = shipmentNames || requestedNames;
     const occurredAt = r.shipment?.status === 'received'
       ? r.shipment.receivedAt ?? r.shipment.shippedAt ?? r.updatedAt
       : r.shipment?.status === 'shipped' || r.shipment?.status === 'delivered'
@@ -155,16 +172,27 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       : null;
     const subtitle = [etaLabel, names || '補貨單'].filter(Boolean).join(' · ');
     const at = occurredAt.toISOString();
+    const stage = restockProgressStage(r.status, r.shipment?.status);
+    const reminderDate = stage === 'in_transit' ? nextReceiptReminderDate(r.shipment?.shippedAt, now) : null;
     return {
       id: `restock-${r.id}`,
       kind: 'restock',
       at,
       whenLabel: formatQueryWhen(at, now),
-      dateLabel: formatQueryDate(at),
+      dateLabel: formatQueryDateHeading(at),
       timeLabel: formatQueryTime(at),
-      title: '補貨',
+      title: names || '補貨單',
       subtitle,
       status: restockFeedStatus(r.status, r.shipment?.status),
+      quantityLabel: restockFeedStatus(r.status, r.shipment?.status),
+      restockProgress: {
+        stage,
+        statusLabel: restockFeedStatus(r.status, r.shipment?.status),
+        itemsLabel: names || '補貨單',
+        shippedDateLabel: r.shipment?.shippedAt ? formatQueryMonthDay(r.shipment.shippedAt) : undefined,
+        receivedDateLabel: r.shipment?.receivedAt ? formatQueryMonthDay(r.shipment.receivedAt) : undefined,
+        reminderDateLabel: reminderDate ? formatQueryMonthDay(reminderDate) : undefined,
+      },
       href: `/pos/restock/${r.id}`,
       searchText: `補貨 ${names} ${etaLabel ?? ''} ${restockFeedStatus(r.status, r.shipment?.status)} ${r.id}`.toLowerCase(),
     };
@@ -178,11 +206,13 @@ export async function loadQueryFeed(merchantId: string): Promise<QueryFeedItem[]
       kind: 'stock',
       at,
       whenLabel: formatQueryWhen(at, now),
-      dateLabel: formatQueryDate(at),
+      dateLabel: formatQueryDateHeading(at),
       timeLabel: formatQueryTime(at),
-      title: '庫存',
-      subtitle: `${stockTypeLabel(t.type)}${t.product?.name ?? ''} ${sign}`,
+      title: t.product?.name ?? '商品',
+      subtitle: stockTypeLabel(t.type),
       status: `現在 ${t.balanceAfter}`,
+      eventLabel: stockTypeLabel(t.type),
+      quantityLabel: `${sign} ${t.product?.unit ?? ''}`.trim(),
       href: '/pos/stock',
       searchText: `${t.product?.name ?? ''} ${t.type} ${t.id}`.toLowerCase(),
     };

@@ -2,102 +2,99 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Truck } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Circle, Download, Search, SlidersHorizontal, Truck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/query-feed";
 
 const TABS: { id: QueryKind | "all"; label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "sale", label: "銷售" },
-  { id: "refill", label: "換罐" },
-  { id: "restock", label: "補貨" },
-  { id: "stock", label: "庫存" },
+  { id: "all", label: "全部" }, { id: "sale", label: "銷售" },
+  { id: "restock", label: "收貨" }, { id: "stock", label: "盤點" },
+  { id: "refill", label: "美容券" },
 ];
+const LABELS: Record<QueryKind, string> = { sale: "銷售", refill: "美容券", restock: "補貨", stock: "盤點" };
+const COLORS: Record<QueryKind, string> = { sale: "bg-rose-400", refill: "bg-violet-400", restock: "bg-emerald-500", stock: "bg-sky-400" };
 
-const KIND_LABELS: Record<QueryKind, string> = {
-  sale: "銷售",
-  refill: "換罐",
-  restock: "補貨",
-  stock: "庫存",
-};
+function step(item: QueryFeedItem) {
+  if (item.restockProgress?.stage === "received") return 3;
+  if (item.restockProgress?.stage === "in_transit") return 2;
+  return 1;
+}
+
+function StepDot({ active, complete }: { active: boolean; complete: boolean }) {
+  return <span className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 ${complete ? "border-primary bg-primary text-primary-foreground" : active ? "border-primary bg-card text-primary" : "border-border bg-card text-muted-foreground"}`}>
+    {complete ? <Check className="h-4 w-4" /> : <Circle className="h-3 w-3 fill-current" />}
+  </span>;
+}
+
+function ProgressPanel({ item }: { item: QueryFeedItem }) {
+  const [notReceived, setNotReceived] = useState(false);
+  const detail = item.restockProgress;
+  if (!detail) return null;
+  const current = step(item);
+  const received = detail.stage === "received";
+  const inTransit = detail.stage === "in_transit";
+  const title = detail.stage === "cancelled" ? "已取消" : received ? "店家已收貨" : inTransit ? "運送中" : "尚未出貨";
+  return <aside className="rounded-[28px] border border-border bg-card p-5 shadow-sm lg:sticky lg:top-6" aria-label="補貨進度">
+    <h2 className="text-xl font-bold tracking-tight">補貨進度</h2>
+    <p className="mt-1 text-sm text-muted-foreground">匠寵寄出・{detail.itemsLabel}</p>
+    <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl bg-primary/[0.07] px-4 py-5 text-primary">
+      <Truck className="h-7 w-7" /><strong className="text-2xl">{title}</strong>
+    </div>
+    {detail.stage !== "cancelled" ? <div className="relative mt-6">
+      <div className="absolute left-[16.66%] right-[16.66%] top-4 h-0.5 bg-border" />
+      <div className="absolute left-[16.66%] top-4 h-0.5 bg-primary" style={{ width: current === 1 ? "0" : current === 2 ? "33.33%" : "66.66%" }} />
+      <ol className="relative grid grid-cols-3 text-center">
+        {["尚未出貨", "運送中", "店家已收貨"].map((label, index) => <li key={label} className="flex min-w-0 flex-col items-center">
+          <StepDot active={current === index + 1} complete={current > index + 1 || (received && index === 2)} />
+          <span className={`mt-2 text-xs font-semibold ${current >= index + 1 ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
+        </li>)}
+      </ol>
+    </div> : null}
+    <dl className="mt-6 divide-y divide-border border-y border-border text-sm">
+      {detail.shippedDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">寄出日期</dt><dd className="font-medium">{detail.shippedDateLabel}</dd></div> : null}
+      <div className="flex items-start justify-between gap-4 py-3"><dt className="shrink-0 text-muted-foreground">內容</dt><dd className="text-right font-medium">{detail.itemsLabel}</dd></div>
+      {detail.receivedDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">收貨日期</dt><dd className="font-medium">{detail.receivedDateLabel}</dd></div> : detail.reminderDateLabel ? <div className="flex justify-between gap-4 py-3"><dt className="text-muted-foreground">收貨提醒</dt><dd className="font-medium">{detail.reminderDateLabel}</dd></div> : null}
+    </dl>
+    {notReceived ? <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900">已保留「運送中」，不會變更庫存；系統仍會按原定時間再次提醒。</p> : null}
+    <div className="mt-5 grid gap-2.5">
+      <Link href={item.href} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground hover:bg-primary/90">{received ? "查看收貨明細" : inTransit ? "確認收到貨" : "查看補貨單"}</Link>
+      {inTransit ? <button type="button" onClick={() => setNotReceived(true)} className="min-h-12 rounded-xl border border-primary bg-card px-5 text-sm font-bold text-primary hover:bg-primary/[0.04]">還沒收到</button> : null}
+      <a href="https://line.me/R/ti/p/@furmosa_food" target="_blank" rel="noreferrer" className="mt-1 text-center text-sm font-semibold text-primary underline underline-offset-4">聯繫匠寵客服</a>
+    </div>
+  </aside>;
+}
 
 export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[]; initialQuery?: string }) {
   const [kind, setKind] = useState<QueryKind | "all">("all");
   const [query, setQuery] = useState(initialQuery);
+  const [selectedId, setSelectedId] = useState(() => items.find((item) => item.restockProgress)?.id ?? "");
   const visible = useMemo(() => filterQueryFeed(items, kind, query), [items, kind, query]);
-  const awaitingReceipt = items.filter(
-    (item) => item.kind === "restock" && item.status === "是否已收到？",
-  );
-  const groupedHistory = useMemo(() => {
-    const groups = new Map<string, QueryFeedItem[]>();
-    for (const item of visible) {
-      const key = item.dateLabel ?? item.whenLabel;
-      const group = groups.get(key) ?? [];
-      group.push(item);
-      groups.set(key, group);
-    }
-    return [...groups.entries()];
+  const selected = items.find((item) => item.id === selectedId && item.restockProgress) ?? items.find((item) => item.restockProgress);
+  const groups = useMemo(() => {
+    const map = new Map<string, QueryFeedItem[]>();
+    for (const item of visible) map.set(item.dateLabel ?? item.whenLabel, [...(map.get(item.dateLabel ?? item.whenLabel) ?? []), item]);
+    return [...map.entries()];
   }, [visible]);
-  const firstAwaiting = awaitingReceipt[0];
-
-  return (
-    <div className="space-y-7">
-      {firstAwaiting ? (
-        <section aria-label="待收貨" className="overflow-hidden rounded-3xl border-2 border-primary/15 bg-primary/[0.045] shadow-sm">
-          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Truck className="h-6 w-6" aria-hidden />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-foreground">待收貨</h2>
-                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-primary px-2 text-sm font-semibold text-primary-foreground">{awaitingReceipt.length}</span>
-              </div>
-              <p className="mt-1 text-sm font-medium text-foreground">匠寵補貨・{firstAwaiting.dateLabel?.split("（")[0] ?? firstAwaiting.whenLabel} 寄出</p>
-              <p className="mt-0.5 truncate text-sm text-muted-foreground">{firstAwaiting.subtitle}</p>
-            </div>
-            <Link href={firstAwaiting.href} className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-2xl bg-primary px-8 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90">確認收貨</Link>
-          </div>
-        </section>
-      ) : null}
-
-      <section aria-labelledby="record-history-title" className="space-y-4">
-        <h1 id="record-history-title" className="text-2xl font-semibold text-foreground">紀錄</h1>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="搜尋紀錄" placeholder="搜尋訂單、商品、罐子序號" className="h-14 rounded-2xl border-2 border-border bg-card pl-12 shadow-none focus-visible:ring-primary/35" />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="查詢分類">
-          {TABS.map((tab) => (
-            <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id} className={`min-h-11 shrink-0 rounded-2xl border px-5 text-sm font-semibold transition-colors ${kind === tab.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-primary"}`} onClick={() => setKind(tab.id)}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {visible.length === 0 ? (
-          <div className="rounded-3xl border-2 border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">沒有符合的資料。</div>
-        ) : (
-          <div className="overflow-hidden rounded-3xl border-2 border-border bg-card shadow-sm">
-            {groupedHistory.map(([date, group]) => (
-              <section key={date} aria-label={date}>
-                <h2 className="bg-muted/70 px-4 py-2.5 text-sm font-medium text-foreground">{date}</h2>
-                <ul className="divide-y divide-border">
-                  {group.map((item) => (
-                    <li key={item.id}>
-                      <Link href={item.href} className="grid min-h-[76px] grid-cols-[52px_64px_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40 sm:grid-cols-[64px_84px_minmax(0,1fr)]">
-                        <time className="text-sm tabular-nums text-muted-foreground">{item.timeLabel ?? item.whenLabel}</time>
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-center text-xs font-semibold text-primary">{KIND_LABELS[item.kind]}</span>
-                        <span className="min-w-0"><span className="flex min-w-0 items-center gap-2"><span className="truncate font-medium text-foreground">{item.title}</span><span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">{item.status}</span></span><span className="mt-0.5 block truncate text-sm text-muted-foreground">{item.subtitle}</span></span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
+  function exportRows() {
+    const rows = [["日期", "時間", "類型", "品項", "規格或說明", "數量或狀態"], ...visible.map((i) => [i.dateLabel ?? "", i.timeLabel ?? "", i.eventLabel ?? LABELS[i.kind], i.title, i.subtitle, i.quantityLabel ?? i.status])];
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "店內紀錄.csv"; a.click(); URL.revokeObjectURL(url);
+  }
+  return <div className="space-y-5">
+    <header className="flex items-start justify-between gap-4"><div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">紀錄</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">查看店內每一次商品異動</p></div><button type="button" onClick={exportRows} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:text-primary"><Download className="h-4 w-4" /><span className="hidden sm:inline">匯出</span></button></header>
+    <section aria-label="搜尋與分類" className="border-b border-border">
+      <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-14 rounded-xl border border-border bg-card pl-12 shadow-none" /></div><button type="button" aria-label="篩選紀錄" className="inline-flex h-14 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
+      <div className="mt-3 flex gap-7 overflow-x-auto" role="tablist">{TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)} className={`relative min-h-12 shrink-0 px-1 text-sm font-semibold ${kind === tab.id ? "text-primary" : "text-muted-foreground"}`}>{tab.label}{kind === tab.id ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" /> : null}</button>)}</div>
+    </section>
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section aria-label="紀錄清單">{visible.length === 0 ? <div className="rounded-[28px] border border-border bg-card p-8 text-center text-sm text-muted-foreground">沒有符合的資料。</div> : <div className="overflow-hidden rounded-3xl border-2 border-foreground bg-card shadow-sm">{groups.map(([date, group]) => <section key={date}><div className="flex items-center justify-between bg-muted/60 px-5 py-3"><h2 className="text-base font-bold sm:text-lg">{date}</h2><span className="text-xs text-muted-foreground">{group.length} 筆異動</span></div><ul className="divide-y divide-border">{group.map((item) => {
+        const active = selected?.id === item.id;
+        const row = <><span className={`absolute inset-y-1 left-0 w-1 rounded-r-full ${COLORS[item.kind]}`} /><time className="text-sm tabular-nums text-muted-foreground sm:text-base">{item.timeLabel ?? item.whenLabel}</time><span className="flex items-center gap-2 text-sm text-muted-foreground"><span className={`h-2.5 w-2.5 rounded-full ${COLORS[item.kind]}`} />{item.eventLabel ?? LABELS[item.kind]}</span><span className="min-w-0"><strong className="block truncate text-sm sm:text-base">{item.title}</strong><span className="mt-0.5 block truncate text-xs text-muted-foreground sm:text-sm">{item.subtitle}</span></span><strong className="text-right text-sm text-primary sm:text-lg">{item.quantityLabel ?? item.status}</strong><ChevronRight className="h-5 w-5 text-muted-foreground" /></>;
+        const cls = `relative grid min-h-[82px] w-full grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[64px_82px_minmax(0,1fr)_auto_20px] sm:gap-3 sm:px-5 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
+        return <li key={item.id}>{item.restockProgress ? <button type="button" className={cls} onClick={() => setSelectedId(item.id)} aria-pressed={active}>{row}</button> : <Link href={item.href} className={cls}>{row}</Link>}</li>;
+      })}</ul></section>)}</div>}</section>
+      {selected ? <ProgressPanel key={selected.id} item={selected} /> : null}
     </div>
-  );
+  </div>;
 }
