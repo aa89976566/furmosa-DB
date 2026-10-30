@@ -6,8 +6,10 @@ import { Check, ChevronDown, ChevronRight, Circle, Download, Search, SlidersHori
 import { Input } from "@/components/ui/input";
 import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/query-feed";
 
-const TABS: { id: QueryKind | "all"; label: string }[] = [
-  { id: "all", label: "全部" }, { id: "sale", label: "銷售" },
+type QueryTab = QueryKind | "all" | "today";
+
+const TABS: { id: QueryTab; label: string }[] = [
+  { id: "all", label: "全部" }, { id: "today", label: "今日" }, { id: "sale", label: "銷售" },
   { id: "restock", label: "收貨" }, { id: "stock", label: "盤點" },
   { id: "refill", label: "美容券" },
 ];
@@ -34,10 +36,10 @@ function ProgressPanel({ item }: { item: QueryFeedItem }) {
   const received = detail.stage === "received";
   const inTransit = detail.stage === "in_transit";
   const title = detail.stage === "cancelled" ? "已取消" : received ? "店家已收貨" : inTransit ? "運送中" : "尚未出貨";
-  return <aside className="rounded-[28px] border border-border bg-card p-5 shadow-sm lg:sticky lg:top-6" aria-label="補貨進度">
+  return <aside className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:sticky lg:top-6" aria-label="補貨進度">
     <h2 className="text-xl font-bold tracking-tight">補貨進度</h2>
     <p className="mt-1 text-sm text-muted-foreground">匠寵補貨・{detail.summaryLabel}</p>
-    <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl bg-primary/[0.07] px-4 py-5 text-primary">
+    <div className="mt-5 flex items-center justify-center gap-3 rounded-xl bg-primary/[0.07] px-4 py-5 text-primary">
       <Truck className="h-7 w-7" /><strong className="text-2xl">{title}</strong>
     </div>
     {detail.stage !== "cancelled" ? <div className="relative mt-6">
@@ -67,11 +69,15 @@ function ProgressPanel({ item }: { item: QueryFeedItem }) {
   </aside>;
 }
 
-export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[]; initialQuery?: string }) {
-  const [kind, setKind] = useState<QueryKind | "all">("all");
+export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { items: QueryFeedItem[]; initialQuery?: string; todayDateLabel?: string }) {
+  const [kind, setKind] = useState<QueryTab>("all");
   const [query, setQuery] = useState(initialQuery);
   const [selectedId, setSelectedId] = useState(() => items.find((item) => item.restockProgress)?.id ?? "");
-  const visible = useMemo(() => filterQueryFeed(items, kind, query), [items, kind, query]);
+  const visible = useMemo(() => {
+    const filtered = filterQueryFeed(items, kind === "today" ? "all" : kind, query);
+    if (kind !== "today") return filtered;
+    return filtered.filter((item) => item.dateLabel === todayDateLabel);
+  }, [items, kind, query, todayDateLabel]);
   const selected = items.find((item) => item.id === selectedId && item.restockProgress) ?? items.find((item) => item.restockProgress);
   const groups = useMemo(() => {
     const map = new Map<string, QueryFeedItem[]>();
@@ -85,16 +91,16 @@ export function QueryBoard({ items, initialQuery = "" }: { items: QueryFeedItem[
     const a = document.createElement("a"); a.href = url; a.download = "店內紀錄.csv"; a.click(); URL.revokeObjectURL(url);
   }
   return <div className="space-y-5">
-    <header className="flex items-start justify-between gap-4"><div><h1 className="text-3xl font-bold tracking-tight sm:text-4xl">紀錄</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">查看店內每一次商品異動</p></div><button type="button" onClick={exportRows} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:text-primary"><Download className="h-4 w-4" /><span className="hidden sm:inline">匯出</span></button></header>
+    <header className="flex items-start justify-between gap-4"><div><h1 className="text-4xl font-black tracking-tight sm:text-5xl">紀錄</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">查看店內每一次商品異動</p></div><button type="button" onClick={exportRows} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-border bg-card px-5 text-sm font-semibold hover:text-primary"><Download className="h-5 w-5" /><span className="hidden sm:inline">匯出</span></button></header>
     <section aria-label="搜尋與分類" className="border-b border-border">
-      <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-14 rounded-xl border border-border bg-card pl-12 shadow-none" /></div><button type="button" aria-label="篩選紀錄" className="inline-flex h-14 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
+      <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-16 rounded-lg border border-border bg-card pl-14 text-base shadow-none" /></div><button type="button" aria-label="篩選紀錄" className="inline-flex h-16 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-5 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
       <div className="mt-3 flex gap-7 overflow-x-auto" role="tablist">{TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)} className={`relative min-h-12 shrink-0 px-1 text-sm font-semibold ${kind === tab.id ? "text-primary" : "text-muted-foreground"}`}>{tab.label}{kind === tab.id ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" /> : null}</button>)}</div>
     </section>
-    <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <section aria-label="紀錄清單">{visible.length === 0 ? <div className="rounded-[28px] border border-border bg-card p-8 text-center text-sm text-muted-foreground">沒有符合的資料。</div> : <div className="overflow-hidden rounded-3xl border-2 border-foreground bg-card shadow-sm">{groups.map(([date, group]) => <section key={date}><div className="flex items-center justify-between bg-muted/60 px-5 py-3"><h2 className="text-base font-bold sm:text-lg">{date}</h2><span className="text-xs text-muted-foreground">{group.length} 筆異動</span></div><ul className="divide-y divide-border">{group.map((item) => {
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(680px,1fr)_400px]">
+      <section aria-label="紀錄清單">{visible.length === 0 ? <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">沒有符合的資料。</div> : <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">{groups.map(([date, group]) => <section key={date}><div className="flex items-center justify-between bg-muted/60 px-6 py-3"><h2 className="text-xl font-bold">{date}</h2><span className="text-sm text-muted-foreground">{group.length} 筆異動 <ChevronDown className="ml-2 inline h-4 w-4" /></span></div><ul className="divide-y divide-border">{group.map((item) => {
         const active = selected?.id === item.id;
         const row = <><span className={`absolute inset-y-1 left-0 w-1 rounded-r-full ${COLORS[item.kind]}`} /><time className="text-sm tabular-nums text-muted-foreground sm:text-base">{item.timeLabel ?? item.whenLabel}</time><span className="flex items-center gap-2 text-sm text-muted-foreground"><span className={`h-2.5 w-2.5 rounded-full ${COLORS[item.kind]}`} />{item.eventLabel ?? LABELS[item.kind]}</span><span className="min-w-0"><strong className="block text-sm sm:text-base">{item.title}</strong><span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-muted-foreground sm:text-sm">{item.subtitle}</span></span><strong className="whitespace-nowrap text-right text-sm text-primary sm:text-lg">{item.quantityLabel ?? item.status}</strong><ChevronRight className="h-5 w-5 text-muted-foreground" /></>;
-        const cls = `relative grid min-h-[82px] w-full grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[64px_82px_minmax(220px,1fr)_auto_20px] sm:gap-4 sm:px-5 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
+        const cls = `relative grid min-h-[86px] w-full grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[70px_88px_minmax(260px,1fr)_auto_20px] sm:gap-4 sm:px-6 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
         return <li key={item.id}>{item.restockProgress ? <button type="button" className={cls} onClick={() => setSelectedId(item.id)} aria-pressed={active}>{row}</button> : <Link href={item.href} className={cls}>{row}</Link>}</li>;
       })}</ul></section>)}</div>}</section>
       {selected ? <ProgressPanel key={selected.id} item={selected} /> : null}

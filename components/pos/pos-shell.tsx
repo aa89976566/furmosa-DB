@@ -9,12 +9,16 @@ export function PosShell({
   storeName,
   account,
   wide = false,
+  expandedNav = false,
+  hideHeader = false,
   showShipmentAlert = false,
 }: {
   children: React.ReactNode;
   storeName?: string;
   account?: PosAccount | null;
   wide?: boolean;
+  expandedNav?: boolean;
+  hideHeader?: boolean;
   showShipmentAlert?: boolean;
 }) {
   return (
@@ -22,11 +26,11 @@ export function PosShell({
       <div
         className={
           wide
-            ? 'md:grid md:h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:overflow-hidden md:p-3'
+            ? `md:grid md:h-screen ${expandedNav ? 'md:grid-cols-[224px_minmax(0,1fr)]' : 'md:grid-cols-[112px_minmax(0,1fr)]'} md:gap-3 md:overflow-hidden md:p-3`
             : 'md:grid md:min-h-screen md:grid-cols-[112px_minmax(0,1fr)] md:gap-3 md:p-3'
         }
       >
-        <PosSideRail storeName={storeName ?? account?.storeName} />
+        <PosSideRail storeName={storeName ?? account?.storeName} expanded={expandedNav} />
         <div
           className={
             wide
@@ -34,7 +38,7 @@ export function PosShell({
               : 'relative mx-auto min-h-screen w-full max-w-lg pb-24 md:mx-0 md:max-w-3xl md:pb-6'
           }
         >
-          {account ? (
+          {account && !hideHeader ? (
             <header className="flex shrink-0 items-center justify-end border-b border-border/70 bg-card/80 px-3 py-3 backdrop-blur-sm md:grid md:grid-cols-[minmax(0,1fr)_auto_auto] md:gap-5 md:px-6">
               <div className="hidden min-w-0 md:block">
                 <p className="text-xs font-medium tracking-wide text-muted-foreground">店家收銀</p>

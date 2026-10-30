@@ -140,7 +140,7 @@ describe("黑白 UI", () => {
     assert.equal(card.includes("shadow-card"), false);
     assert.equal(topbar.includes("backdrop-blur"), false);
     assert.equal(posNav.includes("rounded-full"), false);
-    assert.match(query, /overflow-hidden rounded-3xl border-2/);
+    assert.match(query, /overflow-hidden rounded-2xl border border-border/);
     assert.equal(query.includes("<Card"), false);
   });
 });
