@@ -4,6 +4,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { QueryBoard } from '@/components/pos/query-board';
 import { loadPosAccount } from '@/lib/pos/account';
 import { loadQueryFeed } from '@/lib/pos/load-query-feed';
+import { formatQueryDateHeading } from '@/lib/pos/query-feed';
 
 export const metadata = { title: '紀錄 · Furmosa 店家' };
 export const dynamic = 'force-dynamic';
@@ -18,9 +19,9 @@ export default async function PosRecordsPage(props: { searchParams?: Promise<{ q
   ]);
 
   return (
-    <PosShell storeName={account.storeName} account={account} wide>
-      <div className="mx-auto h-full w-full max-w-[1480px] overflow-y-auto px-4 py-6 md:px-8">
-        <QueryBoard key={query} items={items} initialQuery={query} />
+    <PosShell storeName={account.storeName} account={account} wide expandedNav hideHeader>
+      <div className="mx-auto h-full w-full max-w-[1600px] overflow-y-auto px-4 py-6 md:px-8 lg:px-10">
+        <QueryBoard key={query} items={items} initialQuery={query} todayDateLabel={formatQueryDateHeading(new Date().toISOString())} />
       </div>
     </PosShell>
   );
