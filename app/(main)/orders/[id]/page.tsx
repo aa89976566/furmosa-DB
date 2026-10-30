@@ -49,6 +49,7 @@ import {
   CheckCircle2,
   CopyPlus,
   Pencil,
+  FileDown,
 } from 'lucide-react';
 import {
   OrderPaymentStatusToggles,
@@ -346,6 +347,18 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <Link href={`/orders/${order.id}/edit`}>
                   <Pencil className="mr-1 h-4 w-4" />
                   修改訂單
+                </Link>
+              </Button>
+            ) : null}
+            {order.merchantId &&
+            order.merchantOrderMode === 'wholesale' &&
+            order.status === 'confirmed' &&
+            !order.deletedAt &&
+            !order.archivedAt ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/orders/${order.id}/quotation?download=1`}>
+                  <FileDown className="mr-1 h-4 w-4" />
+                  下載報價單 PDF
                 </Link>
               </Button>
             ) : null}
