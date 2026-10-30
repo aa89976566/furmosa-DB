@@ -1,5 +1,5 @@
 /**
- * HQ 黑白 UI 與 POS 單一綠色操作色 contract — 不連資料庫。
+ * HQ 統一語意色彩系統 contract — 不連資料庫。
  */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -32,8 +32,8 @@ function walkFiles(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-describe("黑白 UI", () => {
-  it("HQ 分區色沒有彩色 class", () => {
+describe("HQ 語意色彩系統", () => {
+  it("HQ 分區色改由語意 token 管理，不使用散落彩色 class", () => {
     for (const tone of SECTION_TONES) {
       const joined = Object.values(sectionToneStyles[tone]).join(" ");
       assert.equal(
@@ -44,18 +44,19 @@ describe("黑白 UI", () => {
     }
   });
 
-  it("HQ CSS 變數維持無彩度，POS 僅使用單一綠色操作色", () => {
+  it("HQ CSS 使用統一深綠主色與語意狀態色", () => {
     const css = readRepoFile("app/globals.css");
-    const matches = [...css.matchAll(/--([a-z-]+):\s*\d+\s+(\d+)%/g)];
-    assert.ok(matches.length > 8, "expected HSL CSS variables");
-    for (const match of matches) {
-      const isPosActionToken = ["primary", "ring", "navy", "coral", "success"].includes(match[1]);
-      assert.ok(
-        match[2] === "0" || isPosActionToken,
-        `--${match[1]} should remain achromatic outside POS action tokens`,
-      );
+    for (const token of [
+      "--primary: 156 42% 24%",
+      "--success: 151 52% 30%",
+      "--warning: 38 85% 38%",
+      "--info: 203 36% 42%",
+      "--destructive: 4 53% 44%",
+    ]) {
+      assert.ok(css.includes(token), `missing semantic token: ${token}`);
     }
-    assert.match(css, /\.pos-theme\s*\{[\s\S]*--primary:\s*142\s+43%\s+31%/);
+    assert.match(css, /\.pos-theme\s*\{[\s\S]*--primary:\s*156\s+42%\s+24%/);
+    assert.match(css, /\.order-theme\s*\{[\s\S]*--primary:\s*156\s+42%\s+24%/);
   });
 
   it("庫存工作區與其他 POS 頁面共用綠色操作主題", () => {
@@ -81,7 +82,7 @@ describe("黑白 UI", () => {
     assert.deepEqual(hits, []);
   });
 
-  it("登入頁不再用分色文案，theme color 是黑", () => {
+  it("登入頁維持簡潔文案與既有瀏覽器主題色", () => {
     const login = readRepoFile("app/login/page.tsx");
     assert.equal(login.includes("分色"), false);
     assert.match(login, /黑白層級/);
