@@ -9,12 +9,12 @@ const pageSource = readFileSync(
 );
 const inboxSource = readFileSync(new URL('../inbox.ts', import.meta.url), 'utf8');
 
-const resourceListSource = readFileSync(
-  new URL('../../../components/reviews/review-resource-list.tsx', import.meta.url),
+const workbenchSource = readFileSync(
+  new URL('../../../components/reviews/review-workbench.tsx', import.meta.url),
   'utf8',
 );
-const resourceListStyles = readFileSync(
-  new URL('../../../components/reviews/review-resource-list.module.css', import.meta.url),
+const workbenchStyles = readFileSync(
+  new URL('../../../components/reviews/review-workbench.module.css', import.meta.url),
   'utf8',
 );
 
@@ -212,19 +212,23 @@ describe('restockReviewSummary', () => {
 });
 
 describe('reviews page source assertions', () => {
-  it('單一 resource list 渲染 lines／moreLabel，手機桌機共用同一 DOM', () => {
-    assert.match(pageSource, /<ReviewResourceList items=\{items\} \/>/);
-    assert.match(resourceListSource, /item\.lines/);
-    assert.match(resourceListSource, /item\.moreLabel/);
-    assert.match(resourceListStyles, /container-type: inline-size/);
-    assert.match(resourceListStyles, /@container \(min-width: 760px\)/);
+  it('使用單一審核工作台，左側佇列與右側明細共用同一份資料', () => {
+    assert.match(pageSource, /<ReviewWorkbench items=\{items\} counts=\{counts\} \/>/);
+    assert.match(workbenchSource, /待處理佇列/);
+    assert.match(workbenchSource, /<DetailPanel item=\{selected\} \/>/);
+    assert.match(workbenchSource, /item\.lines/);
+    assert.match(workbenchSource, /item\.moreLabel/);
+    assert.match(workbenchStyles, /grid-template-columns: minmax\(280px, \.78fr\) minmax\(520px, 1\.55fr\)/);
+    assert.match(workbenchStyles, /@media \(max-width: 900px\)/);
   });
 
-  it('resource list 保留品項截斷與數量 tabular 顯示', () => {
-    assert.match(resourceListSource, /styles\.line/);
-    assert.match(resourceListSource, /styles\.qty/);
-    assert.match(resourceListStyles, /text-overflow: ellipsis/);
-    assert.match(resourceListStyles, /font-variant-numeric: tabular-nums/);
+  it('工作台提供搜尋、類型篩選與原有詳情入口', () => {
+    assert.match(workbenchSource, /搜尋訂單、店家或申請人/);
+    assert.match(workbenchSource, /FILTERS\.map/);
+    assert.match(workbenchSource, /href=\{item\.href\}/);
+    assert.match(workbenchSource, /\{item\.actionLabel\}/);
+    assert.match(workbenchStyles, /text-overflow: ellipsis/);
+    assert.match(workbenchStyles, /font-variant-numeric: tabular-nums/);
   });
 
   it('loadPendingRestocks 使用指定 subtitle 組裝', () => {
@@ -240,15 +244,15 @@ describe('reviews page source assertions', () => {
     assert.match(inboxSource, /'審核訂單'/);
     assert.match(inboxSource, /actionLabel: '審核補貨'/);
     assert.match(inboxSource, /actionLabel: '審核 UGC'/);
-    assert.match(resourceListSource, /\{item\.actionLabel\}/);
+    assert.match(workbenchSource, /\{item\.actionLabel\}/);
   });
 
-  it('待審核頁使用 compact summary bar，把封存移到管理選單', () => {
-    assert.match(pageSource, /待處理 \{total\}/);
-    assert.match(pageSource, /訂單 \{counts\.shopify_order\}/);
-    assert.match(pageSource, /UGC \{counts\.ugc\}/);
-    assert.match(pageSource, /補貨 \{counts\.restock\}/);
+  it('待審核頁只保留待判斷項目，已核准訂單移至獨立入口', () => {
+    assert.match(pageSource, /查看已審核訂單/);
+    assert.match(pageSource, /href="\/shipments\?status=pending"/);
+    assert.doesNotMatch(pageSource, /pendingShipments/);
     assert.match(pageSource, />\s*管理\s*<\/summary>/);
-    assert.doesNotMatch(pageSource, /全部待審核/);
+    assert.match(workbenchSource, /待處理<strong>\{total\}<\/strong>/);
+    assert.match(workbenchSource, /訂單<strong>\{counts\.shopify_order\}<\/strong>/);
   });
 });
