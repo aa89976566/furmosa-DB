@@ -633,7 +633,7 @@ export async function assignNewAndComplete(input: {
         pointsAwardedAt,
       }),
     };
-  });
+  }, { maxWait: 10_000, timeout: 30_000 });
 
   if (result.outcome === 'COMPLETED') {
     await safelyEnqueueAndAttempt(() =>

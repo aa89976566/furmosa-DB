@@ -319,7 +319,11 @@ const prismaStub = {
       return { id: 'job_1', status: 'recorded' };
     },
   },
-  $transaction: async <T>(fn: (client: typeof tx) => Promise<T>): Promise<T> => {
+  $transaction: async <T>(
+    fn: (client: typeof tx) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number },
+  ): Promise<T> => {
+    transactionOptions = options;
     const snap = structuredClone(state);
     inTx = true;
     try {
@@ -337,6 +341,8 @@ const prismaStub = {
   $queryRawUnsafe: tx.$queryRawUnsafe,
   $executeRawUnsafe: tx.$executeRawUnsafe,
 };
+
+let transactionOptions: { maxWait?: number; timeout?: number } | undefined;
 
 const harness = globalThis as typeof globalThis & {
   __ASSIGN_COMPLETE_PRISMA__: typeof prismaStub;
@@ -412,6 +418,12 @@ describe('assignNewAndComplete 完成交付併發防護（mock，非 PostgreSQL 
 
   beforeEach(() => {
     reset();
+    transactionOptions = undefined;
+  });
+
+  it('換罐完成交易保留足夠時間，不使用 Prisma 預設的 5 秒逾時', async () => {
+    await complete();
+    assert.deepEqual(transactionOptions, { maxWait: 10_000, timeout: 30_000 });
   });
 
   it('第一個交易業務查詢是 tagged raw 的 refill_orders FOR UPDATE，並帶 merchant_id', async () => {
