@@ -71,6 +71,7 @@ import {
   commercialTermValueLabel,
 } from '@/lib/orders/merchant-commercial-term';
 import { resolveKnownShopifySourceName, resolveShopifyProductSources } from '@/lib/orders/shopify-product-source';
+import { merchantOrderDisplayLabel } from '@/lib/orders/merchant-order-mode';
 import { CopyDeliveryButton } from '@/components/orders/copy-delivery-button';
 
 export const dynamic = 'force-dynamic';
@@ -169,6 +170,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const requiresItemPrice = !isMerchantRestock;
   const paymentLabel = isMerchantRestock && Number(order.total) === 0 ? '無須付款' : null;
   const collection = paymentCollectionSummary(Number(order.total), order.paymentStatus);
+  const merchantModeLabel = merchantOrderDisplayLabel(order.merchantOrderMode);
 
   const activeShipments = order.shipments.filter(shipment => shipment.status !== 'cancelled');
   const omsTask = order.deletedAt
@@ -924,7 +926,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 {paymentLabel ? <Badge variant="secondary">{paymentLabel}</Badge> : <StatusBadge kind="payment" value={order.paymentStatus} />}
                 {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
                   : <StatusBadge kind="order" value={order.status} />}
-                <StatusBadge kind="orderSource" value={order.source} />
+                {merchantModeLabel
+                  ? <Badge variant="secondary">{merchantModeLabel}</Badge>
+                  : <StatusBadge kind="orderSource" value={order.source} />}
                 <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
               </div>
               <dl className="mt-4 space-y-2 border-t pt-3 text-sm">
@@ -937,7 +941,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             <TimelineItem
               time={order.orderedAt}
               title="訂單建立"
-              description={`來源：${order.source}`}
+              description={merchantModeLabel ? `合作方式：${merchantModeLabel}` : `來源：${order.source}`}
             />
             {order.omsStatus && order.omsReviewedAt ? (
               <TimelineItem time={order.omsReviewedAt} title="OMS 人工確認"
