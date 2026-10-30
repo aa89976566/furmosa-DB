@@ -142,6 +142,8 @@ describe("黑白 UI", () => {
     assert.equal(posNav.includes("rounded-full"), false);
     assert.match(query, /overflow-hidden rounded-2xl border border-border/);
     assert.match(query, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(320px,380px\)\]/);
+    assert.match(query, /role="dialog" aria-modal="true" aria-label="補貨物流詳情"/);
+    assert.match(query, /setDetailOpen\(true\)/);
     assert.equal(query.includes("<Card"), false);
   });
 });

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, Circle, Download, Search, SlidersHorizontal, Truck } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Circle, Download, Search, SlidersHorizontal, Truck, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/query-feed";
 
@@ -28,7 +28,7 @@ function StepDot({ active, complete }: { active: boolean; complete: boolean }) {
   </span>;
 }
 
-function ProgressPanel({ item }: { item: QueryFeedItem }) {
+function ProgressPanel({ item, onClose }: { item: QueryFeedItem; onClose?: () => void }) {
   const [notReceived, setNotReceived] = useState(false);
   const detail = item.restockProgress;
   if (!detail) return null;
@@ -37,7 +37,10 @@ function ProgressPanel({ item }: { item: QueryFeedItem }) {
   const inTransit = detail.stage === "in_transit";
   const title = detail.stage === "cancelled" ? "已取消" : received ? "店家已收貨" : inTransit ? "運送中" : "尚未出貨";
   return <aside className="rounded-2xl border border-border bg-card p-6 shadow-sm lg:sticky lg:top-6" aria-label="補貨進度">
-    <h2 className="text-xl font-bold tracking-tight">補貨進度</h2>
+    <div className="flex items-start justify-between gap-4">
+      <h2 className="text-xl font-bold tracking-tight">補貨進度</h2>
+      {onClose ? <button type="button" onClick={onClose} aria-label="關閉補貨進度" className="-mr-2 -mt-2 inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"><X className="h-5 w-5" /></button> : null}
+    </div>
     <p className="mt-1 text-sm text-muted-foreground">匠寵補貨・{detail.summaryLabel}</p>
     <div className="mt-5 flex items-center justify-center gap-3 rounded-xl bg-primary/[0.07] px-4 py-5 text-primary">
       <Truck className="h-7 w-7" /><strong className="text-2xl">{title}</strong>
@@ -73,6 +76,7 @@ export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { 
   const [kind, setKind] = useState<QueryTab>("all");
   const [query, setQuery] = useState(initialQuery);
   const [selectedId, setSelectedId] = useState(() => items.find((item) => item.restockProgress)?.id ?? "");
+  const [detailOpen, setDetailOpen] = useState(false);
   const visible = useMemo(() => {
     const filtered = filterQueryFeed(items, kind === "today" ? "all" : kind, query);
     if (kind !== "today") return filtered;
@@ -101,9 +105,15 @@ export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { 
         const active = selected?.id === item.id;
         const row = <><span className={`absolute inset-y-1 left-0 w-1 rounded-r-full ${COLORS[item.kind]}`} /><time className="text-sm tabular-nums text-muted-foreground sm:text-base">{item.timeLabel ?? item.whenLabel}</time><span className="flex items-center gap-2 text-sm text-muted-foreground"><span className={`h-2.5 w-2.5 rounded-full ${COLORS[item.kind]}`} />{item.eventLabel ?? LABELS[item.kind]}</span><span className="min-w-0"><strong className="block text-sm sm:text-base">{item.title}</strong><span className="mt-0.5 block line-clamp-2 text-xs leading-5 text-muted-foreground sm:text-sm">{item.subtitle}</span></span><strong className="whitespace-nowrap text-right text-sm text-primary sm:text-lg">{item.quantityLabel ?? item.status}</strong><ChevronRight className="h-5 w-5 text-muted-foreground" /></>;
         const cls = `relative grid min-h-[86px] w-full min-w-0 grid-cols-[50px_68px_minmax(0,1fr)_auto_20px] items-center gap-2 px-4 py-3 text-left transition sm:grid-cols-[64px_78px_minmax(0,1fr)_auto_20px] sm:gap-3 sm:px-5 ${active ? "bg-primary/[0.07]" : "hover:bg-primary/[0.035]"}`;
-        return <li key={item.id}>{item.restockProgress ? <button type="button" className={cls} onClick={() => setSelectedId(item.id)} aria-pressed={active}>{row}</button> : <Link href={item.href} className={cls}>{row}</Link>}</li>;
+        return <li key={item.id}>{item.restockProgress ? <button type="button" className={cls} onClick={() => { setSelectedId(item.id); setDetailOpen(true); }} aria-pressed={active}>{row}</button> : <Link href={item.href} className={cls}>{row}</Link>}</li>;
       })}</ul></section>)}</div>}</section>
-      {selected ? <ProgressPanel key={selected.id} item={selected} /> : null}
+      {selected ? <div className="hidden lg:block"><ProgressPanel key={selected.id} item={selected} /></div> : null}
     </div>
+    {detailOpen && selected ? <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="補貨物流詳情">
+      <button type="button" aria-label="關閉補貨物流詳情" className="absolute inset-0 bg-foreground/35" onClick={() => setDetailOpen(false)} />
+      <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-3xl bg-card p-3 shadow-2xl sm:left-auto sm:right-4 sm:top-4 sm:bottom-4 sm:w-[390px] sm:max-h-none sm:rounded-2xl">
+        <ProgressPanel key={selected.id} item={selected} onClose={() => setDetailOpen(false)} />
+      </div>
+    </div> : null}
   </div>;
 }
