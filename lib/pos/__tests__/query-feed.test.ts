@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import Module, { register } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { before, describe, it } from 'node:test';
-import { filterQueryFeed, formatQueryDate, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
+import { filterQueryFeed, formatQueryDate, formatQueryDateHeading, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem } from '@/lib/pos/query-feed';
 
 const SAME_DAY_NOW = new Date('2026-09-08T04:00:00.000Z'); // Taipei 12:00
 
@@ -69,6 +69,7 @@ describe('formatQueryWhen', () => {
 describe('record date grouping', () => {
   it('formats stable Taipei date and 24-hour time labels', () => {
     assert.equal(formatQueryDate('2026-09-07T16:05:00.000Z'), '09/08（二）');
+    assert.equal(formatQueryDateHeading('2026-09-07T16:05:00.000Z'), '9月8日・星期二');
     assert.equal(formatQueryTime('2026-09-07T16:05:00.000Z'), '00:05');
   });
 });
@@ -86,7 +87,8 @@ describe('groupSaleLines', () => {
     assert.equal(items.length, 1);
     assert.equal(items[0]?.kind, 'sale');
     assert.equal(items[0]?.status, '已完成');
-    assert.match(items[0]?.title ?? '', /水晶魚 × 2/);
+    assert.equal(items[0]?.title, '水晶魚、雞霸 原味');
+    assert.equal(items[0]?.quantityLabel, '共 3 件');
     assert.equal(typeof items[0]?.whenLabel, 'string');
     assert.notEqual(items[0]?.whenLabel, '');
   });
@@ -219,6 +221,8 @@ function isPrismaRequest(request: string) {
 
 let loadQueryFeed: (typeof import('@/lib/pos/load-query-feed'))['loadQueryFeed'];
 let restockFeedStatus: (typeof import('@/lib/pos/load-query-feed'))['restockFeedStatus'];
+let restockProgressStage: (typeof import('@/lib/pos/load-query-feed'))['restockProgressStage'];
+let nextReceiptReminderDate: (typeof import('@/lib/pos/load-query-feed'))['nextReceiptReminderDate'];
 
 function withFrozenNow<T>(now: Date, fn: () => T): T {
   const RealDate = Date;
@@ -247,16 +251,26 @@ describe('loadQueryFeed whenLabel', () => {
       return originalLoad.call(this, request, parent, isMain);
     };
     try {
-      ({ loadQueryFeed, restockFeedStatus } = await import('@/lib/pos/load-query-feed'));
+      ({ loadQueryFeed, restockFeedStatus, restockProgressStage, nextReceiptReminderDate } = await import('@/lib/pos/load-query-feed'));
     } finally {
       moduleApi._load = originalLoad;
     }
   });
 
   it('uses the shipment state after a restock request becomes a shipment', () => {
-    assert.equal(restockFeedStatus('converted_to_shipment', 'packed'), '備貨中');
-    assert.equal(restockFeedStatus('converted_to_shipment', 'shipped'), '是否已收到？');
-    assert.equal(restockFeedStatus('converted_to_shipment', 'received'), '已收貨入庫');
+    assert.equal(restockFeedStatus('converted_to_shipment', 'packed'), '尚未出貨');
+    assert.equal(restockFeedStatus('converted_to_shipment', 'shipped'), '運送中');
+    assert.equal(restockFeedStatus('converted_to_shipment', 'received'), '店家已收貨');
+    assert.equal(restockProgressStage('converted_to_shipment', 'packed'), 'not_shipped');
+    assert.equal(restockProgressStage('converted_to_shipment', 'delivered'), 'in_transit');
+    assert.equal(restockProgressStage('converted_to_shipment', 'received'), 'received');
+  });
+
+  it('uses day 3 and day 5 as receipt reminder checkpoints', () => {
+    const shippedAt = new Date('2026-10-30T02:00:00.000Z');
+    assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-10-31T02:00:00.000Z'))?.toISOString(), '2026-11-02T02:00:00.000Z');
+    assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-11-02T03:00:00.000Z'))?.toISOString(), '2026-11-04T02:00:00.000Z');
+    assert.equal(nextReceiptReminderDate(shippedAt, new Date('2026-11-04T03:00:00.000Z')), null);
   });
 
   it('labels all four item kinds from the same now', async () => {
