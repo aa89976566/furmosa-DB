@@ -120,11 +120,11 @@ test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端',
 
 test('OMS 詳細頁先呈現目前任務與執行人員需要的訂單重點', () => {
   assert.match(detailSource, /if \(order\.omsStatus\)/);
-  assert.match(detailSource, /目前狀態/);
-  assert.match(detailSource, /訂單重點/);
-  assert.match(detailSource, /揀貨、核對與寄送需要的資料集中在這裡/);
+  assert.match(detailSource, /omsTask\.label/);
+  assert.match(detailSource, /商品與備貨/);
+  assert.match(detailSource, /收件與配送/);
   assert.match(detailSource, /系統與歷程/);
-  assert.ok(detailSource.indexOf('目前狀態') < detailSource.indexOf('系統與歷程'));
+  assert.ok(detailSource.indexOf('商品與備貨') < detailSource.indexOf('系統與歷程'));
   assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
 });
 
@@ -144,8 +144,7 @@ test('共用視覺基礎維持 Furmosa 黑白系統並使用輕量邊框', () =>
 });
 
 test('OMS 頁面清楚標示來源單號與 Shopify 商品，不直接使用技術字串當標題', () => {
-  assert.match(detailSource, />Shopify 訂單</);
-  assert.match(detailSource, /訂單編號/);
+  assert.match(detailSource, />SHOPIFY 訂單</);
   assert.match(detailSource, /order\.externalOrderName \|\| order\.orderNumber/);
 });
 
