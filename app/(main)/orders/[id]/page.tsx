@@ -797,7 +797,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                         ) : null}
                       </div>
                       {order.merchant && !it.isGift ? (
-                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        order.merchantOrderMode === 'jar_exchange' ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            換罐計畫 · 無須佣金
+                          </p>
+                        ) : (
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>
                             {businessTierLabel(it.businessTierSnapshot)}
                             {' · '}
@@ -832,7 +837,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                               {it.commercialOverrideAt ? ` · ${formatDateTime(it.commercialOverrideAt)}` : ''}
                             </p>
                           ) : null}
-                        </div>
+                          </div>
+                        )
                       ) : null}
                     </TableCell>
                     <TableCell className="font-mono text-xs">

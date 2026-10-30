@@ -36,6 +36,17 @@ test('訂單詳情以合作方式顯示已知店家模式，舊單仍顯示來�
   );
 });
 
+test('換罐商品顯示換罐語意，不誤顯示寄賣或買斷條件缺漏', () => {
+  assert.match(
+    orderDetailSource,
+    /order\.merchantOrderMode === 'jar_exchange'[\s\S]*換罐計畫 · 無須佣金/,
+  );
+  assert.match(
+    orderDetailSource,
+    /businessTierLabel\(it\.businessTierSnapshot\)[\s\S]*commercialRuleSourceLabel/,
+  );
+});
+
 test('店家只顯示主檔已登記的合作方式', () => {
   assert.deepEqual(
     merchantOrderModesForTypes(['consignment', 'jar_exchange', 'partner']),
