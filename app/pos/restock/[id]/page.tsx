@@ -15,6 +15,7 @@ import { PosShell } from '@/components/pos/pos-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 import { ConfirmReceiptButton } from './confirm-receipt-button';
+import { ShipmentProgress } from '@/components/pos/shipment-progress';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -139,25 +140,7 @@ export default async function PosRestockDetailPage(
               </div>
               <ConfirmReceiptButton requestId={req.id} items={shipment.items} canConfirm={canConfirmReceipt} />
 
-              <div className="border-t pt-3">
-                <p className="mb-3 text-sm font-medium">處理進度</p>
-                <ol className="grid gap-2 sm:grid-cols-5">
-                  {shipmentTimeline.map((step) => (
-                    <li key={step.label} className="flex items-center gap-2 text-sm sm:block">
-                      <span
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
-                          step.done
-                            ? 'bg-foreground text-background'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {step.done ? '✓' : '·'}
-                      </span>
-                      <span className="sm:mt-2 sm:block">{step.label}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+              <ShipmentProgress steps={shipmentTimeline} />
             </CardContent>
           </Card>
         ) : null}

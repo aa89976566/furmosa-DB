@@ -125,6 +125,17 @@ describe("黑白 UI", () => {
     assert.equal(refill.includes("shadow-sm"), false);
   });
 
+  it("補貨處理進度使用可降級的動態時間軸", () => {
+    const progress = readRepoFile("components/pos/shipment-progress.tsx");
+    const restock = readRepoFile("app/pos/restock/[id]/page.tsx");
+    const css = readRepoFile("app/globals.css");
+    assert.match(restock, /<ShipmentProgress steps=\{shipmentTimeline\}/);
+    assert.match(progress, /aria-current=\{active \? 'step'/);
+    assert.match(progress, /下一步：/);
+    assert.match(css, /shipment-progress-pulse/);
+    assert.match(css, /prefers-reduced-motion: reduce/);
+  });
+
   it("全站共用元件使用清晰邊框、低層陰影，並關閉漸層與毛玻璃", () => {
     const css = readRepoFile("app/globals.css");
     const card = readRepoFile("components/ui/card.tsx");
