@@ -21,6 +21,13 @@ export type ReviewInboxItem = {
   actionLabel: string;
   lines?: string[];
   moreLabel?: string;
+  preview?: {
+    customer?: string;
+    amount?: string;
+    phone?: string;
+    address?: string;
+    checks: Array<{ label: string; detail: string; tone: 'success' | 'warning' }>;
+  };
 };
 
 const MAX_LINES = 6;
@@ -160,6 +167,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   });
 
   return orders.map((order) => {
+    const source = snapshotView(order.shopifySnapshot);
     const title = shopifyReviewTitle({
       orderNumber: order.orderNumber,
       externalOrderName: order.externalOrderName,
@@ -180,6 +188,38 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
           ? '已確認・待建出貨單'
           : '待審核',
       actionLabel: order.omsStatus === 'READY' && order._count.shipments === 0 ? '建立出貨單' : '審核訂單',
+      lines: source?.items.slice(0, MAX_LINES).map((item) =>
+        `${item.title}${item.variantTitle ? ` ${item.variantTitle}` : ''} × ${item.quantity ?? '—'}`,
+      ),
+      moreLabel:
+        source && source.items.length > MAX_LINES
+          ? `…另 ${source.items.length - MAX_LINES} 項`
+          : undefined,
+      preview: {
+        customer: source?.recipient.trim() || order.customer?.name?.trim() || undefined,
+        amount: source?.total
+          ? `${source.currency === 'TWD' || !source.currency ? 'NT$' : `${source.currency} `}${source.total}`
+          : undefined,
+        phone: source?.phone || undefined,
+        address: source?.address || undefined,
+        checks: [
+          {
+            label: source?.recipient ? '收件人完整' : '收件人待確認',
+            detail: source?.recipient ? '已取得收件姓名' : '來源訂單沒有收件姓名',
+            tone: source?.recipient ? 'success' : 'warning',
+          },
+          {
+            label: source?.address ? '配送資料完整' : '配送資料待確認',
+            detail: source?.address ? '地址已同步' : '請確認地址或取貨門市',
+            tone: source?.address ? 'success' : 'warning',
+          },
+          {
+            label: source?.items.length ? '商品明細已取得' : '商品明細待確認',
+            detail: source?.items.length ? `${source.items.length} 項商品` : '請回 Shopify 核對',
+            tone: source?.items.length ? 'success' : 'warning',
+          },
+        ],
+      },
     };
   });
 }
