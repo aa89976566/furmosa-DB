@@ -80,6 +80,25 @@
     --coral: 142 43% 31%;
     --success: 142 43% 31%;
   }
+
+  /* Order workbench: restrained semantic color for actions and exceptions. */
+  .order-theme {
+    --primary: 150 46% 18%;
+    --primary-foreground: 0 0% 100%;
+    --ring: 150 46% 18%;
+    --success: 151 42% 30%;
+    --success-foreground: 0 0% 100%;
+    --coral: 0 58% 44%;
+  }
+
+  .dark .order-theme {
+    --primary: 148 32% 68%;
+    --primary-foreground: 0 0% 9%;
+    --ring: 148 32% 68%;
+    --success: 148 32% 68%;
+    --success-foreground: 0 0% 9%;
+    --coral: 0 62% 72%;
+  }
 }
 
 @layer base {
