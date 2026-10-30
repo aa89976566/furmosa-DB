@@ -28,6 +28,8 @@ test('OMS action delegates approval to the atomic review service once', () => {
 test('successful ship navigates to the shipments queue', () => {
   const form = fs.readFileSync('components/orders/oms-review-form.tsx', 'utf8');
   assert.match(form, /state\.next\?\.href\?\.startsWith\('\/shipments'\).*router\.push\(state\.next\.href\)/s);
+  assert.match(form, /確認並建立出貨單/);
+  assert.match(form, /正在確認並建立出貨單/);
   const service = fs.readFileSync('lib/orders/review-service.ts', 'utf8');
   assert.match(service, /href: `\/shipments\?s=\$\{encodeURIComponent\(shipment\.id\)\}`/);
 });
