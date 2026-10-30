@@ -48,6 +48,7 @@ import { randomUUID } from 'node:crypto';
 import { getCurrentUser, hashPassword } from '@/lib/auth';
 import { encryptPosPassword } from '@/lib/pos/password-vault';
 import { requirePasswordAdmin } from '@/lib/pos/password-vault-service';
+import { requirePosPasswordResetPermission } from '@/lib/pos/password-reset-permission';
 import { isValidMerchantBusinessId, nextMerchantBusinessId, canRepairMerchantBusinessId } from '@/lib/merchant-business-id';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 import { isJarExchangeProductCategory } from '@/lib/product-category';
@@ -188,7 +189,7 @@ export async function createMerchantPosUser(formData: FormData) {
 }
 
 export async function resetMerchantPosUserPassword(formData: FormData) {
-  const adminId = await requireAdmin();
+  const actorId = await requirePosPasswordResetPermission(prisma, await getCurrentUser());
   const merchantId = String(formData.get('merchantId') ?? '').trim();
   const userId = String(formData.get('userId') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -207,7 +208,7 @@ export async function resetMerchantPosUserPassword(formData: FormData) {
   const encryptedPassword = encryptPosPassword(password, user.id, passwordHash);
   await prisma.$transaction(async (tx) => {
     await tx.merchantUser.update({ where: { id: user.id }, data: { passwordHash, encryptedPassword } });
-    await tx.posPasswordAccessLog.create({ data: { adminId, merchantUserId: user.id, action: 'reset' } });
+    await tx.posPasswordAccessLog.create({ data: { adminId: actorId, merchantUserId: user.id, action: 'reset' } });
   });
   revalidatePath(`/merchants/${merchantId}`);
 }

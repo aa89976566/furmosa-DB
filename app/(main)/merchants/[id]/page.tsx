@@ -1,6 +1,7 @@
 import { PosPasswordView } from '@/components/merchants/pos-password-view';
 import { getCurrentUser } from '@/lib/auth';
 import { PosPasswordForm } from '@/components/merchants/pos-password-form';
+import { canResetMerchantPosPassword } from '@/lib/pos/password-reset-permission';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -74,6 +75,7 @@ export default async function MerchantOverviewPage(
   const session = await getCurrentUser();
   const currentUser = session && await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } });
   const canManagePasswords = currentUser?.role === 'admin';
+  const canResetPasswords = canResetMerchantPosPassword(currentUser?.role);
   const commercialModules = await loadMerchantCommercialModulesSafe(merchant.id);
 
   const industry = shell.industry;
@@ -275,8 +277,8 @@ export default async function MerchantOverviewPage(
                 </ul>
                 {canManagePasswords && <>
                   {merchant.users.map((user) => <PosPasswordView key={`${user.id}:${user.updatedAt.getTime()}`} merchantId={merchant.id} userId={user.id} username={user.username} />)}
-                  <PosPasswordForm merchantId={merchant.id} users={merchant.users} />
                 </>}
+                {canResetPasswords && <PosPasswordForm merchantId={merchant.id} users={merchant.users} />}
               </>
             ) : canManagePasswords ? (
               <form action={createMerchantPosUser} className="mt-3 space-y-3">
