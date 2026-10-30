@@ -118,12 +118,13 @@ test('訂單詳細頁先顯示對象與配送，訂單中繼資料放在尾端',
   assert.match(detailSource, /固定以新台幣顯示/);
 });
 
-test('OMS 詳細頁直接顯示訂單內容，不再使用更多資料區塊', () => {
+test('OMS 詳細頁先呈現目前任務與執行人員需要的訂單重點', () => {
   assert.match(detailSource, /if \(order\.omsStatus\)/);
-  assert.match(detailSource, /訂單內容/);
-  assert.match(detailSource, /收件與配送/);
-  assert.equal(detailSource.includes('更多資料'), false);
-  assert.match(detailSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+  assert.match(detailSource, /目前狀態/);
+  assert.match(detailSource, /訂單重點/);
+  assert.match(detailSource, /揀貨、核對與寄送需要的資料集中在這裡/);
+  assert.match(detailSource, /系統與歷程/);
+  assert.ok(detailSource.indexOf('目前狀態') < detailSource.indexOf('系統與歷程'));
   assert.equal(detailSource.includes('查看 Shopify 原始訂單資料'), false);
 });
 
