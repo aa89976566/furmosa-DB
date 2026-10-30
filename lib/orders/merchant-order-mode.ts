@@ -24,6 +24,11 @@ export function isMerchantOrderMode(value: string): value is MerchantOrderMode {
   return (MERCHANT_ORDER_MODES as readonly string[]).includes(value);
 }
 
+/** 店家訂單詳情顯示合作方式；舊單或未知值交由既有來源標籤處理。 */
+export function merchantOrderDisplayLabel(value: string | null | undefined): string | null {
+  return value && isMerchantOrderMode(value) ? merchantOrderModeLabel[value] : null;
+}
+
 export function merchantOrderModesForTypes(types: MerchantType[]): MerchantOrderMode[] {
   return MERCHANT_ORDER_MODES.filter((mode) => types.includes(mode));
 }
