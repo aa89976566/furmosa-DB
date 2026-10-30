@@ -30,6 +30,7 @@ import { safeOrderEditReturnTo, withOrderSavedNotice } from '@/lib/orders/order-
 import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import type { Prisma } from '@prisma/client';
+import { isOrderCancellationReasonCode, orderCancellationReasonLabel } from '@/lib/orders/cancellation-reasons';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -490,6 +491,41 @@ export async function updateOrderStatus(formData: FormData) {
     }
   });
 
+  await revalidateOrderPaths(orderId);
+}
+
+export async function saveOrderCancellationNote(formData: FormData) {
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  const reasonCode = String(formData.get('reasonCode') ?? '').trim();
+  const note = String(formData.get('note') ?? '').trim();
+  if (!orderId) throw new Error('缺少訂單');
+  if (!isOrderCancellationReasonCode(reasonCode)) throw new Error('請選擇取消原因');
+  if (reasonCode === 'other' && !note) throw new Error('選擇其他時，請填寫原因');
+  if (note.length > 1000) throw new Error('備註不可超過 1000 字');
+
+  const actor = await getCurrentUser();
+  if (!actor) throw new Error('請先登入 HQ');
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+  if (!order) throw new Error('訂單不存在');
+  if (order.status !== 'cancelled') throw new Error('只有已取消訂單可以新增取消紀錄');
+
+  await prisma.statusAuditLog.create({
+    data: {
+      entityType: 'order_cancellation_note',
+      entityId: orderId,
+      previousStatus: 'cancelled',
+      newStatus: 'cancelled',
+      actorType: 'user',
+      actorId: actor.userId,
+      metadataJson: JSON.stringify({
+        reasonCode,
+        reasonLabel: orderCancellationReasonLabel(reasonCode),
+        note,
+        actorName: actor.name,
+        actorEmail: actor.email,
+      }),
+    },
+  });
   await revalidateOrderPaths(orderId);
 }
 
