@@ -17,6 +17,7 @@ export async function resetPosPasswordWithFeedbackUsing(
     const message = error instanceof Error ? error.message : '';
     const safeMessages = [
       '只有管理員可以管理店家帳號',
+      '沒有權限重設店家 POS 密碼',
       '缺少店家或 POS 帳號',
       '密碼需為 8–64 位',
       'POS 帳號不存在或不屬於此店家',
