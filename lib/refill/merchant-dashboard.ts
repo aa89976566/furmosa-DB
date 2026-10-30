@@ -6,6 +6,7 @@ import { getRefillPlanSettings } from '@/lib/jar-exchange/refill-flavours';
 export type MerchantRefillTransaction = {
   id: string;
   occurredAt: string;
+  occurredAtLabel: string;
   customerName: string;
   petName: string | null;
   codeMasked: string;
@@ -53,6 +54,17 @@ function taipeiDateKey(date: Date): string {
 
 function taipeiMonthKey(date: Date): string {
   return taipeiDateKey(date).slice(0, 7);
+}
+
+function taipeiDateTimeLabel(date: Date): string {
+  return new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
 export async function loadMerchantRefillDashboard(
@@ -174,6 +186,7 @@ export async function loadMerchantRefillDashboard(
     transactions: codes.map((row) => ({
       id: row.id,
       occurredAt: row.redeemedAt!.toISOString(),
+      occurredAtLabel: taipeiDateTimeLabel(row.redeemedAt!),
       customerName: row.redeemedByCustomer?.name ?? 'LINE 會員',
       petName: row.redeemedByCustomer?.petName ?? null,
       codeMasked: maskJarCode(row.code),

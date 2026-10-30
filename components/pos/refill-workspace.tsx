@@ -8,8 +8,6 @@ import { PosPageTools } from "@/components/pos/page-tools";
 import type { PosAccount } from "@/lib/pos/account";
 import type { MerchantRefillDashboard, MerchantRefillTransaction } from "@/lib/refill/merchant-dashboard";
 
-const twDate = new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
-
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl border border-[#dce8e1] bg-white px-4 py-4"><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 text-2xl font-semibold text-[#174733]">{value}</p></div>;
 }
@@ -19,7 +17,7 @@ function TransactionDetail({ item }: { item: MerchantRefillTransaction }) {
     <section className="rounded-[24px] border border-[#dce8e1] bg-white p-5 md:sticky md:top-5">
       <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-medium text-[#2e7d4f]">LINE 已入點</p><h2 className="mt-1 text-xl font-semibold">{item.customerName}</h2>{item.petName ? <p className="mt-1 text-sm text-zinc-500">毛孩：{item.petName}</p> : null}</div><CircleCheck className="h-7 w-7 text-[#2e7d4f]" /></div>
       <dl className="mt-5 divide-y divide-neutral-100 text-sm">
-        <div className="flex justify-between gap-4 py-3"><dt className="text-zinc-500">完成時間</dt><dd>{twDate.format(new Date(item.occurredAt))}</dd></div>
+        <div className="flex justify-between gap-4 py-3"><dt className="text-zinc-500">完成時間</dt><dd>{item.occurredAtLabel}</dd></div>
         <div className="flex justify-between gap-4 py-3"><dt className="text-zinc-500">商品</dt><dd className="text-right">{item.productName}</dd></div>
         <div className="flex justify-between gap-4 py-3"><dt className="text-zinc-500">序號</dt><dd>{item.codeMasked}</dd></div>
         <div className="flex justify-between gap-4 py-3"><dt className="text-zinc-500">本次點數</dt><dd className="font-semibold text-[#174733]">+{item.points} 點</dd></div>
@@ -52,7 +50,7 @@ function RefillWorkspaceInner({ account, dashboard }: { account: PosAccount; das
                 </section>
                 <section className="overflow-hidden rounded-[24px] border border-neutral-200 bg-white">
                   <div className="flex items-center gap-3 border-b border-neutral-100 px-5 py-4"><History className="h-5 w-5 text-[#2e7d4f]" /><div><h2 className="font-semibold">本店 LINE 交易紀錄</h2><p className="text-xs text-zinc-500">最新 100 筆，只顯示本店會員交易</p></div></div>
-                  {dashboard.transactions.length ? <ul className="divide-y divide-neutral-100">{dashboard.transactions.map((item) => <li key={item.id}><button type="button" onClick={() => setSelectedId(item.id)} className={`grid w-full grid-cols-[74px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 text-left transition ${selectedId === item.id ? "bg-[#f2f7f4]" : "hover:bg-neutral-50"}`}><span className="text-sm text-zinc-500">{twDate.format(new Date(item.occurredAt))}</span><span className="min-w-0"><strong className="block truncate font-medium">{item.customerName}</strong><span className="block truncate text-xs text-zinc-500">{item.productName} · {item.codeMasked}</span></span><span className="flex items-center gap-2 font-semibold text-[#2e7d4f]">+{item.points} 點<ChevronRight className="h-4 w-4" /></span></button></li>)}</ul> : <div className="px-5 py-12 text-center"><Box className="mx-auto h-8 w-8 text-zinc-300" /><p className="mt-3 text-sm text-zinc-500">本店目前還沒有 LINE 換罐交易。</p></div>}
+                  {dashboard.transactions.length ? <ul className="divide-y divide-neutral-100">{dashboard.transactions.map((item) => <li key={item.id}><button type="button" onClick={() => setSelectedId(item.id)} className={`grid w-full grid-cols-[74px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 text-left transition ${selectedId === item.id ? "bg-[#f2f7f4]" : "hover:bg-neutral-50"}`}><span className="text-sm text-zinc-500">{item.occurredAtLabel}</span><span className="min-w-0"><strong className="block truncate font-medium">{item.customerName}</strong><span className="block truncate text-xs text-zinc-500">{item.productName} · {item.codeMasked}</span></span><span className="flex items-center gap-2 font-semibold text-[#2e7d4f]">+{item.points} 點<ChevronRight className="h-4 w-4" /></span></button></li>)}</ul> : <div className="px-5 py-12 text-center"><Box className="mx-auto h-8 w-8 text-zinc-300" /><p className="mt-3 text-sm text-zinc-500">本店目前還沒有 LINE 換罐交易。</p></div>}
                 </section>
               </div>
               <div>{selected ? <TransactionDetail item={selected} /> : null}</div>
