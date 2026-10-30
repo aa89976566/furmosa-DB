@@ -36,6 +36,11 @@ function amountLabel(value?: string) {
   return `${amount ? `${currency} ` : 'NT$'}${numeric.toLocaleString('zh-TW')}`;
 }
 
+function deliveryLabel(address?: string) {
+  if (!address) return '配送待確認';
+  return /7-?11|全家|萊爾富|OK\s*超商/i.test(address) ? '超商取貨' : '宅配寄送';
+}
+
 function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: boolean; onSelect: () => void }) {
   return (
     <button type="button" className={active ? `${styles.queueItem} ${styles.queueItemActive}` : styles.queueItem} onClick={onSelect}>
@@ -55,6 +60,9 @@ function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: 
 
 function DetailPanel({ item }: { item: ReviewInboxItem }) {
   const lines = item.lines ?? [];
+  const checks = item.preview?.checks ?? [];
+  const warnings = checks.filter((check) => check.tone !== 'success');
+  const completedChecks = checks.length - warnings.length;
   return (
     <section className={styles.detail} aria-label={`審核內容：${item.title}`}>
       <header className={styles.detailHeader}>
@@ -69,20 +77,22 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
         </div>
       </header>
 
-      {item.preview?.checks.length ? (
-        <div className={styles.checks}>
-          {item.preview.checks.map((check) => (
-            <div key={check.label} className={check.tone === 'success' ? styles.checkSuccess : styles.checkWarning}>
-              {check.tone === 'success' ? <Check aria-hidden /> : <AlertCircle aria-hidden />}
-              <span><strong>{check.label}</strong><small>{check.detail}</small></span>
-            </div>
-          ))}
+      {checks.length ? (
+        <div className={warnings.length ? styles.reviewFocusWarning : styles.reviewFocusReady}>
+          {warnings.length ? <AlertCircle aria-hidden /> : <Check aria-hidden />}
+          <div>
+            <strong>{warnings.length ? '需要人工判斷' : '基本資料已齊全'}</strong>
+            <p>{warnings.length ? warnings.map((check) => `${check.label}：${check.detail}`).join('；') : `已完成 ${completedChecks} 項基本檢查，請核對備貨與配送。`}</p>
+          </div>
         </div>
       ) : null}
 
       <div className={styles.detailBody}>
-        <section className={styles.section}>
-          <h3><PackageCheck aria-hidden />內容與數量</h3>
+        <section className={`${styles.section} ${styles.pickSection}`}>
+          <div className={styles.sectionHeading}>
+            <h3><PackageCheck aria-hidden />本單要備貨</h3>
+            <span>{lines.length} 項</span>
+          </div>
           {lines.length ? (
             <ul className={styles.lines}>
               {lines.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}
@@ -93,12 +103,15 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
           )}
         </section>
 
-        <section className={styles.section}>
-          <h3><Truck aria-hidden />對象與配送</h3>
-          <dl className={styles.facts}>
-            <div><dt>對象</dt><dd>{item.preview?.customer || item.subtitle || '待確認'}</dd></div>
-            {item.preview?.phone ? <div><dt>電話</dt><dd>{item.preview.phone}</dd></div> : null}
-            <div><dt>配送</dt><dd>{item.preview?.address || '請在審核明細確認'}</dd></div>
+        <section className={`${styles.section} ${styles.deliverySection}`}>
+          <div className={styles.deliveryHeading}>
+            <h3><Truck aria-hidden />配送票卡</h3>
+            <span>{deliveryLabel(item.preview?.address)}</span>
+          </div>
+          <dl className={styles.deliveryFacts}>
+            <div><dt>收件人</dt><dd>{item.preview?.customer || item.subtitle || '待確認'}</dd></div>
+            {item.preview?.phone ? <div><dt>聯絡電話</dt><dd>{item.preview.phone}</dd></div> : null}
+            <div className={styles.addressFact}><dt>寄送至</dt><dd>{item.preview?.address || '請在審核明細確認完整配送資料'}</dd></div>
           </dl>
         </section>
 
