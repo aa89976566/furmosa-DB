@@ -216,7 +216,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           <div className="shrink-0"><StatusBadge kind="payment" value={order.paymentStatus} /></div>
         </section>
 
-        <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,.82fr)]">
+        <div className="mt-5 grid items-start gap-4 min-[850px]:grid-cols-[minmax(0,1.35fr)_minmax(230px,.75fr)]">
           <div className="space-y-5">
             <section className="overflow-hidden rounded-xl border bg-card">
               <div className="flex items-center justify-between border-b px-5 py-4">
@@ -281,7 +281,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </section> : null}
           </div>
 
-          <aside className="space-y-5 lg:sticky lg:top-5">
+          <aside className="space-y-5 min-[850px]:sticky min-[850px]:top-5">
             <section className="rounded-xl border bg-card p-5">
               <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">收件與配送</h2><Badge variant="outline">{shippingMethodLabel(order)}</Badge></div>
               <dl className="mt-5 grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-4 text-sm">
