@@ -117,12 +117,16 @@ describe("黑白 UI", () => {
     assert.match(config, /#171717/);
   });
 
-  it("換罐工作區使用單一黑白任務台與平面清單", () => {
+  it("換罐工作區只顯示本店 LINE 交易，不提供店員掃碼或輸入序號", () => {
     const refill = readRepoFile("components/pos/refill-workspace.tsx");
-    assert.match(refill, /border-2 border-zinc-900/);
-    assert.match(refill, /shadow-\[8px_8px_0_#171717\]/);
-    assert.match(refill, /divide-y divide-neutral-200/);
-    assert.equal(refill.includes("shadow-sm"), false);
+    const legacyDetail = readRepoFile("app/pos/refill/[id]/page.tsx");
+    assert.match(refill, /會員自己在 LINE 完成序號登錄/);
+    assert.match(refill, /本店換罐內容/);
+    assert.match(refill, /本店 LINE 交易紀錄/);
+    assert.equal(refill.includes("JarSerialPanel"), false);
+    assert.equal(refill.includes("掃描罐底"), false);
+    assert.equal(refill.includes("手動輸入序號"), false);
+    assert.match(legacyDetail, /redirect\('\/pos\/refill'\)/);
   });
 
   it("補貨處理進度使用可降級的動態時間軸", () => {

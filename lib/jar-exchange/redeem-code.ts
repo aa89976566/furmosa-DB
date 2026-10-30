@@ -3,6 +3,7 @@ import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes
 import { appendPointsLedger } from '@/lib/jar-exchange/points';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
+import { resolveCustomerJarMerchantId } from '@/lib/jar-exchange/customer-store-attribution';
 import { revalidatePath } from 'next/cache';
 
 export type RedeemJarCodeResult =
@@ -27,9 +28,15 @@ export async function redeemJarCode(
 
   const customer = await prisma.customer.findUnique({
     where: { id: customerId },
-    select: { id: true },
+    select: { id: true, storeId: true, signupStore: true, storeName: true },
   });
   if (!customer) return { ok: false, error: '找不到會員', status: 404 };
+
+  // POS 僅能看到會員已綁定合作店的交易。對應不唯一時不猜，避免跨店洩漏。
+  const attributedMerchantId = await resolveCustomerJarMerchantId(customer).catch((err) => {
+    console.error('[jar-exchange/redeem] store attribution failed', { customerId, err });
+    return null;
+  });
 
   try {
     // 交易只保留不可分割的核銷與點數帳本；建立換罐營收單另行處理，
@@ -47,6 +54,7 @@ export async function redeemJarCode(
             status: 'used',
             redeemedByCustomerId: customerId,
             redeemedAt: new Date(),
+            returnedMerchantId: attributedMerchantId,
           },
         });
         if (claimed.count === 0) throw new JarExchangeError('序號已使用', 409);
@@ -75,7 +83,13 @@ export async function redeemJarCode(
     // 營收單是可由換罐序號冪等補建的衍生紀錄，不能阻塞會員核銷。
     // recordJarExchangeSaleOnRedeem 已以序號檢查既有單，重送不會重複入帳。
     try {
-      await recordJarExchangeSaleOnRedeem(customerId, result.jarCodeId, code);
+      await recordJarExchangeSaleOnRedeem(
+        customerId,
+        result.jarCodeId,
+        code,
+        prisma,
+        attributedMerchantId,
+      );
     } catch (err) {
       console.error('[jar-exchange/redeem] sale record deferred', {
         codeSuffix: code.slice(-4),
