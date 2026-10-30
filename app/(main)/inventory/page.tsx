@@ -58,6 +58,6 @@ export default async function InventoryPage(props: {
     const alerts = [...signatures.values()].filter(group => group.length > 1).map(group => ({ id: group[0].id, title: `${group[0].vendor?.name ?? '未指定廠商'}：${group.length} 筆採購內容相同`, detail: '請核對是否重複下單，勿直接重複入庫' }));
     for (const order of pendingOrders) if (/需沖銷|提前入庫|不得重複入庫/.test(order.note ?? '')) alerts.push({ id: order.id, title: `${order.orderNumber} 備註需核對`, detail: '原單註記入庫異常，收貨前請先核對' });
     return <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
-      <InventoryWorkbench rows={rows} canEdit={canEdit} canVerifyUnits={user?.role === 'admin'} initialQuery={query.q} pendingCount={pendingCount} purchaseAlerts={alerts.slice(0,5)} />
+      <InventoryWorkbench rows={rows} canEdit={canEdit} canVerifyUnits={canEdit} initialQuery={query.q} pendingCount={pendingCount} purchaseAlerts={alerts.slice(0,5)} />
     </div>;
 }

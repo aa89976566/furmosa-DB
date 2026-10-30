@@ -4,7 +4,7 @@ import { redirect, notFound } from 'next/navigation';
 import { refreshInventoryViews } from '@/lib/inventory/refresh-views';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
-import { inventoryUnit, parseCountQuantity } from '@/lib/inventory/workbench';
+import { COUNT_ROLES, inventoryUnit, parseCountQuantity } from '@/lib/inventory/workbench';
 import { confirmInventoryUnit, UnitConfirmationError } from '@/lib/inventory/confirm-unit';
 import { PageHeader } from '@/components/shared/page-header';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,7 @@ export default async function ConfirmUnitPage(props: {
   searchParams: Promise<{ error?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (user?.role !== 'admin') redirect('/inventory');
+  if (!user || !COUNT_ROLES.includes(user.role)) redirect('/inventory');
   const [{ productId }, query] = await Promise.all([props.params, props.searchParams]);
   const product = await prisma.product.findUnique({ where: { id: productId },
     include: { inventoryBalances: { include: { warehouse: true } } } });
@@ -32,7 +32,7 @@ export default async function ConfirmUnitPage(props: {
   async function submit(form: FormData) {
     'use server';
     const actor = await getCurrentUser();
-    if (actor?.role !== 'admin') redirect('/inventory');
+    if (!actor || !COUNT_ROLES.includes(actor.role)) redirect('/inventory');
     let error = '';
     try {
       if (form.get('confirmed') !== 'on') throw new UnitConfirmationError('請確認已核對實物與商品主檔單位');
@@ -50,7 +50,7 @@ export default async function ConfirmUnitPage(props: {
     redirect('/inventory');
   }
   return <>
-    <PageHeader title={`核對庫存單位・${product.name}`} description="管理員依實物重新確認 HQ 主倉數量" actions={<Button asChild variant="outline"><Link href="/inventory">返回庫存</Link></Button>} />
+    <PageHeader title={`核對庫存單位・${product.name}`} description="依實物重新確認 HQ 主倉數量" actions={<Button asChild variant="outline"><Link href="/inventory">返回庫存</Link></Button>} />
     <div className="mx-auto max-w-3xl space-y-5 p-4 md:p-6">
       {query.error ? <p role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm text-destructive">{query.error}</p> : null}
       <section className="space-y-3 rounded-xl border bg-card p-5">
