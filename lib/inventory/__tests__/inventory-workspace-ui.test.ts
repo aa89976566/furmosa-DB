@@ -45,12 +45,11 @@ test('staff filter, cancel, preview differences and save counts with original ve
   }); };
   try {
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
-    assert.equal(container.querySelector('a[href^="/inventory/confirm-unit/"]'), null);
-    assert.equal(container.textContent!.includes('核對庫存單位'), false);
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent, '修改庫存');
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
     const setup = container.querySelector('a[href="/inventory/confirm-unit/unknown"]')!;
-    assert.equal(setup.closest('details'), null, 'administrator setup is accessible directly in the row');
-    assert.equal(setup.textContent, '完成設定');
+    assert.equal(setup.closest('details'), null, 'inventory operator setup is accessible directly in the row');
+    assert.equal(setup.textContent, '修改庫存');
     const advancedSetup = container.querySelector('details a[href="/inventory/confirm-unit/unknown"]')!;
     assert.equal(advancedSetup.closest('details')!.hasAttribute('open'), false);
     assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 2);
@@ -63,10 +62,9 @@ test('staff filter, cancel, preview differences and save counts with original ve
     assert.equal(input().value, '350');
     assert.ok(container.textContent!.includes('差異 -50 g')); assert.equal(submissions.length, 0);
     assert.ok(container.textContent!.includes('庫存單位尚未確認'));
-    assert.ok(container.textContent!.includes('請管理員完成設定後再盤點'));
-    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]'), null);
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent, '設定後修改');
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true })));
-    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent,'設定單位與首次庫存');
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent,'設定後修改');
     assert.equal(container.querySelector('input[aria-label="待核對本次清點數量（null）"]'), null);
     await click('儲存盤點'); assert.equal(submissions.length, 1);
     const payload = JSON.parse(submissions[0].get('lines') as string);
