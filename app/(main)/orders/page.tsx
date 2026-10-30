@@ -13,7 +13,7 @@ import {
   totalPages,
 } from '@/lib/list-pagination';
 import { historicalOrderWhere, ORDER_LIST_INCLUDE } from '@/lib/order-list';
-import { orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
+import { orderListVisibleWhere, orderWorkWhere, workbenchVisibleWhere, workbenchHref, omsSourceSearchWhere } from '@/lib/orders/oms-workbench';
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
@@ -51,21 +51,25 @@ function activeWorkFilter(searchParams: SearchParams) {
 
 async function OrdersWorkSummary({ active }: { active: string }) {
   const count = (work: string) => prisma.order.count({
-    where: { AND: [workbenchVisibleWhere, orderWorkWhere(work)] },
+    where: { AND: [work === 'all' || work === 'cancelled' ? orderListVisibleWhere : workbenchVisibleWhere, orderWorkWhere(work)] },
   });
-  const [now, waiting, ready, shipping, done] = await Promise.all([
+  const [all, now, waiting, ready, shipping, done, cancelled] = await Promise.all([
+    count('all'),
     count('now'),
     count('waiting'),
     count('ready'),
     count('shipping'),
     count('done'),
+    count('cancelled'),
   ]);
   const stages = [
+    { key: 'all', label: '全部訂單', count: all },
     { key: 'now', label: '待處理', count: now },
     { key: 'waiting', label: '待付款', count: waiting },
     { key: 'ready', label: '待出貨', count: ready },
     { key: 'shipping', label: '運送中', count: shipping },
     { key: 'done', label: '已完成', count: done },
+    { key: 'cancelled', label: '已取消', count: cancelled },
   ];
 
   return (
@@ -104,8 +108,8 @@ async function OrdersTableSection({
   const where: Record<string, unknown> = { AND: [
     searchParams.archived === 'true'
       ? historicalOrderWhere
-      : isSearching
-      ? workbenchVisibleWhere
+      : isSearching || activeWork === 'all' || activeWork === 'cancelled'
+      ? orderListVisibleWhere
       : searchParams.deleted === 'true'
         ? { deletedAt: { not: null } }
         : workbenchVisibleWhere,
@@ -124,6 +128,7 @@ async function OrdersTableSection({
     'shipped',
     'delivered',
     'completed',
+    'cancelled',
   ] as const;
   if (
     !isSearching &&

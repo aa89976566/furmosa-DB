@@ -11,11 +11,13 @@ export const OMS_FILTERS = [
 ];
 
 export const ORDER_WORK_FILTERS = [
+  { key: 'all', label: '全部訂單' },
   { key: 'now', label: '待處理' },
   { key: 'waiting', label: '待付款' },
   { key: 'ready', label: '待出貨' },
   { key: 'shipping', label: '運送中' },
   { key: 'done', label: '已完成' },
+  { key: 'cancelled', label: '已取消' },
 ] as const;
 
 /**
@@ -24,6 +26,7 @@ export const ORDER_WORK_FILTERS = [
  * A payment wait only exists after human review, represented by READY + unpaid/partial.
  */
 export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
+  if (value === 'cancelled') return { status: 'cancelled' };
   if (value === 'now') return {
     OR: [
       { omsStatus: { in: ['NEW', 'REVIEW'] } },
@@ -83,6 +86,12 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
   };
   return {};
 }
+
+/** 全部營運紀錄：包含已取消，但不包含封存或軟刪除資料。 */
+export const orderListVisibleWhere: Prisma.OrderWhereInput = {
+  deletedAt: null,
+  archivedAt: null,
+};
 
 /** Every enrolled order stays visible, including cancelled/refunded exceptions. Legacy behavior is unchanged. */
 export const workbenchVisibleWhere: Prisma.OrderWhereInput = {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Prisma } from '@prisma/client';
-import { OMS_FILTERS, ORDER_WORK_FILTERS, orderWorkWhere, omsFilterWhere, omsProblemsWhere, taiwanToday, workbenchHref, workbenchVisibleWhere, omsSourceSearchWhere } from '../oms-workbench';
+import { OMS_FILTERS, ORDER_WORK_FILTERS, orderListVisibleWhere, orderWorkWhere, omsFilterWhere, omsProblemsWhere, taiwanToday, workbenchHref, workbenchVisibleWhere, omsSourceSearchWhere } from '../oms-workbench';
 import { OMS_STATUSES } from '../oms';
 import { mergeSearchWhere, orderSearchWhere } from '../../site-search';
 
@@ -15,7 +15,9 @@ describe('OMS workbench read-only queries', () => {
     assert.match(JSON.stringify(workbenchVisibleWhere.OR?.[1]), /cancelled/);
   });
   it('keeps unreviewed orders actionable regardless of payment', () => {
-    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['待處理', '待付款', '待出貨', '運送中', '已完成']);
+    assert.deepEqual(ORDER_WORK_FILTERS.map((item) => item.label), ['全部訂單', '待處理', '待付款', '待出貨', '運送中', '已完成', '已取消']);
+    assert.deepEqual(orderListVisibleWhere, { deletedAt: null, archivedAt: null });
+    assert.deepEqual(orderWorkWhere('cancelled'), { status: 'cancelled' });
     const now = JSON.stringify(orderWorkWhere('now'));
     assert.match(now, /NEW/);
     assert.match(now, /REVIEW/);
