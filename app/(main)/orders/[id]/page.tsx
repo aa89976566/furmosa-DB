@@ -73,6 +73,8 @@ import {
 import { resolveKnownShopifySourceName, resolveShopifyProductSources } from '@/lib/orders/shopify-product-source';
 import { merchantOrderDisplayLabel } from '@/lib/orders/merchant-order-mode';
 import { CopyDeliveryButton } from '@/components/orders/copy-delivery-button';
+import { OrderCancellationPanel } from '@/components/orders/order-cancellation-panel';
+import { parseOrderCancellationRecord } from '@/lib/orders/cancellation-reasons';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +93,16 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     },
   });
   if (!order) notFound();
+
+  const cancellationAudits = order.status === 'cancelled' ? await prisma.statusAuditLog.findMany({
+    where: { entityType: 'order_cancellation_note', entityId: order.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, createdAt: true, metadataJson: true },
+  }) : [];
+  const cancellationRecords = cancellationAudits.flatMap((audit) => {
+    const record = parseOrderCancellationRecord(audit.metadataJson);
+    return record ? [{ ...record, id: audit.id, createdAt: audit.createdAt }] : [];
+  });
 
   const savedNotice = searchParams?.saved === 'created'
     ? '訂單已建立。'
@@ -316,6 +328,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             </div>
           </div>
         </details>
+        {order.status === 'cancelled' ? <div className="mt-5"><OrderCancellationPanel orderId={order.id} records={cancellationRecords} /></div> : null}
       </main>
     </>;
   }
@@ -358,6 +371,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         {savedNotice ? <p role="status" className="rounded-md border px-4 py-3 text-sm">{savedNotice}</p> : null}
         {order.archivedAt && <p className="rounded border bg-muted/40 p-4 text-sm">這是歷史訂單，不會出現在待審核或目前工作清單。</p>}
         {order.deletedAt && <p className="rounded border border-destructive p-4 text-sm">此訂單已從 HQ 刪除，不會出現在一般清單或待審核。原因：{order.deletionReason}</p>}
+        {order.status === 'cancelled' ? <OrderCancellationPanel orderId={order.id} records={cancellationRecords} /> : null}
 
         <SectionCard tone="logistics" icon={Truck} title="1. 店家與配送資料">
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
