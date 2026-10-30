@@ -187,6 +187,7 @@ export async function recordJarExchangeSaleOnRedeem(
   jarCodeId: string,
   code: string,
   db: DbClient = prisma,
+  merchantId: string | null = null,
 ) {
   const jarCode = await db.jarCode.findUnique({
     where: { id: jarCodeId },
@@ -196,9 +197,19 @@ export async function recordJarExchangeSaleOnRedeem(
 
   const existing = await db.order.findFirst({
     where: { note: { contains: `換罐序號 ${code}` } },
-    select: { id: true },
+    select: { id: true, merchantId: true },
   });
-  if (existing) return existing;
+  if (existing) {
+    // LINE 重送時維持冪等；舊衍生訂單缺少店家時順便補齊歸屬。
+    if (!existing.merchantId && merchantId) {
+      return db.order.update({
+        where: { id: existing.id },
+        data: { merchantId },
+        select: { id: true, merchantId: true },
+      });
+    }
+    return existing;
+  }
 
   const priceInfo = await resolveJarCodeSaleUnitPrice(jarCode, db);
   if (priceInfo.unitPrice <= 0 || !priceInfo.productId) return null;
@@ -218,7 +229,7 @@ export async function recordJarExchangeSaleOnRedeem(
       shippingFeeType: 'free',
       fulfillmentStatus: 'delivered',
       customerId,
-      merchantId: null,
+      merchantId,
       subtotal: priceInfo.unitPrice,
       discount: 0,
       shippingFee: 0,

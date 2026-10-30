@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { TicketCheck, ShoppingBag, Users, ArrowUpRight, RefreshCw } from 'lucide-react';
 
 const entries = [
-  { href: '/pos/refill', title: '換罐', description: '掃描罐底、完成換罐並查看本店換罐會員', icon: RefreshCw },
+  { href: '/pos/refill', title: '換罐', description: '查看本店換罐內容、庫存與 LINE 交易紀錄', icon: RefreshCw },
   { href: '/pos/coupons', title: '美容券', description: '輸入會員折價券序號並完成核銷', icon: TicketCheck },
   { href: '/pos/sell', title: '寄賣銷售', description: '選購商品，依既有售價與分潤規則記錄銷售', icon: ShoppingBag },
   { href: '/pos/group-buy', title: '活動／團購', description: '查看店家專屬進貨價與合作資訊', icon: Users },
