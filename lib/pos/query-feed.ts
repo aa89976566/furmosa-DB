@@ -3,7 +3,16 @@ import { formatCurrency } from '@/lib/format';
 export type QueryKind = 'sale' | 'refill' | 'restock' | 'stock';
 
 export type RestockProgressStage = 'not_shipped' | 'in_transit' | 'received' | 'cancelled';
-export type RestockProgressDetail = { stage: RestockProgressStage; statusLabel: string; itemsLabel: string; shippedDateLabel?: string; receivedDateLabel?: string; reminderDateLabel?: string };
+export type RestockProgressItem = { label: string; quantityLabel: string };
+export type RestockProgressDetail = {
+  stage: RestockProgressStage;
+  statusLabel: string;
+  summaryLabel: string;
+  items: RestockProgressItem[];
+  shippedDateLabel?: string;
+  receivedDateLabel?: string;
+  reminderDateLabel?: string;
+};
 
 export type QueryFeedItem = {
   id: string;
