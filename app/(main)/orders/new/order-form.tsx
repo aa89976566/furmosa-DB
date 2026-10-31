@@ -83,6 +83,7 @@ import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 import { resolveGiftWeightCost } from '@/lib/order-item-cost';
 import styles from './order-workbench.module.css';
+import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 import { findLastMerchantOrder } from './workbench-actions';
 
 export type ProductTierOption = {
@@ -1038,6 +1039,44 @@ export function OrderForm({
       .catch(() => undefined);
   }, [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType]);
 
+  const [pricingError, setPricingError] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEdit || orderType !== 'merchant' || merchantOrderMode !== 'wholesale') {
+      setPricingError(null);
+      return;
+    }
+    const quantities = new Map<string, number>();
+    for (const line of items) {
+      if (!line.isGift) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+    }
+    let errorMessage: string | null = null;
+    let changed = false;
+    const next = items.map((line) => {
+      const product = productMap.get(line.productId);
+      if (!product || line.isGift) return line;
+      const tier = product.priceTiers.find((entry) => entry.id === line.tierId);
+      const exception = findMerchantWholesalePrice(product.wholesalePrices, merchantId, product.id, line.tierId);
+      try {
+        const quote = exception == null ? quoteDefaultBuyoutTier({
+          sku: product.sku,
+          retailUnitPrice: tier?.price ?? product.price,
+          quantity: quantities.get(product.id) ?? line.quantity,
+        }) : null;
+        const price = exception ?? quote?.wholesaleUnitPrice
+          ?? (line.commercialOverrideEnabled ? line.commercialOverrideValue : null)
+          ?? tier?.defaultWholesaleUnitPrice ?? product.defaultWholesaleUnitPrice ?? 0;
+        if (line.unitPrice === price && line.retailUnitPrice === price) return line;
+        changed = true;
+        return { ...line, unitPrice: price, retailUnitPrice: price };
+      } catch (error) {
+        errorMessage = error instanceof Error ? error.message : '請確認買斷數量';
+        return line;
+      }
+    });
+    setPricingError(errorMessage);
+    if (changed) setItems(next);
+  }, [isEdit, orderType, merchantOrderMode, merchantId, items, productMap]);
+
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
     [items],
@@ -1424,6 +1463,7 @@ export function OrderForm({
       action={async (formData) => {
         setSubmitError(null);
         setSubmitNotice(null);
+        if (pricingError) { setSubmitError(pricingError); return; }
         const validationError = validateOrderSubmission({ orderType, customerId, merchantId, merchantOrderMode, items, discount, recipientName, recipientPhone, shippingMethod, shippingAddress, cvsBrand, cvsStoreName });
         if (validationError) {
           revealThrough(8);
@@ -1734,6 +1774,7 @@ export function OrderForm({
         removeItem={removeItem}
       /> : null}
 
+      {pricingError ? <p role="alert" className="text-sm text-destructive">{pricingError}</p> : null}
       <OrderProductPicker
         open={productPickerOpen}
         onOpenChange={setProductPickerOpen}
@@ -1769,7 +1810,10 @@ export function OrderForm({
       <div id="order-review" hidden={!reviewOpen && !isEdit} className={styles.review}>
       {/* Step 4: 金額 + 出貨資訊 */}
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="text-sm font-medium">⑤ 運費與付款</div>
+        <div className="text-sm font-medium">確認訂單</div>
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">付款與運費設定</summary>
+          <div className="mt-3 space-y-4">
 
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1845,6 +1889,9 @@ export function OrderForm({
           ) : null}
         </FieldInline> : null}
 
+          </div>
+        </details>
+
         {revealedStep >= 7 && giftCostTotal > 0 ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             贈品成本 {formatCurrency(giftCostTotal)} 不計入買家合計，建立訂單時會記為公司開銷。
@@ -1861,13 +1908,13 @@ export function OrderForm({
                   : subtotal,
               )}
             />
-            <FieldInline label="店家折扣">
+            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">調整折扣</summary><FieldInline label="店家折扣">
             <OrderDiscountField
               subtotal={subtotal}
               discount={discount}
               onDiscountChange={setDiscount}
             />
-            </FieldInline>
+            </FieldInline></details>
             <Stat label="應收金額" value={formatCurrency(total)} highlight />
           </div>
           <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
@@ -2046,7 +2093,7 @@ export function OrderForm({
           </div>
         </FieldInline> : null}
 
-        {revealedStep >= 8 ? <FieldInline label="⑧ 還有需要記錄的事情嗎？（選填）">
+        {revealedStep >= 8 ? <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">備註（選填）</summary><FieldInline label="備註">
           <textarea
             name="note"
             value={note}
@@ -2055,7 +2102,7 @@ export function OrderForm({
             maxLength={500}
             className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
-        </FieldInline> : null}
+        </FieldInline></details> : null}
       </section> : null}
 
       </div>
