@@ -60,6 +60,10 @@ async function postReply(replyToken: string, messages: LineReplyMessage[]) {
     const body = await res.text().catch(() => '');
     throw new Error(`LINE Reply API 失敗 (${res.status}): ${body.slice(0, 300)}`);
   }
+  console.info('[line/reply] delivered', {
+    status: res.status,
+    messageCount: Math.min(messages.length, 5),
+  });
 }
 
 function isTransientLineReplyError(err: unknown): boolean {

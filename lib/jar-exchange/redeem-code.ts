@@ -5,6 +5,7 @@ import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
 import { resolveCustomerJarMerchantId } from '@/lib/jar-exchange/customer-store-attribution';
 import { resolveJarCodeMerchantId } from '@/lib/jar-exchange/merchant-attribution';
+import { runAfterReply } from '@/lib/line/defer';
 import { revalidatePath } from 'next/cache';
 
 export type RedeemJarCodeResult =
@@ -87,23 +88,23 @@ export async function redeemJarCode(
       { maxWait: 10_000, timeout: 15_000 },
     );
 
-    // 營收單是可由換罐序號冪等補建的衍生紀錄，不能阻塞會員核銷。
+    // 營收單是可由換罐序號冪等補建的衍生紀錄，不能阻塞會員收到核銷結果。
     // recordJarExchangeSaleOnRedeem 已以序號檢查既有單，重送不會重複入帳。
-    try {
-      await recordJarExchangeSaleOnRedeem(
+    runAfterReply(
+      recordJarExchangeSaleOnRedeem(
         customerId,
         result.jarCodeId,
         code,
         prisma,
         result.resolvedMerchantId,
-      );
-    } catch (err) {
-      console.error('[jar-exchange/redeem] sale record deferred', {
-        codeSuffix: code.slice(-4),
-        customerId,
-        err,
-      });
-    }
+      ).catch((err) => {
+        console.error('[jar-exchange/redeem] sale record deferred', {
+          codeSuffix: code.slice(-4),
+          customerId,
+          err,
+        });
+      }),
+    );
 
     try {
       revalidatePath('/dashboard');
