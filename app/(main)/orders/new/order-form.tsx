@@ -1075,9 +1075,12 @@ export function OrderForm({
           ?? (line.commercialOverrideEnabled ? line.commercialOverrideValue : null)
           ?? exception
           ?? tier?.defaultWholesaleUnitPrice ?? product.defaultWholesaleUnitPrice ?? 0;
-        if (line.unitPrice === price && line.retailUnitPrice === price) return line;
+        if (line.unitPrice === price && line.retailUnitPrice === price && !(quote && line.commercialOverrideEnabled)) return line;
         changed = true;
-        return { ...line, unitPrice: price, retailUnitPrice: price };
+        return {
+          ...line, unitPrice: price, retailUnitPrice: price,
+          ...(quote ? { commercialOverrideEnabled: false, commercialOverrideMode: '' as const, commercialOverrideValue: null, commercialOverrideReason: '' } : {}),
+        };
       } catch (error) {
         errorMessage = error instanceof Error ? error.message : '請確認買斷數量';
         return line;
