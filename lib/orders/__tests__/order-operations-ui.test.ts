@@ -86,7 +86,7 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.match(orderFormSource, /合作條件/);
   assert.match(orderFormSource, /已恢復草稿/);
   assert.match(orderFormSource, /prod && prod\.priceTiers\.length === 1/);
-  assert.match(orderFormSource, /運費與付款/);
+  assert.match(orderFormSource, /付款與運費設定/);
   assert.match(orderFormSource, /選擇物流方式與收件資訊/);
   assert.match(orderFormSource, /<SaveButton isEdit=\{isEdit\} \/>/);
   assert.match(orderFormSource, /disabled=\{pending\}/);
