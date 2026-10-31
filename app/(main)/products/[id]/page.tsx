@@ -16,7 +16,7 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency, formatDateTime, formatNumber } from '@/lib/format';
 import { productCategoryLabel } from '@/lib/labels';
-import { ArrowLeft, Boxes, Layers } from 'lucide-react';
+import { ArrowLeft, Layers } from 'lucide-react';
 import { ProductForm } from './product-form';
 import { updateProduct, deleteProduct } from '../actions';
 import { PriceTierManager } from './price-tier-manager';
@@ -140,12 +140,11 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           </Button>
         }
       />
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-        <div className="grid divide-y overflow-hidden rounded-xl border border-border/70 bg-card xl:grid-cols-4 xl:divide-x xl:divide-y-0">
-          <SummaryMetric label="規格數" value={formatNumber(variationSummary.count)} />
-          <SummaryMetric label="售價區間" value={variationSummary.priceRange} />
-          <SummaryMetric label="毛利區間" value={variationSummary.marginRange} />
-          <SummaryMetric label="總庫存" value={formatNumber(totalOnHand)} />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
+          <SummaryChip label="售價" value={variationSummary.priceRange} />
+          <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />
         </div>
 
         <div
@@ -154,7 +153,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         >
           <SectionCard
             title="商品規格"
-            description="依重量（30g / 50g / 100g…）設定各規格的售價與成本"
+            description="重量、售價與成本"
             icon={Layers}
             contentClassName="pt-6"
           >
@@ -168,8 +167,8 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         </div>
 
         <SectionCard
-          title="商品主檔"
-          description="共用名稱、分類、廠商與補貨設定；售價請在上方規格維護"
+          title="基本資料"
+          description="只保留日常需要修改的內容"
           contentClassName="pt-6"
         >
           <ProductForm
@@ -206,24 +205,15 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
             saveAction={updateProduct}
             deleteAction={deleteProduct}
           />
-          <dl className="mt-6 grid gap-3 border-t pt-6 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            {product.sourceSku && (
-              <MetaItem
-                label="商品家族 SKU"
-                value={<span className="font-mono text-xs">{product.sourceSku}</span>}
-              />
-            )}
-            <MetaItem label="建立時間" value={formatDateTime(product.createdAt)} />
-            <MetaItem label="補貨點" value={formatNumber(product.reorderPoint)} />
-            <MetaItem label="列表參考售價" value={formatCurrency(Number(product.price))} />
-          </dl>
         </SectionCard>
 
-        <SectionCard
-          title="供應與庫存"
-          description="廠商來源與各倉庫現有數量"
-          contentClassName="space-y-6 pt-6"
-        >
+        <details className="group rounded-2xl border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold">
+            供應與庫存
+            <span className="text-sm font-normal text-muted-foreground group-open:hidden">展開</span>
+            <span className="hidden text-sm font-normal text-muted-foreground group-open:inline">收合</span>
+          </summary>
+          <div className="space-y-6 border-t px-5 py-5">
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               廠商
@@ -275,14 +265,15 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               </TableBody>
             </Table>
           </div>
-        </SectionCard>
+          </div>
+        </details>
 
-        <SectionCard
-          title="近期庫存異動"
-          description="最新 12 筆"
-          icon={Boxes}
-          contentClassName="pt-6"
-        >
+        <details className="group rounded-2xl border bg-card">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold">
+            庫存紀錄
+            <span className="text-sm font-normal text-muted-foreground">最新 12 筆</span>
+          </summary>
+          <div className="overflow-x-auto border-t px-5 py-5">
           <Table>
             <TableHeader>
               <TableRow>
@@ -313,26 +304,18 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               ))}
             </TableBody>
           </Table>
-        </SectionCard>
+          </div>
+        </details>
       </div>
     </>
   );
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
+function SummaryChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="px-4 py-3">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">{value}</p>
-    </div>
-  );
-}
-
-function MetaItem({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 font-medium">{value}</dd>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="font-semibold tabular-nums">{value}</strong>
+    </span>
   );
 }

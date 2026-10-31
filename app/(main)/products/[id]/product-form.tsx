@@ -168,10 +168,24 @@ export function ProductForm({
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              商品類型會提供分潤建議：肉乾／零食 20%，凍乾 30%。實際比例仍以本商品設定為準。
-            </p>
           </Field>
+
+          <Field label="口味／主要原料" layout={layout}>
+            <Input
+              name="style"
+              defaultValue={product.style ?? ''}
+              maxLength={60}
+              placeholder="例如：丁香魚、雞肉南瓜、牛肉"
+            />
+          </Field>
+
+          <details className={cn('group/advanced rounded-xl border', studio && 'md:col-span-2')}>
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+              進階設定
+              <span className="font-normal text-muted-foreground group-open/advanced:hidden">展開</span>
+              <span className="hidden font-normal text-muted-foreground group-open/advanced:inline">收合</span>
+            </summary>
+            <div className="grid gap-4 border-t p-4 md:grid-cols-2">
 
           <Field label="商務等級" layout={layout}>
             <div className="grid grid-cols-2 gap-2">
@@ -182,7 +196,7 @@ export function ProductForm({
                   value="standard"
                   defaultChecked={(product.businessTier ?? 'standard') === 'standard'}
                 />
-                一般商品
+                一般
               </label>
               <label className="flex min-h-11 items-center gap-2 rounded-md border bg-background px-3 text-sm">
                 <input
@@ -191,21 +205,9 @@ export function ProductForm({
                   value="premium"
                   defaultChecked={product.businessTier === 'premium'}
                 />
-                Premium Product
+                Premium
               </label>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              商務等級目前不影響佣金建議；肉乾／凍乾仍以上方商品類型判斷。
-            </p>
-          </Field>
-
-          <Field label="口味／主要原料（選填）" layout={layout}>
-            <Input
-              name="style"
-              defaultValue={product.style ?? ''}
-              maxLength={60}
-              placeholder="例：丁香魚、雞肉南瓜、牛肉"
-            />
           </Field>
 
           <Field label="預設出貨溫層" layout={layout}>
@@ -219,7 +221,6 @@ export function ProductForm({
               <option value="chilled">冷藏</option>
               <option value="frozen">冷凍</option>
             </select>
-            <p className="mt-1 text-xs text-muted-foreground">Shopify 訂單依 SKU 對應商品後，會自動帶入此溫層。</p>
           </Field>
 
           {!variable ? (
@@ -303,21 +304,20 @@ export function ProductForm({
             </select>
           </Field>
 
-          <div
+          <details
             id="product-commercial"
             className={cn(
-              'scroll-mt-28 space-y-5 rounded-xl border-2 p-5 target:border-foreground target:ring-4 target:ring-foreground/10',
+              'group/commercial scroll-mt-28 rounded-xl border target:border-foreground target:ring-4 target:ring-foreground/10',
               studio && 'md:col-span-2',
             )}
           >
-            <div>
-              <h3 className="text-base font-semibold">店家合作方式</h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                可同時啟用寄賣與買斷。兩種合作方式各自保存設定，不會共用同一個價格或比例。
-              </p>
-            </div>
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+              店家合作設定
+              <span className="font-normal text-muted-foreground group-open/commercial:hidden">展開</span>
+              <span className="hidden font-normal text-muted-foreground group-open/commercial:inline">收合</span>
+            </summary>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 border-t p-4 lg:grid-cols-2">
               <section className={cn(
                 'space-y-4 rounded-xl border-2 p-4',
                 consignmentEnabled ? 'border-foreground bg-card' : 'border-muted bg-muted/20',
@@ -337,9 +337,6 @@ export function ProductForm({
                   />
                   啟用寄賣
                 </label>
-                <p className="text-xs text-muted-foreground">
-                  店家售出後，依此比例取得分潤。補貨單不可逐單修改；店家例外在店家設定處管理。
-                </p>
                 {consignmentEnabled ? (
                   <div className="space-y-4 border-t pt-4">
                     <Field label="店家分潤計算" layout="studio">
@@ -414,9 +411,6 @@ export function ProductForm({
                       />
                       啟用買斷
                     </label>
-                    <p className="text-xs text-muted-foreground">
-                      店家以各規格的進貨價買斷商品，不使用佣金、件數級距或包郵設定。
-                    </p>
                     {wholesaleLocked ? (
                       <p className="text-xs text-muted-foreground">請先新增至少一個規格</p>
                     ) : null}
@@ -455,8 +449,9 @@ export function ProductForm({
               </section>
             </div>
 
+            <div className="px-4 pb-4">
             {product.productCategory === 'JAR_EXCHANGE' ? (
-              <label className="flex min-h-11 items-center gap-3 rounded-xl border-2 px-4 text-sm font-semibold">
+              <label className="flex min-h-11 items-center gap-3 rounded-xl border px-4 text-sm font-semibold">
                 <input
                   type="checkbox"
                   name="jarExchangeEnabled"
@@ -467,10 +462,11 @@ export function ProductForm({
             ) : null}
             {product.commercialTermsVersion ? (
               <p className="text-xs text-muted-foreground">
-                目前商務版本：v{product.commercialTermsVersion}
+                版本 v{product.commercialTermsVersion}
               </p>
             ) : null}
-          </div>
+            </div>
+          </details>
 
           <Field
             label="備註"
@@ -485,6 +481,8 @@ export function ProductForm({
               className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </Field>
+            </div>
+          </details>
         </div>
 
         <div className="flex flex-col gap-1 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
