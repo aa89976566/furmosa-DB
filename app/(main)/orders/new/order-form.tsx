@@ -1062,8 +1062,9 @@ export function OrderForm({
           retailUnitPrice: tier?.price ?? product.price,
           quantity: quantities.get(product.id) ?? line.quantity,
         }) : null;
-        const price = exception ?? quote?.wholesaleUnitPrice
+        const price = quote?.wholesaleUnitPrice
           ?? (line.commercialOverrideEnabled ? line.commercialOverrideValue : null)
+          ?? exception
           ?? tier?.defaultWholesaleUnitPrice ?? product.defaultWholesaleUnitPrice ?? 0;
         if (line.unitPrice === price && line.retailUnitPrice === price) return line;
         changed = true;
