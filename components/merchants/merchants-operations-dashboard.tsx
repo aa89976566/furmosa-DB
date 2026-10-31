@@ -115,7 +115,7 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
         </div>
 
         <div className="hidden md:block">
-          <Table>
+          <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[16rem]">店家</TableHead>
@@ -124,12 +124,14 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
                 <TableHead className="text-right">銷售額</TableHead>
                 <TableHead className="text-right">分潤</TableHead>
                 <TableHead className="text-right">結算</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="sticky right-0 bg-muted/95 text-right shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)]">
+                  操作
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {report.merchants.map((merchant) => (
-                <TableRow key={merchant.id}>
+                <TableRow key={merchant.id} className="group">
                   <TableCell>
                     <Link href={`/merchants/${merchant.id}`} className="font-medium hover:underline">{merchant.name}</Link>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -155,9 +157,12 @@ export function MerchantsOperationsDashboard({ report }: { report: MerchantsPort
                     {formatPercent(merchant.commissionRate, 0)}
                   </TableCell>
                   <TableCell className="text-right">{merchant.settlementCount} 筆</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="sticky right-0 bg-background text-right shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.35)] group-hover:bg-muted/40">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/merchants/${merchant.id}`}>
+                      <Link
+                        href={`/merchants/${merchant.id}`}
+                        aria-label={`查看${merchant.name}店家詳情`}
+                      >
                         查看
                         <ChevronRight className="ml-1 h-3 w-3" />
                       </Link>
