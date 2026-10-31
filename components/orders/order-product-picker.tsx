@@ -163,9 +163,9 @@ export function OrderProductPicker({
                         </div>
                         <div className="mt-4 flex items-center justify-between gap-3">
                           <p className="text-sm font-medium">
-                            {onlyTier ? formatCurrency(onlyTier.price) : formatCurrency(product.price)}
+                            {needsTier ? '依規格計價' : onlyTier ? formatCurrency(onlyTier.price) : formatCurrency(product.price)}
                             <span className="ml-1 text-xs font-normal text-muted-foreground">
-                              / {onlyTier ? variationLabel(onlyTier) : product.unit}
+                              {needsTier ? '' : `/ ${onlyTier ? variationLabel(onlyTier) : product.unit}`}
                             </span>
                           </p>
                           {needsTier ? (
