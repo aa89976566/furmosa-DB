@@ -230,7 +230,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
     const awaitingPayment = result.issues.some(issue => issue.code === 'PAYMENT_PENDING');
 
-    const createsShipment = command.action === 'ship' || command.sourceOnly;
+    // Reviewing and fulfillment are deliberately separate. Shopify source-only
+    // review still derives its lines from the source, but must never bypass the
+    // ship-phase blockers (most importantly PAYMENT_PENDING).
+    const createsShipment = command.action === 'ship';
     if (!createsShipment) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
