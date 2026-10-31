@@ -48,11 +48,25 @@ export default async function MerchantQuotationPage(props: {
         <Link href={`/orders/${order.id}`} className="text-sm font-medium underline underline-offset-4">
           返回訂單
         </Link>
-        <QuotationPdfDownloadButton autoStart={searchParams?.download === '1'} />
+        <QuotationPdfDownloadButton autoStart={searchParams?.download === '1'} data={{
+          number: quoteNumber, date: formatDateTime(order.orderedAt),
+          merchant: order.merchant.name,
+          contact: [order.merchant.contactName, order.merchant.phone].filter(Boolean).join(' · '),
+          items: billableItems.map((item) => ({
+            name: item.productName,
+            spec: item.weightGrams ? `${item.weightGrams}g` : item.unit ?? '',
+            sku: item.sku ?? '', quantity: item.quantity,
+            price: formatCurrency(Number(item.unitPrice)), subtotal: formatCurrency(Number(item.subtotal)),
+          })),
+          subtotal: formatCurrency(Number(order.subtotal)),
+          discount: Number(order.discount) > 0 ? formatCurrency(Number(order.discount)) : null,
+          shipping: formatCurrency(Number(order.shippingFee)),
+          total: formatCurrency(Number(order.total)), note: order.note ?? '',
+        }} />
       </div>
 
       <article className="border border-slate-300 bg-white p-6 shadow-sm sm:p-10 print:border-0 print:p-0 print:shadow-none">
-        <header className="flex items-start justify-between gap-6 border-b-2 border-slate-950 pb-6">
+        <header className="flex flex-col items-start justify-between gap-6 sm:flex-row border-b-2 border-slate-950 pb-6">
           <div>
             <p className="text-sm font-semibold tracking-[0.18em]">FURMOSA</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">買斷報價單</h1>
@@ -78,7 +92,7 @@ export default async function MerchantQuotationPage(props: {
           </div>
         </section>
 
-        <section className="py-6">
+        <section className="overflow-x-auto py-6">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-y border-slate-300 text-left text-xs text-slate-500">
@@ -94,7 +108,7 @@ export default async function MerchantQuotationPage(props: {
                 <tr key={item.id} className="border-b border-slate-200 align-top">
                   <td className="py-4 pr-3 font-medium">
                     {item.productName}
-                    {item.variantKey ? <span className="mt-1 block text-xs font-normal text-slate-500">{item.variantKey}</span> : null}
+                    {item.weightGrams || item.unit ? <span className="mt-1 block text-xs font-normal text-slate-500">{item.weightGrams ? `${item.weightGrams}g` : item.unit}</span> : null}
                   </td>
                   <td className="py-4 pr-3 font-mono text-xs text-slate-600">{item.sku || '—'}</td>
                   <td className="py-4 pr-3 text-right tabular-nums">{item.quantity}</td>
