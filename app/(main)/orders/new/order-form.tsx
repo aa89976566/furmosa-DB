@@ -725,6 +725,7 @@ export function OrderForm({
   const [merchantQuery, setMerchantQuery] = useState('');
   const [merchantChanging, setMerchantChanging] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [editingBuyer, setEditingBuyer] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ id: string; orderNumber: string } | null>(null);
   const [lastOrderLoading, setLastOrderLoading] = useState(false);
   const [recentMerchantIds, setRecentMerchantIds] = useState<string[]>([]);
@@ -1081,6 +1082,7 @@ export function OrderForm({
   const selectedQuantity = selectedLines.reduce((sum, item) => sum + item.quantity, 0);
 
   function openReview() {
+    setEditingBuyer(false);
     setReviewOpen(true);
     revealThrough(8);
     window.requestAnimationFrame(() => document.getElementById('order-review')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }));
@@ -1284,6 +1286,7 @@ export function OrderForm({
   function onMerchantChange(id: string) {
     setMerchantId(id);
     setMerchantChanging(false);
+    setEditingBuyer(false);
     setMerchantQuery('');
     if (id && draftStorageKey) {
       const recent = [id, ...recentMerchantIds.filter((value) => value !== id)].slice(0, 5);
@@ -1491,9 +1494,10 @@ export function OrderForm({
       ) : null}
       <nav className={styles.steps} aria-label="開單流程">
         {['選擇對象', '加入商品', '確認送出'].map((label, index) => (
-          <button key={label} type="button" aria-current={(reviewOpen ? 2 : revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
+          <button key={label} type="button" aria-current={(reviewOpen ? 2 : !editingBuyer && revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
             disabled={index > 0 && revealedStep < 4}
             onClick={() => {
+              setEditingBuyer(index === 0);
               setReviewOpen(index === 2);
               if (index === 2) revealThrough(8);
               window.requestAnimationFrame(() => document.getElementById(index === 2 ? 'order-review' : index === 1 ? 'order-products' : 'order-buyer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -1504,7 +1508,7 @@ export function OrderForm({
       </nav>
       <div className={styles.columns}>
       <div className={styles.editor}>
-      <div id="order-buyer" className={styles.buyer}>
+      <div id="order-buyer" hidden={!isEdit && !editingBuyer && revealedStep >= 4} className={styles.buyer}>
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
@@ -1685,9 +1689,10 @@ export function OrderForm({
           ) : null}
         </section>
       )}
+      {editingBuyer && revealedStep >= 4 ? <Button type="button" variant="outline" onClick={() => setEditingBuyer(false)}>完成修改</Button> : null}
       </div>
 
-      <div id="order-products" className={styles.products}>
+      <div id="order-products" hidden={!isEdit && (editingBuyer || reviewOpen || revealedStep < 4)} className={styles.products}>
       {orderType === 'merchant' && merchantId && !isEdit ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">{lastOrderLoading ? '查詢上次訂單中…' : lastOrder ? `上次訂單 ${lastOrder.orderNumber}` : '可直接加入本次補貨商品'}</span>
         {lastOrder ? <Button type="button" size="sm" variant="outline" disabled={hasValidLines} asChild><Link href={`/orders/new?copyFrom=${lastOrder.id}`} aria-disabled={hasValidLines} tabIndex={hasValidLines ? -1 : undefined} onClick={(event) => { if (hasValidLines) event.preventDefault(); }}>複製上次訂單</Link></Button> : null}
