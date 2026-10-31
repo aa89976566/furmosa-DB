@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { submitPasswordResetWithReceipt } from '@/lib/pos/password-reset-receipt';
+import {
+  submitPasswordResetWithReceipt,
+  type PasswordResetReceipt,
+} from '@/lib/pos/password-reset-receipt';
 import { isNextRedirect } from '@/lib/is-next-redirect';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -44,9 +47,7 @@ function PasswordFields({ users, visible, toggle }: { users: PosUser[]; visible:
 }
 
 export function PosPasswordForm({ merchantId, users }: { merchantId: string; users: PosUser[] }) {
-  // Keep the server result in the client form state even when the reset action
-  // revalidates the merchant page. The password receipt stays in browser memory
-  // only and is intentionally not rendered now that password vault is available.
+  const [receipt, setReceipt] = useState<PasswordResetReceipt | null>(null);
   const [state, action] = useFormState(async (previous: PosPasswordState, data: FormData) => {
     try {
       const result = await submitPasswordResetWithReceipt(
@@ -55,9 +56,11 @@ export function PosPasswordForm({ merchantId, users }: { merchantId: string; use
         users,
         resetPosPasswordWithFeedback,
       );
+      setReceipt(result.receipt);
       return result.state;
     } catch (error) {
       if (isNextRedirect(error)) throw error;
+      setReceipt(null);
       return {
         status: 'error' as const,
         message: '無法確認密碼是否更新，請先嘗試登入；若仍失敗，請重新設定。',
@@ -72,6 +75,19 @@ export function PosPasswordForm({ merchantId, users }: { merchantId: string; use
       setVisible(false);
     }
   }, [state]);
+  useEffect(() => {
+    if (!receipt) return;
+    const hide = () => setReceipt(null);
+    const timeout = window.setTimeout(hide, 30_000);
+    const concealWhenHidden = () => {
+      if (document.hidden) hide();
+    };
+    document.addEventListener('visibilitychange', concealWhenHidden);
+    return () => {
+      window.clearTimeout(timeout);
+      document.removeEventListener('visibilitychange', concealWhenHidden);
+    };
+  }, [receipt]);
   return (
     <form ref={form} action={action} className="mt-3 space-y-3">
       <input type="hidden" name="merchantId" value={merchantId} />
@@ -80,6 +96,16 @@ export function PosPasswordForm({ merchantId, users }: { merchantId: string; use
       <div aria-live="polite" aria-atomic="true">
         {state.message ? <p role={state.status === 'error' ? 'alert' : 'status'} className="rounded-lg border bg-muted/40 p-3 text-sm">{state.message}</p> : null}
       </div>
+      {receipt ? (
+        <section className="space-y-2 rounded-lg border bg-muted/40 p-3 text-foreground" aria-label="新 POS 密碼">
+          <p className="text-sm font-medium"><span className="font-mono">{receipt.username}</span> 的新密碼</p>
+          <p className="select-text break-all rounded-md border bg-background p-3 font-mono text-base" aria-label="新設定的 POS 密碼">{receipt.password}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setReceipt(null)}>隱藏密碼</Button>
+            <p className="text-xs">只在這個畫面顯示 30 秒；離開分頁後會自動隱藏。</p>
+          </div>
+        </section>
+      ) : null}
     </form>
   );
 }

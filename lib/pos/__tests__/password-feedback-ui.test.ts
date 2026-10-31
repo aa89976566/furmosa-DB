@@ -9,8 +9,17 @@ const formSource = readFileSync(
 
 test('POS password reset keeps the server result in client form state', () => {
   assert.match(formSource, /submitPasswordResetWithReceipt\(/);
+  assert.match(formSource, /setReceipt\(result\.receipt\)/);
   assert.match(formSource, /return result\.state/);
   assert.match(formSource, /if \(isNextRedirect\(error\)\) throw error/);
+});
+
+test('POS password reset reveals the successful password only in temporary browser state', () => {
+  assert.match(formSource, /aria-label="新設定的 POS 密碼"/);
+  assert.match(formSource, /receipt\.password/);
+  assert.match(formSource, /30_000/);
+  assert.match(formSource, /visibilitychange/);
+  assert.match(formSource, /setReceipt\(null\)/);
 });
 
 test('POS password reset announces success and failure feedback accessibly', () => {
