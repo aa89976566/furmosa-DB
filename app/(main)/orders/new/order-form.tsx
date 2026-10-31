@@ -83,6 +83,7 @@ import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 import { resolveGiftWeightCost } from '@/lib/order-item-cost';
 import styles from './order-workbench.module.css';
+import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 import { findLastMerchantOrder } from './workbench-actions';
 
 export type ProductTierOption = {
@@ -322,6 +323,14 @@ function OrderLineItemsTable({
                       selectedTierId || null,
                     )
                   : null;
+                const automaticQuote = merchantOrderMode === 'wholesale' && wholesaleException == null
+                  ? quoteDefaultBuyoutTier({
+                      sku: prod.sku,
+                      retailUnitPrice: selectedTier?.price ?? prod.price,
+                      quantity: items.filter((line) => line.productId === prod.id && !line.isGift)
+                        .reduce((sum, line) => sum + line.quantity, 0),
+                    })
+                  : null;
                 commercialTerm = resolveMerchantCommercialTerm({
                   orderMode: merchantOrderMode,
                   product: prod,
@@ -334,6 +343,7 @@ function OrderLineItemsTable({
                     : wholesaleException == null
                       ? null
                       : { mode: 'fixed_price', value: wholesaleException },
+                  automaticWholesaleUnitPrice: automaticQuote?.wholesaleUnitPrice ?? null,
                   // 畫面先解析可信預設；覆寫的完整格式與原因由送出端再次驗證。
                   override: null,
                 });
@@ -389,7 +399,7 @@ function OrderLineItemsTable({
                               {' · '}
                               {commercialTerm.commercialRuleSource === 'merchant_exception'
                                 ? '店家特約'
-                                : 'SKU 預設'}
+                                : commercialTerm.commercialRuleSource === 'quantity_tier' ? '數量級距' : 'SKU 預設'}
                             </span>
                             <strong>
                               {commercialTermValueLabel(
@@ -402,7 +412,7 @@ function OrderLineItemsTable({
                               )}
                             </strong>
                           </div>
-                          {merchantOrderMode === 'wholesale' ? (
+                          {merchantOrderMode === 'wholesale' && commercialTerm.commercialRuleSource !== 'quantity_tier' ? (
                             <label className="mt-2 flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -428,10 +438,10 @@ function OrderLineItemsTable({
                             </label>
                           ) : (
                             <p className="mt-2 text-muted-foreground">
-                              寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。
+                              {merchantOrderMode === 'wholesale' ? '依數量自動計價' : '寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。'}
                             </p>
                           )}
-                          {merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? (
+                          {merchantOrderMode === 'wholesale' && commercialTerm.commercialRuleSource !== 'quantity_tier' && it.commercialOverrideEnabled ? (
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
                               <label>
                                 <span className="mb-1 block text-muted-foreground">
@@ -725,6 +735,7 @@ export function OrderForm({
   const [merchantQuery, setMerchantQuery] = useState('');
   const [merchantChanging, setMerchantChanging] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [editingBuyer, setEditingBuyer] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ id: string; orderNumber: string } | null>(null);
   const [lastOrderLoading, setLastOrderLoading] = useState(false);
   const [recentMerchantIds, setRecentMerchantIds] = useState<string[]>([]);
@@ -1037,6 +1048,48 @@ export function OrderForm({
       .catch(() => undefined);
   }, [isEdit, merchantId, merchantOrderMode, mergeProducts, orderType]);
 
+  const [pricingError, setPricingError] = useState<string | null>(null);
+  useEffect(() => {
+    if (isEdit || orderType !== 'merchant' || merchantOrderMode !== 'wholesale') {
+      setPricingError(null);
+      return;
+    }
+    const quantities = new Map<string, number>();
+    for (const line of items) {
+      if (!line.isGift) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+    }
+    let errorMessage: string | null = null;
+    let changed = false;
+    const next = items.map((line) => {
+      const product = productMap.get(line.productId);
+      if (!product || line.isGift) return line;
+      const tier = product.priceTiers.find((entry) => entry.id === line.tierId);
+      const exception = findMerchantWholesalePrice(product.wholesalePrices, merchantId, product.id, line.tierId);
+      try {
+        const quote = exception == null ? quoteDefaultBuyoutTier({
+          sku: product.sku,
+          retailUnitPrice: tier?.price ?? product.price,
+          quantity: quantities.get(product.id) ?? line.quantity,
+        }) : null;
+        const price = quote?.wholesaleUnitPrice
+          ?? (line.commercialOverrideEnabled ? line.commercialOverrideValue : null)
+          ?? exception
+          ?? tier?.defaultWholesaleUnitPrice ?? product.defaultWholesaleUnitPrice ?? 0;
+        if (line.unitPrice === price && line.retailUnitPrice === price && !(quote && line.commercialOverrideEnabled)) return line;
+        changed = true;
+        return {
+          ...line, unitPrice: price, retailUnitPrice: price,
+          ...(quote ? { commercialOverrideEnabled: false, commercialOverrideMode: '' as const, commercialOverrideValue: null, commercialOverrideReason: '' } : {}),
+        };
+      } catch (error) {
+        errorMessage = error instanceof Error ? error.message : '請確認買斷數量';
+        return line;
+      }
+    });
+    setPricingError(errorMessage);
+    if (changed) setItems(next);
+  }, [isEdit, orderType, merchantOrderMode, merchantId, items, productMap]);
+
   const hasValidLines = useMemo(
     () => items.some((it) => it.productId && it.quantity > 0),
     [items],
@@ -1081,6 +1134,7 @@ export function OrderForm({
   const selectedQuantity = selectedLines.reduce((sum, item) => sum + item.quantity, 0);
 
   function openReview() {
+    setEditingBuyer(false);
     setReviewOpen(true);
     revealThrough(8);
     window.requestAnimationFrame(() => document.getElementById('order-review')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }));
@@ -1102,7 +1156,7 @@ export function OrderForm({
       merchantOrderMode === 'wholesale'
         ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ??
           (tierId
-            ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? null
+            ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? p.defaultWholesaleUnitPrice
             : p.defaultWholesaleUnitPrice)
         : 0;
     if (p.priceTiers.length > 0) {
@@ -1284,6 +1338,7 @@ export function OrderForm({
   function onMerchantChange(id: string) {
     setMerchantId(id);
     setMerchantChanging(false);
+    setEditingBuyer(false);
     setMerchantQuery('');
     if (id && draftStorageKey) {
       const recent = [id, ...recentMerchantIds.filter((value) => value !== id)].slice(0, 5);
@@ -1421,6 +1476,7 @@ export function OrderForm({
       action={async (formData) => {
         setSubmitError(null);
         setSubmitNotice(null);
+        if (pricingError) { setSubmitError(pricingError); return; }
         const validationError = validateOrderSubmission({ orderType, customerId, merchantId, merchantOrderMode, items, discount, recipientName, recipientPhone, shippingMethod, shippingAddress, cvsBrand, cvsStoreName });
         if (validationError) {
           revealThrough(8);
@@ -1491,9 +1547,10 @@ export function OrderForm({
       ) : null}
       <nav className={styles.steps} aria-label="開單流程">
         {['選擇對象', '加入商品', '確認送出'].map((label, index) => (
-          <button key={label} type="button" aria-current={(reviewOpen ? 2 : revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
+          <button key={label} type="button" aria-current={(reviewOpen ? 2 : !editingBuyer && revealedStep >= 4 ? 1 : 0) === index ? 'step' : undefined}
             disabled={index > 0 && revealedStep < 4}
             onClick={() => {
+              setEditingBuyer(index === 0);
               setReviewOpen(index === 2);
               if (index === 2) revealThrough(8);
               window.requestAnimationFrame(() => document.getElementById(index === 2 ? 'order-review' : index === 1 ? 'order-products' : 'order-buyer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -1504,7 +1561,7 @@ export function OrderForm({
       </nav>
       <div className={styles.columns}>
       <div className={styles.editor}>
-      <div id="order-buyer" className={styles.buyer}>
+      <div id="order-buyer" hidden={!isEdit && !editingBuyer && revealedStep >= 4} className={styles.buyer}>
       {/* Step 1: 訂單類型 */}
       <section className="space-y-2">
         <div className="text-sm font-medium">① 訂單類型</div>
@@ -1685,9 +1742,10 @@ export function OrderForm({
           ) : null}
         </section>
       )}
+      {editingBuyer && revealedStep >= 4 ? <Button type="button" variant="outline" onClick={() => setEditingBuyer(false)}>完成修改</Button> : null}
       </div>
 
-      <div id="order-products" className={styles.products}>
+      <div id="order-products" hidden={!isEdit && (editingBuyer || reviewOpen || revealedStep < 4)} className={styles.products}>
       {orderType === 'merchant' && merchantId && !isEdit ? <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">{lastOrderLoading ? '查詢上次訂單中…' : lastOrder ? `上次訂單 ${lastOrder.orderNumber}` : '可直接加入本次補貨商品'}</span>
         {lastOrder ? <Button type="button" size="sm" variant="outline" disabled={hasValidLines} asChild><Link href={`/orders/new?copyFrom=${lastOrder.id}`} aria-disabled={hasValidLines} tabIndex={hasValidLines ? -1 : undefined} onClick={(event) => { if (hasValidLines) event.preventDefault(); }}>複製上次訂單</Link></Button> : null}
@@ -1729,6 +1787,7 @@ export function OrderForm({
         removeItem={removeItem}
       /> : null}
 
+      {pricingError ? <p role="alert" className="text-sm text-destructive">{pricingError}</p> : null}
       <OrderProductPicker
         open={productPickerOpen}
         onOpenChange={setProductPickerOpen}
@@ -1757,14 +1816,17 @@ export function OrderForm({
           <p className="break-words text-sm text-muted-foreground">{shippingMethod === 'convenience' ? `${cvsBrand} ${cvsStoreName}` : shippingAddress || '尚未填寫收件地址'}</p>
           {selectedMerchant ? <p className="text-xs text-muted-foreground">已帶入店家預設，請核對收件資料</p> : null}
         </div>
-        {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{formatCurrency(total)}</strong></div>}
+        {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{hasValidLines ? formatCurrency(total) : '—'}</strong></div>}
         <Button type="button" className="mt-5 w-full" disabled={!hasValidLines} onClick={openReview}>確認訂單內容</Button>
       </aside>
       </div>
       <div id="order-review" hidden={!reviewOpen && !isEdit} className={styles.review}>
       {/* Step 4: 金額 + 出貨資訊 */}
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="text-sm font-medium">⑤ 運費與付款</div>
+        <div className="text-sm font-medium">確認訂單</div>
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">付款與運費設定</summary>
+          <div className="mt-3 space-y-4">
 
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1840,6 +1902,9 @@ export function OrderForm({
           ) : null}
         </FieldInline> : null}
 
+          </div>
+        </details>
+
         {revealedStep >= 7 && giftCostTotal > 0 ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             贈品成本 {formatCurrency(giftCostTotal)} 不計入買家合計，建立訂單時會記為公司開銷。
@@ -1856,13 +1921,13 @@ export function OrderForm({
                   : subtotal,
               )}
             />
-            <FieldInline label="店家折扣">
+            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">調整折扣</summary><FieldInline label="店家折扣">
             <OrderDiscountField
               subtotal={subtotal}
               discount={discount}
               onDiscountChange={setDiscount}
             />
-            </FieldInline>
+            </FieldInline></details>
             <Stat label="應收金額" value={formatCurrency(total)} highlight />
           </div>
           <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
@@ -2041,7 +2106,7 @@ export function OrderForm({
           </div>
         </FieldInline> : null}
 
-        {revealedStep >= 8 ? <FieldInline label="⑧ 還有需要記錄的事情嗎？（選填）">
+        {revealedStep >= 8 ? <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">備註（選填）</summary><FieldInline label="備註">
           <textarea
             name="note"
             value={note}
@@ -2050,7 +2115,7 @@ export function OrderForm({
             maxLength={500}
             className="block w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
-        </FieldInline> : null}
+        </FieldInline></details> : null}
       </section> : null}
 
       </div>
