@@ -350,19 +350,35 @@ function OrderLineItemsTable({
                   <span className="mb-1 block text-xs font-medium text-muted-foreground md:hidden">
                     商品
                   </span>
-                  {prod ? <div className="mb-2 flex items-center gap-3">
-                    {prod.imageUrl ? <img src={prod.imageUrl} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg object-contain" /> : null}
-                    <div><strong className="text-base">{prod.name}</strong><p className="text-xs text-muted-foreground">{selectedTier ? tierLabel(selectedTier) : it.unit ?? prod.unit} · 可用庫存 {prod.availableStock} {prod.unit}{prod.availableStock <= 0 ? ' · 目前無現貨' : ''}</p></div>
-                  </div> : null}
-                  <ProductSearchSelect
-                    products={products}
-                    value={it.productId}
-                    onChange={(productId) => onSelectProduct(it.key, productId)}
-                    onSearch={onSearchProducts}
-                    required={rowRequired}
-                  />
+                  {prod ? (
+                    <details className="mb-2 rounded-md border bg-muted/20 px-3 py-2">
+                      <summary className="cursor-pointer text-sm">
+                        <strong>{prod.name}</strong>
+                        <span className="ml-2 text-xs text-muted-foreground">更換商品</span>
+                      </summary>
+                      <div className="mt-2">
+                        <ProductSearchSelect
+                          products={products}
+                          value={it.productId}
+                          onChange={(productId) => onSelectProduct(it.key, productId)}
+                          onSearch={onSearchProducts}
+                          required={rowRequired}
+                        />
+                      </div>
+                    </details>
+                  ) : (
+                    <ProductSearchSelect
+                      products={products}
+                      value={it.productId}
+                      onChange={(productId) => onSelectProduct(it.key, productId)}
+                      onSearch={onSearchProducts}
+                      required={rowRequired}
+                    />
+                  )}
                   {showCommercialTerms && orderType === 'merchant' && prod && merchantOrderMode !== 'jar_exchange' ? (
-                    <div className="mt-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs">
+                    <details className="mt-2 rounded-md border bg-muted/20 px-2.5 py-2 text-xs">
+                      <summary className="cursor-pointer font-medium">合作條件</summary>
+                      <div className="mt-2">
                       {commercialError ? (
                         <p className="text-destructive">{commercialError}</p>
                       ) : commercialTerm ? (
@@ -460,7 +476,8 @@ function OrderLineItemsTable({
                           ) : null}
                         </>
                       ) : null}
-                    </div>
+                      </div>
+                    </details>
                   ) : null}
                   <input
                     type="hidden"
@@ -491,7 +508,11 @@ function OrderLineItemsTable({
                     value={it.isGift ? it.weightGrams ?? '' : ''}
                   />
                   <input type="hidden" name="lineIsGift" value={it.isGift ? '1' : '0'} />
-                  {prod && hasTiers ? (
+                  {prod && prod.priceTiers.length === 1 ? (
+                    <span className="block rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                      {tierLabel(prod.priceTiers[0])}
+                    </span>
+                  ) : prod && hasTiers ? (
                     <select
                       value={selectedTierId}
                       onChange={(e) => onSelectTier(it.key, it.productId, e.target.value)}
@@ -1461,13 +1482,10 @@ export function OrderForm({
           <Save className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             {draftRestored
-              ? '已恢復這台裝置上的未完成訂單。後續修改會繼續自動暫存。'
+              ? '已恢復草稿'
               : draftSavedAt
-                ? `已自動暫存於這台裝置（${new Date(draftSavedAt).toLocaleTimeString('zh-TW', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}）。建立成功後會自動清除。`
-                : '開始填寫後會自動暫存在這台裝置，重新整理也能繼續。'}
+                ? '草稿已儲存'
+                : '會自動儲存草稿'}
           </span>
         </div>
       ) : null}
@@ -1624,7 +1642,7 @@ export function OrderForm({
             </div>
           ) : (
             <div className="space-y-2">
-              <label htmlFor="order-merchant-search" className="text-sm font-medium">選擇店家</label>
+              <label htmlFor="order-merchant-search" className="text-sm font-medium">店家</label>
               <Input id="order-merchant-search" placeholder="搜尋店名、編號或電話" onKeyDown={(event) => { if (event.key === 'Enter') event.preventDefault(); }} value={merchantQuery} onChange={(event) => setMerchantQuery(event.target.value)} />
               <div className={styles.merchantResults}>
                 {[...merchants].sort((a, b) => {
@@ -1644,7 +1662,7 @@ export function OrderForm({
           {revealedStep >= 3 && selectedMerchant ? (
             <>
               <details className={styles.merchantDetails}>
-                <summary>聯絡資料與合作設定</summary>
+                <summary>店家資料</summary>
                 <p>{selectedMerchant.merchantId} · {merchantTypeDisplay(selectedMerchant.types)}</p>
                 <p>{selectedMerchant.contactName} {selectedMerchant.phone}</p>
                 <Link href={`/merchants/${selectedMerchant.id}`} className="text-primary">查看店家資料與設定</Link>
@@ -1658,10 +1676,10 @@ export function OrderForm({
                       </button>
                     ))}
                   </div>
-                  <p className="text-sm text-muted-foreground">{merchantOrderModeDescription[merchantOrderMode]}</p>
+                  <p className="sr-only">{merchantOrderModeDescription[merchantOrderMode]}</p>
                 </>
               ) : (
-                <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-muted-foreground">此店家尚未設定合作方式，請先到店家主檔補上。</p>
+                <p className="rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-sm text-muted-foreground">請先到店家資料設定合作方式。</p>
               )}
             </>
           ) : null}
@@ -1677,15 +1695,15 @@ export function OrderForm({
       </div> : null}
       {/* Step 3: 商品明細 */}
       {revealedStep >= 4 ? <OrderLineItemsTable
-        title="要加入哪些商品"
+        title="商品"
         hint={
           orderType === 'customer'
-            ? '選商品、規格和數量'
+            ? '選商品與數量'
             : merchantOrderMode === 'jar_exchange'
-              ? '只能選換罐計畫商品'
+              ? '選換罐商品'
               : merchantOrderMode === 'wholesale'
-                ? '依 SKU 與店家特約帶入買斷價；缺少設定時會阻擋送出'
-                : '依 SKU 與店家特約帶入寄賣佣金；缺少設定時會阻擋送出'
+                ? '依店家規則帶入進價'
+                : '依店家規則帶入佣金'
         }
         items={items}
         products={visibleProducts}
