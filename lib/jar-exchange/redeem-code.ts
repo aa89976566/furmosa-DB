@@ -4,6 +4,7 @@ import { appendPointsLedger } from '@/lib/jar-exchange/points';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
 import { recordJarExchangeSaleOnRedeem } from '@/lib/jar-exchange/revenue';
 import { resolveCustomerJarMerchantId } from '@/lib/jar-exchange/customer-store-attribution';
+import { resolveJarCodeMerchantId } from '@/lib/jar-exchange/merchant-attribution';
 import { revalidatePath } from 'next/cache';
 
 export type RedeemJarCodeResult =
@@ -48,13 +49,18 @@ export async function redeemJarCode(
         if (row.status === 'used') throw new JarExchangeError('序號已使用', 409);
         if (row.status === 'expired') throw new JarExchangeError('序號已過期', 409);
 
+        const resolvedMerchantId = resolveJarCodeMerchantId(
+          row.issuedMerchantId,
+          attributedMerchantId,
+        );
+
         const claimed = await tx.jarCode.updateMany({
           where: { id: row.id, status: 'unused' },
           data: {
             status: 'used',
             redeemedByCustomerId: customerId,
             redeemedAt: new Date(),
-            returnedMerchantId: attributedMerchantId,
+            returnedMerchantId: resolvedMerchantId,
           },
         });
         if (claimed.count === 0) throw new JarExchangeError('序號已使用', 409);
@@ -75,6 +81,7 @@ export async function redeemJarCode(
           code,
           ledgerId: ledger.id,
           jarCodeId: row.id,
+          resolvedMerchantId,
         };
       },
       { maxWait: 10_000, timeout: 15_000 },
@@ -88,7 +95,7 @@ export async function redeemJarCode(
         result.jarCodeId,
         code,
         prisma,
-        attributedMerchantId,
+        result.resolvedMerchantId,
       );
     } catch (err) {
       console.error('[jar-exchange/redeem] sale record deferred', {
