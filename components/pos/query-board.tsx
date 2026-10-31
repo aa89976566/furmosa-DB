@@ -11,9 +11,9 @@ type QueryTab = QueryKind | "all" | "today";
 const TABS: { id: QueryTab; label: string }[] = [
   { id: "all", label: "全部" }, { id: "today", label: "今日" }, { id: "sale", label: "銷售" },
   { id: "restock", label: "收貨" }, { id: "stock", label: "盤點" },
-  { id: "refill", label: "美容券" },
+  { id: "refill", label: "換罐計畫" },
 ];
-const LABELS: Record<QueryKind, string> = { sale: "銷售", refill: "美容券", restock: "補貨", stock: "盤點" };
+const LABELS: Record<QueryKind, string> = { sale: "銷售", refill: "換罐計畫", restock: "補貨", stock: "盤點" };
 const COLORS: Record<QueryKind, string> = { sale: "bg-rose-400", refill: "bg-violet-400", restock: "bg-emerald-500", stock: "bg-sky-400" };
 
 function step(item: QueryFeedItem) {
