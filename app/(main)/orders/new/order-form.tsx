@@ -1102,7 +1102,7 @@ export function OrderForm({
       merchantOrderMode === 'wholesale'
         ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ??
           (tierId
-            ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? null
+            ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? p.defaultWholesaleUnitPrice
             : p.defaultWholesaleUnitPrice)
         : 0;
     if (p.priceTiers.length > 0) {
@@ -1757,7 +1757,7 @@ export function OrderForm({
           <p className="break-words text-sm text-muted-foreground">{shippingMethod === 'convenience' ? `${cvsBrand} ${cvsStoreName}` : shippingAddress || '尚未填寫收件地址'}</p>
           {selectedMerchant ? <p className="text-xs text-muted-foreground">已帶入店家預設，請核對收件資料</p> : null}
         </div>
-        {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{formatCurrency(total)}</strong></div>}
+        {orderType === 'merchant' && merchantOrderMode === 'consignment' ? <p className={styles.notice}>寄賣商品售出後結算<br /><span>本次商品款不列入應收，運費另依設定</span></p> : orderType === 'merchant' && merchantOrderMode === 'jar_exchange' ? <p className={styles.notice}>換罐補貨<br /><span>本次不計算顧客換罐金額</span></p> : <div className="mt-4 flex justify-between border-t pt-4"><span>訂單合計</span><strong>{hasValidLines ? formatCurrency(total) : '—'}</strong></div>}
         <Button type="button" className="mt-5 w-full" disabled={!hasValidLines} onClick={openReview}>確認訂單內容</Button>
       </aside>
       </div>
