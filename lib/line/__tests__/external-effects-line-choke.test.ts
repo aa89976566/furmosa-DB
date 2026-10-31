@@ -103,6 +103,11 @@ describe('LINE reply choke (postReply)', () => {
     await replyLineText(SYNTHETIC_REPLY_TOKEN, SYNTHETIC_MESSAGE);
     assert.equal(fetchCalls.length, 1);
     assert.match(fetchCalls[0]!, /api\.line\.me\/v2\/bot\/message\/reply/);
+    assert.equal(
+      consoleChunks.some((line) => line.includes('[line/reply] delivered')),
+      true,
+    );
+    assertNoSensitiveLeak(consoleChunks);
   });
 
   for (const caseName of [
