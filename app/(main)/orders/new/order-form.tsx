@@ -323,6 +323,14 @@ function OrderLineItemsTable({
                       selectedTierId || null,
                     )
                   : null;
+                const automaticQuote = merchantOrderMode === 'wholesale' && wholesaleException == null
+                  ? quoteDefaultBuyoutTier({
+                      sku: prod.sku,
+                      retailUnitPrice: selectedTier?.price ?? prod.price,
+                      quantity: items.filter((line) => line.productId === prod.id && !line.isGift)
+                        .reduce((sum, line) => sum + line.quantity, 0),
+                    })
+                  : null;
                 commercialTerm = resolveMerchantCommercialTerm({
                   orderMode: merchantOrderMode,
                   product: prod,
@@ -335,6 +343,7 @@ function OrderLineItemsTable({
                     : wholesaleException == null
                       ? null
                       : { mode: 'fixed_price', value: wholesaleException },
+                  automaticWholesaleUnitPrice: automaticQuote?.wholesaleUnitPrice ?? null,
                   // 畫面先解析可信預設；覆寫的完整格式與原因由送出端再次驗證。
                   override: null,
                 });
@@ -390,7 +399,7 @@ function OrderLineItemsTable({
                               {' · '}
                               {commercialTerm.commercialRuleSource === 'merchant_exception'
                                 ? '店家特約'
-                                : 'SKU 預設'}
+                                : commercialTerm.commercialRuleSource === 'quantity_tier' ? '數量級距' : 'SKU 預設'}
                             </span>
                             <strong>
                               {commercialTermValueLabel(
@@ -403,7 +412,7 @@ function OrderLineItemsTable({
                               )}
                             </strong>
                           </div>
-                          {merchantOrderMode === 'wholesale' ? (
+                          {merchantOrderMode === 'wholesale' && commercialTerm.commercialRuleSource !== 'quantity_tier' ? (
                             <label className="mt-2 flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -429,10 +438,10 @@ function OrderLineItemsTable({
                             </label>
                           ) : (
                             <p className="mt-2 text-muted-foreground">
-                              寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。
+                              {merchantOrderMode === 'wholesale' ? '依數量自動計價' : '寄賣佣金依 SKU 預設或店家特約套用，不可逐單調整。'}
                             </p>
                           )}
-                          {merchantOrderMode === 'wholesale' && it.commercialOverrideEnabled ? (
+                          {merchantOrderMode === 'wholesale' && commercialTerm.commercialRuleSource !== 'quantity_tier' && it.commercialOverrideEnabled ? (
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
                               <label>
                                 <span className="mb-1 block text-muted-foreground">
