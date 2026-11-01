@@ -84,6 +84,8 @@ const shipmentInclude = {
           name: true,
           category: true,
           unit: true,
+          productCategory: true,
+          inventorySourceProduct: { select: { id: true, sku: true, name: true, status: true, unit: true, inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } }, select: { quantity: true, unit: true, lastCountedAt: true } } } },
           priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
           inventoryBalances: {
             where: { warehouse: { code: 'WH-MAIN' } },

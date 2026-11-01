@@ -31,7 +31,7 @@ export function incomingHqGrams(orders: PendingPurchase[]) {
 export type ShipmentAuditInput = {
   id: string; shipmentNumber: string; hqInventoryEligible: boolean; status: string;
   order: { status: string; fulfillmentStatus: string; paymentStatus: string } | null;
-  items: { productId: string; productName: string; quantity: number; product: { sku: string; category: string } }[];
+  items: { productId: string; productName: string; quantity: number; product: { sku: string; category: string; inventorySourceProductId?: string | null } }[];
 };
 type Ledger = { reference: string | null; productId: string; quantity: number; eventKey: string | null };
 const trackedCategories = new Set(['staple_food', 'treats', 'freeze_dried', 'health']);
@@ -46,7 +46,8 @@ export function missingShipmentDeductions(shipments: ShipmentAuditInput[], ledge
     if (order && (['cancelled', 'returned'].includes(order.status) || order.fulfillmentStatus === 'returned' || order.paymentStatus === 'refunded')) return [];
     const missing = [...new Map(shipment.items.filter(item => item.quantity > 0 && trackedCategories.has(item.product.category)
       && !isMadeToOrderHqProduct(item.product.sku)
-      && !posted.has(JSON.stringify([`shipment:${shipment.id}`, item.productId])))
+      && !posted.has(JSON.stringify([`shipment:${shipment.id}`, item.productId]))
+      && !posted.has(JSON.stringify([`shipment:${shipment.id}`, item.product.inventorySourceProductId])))
       .map(item => [item.productId, item.productName])).values()];
     return missing.length ? [{ id: shipment.id, shipmentNumber: shipment.shipmentNumber, missing }] : [];
   });

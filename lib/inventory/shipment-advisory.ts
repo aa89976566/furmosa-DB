@@ -13,6 +13,8 @@ type AdvisoryItem = {
   weightGrams?: number | null;
   variantKey?: string | null;
   product: {
+    productCategory?: string;
+    inventorySourceProduct?: { id: string; sku: string; name: string; status: string; unit: string; inventoryBalances: AdvisoryBalance[] } | null;
     id: string;
     sku: string;
     name: string;
@@ -38,18 +40,22 @@ export function shipmentInventoryAdvisories(items: AdvisoryItem[]): string[] {
 
   for (const item of items) {
     const product = item.product;
-    if (!TRACKED_CATEGORIES.has(product.category) || isMadeToOrderHqProduct(product.sku)) continue;
-    const unit = bulkUnit(product.unit);
+    if ((product.productCategory !== 'JAR_EXCHANGE' && !TRACKED_CATEGORIES.has(product.category)) || isMadeToOrderHqProduct(product.sku)) continue;
+    const source = product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct : product;
+    if (!source || ('status' in source && source.status !== 'active')) {
+      return [`${product.name}尚未設定有效庫存來源單品，無法出貨`];
+    }
+    const unit = bulkUnit(source.unit);
     if (!unit) continue;
     try {
-      const amount = bulkConsumption(product, item);
-      const current = required.get(product.id);
-      required.set(product.id, {
-        name: product.name,
-        sku: product.sku,
+      const amount = bulkConsumption(product.productCategory === 'JAR_EXCHANGE' ? { ...product, unit: 'g' } : product, item);
+      const current = required.get(source.id);
+      required.set(source.id, {
+        name: source.name,
+        sku: source.sku,
         unit,
         amount: (current?.amount ?? 0) + amount,
-        balance: current?.balance ?? product.inventoryBalances?.[0] ?? null,
+        balance: current?.balance ?? source.inventoryBalances?.[0] ?? null,
       });
     } catch {
       // 規格錯誤仍由既有後端驗證阻擋；此函式只負責庫存數量提醒。

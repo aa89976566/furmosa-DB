@@ -46,3 +46,13 @@ test('未盤點商品顯示提醒', () => {
 test('庫存足夠不顯示提醒', () => {
   assert.deepEqual(shipmentInventoryAdvisories([item({ quantity: 2, stock: 100 })]), []);
 });
+
+test('換罐與一般商品共用來源單品，庫存提醒累加克數', () => {
+  const standard = item({ stock: 80 });
+  const jar = { ...item({ stock: -300 }), quantity: 1, product: { ...item({}).product,
+    id: 'jar', productCategory: 'JAR_EXCHANGE', unit: '條',
+    inventorySourceProduct: { ...standard.product, status: 'active' },
+  } };
+  assert.deepEqual(shipmentInventoryAdvisories([standard, jar]), ['測試零食庫存 80g，本次需 100g，寄出後為 -20g']);
+  assert.match(shipmentInventoryAdvisories([{ ...jar, product: { ...jar.product, inventorySourceProduct: null } }])[0], /尚未設定有效庫存來源/);
+});

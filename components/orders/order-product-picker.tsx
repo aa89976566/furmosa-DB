@@ -21,6 +21,7 @@ export type OrderProductPickerOption = {
   imageUrl?: string | null;
   sku: string;
   availableStock: number;
+  inventorySourceLabel?: string | null;
   price: number;
   unit: string;
   priceTiers: OrderProductPickerTier[];
@@ -161,7 +162,7 @@ export function OrderProductPicker({
                             </div>
                           </div>
                           <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                            庫存 {product.availableStock}
+                            {product.inventorySourceLabel ? `${product.inventorySourceLabel} ${product.inventorySourceLabel.startsWith('來源：') ? product.availableStock : ''}` : `庫存 ${product.availableStock}`}
                           </span>
                         </div>
                         <div className="mt-4 flex items-center justify-between gap-3">

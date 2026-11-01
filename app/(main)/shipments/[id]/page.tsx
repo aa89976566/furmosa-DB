@@ -70,6 +70,7 @@ export default async function ShipmentDetailPage(
         include: {
           product: {
             include: {
+              inventorySourceProduct: { include: { inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } } } } },
               priceTiers: true,
               inventoryBalances: {
                 where: { warehouse: { code: 'WH-MAIN' } },

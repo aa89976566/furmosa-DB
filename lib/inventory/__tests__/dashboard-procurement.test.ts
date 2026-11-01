@@ -60,3 +60,10 @@ test('舊流程 omsStatus=null 的納管出貨仍須檢查', () => {
   assert.equal(missingShipmentDeductions([legacyOrder], []).length, 1);
   assert.equal(missingShipmentDeductions([legacyOrder], [posted]).length, 0);
 });
+
+test('換罐來源單品扣帳可通過稽核，舊獨立扣帳也保留相容', () => {
+  const jar = { ...shipment, items: [{ ...shipment.items[0]!, productId: 'jar', product: { ...shipment.items[0]!.product, inventorySourceProductId: 'p1' } }] };
+  assert.deepEqual(missingShipmentDeductions([jar], [posted]), []);
+  assert.deepEqual(missingShipmentDeductions([jar], [{ ...posted, productId: 'jar' }]), []);
+  assert.equal(missingShipmentDeductions([jar], []).length, 1);
+});

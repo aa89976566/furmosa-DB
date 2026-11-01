@@ -32,7 +32,7 @@ export async function loadDashboardProcurement() {
       where: { hqInventoryEligible: true, status: { in: ['shipped', 'delivered', 'received'] }, shippedAt: { gte: auditSince } },
       select: { id: true, shipmentNumber: true, hqInventoryEligible: true, status: true,
         order: { select: { status: true, fulfillmentStatus: true, paymentStatus: true } },
-        items: { select: { productId: true, productName: true, quantity: true, product: { select: { sku: true, category: true } } } } },
+        items: { select: { productId: true, productName: true, quantity: true, product: { select: { sku: true, category: true, inventorySourceProductId: true } } } } },
       orderBy: [{ shippedAt: 'desc' }, { id: 'desc' }], take: 100,
     }),
   ]);
