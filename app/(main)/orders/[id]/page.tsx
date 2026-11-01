@@ -818,7 +818,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                               換罐計畫
                             </Badge>
                             <p className="text-xs text-muted-foreground">
-                              庫存扣除品項 · 非一般銷售 · 無須佣金
+                              換罐計畫 · 無須佣金
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              庫存扣除品項 · 非一般銷售
                             </p>
                           </div>
                         ) : (
