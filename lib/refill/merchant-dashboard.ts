@@ -27,7 +27,11 @@ export type MerchantRefillDashboard = {
   summary: {
     today: number;
     thisMonth: number;
+    last30Days: number;
     availableStock: number;
+    todayLabel: string;
+    monthLabel: string;
+    updatedAtLabel: string;
   };
   inventory: Array<{
     id: string;
@@ -67,6 +71,26 @@ function taipeiDateTimeLabel(date: Date): string {
   }).format(date);
 }
 
+export function buildTaipeiRefillSummaryRange(now: Date = new Date()) {
+  const todayKey = taipeiDateKey(now);
+  const monthKey = taipeiMonthKey(now);
+  return {
+    todayStartedAt: new Date(`${todayKey}T00:00:00+08:00`),
+    monthStartedAt: new Date(`${monthKey}-01T00:00:00+08:00`),
+    last30DaysStartedAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+    todayLabel: new Intl.DateTimeFormat('zh-TW', {
+      timeZone: 'Asia/Taipei',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now),
+    monthLabel: new Intl.DateTimeFormat('zh-TW', {
+      timeZone: 'Asia/Taipei',
+      month: 'numeric',
+    }).format(now),
+    updatedAtLabel: taipeiDateTimeLabel(now),
+  };
+}
+
 export async function loadMerchantRefillDashboard(
   merchantId: string,
 ): Promise<MerchantRefillDashboard> {
@@ -84,7 +108,15 @@ export async function loadMerchantRefillDashboard(
       exchangePrice: settings.exchangePrice,
       flavourUpdateNote: settings.flavourUpdateNote,
     },
-    summary: { today: 0, thisMonth: 0, availableStock: 0 },
+    summary: {
+      today: 0,
+      thisMonth: 0,
+      last30Days: 0,
+      availableStock: 0,
+      todayLabel: '',
+      monthLabel: '',
+      updatedAtLabel: '',
+    },
     inventory: [],
     transactions: [],
   };
@@ -120,12 +152,9 @@ export async function loadMerchantRefillDashboard(
     ],
   };
   const now = new Date();
-  const todayKey = taipeiDateKey(now);
-  const monthKey = taipeiMonthKey(now);
-  const todayStartedAt = new Date(`${todayKey}T00:00:00+08:00`);
-  const monthStartedAt = new Date(`${monthKey}-01T00:00:00+08:00`);
+  const range = buildTaipeiRefillSummaryRange(now);
 
-  const [stocks, codes, todayCount, monthCount] = await Promise.all([
+  const [stocks, codes, todayCount, monthCount, last30DaysCount] = await Promise.all([
     prisma.merchantRefillStock.findMany({
       where: { storeId: store.id },
       orderBy: [{ isAvailable: 'desc' }, { flavour: { sortOrder: 'asc' } }],
@@ -150,10 +179,13 @@ export async function loadMerchantRefillDashboard(
       },
     }),
     prisma.jarCode.count({
-      where: { AND: [where, { redeemedAt: { gte: todayStartedAt } }] },
+      where: { AND: [where, { redeemedAt: { gte: range.todayStartedAt } }] },
     }),
     prisma.jarCode.count({
-      where: { AND: [where, { redeemedAt: { gte: monthStartedAt } }] },
+      where: { AND: [where, { redeemedAt: { gte: range.monthStartedAt } }] },
+    }),
+    prisma.jarCode.count({
+      where: { AND: [where, { redeemedAt: { gte: range.last30DaysStartedAt } }] },
     }),
   ]);
 
@@ -172,9 +204,13 @@ export async function loadMerchantRefillDashboard(
     summary: {
       today: todayCount,
       thisMonth: monthCount,
+      last30Days: last30DaysCount,
       availableStock: stocks
         .filter((stock) => stock.isAvailable)
         .reduce((sum, stock) => sum + stock.quantity, 0),
+      todayLabel: range.todayLabel,
+      monthLabel: range.monthLabel,
+      updatedAtLabel: range.updatedAtLabel,
     },
     inventory: stocks.map((stock) => ({
       id: stock.id,
