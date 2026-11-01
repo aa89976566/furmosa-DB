@@ -108,7 +108,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     />;
   }
 
-  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
+  const totalOnHand = (product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct?.inventoryBalances.filter(b => b.warehouse.code === 'WH-MAIN') ?? [] : product.inventoryBalances).reduce((sum, b) => sum + b.quantity, 0);
   const variationSummary = summarizeVariations(variations);
 
   const statusLabel =
@@ -146,7 +146,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
           <SummaryChip label="售價" value={variationSummary.priceRange} />
-          <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />
+          <SummaryChip label={product.productCategory === 'JAR_EXCHANGE' ? '來源庫存' : '庫存'} value={product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定' : formatNumber(totalOnHand)} />
         </div>
 
         <div
