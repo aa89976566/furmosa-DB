@@ -11,6 +11,7 @@ import {
 } from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
+  refillDeliveryRequiresEmptyJar,
   type RefillOrderStatus,
 } from '@/lib/refill/constants';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
