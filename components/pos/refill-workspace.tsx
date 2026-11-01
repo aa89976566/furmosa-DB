@@ -57,8 +57,8 @@ function RefillWorkspaceInner({ account, dashboard }: { account: PosAccount; das
             {!dashboard.storeReady ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">本店尚未完成換罐計畫店家綁定，為避免顯示其他店家資料，交易紀錄已暫時隱藏。請聯絡匠寵客服完成設定。</section> : null}
             <section aria-live="polite" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SummaryCard label={`今日 LINE 入點（${dashboard.summary.todayLabel}）`} value={`${dashboard.summary.today} 筆`} note={`同步於 ${dashboard.summary.updatedAtLabel}`} />
-              <SummaryCard label={`本月交易（${dashboard.summary.monthLabel}）`} value={`${dashboard.summary.thisMonth} 筆`} note={`近 30 日共 ${dashboard.summary.last30Days} 筆`} />
-              <SummaryCard label="本店可換庫存" value={`${dashboard.summary.availableStock} 份`} note="每 30 秒自動同步" />
+              <SummaryCard label="近 30 日 LINE 入點" value={`${dashboard.summary.last30Days} 筆`} note={`${dashboard.summary.monthLabel}本月共 ${dashboard.summary.thisMonth} 筆`} />
+              <SummaryCard label="本店可換庫存" value={`${dashboard.summary.availableStock} 份`} note={dashboard.inventory.length ? "每 30 秒自動同步" : "本店尚未設定可換內容"} />
             </section>
             <section className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
               <div className="space-y-5">
