@@ -1,3 +1,4 @@
+import { packagedOrderUnit } from '@/lib/product-units';
 import { prisma } from '@/lib/prisma';
 import { restockStatusLabelForMerchant } from '@/lib/restock-request/constants';
 import { formatQueryDate, formatQueryDateHeading, formatQueryMonthDay, formatQueryTime, formatQueryWhen, groupSaleLines, type QueryFeedItem, type RestockProgressStage } from '@/lib/pos/query-feed';
@@ -26,7 +27,7 @@ function restockLineLabel(line: RestockLine): string {
 }
 
 function restockLineQuantity(line: RestockLine): string {
-  return `${line.quantity} ${line.unit?.trim() || '件'}`;
+  return `${line.quantity} ${packagedOrderUnit(line.unit, line.weightGrams) || '件'}`;
 }
 
 export function summarizeRestockLines(lines: RestockLine[]) {
