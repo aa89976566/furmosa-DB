@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRefillMerchantSession } from '@/lib/refill/auth-merchant';
-import { assignNewAndComplete } from '@/lib/refill/merchant';
+import { completeRefillDelivery } from '@/lib/refill/merchant';
 import { toRefillHttp } from '@/lib/refill/errors';
 
 export const dynamic = 'force-dynamic';
