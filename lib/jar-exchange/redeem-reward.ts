@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { generateCouponCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points';
 import { ensureJarExchangeService } from '@/lib/jar-exchange/services';
+import { redeemGroomingCouponForCustomer } from '@/lib/coupons/service';
 
 import type { Prisma } from '@prisma/client';
 
@@ -36,6 +37,13 @@ export type RedeemRewardResult =
     }
   | { ok: false; error: string; status: number };
 
+export function isGroomingCouponReward(reward: {
+  rewardType: string;
+  pointsRequired: number;
+}): boolean {
+  return reward.rewardType === 'grooming_coupon' && reward.pointsRequired === 10;
+}
+
 export async function redeemRewardForCustomer(
   customerId: string,
   rewardId: string,
@@ -52,6 +60,24 @@ export async function redeemRewardForCustomer(
   }
   if (reward.endAt && reward.endAt < now) {
     return { ok: false, error: '獎勵已過期', status: 400 };
+  }
+
+  // 舊獎勵目錄曾直接產生一組 RewardRedemption 券碼，但 POS 正式核銷只認
+  // GroomingCoupon。美容券一律走同一服務，才能正確套用會員綁定店家、
+  // NT$200／特約店面額、30 天效期與 POS 防重複核銷。
+  if (isGroomingCouponReward(reward)) {
+    const result = await redeemGroomingCouponForCustomer(customerId);
+    if (!result.ok) {
+      return { ok: false, error: result.error, status: 409 };
+    }
+    return {
+      ok: true,
+      redemptionCode: result.coupon.id,
+      couponCode: result.coupon.couponCode,
+      pointsSpent: result.pointsSpent,
+      balanceAfter: result.balanceAfter,
+      internalCost: result.coupon.discountAmount,
+    };
   }
 
   const balance = await getPointsBalance(prisma, customerId);
