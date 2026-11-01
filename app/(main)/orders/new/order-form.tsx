@@ -634,7 +634,7 @@ function OrderLineItemsTable({
                         required={rowRequired && Boolean(it.productId) && !it.isGift}
                         className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
                       />
-                      {!it.isGift && it.unitPrice <= 0 ? (
+                      {!it.isGift && it.unitPrice <= 0 && !(orderType === 'merchant' && merchantOrderMode === 'jar_exchange') ? (
                         <p className="mt-1 text-[10px] text-destructive">
                           商品主檔尚未設定售價
                         </p>
@@ -1075,7 +1075,8 @@ export function OrderForm({
       }),
     [shippingFeeType, shippingMethod, cvsBrand],
   );
-  const total = Math.max(0, subtotal - discount + shippingResolved.shippingFee);
+  const isUnbilledJarRestock = orderType === 'merchant' && merchantOrderMode === 'jar_exchange';
+  const total = isUnbilledJarRestock ? 0 : Math.max(0, subtotal - discount + shippingResolved.shippingFee);
   const collection = paymentCollectionSummary(total, paymentStatus);
 
   const selectedLines = items.filter((item) => item.productId && item.quantity > 0);
@@ -1770,6 +1771,9 @@ export function OrderForm({
       {revealedStep >= 5 ? <section className="space-y-4 rounded-lg border bg-card p-4">
         <div className="text-sm font-medium">⑤ 運費與付款</div>
 
+        {isUnbilledJarRestock ? <p className="text-sm">換罐補貨不計費，本單無須付款。</p> : null}
+        <div hidden={isUnbilledJarRestock}>
+
         <FieldInline label="運費類型">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <FeeTypeCard
@@ -1844,6 +1848,7 @@ export function OrderForm({
           ) : null}
         </FieldInline> : null}
 
+        </div>
         {revealedStep >= 7 && giftCostTotal > 0 ? (
           <p className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
             贈品成本 {formatCurrency(giftCostTotal)} 不計入買家合計，建立訂單時會記為公司開銷。
@@ -1876,7 +1881,7 @@ export function OrderForm({
                 {shippingMethod
                   ? shippingMethodLabel({ shippingMethod, cvsBrand })
                   : '尚未選擇物流方式'}
-                ：{shippingMethod ? formatCurrency(shippingResolved.shippingFee) : '—'}
+                ：{isUnbilledJarRestock ? '換罐補貨不計費' : shippingMethod ? formatCurrency(shippingResolved.shippingFee) : '—'}
               </span>
               <span>已收：{collection.receivedAmount == null ? '尚未登記' : formatCurrency(collection.receivedAmount)}</span>
               <span>尚未收：{collection.outstandingAmount == null ? '尚未登記' : formatCurrency(collection.outstandingAmount)}</span>

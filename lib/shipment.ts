@@ -26,6 +26,11 @@ export const shipmentStatusLabel: Record<string, string> = {
   cancelled: '已取消',
 };
 
+/** Cancelled parent orders stop pending work even when legacy shipment rows retain their status. */
+export function shipmentDisplayStatus(status: string, orderStatus?: string | null): string {
+  return orderStatus === 'cancelled' ? 'cancelled' : status;
+}
+
 export const shipmentStatusVariant: Record<
   string,
   'secondary' | 'warning' | 'info' | 'success' | 'destructive'
