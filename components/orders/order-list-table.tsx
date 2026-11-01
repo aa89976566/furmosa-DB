@@ -31,7 +31,10 @@ function orderItemSummary(order: OrderListRow) {
   const first = rows[0]!;
   const firstLabel = `${first.name}${first.quantity ? ` × ${first.quantity}` : ''}`;
   const total = sourceItems.length || order._count.items;
-  return total > 1 ? `${firstLabel} · 共 ${total} 項` : firstLabel;
+  const itemLabel = total > 1 ? `${firstLabel} · 共 ${total} 項` : firstLabel;
+  return order.merchantOrderMode === 'jar_exchange'
+    ? `換罐計畫｜庫存扣除：${itemLabel}`
+    : itemLabel;
 }
 
 function nextAction(order: OrderListRow) {
