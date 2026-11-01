@@ -634,7 +634,7 @@ function OrderLineItemsTable({
                         required={rowRequired && Boolean(it.productId) && !it.isGift}
                         className="h-9 min-w-0 text-right tabular-nums read-only:bg-muted/40 disabled:opacity-60 md:min-w-[5.5rem]"
                       />
-                      {!it.isGift && it.unitPrice <= 0 ? (
+                      {!it.isGift && it.unitPrice <= 0 && !(orderType === 'merchant' && merchantOrderMode === 'jar_exchange') ? (
                         <p className="mt-1 text-[10px] text-destructive">
                           商品主檔尚未設定售價
                         </p>
@@ -1075,7 +1075,8 @@ export function OrderForm({
       }),
     [shippingFeeType, shippingMethod, cvsBrand],
   );
-  const total = Math.max(0, subtotal - discount + shippingResolved.shippingFee);
+  const isUnbilledJarRestock = orderType === 'merchant' && merchantOrderMode === 'jar_exchange' && !customerId;
+  const total = isUnbilledJarRestock ? 0 : Math.max(0, subtotal - discount + shippingResolved.shippingFee);
   const collection = paymentCollectionSummary(total, paymentStatus);
 
   const selectedLines = items.filter((item) => item.productId && item.quantity > 0);
@@ -1876,7 +1877,7 @@ export function OrderForm({
                 {shippingMethod
                   ? shippingMethodLabel({ shippingMethod, cvsBrand })
                   : '尚未選擇物流方式'}
-                ：{shippingMethod ? formatCurrency(shippingResolved.shippingFee) : '—'}
+                ：{isUnbilledJarRestock ? '換罐補貨不計費' : shippingMethod ? formatCurrency(shippingResolved.shippingFee) : '—'}
               </span>
               <span>已收：{collection.receivedAmount == null ? '尚未登記' : formatCurrency(collection.receivedAmount)}</span>
               <span>尚未收：{collection.outstandingAmount == null ? '尚未登記' : formatCurrency(collection.outstandingAmount)}</span>
