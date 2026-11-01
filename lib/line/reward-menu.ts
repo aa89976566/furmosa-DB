@@ -35,6 +35,7 @@ export async function listActiveRewardsForLine(): Promise<LineRewardOption[]> {
       id: true,
       rewardCode: true,
       rewardName: true,
+      rewardType: true,
       pointsRequired: true,
     },
   });
@@ -43,7 +44,10 @@ export async function listActiveRewardsForLine(): Promise<LineRewardOption[]> {
     index: i + 1,
     id: row.id,
     rewardCode: row.rewardCode,
-    rewardName: row.rewardName,
+    rewardName:
+      row.rewardType === 'grooming_coupon' && row.pointsRequired === 10
+        ? '美容折價券（依綁定店家）'
+        : row.rewardName,
     pointsRequired: row.pointsRequired,
   }));
 }
