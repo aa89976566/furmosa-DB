@@ -7,10 +7,14 @@ function readEnv(name: string): string | undefined {
   return v || undefined;
 }
 
-/** Messaging API Channel ID（Basic settings），用於驗證 ID Token */
+/** LINE Login Channel ID，用於驗證 LIFF ID Token。 */
 export function getLineChannelId(): string {
-  const id = readEnv('LINE_CHANNEL_ID');
-  if (!id) throw new Error('缺少環境變數 LINE_CHANNEL_ID');
+  // Production already uses LINE_LOGIN_CHANNEL_ID for LINE Login. Keep the
+  // legacy name as a fallback so older environments continue to work.
+  const id = readEnv('LINE_LOGIN_CHANNEL_ID') ?? readEnv('LINE_CHANNEL_ID');
+  if (!id) {
+    throw new Error('缺少環境變數 LINE_LOGIN_CHANNEL_ID（或舊名稱 LINE_CHANNEL_ID）');
+  }
   return id;
 }
 
