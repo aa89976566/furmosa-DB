@@ -12,6 +12,14 @@ export const merchantCommercialModeLabel: Record<MerchantCommercialMode, string>
   jar_exchange: '換罐計畫',
 };
 
+export function usesLegacyCommercialModeFallback(
+  configuredModuleCount: number,
+  legacyModes: readonly string[],
+  mode: MerchantCommercialMode,
+) {
+  return configuredModuleCount === 0 && legacyModes.includes(mode);
+}
+
 export type MerchantCommercialPeriod = {
   effectiveFrom: Date;
   effectiveUntil: Date | null;

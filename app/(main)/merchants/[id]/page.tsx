@@ -110,6 +110,7 @@ export default async function MerchantOverviewPage(
           <MerchantCommercialModules
             merchantId={merchant.id}
             modules={commercialModules.modules}
+            legacyModes={types}
             canEdit={canManagePasswords}
           />
         ) : (

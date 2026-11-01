@@ -5,6 +5,7 @@ import {
   merchantCommercialPeriodsOverlap,
   parseMerchantCommercialMode,
   parseMerchantCommercialPeriod,
+  usesLegacyCommercialModeFallback,
   validateMerchantCommercialPeriodWrite,
 } from '../commercial-module-input.ts';
 
@@ -19,6 +20,12 @@ test('only the three approved merchant commercial modes are accepted', () => {
   assert.equal(parseMerchantCommercialMode('wholesale'), 'wholesale');
   assert.equal(parseMerchantCommercialMode('jar_exchange'), 'jar_exchange');
   assert.throws(() => parseMerchantCommercialMode('shipping'), /不正確/);
+});
+
+test('legacy merchant type is shown as fallback only before any module is configured', () => {
+  assert.equal(usesLegacyCommercialModeFallback(0, ['jar_exchange'], 'jar_exchange'), true);
+  assert.equal(usesLegacyCommercialModeFallback(0, ['jar_exchange'], 'consignment'), false);
+  assert.equal(usesLegacyCommercialModeFallback(1, ['jar_exchange'], 'jar_exchange'), false);
 });
 
 test('date-only input covers the full stop date and rejects reversed periods', () => {

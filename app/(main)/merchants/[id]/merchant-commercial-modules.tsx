@@ -5,6 +5,7 @@ import {
   MERCHANT_COMMERCIAL_MODES,
   merchantCommercialModeLabel,
   merchantCommercialPeriodStatus,
+  usesLegacyCommercialModeFallback,
   type MerchantCommercialMode,
 } from '@/lib/merchants/commercial-module-input';
 import { saveMerchantCommercialModule } from './actions';
@@ -35,10 +36,12 @@ function currentOrUpcomingPeriod(rows: ModulePeriod[], now: Date) {
 export function MerchantCommercialModules({
   merchantId,
   modules,
+  legacyModes,
   canEdit,
 }: {
   merchantId: string;
   modules: ModulePeriod[];
+  legacyModes: readonly string[];
   canEdit: boolean;
 }) {
   const now = new Date();
@@ -52,6 +55,7 @@ export function MerchantCommercialModules({
         const latest = rows[0] ?? null;
         const shown = editable ?? latest;
         const status = shown ? merchantCommercialPeriodStatus(shown, now) : null;
+        const legacyFallback = usesLegacyCommercialModeFallback(modules.length, legacyModes, mode);
         const startLocked = status === 'active';
 
         return (
@@ -72,7 +76,7 @@ export function MerchantCommercialModules({
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                {status ? statusLabel[status] : '未設定'}
+                {status ? statusLabel[status] : legacyFallback ? '沿用既有資格' : '未設定'}
               </span>
             </div>
 
