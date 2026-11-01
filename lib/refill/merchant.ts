@@ -14,7 +14,8 @@ import {
   type RefillOrderStatus,
 } from '@/lib/refill/constants';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
-import { initiateRefillPayment } from '@/lib/refill/payment';\nimport { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
+import { initiateRefillPayment } from '@/lib/refill/payment';
+import { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
 
 export type MerchantJarExchangeMember = {
   id: string;
