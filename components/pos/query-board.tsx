@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Circle, Download, Search, SlidersHorizontal, Truck, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { filterQueryFeed, type QueryFeedItem, type QueryKind } from "@/lib/pos/query-feed";
+import { selectVisibleRestockProgress } from "@/lib/pos/query-board-selection";
 
 type QueryTab = QueryKind | "all" | "today";
 
@@ -82,7 +83,7 @@ export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { 
     if (kind !== "today") return filtered;
     return filtered.filter((item) => item.dateLabel === todayDateLabel);
   }, [items, kind, query, todayDateLabel]);
-  const selected = items.find((item) => item.id === selectedId && item.restockProgress) ?? items.find((item) => item.restockProgress);
+  const selected = selectVisibleRestockProgress(visible, selectedId);
   const groups = useMemo(() => {
     const map = new Map<string, QueryFeedItem[]>();
     for (const item of visible) map.set(item.dateLabel ?? item.whenLabel, [...(map.get(item.dateLabel ?? item.whenLabel) ?? []), item]);
