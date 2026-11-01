@@ -380,13 +380,14 @@ export async function restockMerchant(formData: FormData) {
 
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((i) => i.productId) } },
+    include: { priceTiers: true },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
   const { order, shipment } = await createRestockOrderWithShipment({
     merchantId,
     items,
-    products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
+    products,
     recipientName: pickup711?.recipientName ?? profileName,
     recipientPhone: pickup711?.recipientPhone ?? profilePhone,
     recipientAddress: pickup711?.recipientAddress ?? profileAddress,
