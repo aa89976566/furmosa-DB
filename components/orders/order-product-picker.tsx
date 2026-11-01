@@ -52,14 +52,16 @@ export function OrderProductPicker({
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    setRemote(null);
     const timer = window.setTimeout(() => {
       setSearching(true);
       void onSearch(query)
-        .then(setRemote)
-        .catch(() => setRemote([]))
-        .finally(() => setSearching(false));
+        .then((rows) => { if (!cancelled) setRemote(rows); })
+        .catch(() => { if (!cancelled) setRemote(null); })
+        .finally(() => { if (!cancelled) setSearching(false); });
     }, 180);
-    return () => window.clearTimeout(timer);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [onSearch, open, query]);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export function OrderProductPicker({
       setQuery('');
       setRemote(null);
       setExpandedId(null);
+      setSearching(false);
     }
   }, [open]);
 
