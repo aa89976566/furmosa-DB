@@ -683,6 +683,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <p className="text-sm">Shopify 原始總額：{sourceView?.currency} {sourceView?.total || '待重新同步'}</p>
                 <p className="text-xs text-muted-foreground">請在 Shopify 處理付款或金額變更後重新同步；HQ 不套用手動訂單運費試算。</p>
               </div>
+            ) : isMerchantRestock && order.merchantOrderMode === 'jar_exchange' ? (
+              <p className="text-sm">換罐補貨不計費，本單無須付款。</p>
             ) : (
             <div className="space-y-3">
               <div>
