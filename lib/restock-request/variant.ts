@@ -1,3 +1,4 @@
+import { packagedOrderUnit } from '@/lib/product-units';
 import { variationLabel } from '@/lib/product-variations';
 
 export type RestockTier = { id: string; weightGrams: number | null; unit: string; unitQty: number };
@@ -16,7 +17,7 @@ export function resolveRestockVariant(tiers: RestockTier[], input: RestockVarian
   if (matches.length !== 1) throw new Error(`「${name}」請選擇具體規格，不能自動猜測。`);
   const tier = matches[0];
   if (weight != null && tier.weightGrams !== weight) throw new Error(`「${name}」規格與克數不一致。`);
-  return { weightGrams: tier.weightGrams, variantKey: tier.id, unit: tier.unit };
+  return { weightGrams: tier.weightGrams, variantKey: tier.id, unit: packagedOrderUnit(tier.unit, tier.weightGrams) };
 }
 
 export function restockTierLabel(tier: RestockTier) {

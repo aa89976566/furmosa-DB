@@ -1,3 +1,4 @@
+import { packagedOrderUnit } from '@/lib/product-units';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { assertCarrierHomeOrDeliveryRecipient } from '@/lib/shipping-policy';
@@ -110,7 +111,7 @@ export async function createRestockOrderWithShipment(
             unitPrice: 0,
             subtotal: 0,
             weightGrams: it.weightGrams,
-            unit: it.unit,
+            unit: packagedOrderUnit(it.unit, it.weightGrams),
           };
         }),
       },
@@ -140,7 +141,7 @@ export async function createRestockOrderWithShipment(
             quantity: it.quantity,
             weightGrams: it.weightGrams && it.weightGrams > 0 ? it.weightGrams : null,
             variantKey: it.variantKey ?? null,
-            unit: it.unit,
+            unit: packagedOrderUnit(it.unit, it.weightGrams),
           };
         }),
       },
@@ -211,7 +212,7 @@ export async function ensureOrdersForOrphanRestockShipments(): Promise<number> {
               unitPrice: 0,
               subtotal: 0,
               weightGrams: it.weightGrams,
-              unit: it.unit,
+              unit: packagedOrderUnit(it.unit, it.weightGrams),
             })),
           },
         },

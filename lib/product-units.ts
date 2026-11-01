@@ -39,3 +39,9 @@ export const TIER_UNIT_PRESETS = ['條', '隻', '片', '顆', '支', '一支', '
 export const TIER_UNIT_QTY_PRESETS = [1, 5, 10] as const;
 
 export type ProductUnit = (typeof PRODUCT_UNIT_OPTIONS)[number];
+
+/** A weighted retail tier counts packages; weight remains in weightGrams. */
+export function packagedOrderUnit(unit: string | null | undefined, weightGrams?: number | null): string | null {
+  const value = unit?.trim() || null;
+  return weightGrams != null && weightGrams > 0 && /^(g|克|公克)$/i.test(value ?? '') ? '包' : value;
+}

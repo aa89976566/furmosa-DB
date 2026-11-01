@@ -13,7 +13,7 @@ test('multiple variants require an explicit selection, including non-weight vari
   assert.throws(() => resolveRestockVariant(tiers.map(t => ({...t, weightGrams: null})), {}), /請選擇具體規格/);
 });
 test('50g resolves to the same price tier used by merchant inventory', () => {
-  assert.deepEqual(resolveRestockVariant(tiers, { weightGrams: 50 }), {weightGrams:50,variantKey:'tier50',unit:'g'});
+  assert.deepEqual(resolveRestockVariant(tiers, { weightGrams: 50 }), {weightGrams:50,variantKey:'tier50',unit:'包'});
   assert.equal(resolveTierIdFromWeightGrams(tiers, 50, 'tier50'), 'tier50');
   assert.throws(() => resolveTierIdFromWeightGrams(tiers, null), /請選擇具體規格/);
 });

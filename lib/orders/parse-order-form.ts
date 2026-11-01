@@ -1,3 +1,4 @@
+import { packagedOrderUnit } from '@/lib/product-units';
 import { prisma } from '@/lib/prisma';
 import {
   resolveGiftWeightCost,
@@ -362,6 +363,7 @@ export async function parseOrderFormData(
   for (const it of rawLines) {
     const prod = productMap.get(it.productId);
     if (!prod) throw new Error('包含不存在的商品');
+    if (!it.isGift) it.unit = packagedOrderUnit(it.unit, it.weightGrams);
     if (it.unitPrice < 0) throw new Error('單價不可為負數');
     const isJarExchangeGift = merchantOrderMode === 'jar_exchange' && it.isGift;
     if (

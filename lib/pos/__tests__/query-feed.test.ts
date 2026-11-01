@@ -297,6 +297,16 @@ describe('loadQueryFeed whenLabel', () => {
     );
   });
 
+  it('separates retail package counts from specification grams', () => {
+    assert.deepEqual(summarizeRestockLines([
+      { productName: '鴨肺', weightGrams: 30, quantity: 2, unit: 'g' },
+      { productName: '黃金條', weightGrams: 30, quantity: 15, unit: 'g' },
+    ]).items, [
+      { label: '鴨肺 30g', quantityLabel: '2 包' },
+      { label: '黃金條 30g', quantityLabel: '15 包' },
+    ]);
+  });
+
   it('labels all four item kinds from the same now', async () => {
     const createdAt = new Date('2026-09-08T01:05:00.000Z');
     feedWorld = {
