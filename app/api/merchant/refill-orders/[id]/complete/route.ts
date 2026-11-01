@@ -9,13 +9,18 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
   const params = await props.params;
   try {
     const session = await requireRefillMerchantSession();
-    const body = (await req.json()) as { newSerial?: string; oldSerial?: string };
-    const result = await assignNewAndComplete({
+    const body = (await req.json()) as {
+      flavourId?: string;
+      quantity?: number;
+      emptyJarConfirmed?: boolean;
+    };
+    const result = await completeRefillDelivery({
       orderId: params.id,
       merchantId: session.merchantId,
       actorId: session.merchantUserId,
-      newSerialRaw: body.newSerial ?? '',
-      oldSerialRaw: body.oldSerial,
+      flavourId: body.flavourId ?? '',
+      quantity: body.quantity ?? 0,
+      emptyJarConfirmed: body.emptyJarConfirmed === true,
     });
     return NextResponse.json(result);
   } catch (e) {
