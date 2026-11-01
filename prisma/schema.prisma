@@ -734,6 +734,10 @@ model Product {
   createdAt                         DateTime            @default(now())
   updatedAt                         DateTime            @updatedAt
 
+  inventorySourceProductId String? @map("inventory_source_product_id")
+  inventorySourceProduct Product? @relation("JarInventorySource", fields: [inventorySourceProductId], references: [id], onDelete: Restrict)
+  inventoryDerivedProducts Product[] @relation("JarInventorySource")
+
   vendor                  Vendor?                  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   priceTiers              ProductPriceTier[]
   orderItems              OrderItem[]
@@ -751,6 +755,7 @@ model Product {
   appointments            Appointment[]
   refillOrders            RefillOrder[]
 
+  @@index([inventorySourceProductId])
   @@index([productCategory])
   @@index([status])
   @@index([name])
