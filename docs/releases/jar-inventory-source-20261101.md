@@ -26,6 +26,8 @@ migration_plan=standard。migration 僅新增可空白的來源欄位、外鍵�
 | RF-crystal-fish-10、FUR-0039 | FUR-0028 |
 | RF-veggie-25、FUR-0040 | FUR-0003 |
 | RF-chicken-20 | FUR-0024 |
+| RF-pig-ear-30、FUR-0037 | FUR-0011 |
+| RF-duck-throat-15、FUR-0041 | FUR-0008 |
 
 不回填或改寫歷史負庫存、不補扣歷史出貨。來源未設定的商品無法出貨，須在商品頁選擇庫存來源。
 

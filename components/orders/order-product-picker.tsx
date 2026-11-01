@@ -161,8 +161,8 @@ export function OrderProductPicker({
                             <p className="mt-1 font-mono text-[11px] text-muted-foreground">{product.sku}</p>
                             </div>
                           </div>
-                          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                            {product.inventorySourceLabel ? `${product.inventorySourceLabel} ${product.inventorySourceLabel.startsWith('來源：') ? product.availableStock : ''}` : `庫存 ${product.availableStock}`}
+                          <span className="max-w-[50%] rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">
+                            {product.inventorySourceLabel ? `${product.inventorySourceLabel} ${product.inventorySourceLabel.startsWith('來源：') ? `${product.availableStock}g${onlyTier?.weightGrams ? ` · 可供應 ${Math.max(0, Math.floor(product.availableStock / onlyTier.weightGrams))} 罐` : ''}` : ''}` : `庫存 ${product.availableStock}`}
                           </span>
                         </div>
                         <div className="mt-4 flex items-center justify-between gap-3">

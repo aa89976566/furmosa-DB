@@ -110,3 +110,13 @@ BEGIN
    ON CONFLICT ("eventKey") DO NOTHING;
  END LOOP;
 END $$;
+
+-- 防止其他收貨或盤點入口再次為換罐建立獨立庫存；歷史餘額留供回補查核。
+CREATE FUNCTION hq_reject_jar_balance() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF EXISTS (SELECT 1 FROM "Product" WHERE id=NEW."productId" AND product_category='JAR_EXCHANGE') THEN
+  RAISE EXCEPTION '換罐商品不建立獨立庫存，請使用來源單品';
+ END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER hq_jar_no_independent_balance BEFORE INSERT ON "InventoryBalance" FOR EACH ROW EXECUTE FUNCTION hq_reject_jar_balance();

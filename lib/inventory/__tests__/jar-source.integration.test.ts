@@ -12,6 +12,7 @@ test('jar shipments consume shared source grams atomically and reverse original 
       priceTiers: { create: { weightGrams: 40, unit: 'g', price: 100 } }, inventoryBalances: { create: { warehouseId: wh.id, quantity: 1000, unit: 'g', lastCountedAt: new Date() } } } });
     const jar = await db.product.create({ data: { productId: randomUUID(), sku: randomUUID(), name: '牛肉換罐', category: 'freeze_dried', productCategory: 'JAR_EXCHANGE', unit: '條', price: 99,
       inventorySourceProductId: source.id, priceTiers: { create: { weightGrams: 20, unit: 'g', price: 99 } } } });
+    await assert.rejects(db.inventoryBalance.create({ data: { productId: jar.id, warehouseId: wh.id, quantity: 50, unit: 'g' } }), /不建立獨立庫存/);
     const balance = () => db.inventoryBalance.findUniqueOrThrow({ where: { productId_warehouseId: { productId: source.id, warehouseId: wh.id } } }).then(row => row.quantity);
     const shipment = await db.shipment.create({ data: { shipmentNumber: randomUUID(), type: 'merchant_restock', items: { create: [
       { productId: jar.id, productName: jar.name, sku: jar.sku, quantity: 2, weightGrams: 20, unit: 'g' },
