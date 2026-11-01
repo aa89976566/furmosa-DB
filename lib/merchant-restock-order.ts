@@ -1,3 +1,4 @@
+import { packagedOrderUnit } from '@/lib/product-units';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { assertCarrierHomeOrDeliveryRecipient } from '@/lib/shipping-policy';
@@ -42,6 +43,8 @@ type RestockProduct = {
   id: string;
   name: string;
   sku: string;
+  price?: number;
+  priceTiers?: Array<{ id: string; weightGrams: number | null; price: number }>;
 };
 
 export type CreateRestockOrderInput = {
@@ -76,6 +79,23 @@ export async function createRestockOrderWithShipment(
   });
   const db = tx ?? prisma;
   const productById = new Map(input.products.map((p) => [p.id, p]));
+  // Snapshot the selected catalog price before writing either document.
+  const pricedItems = input.items.map((it) => {
+    const product = productById.get(it.productId);
+    if (!product) throw new Error('商品不存在');
+    const tiers = product.priceTiers ?? [];
+    const matches = it.variantKey
+      ? tiers.filter((tier) => tier.id === it.variantKey)
+      : it.weightGrams != null
+        ? tiers.filter((tier) => tier.weightGrams === it.weightGrams)
+        : tiers.length === 1 ? tiers : [];
+    if (tiers.length && matches.length !== 1) throw new Error(`「${product.name}」請確認補貨商品規格`);
+    const tier = matches[0];
+    if (tier && it.weightGrams != null && tier.weightGrams !== it.weightGrams) throw new Error(`「${product.name}」規格克數不一致`);
+    const unitPrice = tier?.price ?? product.price;
+    if (unitPrice == null || !Number.isFinite(unitPrice) || unitPrice <= 0) throw new Error(`「${product.name}」尚未設定有效單價，請先更新商品規格`);
+    return { ...it, unitPrice, subtotal: Math.round(unitPrice * it.quantity * 100) / 100 };
+  });
   const orderNumber = await nextRestockOrderNumber(db);
   const shipmentNumber = input.shipmentNumber ?? (await nextRestockShipmentNumber(db));
 
@@ -99,7 +119,7 @@ export async function createRestockOrderWithShipment(
       note: input.notes ?? '寄賣店進貨補貨',
       orderedAt: new Date(),
       items: {
-        create: input.items.map((it) => {
+        create: pricedItems.map((it) => {
           const p = productById.get(it.productId);
           if (!p) throw new Error('商品不存在');
           return {
@@ -107,10 +127,10 @@ export async function createRestockOrderWithShipment(
             productName: p.name,
             sku: p.sku,
             quantity: it.quantity,
-            unitPrice: 0,
-            subtotal: 0,
+            unitPrice: it.unitPrice,
+            subtotal: it.subtotal,
             weightGrams: it.weightGrams,
-            unit: it.unit,
+            unit: packagedOrderUnit(it.unit, it.weightGrams),
           };
         }),
       },
@@ -130,7 +150,7 @@ export async function createRestockOrderWithShipment(
       carrier: input.carrier,
       notes: input.notes,
       items: {
-        create: input.items.map((it) => {
+        create: pricedItems.map((it) => {
           const p = productById.get(it.productId);
           if (!p) throw new Error('商品不存在');
           return {
@@ -140,7 +160,7 @@ export async function createRestockOrderWithShipment(
             quantity: it.quantity,
             weightGrams: it.weightGrams && it.weightGrams > 0 ? it.weightGrams : null,
             variantKey: it.variantKey ?? null,
-            unit: it.unit,
+            unit: packagedOrderUnit(it.unit, it.weightGrams),
           };
         }),
       },
@@ -211,7 +231,7 @@ export async function ensureOrdersForOrphanRestockShipments(): Promise<number> {
               unitPrice: 0,
               subtotal: 0,
               weightGrams: it.weightGrams,
-              unit: it.unit,
+              unit: packagedOrderUnit(it.unit, it.weightGrams),
             })),
           },
         },

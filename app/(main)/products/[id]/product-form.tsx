@@ -10,6 +10,7 @@ import { productCategoryLabel } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 type ProductInput = {
+  inventorySourceProductId?: string | null;
   id?: string;
   productId?: string;
   sku?: string;
@@ -46,6 +47,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 export function ProductForm({
   product,
   vendors,
+  inventorySources = [],
   saveAction,
   deleteAction,
   submitLabel,
@@ -55,6 +57,7 @@ export function ProductForm({
 }: {
   product: ProductInput;
   vendors: VendorOption[];
+  inventorySources?: { id: string; name: string; sku: string }[];
   saveAction: (formData: FormData) => void | Promise<void>;
   deleteAction?: (
     formData: FormData,
@@ -110,6 +113,13 @@ export function ProductForm({
   return (
     <div className="space-y-4">
       <form action={saveAction} className={studio ? 'space-y-6' : 'space-y-4'}>
+        {product.productCategory === 'JAR_EXCHANGE' ? <label className="block space-y-2 text-sm font-medium">庫存來源單品
+          <select name="inventorySourceProductId" defaultValue={product.inventorySourceProductId ?? ''} className="w-full rounded-md border bg-background p-2">
+            <option value="">尚未設定（不可出貨）</option>
+            {inventorySources.map(source => <option key={source.id} value={source.id}>{source.name} · {source.sku}</option>)}
+          </select>
+          <p className="text-sm text-muted-foreground">每罐依規格克數扣來源單品，不另建立換罐庫存。</p>
+        </label> : null}
         {product.id && <input type="hidden" name="id" value={product.id} />}
         <input type="hidden" name="productType" value={productType} />
         <input type="hidden" name="productCategory" value={product.productCategory} />

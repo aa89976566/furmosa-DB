@@ -30,11 +30,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProductDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const [product, vendors, user] = await Promise.all([
+  const [product, vendors, user, inventorySources] = await Promise.all([
     prisma.product.findUnique({
       where: { id: params.id },
       include: {
         vendor: true,
+        inventorySourceProduct: { include: { inventoryBalances: { include: { warehouse: true } } } },
         priceTiers: {
           orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
         },
@@ -52,6 +53,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
       select: { id: true, name: true, vendorId: true },
     }),
     getCurrentUser(),
+    prisma.product.findMany({ where: { productCategory: 'STANDARD', status: 'active', unit: { in: ['g', '克', '公克'] } }, select: { id: true, sku: true, name: true }, orderBy: { name: 'asc' } }),
   ]);
   if (!product) notFound();
 
@@ -106,7 +108,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     />;
   }
 
-  const totalOnHand = product.inventoryBalances.reduce((sum, b) => sum + b.quantity, 0);
+  const totalOnHand = (product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct?.inventoryBalances.filter(b => b.warehouse.code === 'WH-MAIN') ?? [] : product.inventoryBalances).reduce((sum, b) => sum + b.quantity, 0);
   const variationSummary = summarizeVariations(variations);
 
   const statusLabel =
@@ -144,7 +146,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
           <SummaryChip label="售價" value={variationSummary.priceRange} />
-          <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />
+          {product.productCategory === 'JAR_EXCHANGE'
+            ? <SummaryChip label="來源庫存" value={product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
+            : <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />}
         </div>
 
         <div
@@ -190,6 +194,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               vendorId: product.vendorId,
               notes: product.notes,
               defaultTemperature: product.defaultTemperature,
+              inventorySourceProductId: product.inventorySourceProductId,
               productCategory: product.productCategory,
               businessTier: product.businessTier,
               defaultConsignmentCommissionMode: product.defaultConsignmentCommissionMode,
@@ -201,6 +206,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               commercialTermsVersion: product.commercialTermsVersion,
             }}
             vendors={vendors}
+            inventorySources={inventorySources}
             variationCount={product.priceTiers.length}
             saveAction={updateProduct}
             deleteAction={deleteProduct}
@@ -242,8 +248,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              各倉庫庫存
+              {product.productCategory === 'JAR_EXCHANGE' ? '來源單品庫存' : '各倉庫庫存'}
             </p>
+            {product.productCategory === 'JAR_EXCHANGE' ? <p className="text-sm">{product.inventorySourceProduct ? <Link className="underline" href={`/products/${product.inventorySourceProduct.id}`}>{product.inventorySourceProduct.name} · {product.inventorySourceProduct.sku}</Link> : '尚未設定庫存來源，無法出貨'}；換罐本身不另計庫存。</p> : null}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -253,7 +260,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {product.inventoryBalances.map((b) => (
+                {(product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct?.inventoryBalances ?? [] : product.inventoryBalances).map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.warehouse.name}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
@@ -270,7 +277,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
         <details className="group rounded-2xl border bg-card">
           <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold">
-            庫存紀錄
+            {product.productCategory === 'JAR_EXCHANGE' ? '歷史獨立換罐庫存紀錄（保留查核）' : '庫存紀錄'}
             <span className="text-sm font-normal text-muted-foreground">最新 12 筆</span>
           </summary>
           <div className="overflow-x-auto border-t px-5 py-5">

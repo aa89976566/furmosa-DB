@@ -13,6 +13,7 @@ export default async function InventoryPage(props: {
     const [query, user, products, pendingCount, pendingOrders] = await Promise.all([
         props.searchParams, getCurrentUser(),
         prisma.product.findMany({
+            where: { productCategory: { not: 'JAR_EXCHANGE' } },
             select: { id: true, productId: true, name: true, sku: true, sourceSku: true, category: true, imageUrl: true,
                 unit: true, status: true, productCategory: true, vendorId: true, reorderPoint: true,
                 priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true } },

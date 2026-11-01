@@ -356,6 +356,8 @@ model RefillOrder {
   merchantId             String    @map("merchant_id")
   petName                String?   @map("pet_name")
   productId              String?   @map("product_id")
+  deliveredFlavourId     String?   @map("delivered_flavour_id")
+  deliveredQuantity      Int?      @map("delivered_quantity")
   /// first | exchange
   orderType              String    @map("order_type")
   baseAmount             Int       @map("base_amount")
@@ -380,7 +382,8 @@ model RefillOrder {
   customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
   appointment    Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
   merchant       Merchant         @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  product        Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  deliveredFlavour RefillFlavour?   @relation(fields: [deliveredFlavourId], references: [id], onDelete: SetNull)
   payments       PaymentOrder[]
   auditLogs      RefillAuditLog[]
   lockedJarCodes JarCode[]        @relation("JarCodeLockedByRefill")
@@ -388,6 +391,7 @@ model RefillOrder {
   @@index([customerId, status])
   @@index([merchantId, status])
   @@index([appointmentId])
+  @@index([deliveredFlavourId])
   @@index([status, createdAt])
   @@map("refill_orders")
 }
@@ -730,6 +734,10 @@ model Product {
   createdAt                         DateTime            @default(now())
   updatedAt                         DateTime            @updatedAt
 
+  inventorySourceProductId String? @map("inventory_source_product_id")
+  inventorySourceProduct Product? @relation("JarInventorySource", fields: [inventorySourceProductId], references: [id], onDelete: Restrict)
+  inventoryDerivedProducts Product[] @relation("JarInventorySource")
+
   vendor                  Vendor?                  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   priceTiers              ProductPriceTier[]
   orderItems              OrderItem[]
@@ -747,6 +755,7 @@ model Product {
   appointments            Appointment[]
   refillOrders            RefillOrder[]
 
+  @@index([inventorySourceProductId])
   @@index([productCategory])
   @@index([status])
   @@index([name])
@@ -1972,7 +1981,8 @@ model RefillFlavour {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   stocks    MerchantRefillStock[]
-  stockTxns RefillStockTxn[]
+  stockTxns       RefillStockTxn[]
+  deliveredOrders RefillOrder[]
 
   @@index([isActive, sortOrder])
   @@map("refill_flavours")

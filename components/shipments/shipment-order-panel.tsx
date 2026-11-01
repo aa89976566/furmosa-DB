@@ -23,6 +23,7 @@ import { productLabel } from '@/lib/product-label';
 import { resolveLogisticsFromShipment } from '@/lib/logistics-display';
 import {
   shipmentStatusLabel,
+  shipmentDisplayStatus,
   shipmentStatusVariant,
   shipmentTypeLabel,
 } from '@/lib/shipment';
@@ -109,6 +110,7 @@ export function ShipmentOrderPanel({
   }
 
   const paymentReviewHold = data.paymentReviewHold;
+  const displayStatus = shipmentDisplayStatus(data.status, data.order?.status);
   const totalQty = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const logistics = resolveLogisticsFromShipment({
     type: data.type,
@@ -161,8 +163,8 @@ export function ShipmentOrderPanel({
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{shipmentTypeLabel[data.type] ?? data.type}</Badge>
-            <Badge variant={shipmentStatusVariant[data.status] ?? 'secondary'}>
-              {shipmentStatusLabel[data.status] ?? data.status}
+            <Badge variant={shipmentStatusVariant[displayStatus] ?? 'secondary'}>
+              {shipmentStatusLabel[displayStatus] ?? displayStatus}
             </Badge>
             {paymentReviewHold ? (
               <Badge variant="warning">{JIBA_PAYMENT_REVIEW_LABEL}</Badge>

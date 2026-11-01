@@ -22,8 +22,8 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   });
   let result;
   try {
-    // Confirmation and shipment creation are separate steps. Approval persists REVIEW -> READY;
-    // inventory is checked only when the user explicitly creates the HQ shipment.
+    // A clean paid Shopify review creates the HQ shipment in the same atomic approval.
+    // Payment-pending or blocking cases remain in review and cannot create a shipment.
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
       sourceHash: field('sourceHash'), action, draft, sourceOnly: true });
   } catch (error) {

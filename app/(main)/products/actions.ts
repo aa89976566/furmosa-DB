@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 import {
   costPerUnitFromTierTotal,
   isGramUnit,
@@ -138,6 +139,7 @@ export async function updateProduct(formData: FormData) {
       unit: true,
       vendorId: true,
       productCategory: true,
+      inventorySourceProductId: true,
       businessTier: true,
       defaultConsignmentCommissionMode: true,
       defaultConsignmentCommissionValue: true,
@@ -149,6 +151,15 @@ export async function updateProduct(formData: FormData) {
     },
   });
   if (!existing) throw new Error('找不到商品');
+  const inventorySourceProductId = toNullableString(formData.get('inventorySourceProductId'));
+  if (existing.productCategory === 'JAR_EXCHANGE' && inventorySourceProductId !== existing.inventorySourceProductId) {
+    const user = await getCurrentUser();
+    if (!user || !['admin', 'warehouse'].includes(user.role)) throw new Error('你沒有設定庫存來源的權限');
+  }
+  if (existing.productCategory === 'JAR_EXCHANGE' && inventorySourceProductId) {
+    const source = await prisma.product.findFirst({ where: { id: inventorySourceProductId, productCategory: 'STANDARD', status: 'active', inventorySourceProductId: null, unit: { in: ['g', '克', '公克'] } } });
+    if (!source || source.id === id) throw new Error('庫存來源必須是以克計量的一般單品');
+  }
   const newVendorId = toNullableString(formData.get('vendorId'));
   const commercialTerms = parseProductCommercialTerms(formData, existing.productCategory);
   const commercialTermsVersion = productCommercialTermsChanged(existing, commercialTerms)
@@ -186,6 +197,7 @@ export async function updateProduct(formData: FormData) {
       defaultTemperature: parseTemperature(formData.get('defaultTemperature')),
       ...commercialTerms,
       commercialTermsVersion,
+      ...(existing.productCategory === 'JAR_EXCHANGE' ? { inventorySourceProductId } : {}),
     },
   });
 

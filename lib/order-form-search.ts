@@ -23,6 +23,7 @@ export type OrderFormProductHit = {
   sku: string;
   productCategory: string;
   availableStock: number;
+  inventorySourceLabel?: string | null;
   price: number;
   cost: number;
   unit: string;
@@ -80,9 +81,9 @@ const productSelect = {
   price: true,
   cost: true,
   unit: true,
-  inventoryBalances: {
-    select: { quantity: true },
-  },
+  inventoryBalances: { select: { quantity: true } },
+  inventorySourceProduct: { select: { name: true, sku: true, status: true,
+    inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } }, select: { quantity: true } } } },
   priceTiers: {
     orderBy: [{ weightGrams: 'asc' as const }, { unitQty: 'asc' as const }],
     select: {
@@ -130,7 +131,10 @@ function toOrderFormProductHit(
     imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
-    availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    availableStock: (row.productCategory === 'JAR_EXCHANGE' ? row.inventorySourceProduct?.inventoryBalances ?? [] : row.inventoryBalances).reduce((sum, balance) => sum + balance.quantity, 0),
+    inventorySourceLabel: row.productCategory === 'JAR_EXCHANGE'
+      ? row.inventorySourceProduct?.status === 'active' ? `來源：${row.inventorySourceProduct.name}（g）` : '尚未設定有效庫存來源'
+      : null,
     price: row.price,
     cost: row.cost,
     unit: row.unit,
@@ -305,7 +309,10 @@ export async function getProductsByIdentitiesForOrderForm(
     imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
-    availableStock: row.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0),
+    availableStock: (row.productCategory === 'JAR_EXCHANGE' ? row.inventorySourceProduct?.inventoryBalances ?? [] : row.inventoryBalances).reduce((sum, balance) => sum + balance.quantity, 0),
+    inventorySourceLabel: row.productCategory === 'JAR_EXCHANGE'
+      ? row.inventorySourceProduct?.status === 'active' ? `來源：${row.inventorySourceProduct.name}（g）` : '尚未設定有效庫存來源'
+      : null,
     price: row.price,
     cost: row.cost,
     unit: row.unit,

@@ -13,7 +13,7 @@ test('multiple variants require an explicit selection, including non-weight vari
   assert.throws(() => resolveRestockVariant(tiers.map(t => ({...t, weightGrams: null})), {}), /請選擇具體規格/);
 });
 test('50g resolves to the same price tier used by merchant inventory', () => {
-  assert.deepEqual(resolveRestockVariant(tiers, { weightGrams: 50 }), {weightGrams:50,variantKey:'tier50',unit:'g'});
+  assert.deepEqual(resolveRestockVariant(tiers, { weightGrams: 50 }), {weightGrams:50,variantKey:'tier50',unit:'包'});
   assert.equal(resolveTierIdFromWeightGrams(tiers, 50, 'tier50'), 'tier50');
   assert.throws(() => resolveTierIdFromWeightGrams(tiers, null), /請選擇具體規格/);
 });
@@ -82,7 +82,7 @@ test('approval carries the selected identity through order, shipment, snapshot a
   const { approveAndConvertRestockRequest } = await import('../service');
   const { applyMerchantRestockFromShipment } = await import('@/lib/merchant-restock-inventory');
   const writes: Record<string, any> = {};
-  const product = {id:'p',name:'豬耳朵條',sku:'P',unit:'包',productCategory:'STANDARD',priceTiers:tiers};
+  const product = {id:'p',name:'豬耳朵條',sku:'P',unit:'包',productCategory:'STANDARD',price:100,priceTiers:tiers.map(t => ({...t,price:t.weightGrams === 50 ? 165 : 90}))};
   const request = {id:'r',merchantId:'m',shipmentId:null,items:[{productId:'p',approvedQuantity:3,weightGrams:50,variantKey:'tier50'}],merchant:{name:'店家',preferredCarrier:null},approvedAt:null};
   const tx: any = {
     restockRequest: {updateMany:async () => ({count:1}),findUnique:async () => request,update:async ({data}:any) => {writes.snapshot=data.approvedSnapshot;return data;}},
@@ -99,6 +99,10 @@ test('approval carries the selected identity through order, shipment, snapshot a
     for (const line of [writes.order.items.create[0],writes.shipment.items.create[0],writes.snapshot[0]]) {
       assert.equal(line.weightGrams,50);assert.equal(line.quantity,3);assert.equal(line.productId,'p');
     }
+    assert.equal(writes.order.items.create[0].unitPrice,165);
+    assert.equal(writes.order.items.create[0].subtotal,495);
+    assert.equal(writes.order.subtotal,0); // 寄賣依售出結算，進貨不變成買斷應收
+    assert.equal(writes.order.total,0);
     assert.equal(writes.shipment.items.create[0].variantKey,'tier50');
     await applyMerchantRestockFromShipment(tx,{shipmentNumber:writes.shipment.shipmentNumber,merchantId:'m',items:[{id:'si',...writes.shipment.items.create[0]}]},new Date());
     assert.equal(writes.stock.tierId,'tier50');assert.equal(writes.stock.quantity,3);assert.equal(writes.stock.merchantId,'m');
@@ -106,6 +110,11 @@ test('approval carries the selected identity through order, shipment, snapshot a
     await approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')});
     assert.deepEqual(writes.shipment.items.create.map((line:any) => [line.variantKey,line.quantity]), [['tier50',3],['tier30',2]]);
     assert.equal(writes.snapshot.length,2);
+    product.priceTiers[1].price = 0;
+    delete writes.order; delete writes.shipment;
+    await assert.rejects(approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')}),/有效單價/);
+    assert.equal(writes.order,undefined);assert.equal(writes.shipment,undefined);
+    product.priceTiers[1].price = 165;
     request.items[0].weightGrams = null as any; request.items[0].variantKey = null as any;
     delete writes.order; delete writes.shipment;
     await assert.rejects(approveAndConvertRestockRequest({requestId:'r',hqUserId:'hq',expectedArrivalDate:new Date('2026-09-20')}),/規格/);

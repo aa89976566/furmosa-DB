@@ -6,7 +6,7 @@ import {
   coerceServerAmount,
   findBlockingActiveOrder,
 } from '@/lib/refill/eligibility';
-import { REFILL_PRICES } from '@/lib/refill/constants';
+import { REFILL_PRICES, refillDeliveryRequiresEmptyJar } from '@/lib/refill/constants';
 
 const future = new Date('2026-08-01T06:00:00.000Z');
 const past = new Date('2026-07-01T06:00:00.000Z');
@@ -92,5 +92,28 @@ describe('refill eligibility', () => {
     });
     assert.equal(b.ok, false);
     assert.equal(b.code, 'BOOKING_EXPIRED');
+  });
+});
+
+describe('refill delivery rules', () => {
+  it('first jar NT$129 does not require an empty jar', () => {
+    assert.equal(
+      refillDeliveryRequiresEmptyJar({ orderType: 'first', deliveryMode: 'first' }),
+      false,
+    );
+  });
+
+  it('exchange NT$99 requires the physical empty jar', () => {
+    assert.equal(
+      refillDeliveryRequiresEmptyJar({ orderType: 'exchange', deliveryMode: 'exchange' }),
+      true,
+    );
+  });
+
+  it('exchange with NT$30 top-up follows first-jar delivery', () => {
+    assert.equal(
+      refillDeliveryRequiresEmptyJar({ orderType: 'exchange', deliveryMode: 'first' }),
+      false,
+    );
   });
 });

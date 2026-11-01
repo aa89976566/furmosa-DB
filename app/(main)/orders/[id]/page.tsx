@@ -649,7 +649,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           variant={shipmentStatusVariant[s.status] ?? 'secondary'}
                           className="shrink-0"
                         >
-                          {shipmentStatusLabel[s.status] ?? s.status}
+                          {order.status === 'cancelled' ? '訂單已取消' : shipmentStatusLabel[s.status] ?? s.status}
                         </Badge>
                       </li>
                     ))}
@@ -683,6 +683,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <p className="text-sm">Shopify 原始總額：{sourceView?.currency} {sourceView?.total || '待重新同步'}</p>
                 <p className="text-xs text-muted-foreground">請在 Shopify 處理付款或金額變更後重新同步；HQ 不套用手動訂單運費試算。</p>
               </div>
+            ) : isMerchantRestock && order.merchantOrderMode === 'jar_exchange' ? (
+              <p className="text-sm">換罐補貨不計費，本單無須付款。</p>
             ) : (
             <div className="space-y-3">
               <div>
@@ -801,7 +803,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
+                          {order.merchantOrderMode === 'jar_exchange'
+                            ? `換罐計畫｜${canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}`
+                            : canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">
@@ -811,9 +815,17 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                       </div>
                       {order.merchant && !it.isGift ? (
                         order.merchantOrderMode === 'jar_exchange' ? (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            換罐計畫 · 無須佣金
-                          </p>
+                          <div className="mt-2 space-y-1">
+                            <Badge variant="secondary" className="text-[10px] font-medium">
+                              換罐計畫
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              換罐計畫 · 無須佣金
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              庫存扣除品項 · 非一般銷售
+                            </p>
+                          </div>
                         ) : (
                           <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>
@@ -916,6 +928,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <div className="space-y-2 text-sm">
                 <p className="font-semibold">Shopify 原始總額：{sourceView?.currency} {sourceView?.total || '待重新同步'}</p>
                 <p className="text-xs text-muted-foreground">以來源訂單金額為準，不重新計算運費或稅費。</p>
+              </div>
+            ) : isMerchantRestock && order.merchantOrderMode === 'jar_exchange' ? (
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold">換罐補貨不計費</p>
+                <p>本單應付 {formatCurrency(Number(order.total))}</p>
               </div>
             ) : (
             <OrderAmountSummary

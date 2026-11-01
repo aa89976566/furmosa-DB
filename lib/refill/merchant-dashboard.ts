@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
 import { getRefillPlanSettings } from '@/lib/jar-exchange/refill-flavours';
+import { listMerchantRefillOrders } from '@/lib/refill/merchant';
 
 export type MerchantRefillTransaction = {
   id: string;
@@ -35,11 +36,13 @@ export type MerchantRefillDashboard = {
   };
   inventory: Array<{
     id: string;
+    flavourId: string;
     name: string;
     weightGrams: number;
     quantity: number;
     isAvailable: boolean;
   }>;
+  pendingOrders: Awaited<ReturnType<typeof listMerchantRefillOrders>>;
   transactions: MerchantRefillTransaction[];
 };
 
@@ -118,6 +121,7 @@ export async function loadMerchantRefillDashboard(
       updatedAtLabel: '',
     },
     inventory: [],
+    pendingOrders: [],
     transactions: [],
   };
   if (!storeAccess) return empty;
@@ -154,12 +158,13 @@ export async function loadMerchantRefillDashboard(
   const now = new Date();
   const range = buildTaipeiRefillSummaryRange(now);
 
-  const [stocks, codes, todayCount, monthCount, last30DaysCount] = await Promise.all([
+  const [stocks, codes, todayCount, monthCount, last30DaysCount, orders] = await Promise.all([
     prisma.merchantRefillStock.findMany({
       where: { storeId: store.id },
       orderBy: [{ isAvailable: 'desc' }, { flavour: { sortOrder: 'asc' } }],
       select: {
         id: true,
+        flavourId: true,
         quantity: true,
         isAvailable: true,
         flavour: { select: { name: true, weightGrams: true } },
@@ -187,6 +192,7 @@ export async function loadMerchantRefillDashboard(
     prisma.jarCode.count({
       where: { AND: [where, { redeemedAt: { gte: range.last30DaysStartedAt } }] },
     }),
+    listMerchantRefillOrders(merchantId),
   ]);
 
   const skus = [...new Set(codes.map((row) => row.productSku).filter(Boolean))] as string[];
@@ -214,11 +220,13 @@ export async function loadMerchantRefillDashboard(
     },
     inventory: stocks.map((stock) => ({
       id: stock.id,
+      flavourId: stock.flavourId,
       name: stock.flavour.name,
       weightGrams: stock.flavour.weightGrams,
       quantity: stock.quantity,
       isAvailable: stock.isAvailable,
     })),
+    pendingOrders: orders.filter((order) => order.paid && order.status !== 'completed'),
     transactions: codes.map((row) => ({
       id: row.id,
       occurredAt: row.redeemedAt!.toISOString(),
