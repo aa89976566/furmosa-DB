@@ -311,6 +311,10 @@ function OrderLineItemsTable({
             const hasQuantity = hasSelectedSpec && it.quantity > 0;
             const rowRequired =
               !hasAnyLine && items.findIndex((row) => row.key === it.key) === 0;
+            const productDisplayName =
+              merchantOrderMode === 'jar_exchange' && prod
+                ? `換罐計畫｜${prod.name}`
+                : prod?.name ?? '';
             let commercialTerm: ReturnType<typeof resolveMerchantCommercialTerm> | null = null;
             let commercialError: string | null = null;
             if (showCommercialTerms && orderType === 'merchant' && prod && !it.isGift) {
@@ -355,7 +359,7 @@ function OrderLineItemsTable({
                   {prod ? (
                     <details className="mb-2 rounded-md border bg-muted/20 px-3 py-2">
                       <summary className="cursor-pointer text-sm">
-                        <strong>{prod.name}</strong>
+                        <strong>{productDisplayName}</strong>
                         <span className="ml-2 text-xs text-muted-foreground">更換商品</span>
                       </summary>
                       <div className="mt-2">
