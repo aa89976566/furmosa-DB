@@ -79,6 +79,7 @@ import {
   serializeOrderFormDraft,
 } from '@/lib/orders/order-form-draft';
 import { incompatibleLineSwitchPrompt, splitLinesForContext } from '@/lib/orders/order-mode-switch';
+import { mergeJarExchangeLine } from '@/lib/orders/merge-jar-exchange-line';
 import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
 import { writeOrderFormLines } from '@/lib/orders/order-form-lines';
@@ -1239,13 +1240,21 @@ export function OrderForm({
     });
 
     setItems((current) => {
+      const incoming = nextLine(genKey());
+
+      // 換罐補貨不允許同一商品／規格拆成多列；再次加入時只累加數量。
+      if (merchantOrderMode === 'jar_exchange') {
+        const merged = mergeJarExchangeLine(current, incoming);
+        if (merged.merged) return merged.items;
+      }
+
       const emptyLine = current.find((item) => !item.productId);
       if (emptyLine) {
         return current.map((item) =>
-          item.key === emptyLine.key ? nextLine(item.key) : item,
+          item.key === emptyLine.key ? { ...incoming, key: emptyLine.key } : item,
         );
       }
-      return [...current, nextLine(genKey())];
+      return [...current, incoming];
     });
     revealThrough(5);
     setProductPickerOpen(false);
