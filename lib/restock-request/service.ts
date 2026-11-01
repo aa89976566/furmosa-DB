@@ -456,6 +456,7 @@ export async function approveAndConvertRestockRequest(input: {
 
     const products = await tx.product.findMany({
       where: { id: { in: lines.map((l) => l.productId) } },
+      include: { priceTiers: true },
     });
     assertApprovableRestockProducts(products, [...new Map(lines.map(line => [line.productId, line])).values()]);
 
@@ -492,7 +493,7 @@ export async function approveAndConvertRestockRequest(input: {
           variantKey: l.variantKey,
           unit: l.unit ?? productById.get(l.productId)?.unit ?? null,
         })),
-        products: products.map((p) => ({ id: p.id, name: p.name, sku: p.sku })),
+        products,
         recipientName: current.merchant.contactName ?? current.merchant.name,
         recipientPhone: current.merchant.phone,
         recipientAddress: current.merchant.address,
