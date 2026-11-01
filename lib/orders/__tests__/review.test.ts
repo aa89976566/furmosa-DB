@@ -202,9 +202,8 @@ describe('OMS review transaction contract', () => {
     assert.equal(record(source.order.shipping_address).address1, '原門市地址');
     assert.equal(f.shipmentCreates, 0, 'saving does not confirm or create a shipment');
     await f.run('approve', { sourceOnly: true, draft: corrected });
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0, 'approval still does not create a shipment');
-    await f.run('ship', { sourceOnly: true, draft: corrected });
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1, 'clean approval creates the HQ shipment');
     assert.equal(f.order.shippingMethod, 'convenience');
     assert.equal(f.order.shippingAddress, '新門市地址');
     assert.equal(f.order.cvsStoreName, '新門市');
@@ -271,22 +270,19 @@ describe('OMS review transaction contract', () => {
     await f.run('ship'); await f.run('ship'); assert.equal(f.shipmentCreates, 1); assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
   });
 
-  it('source-only confirmation stays READY until shipment is explicitly created', async () => {
+  it('source-only approval creates a shipment when paid review passes', async () => {
     const f = fakeDb();
     const formDraft = { ...draft, lines: [], temperature: '' };
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
-    assert.equal(approved.action, 'approve');
-    assert.equal(approved.omsStatus, 'READY');
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
-    const shipped = await f.run('ship', { sourceOnly: true, draft: formDraft });
-    assert.equal(shipped.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(approved.action, 'ship');
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);
   });
 
-  it('repeated source-only confirmation is idempotent before queue creation', async () => {
+  it('repeated source-only confirmation is idempotent after queue creation', async () => {
     const f = fakeDb();
     const formDraft = { ...draft, lines: [], temperature: '' };
     await f.run('check', { sourceOnly: true, draft: formDraft });
@@ -294,9 +290,9 @@ describe('OMS review transaction contract', () => {
     const second = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(first.ok, true);
     assert.equal(second.ok, true);
-    assert.equal(second.action, 'approve');
-    assert.equal(second.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
+    assert.equal(second.action, 'ship');
+    assert.equal(second.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
   });
 
   it('normalizes server-derived temperature before comparing approve form', async () => {
@@ -305,7 +301,7 @@ describe('OMS review transaction contract', () => {
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
-    assert.equal(approved.omsStatus, 'READY');
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
   });
 
   it('source-only approve accepts an empty submitted product-line payload because lines are server-owned', async () => {
@@ -314,8 +310,8 @@ describe('OMS review transaction contract', () => {
     await f.run('check', { sourceOnly: true, draft: formDraft });
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
-    assert.equal(approved.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
   });
 
   it('does not write shipment-only notes into OrderItem records', async () => {
@@ -327,14 +323,14 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1);
   });
 
-  it('source-only approval does not create a shipment before the explicit ship step', async () => {
+  it('source-only approval creates a shipment without treating uncounted HQ stock as a blocker', async () => {
     const f = fakeDb();
     await f.run('check', { sourceOnly: true });
     f.setStock(0);
     const approved = await f.run('approve', { sourceOnly: true });
-    assert.equal(approved.omsStatus, 'READY');
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
   });
   it('allows the inventory reviewer role to check Shopify orders', async () => {
     const f = fakeDb();
