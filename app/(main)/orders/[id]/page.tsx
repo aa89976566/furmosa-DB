@@ -803,7 +803,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                           href={`/products/${it.productId}`}
                           className="font-medium hover:underline"
                         >
-                          {canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
+                          {order.merchantOrderMode === 'jar_exchange'
+                            ? `換罐計畫｜${canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}`
+                            : canonicalProductName(replaceJibaLegacyCatnipName(it.productName))}
                         </Link>
                         {it.isGift ? (
                           <Badge variant="secondary" className="text-[10px] font-normal">
