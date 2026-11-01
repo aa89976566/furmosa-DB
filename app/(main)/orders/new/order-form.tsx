@@ -81,6 +81,7 @@ import {
 import { incompatibleLineSwitchPrompt, splitLinesForContext } from '@/lib/orders/order-mode-switch';
 import { withOrderSavedNotice } from '@/lib/orders/order-edit-return';
 import { validateOrderSubmission } from '@/lib/orders/validate-order-submission';
+import { writeOrderFormLines } from '@/lib/orders/order-form-lines';
 import { resolveGiftWeightCost } from '@/lib/order-item-cost';
 import styles from './order-workbench.module.css';
 import { findLastMerchantOrder } from './workbench-actions';
@@ -1246,6 +1247,8 @@ export function OrderForm({
       return [...current, nextLine(genKey())];
     });
     revealThrough(5);
+    setProductPickerOpen(false);
+    setSubmitNotice(`已加入 ${product.name}`);
   }
   function removeItem(key: string) {
     setItems((prev) => (prev.length <= 1 ? prev : prev.filter((it) => it.key !== key)));
@@ -1429,6 +1432,7 @@ export function OrderForm({
           return;
         }
         try {
+          writeOrderFormLines(formData, items);
           if (isEdit && edit) {
             formData.set('orderId', edit.orderId);
             const result = await updateOrder(formData);
