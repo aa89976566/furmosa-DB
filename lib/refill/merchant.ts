@@ -11,10 +11,12 @@ import {
 } from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
+  refillDeliveryRequiresEmptyJar,
   type RefillOrderStatus,
 } from '@/lib/refill/constants';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { initiateRefillPayment } from '@/lib/refill/payment';
+import { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
 
 export type MerchantJarExchangeMember = {
   id: string;
@@ -132,6 +134,161 @@ export async function listMerchantRefillOrders(merchantId: string) {
     productLabel:
       o.deliveryMode === 'first' || o.orderType === 'first' ? '首罐' : '雞肉換罐',
   }));
+}
+
+type CompleteDeliveryTxResult = {
+  outcome: 'COMPLETED' | 'ALREADY_COMPLETED';
+  orderId: string;
+};
+
+/**
+ * 新版到店交付：店員只確認空罐與實際交付品項，不碰 8 位序號。
+ * 扣庫存、寫異動、完成訂單與稽核在同一個交易內，重送不會重複扣庫存。
+ */
+export async function completeRefillDelivery(input: {
+  orderId: string;
+  merchantId: string;
+  actorId: string;
+  flavourId: string;
+  quantity: number;
+  emptyJarConfirmed: boolean;
+}) {
+  const quantity = Math.trunc(input.quantity);
+  if (!input.flavourId || quantity < 1 || quantity > 20) {
+    throw new RefillError('請選擇實際交付品項與正確數量。', 'INVALID_DELIVERY', 400);
+  }
+
+  const storeAccess = await resolveCouponStoreForMerchant(input.merchantId);
+  if (!storeAccess) {
+    throw new RefillError('本店尚未完成換罐庫存設定。', 'STORE_NOT_READY', 409);
+  }
+  const store = await prisma.store.findUnique({
+    where: { slug: storeAccess.storeSlug },
+    select: { id: true },
+  });
+  if (!store) {
+    throw new RefillError('本店尚未完成換罐庫存設定。', 'STORE_NOT_READY', 409);
+  }
+
+  const result: CompleteDeliveryTxResult = await prisma.$transaction(async (tx) => {
+    await lockRefillOrderForCompletion(tx, input.orderId, input.merchantId);
+    const order = await tx.refillOrder.findUnique({ where: { id: input.orderId } });
+    if (!order) throw new RefillError('找不到訂單。', 'ORDER_NOT_FOUND', 404);
+
+    if (order.status === 'completed') {
+      if (
+        order.deliveredFlavourId === input.flavourId &&
+        order.deliveredQuantity === quantity
+      ) {
+        return { outcome: 'ALREADY_COMPLETED', orderId: order.id };
+      }
+      throw new RefillError('這筆訂單已完成，不能再次交付。', 'ALREADY_COMPLETED', 409);
+    }
+    if (!['paid_waiting_return', 'old_container_verified'].includes(order.status)) {
+      throw new RefillError('這筆訂單目前不能交付。', 'INVALID_STATUS', 409);
+    }
+
+    const paid = order.paidAt
+      ? true
+      : Boolean(await tx.paymentOrder.findFirst({
+          where: { refillOrderId: order.id, status: 'paid' },
+          select: { id: true },
+        }));
+    if (!paid) throw new RefillError('尚未付款，不能交付。', 'UNPAID', 409);
+
+    const needsEmptyJar = refillDeliveryRequiresEmptyJar(order);
+    const isFirstPath = !needsEmptyJar;
+    if (needsEmptyJar && !input.emptyJarConfirmed) {
+      throw new RefillError('續罐需先確認已收到實體空罐。', 'NEED_EMPTY_JAR', 409);
+    }
+
+    const lockedStocks = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "merchant_refill_stocks"
+      WHERE "store_id" = ${store.id}
+        AND "flavour_id" = ${input.flavourId}
+      FOR UPDATE
+    `;
+    if (lockedStocks.length !== 1) {
+      throw new RefillError('本店沒有這個可換品項。', 'STOCK_NOT_FOUND', 409);
+    }
+    const stock = await tx.merchantRefillStock.findUnique({
+      where: { storeId_flavourId: { storeId: store.id, flavourId: input.flavourId } },
+      include: { flavour: { select: { name: true, weightGrams: true, isActive: true } } },
+    });
+    if (!stock || !stock.isAvailable || !stock.flavour.isActive || stock.quantity < quantity) {
+      throw new RefillError('本店此品項庫存不足，請選擇其他品項。', 'INSUFFICIENT_STOCK', 409);
+    }
+
+    const deducted = await tx.merchantRefillStock.updateMany({
+      where: {
+        id: stock.id,
+        quantity: { gte: quantity },
+        isAvailable: true,
+      },
+      data: {
+        quantity: { decrement: quantity },
+        updatedByUserId: input.actorId,
+      },
+    });
+    if (deducted.count !== 1) {
+      throw new RefillError('本店此品項庫存不足，請重新整理。', 'INSUFFICIENT_STOCK', 409);
+    }
+    const quantityAfter = stock.quantity - quantity;
+    await tx.refillStockTxn.create({
+      data: {
+        storeId: store.id,
+        flavourId: stock.flavourId,
+        changeQty: -quantity,
+        quantityAfter,
+        reason: 'refill_delivery',
+        note: `換罐交付 ${order.id}`,
+        createdByUserId: input.actorId,
+      },
+    });
+
+    assertTransition(order.status as RefillOrderStatus, 'completed');
+    const now = new Date();
+    const completed = await tx.refillOrder.updateMany({
+      where: { id: order.id, merchantId: input.merchantId, status: order.status },
+      data: {
+        status: 'completed',
+        completedAt: now,
+        oldContainerReturnedAt: !isFirstPath ? now : order.oldContainerReturnedAt,
+        deliveredFlavourId: stock.flavourId,
+        deliveredQuantity: quantity,
+      },
+    });
+    if (completed.count !== 1) {
+      throw new RefillError('這筆訂單已由其他裝置處理。', 'ALREADY_COMPLETED', 409);
+    }
+
+    await writeRefillAudit(tx, {
+      refillOrderId: order.id,
+      action: 'refill_delivered',
+      actorType: 'merchant',
+      actorId: input.actorId,
+      merchantId: input.merchantId,
+      detail: {
+        flavourId: stock.flavourId,
+        flavourName: stock.flavour.name,
+        weightGrams: stock.flavour.weightGrams,
+        quantity,
+        quantityAfter,
+        emptyJarConfirmed: !isFirstPath,
+        orderType: order.orderType,
+        totalAmount: order.totalAmount,
+      },
+    });
+    return { outcome: 'COMPLETED', orderId: order.id };
+  }, { maxWait: 10_000, timeout: 30_000 });
+
+  if (result.outcome === 'COMPLETED') {
+    await safelyEnqueueAndAttempt(() =>
+      enqueueRefillCompletedNotification(result.orderId, false),
+    );
+  }
+  return { ok: true as const, status: 'completed' as const, repeated: result.outcome === 'ALREADY_COMPLETED' };
 }
 
 const LOOKUP_STATUSES = [...REFILL_PAID_OPEN_STATUSES, 'payment_pending'] as const;

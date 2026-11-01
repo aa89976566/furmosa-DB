@@ -265,7 +265,7 @@ function RefillFlow({
         <div>
           <p className="text-lg font-semibold text-foreground">{REFILL_COPY.payDone}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            到店後，請帶空罐給店員。店家確認序號後，就可以領取新罐。
+            到店後，請帶空罐給店員。店家確認實體空罐與交付品項後，就可以領取新罐；新罐序號由你之後在官方 LINE 自行登錄入點。
           </p>
         </div>
         {o && (

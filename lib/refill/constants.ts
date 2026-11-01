@@ -80,3 +80,10 @@ export function amountsAfterExtraTopup(baseExchange: number = REFILL_PRICES.exch
     totalAmount: base + REFILL_PRICES.extraTopup,
   };
 }
+
+export function refillDeliveryRequiresEmptyJar(input: {
+  orderType: string;
+  deliveryMode: string;
+}): boolean {
+  return input.orderType !== 'first' && input.deliveryMode !== 'first';
+}
