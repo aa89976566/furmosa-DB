@@ -813,9 +813,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                       </div>
                       {order.merchant && !it.isGift ? (
                         order.merchantOrderMode === 'jar_exchange' ? (
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            換罐計畫 · 無須佣金
-                          </p>
+                          <div className="mt-2 space-y-1">
+                            <Badge variant="secondary" className="text-[10px] font-medium">
+                              換罐計畫
+                            </Badge>
+                            <p className="text-xs text-muted-foreground">
+                              庫存扣除品項 · 非一般銷售 · 無須佣金
+                            </p>
+                          </div>
                         ) : (
                           <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>
