@@ -146,7 +146,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
           <SummaryChip label="售價" value={variationSummary.priceRange} />
-          <SummaryChip label={product.productCategory === 'JAR_EXCHANGE' ? '來源庫存' : '庫存'} value={product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定' : formatNumber(totalOnHand)} />
+          {product.productCategory === 'JAR_EXCHANGE'
+            ? <SummaryChip label="來源庫存" value={product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
+            : <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />}
         </div>
 
         <div
