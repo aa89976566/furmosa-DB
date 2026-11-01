@@ -18,7 +18,11 @@ import {
 } from '@/lib/shipment-queue-filters';
 import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
 import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
-import { isShipmentKindKey, mergeShipmentWhere } from '@/lib/order-hub-kinds';
+import {
+  isShipmentKindKey,
+  mergeShipmentWhere,
+  resolveShipmentDisplayKind,
+} from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
@@ -65,6 +69,7 @@ const shipmentInclude = {
       cvsStoreName: true,
       note: true,
       omsStatus: true,
+      merchantOrderMode: true,
       shopifySnapshot: true,
     },
   },
@@ -128,6 +133,10 @@ function toQueueRow(
     id: s.id,
     shipmentNumber: s.shipmentNumber,
     type: s.type,
+    displayKind: resolveShipmentDisplayKind({
+      type: s.type,
+      merchantOrderMode: s.order?.merchantOrderMode,
+    }),
     status: s.status,
     createdAt: s.createdAt.toISOString(),
     carrier: s.carrier,

@@ -17,7 +17,10 @@ import { shipmentItemSummary } from '@/lib/shipment-item-summary';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { VirtualCardList } from '@/components/shared/virtualized-rows';
-import { shipmentTypeLabel } from '@/lib/shipment';
+import {
+  shipmentDisplayKindLabel,
+  type ShipmentDisplayKind,
+} from '@/lib/order-hub-kinds';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { CalendarClock, ChevronRight, MapPin, PackageCheck, Phone, StickyNote, Truck } from 'lucide-react';
 import Link from 'next/link';
@@ -31,6 +34,7 @@ export type ShipmentQueueRow = {
   id: string;
   shipmentNumber: string;
   type: string;
+  displayKind: ShipmentDisplayKind;
   status: string;
   createdAt: Date | string;
   carrier: string | null;
@@ -310,7 +314,7 @@ function ShipmentQueueCard({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-semibold text-foreground">{orderLabel}</span>
             <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">
-              {shipmentTypeLabel[shipment.type] ?? shipment.type}
+              {shipmentDisplayKindLabel[shipment.displayKind]}
             </Badge>
             {shipment.order?.note ? (
               <Badge variant="success" className="h-5 px-1.5 text-[10px] font-normal">
@@ -495,7 +499,7 @@ export function ShipmentQueueTable({
                     <p className="mt-1 text-sm font-medium text-foreground">{partyLabel}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal">
-                        {shipmentTypeLabel[shipment.type] ?? shipment.type}
+                        {shipmentDisplayKindLabel[shipment.displayKind]}
                       </Badge>
                       {shipment.order?.note ? (
                         <Badge variant="success" className="h-4 px-1 text-[9px] font-normal">
