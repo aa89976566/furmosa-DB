@@ -50,9 +50,13 @@ test('staff filter, cancel, preview differences and save counts with original ve
     const setup = container.querySelector('a[href="/inventory/confirm-unit/unknown"]')!;
     assert.equal(setup.closest('details'), null, 'inventory operator setup is accessible directly in the row');
     assert.equal(setup.textContent, '修改庫存');
-    const advancedSetup = container.querySelector('details a[href="/inventory/confirm-unit/unknown"]')!;
-    assert.equal(advancedSetup.closest('details')!.hasAttribute('open'), false);
-    assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 2);
+    assert.equal(container.querySelectorAll('a[href^="/inventory/confirm-unit/"]').length, 1);
+    assert.ok(container.querySelector('a[href="/inventory?view=settings"]'));
+    assert.doesNotMatch(container.textContent!, /進貨增加主倉/);
+    await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true, canVerifyUnits: true, settingsView: true })));
+    assert.ok(container.querySelector('section[aria-label="庫存設定"]'));
+    assert.equal(container.querySelector('a[href="/inventory/confirm-unit/unknown"]')?.textContent, '完成設定：待核對');
+    assert.match(container.textContent!, /進貨增加主倉/);
     await act(async () => root.render(createElement(InventoryWorkbench, { rows, canEdit: true })));
     await act(async () => { const select = container.querySelector('select[aria-label="商品分類"]') as HTMLSelectElement; select.value = 'vendor'; select.dispatchEvent(new dom.window.Event('change', { bubbles: true })); }); assert.ok(container.textContent!.includes('QiQi凍乾')); assert.equal(container.textContent!.includes('SOURCE-01'), true);
     assert.equal(container.querySelectorAll('a[href="/products/bulk"]').length, 0);
