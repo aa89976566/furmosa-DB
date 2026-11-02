@@ -19,6 +19,11 @@ import {
 import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
 import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
 import {
+  countShipmentQueueSamples,
+  createShipmentQueuePerf,
+  emptyShipmentQueuePerfCounts,
+} from '@/lib/shipment-queue-perf';
+import {
   isShipmentKindKey,
   mergeShipmentWhere,
   resolveShipmentDisplayKind,
@@ -276,39 +281,63 @@ export async function ShipmentsQueueBody({
     kindFilter,
   );
 
-  const [rawShipments, counts] = await Promise.all([
-    prisma.shipment.findMany({
-      where,
-      include: shipmentInclude,
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: SHIPMENT_QUEUE_TAKE,
-    }),
-    getShipmentQueueCounts(countWhere),
-  ]);
+  const perf = createShipmentQueuePerf();
+  let perfCounts = emptyShipmentQueuePerfCounts();
+  let rawShipments: Awaited<
+    ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
+  >;
+  let countByStatus: Record<string, number>;
+  let pendingCount: number;
+  let panelRefreshKey: string;
+  let queueRows: ShipmentQueueRow[];
 
-  const shipments = dedupeShipmentsByOrder(rawShipments);
-  const { byStatus: countByStatus, pendingCount } = counts;
-  const panelRefreshKey = shipments
-    .map((s) => {
-      const updated =
-        s.updatedAt instanceof Date
-          ? s.updatedAt.toISOString()
-          : new Date(s.updatedAt as string | number).toISOString();
-      return `${s.id}:${s.status}:${updated}`;
-    })
-    .join('|');
+  try {
+    const [loadedShipments, counts] = await Promise.all([
+      perf.measure('findMany', () =>
+        prisma.shipment.findMany({
+          where,
+          include: shipmentInclude,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          take: SHIPMENT_QUEUE_TAKE,
+        }),
+      ),
+      perf.measure('counts', () => getShipmentQueueCounts(countWhere)),
+    ]);
+    rawShipments = loadedShipments;
+    const shipments = dedupeShipmentsByOrder(rawShipments);
+    countByStatus = counts.byStatus;
+    pendingCount = counts.pendingCount;
+    panelRefreshKey = shipments
+      .map((s) => {
+        const updated =
+          s.updatedAt instanceof Date
+            ? s.updatedAt.toISOString()
+            : new Date(s.updatedAt as string | number).toISOString();
+        return `${s.id}:${s.status}:${updated}`;
+      })
+      .join('|');
 
-  const jibaCharges = await loadJibaChargeSourcesByOrderIds(shipments.map((s) => s.orderId));
-  const queueRows = shipments.map((s) =>
-    toQueueRow(
-      s,
-      resolveShipmentFulfillmentFee({
-        orderStatus: s.order?.status,
-        shippingFeeType: s.order?.shippingFeeType,
-        jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
-      }),
-    ),
-  );
+    const orderIds = shipments.map((s) => s.orderId);
+    if (perf.enabled) perfCounts = countShipmentQueueSamples(rawShipments, orderIds);
+    const jibaCharges = await perf.measure('jiba', () =>
+      loadJibaChargeSourcesByOrderIds(orderIds),
+    );
+    queueRows = perf.measureSync(() =>
+      shipments.map((s) =>
+        toQueueRow(
+          s,
+          resolveShipmentFulfillmentFee({
+            orderStatus: s.order?.status,
+            shippingFeeType: s.order?.shippingFeeType,
+            jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
+          }),
+        ),
+      ),
+    );
+  } catch (error) {
+    perf.fail({ status, type: type ?? '', counts: perfCounts });
+    throw error;
+  }
 
   const workspaceSections = [
     {
@@ -322,6 +351,8 @@ export async function ShipmentsQueueBody({
   ];
 
   const truncated = rawShipments.length >= SHIPMENT_QUEUE_TAKE;
+
+  perf.succeed({ status, type: type ?? '', counts: perfCounts });
 
   return (
     <>
