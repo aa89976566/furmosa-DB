@@ -51,21 +51,26 @@ export function buildEcpayAioCheckout(input: {
     TotalAmount: input.amount,
     TradeDesc: input.tradeDesc ?? 'FurmosaRefill',
     ItemName: input.itemName.slice(0, 200),
+    // ReturnURL is the server-to-server payment truth and must acknowledge 1|OK.
     ReturnURL: cfg.orderResultUrl,
-    OrderResultURL: cfg.orderResultUrl,
+    // OrderResultURL is posted in the customer's browser and must redirect to LIFF.
+    OrderResultURL: cfg.returnUrl,
     ClientBackURL: input.clientBackUrl ?? cfg.returnUrl,
     ChoosePayment: 'ALL',
     EncryptType: 1,
     CustomField1: input.customField1 ?? '',
   };
 
-  const checkMac = generateCheckMacValue(fields, cfg.hashKey, cfg.hashIV);
   const stringFields: Record<string, string> = {};
   for (const [k, v] of Object.entries(fields)) {
     if (v === '' || v === undefined || v === null) continue;
     stringFields[k] = String(v);
   }
-  stringFields.CheckMacValue = checkMac;
+  stringFields.CheckMacValue = generateCheckMacValue(
+    stringFields,
+    cfg.hashKey,
+    cfg.hashIV,
+  );
 
   return { paymentUrl: cfg.paymentUrl, fields: stringFields };
 }
