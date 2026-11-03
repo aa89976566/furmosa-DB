@@ -31,10 +31,10 @@ export async function createPurchaseReceipt(_previous: { error: string; attempt:
       .filter((row) => row.productId)
       .map(({ productId, index }) => {
         const quantityGrams = Number(quantities[index]);
-        if (!Number.isSafeInteger(quantityGrams) || quantityGrams <= 0) throw new Error('實收克數必須為正整數');
+        if (!Number.isSafeInteger(quantityGrams) || quantityGrams <= 0) throw new Error('實收數量必須為正整數');
         const openingText = (openingCosts[index] ?? '').trim();
         if (openingText && !/^\d+(?:\.\d{1,6})?$/.test(openingText)) {
-          throw new Error('首次建檔平均成本/g 格式不正確');
+          throw new Error('首次建檔單位成本 格式不正確');
         }
         return {
           productId,
@@ -54,6 +54,7 @@ export async function createPurchaseReceipt(_previous: { error: string; attempt:
     }));
     const receiptDate = parseReceiptDate(String(formData.get('receiptDate') ?? ''));
     const receipt = await postPurchaseReceipt(prisma, {
+      allowCountedUnits: true,
       submissionKey,
       vendorId: String(formData.get('vendorId') ?? '').trim() || null,
       warehouseId: String(formData.get('warehouseId') ?? '').trim(),
