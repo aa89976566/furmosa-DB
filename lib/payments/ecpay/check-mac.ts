@@ -14,8 +14,7 @@ export function generateCheckMacValue(
     ([k, v]) =>
       k !== 'CheckMacValue' &&
       v !== undefined &&
-      v !== null &&
-      String(v) !== '',
+      v !== null,
   );
   filtered.sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0));
 

@@ -63,4 +63,35 @@ describe('ecpay CheckMacValue', () => {
     assert.equal(verifyCheckMacValue({ ...base, CheckMacValue: mac }, hashKey, hashIV), true);
     assert.equal(verifyCheckMacValue({ ...base, CheckMacValue: mac }, hashKey, hashIV), true);
   });
+
+  it('includes empty callback fields required by ECPay', () => {
+    const callback = {
+      MerchantID: '3002607',
+      MerchantTradeNo: 'REFILLEMPTY001',
+      RtnCode: '1',
+      RtnMsg: 'Succeeded',
+      TradeAmt: '129',
+      CustomField1: '',
+      CustomField2: '',
+      CustomField3: '',
+      CustomField4: '',
+      StoreID: '',
+    };
+    const mac = generateCheckMacValue(callback, hashKey, hashIV);
+
+    assert.equal(
+      verifyCheckMacValue({ ...callback, CheckMacValue: mac }, hashKey, hashIV),
+      true,
+    );
+    assert.notEqual(
+      mac,
+      generateCheckMacValue(
+        Object.fromEntries(
+          Object.entries(callback).filter(([, value]) => value !== ''),
+        ),
+        hashKey,
+        hashIV,
+      ),
+    );
+  });
 });
