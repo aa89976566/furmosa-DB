@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ecpayUrlEncode,
   generateCheckMacValue,
   verifyCheckMacValue,
 } from '@/lib/payments/ecpay/check-mac';
@@ -93,5 +94,26 @@ describe('ecpay CheckMacValue', () => {
         hashIV,
       ),
     );
+  });
+
+  it('uses the ECPay AIO URL encoding rules for special characters', () => {
+    assert.equal(
+      ecpayUrlEncode(" ~!'*()"),
+      "+%7E!%27*()",
+    );
+  });
+
+  it('sorts parameter names case-insensitively like the official SDK', () => {
+    const first = generateCheckMacValue(
+      { zebra: '1', Alpha: '2', beta: '3' },
+      hashKey,
+      hashIV,
+    );
+    const second = generateCheckMacValue(
+      { beta: '3', zebra: '1', Alpha: '2' },
+      hashKey,
+      hashIV,
+    );
+    assert.equal(first, second);
   });
 });

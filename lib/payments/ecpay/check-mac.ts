@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 
 /**
  * 綠界 AIO CheckMacValue（SHA256）。
@@ -16,7 +17,9 @@ export function generateCheckMacValue(
       v !== undefined &&
       v !== null,
   );
-  filtered.sort(([a], [b]) => (a > b ? 1 : a < b ? -1 : 0));
+  filtered.sort(([a], [b]) =>
+    a.toLowerCase().localeCompare(b.toLowerCase()),
+  );
 
   const raw =
     `HashKey=${hashKey}&` +
@@ -35,13 +38,25 @@ export function verifyCheckMacValue(
   const provided = String(params.CheckMacValue ?? '');
   if (!provided) return false;
   const expected = generateCheckMacValue(params, hashKey, hashIV);
-  return expected === provided.toUpperCase();
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided.toUpperCase());
+  return (
+    expectedBytes.length === providedBytes.length &&
+    timingSafeEqual(expectedBytes, providedBytes)
+  );
 }
 
-/** 綠界指定的 URL encode（.NET HttpUtility.UrlEncode 相容子集） */
+/** 綠界 AIO 指定的 URL encode（與官方 PHP SDK 的 safe `-_.!*()` 相容）。 */
 export function ecpayUrlEncode(value: string): string {
   return encodeURIComponent(value)
     .replace(/%20/g, '+')
-    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    // encodeURIComponent 不會編碼 `~` 與 `'`，但綠界的 PHP urlencode 會。
+    .replace(/~/g, '%7E')
+    .replace(/'/g, '%27')
+    // 綠界官方 SDK 將這四個字元視為 safe，不保留百分比編碼。
+    .replace(/%21/gi, '!')
+    .replace(/%2A/gi, '*')
+    .replace(/%28/gi, '(')
+    .replace(/%29/gi, ')')
     .replace(/%[0-9A-F]{2}/g, (m) => m.toUpperCase());
 }
