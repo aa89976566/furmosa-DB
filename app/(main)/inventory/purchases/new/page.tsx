@@ -21,10 +21,10 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
     props.searchParams,
     prisma.vendor.findMany({ where: { status: 'active' }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.warehouse.findMany({ orderBy: [{ isDefault: 'desc' }, { name: 'asc' }], select: { id: true, name: true, code: true } }),
-    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD', unit: 'g' }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true } }),
+    prisma.product.findMany({ where: { status: { not: 'inactive' }, productCategory: 'STANDARD', unit: { in: ['g', '隻'] } }, orderBy: { name: 'asc' }, select: { id: true, name: true, sku: true, unit: true } }),
   ]);
   return <>
-    <PageHeader title="新增進貨" description="輸入實收重量與單據金額；確認後會一次完成入庫與移動平均成本更新" actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
+    <PageHeader title="新增進貨" description="輸入實收數量與單據金額；確認後會一次完成入庫與移動平均成本更新" actions={<Button variant="outline" asChild><Link href="/inventory/purchases">返回進貨紀錄</Link></Button>} />
     <PurchaseReceiptForm>
       <input type="hidden" name="submissionKey" value={submissionKey && /^[0-9a-f-]{36}$/i.test(submissionKey) ? submissionKey : randomUUID()} />
       {error ? <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
@@ -36,12 +36,12 @@ export default async function NewPurchaseReceiptPage(props: { searchParams: Prom
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="border-b p-5"><h2 className="text-lg font-semibold">本次實收商品</h2><p className="mt-1 text-sm text-muted-foreground">每個商品只填一列；重量一律填實際收到的克數。</p></div>
+        <div className="border-b p-5"><h2 className="text-lg font-semibold">本次實收商品</h2><p className="mt-1 text-sm text-muted-foreground">每個商品只填一列；請依商品選項標示的庫存單位填寫。</p></div>
         <div className="divide-y">{Array.from({ length: 8 }, (_, index) => <div key={index} className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_160px_190px]">
-          <label className="min-w-0 text-sm">商品<select name="productId" className="mt-1 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">選擇商品</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.sku}</option>)}</select></label>
-          <label className="text-sm">實收重量（g）<Input className="mt-1 min-h-11 min-w-0 text-base" name="quantityGrams" type="number" min="1" step="1" inputMode="numeric" /></label>
+          <label className="min-w-0 text-sm">商品<select name="productId" className="mt-1 min-h-11 min-w-0 w-full rounded-md border bg-background px-3"><option value="">選擇商品</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} · {p.sku}（{p.unit}）</option>)}</select></label>
+          <label className="text-sm">實收數量<Input className="mt-1 min-h-11 min-w-0 text-base" name="quantityGrams" type="number" min="1" step="1" inputMode="numeric" /></label>
           <label className="text-sm">商品金額（NT$）<Input className="mt-1 min-h-11 min-w-0 text-base" name="rawAmount" type="number" min="0" step="0.01" inputMode="decimal" /></label>
-          <label className="text-sm">舊庫存成本/g（首次）<Input className="mt-1 min-h-11 min-w-0 text-base" name="openingAverageCostPerGram" type="number" min="0" step="0.000001" inputMode="decimal" placeholder="沒有舊庫存可留白" /></label>
+          <label className="text-sm">舊庫存單位成本（首次）<Input className="mt-1 min-h-11 min-w-0 text-base" name="openingAverageCostPerGram" type="number" min="0" step="0.000001" inputMode="decimal" placeholder="沒有舊庫存可留白" /></label>
         </div>)}</div>
       </Card>
 
