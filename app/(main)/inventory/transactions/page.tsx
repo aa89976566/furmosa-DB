@@ -45,16 +45,23 @@ export default async function InventoryTxnsPage(
 
   const txns = await prisma.inventoryTransaction.findMany({
     where,
-    include: { product: true },
     orderBy: { createdAt: 'desc' },
     take: 200,
   });
 
   const warehouseIds = [...new Set(txns.map((txn) => txn.warehouseId))];
-  const warehouses = await prisma.warehouse.findMany({
-    where: { id: { in: warehouseIds } },
-    select: { id: true, name: true },
-  });
+  const productIds = [...new Set(txns.map((txn) => txn.productId))];
+  const [warehouses, products] = await Promise.all([
+    prisma.warehouse.findMany({
+      where: { id: { in: warehouseIds } },
+      select: { id: true, name: true },
+    }),
+    prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true },
+    }),
+  ]);
+  const productsById = new Map(products.map((product) => [product.id, product]));
   const warehouseNames = new Map(warehouses.map(({ id, name }) => [id, name]));
 
   const types: { key: string; label: string }[] = [
@@ -114,13 +121,16 @@ export default async function InventoryTxnsPage(
                     <StatusBadge kind="inventory" value={t.type} />
                   </TableCell>
                   <TableCell>
-                    <Link
-                      href={`/products/${t.product.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {t.product.name}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">{t.product.sku}</div>
+                    {productsById.has(t.productId) ? (
+                      <>
+                        <Link href={`/products/${t.productId}`} className="font-medium hover:underline">
+                          {productsById.get(t.productId)?.name}
+                        </Link>
+                        <div className="text-xs text-muted-foreground">{productsById.get(t.productId)?.sku}</div>
+                      </>
+                    ) : (
+                      <span>商品待核對（{t.productId}）</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">{warehouseNames.get(t.warehouseId) ?? `倉庫待核對（${t.warehouseId}）`}</TableCell>
                   <TableCell className="text-right">{formatNumber(t.quantity)} {t.unit ?? "（舊紀錄）"}</TableCell>
