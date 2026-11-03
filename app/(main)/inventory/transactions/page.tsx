@@ -45,10 +45,17 @@ export default async function InventoryTxnsPage(
 
   const txns = await prisma.inventoryTransaction.findMany({
     where,
-    include: { product: true, warehouse: true },
+    include: { product: true },
     orderBy: { createdAt: 'desc' },
     take: 200,
   });
+
+  const warehouseIds = [...new Set(txns.map((txn) => txn.warehouseId))];
+  const warehouses = await prisma.warehouse.findMany({
+    where: { id: { in: warehouseIds } },
+    select: { id: true, name: true },
+  });
+  const warehouseNames = new Map(warehouses.map(({ id, name }) => [id, name]));
 
   const types: { key: string; label: string }[] = [
     { key: '', label: '全部' },
@@ -115,7 +122,7 @@ export default async function InventoryTxnsPage(
                     </Link>
                     <div className="text-xs text-muted-foreground">{t.product.sku}</div>
                   </TableCell>
-                  <TableCell className="text-sm">{t.warehouse.name}</TableCell>
+                  <TableCell className="text-sm">{warehouseNames.get(t.warehouseId) ?? `倉庫待核對（${t.warehouseId}）`}</TableCell>
                   <TableCell className="text-right">{formatNumber(t.quantity)} {t.unit ?? "（舊紀錄）"}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {t.eventKey?.startsWith('quantity-count:') ? '數量盤點' : t.reference ?? '-'}
