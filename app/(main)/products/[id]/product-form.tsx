@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Trash2 } from 'lucide-react';
@@ -72,6 +73,12 @@ export function ProductForm({
   const variable = productType === 'variable';
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
+  const router = useRouter();
+
+  async function handleSave(formData: FormData) {
+    await saveAction(formData);
+    router.refresh();
+  }
   const [retailCategory, setRetailCategory] = useState(product.category);
   const [consignmentEnabled, setConsignmentEnabled] = useState(Boolean(product.consignmentEnabled));
   const [wholesaleEnabled, setWholesaleEnabled] = useState(Boolean(product.wholesaleEnabled));
@@ -112,7 +119,7 @@ export function ProductForm({
 
   return (
     <div className="space-y-4">
-      <form action={saveAction} className={studio ? 'space-y-6' : 'space-y-4'}>
+      <form action={handleSave} className={studio ? 'space-y-6' : 'space-y-4'}>
         {product.productCategory === 'JAR_EXCHANGE' ? <label className="block space-y-2 text-sm font-medium">庫存來源單品
           <select name="inventorySourceProductId" defaultValue={product.inventorySourceProductId ?? ''} className="w-full rounded-md border bg-background p-2">
             <option value="">尚未設定（不可出貨）</option>
