@@ -8,9 +8,13 @@ import {
   countShipmentQueueSamples,
   createShipmentQueuePerf,
   emptyShipmentQueuePerfCounts,
+  isShipmentQueuePerfEnabled,
+  readShipmentQueuePerfRequestContext,
+  sanitizeVercelRequestId,
   type ShipmentQueuePerf,
   type ShipmentQueuePerfCounts,
   type ShipmentQueuePerfLogInput,
+  type ShipmentQueuePerfRequestContext,
 } from '@/lib/shipment-queue-perf';
 
 const ALLOWED_LOG_KEYS = new Set([
@@ -18,6 +22,10 @@ const ALLOWED_LOG_KEYS = new Set([
   'status',
   'type',
   'success',
+  'requestId',
+  'fetchMode',
+  'fetchDest',
+  'fetchPurpose',
   'findManyMs',
   'countsMs',
   'jibaMs',
@@ -37,6 +45,10 @@ const REQUIRED_LOG_KEYS = [
   'status',
   'type',
   'success',
+  'requestId',
+  'fetchMode',
+  'fetchDest',
+  'fetchPurpose',
   'findManyMs',
   'countsMs',
   'jibaMs',
@@ -57,15 +69,41 @@ const COUNT_KEYS = [
   'inventoryBalanceCount',
   'orderIdCount',
 ] as const;
+const FETCH_MODE_ALLOWLIST = new Set([
+  'navigate',
+  'cors',
+  'no-cors',
+  'same-origin',
+  'websocket',
+  'unknown',
+  'other',
+]);
+const FETCH_DEST_ALLOWLIST = new Set([
+  'document',
+  'empty',
+  'script',
+  'style',
+  'image',
+  'iframe',
+  'worker',
+  'serviceworker',
+  'font',
+  'manifest',
+  'unknown',
+  'other',
+]);
+const FETCH_PURPOSE_ALLOWLIST = new Set(['prefetch', 'unknown', 'other']);
 const ERROR_CODES = new Set(['FIND_MANY', 'COUNTS', 'JIBA', 'TRANSFORM', 'UNATTRIBUTED']);
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
 const HELPER_PATH = 'lib/shipment-queue-perf.ts';
+const CANARY_SECRET = 'canary-secret-DO-NOT-LEAK-9f3a2c';
 
 let logs: unknown[][] = [];
 let originalInfo: typeof console.info;
 const previousFlag = process.env.SHIPMENTS_PERF_LOG;
+const previousVercelEnv = process.env.VERCEL_ENV;
 
 beforeEach(() => {
   logs = [];
@@ -74,12 +112,15 @@ beforeEach(() => {
     logs.push(args);
   };
   delete process.env.SHIPMENTS_PERF_LOG;
+  delete process.env.VERCEL_ENV;
 });
 
 afterEach(() => {
   console.info = originalInfo;
   if (previousFlag === undefined) delete process.env.SHIPMENTS_PERF_LOG;
   else process.env.SHIPMENTS_PERF_LOG = previousFlag;
+  if (previousVercelEnv === undefined) delete process.env.VERCEL_ENV;
+  else process.env.VERCEL_ENV = previousVercelEnv;
 });
 
 function zeroCounts(): ShipmentQueuePerfCounts {
@@ -97,6 +138,32 @@ function sampleInput(overrides: Partial<ShipmentQueuePerfLogInput> = {}): Shipme
       inventoryBalanceCount: 5,
       orderIdCount: 2,
     },
+    ...overrides,
+  };
+}
+
+function headerStore(entries: Record<string, string | null>): {
+  get(name: string): string | null;
+} {
+  const normalized = new Map<string, string | null>();
+  for (const [key, value] of Object.entries(entries)) {
+    normalized.set(key.toLowerCase(), value);
+  }
+  return {
+    get(name: string) {
+      return normalized.has(name.toLowerCase()) ? (normalized.get(name.toLowerCase()) ?? null) : null;
+    },
+  };
+}
+
+function sampleRequestContext(
+  overrides: Partial<ShipmentQueuePerfRequestContext> = {},
+): ShipmentQueuePerfRequestContext {
+  return {
+    requestId: 'iad1::abc-def',
+    fetchMode: 'navigate',
+    fetchDest: 'document',
+    fetchPurpose: 'unknown',
     ...overrides,
   };
 }
@@ -125,6 +192,10 @@ function assertAllowlisted(line: Record<string, unknown>, success: boolean) {
   assert.equal(typeof line.type, 'string');
   if (line.status !== '') assert.equal(SHIPMENT_STATUSES.includes(line.status as never), true);
   if (line.type !== '') assert.equal(SHIPMENT_KIND_KEYS.includes(line.type as never), true);
+  assert.equal(line.requestId === null || typeof line.requestId === 'string', true);
+  assert.equal(FETCH_MODE_ALLOWLIST.has(String(line.fetchMode)), true, String(line.fetchMode));
+  assert.equal(FETCH_DEST_ALLOWLIST.has(String(line.fetchDest)), true, String(line.fetchDest));
+  assert.equal(FETCH_PURPOSE_ALLOWLIST.has(String(line.fetchPurpose)), true, String(line.fetchPurpose));
   for (const key of DURATION_KEYS) {
     assert.equal(typeof line[key], 'number');
     assert.equal(Number.isInteger(line[key]), true);
@@ -158,6 +229,51 @@ async function flushMicrotasks() {
 }
 
 describe('shipment queue performance diagnostics', () => {
+  it('missing or wrong flags keep diagnostics off and skip header reads', () => {
+    const cases: Array<{ vercel?: string; flag?: string }> = [
+      {},
+      { vercel: 'preview' },
+      { flag: '1' },
+      { vercel: 'production', flag: '1' },
+      { vercel: 'development', flag: '1' },
+      { vercel: 'preview', flag: '' },
+      { vercel: 'preview', flag: '0' },
+      { vercel: 'preview', flag: 'true' },
+      { vercel: 'preview', flag: 'yes' },
+      { vercel: 'preview', flag: ' 1' },
+      { vercel: 'Preview', flag: '1' },
+    ];
+    for (const entry of cases) {
+      delete process.env.VERCEL_ENV;
+      delete process.env.SHIPMENTS_PERF_LOG;
+      if (entry.vercel !== undefined) process.env.VERCEL_ENV = entry.vercel;
+      if (entry.flag !== undefined) process.env.SHIPMENTS_PERF_LOG = entry.flag;
+      assert.equal(isShipmentQueuePerfEnabled(), false, JSON.stringify(entry));
+      const perf = createShipmentQueuePerf();
+      assert.equal(perf.enabled, false, JSON.stringify(entry));
+      perf.succeed(sampleInput());
+    }
+    assert.equal(logs.length, 0);
+  });
+
+  it('exact Preview enablement turns logging on', () => {
+    process.env.VERCEL_ENV = 'preview';
+    process.env.SHIPMENTS_PERF_LOG = '1';
+    assert.equal(isShipmentQueuePerfEnabled(), true);
+    const enabled = createShipmentQueuePerf({
+      requestContext: sampleRequestContext({ fetchPurpose: 'prefetch' }),
+    });
+    assert.equal(enabled.enabled, true);
+    enabled.succeed(sampleInput({ type: 'subscription' }));
+    const line = oneLine();
+    assertAllowlisted(line, true);
+    assert.equal(line.type, 'subscription');
+    assert.equal(line.requestId, 'iad1::abc-def');
+    assert.equal(line.fetchMode, 'navigate');
+    assert.equal(line.fetchDest, 'document');
+    assert.equal(line.fetchPurpose, 'prefetch');
+  });
+
   it('off means zero logs and preserves the returned promise', async () => {
     const perf = createShipmentQueuePerf();
     const payload = { id: 'same-object' };
@@ -171,27 +287,94 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal(logs.length, 0);
   });
 
-  it('only SHIPMENTS_PERF_LOG === 1 turns logging on', () => {
-    for (const value of ['', '0', 'true', 'yes', ' 1']) {
-      process.env.SHIPMENTS_PERF_LOG = value;
-      const perf = createShipmentQueuePerf();
-      assert.equal(perf.enabled, false, value);
-      perf.succeed(sampleInput());
-    }
-    assert.equal(logs.length, 0);
+  it('sanitizes missing malformed and oversized request ids', () => {
+    assert.equal(sanitizeVercelRequestId(null), null);
+    assert.equal(sanitizeVercelRequestId(undefined), null);
+    assert.equal(sanitizeVercelRequestId(''), null);
+    assert.equal(sanitizeVercelRequestId('  iad1::ok'), null);
+    assert.equal(sanitizeVercelRequestId('iad1::ok '), null);
+    assert.equal(sanitizeVercelRequestId(`bad ${CANARY_SECRET}`), null);
+    assert.equal(sanitizeVercelRequestId(`${CANARY_SECRET}<script>`), null);
+    assert.equal(sanitizeVercelRequestId('a'.repeat(129)), null);
+    assert.equal(sanitizeVercelRequestId('iad1::ok-request_1.2'), 'iad1::ok-request_1.2');
+    assert.equal(sanitizeVercelRequestId('a'.repeat(128)), 'a'.repeat(128));
 
-    process.env.SHIPMENTS_PERF_LOG = '1';
-    const enabled = createShipmentQueuePerf();
-    assert.equal(enabled.enabled, true);
-    enabled.succeed(sampleInput({ type: 'subscription' }));
-    const line = oneLine();
-    assertAllowlisted(line, true);
-    assert.equal(line.type, 'subscription');
+    const missing = readShipmentQueuePerfRequestContext(headerStore({}));
+    assert.deepEqual(missing, {
+      requestId: null,
+      fetchMode: 'unknown',
+      fetchDest: 'unknown',
+      fetchPurpose: 'unknown',
+    });
+
+    const malformed = readShipmentQueuePerfRequestContext(
+      headerStore({
+        'x-vercel-id': `leak ${CANARY_SECRET}`,
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-dest': 'document',
+        'sec-purpose': 'prefetch',
+      }),
+    );
+    assert.equal(malformed.requestId, null);
+    assert.equal(malformed.fetchMode, 'navigate');
+    assert.equal(malformed.fetchDest, 'document');
+    assert.equal(malformed.fetchPurpose, 'prefetch');
+    assert.equal(JSON.stringify(malformed).includes(CANARY_SECRET), false);
+
+    const oversized = readShipmentQueuePerfRequestContext(
+      headerStore({
+        'x-vercel-id': `${'a'.repeat(100)}${CANARY_SECRET}`,
+      }),
+    );
+    assert.equal(oversized.requestId, null);
+    assert.equal(JSON.stringify(oversized).includes(CANARY_SECRET), false);
+  });
+
+  it('normalizes allowlisted fetch metadata and maps unknown values', () => {
+    const normalized = readShipmentQueuePerfRequestContext(
+      headerStore({
+        'x-vercel-id': 'fra1::req-1',
+        'sec-fetch-mode': ' Navigate ',
+        'sec-fetch-dest': 'DOCUMENT',
+        'sec-purpose': ' Prefetch ',
+      }),
+    );
+    assert.deepEqual(normalized, {
+      requestId: 'fra1::req-1',
+      fetchMode: 'navigate',
+      fetchDest: 'document',
+      fetchPurpose: 'prefetch',
+    });
+
+    const unknown = readShipmentQueuePerfRequestContext(
+      headerStore({
+        'x-vercel-id': 'fra1::req-2',
+        'sec-fetch-mode': `cors;${CANARY_SECRET}`,
+        'sec-fetch-dest': CANARY_SECRET,
+        'sec-purpose': `prefetch;${CANARY_SECRET}`,
+      }),
+    );
+    assert.deepEqual(unknown, {
+      requestId: 'fra1::req-2',
+      fetchMode: 'other',
+      fetchDest: 'other',
+      fetchPurpose: 'other',
+    });
+    assert.equal(JSON.stringify(unknown).includes(CANARY_SECRET), false);
   });
 
   it('on produces only allowlisted keys and preserves the return value', async () => {
     let clock = 0;
-    const perf = createShipmentQueuePerf({ enabled: true, now: () => clock });
+    const perf = createShipmentQueuePerf({
+      enabled: true,
+      now: () => clock,
+      requestContext: sampleRequestContext({
+        requestId: null,
+        fetchMode: 'cors',
+        fetchDest: 'empty',
+        fetchPurpose: 'other',
+      }),
+    });
     const rows = [{ id: 'row-secret' }];
     const counts = { total: 4, label: 'name-secret' };
     const measuredRows = await perf.measure('findMany', async () => {
@@ -248,6 +431,10 @@ describe('shipment queue performance diagnostics', () => {
     assertAllowlisted(line, true);
     assert.equal(line.status, '');
     assert.equal(line.type, '');
+    assert.equal(line.requestId, null);
+    assert.equal(line.fetchMode, 'cors');
+    assert.equal(line.fetchDest, 'empty');
+    assert.equal(line.fetchPurpose, 'other');
     assert.equal(line.shipmentCount, 1);
     assert.equal(line.itemCount, 1);
     assert.equal(line.priceTierCount, 2);
@@ -268,6 +455,7 @@ describe('shipment queue performance diagnostics', () => {
       'buyer@example.com',
       '999',
       '<script>',
+      CANARY_SECRET,
     ]);
     perf.succeed(sampleInput());
     assert.equal(logs.length, 1);
@@ -365,7 +553,11 @@ describe('shipment queue performance diagnostics', () => {
     });
     const countsError = new Error('counts-secret');
     Object.assign(countsError, { code: 'P2002', stack: 'stack-secret' });
-    const perf = createShipmentQueuePerf({ enabled: true, now: () => 0 });
+    const perf = createShipmentQueuePerf({
+      enabled: true,
+      now: () => 0,
+      requestContext: sampleRequestContext(),
+    });
 
     let caught: unknown;
     try {
@@ -385,7 +577,8 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal(line.success, false);
     assert.equal(line.errorCategory, 'segment_rejected');
     assert.equal(line.errorCode, 'COUNTS');
-    assertValuesHide(line, ['counts-secret', 'P2002', 'stack-secret']);
+    assert.equal(line.requestId, 'iad1::abc-def');
+    assertValuesHide(line, ['counts-secret', 'P2002', 'stack-secret', CANARY_SECRET]);
     perf.fail(sampleInput());
     perf.succeed(sampleInput());
     assert.equal(logs.length, 1);
@@ -517,8 +710,19 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal(body.includes('JSON.stringify'), false);
     assert.equal(body.includes('error.message'), false);
     assert.equal(body.includes('error.stack'), false);
+    assert.match(body, /isShipmentQueuePerfEnabled\(\)/);
+    assert.match(body, /perfEnabled\s*\?\s*readShipmentQueuePerfRequestContext\(await headers\(\)\)/);
+    assert.equal(body.includes('cache('), false);
+    assert.equal(/requestId|fetchMode|fetchDest|fetchPurpose/.test(
+      body.slice(body.indexOf('return ('), body.length),
+    ), false);
 
+    assert.match(helper, /VERCEL_ENV === 'preview'/);
     assert.match(helper, /SHIPMENTS_PERF_LOG === '1'/);
+    assert.match(helper, /x-vercel-id/);
+    assert.match(helper, /sec-fetch-mode/);
+    assert.match(helper, /sec-fetch-dest/);
+    assert.match(helper, /sec-purpose/);
     assert.equal((helper.match(/console\.info\(/g) ?? []).length, 1);
     assert.equal(helper.includes('console.log'), false);
     assert.equal(helper.includes('console.error'), false);
@@ -527,6 +731,8 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal(helper.includes('.message'), false);
     assert.equal(helper.includes('.stack'), false);
     assert.equal(helper.includes('prisma'), false);
+    assert.equal(helper.includes("from 'next/headers'"), false);
+    assert.equal(helper.includes('cache('), false);
   });
 });
 

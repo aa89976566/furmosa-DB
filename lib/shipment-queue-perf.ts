@@ -1,11 +1,36 @@
 import { SHIPMENT_KIND_KEYS } from '@/lib/order-hub-kinds';
 import { SHIPMENT_STATUSES } from '@/lib/shipment';
 
-/** Diagnostic timers for the shipment queue. Logging stays off unless SHIPMENTS_PERF_LOG === '1'. */
+/** Diagnostic timers for the shipment queue. Logging stays Preview-only. */
 export const SHIPMENT_QUEUE_PERF_EVENT = 'hq.shipments.queue.perf';
 
 const STATUS_ALLOWLIST = new Set<string>(SHIPMENT_STATUSES);
 const TYPE_ALLOWLIST = new Set<string>(SHIPMENT_KIND_KEYS);
+
+/** Bound platform request IDs so oversized or odd values never reach logs. */
+const VERCEL_REQUEST_ID_MAX_LEN = 128;
+const VERCEL_REQUEST_ID_PATTERN = /^[A-Za-z0-9:._-]+$/;
+
+const FETCH_MODE_ALLOWLIST = new Set([
+  'navigate',
+  'cors',
+  'no-cors',
+  'same-origin',
+  'websocket',
+]);
+const FETCH_DEST_ALLOWLIST = new Set([
+  'document',
+  'empty',
+  'script',
+  'style',
+  'image',
+  'iframe',
+  'worker',
+  'serviceworker',
+  'font',
+  'manifest',
+]);
+const FETCH_PURPOSE_ALLOWLIST = new Set(['prefetch']);
 
 const SEGMENT_CODE = {
   findMany: 'FIND_MANY',
@@ -32,11 +57,26 @@ export type ShipmentQueuePerfLogInput = {
   counts: ShipmentQueuePerfCounts;
 };
 
+export type ShipmentQueuePerfRequestContext = {
+  requestId: string | null;
+  fetchMode: string;
+  fetchDest: string;
+  fetchPurpose: string;
+};
+
+export type HeaderReader = {
+  get(name: string): string | null;
+};
+
 type ShipmentQueuePerfLogLine = {
   event: typeof SHIPMENT_QUEUE_PERF_EVENT;
   status: string;
   type: string;
   success: boolean;
+  requestId: string | null;
+  fetchMode: string;
+  fetchDest: string;
+  fetchPurpose: string;
   findManyMs: number;
   countsMs: number;
   jibaMs: number;
@@ -71,8 +111,50 @@ export type ShipmentQueuePerf = {
   fail(input: ShipmentQueuePerfLogInput): void;
 };
 
+const UNKNOWN_FETCH = 'unknown';
+const OTHER_FETCH = 'other';
+
+const EMPTY_REQUEST_CONTEXT: ShipmentQueuePerfRequestContext = {
+  requestId: null,
+  fetchMode: UNKNOWN_FETCH,
+  fetchDest: UNKNOWN_FETCH,
+  fetchPurpose: UNKNOWN_FETCH,
+};
+
 export function isShipmentQueuePerfEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.SHIPMENTS_PERF_LOG === '1';
+  return env.VERCEL_ENV === 'preview' && env.SHIPMENTS_PERF_LOG === '1';
+}
+
+/** Keep only a bounded, charset-safe copy of the platform request ID. */
+export function sanitizeVercelRequestId(raw: string | null | undefined): string | null {
+  if (typeof raw !== 'string') return null;
+  if (raw.length === 0 || raw.length > VERCEL_REQUEST_ID_MAX_LEN) return null;
+  if (raw.trim() !== raw) return null;
+  if (!VERCEL_REQUEST_ID_PATTERN.test(raw)) return null;
+  return raw;
+}
+
+function classifyFetchValue(
+  raw: string | null | undefined,
+  allowlist: Set<string>,
+): string {
+  if (typeof raw !== 'string') return UNKNOWN_FETCH;
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return UNKNOWN_FETCH;
+  if (allowlist.has(normalized)) return normalized;
+  return OTHER_FETCH;
+}
+
+/** Map request headers into allowlisted classification fields. Call only when enabled. */
+export function readShipmentQueuePerfRequestContext(
+  headerStore: HeaderReader,
+): ShipmentQueuePerfRequestContext {
+  return {
+    requestId: sanitizeVercelRequestId(headerStore.get('x-vercel-id')),
+    fetchMode: classifyFetchValue(headerStore.get('sec-fetch-mode'), FETCH_MODE_ALLOWLIST),
+    fetchDest: classifyFetchValue(headerStore.get('sec-fetch-dest'), FETCH_DEST_ALLOWLIST),
+    fetchPurpose: classifyFetchValue(headerStore.get('sec-purpose'), FETCH_PURPOSE_ALLOWLIST),
+  };
 }
 
 export function emptyShipmentQueuePerfCounts(): ShipmentQueuePerfCounts {
@@ -120,8 +202,10 @@ export function countShipmentQueueSamples(
 export function createShipmentQueuePerf(options?: {
   enabled?: boolean;
   now?: () => number;
+  requestContext?: ShipmentQueuePerfRequestContext;
 }): ShipmentQueuePerf {
   const enabled = options?.enabled ?? isShipmentQueuePerfEnabled();
+  const requestContext = options?.requestContext ?? EMPTY_REQUEST_CONTEXT;
   const now = options?.now ?? (() => performance.now());
   const origin = now();
   const startedAt = new Map<Segment, number>();
@@ -156,6 +240,10 @@ export function createShipmentQueuePerf(options?: {
       status: sanitizeStatus(input.status),
       type: sanitizeType(input.type),
       success,
+      requestId: requestContext.requestId,
+      fetchMode: requestContext.fetchMode,
+      fetchDest: requestContext.fetchDest,
+      fetchPurpose: requestContext.fetchPurpose,
       findManyMs: readMs('findMany'),
       countsMs: readMs('counts'),
       jibaMs: readMs('jiba'),

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { ShipmentQueueWorkspace } from '@/components/shipments/shipment-queue-workspace';
 import type { ShipmentQueueRow } from '@/components/shipments/shipment-queue-table';
@@ -22,6 +23,8 @@ import {
   countShipmentQueueSamples,
   createShipmentQueuePerf,
   emptyShipmentQueuePerfCounts,
+  isShipmentQueuePerfEnabled,
+  readShipmentQueuePerfRequestContext,
 } from '@/lib/shipment-queue-perf';
 import {
   isShipmentKindKey,
@@ -281,7 +284,13 @@ export async function ShipmentsQueueBody({
     kindFilter,
   );
 
-  const perf = createShipmentQueuePerf();
+  const perfEnabled = isShipmentQueuePerfEnabled();
+  const perf = createShipmentQueuePerf({
+    enabled: perfEnabled,
+    requestContext: perfEnabled
+      ? readShipmentQueuePerfRequestContext(await headers())
+      : undefined,
+  });
   let perfCounts = emptyShipmentQueuePerfCounts();
   let rawShipments: Awaited<
     ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
