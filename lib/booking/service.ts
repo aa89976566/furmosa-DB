@@ -97,7 +97,7 @@ export async function findOrCreateCustomerByPhone(input: {
   if (!input.name.trim()) throw new Error('請填寫姓名');
   if (digits.length < 8) throw new Error('請填寫有效電話');
 
-  const existing = await prisma.customer.findFirst({
+  const candidates = await prisma.customer.findMany({
     where: {
       OR: [
         { phone },
@@ -107,6 +107,7 @@ export async function findOrCreateCustomerByPhone(input: {
     },
     orderBy: { createdAt: 'asc' },
   });
+  const existing = resolveCustomerByPhoneCandidates(candidates);
   if (existing) {
     let row = existing;
     if (input.petName?.trim() && !existing.petName) {
@@ -133,6 +134,26 @@ export async function findOrCreateCustomerByPhone(input: {
     },
   });
   return created;
+}
+
+/**
+ * 同一電話若有歷史重複會員，預約必須優先連到唯一已綁 LINE 的會員，
+ * 才能讓後續 LIFF 換罐資格查詢找到同一張預約。
+ * 無法唯一判斷時停止建立，避免把預約靜默掛到錯誤會員。
+ */
+export function resolveCustomerByPhoneCandidates<
+  T extends { lineUserId: string | null },
+>(candidates: T[]): T | null {
+  if (candidates.length === 0) return null;
+
+  const lineLinked = candidates.filter((row) => Boolean(row.lineUserId?.trim()));
+  if (lineLinked.length === 1) return lineLinked[0];
+  if (lineLinked.length > 1) {
+    throw new Error('這支電話對應多個已綁 LINE 的會員，請先到 HQ 整理會員資料');
+  }
+  if (candidates.length === 1) return candidates[0];
+
+  throw new Error('這支電話對應多位會員，請先到 HQ 整理會員資料');
 }
 
 async function resolveSlotInTx(
