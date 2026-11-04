@@ -120,14 +120,16 @@ describe("HQ 語意色彩系統", () => {
 
   it("換罐工作區只顯示本店 LINE 交易，不提供店員掃碼或輸入序號", () => {
     const refill = readRepoFile("components/pos/refill-workspace.tsx");
-    const legacyDetail = readRepoFile("app/pos/refill/[id]/page.tsx");
+    const transactionDetail = readRepoFile("app/pos/refill/[id]/page.tsx");
     assert.match(refill, /會員自己在 LINE 完成序號登錄/);
     assert.match(refill, /本店換罐內容/);
     assert.match(refill, /本店 LINE 交易紀錄/);
     assert.equal(refill.includes("JarSerialPanel"), false);
     assert.equal(refill.includes("掃描罐底"), false);
     assert.equal(refill.includes("手動輸入序號"), false);
-    assert.match(legacyDetail, /redirect\('\/pos\/refill'\)/);
+    assert.match(transactionDetail, /loadMerchantRefillOrderDetail/);
+    assert.match(transactionDetail, /href="\/pos\/records"/);
+    assert.doesNotMatch(transactionDetail, /掃描罐底|手動輸入序號/);
   });
 
   it("補貨處理進度使用可降級的動態時間軸", () => {

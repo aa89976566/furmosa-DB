@@ -46,6 +46,76 @@ export type MerchantRefillDashboard = {
   transactions: MerchantRefillTransaction[];
 };
 
+export type MerchantRefillOrderDetail = {
+  id: string;
+  status: string;
+  customerName: string;
+  petName: string | null;
+  orderType: string;
+  deliveryMode: string;
+  totalAmount: number;
+  paidAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  deliveredItem: {
+    name: string;
+    weightGrams: number;
+    quantity: number;
+  } | null;
+};
+
+export async function loadMerchantRefillOrderDetail(
+  merchantId: string,
+  orderId: string,
+): Promise<MerchantRefillOrderDetail | null> {
+  const order = await prisma.refillOrder.findFirst({
+    where: { id: orderId, merchantId },
+    select: {
+      id: true,
+      status: true,
+      orderType: true,
+      deliveryMode: true,
+      totalAmount: true,
+      paidAt: true,
+      completedAt: true,
+      createdAt: true,
+      petName: true,
+      deliveredQuantity: true,
+      customer: { select: { name: true } },
+      appointment: { select: { petName: true } },
+      deliveredFlavour: { select: { name: true, weightGrams: true } },
+      payments: {
+        where: { status: 'paid' },
+        orderBy: { paidAt: 'desc' },
+        select: { paidAt: true },
+        take: 1,
+      },
+    },
+  });
+  if (!order) return null;
+
+  return {
+    id: order.id,
+    status: order.status,
+    customerName: order.customer.name,
+    petName: order.petName ?? order.appointment.petName,
+    orderType: order.orderType,
+    deliveryMode: order.deliveryMode,
+    totalAmount: order.totalAmount,
+    paidAt: (order.paidAt ?? order.payments[0]?.paidAt)?.toISOString() ?? null,
+    completedAt: order.completedAt?.toISOString() ?? null,
+    createdAt: order.createdAt.toISOString(),
+    deliveredItem:
+      order.deliveredFlavour && order.deliveredQuantity
+        ? {
+            name: order.deliveredFlavour.name,
+            weightGrams: order.deliveredFlavour.weightGrams,
+            quantity: order.deliveredQuantity,
+          }
+        : null,
+  };
+}
+
 export function maskJarCode(code: string): string {
   return `•••• ${code.slice(-4)}`;
 }
