@@ -41,7 +41,8 @@ describe('POS_NAV', () => {
     assert.match(hub, /loadMerchantRefillDashboard/);
     assert.doesNotMatch(hub, /listMerchantRefillOrders/);
     assert.doesNotMatch(hub, /listMerchantJarExchangeMembers/);
-    assert.match(detail, /redirect\('\/pos\/refill'\)/);
+    assert.match(detail, /loadMerchantRefillOrderDetail/);
+    assert.match(detail, /href="\/pos\/records"/);
     assert.doesNotMatch(detail, /redirect\('\/pos\/coupons'\)/);
     assert.match(cooperationEntries, /href: '\/pos\/refill'/);
     assert.match(cooperationEntries, /href: '\/pos\/coupons'/);
