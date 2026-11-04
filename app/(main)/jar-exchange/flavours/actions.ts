@@ -77,16 +77,19 @@ export async function setRefillStockAction(formData: FormData): Promise<void> {
     update: { quantity, isAvailable },
   });
 
-  await prisma.refillStockTxn.create({
-    data: {
-      storeId,
-      flavourId,
-      changeQty,
-      quantityAfter: row.quantity,
-      reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
-      note,
-    },
-  });
+  const availabilityChanged = existing ? existing.isAvailable !== isAvailable : true;
+  if (changeQty !== 0 || availabilityChanged) {
+    await prisma.refillStockTxn.create({
+      data: {
+        storeId,
+        flavourId,
+        changeQty,
+        quantityAfter: row.quantity,
+        reason: quantity === 0 || !isAvailable ? 'out_of_stock' : 'adjust',
+        note,
+      },
+    });
+  }
 
   revalidateRefill();
 }

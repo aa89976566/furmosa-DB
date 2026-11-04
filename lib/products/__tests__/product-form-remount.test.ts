@@ -7,12 +7,12 @@ const pageSource = readFileSync(
   'utf8',
 );
 
-test('product form remounts when the product or commercial terms version changes', () => {
+test('product form remounts when saved product data or commercial terms change', () => {
   const productForms = pageSource.match(/<ProductForm\b[\s\S]*?\/>/g) ?? [];
 
   assert.equal(productForms.length, 1, '商品詳情頁應只有一個 ProductForm');
   assert.match(
     productForms[0],
-    /key=\{`\$\{product\.id\}:\$\{product\.commercialTermsVersion \?\? 0\}`\}/,
+    /key=\{`\$\{product\.id\}:\$\{product\.updatedAt\.toISOString\(\)\}:\$\{product\.commercialTermsVersion \?\? 0\}`\}/,
   );
 });

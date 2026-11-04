@@ -148,7 +148,8 @@ function RefillWorkspaceInner({ account, dashboard }: { account: PosAccount; das
           <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-5 py-5 md:px-8"><div><p className="text-sm text-zinc-500">店家服務</p><h1 className="mt-1 text-2xl font-semibold text-[#173f2b]">換罐計畫</h1></div><PosPageTools account={account} /></header>
           <div className="mx-auto max-w-[1280px] space-y-5 px-4 py-5 md:px-8 md:py-7">
             <section className="rounded-[24px] border border-[#cfe0d6] bg-[#f2f7f4] p-5 md:flex md:items-center md:justify-between md:gap-6"><div><p className="text-lg font-semibold text-[#174733]">會員自己在 LINE 完成序號登錄</p><p className="mt-2 text-sm leading-6 text-zinc-600">客人加入匠寵官方 LINE 後輸入 8 位數字；HQ 自動入點，本頁只顯示 {dashboard.storeName || "本店"} 的內容與交易紀錄。</p></div><span className="mt-4 inline-flex shrink-0 rounded-full bg-[#2e7d4f] px-4 py-2 text-sm font-medium text-white md:mt-0">LINE 已連線</span></section>
-            {!dashboard.storeReady ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">本店尚未完成換罐計畫店家綁定，為避免顯示其他店家資料，交易紀錄已暫時隱藏。請聯絡匠寵客服完成設定。</section> : null}\n            <DeliveryWorkspace dashboard={dashboard} />
+            {!dashboard.storeReady ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">本店尚未完成換罐計畫店家綁定，為避免顯示其他店家資料，交易紀錄已暫時隱藏。請聯絡匠寵客服完成設定。</section> : null}
+            <DeliveryWorkspace dashboard={dashboard} />
             <section aria-live="polite" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SummaryCard label={`今日 LINE 入點（${dashboard.summary.todayLabel}）`} value={`${dashboard.summary.today} 筆`} note={`同步於 ${dashboard.summary.updatedAtLabel}`} />
               <SummaryCard label="近 30 日 LINE 入點" value={`${dashboard.summary.last30Days} 筆`} note={`${dashboard.summary.monthLabel}本月共 ${dashboard.summary.thisMonth} 筆`} />

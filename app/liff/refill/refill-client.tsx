@@ -135,7 +135,7 @@ function RefillFlow({
           }
           if (!cancelled) {
             setStep('confirming');
-            setError('付款確認還在處理，請稍後再打開查看。');
+            setError('付款還在確認中，晚一點再回來看就好');
           }
           return;
         }
@@ -232,23 +232,23 @@ function RefillFlow({
     );
     return (
       <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">請先完成會員註冊，再回來換罐付款。</p>
+        <p className="text-sm text-muted-foreground">先完成會員註冊，就能繼續換罐</p>
         <Button asChild className="w-full min-h-[48px]">
-          <a href={`/liff/register?return=${returnTo}`}>前往註冊</a>
+          <a href={`/liff/register?return=${returnTo}`}>先去註冊</a>
         </Button>
       </div>
     );
   }
 
   if (step === 'load' || step === 'paying') {
-    return <p className="text-sm text-muted-foreground">請稍候…</p>;
+    return <p className="text-sm text-muted-foreground">幫你準備中…</p>;
   }
 
   if (step === 'confirming') {
     return (
       <div className="space-y-3">
         <p className="text-lg font-semibold">{REFILL_COPY.confirmingPayment}</p>
-        <p className="text-sm text-muted-foreground">我們正在向銀行確認，請不要關閉頁面。</p>
+        <p className="text-sm text-muted-foreground">銀行正在回傳結果，先別關掉這個畫面</p>
         {error && <LiffStatus message={error} variant="error" />}
       </div>
     );
@@ -265,7 +265,9 @@ function RefillFlow({
         <div>
           <p className="text-lg font-semibold text-foreground">{REFILL_COPY.payDone}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            到店後，請帶空罐給店員。店家確認實體空罐與交付品項後，就可以領取新罐；新罐序號由你之後在官方 LINE 自行登錄入點。
+            {o?.orderType === 'first'
+              ? '這次是第一罐，不用帶空罐｜到店後給店員確認，就能領取新罐'
+              : '記得帶空罐到店裡｜店員確認空罐與交付品項後，就能領取新罐'}
           </p>
         </div>
         {o && (
@@ -278,7 +280,9 @@ function RefillFlow({
             <Row label="狀態" value={REFILL_COPY.waitingAtStore} />
           </dl>
         )}
-        <p className="text-sm font-medium text-foreground">{REFILL_COPY.rememberEmptyJar}</p>
+        {o?.orderType !== 'first' ? (
+          <p className="text-sm font-medium text-foreground">{REFILL_COPY.rememberEmptyJar}</p>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -358,7 +362,7 @@ function RefillFlow({
         {busy ? '處理中…' : REFILL_COPY.confirmPayAmount(amount)}
       </Button>
       <p className="text-xs text-muted-foreground text-center">
-        付款給匠寵。美容費請另外付給店家。
+        此筆款項付給匠寵｜美容費用請另外付給店家
       </p>
     </div>
   );

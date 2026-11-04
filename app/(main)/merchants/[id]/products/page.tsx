@@ -42,6 +42,12 @@ export default async function MerchantProductsPage(props: { params: Promise<{ id
           <div className="flex flex-wrap gap-2">
             <AutoFillCommissionButton merchantId={merchantId} />
             <Button size="sm" variant="outline" asChild>
+              <Link href="/jar-exchange/flavours">
+                <Package className="mr-1 h-4 w-4" />
+                換罐品項／庫存
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
               <Link href={`/merchants/${merchantId}/rule`}>
                 <Pencil className="mr-1 h-3 w-3" />
                 分潤規則

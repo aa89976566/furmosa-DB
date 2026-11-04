@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isLineIdTokenUsable } from '@/lib/line/id-token-client';
 
 export type LiffState = 'loading' | 'ready' | 'error';
 
@@ -24,7 +25,14 @@ export function useLiff(liffId: string) {
         }
 
         const token = liff.getIDToken();
-        if (!token) throw new Error('無法取得登入憑證，請關閉後從 LINE 重新開啟');
+        if (!token || !isLineIdTokenUsable(token)) {
+          // LIFF can retain an expired token while still claiming the user is
+          // logged in. Clear it and let LINE issue a fresh token instead of
+          // sending the stale token to our API and showing a generic 500.
+          liff.logout();
+          liff.login({ redirectUri: window.location.href });
+          return;
+        }
         setIdToken(token);
         setState('ready');
       } catch (e) {

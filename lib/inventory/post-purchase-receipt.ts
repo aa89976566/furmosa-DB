@@ -17,6 +17,7 @@ export type PostPurchaseReceiptInput = {
   createdById: string;
   items: PurchaseCostLine[];
   attachments: PurchaseAttachmentInput[];
+  allowCountedUnits?: boolean;
   purchaseOrderId?: string | null;
   sourceOrderId?: string;
   submissionKey?: string;
@@ -104,8 +105,8 @@ export async function postPurchaseReceiptInTransaction(
       select: { id: true, name: true, unit: true, averageCostPerGram: true },
     });
     if (products.length !== input.items.length) throw new Error('部分商品不存在或已停用');
-    const incompatible = products.find(product => product.unit !== 'g');
-    if (incompatible) throw new Error(`${incompatible.name} 的商品單位不是 g，請先確認庫存規格`);
+    const incompatible = products.find(product => product.unit !== 'g' && !(input.allowCountedUnits && product.unit === '隻'));
+    if (incompatible) throw new Error(`${incompatible.name} 的商品單位不支援此入庫流程，請先確認庫存規格`);
 
     const receipt = await tx.purchaseReceipt.create({
       data: {
@@ -131,29 +132,37 @@ export async function postPurchaseReceiptInTransaction(
     });
 
     for (const [index, item] of input.items.entries()) {
-      if (!Number.isSafeInteger(item.quantityGrams) || item.quantityGrams <= 0) throw new Error('實收克數必須為正整數');
+      if (!Number.isSafeInteger(item.quantityGrams) || item.quantityGrams <= 0) throw new Error('實收數量必須為正整數');
       if (!Number.isSafeInteger(item.rawAmountCents) || (input.sourceOrderId ? item.rawAmountCents < 0 : item.rawAmountCents <= 0)) throw new Error('品項金額必須大於 0');
       const product = products.find((row) => row.id === item.productId)!;
+      const unit = product.unit;
       const balances = await tx.inventoryBalance.findMany({ where: { productId: item.productId } });
-      if (balances.some((balance) => balance.quantity !== 0 && balance.unit !== 'g')) {
-        throw new Error(`${product.name} 的現有庫存單位尚未確認為 g，請先完成盤點`);
+      if (balances.some((balance) => balance.quantity !== 0 && balance.unit !== unit)) {
+        throw new Error(`${product.name} 的現有庫存單位尚未確認為 ${unit}，請先完成盤點`);
       }
       const previousStockGrams = balances.reduce((sum, balance) => sum + balance.quantity, 0);
       const allocatedCostCents = allocations[index]!;
       const landedAmountCents = item.rawAmountCents + allocatedCostCents;
       if (landedAmountCents < 0) throw new Error(`${product.name} 分攤後成本不可為負數`);
-      const previousAverage = product.averageCostPerGram == null
+      // Receipt quantity and cost columns use the linked transaction's unit.
+      const lastCountReceipt = unit === '隻' ? await tx.purchaseReceiptItem.findFirst({
+        where: { productId: item.productId, inventoryTransaction: { unit } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { newAverageCostPerGram: true },
+      }) : null;
+      const storedAverage = unit === 'g' ? product.averageCostPerGram : lastCountReceipt?.newAverageCostPerGram;
+      const previousAverage = storedAverage == null
         ? previousStockGrams > 0 ? item.openingAverageCostPerGram : 0
-        : Number(product.averageCostPerGram);
+        : Number(storedAverage);
       if (previousAverage == null) {
-        throw new Error(`${product.name} 已有舊庫存，請填寫首次建檔平均成本/g`);
+        throw new Error(`${product.name} 已有舊庫存，請填寫首次建檔平均成本/${unit}`);
       }
       let costing;
       try {
         costing = receiptAverageCost({ previousStockGrams, previousAverageCostPerGram: previousAverage, receivedGrams: item.quantityGrams, landedAmountCents });
       } catch (error) {
         const detail = error instanceof Error ? error.message : '成本異常';
-        throw new Error(`${product.name} 目前 ${previousStockGrams}g，本次 ${item.quantityGrams}g，${detail}，請先完成盤點`);
+        throw new Error(`${product.name} 目前 ${previousStockGrams} ${unit}，本次 ${item.quantityGrams} ${unit}，${detail}，請先完成盤點`);
       }
       const { resultingStockGrams, averageCostPerGram: newAverage } = costing;
       const txn = await tx.inventoryTransaction.create({
@@ -166,7 +175,7 @@ export async function postPurchaseReceiptInTransaction(
           productId: item.productId,
           warehouseId: input.warehouseId,
           quantity: item.quantityGrams,
-          unit: 'g',
+          unit,
           unitCost: Number((landedAmountCents / 100 / item.quantityGrams).toFixed(6)),
           reference: receipt.receiptNumber,
           note: input.supplierDocumentNumber ? `供應商單號 ${input.supplierDocumentNumber}` : 'HQ 進貨入庫',
@@ -174,10 +183,10 @@ export async function postPurchaseReceiptInTransaction(
       });
       await tx.inventoryBalance.upsert({
         where: { productId_warehouseId: { productId: item.productId, warehouseId: input.warehouseId } },
-        create: { productId: item.productId, warehouseId: input.warehouseId, quantity: item.quantityGrams, unit: 'g' },
-        update: { quantity: { increment: item.quantityGrams }, unit: 'g' },
+        create: { productId: item.productId, warehouseId: input.warehouseId, quantity: item.quantityGrams, unit },
+        update: { quantity: { increment: item.quantityGrams }, unit },
       });
-      await tx.product.update({
+      if (unit === 'g') await tx.product.update({
         where: { id: item.productId },
         data: { averageCostPerGram: gramCost(newAverage) },
       });

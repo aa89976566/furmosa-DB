@@ -143,6 +143,14 @@ describe('ECPay checkout choke (buildEcpayAioCheckout)', () => {
     assert.equal(typeof checkout.fields.CheckMacValue, 'string');
     assert.ok(checkout.fields.CheckMacValue.length > 0);
     assert.equal(checkout.fields.MerchantTradeNo, SYNTHETIC_TRADE_NO);
+    assert.equal(
+      checkout.fields.ReturnURL,
+      `${SYNTHETIC_APP_URL}/api/payments/ecpay/callback`,
+    );
+    assert.equal(
+      checkout.fields.OrderResultURL,
+      `${SYNTHETIC_APP_URL}/api/payments/ecpay/return`,
+    );
     assert.equal(fetchCalls, 0);
     assertNoSecretLeak(consoleChunks);
   });
