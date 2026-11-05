@@ -66,51 +66,41 @@ export async function initiateRefillPayment(input: {
   const amount =
     purpose === 'extra_topup' ? REFILL_PRICES.extraTopup : order.baseAmount;
 
-  // Reuse pending payment of same purpose/amount
-  const pending = await prisma.paymentOrder.findFirst({
-    where: {
-      refillOrderId: order.id,
-      purpose,
-      status: 'pending',
-      amount,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  let payment = pending;
-  if (!payment) {
-    payment = await prisma.$transaction(async (tx) => {
-      const created = await tx.paymentOrder.create({
-        data: {
-          refillOrderId: order.id,
-          purpose,
-          provider: 'ecpay',
-          merchantTradeNo: buildMerchantTradeNo(purpose === 'extra_topup' ? 'XT' : 'RF'),
-          amount,
-          status: 'pending',
-        },
-      });
-
-      if (purpose === 'refill' && order.status === 'draft') {
-        assertTransition(order.status as RefillOrderStatus, 'payment_pending');
-        await tx.refillOrder.update({
-          where: { id: order.id },
-          data: { status: 'payment_pending' },
-        });
-      }
-
-      await writeRefillAudit(tx, {
+  // ECPay rejects a MerchantTradeNo after it has already received that checkout,
+  // even when the customer leaves or the hosted page expires before payment.
+  // Therefore every explicit checkout request is a new payment attempt. Older
+  // pending attempts remain available for their signed callback and audit trail.
+  const payment = await prisma.$transaction(async (tx) => {
+    const created = await tx.paymentOrder.create({
+      data: {
         refillOrderId: order.id,
-        paymentOrderId: created.id,
-        action: 'payment_initiated',
-        actorType: 'customer',
-        actorId: input.customerId,
-        merchantId: order.merchantId,
-        detail: { purpose, amount, merchantTradeNo: created.merchantTradeNo },
-      });
-      return created;
+        purpose,
+        provider: 'ecpay',
+        merchantTradeNo: buildMerchantTradeNo(purpose === 'extra_topup' ? 'XT' : 'RF'),
+        amount,
+        status: 'pending',
+      },
     });
-  }
+
+    if (purpose === 'refill' && order.status === 'draft') {
+      assertTransition(order.status as RefillOrderStatus, 'payment_pending');
+      await tx.refillOrder.update({
+        where: { id: order.id },
+        data: { status: 'payment_pending' },
+      });
+    }
+
+    await writeRefillAudit(tx, {
+      refillOrderId: order.id,
+      paymentOrderId: created.id,
+      action: 'payment_initiated',
+      actorType: 'customer',
+      actorId: input.customerId,
+      merchantId: order.merchantId,
+      detail: { purpose, amount, merchantTradeNo: created.merchantTradeNo },
+    });
+    return created;
+  });
 
   const itemName =
     purpose === 'extra_topup'
