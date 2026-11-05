@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useFormState } from 'react-dom';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -65,7 +64,10 @@ function CounterWorkspace({
   const [lines, setLines] = useState<CounterCartLine[]>([]);
   const [phase, setPhase] = useState<Phase>('edit');
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [state, formAction] = useFormState(checkoutCounterSaleAction, initialCheckout);
+  const [state, setState] = useState<CounterCheckoutState>(initialCheckout);
+  const [pending, setPending] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const submitLock = useRef(false);
 
   const visible = useMemo(
     () => filterCounterItems(items, query, category),
@@ -76,13 +78,31 @@ function CounterWorkspace({
     [lines],
   );
 
-  useEffect(() => {
-    if (!state.ok) return;
-    setPhase('done');
-    setLines([]);
-    setSheetOpen(true);
-    router.refresh();
-  }, [state.ok, router]);
+  async function submitSale(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (phase !== 'confirm' || submitLock.current) return;
+    const data = new FormData(event.currentTarget);
+    submitLock.current = true;
+    setPending(true);
+    try {
+      const result = await checkoutCounterSaleAction({}, data);
+      setState(result);
+      if (result.ok) {
+        setPhase('done');
+        setLines([]);
+        setSheetOpen(true);
+        router.refresh();
+      } else {
+        submitLock.current = false;
+      }
+    } catch {
+      // The server might have committed before the connection failed. Never retry automatically.
+      setUncertain(true);
+      setState({ error: '無法確認記帳結果，請先到紀錄核對，不要重複送出。' });
+    } finally {
+      setPending(false);
+    }
+  }
 
   function addItem(item: CounterCatalogItem) {
     setPhase('edit');
@@ -103,6 +123,8 @@ function CounterWorkspace({
   const ticket = (
     <CounterTicket
       lines={lines}
+      pending={pending}
+      submitDisabled={uncertain}
       phase={phase}
       error={state.error ?? null}
       doneTotal={state.total ?? null}
@@ -120,7 +142,7 @@ function CounterWorkspace({
   );
 
   return (
-    <form action={formAction} className={styles.workspace}>
+    <form onSubmit={submitSale} className={styles.workspace}>
       <input
         type="hidden"
         name="lines"
