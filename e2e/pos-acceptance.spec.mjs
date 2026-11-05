@@ -55,7 +55,7 @@ test('merchant can review, return, complete one sale and find/export its record'
   await expect(page.getByText('CI測試雞霸', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: '結帳', exact: true }).click();
   await page.getByRole('button', { name: '確認完成', exact: true }).click();
-  await expect(page.getByText('已收款', { exact: true })).toBeVisible();
+  await expect(page.getByText('已收款', { exact: true }).filter({ visible: true })).toBeVisible();
   const sales = await db.merchantStockTxn.findMany({ where: { merchantId, type: 'sale' } });
   expect(sales).toHaveLength(1);
   expect(sales[0]).toMatchObject({ productId, quantity: -1, unitPrice: 165, commissionAmount: 33, companyRevenue: 132 });
