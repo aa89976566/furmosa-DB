@@ -19,6 +19,7 @@ const oldEnv = new Map<string, string | undefined>();
 const originalFindUnique = prisma.refillOrder.findUnique;
 const originalTransaction = prisma.$transaction;
 type AsyncFn = (...args: unknown[]) => Promise<unknown>;
+type TransactionMock = (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
 
 describe('refill payment retry', () => {
   beforeEach(() => {
@@ -61,7 +62,7 @@ describe('refill payment retry', () => {
       merchant: { name: '測試店家' },
     });
 
-    (prisma as unknown as { $transaction: AsyncFn }).$transaction = async (
+    (prisma as unknown as { $transaction: TransactionMock }).$transaction = async (
       fn: (tx: unknown) => Promise<unknown>,
     ) => {
       const tx = {
