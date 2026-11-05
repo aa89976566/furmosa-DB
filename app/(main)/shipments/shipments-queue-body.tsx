@@ -65,6 +65,11 @@ const queueBalanceSelect = {
   lastCountedAt: true,
 } as const;
 
+const queueOrderSnapshotSelect = {
+  id: true,
+  shopifySnapshot: true,
+} as const;
+
 const shipmentInclude = {
   merchant: { select: merchantLogisticsSelect },
   customer: {
@@ -89,7 +94,6 @@ const shipmentInclude = {
       note: true,
       omsStatus: true,
       merchantOrderMode: true,
-      shopifySnapshot: true,
     },
   },
   items: {
@@ -137,6 +141,9 @@ type QueueTier = Awaited<
 >[number];
 type QueueBalance = Awaited<
   ReturnType<typeof prisma.inventoryBalance.findMany<{ select: typeof queueBalanceSelect }>>
+>[number];
+type QueueOrderSnapshot = Awaited<
+  ReturnType<typeof prisma.order.findMany<{ select: typeof queueOrderSnapshotSelect }>>
 >[number];
 
 type ShipmentQueueEnrichment = {
@@ -202,6 +209,7 @@ function toQueueRow(
   s: ShipmentQueueRecord,
   fee: ReturnType<typeof resolveShipmentFulfillmentFee>,
   enrichment: ShipmentQueueEnrichment,
+  shopifySnapshot: QueueOrderSnapshot['shopifySnapshot'] | null,
 ): ShipmentQueueRow {
   return {
     id: s.id,
@@ -216,7 +224,7 @@ function toQueueRow(
     carrier: s.carrier,
     trackingNumber: s.trackingNumber,
     recipientName: s.order?.omsStatus
-      ? normalizeStoredShopifyRecipient(s.recipientName, s.order.shopifySnapshot)
+      ? normalizeStoredShopifyRecipient(s.recipientName, shopifySnapshot)
       : s.recipientName,
     recipientPhone: s.recipientPhone,
     recipientAddress: s.recipientAddress,
@@ -258,7 +266,7 @@ function toQueueRow(
         : null;
       const bundle = s.order
         ? resolveShopifyBundleDisplay(
-            s.order.shopifySnapshot,
+            shopifySnapshot,
             item.productName,
             item.quantity,
             item.notes,
@@ -391,6 +399,7 @@ export async function ShipmentsQueueBody({
       .join('|');
 
     const orderIds = shipments.map((s) => s.orderId);
+    const storedOrderIds = [...new Set(orderIds.filter((id): id is string => Boolean(id)))];
     const productIds = [
       ...new Set(shipments.flatMap((shipment) => shipment.items.map((item) => item.productId))),
     ];
@@ -406,7 +415,7 @@ export async function ShipmentsQueueBody({
           .filter((id): id is string => Boolean(id)),
       ),
     ];
-    const [jibaCharges, tiers, balances] = await Promise.all([
+    const [jibaCharges, tiers, balances, orderSnapshots] = await Promise.all([
       perf.measure('jiba', () => loadJibaChargeSourcesByOrderIds(orderIds)),
       productIds.length > 0
         ? prisma.productPriceTier.findMany({
@@ -423,8 +432,17 @@ export async function ShipmentsQueueBody({
             select: queueBalanceSelect,
           })
         : Promise.resolve([] as QueueBalance[]),
+      storedOrderIds.length > 0
+        ? prisma.order.findMany({
+            where: { id: { in: storedOrderIds } },
+            select: queueOrderSnapshotSelect,
+          })
+        : Promise.resolve([] as QueueOrderSnapshot[]),
     ]);
     const enrichment = indexShipmentQueueEnrichment(tiers, balances);
+    const snapshotByOrderId = new Map(
+      orderSnapshots.map((order) => [order.id, order.shopifySnapshot]),
+    );
     if (perf.enabled) {
       perfCounts = {
         shipmentCount: rawShipments.length,
@@ -444,6 +462,7 @@ export async function ShipmentsQueueBody({
             jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
           }),
           enrichment,
+          s.orderId ? snapshotByOrderId.get(s.orderId) ?? null : null,
         ),
       ),
     );

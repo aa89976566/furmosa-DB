@@ -703,14 +703,18 @@ describe('shipment queue performance diagnostics', () => {
     assert.match(enrichment, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
     assert.match(enrichment, /prisma\.productPriceTier\.findMany/);
     assert.match(enrichment, /prisma\.inventoryBalance\.findMany/);
+    assert.match(enrichment, /prisma\.order\.findMany/);
+    assert.match(enrichment, /select: queueOrderSnapshotSelect/);
     assert.match(enrichment, /warehouse: \{ code: 'WH-MAIN' \}/);
     const includeStart = body.indexOf('const shipmentInclude =');
     const includeEnd = body.indexOf('} as const;', includeStart);
     const shipmentInclude = body.slice(includeStart, includeEnd);
     assert.equal(shipmentInclude.includes('priceTiers'), false);
     assert.equal(shipmentInclude.includes('inventoryBalances'), false);
+    assert.equal(shipmentInclude.includes('shopifySnapshot'), false);
     assert.match(body, /tiersByProductId/);
     assert.match(body, /balanceByProductId/);
+    assert.match(body, /snapshotByOrderId/);
     assert.match(body, /shipmentInventoryAdvisories\(queueInventoryItems\(s, enrichment\)\)/);
     assert.match(body, /<ShipmentQueueWorkspace\s+sections=\{workspaceSections\}\s+statusFilter=\{status\}\s+typeFilter=\{type\}\s+panelRefreshKey=\{panelRefreshKey\}\s+initialShipmentId=\{selectedShipmentId\}\s*\/>/);
     assert.match(body, /aria-label="出貨階段"/);
