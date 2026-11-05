@@ -421,6 +421,7 @@ export async function loadStoreLedger(
         createdAt: true,
         shipment: {
           select: {
+            status: true,
             shipmentNumber: true,
             order: { select: { orderNumber: true } },
           },
@@ -572,6 +573,9 @@ export async function loadStoreLedger(
   // 既有實作以 Product.cost 估算金額，違反「不得以成本回推金額」，因此：
   // 金額不再以成本估算、不列入結算，改為待確認並保留該列可見。
   for (const restock of restocks) {
+    // 出貨取消後申請仍可能保留 converted_to_shipment；取消單不是待補價的進貨。
+    // 歷史紀錄仍由 records 保留，這裡只排除結算流水與待確認提醒。
+    if (restock.shipment?.status === 'cancelled') continue;
     const names = restock.items
       .map((item) => item.product.name)
       .filter(Boolean)
