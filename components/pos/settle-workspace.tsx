@@ -8,6 +8,7 @@ import { InventoryBottomNav, InventorySideNav } from '@/components/pos/inventory
 import { RestockCartProvider } from '@/components/pos/restock-cart-provider';
 import type { PosAccount } from '@/lib/pos/account';
 import type { StoreLedgerPageData } from '@/lib/pos/load-store-ledger';
+import { selectVisibleLedgerEntry } from '@/lib/pos/ledger-selection';
 import {
   formatNtd,
   settlementHistoryStatusView,
@@ -103,7 +104,6 @@ function SettleWorkspaceInner({
   );
 
   const periodLabel = `${taipeiDay(ledger.periodStart)} - ${taipeiDay(ledger.periodEnd)}`;
-  const selected = ledger.entries.find((entry) => entry.id === selectedId) ?? null;
   const surchargeRows = ledger.entries.filter(
     (entry) => entry.transactionType === 'EMPTY_JAR_SURCHARGE' && entry.included,
   );
@@ -139,6 +139,7 @@ function SettleWorkspaceInner({
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const selected = selectVisibleLedgerEntry(paged, selectedId);
 
   // 每個方式的 key／指紋都由伺服器預先算好，切換時不需重新往返，也不會用到別的方式的 key。
   const selectedMethod =
@@ -628,7 +629,7 @@ function SettleWorkspaceInner({
               </div>
               <LedgerTable
                 rows={paged}
-                selectedId={selectedId}
+                selectedId={selected?.id ?? null}
                 onSelect={setSelectedId}
                 total={filtered.length}
                 fromIndex={filtered.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}
@@ -922,8 +923,15 @@ function LedgerTable({
                     </td>
                     <td className="whitespace-nowrap px-3 py-3">{entry.relatedOrderDisplay}</td>
                     <td className="px-3 py-3">
-                      <Eye className="h-4 w-4 text-zinc-400" aria-hidden />
-                      <span className="sr-only">查看明細</span>
+                      <button
+                        type="button"
+                        aria-label={`查看明細 ${entry.relatedOrderDisplay || entry.content}`}
+                        aria-pressed={active}
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        onClick={(event) => { event.stopPropagation(); onSelect(entry.id); }}
+                      >
+                        <Eye className="h-4 w-4 text-zinc-400" aria-hidden />
+                      </button>
                     </td>
                   </tr>
                 );

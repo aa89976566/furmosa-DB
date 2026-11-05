@@ -9,3 +9,7 @@ tsconfig.tsbuildinfo
 prisma/dev.db
 prisma/dev.db-journal
 .vercel
+
+# Browser acceptance artifacts
+playwright-report/
+test-results/

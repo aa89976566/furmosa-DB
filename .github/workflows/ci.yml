@@ -71,3 +71,20 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run build
+
+      - name: Install browser for isolated POS acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: POS browser acceptance (desktop and mobile, CI data only)
+        run: npx playwright test --config playwright.pos.config.mjs
+
+      - name: Preserve POS browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-browser-failure-evidence
+          path: |
+            playwright-report/
+            test-results/pos/
+          if-no-files-found: ignore
+          retention-days: 7
