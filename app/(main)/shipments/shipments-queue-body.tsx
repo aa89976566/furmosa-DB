@@ -20,7 +20,6 @@ import {
 import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
 import { SHIPMENT_QUEUE_TAKE } from '@/lib/list-pagination';
 import {
-  countShipmentQueueSamples,
   createShipmentQueuePerf,
   emptyShipmentQueuePerfCounts,
   isShipmentQueuePerfEnabled,
@@ -51,15 +50,27 @@ const merchantLogisticsSelect = {
   pickupStoreName: true,
 } as const;
 
+const queueTierSelect = {
+  id: true,
+  productId: true,
+  weightGrams: true,
+  unit: true,
+  unitQty: true,
+} as const;
+
+const queueBalanceSelect = {
+  productId: true,
+  quantity: true,
+  unit: true,
+  lastCountedAt: true,
+} as const;
+
 const shipmentInclude = {
   merchant: { select: merchantLogisticsSelect },
   customer: {
     select: {
       id: true,
       name: true,
-      customerId: true,
-      phone: true,
-      address: true,
     },
   },
   order: {
@@ -83,7 +94,6 @@ const shipmentInclude = {
   },
   items: {
     select: {
-      id: true,
       productId: true,
       productName: true,
       quantity: true,
@@ -98,12 +108,8 @@ const shipmentInclude = {
           category: true,
           unit: true,
           productCategory: true,
-          inventorySourceProduct: { select: { id: true, sku: true, name: true, status: true, unit: true, inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } }, select: { quantity: true, unit: true, lastCountedAt: true } } } },
-          priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
-          inventoryBalances: {
-            where: { warehouse: { code: 'WH-MAIN' } },
-            select: { quantity: true, unit: true, lastCountedAt: true },
-            take: 1,
+          inventorySourceProduct: {
+            select: { id: true, sku: true, name: true, status: true, unit: true },
           },
         },
       },
@@ -111,20 +117,79 @@ const shipmentInclude = {
   },
   subscriptionShipment: {
     select: {
-      id: true,
       shipmentNo: true,
       scheduledDate: true,
-      status: true,
       subscription: {
         select: {
-          id: true,
           subscriptionNo: true,
-          plan: { select: { id: true, name: true, contents: true } },
+          plan: { select: { name: true, contents: true } },
         },
       },
     },
   },
 } as const;
+
+type ShipmentQueueRecord = Awaited<
+  ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
+>[number];
+type QueueTier = Awaited<
+  ReturnType<typeof prisma.productPriceTier.findMany<{ select: typeof queueTierSelect }>>
+>[number];
+type QueueBalance = Awaited<
+  ReturnType<typeof prisma.inventoryBalance.findMany<{ select: typeof queueBalanceSelect }>>
+>[number];
+
+type ShipmentQueueEnrichment = {
+  tiersByProductId: Map<string, QueueTier[]>;
+  tierById: Map<string, QueueTier>;
+  balanceByProductId: Map<string, QueueBalance>;
+};
+
+function indexShipmentQueueEnrichment(
+  tiers: QueueTier[],
+  balances: QueueBalance[],
+): ShipmentQueueEnrichment {
+  const tiersByProductId = new Map<string, QueueTier[]>();
+  for (const tier of tiers) {
+    const productTiers = tiersByProductId.get(tier.productId) ?? [];
+    productTiers.push(tier);
+    tiersByProductId.set(tier.productId, productTiers);
+  }
+  return {
+    tiersByProductId,
+    tierById: new Map(tiers.map((tier) => [tier.id, tier])),
+    balanceByProductId: new Map(balances.map((balance) => [balance.productId, balance])),
+  };
+}
+
+function queueInventoryItems(
+  shipment: ShipmentQueueRecord,
+  enrichment: ShipmentQueueEnrichment,
+) {
+  return shipment.items.map((item) => {
+    const source = item.product.inventorySourceProduct;
+    const productBalance = enrichment.balanceByProductId.get(item.product.id);
+    const sourceBalance = source
+      ? enrichment.balanceByProductId.get(source.id)
+      : undefined;
+    return {
+      quantity: item.quantity,
+      weightGrams: item.weightGrams,
+      variantKey: item.variantKey,
+      product: {
+        ...item.product,
+        priceTiers: enrichment.tiersByProductId.get(item.product.id) ?? [],
+        inventoryBalances: productBalance ? [productBalance] : [],
+        inventorySourceProduct: source
+          ? {
+              ...source,
+              inventoryBalances: sourceBalance ? [sourceBalance] : [],
+            }
+          : null,
+      },
+    };
+  });
+}
 
 const STAGE_TABS = [
   { key: 'pending', label: '待出貨' },
@@ -134,8 +199,9 @@ const STAGE_TABS = [
 ] as const;
 
 function toQueueRow(
-  s: Awaited<ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>>[number],
+  s: ShipmentQueueRecord,
   fee: ReturnType<typeof resolveShipmentFulfillmentFee>,
+  enrichment: ShipmentQueueEnrichment,
 ): ShipmentQueueRow {
   return {
     id: s.id,
@@ -185,10 +251,10 @@ function toQueueRow(
       : null,
     fulfillmentFeeLabel: fee.fulfillmentFeeLabel,
     paymentReviewHold: fee.paymentReviewHold,
-    inventoryWarnings: shipmentInventoryAdvisories(s.items),
+    inventoryWarnings: shipmentInventoryAdvisories(queueInventoryItems(s, enrichment)),
     items: s.items.map((item) => {
       const tier = item.variantKey
-        ? item.product.priceTiers.find((candidate) => candidate.id === item.variantKey)
+        ? enrichment.tierById.get(item.variantKey)
         : null;
       const bundle = s.order
         ? resolveShopifyBundleDisplay(
@@ -292,9 +358,7 @@ export async function ShipmentsQueueBody({
       : undefined,
   });
   let perfCounts = emptyShipmentQueuePerfCounts();
-  let rawShipments: Awaited<
-    ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
-  >;
+  let rawShipments: ShipmentQueueRecord[];
   let countByStatus: Record<string, number>;
   let pendingCount: number;
   let panelRefreshKey: string;
@@ -327,10 +391,49 @@ export async function ShipmentsQueueBody({
       .join('|');
 
     const orderIds = shipments.map((s) => s.orderId);
-    if (perf.enabled) perfCounts = countShipmentQueueSamples(rawShipments, orderIds);
-    const jibaCharges = await perf.measure('jiba', () =>
-      loadJibaChargeSourcesByOrderIds(orderIds),
-    );
+    const productIds = [
+      ...new Set(shipments.flatMap((shipment) => shipment.items.map((item) => item.productId))),
+    ];
+    const stockProductIds = [
+      ...new Set(
+        shipments
+          .flatMap((shipment) =>
+            shipment.items.flatMap((item) => [
+              item.productId,
+              item.product.inventorySourceProduct?.id,
+            ]),
+          )
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const [jibaCharges, tiers, balances] = await Promise.all([
+      perf.measure('jiba', () => loadJibaChargeSourcesByOrderIds(orderIds)),
+      productIds.length > 0
+        ? prisma.productPriceTier.findMany({
+            where: { productId: { in: productIds } },
+            select: queueTierSelect,
+          })
+        : Promise.resolve([] as QueueTier[]),
+      stockProductIds.length > 0
+        ? prisma.inventoryBalance.findMany({
+            where: {
+              productId: { in: stockProductIds },
+              warehouse: { code: 'WH-MAIN' },
+            },
+            select: queueBalanceSelect,
+          })
+        : Promise.resolve([] as QueueBalance[]),
+    ]);
+    const enrichment = indexShipmentQueueEnrichment(tiers, balances);
+    if (perf.enabled) {
+      perfCounts = {
+        shipmentCount: rawShipments.length,
+        itemCount: rawShipments.reduce((total, shipment) => total + shipment.items.length, 0),
+        priceTierCount: tiers.length,
+        inventoryBalanceCount: balances.length,
+        orderIdCount: orderIds.length,
+      };
+    }
     queueRows = perf.measureSync(() =>
       shipments.map((s) =>
         toQueueRow(
@@ -340,6 +443,7 @@ export async function ShipmentsQueueBody({
             shippingFeeType: s.order?.shippingFeeType,
             jiba: s.orderId ? jibaCharges.get(s.orderId) ?? null : null,
           }),
+          enrichment,
         ),
       ),
     );
