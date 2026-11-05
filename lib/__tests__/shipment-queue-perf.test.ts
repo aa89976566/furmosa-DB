@@ -29,6 +29,9 @@ const ALLOWED_LOG_KEYS = new Set([
   'findManyMs',
   'countsMs',
   'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
   'transformMs',
   'totalMs',
   'shipmentCount',
@@ -52,6 +55,9 @@ const REQUIRED_LOG_KEYS = [
   'findManyMs',
   'countsMs',
   'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
   'transformMs',
   'totalMs',
   'shipmentCount',
@@ -61,7 +67,16 @@ const REQUIRED_LOG_KEYS = [
   'orderIdCount',
 ] as const;
 
-const DURATION_KEYS = ['findManyMs', 'countsMs', 'jibaMs', 'transformMs', 'totalMs'] as const;
+const DURATION_KEYS = [
+  'findManyMs',
+  'countsMs',
+  'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
+  'transformMs',
+  'totalMs',
+] as const;
 const COUNT_KEYS = [
   'shipmentCount',
   'itemCount',
@@ -93,7 +108,16 @@ const FETCH_DEST_ALLOWLIST = new Set([
   'other',
 ]);
 const FETCH_PURPOSE_ALLOWLIST = new Set(['prefetch', 'unknown', 'other']);
-const ERROR_CODES = new Set(['FIND_MANY', 'COUNTS', 'JIBA', 'TRANSFORM', 'UNATTRIBUTED']);
+const ERROR_CODES = new Set([
+  'FIND_MANY',
+  'COUNTS',
+  'JIBA',
+  'TIERS',
+  'BALANCES',
+  'SNAPSHOTS',
+  'TRANSFORM',
+  'UNATTRIBUTED',
+]);
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
@@ -678,6 +702,62 @@ describe('shipment queue performance diagnostics', () => {
     await flushMicrotasks();
   });
 
+  it('enrichment measurements start together and preserve values and rejection identity', async () => {
+    const perf = createShipmentQueuePerf({ enabled: true, now: () => 0 });
+    const started: string[] = [];
+    let releaseTiers: (value: { source: string }) => void = () => {};
+    let releaseBalances: (value: { source: string }) => void = () => {};
+    let releaseSnapshots: (value: { source: string }) => void = () => {};
+    const tiersGate = new Promise<{ source: string }>((resolve) => {
+      releaseTiers = resolve;
+    });
+    const balancesGate = new Promise<{ source: string }>((resolve) => {
+      releaseBalances = resolve;
+    });
+    const snapshotsGate = new Promise<{ source: string }>((resolve) => {
+      releaseSnapshots = resolve;
+    });
+
+    const pending = Promise.all([
+      perf.measure('tiers', () => {
+        started.push('tiers');
+        return tiersGate;
+      }),
+      perf.measure('balances', () => {
+        started.push('balances');
+        return balancesGate;
+      }),
+      perf.measure('snapshots', () => {
+        started.push('snapshots');
+        return snapshotsGate;
+      }),
+    ]);
+    assert.deepEqual(started, ['tiers', 'balances', 'snapshots']);
+
+    const snapshots = { source: 'snapshots' };
+    const tiers = { source: 'tiers' };
+    const balances = { source: 'balances' };
+    releaseSnapshots(snapshots);
+    releaseTiers(tiers);
+    releaseBalances(balances);
+    const result = await pending;
+    assert.equal(result[0], tiers);
+    assert.equal(result[1], balances);
+    assert.equal(result[2], snapshots);
+
+    const rejectionPerf = createShipmentQueuePerf({ enabled: true, now: () => 0 });
+    const originalError = new Error('snapshot-query-failed');
+    await assert.rejects(
+      () => rejectionPerf.measure('snapshots', () => Promise.reject(originalError)),
+      (error) => error === originalError,
+    );
+    rejectionPerf.fail(sampleInput({ counts: zeroCounts() }));
+    const line = oneLine();
+    assertAllowlisted(line, false);
+    assert.equal(line.errorCode, 'SNAPSHOTS');
+    assertValuesHide(line, ['snapshot-query-failed']);
+  });
+
   it('source guard keeps query arguments, JSX, and Promise.all in place', () => {
     const body = readFileSync(BODY_PATH, 'utf8');
     const helper = readFileSync(HELPER_PATH, 'utf8');
@@ -687,6 +767,9 @@ describe('shipment queue performance diagnostics', () => {
     const enrichmentStart = body.indexOf('await Promise.all([', parallelEnd);
     const enrichmentEnd = body.indexOf(']);', enrichmentStart);
     const enrichment = body.slice(enrichmentStart, enrichmentEnd);
+    assert.match(enrichment, /perf\.measure\('tiers'/);
+    assert.match(enrichment, /perf\.measure\('balances'/);
+    assert.match(enrichment, /perf\.measure\('snapshots'/);
 
     assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 2);
     assert.match(parallel, /perf\.measure\('findMany'/);

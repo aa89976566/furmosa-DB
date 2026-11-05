@@ -418,25 +418,31 @@ export async function ShipmentsQueueBody({
     const [jibaCharges, tiers, balances, orderSnapshots] = await Promise.all([
       perf.measure('jiba', () => loadJibaChargeSourcesByOrderIds(orderIds)),
       productIds.length > 0
-        ? prisma.productPriceTier.findMany({
-            where: { productId: { in: productIds } },
-            select: queueTierSelect,
-          })
+        ? perf.measure('tiers', () =>
+            prisma.productPriceTier.findMany({
+              where: { productId: { in: productIds } },
+              select: queueTierSelect,
+            }),
+          )
         : Promise.resolve([] as QueueTier[]),
       stockProductIds.length > 0
-        ? prisma.inventoryBalance.findMany({
-            where: {
-              productId: { in: stockProductIds },
-              warehouse: { code: 'WH-MAIN' },
-            },
-            select: queueBalanceSelect,
-          })
+        ? perf.measure('balances', () =>
+            prisma.inventoryBalance.findMany({
+              where: {
+                productId: { in: stockProductIds },
+                warehouse: { code: 'WH-MAIN' },
+              },
+              select: queueBalanceSelect,
+            }),
+          )
         : Promise.resolve([] as QueueBalance[]),
       storedOrderIds.length > 0
-        ? prisma.order.findMany({
-            where: { id: { in: storedOrderIds } },
-            select: queueOrderSnapshotSelect,
-          })
+        ? perf.measure('snapshots', () =>
+            prisma.order.findMany({
+              where: { id: { in: storedOrderIds } },
+              select: queueOrderSnapshotSelect,
+            }),
+          )
         : Promise.resolve([] as QueueOrderSnapshot[]),
     ]);
     const enrichment = indexShipmentQueueEnrichment(tiers, balances);
