@@ -114,6 +114,7 @@ export function CounterTicket({
               已收到現金 {formatCurrency(total)}，把商品交給客人？
             </p>
             <Button
+              key="confirm-sale"
               type="submit"
               className="min-h-[52px] w-full rounded-full text-base"
               disabled={pending}
@@ -152,10 +153,14 @@ export function CounterTicket({
               </div>
             </div>
             <Button
+              key="review-sale"
               type="button"
               className="min-h-[52px] w-full rounded-full text-base"
               disabled={lines.length === 0}
-              onClick={onAskConfirm}
+              onClick={(event) => {
+                event.preventDefault();
+                onAskConfirm();
+              }}
             >
               結帳
             </Button>
