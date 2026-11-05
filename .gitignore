@@ -13,3 +13,5 @@ prisma/dev.db-journal
 # Browser acceptance artifacts
 playwright-report/
 test-results/
+
+production-public-probe.json
