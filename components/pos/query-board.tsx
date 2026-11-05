@@ -76,6 +76,7 @@ function ProgressPanel({ item, onClose }: { item: QueryFeedItem; onClose?: () =>
 export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { items: QueryFeedItem[]; initialQuery?: string; todayDateLabel?: string }) {
   const [kind, setKind] = useState<QueryTab>("all");
   const [query, setQuery] = useState(initialQuery);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(() => items.find((item) => item.restockProgress)?.id ?? "");
   const [detailOpen, setDetailOpen] = useState(false);
   const visible = useMemo(() => {
@@ -96,9 +97,18 @@ export function QueryBoard({ items, initialQuery = "", todayDateLabel = "" }: { 
     const a = document.createElement("a"); a.href = url; a.download = "店內紀錄.csv"; a.click(); URL.revokeObjectURL(url);
   }
   return <div className="space-y-5">
-    <header className="flex items-start justify-between gap-4"><div><h1 className="text-4xl font-black tracking-tight sm:text-5xl">紀錄</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">查看店內每一次商品異動</p></div><button type="button" onClick={exportRows} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-border bg-card px-5 text-sm font-semibold hover:text-primary"><Download className="h-5 w-5" /><span className="hidden sm:inline">匯出</span></button></header>
+    <header className="flex items-start justify-between gap-4"><div><h1 className="text-4xl font-black tracking-tight sm:text-5xl">紀錄</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">查看店內每一次商品異動</p></div><button type="button" aria-label="匯出" onClick={exportRows} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-border bg-card px-5 text-sm font-semibold hover:text-primary"><Download className="h-5 w-5" /><span className="hidden sm:inline">匯出</span></button></header>
     <section aria-label="搜尋與分類" className="border-b border-border">
-      <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-16 rounded-lg border border-border bg-card pl-14 text-base shadow-none" /></div><button type="button" aria-label="篩選紀錄" className="inline-flex h-16 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-5 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
+      <div className="flex gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="搜尋紀錄" placeholder="搜尋品項、日期或數量" className="h-16 rounded-lg border border-border bg-card pl-14 text-base shadow-none" /></div><button type="button" aria-label="篩選紀錄" aria-expanded={filtersOpen} aria-controls="record-filters" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex h-16 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-5 font-semibold"><SlidersHorizontal className="h-5 w-5" /><span className="hidden sm:inline">篩選</span><ChevronDown className="hidden h-4 w-4 sm:block" /></button></div>
+      {filtersOpen ? <div id="record-filters" className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
+        <label className="flex flex-col gap-2 text-sm font-semibold">紀錄分類
+          <select aria-label="紀錄分類" value={kind} onChange={(event) => setKind(event.target.value as QueryTab)} className="min-h-12 rounded-lg border border-border bg-card px-3">
+            {TABS.map((tab) => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+          </select>
+        </label>
+        <button type="button" className="min-h-12 rounded-lg border border-border px-4 text-sm font-semibold" onClick={() => { setKind("all"); setQuery(""); }}>清除篩選</button>
+        <button type="button" className="min-h-12 rounded-lg border border-border px-4 text-sm font-semibold" onClick={() => setFiltersOpen(false)}>收起篩選</button>
+      </div> : null}
       <div className="mt-3 flex gap-7 overflow-x-auto" role="tablist">{TABS.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id} onClick={() => setKind(tab.id)} className={`relative min-h-12 shrink-0 px-1 text-sm font-semibold ${kind === tab.id ? "text-primary" : "text-muted-foreground"}`}>{tab.label}{kind === tab.id ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" /> : null}</button>)}</div>
     </section>
     <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">

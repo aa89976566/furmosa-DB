@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # CI-only ephemeral database. Never points at production.
     services:
@@ -53,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install browser for isolated POS acceptance
+        run: npx playwright install --with-deps chromium
+
       - name: Prisma validation
         run: npm run prisma:validate
 
@@ -71,3 +74,17 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run build
+
+      - name: POS browser acceptance (desktop and mobile, CI data only)
+        run: npx playwright test --config playwright.pos.config.mjs
+
+      - name: Preserve POS browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-browser-failure-evidence
+          path: |
+            playwright-report/
+            test-results/pos/
+          if-no-files-found: ignore
+          retention-days: 7
