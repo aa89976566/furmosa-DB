@@ -145,7 +145,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       ] },
       include: {
         inventoryBalances: { include: { warehouse: true } },
-        priceTiers: true,
+        priceTiers: { select: {
+          id: true, weightGrams: true, unit: true, unitQty: true, price: true, cost: true,
+          notes: true, sku: true, shopifyVariantId: true, shopifySku: true, status: true,
+          defaultWholesaleUnitPrice: true, defaultConsignmentCommissionMode: true,
+          defaultConsignmentCommissionValue: true,
+        } },
         vendor: {
           select: { id: true, supplierConsignmentEnabled: true, furmosaShareBps: true },
         },

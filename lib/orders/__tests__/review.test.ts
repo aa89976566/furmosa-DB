@@ -609,5 +609,8 @@ test('rechecking cannot approve changed shipment quantities or an already shippe
   assert.equal(f.order.omsReviewedAt, null);
   f.order.shipments[0].status = 'shipped';
   await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /僅能重新核對/);
+  f.order.shipments[0].status = 'pending';
+  f.order.shipments.push({ ...f.order.shipments[0], id: 'second-pending' });
+  await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /僅能重新核對/);
   assert.equal(f.shipmentCreates, 1);
 });
