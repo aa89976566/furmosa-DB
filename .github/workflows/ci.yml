@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  schedule:
+    # 08:17 Taiwan time; off the top-of-hour scheduler peak.
+    - cron: '17 0 * * *'
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -16,7 +19,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     # CI-only ephemeral database. Never points at production.
     services:
@@ -53,6 +56,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install browser for isolated POS acceptance
+        run: npx playwright install --with-deps chromium
+
       - name: Prisma validation
         run: npm run prisma:validate
 
@@ -71,3 +77,38 @@ jobs:
         env:
           NODE_ENV: production
         run: npm run build
+
+      - name: POS browser acceptance (desktop and mobile, CI data only)
+        run: npx playwright test --config playwright.pos.config.mjs
+
+      - name: Preserve POS browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos-browser-failure-evidence
+          path: |
+            playwright-report/
+            test-results/pos/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production_probe:
+    name: Public production checks (read-only)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check production public pages and authorization gates
+        run: node scripts/scheduled-production-smoke.mjs
+      - name: Preserve bounded production check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-public-probe
+          path: production-public-probe.json
+          if-no-files-found: error
+          retention-days: 7

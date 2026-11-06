@@ -25,7 +25,10 @@ export async function loadMerchantInventory(
       where: {
         status: 'active',
         OR: [
-          { productCategory: 'JAR_EXCHANGE' },
+          {
+            productCategory: 'JAR_EXCHANGE',
+            jarExchangeEnabled: true,
+          },
           {
             productCategory: 'STANDARD',
             OR: [

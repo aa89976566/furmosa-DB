@@ -1,6 +1,5 @@
 'use client';
 
-import { useFormStatus } from 'react-dom';
 import { Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/format';
@@ -16,6 +15,8 @@ type Phase = 'edit' | 'confirm' | 'done';
 
 export function CounterTicket({
   lines,
+  pending,
+  submitDisabled,
   phase,
   error,
   doneTotal,
@@ -25,6 +26,8 @@ export function CounterTicket({
   onNewTicket,
 }: {
   lines: CounterCartLine[];
+  pending: boolean;
+  submitDisabled: boolean;
   phase: Phase;
   error: string | null;
   doneTotal: number | null;
@@ -33,7 +36,6 @@ export function CounterTicket({
   onCancelConfirm: () => void;
   onNewTicket: () => void;
 }) {
-  const { pending } = useFormStatus();
   const count = cartItemCount(lines);
   const total = cartSubtotal(lines);
 
@@ -114,9 +116,10 @@ export function CounterTicket({
               已收到現金 {formatCurrency(total)}，把商品交給客人？
             </p>
             <Button
+              key="confirm-sale"
               type="submit"
               className="min-h-[52px] w-full rounded-full text-base"
-              disabled={pending}
+              disabled={pending || submitDisabled}
             >
               {pending ? '記帳中…' : '確認完成'}
             </Button>
@@ -125,7 +128,7 @@ export function CounterTicket({
               variant="ghost"
               className="min-h-[44px] w-full"
               onClick={onCancelConfirm}
-              disabled={pending}
+              disabled={pending || submitDisabled}
             >
               返回本單
             </Button>
@@ -152,10 +155,14 @@ export function CounterTicket({
               </div>
             </div>
             <Button
+              key="review-sale"
               type="button"
               className="min-h-[52px] w-full rounded-full text-base"
               disabled={lines.length === 0}
-              onClick={onAskConfirm}
+              onClick={(event) => {
+                event.preventDefault();
+                onAskConfirm();
+              }}
             >
               結帳
             </Button>
