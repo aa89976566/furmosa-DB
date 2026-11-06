@@ -18,10 +18,11 @@ const { createRoot } = require('react-dom/client');
 const submissions: Record<string, FormDataEntryValue>[] = [];
 const navigation: string[] = [];
 let refreshes = 0;
-let outcome: 'check' | 'blocked' | 'ship' | 'disconnected' = 'check';
+let outcome: 'check' | 'blocked' | 'ship' | 'disconnected' | 'stale' = 'check';
 const actionStub = {
   omsReviewAction: async (_previous: unknown, form: FormData) => {
     submissions.push(Object.fromEntries(form.entries()));
+    if (outcome === 'stale') throw new Error('Server Action "old-action" was not found on the server.');
     if (outcome === 'disconnected') throw new Error('Failed to fetch');
     return {
       ok: outcome !== 'blocked', action: outcome === 'ship' ? 'ship' : form.get('action'),
@@ -135,13 +136,18 @@ test('review retains shipping selection through repeated checks and approval', a
       outcome = 'check';
       await submit('check');
       assert.equal(field('method').value, method, 'checking again must not restart the selection loop');
+      outcome = 'stale';
+      await submit('approve');
+      assert.ok(container.textContent?.includes('系統已更新，這個頁面已過期'));
+      assert.equal(container.querySelector('a[href="/orders/test-order"]')?.textContent, '重新載入訂單並核對狀態');
+      assert.equal(field('address').value, 'HQ 補正地址');
       outcome = 'disconnected';
       await submit('approve');
       assert.ok(container.textContent?.includes('連線中斷，尚未確認操作結果'));
       assert.equal(field('address').value, 'HQ 補正地址', 'transport errors must keep the entered draft');
       outcome = 'ship';
       await submit('approve');
-      assert.equal(submissions.length, 5, 'all actions must reach the server action');
+      assert.equal(submissions.length, 6, 'all actions must reach the server action');
       assert.ok(submissions.every(row => row.method === method && row.address === 'HQ 補正地址'));
       if (method === 'convenience') {
         assert.ok(submissions.every(row => row.storeName === '新門市' && row.storeId === ''));
