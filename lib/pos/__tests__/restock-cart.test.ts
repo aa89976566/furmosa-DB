@@ -60,3 +60,16 @@ it('keeps duck lung quantities independent by variant', () => {
  assert.equal(removeRestockCartLine(both,'duck','30g')[0].variantKey,'50g');
  assert.equal(addRestockCartLine([], {productId:'duck',name:'鴨肺',imageUrl:null,quantity:0}).length,0);
 });
+
+it('cart choices exclude archived tiers and stale selections must be replaced', async () => {
+  const { activeRestockTiers, isRestockCartVariantValid } = await import('../restock-cart');
+  const tiers = [{id:'30g',status:'active'}, {id:'15g',status:'archived'}];
+  assert.deepEqual(activeRestockTiers(tiers).map(t=>t.id),['30g']);
+  assert.equal(tiers.length,2);
+  assert.equal(isRestockCartVariantValid(tiers,'30g'),true);
+  assert.equal(isRestockCartVariantValid(tiers,'15g'),false);
+  assert.equal(isRestockCartVariantValid(tiers,''),false);
+  assert.equal(isRestockCartVariantValid([tiers[1]],'15g'),false);
+  assert.equal(isRestockCartVariantValid([],null),true);
+  assert.equal(isRestockCartVariantValid([],'deleted'),false);
+});
