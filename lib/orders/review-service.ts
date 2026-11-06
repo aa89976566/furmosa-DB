@@ -83,8 +83,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const snapshot = order.shopifySnapshot as Snapshot | null;
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
-    const existingOmsShipment = order.shipments.find(
-      s => s.shipmentNumber === `OMS-${order.id}` && s.status !== 'cancelled',
+    const shipmentBase = `OMS-${order.id}`;
+    const activeShipments = order.shipments.filter(s => s.status !== 'cancelled');
+    const existingOmsShipment = activeShipments.find(
+      s => s.shipmentNumber === shipmentBase || s.shipmentNumber.startsWith(`${shipmentBase}-R`),
     );
     if (
       existingOmsShipment &&
@@ -101,7 +103,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       });
     }
     if (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
-      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || order.shipments.length) {
+      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || activeShipments.length) {
       throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核', { kind: 'error' });
     }
     // Conflicting same-version payload must be reconciled at source, not cleared by a reviewer.
@@ -261,7 +263,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
           };
         }),
       });
-      await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
+      // Cancelled shipments remain immutable history. A new task gets a new identity.
+      const usedNumbers = new Set(order.shipments.map(s => s.shipmentNumber));
+      let shipmentNumber = shipmentBase;
+      let revision = 2;
+      while (usedNumbers.has(shipmentNumber)) shipmentNumber = `${shipmentBase}-R${revision++}`;
+      await tx.shipment.create({ data: { shipmentNumber, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: [
