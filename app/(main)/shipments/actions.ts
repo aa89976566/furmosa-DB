@@ -110,7 +110,11 @@ async function commitShipmentStatus(
   operation: (tx: Prisma.TransactionClient) => Promise<void>,
 ) {
   await retryShipmentCommit(async () => {
-    await prisma.$transaction(operation, SHIPMENT_TRANSACTION_OPTIONS);
+    await prisma.$transaction(async (tx) => {
+      await operation(tx);
+      // Surface deferred inventory/OMS failures before the transaction callback succeeds.
+      await tx.$executeRawUnsafe('SET CONSTRAINTS ALL IMMEDIATE');
+    }, SHIPMENT_TRANSACTION_OPTIONS);
   });
 }
 
@@ -561,7 +565,13 @@ async function markShipmentStatusInner(
     });
   }
 
-  console.info('[shipment/queue-committed]', { shipmentId, next });
+  const persistedShipment = await prisma.shipment.findUnique({
+    where: { id: shipmentId },
+    select: { status: true },
+  });
+  if (!persistedShipment) throw new Error('出貨單不存在');
+  assertShipmentStatusPersisted(persistedShipment.status, next);
+  console.info('[shipment/queue-committed]', { shipmentId, next, persistedStatus: persistedShipment.status });
 
   // LINE 是出貨完成後的附加通知：未綁定、環境未設定或發送失敗，
   // 都不能回滾已成功的出貨狀態。只在首次進入 shipped 時通知，避免重送。
