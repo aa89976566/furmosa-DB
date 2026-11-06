@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   REFILL_ACTIVE_STATUSES,
@@ -26,6 +26,148 @@ export function refillJarOwnershipWhere(customerId: string): Prisma.JarCodeWhere
     redeemedByCustomerId: customerId,
     status: { in: ['used', 'issued'] },
   };
+}
+
+/** A jar can fund exactly one new exchange order at a time. */
+export function refillJarReservationWhere(
+  customerId: string,
+): Prisma.JarCodeWhereInput {
+  return {
+    redeemedByCustomerId: customerId,
+    status: { in: ['used', 'issued'] },
+    lockedByRefillOrderId: null,
+  };
+}
+
+async function reserveAvailableJar(
+  tx: Prisma.TransactionClient,
+  input: { customerId: string; refillOrderId: string },
+) {
+  // A concurrent order may win the first candidate between findFirst and
+  // updateMany. Retry a small bounded number of times so another unlocked jar
+  // can be selected without ever allowing the same jar to fund two orders.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const candidate = await tx.jarCode.findFirst({
+      where: refillJarReservationWhere(input.customerId),
+      orderBy: [{ redeemedAt: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, code: true },
+    });
+    if (!candidate) return null;
+
+    const claimed = await tx.jarCode.updateMany({
+      where: {
+        id: candidate.id,
+        ...refillJarReservationWhere(input.customerId),
+      },
+      data: { lockedByRefillOrderId: input.refillOrderId },
+    });
+    if (claimed.count === 1) return candidate;
+  }
+  return null;
+}
+
+export function canRefreshRefillQualification(input: {
+  status: string;
+  blockingPaymentCount: number;
+}): boolean {
+  return (
+    ['draft', 'payment_failed'].includes(input.status) &&
+    input.blockingPaymentCount === 0
+  );
+}
+
+async function refreshUnpaidOrderQualification(
+  orderId: string,
+  customerId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    // Serialize qualification refreshes for the same order. Without this row
+    // lock, two simultaneous page loads could each reserve a different jar for
+    // one order even though each individual jar claim is atomic.
+    await tx.$queryRaw(
+      Prisma.sql`SELECT id FROM refill_orders WHERE id = ${orderId} FOR UPDATE`,
+    );
+    const order = await tx.refillOrder.findUnique({
+      where: { id: orderId },
+      include: {
+        payments: {
+          where: { status: { in: ['pending', 'paid'] } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!order || order.customerId !== customerId) return order;
+
+    // Never reprice an order after a checkout was opened or paid. Those cases
+    // require the immutable payment snapshot and an explicit review instead.
+    if (
+      !canRefreshRefillQualification({
+        status: order.status,
+        blockingPaymentCount: order.payments.length,
+      })
+    ) {
+      return order;
+    }
+
+    let reservedJar = await tx.jarCode.findFirst({
+      where: {
+        lockedByRefillOrderId: order.id,
+        redeemedByCustomerId: customerId,
+        status: { in: ['used', 'issued'] },
+      },
+      select: { id: true, code: true },
+    });
+
+    if (!reservedJar) {
+      await tx.jarCode.updateMany({
+        where: { lockedByRefillOrderId: order.id },
+        data: { lockedByRefillOrderId: null },
+      });
+      reservedJar = await reserveAvailableJar(tx, {
+        customerId,
+        refillOrderId: order.id,
+      });
+    }
+
+    const orderType: RefillOrderType = reservedJar ? 'exchange' : 'first';
+    const amounts = amountsForOrderType(orderType);
+    const oldContainerSerial = reservedJar?.code ?? null;
+    const unchanged =
+      order.orderType === orderType &&
+      order.deliveryMode === orderType &&
+      order.baseAmount === amounts.baseAmount &&
+      order.extraAmount === amounts.extraAmount &&
+      order.totalAmount === amounts.totalAmount &&
+      order.oldContainerSerial === oldContainerSerial;
+    if (unchanged) return order;
+
+    const updated = await tx.refillOrder.update({
+      where: { id: order.id },
+      data: {
+        orderType,
+        deliveryMode: orderType,
+        baseAmount: amounts.baseAmount,
+        extraAmount: amounts.extraAmount,
+        totalAmount: amounts.totalAmount,
+        oldContainerSerial,
+      },
+    });
+    await writeRefillAudit(tx, {
+      refillOrderId: order.id,
+      action: 'order_qualification_refreshed',
+      actorType: 'system',
+      merchantId: order.merchantId,
+      detail: {
+        previousOrderType: order.orderType,
+        orderType,
+        previousTotalAmount: order.totalAmount,
+        totalAmount: amounts.totalAmount,
+        reservedJarCode: oldContainerSerial,
+      },
+    });
+    return updated;
+  });
 }
 
 export async function countIssuedJars(customerId: string): Promise<number> {
@@ -213,7 +355,11 @@ export async function createRefillOrder(input: {
     where: { idempotencyKey: idem },
   });
   if (existingByKey) {
-    return { order: existingByKey, reused: true as const };
+    const refreshed = await refreshUnpaidOrderQualification(
+      existingByKey.id,
+      input.customerId,
+    );
+    return { order: refreshed ?? existingByKey, reused: true as const };
   }
 
   const active = await prisma.refillOrder.findFirst({
@@ -223,12 +369,12 @@ export async function createRefillOrder(input: {
     },
   });
   if (active) {
-    return { order: active, reused: true as const };
+    const refreshed = await refreshUnpaidOrderQualification(
+      active.id,
+      input.customerId,
+    );
+    return { order: refreshed ?? active, reused: true as const };
   }
-
-  const hasIssuedJar = (await countIssuedJars(input.customerId)) > 0;
-  const orderType: RefillOrderType = hasIssuedJar ? 'exchange' : 'first';
-  const amounts = amountsForOrderType(orderType);
 
   const customer = await prisma.customer.findUnique({
     where: { id: input.customerId },
@@ -237,21 +383,44 @@ export async function createRefillOrder(input: {
 
   try {
     const order = await prisma.$transaction(async (tx) => {
-      const created = await tx.refillOrder.create({
+      const firstAmounts = amountsForOrderType('first');
+      let created = await tx.refillOrder.create({
         data: {
           customerId: input.customerId,
           appointmentId: appointment.id,
           merchantId: appointment.merchantId,
           petName: appointment.petName ?? customer?.petName ?? null,
-          orderType,
-          baseAmount: amounts.baseAmount,
-          extraAmount: amounts.extraAmount,
-          totalAmount: amounts.totalAmount,
+          orderType: 'first',
+          baseAmount: firstAmounts.baseAmount,
+          extraAmount: firstAmounts.extraAmount,
+          totalAmount: firstAmounts.totalAmount,
           status: 'draft',
-          deliveryMode: orderType === 'first' ? 'first' : 'exchange',
+          deliveryMode: 'first',
           idempotencyKey: idem,
         },
       });
+
+      const reservedJar = await reserveAvailableJar(tx, {
+        customerId: input.customerId,
+        refillOrderId: created.id,
+      });
+      const orderType: RefillOrderType = reservedJar ? 'exchange' : 'first';
+      const amounts = amountsForOrderType(orderType);
+
+      if (reservedJar) {
+        created = await tx.refillOrder.update({
+          where: { id: created.id },
+          data: {
+            orderType,
+            deliveryMode: orderType,
+            baseAmount: amounts.baseAmount,
+            extraAmount: amounts.extraAmount,
+            totalAmount: amounts.totalAmount,
+            oldContainerSerial: reservedJar.code,
+          },
+        });
+      }
+
       await writeRefillAudit(tx, {
         refillOrderId: created.id,
         action: 'order_created',
@@ -261,6 +430,7 @@ export async function createRefillOrder(input: {
         detail: {
           orderType,
           totalAmount: amounts.totalAmount,
+          reservedJarCode: reservedJar?.code ?? null,
           clientAmountIgnored: input.clientAmount ?? null,
         },
       });
