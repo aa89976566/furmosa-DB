@@ -55,7 +55,7 @@ it('a linked 20g beef jar also mirrors POS inventory from two to one', async () 
 });
 it('preserves legacy refill-only stores with no tracked product stock', async () => {
   const f = fixture();
-  f.tx.merchantStock.findMany = async () => [];
+  Object.assign(f.tx.merchantStock, { findMany: async () => [] });
   await deductCountedRefillProductStock(f.tx, { ...delivery, allowUntrackedStock: true });
   assert.equal(f.updates.length, 0);
 });
