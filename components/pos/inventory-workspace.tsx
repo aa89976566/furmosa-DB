@@ -11,32 +11,18 @@ import type { PosAccount } from '@/lib/pos/account';
 import type { InventoryProduct } from '@/lib/pos/load-inventory';
 import {
   filterInventoryItems,
-  inventoryStockStatus,
   INVENTORY_GROUPS,
   INVENTORY_LOW_STOCK_THRESHOLD,
   isLowOrSoldOutStock,
-  type InventoryGroupId,
-  type InventoryTone,
+  type InventoryFilterId,
 } from '@/lib/pos/inventory-groups';
 import { inventoryPriceLabel } from '@/lib/pos/inventory-price';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
-import { defaultRestockAddQty, restockLineKey } from '@/lib/pos/restock-cart';
+import { activeRestockTiers, isRestockCartVariantValid, defaultRestockAddQty, restockLineKey } from '@/lib/pos/restock-cart';
 import {
   adjustInventoryQuantityAction,
   submitInventoryRestockCartAction,
 } from '@/app/pos/stock/actions';
-
-const TONE_PILL: Record<InventoryTone, string> = {
-  sold_out: 'bg-red-50 text-red-600',
-  low: 'bg-orange-50 text-orange-600',
-  ok: 'bg-neutral-100 text-neutral-600',
-};
-
-const TONE_TEXT: Record<InventoryTone, string> = {
-  sold_out: 'text-red-600',
-  low: 'text-orange-600',
-  ok: 'text-zinc-900',
-};
 
 type ToastState = { text: string; href?: string; hrefLabel?: string };
 
@@ -89,7 +75,7 @@ function InventoryWorkspaceInner({
   const cart = useRestockCart();
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<InventoryGroupId | 'all'>('all');
+  const [group, setGroup] = useState<InventoryFilterId>('all');
   const [lowStockOnly, setLowStockOnly] = useState(initialLowStock);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
@@ -116,9 +102,9 @@ function InventoryWorkspaceInner({
       ),
     [group, items, lowStockOnly, query],
   );
-  const lowCount = items.filter((item) => isLowOrSoldOutStock(item.quantity)).length;
   const selected = items.find((item) => item.productId === selectedId) ?? null;
-  const selectedStatus = selected ? inventoryStockStatus(selected.quantity) : null;
+  const restockTiers = activeRestockTiers(selected?.tiers ?? []);
+  const noActiveRestockTier = !!selected?.tiers?.some(t => t.id) && restockTiers.length === 0;
   const selectedNeedsRestock = selected ? isLowOrSoldOutStock(selected.quantity) : false;
 
   useEffect(() => {
@@ -136,12 +122,15 @@ function InventoryWorkspaceInner({
   function addProductToCart(product: InventoryProduct, quantity?: number) {
     const qty = quantity ?? defaultRestockAddQty(product.suggestedQty);
     if (qty <= 0) return;
+    const tiers = activeRestockTiers(product.tiers ?? []);
+    const variantKey = tiers.length === 1 ? tiers[0].id : addVariant;
+    if ((product.tiers?.some(t => t.id) && !tiers.length) || (tiers.length > 1 && !tiers.some(t => t.id === variantKey))) return;
     cart.add({
       productId: product.productId,
       name: product.name,
       imageUrl: product.imageUrl,
       quantity: qty,
-      variantKey: addVariant || undefined,
+      variantKey: variantKey || undefined,
     });
     showToast(setToast, { text: '已加入補貨單' });
   }
@@ -199,16 +188,21 @@ function InventoryWorkspaceInner({
     }
   }
 
+  const cartHasInvalidVariant = cart.lines.some(line => {
+    const product = items.find(p => p.productId === line.productId);
+    return !product || !isRestockCartVariantValid(product.tiers ?? [], line.variantKey);
+  });
+
   const restockControlsVisible = selectedNeedsRestock || restockOpen;
 
-  const detail = selected && selectedStatus ? (
+  const detail = selected ? (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">{selected.name}</h2>
-          <p className="mt-1 font-semibold">售價 {inventoryPriceLabel(selected)}</p>
+          <p className="mt-1 font-semibold">{selected.productCategory === 'JAR_EXCHANGE' ? '' : '售價 '}{inventoryPriceLabel(selected)}</p>
           <ul className="mt-2 space-y-1 text-sm text-zinc-600">
-            {selected.tiers?.filter(t => t.status !== 'archived' && t.price != null).map(t => <li key={t.id}>{t.label} · {inventoryPriceLabel({ price: t.price })}</li>)}
+            {selected.productCategory !== 'JAR_EXCHANGE' && selected.tiers?.filter(t => t.status !== 'archived' && t.price != null).map(t => <li key={t.id}>{t.label} · {inventoryPriceLabel({ price: t.price })}</li>)}
           </ul>
           {selected.programLabel ? (
             <span className="mt-1 inline-flex rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
@@ -239,10 +233,9 @@ function InventoryWorkspaceInner({
         </div>
         <div>
           <p className="text-xs text-zinc-500">目前庫存</p>
-          <p className={`text-4xl font-semibold tabular-nums ${TONE_TEXT[selectedStatus.tone]}`}>
+          <p className="text-4xl font-semibold tabular-nums text-zinc-900">
             {selected.quantity}
           </p>
-          <p className={`mt-1 text-sm ${TONE_TEXT[selectedStatus.tone]}`}>{selectedStatus.label}</p>
         </div>
       </div>
 
@@ -263,10 +256,10 @@ function InventoryWorkspaceInner({
               {selectedNeedsRestock ? '建議補貨' : '補貨數量'}
             </p>
             <div className="mt-3">
-              {(selected.tiers ?? []).filter(t => t.id).length > 1 ? (
+              {restockTiers.length > 1 ? (
                 <select aria-label="補貨規格" value={addVariant} onChange={e => setAddVariant(e.target.value)} className="mb-3 h-11 max-w-full rounded-lg border bg-white px-2 text-sm">
                   <option value="">請選擇規格</option>
-                  {(selected.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  {restockTiers.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
               ) : null}
               <QtyStepper value={addQty} min={0} onChange={setAddQty} large />
@@ -274,7 +267,7 @@ function InventoryWorkspaceInner({
             <button
               type="button"
               className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
-              disabled={addQty <= 0 || ((selected.tiers ?? []).filter(t => t.id).length > 1 && !addVariant)}
+              disabled={addQty <= 0 || noActiveRestockTier || (restockTiers.length > 1 && !restockTiers.some(t => t.id === addVariant))}
               onClick={() => addProductToCart(selected, addQty)}
             >
               加入補貨單
@@ -366,11 +359,11 @@ function InventoryWorkspaceInner({
               </div>
               <div className="min-w-0 flex-1 text-sm text-zinc-900">
                 <p className="truncate">{line.name}</p>
-                {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 ? (
+                {activeRestockTiers(items.find(p => p.productId === line.productId)?.tiers ?? []).length > 0 ? (
                   <select aria-label={`${line.name} 補貨規格`} value={line.variantKey ?? ''} className="mt-1 h-11 max-w-full rounded-lg border bg-white px-2"
                     onChange={e => cart.setVariant(line.productId, e.target.value, line.variantKey)}>
                     <option value="">請選擇規格</option>
-                    {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    {activeRestockTiers(items.find(p => p.productId === line.productId)?.tiers ?? []).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 ) : null}
               </div>
@@ -399,10 +392,10 @@ function InventoryWorkspaceInner({
       )}
       <div className="mt-4 border-t border-neutral-200 pt-3">
         <p className="text-sm text-zinc-600">共 {cart.pieceCount} 件商品</p>
-        {cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey) ? <p role="status" className="mt-2 text-sm text-orange-700">請先選擇補貨商品規格</p> : null}
+        {cartHasInvalidVariant ? <p role="status" className="mt-2 text-sm text-orange-700">補貨規格未選擇或已停用，請重新選擇或移除商品</p> : null}
         <button
           type="button"
-          disabled={cart.lines.length === 0 || submitting || cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey)}
+          disabled={cart.lines.length === 0 || submitting || cartHasInvalidVariant}
           className="mt-3 flex min-h-[44px] w-full items-center justify-center rounded-xl border border-zinc-900 bg-white text-sm font-semibold text-zinc-900 disabled:opacity-40"
           onClick={() => void onSubmitCart()}
         >
@@ -442,27 +435,12 @@ function InventoryWorkspaceInner({
                   className={`min-h-[36px] rounded-full px-4 text-sm font-medium ${
                     group === tab.id ? 'bg-primary text-primary-foreground' : 'bg-neutral-200/80 text-zinc-600'
                   }`}
-                  onClick={() => setGroup(tab.id)}
+                  onClick={() => { setGroup(tab.id); setLowStockOnly(false); }}
                 >
                   {tab.label}
                 </button>
               ))}
-              <button
-                type="button"
-                className={`ml-auto flex min-h-[36px] items-center gap-2 rounded-full px-4 text-sm font-medium ${
-                  lowStockOnly ? 'bg-primary text-primary-foreground' : 'bg-white text-zinc-700 ring-1 ring-neutral-200'
-                }`}
-                onClick={() => setLowStockOnly((value) => !value)}
-              >
-                庫存不足
-                <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                    lowStockOnly ? 'bg-white text-primary' : 'bg-primary text-primary-foreground'
-                  }`}
-                >
-                  {lowCount}
-                </span>
-              </button>
+
             </div>
           </div>
 
@@ -472,9 +450,8 @@ function InventoryWorkspaceInner({
             ) : (
               <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {visible.map((item) => {
-                  const status = inventoryStockStatus(item.quantity);
                   const isSelected = selectedId === item.productId;
-                  const plusQuiet = status.tone === 'ok';
+                  const plusQuiet = !isLowOrSoldOutStock(item.quantity);
                   return (
                     <li key={item.productId} className="relative">
                       <button
@@ -501,7 +478,7 @@ function InventoryWorkspaceInner({
                           />
                         </div>
                         <p className="mt-3 truncate font-medium">{item.name}</p>
-                        <p className="mt-1 text-sm font-semibold text-zinc-900">售價 {inventoryPriceLabel(item)}</p>
+                        <p className="mt-1 text-sm font-semibold text-zinc-900">{item.productCategory === 'JAR_EXCHANGE' ? '' : '售價 '}{inventoryPriceLabel(item)}</p>
                         {item.programLabel ? (
                           <span className="mt-1 w-fit rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
                             {item.programLabel}
@@ -509,9 +486,7 @@ function InventoryWorkspaceInner({
                         ) : null}
                         <div className="mt-2 flex items-end justify-between gap-2">
                           <p className="text-sm text-zinc-500">庫存 {item.quantity}</p>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_PILL[status.tone]}`}>
-                            {status.label}
-                          </span>
+
                         </div>
                       </button>
                       {isSelected ? null : (

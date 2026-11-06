@@ -68,3 +68,21 @@ describe('POS inventory and counter visibility', () => {
     assert.match(source, /merchantRules: \{ some: \{ merchantId \} \}/);
   });
 });
+
+
+describe('new POS product category', () => {
+  const launches = [
+    { name: '家有三寶', sku: 'FUR-0128', group: 'baked' as const, quantity: 0 },
+    { name: '鮭魚皮', sku: 'FUR-0129', group: 'fish' as const, quantity: 0 },
+    { name: '柳葉魚凍乾', sku: 'FUR-0007', group: 'freeze_dried' as const, quantity: 0 },
+    { name: '黃金條', sku: 'BF-03-30G', group: 'baked' as const, quantity: 20 },
+  ];
+  it('includes the three current launches across existing food categories', () => {
+    assert.deepEqual(filterInventoryItems(launches, { query: '', group: 'new', lowStockOnly: false }).map(p => p.sku), ['FUR-0128', 'FUR-0129', 'FUR-0007']);
+  });
+  it('keeps search functional inside new products and retains ordinary categories', () => {
+    assert.equal(filterInventoryItems(launches, { query: '鮭魚', group: 'new', lowStockOnly: false }).length, 1);
+    assert.equal(filterInventoryItems(launches, { query: '', group: 'baked', lowStockOnly: false }).length, 2);
+    assert.equal(filterInventoryItems(launches, { query: '', group: 'all', lowStockOnly: false }).length, 4);
+  });
+});

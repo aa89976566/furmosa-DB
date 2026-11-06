@@ -51,3 +51,14 @@ export function removeRestockCartLine(
 ): RestockCartLine[] {
   return lines.filter((line) => restockLineKey(line) !== restockLineKey({ productId, variantKey }));
 }
+
+/** Keep retired inventory tiers available to counting, but never to ordering. */
+export function activeRestockTiers<T extends { id: string; status?: string }>(tiers: T[]) {
+  return tiers.filter(t => t.id && (t.status == null || t.status === 'active'));
+}
+
+export function isRestockCartVariantValid(tiers: { id: string; status?: string }[], variantKey?: string | null) {
+  const known = tiers.filter(t => t.id);
+  if (!known.length) return !variantKey;
+  return activeRestockTiers(known).some(t => t.id === variantKey);
+}

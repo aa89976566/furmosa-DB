@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { refillPriceLabel } from '@/lib/refill/constants';
 import { formatCurrency } from '@/lib/format';
 import { canonicalTierSku } from '@/lib/products/canonical-sku';
 import {
@@ -50,11 +51,13 @@ export function PriceTierManager({
   productId,
   productUnit,
   productSourceSku,
+  isRefill = false,
   tiers,
 }: {
   productId: string;
   productUnit: string;
   productSourceSku: string | null;
+  isRefill?: boolean;
   tiers: PriceTierRow[];
 }) {
   const weightOnly = isGramUnit(productUnit);
@@ -126,6 +129,7 @@ export function PriceTierManager({
           <TableBody>
             {edit.kind === 'new' && (
               <TierFormRow
+                isRefill={isRefill}
                 productId={productId}
                 weightOnly={weightOnly}
                 existingWeights={existingWeights}
@@ -138,6 +142,7 @@ export function PriceTierManager({
                 return (
                   <TierFormRow
                     key={t.id}
+                    isRefill={isRefill}
                     productId={productId}
                     weightOnly={weightOnly}
                     existingWeights={existingWeights}
@@ -150,6 +155,7 @@ export function PriceTierManager({
               return (
                 <TierDisplayRow
                   key={t.id}
+                  isRefill={isRefill}
                   tier={t}
                   weightOnly={weightOnly}
                   canonicalSku={canonicalTierSku(productSourceSku, t, activeTierCount)}
@@ -176,6 +182,7 @@ function TierDisplayRow({
   tier,
   weightOnly,
   canonicalSku,
+  isRefill,
   onEdit,
   onDelete,
   disabled,
@@ -183,6 +190,7 @@ function TierDisplayRow({
   tier: PriceTierRow;
   weightOnly: boolean;
   canonicalSku: string | null;
+  isRefill: boolean;
   onEdit: () => void;
   onDelete: () => void;
   disabled: boolean;
@@ -206,7 +214,7 @@ function TierDisplayRow({
         </Badge>
       </TableCell>
       <TableCell className="text-right font-semibold tabular-nums">
-        {formatCurrency(tier.price)}
+        {isRefill ? refillPriceLabel() : formatCurrency(tier.price)}
       </TableCell>
       <TableCell className="text-right text-muted-foreground">
         {tierCost != null ? formatCurrency(tierCost) : '-'}
@@ -290,6 +298,7 @@ function TierDisplayRow({
 }
 
 function TierFormRow({
+  isRefill,
   productId,
   weightOnly,
   existingWeights,
@@ -300,6 +309,7 @@ function TierFormRow({
   productId: string;
   weightOnly: boolean;
   existingWeights: Set<number>;
+  isRefill?: boolean;
   tier?: PriceTierRow;
   onCancel: () => void;
   onSuccess: () => void;
@@ -472,7 +482,7 @@ function TierFormRow({
               </>
             )}
 
-            <FieldInline label="售價 (元)" required>
+            <FieldInline label={isRefill ? "換罐價 (元)，首罐依換罐計畫計價" : "售價 (元)"} required>
               <Input
                 name="price"
                 type="number"
