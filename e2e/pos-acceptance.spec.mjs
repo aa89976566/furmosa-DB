@@ -252,7 +252,16 @@ test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual
     ? page.locator('.md\\:hidden').locator('div.cursor-pointer').filter({ hasText: orderNumber })
     : page.getByRole('row').filter({ hasText: orderNumber });
   await expect(row).toBeVisible();
+  const statusApi = `**/api/shipments/${shipment.id}/status`;
+  await page.route(statusApi, route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'CI 審核阻擋測試' }) }));
   await row.getByRole('button', { name: '已寄出', exact: true }).click();
+  await expect(row.getByRole('alert')).toContainText('CI 審核阻擋測試');
+  await expect(pending).toHaveText(String(pendingBefore));
+  expect((await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } })).status).toBe('pending');
+  await page.unroute(statusApi);
+  const savedResponse = page.waitForResponse(response => response.url().endsWith(`/api/shipments/${shipment.id}/status`) && response.request().method() === 'POST');
+  await row.getByRole('button', { name: '已寄出', exact: true }).click();
+  expect((await savedResponse).status()).toBe(200);
   // These assertions retry across the server refresh; never reload to hide a stale-count bug.
   await expect(pending).toHaveText(String(pendingBefore - 1));
   await expect(shipped).toHaveText(String(shippedBefore + 1));

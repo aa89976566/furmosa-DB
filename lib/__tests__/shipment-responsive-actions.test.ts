@@ -166,12 +166,12 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(startBranch, /setOptimisticHidden/);
     assert.doesNotMatch(table, /optimisticHidden|setOptimisticHidden/);
     assert.match(table, /shipments\.map\(buildQueueRowView\)/);
-    assert.match(control, /if \(requestInFlight.current \|\| dispatchConfirmed\) return/);
+    assert.match(control, /if \(requestInFlight.current \|\| dispatchConfirmed \|\| resultUncertain\) return/);
     assert.match(control, /setDispatchConfirmed\(true\)/);
     assert.match(control, /window\.location\.assign\(window\.location\.href\)/);
-    assert.match(control, /const responseDeadline = window\.setTimeout/);
-    assert.match(control, /window\.clearTimeout\(responseDeadline\)/);
-    assert.match(control, /disabled=\{active \|\| pending \|\| busy\}/);
+    assert.match(control, /requestShipmentQueueStatus\(formData\)/);
+    assert.doesNotMatch(control, /startTransition|responseDeadline/);
+    assert.match(control, /disabled=\{active \|\| pending \|\| busy \|\| locked\}/);
     assert.match(control, /actionError && !confirmNext/);
     assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
     assert.match(table, /已儲存寄出狀態，正在更新列表與數量/);
@@ -276,7 +276,7 @@ describe('出貨工作區介面', () => {
     );
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
-    assert.match(control, /markShipmentStatusFromQueue/);
+    assert.match(control, /requestShipmentQueueStatus/);
     assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 1);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
     assert.match(control, /name="next" value=\{confirmNext\}/);
@@ -284,7 +284,7 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(control, /form=\{formId\}/);
     assert.match(control, /確認貨物到達/);
     assert.match(control, /確認已寄出/);
-    assert.match(control, /await markShipmentStatusFromQueue\(formData\)/);
+    assert.match(control, /await requestShipmentQueueStatus\(formData\)/);
     assert.match(control, /無法更新出貨狀態：\{actionError\}/);
     assert.match(control, /router\.refresh\(\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);

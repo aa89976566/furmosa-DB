@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   markShipmentStatus,
-  markShipmentStatusFromQueue,
 } from '@/app/(main)/shipments/actions';
+import { requestShipmentQueueStatus } from '@/lib/shipment-queue-request';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
 
@@ -136,7 +136,6 @@ export function ShipmentQueueStatusSelect({
     'pending' | 'shipped' | 'delivered' | 'received' | 'cancelled' | null
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isSubmitting, startTransition] = useTransition();
 
   function closeConfirmation() {
     if (isSubmitting) return;
@@ -146,24 +145,21 @@ export function ShipmentQueueStatusSelect({
 
   const requestInFlight = useRef(false);
   const [requestPending, setRequestPending] = useState(false);
+  const isSubmitting = requestPending;
+  const [resultUncertain, setResultUncertain] = useState(false);
   const [dispatchConfirmed, setDispatchConfirmed] = useState(false);
   useEffect(() => { setDispatchConfirmed(false); }, [status, queueStatus]);
 
-  function runStatusChange(formData: FormData, optimisticDispatch = false) {
-    if (requestInFlight.current || dispatchConfirmed) return;
+  async function runStatusChange(formData: FormData, optimisticDispatch = false) {
+    if (requestInFlight.current || dispatchConfirmed || resultUncertain) return;
     requestInFlight.current = true;
     setRequestPending(true);
     setActionError(null);
     if (optimisticDispatch) onOptimisticChange?.('start');
-    // A Server Action response can wait on an unrelated RSC/layout refresh.
-    // A read-only document navigation reconciles the saved state without retrying the write.
-    const responseDeadline = window.setTimeout(() => {
-      window.location.assign(window.location.href);
-    }, 15_000);
-    startTransition(async () => {
       try {
-      const result = await markShipmentStatusFromQueue(formData);
+      const result = await requestShipmentQueueStatus(formData);
       if (!result.ok) {
+        setResultUncertain(Boolean(result.uncertain));
         setActionError(result.error);
         if (optimisticDispatch) onOptimisticChange?.('error', result.error);
         return;
@@ -192,11 +188,9 @@ export function ShipmentQueueStatusSelect({
         setActionError(message);
         if (optimisticDispatch) onOptimisticChange?.('error', message);
       } finally {
-        window.clearTimeout(responseDeadline);
         requestInFlight.current = false;
         setRequestPending(false);
       }
-    });
   }
 
   function submitStatus(event: FormEvent<HTMLFormElement>) {
@@ -239,7 +233,8 @@ export function ShipmentQueueStatusSelect({
               key={option.value}
               option={option}
               active={active}
-              busy={requestPending || isSubmitting || dispatchConfirmed}
+              busy={requestPending || dispatchConfirmed}
+              locked={resultUncertain}
               onConfirmStatus={
                 option.value === 'shipped' &&
                 (status === 'pending' || status === 'packed')
@@ -269,6 +264,11 @@ export function ShipmentQueueStatusSelect({
         <p role="alert" className="text-xs font-medium text-red-700">
           無法更新出貨狀態：{actionError}
         </p>
+      ) : null}
+      {resultUncertain ? (
+        <button type="button" className="min-h-11 text-sm underline" onClick={() => window.location.assign(window.location.href)}>
+          重新讀取訂單
+        </button>
       ) : null}
     </form>
     {confirmNext && typeof document !== 'undefined'
@@ -358,11 +358,13 @@ function QueueStatusSubmitButton({
   option,
   active,
   busy = false,
+  locked = false,
   onConfirmStatus,
 }: {
   option: { value: string; label: string };
   active: boolean;
   busy?: boolean;
+  locked?: boolean;
   onConfirmStatus?: () => void;
 }) {
   const { pending } = useFormStatus();
@@ -371,7 +373,7 @@ function QueueStatusSubmitButton({
       type={onConfirmStatus ? 'button' : 'submit'}
       name={onConfirmStatus ? undefined : 'next'}
       value={option.value}
-      disabled={active || pending || busy}
+      disabled={active || pending || busy || locked}
       aria-pressed={active}
       onClick={onConfirmStatus}
       className={cn(
