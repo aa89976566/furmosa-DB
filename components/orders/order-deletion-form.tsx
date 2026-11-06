@@ -11,7 +11,7 @@ export function OrderDeletionForm({ orderId, deleted }: { orderId: string; order
   const [state, action] = useFormState(orderDeletionAction, { message: '' });
   return <details className="rounded-xl border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">{deleted ? '還原訂單' : '刪除訂單'}</summary>
     <form action={action} className="mt-3 space-y-3">
-      <p className="text-xs text-muted-foreground">刪除後不會進入審核或出貨流程，管理員仍可從已刪除清單還原。</p>
+      <p className="text-xs text-muted-foreground">僅從 HQ 移除，可從「已刪除」清單還原；Shopify 原單與稽核紀錄保留。已付款請先至 Shopify 取消／退款；已有出貨或庫存紀錄時禁止刪除。</p>
       <input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="action" value={deleted ? 'restore' : 'delete'} />
       {!deleted ? <label className="block space-y-1.5 text-sm font-medium">刪除原因
         <select name="reason" required defaultValue="" className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">

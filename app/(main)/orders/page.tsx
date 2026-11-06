@@ -17,6 +17,7 @@ import { orderListVisibleWhere, orderWorkWhere, workbenchVisibleWhere, workbench
 import { mergeSearchWhere, orderSearchWhere } from '@/lib/site-search';
 import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
+import { loadOrderWorkSummary } from '@/lib/orders/work-summary';
 import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
@@ -50,30 +51,11 @@ function activeWorkFilter(searchParams: SearchParams) {
 }
 
 async function OrdersWorkSummary({ active }: { active: string }) {
-  const count = (work: string) => prisma.order.count({
-    where: { AND: [work === 'all' || work === 'cancelled' ? orderListVisibleWhere : workbenchVisibleWhere, orderWorkWhere(work)] },
-  });
-  const [all, now, waiting, ready, shipping, done, cancelled] = await Promise.all([
-    count('all'),
-    count('now'),
-    count('waiting'),
-    count('ready'),
-    count('shipping'),
-    count('done'),
-    count('cancelled'),
-  ]);
-  const stages = [
-    { key: 'all', label: '全部訂單', count: all },
-    { key: 'now', label: '待處理', count: now },
-    { key: 'waiting', label: '待付款', count: waiting },
-    { key: 'ready', label: '待出貨', count: ready },
-    { key: 'shipping', label: '運送中', count: shipping },
-    { key: 'done', label: '已完成', count: done },
-    { key: 'cancelled', label: '已取消', count: cancelled },
-  ];
+  const stages = await loadOrderWorkSummary(prisma);
 
   return (
     <nav aria-label="訂單工作階段" className="overflow-x-auto pb-1">
+      {stages.some(stage => stage.count === null) ? <p role="status" className="mb-2 text-xs text-muted-foreground">訂單統計暫時無法取得，仍可切換工作階段。</p> : null}
       <div className="inline-flex min-w-full gap-1 rounded-xl border border-border/70 bg-card p-1.5 sm:min-w-0">
         {stages.map((stage) => {
           const isActive = active === stage.key;
@@ -87,7 +69,7 @@ async function OrdersWorkSummary({ active }: { active: string }) {
             >
               <span>{stage.label}</span>
               <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
-                {stage.count}
+                {stage.count ?? '—'}
               </span>
             </Link>
           );

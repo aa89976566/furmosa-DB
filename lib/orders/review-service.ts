@@ -83,8 +83,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const snapshot = order.shopifySnapshot as Snapshot | null;
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
-    const existingOmsShipment = order.shipments.find(
-      s => s.shipmentNumber === `OMS-${order.id}` && s.status !== 'cancelled',
+    const shipmentBase = `OMS-${order.id}`;
+    const activeShipments = order.shipments.filter(s => s.status !== 'cancelled');
+    const existingOmsShipment = activeShipments.find(
+      s => s.shipmentNumber === shipmentBase || s.shipmentNumber.startsWith(`${shipmentBase}-R`),
     );
     if (
       existingOmsShipment &&
@@ -101,7 +103,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       });
     }
     if (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
-      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || order.shipments.length) {
+      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || activeShipments.length) {
       throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核', { kind: 'error' });
     }
     // Conflicting same-version payload must be reconciled at source, not cleared by a reviewer.
@@ -235,6 +237,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     // READY for a later explicit shipment action; legacy review remains two-step.
     const createsShipment = command.action === 'ship' ||
       (command.action === 'approve' && command.sourceOnly && !awaitingPayment);
+    let shipment: { id: string } | null = null;
     if (!createsShipment) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
@@ -261,7 +264,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
           };
         }),
       });
-      await tx.shipment.create({ data: { shipmentNumber: `OMS-${order.id}`, type: 'customer_order', status: 'pending', orderId: order.id,
+      // Cancelled shipments remain immutable history. A new task gets a new identity.
+      const usedNumbers = new Set(order.shipments.map(s => s.shipmentNumber));
+      let shipmentNumber = shipmentBase;
+      let revision = 2;
+      while (usedNumbers.has(shipmentNumber)) shipmentNumber = `${shipmentBase}-R${revision++}`;
+      shipment = await tx.shipment.create({ select: { id: true }, data: { shipmentNumber, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: [
@@ -280,15 +288,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!createsShipment) {
       return approveSuccess(awaitingPayment);
     }
-    const shipment = await tx.shipment.findFirst({
-      where: { orderId: order.id, status: { not: 'cancelled' } },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
     return emptyReviewResult({
       ok: true, action: 'ship', message: '訂單已確認，已建立待出貨任務；尚未連接物流供應商',
       omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
       next: shipment ? { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });
-  }, { maxWait: 2000, timeout: 10000 });
+  }, { maxWait: 2000, timeout: 20000 });
 }

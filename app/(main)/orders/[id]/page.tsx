@@ -314,6 +314,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </aside>
         </div>
 
+        <section aria-label="訂單管理" className="mt-5 space-y-3">
+          <h2 className="text-lg font-semibold">訂單管理</h2>
+          <div className="space-y-3">
+            <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
+            {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
+          </div>
+        </section>
+
         <details id="system-history" className="group mt-5 rounded-xl border bg-card">
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold sm:px-6">系統與歷程 <span className="ml-2 text-xs font-normal text-muted-foreground">訂單來源、系統狀態與管理工具</span></summary>
           <div className="space-y-4 border-t p-4 sm:p-6">
@@ -323,10 +331,6 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <div><dt className="text-xs text-muted-foreground">下單時間</dt><dd className="mt-1">{formatDateTime(order.orderedAt)}</dd></div>
               {order.omsReviewedAt ? <div><dt className="text-xs text-muted-foreground">審核紀錄</dt><dd className="mt-1">{order.omsReviewedBy?.name || '原審核者帳號已不存在'} · {formatDateTime(order.omsReviewedAt)}</dd></div> : null}
             </dl>
-            <div className="space-y-3">
-              <OrderDeletionForm key={String(order.deletedAt)} orderId={order.id} orderNumber={order.orderNumber} deleted={Boolean(order.deletedAt)} />
-              {!order.deletedAt && (Boolean(order.archivedAt) || (order.status === 'pending_review' && ['NEW', 'REVIEW'].includes(order.omsStatus))) ? <OrderArchiveForm orderId={order.id} archived={Boolean(order.archivedAt)} /> : null}
-            </div>
           </div>
         </details>
         {order.status === 'cancelled' ? <div className="mt-5"><OrderCancellationPanel orderId={order.id} records={cancellationRecords} /></div> : null}

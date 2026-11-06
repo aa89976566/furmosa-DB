@@ -295,6 +295,47 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1);
   });
 
+  it('cancelled shipment history permits a fresh review and unique replacement task', async () => {
+    const f = fakeDb();
+    const cancelled = { id: 'old', shipmentNumber: 'OMS-o1', status: 'cancelled' };
+    f.order.shipments.push(cancelled, { id: 'old-r2', shipmentNumber: 'OMS-o1-R2', status: 'cancelled' });
+    await f.run('check', { sourceOnly: true });
+    const approved = await f.run('approve', { sourceOnly: true });
+    assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.order.shipments.at(-1).shipmentNumber, 'OMS-o1-R3');
+    assert.equal(cancelled.status, 'cancelled');
+    assert.equal(f.order.shipments.length, 3, 'cancelled history remains intact');
+    await f.run('approve', { sourceOnly: true });
+    await f.run('ship', { sourceOnly: true });
+    assert.equal(f.shipmentCreates, 1, 'replacement confirmation is also idempotent');
+  });
+
+  it('unpaid order with cancelled shipment can be reviewed without creating another shipment', async () => {
+    const source = shopifySnapshot({ ...raw, financial_status: 'pending' });
+    const f = fakeDb(source);
+    f.order.shipments.push({ id: 'old', shipmentNumber: 'OMS-o1', status: 'cancelled' });
+    await f.run('check', { sourceOnly: true });
+    const result = await f.run('approve', { sourceOnly: true });
+    assert.equal(result.omsStatus, 'READY');
+    assert.equal(f.shipmentCreates, 0);
+    assert.equal(f.order.shipments[0].status, 'cancelled');
+    await assert.rejects(() => f.run('ship', { sourceOnly: true }), ReviewError);
+    assert.equal(f.shipmentCreates, 0);
+  });
+
+  it('active shipments and cancelled orders still block reopening review', async () => {
+    for (const status of ['pending', 'packed', 'shipped', 'delivered']) {
+      const f = fakeDb();
+      f.order.shipments.push({ id: 'active', shipmentNumber: 'OMS-o1', status });
+      await assert.rejects(() => f.run('check', { sourceOnly: true }), ReviewError);
+      assert.equal(f.shipmentCreates, 0);
+    }
+    const f = fakeDb();
+    f.order.status = 'cancelled';
+    f.order.shipments.push({ id: 'old', shipmentNumber: 'OMS-o1', status: 'cancelled' });
+    await assert.rejects(() => f.run('check', { sourceOnly: true }), ReviewError);
+  });
+
   it('normalizes server-derived temperature before comparing approve form', async () => {
     const f = fakeDb();
     const formDraft = { ...draft, lines: [], temperature: '' };
