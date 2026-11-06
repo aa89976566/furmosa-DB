@@ -71,11 +71,12 @@ export async function ensureMooncakeProduct(db: Db) {
 
     await db.productPriceTier.upsert({
       where: {
-        productId_weightGrams_unit_unitQty: {
+        productId_weightGrams_unit_unitQty_variantKey: {
           productId: product.id,
           weightGrams: MOONCAKE_CATALOG.weightGrams,
           unit: MOONCAKE_CATALOG.unit,
           unitQty: 1,
+          variantKey: '',
         },
       },
       update: {},

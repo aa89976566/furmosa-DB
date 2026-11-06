@@ -39,6 +39,7 @@ export type PriceTierRow = {
   shopifySku: string | null;
   shopifyVariantId: string | null;
   notes: string | null;
+  variantName: string | null;
 };
 
 type EditState = { kind: 'none' } | { kind: 'new' } | { kind: 'edit'; id: string };
@@ -188,7 +189,7 @@ function TierDisplayRow({
 }) {
   const label = tierLabel(tier);
   const noteParts = tier.notes?.split(/[；\n]/).map(part => part.trim()).filter(Boolean) ?? [];
-  const variantName = noteParts.find(part => part.startsWith('方案：'))?.slice(3).trim();
+  const variantName = tier.variantName ?? noteParts.find(part => part.startsWith('方案：'))?.slice(3).trim();
   const contentLines = noteParts.filter(part => !part.startsWith('方案：')).flatMap(part =>
     part.startsWith('組合內容：') ? part.slice(5).split('、') : [part],
   );
@@ -507,6 +508,16 @@ function TierFormRow({
                 placeholder="選填"
                 autoComplete="off"
                 className="w-28"
+              />
+            </FieldInline>
+
+            <FieldInline label="服務方案名稱">
+              <Input
+                name="variantName"
+                defaultValue={tier?.variantName ?? ''}
+                maxLength={80}
+                placeholder="例：健康在世｜即時溝通"
+                className="w-52"
               />
             </FieldInline>
 

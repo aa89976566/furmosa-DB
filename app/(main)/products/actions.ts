@@ -377,11 +377,12 @@ export async function createPriceTier(formData: FormData) {
   if (!productId) throw new Error('缺少商品 id');
 
   const data = parseTierFields(formData);
-  await assertTierBindingsAvailable(data);
+  const tierData = { ...data, variantKey: data.sku ?? data.shopifySku ?? data.shopifyVariantId ?? '' };
+  await assertTierBindingsAvailable(tierData);
 
   try {
     await prisma.productPriceTier.create({
-      data: { productId, ...data },
+      data: { productId, ...tierData },
     });
   } catch (e) {
     if (isPriceTierUniqueConflict(e)) {
@@ -402,18 +403,19 @@ export async function updatePriceTier(formData: FormData) {
   if (!id || !productId) throw new Error('缺少 tier id 或 productId');
 
   const data = parseTierFields(formData);
+  const tierData = { ...data, variantKey: data.sku ?? data.shopifySku ?? data.shopifyVariantId ?? '' };
 
   const existing = await prisma.productPriceTier.findFirst({
     where: { id, productId },
     select: { id: true },
   });
   if (!existing) throw new Error('找不到這個商品的規格');
-  await assertTierBindingsAvailable(data, id);
+  await assertTierBindingsAvailable(tierData, id);
 
   try {
     await prisma.productPriceTier.update({
       where: { id },
-      data,
+      data: tierData,
     });
   } catch (e) {
     if (isPriceTierUniqueConflict(e)) {
