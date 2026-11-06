@@ -3,6 +3,7 @@ import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
 import { inventoryGroupForProduct, type InventoryGroupId } from '@/lib/pos/inventory-groups';
 import { productProgramLabel } from '@/lib/product-category';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
 
 export type InventoryProduct = {
   productId: string;
@@ -23,6 +24,13 @@ export type InventoryProduct = {
 export async function loadMerchantInventory(
   merchantId: string,
 ): Promise<InventoryProduct[]> {
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { type: true },
+  });
+  if (!merchant) return [];
+  const merchantTypes = await getMerchantTypes(prisma, merchantId, merchant.type);
+  const canOrderConsignment = merchantTypes.includes('consignment');
   const products = await prisma.product.findMany({
       where: {
         status: 'active',
@@ -34,6 +42,7 @@ export async function loadMerchantInventory(
           {
             productCategory: 'STANDARD',
             OR: [
+              ...(canOrderConsignment ? [{ consignmentEnabled: true }] : []),
               { merchantStocks: { some: { merchantId } } },
               { merchantRules: { some: { merchantId } } },
             ],
@@ -53,7 +62,7 @@ export async function loadMerchantInventory(
           where: { merchantId },
           select: { quantity: true, tierId: true, lots: { select: { mode: true, remainingQuantity: true, gift: true } } },
         },
-        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true, bundleComponents: { select: { gramsPerPack: true, componentProduct: { select: { name: true } } } } } },
       },
       orderBy: { name: 'asc' },
     });
@@ -78,7 +87,7 @@ export async function loadMerchantInventory(
         productCategory: product.productCategory,
         programLabel: productProgramLabel(product.productCategory),
         tiers: [
-          ...product.priceTiers.map(tier => ({ id: tier.id, label: tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`, quantity: product.merchantStocks.find(s => s.tierId === tier.id)?.quantity ?? 0 })),
+          ...product.priceTiers.map(tier => ({ id: tier.id, label: `${tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`}${tier.bundleComponents?.length ? `（${tier.bundleComponents.map(c => `${c.componentProduct.name}${c.gramsPerPack}g`).join('＋')}）` : ''}`, quantity: product.merchantStocks.find(s => s.tierId === tier.id)?.quantity ?? 0 })),
           ...product.merchantStocks.filter(s => !product.priceTiers.some(t => t.id === s.tierId)).map(s => ({ id: s.tierId, label: '舊庫存（未分規格）', quantity: s.quantity })),
         ],
       };
