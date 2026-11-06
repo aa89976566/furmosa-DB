@@ -13,9 +13,9 @@ export function ProductCover({
   imgClassName?: string;
   markClassName?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  if (!imageUrl || failed) {
+  if (!imageUrl || failedUrl === imageUrl) {
     return (
       <span className={markClassName} aria-hidden>
         {name.slice(0, 1)}
@@ -30,7 +30,7 @@ export function ProductCover({
       alt=""
       className={imgClassName}
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => setFailedUrl(imageUrl)}
     />
   );
 }

@@ -28,8 +28,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Check authenticated pages without business writes
         env:
-          MONITOR_HQ_USER: ${{ secrets.MONITOR_HQ_USER }}
-          MONITOR_HQ_PASSWORD: ${{ secrets.MONITOR_HQ_PASSWORD }}
+          MONITOR_HQ_USER: ${{ secrets.PRODUCTION_SMOKE_HQ_EMAIL }}
+          MONITOR_HQ_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_HQ_PASSWORD }}
           MONITOR_POS_USER: ${{ secrets.MONITOR_POS_USER }}
           MONITOR_POS_PASSWORD: ${{ secrets.MONITOR_POS_PASSWORD }}
         run: node scripts/authenticated-production-monitor.mjs

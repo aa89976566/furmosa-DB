@@ -30,7 +30,7 @@ CI 在每天台灣時間 08:17（UTC 00:17）排程；GitHub 排程可能延遲�
 
 `Authenticated production monitor (read-only)` 只允許 main 手動執行，沿用 production Environment 的 reviewer 閘門。這個 PR 不配置秘密、不新增帳號或權限、不部署、不改既有每日 CI。完成真實站驗收與權限決策前，不加入 schedule，也不能回報已每日登入檢測。
 
-- 四個 Environment secrets：`MONITOR_HQ_USER`、`MONITOR_HQ_PASSWORD`、`MONITOR_POS_USER`、`MONITOR_POS_PASSWORD`。必須另行取得將指定帳號交給 GitHub Actions 使用的明確授權；不能把先前瀏覽器登入授權視為憑證保存授權。缺任一值直接失敗，不能略過後回報成功。不使用 DB 連線、簽章密鑰或自製 Cookie。
+- 沿用 production Environment 既有 `PRODUCTION_SMOKE_HQ_EMAIL`、`PRODUCTION_SMOKE_HQ_PASSWORD`，映射為 runner 的 MONITOR_HQ_*；不讀取、不複製秘密值。POS 使用 `MONITOR_POS_USER`、`MONITOR_POS_PASSWORD`。新增保存指定 POS 憑證前必須取得明確授權；不能把先前瀏覽器登入授權視為憑證保存授權。四個 runner 登入值缺任一項直接失敗，不能略過後回報成功。不使用 DB 連線、簽章密鑰或自製 Cookie。
 - 真實登入會更新既有 lastLoginAt／建立工作階段；「唯讀」指不修改業務資料，不代表登入完全沒有寫入。HQ 與 POS 使用分離、一次性瀏覽器 context；不保存 session。選用既有具適當權限且有可銷售商品的店家帳號；無商品時搜尋功能驗收不通過，不憑空建立正式商品。
 - HQ 桌機：營運首頁、訂單數字統計、待審核、商品、庫存、補貨申請。POS 手機：商品搜尋與清除、庫存、換罐、叫貨、紀錄、對帳及流水切換。不選取真實案件、不送單、不審核、不交付、不結算、不核銷、不標已讀。
 - 僅放行固定同源頁面與靜態程式；每套 context 只放行一次登入 POST。POS 兩個已稽核、無參數的通知讀取 Server Action，從同源 bundle 的具名引用解析 ID；其他 POST／PUT／PATCH／DELETE 全部封鎖並使結果失敗。Next bundle 格式變動也採失敗關閉，需人工核對更新，不能擴成任意 POST。
