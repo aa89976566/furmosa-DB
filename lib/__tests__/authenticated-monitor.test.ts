@@ -96,3 +96,52 @@ test('runner returns a sanitized failed report when context close cancels an in-
   assert.equal(JSON.stringify(report).includes('SENSITIVE_'), false);
   assert.ok((await Promise.allSettled(requests)).every(result => result.status === 'fulfilled'));
 });
+
+test('external images and fonts stay blocked without becoming functional failures; external data and writes remain denied', async () => {
+  const { requestDecision } = await import('../../scripts/authenticated-monitor-policy.mjs');
+  const base = { origin: 'https://example.invalid', url: 'https://cdn.example.invalid/product.jpg', role: 'pos', method: 'GET', resourceType: 'image', actionIds: new Set<string>() };
+  assert.equal(requestDecision(base), 'omit-asset');
+  assert.equal(requestDecision({ ...base, resourceType: 'font' }), 'omit-asset');
+  assert.equal(requestDecision({ ...base, resourceType: 'fetch' }), 'deny');
+  assert.equal(requestDecision({ ...base, resourceType: 'script' }), 'deny');
+  assert.equal(requestDecision({ ...base, method: 'POST' }), 'deny');
+  assert.equal(requestDecision({ ...base, url: 'https://user:secret@cdn.example.invalid/product.jpg' }), 'deny');
+});
+
+test('blocked-request descriptions contain only bounded categories and known routes', async () => {
+  const { describeMonitorRequest } = await import('../../scripts/authenticated-monitor-policy.mjs');
+  const external = describeMonitorRequest({ url: 'https://user:SENSITIVE_PASS@private.invalid/customers/PRIVATE_ID?token=SENSITIVE_TOKEN', origin: 'https://example.invalid', role: 'hq', method: 'POST', resourceType: 'fetch' });
+  assert.deepEqual(external, { method: 'POST', resourceType: 'fetch', destination: 'other-origin', route: 'unlisted' });
+  assert.equal(/SENSITIVE|PRIVATE_ID|private.invalid|customers/.test(JSON.stringify(external)), false);
+  assert.deepEqual(describeMonitorRequest({ url: 'https://example.invalid/orders?q=SENSITIVE', origin: 'https://example.invalid', role: 'hq', method: 'GET', resourceType: 'document' }), { method: 'GET', resourceType: 'document', destination: 'same-origin', route: '/orders' });
+});
+
+test('runner aborts excluded external images without recording a request-boundary failure or sending them', async () => {
+  const { runAuthenticatedMonitor } = await import('../../scripts/authenticated-production-monitor.mjs');
+  let omissions = 0;
+  const chromium = { async launch() { return {
+    async newContext() {
+      let handler!: (route: unknown) => Promise<unknown>;
+      return {
+        async route(_pattern: string, callback: typeof handler) { handler = callback; },
+        async newPage() { return {
+          setDefaultTimeout() {}, setDefaultNavigationTimeout() {},
+          async goto() { await handler({
+            request: () => ({ url: () => 'https://cdn.example.invalid/product.jpg', method: () => 'GET', resourceType: () => 'image', headers: () => ({}), postData: () => null }),
+            abort: async () => { omissions += 1; },
+            continue: async () => { assert.fail('external image must never be sent'); },
+            fetch: async () => { assert.fail('external image must never be fetched'); },
+          }); },
+          getByLabel() { return { async fill() { throw new Error('fixture stops UI before login'); } }; },
+        }; },
+        async close() {},
+      };
+    },
+    async close() {},
+  }; }};
+  const report = await runAuthenticatedMonitor({ chromium, credentials: { hqUser: 'fixture', hqPassword: 'fixture', posUser: 'fixture', posPassword: 'fixture' } });
+  assert.equal(report.ok, false); // Synthetic UI failure cannot become green.
+  assert.equal(omissions, 2);
+  assert.equal(report.results.some(result => result.code === 'UNREVIEWED_REQUEST_BLOCKED'), false);
+  assert.deepEqual(report.requestBlocks, []);
+});

@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { requestDecision, collectReadActionIds } from './authenticated-monitor-policy.mjs';
+import { requestDecision, collectReadActionIds, describeMonitorRequest } from './authenticated-monitor-policy.mjs';
 import { createRouteBoundary } from './authenticated-monitor-routes.mjs';
 
 const targets = JSON.parse(readFileSync(new URL('../config/deployment-targets.json', import.meta.url), 'utf8'));
@@ -10,10 +10,10 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
   const isolatedCi = origin === 'http://localhost:3000' && process.env.CI === 'true' &&
     process.env.DATABASE_URL === ciDatabase && process.env.DIRECT_URL === ciDatabase;
   if (origin !== targets.production.origin && !isolatedCi) throw new Error('INVALID_TARGET');
-  /** @type {{checkedAt: string, origin: string, ok: boolean, coverage: string, results: Array<{check: string, status: string, code?: string, latencyMs?: number}>}} */
+  /** @type {{checkedAt: string, origin: string, ok: boolean, coverage: string, requestBlocks: Array<{role: string, reason: string, method: string, resourceType: string, destination: string, route: string}>, results: Array<{check: string, status: string, code?: string, latencyMs?: number}>}} */
   const report = { checkedAt: new Date().toISOString(), origin, ok: false,
     coverage: 'authenticated read-only UI; no production checkout, approval, coupon lookup, notification acknowledgement, delivery or settlement submission',
-    results: [] };
+    requestBlocks: [], results: [] };
   // Never serialize credentials, cookies, HTML, response bodies, exception text,
   // screenshots, traces, HAR, downloads or storageState.
   if (!credentials.hqUser || !credentials.hqPassword || !credentials.posUser || !credentials.posPassword) {
@@ -31,26 +31,35 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
       let loginUsed = false;
       let unsafe = false;
       const actionIds = new Set();
+      function noteBlocked(route, reason) {
+        unsafe = true;
+        const request = route.request();
+        const entry = { role, reason, ...describeMonitorRequest({ url: request.url(), method: request.method(), resourceType: request.resourceType(), origin, role }) };
+        // At most 10 fixed-enum diagnostics per role; never include full URLs,
+        // hosts, queries, action IDs, request bodies, headers or exception text.
+        const entries = report.requestBlocks.filter(item => item.role === role);
+        if (entries.length < 10 && !entries.some(item => JSON.stringify(item) === JSON.stringify(entry))) report.requestBlocks.push(entry);
+      }
       const boundary = createRouteBoundary(async route => {
         const request = route.request();
         const decision = requestDecision({ url: request.url(), method: request.method(), resourceType: request.resourceType(),
           headers: request.headers(), body: request.postData(), origin, role, loginOpen, loginUsed, actionIds });
         if (decision === 'login') loginUsed = true;
         if (decision === 'deny' || decision === 'omit-asset') {
-          if (decision === 'deny') unsafe = true;
+          if (decision === 'deny') noteBlocked(route, 'policy');
           return route.abort('blockedbyclient');
         }
         if (decision === 'asset' && request.resourceType() === 'script') {
           // Register only named no-argument reads before the browser executes
           // the unmodified same-origin bundle. Never evaluate downloaded code.
           const response = await route.fetch({ maxRedirects: 0, timeout: 15_000 });
-          if (response.status() !== 200) { unsafe = true; return route.abort(); }
+          if (response.status() !== 200) { noteBlocked(route, 'asset-fetch'); return route.abort(); }
           const body = await response.body();
           for (const id of collectReadActionIds(body.toString('utf8'))) actionIds.add(id);
           return route.fulfill({ response, body });
         }
         return route.continue();
-      }, () => { unsafe = true; });
+      }, route => { noteBlocked(route, 'route-error'); });
       await context.route('**/*', boundary.handle);
       const page = await context.newPage();
       page.setDefaultTimeout(15_000);
