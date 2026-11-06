@@ -82,10 +82,18 @@ function RefillFlow({
   const [busy, setBusy] = useState(false);
 
   const restartLineLogin = useCallback(async () => {
-    const liff = (await import('@line/liff')).default;
-    liff.logout();
-    liff.login({ redirectUri: window.location.href });
-  }, []);
+    const returnUrl = new URL('/liff/refill', window.location.origin);
+    if (storeId) returnUrl.searchParams.set('storeId', storeId);
+
+    try {
+      const liff = (await import('@line/liff')).default;
+      if (liff.isLoggedIn()) liff.logout();
+    } finally {
+      // Reload the canonical LIFF URL. LiffShell will initialize LIFF again and
+      // start a fresh LINE Login without reusing an expired OAuth code.
+      window.location.replace(returnUrl.toString());
+    }
+  }, [storeId]);
 
   const loadEligibility = useCallback(async () => {
     setError(null);
