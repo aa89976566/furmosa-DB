@@ -270,7 +270,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now,
       } });
       await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id,
-        previousStatus: order.omsStatus, newStatus: order.omsStatus, actorType: 'user', actorId: actor.id,
+        previousStatus: order.omsStatus, newStatus: 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
         metadataJson: JSON.stringify({ action: 'reapprove_pending_shipment', sourceHash: command.sourceHash,
           reviewAuditId: audit!.id, shipmentId: recoveryShipment.id }) } });
       return emptyReviewResult({ ok: true, action: 'approve', message: '已重新確認既有出貨單，可以回到出貨列表標記寄出',
