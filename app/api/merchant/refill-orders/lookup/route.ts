@@ -3,11 +3,11 @@ import { requireRefillMerchantSession } from '@/lib/refill/auth-merchant';
 import {
   listMerchantRefillOrders,
   lookupRefillByOrderId,
-  lookupRefillBySerial,
 } from '@/lib/refill/merchant';
 import { toRefillHttp } from '@/lib/refill/errors';
 import { RefillError } from '@/lib/refill/errors';
 import { formatRefillOrderNo, parseRefillLookupQuery } from '@/lib/pos/refill-view';
+import { legacyMerchantSerialFlowResult } from '@/lib/refill/legacy-merchant-flow';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +19,11 @@ export async function POST(req: Request) {
     const parsed = parseRefillLookupQuery(raw);
 
     if (parsed.kind === 'serial') {
-      const result = await lookupRefillBySerial(session.merchantId, parsed.value);
-      return NextResponse.json(result);
+      const result = legacyMerchantSerialFlowResult();
+      return NextResponse.json(result.body, {
+        status: result.status,
+        headers: result.headers,
+      });
     }
 
     if (parsed.kind === 'id') {
