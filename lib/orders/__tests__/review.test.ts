@@ -277,6 +277,8 @@ describe('OMS review transaction contract', () => {
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
     assert.equal(approved.action, 'ship');
+    assert.ok(f.order.omsReviewedAt instanceof Date, 'atomic approval must persist its review time');
+    assert.equal(f.order.omsReviewedById, 'u1', 'atomic approval must persist the authenticated reviewer');
     assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);

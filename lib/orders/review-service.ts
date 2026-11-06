@@ -279,6 +279,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, variantKey, notes }) => (
           { productId, productName, sku, quantity, weightGrams, unit, variantKey, notes })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
+        omsReviewedAt: order.omsReviewedAt ?? now, omsReviewedById: order.omsReviewedById ?? actor.id,
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useRef, useState, useTransition, type FormEvent } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
@@ -144,10 +144,17 @@ export function ShipmentQueueStatusSelect({
     setActionError(null);
   }
 
+  const requestInFlight = useRef(false);
+  const [requestPending, setRequestPending] = useState(false);
+
   function runStatusChange(formData: FormData, optimisticDispatch = false) {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    setRequestPending(true);
     setActionError(null);
     if (optimisticDispatch) onOptimisticChange?.('start');
     startTransition(async () => {
+      try {
       const result = await markShipmentStatusFromQueue(formData);
       if (!result.ok) {
         setActionError(result.error);
@@ -172,6 +179,14 @@ export function ShipmentQueueStatusSelect({
       if (result.next === 'delivered') params.set('delivered', '1');
       router.replace(`/shipments?${params.toString()}`);
       router.refresh();
+      } catch {
+        const message = '連線中斷，請重新整理確認出貨狀態後再操作';
+        setActionError(message);
+        if (optimisticDispatch) onOptimisticChange?.('error', message);
+      } finally {
+        requestInFlight.current = false;
+        setRequestPending(false);
+      }
     });
   }
 
@@ -215,6 +230,7 @@ export function ShipmentQueueStatusSelect({
               key={option.value}
               option={option}
               active={active}
+              busy={requestPending || isSubmitting}
               onConfirmStatus={
                 option.value === 'shipped' &&
                 (status === 'pending' || status === 'packed')
@@ -238,6 +254,11 @@ export function ShipmentQueueStatusSelect({
       {inventoryWarnings.length > 0 && status === 'packed' ? (
         <p className="text-[11px] leading-snug text-amber-700" role="status">
           庫存提醒：{inventoryWarnings.join('；')}
+        </p>
+      ) : null}
+      {actionError && !confirmNext ? (
+        <p role="alert" className="text-xs font-medium text-red-700">
+          無法更新出貨狀態：{actionError}
         </p>
       ) : null}
     </form>
@@ -327,10 +348,12 @@ export function ShipmentQueueStatusSelect({
 function QueueStatusSubmitButton({
   option,
   active,
+  busy = false,
   onConfirmStatus,
 }: {
   option: { value: string; label: string };
   active: boolean;
+  busy?: boolean;
   onConfirmStatus?: () => void;
 }) {
   const { pending } = useFormStatus();
@@ -339,7 +362,7 @@ function QueueStatusSubmitButton({
       type={onConfirmStatus ? 'button' : 'submit'}
       name={onConfirmStatus ? undefined : 'next'}
       value={option.value}
-      disabled={active || pending}
+      disabled={active || pending || busy}
       aria-pressed={active}
       onClick={onConfirmStatus}
       className={cn(
@@ -351,7 +374,7 @@ function QueueStatusSubmitButton({
         statusChipClass(active),
       )}
     >
-      {pending && !active ? '處理中…' : option.label}
+      {(pending || busy) && !active ? '處理中…' : option.label}
     </button>
   );
 }

@@ -200,7 +200,7 @@ function queueInventoryItems(
 
 const STAGE_TABS = [
   { key: 'pending', label: '待出貨' },
-  { key: 'shipped', label: '運送中' },
+  { key: 'shipped', label: '已寄出／待確認到貨' },
   { key: 'delivered', label: '待驗收' },
   { key: 'received', label: '已完成' },
 ] as const;
@@ -480,7 +480,7 @@ export async function ShipmentsQueueBody({
   const workspaceSections = [
     {
       key: status,
-      title: `${status === 'pending' ? '待出貨' : shipmentStatusLabel[status]} (${queueRows.length})`,
+      title: `${status === 'pending' ? '待出貨' : status === 'shipped' ? '已寄出／待確認到貨' : shipmentStatusLabel[status]} (${queueRows.length})`,
       description: '點選列表可查看訂單內容；運輸狀態可直接在列表更新。',
       tone: status === 'pending' ? ('operations' as const) : ('logistics' as const),
       tableVariant: type === 'subscription' ? ('subscription' as const) : ('default' as const),

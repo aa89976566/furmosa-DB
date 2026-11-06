@@ -28,7 +28,7 @@ describe('出貨工作區介面', () => {
 
     assert.match(source, /const STAGE_TABS =/);
     assert.match(source, /label: '待出貨'/);
-    assert.match(source, /label: '運送中'/);
+    assert.match(source, /label: '已寄出／待確認到貨'/);
     assert.match(source, /label: '待驗收'/);
     assert.match(source, /label: '已完成'/);
     assert.match(source, /aria-label="出貨階段"/);
@@ -140,7 +140,7 @@ describe('出貨工作區介面', () => {
     );
   });
 
-  it('待出貨標記已寄出後立即原地移除，不開確認視窗也不自動切頁', () => {
+  it('待出貨標記已寄出成功後原地移除，不開確認視窗也不自動切頁', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
@@ -162,9 +162,16 @@ describe('出貨工作區介面', () => {
       /setConfirmNext/,
     );
 
+    const startBranch = table.match(/if \(phase === 'start'\) \{([\s\S]*?)return;/)?.[1] ?? '';
+    assert.doesNotMatch(startBranch, /setOptimisticHidden/);
+    assert.match(table, /if \(phase === 'success'\) \{\s*setOptimisticHidden/);
+    assert.match(control, /if \(requestInFlight.current\) return/);
+    assert.match(control, /disabled=\{active \|\| pending \|\| busy\}/);
+    assert.match(control, /actionError && !confirmNext/);
+    assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
     assert.match(table, /optimisticHidden/);
     assert.match(table, /filter\(\(shipment\) => !optimisticHidden\.has\(shipment\.id\)\)/);
-    assert.match(table, /已標記寄出 · 已移到運送中/);
+    assert.match(table, /已標記寄出 · 已移到已寄出／待確認到貨/);
     assert.match(table, /next\.delete\(shipmentId\)/);
 
     assert.match(action, /if \(result\.next === 'shipped'\) \{/);
