@@ -11,6 +11,8 @@ const PRODUCTS = catalog as FurmosaComProductImage[];
 /** 店裡／總部品名 → 官網標題裡比較好對的關鍵字 */
 const ALIASES: Record<string, string> = {
   雞霸: '壕大大雞霸',
+  嚎大大雞霸: '壕大大雞霸',
+  牛肉凍乾: '牛肉丁凍乾',
   原味雞霸: '壕大大雞霸',
   胡蘿蔔雞霸: '壕大大雞霸',
   壕大大雞霸原味: '壕大大雞霸',
@@ -79,10 +81,10 @@ export function matchFurmosaComImage(productName: string): string | null {
   return best?.imageUrl ?? null;
 }
 
-/** 收銀畫面優先用官網產品 Cover；對不到再退回資料庫既有網址。 */
+/** 已核對的商品主檔圖片優先，避免相似名稱覆蓋正確規格照片。 */
 export function resolveFurmosaProductImage(
   productName: string,
   storedUrl?: string | null,
 ) {
-  return matchFurmosaComImage(productName) ?? storedUrl ?? null;
+  return storedUrl?.trim() || matchFurmosaComImage(productName) || null;
 }
