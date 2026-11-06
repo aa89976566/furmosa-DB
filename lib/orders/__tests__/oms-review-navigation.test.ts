@@ -25,9 +25,10 @@ test('OMS action delegates approval to the atomic review service once', () => {
 });
 
 
-test('successful ship navigates to the shipments queue', () => {
+test('successful ship retains feedback with an explicit shipments link', () => {
   const form = fs.readFileSync('components/orders/oms-review-form.tsx', 'utf8');
-  assert.match(form, /state\.next\?\.href\?\.startsWith\('\/shipments'\).*router\.push\(state\.next\.href\)/s);
+  assert.doesNotMatch(form, /router\.push\(/);
+  assert.match(form, /href=\{state\.next\.href\}/);
   assert.match(form, /確認並建立 HQ 出貨單/);
   assert.match(form, /正在確認並建立出貨單/);
   assert.match(form, /建立 HQ 出貨單/);

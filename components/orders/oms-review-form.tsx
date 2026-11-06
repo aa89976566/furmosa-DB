@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
+import type { ReviewResult } from '@/lib/orders/review-service';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,8 +35,18 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
   </section>;
 }
 
+async function submitReview(previous: ReviewResult, form: FormData): Promise<ReviewResult> {
+  try {
+    return await omsReviewAction(previous, form);
+  } catch {
+    // A disconnected request may already have committed. Keep the draft visible and
+    // ask the operator to verify state rather than blindly retrying shipment creation.
+    return { ok: false, action: null, omsStatus: null, blockers: [], next: null, kind: 'error', message: '連線中斷，尚未確認操作結果。請重新整理核對訂單狀態後再操作。' };
+  }
+}
+
 export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary }) {
-  const [state, action] = useFormState(omsReviewAction, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
+  const [state, action] = useFormState(submitReview, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
   const router = useRouter();
   const ok = state.ok ?? null;
   const effectiveStatus = state.ok && state.omsStatus ? state.omsStatus : status;
@@ -49,7 +60,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
     const draftSaved = state.action === 'check' && state.omsStatus === 'REVIEW' && state.kind !== 'error';
     if ((!state.ok && !draftSaved) || !state.action) return;
     if (state.next?.href?.startsWith('/shipments')) {
-      router.push(state.next.href);
+      // Keep the committed result visible; the operator opens shipping explicitly.
       return;
     }
     router.refresh();
