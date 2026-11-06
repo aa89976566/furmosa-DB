@@ -19,7 +19,7 @@ export const REFILL_PLAN_RULES = {
   /** 預設折抵；實際綁定店可能為豬窩 250，顯示時再依店家覆寫 */
   discountAmountDefault: 200,
   heroImagePath: '/images/refill-plan/refill-flavours-v2.jpg',
-  heroAlt: '匠寵換罐計劃七種零食口味',
+  heroAlt: '匠寵換罐計劃口味介紹',
 } as const;
 
 export type RefillPlanFaqItem = {
@@ -72,8 +72,8 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   },
   {
     id: 'all-seven',
-    question: '每間店都有七種口味嗎？',
-    answer: '不一定。七種為目前換罐系列，實際可選品項依各合作店當期庫存為準。',
+    question: '目前有哪些換罐口味？',
+    answer: '本期新口味為脆脆鴨、菜菜雞、棒棒牛。舊口味仍保留，實際可選品項依各合作店當期庫存為準。',
   },
 ];
 
