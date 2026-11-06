@@ -16,8 +16,13 @@ import {
 
 const LOCK_MS = 60_000;
 
-export async function enqueueRefillPaidNotification(refillOrderId: string) {
-  return prisma.automationJob.upsert({
+type AutomationJobDb = Pick<Prisma.TransactionClient, 'automationJob'>;
+
+export async function enqueueRefillPaidNotification(
+  refillOrderId: string,
+  db: AutomationJobDb = prisma,
+) {
+  return db.automationJob.upsert({
     where: { jobKey: `line:refill-paid:${refillOrderId}` },
     update: {},
     create: {
@@ -33,8 +38,9 @@ export async function enqueueRefillPaidNotification(refillOrderId: string) {
 export async function enqueueRefillCompletedNotification(
   refillOrderId: string,
   pointsAwarded: boolean,
+  db: AutomationJobDb = prisma,
 ) {
-  return prisma.automationJob.upsert({
+  return db.automationJob.upsert({
     where: { jobKey: `line:refill-completed:${refillOrderId}` },
     update: {},
     create: {
@@ -172,5 +178,18 @@ export async function safelyEnqueueAndAttempt(
   } catch (error) {
     // 自動修復機制自身故障也不可讓已完成的主要交易回滾。
     console.error('[automation] enqueue/attempt', normalizeAutomationError(error));
+  }
+}
+
+/**
+ * Use after an AutomationJob was created inside the primary transaction.
+ * The durable row remains available to cron even if this immediate attempt
+ * fails or the process stops after commit.
+ */
+export async function safelyAttemptAutomationJob(jobId: string) {
+  try {
+    await processAutomationJob(jobId);
+  } catch (error) {
+    console.error('[automation] immediate attempt', normalizeAutomationError(error));
   }
 }

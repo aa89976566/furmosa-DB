@@ -52,6 +52,7 @@ describe('ecpay callback guards (unit)', () => {
 describe('ecpay callback duplicate payment guard', () => {
   const originalFindUnique = prisma.paymentOrder.findUnique;
   const originalTransaction = prisma.$transaction;
+  const originalAutomationUpdateMany = prisma.automationJob.updateMany;
   const oldEnv = {
     merchantId: process.env.ECPAY_MERCHANT_ID,
     hashKey: process.env.ECPAY_HASH_KEY,
@@ -64,6 +65,11 @@ describe('ecpay callback duplicate payment guard', () => {
       originalFindUnique;
     (prisma as unknown as { $transaction: typeof originalTransaction }).$transaction =
       originalTransaction;
+    (
+      prisma.automationJob as unknown as {
+        updateMany: typeof originalAutomationUpdateMany;
+      }
+    ).updateMany = originalAutomationUpdateMany;
     if (oldEnv.merchantId === undefined) delete process.env.ECPAY_MERCHANT_ID;
     else process.env.ECPAY_MERCHANT_ID = oldEnv.merchantId;
     if (oldEnv.hashKey === undefined) delete process.env.ECPAY_HASH_KEY;
@@ -148,5 +154,97 @@ describe('ecpay callback duplicate payment guard', () => {
     assert.deepEqual(statusUpdates, ['duplicate_paid']);
     assert.equal(orderAdvanced, false);
     assert.deepEqual(auditActions, ['ecpay_duplicate_payment_requires_refund']);
+  });
+
+  it('persists the paid notification in the same transaction as the payment', async () => {
+    const hashKey = 'paid-test-hash-key';
+    const hashIV = 'paid-test-hash-iv';
+    process.env.ECPAY_MERCHANT_ID = 'paid-test-merchant';
+    process.env.ECPAY_HASH_KEY = hashKey;
+    process.env.ECPAY_HASH_IV = hashIV;
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.example.test';
+
+    const transactionSteps: string[] = [];
+    const notificationJobs: Array<Record<string, unknown>> = [];
+
+    (prisma.paymentOrder as unknown as { findUnique: (...args: unknown[]) => Promise<unknown> })
+      .findUnique = async () => ({
+        id: 'payment-paid',
+        refillOrderId: 'refill-paid',
+        purpose: 'refill',
+        amount: 129,
+        status: 'pending',
+        refillOrder: {
+          id: 'refill-paid',
+          merchantId: 'merchant-paid',
+          status: 'payment_pending',
+          baseAmount: 129,
+          customer: { id: 'customer-paid', lineUserId: 'line-paid', name: '測試會員' },
+          merchant: { name: '測試店家' },
+          appointment: null,
+        },
+      });
+
+    (prisma as unknown as {
+      $transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+    }).$transaction = async (fn) =>
+      fn({
+        paymentOrder: {
+          findFirst: async () => null,
+          updateMany: async () => {
+            transactionSteps.push('payment');
+            return { count: 1 };
+          },
+        },
+        refillOrder: {
+          update: async () => {
+            transactionSteps.push('refill');
+            return {};
+          },
+        },
+        refillAuditLog: {
+          create: async () => {
+            transactionSteps.push('audit');
+            return {};
+          },
+        },
+        automationJob: {
+          upsert: async ({ create }: { create: Record<string, unknown> }) => {
+            transactionSteps.push('notification');
+            notificationJobs.push(create);
+            return { id: 'job-paid', status: 'pending' };
+          },
+        },
+      });
+
+    // The durable job already exists. Skip the best-effort immediate delivery so
+    // this test can focus on the transaction boundary without a LINE request.
+    (
+      prisma.automationJob as unknown as {
+        updateMany: (...args: unknown[]) => Promise<{ count: number }>;
+      }
+    ).updateMany = async () => ({ count: 0 });
+
+    const callback = {
+      MerchantTradeNo: 'RF-PAID-1',
+      TradeNo: 'ECPAY-PAID-1',
+      RtnCode: '1',
+      TradeAmt: '129',
+    };
+    const result = await handleEcpayCallback({
+      ...callback,
+      CheckMacValue: generateCheckMacValue(callback, hashKey, hashIV),
+    });
+
+    assert.deepEqual(result, { ack: '1|OK', updated: true });
+    assert.deepEqual(transactionSteps, ['payment', 'refill', 'audit', 'notification']);
+    assert.equal(notificationJobs.length, 1);
+    assert.deepEqual(notificationJobs[0], {
+      jobKey: 'line:refill-paid:refill-paid',
+      type: 'line.refill_paid',
+      entityType: 'refill_order',
+      entityId: 'refill-paid',
+      payload: { refillOrderId: 'refill-paid' },
+    });
   });
 });

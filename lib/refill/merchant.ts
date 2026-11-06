@@ -8,7 +8,7 @@ import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import {
   enqueueRefillCompletedNotification,
-  safelyEnqueueAndAttempt,
+  safelyAttemptAutomationJob,
 } from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
@@ -140,6 +140,7 @@ export async function listMerchantRefillOrders(merchantId: string) {
 type CompleteDeliveryTxResult = {
   outcome: 'COMPLETED' | 'ALREADY_COMPLETED';
   orderId: string;
+  notificationJobId?: string;
 };
 
 /**
@@ -285,13 +286,20 @@ export async function completeRefillDelivery(input: {
         totalAmount: order.totalAmount,
       },
     });
-    return { outcome: 'COMPLETED', orderId: order.id };
+    const notificationJob = await enqueueRefillCompletedNotification(
+      order.id,
+      false,
+      tx,
+    );
+    return {
+      outcome: 'COMPLETED',
+      orderId: order.id,
+      notificationJobId: notificationJob.id,
+    };
   }, { maxWait: 10_000, timeout: 30_000 });
 
   if (result.outcome === 'COMPLETED') {
-    await safelyEnqueueAndAttempt(() =>
-      enqueueRefillCompletedNotification(result.orderId, false),
-    );
+    await safelyAttemptAutomationJob(result.notificationJobId!);
   }
   return { ok: true as const, status: 'completed' as const, repeated: result.outcome === 'ALREADY_COMPLETED' };
 }
@@ -529,6 +537,7 @@ type AssignNewCompletionTxResult = {
   orderId: string;
   customerId: string;
   pointsAwarded: boolean;
+  notificationJobId?: string;
 };
 
 function deliveredPointsAwarded(order: {
@@ -785,22 +794,28 @@ export async function assignNewAndComplete(input: {
       },
     });
 
+    const finalPointsAwarded = deliveredPointsAwarded({
+      orderType: fresh.orderType,
+      deliveryMode: fresh.deliveryMode,
+      pointsAwardedAt,
+    });
+    const notificationJob = await enqueueRefillCompletedNotification(
+      fresh.id,
+      finalPointsAwarded,
+      tx,
+    );
+
     return {
       outcome: 'COMPLETED',
       orderId: fresh.id,
       customerId: fresh.customerId,
-      pointsAwarded: deliveredPointsAwarded({
-        orderType: fresh.orderType,
-        deliveryMode: fresh.deliveryMode,
-        pointsAwardedAt,
-      }),
+      pointsAwarded: finalPointsAwarded,
+      notificationJobId: notificationJob.id,
     };
   }, { maxWait: 10_000, timeout: 30_000 });
 
   if (result.outcome === 'COMPLETED') {
-    await safelyEnqueueAndAttempt(() =>
-      enqueueRefillCompletedNotification(result.orderId, result.pointsAwarded),
-    );
+    await safelyAttemptAutomationJob(result.notificationJobId!);
   }
 
   const balance = await getPointsBalance(prisma, result.customerId);
