@@ -147,7 +147,8 @@ export async function handleEcpayCallback(
   const now = new Date();
   let outcome:
     | { kind: 'paid'; notificationJobId: string }
-    | { kind: 'duplicate_payment' | 'unchanged' };
+    | { kind: 'duplicate_payment' }
+    | { kind: 'unchanged' };
   try {
     outcome = await prisma.$transaction(async (tx) => {
       const existingPaid = await tx.paymentOrder.findFirst({
