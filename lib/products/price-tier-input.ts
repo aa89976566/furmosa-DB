@@ -27,6 +27,7 @@ export function parseTierFields(formData: FormData) {
     throw new Error('成本必須大於 0，或留空待後續補齊');
   }
   const notes = toNullableString(formData.get('notes'));
+  const variantName = toNullableString(formData.get('variantName'));
   const sku = toNullableString(formData.get('sku'));
   const shopifySku = toNullableString(formData.get('shopifySku'));
   const shopifyVariantId = toNullableString(formData.get('shopifyVariantId'));
@@ -58,6 +59,7 @@ export function parseTierFields(formData: FormData) {
       shopifySku,
       shopifyVariantId,
       notes,
+      variantName,
     };
   }
 
@@ -75,5 +77,6 @@ export function parseTierFields(formData: FormData) {
     shopifySku,
     shopifyVariantId,
     notes,
+    variantName,
   };
 }
