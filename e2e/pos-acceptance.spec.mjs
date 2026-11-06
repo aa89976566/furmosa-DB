@@ -18,6 +18,7 @@ let hqEmail;
 let hqPassword;
 let merchantCode;
 let merchantName;
+let restockProductName;
 
 test.beforeAll(async ({}, testInfo) => {
   const suffix = `${testInfo.project.name}-${randomUUID()}`;
@@ -47,8 +48,9 @@ test.beforeAll(async ({}, testInfo) => {
     merchantId, productId, suggestedPrice: 165, commissionMode: 'amount', commissionValue: 33,
   }});
   await db.merchantStock.create({ data: { merchantId, productId, tierId: '', quantity: 7 } });
+  restockProductName = `CI叫貨-${suffix}`;
   await db.product.create({ data: {
-    productId: `CI-RESTOCK-${suffix}`, sku: `CI-RESTOCK-${suffix}`, name: `CI叫貨-${suffix}`,
+    productId: `CI-RESTOCK-${suffix}`, sku: `CI-RESTOCK-${suffix}`, name: restockProductName,
     category: 'treats', productCategory: 'STANDARD', status: 'active', price: 165,
     unit: '包', consignmentEnabled: true,
     priceTiers: { create: [
@@ -76,7 +78,7 @@ test('historical receipt review closes without stock writes and a genuinely new 
   await page.getByRole('button', { name: '登入', exact: true }).click();
   await expect(page.getByRole('heading', { name: '店內商品', exact: true })).toBeVisible();
   await page.goto(`/pos/shipments/${old.id}`);
-  await expect(page.getByRole('alert')).toContainText('HQ 核對');
+  await expect(page.getByRole('alert').filter({ hasText: 'HQ 核對' })).toBeVisible();
   await expect(page.getByRole('button', { name: '收到這批貨，確認入庫' })).toHaveCount(0);
   await page.goto('/pos/notifications');
   await expect(page.getByText('舊單請由 HQ 核對', { exact: true })).toBeVisible();
@@ -186,9 +188,9 @@ test('merchant service pages expose usable controls without creating business re
   await page.goto('/pos/restock');
   await expect(page.getByRole('heading', { name: '寄賣叫貨', exact: true })).toBeVisible();
   // RestockPicker uses a plain list layout; target its uniquely named controls.
-  const variant = page.getByRole('combobox', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 規格$`) });
+  const variant = page.getByRole('combobox', { name: `${restockProductName} 規格`, exact: true });
   await variant.selectOption({ label: '30g' });
-  await page.getByRole('button', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 增加$`) }).click();
+  await page.getByRole('button', { name: `${restockProductName} 增加`, exact: true }).click();
   await page.getByRole('button', { name: '確認寄賣叫貨', exact: true }).click();
   await expect(page.getByRole('button', { name: '送出寄賣叫貨單', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '← 返回修改數量', exact: true }).click();
