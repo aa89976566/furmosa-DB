@@ -19,7 +19,12 @@ export function collectReadActionIds(source) {
 export function requestDecision({ url, method, resourceType, headers = {}, body = null, origin, role, loginOpen = false, loginUsed = false, actionIds }) {
   let target;
   try { target = new URL(url); } catch { return 'deny'; }
-  if (target.origin !== origin || target.username || target.password) return 'deny';
+  if (target.username || target.password) return 'deny';
+  if (target.origin !== origin) {
+    // Still abort excluded images/fonts before transmission; omission is not a
+    // functional failure. External scripts, data requests and all writes deny.
+    return method === 'GET' && ['image', 'font'].includes(resourceType) ? 'omit-asset' : 'deny';
+  }
   const paths = role === 'hq' ? hqPaths : posPaths;
   const path = target.pathname;
   if (method === 'GET') {
@@ -35,4 +40,18 @@ export function requestDecision({ url, method, resourceType, headers = {}, body 
   if (method === 'POST' && role === 'pos' && posPaths.includes(path) && path !== loginPath &&
       actionIds.has(headers['next-action']) && body === '[]') return 'read-action';
   return 'deny';
+}
+
+/** @param {{url: string, method: string, resourceType: string, origin: string, role: string}} input */
+export function describeMonitorRequest({ url, method, resourceType, origin, role }) {
+  let target;
+  try { target = new URL(url); } catch { /* describe malformed input without echoing it */ }
+  const sameOrigin = target?.origin === origin;
+  const paths = role === 'hq' ? hqPaths : posPaths;
+  return {
+    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) ? method : 'OTHER',
+    resourceType: ['document', 'script', 'stylesheet', 'image', 'font', 'xhr', 'fetch', 'media', 'manifest', 'websocket', 'eventsource', 'texttrack'].includes(resourceType) ? resourceType : 'other',
+    destination: sameOrigin ? 'same-origin' : 'other-origin',
+    route: sameOrigin && paths.includes(target.pathname) ? target.pathname : 'unlisted',
+  };
 }
