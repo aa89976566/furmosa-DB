@@ -36,10 +36,13 @@ const SEGMENT_CODE = {
   findMany: 'FIND_MANY',
   counts: 'COUNTS',
   jiba: 'JIBA',
+  tiers: 'TIERS',
+  balances: 'BALANCES',
+  snapshots: 'SNAPSHOTS',
   transform: 'TRANSFORM',
 } as const;
 
-type AsyncSegment = 'findMany' | 'counts' | 'jiba';
+type AsyncSegment = 'findMany' | 'counts' | 'jiba' | 'tiers' | 'balances' | 'snapshots';
 type Segment = AsyncSegment | 'transform';
 type SegmentCode = (typeof SEGMENT_CODE)[Segment];
 
@@ -80,6 +83,9 @@ type ShipmentQueuePerfLogLine = {
   findManyMs: number;
   countsMs: number;
   jibaMs: number;
+  tiersMs: number;
+  balancesMs: number;
+  snapshotsMs: number;
   transformMs: number;
   totalMs: number;
   shipmentCount: number;
@@ -247,6 +253,9 @@ export function createShipmentQueuePerf(options?: {
       findManyMs: readMs('findMany'),
       countsMs: readMs('counts'),
       jibaMs: readMs('jiba'),
+      tiersMs: readMs('tiers'),
+      balancesMs: readMs('balances'),
+      snapshotsMs: readMs('snapshots'),
       transformMs: readMs('transform'),
       totalMs: nonNegativeInt(now() - origin),
       shipmentCount: asCount(input.counts.shipmentCount),

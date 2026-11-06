@@ -29,6 +29,9 @@ const ALLOWED_LOG_KEYS = new Set([
   'findManyMs',
   'countsMs',
   'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
   'transformMs',
   'totalMs',
   'shipmentCount',
@@ -52,6 +55,9 @@ const REQUIRED_LOG_KEYS = [
   'findManyMs',
   'countsMs',
   'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
   'transformMs',
   'totalMs',
   'shipmentCount',
@@ -61,7 +67,16 @@ const REQUIRED_LOG_KEYS = [
   'orderIdCount',
 ] as const;
 
-const DURATION_KEYS = ['findManyMs', 'countsMs', 'jibaMs', 'transformMs', 'totalMs'] as const;
+const DURATION_KEYS = [
+  'findManyMs',
+  'countsMs',
+  'jibaMs',
+  'tiersMs',
+  'balancesMs',
+  'snapshotsMs',
+  'transformMs',
+  'totalMs',
+] as const;
 const COUNT_KEYS = [
   'shipmentCount',
   'itemCount',
@@ -93,10 +108,21 @@ const FETCH_DEST_ALLOWLIST = new Set([
   'other',
 ]);
 const FETCH_PURPOSE_ALLOWLIST = new Set(['prefetch', 'unknown', 'other']);
-const ERROR_CODES = new Set(['FIND_MANY', 'COUNTS', 'JIBA', 'TRANSFORM', 'UNATTRIBUTED']);
+const ERROR_CODES = new Set([
+  'FIND_MANY',
+  'COUNTS',
+  'JIBA',
+  'TIERS',
+  'BALANCES',
+  'SNAPSHOTS',
+  'TRANSFORM',
+  'UNATTRIBUTED',
+]);
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
+const PAGE_PATH = 'app/(main)/shipments/page.tsx';
+const SIDEBAR_PATH = 'components/layout/sidebar-nav.tsx';
 const HELPER_PATH = 'lib/shipment-queue-perf.ts';
 const CANARY_SECRET = 'canary-secret-DO-NOT-LEAK-9f3a2c';
 
@@ -678,14 +704,78 @@ describe('shipment queue performance diagnostics', () => {
     await flushMicrotasks();
   });
 
+  it('enrichment measurements start together and preserve values and rejection identity', async () => {
+    const perf = createShipmentQueuePerf({ enabled: true, now: () => 0 });
+    const started: string[] = [];
+    let releaseTiers: (value: { source: string }) => void = () => {};
+    let releaseBalances: (value: { source: string }) => void = () => {};
+    let releaseSnapshots: (value: { source: string }) => void = () => {};
+    const tiersGate = new Promise<{ source: string }>((resolve) => {
+      releaseTiers = resolve;
+    });
+    const balancesGate = new Promise<{ source: string }>((resolve) => {
+      releaseBalances = resolve;
+    });
+    const snapshotsGate = new Promise<{ source: string }>((resolve) => {
+      releaseSnapshots = resolve;
+    });
+
+    const pending = Promise.all([
+      perf.measure('tiers', () => {
+        started.push('tiers');
+        return tiersGate;
+      }),
+      perf.measure('balances', () => {
+        started.push('balances');
+        return balancesGate;
+      }),
+      perf.measure('snapshots', () => {
+        started.push('snapshots');
+        return snapshotsGate;
+      }),
+    ]);
+    assert.deepEqual(started, ['tiers', 'balances', 'snapshots']);
+
+    const snapshots = { source: 'snapshots' };
+    const tiers = { source: 'tiers' };
+    const balances = { source: 'balances' };
+    releaseSnapshots(snapshots);
+    releaseTiers(tiers);
+    releaseBalances(balances);
+    const result = await pending;
+    assert.equal(result[0], tiers);
+    assert.equal(result[1], balances);
+    assert.equal(result[2], snapshots);
+
+    const rejectionPerf = createShipmentQueuePerf({ enabled: true, now: () => 0 });
+    const originalError = new Error('snapshot-query-failed');
+    await assert.rejects(
+      () => rejectionPerf.measure('snapshots', () => Promise.reject(originalError)),
+      (error) => error === originalError,
+    );
+    rejectionPerf.fail(sampleInput({ counts: zeroCounts() }));
+    const line = oneLine();
+    assertAllowlisted(line, false);
+    assert.equal(line.errorCode, 'SNAPSHOTS');
+    assertValuesHide(line, ['snapshot-query-failed']);
+  });
+
   it('source guard keeps query arguments, JSX, and Promise.all in place', () => {
     const body = readFileSync(BODY_PATH, 'utf8');
+    const page = readFileSync(PAGE_PATH, 'utf8');
+    const sidebar = readFileSync(SIDEBAR_PATH, 'utf8');
     const helper = readFileSync(HELPER_PATH, 'utf8');
     const parallelStart = body.indexOf('await Promise.all([');
     const parallelEnd = body.indexOf(']);', parallelStart);
     const parallel = body.slice(parallelStart, parallelEnd);
+    const enrichmentStart = body.indexOf('await Promise.all([', parallelEnd);
+    const enrichmentEnd = body.indexOf(']);', enrichmentStart);
+    const enrichment = body.slice(enrichmentStart, enrichmentEnd);
+    assert.match(enrichment, /perf\.measure\('tiers'/);
+    assert.match(enrichment, /perf\.measure\('balances'/);
+    assert.match(enrichment, /perf\.measure\('snapshots'/);
 
-    assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 1);
+    assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 2);
     assert.match(parallel, /perf\.measure\('findMany'/);
     assert.match(parallel, /perf\.measure\('counts'/);
     assert.match(
@@ -697,11 +787,28 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal(body.includes('await prisma.shipment.findMany'), false);
     assert.equal(body.includes('await getShipmentQueueCounts'), false);
     assert.match(body, /shipments\.map\(\(s\) => s\.orderId\)/);
-    assert.match(body, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
-    assert.match(body, /priceTiers: \{ select: \{ id: true, weightGrams: true, unit: true, unitQty: true \} \}/);
-    assert.match(body, /inventoryBalances: \{\s*where: \{ warehouse: \{ code: 'WH-MAIN' \} \}/);
+    assert.match(enrichment, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
+    assert.match(enrichment, /prisma\.productPriceTier\.findMany/);
+    assert.match(enrichment, /prisma\.inventoryBalance\.findMany/);
+    assert.match(enrichment, /prisma\.order\.findMany/);
+    assert.match(enrichment, /select: queueOrderSnapshotSelect/);
+    assert.match(enrichment, /warehouse: \{ code: 'WH-MAIN' \}/);
+    const includeStart = body.indexOf('const shipmentInclude =');
+    const includeEnd = body.indexOf('} as const;', includeStart);
+    const shipmentInclude = body.slice(includeStart, includeEnd);
+    assert.equal(shipmentInclude.includes('priceTiers'), false);
+    assert.equal(shipmentInclude.includes('inventoryBalances'), false);
+    assert.equal(shipmentInclude.includes('shopifySnapshot'), false);
+    assert.match(body, /tiersByProductId/);
+    assert.match(body, /balanceByProductId/);
+    assert.match(body, /snapshotByOrderId/);
+    assert.match(body, /shipmentInventoryAdvisories\(queueInventoryItems\(s, enrichment\)\)/);
     assert.match(body, /<ShipmentQueueWorkspace\s+sections=\{workspaceSections\}\s+statusFilter=\{status\}\s+typeFilter=\{type\}\s+panelRefreshKey=\{panelRefreshKey\}\s+initialShipmentId=\{selectedShipmentId\}\s*\/>/);
     assert.match(body, /aria-label="出貨階段"/);
+    assert.match(body, /href=\{`\/shipments\?\$\{params\}`\}\s+prefetch=\{false\}/);
+    assert.equal((page.match(/prefetch=\{false\}/g) ?? []).length, 3);
+    assert.match(sidebar, /const HOT_PREFETCH = new Set\(\['\/dashboard'\]\)/);
+    assert.match(sidebar, /prefetch=\{HOT_PREFETCH\.has\(item\.href\)\}/);
     assert.match(body, /bg-black text-white shadow-sm/);
     assert.match(body, /catch \(error\) \{[\s\S]*perf\.fail\([\s\S]*throw error;\s*\}/);
     assert.equal((body.match(/perf\.succeed\(/g) ?? []).length, 1);
