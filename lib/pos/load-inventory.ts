@@ -13,12 +13,13 @@ export type InventoryProduct = {
   group: InventoryGroupId;
   quantity: number;
   imageUrl: string | null;
+  price?: number;
   suggestedQty: number;
   productCategory: string;
   programLabel: '換罐計劃' | null;
   buyoutQuantity?: number;
   sponsoredQuantity?: number;
-  tiers?: { id: string; label: string; quantity: number }[];
+  tiers?: { id: string; label: string; quantity: number; price?: number; status?: string }[];
 };
 
 export async function loadMerchantInventory(
@@ -57,12 +58,13 @@ export async function loadMerchantInventory(
         category: true,
         style: true,
         imageUrl: true,
+        price: true,
         productCategory: true,
         merchantStocks: {
           where: { merchantId },
           select: { quantity: true, tierId: true, lots: { select: { mode: true, remainingQuantity: true, gift: true } } },
         },
-        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true, bundleComponents: { select: { gramsPerPack: true, componentProduct: { select: { name: true } } } } } },
+        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true, price: true, status: true, bundleComponents: { select: { gramsPerPack: true, componentProduct: { select: { name: true } } } } } },
       },
       orderBy: { name: 'asc' },
     });
@@ -82,12 +84,13 @@ export async function loadMerchantInventory(
         quantity,
         buyoutQuantity: product.merchantStocks.flatMap(stock => stock.lots).filter(lot => lot.mode === 'wholesale').reduce((sum, lot) => sum + lot.remainingQuantity, 0),
         sponsoredQuantity: product.merchantStocks.flatMap(stock => stock.lots).filter(lot => lot.mode === 'wholesale' && lot.gift).reduce((sum, lot) => sum + lot.remainingQuantity, 0),
+        price: product.price,
         imageUrl: resolveFurmosaProductImage(product.name, product.imageUrl),
         suggestedQty: suggestedRestockQty(quantity),
         productCategory: product.productCategory,
         programLabel: productProgramLabel(product.productCategory),
         tiers: [
-          ...product.priceTiers.map(tier => ({ id: tier.id, label: `${tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`}${tier.bundleComponents?.length ? `（${tier.bundleComponents.map(c => `${c.componentProduct.name}${c.gramsPerPack}g`).join('＋')}）` : ''}`, quantity: product.merchantStocks.find(s => s.tierId === tier.id)?.quantity ?? 0 })),
+          ...product.priceTiers.map(tier => ({ id: tier.id, price: tier.price, status: tier.status, label: `${tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty} ${tier.unit}`}${tier.bundleComponents?.length ? `（${tier.bundleComponents.map(c => `${c.componentProduct.name}${c.gramsPerPack}g`).join('＋')}）` : ''}`, quantity: product.merchantStocks.find(s => s.tierId === tier.id)?.quantity ?? 0 })),
           ...product.merchantStocks.filter(s => !product.priceTiers.some(t => t.id === s.tierId)).map(s => ({ id: s.tierId, label: '舊庫存（未分規格）', quantity: s.quantity })),
         ],
       };

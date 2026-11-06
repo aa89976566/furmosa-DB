@@ -28,6 +28,13 @@ describe('matchFurmosaComImage', () => {
     assert.match(matchFurmosaComImage('月餅') ?? '', /mooncake/);
   });
 
+  it('uses the supplied family image and exact stored photos before fuzzy names', () => {
+    assert.equal(matchFurmosaComImage('家有三寶'), '/images/products/family-three.jpg');
+    assert.equal(resolveFurmosaProductImage('牛肉地瓜乾', 'https://example.com/exact.jpg'), 'https://example.com/exact.jpg');
+    assert.ok(matchFurmosaComImage('牛肉凍乾'));
+    assert.ok(matchFurmosaComImage('◈嚎大大◈雞霸'));
+  });
+
   it('does not invent a photo for unknown names', () => {
     assert.equal(matchFurmosaComImage('不存在的宇宙餅乾'), null);
     assert.equal(matchFurmosaComImage('南瓜凍乾'), null);
