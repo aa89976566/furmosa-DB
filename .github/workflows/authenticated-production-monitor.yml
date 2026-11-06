@@ -26,6 +26,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Initialize fail-closed sanitized report
+        run: |
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("production-authenticated-probe.json", JSON.stringify({ok:false, checkedAt:new Date().toISOString(), results:[{check:"runner",status:"fail",code:"RUNNER_INCOMPLETE"}]}), {mode:0o600});'
       - name: Check authenticated pages without business writes
         env:
           MONITOR_HQ_USER: ${{ secrets.PRODUCTION_SMOKE_HQ_EMAIL }}

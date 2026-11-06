@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { requestDecision, collectReadActionIds } from './authenticated-monitor-policy.mjs';
+import { createRouteBoundary } from './authenticated-monitor-routes.mjs';
 
 const targets = JSON.parse(readFileSync(new URL('../config/deployment-targets.json', import.meta.url), 'utf8'));
 
@@ -30,7 +31,7 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
       let loginUsed = false;
       let unsafe = false;
       const actionIds = new Set();
-      await context.route('**/*', async route => {
+      const boundary = createRouteBoundary(async route => {
         const request = route.request();
         const decision = requestDecision({ url: request.url(), method: request.method(), resourceType: request.resourceType(),
           headers: request.headers(), body: request.postData(), origin, role, loginOpen, loginUsed, actionIds });
@@ -42,14 +43,15 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
         if (decision === 'asset' && request.resourceType() === 'script') {
           // Register only named no-argument reads before the browser executes
           // the unmodified same-origin bundle. Never evaluate downloaded code.
-          const response = await route.fetch({ maxRedirects: 0 });
+          const response = await route.fetch({ maxRedirects: 0, timeout: 15_000 });
           if (response.status() !== 200) { unsafe = true; return route.abort(); }
           const body = await response.body();
           for (const id of collectReadActionIds(body.toString('utf8'))) actionIds.add(id);
           return route.fulfill({ response, body });
         }
         return route.continue();
-      });
+      }, () => { unsafe = true; });
+      await context.route('**/*', boundary.handle);
       const page = await context.newPage();
       page.setDefaultTimeout(15_000);
       page.setDefaultNavigationTimeout(30_000);
@@ -106,7 +108,10 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
         const safeCodes = new Set(['REQUEST_BLOCKED', 'RENDERED_ERROR', 'PAGE_UNAVAILABLE', 'LOGIN_NOT_VERIFIED']);
         report.results.push({ check: current, status: 'fail', code: safeCodes.has(error?.message) ? error.message : 'UI_CHECK_FAILED' });
       } finally {
-        await context.close();
+        // Keep the request guard installed through close. Never unroute a live
+        // authenticated context, which could briefly permit unguarded writes.
+        try { await context.close(); }
+        finally { await boundary.settle(); }
         if (unsafe) report.results.push({ check: `${role}:request-boundary`, status: 'fail', code: 'UNREVIEWED_REQUEST_BLOCKED' });
       }
     }
