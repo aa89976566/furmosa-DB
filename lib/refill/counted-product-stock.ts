@@ -5,18 +5,22 @@ import type { Prisma } from '@prisma/client';
  */
 export async function deductCountedRefillProductStock(
   tx: Prisma.TransactionClient,
-  input: { merchantId: string; productId: string; quantity: number; orderId: string },
+  input: { merchantId: string; productId: string; quantity: number; orderId: string; allowUntrackedStock?: boolean },
 ): Promise<void> {
   const stocks = await tx.merchantStock.findMany({
-    where: { merchantId: input.merchantId, productId: input.productId, quantity: { gt: 0 } },
+    where: { merchantId: input.merchantId, productId: input.productId },
     orderBy: { id: 'asc' },
   });
+  // Legacy refill-only stores may have no POS product stock row at all.
+  // An existing zero row is tracked inventory and must still reject a delivery.
+  if (stocks.length === 0 && input.allowUntrackedStock) return;
   if (stocks.reduce((total, stock) => total + stock.quantity, 0) < input.quantity) {
     throw new Error('換罐品項庫存不一致，請重新確認庫存。');
   }
   let remaining = input.quantity;
   for (const stock of stocks) {
     if (remaining === 0) break;
+    if (stock.quantity <= 0) continue;
     const take = Math.min(remaining, stock.quantity);
     const updated = await tx.merchantStock.updateMany({
       where: { id: stock.id, quantity: stock.quantity },
@@ -34,4 +38,21 @@ export async function deductCountedRefillProductStock(
     });
     remaining -= take;
   }
+}
+
+/** Mirror a mapped flavour regardless of whether its label declares grams. */
+export async function deductLinkedRefillProductStock(
+  tx: Prisma.TransactionClient,
+  input: { merchantId: string; flavourId: string; weightGrams: number; quantity: number; orderId: string },
+): Promise<void> {
+  // Existing product_id link is not yet represented in the Prisma model.
+  const links = await tx.$queryRaw<Array<{ product_id: string | null }>>`
+    SELECT product_id FROM refill_flavours WHERE id = ${input.flavourId}
+  `;
+  if (!links[0]?.product_id) return;
+  await deductCountedRefillProductStock(tx, {
+    merchantId: input.merchantId, productId: links[0].product_id,
+    quantity: input.quantity, orderId: input.orderId,
+    allowUntrackedStock: input.weightGrams > 0,
+  });
 }

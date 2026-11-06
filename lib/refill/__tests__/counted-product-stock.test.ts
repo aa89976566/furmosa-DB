@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import type { Prisma } from '@prisma/client';
-import { deductCountedRefillProductStock } from '../counted-product-stock';
+import { deductCountedRefillProductStock, deductLinkedRefillProductStock } from '../counted-product-stock';
 
 function fixture(quantity = 5, conflict = false) {
   const ledger: any[] = [];
@@ -41,4 +41,26 @@ it('rejects concurrent count changes without writing a duplicate ledger', async 
   const f = fixture(5, true);
   await assert.rejects(deductCountedRefillProductStock(f.tx, delivery), /已變動/);
   assert.equal(f.ledger.length, 0);
+});
+
+it('a linked 20g beef jar also mirrors POS inventory from two to one', async () => {
+  const f = fixture(2);
+  Object.assign(f.tx, { $queryRaw: async () => [{ product_id: 'mixed' }] });
+  await deductLinkedRefillProductStock(f.tx, {
+    merchantId: 'manlisa', flavourId: 'beef', weightGrams: 20, quantity: 1, orderId: 'paid-beef',
+  });
+  assert.equal(f.updates[0].data.quantity.decrement, 1);
+  assert.equal(f.ledger[0].balanceAfter, 1);
+  assert.equal(f.ledger[0].companyRevenue, 0);
+});
+it('preserves legacy refill-only stores with no tracked product stock', async () => {
+  const f = fixture();
+  Object.assign(f.tx.merchantStock, { findMany: async () => [] });
+  await deductCountedRefillProductStock(f.tx, { ...delivery, allowUntrackedStock: true });
+  assert.equal(f.updates.length, 0);
+});
+it('an existing zero stock is not treated as an untracked legacy store', async () => {
+  const f = fixture(0);
+  await assert.rejects(deductCountedRefillProductStock(f.tx, { ...delivery, allowUntrackedStock: true }), /庫存不一致/);
+  assert.equal(f.updates.length, 0);
 });
