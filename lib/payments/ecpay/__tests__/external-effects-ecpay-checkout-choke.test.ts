@@ -151,6 +151,14 @@ describe('ECPay checkout choke (buildEcpayAioCheckout)', () => {
       checkout.fields.OrderResultURL,
       `${SYNTHETIC_APP_URL}/api/payments/ecpay/return`,
     );
+    assert.equal(
+      checkout.fields.ReturnURL,
+      `${SYNTHETIC_APP_URL}/api/payments/ecpay/callback`,
+    );
+    assert.equal(
+      checkout.fields.OrderResultURL,
+      `${SYNTHETIC_APP_URL}/api/payments/ecpay/return`,
+    );
     assert.equal(fetchCalls, 0);
     assertNoSecretLeak(consoleChunks);
   });

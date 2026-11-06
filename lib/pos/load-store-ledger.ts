@@ -448,6 +448,7 @@ export async function loadStoreLedger(
         txnNumber: true,
         type: true,
         quantity: true,
+        settlementQuantity: true,
         unitPrice: true,
         commissionAmount: true,
         companyRevenue: true,
@@ -613,12 +614,14 @@ export async function loadStoreLedger(
   // 寄賣銷售：只認已存 unitPrice 與 commissionAmount 的 sale 流水。
   const rawSources: SettlementSourceDraft[] = [];
   for (const txn of stockTxns) {
+    if (txn.settlementQuantity === 0) continue;
     if (txn.type === 'adjust' && txn.quantity >= 0) continue;
     const classified = classifyConsignmentSaleTxn({
       id: txn.id,
       txnNumber: txn.txnNumber,
       type: txn.type,
       quantity: txn.quantity,
+      settlementQuantity: txn.settlementQuantity,
       unitPrice: txn.unitPrice,
       commissionAmount: txn.commissionAmount,
       companyRevenue: txn.companyRevenue,
