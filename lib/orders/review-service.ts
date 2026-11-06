@@ -237,6 +237,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     // READY for a later explicit shipment action; legacy review remains two-step.
     const createsShipment = command.action === 'ship' ||
       (command.action === 'approve' && command.sourceOnly && !awaitingPayment);
+    let shipment: { id: string } | null = null;
     if (!createsShipment) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', omsReviewedAt: now,
         omsReviewedById: actor.id, omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now } });
@@ -268,7 +269,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       let shipmentNumber = shipmentBase;
       let revision = 2;
       while (usedNumbers.has(shipmentNumber)) shipmentNumber = `${shipmentBase}-R${revision++}`;
-      await tx.shipment.create({ data: { shipmentNumber, type: 'customer_order', status: 'pending', orderId: order.id,
+      shipment = await tx.shipment.create({ select: { id: true }, data: { shipmentNumber, type: 'customer_order', status: 'pending', orderId: order.id,
         recipientName: draft.recipient, recipientPhone: draft.phone, recipientAddress: draft.address,
         carrier: draft.method === 'convenience' ? '7-11' : draft.method === 'home' ? '黑貓' : shopifyShippingLabel(snapshot),
         notes: [
@@ -287,15 +288,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!createsShipment) {
       return approveSuccess(awaitingPayment);
     }
-    const shipment = await tx.shipment.findFirst({
-      where: { orderId: order.id, status: { not: 'cancelled' } },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
     return emptyReviewResult({
       ok: true, action: 'ship', message: '訂單已確認，已建立待出貨任務；尚未連接物流供應商',
       omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
       next: shipment ? { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });
-  }, { maxWait: 2000, timeout: 10000 });
+  }, { maxWait: 2000, timeout: 20000 });
 }
