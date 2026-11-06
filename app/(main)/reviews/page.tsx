@@ -55,7 +55,7 @@ export default async function ReviewInboxPage() {
                 return (
                   <Link
                     key={wish.id}
-                    href={\`/product-wishes/\${wish.id}\`}
+                    href={`/product-wishes/${wish.id}`}
                     className="block rounded-xl px-2 py-3 transition-colors hover:bg-muted/50"
                   >
                     <div className="flex flex-wrap items-center gap-2">
