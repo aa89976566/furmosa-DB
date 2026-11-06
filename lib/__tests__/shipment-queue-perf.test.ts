@@ -121,6 +121,8 @@ const ERROR_CODES = new Set([
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
+const PAGE_PATH = 'app/(main)/shipments/page.tsx';
+const SIDEBAR_PATH = 'components/layout/sidebar-nav.tsx';
 const HELPER_PATH = 'lib/shipment-queue-perf.ts';
 const CANARY_SECRET = 'canary-secret-DO-NOT-LEAK-9f3a2c';
 
@@ -760,6 +762,8 @@ describe('shipment queue performance diagnostics', () => {
 
   it('source guard keeps query arguments, JSX, and Promise.all in place', () => {
     const body = readFileSync(BODY_PATH, 'utf8');
+    const page = readFileSync(PAGE_PATH, 'utf8');
+    const sidebar = readFileSync(SIDEBAR_PATH, 'utf8');
     const helper = readFileSync(HELPER_PATH, 'utf8');
     const parallelStart = body.indexOf('await Promise.all([');
     const parallelEnd = body.indexOf(']);', parallelStart);
@@ -801,6 +805,10 @@ describe('shipment queue performance diagnostics', () => {
     assert.match(body, /shipmentInventoryAdvisories\(queueInventoryItems\(s, enrichment\)\)/);
     assert.match(body, /<ShipmentQueueWorkspace\s+sections=\{workspaceSections\}\s+statusFilter=\{status\}\s+typeFilter=\{type\}\s+panelRefreshKey=\{panelRefreshKey\}\s+initialShipmentId=\{selectedShipmentId\}\s*\/>/);
     assert.match(body, /aria-label="出貨階段"/);
+    assert.match(body, /href=\{`\/shipments\?\$\{params\}`\}\s+prefetch=\{false\}/);
+    assert.equal((page.match(/prefetch=\{false\}/g) ?? []).length, 3);
+    assert.match(sidebar, /const HOT_PREFETCH = new Set\(\['\/dashboard'\]\)/);
+    assert.match(sidebar, /prefetch=\{HOT_PREFETCH\.has\(item\.href\)\}/);
     assert.match(body, /bg-black text-white shadow-sm/);
     assert.match(body, /catch \(error\) \{[\s\S]*perf\.fail\([\s\S]*throw error;\s*\}/);
     assert.equal((body.match(/perf\.succeed\(/g) ?? []).length, 1);

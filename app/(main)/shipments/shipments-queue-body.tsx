@@ -506,7 +506,7 @@ export async function ShipmentsQueueBody({
               <Link
                 key={stage.key}
                 href={`/shipments?${params}`}
-                prefetch
+                prefetch={false}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'inline-flex min-h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors sm:min-w-28 sm:flex-none sm:text-sm',
