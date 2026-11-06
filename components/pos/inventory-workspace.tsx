@@ -103,6 +103,8 @@ function InventoryWorkspaceInner({
     [group, items, lowStockOnly, query],
   );
   const selected = items.find((item) => item.productId === selectedId) ?? null;
+  const restockTiers = (selected?.tiers ?? []).filter(t => t.id && (t.status == null || t.status === 'active'));
+  const noActiveRestockTier = !!selected?.tiers?.some(t => t.id) && restockTiers.length === 0;
   const selectedNeedsRestock = selected ? isLowOrSoldOutStock(selected.quantity) : false;
 
   useEffect(() => {
@@ -120,12 +122,15 @@ function InventoryWorkspaceInner({
   function addProductToCart(product: InventoryProduct, quantity?: number) {
     const qty = quantity ?? defaultRestockAddQty(product.suggestedQty);
     if (qty <= 0) return;
+    const tiers = (product.tiers ?? []).filter(t => t.id && (t.status == null || t.status === 'active'));
+    const variantKey = tiers.length === 1 ? tiers[0].id : addVariant;
+    if ((product.tiers?.some(t => t.id) && !tiers.length) || (tiers.length > 1 && !tiers.some(t => t.id === variantKey))) return;
     cart.add({
       productId: product.productId,
       name: product.name,
       imageUrl: product.imageUrl,
       quantity: qty,
-      variantKey: addVariant || undefined,
+      variantKey: variantKey || undefined,
     });
     showToast(setToast, { text: '已加入補貨單' });
   }
@@ -246,10 +251,10 @@ function InventoryWorkspaceInner({
               {selectedNeedsRestock ? '建議補貨' : '補貨數量'}
             </p>
             <div className="mt-3">
-              {(selected.tiers ?? []).filter(t => t.id).length > 1 ? (
+              {restockTiers.length > 1 ? (
                 <select aria-label="補貨規格" value={addVariant} onChange={e => setAddVariant(e.target.value)} className="mb-3 h-11 max-w-full rounded-lg border bg-white px-2 text-sm">
                   <option value="">請選擇規格</option>
-                  {(selected.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  {restockTiers.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
               ) : null}
               <QtyStepper value={addQty} min={0} onChange={setAddQty} large />
@@ -257,7 +262,7 @@ function InventoryWorkspaceInner({
             <button
               type="button"
               className="mt-4 flex min-h-[44px] w-full items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
-              disabled={addQty <= 0 || ((selected.tiers ?? []).filter(t => t.id).length > 1 && !addVariant)}
+              disabled={addQty <= 0 || noActiveRestockTier || (restockTiers.length > 1 && !restockTiers.some(t => t.id === addVariant))}
               onClick={() => addProductToCart(selected, addQty)}
             >
               加入補貨單

@@ -1,10 +1,19 @@
 import { packagedOrderUnit } from '@/lib/product-units';
 import { variationLabel } from '@/lib/product-variations';
 
-export type RestockTier = { id: string; weightGrams: number | null; unit: string; unitQty: number };
+export type RestockTier = { id: string; weightGrams: number | null; unit: string; unitQty: number; status?: string };
 export type RestockVariantInput = { weightGrams?: number | null; variantKey?: string | null };
 
 /** Never infer one of several variants. Weight alone is accepted only when unique. */
+export function resolveActiveRestockVariant(tiers: RestockTier[], input: RestockVariantInput, name = '商品') {
+  const available = tiers.filter(t => t.status == null || t.status === 'active');
+  if (tiers.length && !available.length) throw new Error(`「${name}」目前沒有可補貨規格。`);
+  const key = input.variantKey?.trim();
+  if (key && tiers.some(t => t.id === key && t.status != null && t.status !== 'active')) throw new Error(`「${name}」此規格已停用，請移除後重新選擇規格。`);
+  return resolveRestockVariant(available, input, name);
+}
+
+/** Historical stock identity remains resolvable even after a tier is archived. */
 export function resolveRestockVariant(tiers: RestockTier[], input: RestockVariantInput, name = '商品') {
   const weight = input.weightGrams;
   if (weight != null && (!Number.isInteger(weight) || weight <= 0)) throw new Error(`「${name}」規格克數無效，請重新選擇規格。`);

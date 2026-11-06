@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, mock } from 'node:test';
-import { resolveRestockVariant } from '../variant';
+import { resolveActiveRestockVariant as resolveRestockVariant } from '../variant';
 import { resolveTierIdFromWeightGrams } from '@/lib/merchant-stock-key';
 import { prisma } from '@/lib/prisma';
 import { submitSelfSelectRestockRequest } from '../service';
@@ -131,4 +131,30 @@ test('a confirmed 50g piece preserves its existing tier identity and counting un
   assert.deepEqual(result,{weightGrams:50,variantKey:'piece-existing',unit:'片'});
   assert.equal(restockTierLabel(piece),'1 片（50g）');
   assert.equal(formatRestockItemSpec('原味雞霸',50,'片'),'原味雞霸 50g／片');
+});
+
+ test('archived tiers cannot be ordered by stale id, weight or fallback', () => {
+  const archived = {...tiers[0], status:'archived'};
+  const active = {...tiers[1], status:'active'};
+  assert.throws(() => resolveRestockVariant([archived,active], {variantKey:archived.id}), /已停用/);
+  assert.throws(() => resolveRestockVariant([archived,active], {weightGrams:30}), /規格/);
+  assert.throws(() => resolveRestockVariant([archived], {}), /沒有可補貨規格/);
+  assert.equal(resolveRestockVariant([archived,active], {}).variantKey, active.id);
+  assert.equal(resolveRestockVariant([archived, {...active,weightGrams:30}], {weightGrams:30}).variantKey, active.id);
+});
+test('SELF_SELECT rejects archived cached cart before persisting a request', async () => {
+  const oldRead = prisma.product.findMany;
+  const oldCreate = prisma.restockRequest.create;
+  const create = mock.fn(async () => ({}));
+  prisma.product.findMany = (async () => [{id:'p',name:'丁香魚',productCategory:'STANDARD',consignmentEnabled:true,priceTiers:[{...tiers[0],status:'archived'}, {...tiers[1],status:'active'}]}]) as any;
+  prisma.restockRequest.create = create as any;
+  try {
+    await assert.rejects(submitSelfSelectRestockRequest({merchantId:'m',merchantUserId:'u',items:[{productId:'p',quantity:1,variantKey:'tier30'}]}), /已停用/);
+    assert.equal(create.mock.callCount(),0);
+  } finally { prisma.product.findMany = oldRead; prisma.restockRequest.create = oldCreate; }
+});
+
+test('archived tier inventory still resolves for historical counting', () => {
+ const archived = {...tiers[0],status:'archived'};
+ assert.equal(resolveTierIdFromWeightGrams([archived],30,archived.id),archived.id);
 });
