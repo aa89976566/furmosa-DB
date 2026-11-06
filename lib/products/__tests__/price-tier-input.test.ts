@@ -25,6 +25,7 @@ describe('product price tier input', () => {
       shopifySku: null,
       shopifyVariantId: null,
       notes: null,
+      variantName: null,
     });
   });
 
@@ -58,4 +59,19 @@ describe('product price tier input', () => {
     form.set('defaultWholesaleUnitPrice', '65.5');
     assert.throws(() => parseTierFields(form), /整數/);
   });
+});
+
+it('preserves a named consultation sold per session', () => {
+  const form = new FormData();
+  form.set('mode', 'unit');
+  form.set('unit', '次');
+  form.set('unitQty', '1');
+  form.set('price', '1200');
+  form.set('variantName', '健康在世｜即時溝通');
+  form.set('sku', 'AC-HEALTH-LIVE');
+  const result = parseTierFields(form);
+  assert.equal(result.variantName, '健康在世｜即時溝通');
+  assert.equal(result.unit, '次');
+  assert.equal(result.weightGrams, null);
+  assert.equal(result.cost, null);
 });
