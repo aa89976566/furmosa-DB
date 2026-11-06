@@ -216,10 +216,10 @@ test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual
   const suffix = randomUUID();
   const wh = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'CI HQ' } });
   const product = await db.product.create({ data: {
-    productId: suffix, sku: suffix, name: 'CI dispatch count fixture', category: 'freeze_dried', unit: 'g', price: 100,
-    priceTiers: { create: { weightGrams: 30, unit: 'g', unitQty: 1, price: 100 } },
+    productId: suffix, sku: suffix, name: 'CI dispatch count fixture', category: 'freeze_dried', unit: 'g', price: 100, defaultTemperature: 'ambient',
+    priceTiers: { create: { weightGrams: 30, unit: 'g', unitQty: 1, price: 100, status: 'active', sku: suffix, shopifySku: suffix } },
     inventoryBalances: { create: { warehouseId: wh.id, quantity: 100, unit: 'g', lastCountedAt: new Date() } },
-  }});
+  }, include: { priceTiers: true } });
   const orderNumber = `CI-DISPATCH-${suffix}`;
   const actor = await db.user.findUniqueOrThrow({ where: { email: hqEmail } });
   const sourceDate = new Date();
@@ -228,12 +228,21 @@ test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual
     externalOrderName: orderNumber, omsStatus: 'FULFILLMENT_PENDING', omsIssueFlags: [],
     omsCheckedAt: sourceDate, omsCheckedSourceUpdatedAt: sourceDate, shopifySourceUpdatedAt: sourceDate,
     omsReviewedAt: sourceDate, omsReviewedById: actor.id, shippingMethod: 'home',
+    shopifySnapshot: { schemaVersion: 1, order: {
+      id: BigInt(`0x${suffix.replace(/-/g, '')}`).toString(), name: orderNumber, currency: 'TWD',
+      created_at: sourceDate.toISOString(), updated_at: sourceDate.toISOString(), financial_status: 'paid',
+      subtotal_price: '100.00', total_discounts: '0.00', total_price: '100.00',
+      total_shipping_price_set: { shop_money: { amount: '0.00' } },
+      line_items: [{ sku: suffix, title: product.name, quantity: 1, price: '100.00', requires_shipping: true }],
+      shipping_address: { name: 'CI dispatch recipient', phone: '0900000000', address1: 'CI isolated address' },
+      shipping_lines: [{ title: '宅配', code: 'HOME' }], note_attributes: [],
+    } },
   } : { source: 'manual' };
   const order = await db.order.create({ data: { orderNumber, ...omsEvidence, status: 'confirmed', paymentStatus: 'paid', subtotal: 100, total: 100 } });
   const shipment = await db.shipment.create({ data: {
     shipmentNumber: `CI-SHIP-${suffix}`, type: 'customer_order', status: 'pending', orderId: order.id,
-    recipientName: 'CI dispatch recipient', recipientAddress: 'CI isolated address', carrier: '黑貓',
-    items: { create: { productId: product.id, productName: product.name, sku: product.sku, quantity: 1, weightGrams: 30, unit: 'g' } },
+    recipientName: 'CI dispatch recipient', recipientPhone: '0900000000', recipientAddress: 'CI isolated address', carrier: '黑貓',
+    items: { create: { productId: product.id, productName: product.name, sku: product.sku, quantity: 1, weightGrams: 30, unit: 'g', variantKey: product.priceTiers[0].id } },
   }});
   await page.goto('/login');
   await page.getByLabel('Email', { exact: true }).fill(hqEmail);
@@ -265,7 +274,18 @@ test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual
   expect((await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } })).status).toBe('pending');
   expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(0);
   if (orderMode === 'shopify-oms') {
-    await db.order.update({ where: { id: order.id }, data: { omsReviewedAt: sourceDate } });
+    await page.goto(`/orders/${order.id}`);
+    await page.getByRole('button', { name: '重新檢查出貨內容', exact: true }).click();
+    await expect(page.getByText('檢查通過，可以確認訂單', { exact: true }).filter({ visible: true }).last()).toBeVisible();
+    await page.getByRole('button', { name: '確認既有出貨單', exact: true }).click();
+    await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsReviewedAt)).toBe(true);
+    const reviewed = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(reviewed.omsReviewedAt).not.toBeNull();
+    expect(reviewed.omsReviewedById).toBe(actor.id);
+    expect(reviewed.omsStatus).toBe('FULFILLMENT_PENDING');
+    expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(1);
+    expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(0);
+    await page.goto('/shipments?status=pending&type=customer_order');
   } else {
     await page.unroute(statusApi);
   }

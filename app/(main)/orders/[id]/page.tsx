@@ -268,7 +268,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 </div>
               </div>
             </section> : null}
-            {!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} /> : null}
+            {!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} needsReviewRecovery={order.omsStatus === 'FULFILLMENT_PENDING' && (!order.omsReviewedAt || !order.omsReviewedById)} /> : null}
             {order.status !== 'cancelled' ? <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-5">
               <h2 id="oms-shipping-title" className="font-semibold">出貨作業</h2>
               {repairMessage ? <p role="status" className="mt-2 rounded border p-3 text-sm">{repairMessage}</p> : null}

@@ -22,9 +22,9 @@ function paymentSummary(source: Snapshot) {
   return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
 }
 
-export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: string; snapshot: unknown; status: string | null }) {
+export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; needsReviewRecovery?: boolean }) {
   const sourceView = snapshotView(snapshot);
-  if (!status || !['NEW', 'REVIEW', 'READY'].includes(status) || !sourceView) return null;
+  if (!status || (!['NEW', 'REVIEW', 'READY'].includes(status) && !(needsReviewRecovery && status === 'FULFILLMENT_PENDING')) || !sourceView) return null;
   const session = await getCurrentUser();
   const actor = session ? await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } }) : null;
   if (!actor || !['admin', 'staff'].includes(actor.role)) return <p>需要 HQ 審核人員確認此訂單。</p>;
@@ -50,14 +50,15 @@ export async function OmsReviewPanel({ orderId, snapshot, status }: { orderId: s
 
   return <section id="oms-review" tabIndex={-1} className="space-y-4 rounded-xl border bg-card p-4 md:p-5" aria-label="OMS 訂單審核">
     <div className="border-b pb-4">
-      <h2 className="text-lg font-semibold">處理訂單</h2>
+      <h2 className="text-lg font-semibold">{needsReviewRecovery ? '重新核對既有出貨單' : '處理訂單'}</h2>
+      {needsReviewRecovery ? <p role="alert" className="mt-2 text-sm text-amber-700">這張待出貨單缺少審核紀錄。請重新檢查內容，再確認既有出貨單；不會建立另一張出貨單。</p> : null}
       <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
       {status === 'READY' ? <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm">
         <p className="font-semibold text-success">訂單已確認</p>
         <p className="mt-1 text-muted-foreground">商品與配送內容維持以 Shopify 訂單為準。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
-    <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={status}
+    <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
       draft={draft}
       sourceSummary={{
         paymentLabel: payment.label,
