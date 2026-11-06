@@ -1,5 +1,5 @@
 import { test, expect, chromium } from '@playwright/test';
-import { runAuthenticatedMonitor } from '../scripts/authenticated-production-monitor.mjs';
+import { runAuthenticatedMonitor, checkPosSearch } from '../scripts/authenticated-production-monitor.mjs';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
@@ -191,4 +191,20 @@ test('merchant can review, return, complete one sale and find/export its record'
   expect(csv).toContain('CI測試雞霸');
   expect(csv).toContain('銷售');
   expect(csv.trim().split('\n')).toHaveLength(2);
+});
+
+
+test('empty merchant catalog remains a failure with a precise code', async ({ page }) => {
+  const suffix = randomUUID();
+  const emptyMerchant = await db.merchant.create({ data: { merchantId: `CI-EMPTY-${suffix}`, name: 'CI空商品店', commissionRate: 0.2 } });
+  const emptyUser = `ci-empty-${suffix}`;
+  const emptyPassword = randomUUID();
+  await db.merchantUser.create({ data: { merchantId: emptyMerchant.id, username: emptyUser, passwordHash: await bcrypt.hash(emptyPassword, 10), isActive: true } });
+  await page.goto('/pos/login');
+  await page.getByLabel('帳號', { exact: true }).fill(emptyUser);
+  await page.getByLabel('密碼', { exact: true }).fill(emptyPassword);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '店內商品', exact: true })).toBeVisible();
+  await expect(page.getByText('這間店還沒有可結帳的寄賣商品。', { exact: true })).toBeVisible();
+  await expect(checkPosSearch(page)).rejects.toThrow('POS_CATALOG_EMPTY');
 });

@@ -5,6 +5,24 @@ import { createRouteBoundary } from './authenticated-monitor-routes.mjs';
 
 const targets = JSON.parse(readFileSync(new URL('../config/deployment-targets.json', import.meta.url), 'utf8'));
 
+// Fixed diagnostic codes only; never serialize DOM, product names or exception text.
+export async function checkPosSearch(page) {
+  if (await page.getByText('這間店還沒有可結帳的寄賣商品。', { exact: true }).isVisible()) {
+    throw new Error('POS_CATALOG_EMPTY');
+  }
+  const search = page.getByRole('textbox', { name: '搜尋商品', exact: true });
+  try { await search.waitFor({ state: 'visible' }); }
+  catch { throw new Error('POS_SEARCH_UNAVAILABLE'); }
+  try {
+    await search.fill('___monitor_no_match___');
+    await page.getByText('沒有符合的商品，試試別的分類或關鍵字。', { exact: true }).waitFor({ state: 'visible' });
+  } catch { throw new Error('POS_SEARCH_FILTER_FAILED'); }
+  finally { await search.fill('').catch(() => {}); }
+  try {
+    await page.getByRole('button', { name: /^加入 / }).first().waitFor({ state: 'visible' });
+  } catch { throw new Error('POS_SEARCH_RESET_FAILED'); }
+}
+
 export async function runAuthenticatedMonitor({ chromium, credentials, origin = targets.production.origin }) {
   const ciDatabase = 'postgresql://ci:ci@127.0.0.1:5432/ci';
   const isolatedCi = origin === 'http://localhost:3000' && process.env.CI === 'true' &&
@@ -101,9 +119,7 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
           }
         } else {
           current = 'pos:search-controls';
-          await page.getByRole('textbox', { name: '搜尋商品', exact: true }).fill('___monitor_no_match___');
-          await page.getByText('沒有符合的商品，試試別的分類或關鍵字。', { exact: true }).waitFor({ state: 'visible' });
-          await page.getByRole('textbox', { name: '搜尋商品', exact: true }).fill('');
+          await checkPosSearch(page);
           await healthy();
           report.results.push({ check: current, status: 'pass' });
           for (const [path, heading] of [['/pos/stock', '庫存'], ['/pos/refill', '換罐計畫'], ['/pos/restock', '寄賣叫貨'], ['/pos/records', '紀錄'], ['/pos/settle', '對帳']]) await visit(path, heading);
@@ -114,7 +130,7 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
           report.results.push({ check: current, status: 'pass' });
         }
       } catch (error) {
-        const safeCodes = new Set(['REQUEST_BLOCKED', 'RENDERED_ERROR', 'PAGE_UNAVAILABLE', 'LOGIN_NOT_VERIFIED']);
+        const safeCodes = new Set(['REQUEST_BLOCKED', 'RENDERED_ERROR', 'PAGE_UNAVAILABLE', 'LOGIN_NOT_VERIFIED', 'POS_CATALOG_EMPTY', 'POS_SEARCH_UNAVAILABLE', 'POS_SEARCH_FILTER_FAILED', 'POS_SEARCH_RESET_FAILED']);
         report.results.push({ check: current, status: 'fail', code: safeCodes.has(error?.message) ? error.message : 'UI_CHECK_FAILED' });
       } finally {
         // Keep the request guard installed through close. Never unroute a live
