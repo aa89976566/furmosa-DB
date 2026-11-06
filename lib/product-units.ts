@@ -15,6 +15,7 @@ export const PRODUCT_UNIT_OPTIONS = [
   '組',
   '次',
   '件',
+  '次',
 ] as const;
 
 /** 寄賣進貨／銷售／訂單品項單位 */
@@ -32,6 +33,7 @@ export const ORDER_LINE_UNIT_OPTIONS = [
   '組',
   '次',
   '件',
+  '次',
 ] as const;
 
 /** 規格（按單位計價）常用單位 */
