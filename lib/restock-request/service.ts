@@ -38,7 +38,7 @@ export async function listJarExchangeProductsForRestock() {
       name: true,
       sku: true,
       unit: true,
-      priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+      priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, status: true } },
     },
     orderBy: { name: 'asc' },
   });
@@ -95,7 +95,7 @@ export async function listMerchantRestockCatalog(
         id: true,
         name: true,
         unit: true,
-        priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
+        priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, status: true } },
         productCategory: true,
         consignmentEnabled: true,
       },
