@@ -761,7 +761,7 @@ describe('shipment queue performance diagnostics', () => {
   it('source guard keeps query arguments, JSX, and Promise.all in place', () => {
     const body = readFileSync(BODY_PATH, 'utf8');
     const helper = readFileSync(HELPER_PATH, 'utf8');
-    const parallelStart = body.indexOf('await Promise.all([');
+    const parallelStart = body.indexOf('const [loadedShipments, counts] = await Promise.all([');
     const parallelEnd = body.indexOf(']);', parallelStart);
     const parallel = body.slice(parallelStart, parallelEnd);
     const enrichmentStart = body.indexOf('await Promise.all([', parallelEnd);
@@ -774,13 +774,13 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 2);
     assert.match(parallel, /perf\.measure\('findMany'/);
     assert.match(parallel, /perf\.measure\('counts'/);
-    assert.match(
-      parallel,
-      /prisma\.shipment\.findMany\(\{\s*where,\s*include:\s*shipmentInclude,\s*orderBy:\s*\[\{\s*status:\s*'asc'\s*\},\s*\{\s*createdAt:\s*'desc'\s*\}\],\s*take:\s*SHIPMENT_QUEUE_TAKE,\s*\}\)/,
-    );
+    assert.match(parallel, /loadShipmentQueuePage\(where\)/);
     assert.match(parallel, /getShipmentQueueCounts\(countWhere\)/);
     assert.equal(parallel.indexOf('findMany') < parallel.indexOf('getShipmentQueueCounts'), true);
-    assert.equal(body.includes('await prisma.shipment.findMany'), false);
+    assert.match(body, /select: shipmentBaseSelect/);
+    assert.match(body, /prisma\.\$queryRaw<ShipmentQueueJoinRow\[\]>/);
+    assert.match(body, /WHERE s\.id IN \(\$\{Prisma\.join\(shipmentIds\)\}\)/);
+    assert.equal(body.includes('include: shipmentInclude'), false);
     assert.equal(body.includes('await getShipmentQueueCounts'), false);
     assert.match(body, /shipments\.map\(\(s\) => s\.orderId\)/);
     assert.match(enrichment, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
@@ -789,12 +789,12 @@ describe('shipment queue performance diagnostics', () => {
     assert.match(enrichment, /prisma\.order\.findMany/);
     assert.match(enrichment, /select: queueOrderSnapshotSelect/);
     assert.match(enrichment, /warehouse: \{ code: 'WH-MAIN' \}/);
-    const includeStart = body.indexOf('const shipmentInclude =');
-    const includeEnd = body.indexOf('} as const;', includeStart);
-    const shipmentInclude = body.slice(includeStart, includeEnd);
-    assert.equal(shipmentInclude.includes('priceTiers'), false);
-    assert.equal(shipmentInclude.includes('inventoryBalances'), false);
-    assert.equal(shipmentInclude.includes('shopifySnapshot'), false);
+    const baseSelectStart = body.indexOf('const shipmentBaseSelect =');
+    const baseSelectEnd = body.indexOf('} as const;', baseSelectStart);
+    const baseSelect = body.slice(baseSelectStart, baseSelectEnd);
+    assert.equal(baseSelect.includes('priceTiers'), false);
+    assert.equal(baseSelect.includes('inventoryBalances'), false);
+    assert.equal(baseSelect.includes('shopifySnapshot'), false);
     assert.match(body, /tiersByProductId/);
     assert.match(body, /balanceByProductId/);
     assert.match(body, /snapshotByOrderId/);

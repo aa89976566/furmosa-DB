@@ -31,7 +31,7 @@ import {
   resolveShipmentDisplayKind,
 } from '@/lib/order-hub-kinds';
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
@@ -70,72 +70,135 @@ const queueOrderSnapshotSelect = {
   shopifySnapshot: true,
 } as const;
 
-const shipmentInclude = {
-  merchant: { select: merchantLogisticsSelect },
-  customer: {
-    select: {
-      id: true,
-      name: true,
-    },
-  },
-  order: {
-    select: {
-      id: true,
-      orderNumber: true,
-      source: true,
-      externalOrderName: true,
-      status: true,
-      paymentStatus: true,
-      shippingFeeType: true,
-      shippingMethod: true,
-      cvsBrand: true,
-      cvsStoreId: true,
-      cvsStoreName: true,
-      note: true,
-      omsStatus: true,
-      merchantOrderMode: true,
-    },
-  },
-  items: {
-    select: {
-      productId: true,
-      productName: true,
-      quantity: true,
-      weightGrams: true,
-      variantKey: true,
-      notes: true,
-      product: {
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          category: true,
-          unit: true,
-          productCategory: true,
-          inventorySourceProduct: {
-            select: { id: true, sku: true, name: true, status: true, unit: true },
-          },
-        },
-      },
-    },
-  },
-  subscriptionShipment: {
-    select: {
-      shipmentNo: true,
-      scheduledDate: true,
-      subscription: {
-        select: {
-          subscriptionNo: true,
-          plan: { select: { name: true, contents: true } },
-        },
-      },
-    },
-  },
+const shipmentBaseSelect = {
+  id: true,
+  shipmentNumber: true,
+  type: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  carrier: true,
+  trackingNumber: true,
+  recipientName: true,
+  recipientPhone: true,
+  recipientAddress: true,
+  merchantId: true,
+  customerId: true,
+  orderId: true,
+  subscriptionShipmentId: true,
 } as const;
 
-type ShipmentQueueRecord = Awaited<
-  ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
->[number];
+type ShipmentQueueBase = Prisma.ShipmentGetPayload<{ select: typeof shipmentBaseSelect }>;
+type ShipmentQueueRecord = ShipmentQueueBase & {
+  merchant: {
+    id: string;
+    name: string;
+    contactName: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    preferredCarrier: string | null;
+    pickupStoreName: string | null;
+  } | null;
+  customer: { id: string; name: string } | null;
+  order: {
+    id: string;
+    orderNumber: string;
+    source: string;
+    externalOrderName: string | null;
+    status: string;
+    paymentStatus: string;
+    shippingFeeType: string;
+    shippingMethod: string;
+    cvsBrand: string | null;
+    cvsStoreId: string | null;
+    cvsStoreName: string | null;
+    note: string | null;
+    omsStatus: Prisma.OrderGetPayload<object>['omsStatus'];
+    merchantOrderMode: string | null;
+  } | null;
+  items: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    weightGrams: number | null;
+    variantKey: string | null;
+    notes: string | null;
+    product: {
+      id: string;
+      sku: string;
+      name: string;
+      category: string;
+      unit: string;
+      productCategory: string;
+      inventorySourceProduct: {
+        id: string;
+        sku: string;
+        name: string;
+        status: string;
+        unit: string;
+      } | null;
+    };
+  }>;
+  subscriptionShipment: {
+    shipmentNo: string;
+    scheduledDate: Date;
+    subscription: {
+      subscriptionNo: string;
+      plan: { name: string; contents: string };
+    };
+  } | null;
+};
+
+type ShipmentQueueJoinRow = {
+  shipmentId: string;
+  merchantId: string | null;
+  merchantName: string | null;
+  merchantContactName: string | null;
+  merchantPhone: string | null;
+  merchantAddress: string | null;
+  merchantCity: string | null;
+  merchantPreferredCarrier: string | null;
+  merchantPickupStoreName: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  orderSource: string | null;
+  orderExternalOrderName: string | null;
+  orderStatus: string | null;
+  orderPaymentStatus: string | null;
+  orderShippingFeeType: string | null;
+  orderShippingMethod: string | null;
+  orderCvsBrand: string | null;
+  orderCvsStoreId: string | null;
+  orderCvsStoreName: string | null;
+  orderNote: string | null;
+  orderOmsStatus: Prisma.OrderGetPayload<object>['omsStatus'] | null;
+  orderMerchantOrderMode: string | null;
+  itemId: string | null;
+  itemProductId: string | null;
+  itemProductName: string | null;
+  itemQuantity: number | null;
+  itemWeightGrams: number | null;
+  itemVariantKey: string | null;
+  itemNotes: string | null;
+  productSku: string | null;
+  productName: string | null;
+  productCategoryLegacy: string | null;
+  productUnit: string | null;
+  productCategory: string | null;
+  sourceProductId: string | null;
+  sourceProductSku: string | null;
+  sourceProductName: string | null;
+  sourceProductStatus: string | null;
+  sourceProductUnit: string | null;
+  subscriptionShipmentNo: string | null;
+  subscriptionScheduledDate: Date | null;
+  subscriptionNo: string | null;
+  subscriptionPlanName: string | null;
+  subscriptionPlanContents: string | null;
+};
 type QueueTier = Awaited<
   ReturnType<typeof prisma.productPriceTier.findMany<{ select: typeof queueTierSelect }>>
 >[number];
@@ -151,6 +214,204 @@ type ShipmentQueueEnrichment = {
   tierById: Map<string, QueueTier>;
   balanceByProductId: Map<string, QueueBalance>;
 };
+
+async function loadShipmentQueuePage(
+  where: Prisma.ShipmentWhereInput,
+): Promise<ShipmentQueueRecord[]> {
+  const shipments = await prisma.shipment.findMany({
+    where,
+    select: shipmentBaseSelect,
+    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    take: SHIPMENT_QUEUE_TAKE,
+  });
+  if (shipments.length === 0) return [];
+
+  const shipmentIds = shipments.map((shipment) => shipment.id);
+  const rows = await prisma.$queryRaw<ShipmentQueueJoinRow[]>(Prisma.sql`
+    SELECT
+      s.id AS "shipmentId",
+      m.id AS "merchantId",
+      m.name AS "merchantName",
+      m."contactName" AS "merchantContactName",
+      m.phone AS "merchantPhone",
+      m.address AS "merchantAddress",
+      m.city AS "merchantCity",
+      m."preferredCarrier" AS "merchantPreferredCarrier",
+      m."pickupStoreName" AS "merchantPickupStoreName",
+      c.id AS "customerId",
+      c.name AS "customerName",
+      o.id AS "orderId",
+      o."orderNumber" AS "orderNumber",
+      o.source AS "orderSource",
+      o.external_order_name AS "orderExternalOrderName",
+      o.status AS "orderStatus",
+      o."paymentStatus" AS "orderPaymentStatus",
+      o."shippingFeeType" AS "orderShippingFeeType",
+      o."shippingMethod" AS "orderShippingMethod",
+      o."cvsBrand" AS "orderCvsBrand",
+      o."cvsStoreId" AS "orderCvsStoreId",
+      o."cvsStoreName" AS "orderCvsStoreName",
+      o.note AS "orderNote",
+      o.oms_status AS "orderOmsStatus",
+      o.merchant_order_mode AS "orderMerchantOrderMode",
+      si.id AS "itemId",
+      si."productId" AS "itemProductId",
+      si."productName" AS "itemProductName",
+      si.quantity AS "itemQuantity",
+      si."weightGrams" AS "itemWeightGrams",
+      si."variantKey" AS "itemVariantKey",
+      si.notes AS "itemNotes",
+      p.sku AS "productSku",
+      p.name AS "productName",
+      p.category AS "productCategoryLegacy",
+      p.unit AS "productUnit",
+      p.product_category AS "productCategory",
+      source.id AS "sourceProductId",
+      source.sku AS "sourceProductSku",
+      source.name AS "sourceProductName",
+      source.status AS "sourceProductStatus",
+      source.unit AS "sourceProductUnit",
+      ss."shipmentNo" AS "subscriptionShipmentNo",
+      ss."scheduledDate" AS "subscriptionScheduledDate",
+      subscription."subscriptionNo" AS "subscriptionNo",
+      plan.name AS "subscriptionPlanName",
+      plan.contents AS "subscriptionPlanContents"
+    FROM "Shipment" s
+    LEFT JOIN "Merchant" m ON m.id = s."merchantId"
+    LEFT JOIN "Customer" c ON c.id = s."customerId"
+    LEFT JOIN "Order" o ON o.id = s."orderId"
+    LEFT JOIN "ShipmentItem" si ON si."shipmentId" = s.id
+    LEFT JOIN "Product" p ON p.id = si."productId"
+    LEFT JOIN "Product" source ON source.id = p.inventory_source_product_id
+    LEFT JOIN "SubscriptionShipment" ss ON ss.id = s."subscriptionShipmentId"
+    LEFT JOIN "Subscription" subscription ON subscription.id = ss."subscriptionId"
+    LEFT JOIN "SubscriptionPlan" plan ON plan.id = subscription."planId"
+    WHERE s.id IN (${Prisma.join(shipmentIds)})
+    ORDER BY si.id ASC
+  `);
+
+  const records = new Map<string, ShipmentQueueRecord>();
+  for (const shipment of shipments) {
+    records.set(shipment.id, {
+      ...shipment,
+      merchant: null,
+      customer: null,
+      order: null,
+      items: [],
+      subscriptionShipment: null,
+    });
+  }
+
+  for (const row of rows) {
+    const shipment = records.get(row.shipmentId);
+    if (!shipment) continue;
+
+    if (row.merchantId !== null && row.merchantName !== null) {
+      shipment.merchant = {
+        id: row.merchantId,
+        name: row.merchantName,
+        contactName: row.merchantContactName,
+        phone: row.merchantPhone,
+        address: row.merchantAddress,
+        city: row.merchantCity,
+        preferredCarrier: row.merchantPreferredCarrier,
+        pickupStoreName: row.merchantPickupStoreName,
+      };
+    }
+    if (row.customerId !== null && row.customerName !== null) {
+      shipment.customer = { id: row.customerId, name: row.customerName };
+    }
+    if (
+      row.orderId !== null &&
+      row.orderNumber !== null &&
+      row.orderSource !== null &&
+      row.orderStatus !== null &&
+      row.orderPaymentStatus !== null &&
+      row.orderShippingFeeType !== null &&
+      row.orderShippingMethod !== null
+    ) {
+      shipment.order = {
+        id: row.orderId,
+        orderNumber: row.orderNumber,
+        source: row.orderSource,
+        externalOrderName: row.orderExternalOrderName,
+        status: row.orderStatus,
+        paymentStatus: row.orderPaymentStatus,
+        shippingFeeType: row.orderShippingFeeType,
+        shippingMethod: row.orderShippingMethod,
+        cvsBrand: row.orderCvsBrand,
+        cvsStoreId: row.orderCvsStoreId,
+        cvsStoreName: row.orderCvsStoreName,
+        note: row.orderNote,
+        omsStatus: row.orderOmsStatus,
+        merchantOrderMode: row.orderMerchantOrderMode,
+      };
+    }
+    if (
+      row.itemId !== null &&
+      row.itemProductId !== null &&
+      row.itemProductName !== null &&
+      row.itemQuantity !== null &&
+      row.productSku !== null &&
+      row.productName !== null &&
+      row.productCategoryLegacy !== null &&
+      row.productUnit !== null &&
+      row.productCategory !== null
+    ) {
+      shipment.items.push({
+        productId: row.itemProductId,
+        productName: row.itemProductName,
+        quantity: row.itemQuantity,
+        weightGrams: row.itemWeightGrams,
+        variantKey: row.itemVariantKey,
+        notes: row.itemNotes,
+        product: {
+          id: row.itemProductId,
+          sku: row.productSku,
+          name: row.productName,
+          category: row.productCategoryLegacy,
+          unit: row.productUnit,
+          productCategory: row.productCategory,
+          inventorySourceProduct:
+            row.sourceProductId !== null &&
+            row.sourceProductSku !== null &&
+            row.sourceProductName !== null &&
+            row.sourceProductStatus !== null &&
+            row.sourceProductUnit !== null
+              ? {
+                  id: row.sourceProductId,
+                  sku: row.sourceProductSku,
+                  name: row.sourceProductName,
+                  status: row.sourceProductStatus,
+                  unit: row.sourceProductUnit,
+                }
+              : null,
+        },
+      });
+    }
+    if (
+      row.subscriptionShipmentNo !== null &&
+      row.subscriptionScheduledDate !== null &&
+      row.subscriptionNo !== null &&
+      row.subscriptionPlanName !== null &&
+      row.subscriptionPlanContents !== null
+    ) {
+      shipment.subscriptionShipment = {
+        shipmentNo: row.subscriptionShipmentNo,
+        scheduledDate: row.subscriptionScheduledDate,
+        subscription: {
+          subscriptionNo: row.subscriptionNo,
+          plan: {
+            name: row.subscriptionPlanName,
+            contents: row.subscriptionPlanContents,
+          },
+        },
+      };
+    }
+  }
+
+  return shipments.map((shipment) => records.get(shipment.id)!);
+}
 
 function indexShipmentQueueEnrichment(
   tiers: QueueTier[],
@@ -375,12 +636,7 @@ export async function ShipmentsQueueBody({
   try {
     const [loadedShipments, counts] = await Promise.all([
       perf.measure('findMany', () =>
-        prisma.shipment.findMany({
-          where,
-          include: shipmentInclude,
-          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-          take: SHIPMENT_QUEUE_TAKE,
-        }),
+        loadShipmentQueuePage(where),
       ),
       perf.measure('counts', () => getShipmentQueueCounts(countWhere)),
     ]);
