@@ -1,3 +1,4 @@
+import { refillPriceLabel } from '@/lib/refill/constants';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -104,7 +105,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
       tiers={variations.map((tier) => ({
         id: tier.id,
         label: tier.weightGrams ? `${tier.weightGrams}g` : `${tier.unitQty}${tier.unit}`,
-        price: formatCurrency(Number(tier.price)),
+        price: product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : formatCurrency(Number(tier.price)),
       }))}
     />;
   }
@@ -146,7 +147,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
-          <SummaryChip label="售價" value={variationSummary.priceRange} />
+          <SummaryChip label="售價" value={product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : variationSummary.priceRange} />
           {product.productCategory === 'JAR_EXCHANGE'
             ? <SummaryChip label="來源庫存" value={product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
             : <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />}
@@ -164,6 +165,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           >
             <PriceTierManager
               productId={product.id}
+              isRefill={product.productCategory === 'JAR_EXCHANGE'}
               productUnit={product.unit}
               productSourceSku={product.sourceSku}
               tiers={variations}

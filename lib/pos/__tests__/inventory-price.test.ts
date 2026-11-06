@@ -10,3 +10,10 @@ test('retail prices follow active tier prices and preserve exact single prices',
  assert.equal(inventoryPriceLabel({price:50,tiers:[{price:20,status:'archived'}]}),'售價待確認');
  assert.equal(inventoryPriceLabel({tiers:[{price:NaN},{price:-1}]}),'售價待確認');
 });
+
+test('refill cards show first-jar and conditional exchange prices regardless of stored tier price', () => {
+ const label = '首罐 NT$129／帶空罐換罐 NT$99';
+ assert.equal(inventoryPriceLabel({productCategory:'JAR_EXCHANGE',price:99,tiers:[{price:99}]}),label);
+ assert.equal(inventoryPriceLabel({productCategory:'JAR_EXCHANGE',price:129}),label);
+ assert.equal(inventoryPriceLabel({productCategory:'STANDARD',price:99}), 'NT$99');
+});
