@@ -3,6 +3,7 @@ import { resolveFurmosaProductImage } from '@/lib/pos/furmosa-com-images';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
 import { inventoryGroupForProduct, type InventoryGroupId } from '@/lib/pos/inventory-groups';
 import { productProgramLabel } from '@/lib/product-category';
+import { getMerchantTypes } from '@/lib/merchant-types-persist';
 
 export type InventoryProduct = {
   productId: string;
@@ -23,6 +24,13 @@ export type InventoryProduct = {
 export async function loadMerchantInventory(
   merchantId: string,
 ): Promise<InventoryProduct[]> {
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: { type: true },
+  });
+  if (!merchant) return [];
+  const merchantTypes = await getMerchantTypes(prisma, merchantId, merchant.type);
+  const canOrderConsignment = merchantTypes.includes('consignment');
   const products = await prisma.product.findMany({
       where: {
         status: 'active',
@@ -34,6 +42,7 @@ export async function loadMerchantInventory(
           {
             productCategory: 'STANDARD',
             OR: [
+              ...(canOrderConsignment ? [{ consignmentEnabled: true }] : []),
               { merchantStocks: { some: { merchantId } } },
               { merchantRules: { some: { merchantId } } },
             ],
