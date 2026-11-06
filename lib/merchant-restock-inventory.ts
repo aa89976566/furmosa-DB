@@ -192,6 +192,7 @@ export async function applyMerchantRestockFromShipment(
         txnNumber: txnNumbers[i],
         merchantId: shipment.merchantId,
         productId: item.productId,
+        tierId,
         type: 'restock',
         quantity: item.quantity,
         balanceAfter: stock.quantity,

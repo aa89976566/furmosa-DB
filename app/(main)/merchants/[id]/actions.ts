@@ -425,7 +425,7 @@ export async function adjustMerchantStock(formData: FormData) {
   const note = String(formData.get('note') ?? '').trim() || null;
   const returnTo = String(formData.get('returnTo') ?? '').trim();
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
-  if (!Number.isFinite(newQuantity) || newQuantity < 0) throw new Error('庫存數量不合法');
+  if (!Number.isSafeInteger(newQuantity) || newQuantity < 0) throw new Error('庫存數量不合法');
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -462,76 +462,87 @@ export async function adjustMerchantStock(formData: FormData) {
     throw new Error('盤損／報廢請填寫備註');
   }
 
-  const stock = await prisma.merchantStock.upsert({
-    where: stockWhere,
-    update: {
-      quantity: newQuantity,
-      lastCountAt: new Date(),
-      ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
-      ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
-    },
-    create: {
-      merchantId,
-      productId,
-      tierId,
-      quantity: newQuantity,
-      lastCountAt: new Date(),
-      ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
-      ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
-    },
-  });
-
-  const baseNote =
-    note ??
-    noteWithSpec(
-      specLabel,
-      `${reasonMeta.label}：${before} → ${newQuantity}`,
-    );
-
   let commissionAmount: number | null = null;
-  let txnId: string;
+  let txnId = '';
+  await prisma.$transaction(async (tx) => {
+    const lockedSnapshot = await tx.merchantStock.findUnique({ where: stockWhere });
+    if ((lockedSnapshot?.quantity ?? 0) !== before) throw new Error('庫存已變更，請重新整理後再盤點');
+    const stock = await tx.merchantStock.upsert({
+      where: stockWhere,
+      update: {
+        quantity: newQuantity,
+        lastCountAt: new Date(),
+        ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
+        ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
+      },
+      create: {
+        merchantId,
+        productId,
+        tierId,
+        quantity: newQuantity,
+        lastCountAt: new Date(),
+        ...(reasonMeta.txnType === 'sale' ? { lastSaleAt: new Date() } : {}),
+        ...(reasonMeta.txnType === 'restock' ? { lastRestockAt: new Date() } : {}),
+      },
+    });
 
-  if (reasonMeta.countsAsSale) {
-    const soldQty = Math.abs(delta);
-    const rule = await prisma.merchantProductRule.findUnique({
-      where: { merchantId_productId: { merchantId, productId } },
-    });
-    const unitPrice = unitPriceForTierSale(tiers, tierId, {
-      suggestedPrice: rule?.suggestedPrice ?? null,
-      hasMerchantRule: !!rule,
-      fallbackPrice: product.price,
-    });
-    const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty, unitPrice);
-    commissionAmount = amounts.commissionAmount;
-    const txn = await prisma.merchantStockTxn.create({
-      data: {
-        txnNumber: await nextStockTxnNumber(prisma),
-        merchantId,
-        productId,
-        type: 'sale',
-        quantity: -soldQty,
-        balanceAfter: stock.quantity,
-        unitPrice: amounts.unitPrice,
-        commissionAmount: amounts.commissionAmount,
-        companyRevenue: amounts.companyRevenue,
-        note: baseNote,
-      },
-    });
-    txnId = txn.id;
-  } else {
-    const txn = await prisma.merchantStockTxn.create({
-      data: {
-        txnNumber: await nextStockTxnNumber(prisma),
-        merchantId,
-        productId,
-        type: reasonMeta.txnType,
-        quantity: delta,
-        balanceAfter: stock.quantity,
-        note: baseNote,
-      },
-    });
-    txnId = txn.id;
-  }
+    const baseNote =
+      note ??
+      noteWithSpec(
+        specLabel,
+        `${reasonMeta.label}：${before} → ${newQuantity}`,
+      );
+
+
+    if (reasonMeta.countsAsSale) {
+      const soldQty = Math.abs(delta);
+      const rule = await tx.merchantProductRule.findUnique({
+        where: { merchantId_productId: { merchantId, productId } },
+      });
+      const unitPrice = unitPriceForTierSale(tiers, tierId, {
+        suggestedPrice: rule?.suggestedPrice ?? null,
+        hasMerchantRule: !!rule,
+        fallbackPrice: product.price,
+      });
+      const amounts = saleAmountsForQty(product, rule ?? undefined, soldQty, unitPrice);
+      const txn = await tx.merchantStockTxn.create({
+        data: {
+          txnNumber: await nextStockTxnNumber(tx),
+          merchantId,
+          productId,
+          tierId,
+          type: 'sale',
+          quantity: -soldQty,
+          balanceAfter: stock.quantity,
+          unitPrice: amounts.unitPrice,
+          commissionAmount: amounts.commissionAmount,
+          companyRevenue: amounts.companyRevenue,
+          note: baseNote,
+        },
+      });
+      commissionAmount = txn.commissionAmount;
+      txnId = txn.id;
+    } else {
+      const txn = await tx.merchantStockTxn.create({
+        data: {
+          txnNumber: await nextStockTxnNumber(tx),
+          merchantId,
+          productId,
+          tierId,
+          type: reasonMeta.txnType,
+          settlementQuantity: 0,
+          unitPrice: 0,
+          commissionAmount: 0,
+          companyRevenue: 0,
+          quantity: delta,
+          balanceAfter: stock.quantity,
+          note: baseNote,
+        },
+      });
+      txnId = txn.id;
+    }
+
+  }, { isolationLevel: 'Serializable' });
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
@@ -571,27 +582,32 @@ export async function undoMerchantStockMovement(formData: FormData) {
   const tierIdRaw = String(formData.get('tierId') ?? '');
   if (!txnId) throw new Error('缺少異動編號');
 
-  const txn = await prisma.merchantStockTxn.findUnique({ where: { id: txnId } });
-  if (!txn) throw new Error('找不到異動紀錄');
-  if (txn.settlementId) throw new Error('此筆已納入結算，無法撤銷');
+  const txn = await prisma.$transaction(async (tx) => {
+    const txn = await tx.merchantStockTxn.findUnique({ where: { id: txnId } });
+    if (!txn) throw new Error('找不到異動紀錄');
+    if (txn.settlementId) throw new Error('此筆已納入結算，無法撤銷');
 
-  const reverseDelta = -txn.quantity;
-  const stockWhere = merchantStockUniqueWhere(txn.merchantId, txn.productId, tierIdRaw);
-  const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
-  const nextQty = Math.max(0, (existing?.quantity ?? 0) + reverseDelta);
+    if (txn.tierId != null && txn.tierId !== tierIdRaw) throw new Error('規格不符');
+    const reverseDelta = -txn.quantity;
+    const stockWhere = merchantStockUniqueWhere(txn.merchantId, txn.productId, tierIdRaw);
+    const existing = await tx.merchantStock.findUnique({ where: stockWhere });
+    const nextQty = Math.max(0, (existing?.quantity ?? 0) + reverseDelta);
 
-  await prisma.merchantStock.upsert({
-    where: stockWhere,
-    update: { quantity: nextQty, lastCountAt: new Date() },
-    create: {
-      merchantId: txn.merchantId,
-      productId: txn.productId,
-      tierId: tierIdRaw,
-      quantity: nextQty,
-      lastCountAt: new Date(),
-    },
-  });
-  await prisma.merchantStockTxn.delete({ where: { id: txnId } });
+    await tx.merchantStock.upsert({
+      where: stockWhere,
+      update: { quantity: nextQty, lastCountAt: new Date() },
+      create: {
+        merchantId: txn.merchantId,
+        productId: txn.productId,
+        tierId: tierIdRaw,
+        quantity: nextQty,
+        lastCountAt: new Date(),
+      },
+    });
+    await tx.merchantStockTxn.delete({ where: { id: txnId } });
+
+    return txn;
+  }, { isolationLevel: 'Serializable' });
 
   revalidatePath(`/merchants/${txn.merchantId}`);
   revalidatePath(`/merchants/${txn.merchantId}/products`);
@@ -679,72 +695,77 @@ export async function createMerchantSale(formData: FormData) {
 
   const total = subtotal;
 
-  const order = await prisma.order.create({
-    data: {
-      orderNumber: await nextOrderNumber(),
-      source: 'consignment',
-      status: 'completed',
-      paymentStatus: 'paid',
-      fulfillmentStatus: 'delivered',
-      merchantId,
-      subtotal,
-      total,
-      orderedAt: new Date(),
-      shippedAt: new Date(),
-      completedAt: new Date(),
-      note,
-      items: {
-        create: itemRows.map((r) => ({
-          productId: r.productId,
-          productName: r.productName,
-          sku: r.sku,
-          quantity: r.quantity,
-          unitPrice: r.unitPrice,
-          subtotal: r.gross,
-          weightGrams: r.weightGrams,
-          unit: r.unit,
-        })),
-      },
-    },
-  });
-
-  const saleTxnNumbers = await reserveStockTxnNumbers(prisma, itemRows.length);
-  for (let i = 0; i < itemRows.length; i++) {
-    const r = itemRows[i];
-    const product = productById.get(r.productId);
-    if (!product) continue;
-    const tierId = resolveTierIdFromWeightGrams(product.priceTiers, r.weightGrams);
-    const stockWhere = merchantStockUniqueWhere(merchantId, r.productId, tierId);
-    const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
-    const before = existing?.quantity ?? 0;
-    const after = before - r.quantity;
-    await prisma.merchantStock.upsert({
-      where: stockWhere,
-      update: { quantity: after, lastSaleAt: new Date() },
-      create: {
-        merchantId,
-        productId: r.productId,
-        tierId,
-        quantity: after,
-        lastSaleAt: new Date(),
-      },
-    });
-    await prisma.merchantStockTxn.create({
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
       data: {
-        txnNumber: saleTxnNumbers[i],
+        orderNumber: await nextOrderNumber(),
+        source: 'consignment',
+        status: 'completed',
+        paymentStatus: 'paid',
+        fulfillmentStatus: 'delivered',
         merchantId,
-        productId: r.productId,
-        type: 'sale',
-        quantity: -r.quantity,
-        balanceAfter: after,
-        unitPrice: r.unitPrice,
-        commissionAmount: r.commission,
-        companyRevenue: r.companyRevenue,
-        orderId: order.id,
-        note: `訂單 ${order.orderNumber}`,
+        subtotal,
+        total,
+        orderedAt: new Date(),
+        shippedAt: new Date(),
+        completedAt: new Date(),
+        note,
+        items: {
+          create: itemRows.map((r) => ({
+            productId: r.productId,
+            productName: r.productName,
+            sku: r.sku,
+            quantity: r.quantity,
+            unitPrice: r.unitPrice,
+            subtotal: r.gross,
+            weightGrams: r.weightGrams,
+            unit: r.unit,
+          })),
+        },
       },
     });
-  }
+
+    const saleTxnNumbers = await reserveStockTxnNumbers(tx, itemRows.length);
+    for (let i = 0; i < itemRows.length; i++) {
+      const r = itemRows[i];
+      const product = productById.get(r.productId);
+      if (!product) continue;
+      const tierId = resolveTierIdFromWeightGrams(product.priceTiers, r.weightGrams);
+      const stockWhere = merchantStockUniqueWhere(merchantId, r.productId, tierId);
+      const existing = await tx.merchantStock.findUnique({ where: stockWhere });
+      const before = existing?.quantity ?? 0;
+      if (before < r.quantity) throw new Error('庫存不足');
+      const after = before - r.quantity;
+      await tx.merchantStock.upsert({
+        where: stockWhere,
+        update: { quantity: after, lastSaleAt: new Date() },
+        create: {
+          merchantId,
+          productId: r.productId,
+          tierId,
+          quantity: after,
+          lastSaleAt: new Date(),
+        },
+      });
+      await tx.merchantStockTxn.create({
+        data: {
+          txnNumber: saleTxnNumbers[i],
+          merchantId,
+          productId: r.productId,
+          tierId,
+          type: 'sale',
+          quantity: -r.quantity,
+          balanceAfter: after,
+          unitPrice: r.unitPrice,
+          commissionAmount: r.commission,
+          companyRevenue: r.companyRevenue,
+          orderId: order.id,
+          note: `訂單 ${order.orderNumber}`,
+        },
+      });
+    }
+
+  }, { isolationLevel: 'Serializable' });
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/products`);
@@ -762,7 +783,7 @@ export async function recordMerchantQuickSale(formData: FormData) {
   const note = String(formData.get('note') ?? '').trim() || null;
 
   if (!merchantId || !productId) throw new Error('缺少店家或商品');
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('賣出數量需大於 0');
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new Error('賣出數量需為正整數');
 
   const product = await prisma.product.findUnique({
     where: { id: productId },
@@ -799,37 +820,42 @@ export async function recordMerchantQuickSale(formData: FormData) {
     ? commissionFor(rule, quantity, unitPrice)
     : { perUnit: 0, commission: 0, gross: unitPrice * quantity, companyRevenue: unitPrice * quantity };
 
-  const stockWhere = merchantStockUniqueWhere(merchantId, productId, tierId);
-  const existing = await prisma.merchantStock.findUnique({ where: stockWhere });
-  const before = existing?.quantity ?? 0;
-  const after = before - quantity;
+  await prisma.$transaction(async (tx) => {
+    const stockWhere = merchantStockUniqueWhere(merchantId, productId, tierId);
+    const existing = await tx.merchantStock.findUnique({ where: stockWhere });
+    const before = existing?.quantity ?? 0;
+    if (before < quantity) throw new Error('庫存不足');
+    const after = before - quantity;
 
-  await prisma.merchantStock.upsert({
-    where: stockWhere,
-    update: { quantity: after, lastSaleAt: new Date() },
-    create: {
-      merchantId,
-      productId,
-      tierId,
-      quantity: after,
-      lastSaleAt: new Date(),
-    },
-  });
+    await tx.merchantStock.upsert({
+      where: stockWhere,
+      update: { quantity: after, lastSaleAt: new Date() },
+      create: {
+        merchantId,
+        productId,
+        tierId,
+        quantity: after,
+        lastSaleAt: new Date(),
+      },
+    });
 
-  await prisma.merchantStockTxn.create({
-    data: {
-      txnNumber: await nextStockTxnNumber(prisma),
-      merchantId,
-      productId,
-      type: 'sale',
-      quantity: -quantity,
-      balanceAfter: after,
-      unitPrice,
-      commissionAmount: calc.commission,
-      companyRevenue: calc.companyRevenue,
-      note: note ?? noteWithSpec(specLabel, '快速登記銷售'),
-    },
-  });
+    await tx.merchantStockTxn.create({
+      data: {
+        txnNumber: await nextStockTxnNumber(tx),
+        merchantId,
+        productId,
+        tierId,
+        type: 'sale',
+        quantity: -quantity,
+        balanceAfter: after,
+        unitPrice,
+        commissionAmount: calc.commission,
+        companyRevenue: calc.companyRevenue,
+        note: note ?? noteWithSpec(specLabel, '快速登記銷售'),
+      },
+    });
+
+  }, { isolationLevel: 'Serializable' });
 
   revalidatePath(`/merchants/${merchantId}`);
   revalidatePath(`/merchants/${merchantId}/adjust`);

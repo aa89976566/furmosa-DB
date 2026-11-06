@@ -387,6 +387,7 @@ export function buildPayloadFingerprint(idempotencyKey: string, digest: string):
 // ---------------------------------------------------------------------------
 
 export type ConsignmentSaleTxnInput = {
+  settlementQuantity?: number | null;
   id: string;
   txnNumber: string;
   type: string;
@@ -410,7 +411,10 @@ export type ClassifiedSource =
  * 盤點減損（負數 adjust）永遠是待確認，因為沒有成交價。
  */
 export function classifyConsignmentSaleTxn(txn: ConsignmentSaleTxnInput): ClassifiedSource {
-  const quantity = Math.abs(txn.quantity);
+  const quantity = txn.settlementQuantity ?? Math.abs(txn.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0 || quantity > Math.abs(txn.quantity)) {
+    throw new Error('非寄賣銷售不可建立月結來源');
+  }
   const reference = txn.orderNumber ?? txn.txnNumber;
   const label = `${txn.productName} × ${quantity}（${reference}）`;
 

@@ -15,6 +15,8 @@ export type InventoryProduct = {
   suggestedQty: number;
   productCategory: string;
   programLabel: '換罐計劃' | null;
+  buyoutQuantity?: number;
+  sponsoredQuantity?: number;
   tiers?: { id: string; label: string; quantity: number }[];
 };
 
@@ -49,7 +51,7 @@ export async function loadMerchantInventory(
         productCategory: true,
         merchantStocks: {
           where: { merchantId },
-          select: { quantity: true, tierId: true },
+          select: { quantity: true, tierId: true, lots: { select: { mode: true, remainingQuantity: true, gift: true } } },
         },
         priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true } },
       },
@@ -69,6 +71,8 @@ export async function loadMerchantInventory(
           style: product.style,
         }),
         quantity,
+        buyoutQuantity: product.merchantStocks.flatMap(stock => stock.lots).filter(lot => lot.mode === 'wholesale').reduce((sum, lot) => sum + lot.remainingQuantity, 0),
+        sponsoredQuantity: product.merchantStocks.flatMap(stock => stock.lots).filter(lot => lot.mode === 'wholesale' && lot.gift).reduce((sum, lot) => sum + lot.remainingQuantity, 0),
         imageUrl: resolveFurmosaProductImage(product.name, product.imageUrl),
         suggestedQty: suggestedRestockQty(quantity),
         productCategory: product.productCategory,
