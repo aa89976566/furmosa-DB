@@ -739,6 +739,7 @@ model Product {
   inventoryDerivedProducts Product[] @relation("JarInventorySource")
 
   vendor                  Vendor?                  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  bundleIngredientFor     ProductBundleComponent[]
   priceTiers              ProductPriceTier[]
   orderItems              OrderItem[]
   inventoryBalances       InventoryBalance[]
@@ -792,6 +793,7 @@ model ProductPriceTier {
   /// 唯一識別鍵；優先沿用規格 SKU，避免服務方案因相同單位而互相衝突。
   variantKey                String  @default("") @map("variant_key")
 
+  bundleComponents ProductBundleComponent[]
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, weightGrams, unit, unitQty, variantKey])
@@ -2120,4 +2122,15 @@ model PurchaseReceiptMetadataChange {
   receipt PurchaseReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
   @@index([receiptId, createdAt])
   @@map("purchase_receipt_metadata_changes")
+}
+
+/// Grams consumed from each ingredient when one selected bundle tier ships.
+model ProductBundleComponent {
+  tierId String
+  componentProductId String
+  gramsPerPack Int
+  tier ProductPriceTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  componentProduct Product @relation(fields: [componentProductId], references: [id], onDelete: Restrict)
+  @@id([tierId, componentProductId])
+  @@index([componentProductId])
 }

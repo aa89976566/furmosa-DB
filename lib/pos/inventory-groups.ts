@@ -5,7 +5,7 @@ export type InventoryGroupId = 'freeze_dried' | 'baked' | 'chicken' | 'fish' | '
 export const INVENTORY_GROUPS: { id: InventoryGroupId | 'all'; label: string }[] = [
   { id: 'all', label: '全部' },
   { id: 'freeze_dried', label: '凍乾' },
-  { id: 'baked', label: '烘烤' },
+  { id: 'baked', label: '肉乾' },
   { id: 'chicken', label: '雞肉' },
   { id: 'fish', label: '魚類' },
   { id: 'other', label: '其他' },
@@ -47,6 +47,8 @@ export function inventoryGroupForProduct(input: {
 
   if (category === 'freeze_dried' || blob.includes('凍乾')) return 'freeze_dried';
   if (blob.includes('烘烤') || blob.includes('烘焙') || blob.includes('烤')) return 'baked';
+  // 使用食品類別補足名稱未寫製程的肉乾；凍乾仍優先。
+  if (category === 'treats') return 'baked';
   if (blob.includes('雞')) return 'chicken';
   if (blob.includes('魚') || blob.includes('鮭') || blob.includes('柳葉')) return 'fish';
   return 'other';

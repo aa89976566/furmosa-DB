@@ -26,6 +26,10 @@ describe('inventoryGroupForProduct', () => {
     assert.equal(inventoryGroupForProduct({ name: '水晶魚' }), 'fish');
     assert.equal(inventoryGroupForProduct({ name: '烘烤雞胸' }), 'baked');
     assert.equal(inventoryGroupForProduct({ name: '鴨肉蘋果' }), 'other');
+    for (const name of ['黃金條｜牛肉地瓜 30g', '豬蛋蛋肉乾', '鴨肺', '雞霸']) {
+      assert.equal(inventoryGroupForProduct({ name, category: 'treats' }), 'baked');
+    }
+    assert.equal(inventoryGroupForProduct({ name: '雞肉丁凍乾', category: 'treats' }), 'freeze_dried');
   });
 });
 
@@ -59,6 +63,8 @@ describe('POS inventory and counter visibility', () => {
     assert.match(source, /productCategory: 'JAR_EXCHANGE',[\s\S]*jarExchangeEnabled: true/);
     assert.match(source, /productCategory: 'STANDARD'/);
     assert.match(source, /merchantStocks: \{ some: \{ merchantId \} \}/);
+    assert.match(source, /canOrderConsignment \? \[\{ consignmentEnabled: true \}\]/);
+    assert.match(source, /merchantTypes.includes\('consignment'\)/);
     assert.match(source, /merchantRules: \{ some: \{ merchantId \} \}/);
   });
 });
