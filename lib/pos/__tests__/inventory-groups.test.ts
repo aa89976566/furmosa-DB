@@ -54,9 +54,9 @@ describe('POS inventory and counter visibility', () => {
     assert.equal(hasSellableCounterStock(Number.NaN), false);
   });
 
-  it('keeps every active jar-exchange product in store inventory', () => {
+  it('only keeps explicitly enabled jar-exchange products in store inventory', () => {
     const source = readFileSync('lib/pos/load-inventory.ts', 'utf8');
-    assert.match(source, /\{ productCategory: 'JAR_EXCHANGE' \}/);
+    assert.match(source, /productCategory: 'JAR_EXCHANGE',[\s\S]*jarExchangeEnabled: true/);
     assert.match(source, /productCategory: 'STANDARD'/);
     assert.match(source, /merchantStocks: \{ some: \{ merchantId \} \}/);
     assert.match(source, /merchantRules: \{ some: \{ merchantId \} \}/);
