@@ -153,8 +153,8 @@ function shortShipmentNumber(value: string) {
 
 function rowLabel(s: ShipmentQueueRow) {
   return (
-    s.order?.orderNumber ||
     s.order?.displayOrderNumber ||
+    s.order?.orderNumber ||
     s.subscriptionShipment?.subscription?.subscriptionNo ||
     s.subscriptionShipment?.shipmentNo ||
     s.shipmentNumber
