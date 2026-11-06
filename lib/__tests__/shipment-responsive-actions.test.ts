@@ -162,13 +162,13 @@ describe('出貨工作區介面', () => {
       /setConfirmNext/,
     );
 
-    const startBranch = table.match(/if \\(phase === 'start'\\) \\{([\\s\\S]*?)return;/)?.[1] ?? '';
+    const startBranch = table.match(/if \(phase === 'start'\) \{([\s\S]*?)return;/)?.[1] ?? '';
     assert.doesNotMatch(startBranch, /setOptimisticHidden/);
-    assert.match(table, /if \\(phase === 'success'\\) \\{\\s*setOptimisticHidden/);
-    assert.match(control, /if \\(requestInFlight.current\\) return/);
-    assert.match(control, /disabled=\\{active \\|\\| pending \\|\\| busy\\}/);
+    assert.match(table, /if \(phase === 'success'\) \{\s*setOptimisticHidden/);
+    assert.match(control, /if \(requestInFlight.current\) return/);
+    assert.match(control, /disabled=\{active \|\| pending \|\| busy\}/);
     assert.match(control, /actionError && !confirmNext/);
-    assert.match(control, /catch \\{[\\s\\S]*onOptimisticChange\\?\\.\\('error', message\\)/);
+    assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
     assert.match(table, /optimisticHidden/);
     assert.match(table, /filter\(\(shipment\) => !optimisticHidden\.has\(shipment\.id\)\)/);
     assert.match(table, /已標記寄出 · 已移到已寄出／待確認到貨/);
