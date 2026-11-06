@@ -76,6 +76,7 @@ export async function ensureMooncakeProduct(db: Db) {
           weightGrams: MOONCAKE_CATALOG.weightGrams,
           unit: MOONCAKE_CATALOG.unit,
           unitQty: 1,
+          variantKey: '',
         },
       },
       update: {},
