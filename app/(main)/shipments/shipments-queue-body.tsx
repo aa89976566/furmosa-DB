@@ -152,30 +152,6 @@ type ShipmentQueueEnrichment = {
   balanceByProductId: Map<string, QueueBalance>;
 };
 
-async function loadShipmentQueuePage(
-  where: Prisma.ShipmentWhereInput,
-): Promise<ShipmentQueueRecord[]> {
-  const page = await prisma.shipment.findMany({
-    where,
-    select: { id: true },
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    take: SHIPMENT_QUEUE_TAKE,
-  });
-  if (page.length === 0) return [];
-
-  const ids = page.map((shipment) => shipment.id);
-  const shipments = await prisma.shipment.findMany({
-    where: { id: { in: ids } },
-    include: shipmentInclude,
-  });
-  const shipmentById = new Map(shipments.map((shipment) => [shipment.id, shipment]));
-
-  return ids.flatMap((id) => {
-    const shipment = shipmentById.get(id);
-    return shipment ? [shipment] : [];
-  });
-}
-
 function indexShipmentQueueEnrichment(
   tiers: QueueTier[],
   balances: QueueBalance[],
@@ -399,7 +375,12 @@ export async function ShipmentsQueueBody({
   try {
     const [loadedShipments, counts] = await Promise.all([
       perf.measure('findMany', () =>
-        loadShipmentQueuePage(where),
+        prisma.shipment.findMany({
+          where,
+          include: shipmentInclude,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          take: SHIPMENT_QUEUE_TAKE,
+        }),
       ),
       perf.measure('counts', () => getShipmentQueueCounts(countWhere)),
     ]);

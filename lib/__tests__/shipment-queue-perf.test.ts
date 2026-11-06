@@ -253,15 +253,6 @@ async function flushMicrotasks() {
 }
 
 describe('shipment queue performance diagnostics', () => {
-  it('loads the bounded queue ids before fetching detailed relations', () => {
-    const source = readFileSync(BODY_PATH, 'utf8');
-    assert.match(source, /select: \{ id: true \}/);
-    assert.match(source, /take: SHIPMENT_QUEUE_TAKE/);
-    assert.match(source, /where: \{ id: \{ in: ids \} \}/);
-    assert.match(source, /return ids\.flatMap/);
-    assert.match(source, /loadShipmentQueuePage\(where\)/);
-  });
-
   it('missing or wrong flags keep diagnostics off and skip header reads', () => {
     const cases: Array<{ vercel?: string; flag?: string }> = [
       {},
@@ -783,10 +774,13 @@ describe('shipment queue performance diagnostics', () => {
     assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 2);
     assert.match(parallel, /perf\.measure\('findMany'/);
     assert.match(parallel, /perf\.measure\('counts'/);
-    assert.match(parallel, /loadShipmentQueuePage\(where\)/);
+    assert.match(
+      parallel,
+      /prisma\.shipment\.findMany\(\{\s*where,\s*include:\s*shipmentInclude,\s*orderBy:\s*\[\{\s*status:\s*'asc'\s*\},\s*\{\s*createdAt:\s*'desc'\s*\}\],\s*take:\s*SHIPMENT_QUEUE_TAKE,\s*\}\)/,
+    );
     assert.match(parallel, /getShipmentQueueCounts\(countWhere\)/);
     assert.equal(parallel.indexOf('findMany') < parallel.indexOf('getShipmentQueueCounts'), true);
-    assert.equal(parallel.includes('await prisma.shipment.findMany'), false);
+    assert.equal(body.includes('await prisma.shipment.findMany'), false);
     assert.equal(body.includes('await getShipmentQueueCounts'), false);
     assert.match(body, /shipments\.map\(\(s\) => s\.orderId\)/);
     assert.match(enrichment, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
