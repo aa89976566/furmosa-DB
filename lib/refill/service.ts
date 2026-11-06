@@ -20,12 +20,16 @@ import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
  * here: a pending order must not make an existing customer fall back to the
  * NT$129 first-jar price on refresh.
  */
+export function refillJarOwnershipWhere(customerId: string) {
+  return {
+    redeemedByCustomerId: customerId,
+    status: { in: ['used', 'issued'] as const },
+  };
+}
+
 export async function countIssuedJars(customerId: string): Promise<number> {
   return prisma.jarCode.count({
-    where: {
-      redeemedByCustomerId: customerId,
-      status: { in: ['used', 'issued'] },
-    },
+    where: refillJarOwnershipWhere(customerId),
   });
 }
 
