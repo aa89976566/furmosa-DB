@@ -15,6 +15,8 @@ let username;
 let password;
 let hqEmail;
 let hqPassword;
+let merchantCode;
+let merchantName;
 
 test.beforeAll(async ({}, testInfo) => {
   const suffix = `${testInfo.project.name}-${randomUUID()}`;
@@ -26,8 +28,10 @@ test.beforeAll(async ({}, testInfo) => {
     email: hqEmail, name: 'CI隔離HQ管理員', role: 'admin',
     passwordHash: await bcrypt.hash(hqPassword, 10),
   }});
+  merchantCode = `CI-${suffix}`;
+  merchantName = `CI隔離測試店-${suffix}`;
   const merchant = await db.merchant.create({ data: {
-    merchantId: `CI-${suffix}`, name: 'CI隔離測試店', commissionRate: 0.2,
+    merchantId: merchantCode, name: merchantName, commissionRate: 0.2,
   }});
   merchantId = merchant.id;
   await db.merchantUser.create({ data: {
@@ -96,6 +100,15 @@ test('merchant service pages expose usable controls without creating business re
   ]) {
     await test.step(path, async () => {
       await page.goto(path);
+      if (path === '/pos/coupons') {
+        await expect(page.getByRole('heading', { name: '尚未開通美容券核銷', exact: true })).toBeVisible();
+        // Bind only this synthetic CI merchant; never bypass store resolution.
+        await db.store.create({ data: {
+          slug: merchantCode.trim().toLowerCase().replace(/-/g, '_'),
+          name: merchantName, secretToken: randomUUID(),
+        }});
+        await page.reload();
+      }
       await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
       if (path === '/pos/stock') await expect(page.getByRole('button', { name: /CI測試雞霸/ })).toBeVisible();
       if (path === '/pos/coupons') await expect(page.getByRole('button', { name: '核對折價券', exact: true })).toBeDisabled();
