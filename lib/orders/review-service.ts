@@ -17,6 +17,7 @@ export type ReviewResult = {
   blockers: string[];
   kind: ReviewResultKind;
   next: { label: string; href: string } | null;
+  uncertain?: boolean;
 };
 
 export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
@@ -37,7 +38,7 @@ export class ReviewError extends Error {
   }
 }
 export type ReviewCommand = { orderId: string; actorId: string; sourceHash: string;
-  action: ReviewAction; draft?: ReviewDraft; sourceOnly?: boolean };
+  action: ReviewAction; draft?: ReviewDraft; sourceOnly?: boolean; pendingShipmentReview?: boolean };
 
 const shippingNext = (label: string) => ({ label, href: '#oms-shipping' });
 const paymentPendingNotes = [
@@ -88,8 +89,18 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     const existingOmsShipment = activeShipments.find(
       s => s.shipmentNumber === shipmentBase || s.shipmentNumber.startsWith(`${shipmentBase}-R`),
     );
+    const recoveringPending = Boolean(command.pendingShipmentReview && command.sourceOnly &&
+      order.omsStatus === 'FULFILLMENT_PENDING' && order.status === 'confirmed' && !order.archivedAt &&
+      (!order.omsReviewedAt || !order.omsReviewedById) && activeShipments.length === 1 &&
+      activeShipments[0].status === 'pending' && (command.action === 'check' || command.action === 'approve'));
+    const recoveryShipment = recoveringPending ? activeShipments[0] : null;
+    if (command.pendingShipmentReview && !recoveringPending) throw new ReviewError('僅能重新核對審核紀錄缺失、尚未寄出的單一出貨單', { kind: 'blocked' });
+    if (recoveryShipment && typeof tx.$queryRaw === 'function') {
+      const rows = await tx.$queryRaw<Array<{ status: string }>>`SELECT status FROM "Shipment" WHERE id = ${recoveryShipment.id} FOR UPDATE`;
+      if (rows[0]?.status !== 'pending') throw new ReviewError('出貨狀態已變更，請重新整理', { kind: 'blocked' });
+    }
     if (
-      existingOmsShipment &&
+      !recoveringPending && existingOmsShipment &&
       order.omsStatus === 'FULFILLMENT_PENDING' &&
       (command.action === 'ship' || command.action === 'approve')
     ) {
@@ -102,8 +113,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(existingOmsShipment.id)}` },
       });
     }
-    if (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
-      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || activeShipments.length) {
+    if (!recoveringPending && (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
+      ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || activeShipments.length)) {
       throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核', { kind: 'error' });
     }
     // Conflicting same-version payload must be reconciled at source, not cleared by a reviewer.
@@ -135,7 +146,12 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       ] },
       include: {
         inventoryBalances: { include: { warehouse: true } },
-        priceTiers: true,
+        priceTiers: { select: {
+          id: true, weightGrams: true, unit: true, unitQty: true, price: true, cost: true,
+          notes: true, sku: true, shopifyVariantId: true, shopifySku: true, status: true,
+          defaultWholesaleUnitPrice: true, defaultConsignmentCommissionMode: true,
+          defaultConsignmentCommissionValue: true,
+        } },
         vendor: {
           select: { id: true, supplierConsignmentEnabled: true, furmosaShareBps: true },
         },
@@ -200,14 +216,35 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       // Stock remains an advisory for the warehouse, never a reason to lose a confirmed order.
       result.issues = [...checkShopifySource(snapshot, Boolean(duplicate), draft.duplicateConfirmed, draft), ...result.plan.issues.filter(issue => issue.code === 'PRODUCT_UNMAPPED' || issue.code === 'ORDER_CHANGED')];
     }
+    if (recoveryShipment) {
+      const pendingItems = await tx.shipmentItem.findMany({ where: { shipmentId: recoveryShipment.id } });
+      const signature = (lines: Array<{ productId: string; quantity: number; weightGrams?: number | null; variantKey?: string | null }>) => {
+        const totals = new Map<string, number>();
+        for (const line of lines) {
+          const key = JSON.stringify([line.productId, line.weightGrams ?? null, line.variantKey ?? null]);
+          totals.set(key, (totals.get(key) ?? 0) + Number(line.quantity));
+        }
+        return JSON.stringify([...totals].sort(([a], [b]) => a.localeCompare(b)));
+      };
+      if (signature(result.items) !== signature(pendingItems) ||
+          (recoveryShipment.recipientName ?? '').trim() !== draft.recipient.trim() ||
+          (recoveryShipment.recipientPhone ?? '').trim() !== draft.phone.trim() ||
+          (recoveryShipment.recipientAddress ?? '').trim() !== draft.address.trim()) {
+        throw new ReviewError('既有出貨品項、規格、數量或收件資料與重新檢查結果不同，請先核對出貨單', { kind: 'blocked' });
+      }
+      if (command.action === 'approve' && (saved.pendingShipmentReview !== true || saved.shipmentId !== recoveryShipment.id)) {
+        throw new ReviewError('請先重新檢查這張既有出貨單', { kind: 'blocked' });
+      }
+    }
     const now = new Date();
     if (command.action === 'check') {
-      await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'REVIEW',
+      await tx.order.update({ where: { id: order.id }, data: { omsStatus: recoveringPending ? 'FULFILLMENT_PENDING' : 'REVIEW',
         omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now,
         omsCheckedSourceUpdatedAt: order.shopifySourceUpdatedAt, omsReviewedAt: null, omsReviewedById: null } });
       await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id,
         previousStatus: order.omsStatus, newStatus: 'REVIEW', actorType: 'user', actorId: actor.id,
         metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft,
+          ...(recoveryShipment ? { pendingShipmentReview: true, shipmentId: recoveryShipment.id } : {}),
           reviewMode: command.sourceOnly ? SOURCE_REVIEW_VERSION : undefined,
           planVersion: result.plan.planVersion, rulesVersion: result.plan.rulesVersion,
           fulfillmentPlan: result.plan.frozen }) } });
@@ -225,12 +262,27 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (command.action === 'approve' && order.omsStatus === 'READY' && order.omsReviewedAt && order.omsReviewedById) {
       return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
     }
-    const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' ? 'REVIEW' : order.omsStatus,
+    const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' || recoveringPending ? 'REVIEW' : order.omsStatus,
       issues: result.issues, checkedAt: order.omsCheckedAt, checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
       sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) },
       command.action === 'ship' ? 'ship' : 'review');
     if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
     const awaitingPayment = result.issues.some(issue => issue.code === 'PAYMENT_PENDING');
+
+    if (recoveryShipment) {
+      if (awaitingPayment) throw new ReviewError('付款尚未完成，不能確認出貨', { kind: 'blocked' });
+      await tx.order.update({ where: { id: order.id }, data: {
+        omsReviewedAt: now, omsReviewedById: actor.id,
+        omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now,
+      } });
+      await tx.statusAuditLog.create({ data: { entityType: 'order', entityId: order.id,
+        previousStatus: order.omsStatus, newStatus: 'FULFILLMENT_PENDING', actorType: 'user', actorId: actor.id,
+        metadataJson: JSON.stringify({ action: 'reapprove_pending_shipment', sourceHash: command.sourceHash,
+          reviewAuditId: audit!.id, shipmentId: recoveryShipment.id }) } });
+      return emptyReviewResult({ ok: true, action: 'approve', message: '已重新確認既有出貨單，可以回到出貨列表標記寄出',
+        omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
+        next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(recoveryShipment.id)}` } });
+    }
 
     // Shopify orders with a clean, paid review enter the HQ shipment queue in the
     // same atomic confirmation. Exceptions (including payment pending) remain in
@@ -279,6 +331,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, variantKey, notes }) => (
           { productId, productName, sku, quantity, weightGrams, unit, variantKey, notes })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
+        omsReviewedAt: order.omsReviewedAt ?? now, omsReviewedById: order.omsReviewedById ?? actor.id,
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });
     }

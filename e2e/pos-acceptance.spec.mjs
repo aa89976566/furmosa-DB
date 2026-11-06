@@ -208,3 +208,101 @@ test('empty merchant catalog remains a failure with a precise code', async ({ pa
   await expect(page.getByText('這間店還沒有可結帳的寄賣商品。', { exact: true })).toBeVisible();
   await expect(checkPosSearch(page)).rejects.toThrow('POS_CATALOG_EMPTY');
 });
+
+
+for (const orderMode of ['legacy', 'shopify-oms']) {
+test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual reload`, async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const suffix = randomUUID();
+  const wh = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'CI HQ' } });
+  const product = await db.product.create({ data: {
+    productId: suffix, sku: suffix, name: 'CI dispatch count fixture', category: 'freeze_dried', unit: 'g', price: 100, defaultTemperature: 'ambient',
+    priceTiers: { create: { weightGrams: 30, unit: 'g', unitQty: 1, price: 100, status: 'active', sku: suffix, shopifySku: suffix } },
+    inventoryBalances: { create: { warehouseId: wh.id, quantity: 100, unit: 'g', lastCountedAt: new Date() } },
+  }, include: { priceTiers: true } });
+  const orderNumber = `CI-DISPATCH-${suffix}`;
+  const actor = await db.user.findUniqueOrThrow({ where: { email: hqEmail } });
+  const sourceDate = new Date();
+  const omsEvidence = orderMode === 'shopify-oms' ? {
+    source: 'shopify', externalStore: `${suffix}.myshopify.com`, externalOrderId: BigInt(`0x${suffix.replace(/-/g, '')}`).toString(),
+    externalOrderName: orderNumber, omsStatus: 'FULFILLMENT_PENDING', omsIssueFlags: [],
+    omsCheckedAt: sourceDate, omsCheckedSourceUpdatedAt: sourceDate, shopifySourceUpdatedAt: sourceDate,
+    omsReviewedAt: sourceDate, omsReviewedById: actor.id, shippingMethod: 'home',
+    shopifySnapshot: { schemaVersion: 1, order: {
+      id: BigInt(`0x${suffix.replace(/-/g, '')}`).toString(), name: orderNumber, currency: 'TWD',
+      created_at: sourceDate.toISOString(), updated_at: sourceDate.toISOString(), financial_status: 'paid',
+      subtotal_price: '100.00', total_discounts: '0.00', total_price: '100.00',
+      total_shipping_price_set: { shop_money: { amount: '0.00' } },
+      line_items: [{ sku: suffix, title: product.name, quantity: 1, price: '100.00', requires_shipping: true }],
+      shipping_address: { name: 'CI dispatch recipient', phone: '0900000000', address1: 'CI isolated address' },
+      shipping_lines: [{ title: '宅配', code: 'HOME' }], note_attributes: [],
+    } },
+  } : { source: 'manual' };
+  const order = await db.order.create({ data: { orderNumber, ...omsEvidence, status: 'confirmed', paymentStatus: 'paid', subtotal: 100, total: 100 } });
+  const shipment = await db.shipment.create({ data: {
+    shipmentNumber: `CI-SHIP-${suffix}`, type: 'customer_order', status: 'pending', orderId: order.id,
+    recipientName: 'CI dispatch recipient', recipientPhone: '0900000000', recipientAddress: 'CI isolated address', carrier: '黑貓',
+    items: { create: { productId: product.id, productName: product.name, sku: product.sku, quantity: 1, weightGrams: 30, unit: 'g', variantKey: product.priceTiers[0].id } },
+  }});
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(hqEmail);
+  await page.getByLabel('密碼', { exact: true }).fill(hqPassword);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '營運首頁', exact: true })).toBeVisible();
+  await page.goto('/shipments?status=pending&type=customer_order');
+  const stages = page.getByRole('navigation', { name: '出貨階段', exact: true });
+  const pending = stages.getByRole('link', { name: /^待出貨/ }).locator('span').last();
+  const shippedLink = stages.getByRole('link', { name: /^已寄出／待確認到貨/ });
+  const shipped = shippedLink.locator('span').last();
+  await expect(pending).toHaveText(/^\d+$/);
+  const pendingBefore = Number(await pending.innerText());
+  const shippedBefore = Number(await shipped.innerText());
+  const row = testInfo.project.name === 'mobile'
+    ? page.locator('.md\\:hidden').locator('div.cursor-pointer').filter({ hasText: orderNumber })
+    : page.getByRole('row').filter({ hasText: orderNumber });
+  await expect(row).toBeVisible();
+  const statusApi = `**/api/shipments/${shipment.id}/status`;
+  if (orderMode === 'shopify-oms') {
+    // Real deferred database gate: an actionable status alone cannot prove review.
+    await db.order.update({ where: { id: order.id }, data: { omsReviewedAt: null } });
+  } else {
+    await page.route(statusApi, route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'CI 審核阻擋測試' }) }));
+  }
+  await row.getByRole('button', { name: '已寄出', exact: true }).click();
+  await expect(row.getByRole('alert')).toContainText(orderMode === 'shopify-oms' ? 'OMS 人工審核' : 'CI 審核阻擋測試');
+  await expect(pending).toHaveText(String(pendingBefore));
+  expect((await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } })).status).toBe('pending');
+  expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(0);
+  if (orderMode === 'shopify-oms') {
+    await page.goto(`/orders/${order.id}`);
+    await page.getByRole('button', { name: '重新檢查出貨內容', exact: true }).click();
+    await expect(page.getByText('檢查通過，可以確認訂單', { exact: true }).filter({ visible: true }).last()).toBeVisible();
+    await page.getByRole('button', { name: '確認既有出貨單', exact: true }).click();
+    await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsReviewedAt)).toBe(true);
+    const reviewed = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(reviewed.omsReviewedAt).not.toBeNull();
+    expect(reviewed.omsReviewedById).toBe(actor.id);
+    expect(reviewed.omsStatus).toBe('FULFILLMENT_PENDING');
+    expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(1);
+    expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(0);
+    await page.goto('/shipments?status=pending&type=customer_order');
+  } else {
+    await page.unroute(statusApi);
+  }
+  const savedResponse = page.waitForResponse(response => response.url().endsWith(`/api/shipments/${shipment.id}/status`) && response.request().method() === 'POST');
+  await row.getByRole('button', { name: '已寄出', exact: true }).click();
+  expect((await savedResponse).status()).toBe(200);
+  // These assertions retry across the server refresh; never reload to hide a stale-count bug.
+  await expect(pending).toHaveText(String(pendingBefore - 1));
+  await expect(shipped).toHaveText(String(shippedBefore + 1));
+  await expect(row).toHaveCount(0);
+  expect((await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } })).status).toBe('shipped');
+  expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(1);
+  await shippedLink.click();
+  await expect(page.getByText(orderNumber, { exact: true }).filter({ visible: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(orderNumber, { exact: true }).filter({ visible: true })).toBeVisible();
+  expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(1);
+});
+}
+

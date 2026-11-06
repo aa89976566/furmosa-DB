@@ -5,6 +5,27 @@ type MemoryEntry = { value: unknown; expiresAt: number };
 
 const memoryStore = new Map<string, MemoryEntry>();
 
+/** Cache is optional: a stalled remote cache must never hold a saved mutation open. */
+export async function withCacheDeadline<T>(
+  operation: () => Promise<T>,
+  timeoutMs = 1000,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          console.warn('[runtime-cache] operation timed out');
+          reject(new Error('RUNTIME_CACHE_TIMEOUT'));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** 僅允許 JSON 可往返的純資料進入 Runtime Cache（避免 Date／Decimal／BigInt 搞壞 RSC） */
 function toPlainJson<T>(value: T): T | null {
   try {
@@ -36,7 +57,7 @@ export async function withRuntimeCache<T>(
 
   if (cache) {
     try {
-      const hit = await cache.get(key);
+      const hit = await withCacheDeadline(() => cache.get(key));
       if (hit !== undefined && hit !== null) {
         return hit as T;
       }
@@ -58,11 +79,11 @@ export async function withRuntimeCache<T>(
 
   if (cache) {
     try {
-      await cache.set(key, plain, {
+      await withCacheDeadline(() => cache.set(key, plain, {
         ttl: options.ttlSeconds,
         tags: options.tags,
         name: options.name ?? key,
-      });
+      }));
     } catch {
       // 寫入失敗不影響回應
     }
@@ -79,6 +100,7 @@ export async function withRuntimeCache<T>(
 
 /** 同時失效 Next Data Cache tag 與 Runtime Cache tag */
 export async function bustCacheTags(...tags: CacheTag[]) {
+  memoryStore.clear();
   for (const tag of tags) {
     try {
       revalidateTag(tag);
@@ -90,7 +112,7 @@ export async function bustCacheTags(...tags: CacheTag[]) {
   const cache = await tryGetCache();
   if (cache) {
     try {
-      await cache.expireTag(tags);
+      await withCacheDeadline(() => cache.expireTag(tags));
     } catch {
       // ignore
     }

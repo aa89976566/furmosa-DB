@@ -30,6 +30,13 @@ test("未知錯誤保留原始訊息", () => {
   );
 });
 
+test("延後約束錯誤中的 OMS 原因不被 Prisma 呼叫資訊截斷", () => {
+  assert.equal(
+    shipmentStatusErrorMessage(new Error('Invalid Prisma raw invocation ' + 'context '.repeat(50) + 'HQ 出貨尚未通過 OMS 人工審核')),
+    "無法寄出：OMS 人工審核紀錄不完整或已失效，請到訂單頁重新檢查並確認審核。",
+  );
+});
+
 test("狀態未持久化時阻止前端顯示成功", () => {
   assert.doesNotThrow(() =>
     assertShipmentStatusPersisted("shipped", "shipped"),

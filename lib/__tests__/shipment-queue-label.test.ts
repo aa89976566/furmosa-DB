@@ -15,7 +15,17 @@ const partyLabel = new Function('s', partyMatch[1]) as (
   shipment: Record<string, unknown>,
 ) => string;
 
-test('有訂單時第一欄永遠顯示訂單編號', () => {
+test('Shopify 訂單顯示顧客可辨識的外部訂單編號', () => {
+  assert.equal(
+    orderLabel({
+      order: { orderNumber: 'SHOP-123-456', displayOrderNumber: '#1050' },
+      shipmentNumber: 'SHP-001',
+    }),
+    '#1050',
+  );
+});
+
+test('顯示欄位誤帶出貨編號時仍顯示原訂單編號', () => {
   assert.equal(
     orderLabel({
       type: 'customer_order',

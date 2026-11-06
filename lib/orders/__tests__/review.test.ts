@@ -161,7 +161,7 @@ function fakeDb(source = snapshot) {
         sku: 'A', shopifyVariantId: null, shopifySku: 'A', status: 'active',
       }],
     }] },
-    shipmentItem: { findMany: async () => [] },
+    shipmentItem: { findMany: async ({ where }: any = {}) => where?.shipmentId ? (order.shipments.find((s: any) => s.id === where.shipmentId)?.items?.create ?? []) : [] },
     orderItem: { deleteMany: async () => ({}), createMany: async () => ({}) },
     shipment: {
       create: async ({ data }: any) => {
@@ -277,6 +277,8 @@ describe('OMS review transaction contract', () => {
     const approved = await f.run('approve', { sourceOnly: true, draft: formDraft });
     assert.equal(approved.ok, true);
     assert.equal(approved.action, 'ship');
+    assert.ok(f.order.omsReviewedAt instanceof Date, 'atomic approval must persist its review time');
+    assert.equal(f.order.omsReviewedById, 'u1', 'atomic approval must persist the authenticated reviewer');
     assert.equal(approved.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.shipmentCreates, 1);
@@ -569,4 +571,46 @@ it('uses product default temperature for shipping when Shopify has no temperatur
   }] as any);
   assert.equal(sourceDraft.temperature, 'ambient');
   assert.equal(sourceDraft.lines[0]?.temperature, 'ambient');
+});
+
+test('pending OMS shipment can be genuinely rechecked and approved without creating another shipment', async () => {
+  const f = fakeDb();
+  const command = { sourceOnly: true, draft: { ...draft, lines: [], temperature: '' } };
+  await f.run('check', command);
+  await f.run('approve', command);
+  const shipmentId = f.order.shipments[0].id;
+  f.order.omsReviewedAt = null;
+  f.order.omsReviewedById = null;
+  await assert.rejects(f.run('approve', { ...command, pendingShipmentReview: true }), /請先重新檢查/);
+  const checked = await f.run('check', { ...command, pendingShipmentReview: true });
+  assert.equal(checked.ok, true);
+  assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+  assert.equal(f.order.shipments[0].status, 'pending');
+  assert.equal(f.order.omsReviewedAt, null, 'checking cannot approve');
+  const approved = await f.run('approve', { ...command, pendingShipmentReview: true });
+  assert.equal(approved.ok, true);
+  assert.equal(f.order.omsReviewedById, 'u1');
+  assert.ok(f.order.omsReviewedAt instanceof Date);
+  assert.equal(f.shipmentCreates, 1);
+  assert.equal(f.order.shipments[0].id, shipmentId);
+  assert.equal(f.order.shipments[0].status, 'pending');
+  assert.ok(f.audits.some(a => a.metadataJson?.includes('reapprove_pending_shipment')));
+});
+
+test('rechecking cannot approve changed shipment quantities or an already shipped task', async () => {
+  const f = fakeDb();
+  const command = { sourceOnly: true, draft: { ...draft, lines: [], temperature: '' } };
+  await f.run('check', command);
+  await f.run('approve', command);
+  f.order.omsReviewedAt = null;
+  f.order.omsReviewedById = null;
+  f.order.shipments[0].items.create[0].quantity += 1;
+  await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /既有出貨品項/);
+  assert.equal(f.order.omsReviewedAt, null);
+  f.order.shipments[0].status = 'shipped';
+  await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /僅能重新核對/);
+  f.order.shipments[0].status = 'pending';
+  f.order.shipments.push({ ...f.order.shipments[0], id: 'second-pending' });
+  await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /僅能重新核對/);
+  assert.equal(f.shipmentCreates, 1);
 });

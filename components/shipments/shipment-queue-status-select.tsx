@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
   markShipmentStatus,
-  markShipmentStatusFromQueue,
 } from '@/app/(main)/shipments/actions';
+import { requestShipmentQueueStatus } from '@/lib/shipment-queue-request';
 import { JIBA_PAYMENT_REVIEW_LABEL } from '@/lib/campaigns/jiba-two-piece/payment';
 import { cn } from '@/lib/utils';
 
@@ -136,7 +136,6 @@ export function ShipmentQueueStatusSelect({
     'pending' | 'shipped' | 'delivered' | 'received' | 'cancelled' | null
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [isSubmitting, startTransition] = useTransition();
 
   function closeConfirmation() {
     if (isSubmitting) return;
@@ -144,12 +143,23 @@ export function ShipmentQueueStatusSelect({
     setActionError(null);
   }
 
-  function runStatusChange(formData: FormData, optimisticDispatch = false) {
+  const requestInFlight = useRef(false);
+  const [requestPending, setRequestPending] = useState(false);
+  const isSubmitting = requestPending;
+  const [resultUncertain, setResultUncertain] = useState(false);
+  const [dispatchConfirmed, setDispatchConfirmed] = useState(false);
+  useEffect(() => { setDispatchConfirmed(false); }, [status, queueStatus]);
+
+  async function runStatusChange(formData: FormData, optimisticDispatch = false) {
+    if (requestInFlight.current || dispatchConfirmed || resultUncertain) return;
+    requestInFlight.current = true;
+    setRequestPending(true);
     setActionError(null);
     if (optimisticDispatch) onOptimisticChange?.('start');
-    startTransition(async () => {
-      const result = await markShipmentStatusFromQueue(formData);
+      try {
+      const result = await requestShipmentQueueStatus(formData);
       if (!result.ok) {
+        setResultUncertain(Boolean(result.uncertain));
         setActionError(result.error);
         if (optimisticDispatch) onOptimisticChange?.('error', result.error);
         return;
@@ -157,11 +167,12 @@ export function ShipmentQueueStatusSelect({
 
       setConfirmNext(null);
 
-      // High-frequency dispatch stays in place: the parent removes the row
-      // optimistically, while refresh reconciles counts and server truth.
+      // Navigate with a document GET instead of waiting on a stuck RSC refresh.
+      // A saved dispatch cannot be submitted again.
       if (result.next === 'shipped' && queueStatus) {
+        setDispatchConfirmed(true);
         if (optimisticDispatch) onOptimisticChange?.('success');
-        router.refresh();
+        window.location.assign(window.location.href);
         return;
       }
 
@@ -172,7 +183,14 @@ export function ShipmentQueueStatusSelect({
       if (result.next === 'delivered') params.set('delivered', '1');
       router.replace(`/shipments?${params.toString()}`);
       router.refresh();
-    });
+      } catch {
+        const message = '連線中斷，請重新整理確認出貨狀態後再操作';
+        setActionError(message);
+        if (optimisticDispatch) onOptimisticChange?.('error', message);
+      } finally {
+        requestInFlight.current = false;
+        setRequestPending(false);
+      }
   }
 
   function submitStatus(event: FormEvent<HTMLFormElement>) {
@@ -215,6 +233,8 @@ export function ShipmentQueueStatusSelect({
               key={option.value}
               option={option}
               active={active}
+              busy={requestPending || dispatchConfirmed}
+              locked={resultUncertain}
               onConfirmStatus={
                 option.value === 'shipped' &&
                 (status === 'pending' || status === 'packed')
@@ -239,6 +259,16 @@ export function ShipmentQueueStatusSelect({
         <p className="text-[11px] leading-snug text-amber-700" role="status">
           庫存提醒：{inventoryWarnings.join('；')}
         </p>
+      ) : null}
+      {actionError && !confirmNext ? (
+        <p role="alert" className="text-xs font-medium text-red-700">
+          無法更新出貨狀態：{actionError}
+        </p>
+      ) : null}
+      {resultUncertain ? (
+        <button type="button" className="min-h-11 text-sm underline" onClick={() => window.location.assign(window.location.href)}>
+          重新讀取訂單
+        </button>
       ) : null}
     </form>
     {confirmNext && typeof document !== 'undefined'
@@ -327,10 +357,14 @@ export function ShipmentQueueStatusSelect({
 function QueueStatusSubmitButton({
   option,
   active,
+  busy = false,
+  locked = false,
   onConfirmStatus,
 }: {
   option: { value: string; label: string };
   active: boolean;
+  busy?: boolean;
+  locked?: boolean;
   onConfirmStatus?: () => void;
 }) {
   const { pending } = useFormStatus();
@@ -339,7 +373,7 @@ function QueueStatusSubmitButton({
       type={onConfirmStatus ? 'button' : 'submit'}
       name={onConfirmStatus ? undefined : 'next'}
       value={option.value}
-      disabled={active || pending}
+      disabled={active || pending || busy || locked}
       aria-pressed={active}
       onClick={onConfirmStatus}
       className={cn(
@@ -351,7 +385,7 @@ function QueueStatusSubmitButton({
         statusChipClass(active),
       )}
     >
-      {pending && !active ? '處理中…' : option.label}
+      {(pending || busy) && !active ? '處理中…' : option.label}
     </button>
   );
 }

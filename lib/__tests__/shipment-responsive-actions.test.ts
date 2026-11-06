@@ -28,7 +28,7 @@ describe('出貨工作區介面', () => {
 
     assert.match(source, /const STAGE_TABS =/);
     assert.match(source, /label: '待出貨'/);
-    assert.match(source, /label: '運送中'/);
+    assert.match(source, /label: '已寄出／待確認到貨'/);
     assert.match(source, /label: '待驗收'/);
     assert.match(source, /label: '已完成'/);
     assert.match(source, /aria-label="出貨階段"/);
@@ -140,7 +140,7 @@ describe('出貨工作區介面', () => {
     );
   });
 
-  it('待出貨標記已寄出後立即原地移除，不開確認視窗也不自動切頁', () => {
+  it('待出貨標記已寄出成功後原地移除，不開確認視窗也不自動切頁', () => {
     const control = readFileSync(
       'components/shipments/shipment-queue-status-select.tsx',
       'utf8',
@@ -162,10 +162,19 @@ describe('出貨工作區介面', () => {
       /setConfirmNext/,
     );
 
-    assert.match(table, /optimisticHidden/);
-    assert.match(table, /filter\(\(shipment\) => !optimisticHidden\.has\(shipment\.id\)\)/);
-    assert.match(table, /已標記寄出 · 已移到運送中/);
-    assert.match(table, /next\.delete\(shipmentId\)/);
+    const startBranch = table.match(/if \(phase === 'start'\) \{([\s\S]*?)return;/)?.[1] ?? '';
+    assert.doesNotMatch(startBranch, /setOptimisticHidden/);
+    assert.doesNotMatch(table, /optimisticHidden|setOptimisticHidden/);
+    assert.match(table, /shipments\.map\(buildQueueRowView\)/);
+    assert.match(control, /if \(requestInFlight.current \|\| dispatchConfirmed \|\| resultUncertain\) return/);
+    assert.match(control, /setDispatchConfirmed\(true\)/);
+    assert.match(control, /window\.location\.assign\(window\.location\.href\)/);
+    assert.match(control, /requestShipmentQueueStatus\(formData\)/);
+    assert.doesNotMatch(control, /startTransition|responseDeadline/);
+    assert.match(control, /disabled=\{active \|\| pending \|\| busy \|\| locked\}/);
+    assert.match(control, /actionError && !confirmNext/);
+    assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
+    assert.match(table, /已儲存寄出狀態，正在更新列表與數量/);
 
     assert.match(action, /if \(result\.next === 'shipped'\) \{/);
     assert.match(action, /if \(queueStatus\) params\.set\('status', queueStatus\)/);
@@ -267,7 +276,7 @@ describe('出貨工作區介面', () => {
     );
     const action = readFileSync('app/(main)/shipments/actions.ts', 'utf8');
 
-    assert.match(control, /markShipmentStatusFromQueue/);
+    assert.match(control, /requestShipmentQueueStatus/);
     assert.equal((control.match(/action=\{markShipmentStatus\}/g) ?? []).length, 1);
     assert.match(control, /name="shipmentId" value=\{shipmentId\}/);
     assert.match(control, /name="next" value=\{confirmNext\}/);
@@ -275,7 +284,7 @@ describe('出貨工作區介面', () => {
     assert.doesNotMatch(control, /form=\{formId\}/);
     assert.match(control, /確認貨物到達/);
     assert.match(control, /確認已寄出/);
-    assert.match(control, /await markShipmentStatusFromQueue\(formData\)/);
+    assert.match(control, /await requestShipmentQueueStatus\(formData\)/);
     assert.match(control, /無法更新出貨狀態：\{actionError\}/);
     assert.match(control, /router\.refresh\(\)/);
     assert.match(action, /params\.set\('error', message\.slice\(0, 120\)\)/);

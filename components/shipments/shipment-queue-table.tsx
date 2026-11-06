@@ -152,9 +152,10 @@ function shortShipmentNumber(value: string) {
 }
 
 function rowLabel(s: ShipmentQueueRow) {
+  const displayNumber = s.order?.displayOrderNumber?.trim();
   return (
+    (displayNumber && !displayNumber.startsWith('SHP-') ? displayNumber : null) ||
     s.order?.orderNumber ||
-    s.order?.displayOrderNumber ||
     s.subscriptionShipment?.subscription?.subscriptionNo ||
     s.subscriptionShipment?.shipmentNo ||
     s.shipmentNumber
@@ -386,18 +387,9 @@ export function ShipmentQueueTable({
   queueType?: string;
   variant?: 'default' | 'subscription';
 }) {
-  const [optimisticHidden, setOptimisticHidden] = useState<Set<string>>(() => new Set());
   const [notice, setNotice] = useState<
     { kind: 'success' | 'error'; text: string } | null
   >(null);
-
-  useEffect(() => {
-    const visibleIds = new Set(shipments.map((shipment) => shipment.id));
-    setOptimisticHidden((current) => {
-      const next = new Set([...current].filter((id) => visibleIds.has(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [shipments]);
 
   useEffect(() => {
     if (!notice) return;
@@ -406,31 +398,20 @@ export function ShipmentQueueTable({
   }, [notice]);
 
   const views = useMemo(
-    () =>
-      shipments
-        .filter((shipment) => !optimisticHidden.has(shipment.id))
-        .map(buildQueueRowView),
-    [optimisticHidden, shipments],
+    () => shipments.map(buildQueueRowView),
+    [shipments],
   );
 
-  function optimisticHandler(shipmentId: string) {
-    return (phase: 'start' | 'success' | 'error', message?: string) => {
-      if (phase === 'start') {
-        setOptimisticHidden((current) => new Set(current).add(shipmentId));
-        setNotice({ kind: 'success', text: '正在標記寄出…' });
-        return;
-      }
-      if (phase === 'success') {
-        setNotice({ kind: 'success', text: '已標記寄出 · 已移到運送中' });
-        return;
-      }
-      setOptimisticHidden((current) => {
-        const next = new Set(current);
-        next.delete(shipmentId);
-        return next;
-      });
-      setNotice({ kind: 'error', text: message ?? '更新出貨狀態失敗' });
-    };
+  function handleStatusChange(phase: 'start' | 'success' | 'error', message?: string) {
+    if (phase === 'start') {
+      setNotice({ kind: 'success', text: '正在標記寄出…' });
+      return;
+    }
+    if (phase === 'success') {
+      setNotice({ kind: 'success', text: '已儲存寄出狀態，正在更新列表與數量…' });
+      return;
+    }
+    setNotice({ kind: 'error', text: message ?? '更新出貨狀態失敗' });
   }
 
   if (views.length === 0 && shipments.length === 0) {
@@ -452,7 +433,7 @@ export function ShipmentQueueTable({
               queueStatus={queueStatus}
               queueType={queueType}
               onSelect={() => onSelectShipment(view.shipment)}
-              onOptimisticChange={optimisticHandler(view.shipment.id)}
+              onOptimisticChange={handleStatusChange}
             />
           )}
         />
@@ -543,7 +524,7 @@ export function ShipmentQueueTable({
                       shipment={shipment}
                       queueStatus={queueStatus}
                       queueType={queueType}
-                      onOptimisticChange={optimisticHandler(shipment.id)}
+                      onOptimisticChange={handleStatusChange}
                     />
                   </TableCell>
                 </TableRow>

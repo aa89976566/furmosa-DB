@@ -20,7 +20,7 @@ const navigation: string[] = [];
 let refreshes = 0;
 let outcome: 'check' | 'blocked' | 'ship' | 'disconnected' | 'stale' = 'check';
 const actionStub = {
-  omsReviewAction: async (_previous: unknown, form: FormData) => {
+  requestOmsReview: async (form: FormData) => {
     submissions.push(Object.fromEntries(form.entries()));
     if (outcome === 'stale') throw new Error('Server Action "old-action" was not found on the server.');
     if (outcome === 'disconnected') throw new Error('Failed to fetch');
@@ -37,7 +37,7 @@ const actionStub = {
 const internal = Module as typeof Module & { _load: (...args: unknown[]) => unknown };
 const originalLoad = internal._load.bind(Module);
 internal._load = (request: unknown, ...rest: unknown[]) => {
-  if (String(request).includes('oms-actions')) return actionStub;
+  if (String(request).includes('review-request')) return actionStub;
   if (request === 'next/navigation') return { useRouter: () => router };
   return originalLoad(request, ...rest);
 };
@@ -147,7 +147,7 @@ test('review retains shipping selection through repeated checks and approval', a
       assert.equal(field('address').value, 'HQ 補正地址', 'transport errors must keep the entered draft');
       outcome = 'ship';
       await submit('approve');
-      assert.equal(submissions.length, 6, 'all actions must reach the server action');
+      assert.equal(submissions.length, 6, 'all actions must reach the JSON review transport');
       assert.ok(submissions.every(row => row.method === method && row.address === 'HQ 補正地址'));
       if (method === 'convenience') {
         assert.ok(submissions.every(row => row.storeName === '新門市' && row.storeId === ''));

@@ -25,8 +25,10 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
     // A clean paid Shopify review creates the HQ shipment in the same atomic approval.
     // Payment-pending or blocking cases remain in review and cannot create a shipment.
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
-      sourceHash: field('sourceHash'), action, draft, sourceOnly: true });
+      sourceHash: field('sourceHash'), action, draft, sourceOnly: true, pendingShipmentReview: form.get('pendingShipmentReview') === '1' });
   } catch (error) {
+    const failure = error && typeof error === 'object' ? error as { code?: unknown; meta?: { modelName?: unknown; column?: unknown } } : null;
+    if (!(error instanceof ReviewError)) console.error('[oms.review]', { action, code: failure?.code, model: failure?.meta?.modelName, column: failure?.meta?.column });
     return emptyReviewResult({
       ok: false,
       action,
