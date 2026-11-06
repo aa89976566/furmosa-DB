@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { JarShell, JarPanel } from '@/components/jar-exchange/jar-shell';
 import { ensureRefillPlanSeeded } from '@/lib/jar-exchange/refill-flavours';
-import { formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
+import { formatFlavourLabel, formatRefillSize } from '@/lib/jar-exchange/refill-plan-content';
 import { formatDateTime } from '@/lib/format';
 import {
   copyRefillPeriodAction,
@@ -123,7 +123,7 @@ export default async function RefillFlavoursAdminPage() {
                     <tr key={f.id} className="border-b align-top">
                       <td className="py-2 font-mono text-xs">{f.code}</td>
                       <td>{formatFlavourLabel(f.name, f.weightGrams)}</td>
-                      <td>{f.weightGrams}g</td>
+                      <td>{formatRefillSize(f.weightGrams)}</td>
                       <td>{f.sortOrder}</td>
                       <td>{f.isActive ? '是' : '停用'}</td>
                       <td className="text-xs text-muted-foreground">
@@ -153,9 +153,10 @@ export default async function RefillFlavoursAdminPage() {
               <input
                 name="weightGrams"
                 type="number"
-                placeholder="克數"
+                placeholder="克數（選填，留空以罐計）"
+                min={0}
+                step={1}
                 className="rounded border px-2 py-1.5"
-                required
               />
               <input
                 name="sortOrder"

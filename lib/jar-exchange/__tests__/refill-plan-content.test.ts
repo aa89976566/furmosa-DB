@@ -2,6 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatFlavourLabel,
+  formatRefillSize,
+  parseOptionalRefillWeight,
   REFILL_INTRO_COPY,
   REFILL_PLAN_FAQ,
   REFILL_PLAN_RULES,
@@ -42,5 +44,24 @@ describe('refill plan content', () => {
     assert.equal(REFILL_INTRO_COPY.ctaStart, '開始換罐');
     assert.equal(REFILL_INTRO_COPY.ctaFlavours, '看本期口味');
     assert.equal(REFILL_INTRO_COPY.ctaStores, '查看合作店');
+  });
+});
+
+
+describe('jar-count flavours without declared grams', () => {
+  it('accepts an omitted weight without inventing physical grams', () => {
+    assert.equal(parseOptionalRefillWeight(null), 0);
+    assert.equal(parseOptionalRefillWeight(''), 0);
+    assert.equal(parseOptionalRefillWeight('  '), 0);
+    assert.equal(parseOptionalRefillWeight('0'), 0);
+    assert.equal(parseOptionalRefillWeight('20'), 20);
+    for (const value of ['-1', '1.5', 'NaN', 'Infinity', 'not grams']) {
+      assert.equal(parseOptionalRefillWeight(value), null);
+    }
+  });
+  it('shows jars rather than 0g in inventory, choices and delivery labels', () => {
+    assert.equal(formatRefillSize(0), '1罐');
+    assert.equal(formatFlavourLabel('綜合凍乾', 0), '綜合凍乾｜1罐');
+    assert.equal(formatFlavourLabel('牛肉凍乾', 20), '牛肉凍乾｜20g');
   });
 });
