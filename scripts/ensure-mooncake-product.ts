@@ -148,6 +148,7 @@ async function main() {
           weightGrams: MOONCAKE_CATALOG.weightGrams,
           unit: MOONCAKE_CATALOG.unit,
           unitQty: 1,
+          variantKey: '',
         },
       },
       update: {
