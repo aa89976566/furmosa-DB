@@ -15,7 +15,8 @@ export function collectReadActionIds(source) {
   return ids;
 }
 
-export function requestDecision({ url, method, resourceType, headers = {}, body, origin, role, loginOpen, loginUsed, actionIds }) {
+/** @param {{url: string, method: string, resourceType: string, headers?: Record<string, string>, body?: string|null, origin: string, role: string, loginOpen?: boolean, loginUsed?: boolean, actionIds: Set<string>}} input */
+export function requestDecision({ url, method, resourceType, headers = {}, body = null, origin, role, loginOpen = false, loginUsed = false, actionIds }) {
   let target;
   try { target = new URL(url); } catch { return 'deny'; }
   if (target.origin !== origin || target.username || target.password) return 'deny';

@@ -9,6 +9,7 @@ export async function runAuthenticatedMonitor({ chromium, credentials, origin = 
   const isolatedCi = origin === 'http://localhost:3000' && process.env.CI === 'true' &&
     process.env.DATABASE_URL === ciDatabase && process.env.DIRECT_URL === ciDatabase;
   if (origin !== targets.production.origin && !isolatedCi) throw new Error('INVALID_TARGET');
+  /** @type {{checkedAt: string, origin: string, ok: boolean, coverage: string, results: Array<{check: string, status: string, code?: string, latencyMs?: number}>}} */
   const report = { checkedAt: new Date().toISOString(), origin, ok: false,
     coverage: 'authenticated read-only UI; no production checkout, approval, coupon lookup, notification acknowledgement, delivery or settlement submission',
     results: [] };
