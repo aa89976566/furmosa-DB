@@ -62,7 +62,11 @@ type Step =
 
 export function LiffRefillClient(props: Props) {
   return (
-    <LiffShell liffId={props.liffId} title={REFILL_COPY.ctaWantRefill}>
+    <LiffShell
+      liffId={props.liffId}
+      title={REFILL_COPY.ctaWantRefill}
+      reconnectPath={`/liff/refill${props.storeId ? `?storeId=${props.storeId}` : ''}`}
+    >
       {({ idToken }) => <RefillFlow idToken={idToken} {...props} />}
     </LiffShell>
   );
