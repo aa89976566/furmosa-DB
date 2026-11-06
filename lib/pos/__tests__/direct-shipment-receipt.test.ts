@@ -210,6 +210,7 @@ function makeTx() {
         where.id.in.map((id) => ({ id, priceTiers: [] })),
     },
     merchantStock: {
+      findMany: async () => [],
       upsert: async ({ create }: { create: Record<string, unknown> }) => {
         world.stockWrites.push(create);
         return { ...create, quantity: create.quantity };

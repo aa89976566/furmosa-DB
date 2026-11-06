@@ -1,3 +1,4 @@
+import { loadReceiptReviewIds } from '@/lib/pos/receipt-review';
 import { prisma } from '@/lib/prisma';
 import { findRestockShipmentsAlreadyPosted } from '@/lib/merchant-restock-inventory';
 
@@ -217,7 +218,8 @@ export async function loadMerchantEventPreviews(
     };
   });
 
-  return [...requestEvents, ...directEvents]
+  const reviewIds = await loadReceiptReviewIds(merchantId, [...requestEvents, ...directEvents].filter(e => e.id.startsWith('shipment-')).map(e => e.id.slice(9)));
+  return [...requestEvents, ...directEvents].map(event => reviewIds.has(event.id.slice(9)) ? { ...event, title: '舊單請由 HQ 核對', statusLabel: '避免重複入庫' } : event)
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
     .slice(0, take);
 }
@@ -301,6 +303,7 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
     };
   });
 
+  const reviewIds = await loadReceiptReviewIds(merchantId, [...requests.flatMap(r => r.shipment ? [r.shipment.id] : []), ...directShipments.map(s => s.id)]);
   return [
     ...requestEvents,
     ...directShipments.map((shipment) => {
@@ -315,7 +318,7 @@ export async function loadMerchantEvents(merchantId: string): Promise<MerchantEv
       }
       return event;
     }),
-  ]
+  ].map(event => reviewIds.has(event.id.slice(9)) && event.statusLabel !== '已送達（庫存已入帳）' ? { ...event, title: '舊單請由 HQ 核對', statusLabel: '避免重複入庫', actionRequired: false } : event)
     .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime())
     .slice(0, 50);
 }

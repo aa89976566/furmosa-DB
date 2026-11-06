@@ -9,6 +9,8 @@ type ShipmentRow = {
   shipmentNumber: string;
   type: string;
   status: string;
+  createdAt: Date;
+  shippedAt: Date | null;
   receivedAt: Date | null;
   receivedByMerchantUserId: string | null;
   items: Array<{
@@ -23,13 +25,14 @@ type World = {
   shipment: ShipmentRow;
   inTransaction: boolean;
   transactionCount: number;
-  transactionOptions: { maxWait?: number; timeout?: number } | undefined;
+  transactionOptions: { maxWait?: number; timeout?: number; isolationLevel?: string } | undefined;
   restockRequestTouched: boolean;
   updateManyWheres: Array<Record<string, unknown>>;
   stockWrites: Array<Record<string, unknown>>;
   txnWrites: Array<Record<string, unknown>>;
   auditWrites: Array<Record<string, unknown>>;
   postedItemIds: string[];
+  lastCountAt?: Date;
 };
 
 const SHIPMENT_ITEMS = [
@@ -44,6 +47,8 @@ function baseShipment(overrides: Partial<ShipmentRow> = {}): ShipmentRow {
     shipmentNumber: 'SHP-TEST-0001',
     type: 'merchant_restock',
     status: 'delivered',
+    createdAt: new Date('2026-01-01'),
+    shippedAt: new Date('2026-01-02'),
     receivedAt: null,
     receivedByMerchantUserId: null,
     items: SHIPMENT_ITEMS.map((item) => ({ ...item })),
@@ -95,6 +100,8 @@ function makeTx() {
           shipmentNumber: world.shipment.shipmentNumber,
           type: world.shipment.type,
           status: world.shipment.status,
+          createdAt: world.shipment.createdAt,
+          shippedAt: world.shipment.shippedAt,
           items: world.shipment.items,
         };
       },
@@ -139,6 +146,7 @@ function makeTx() {
         where.id.in.map((id) => ({ id, priceTiers: [] })),
     },
     merchantStock: {
+      findMany: async () => world.lastCountAt ? [{ productId: 'product-1', lastCountAt: world.lastCountAt }] : [],
       upsert: async ({ create }: { create: Record<string, unknown> }) => {
         assertInTransaction();
         world.stockWrites.push(create);
@@ -168,7 +176,7 @@ const harness = globalThis as typeof globalThis & {
   __TEST_PRISMA__: {
     $transaction: (
       fn: (tx: ReturnType<typeof makeTx>) => Promise<unknown>,
-      options?: { maxWait?: number; timeout?: number },
+      options?: { maxWait?: number; timeout?: number; isolationLevel?: string },
     ) => Promise<unknown>;
   };
 };
@@ -252,7 +260,7 @@ describe('店家補貨收貨共用服務', () => {
 
     assert.equal(result, 'just_received');
     assert.equal(world.transactionCount, 1);
-    assert.deepEqual(world.transactionOptions, { maxWait: 30_000, timeout: 60_000 });
+    assert.deepEqual(world.transactionOptions, { maxWait: 30_000, timeout: 60_000, isolationLevel: 'Serializable' });
     assert.equal(world.restockRequestTouched, false);
     assert.equal(world.shipment.status, 'received');
     assert.equal(world.shipment.receivedByMerchantUserId, 'merchant-user-1');
@@ -345,3 +353,18 @@ describe('店家補貨收貨共用服務', () => {
     assert.equal(world.auditWrites.length, 0);
   });
 });
+
+ it('出貨後已盤點的舊單拒絕再次加庫，所有寫入皆不執行', async () => {
+  world = createWorld();
+  world.lastCountAt = new Date('2026-02-01');
+  await assert.rejects(confirmMerchantRestockReceipt({ shipmentId: 'shipment-1', merchantId: 'merchant-1', merchantUserId: 'staff-1' }), /HQ 核對/);
+  assert.equal(world.updateManyWheres.length, 0);
+  assert.equal(world.stockWrites.length, 0);
+  assert.equal(world.txnWrites.length, 0);
+ });
+ it('盤點後才出貨的新貨維持正常入庫', async () => {
+  world = createWorld();
+  world.lastCountAt = new Date('2025-12-01');
+  assert.equal(await confirmMerchantRestockReceipt({ shipmentId: 'shipment-1', merchantId: 'merchant-1', merchantUserId: 'staff-1' }), 'just_received');
+  assert.equal(world.stockWrites.length, 2);
+ });

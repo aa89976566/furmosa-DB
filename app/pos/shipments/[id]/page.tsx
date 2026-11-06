@@ -6,6 +6,7 @@ import { loadMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shi
 import { loadPosAccount } from '@/lib/pos/account';
 import { PosShell } from '@/components/pos/pos-shell';
 import { ReceiptManifest } from './receipt-manifest';
+import { loadReceiptReviewIds, RECEIPT_REVIEW_MESSAGE } from '@/lib/pos/receipt-review';
 
 export const metadata = { title: '出貨單 · Furmosa 店家' };
 
@@ -13,6 +14,7 @@ const RECEIPT_MESSAGE: Record<string, { text: string; failed: boolean }> = {
   just_received: { text: '已確認收貨，商品已加入店內庫存。', failed: false },
   already_received: { text: '這筆補貨已完成收貨。', failed: false },
   failed: { text: '現在不能確認收貨，請再試一次。', failed: true },
+  review_required: { text: RECEIPT_REVIEW_MESSAGE, failed: true },
 };
 
 function formatDate(value: Date | null) {
@@ -43,7 +45,8 @@ export default async function PosDirectShipmentPage(
     received: { label: '已確認收貨', help: '商品已加入店家可售庫存。' },
     cancelled: { label: '出貨已取消', help: '請查看回覆或聯絡匠寵。' },
   }[shipment.status];
-  const canConfirmReceipt = shipment.status === 'shipped' || shipment.status === 'delivered';
+  const needsReview = (await loadReceiptReviewIds(merchantId, [shipment.id])).has(shipment.id);
+  const canConfirmReceipt = !needsReview && (shipment.status === 'shipped' || shipment.status === 'delivered');
   const receipt = searchParams?.receipt ? RECEIPT_MESSAGE[searchParams.receipt] : null;
   const timeline = [
     { label: '完成備貨', date: shipment.packedAt, done: Boolean(shipment.packedAt) },
@@ -61,6 +64,7 @@ export default async function PosDirectShipmentPage(
             <span className="w-fit rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">{shipmentCopy?.label ?? shipment.status}</span>
           </div>
           {receipt ? <p role={receipt.failed ? 'alert' : 'status'} aria-live="polite" className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${receipt.failed ? 'border-destructive/30 bg-destructive/10 text-destructive' : 'border-primary/20 bg-primary/10 font-medium text-primary'}`}>{receipt.text}</p> : null}
+          {needsReview ? <p role="alert" className="mt-5 rounded-xl border p-4 text-sm">{RECEIPT_REVIEW_MESSAGE}</p> : null}
           <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
             <ReceiptManifest shipmentId={shipment.id} items={shipment.items} canConfirmReceipt={canConfirmReceipt} />
             <aside className="space-y-5">

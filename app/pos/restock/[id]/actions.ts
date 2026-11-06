@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { confirmMerchantRestockReceipt } from '@/lib/merchant-restock-receipt';
+import { RECEIPT_REVIEW_MESSAGE } from '@/lib/pos/receipt-review';
 
 export type ConfirmRestockReceiptState =
   | { status: 'idle' }
@@ -50,7 +51,8 @@ export async function confirmRestockReceiptAction(
     return result === 'just_received'
       ? { status: 'just_received', message: '已確認收貨，商品已加入店內庫存。' }
       : { status: 'already_received', message: '這筆補貨已完成收貨。' };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === RECEIPT_REVIEW_MESSAGE) return { status: 'failed', message: RECEIPT_REVIEW_MESSAGE };
     return { status: 'failed', message: '現在不能確認收貨，請再試一次。' };
   }
 }

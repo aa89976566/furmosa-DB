@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { loadReceiptReviewIds } from '@/lib/pos/receipt-review';
+import { closeCountedHistoricalReceipt } from '../receipt-review-actions';
+import { getCurrentUser } from '@/lib/auth';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
@@ -128,6 +131,9 @@ export default async function ShipmentDetailPage(
     ? parsePlanContents(subscription?.plan?.contents)
     : [];
   const scheduledDate = shipment.subscriptionShipment?.scheduledDate ?? null;
+  const receiptNeedsReview = shipment.merchantId && shipment.type === 'merchant_restock'
+    ? (await loadReceiptReviewIds(shipment.merchantId, [shipment.id])).has(shipment.id) : false;
+  const mayCloseHistoricalReceipt = receiptNeedsReview && (await getCurrentUser())?.role === 'admin';
 
   return (
     <>
@@ -167,6 +173,17 @@ export default async function ShipmentDetailPage(
       />
 
       <div className="grid gap-6 p-6 lg:grid-cols-3">
+        {receiptNeedsReview ? <section className="rounded-xl border p-4 lg:col-span-3">
+          <h2 className="font-semibold">舊收貨單核對</h2>
+          <p className="mt-2 text-sm">已有入庫證據或出貨後盤點紀錄，POS 已停止重複催收入庫。請先核對目前實物與帳面；若有差額，先完成盤點校正。</p>
+          {mayCloseHistoricalReceipt ? <form action={closeCountedHistoricalReceipt} className="mt-3 space-y-3">
+            <input type="hidden" name="shipmentId" value={shipment.id} />
+            <label className="block text-sm"><input type="checkbox" name="confirmedCounted" required /> 已確認本批貨已包含於現有庫存或後續盤點，不再新增數量</label>
+            <label className="block text-sm">核對說明<input name="reason" required minLength={5} maxLength={1000} className="mt-1 block w-full rounded border p-2" /></label>
+            <Button type="submit" variant="outline">確認舊單已核對，結案不加庫存</Button>
+            <p className="text-xs text-muted-foreground">保留原始出貨、庫存與帳款紀錄；結案時間會另記為本次核對時間。</p>
+          </form> : null}
+        </section> : null}
         {actionError ? (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive lg:col-span-3" role="alert">
             {actionError}
