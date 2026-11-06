@@ -70,6 +70,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     shopifySku: tier.shopifySku,
     shopifyVariantId: tier.shopifyVariantId,
     notes: tier.notes,
+    variantName: tier.variantName,
   }));
 
   if (user?.role === 'inventory_reviewer') {
