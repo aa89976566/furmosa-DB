@@ -121,6 +121,7 @@ const ERROR_CODES = new Set([
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
+const PAGE_PATH = 'app/(main)/shipments/page.tsx';
 const HELPER_PATH = 'lib/shipment-queue-perf.ts';
 const CANARY_SECRET = 'canary-secret-DO-NOT-LEAK-9f3a2c';
 
@@ -253,12 +254,9 @@ async function flushMicrotasks() {
 }
 
 describe('shipment queue performance diagnostics', () => {
-  it('loads queue relations in a bounded parallel batch', () => {
-    const source = readFileSync(BODY_PATH, 'utf8');
-    assert.match(source, /select: shipmentBaseSelect/);
-    assert.match(source, /take: SHIPMENT_QUEUE_TAKE/);
-    assert.match(source, /const \[merchants, customers, orders, items, subscriptionShipments\] = await Promise\.all/);
-    assert.match(source, /loadShipmentQueuePage\(where\)/);
+  it('keeps the Vercel shipment page close to the Tokyo database region', () => {
+    const page = readFileSync(PAGE_PATH, 'utf8');
+    assert.match(page, /export const preferredRegion = 'hnd1'/);
   });
 
   it('missing or wrong flags keep diagnostics off and skip header reads', () => {
@@ -769,26 +767,26 @@ describe('shipment queue performance diagnostics', () => {
   it('source guard keeps query arguments, JSX, and Promise.all in place', () => {
     const body = readFileSync(BODY_PATH, 'utf8');
     const helper = readFileSync(HELPER_PATH, 'utf8');
-    const parallelStart = body.indexOf('const [loadedShipments, counts] = await Promise.all([');
+    const parallelStart = body.indexOf('await Promise.all([');
     const parallelEnd = body.indexOf(']);', parallelStart);
     const parallel = body.slice(parallelStart, parallelEnd);
-    const enrichmentStart = body.indexOf(
-      'const [jibaCharges, tiers, balances, orderSnapshots] = await Promise.all([',
-      parallelEnd,
-    );
+    const enrichmentStart = body.indexOf('await Promise.all([', parallelEnd);
     const enrichmentEnd = body.indexOf(']);', enrichmentStart);
     const enrichment = body.slice(enrichmentStart, enrichmentEnd);
     assert.match(enrichment, /perf\.measure\('tiers'/);
     assert.match(enrichment, /perf\.measure\('balances'/);
     assert.match(enrichment, /perf\.measure\('snapshots'/);
 
-    assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 3);
+    assert.equal((body.match(/Promise\.all\(/g) ?? []).length, 2);
     assert.match(parallel, /perf\.measure\('findMany'/);
     assert.match(parallel, /perf\.measure\('counts'/);
-    assert.match(parallel, /loadShipmentQueuePage\(where\)/);
+    assert.match(
+      parallel,
+      /prisma\.shipment\.findMany\(\{\s*where,\s*include:\s*shipmentInclude,\s*orderBy:\s*\[\{\s*status:\s*'asc'\s*\},\s*\{\s*createdAt:\s*'desc'\s*\}\],\s*take:\s*SHIPMENT_QUEUE_TAKE,\s*\}\)/,
+    );
     assert.match(parallel, /getShipmentQueueCounts\(countWhere\)/);
     assert.equal(parallel.indexOf('findMany') < parallel.indexOf('getShipmentQueueCounts'), true);
-    assert.equal(parallel.includes('await prisma.shipment.findMany'), false);
+    assert.equal(body.includes('await prisma.shipment.findMany'), false);
     assert.equal(body.includes('await getShipmentQueueCounts'), false);
     assert.match(body, /shipments\.map\(\(s\) => s\.orderId\)/);
     assert.match(enrichment, /loadJibaChargeSourcesByOrderIds\(orderIds\)/);
@@ -797,12 +795,12 @@ describe('shipment queue performance diagnostics', () => {
     assert.match(enrichment, /prisma\.order\.findMany/);
     assert.match(enrichment, /select: queueOrderSnapshotSelect/);
     assert.match(enrichment, /warehouse: \{ code: 'WH-MAIN' \}/);
-    const baseSelectStart = body.indexOf('const shipmentBaseSelect =');
-    const baseSelectEnd = body.indexOf('} as const;', baseSelectStart);
-    const baseSelect = body.slice(baseSelectStart, baseSelectEnd);
-    assert.equal(baseSelect.includes('priceTiers'), false);
-    assert.equal(baseSelect.includes('inventoryBalances'), false);
-    assert.equal(baseSelect.includes('shopifySnapshot'), false);
+    const includeStart = body.indexOf('const shipmentInclude =');
+    const includeEnd = body.indexOf('} as const;', includeStart);
+    const shipmentInclude = body.slice(includeStart, includeEnd);
+    assert.equal(shipmentInclude.includes('priceTiers'), false);
+    assert.equal(shipmentInclude.includes('inventoryBalances'), false);
+    assert.equal(shipmentInclude.includes('shopifySnapshot'), false);
     assert.match(body, /tiersByProductId/);
     assert.match(body, /balanceByProductId/);
     assert.match(body, /snapshotByOrderId/);

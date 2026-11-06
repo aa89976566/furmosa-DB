@@ -70,104 +70,72 @@ const queueOrderSnapshotSelect = {
   shopifySnapshot: true,
 } as const;
 
-const shipmentBaseSelect = {
-  id: true,
-  shipmentNumber: true,
-  type: true,
-  status: true,
-  createdAt: true,
-  updatedAt: true,
-  carrier: true,
-  trackingNumber: true,
-  recipientName: true,
-  recipientPhone: true,
-  recipientAddress: true,
-  merchantId: true,
-  customerId: true,
-  orderId: true,
-  subscriptionShipmentId: true,
-} as const;
-
-const queueCustomerSelect = { id: true, name: true } as const;
-const queueOrderSelect = {
-  id: true,
-  orderNumber: true,
-  source: true,
-  externalOrderName: true,
-  status: true,
-  paymentStatus: true,
-  shippingFeeType: true,
-  shippingMethod: true,
-  cvsBrand: true,
-  cvsStoreId: true,
-  cvsStoreName: true,
-  note: true,
-  omsStatus: true,
-  merchantOrderMode: true,
-} as const;
-const queueItemSelect = {
-  shipmentId: true,
-  productId: true,
-  productName: true,
-  quantity: true,
-  weightGrams: true,
-  variantKey: true,
-  notes: true,
-  product: {
+const shipmentInclude = {
+  merchant: { select: merchantLogisticsSelect },
+  customer: {
     select: {
       id: true,
-      sku: true,
       name: true,
-      category: true,
-      unit: true,
-      productCategory: true,
-      inventorySourceProduct: {
-        select: { id: true, sku: true, name: true, status: true, unit: true },
+    },
+  },
+  order: {
+    select: {
+      id: true,
+      orderNumber: true,
+      source: true,
+      externalOrderName: true,
+      status: true,
+      paymentStatus: true,
+      shippingFeeType: true,
+      shippingMethod: true,
+      cvsBrand: true,
+      cvsStoreId: true,
+      cvsStoreName: true,
+      note: true,
+      omsStatus: true,
+      merchantOrderMode: true,
+    },
+  },
+  items: {
+    select: {
+      productId: true,
+      productName: true,
+      quantity: true,
+      weightGrams: true,
+      variantKey: true,
+      notes: true,
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          category: true,
+          unit: true,
+          productCategory: true,
+          inventorySourceProduct: {
+            select: { id: true, sku: true, name: true, status: true, unit: true },
+          },
+        },
+      },
+    },
+  },
+  subscriptionShipment: {
+    select: {
+      shipmentNo: true,
+      scheduledDate: true,
+      subscription: {
+        select: {
+          subscriptionNo: true,
+          plan: { select: { name: true, contents: true } },
+        },
       },
     },
   },
 } as const;
-const queueSubscriptionShipmentSelect = {
-  id: true,
-  shipmentNo: true,
-  scheduledDate: true,
-  subscription: {
-    select: {
-      subscriptionNo: true,
-      plan: { select: { name: true, contents: true } },
-    },
-  },
-} as const;
 
-type ShipmentQueueBase = Awaited<
-  ReturnType<typeof prisma.shipment.findMany<{ select: typeof shipmentBaseSelect }>>
+type ShipmentQueueRecord = Awaited<
+  ReturnType<typeof prisma.shipment.findMany<{ include: typeof shipmentInclude }>>
 >[number];
-type QueueMerchant = Awaited<
-  ReturnType<typeof prisma.merchant.findMany<{ select: typeof merchantLogisticsSelect }>>
->[number];
-type QueueCustomer = Awaited<
-  ReturnType<typeof prisma.customer.findMany<{ select: typeof queueCustomerSelect }>>
->[number];
-type QueueOrder = Awaited<
-  ReturnType<typeof prisma.order.findMany<{ select: typeof queueOrderSelect }>>
->[number];
-type QueueItemWithShipment = Awaited<
-  ReturnType<typeof prisma.shipmentItem.findMany<{ select: typeof queueItemSelect }>>
->[number];
-type QueueSubscriptionShipment = Awaited<
-  ReturnType<
-    typeof prisma.subscriptionShipment.findMany<{
-      select: typeof queueSubscriptionShipmentSelect;
-    }>
-  >
->[number];
-type ShipmentQueueRecord = ShipmentQueueBase & {
-  merchant: QueueMerchant | null;
-  customer: QueueCustomer | null;
-  order: QueueOrder | null;
-  items: Array<Omit<QueueItemWithShipment, 'shipmentId'>>;
-  subscriptionShipment: Omit<QueueSubscriptionShipment, 'id'> | null;
-};
 type QueueTier = Awaited<
   ReturnType<typeof prisma.productPriceTier.findMany<{ select: typeof queueTierSelect }>>
 >[number];
@@ -183,88 +151,6 @@ type ShipmentQueueEnrichment = {
   tierById: Map<string, QueueTier>;
   balanceByProductId: Map<string, QueueBalance>;
 };
-
-async function loadShipmentQueuePage(
-  where: Prisma.ShipmentWhereInput,
-): Promise<ShipmentQueueRecord[]> {
-  const shipments = await prisma.shipment.findMany({
-    where,
-    select: shipmentBaseSelect,
-    orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    take: SHIPMENT_QUEUE_TAKE,
-  });
-  if (shipments.length === 0) return [];
-
-  const shipmentIds = shipments.map((shipment) => shipment.id);
-  const merchantIds = [...new Set(shipments.flatMap((s) => (s.merchantId ? [s.merchantId] : [])))];
-  const customerIds = [...new Set(shipments.flatMap((s) => (s.customerId ? [s.customerId] : [])))];
-  const orderIds = [...new Set(shipments.flatMap((s) => (s.orderId ? [s.orderId] : [])))];
-  const subscriptionShipmentIds = [
-    ...new Set(
-      shipments.flatMap((s) =>
-        s.subscriptionShipmentId ? [s.subscriptionShipmentId] : [],
-      ),
-    ),
-  ];
-
-  const [merchants, customers, orders, items, subscriptionShipments] = await Promise.all([
-    merchantIds.length
-      ? prisma.merchant.findMany({
-          where: { id: { in: merchantIds } },
-          select: merchantLogisticsSelect,
-        })
-      : Promise.resolve([] as QueueMerchant[]),
-    customerIds.length
-      ? prisma.customer.findMany({
-          where: { id: { in: customerIds } },
-          select: queueCustomerSelect,
-        })
-      : Promise.resolve([] as QueueCustomer[]),
-    orderIds.length
-      ? prisma.order.findMany({
-          where: { id: { in: orderIds } },
-          select: queueOrderSelect,
-        })
-      : Promise.resolve([] as QueueOrder[]),
-    prisma.shipmentItem.findMany({
-      where: { shipmentId: { in: shipmentIds } },
-      select: queueItemSelect,
-    }),
-    subscriptionShipmentIds.length
-      ? prisma.subscriptionShipment.findMany({
-          where: { id: { in: subscriptionShipmentIds } },
-          select: queueSubscriptionShipmentSelect,
-        })
-      : Promise.resolve([] as QueueSubscriptionShipment[]),
-  ]);
-
-  const merchantById = new Map(merchants.map((merchant) => [merchant.id, merchant]));
-  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
-  const orderById = new Map(orders.map((order) => [order.id, order]));
-  const subscriptionShipmentById = new Map(
-    subscriptionShipments.map(({ id, ...shipment }) => [id, shipment]),
-  );
-  const itemsByShipmentId = new Map<
-    string,
-    Array<Omit<QueueItemWithShipment, 'shipmentId'>>
-  >();
-  for (const { shipmentId, ...item } of items) {
-    const shipmentItems = itemsByShipmentId.get(shipmentId) ?? [];
-    shipmentItems.push(item);
-    itemsByShipmentId.set(shipmentId, shipmentItems);
-  }
-
-  return shipments.map((shipment) => ({
-    ...shipment,
-    merchant: shipment.merchantId ? merchantById.get(shipment.merchantId) ?? null : null,
-    customer: shipment.customerId ? customerById.get(shipment.customerId) ?? null : null,
-    order: shipment.orderId ? orderById.get(shipment.orderId) ?? null : null,
-    items: itemsByShipmentId.get(shipment.id) ?? [],
-    subscriptionShipment: shipment.subscriptionShipmentId
-      ? subscriptionShipmentById.get(shipment.subscriptionShipmentId) ?? null
-      : null,
-  }));
-}
 
 function indexShipmentQueueEnrichment(
   tiers: QueueTier[],
@@ -489,7 +375,12 @@ export async function ShipmentsQueueBody({
   try {
     const [loadedShipments, counts] = await Promise.all([
       perf.measure('findMany', () =>
-        loadShipmentQueuePage(where),
+        prisma.shipment.findMany({
+          where,
+          include: shipmentInclude,
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+          take: SHIPMENT_QUEUE_TAKE,
+        }),
       ),
       perf.measure('counts', () => getShipmentQueueCounts(countWhere)),
     ]);
