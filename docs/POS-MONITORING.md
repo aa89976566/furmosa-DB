@@ -24,11 +24,11 @@ CI 在每天台灣時間 08:17（UTC 00:17）排程；GitHub 排程可能延遲�
 
 隔離下單通過不代表正式站登入後的功能正常；公開頁面200也不代表店家按鈕正常。兩份結果必須分開回報。當日排程未執行、尚未完成或無權讀取時，不能沿用舊綠燈。
 
-正式站登入巡檢已有待驗收的程式及手動工作流程，尚未啟用每日執行；核銷、交付與完整結算也尚未納入正式瀏覽器寫入驗收。既有每日隔離測試不使用正式帳號或正式測試單。
+正式站登入唯讀巡檢已於run42233445449通過14項驗收；每日排程候選版需合併後生效，且每次仍受production reviewer閘門保護；核銷、交付與完整結算也尚未納入正式瀏覽器寫入驗收。既有每日隔離測試不使用正式帳號或正式測試單。
 
-## 正式登入巡檢候選版：尚未啟用
+## 正式登入巡檢：已驗收與每日排程候選版
 
-`Authenticated production monitor (read-only)` 只允許 main 手動執行，沿用 production Environment 的 reviewer 閘門。這個 PR 不配置秘密、不新增帳號或權限、不部署、不改既有每日 CI。完成真實站驗收與權限決策前，不加入 schedule，也不能回報已每日登入檢測。
+`Authenticated production monitor (read-only)` 僅允許main，支援手動及每日台灣08:27（UTC00:27）觸發。新增排程需合併到main後才生效，GitHub可能延遲；不改既有08:17隔離CI。production Environment的required reviewer完整保留，每次包含排程都須審核才可使用既有秘密並登入；等待審核、排程漏跑、過期報告、取消或失敗皆不是當日通過。這是每日自動建立待審核巡檢，並非無人值守正式登入或自動修復。不得使用Start all waiting jobs略過保護。
 
 - 沿用 production Environment 既有 `PRODUCTION_SMOKE_HQ_EMAIL`、`PRODUCTION_SMOKE_HQ_PASSWORD`，映射為 runner 的 MONITOR_HQ_*；不讀取、不複製秘密值。POS 使用 `MONITOR_POS_USER`、`MONITOR_POS_PASSWORD`。新增保存指定 POS 憑證前必須取得明確授權；不能把先前瀏覽器登入授權視為憑證保存授權。四個 runner 登入值缺任一項直接失敗，不能略過後回報成功。不使用 DB 連線、簽章密鑰或自製 Cookie。
 - 真實登入會更新既有 lastLoginAt／建立工作階段；「唯讀」指不修改業務資料，不代表登入完全沒有寫入。HQ 與 POS 使用分離、一次性瀏覽器 context；不保存 session。選用既有具適當權限且有可銷售商品的店家帳號；無商品時搜尋功能驗收不通過，不憑空建立正式商品。
@@ -57,3 +57,10 @@ PR605已透過發布173上線，合併e44544ad47c3ffd448eedaf8286196f584ec973b�
 源碼回歸發現：外站圖片／字型在排除前就因跨來源被算成失敗，與既定「不驗圖片」範圍不符。修正只讓這些GET資產被省略時不產生功能失敗；仍然abort，不對外傳送。跨來源資料、程式、所有寫入及未知同源操作仍失敗關閉。新增最多每角色10筆固定分類診斷，只記method、resourceType、同源／他源、固定允許頁面或unlisted及固定reason；不記主機、完整URL、query、動態ID、header、body或例外原文。
 
 本對話另以既有NOVA咖啡工作階段在正式POS實測搜尋、加入本單、結帳確認畫面、返回及移除，已還原空單，未按確認完成；不等於niuniu或完整送單驗收。此修正不更動業務功能、權限、憑證或排程；未重跑正式巡檢。
+
+
+## 正式驗收與異常處理基準
+
+PR609透過發布176完成，merge463cfe688fb92f6b7ba380d9c3e458f13976adf0、Railway84fec6da-7060-49af-b6c4-0e59053ac1c0成功。正式唯讀巡檢4（run42233445449，2026-11-06 14:24:59 UTC）14項通過，artifact13509074022保留7日；先前搜尋失敗本次未重現，根因未證實，不能宣稱永久修復。
+
+每日審閱需讀當日實際run/job/artifact與checkedAt，不沿用這次基線。空商品、搜尋框不可用、搜尋無反應、清除後未恢復商品分別回報POS_CATALOG_EMPTY、POS_SEARCH_UNAVAILABLE、POS_SEARCH_FILTER_FAILED、POS_SEARCH_RESET_FAILED。失敗停下並保留證據，先分清檢測器、程式與資料條件，不自動補庫存或反覆部署。既有ChatGPT受控維護任務的授權範圍不因新增schedule擴張；完整偵測、修復、測試、正式發布演練仍未完成。
