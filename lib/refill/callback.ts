@@ -6,7 +6,7 @@ import { writeRefillAudit } from '@/lib/refill/audit';
 import { amountsAfterExtraTopup, type RefillOrderStatus } from '@/lib/refill/constants';
 import {
   enqueueRefillPaidNotification,
-  safelyEnqueueAndAttempt,
+  safelyAttemptAutomationJob,
 } from '@/lib/automation/line-jobs';
 
 export type EcpayCallbackParams = Record<string, string>;
@@ -145,7 +145,9 @@ export async function handleEcpayCallback(
   }
 
   const now = new Date();
-  let outcome: 'paid' | 'duplicate_payment' | 'unchanged';
+  let outcome:
+    | { kind: 'paid'; notificationJobId: string }
+    | { kind: 'duplicate_payment' | 'unchanged' };
   try {
     outcome = await prisma.$transaction(async (tx) => {
       const existingPaid = await tx.paymentOrder.findFirst({
@@ -182,7 +184,7 @@ export async function handleEcpayCallback(
             winningPaymentOrderId: existingPaid.id,
           },
         });
-        return 'duplicate_payment' as const;
+        return { kind: 'duplicate_payment' } as const;
       }
 
       const claimed = await tx.paymentOrder.updateMany({
@@ -195,7 +197,7 @@ export async function handleEcpayCallback(
         },
       });
       if (claimed.count === 0) {
-        return 'unchanged' as const;
+        return { kind: 'unchanged' } as const;
       }
 
       const refill = payment.refillOrder;
@@ -247,7 +249,11 @@ export async function handleEcpayCallback(
           providerTradeNo: params.TradeNo,
         },
       });
-      return 'paid' as const;
+      const notificationJob = await enqueueRefillPaidNotification(
+        payment.refillOrderId,
+        tx,
+      );
+      return { kind: 'paid', notificationJobId: notificationJob.id } as const;
     });
   } catch (error) {
     if (!isUniqueConstraintError(error)) throw error;
@@ -292,24 +298,22 @@ export async function handleEcpayCallback(
         },
       });
     });
-    outcome = 'duplicate_payment';
+    outcome = { kind: 'duplicate_payment' };
   }
 
-  if (outcome === 'duplicate_payment') {
+  if (outcome.kind === 'duplicate_payment') {
     return {
       ack: '1|OK',
       updated: true,
       reason: 'duplicate_payment_requires_refund',
     };
   }
-  if (outcome === 'unchanged') {
+  if (outcome.kind === 'unchanged') {
     return { ack: '1|OK', updated: false, reason: 'not_pending' };
   }
 
-  // LINE 是附加效果：先持久化作業，再立即嘗試；失敗不回滾付款。
-  await safelyEnqueueAndAttempt(() =>
-    enqueueRefillPaidNotification(payment.refillOrderId),
-  );
+  // 作業已和付款一起提交；立即嘗試失敗時由 cron 接手，不會遺失通知。
+  await safelyAttemptAutomationJob(outcome.notificationJobId);
 
   return { ack: '1|OK', updated: true };
 }

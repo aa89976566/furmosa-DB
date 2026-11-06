@@ -307,17 +307,21 @@ const tx = {
       return args.data;
     },
   },
+  automationJob: {
+    upsert: async (args: Row) => {
+      seq.push(inTx ? 'tx.automationJob.upsert' : 'automationJob.upsert');
+      notifications.push(structuredClone(args));
+      return { id: 'job_1', status: 'pending' };
+    },
+  },
 };
 
 const prismaStub = {
   refillOrder: tx.refillOrder,
   memberPointsLedger: tx.memberPointsLedger,
   automationJob: {
-    upsert: async (args: Row) => {
-      seq.push('automationJob.upsert');
-      notifications.push(structuredClone(args));
-      return { id: 'job_1', status: 'recorded' };
-    },
+    upsert: tx.automationJob.upsert,
+    updateMany: async () => ({ count: 0 }),
   },
   $transaction: async <T>(
     fn: (client: typeof tx) => Promise<T>,
@@ -396,6 +400,7 @@ function assertNoFollowUp(after: string): void {
     'tx.refillAuditLog.create',
     'tx.order.updateMany',
     'tx.jar-new.updateMany',
+    'tx.automationJob.upsert',
     'automationJob.upsert',
   ]) {
     assert.equal(rest.includes(name), false, `${name} continued after ${after}`);
@@ -508,7 +513,8 @@ describe('assignNewAndComplete 完成交付併發防護（mock，非 PostgreSQL 
     const created = notifications[0].create as Row;
     assert.equal(created.jobKey, `line:refill-completed:${ORDER}`);
     assert.equal((created.payload as Row).pointsAwarded, true);
-    assert.equal(seq.filter((name) => name === 'automationJob.upsert').length, 1);
+    assert.equal(seq.filter((name) => name === 'tx.automationJob.upsert').length, 1);
+    assert.equal(seq.includes('automationJob.upsert'), false);
   });
 
   it('首罐完成不加換罐點數，其餘完成行為仍在', async () => {
