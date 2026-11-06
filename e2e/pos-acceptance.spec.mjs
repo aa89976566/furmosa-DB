@@ -13,11 +13,19 @@ let merchantId;
 let productId;
 let username;
 let password;
+let hqEmail;
+let hqPassword;
 
 test.beforeAll(async ({}, testInfo) => {
   const suffix = `${testInfo.project.name}-${randomUUID()}`;
   username = `ci-pos-${suffix}`;
   password = randomUUID(); // Synthetic, ephemeral credential; never a real account.
+  hqEmail = `ci-hq-${suffix}@example.invalid`;
+  hqPassword = randomUUID();
+  await db.user.create({ data: {
+    email: hqEmail, name: 'CI隔離HQ管理員', role: 'admin',
+    passwordHash: await bcrypt.hash(hqPassword, 10),
+  }});
   const merchant = await db.merchant.create({ data: {
     merchantId: `CI-${suffix}`, name: 'CI隔離測試店', commissionRate: 0.2,
   }});
@@ -34,8 +42,84 @@ test.beforeAll(async ({}, testInfo) => {
     merchantId, productId, suggestedPrice: 165, commissionMode: 'amount', commissionValue: 33,
   }});
   await db.merchantStock.create({ data: { merchantId, productId, tierId: '', quantity: 7 } });
+  await db.product.create({ data: {
+    productId: `CI-RESTOCK-${suffix}`, sku: `CI-RESTOCK-${suffix}`, name: `CI叫貨-${suffix}`,
+    category: 'treats', productCategory: 'STANDARD', status: 'active', price: 165,
+    unit: '包', consignmentEnabled: true,
+    priceTiers: { create: [
+      { weightGrams: 30, unit: 'g', price: 165 },
+      { weightGrams: 50, unit: 'g', price: 220 },
+    ] },
+  }});
 });
 test.afterAll(async () => { await db.$disconnect(); });
+
+test('HQ login reaches data workspaces without a rendered error or unavailable counts', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(hqEmail);
+  await page.getByLabel('密碼', { exact: true }).fill(hqPassword);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '營運首頁', exact: true })).toBeVisible();
+  // A successful HTTP response alone does not prove streamed page content loaded.
+  for (const [path, heading] of [
+    ['/orders', '訂單'], ['/reviews', '待審核'], ['/products', '產品管理'],
+    ['/inventory', '庫存總覽'], ['/restock-requests', '補貨申請'],
+  ]) {
+    await test.step(path, async () => {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      if (path === '/orders') {
+        const stages = page.getByRole('navigation', { name: '訂單工作階段' });
+        await expect(stages.getByRole('link', { name: /^全部訂單\s*\d+/ })).toBeVisible();
+        await expect(stages.getByText('訂單統計暫時無法取得', { exact: false })).toHaveCount(0);
+      }
+      if (path === '/products') await expect(page.getByRole('link', { name: 'CI測試雞霸', exact: true }).first()).toBeVisible();
+      if (path === '/restock-requests') await expect(page.getByText('目前沒有符合條件的申請', { exact: true })).toBeVisible();
+      await expect(page.getByText('Application error', { exact: false })).toHaveCount(0);
+    });
+  }
+});
+
+test('merchant service pages expose usable controls without creating business records', async ({ page }) => {
+  test.setTimeout(180_000);
+  const beforeSales = await db.merchantStockTxn.count({ where: { merchantId, type: 'sale' } });
+  const beforeRequests = await db.restockRequest.count({ where: { merchantId } });
+  await page.goto('/pos/login');
+  await page.getByLabel('帳號', { exact: true }).fill(username);
+  await page.getByLabel('密碼', { exact: true }).fill(password);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '店內商品', exact: true })).toBeVisible();
+  for (const [path, heading] of [
+    ['/pos/stock', '庫存'], ['/pos/refill', '換罐計畫'],
+    ['/pos/coupons', '美容券核銷'], ['/pos/settle', '對帳'],
+  ]) {
+    await test.step(path, async () => {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      if (path === '/pos/stock') await expect(page.getByRole('button', { name: /CI測試雞霸/ })).toBeVisible();
+      if (path === '/pos/coupons') await expect(page.getByRole('button', { name: '核對折價券', exact: true })).toBeDisabled();
+      if (path === '/pos/settle') {
+        await page.getByRole('button', { name: '交易流水', exact: true }).click();
+        await expect(page.getByText('查看流水、換罐收款與優惠券補貼明細', { exact: true })).toBeVisible();
+      }
+    });
+  }
+  await page.goto('/pos/restock');
+  await expect(page.getByRole('heading', { name: '寄賣叫貨', exact: true })).toBeVisible();
+  // RestockPicker uses a plain list layout; target its uniquely named controls.
+  const variant = page.getByRole('combobox', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 規格$`) });
+  await variant.selectOption({ label: '30g' });
+  await page.getByRole('button', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 增加$`) }).click();
+  await page.getByRole('button', { name: '確認寄賣叫貨', exact: true }).click();
+  await expect(page.getByRole('button', { name: '送出寄賣叫貨單', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '← 返回修改數量', exact: true }).click();
+  await expect(variant).toHaveValue(/.+/);
+  await page.getByRole('button', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 減少$`) }).click();
+  await expect(page.getByRole('button', { name: '確認寄賣叫貨', exact: true })).toBeDisabled();
+  expect(await db.merchantStockTxn.count({ where: { merchantId, type: 'sale' } })).toBe(beforeSales);
+  expect(await db.restockRequest.count({ where: { merchantId } })).toBe(beforeRequests);
+});
 
 test('merchant can review, return, complete one sale and find/export its record', async ({ page }) => {
   await page.goto('/pos/login');
