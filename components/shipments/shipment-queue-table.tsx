@@ -152,8 +152,9 @@ function shortShipmentNumber(value: string) {
 }
 
 function rowLabel(s: ShipmentQueueRow) {
+  const displayNumber = s.order?.displayOrderNumber?.trim();
   return (
-    s.order?.displayOrderNumber ||
+    (displayNumber && !displayNumber.startsWith('SHP-') ? displayNumber : null) ||
     s.order?.orderNumber ||
     s.subscriptionShipment?.subscription?.subscriptionNo ||
     s.subscriptionShipment?.shipmentNo ||
