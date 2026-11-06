@@ -200,9 +200,9 @@ function InventoryWorkspaceInner({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">{selected.name}</h2>
-          <p className="mt-1 font-semibold">售價 {inventoryPriceLabel(selected)}</p>
+          <p className="mt-1 font-semibold">{selected.productCategory === 'JAR_EXCHANGE' ? '' : '售價 '}{inventoryPriceLabel(selected)}</p>
           <ul className="mt-2 space-y-1 text-sm text-zinc-600">
-            {selected.tiers?.filter(t => t.status !== 'archived' && t.price != null).map(t => <li key={t.id}>{t.label} · {inventoryPriceLabel({ price: t.price })}</li>)}
+            {selected.productCategory !== 'JAR_EXCHANGE' && selected.tiers?.filter(t => t.status !== 'archived' && t.price != null).map(t => <li key={t.id}>{t.label} · {inventoryPriceLabel({ price: t.price })}</li>)}
           </ul>
           {selected.programLabel ? (
             <span className="mt-1 inline-flex rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
@@ -478,7 +478,7 @@ function InventoryWorkspaceInner({
                           />
                         </div>
                         <p className="mt-3 truncate font-medium">{item.name}</p>
-                        <p className="mt-1 text-sm font-semibold text-zinc-900">售價 {inventoryPriceLabel(item)}</p>
+                        <p className="mt-1 text-sm font-semibold text-zinc-900">{item.productCategory === 'JAR_EXCHANGE' ? '' : '售價 '}{inventoryPriceLabel(item)}</p>
                         {item.programLabel ? (
                           <span className="mt-1 w-fit rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
                             {item.programLabel}

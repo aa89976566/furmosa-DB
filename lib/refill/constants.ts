@@ -6,6 +6,11 @@ export const REFILL_PRICES = {
   extraTopup: 30,
 } as const;
 
+/** Display the eligibility condition alongside both server-owned prices. */
+export function refillPriceLabel(): string {
+  return `首罐 NT$${REFILL_PRICES.first}／帶空罐換罐 NT$${REFILL_PRICES.exchange}`;
+}
+
 export const REFILL_ORDER_TYPES = ['first', 'exchange'] as const;
 export type RefillOrderType = (typeof REFILL_ORDER_TYPES)[number];
 

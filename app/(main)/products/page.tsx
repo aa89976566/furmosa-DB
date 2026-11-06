@@ -1,3 +1,4 @@
+import { refillPriceLabel } from '@/lib/refill/constants';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { PageHeader } from '@/components/shared/page-header';
@@ -44,6 +45,7 @@ export default async function ProductsPage(
         name: true,
         sku: true,
         category: true,
+        productCategory: true,
         status: true,
         imageUrl: true,
         price: true,
@@ -85,7 +87,7 @@ export default async function ProductsPage(
       vendorName: product.vendor?.name ?? null,
       status: product.status,
       statusLabel: product.status === 'active' ? '上架' : product.status === 'draft' ? '草稿' : '下架',
-      priceRange: activeTiers.length > 0
+      priceRange: product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : activeTiers.length > 0
         ? formatPriceRange(activeTiers.map((tier) => tier.price))
         : formatCurrency(Number(product.price)),
       onHand,
