@@ -22,9 +22,6 @@ import {
 import { ShipmentsQueueBody } from './shipments-queue-body';
 
 export const dynamic = 'force-dynamic';
-// Keep the database-backed queue close to the Tokyo Supabase region on Vercel.
-// Railway production ignores this Vercel/Next.js route preference.
-export const preferredRegion = 'hnd1';
 
 export default async function ShipmentsPage(
   props: {

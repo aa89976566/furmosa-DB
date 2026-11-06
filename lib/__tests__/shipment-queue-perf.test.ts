@@ -121,7 +121,6 @@ const ERROR_CODES = new Set([
 const ERROR_CATEGORIES = new Set(['segment_rejected', 'unattributed']);
 
 const BODY_PATH = 'app/(main)/shipments/shipments-queue-body.tsx';
-const PAGE_PATH = 'app/(main)/shipments/page.tsx';
 const HELPER_PATH = 'lib/shipment-queue-perf.ts';
 const CANARY_SECRET = 'canary-secret-DO-NOT-LEAK-9f3a2c';
 
@@ -254,11 +253,6 @@ async function flushMicrotasks() {
 }
 
 describe('shipment queue performance diagnostics', () => {
-  it('keeps the Vercel shipment page close to the Tokyo database region', () => {
-    const page = readFileSync(PAGE_PATH, 'utf8');
-    assert.match(page, /export const preferredRegion = 'hnd1'/);
-  });
-
   it('missing or wrong flags keep diagnostics off and skip header reads', () => {
     const cases: Array<{ vercel?: string; flag?: string }> = [
       {},
