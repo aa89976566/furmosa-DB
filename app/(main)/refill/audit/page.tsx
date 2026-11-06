@@ -19,6 +19,8 @@ const TYPE_LABELS: Record<RefillHistoryAnomalyType, string> = {
   MISSING_RECONCILIATION: '缺少對帳來源',
 };
 
+const AUDIT_ROLES = new Set(['admin', 'inventory_reviewer']);
+
 function taipeiTime(value: string) {
   return new Intl.DateTimeFormat('zh-TW', {
     dateStyle: 'medium',
@@ -30,7 +32,7 @@ function taipeiTime(value: string) {
 export default async function RefillAuditPage() {
   const session = await getCurrentUser();
   if (!session) redirect('/login?next=/refill/audit');
-  if (session.role !== 'admin') notFound();
+  if (!AUDIT_ROLES.has(session.role)) notFound();
 
   const report = await loadRefillHistoryAudit(prisma);
   const total = report.anomalies.length;
