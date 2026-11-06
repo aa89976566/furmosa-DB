@@ -10,12 +10,21 @@ import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 
+/**
+ * Count jar ownership evidence for refill pricing.
+ *
+ * LINE serial registration is the customer-facing source of truth and stores a
+ * claimed 8-digit serial as status='used'. The older delivery flow stored the
+ * jar currently held by the customer as status='issued'. Both prove that this
+ * is not the customer's first jar. Do not require an unlocked refill order
+ * here: a pending order must not make an existing customer fall back to the
+ * NT$129 first-jar price on refresh.
+ */
 export async function countIssuedJars(customerId: string): Promise<number> {
   return prisma.jarCode.count({
     where: {
       redeemedByCustomerId: customerId,
-      status: 'issued',
-      lockedByRefillOrderId: null,
+      status: { in: ['used', 'issued'] },
     },
   });
 }
