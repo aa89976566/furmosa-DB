@@ -5,6 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { bulkConsumption } from '../inventory/bulk';
 import { createPrismaShopifyStore } from '../shopify/webhook-store';
 import { syncShopifyCancellation } from '../shopify/shipment-events';
+import { shopifySnapshot, snapshotHash } from '../shopify/intake-policy';
+import { runReview } from '../orders/review-service';
+import { reviewDraft } from '../orders/review-policy';
 
 test('bulk units use master tiers, reject missing or ambiguous identity', () => {
  const p = {unit:'克',priceTiers:[{id:'a',weightGrams:30,unit:'g',unitQty:1},{id:'b',weightGrams:50,unit:'g',unitQty:1}]};
@@ -16,6 +19,54 @@ test('bulk units use master tiers, reject missing or ambiguous identity', () => 
  assert.throws(()=>bulkConsumption(q,{quantity:1}));
 });
 const local = /@(localhost|127\.0\.0\.1):\d+\/(ci|hq_bulk_test)(\?|$)/.test(process.env.DATABASE_URL ?? '');
+test('paid source approval persists review evidence accepted by the real shipment ledger gate', { skip: !local }, async () => {
+ const db = new PrismaClient();
+ try {
+   const key = randomUUID();
+   const externalId = BigInt(`0x${key.replace(/-/g, '')}`).toString();
+   const now = new Date('2026-11-06T00:00:00Z');
+   const actor = await db.user.create({ data: { email: `${key}@example.invalid`, name: 'CI review', role: 'admin', passwordHash: 'not-a-login-credential' } });
+   const wh = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'HQ test' } });
+   const product = await db.product.create({ data: {
+     productId: key, sku: key, sourceSku: key, name: 'CI approval dispatch', category: 'freeze_dried', unit: 'g', price: 100, defaultTemperature: 'ambient',
+     priceTiers: { create: { weightGrams: 30, unit: 'g', unitQty: 1, price: 100, sku: key, shopifySku: key, status: 'active' } },
+     inventoryBalances: { create: { warehouseId: wh.id, quantity: 100, unit: 'g', lastCountedAt: now } },
+   } });
+   const snapshot = shopifySnapshot({
+     id: externalId, name: '#CI-REVIEW', currency: 'TWD', created_at: now.toISOString(), updated_at: now.toISOString(), financial_status: 'paid',
+     subtotal_price: '100.00', total_discounts: '0.00', total_price: '160.00',
+     total_shipping_price_set: { shop_money: { amount: '60.00' } },
+     line_items: [{ sku: key, title: product.name, quantity: 1, price: '100.00', requires_shipping: true }],
+     shipping_address: { name: 'CI recipient', phone: '0912345678', address1: 'CI isolated address' },
+     shipping_lines: [{ title: '宅配', code: 'HOME' }], note_attributes: [],
+   });
+   const order = await db.order.create({ data: {
+     orderNumber: key, source: 'shopify', externalStore: `${key}.myshopify.com`, externalOrderId: externalId,
+     omsStatus: 'NEW', status: 'pending_review', paymentStatus: 'paid', subtotal: 100, total: 160,
+     orderedAt: now, shopifySourceUpdatedAt: now, shopifySnapshot: snapshot,
+   } });
+   const command = { orderId: order.id, actorId: actor.id, sourceHash: snapshotHash(snapshot), sourceOnly: true,
+     draft: reviewDraft({ lines: [], method: 'home', temperature: 'ambient', recipient: 'CI recipient', phone: '0912345678', address: 'CI isolated address' }) };
+   const checked = await runReview(db, { ...command, action: 'check' });
+   assert.equal(checked.ok, true, JSON.stringify(checked));
+   const approved = await runReview(db, { ...command, action: 'approve' });
+   assert.equal(approved.ok, true, JSON.stringify(approved));
+   const saved = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+   assert.equal(saved.omsReviewedById, actor.id);
+   assert.ok(saved.omsReviewedAt instanceof Date);
+   const shipments = await db.shipment.findMany({ where: { orderId: order.id } });
+   assert.equal(shipments.length, 1);
+   const shipment = shipments[0];
+   assert.equal(shipment.status, 'pending');
+   const balance = () => db.inventoryBalance.findUniqueOrThrow({ where: { productId_warehouseId: { productId: product.id, warehouseId: wh.id } } });
+   assert.equal((await balance()).quantity, 100, 'approval must not deduct stock');
+   await db.shipment.update({ where: { id: shipment.id }, data: { status: 'shipped' } });
+   assert.equal((await balance()).quantity, 70, 'real deferred OMS gate must accept the saved review');
+   await db.shipment.update({ where: { id: shipment.id }, data: { status: 'shipped' } });
+   assert.equal((await balance()).quantity, 70, 'repeated dispatch must not deduct again');
+   assert.equal(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } }), 1);
+ } finally { await db.$disconnect(); }
+});
 test('HQ ledger is atomic, allows advisory negative stock, skips made-to-order, and stays isolated from POS', {skip:!local}, async () => {
  const db=new PrismaClient(); const key=randomUUID();
  try {
