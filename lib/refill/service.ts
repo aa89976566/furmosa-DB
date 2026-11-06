@@ -5,11 +5,13 @@ import {
   REFILL_PAID_OPEN_STATUSES,
   amountsForOrderType,
   type RefillOrderType,
+  type RefillOrderStatus,
 } from '@/lib/refill/constants';
 import { isBookableForRefill } from '@/lib/refill/eligibility';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import { assertTransition } from '@/lib/refill/transitions';
 
 /**
  * Count jar ownership evidence for refill pricing.
@@ -74,6 +76,96 @@ export function canRefreshRefillQualification(input: {
     ['draft', 'payment_failed'].includes(input.status) &&
     input.blockingPaymentCount === 0
   );
+}
+
+/**
+ * Customer cancellation is intentionally narrower than the state machine.
+ * Once a checkout has been opened, only an operator may resolve the order so
+ * a late payment callback cannot revive a customer-cancelled order.
+ */
+export function canCustomerCancelRefillOrder(input: {
+  status: string;
+  blockingPaymentCount: number;
+}): boolean {
+  return (
+    ['draft', 'payment_failed'].includes(input.status) &&
+    input.blockingPaymentCount === 0
+  );
+}
+
+export async function cancelUnpaidRefillOrder(input: {
+  orderId: string;
+  customerId: string;
+  reason?: string | null;
+}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT id FROM refill_orders WHERE id = ${input.orderId} FOR UPDATE`,
+    );
+
+    const order = await tx.refillOrder.findUnique({
+      where: { id: input.orderId },
+      include: {
+        payments: {
+          where: { status: { in: ['pending', 'paid'] } },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+    if (!order || order.customerId !== input.customerId) {
+      throw new RefillError('找不到這筆換罐訂單', 'ORDER_NOT_FOUND', 404);
+    }
+
+    if (order.status === 'cancelled') {
+      const released = await tx.jarCode.updateMany({
+        where: { lockedByRefillOrderId: order.id },
+        data: { lockedByRefillOrderId: null },
+      });
+      return { order, repeated: true as const, releasedJarCount: released.count };
+    }
+
+    if (
+      !canCustomerCancelRefillOrder({
+        status: order.status,
+        blockingPaymentCount: order.payments.length,
+      })
+    ) {
+      throw new RefillError(
+        '這筆訂單已進入付款流程，請聯絡匠寵客服協助取消',
+        'ORDER_CANNOT_BE_CANCELLED',
+        409,
+      );
+    }
+
+    assertTransition(order.status as RefillOrderStatus, 'cancelled');
+    const updated = await tx.refillOrder.update({
+      where: { id: order.id },
+      data: { status: 'cancelled' },
+    });
+    const released = await tx.jarCode.updateMany({
+      where: { lockedByRefillOrderId: order.id },
+      data: { lockedByRefillOrderId: null },
+    });
+    await writeRefillAudit(tx, {
+      refillOrderId: order.id,
+      action: 'order_cancelled_by_customer',
+      actorType: 'customer',
+      actorId: input.customerId,
+      merchantId: order.merchantId,
+      detail: {
+        previousStatus: order.status,
+        reason: input.reason?.trim() || null,
+        releasedJarCount: released.count,
+      },
+    });
+
+    return {
+      order: updated,
+      repeated: false as const,
+      releasedJarCount: released.count,
+    };
+  });
 }
 
 async function refreshUnpaidOrderQualification(
