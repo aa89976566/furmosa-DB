@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { receiveLinkedRefillStock } from '@/lib/refill/receive-product-stock';
 import { reserveStockTxnNumbers } from '@/lib/merchant-stock-txn-number';
 import {
   merchantStockUniqueWhere,
@@ -200,6 +201,12 @@ export async function applyMerchantRestockFromShipment(
         note: legacyRestockNote(shipment.shipmentNumber),
       },
     });
+    if (products.find(product => product.id === item.productId)?.productCategory === 'JAR_EXCHANGE') {
+      await receiveLinkedRefillStock(tx, {
+        merchantId: shipment.merchantId, productId: item.productId,
+        quantity: item.quantity, shipmentNumber: shipment.shipmentNumber,
+      });
+    }
   }
 
   return true;

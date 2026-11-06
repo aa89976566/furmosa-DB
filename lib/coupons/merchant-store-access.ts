@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { merchantToStoreSlug } from '@/lib/stores/sync-merchant-stores';
 
 export type MerchantCouponStore = {
@@ -14,21 +15,22 @@ export type MerchantCouponStore = {
  */
 export async function resolveCouponStoreForMerchant(
   merchantId: string,
+  db: Pick<Prisma.TransactionClient, 'merchant' | 'store'> = prisma,
 ): Promise<MerchantCouponStore | null> {
-  const merchant = await prisma.merchant.findUnique({
+  const merchant = await db.merchant.findUnique({
     where: { id: merchantId },
     select: { id: true, merchantId: true, name: true, status: true },
   });
   if (!merchant || merchant.status !== 'active') return null;
 
   const expectedSlug = merchantToStoreSlug(merchant.merchantId);
-  const exactStore = await prisma.store.findUnique({
+  const exactStore = await db.store.findUnique({
     where: { slug: expectedSlug },
     select: { slug: true, name: true },
   });
   const sameNameStores = exactStore
     ? []
-    : await prisma.store.findMany({
+    : await db.store.findMany({
         where: { name: { equals: merchant.name, mode: 'insensitive' } },
         orderBy: { slug: 'asc' },
         take: 2,
