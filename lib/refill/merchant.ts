@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { deductLinkedRefillProductStock } from '@/lib/refill/counted-product-stock';
 import { prisma } from '@/lib/prisma';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points';
@@ -234,6 +235,10 @@ export async function completeRefillDelivery(input: {
     if (deducted.count !== 1) {
       throw new RefillError('本店此品項庫存不足，請重新整理。', 'INSUFFICIENT_STOCK', 409);
     }
+    await deductLinkedRefillProductStock(tx, {
+      merchantId: input.merchantId, flavourId: stock.flavourId,
+      weightGrams: stock.flavour.weightGrams, quantity, orderId: order.id,
+    });
     const quantityAfter = stock.quantity - quantity;
     await tx.refillStockTxn.create({
       data: {
