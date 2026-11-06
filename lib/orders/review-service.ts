@@ -17,6 +17,7 @@ export type ReviewResult = {
   blockers: string[];
   kind: ReviewResultKind;
   next: { label: string; href: string } | null;
+  uncertain?: boolean;
 };
 
 export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
