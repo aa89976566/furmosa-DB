@@ -18,7 +18,7 @@ import {
 } from '@/lib/pos/inventory-groups';
 import { inventoryPriceLabel } from '@/lib/pos/inventory-price';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
-import { defaultRestockAddQty, restockLineKey } from '@/lib/pos/restock-cart';
+import { activeRestockTiers, isRestockCartVariantValid, defaultRestockAddQty, restockLineKey } from '@/lib/pos/restock-cart';
 import {
   adjustInventoryQuantityAction,
   submitInventoryRestockCartAction,
@@ -103,7 +103,7 @@ function InventoryWorkspaceInner({
     [group, items, lowStockOnly, query],
   );
   const selected = items.find((item) => item.productId === selectedId) ?? null;
-  const restockTiers = (selected?.tiers ?? []).filter(t => t.id && (t.status == null || t.status === 'active'));
+  const restockTiers = activeRestockTiers(selected?.tiers ?? []);
   const noActiveRestockTier = !!selected?.tiers?.some(t => t.id) && restockTiers.length === 0;
   const selectedNeedsRestock = selected ? isLowOrSoldOutStock(selected.quantity) : false;
 
@@ -122,7 +122,7 @@ function InventoryWorkspaceInner({
   function addProductToCart(product: InventoryProduct, quantity?: number) {
     const qty = quantity ?? defaultRestockAddQty(product.suggestedQty);
     if (qty <= 0) return;
-    const tiers = (product.tiers ?? []).filter(t => t.id && (t.status == null || t.status === 'active'));
+    const tiers = activeRestockTiers(product.tiers ?? []);
     const variantKey = tiers.length === 1 ? tiers[0].id : addVariant;
     if ((product.tiers?.some(t => t.id) && !tiers.length) || (tiers.length > 1 && !tiers.some(t => t.id === variantKey))) return;
     cart.add({
@@ -187,6 +187,11 @@ function InventoryWorkspaceInner({
       setSubmitting(false);
     }
   }
+
+  const cartHasInvalidVariant = cart.lines.some(line => {
+    const product = items.find(p => p.productId === line.productId);
+    return !product || !isRestockCartVariantValid(product.tiers ?? [], line.variantKey);
+  });
 
   const restockControlsVisible = selectedNeedsRestock || restockOpen;
 
@@ -354,11 +359,11 @@ function InventoryWorkspaceInner({
               </div>
               <div className="min-w-0 flex-1 text-sm text-zinc-900">
                 <p className="truncate">{line.name}</p>
-                {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 ? (
+                {activeRestockTiers(items.find(p => p.productId === line.productId)?.tiers ?? []).length > 0 ? (
                   <select aria-label={`${line.name} 補貨規格`} value={line.variantKey ?? ''} className="mt-1 h-11 max-w-full rounded-lg border bg-white px-2"
                     onChange={e => cart.setVariant(line.productId, e.target.value, line.variantKey)}>
                     <option value="">請選擇規格</option>
-                    {(items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                    {activeRestockTiers(items.find(p => p.productId === line.productId)?.tiers ?? []).map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                   </select>
                 ) : null}
               </div>
@@ -387,10 +392,10 @@ function InventoryWorkspaceInner({
       )}
       <div className="mt-4 border-t border-neutral-200 pt-3">
         <p className="text-sm text-zinc-600">共 {cart.pieceCount} 件商品</p>
-        {cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey) ? <p role="status" className="mt-2 text-sm text-orange-700">請先選擇補貨商品規格</p> : null}
+        {cartHasInvalidVariant ? <p role="status" className="mt-2 text-sm text-orange-700">補貨規格未選擇或已停用，請重新選擇或移除商品</p> : null}
         <button
           type="button"
-          disabled={cart.lines.length === 0 || submitting || cart.lines.some(line => (items.find(p => p.productId === line.productId)?.tiers ?? []).filter(t => t.id).length > 1 && !line.variantKey)}
+          disabled={cart.lines.length === 0 || submitting || cartHasInvalidVariant}
           className="mt-3 flex min-h-[44px] w-full items-center justify-center rounded-xl border border-zinc-900 bg-white text-sm font-semibold text-zinc-900 disabled:opacity-40"
           onClick={() => void onSubmitCart()}
         >
