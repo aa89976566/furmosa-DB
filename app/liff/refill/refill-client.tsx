@@ -81,6 +81,12 @@ function RefillFlow({
   const [order, setOrder] = useState<OrderView | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const restartLineLogin = useCallback(async () => {
+    const liff = (await import('@line/liff')).default;
+    liff.logout();
+    liff.login({ redirectUri: window.location.href });
+  }, []);
+
   const loadEligibility = useCallback(async () => {
     setError(null);
     const res = await fetch('/api/refill/eligibility', {
@@ -185,6 +191,10 @@ function RefillFlow({
         }),
       });
       const created = await createRes.json();
+      if (createRes.status === 401 && created.code === 'LINE_TOKEN_EXPIRED') {
+        await restartLineLogin();
+        return;
+      }
       if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
       const oid = created.order.id as string;
       setOrder(created.order);
@@ -202,6 +212,10 @@ function RefillFlow({
         body: JSON.stringify({ idToken }),
       });
       const pay = await payRes.json();
+      if (payRes.status === 401 && pay.code === 'LINE_TOKEN_EXPIRED') {
+        await restartLineLogin();
+        return;
+      }
       if (!payRes.ok) throw new Error(pay.error ?? REFILL_COPY.genericError);
 
       setStep('paying');
