@@ -787,10 +787,14 @@ model ProductPriceTier {
   defaultConsignmentCommissionMode  String? @map("default_consignment_commission_mode") // percent / amount
   defaultConsignmentCommissionValue Int?    @map("default_consignment_commission_value") // percent: basis points; amount: integer TWD
   notes                     String?
+  /// 顧客可見的方案名稱；服務商品可用名稱區分相同 1 次的不同方案。
+  variantName               String? @map("variant_name")
+  /// 唯一識別鍵；優先沿用規格 SKU，避免服務方案因相同單位而互相衝突。
+  variantKey                String  @default("") @map("variant_key")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@unique([productId, weightGrams, unit, unitQty])
+  @@unique([productId, weightGrams, unit, unitQty, variantKey])
   @@index([productId])
   @@index([status])
   @@index([shopifyVariantId])
@@ -1089,6 +1093,8 @@ model MerchantStock {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  lots MerchantStockLot[]
+
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -1098,7 +1104,26 @@ model MerchantStock {
 }
 
 // 寄賣動作流水帳：進貨 / 銷售 / 盤點 / 退回
+model MerchantStockLot {
+  id String @id @default(cuid())
+  stockId String
+  sourceKey String @unique
+  mode String // consignment | wholesale
+  initialQuantity Int
+  remainingQuantity Int
+  acquiredAt DateTime @default(now())
+  gift Boolean @default(false)
+  note String?
+  stock MerchantStock @relation(fields: [stockId], references: [id], onDelete: Restrict)
+  @@index([stockId, acquiredAt])
+}
+
 model MerchantStockTxn {
+  tierId String?
+  settlementQuantity Int? // null = legacy; 0 = excluded from consignment settlement
+  commercialMode String? // consignment | wholesale | mixed
+  inventoryAllocation Json? // immutable lot/mode/quantity snapshot
+
   id               String   @id @default(cuid())
   txnNumber        String   @unique // MTXN-202605-0001
   merchantId       String

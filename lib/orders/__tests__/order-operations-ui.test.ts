@@ -1,3 +1,4 @@
+import { ORDER_WORK_FILTERS } from '../oms-workbench';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -186,8 +187,9 @@ test('Dashboard 使用明確下一步，不再顯示模糊的有問題分類', (
 });
 
 test('訂單工作台與 Dashboard 使用同一組互斥工作階段', () => {
+  assert.match(ordersPageSource, /loadOrderWorkSummary\(prisma\)/);
   for (const label of ['待處理', '待付款', '待出貨', '運送中', '已完成']) {
-    assert.match(ordersPageSource, new RegExp(label));
+    assert.ok(ORDER_WORK_FILTERS.some(stage => stage.label === label));
   }
   assert.match(ordersPageSource, /aria-label="訂單工作階段"/);
   assert.match(ordersPageSource, /inline-flex min-w-full gap-1 rounded-xl/);

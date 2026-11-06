@@ -6,11 +6,12 @@ import { useLiff } from '@/components/liff/use-liff';
 type Props = {
   liffId: string;
   title: string;
+  reconnectPath?: string;
   children: (ctx: { idToken: string }) => ReactNode;
 };
 
-export function LiffShell({ liffId, title, children }: Props) {
-  const { state, idToken, error } = useLiff(liffId);
+export function LiffShell({ liffId, title, reconnectPath, children }: Props) {
+  const { state, idToken, error } = useLiff(liffId, reconnectPath);
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-background px-4 py-6">

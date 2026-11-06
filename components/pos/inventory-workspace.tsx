@@ -241,6 +241,11 @@ function InventoryWorkspaceInner({
         </div>
       </div>
 
+      {(selected.buyoutQuantity ?? 0) > 0 ? (
+        <p className="mt-4 text-sm text-zinc-600">
+          買斷 {selected.buyoutQuantity} 件（含贊助 {selected.sponsoredQuantity ?? 0} 件），售出不列寄賣月結。
+        </p>
+      ) : null}
       <div className="mt-6">
         {selected.programLabel ? (
           <p className="mb-4 rounded-xl bg-neutral-100 px-3 py-2 text-xs leading-5 text-zinc-600">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { omsReviewAction } from '@/app/(main)/orders/oms-actions';
+import type { ReviewResult } from '@/lib/orders/review-service';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,8 +35,22 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
   </section>;
 }
 
+async function submitReview(previous: ReviewResult, form: FormData): Promise<ReviewResult> {
+  try {
+    return await omsReviewAction(previous, form);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const stalePage = /Failed to find Server Action|Server Action[^\n]*was not found on the server/i.test(message);
+    // A disconnected request may already have committed. Keep the draft visible and
+    // ask the operator to verify state rather than blindly retrying shipment creation.
+    return { ok: false, action: null, omsStatus: null, blockers: [], next: null, kind: 'error', message: stalePage
+      ? '系統已更新，這個頁面已過期。請重新載入訂單，核對狀態後再操作。'
+      : '連線中斷，尚未確認操作結果。請重新整理核對訂單狀態後再操作。' };
+  }
+}
+
 export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary }) {
-  const [state, action] = useFormState(omsReviewAction, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
+  const [state, action] = useFormState(submitReview, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
   const router = useRouter();
   const ok = state.ok ?? null;
   const effectiveStatus = state.ok && state.omsStatus ? state.omsStatus : status;
@@ -49,10 +64,12 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
     const draftSaved = state.action === 'check' && state.omsStatus === 'REVIEW' && state.kind !== 'error';
     if ((!state.ok && !draftSaved) || !state.action) return;
     if (state.next?.href?.startsWith('/shipments')) {
-      router.push(state.next.href);
+      // Keep the committed result visible; the operator opens shipping explicitly.
       return;
     }
-    router.refresh();
+    // Server Action path invalidation already refreshes the route after approval.
+    // Only saved drafts need the explicit refresh used by the existing check flow.
+    if (draftSaved) router.refresh();
     const targetId = state.action === 'ship' ? 'oms-shipping' : 'oms-review';
     const timer = window.setTimeout(() => {
       document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -101,5 +118,5 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
         {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" value={storeId} onChange={event => setStoreId(event.target.value)} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} onChange={() => setStoreId('')} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
       </div>
     </section>}
-    {!readyForShipment ? <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} /></form>;
+    {!readyForShipment ? <section className="rounded-lg border bg-muted/20 p-3 text-sm"><h3 className="font-semibold">處理規則</h3><p className="mt-1 text-muted-foreground">商品與數量仍以 Shopify 訂單為準；HQ 補正只影響實際履約與出貨資料。</p></section> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{isError ? <a className="inline-flex font-medium underline underline-offset-4" href={`/orders/${encodeURIComponent(orderId)}`}>重新載入訂單並核對狀態</a> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} /></form>;
 }

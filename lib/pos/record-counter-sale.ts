@@ -41,6 +41,7 @@ export async function recordCounterSale(merchantId: string, requested: Requested
           txnNumber: txnNumbers[i]!,
           merchantId,
           productId: line.productId,
+          tierId: line.tierId,
           type: 'sale',
           quantity: -line.qty,
           balanceAfter: currentStock.quantity,
