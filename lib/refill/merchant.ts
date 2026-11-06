@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { deductCountedRefillProductStock } from '@/lib/refill/counted-product-stock';
+import { deductLinkedRefillProductStock } from '@/lib/refill/counted-product-stock';
 import { prisma } from '@/lib/prisma';
 import { isValidJarCodeFormat, normalizeJarCode } from '@/lib/jar-exchange/codes';
 import { appendPointsLedger, getPointsBalance } from '@/lib/jar-exchange/points';
@@ -235,18 +235,10 @@ export async function completeRefillDelivery(input: {
     if (deducted.count !== 1) {
       throw new RefillError('本店此品項庫存不足，請重新整理。', 'INSUFFICIENT_STOCK', 409);
     }
-    if (stock.flavour.weightGrams === 0) {
-      // product_id is an existing database link not yet represented by Prisma.
-      const links = await tx.$queryRaw<Array<{ product_id: string | null }>>`
-        SELECT product_id FROM refill_flavours WHERE id = ${stock.flavourId}
-      `;
-      if (links[0]?.product_id) {
-        await deductCountedRefillProductStock(tx, {
-          merchantId: input.merchantId, productId: links[0].product_id,
-          quantity, orderId: order.id,
-        });
-      }
-    }
+    await deductLinkedRefillProductStock(tx, {
+      merchantId: input.merchantId, flavourId: stock.flavourId,
+      weightGrams: stock.flavour.weightGrams, quantity, orderId: order.id,
+    });
     const quantityAfter = stock.quantity - quantity;
     await tx.refillStockTxn.create({
       data: {
