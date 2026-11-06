@@ -9,24 +9,8 @@ import { sectionToneStyles } from '@/lib/section-tone';
 import { cn } from '@/lib/utils';
 import { ChevronDown } from 'lucide-react';
 
-/** 高頻工作台：允許 RSC prefetch，其餘關閉以免拖慢側欄 */
-const HOT_PREFETCH = new Set([
-  '/dashboard',
-  '/orders',
-  '/reviews',
-  '/shipments',
-  '/shipments?status=pending',
-  '/merchants',
-  '/customers',
-  '/products',
-  '/inventory',
-  '/subscriptions',
-  '/subscriptions/shipments',
-  '/subscriptions/plans',
-  '/vendors',
-  '/restock-requests',
-  '/campaigns/jiba-two-piece',
-]);
+/** 首頁資料較輕，保留預載；其餘後台清單在點擊時才查詢，避免搶占資料庫連線。 */
+const HOT_PREFETCH = new Set(['/dashboard']);
 
 export function SidebarNav({
   itemExtras,

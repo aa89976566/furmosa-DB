@@ -77,7 +77,7 @@ export default async function ShipmentsPage(
                   <DropdownMenuItem key={item.key || 'all'} asChild>
                     <Link
                       href={href}
-                      prefetch
+                      prefetch={false}
                       className="flex min-h-10 items-center justify-between"
                     >
                       <span>{item.label}</span>
@@ -97,7 +97,7 @@ export default async function ShipmentsPage(
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem asChild>
-                <Link href="/orders" prefetch className="min-h-10">
+                <Link href="/orders" prefetch={false} className="min-h-10">
                   <ClipboardList className="mr-2 h-4 w-4" />
                   訂單列表
                 </Link>
@@ -122,7 +122,7 @@ export default async function ShipmentsPage(
             <Link
               href="/shipments?type=consignment"
               className="font-medium text-info hover:underline"
-              prefetch
+              prefetch={false}
             >
               寄賣
             </Link>{' '}
