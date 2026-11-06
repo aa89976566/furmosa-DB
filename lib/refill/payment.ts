@@ -3,7 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { assertTransition } from '@/lib/refill/transitions';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
-import { REFILL_PRICES, type PaymentPurpose } from '@/lib/refill/constants';
+import {
+  REFILL_PRICES,
+  amountsForOrderType,
+  type PaymentPurpose,
+} from '@/lib/refill/constants';
 import {
   buildEcpayAioCheckout,
   buildMerchantTradeNo,
@@ -17,6 +21,45 @@ function isEcpayExternalEffectsAllowed(): boolean {
     APP_ENV: process.env.APP_ENV,
     EXTERNAL_EFFECTS_MODE: process.env.EXTERNAL_EFFECTS_MODE,
   });
+}
+
+export function assertRefillPaymentSnapshot(input: {
+  orderType: string;
+  deliveryMode: string;
+  baseAmount: number;
+  extraAmount: number;
+  totalAmount: number;
+  hasValidReservation: boolean;
+}): void {
+  if (!['first', 'exchange'].includes(input.orderType)) {
+    throw new RefillError(
+      '訂單金額已變更，請返回換罐頁重新建立訂單。',
+      'REFILL_PRICE_CHANGED',
+      409,
+    );
+  }
+  const normalizedType = input.orderType as 'first' | 'exchange';
+  const expected = amountsForOrderType(normalizedType);
+  const amountSnapshotMatches =
+    input.baseAmount === expected.baseAmount &&
+    input.extraAmount === expected.extraAmount &&
+    input.totalAmount === expected.totalAmount &&
+    input.deliveryMode === normalizedType;
+
+  if (!amountSnapshotMatches) {
+    throw new RefillError(
+      '訂單金額已變更，請返回換罐頁重新建立訂單。',
+      'REFILL_PRICE_CHANGED',
+      409,
+    );
+  }
+  if (normalizedType === 'exchange' && !input.hasValidReservation) {
+    throw new RefillError(
+      '空罐資格已變更，請返回換罐頁重新確認。',
+      'REFILL_JAR_RESERVATION_MISSING',
+      409,
+    );
+  }
 }
 
 export async function initiateRefillPayment(input: {
@@ -42,35 +85,57 @@ export async function initiateRefillPayment(input: {
   }
 
   const purpose: PaymentPurpose = input.purpose ?? 'refill';
-  const order = await prisma.refillOrder.findUnique({
-    where: { id: input.orderId },
-    include: { merchant: { select: { name: true } } },
-  });
-  if (!order || order.customerId !== input.customerId) {
-    throw new RefillError('找不到這筆換罐訂單。', 'ORDER_NOT_FOUND', 404);
-  }
-
-  if (purpose === 'refill') {
-    if (['paid_waiting_return', 'old_container_verified', 'completed'].includes(order.status)) {
-      throw new RefillError('這筆換罐已經付款，不需要再付一次。', 'ALREADY_PAID', 409);
-    }
-    if (!['draft', 'payment_pending', 'payment_failed'].includes(order.status)) {
-      throw new RefillError('這筆訂單目前不能付款。', 'INVALID_STATUS', 409);
-    }
-  } else {
-    if (order.status !== 'awaiting_extra_payment') {
-      throw new RefillError('這筆訂單目前不需要補差額。', 'INVALID_STATUS', 409);
-    }
-  }
-
-  const amount =
-    purpose === 'extra_topup' ? REFILL_PRICES.extraTopup : order.baseAmount;
-
   // ECPay rejects a MerchantTradeNo after it has already received that checkout,
   // even when the customer leaves or the hosted page expires before payment.
   // Therefore every explicit checkout request is a new payment attempt. Older
   // pending attempts remain available for their signed callback and audit trail.
-  const payment = await prisma.$transaction(async (tx) => {
+  const { order, payment } = await prisma.$transaction(async (tx) => {
+    const order = await tx.refillOrder.findUnique({
+      where: { id: input.orderId },
+      include: { merchant: { select: { name: true } } },
+    });
+    if (!order || order.customerId !== input.customerId) {
+      throw new RefillError('找不到這筆換罐訂單。', 'ORDER_NOT_FOUND', 404);
+    }
+
+    if (purpose === 'refill') {
+      if (['paid_waiting_return', 'old_container_verified', 'completed'].includes(order.status)) {
+        throw new RefillError('這筆換罐已經付款，不需要再付一次。', 'ALREADY_PAID', 409);
+      }
+      if (!['draft', 'payment_pending', 'payment_failed'].includes(order.status)) {
+        throw new RefillError('這筆訂單目前不能付款。', 'INVALID_STATUS', 409);
+      }
+
+      let hasValidReservation = order.orderType !== 'exchange';
+      if (order.orderType === 'exchange') {
+        if (order.oldContainerSerial) {
+          const reservedJar = await tx.jarCode.findFirst({
+            where: {
+              lockedByRefillOrderId: order.id,
+              redeemedByCustomerId: input.customerId,
+              code: order.oldContainerSerial,
+              status: { in: ['used', 'issued'] },
+            },
+            select: { id: true },
+          });
+          hasValidReservation = Boolean(reservedJar);
+        }
+      }
+      assertRefillPaymentSnapshot({
+        orderType: order.orderType,
+        deliveryMode: order.deliveryMode,
+        baseAmount: order.baseAmount,
+        extraAmount: order.extraAmount,
+        totalAmount: order.totalAmount,
+        hasValidReservation,
+      });
+    } else if (order.status !== 'awaiting_extra_payment') {
+      throw new RefillError('這筆訂單目前不需要補差額。', 'INVALID_STATUS', 409);
+    }
+
+    const amount =
+      purpose === 'extra_topup' ? REFILL_PRICES.extraTopup : order.baseAmount;
+
     const created = await tx.paymentOrder.create({
       data: {
         refillOrderId: order.id,
@@ -99,7 +164,7 @@ export async function initiateRefillPayment(input: {
       merchantId: order.merchantId,
       detail: { purpose, amount, merchantTradeNo: created.merchantTradeNo },
     });
-    return created;
+    return { order, payment: created };
   });
 
   const itemName =

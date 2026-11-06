@@ -16,9 +16,7 @@ const ENV_KEYS = [
 ] as const;
 
 const oldEnv = new Map<string, string | undefined>();
-const originalFindUnique = prisma.refillOrder.findUnique;
 const originalTransaction = prisma.$transaction;
-type AsyncFn = (...args: unknown[]) => Promise<unknown>;
 type TransactionMock = (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
 
 describe('refill payment retry', () => {
@@ -41,8 +39,6 @@ describe('refill payment retry', () => {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    (prisma.refillOrder as unknown as { findUnique: typeof originalFindUnique }).findUnique =
-      originalFindUnique;
     (prisma as unknown as { $transaction: typeof originalTransaction }).$transaction =
       originalTransaction;
   });
@@ -51,16 +47,6 @@ describe('refill payment retry', () => {
     let status = 'draft';
     let sequence = 0;
     const tradeNos: string[] = [];
-
-    (prisma.refillOrder as unknown as { findUnique: AsyncFn }).findUnique = async () => ({
-      id: 'refill-1',
-      customerId: 'customer-1',
-      merchantId: 'merchant-1',
-      orderType: 'first',
-      baseAmount: 129,
-      status,
-      merchant: { name: '測試店家' },
-    });
 
     (prisma as unknown as { $transaction: TransactionMock }).$transaction = async (
       fn: (tx: unknown) => Promise<unknown>,
@@ -78,11 +64,25 @@ describe('refill payment retry', () => {
           },
         },
         refillOrder: {
+          findUnique: async () => ({
+            id: 'refill-1',
+            customerId: 'customer-1',
+            merchantId: 'merchant-1',
+            orderType: 'first',
+            deliveryMode: 'first',
+            baseAmount: 129,
+            extraAmount: 0,
+            totalAmount: 129,
+            status,
+            oldContainerSerial: null,
+            merchant: { name: '測試店家' },
+          }),
           update: async () => {
             status = 'payment_pending';
             return {};
           },
         },
+        jarCode: { findFirst: async () => null },
         refillAuditLog: { create: async () => ({}) },
       };
       return fn(tx);
