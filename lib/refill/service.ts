@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   REFILL_ACTIVE_STATUSES,
@@ -20,10 +21,10 @@ import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
  * here: a pending order must not make an existing customer fall back to the
  * NT$129 first-jar price on refresh.
  */
-export function refillJarOwnershipWhere(customerId: string) {
+export function refillJarOwnershipWhere(customerId: string): Prisma.JarCodeWhereInput {
   return {
     redeemedByCustomerId: customerId,
-    status: { in: ['used', 'issued'] as const },
+    status: { in: ['used', 'issued'] },
   };
 }
 
