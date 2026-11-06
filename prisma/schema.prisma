@@ -102,6 +102,7 @@ model User {
   purchaseOrdersCreated PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
   purchaseOrdersReceived PurchaseOrder[] @relation("PurchaseOrderReceivedBy")
   stocktakeAdjustments StocktakeAdjustment[] @relation("StocktakeCreatedBy")
+  reviewedProductWishes ProductWish[] @relation("ProductWishReviewedBy")
 }
 
 model HqPasskeyCredential {
@@ -1029,6 +1030,27 @@ model RestockRequestItem {
 }
 
 /// 匠寵店家合作申請（由 furmosa-collab 合作頁送入 HQ 待審核）
+model ProductWish {
+  id               String    @id @default(cuid())
+  status           String    @default("pending_review")
+  source           String    @default("smart_guide")
+  species          String
+  intent           String?
+  requestText      String    @map("request_text")
+  context          Json      @default("{}")
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewNote       String?   @map("review_note")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  reviewedBy User? @relation("ProductWishReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([species, status])
+  @@map("product_wishes")
+}
+
 model PartnerApplication {
   id               String    @id @default(cuid())
   applicationNo    String    @unique @map("application_no")
