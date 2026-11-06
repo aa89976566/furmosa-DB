@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, chromium } from '@playwright/test';
+import { runAuthenticatedMonitor } from '../scripts/authenticated-production-monitor.mjs';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'node:crypto';
@@ -57,6 +58,19 @@ test.beforeAll(async ({}, testInfo) => {
   }});
 });
 test.afterAll(async () => { await db.$disconnect(); });
+
+test('production monitor request boundary works against the isolated application', async ({}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Runner already checks HQ desktop and POS mobile in separate contexts.');
+  test.setTimeout(240_000);
+  const beforeSales = await db.merchantStockTxn.count({ where: { merchantId, type: 'sale' } });
+  const beforeRequests = await db.restockRequest.count({ where: { merchantId } });
+  const report = await runAuthenticatedMonitor({ chromium, origin: 'http://localhost:3000', credentials: {
+    hqUser: hqEmail, hqPassword, posUser: username, posPassword: password,
+  }});
+  expect(report.ok, JSON.stringify(report)).toBe(true);
+  expect(await db.merchantStockTxn.count({ where: { merchantId, type: 'sale' } })).toBe(beforeSales);
+  expect(await db.restockRequest.count({ where: { merchantId } })).toBe(beforeRequests);
+});
 
 test('HQ login reaches data workspaces without a rendered error or unavailable counts', async ({ page }) => {
   test.setTimeout(180_000);

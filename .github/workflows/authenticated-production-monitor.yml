@@ -1,0 +1,43 @@
+name: Authenticated production monitor (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authenticated-production-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    # Existing required-reviewer gate stays intact. No daily activation until
+    # credentials and this live read-only run have been explicitly accepted.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Check authenticated pages without business writes
+        env:
+          MONITOR_HQ_USER: ${{ secrets.PRODUCTION_SMOKE_HQ_EMAIL }}
+          MONITOR_HQ_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_HQ_PASSWORD }}
+          MONITOR_POS_USER: ${{ secrets.MONITOR_POS_USER }}
+          MONITOR_POS_PASSWORD: ${{ secrets.MONITOR_POS_PASSWORD }}
+        run: node scripts/authenticated-production-monitor.mjs
+      - name: Preserve sanitized check results only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-authenticated-probe
+          path: production-authenticated-probe.json
+          retention-days: 7
+          if-no-files-found: error
