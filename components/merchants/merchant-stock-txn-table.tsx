@@ -18,6 +18,8 @@ export type MerchantStockTxnRow = {
   balanceAfter: number;
   companyRevenue: number | null;
   settlementId: string | null;
+  commercialMode?: string | null;
+  settlementQuantity?: number | null;
   note: string | null;
   createdAt: Date;
   merchant: { id: string; name: string; merchantId: string };
@@ -114,7 +116,7 @@ export function MerchantStockTxnTable({
                   {t.settlement.settlementId}
                 </Link>
               ) : (
-                <span className="text-muted-foreground">未結清</span>
+                <span className="text-muted-foreground">{t.commercialMode === 'wholesale' ? '買斷・不列月結' : t.settlementQuantity === 0 ? '不列月結' : '未結清'}</span>
               )}
             </TableCell>
             <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">

@@ -90,6 +90,7 @@ export async function fetchSettlementSaleTxns({
 
   const lines: typeof txns = [];
   for (const t of txns) {
+    if (t.settlementQuantity === 0) continue;
     if (t.type === 'sale') {
       lines.push(t);
       continue;
@@ -108,7 +109,7 @@ export async function fetchSettlementSaleTxns({
   }
 
   return lines.map((t) => {
-    const qty = Math.abs(t.quantity);
+    const qty = t.settlementQuantity ?? Math.abs(t.quantity);
     const rule = ruleByProduct.get(t.productId);
     const amounts =
       t.type === 'sale' && t.unitPrice != null
