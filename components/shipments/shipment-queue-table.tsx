@@ -416,12 +416,12 @@ export function ShipmentQueueTable({
   function optimisticHandler(shipmentId: string) {
     return (phase: 'start' | 'success' | 'error', message?: string) => {
       if (phase === 'start') {
-        setOptimisticHidden((current) => new Set(current).add(shipmentId));
         setNotice({ kind: 'success', text: '正在標記寄出…' });
         return;
       }
       if (phase === 'success') {
-        setNotice({ kind: 'success', text: '已標記寄出 · 已移到運送中' });
+        setOptimisticHidden((current) => new Set(current).add(shipmentId));
+        setNotice({ kind: 'success', text: '已標記寄出 · 已移到已寄出／待確認到貨' });
         return;
       }
       setOptimisticHidden((current) => {
