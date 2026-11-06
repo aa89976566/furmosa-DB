@@ -2,8 +2,11 @@ export const INVENTORY_LOW_STOCK_THRESHOLD = 3;
 
 export type InventoryGroupId = 'freeze_dried' | 'baked' | 'chicken' | 'fish' | 'other';
 
-export const INVENTORY_GROUPS: { id: InventoryGroupId | 'all'; label: string }[] = [
+export type InventoryFilterId = InventoryGroupId | 'all' | 'new';
+
+export const INVENTORY_GROUPS: { id: InventoryFilterId; label: string }[] = [
   { id: 'all', label: '全部' },
+  { id: 'new', label: '新產品' },
   { id: 'freeze_dried', label: '凍乾' },
   { id: 'baked', label: '肉乾' },
   { id: 'chicken', label: '雞肉' },
@@ -66,7 +69,7 @@ export function filterInventoryItems<T extends InventorySearchItem>(
   items: T[],
   input: {
     query: string;
-    group: InventoryGroupId | 'all';
+    group: InventoryFilterId;
     lowStockOnly: boolean;
     lowStockThreshold?: number;
   },
@@ -74,10 +77,20 @@ export function filterInventoryItems<T extends InventorySearchItem>(
   const q = input.query.trim().toLowerCase();
   const threshold = input.lowStockThreshold ?? INVENTORY_LOW_STOCK_THRESHOLD;
   return items.filter((item) => {
-    if (input.group !== 'all' && item.group !== input.group) return false;
+    if (input.group === 'new') {
+      if (!isNewInventoryProduct(item)) return false;
+    } else if (input.group !== 'all' && item.group !== input.group) return false;
     if (input.lowStockOnly && !isLowOrSoldOutStock(item.quantity, threshold)) return false;
     if (!q) return true;
     const haystack = `${item.name} ${item.sku ?? ''} ${item.sourceSku ?? ''}`.toLowerCase();
     return haystack.includes(q);
   });
+}
+
+// Current POS launches. Explicit SKUs include newly opened older master records
+// (柳葉魚), without marking every photo/price edit as a new product.
+const NEW_POS_PRODUCT_SKUS = new Set(['FUR-0128', 'FUR-0129', 'FUR-0007']);
+
+export function isNewInventoryProduct(item: { sku?: string | null }): boolean {
+  return NEW_POS_PRODUCT_SKUS.has((item.sku ?? '').trim().toUpperCase());
 }

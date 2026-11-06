@@ -11,12 +11,10 @@ import type { PosAccount } from '@/lib/pos/account';
 import type { InventoryProduct } from '@/lib/pos/load-inventory';
 import {
   filterInventoryItems,
-  inventoryStockStatus,
   INVENTORY_GROUPS,
   INVENTORY_LOW_STOCK_THRESHOLD,
   isLowOrSoldOutStock,
-  type InventoryGroupId,
-  type InventoryTone,
+  type InventoryFilterId,
 } from '@/lib/pos/inventory-groups';
 import { inventoryPriceLabel } from '@/lib/pos/inventory-price';
 import { suggestedRestockQty } from '@/lib/pos/stock-status';
@@ -25,18 +23,6 @@ import {
   adjustInventoryQuantityAction,
   submitInventoryRestockCartAction,
 } from '@/app/pos/stock/actions';
-
-const TONE_PILL: Record<InventoryTone, string> = {
-  sold_out: 'bg-red-50 text-red-600',
-  low: 'bg-orange-50 text-orange-600',
-  ok: 'bg-neutral-100 text-neutral-600',
-};
-
-const TONE_TEXT: Record<InventoryTone, string> = {
-  sold_out: 'text-red-600',
-  low: 'text-orange-600',
-  ok: 'text-zinc-900',
-};
 
 type ToastState = { text: string; href?: string; hrefLabel?: string };
 
@@ -89,7 +75,7 @@ function InventoryWorkspaceInner({
   const cart = useRestockCart();
   const [items, setItems] = useState(initialItems);
   const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<InventoryGroupId | 'all'>('all');
+  const [group, setGroup] = useState<InventoryFilterId>('all');
   const [lowStockOnly, setLowStockOnly] = useState(initialLowStock);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restockOpen, setRestockOpen] = useState(false);
@@ -116,9 +102,7 @@ function InventoryWorkspaceInner({
       ),
     [group, items, lowStockOnly, query],
   );
-  const lowCount = items.filter((item) => isLowOrSoldOutStock(item.quantity)).length;
   const selected = items.find((item) => item.productId === selectedId) ?? null;
-  const selectedStatus = selected ? inventoryStockStatus(selected.quantity) : null;
   const selectedNeedsRestock = selected ? isLowOrSoldOutStock(selected.quantity) : false;
 
   useEffect(() => {
@@ -201,7 +185,7 @@ function InventoryWorkspaceInner({
 
   const restockControlsVisible = selectedNeedsRestock || restockOpen;
 
-  const detail = selected && selectedStatus ? (
+  const detail = selected ? (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -239,10 +223,9 @@ function InventoryWorkspaceInner({
         </div>
         <div>
           <p className="text-xs text-zinc-500">目前庫存</p>
-          <p className={`text-4xl font-semibold tabular-nums ${TONE_TEXT[selectedStatus.tone]}`}>
+          <p className="text-4xl font-semibold tabular-nums text-zinc-900">
             {selected.quantity}
           </p>
-          <p className={`mt-1 text-sm ${TONE_TEXT[selectedStatus.tone]}`}>{selectedStatus.label}</p>
         </div>
       </div>
 
@@ -442,27 +425,12 @@ function InventoryWorkspaceInner({
                   className={`min-h-[36px] rounded-full px-4 text-sm font-medium ${
                     group === tab.id ? 'bg-primary text-primary-foreground' : 'bg-neutral-200/80 text-zinc-600'
                   }`}
-                  onClick={() => setGroup(tab.id)}
+                  onClick={() => { setGroup(tab.id); setLowStockOnly(false); }}
                 >
                   {tab.label}
                 </button>
               ))}
-              <button
-                type="button"
-                className={`ml-auto flex min-h-[36px] items-center gap-2 rounded-full px-4 text-sm font-medium ${
-                  lowStockOnly ? 'bg-primary text-primary-foreground' : 'bg-white text-zinc-700 ring-1 ring-neutral-200'
-                }`}
-                onClick={() => setLowStockOnly((value) => !value)}
-              >
-                庫存不足
-                <span
-                  className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${
-                    lowStockOnly ? 'bg-white text-primary' : 'bg-primary text-primary-foreground'
-                  }`}
-                >
-                  {lowCount}
-                </span>
-              </button>
+
             </div>
           </div>
 
@@ -472,9 +440,8 @@ function InventoryWorkspaceInner({
             ) : (
               <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {visible.map((item) => {
-                  const status = inventoryStockStatus(item.quantity);
                   const isSelected = selectedId === item.productId;
-                  const plusQuiet = status.tone === 'ok';
+                  const plusQuiet = !isLowOrSoldOutStock(item.quantity);
                   return (
                     <li key={item.productId} className="relative">
                       <button
@@ -509,9 +476,7 @@ function InventoryWorkspaceInner({
                         ) : null}
                         <div className="mt-2 flex items-end justify-between gap-2">
                           <p className="text-sm text-zinc-500">庫存 {item.quantity}</p>
-                          <span className={`rounded-full px-2 py-0.5 text-xs ${TONE_PILL[status.tone]}`}>
-                            {status.label}
-                          </span>
+
                         </div>
                       </button>
                       {isSelected ? null : (
