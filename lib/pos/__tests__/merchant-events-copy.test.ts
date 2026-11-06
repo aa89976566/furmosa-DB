@@ -88,6 +88,7 @@ const harness = globalThis as typeof globalThis & {
     shipment: {
       findMany: (args: { where: Record<string, unknown>; take?: number; orderBy?: unknown }) => Promise<unknown[]>;
     };
+    merchantStock: { findMany: () => Promise<unknown[]> };
     merchantStockTxn: {
       findMany: (args: { where: Record<string, unknown> }) => Promise<unknown[]>;
     };
@@ -114,6 +115,7 @@ harness.__TEST_PRISMA__ = {
       return sorted.slice(0, take ?? sorted.length);
     },
   },
+  merchantStock: { findMany: async () => [] },
   merchantStockTxn: {
     findMany: async ({ where }) => {
       if (world.failEvidence) throw new Error('evidence failed');
@@ -190,7 +192,7 @@ describe('POS 補貨通知文案', () => {
     }
   });
 
-  it('通知鈴鐺只組合最新摘要，不查庫存入帳證據', async () => {
+  it('通知證據不可用時改為HQ核對，不催重複入庫', async () => {
     world = {
       requests: [
         requestRow({
@@ -221,7 +223,7 @@ describe('POS 補貨通知文案', () => {
     assert.deepEqual(
       events.map(({ id, title, statusLabel }) => ({ id, title, statusLabel })),
       [
-        { id: 'shipment-direct-new', title: '商品已出貨', statusLabel: '運送中' },
+        { id: 'shipment-direct-new', title: '舊單請由 HQ 核對', statusLabel: '避免重複入庫' },
         { id: 'request-request-new', title: '補貨申請已送出', statusLabel: '等待匠寵審核' },
       ],
     );
@@ -436,7 +438,7 @@ describe('POS 補貨通知文案', () => {
     assert.equal(events[0]?.href, '/pos/shipments/direct-1');
   });
 
-  it('evidence throw keeps 待驗收 and does not reject', async () => {
+  it('evidence throw blocks receipt and requests HQ review', async () => {
     world = {
       requests: [],
       shipments: [directShipment()],
@@ -447,9 +449,9 @@ describe('POS 補貨通知文案', () => {
       failEvidence: true,
     };
     const events = await loadMerchantEvents('merchant-1');
-    assert.equal(events[0]?.title, '商品已送達，請確認收貨');
-    assert.equal(events[0]?.statusLabel, '待驗收');
-    assert.equal(events[0]?.actionRequired, true);
+    assert.equal(events[0]?.title, '舊單請由 HQ 核對');
+    assert.equal(events[0]?.statusLabel, '避免重複入庫');
+    assert.equal(events[0]?.actionRequired, false);
     assert.equal(events[0]?.href, '/pos/shipments/direct-1');
   });
 

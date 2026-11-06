@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { requireMerchantSession } from '@/lib/merchant-auth';
 import { confirmMerchantRestockReceipt } from '@/lib/merchant-restock-receipt';
 import { loadMerchantRestockShipment } from '@/lib/pos/load-merchant-restock-shipment';
+import { RECEIPT_REVIEW_MESSAGE } from '@/lib/pos/receipt-review';
 
 export async function confirmDirectShipmentReceiptAction(formData: FormData) {
   const session = await requireMerchantSession();
@@ -26,6 +27,9 @@ export async function confirmDirectShipmentReceiptAction(formData: FormData) {
       merchantUserId,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === RECEIPT_REVIEW_MESSAGE) {
+      redirect(`/pos/shipments/${shipmentId}?receipt=review_required`);
+    }
     console.error('[pos-restock-receipt] failed', {
       shipmentId,
       merchantId,

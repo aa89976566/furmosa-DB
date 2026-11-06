@@ -1,3 +1,4 @@
+import { loadReceiptReviewIds } from '@/lib/pos/receipt-review';
 import { prisma } from '@/lib/prisma';
 import {
   SHIPMENT_DISPATCH_KIND,
@@ -27,9 +28,13 @@ export async function processMerchantReceiptReminders(now = new Date()) {
     select: { id: true, merchantId: true, shippedAt: true },
   });
 
+  const byMerchant = new Map<string, string[]>();
+  for (const s of shipments) if (s.merchantId) byMerchant.set(s.merchantId, [...(byMerchant.get(s.merchantId) ?? []), s.id]);
+  const reviewIds = new Set<string>();
+  for (const [merchantId, ids] of byMerchant) for (const id of await loadReceiptReviewIds(merchantId, ids)) reviewIds.add(id);
   let created = 0;
   for (const shipment of shipments) {
-    if (!shipment.merchantId || !shipment.shippedAt) continue;
+    if (!shipment.merchantId || !shipment.shippedAt || reviewIds.has(shipment.id)) continue;
     const stage = receiptReminderStage(shipment.shippedAt, now);
     if (!stage) continue;
     const kind = stage === 5 ? SHIPMENT_RECEIPT_DAY_5_KIND : SHIPMENT_RECEIPT_DAY_3_KIND;

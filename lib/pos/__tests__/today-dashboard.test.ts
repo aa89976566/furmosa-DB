@@ -548,9 +548,8 @@ describe('loadHomeTasks awaiting receipt', () => {
     });
     const result = await loadHomeTasks('merchant-1');
     const card = receiptCard(result.cards);
-    assert.equal(card?.href, '/pos/restock/request-1');
-    assert.equal(card?.badge, '1');
-    assert.equal(result.warning, '部分資料暫時讀取失敗，請稍後再試。');
+    assert.equal(card, undefined);
+    assert.match(result.warning ?? '', /HQ 核對/);
   });
 
   it('treats evidence failure as all directs still awaiting and warns', async () => {
@@ -561,9 +560,8 @@ describe('loadHomeTasks awaiting receipt', () => {
     });
     const result = await loadHomeTasks('merchant-1');
     const card = receiptCard(result.cards);
-    assert.equal(card?.href, '/pos/shipments/ship-direct-1');
-    assert.equal(card?.badge, '1');
-    assert.equal(result.warning, '部分資料暫時讀取失敗，請稍後再試。');
+    assert.equal(card, undefined);
+    assert.match(result.warning ?? '', /HQ 核對/);
   });
 
   it('keeps + after evidence filters a 20-row direct batch', async () => {

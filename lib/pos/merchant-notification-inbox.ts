@@ -1,3 +1,4 @@
+import { loadReceiptReviewIds } from '@/lib/pos/receipt-review';
 import { prisma } from '@/lib/prisma';
 import {
   dispatchNoticeScope,
@@ -26,7 +27,9 @@ export async function loadMerchantNotificationInbox(
   take = 5,
 ) {
   await assertActiveMerchantUser(identity);
-  const where = unreadDispatchScope(identity);
+  const pending = await prisma.shipment.findMany({ where: { merchantId: identity.merchantId, type: 'merchant_restock', status: 'shipped' }, select: { id: true } });
+  const reviewIds = await loadReceiptReviewIds(identity.merchantId, pending.map(s => s.id));
+  const where = { ...unreadDispatchScope(identity), shipmentId: { notIn: [...reviewIds] } };
   const [unreadCount, notifications] = await Promise.all([
     prisma.merchantNotification.count({ where }),
     prisma.merchantNotification.findMany({

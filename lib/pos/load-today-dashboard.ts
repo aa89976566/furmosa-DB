@@ -1,3 +1,4 @@
+import { loadReceiptReviewIds } from '@/lib/pos/receipt-review';
 import { prisma } from '@/lib/prisma';
 import { findRestockShipmentsAlreadyPosted } from '@/lib/merchant-restock-inventory';
 import {
@@ -247,6 +248,9 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
         href: `/pos/shipments/${shipment.id}`,
       });
     }
+    const reviewIds = await loadReceiptReviewIds(merchantId, candidates.flatMap(c => c.shipmentId ? [c.shipmentId] : []));
+    const reviewCount = candidates.filter(c => c.shipmentId && reviewIds.has(c.shipmentId)).length;
+    for (let i = candidates.length - 1; i >= 0; i--) if (candidates[i].shipmentId && reviewIds.has(candidates[i].shipmentId!)) candidates.splice(i, 1);
     candidates.sort(compareReceiptCandidates);
 
     const first = candidates[0];
@@ -282,7 +286,7 @@ export async function loadHomeTasks(merchantId: string): Promise<LoadedHomeTasks
           ? '部分資料暫時讀不到。需要時可從下方選單進庫存或補貨。'
           : '部分資料暫時讀取失敗，請稍後再試。';
 
-    return { cards: buildHomeTaskCards(input), warning };
+    return { cards: buildHomeTaskCards(input), warning: reviewCount ? `${reviewCount} 張舊單請由 HQ 核對，暫停重複收貨入庫。${warning ?? ''}` : warning };
   } catch (err) {
     console.error('[pos] loadHomeTasks', err);
     return {

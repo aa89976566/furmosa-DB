@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma';
+import { receiptOverlapsStockCount, RECEIPT_REVIEW_MESSAGE } from '@/lib/pos/receipt-review';
+import { findRestockShipmentsAlreadyPosted } from '@/lib/merchant-restock-inventory';
 import {
   applyMerchantRestockFromShipment,
   validateRestockReceiptShipment,
@@ -22,6 +24,8 @@ export async function confirmMerchantRestockReceipt(input: {
         shipmentNumber: true,
         type: true,
         status: true,
+        shippedAt: true,
+        createdAt: true,
         items: {
           select: {
             id: true,
@@ -42,6 +46,14 @@ export async function confirmMerchantRestockReceipt(input: {
     }
 
     const now = new Date();
+    const evidence = await findRestockShipmentsAlreadyPosted(tx, merchantId, [shipment]);
+    if (!evidence.posted.has(shipment.id)) {
+      const stocks = await tx.merchantStock.findMany({
+        where: { merchantId, productId: { in: shipment.items.map(item => item.productId) } },
+        select: { productId: true, lastCountAt: true },
+      });
+      if (receiptOverlapsStockCount(shipment, stocks)) throw new Error(RECEIPT_REVIEW_MESSAGE);
+    }
     const updated = await tx.shipment.updateMany({
       where: {
         id: shipment.id,
@@ -91,5 +103,6 @@ export async function confirmMerchantRestockReceipt(input: {
   }, {
     maxWait: 30_000,
     timeout: 60_000,
+    isolationLevel: 'Serializable',
   });
 }

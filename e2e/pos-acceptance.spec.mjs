@@ -59,6 +59,57 @@ test.beforeAll(async ({}, testInfo) => {
 });
 test.afterAll(async () => { await db.$disconnect(); });
 
+test('historical receipt review closes without stock writes and a genuinely new receipt posts once', async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  const key = randomUUID();
+  const p = await db.product.create({ data: { productId: `CI-RV-${key}`, sku: `CI-RV-${key}`, name: 'CI舊單盤點商品', price: 99, unit: '包' } });
+  const stock = await db.merchantStock.create({ data: { merchantId, productId: p.id, tierId: '', quantity: 2, lastCountAt: new Date('2026-06-01') } });
+  const makeShipment = shippedAt => db.shipment.create({ data: {
+    shipmentNumber: `CI-RV-${randomUUID()}`, merchantId, type: 'merchant_restock', status: 'shipped',
+    createdAt: shippedAt, shippedAt,
+    items: { create: { productId: p.id, productName: p.name, sku: p.sku, quantity: 2, unit: '包' } },
+  } });
+  const old = await makeShipment(new Date('2026-05-01'));
+  await page.goto('/pos/login');
+  await page.getByLabel('帳號', { exact: true }).fill(username);
+  await page.getByLabel('密碼', { exact: true }).fill(password);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '店內商品', exact: true })).toBeVisible();
+  await page.goto(`/pos/shipments/${old.id}`);
+  await expect(page.getByRole('alert')).toContainText('HQ 核對');
+  await expect(page.getByRole('button', { name: '收到這批貨，確認入庫' })).toHaveCount(0);
+  await page.goto('/pos/notifications');
+  await expect(page.getByText('舊單請由 HQ 核對', { exact: true })).toBeVisible();
+  const hqContext = await browser.newContext({ viewport: page.viewportSize() });
+  try {
+    const hq = await hqContext.newPage();
+    await hq.goto('http://localhost:3000/login');
+    await hq.getByLabel('Email', { exact: true }).fill(hqEmail);
+    await hq.getByLabel('密碼', { exact: true }).fill(hqPassword);
+    await hq.getByRole('button', { name: '登入', exact: true }).click();
+    await expect(hq.getByRole('heading', { name: '營運首頁', exact: true })).toBeVisible();
+    await hq.goto(`http://localhost:3000/shipments/${old.id}`);
+    await hq.getByRole('checkbox', { name: '已確認本批貨已包含於現有庫存或後續盤點，不再新增數量' }).check();
+    await hq.getByLabel('核對說明', { exact: true }).fill('CI確認已納入現場盤點');
+    await hq.getByRole('button', { name: '確認舊單已核對，結案不加庫存', exact: true }).click();
+    await expect.poll(async () => (await db.shipment.findUniqueOrThrow({ where: { id: old.id } })).status).toBe('received');
+    expect((await db.merchantStock.findUniqueOrThrow({ where: { id: stock.id } })).quantity).toBe(2);
+    expect(await db.merchantStockTxn.count({ where: { merchantId, productId: p.id } })).toBe(0);
+    const audit = await db.statusAuditLog.findFirstOrThrow({ where: { entityId: old.id, newStatus: 'received' } });
+    expect(JSON.parse(audit.metadataJson).inventoryPosted).toBe(false);
+  } finally { await hqContext.close(); }
+  const fresh = await makeShipment(new Date('2026-07-01'));
+  await page.goto(`/pos/shipments/${fresh.id}`);
+  await page.locator('label').filter({ hasText: p.name }).click();
+  await expect(page.getByRole('checkbox')).toBeChecked();
+  await page.getByRole('button', { name: '收到這批貨，確認入庫', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('商品已加入店內庫存');
+  expect((await db.merchantStock.findUniqueOrThrow({ where: { id: stock.id } })).quantity).toBe(4);
+  await page.reload();
+  await expect(page.getByRole('button', { name: '收到這批貨，確認入庫' })).toHaveCount(0);
+  expect(await db.merchantStockTxn.count({ where: { merchantId, productId: p.id, type: 'restock' } })).toBe(1);
+});
+
 test('production monitor request boundary works against the isolated application', async ({}, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'Runner already checks HQ desktop and POS mobile in separate contexts.');
   test.setTimeout(240_000);

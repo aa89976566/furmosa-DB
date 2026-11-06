@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ClearDraftOnSuccess } from './clear-draft-on-success';
 import { ConfirmReceiptButton } from './confirm-receipt-button';
 import { ShipmentProgress } from '@/components/pos/shipment-progress';
+import { loadReceiptReviewIds, RECEIPT_REVIEW_MESSAGE } from '@/lib/pos/receipt-review';
 
 import { loadPosAccount } from '@/lib/pos/account';
 
@@ -59,7 +60,8 @@ export default async function PosRestockDetailPage(
         { label: '店家確認收貨', done: shipment.status === 'received' },
     ]
     : [];
-  const canConfirmReceipt = shipment?.status === 'shipped' || shipment?.status === 'delivered';
+  const needsReview = shipment ? (await loadReceiptReviewIds(merchantId, [shipment.id])).has(shipment.id) : false;
+  const canConfirmReceipt = !needsReview && (shipment?.status === 'shipped' || shipment?.status === 'delivered');
   const requestedItems = req.items.filter(
     (item) => (item.requestedQuantity ?? 0) > 0,
   );
@@ -99,6 +101,7 @@ export default async function PosRestockDetailPage(
           </span>
         </div>
 
+        {needsReview ? <p role="alert" className="rounded-xl border p-4 text-sm">{RECEIPT_REVIEW_MESSAGE}</p> : null}
         {shipmentCopy && shipment ? (
           <Card>
             <CardContent className="space-y-3 p-4">
