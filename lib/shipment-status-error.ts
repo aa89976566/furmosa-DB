@@ -10,6 +10,10 @@ export function shipmentStatusErrorMessage(error: unknown): string {
   const message = errorText(error).replace(/\s+/g, " ").trim();
   if (!message) return DEFAULT_MESSAGE;
 
+  if (/HQ (出貨|訂單)尚未通過 OMS 人工審核/.test(message)) {
+    return "無法寄出：OMS 人工審核紀錄不完整或已失效，請到訂單頁重新檢查並確認審核。";
+  }
+
   const stocktake = message.match(
     /HQ 商品\s+([^，。\s]+)\s+尚未完成實際單位盤點/,
   );
