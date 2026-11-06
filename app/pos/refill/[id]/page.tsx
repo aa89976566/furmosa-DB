@@ -1,3 +1,4 @@
+import { formatFlavourLabel } from '@/lib/jar-exchange/refill-plan-content';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, PackageCheck } from 'lucide-react';
@@ -84,7 +85,7 @@ export default async function PosRefillDetailPage(props: { params: Promise<{ id:
             <DetailRow label="完成時間" value={dateTime(order.completedAt)} />
             <DetailRow
               label="交付品項"
-              value={order.deliveredItem ? `${order.deliveredItem.name} ${order.deliveredItem.weightGrams}g × ${order.deliveredItem.quantity}` : '尚未交付'}
+              value={order.deliveredItem ? `${formatFlavourLabel(order.deliveredItem.name, order.deliveredItem.weightGrams)} × ${order.deliveredItem.quantity}` : '尚未交付'}
             />
           </dl>
 

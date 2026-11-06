@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { parseOptionalRefillWeight } from '@/lib/jar-exchange/refill-plan-content';
 import {
   ensureRefillPlanSeeded,
   invalidateRefillPlanCache,
@@ -18,14 +19,14 @@ export async function upsertRefillFlavourAction(formData: FormData): Promise<voi
   const id = String(formData.get('id') ?? '').trim();
   const code = String(formData.get('code') ?? '').trim();
   const name = String(formData.get('name') ?? '').trim();
-  const weightGrams = Number(formData.get('weightGrams') ?? 0);
+  const weightGrams = parseOptionalRefillWeight(formData.get('weightGrams'));
   const sortOrder = Number(formData.get('sortOrder') ?? 0);
   const isActive = formData.get('isActive') === 'on' || formData.get('isActive') === 'true';
   const imageUrl = String(formData.get('imageUrl') ?? '').trim() || null;
   const availableFromRaw = String(formData.get('availableFrom') ?? '').trim();
   const availableUntilRaw = String(formData.get('availableUntil') ?? '').trim();
 
-  if (!code || !name || !Number.isFinite(weightGrams) || weightGrams <= 0) {
+  if (!code || !name || weightGrams === null) {
     return;
   }
 

@@ -147,5 +147,19 @@ export const DEFAULT_REFILL_FLAVOURS = [
 ] as const;
 
 export function formatFlavourLabel(name: string, weightGrams: number): string {
-  return `${name}｜${weightGrams}g`;
+  return `${name}｜${formatRefillSize(weightGrams)}`;
+}
+
+/** 0 is the persisted “weight not specified” marker, never a physical gram quantity.
+ * Refill stock and delivery always count jars, independently of this display field.
+ */
+export function formatRefillSize(weightGrams: number): string {
+  return Number.isFinite(weightGrams) && weightGrams > 0 ? `${weightGrams}g` : '1罐';
+}
+
+export function parseOptionalRefillWeight(value: FormDataEntryValue | null): number | null {
+  if (value === null || (typeof value === 'string' && value.trim() === '')) return 0;
+  if (typeof value !== 'string') return null;
+  const grams = Number(value);
+  return Number.isSafeInteger(grams) && grams >= 0 ? grams : null;
 }
