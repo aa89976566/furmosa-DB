@@ -170,8 +170,10 @@ export async function markShipmentStatus(formData: FormData): Promise<void> {
 export async function markShipmentStatusFromQueue(
   formData: FormData,
 ): Promise<MarkShipmentStatusResult> {
+  const startedAt = Date.now();
   try {
     const result = await markShipmentStatusInner(formData);
+    console.info('[shipment/queue-result]', { shipmentId: result.shipmentId, next: result.next, elapsedMs: Date.now() - startedAt });
     return { ok: true, next: result.next, shipmentId: result.shipmentId };
   } catch (error) {
     if (isNextRedirect(error)) throw error;
@@ -559,6 +561,8 @@ async function markShipmentStatusInner(
     });
   }
 
+  console.info('[shipment/queue-committed]', { shipmentId, next });
+
   // LINE 是出貨完成後的附加通知：未綁定、環境未設定或發送失敗，
   // 都不能回滾已成功的出貨狀態。只在首次進入 shipped 時通知，避免重送。
   if (shouldNotifyShipmentSent(shipment.status, next)) {
@@ -619,12 +623,14 @@ async function markShipmentStatusInner(
     });
     if (subShip) revalidatePath(`/subscriptions/${subShip.subscriptionId}`);
   }
+  console.info('[shipment/queue-cache-start]', { shipmentId });
   await bustCacheTags(
     CACHE_TAGS.dashboard,
     CACHE_TAGS.shipmentQueueCounts,
     CACHE_TAGS.orderHubTotals,
     CACHE_TAGS.merchantsPortfolio,
   );
+  console.info('[shipment/queue-cache-complete]', { shipmentId });
 
   return { next, shipmentId };
 }

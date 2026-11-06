@@ -210,7 +210,8 @@ test('empty merchant catalog remains a failure with a precise code', async ({ pa
 });
 
 
-test('HQ dispatch updates its row and stage counts without a manual reload', async ({ page }, testInfo) => {
+for (const orderMode of ['legacy', 'shopify-oms']) {
+test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual reload`, async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const suffix = randomUUID();
   const wh = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'CI HQ' } });
@@ -220,7 +221,15 @@ test('HQ dispatch updates its row and stage counts without a manual reload', asy
     inventoryBalances: { create: { warehouseId: wh.id, quantity: 100, unit: 'g', lastCountedAt: new Date() } },
   }});
   const orderNumber = `CI-DISPATCH-${suffix}`;
-  const order = await db.order.create({ data: { orderNumber, source: 'manual', status: 'confirmed', paymentStatus: 'paid', subtotal: 100, total: 100 } });
+  const actor = await db.user.findUniqueOrThrow({ where: { email: hqEmail } });
+  const sourceDate = new Date();
+  const omsEvidence = orderMode === 'shopify-oms' ? {
+    source: 'shopify', externalStore: `${suffix}.myshopify.com`, externalOrderId: BigInt(`0x${suffix.replace(/-/g, '')}`).toString(),
+    externalOrderName: orderNumber, omsStatus: 'FULFILLMENT_PENDING', omsIssueFlags: [],
+    omsCheckedAt: sourceDate, omsCheckedSourceUpdatedAt: sourceDate, shopifySourceUpdatedAt: sourceDate,
+    omsReviewedAt: sourceDate, omsReviewedById: actor.id, shippingMethod: 'home',
+  } : { source: 'manual' };
+  const order = await db.order.create({ data: { orderNumber, ...omsEvidence, status: 'confirmed', paymentStatus: 'paid', subtotal: 100, total: 100 } });
   const shipment = await db.shipment.create({ data: {
     shipmentNumber: `CI-SHIP-${suffix}`, type: 'customer_order', status: 'pending', orderId: order.id,
     recipientName: 'CI dispatch recipient', recipientAddress: 'CI isolated address', carrier: '黑貓',
@@ -256,3 +265,5 @@ test('HQ dispatch updates its row and stage counts without a manual reload', asy
   await expect(page.getByText(orderNumber, { exact: true }).filter({ visible: true })).toBeVisible();
   expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(1);
 });
+}
+
