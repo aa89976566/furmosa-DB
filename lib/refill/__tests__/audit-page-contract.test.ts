@@ -5,11 +5,12 @@ import test from 'node:test';
 const pagePath = new URL('../../../app/(main)/refill/audit/page.tsx', import.meta.url);
 const auditPath = new URL('../history-audit.ts', import.meta.url);
 
-test('換罐歷史盤點頁只允許 HQ 管理員查看', async () => {
+test('換罐歷史盤點頁只允許管理員與庫存訂單審核角色查看', async () => {
   const source = await readFile(pagePath, 'utf8');
 
   assert.match(source, /getCurrentUser\(\)/);
-  assert.match(source, /session\.role !== 'admin'/);
+  assert.match(source, /new Set\(\['admin', 'inventory_reviewer'\]\)/);
+  assert.match(source, /AUDIT_ROLES\.has\(session\.role\)/);
   assert.match(source, /notFound\(\)/);
   assert.match(source, /redirect\('\/login\?next=\/refill\/audit'\)/);
 });
