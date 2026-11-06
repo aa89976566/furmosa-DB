@@ -3,7 +3,6 @@ import { requireRefillMerchantSession } from '@/lib/refill/auth-merchant';
 import {
   listMerchantRefillOrders,
   lookupRefillByOrderId,
-  lookupRefillBySerial,
 } from '@/lib/refill/merchant';
 import { toRefillHttp } from '@/lib/refill/errors';
 import { RefillError } from '@/lib/refill/errors';
@@ -19,8 +18,11 @@ export async function POST(req: Request) {
     const parsed = parseRefillLookupQuery(raw);
 
     if (parsed.kind === 'serial') {
-      const result = await lookupRefillBySerial(session.merchantId, parsed.value);
-      return NextResponse.json(result);
+      throw new RefillError(
+        '店員不需要輸入罐底序號，請從待交付訂單選擇客人。',
+        'LEGACY_REFILL_FLOW_REMOVED',
+        410,
+      );
     }
 
     if (parsed.kind === 'id') {

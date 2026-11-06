@@ -1,26 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireRefillMerchantSession } from '@/lib/refill/auth-merchant';
-import { assignNewAndComplete } from '@/lib/refill/merchant';
-import { toRefillHttp } from '@/lib/refill/errors';
+import { legacyMerchantSerialFlowResult } from '@/lib/refill/legacy-merchant-flow';
 
 export const dynamic = 'force-dynamic';
 
-/** 綁定新罐並完成交付（與 complete 相同 transaction） */
-export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  try {
-    const session = await requireRefillMerchantSession();
-    const body = (await req.json()) as { serial?: string; oldSerial?: string };
-    const result = await assignNewAndComplete({
-      orderId: params.id,
-      merchantId: session.merchantId,
-      actorId: session.merchantUserId,
-      newSerialRaw: body.serial ?? '',
-      oldSerialRaw: body.oldSerial,
-    });
-    return NextResponse.json(result);
-  } catch (e) {
-    const { status, body } = toRefillHttp(e);
-    return NextResponse.json(body, { status });
-  }
+/** @deprecated 店員不再輸入新罐序號。 */
+export async function POST() {
+  const result = legacyMerchantSerialFlowResult();
+  return NextResponse.json(result.body, { status: result.status });
 }
