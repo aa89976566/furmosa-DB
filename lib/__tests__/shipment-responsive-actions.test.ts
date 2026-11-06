@@ -164,15 +164,14 @@ describe('出貨工作區介面', () => {
 
     const startBranch = table.match(/if \(phase === 'start'\) \{([\s\S]*?)return;/)?.[1] ?? '';
     assert.doesNotMatch(startBranch, /setOptimisticHidden/);
-    assert.match(table, /if \(phase === 'success'\) \{\s*setOptimisticHidden/);
-    assert.match(control, /if \(requestInFlight.current\) return/);
+    assert.doesNotMatch(table, /optimisticHidden|setOptimisticHidden/);
+    assert.match(table, /shipments\.map\(buildQueueRowView\)/);
+    assert.match(control, /if \(requestInFlight.current \|\| dispatchConfirmed\) return/);
+    assert.match(control, /setDispatchConfirmed\(true\)/);
     assert.match(control, /disabled=\{active \|\| pending \|\| busy\}/);
     assert.match(control, /actionError && !confirmNext/);
     assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
-    assert.match(table, /optimisticHidden/);
-    assert.match(table, /filter\(\(shipment\) => !optimisticHidden\.has\(shipment\.id\)\)/);
-    assert.match(table, /已標記寄出 · 已移到已寄出／待確認到貨/);
-    assert.match(table, /next\.delete\(shipmentId\)/);
+    assert.match(table, /已儲存寄出狀態，正在更新列表與數量/);
 
     assert.match(action, /if \(result\.next === 'shipped'\) \{/);
     assert.match(action, /if \(queueStatus\) params\.set\('status', queueStatus\)/);

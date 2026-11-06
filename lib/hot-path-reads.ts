@@ -48,36 +48,20 @@ export type ShipmentQueueCounts = {
   total: number;
 };
 
-/** 出貨佇列狀態計數 — 短 TTL 熱快取 */
+/** 出貨工作區必須讀取即時數量，避免列已更新但雙層快取仍回傳舊頁籤。 */
 export async function getShipmentQueueCounts(
   countWhere: Prisma.ShipmentWhereInput,
 ): Promise<ShipmentQueueCounts> {
-  const key = `shipment-queue-counts-v1:${JSON.stringify(countWhere)}`;
-  return withRuntimeCache(
-    key,
-    {
-      ttlSeconds: 20,
-      tags: [CACHE_TAGS.shipmentQueueCounts],
-      name: 'shipment-queue-counts',
-    },
-    () =>
-      unstable_cache(
-        async () => {
-          const counts = await prisma.shipment.groupBy({
-            by: ['status'],
-            where: countWhere,
-            _count: { _all: true },
-          });
-          const byStatus = Object.fromEntries(
-            counts.map((c) => [c.status, c._count._all]),
-          );
-          const pendingCount = (byStatus.pending ?? 0) + (byStatus.packed ?? 0);
-          const total =
-            pendingCount + (byStatus.shipped ?? 0) + (byStatus.delivered ?? 0);
-          return { byStatus, pendingCount, total };
-        },
-        ['shipment-queue-counts-v1', JSON.stringify(countWhere)],
-        { revalidate: 20, tags: [CACHE_TAGS.shipmentQueueCounts] },
-      )(),
+  const counts = await prisma.shipment.groupBy({
+    by: ['status'],
+    where: countWhere,
+    _count: { _all: true },
+  });
+  const byStatus = Object.fromEntries(
+    counts.map((c) => [c.status, c._count._all]),
   );
+  const pendingCount = (byStatus.pending ?? 0) + (byStatus.packed ?? 0);
+  const total =
+    pendingCount + (byStatus.shipped ?? 0) + (byStatus.delivered ?? 0);
+  return { byStatus, pendingCount, total };
 }

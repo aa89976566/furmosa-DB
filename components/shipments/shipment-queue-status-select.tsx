@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import {
@@ -146,9 +146,11 @@ export function ShipmentQueueStatusSelect({
 
   const requestInFlight = useRef(false);
   const [requestPending, setRequestPending] = useState(false);
+  const [dispatchConfirmed, setDispatchConfirmed] = useState(false);
+  useEffect(() => { setDispatchConfirmed(false); }, [status, queueStatus]);
 
   function runStatusChange(formData: FormData, optimisticDispatch = false) {
-    if (requestInFlight.current) return;
+    if (requestInFlight.current || dispatchConfirmed) return;
     requestInFlight.current = true;
     setRequestPending(true);
     setActionError(null);
@@ -164,9 +166,10 @@ export function ShipmentQueueStatusSelect({
 
       setConfirmNext(null);
 
-      // High-frequency dispatch stays in place: the parent removes the row
-      // optimistically, while refresh reconciles counts and server truth.
+      // Keep this control mounted until the server refresh updates the list
+      // and stage counts together. A saved dispatch cannot be submitted again.
       if (result.next === 'shipped' && queueStatus) {
+        setDispatchConfirmed(true);
         if (optimisticDispatch) onOptimisticChange?.('success');
         router.refresh();
         return;
@@ -230,7 +233,7 @@ export function ShipmentQueueStatusSelect({
               key={option.value}
               option={option}
               active={active}
-              busy={requestPending || isSubmitting}
+              busy={requestPending || isSubmitting || dispatchConfirmed}
               onConfirmStatus={
                 option.value === 'shipped' &&
                 (status === 'pending' || status === 'packed')

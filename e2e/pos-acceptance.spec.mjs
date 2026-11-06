@@ -192,3 +192,52 @@ test('merchant can review, return, complete one sale and find/export its record'
   expect(csv).toContain('銷售');
   expect(csv.trim().split('\n')).toHaveLength(2);
 });
+
+
+test('HQ dispatch updates its row and stage counts without a manual reload', async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const suffix = randomUUID();
+  const wh = await db.warehouse.upsert({ where: { code: 'WH-MAIN' }, update: {}, create: { code: 'WH-MAIN', name: 'CI HQ' } });
+  const product = await db.product.create({ data: {
+    productId: suffix, sku: suffix, name: 'CI dispatch count fixture', category: 'freeze_dried', unit: 'g', price: 100,
+    priceTiers: { create: { weightGrams: 30, unit: 'g', unitQty: 1, price: 100 } },
+    inventoryBalances: { create: { warehouseId: wh.id, quantity: 100, unit: 'g', lastCountedAt: new Date() } },
+  }});
+  const orderNumber = `CI-DISPATCH-${suffix}`;
+  const order = await db.order.create({ data: { orderNumber, source: 'manual', status: 'confirmed', paymentStatus: 'paid', subtotal: 100, total: 100 } });
+  const shipment = await db.shipment.create({ data: {
+    shipmentNumber: `CI-SHIP-${suffix}`, type: 'customer_order', status: 'pending', orderId: order.id,
+    recipientName: 'CI dispatch recipient', recipientAddress: 'CI isolated address', carrier: '黑貓',
+    items: { create: { productId: product.id, productName: product.name, sku: product.sku, quantity: 1, weightGrams: 30, unit: 'g' } },
+  }});
+  await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill(hqEmail);
+  await page.getByLabel('密碼', { exact: true }).fill(hqPassword);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '營運首頁', exact: true })).toBeVisible();
+  await page.goto('/shipments?status=pending&type=customer_order');
+  const stages = page.getByRole('navigation', { name: '出貨階段', exact: true });
+  const pending = stages.getByRole('link', { name: /^待出貨/ }).locator('span').last();
+  const shippedLink = stages.getByRole('link', { name: /^已寄出／待確認到貨/ });
+  const shipped = shippedLink.locator('span').last();
+  await expect(pending).toHaveText(/^\d+$/);
+  const pendingBefore = Number(await pending.innerText());
+  const shippedBefore = Number(await shipped.innerText());
+  const row = testInfo.project.name === 'mobile'
+    ? page.locator('.md\\:hidden').locator('div.cursor-pointer').filter({ hasText: orderNumber })
+    : page.getByRole('row').filter({ hasText: orderNumber });
+  await expect(row).toBeVisible();
+  await row.getByRole('button', { name: '已寄出', exact: true }).click();
+  // These assertions retry across the server refresh; never reload to hide a stale-count bug.
+  await expect(pending).toHaveText(String(pendingBefore - 1));
+  await expect(shipped).toHaveText(String(shippedBefore + 1));
+  await expect(row).toHaveCount(0);
+  expect((await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } })).status).toBe('shipped');
+  expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(1);
+  await shippedLink.click();
+  await expect(page.getByText(orderNumber, { exact: true }).filter({ visible: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(orderNumber, { exact: true }).filter({ visible: true })).toBeVisible();
+  expect(await db.inventoryTransaction.count({ where: { reference: `shipment:${shipment.id}`, type: 'sales_out' } })).toBe(1);
+});
+
