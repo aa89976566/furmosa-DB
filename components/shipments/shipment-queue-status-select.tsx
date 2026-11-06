@@ -155,6 +155,11 @@ export function ShipmentQueueStatusSelect({
     setRequestPending(true);
     setActionError(null);
     if (optimisticDispatch) onOptimisticChange?.('start');
+    // A Server Action response can wait on an unrelated RSC/layout refresh.
+    // A read-only document navigation reconciles the saved state without retrying the write.
+    const responseDeadline = window.setTimeout(() => {
+      window.location.assign(window.location.href);
+    }, 15_000);
     startTransition(async () => {
       try {
       const result = await markShipmentStatusFromQueue(formData);
@@ -166,12 +171,12 @@ export function ShipmentQueueStatusSelect({
 
       setConfirmNext(null);
 
-      // Keep this control mounted until the server refresh updates the list
-      // and stage counts together. A saved dispatch cannot be submitted again.
+      // Navigate with a document GET instead of waiting on a stuck RSC refresh.
+      // A saved dispatch cannot be submitted again.
       if (result.next === 'shipped' && queueStatus) {
         setDispatchConfirmed(true);
         if (optimisticDispatch) onOptimisticChange?.('success');
-        router.refresh();
+        window.location.assign(window.location.href);
         return;
       }
 
@@ -187,6 +192,7 @@ export function ShipmentQueueStatusSelect({
         setActionError(message);
         if (optimisticDispatch) onOptimisticChange?.('error', message);
       } finally {
+        window.clearTimeout(responseDeadline);
         requestInFlight.current = false;
         setRequestPending(false);
       }

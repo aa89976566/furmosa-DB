@@ -168,6 +168,9 @@ describe('出貨工作區介面', () => {
     assert.match(table, /shipments\.map\(buildQueueRowView\)/);
     assert.match(control, /if \(requestInFlight.current \|\| dispatchConfirmed\) return/);
     assert.match(control, /setDispatchConfirmed\(true\)/);
+    assert.match(control, /window\.location\.assign\(window\.location\.href\)/);
+    assert.match(control, /const responseDeadline = window\.setTimeout/);
+    assert.match(control, /window\.clearTimeout\(responseDeadline\)/);
     assert.match(control, /disabled=\{active \|\| pending \|\| busy\}/);
     assert.match(control, /actionError && !confirmNext/);
     assert.match(control, /catch \{[\s\S]*onOptimisticChange\?\.\('error', message\)/);
