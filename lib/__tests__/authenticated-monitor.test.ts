@@ -145,3 +145,26 @@ test('runner aborts excluded external images without recording a request-boundar
   assert.equal(report.results.some(result => result.code === 'UNREVIEWED_REQUEST_BLOCKED'), false);
   assert.deepEqual(report.requestBlocks, []);
 });
+
+
+test('search diagnostics distinguish empty catalogs, broken filtering and failed reset without leaking DOM', async () => {
+  const { checkPosSearch } = await import('../../scripts/authenticated-production-monitor.mjs');
+  for (const failure of ['empty', 'input', 'filter', 'reset', 'none']) {
+    const fills: string[] = [];
+    const locator = (kind: string): any => ({
+      async isVisible() { return kind === 'empty' && failure === 'empty'; },
+      async waitFor() { if (kind === failure) throw new Error('PRIVATE_PRODUCT_OR_SESSION'); },
+      async fill(value: string) { fills.push(value); },
+      first() { return this; },
+    });
+    const page = {
+      getByText(text: string) { return locator(text.startsWith('這間店') ? 'empty' : 'filter'); },
+      getByRole(role: string) { return locator(role === 'textbox' ? 'input' : 'reset'); },
+    };
+    const codes: Record<string, string> = { empty: 'POS_CATALOG_EMPTY', input: 'POS_SEARCH_UNAVAILABLE', filter: 'POS_SEARCH_FILTER_FAILED', reset: 'POS_SEARCH_RESET_FAILED' };
+    if (failure === 'none') await assert.doesNotReject(checkPosSearch(page));
+    else await assert.rejects(checkPosSearch(page), { message: codes[failure] });
+    if (['filter', 'reset', 'none'].includes(failure)) assert.equal(fills.at(-1), '');
+    if (failure === 'empty') assert.equal(fills.length, 0);
+  }
+});
