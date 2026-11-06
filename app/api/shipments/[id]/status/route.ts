@@ -11,6 +11,31 @@ const json = (body: unknown, status = 200) => Response.json(body, {
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!await getCurrentUser()) return json({ ok: false, error: '請先登入 HQ' }, 401);
   const { id } = await params;
+  if (new URL(_request.url).searchParams.get('diagnostic') === '1') {
+    const shipment = await prisma.shipment.findUnique({
+      where: { id },
+      select: { id: true, status: true, order: { select: {
+        id: true, omsStatus: true, omsReviewedAt: true, omsReviewedById: true,
+        omsCheckedAt: true, omsCheckedSourceUpdatedAt: true, shopifySourceUpdatedAt: true,
+        deletedAt: true, omsIssueFlags: true,
+      } } },
+    });
+    if (!shipment) return json({ ok: false, error: '出貨單不存在' }, 404);
+    const order = shipment.order;
+    return json({ ok: true, shipmentId: shipment.id, status: shipment.status,
+      diagnostic: order ? {
+        orderId: order.id, omsStatus: order.omsStatus,
+        reviewedAt: order.omsReviewedAt, reviewerRecorded: Boolean(order.omsReviewedById),
+        checkedAt: order.omsCheckedAt, checkedSourceUpdatedAt: order.omsCheckedSourceUpdatedAt,
+        sourceUpdatedAt: order.shopifySourceUpdatedAt, deleted: Boolean(order.deletedAt),
+        issueFlagsValid: Array.isArray(order.omsIssueFlags),
+        issues: Array.isArray(order.omsIssueFlags) ? order.omsIssueFlags.map(issue => {
+          const flag: Record<string, unknown> = issue && typeof issue === 'object' && !Array.isArray(issue) ? issue : {};
+          return { code: flag.code, severity: flag.severity, blocking: flag.blocking };
+        }) : [],
+      } : null,
+    });
+  }
   const shipment = await prisma.shipment.findUnique({ where: { id }, select: { id: true, status: true } });
   if (!shipment) return json({ ok: false, error: '出貨單不存在' }, 404);
   return json({ ok: true, shipmentId: shipment.id, status: shipment.status });

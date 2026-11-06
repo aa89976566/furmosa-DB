@@ -11,7 +11,7 @@ function api(authenticated = true, mutationResult: object = { ok: true, shipment
   const loaded: Record<string, Function> = {};
   new Function('require', 'exports', output)((name: string) => {
     if (name === '@/lib/auth') return { getCurrentUser: async () => authenticated ? { userId: 'hq' } : null };
-    if (name === '@/lib/prisma') return { prisma: { shipment: { findUnique: async () => ({ id: 's1', status: 'shipped' }) } } };
+    if (name === '@/lib/prisma') return { prisma: { shipment: { findUnique: async () => ({ id: 's1', status: 'shipped', order: { id: 'o1', omsStatus: 'FULFILLMENT_PENDING', omsReviewedAt: null, omsReviewedById: null, omsCheckedAt: new Date('2026-11-01T00:00:00Z'), omsCheckedSourceUpdatedAt: null, shopifySourceUpdatedAt: null, deletedAt: null, omsIssueFlags: [{ code: 'SAFE', severity: 'warning', blocking: false, message: 'private recipient detail' }] } }) } } };
     if (name === '@/app/(main)/shipments/actions') return { markShipmentStatusFromQueue: async (data: FormData) => { writes.push(data); return mutationResult; } };
     throw new Error(`Unexpected dependency: ${name}`);
   }, loaded);
@@ -28,6 +28,7 @@ test('JSON shipment endpoints reject a missing HQ login without writing', async 
   const { loaded, writes } = api(false);
   assert.equal((await loaded.POST(request(), context())).status, 401);
   assert.equal((await loaded.GET(request(), context())).status, 401);
+  assert.equal((await loaded.GET(new Request('https://hq.example/api/shipments/s1/status?diagnostic=1'), context())).status, 401);
   assert.equal(writes.length, 0);
 });
 test('cross-origin and malformed origins are rejected without writing', async () => {
@@ -56,6 +57,19 @@ test('read-only reconciliation returns durable status with no write or cache', a
   const { loaded, writes } = api();
   const response = await loaded.GET(request(), context());
   assert.deepEqual(await response.json(), { ok: true, shipmentId: 's1', status: 'shipped' });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(writes.length, 0);
+});
+
+test('authenticated diagnostic is read-only and exposes review evidence without customer fields', async () => {
+  const { loaded, writes } = api();
+  const response = await loaded.GET(new Request('https://hq.example/api/shipments/s1/status?diagnostic=1'), context());
+  const body = await response.json();
+  assert.equal(body.diagnostic.orderId, 'o1');
+  assert.equal(body.diagnostic.reviewedAt, null);
+  assert.equal(body.diagnostic.reviewerRecorded, false);
+  assert.deepEqual(body.diagnostic.issues, [{ code: 'SAFE', severity: 'warning', blocking: false }]);
+  assert.equal(JSON.stringify(body).includes('private recipient detail'), false);
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.equal(writes.length, 0);
 });
