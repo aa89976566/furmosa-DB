@@ -31,7 +31,7 @@ export function parseWish(input: unknown): WishInput {
   return { species, requestText, lineId };
 }
 
-export function issueWishToken(secret: string, now: number, nonce = randomUUID()): string {
+export function issueWishToken(secret: string, now: number, nonce: string = randomUUID()): string {
   checkSecret(secret);
   const message = `${now}.${nonce}`;
   return `${message}.${hmac(message, secret)}`;
