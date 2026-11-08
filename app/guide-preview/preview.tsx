@@ -58,6 +58,9 @@ export default function GuidePreview() {
       <header><strong>FURMOSA 匠寵</strong><button aria-label="關閉導購" onClick={() => setClosed(true)}>×</button></header>
       <div className="toolbar"><span>{species ? `正在幫${species}找` : '匠子陪你找'}</span><button onClick={reset}>重新開始</button></div>
       <div ref={log} className="conversation" role="log" aria-live="polite">
+        {/* Reuse the existing Shopify artwork without cropping or redrawing. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="blue-companion" src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-blue-companion-1030.png?v=1793361481" alt="戴黃色耳機的抽象長身藍狗" width={2172} height={724} />
         {messages.map((message, index) => <p className={message.from} key={index}>{message.text}</p>)}
         {!wish && <div className="choices">{choices.map(choice => <button key={choice} onClick={() => send(choice)}>{choice}</button>)}</div>}
         {wish && <section className="wish"><h1>許願池</h1><p>想找的東西，先留給我們。</p>
@@ -74,6 +77,7 @@ export default function GuidePreview() {
       <form className="composer" onSubmit={event => { event.preventDefault(); send(input); }}><input aria-label="告訴匠子想找什麼" value={input} onChange={event => setInput(event.target.value)} placeholder="直接告訴匠子你想找什麼" maxLength={500} /><button aria-label="送出訊息" disabled={!input.trim()}>↗</button></form>
     </section>}
     <style>{`
+      .blue-companion{display:block;width:100%;height:auto;object-fit:contain;margin:0 auto 24px;max-width:550px}
       .guide-demo{min-height:100dvh;background:#f0e9d9;color:#192c59;padding:20px;font-family:Arial,"Noto Sans TC",sans-serif}
       .guide-demo *{box-sizing:border-box}.demo-note{max-width:740px;margin:0 auto 12px;font-size:13px;line-height:1.6;color:#425878}
       .shell{max-width:740px;height:min(820px,calc(100dvh - 75px));min-height:450px;margin:auto;background:#fffcf5;border-radius:28px;padding:24px;display:flex;flex-direction:column;box-shadow:0 16px 70px #273e5920}
