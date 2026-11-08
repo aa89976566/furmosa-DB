@@ -278,6 +278,15 @@ export async function handleRegisterFlowMessage(
     return true;
   }
 
+  // 相容已停在舊「品種／生日」步驟的未完成開戶：下一則訊息直接進入確認。
+  if (session.step === 'breed' || session.step === 'birthday') {
+    draft.petBreed = null;
+    draft.petBirthday = null;
+    await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
+    await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
+    return true;
+  }
+
   return false;
 }
 
