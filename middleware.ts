@@ -62,6 +62,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (
+    (pathname === '/guide-preview' && !isPosCustomDomain && process.env.VERCEL_ENV === 'preview') ||
     (pathname === '/wish' && !isPosCustomDomain && process.env.FURMOSA_WISHES_ENABLED === 'true') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
