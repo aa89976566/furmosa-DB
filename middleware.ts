@@ -62,6 +62,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (
+    (pathname === '/wish' && !isPosCustomDomain && process.env.FURMOSA_WISHES_ENABLED === 'true') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/line') ||
@@ -147,3 +148,4 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
+

@@ -6,6 +6,7 @@ import { taskStatusLabel, taskTypeLabel } from '@/lib/labels';
 import { formatDate } from '@/lib/format';
 import { CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 /** 建置時不預抓 DB，避免 Vercel SSG 因資料庫短暫不可達而整包部署失敗 */
 export const dynamic = 'force-dynamic';
@@ -91,7 +92,9 @@ export default async function TasksPage() {
                             <StatusBadge kind="taskPriority" value={t.priority} />
                           </div>
 
-                          {t.description ? (
+                          {t.reference?.startsWith('FMWISH:') ? (
+                            <Link href="/wishes" className="text-sm underline">查看許願與聯繫資料</Link>
+                          ) : t.description ? (
                             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                               {t.description}
                             </p>
@@ -141,3 +144,4 @@ export default async function TasksPage() {
     </>
   );
 }
+
