@@ -86,6 +86,9 @@ export async function submitWish(input: unknown, token: string, clientAddress: s
 }
 
 export const wishStatusLabels: Record<string, string> = { todo: '待審核', in_progress: '處理中', done: '已完成', blocked: '暫不受理' };
+export function assertRegularTask(task: { reference: string | null }) {
+  if (task.reference?.startsWith('FMWISH:')) throw new WishError('請到許願池審核頁處理這筆需求');
+}
 export function canReviewWishes(role: string | undefined) { return role === 'admin' || role === 'staff'; }
 export function wishStatus(value: unknown): 'todo' | 'in_progress' | 'done' | 'blocked' {
   if (typeof value !== 'string' || !Object.hasOwn(wishStatusLabels, value)) throw new WishError('INVALID_STATUS');

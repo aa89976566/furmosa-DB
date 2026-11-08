@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { issueWishToken, verifyWishToken, parseWish, submitWish, readWish, canReviewWishes, wishStatus } from '../wishes.ts';
+import { issueWishToken, verifyWishToken, parseWish, submitWish, readWish, canReviewWishes, wishStatus, assertRegularTask } from '../wishes.ts';
 import type { WishStore, WishTask } from '../wishes.ts';
 
 const secret = 'fixture-secret-for-tests-only-32-characters';
@@ -85,4 +85,9 @@ test('非客服角色不能審核、狀態限制在既有任務狀態', () => {
   assert.equal(canReviewWishes(undefined), false); assert.equal(canReviewWishes('warehouse'), false);
   assert.equal(canReviewWishes('admin'), true); assert.equal(canReviewWishes('staff'), true);
   assert.equal(wishStatus('in_progress'), 'in_progress'); assert.throws(() => wishStatus('approved'));
+});
+test('共用任務入口阻擋許願資料，舊任務仍可操作', () => {
+  assert.throws(() => assertRegularTask({ reference: 'FMWISH:fixture' }), /許願池審核頁/);
+  assert.doesNotThrow(() => assertRegularTask({ reference: null }));
+  assert.doesNotThrow(() => assertRegularTask({ reference: 'ORD-1234' }));
 });
