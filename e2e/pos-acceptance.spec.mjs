@@ -105,6 +105,8 @@ test('historical receipt review closes without stock writes and a genuinely new 
   await page.locator('label').filter({ hasText: p.name }).click();
   await expect(page.getByRole('checkbox')).toBeChecked();
   await page.getByRole('button', { name: '收到這批貨，確認入庫', exact: true }).click();
+  await expect.poll(async () => (await db.shipment.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe('received');
+  await page.goto(`/pos/shipments/${fresh.id}?receipt=just_received`);
   await expect(page.getByRole('status')).toContainText('商品已加入店內庫存');
   expect((await db.merchantStock.findUniqueOrThrow({ where: { id: stock.id } })).quantity).toBe(4);
   await page.reload();
@@ -195,7 +197,7 @@ test('merchant service pages expose usable controls without creating business re
   await expect(page.getByRole('button', { name: '送出寄賣叫貨單', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '← 返回修改數量', exact: true }).click();
   await expect(variant).toHaveValue(/.+/);
-  await page.getByRole('button', { name: new RegExp(`^CI叫貨-${test.info().project.name}-.* 減少$`) }).click();
+  await page.getByRole('button', { name: `${restockProductName} 減少`, exact: true }).click();
   await expect(page.getByRole('button', { name: '確認寄賣叫貨', exact: true })).toBeDisabled();
   expect(await db.merchantStockTxn.count({ where: { merchantId, type: 'sale' } })).toBe(beforeSales);
   expect(await db.restockRequest.count({ where: { merchantId } })).toBe(beforeRequests);
