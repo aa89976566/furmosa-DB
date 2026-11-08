@@ -5,6 +5,17 @@ import type { Profile, Product, Understanding } from '../conversation.ts';
 const input = (patch: Partial<Profile> = {}): Understanding => ({ profile: { ...emptyProfile(), ...patch }, medical: false, shopping: true, clearAvoid: false, clearRequirements: false });
 const dog = { ...emptyProfile(), species: 'dog', need: 'training', category: 'food' as const };
 const product: Product = { id: 'p1', title: '測試資料，非真實商品', url: 'https://furmosa.com/products/test', available: true, verified: true, species: ['dog'], needs: ['training'], category: 'food', ingredients: ['beef'], minAgeMonths: null, maxAgeMonths: null, verifiedClaims: [] };
+test('選其他動物後只問物種細項', () => {
+  assert.equal(nextTurn(emptyProfile(), input({ species: 'other' }), []).action, 'ask_species_detail');
+});
+test('已選品類後追問用途，不重複品類', () => {
+  const r = nextTurn({ ...emptyProfile(), species: 'rabbit' }, input({ category: 'toy' }), []);
+  assert.equal(r.action, 'ask_purpose'); assert.equal(r.choices.includes('找玩具'), false);
+});
+test('資料待核對與無符合商品分開回覆', () => {
+  assert.equal(nextTurn(dog, input(), [], [], true).action, 'review');
+  assert.equal(nextTurn(dog, input(), []).action, 'wish');
+});
 test('首句完整提供兔兔與用途，不再問物種', () => {
   const r = nextTurn(emptyProfile(), input({ species: 'rabbit', need: 'chewing', category: 'toy' }), [product]);
   assert.equal(r.action, 'wish'); assert.equal(r.profile.species, 'rabbit'); assert.deepEqual(r.products, []);

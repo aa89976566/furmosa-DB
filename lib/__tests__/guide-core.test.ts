@@ -2,3 +2,4 @@
 import '../guide/__tests__/conversation.test';
 import '../guide/__tests__/openai.test';
 import '../guide/__tests__/wishes.test';
+import '../guide/__tests__/catalog.test';

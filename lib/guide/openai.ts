@@ -3,7 +3,7 @@ import type { Profile, Understanding } from './conversation';
 export type Turn = { role: 'user' | 'assistant'; content: string };
 
 const instructions = `你是匠寵的台灣繁體中文導購理解器。只抽取使用者明確提供的資訊，不推薦商品、不診斷、不編造價格或庫存。
-物種正規化：狗=dog、貓=cat、兔子=rabbit、天竺鼠=guinea_pig、倉鼠=hamster、鳥=bird；其他物種用原名稱，不合併成other。
+物種正規化：狗=dog、貓=cat、兔子=rabbit、天竺鼠=guinea_pig、倉鼠=hamster、鳥=bird；選「其他小夥伴」但還沒說物種時用other，其他具體物種用原名稱，不合併成other。
 need用簡短用途，例如training、chewing、indoor_play、daily_snack、cleaning；只有廣泛「吃的／用品」時need=null，讓系統補問用途。
 category：食物food、玩具toy、照護用品care。不確定用null。
 年齡用月數。食材名稱正規化英文：雞chicken、牛beef、豬pork、鴨duck、魚fish、乳dairy、蛋egg、穀物grain。其他食材保留原文。
