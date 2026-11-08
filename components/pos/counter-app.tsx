@@ -68,6 +68,7 @@ function CounterWorkspace({
   const [pending, setPending] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const submitLock = useRef(false);
+  const submissionKey = useRef<string | null>(null);
 
   const visible = useMemo(
     () => filterCounterItems(items, query, category),
@@ -82,6 +83,8 @@ function CounterWorkspace({
     event.preventDefault();
     if (phase !== 'confirm' || submitLock.current) return;
     const data = new FormData(event.currentTarget);
+    submissionKey.current ??= crypto.randomUUID();
+    data.set('submissionKey', submissionKey.current);
     submitLock.current = true;
     setPending(true);
     try {
