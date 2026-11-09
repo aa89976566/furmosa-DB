@@ -19,8 +19,6 @@ import { buildEnterCodePromptMessages, buildJarStartMessages, buildWorldHubMessa
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import {
   LINE_BTN,
-  LINE_PET_BIRTHDAY_PROMPT,
-  LINE_PET_BREED_PROMPT,
   LINE_PET_NAME_PROMPT,
   LINE_REGISTER_INTRO,
   LINE_REGISTER_PHONE_PROMPT,
@@ -102,28 +100,6 @@ async function clearExpiredRegisterSession(lineUserId: string) {
     return true;
   }
   return false;
-}
-
-function petBirthdayToDate(iso: string | null | undefined): Date | null {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const d = new Date(`${iso}T12:00:00.000Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function parseBirthdayOptional(input: string): {
-  petBirthday: string | null;
-  error?: string;
-} {
-  const t = input.trim();
-  if (SKIP_RE.test(t)) return { petBirthday: null };
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    const d = new Date(`${t}T12:00:00.000Z`);
-    if (!Number.isNaN(d.getTime())) return { petBirthday: t };
-  }
-  return {
-    petBirthday: null,
-    error: '請傳生日（2020-05-06）或「略過」',
-  };
 }
 
 /** 同一步驟 24 小時內只提示一次；冷卻中則靜默不回复 */
@@ -297,30 +273,15 @@ export async function handleRegisterFlowMessage(
 
   if (session.step === 'pet_other') {
     draft.petSpeciesOther = trimmed.slice(0, 120);
-    await upsertLineChatSession(lineUserId, 'register', 'breed', draft);
-    await replyLineText(replyToken, LINE_PET_BREED_PROMPT);
+    await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
+    await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
     return true;
   }
 
-  if (session.step === 'breed') {
-    if (SKIP_RE.test(trimmed)) {
-      draft.petBreed = null;
-    } else {
-      draft.petBreed = trimmed.slice(0, 80);
-    }
-    const withPrompt = markRegisterStepPrompt(draft, 'birthday');
-    await upsertLineChatSession(lineUserId, 'register', 'birthday', withPrompt);
-    await replyLineText(replyToken, LINE_PET_BIRTHDAY_PROMPT);
-    return true;
-  }
-
-  if (session.step === 'birthday') {
-    const parsed = parseBirthdayOptional(trimmed);
-    if (parsed.error) {
-      await replyRegisterStepPromptOnce(replyToken, lineUserId, 'birthday', draft, parsed.error);
-      return true;
-    }
-    draft.petBirthday = parsed.petBirthday;
+  // 相容已停在舊「品種／生日」步驟的未完成開戶：下一則訊息直接進入確認。
+  if (session.step === 'breed' || session.step === 'birthday') {
+    draft.petBreed = null;
+    draft.petBirthday = null;
     await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
     await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
     return true;
@@ -397,8 +358,8 @@ export async function handleRegisterPostback(
       await replyLineText(replyToken, '其他種類是？（例：刺蝟）');
       return true;
     }
-    await upsertLineChatSession(lineUserId, 'register', 'breed', draft);
-    await replyLineText(replyToken, LINE_PET_BREED_PROMPT);
+    await upsertLineChatSession(lineUserId, 'register', 'confirm', draft);
+    await replyLineMessage(replyToken, buildRegisterConfirmMessages(formatRegisterSummary(draft)));
     return true;
   }
 
@@ -418,9 +379,9 @@ export async function handleRegisterPostback(
         petSpecies: draft.petSpecies,
         petSpeciesOther: draft.petSpeciesOther ?? null,
         petName: draft.petName,
-        petBreed: draft.petBreed ?? null,
-        petAgeYears: draft.petAgeYears ?? null,
-        petBirthday: petBirthdayToDate(draft.petBirthday),
+        petBreed: null,
+        petAgeYears: null,
+        petBirthday: null,
       });
       await ensureJarExchangeService(prisma, created.id);
       const resumeAfter = draft.resumeAfter;
@@ -430,11 +391,9 @@ export async function handleRegisterPostback(
         draft.petSpecies ?? null,
         draft.petSpeciesOther ?? null,
       );
-      const breedPart = draft.petBreed ? ` · ${draft.petBreed}` : '';
-      const bdayPart = draft.petBirthday ? ` · 生日 ${draft.petBirthday}` : '';
       const storeLabel = resolveSignupStoreLabel(draft.signupStore ?? null);
       const storeLine = storeLabel ? `\n合作店：${storeLabel}` : '';
-      const doneText = `開戶完成囉，謝謝你～${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}${breedPart}${bdayPart}`;
+      const doneText = `開戶完成囉，謝謝你～${draft.name}${storeLine}\n毛孩：${petLabel ?? ''} · ${draft.petName}`;
       const storeId = draft.signupStore ?? '';
       const nextHint =
         storeId && storeLabel
@@ -487,9 +446,6 @@ export function formatRegisterSummary(draft: RegisterDraft): string {
     lines.push(
       `毛孩：${resolvePetSpeciesLabel(draft.petSpecies ?? null, draft.petSpeciesOther ?? null) ?? '—'} · ${draft.petName}`,
     );
-    if (draft.petBreed) lines.push(`品種：${draft.petBreed}`);
-    if (draft.petBirthday) lines.push(`生日：${draft.petBirthday}`);
-    else lines.push('生日：（略過）');
   }
   return lines.join('\n');
 }
