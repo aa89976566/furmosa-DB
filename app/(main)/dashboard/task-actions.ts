@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { endOfToday, type TodayTaskRow } from '@/lib/dashboard-tasks';
 import { revalidatePath } from 'next/cache';
 import { createHash } from 'node:crypto';
+import { assertRegularTask } from '@/lib/guide/wishes';
 
 const pad = (n: number, width = 4) => String(n).padStart(width, '0');
 
@@ -49,8 +50,9 @@ export async function createTodayTask(title: string, assigneeId?: string): Promi
 }
 
 export async function toggleTodayTask(taskId: string, done: boolean) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, reference: true } });
   if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   await prisma.task.update({
     where: { id: taskId },
     data: done ? { status: 'done', completedAt: new Date() } : { status: 'todo', completedAt: null },
@@ -59,8 +61,9 @@ export async function toggleTodayTask(taskId: string, done: boolean) {
 }
 
 export async function assignTodayTask(taskId: string, assigneeId: string | null) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, reference: true } });
   if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   if (assigneeId) {
     const user = await prisma.user.findUnique({ where: { id: assigneeId }, select: { id: true } });
     if (!user) throw new Error('找不到這位協作者');
@@ -70,6 +73,9 @@ export async function assignTodayTask(taskId: string, assigneeId: string | null)
 }
 
 export async function deleteTodayTask(taskId: string) {
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, reference: true } });
+  if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   await prisma.task.delete({ where: { id: taskId } });
   refreshTasks();
 }
@@ -99,6 +105,7 @@ export async function getTaskDetails(taskId: string): Promise<TaskDetails> {
       id: true,
       title: true,
       description: true,
+      reference: true,
       assignee: { select: { id: true, name: true } },
       attachments: {
         select: { id: true, fileName: true, mimeType: true, sizeBytes: true, data: true, createdAt: true },
@@ -107,6 +114,7 @@ export async function getTaskDetails(taskId: string): Promise<TaskDetails> {
     },
   });
   if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   return {
     id: task.id,
     title: task.title,
@@ -124,15 +132,17 @@ export async function getTaskDetails(taskId: string): Promise<TaskDetails> {
 }
 
 export async function updateTaskDescription(taskId: string, description: string) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, reference: true } });
   if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   await prisma.task.update({ where: { id: taskId }, data: { description: description.trim() || null } });
   refreshTasks();
 }
 
 export async function addTaskAttachment(taskId: string, formData: FormData) {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true } });
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { id: true, reference: true } });
   if (!task) throw new Error('工作不存在');
+  assertRegularTask(task);
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) throw new Error('請選擇圖片');
   if (!file.type.startsWith('image/')) throw new Error('目前只支援圖片');
@@ -150,3 +160,4 @@ export async function addTaskAttachment(taskId: string, formData: FormData) {
   });
   refreshTasks();
 }
+
