@@ -12,6 +12,7 @@ const React = require('react');
 Object.assign(globalThis, { React, IS_REACT_ACT_ENVIRONMENT: true });
 const { act, createElement } = React;
 const { createRoot } = require('react-dom/client');
+const { renderToString } = require('react-dom/server');
 const reactDom = require('react-dom');
 reactDom.useFormState = (_action: unknown, initial: unknown) => [initial, _action];
 reactDom.useFormStatus = () => ({ pending: false });
@@ -32,7 +33,25 @@ test('counter adds an in-stock item and reaches confirmation', async () => {
  const item = {key:'p::t',productId:'p',tierId:'t',name:'雞霸',specLabel:'50g',unitPrice:165,stock:7,imageUrl:null,unit:'包',category:'treats',categoryLabel:'零食'};
  const button = (text:string) => Array.from(container.querySelectorAll('button')).find((b:any)=>b.textContent===text || b.getAttribute('aria-label')===text)!;
  try {
- await act(async()=>root.render(createElement(CounterApp,{storeName:'測試',items:[item],categories:[]})));
+ const props = {storeName:'測試',items:[item],categories:[]};
+ const server = new JSDOM(renderToString(createElement(CounterApp, props)));
+ assert.equal(server.window.document.querySelector('input[aria-label="搜尋商品"]')!.disabled, true,
+   'server-rendered search must wait for client event handlers');
+ server.window.close();
+ await act(async()=>root.render(createElement(CounterApp, props)));
+ const search = container.querySelector('input[aria-label="搜尋商品"]') as HTMLInputElement;
+ assert.equal(search.disabled, false, 'search enables after the client effect');
+ const nativeSet = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!;
+ const input = async (value: string) => act(async () => {
+   nativeSet.call(search, value);
+   search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+ });
+ await input('___monitor_no_match___');
+ assert.ok(container.textContent!.includes('沒有符合的商品，試試別的分類或關鍵字。'));
+ assert.equal(button('加入 雞霸 50g'), undefined);
+ await input('');
+ assert.ok(button('加入 雞霸 50g'), 'clearing search restores the product');
+ assert.equal(submitCount, 0, 'search and reset never submit checkout');
  await act(async()=>button('加入 雞霸 50g').click());
  assert.equal((container.querySelector('input[name="lines"]') as HTMLInputElement).value,JSON.stringify([{productId:'p',tierId:'t',qty:1}]));
  assert.equal((button('結帳') as HTMLButtonElement).disabled,false);
