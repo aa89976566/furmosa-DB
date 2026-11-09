@@ -148,6 +148,13 @@ export async function updateProduct(formData: FormData) {
       wholesaleEnabled: true,
       jarExchangeEnabled: true,
       commercialTermsVersion: true,
+      _count: {
+        select: {
+          priceTiers: true,
+          inventoryBalances: true,
+          inventoryTransactions: true,
+        },
+      },
     },
   });
   if (!existing) throw new Error('找不到商品');
@@ -176,10 +183,16 @@ export async function updateProduct(formData: FormData) {
       ? Number(existing.cost)
       : toNumber(formData.get('cost'));
   if (cost < 0) throw new Error('成本不可為負數');
-  const unit =
-    productType === 'variable'
-      ? existing.unit
-      : String(formData.get('unit') ?? '件').trim() || '件';
+  // A unit is immutable after the first sales tier, inventory balance, or
+  // ledger entry. The UI applies the same gate; this server-side check makes
+  // a forged form submission equally harmless.
+  const mayEditUnit = existing.productCategory === 'STANDARD'
+    && existing._count.priceTiers === 0
+    && existing._count.inventoryBalances === 0
+    && existing._count.inventoryTransactions === 0;
+  const unit = mayEditUnit
+    ? String(formData.get('unit') ?? existing.unit).trim() || existing.unit
+    : existing.unit;
 
   await prisma.product.update({
     where: { id },

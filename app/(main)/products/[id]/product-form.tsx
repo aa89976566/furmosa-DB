@@ -55,6 +55,7 @@ export function ProductForm({
   layout = 'default',
   productType = 'simple',
   variationCount = 0,
+  canEditUnit = false,
 }: {
   product: ProductInput;
   vendors: VendorOption[];
@@ -67,6 +68,8 @@ export function ProductForm({
   layout?: 'default' | 'studio';
   productType?: 'simple' | 'variable';
   variationCount?: number;
+  /** Only true for a standard product with no tier, balance, or ledger entry. */
+  canEditUnit?: boolean;
 }) {
   const isEdit = Boolean(product.id);
   const studio = layout === 'studio';
@@ -134,7 +137,7 @@ export function ProductForm({
           <>
             <input type="hidden" name="price" value={product.price} />
             <input type="hidden" name="cost" value={product.cost} />
-            <input type="hidden" name="unit" value={product.unit} />
+            {!canEditUnit ? <input type="hidden" name="unit" value={product.unit} /> : null}
           </>
         ) : null}
 
@@ -240,7 +243,7 @@ export function ProductForm({
             </select>
           </Field>
 
-          {!variable ? (
+          {!variable || canEditUnit ? (
             <>
               <Field label="計價單位" layout={layout}>
                 <select
@@ -259,7 +262,7 @@ export function ProductForm({
                 </select>
               </Field>
 
-              <Field label="基礎售價" required layout={layout}>
+              {!variable ? <Field label="基礎售價" required layout={layout}>
                 <Input
                   name="price"
                   type="number"
@@ -268,9 +271,9 @@ export function ProductForm({
                   defaultValue={product.price}
                   required
                 />
-              </Field>
+              </Field> : null}
 
-              <Field label="成本" layout={layout}>
+              {!variable ? <Field label="成本" layout={layout}>
                 <Input
                   name="cost"
                   type="number"
@@ -278,7 +281,7 @@ export function ProductForm({
                   step="0.01"
                   defaultValue={product.cost}
                 />
-              </Field>
+              </Field> : null}
             </>
           ) : null}
 
