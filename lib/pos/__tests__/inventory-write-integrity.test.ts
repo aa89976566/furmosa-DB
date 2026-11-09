@@ -8,6 +8,8 @@ let isolation: unknown;
 let writes: any[] = [];
 let failAudit = false;
 const tx = {
+  $executeRaw: async () => [],
+  statusAuditLog: { findUnique: async () => null, create: async () => ({}) },
   product: { findUnique: async () => ({ id: 'p', name: '鴨肺', priceTiers: [{ id: '30' }, { id: '50' }] }) },
   merchantStock: {
     findMany: async () => [{ id: 'a', tierId: '30', quantity: 3 }, { id: 'b', tierId: '50', quantity: 2 }],
@@ -48,7 +50,7 @@ test('盤點逐規格寫入，同交易建立流水；流水失敗則不保留�
 
 test('收銀流水使用扣庫存後實際餘額，而非舊目錄估算', async () => {
   writes = [];
-  await recordCounterSale('m', [{ productId: 'p', tierId: '50', qty: 1 }]);
+  await recordCounterSale('m', [{ productId: 'p', tierId: '50', qty: 1 }], '11111111-1111-4111-8111-111111111111');
   assert.equal(writes[0].data.balanceAfter, 3);
   assert.equal(writes[0].data.unitPrice, 150);
 });

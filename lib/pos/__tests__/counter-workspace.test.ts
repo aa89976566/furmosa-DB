@@ -18,9 +18,10 @@ reactDom.useFormStatus = () => ({ pending: false });
 const internal = Module as typeof Module & { _load: (...args: unknown[]) => unknown };
 const originalLoad = internal._load.bind(Module);
 let submitCount = 0;
+const keys: string[] = [];
 let submitAction: () => Promise<unknown> = async () => ({});
 internal._load = (request: unknown, ...rest: unknown[]) => {
-  if (String(request).includes('app/pos/actions')) return { checkoutCounterSaleAction: async () => { submitCount++; return submitAction(); } };
+  if (String(request).includes('app/pos/actions')) return { checkoutCounterSaleAction: async (_state: unknown, data: FormData) => { keys.push(String(data.get('submissionKey'))); submitCount++; return submitAction(); } };
   if (request === 'next/navigation') return { useRouter: () => ({ refresh() {} }) };
   if (String(request).endsWith('.module.css')) return {};
   return originalLoad(request, ...rest);
@@ -45,6 +46,7 @@ test('counter adds an in-stock item and reaches confirmation', async () => {
  submitAction = () => new Promise((resolve) => { finish = resolve; });
  const submit = () => container.querySelector('form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
  await act(async () => { submit(); submit(); });
+ assert.match(keys[0]!, /^[0-9a-f-]{36}$/);
  assert.equal(submitCount, 1, 'rapid submissions must share one synchronous lock');
  assert.ok(button('記帳中…'));
  await act(async () => finish({ ok: true, total: 165 }));
@@ -58,6 +60,7 @@ test('counter adds an in-stock item and reaches confirmation', async () => {
  assert.ok(container.textContent!.includes('請先到紀錄核對'));
  assert.equal((button('確認完成') as HTMLButtonElement).disabled, true);
  await act(async () => { submit(); });
+ assert.notEqual(keys[1], keys[0], 'next ticket must use a fresh identity');
  assert.equal(submitCount, 2, 'unknown commit result must not be retried');
  } finally {await act(async()=>root.unmount());dom.window.close();}
 });
