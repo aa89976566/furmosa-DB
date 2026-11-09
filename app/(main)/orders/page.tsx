@@ -19,9 +19,10 @@ import { ORDER_SOURCE_KEYS, ORDER_SOURCE_TABS } from '@/lib/order-hub-kinds';
 import { Plus } from 'lucide-react';
 import { loadOrderWorkSummary } from '@/lib/orders/work-summary';
 import { ShopifyReconcilePanel } from '@/components/orders/shopify-reconcile-panel';
+import { OrderQuickView } from '@/components/orders/order-quick-view';
 
 const ORDER_SOURCES = ORDER_SOURCE_KEYS;
-type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; work?: string; deleted?: string; archived?: string };
+type SearchParams = { source?: string; status?: string; q?: string; page?: string; oms?: string; work?: string; deleted?: string; archived?: string; detail?: string };
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -162,6 +163,7 @@ async function OrdersTableSection({
         label="筆訂單"
       />
       <OrderListTable orders={orders} showOrderDate={isSearching} />
+      {searchParams.detail ? <OrderQuickView orderId={searchParams.detail} closeHref={workbenchHref(searchParams, { detail: undefined })} /> : null}
       {pages > 1 ? (
         <ListPagination
           page={safePage}
