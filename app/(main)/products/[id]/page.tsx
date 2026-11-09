@@ -112,6 +112,12 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
   const totalOnHand = (product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct?.inventoryBalances.filter(b => b.warehouse.code === 'WH-MAIN') ?? [] : product.inventoryBalances).reduce((sum, b) => sum + b.quantity, 0);
   const variationSummary = summarizeVariations(variations);
+  // A unit becomes part of the inventory ledger once the product has a tier,
+  // balance, or transaction. Only a brand-new standard product may correct it.
+  const canEditUnit = product.productCategory === 'STANDARD'
+    && product.priceTiers.length === 0
+    && product.inventoryBalances.length === 0
+    && product.inventoryTransactions.length === 0;
 
   const statusLabel =
     product.status === 'active' ? '上架' : product.status === 'draft' ? '草稿' : '下架';
@@ -211,6 +217,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
             vendors={vendors}
             inventorySources={inventorySources}
             variationCount={product.priceTiers.length}
+            canEditUnit={canEditUnit}
             saveAction={updateProduct}
             deleteAction={deleteProduct}
           />
