@@ -120,7 +120,8 @@ export async function createCandidateInTransaction(tx: Prisma.TransactionClient,
     ...(input.targetProductId ? [`product|${input.targetProductId}`] : []),
   ].sort();
   for (const lockKey of lockKeys) {
-    await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+    // The lock returns PostgreSQL void; execute it without trying to deserialize a result row.
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
   }
 
   const replay = await completedResult(tx, input, digest);

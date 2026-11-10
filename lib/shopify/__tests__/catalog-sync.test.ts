@@ -43,6 +43,28 @@ test('draft Shopify product maps to HQ draft without deleting history', () => {
   assert.equal(plan.productUpdates[0]?.status, 'draft');
 });
 
+test('bound variant survives a SKU rename and never rebinds using an old SKU', () => {
+  const tier = { ...hq().priceTiers[0]!, sku: 'OLD', shopifyVariantId: '30' };
+  const source = shop({ variants: [
+    { id: 'gid://shopify/ProductVariant/30', title: '30g', sku: 'NEW', price: 175 },
+    { id: 'gid://shopify/ProductVariant/99', title: 'other', sku: 'OLD', price: 99 },
+  ] });
+  const plan = planShopifyHqCatalogSync([source], [hq({ priceTiers: [tier] })]);
+  assert.equal(plan.tierUpdates[0]?.shopifyVariantId, '30');
+  assert.equal(plan.tierUpdates[0]?.sku, 'NEW');
+  const missing = planShopifyHqCatalogSync([shop({ variants: [source.variants[1]!] })], [hq({ priceTiers: [tier] })]);
+  assert.equal(missing.tierUpdates.length, 0);
+  assert.ok(missing.conflicts.some(row => row.code === 'BOUND_VARIANT_UNAVAILABLE'));
+});
+
+test('content update carries only storefront fields, never cost, stock or commercial terms', () => {
+  const source = shop({ content: { description: '新介紹', imageUrl: 'https://cdn.shopify.com/new.png', productType: '食品', fields: {} } });
+  const plan = planShopifyHqCatalogSync([source], [hq()]);
+  assert.equal(plan.productUpdates[0]?.description, '新介紹');
+  assert.equal(plan.productUpdates[0]?.imageUrl, source.content!.imageUrl);
+  assert.deepEqual(Object.keys(plan.productUpdates[0]!).sort(), ['description', 'imageUrl', 'name', 'price', 'productId', 'shopifyProductId', 'status']);
+});
+
 test('duplicate Shopify SKU blocks automatic binding', () => {
   const duplicate = shop({
     variants: [

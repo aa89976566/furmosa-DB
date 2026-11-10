@@ -11,6 +11,7 @@ export type ShopifyCatalogProduct = {
   id: string;
   title: string;
   status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+  content?: { description: string; imageUrl: string | null; productType: string; fields: Record<string, string> };
   variants: ShopifyCatalogVariant[];
 };
 
@@ -33,6 +34,8 @@ export type HqCatalogProduct = {
   status: string;
   price: number;
   sourceSku: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
   priceTiers: HqCatalogTier[];
 };
 
@@ -53,6 +56,8 @@ export type CatalogProductUpdate = {
   name: string;
   price: number;
   status: 'active' | 'draft' | 'inactive';
+  description?: string;
+  imageUrl?: string | null;
 };
 
 export type CatalogSyncPlan = {
@@ -117,10 +122,12 @@ export function planShopifyHqCatalogSync(
 ): CatalogSyncPlan {
   const conflicts: CatalogSyncPlan['conflicts'] = [];
   const shopifyBySku = new Map<string, Array<{ product: ShopifyCatalogProduct; variant: ShopifyCatalogVariant }>>();
+  const shopifyById = new Map<string, { product: ShopifyCatalogProduct; variant: ShopifyCatalogVariant }>();
   const blankShopifyVariants: CatalogSyncPlan['blankShopifyVariants'] = [];
 
   for (const product of shopifyProducts) {
     for (const variant of product.variants) {
+      shopifyById.set(numericVariantId(variant.id), { product, variant });
       const sku = fold(variant.sku);
       if (!sku) {
         blankShopifyVariants.push({
@@ -159,6 +166,16 @@ export function planShopifyHqCatalogSync(
   for (const product of hqProducts) {
     const active = product.priceTiers.filter((tier) => tier.status !== 'archived');
     for (const tier of active) {
+      // Once bound, a SKU rename must never move this tier to another variant.
+      if (tier.shopifyVariantId) {
+        const bound = shopifyById.get(numericVariantId(tier.shopifyVariantId));
+        if (bound && fold(bound.variant.sku) && (shopifyBySku.get(fold(bound.variant.sku)!)?.length ?? 0) === 1) {
+          candidates.push({ hqProduct: product, tier, shopifyProduct: bound.product, variant: bound.variant });
+        } else {
+          conflicts.push({ code: 'BOUND_VARIANT_UNAVAILABLE', message: `HQ 規格 ${tier.id} 的已綁定 Shopify 規格不存在或 SKU 不唯一，需確認後再同步`, ids: [tier.id, tier.shopifyVariantId] });
+        }
+        continue;
+      }
       const identities = new Set(
         [tier.sku, tier.shopifySku, canonicalTierSku(product.sourceSku, tier, active.length), verifiedHqTierSku(product, tier)]
           .map(fold)
@@ -252,8 +269,10 @@ export function planShopifyHqCatalogSync(
       name: shopifyProduct.title,
       price: Math.min(...rows.map((row) => row.variant.price)),
       status: hqStatus(shopifyProduct.status),
+      ...(shopifyProduct.content ? { description: shopifyProduct.content.description, imageUrl: shopifyProduct.content.imageUrl } : {}),
     } satisfies CatalogProductUpdate;
-    if (product.name !== update.name || product.status !== update.status || product.price !== update.price) {
+    if (product.name !== update.name || product.status !== update.status || product.price !== update.price ||
+      (shopifyProduct.content && (product.description !== update.description || product.imageUrl !== update.imageUrl))) {
       productUpdates.push(update);
     }
     const matchedTierIds = new Set(rows.map((row) => row.tier.id));

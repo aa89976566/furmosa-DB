@@ -147,6 +147,23 @@ export default async function ShopifyCatalogAuditPage() {
 
         {audit ? (
           <>
+            <section className="overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="font-semibold">上架資料需要處理</h2>
+                <p className="mt-1 text-sm text-muted-foreground">只列缺少的欄位。欄位完整不代表來源已查驗，也不會自動發布商品或增加庫存。</p>
+              </div>
+              <div className="divide-y divide-border">
+                {audit.listingChecks.filter(row => row.issues.length).map(row => (
+                  <div key={row.productId} className="px-5 py-4">
+                    <p className="font-medium">{row.title}</p>
+                    <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                      {row.issues.map((issue, index) => <li key={`${issue.field}-${index}`}>{issue.message}</li>)}
+                    </ul>
+                  </div>
+                ))}
+                {audit.listingChecks.every(row => !row.issues.length) ? <p className="px-5 py-4">本次檢查的商品欄位完整。</p> : null}
+              </div>
+            </section>
             <section className={`rounded-2xl border p-5 ${
               blockingCount === 0
                 ? 'border-emerald-200 bg-emerald-50'

@@ -37,7 +37,7 @@ export const ORDER_LINE_UNIT_OPTIONS = [
 ] as const;
 
 /** 規格（按單位計價）常用單位 */
-export const TIER_UNIT_PRESETS = ['次', '條', '隻', '片', '顆', '支', '一支', '包', '袋', '盒', '罐'] as const;
+export const TIER_UNIT_PRESETS = ['次', '條', '隻', '片', '顆', '支', '一支', '包', '袋', '盒', '罐', '件'] as const;
 
 /** 規格按單位：包裝數量快捷 */
 export const TIER_UNIT_QTY_PRESETS = [1, 5, 10] as const;
