@@ -36,3 +36,23 @@
 |來源讀取失敗|不套用不完整商品清單|
 
 正式發布前須在隔離 Preview 完成驗收；本工作包沒有 migration、backfill 或正式資料修復。
+
+## 第二工作包：有條件的自動草稿建檔（預設關閉）
+
+- `POST /api/cron/shopify-catalog` 使用既有 Cron Bearer 驗證。
+- `SHOPIFY_CATALOG_AUTOMATION_ENABLED=true` 才執行；預設無排程、無背景執行。
+- `SHOPIFY_CATALOG_AUTOMATION_MODE=inspect` 只預覽；明確設為 `create` 才處理，每次最多兩個規格。
+- 沿用既有候選建檔的交易鎖、序列化交易、CAS 與稽核紀錄，只建立 HQ 草稿，不自動入庫或發布。
+- 每件用品現在可使用規格單位「件」。重量模式只能使用明確淨重，不能拿 Shopify 出貨重量代填。
+- 新增規格須確認父商品關係；既有同名 HQ 商品未綁定時留人工處理，不以名稱自動認領。
+- 適用「新商品草稿建檔」，現有商品更新仍使用第一工作包既有同步入口。
+
+自動建檔使用待設定的私有 Shopify JSON metafield `custom.hq_catalog_profile`，本次沒有建立正式定義或寫入商品。此欄位含成本，必須保持 Admin-only，禁止開放 Storefront 存取或印在商品描述。
+
+```json
+{"version":1,"autoCreate":true,"category":"accessories","variants":{"65165705740665":{"mode":"unit","unit":"件","unitQty":1,"cost":300}}}
+```
+
+`autoCreate` 是營運人員的明確設定，不等同原廠查驗證據。全部變體都要填完整規格；SKU、圖文、類型專屬資料缺漏時不會自動建立。服務與組合仍須完成各自履約規則。
+
+此入口尚需隔離資料庫端到端驗收、設定私有欄位與排程後才能啟用；不得把程式已存在回報為正式自動化已啟用。

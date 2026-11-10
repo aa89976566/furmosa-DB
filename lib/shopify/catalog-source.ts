@@ -9,7 +9,7 @@ const CATALOG_QUERY = `query CatalogProducts($first: Int!, $after: String) {
       description
       productType
       featuredMedia { ... on MediaImage { image { url } } }
-      metafields(first: 30, keys: ["furmosa.food_source", "furmosa.storage_and_feeding", "furmosa.suitable_for", "furmosa.not_suitable_for", "furmosa.material_details", "furmosa.dimensions", "furmosa.package_contents", "furmosa.play_guide", "furmosa.cleaning_care", "furmosa.country_of_origin", "custom.procurement_record"]) {
+      metafields(first: 30, keys: ["furmosa.food_source", "furmosa.storage_and_feeding", "furmosa.suitable_for", "furmosa.not_suitable_for", "furmosa.material_details", "furmosa.dimensions", "furmosa.package_contents", "furmosa.play_guide", "furmosa.cleaning_care", "furmosa.country_of_origin", "custom.procurement_record", "custom.hq_catalog_profile"]) {
         nodes { namespace key value }
       }
       variants(first: 100) {
