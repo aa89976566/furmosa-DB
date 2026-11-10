@@ -1,15 +1,30 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { loadShopifyCatalogAudit, stageUnmatchedCatalog } from './catalog-sync-service';
+import { loadShopifyCatalogAudit } from './catalog-sync-service';
+import type { CatalogSyncPlan } from './catalog-sync';
 import { catalogAutoCreateProfile } from './catalog-auto-profile';
 import { createCandidateInTransaction } from './catalog-candidate-create';
 import { candidateResolutionFingerprint, canonicalShopifyVariantId } from './catalog-candidate-resolution';
 import { shopifyAdminAuthConfigFromEnv } from './admin-access-token';
 
+/** Unlike the full manual audit, a scoped worker must never close unrelated candidates. */
+export async function stageAutoCandidates(tx: Prisma.TransactionClient, input: { plan: CatalogSyncPlan; fingerprint: string; actorId: string }) {
+  const rows = input.plan.unmatchedShopifyVariants;
+  if (rows.length > 500) throw new Error('CATALOG_STAGE_LIMIT');
+  for (const row of rows) {
+    const fields = { productTitle: row.productTitle, variantTitle: row.variantTitle, sku: row.sku, price: row.price, shopifyStatus: row.productStatus };
+    await tx.shopifyCatalogCandidate.upsert({ where: { shopifyVariantId: row.variantId },
+      create: { ...fields, shopifyProductId: row.productId, shopifyVariantId: row.variantId },
+      update: { ...fields, lastSeenAt: new Date() },
+    });
+  }
+  return { runId: randomUUID(), candidateCount: rows.length, closedCount: 0, reopenedCount: 0 };
+}
+
 /** Bounded poller. Uses existing candidate locks/CAS; creates drafts only, never inventory or orders. */
 export async function runCatalogAutoCreate(db: PrismaClient, mode: 'inspect' | 'create' = 'inspect', limit = 10,
   deps = { loadAudit: loadShopifyCatalogAudit, domain: () => shopifyAdminAuthConfigFromEnv().domain,
-    stage: stageUnmatchedCatalog, create: createCandidateInTransaction }) {
+    stage: stageAutoCandidates, create: createCandidateInTransaction }) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 25) throw new Error('INVALID_CATALOG_BATCH_LIMIT');
   if (mode !== 'inspect' && mode !== 'create') throw new Error('INVALID_CATALOG_MODE');
   const audit = await deps.loadAudit(db);
@@ -27,9 +42,15 @@ export async function runCatalogAutoCreate(db: PrismaClient, mode: 'inspect' | '
   const needsAttention = audit.shopifyProducts.filter(product => audit.plan.unmatchedShopifyVariants.some(row => row.productId === product.id) && !safeProducts.includes(product))
     .map(product => { const config = catalogAutoCreateProfile(product, audit.shopifyProducts); return { productId: product.id, reason: config.ok ? 'IDENTITY_REVIEW_REQUIRED' : config.code }; });
   if (mode === 'inspect') return { mode, examined: pending.length, rows: pending.slice(0, limit).map(row => ({ variantId: row.variantId, outcome: 'eligible' })), needsAttention, hasMore: pending.length > limit };
+  if (!pending.length) return { mode, examined: 0, rows, needsAttention, hasMore: false };
   const runId = randomUUID();
   await db.statusAuditLog.create({ data: { entityType: 'catalog_auto_create', entityId: runId, newStatus: 'STARTED', actorType: 'system', metadataJson: JSON.stringify({ limit }) } });
-  await db.$transaction(tx => deps.stage(tx, { plan: audit.plan, fingerprint: audit.fingerprint, actorId: 'catalog-auto-create' }), { timeout: 10_000 });
+  try {
+    await db.$transaction(tx => deps.stage(tx, { plan: { ...audit.plan, unmatchedShopifyVariants: pending }, fingerprint: audit.fingerprint, actorId: 'catalog-auto-create' }), { timeout: 10_000 });
+  } catch {
+    await db.statusAuditLog.create({ data: { entityType: 'catalog_auto_create', entityId: runId, newStatus: 'FAILED', actorType: 'system', metadataJson: JSON.stringify({ reason: 'STAGE_FAILED' }) } });
+    throw new Error('CATALOG_STAGE_FAILED');
+  }
   // Only pending candidates are retried. A completed/manual decision is never reopened here.
   const candidates = await db.shopifyCatalogCandidate.findMany({ where: { resolution: 'pending', shopifyVariantId: { in: pending.map(row => row.variantId) } }, orderBy: { shopifyVariantId: 'asc' }, take: limit });
   for (const candidate of candidates) {
