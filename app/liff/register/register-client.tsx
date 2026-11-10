@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
-import { PetProfileFieldsBlock } from '@/components/customers/pet-profile-fields-block';
+import { LinePetFields } from './line-pet-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -38,8 +38,6 @@ function RegisterForm({ idToken }: { idToken: string }) {
       petSpecies,
       petSpeciesOther: String(fd.get('petSpeciesOther') ?? '').trim() || null,
       petName: String(fd.get('petName') ?? '').trim() || null,
-      petAgeYears: String(fd.get('petAgeYears') ?? '').trim() || null,
-      petBirthday: String(fd.get('petBirthday') ?? '').trim() || null,
     };
 
     try {
@@ -84,7 +82,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
         />
       </Field>
 
-      <PetProfileFieldsBlock />
+      <LinePetFields />
 
       {status.type === 'ok' && status.text && <LiffStatus message={status.text} variant="success" />}
       {status.type === 'err' && status.text && <LiffStatus message={status.text} variant="error" />}
