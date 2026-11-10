@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import liff from '@line/liff';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
@@ -21,9 +22,32 @@ export function LiffRegisterClient({ liffId }: Props) {
 function RegisterForm({ idToken }: { idToken: string }) {
   const searchParams = useSearchParams();
   const returnPath = searchParams.get('return');
+  const autoCloseTimerRef = useRef<number | null>(null);
+  const autoCloseScheduledRef = useRef(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'loading' | 'ok' | 'err'; text?: string }>({
     type: 'idle',
   });
+  const [closeUnavailable, setCloseUnavailable] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseTimerRef.current !== null) {
+        window.clearTimeout(autoCloseTimerRef.current);
+      }
+    };
+  }, []);
+
+  function tryCloseLiffWindow() {
+    try {
+      if (!liff.isInClient()) {
+        setCloseUnavailable(true);
+        return;
+      }
+      liff.closeWindow();
+    } catch {
+      setCloseUnavailable(true);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,6 +77,10 @@ function RegisterForm({ idToken }: { idToken: string }) {
         return;
       }
       setStatus({ type: 'ok', text: data.message ?? '完成！' });
+      if (!autoCloseScheduledRef.current) {
+        autoCloseScheduledRef.current = true;
+        autoCloseTimerRef.current = window.setTimeout(tryCloseLiffWindow, 1000);
+      }
     } catch (err) {
       setStatus({
         type: 'err',
@@ -86,6 +114,17 @@ function RegisterForm({ idToken }: { idToken: string }) {
 
       {status.type === 'ok' && status.text && <LiffStatus message={status.text} variant="success" />}
       {status.type === 'err' && status.text && <LiffStatus message={status.text} variant="error" />}
+
+      {status.type === 'ok' && (
+        <div className="space-y-2">
+          <Button type="button" variant="outline" className="w-full" onClick={tryCloseLiffWindow}>
+            回到 LINE
+          </Button>
+          {closeUnavailable && (
+            <p className="text-center text-xs text-muted-foreground">請關閉此頁並回到 LINE。</p>
+          )}
+        </div>
+      )}
 
       <Button type="submit" className="w-full" disabled={status.type === 'loading' || status.type === 'ok'}>
         {status.type === 'loading' ? '送出中…' : status.type === 'ok' ? '已完成' : '完成註冊'}

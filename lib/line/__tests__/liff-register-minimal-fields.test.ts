@@ -35,6 +35,31 @@ test('LINE LIFF registration renders and submits only the minimal pet fields', (
   }
 });
 
+test('successful LINE registration preserves safe return navigation and otherwise closes LIFF once', () => {
+  assert.match(registerClientSource, /returnPath && returnPath\.startsWith\('\/liff\/'\)/);
+  assert.match(registerClientSource, /window\.location\.href = returnPath;\s*return;/);
+  assert.match(registerClientSource, /liff\.isInClient\(\)/);
+  assert.match(registerClientSource, /liff\.closeWindow\(\)/);
+  assert.match(registerClientSource, /autoCloseScheduledRef\.current/);
+  assert.match(registerClientSource, /window\.setTimeout\(tryCloseLiffWindow, 1000\)/);
+  assert.match(registerClientSource, /window\.clearTimeout\(autoCloseTimerRef\.current\)/);
+});
+
+test('successful LINE registration keeps a manual close fallback separate from registration', () => {
+  const closeButton = registerClientSource.match(
+    /<Button type="button"[\s\S]*?onClick=\{tryCloseLiffWindow\}[\s\S]*?>\s*回到 LINE\s*<\/Button>/,
+  );
+  assert.ok(closeButton, 'manual LINE close button is missing or can submit the form');
+  assert.doesNotMatch(closeButton[0], /onSubmit|fetch|\/api\/line\/liff\/register/);
+  assert.match(registerClientSource, /請關閉此頁並回到 LINE。/);
+
+  const closeHandler = registerClientSource.match(
+    /function tryCloseLiffWindow\(\) \{([\s\S]*?)\n  \}/,
+  );
+  assert.ok(closeHandler, 'LIFF close handler is missing');
+  assert.doesNotMatch(closeHandler[1], /fetch|onSubmit|\/api\/line\/liff\/register/);
+});
+
 test('LINE registration route accepts legacy extras without reading their values', () => {
   for (const field of retiredFields) {
     assert.equal(routeSource.includes(`body.${field}`), false, `route still reads ${field}`);
