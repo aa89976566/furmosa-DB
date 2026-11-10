@@ -65,7 +65,7 @@ function transactionFixture(options?: {
   const calls: Array<{ target: string; data?: Record<string, unknown> }> = [];
   let auditMetadata: string | null = null;
   const tx = {
-    $queryRaw: async () => { calls.push({ target: 'lock' }); return [{ pg_advisory_xact_lock: null }]; },
+    $executeRaw: async () => { calls.push({ target: 'lock' }); return 1; },
     shopifyCatalogCandidate: {
       findUnique: async () => candidate,
       findMany: async () => (options?.siblingProductIds ?? []).map((linkedProductId) => ({ linkedProductId })),

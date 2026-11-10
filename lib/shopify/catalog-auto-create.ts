@@ -29,7 +29,7 @@ export async function runCatalogAutoCreate(db: PrismaClient, mode: 'inspect' | '
   if (mode !== 'inspect' && mode !== 'create') throw new Error('INVALID_CATALOG_MODE');
   const audit = await deps.loadAudit(db);
   const domain = deps.domain();
-  const rows: Array<{ variantId: string; outcome: string }> = [];
+  const rows: Array<{ variantId: string; outcome: string; reason?: string }> = [];
   const eligible = audit.shopifyProducts.filter(product => catalogAutoCreateProfile(product, audit.shopifyProducts).ok);
   // No partial creation when any identity conflict involves this product or its variants.
   const existingProducts = await db.product.findMany({ where: { status: { in: ['active', 'draft'] } }, select: { id: true, name: true } });
@@ -75,8 +75,9 @@ export async function runCatalogAutoCreate(db: PrismaClient, mode: 'inspect' | '
         if (!result.noop && result.createdProduct && product.content) await tx.product.update({ where: { id: result.productId }, data: { description: product.content.description, imageUrl: product.content.imageUrl } });
       }, { isolationLevel: 'Serializable', maxWait: 5_000, timeout: 20_000 });
       rows.push({ variantId: variant.id, outcome: 'created_draft' });
-    } catch {
-      rows.push({ variantId: variant.id, outcome: 'needs_attention' });
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' && /^[A-Z][A-Z0-9_]{1,80}$/.test(error.code) ? error.code : 'CREATE_FAILED';
+      rows.push({ variantId: variant.id, outcome: 'needs_attention', reason: code });
     }
   }
   await db.statusAuditLog.create({ data: { entityType: 'catalog_auto_create', entityId: runId, newStatus: rows.some(row => row.outcome === 'needs_attention') ? 'PARTIAL' : 'FINISHED', actorType: 'system', metadataJson: JSON.stringify({ rows }) } });

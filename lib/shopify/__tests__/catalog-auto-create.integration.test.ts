@@ -41,9 +41,9 @@ test('PostgreSQL auto catalog: bounded batches, replay, manual decisions and his
     assert.equal(preview.rows.length, 1);
     assert.equal(await db.shopifyCatalogCandidate.count({ where: { shopifyProductId: sourceId } }), 0);
     const first = await runCatalogAutoCreate(db, 'create', 1, deps);
-    assert.equal(first.rows[0]?.outcome, 'created_draft');
+    assert.equal(first.rows[0]?.outcome, 'created_draft', JSON.stringify(first.rows));
     const second = await runCatalogAutoCreate(db, 'create', 1, deps);
-    assert.equal(second.rows[0]?.outcome, 'created_draft');
+    assert.equal(second.rows[0]?.outcome, 'created_draft', JSON.stringify(second.rows));
     const replay = await runCatalogAutoCreate(db, 'create', 1, deps);
     assert.equal(replay.examined, 0);
     const products = await db.product.findMany({ where: { name: source.title }, include: { priceTiers: true } });
