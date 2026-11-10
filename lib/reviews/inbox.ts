@@ -19,6 +19,7 @@ export type ReviewInboxItem = {
   createdAt: Date;
   statusLabel: string;
   actionLabel: string;
+  supportsOrderDeletion?: boolean;
   lines?: string[];
   moreLabel?: string;
   preview?: {
@@ -178,6 +179,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     return {
       id: order.id,
       kind: 'shopify_order' as const,
+      supportsOrderDeletion: order.source === 'shopify' && Boolean(order.omsStatus),
       kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
       title,
       subtitle: orderContentSummary(order),

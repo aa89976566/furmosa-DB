@@ -15,6 +15,7 @@ import {
 import type { ReviewInboxItem, ReviewKind } from '@/lib/reviews/inbox';
 import { formatDateTime } from '@/lib/format';
 import styles from './review-workbench.module.css';
+import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 
 type ReviewCounts = Record<ReviewKind, number>;
 type Filter = 'all' | ReviewKind;
@@ -120,6 +121,12 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
           <div className={styles.note}>備註會在開啟審核後填寫，並保留於訂單歷程。</div>
         </section>
       </div>
+
+      {item.kind === 'shopify_order' && item.supportsOrderDeletion ? (
+        <div className="px-4 pb-4 sm:px-6">
+          <OrderDeletionForm key={item.id} orderId={item.id} orderNumber={item.title} deleted={false} />
+        </div>
+      ) : null}
 
       <footer className={styles.actionBar}>
         <p>所有正式核准、退回與庫存動作仍依原有審核規則執行。</p>
