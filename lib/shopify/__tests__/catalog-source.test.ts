@@ -44,6 +44,21 @@ test('fetchShopifyCatalog refuses incomplete nested variant pagination', async (
   );
 });
 
+test('catalog reads public content and structured listing fields without converting shipping weight to net weight', async () => {
+  const request = async () => new Response(JSON.stringify({ data: { products: {
+    nodes: [{ id: '1', title: '吊飾', status: 'ACTIVE', description: '黏土吊飾', productType: '手作黏土吊飾',
+      featuredMedia: { image: { url: 'https://cdn.shopify.com/charm.png' } },
+      metafields: { nodes: [{ namespace: 'furmosa', key: 'dimensions', value: '8cm' }] },
+      variants: { nodes: [{ id: '2', title: '1件', sku: 'AC-01', price: '399' }], pageInfo: { hasNextPage: false } },
+    }], pageInfo: { hasNextPage: false },
+  } } }));
+  const [product] = await fetchShopifyCatalog(config, request as typeof fetch);
+  assert.equal(product!.content!.description, '黏土吊飾');
+  assert.equal(product!.content!.imageUrl, 'https://cdn.shopify.com/charm.png');
+  assert.deepEqual(product!.content!.fields, { 'furmosa.dimensions': '8cm' });
+  assert.equal('weightGrams' in product!.variants[0]!, false);
+});
+
 test('fetchShopifyCatalog never treats missing credentials as an empty catalog', async () => {
   await assert.rejects(
     fetchShopifyCatalog({ domain: '', token: '' }),
