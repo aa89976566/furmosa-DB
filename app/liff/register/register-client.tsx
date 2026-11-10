@@ -1,6 +1,7 @@
 'use client';
 
 import liff from '@line/liff';
+import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check } from 'lucide-react';
@@ -14,7 +15,7 @@ type Props = { liffId: string };
 
 export function LiffRegisterClient({ liffId }: Props) {
   return (
-    <LiffShell liffId={liffId} title="加入匠寵會員">
+    <LiffShell liffId={liffId} title="加入匠寵會員" variant="sunny">
       {({ idToken }) => <RegisterForm idToken={idToken} />}
     </LiffShell>
   );
@@ -102,17 +103,17 @@ function RegisterForm({ idToken }: { idToken: string }) {
   if (status.type === 'ok') {
     return (
       <section
-        className="rounded-[24px] border border-[#cfe0d6] bg-white px-5 py-8 text-center shadow-[0_14px_40px_rgba(23,71,51,0.08)]"
+        className="rounded-[28px] border-2 border-[#5b9bec] bg-white px-5 py-8 text-center shadow-[6px_7px_0_#ffd84d]"
         role="status"
         aria-live="polite"
       >
-        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eaf3ed] text-[#17613f]">
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#ffd84d] text-[#17345f]">
           <Check className="h-8 w-8" strokeWidth={2.5} aria-hidden="true" />
         </span>
         <h2
           ref={successHeadingRef}
           tabIndex={-1}
-          className="mt-5 text-2xl font-semibold tracking-tight text-[#173f2b] outline-none"
+          className="mt-5 text-2xl font-bold tracking-tight text-[#17345f] outline-none"
         >
           {status.isNew ? '已加入匠寵會員' : '會員資料已更新'}
         </h2>
@@ -120,7 +121,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
 
         <Button
           type="button"
-          className="mt-6 min-h-12 w-full rounded-2xl bg-[#17613f] text-base font-semibold text-white hover:bg-[#124e33]"
+          className="mt-6 min-h-12 w-full rounded-full bg-[#2368b5] text-base font-semibold text-white hover:bg-[#1c5798]"
           onClick={tryCloseLiffWindow}
         >
           回到 LINE
@@ -138,20 +139,32 @@ function RegisterForm({ idToken }: { idToken: string }) {
       onSubmit={onSubmit}
       aria-busy={status.type === 'loading'}
     >
-      <section className="rounded-[24px] border border-[#cfe0d6] bg-[#f2f7f4] p-5">
+      <section className="overflow-hidden rounded-[28px] border-2 border-[#5b9bec] bg-white shadow-[6px_7px_0_#ffd84d]">
+        <div className="relative mx-auto h-52 w-full bg-[#fffaf0]">
+          <Image
+            src="/line/grooming/member-register-bath-dog.png"
+            alt="洗完澡披著黃色毛巾的藍色狗狗插畫"
+            fill
+            priority
+            sizes="(max-width: 448px) 100vw, 416px"
+            className="object-cover object-[center_34%]"
+          />
+        </div>
+        <div className="p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-[#173f2b]">先留下基本資料</h2>
-          <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-medium text-[#2e7d4f]">
+          <h2 className="text-lg font-bold text-[#17345f]">先留下基本資料</h2>
+          <span className="shrink-0 rounded-full bg-[#ffd84d] px-3 py-1 text-xs font-bold text-[#17345f]">
             約 30 秒
           </span>
         </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          完成後，在 LINE 傳送 8 位空罐序號就能自動入帳。
+        <p className="mt-2 text-sm leading-6 text-[#52677e]">
+          用 LINE 保存洗澡、換罐與毛孩紀錄。
         </p>
+        </div>
       </section>
 
-      <section className="space-y-4 rounded-[24px] border border-[#dce8e1] bg-white p-5">
-        <h2 className="text-base font-semibold text-[#173f2b]">基本資料</h2>
+      <section className="space-y-4 rounded-[28px] border-2 border-[#91bdf3] bg-white p-5">
+        <h2 className="text-base font-bold text-[#17345f]">基本資料</h2>
 
         <Field label="您的稱呼（必填）">
           <Input
@@ -160,7 +173,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
             maxLength={80}
             placeholder="例：王小姐"
             autoComplete="name"
-            className="h-12 rounded-2xl border-[#b9cec1] px-4 text-base focus-visible:ring-[#17613f]"
+            className="h-12 rounded-2xl border-2 border-[#91bdf3] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
           />
         </Field>
 
@@ -172,7 +185,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
             maxLength={20}
             placeholder="例：0912345678"
             autoComplete="tel"
-            className="h-12 rounded-2xl border-[#b9cec1] px-4 text-base focus-visible:ring-[#17613f]"
+            className="h-12 rounded-2xl border-2 border-[#91bdf3] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
           />
         </Field>
       </section>
@@ -187,14 +200,14 @@ function RegisterForm({ idToken }: { idToken: string }) {
 
       <Button
         type="submit"
-        className="min-h-12 w-full rounded-2xl bg-[#17613f] text-base font-semibold text-white hover:bg-[#124e33]"
+        className="min-h-12 w-full rounded-full bg-[#2368b5] text-base font-bold text-white shadow-[4px_5px_0_#ffd84d] hover:bg-[#1c5798]"
         disabled={status.type === 'loading'}
       >
         {status.type === 'loading' ? '正在加入…' : '加入會員'}
       </Button>
 
       <p className="px-2 text-center text-xs leading-5 text-zinc-500">
-        送出即代表同意讓匠寵以此 LINE 建立換罐紀錄。
+        送出即代表同意讓匠寵以此 LINE 建立毛孩服務紀錄。
       </p>
     </form>
   );
@@ -203,7 +216,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-[#315b49]">{label}</label>
+      <label className="mb-2 block text-sm font-semibold text-[#17345f]">{label}</label>
       {children}
     </div>
   );
