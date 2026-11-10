@@ -47,7 +47,7 @@ test('successful LINE registration preserves safe return navigation and otherwis
 
 test('successful LINE registration keeps a manual close fallback separate from registration', () => {
   const closeButton = registerClientSource.match(
-    /<Button type="button"[\s\S]*?onClick=\{tryCloseLiffWindow\}[\s\S]*?>\s*回到 LINE\s*<\/Button>/,
+    /<Button\s+[\s\S]*?type="button"[\s\S]*?onClick=\{tryCloseLiffWindow\}[\s\S]*?>\s*回到 LINE\s*<\/Button>/,
   );
   assert.ok(closeButton, 'manual LINE close button is missing or can submit the form');
   assert.doesNotMatch(closeButton[0], /onSubmit|fetch|\/api\/line\/liff\/register/);
@@ -58,6 +58,26 @@ test('successful LINE registration keeps a manual close fallback separate from r
   );
   assert.ok(closeHandler, 'LIFF close handler is missing');
   assert.doesNotMatch(closeHandler[1], /fetch|onSubmit|\/api\/line\/liff\/register/);
+});
+
+test('LINE registration uses the branded single-column form and a single success state', () => {
+  assert.match(registerClientSource, /title="加入匠寵會員"/);
+  assert.match(registerClientSource, /約 30 秒/);
+  assert.match(registerClientSource, /先留下基本資料/);
+  assert.match(registerClientSource, /if \(status\.type === 'ok'\) \{\s*return \(/);
+  assert.match(registerClientSource, /已加入匠寵會員/);
+  assert.match(registerClientSource, /會員資料已更新/);
+  assert.match(registerClientSource, /正在帶您回到 LINE…/);
+  assert.doesNotMatch(registerClientSource, />已完成</);
+  assert.doesNotMatch(registerClientSource, /status\.type === 'ok' \? '已完成'/);
+});
+
+test('optional pet fields remain mounted in an accessible mobile disclosure', () => {
+  assert.match(linePetFieldsSource, /<details/);
+  assert.match(linePetFieldsSource, /<summary/);
+  assert.match(linePetFieldsSource, /毛孩資料（選填）/);
+  assert.match(linePetFieldsSource, /h-12/);
+  assert.doesNotMatch(linePetFieldsSource, /sm:grid-cols-2/);
 });
 
 test('LINE registration route accepts legacy extras without reading their values', () => {
