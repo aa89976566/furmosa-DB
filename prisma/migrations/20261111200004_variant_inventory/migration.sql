@@ -291,9 +291,12 @@ BEGIN
  IF (EXISTS (SELECT 1 FROM "InventoryTransaction" WHERE reference=source_key AND "eventKey" IS NOT NULL) OR EXISTS (SELECT 1 FROM "ProductVariantInventoryTransaction" WHERE reference=source_key)) THEN
    RAISE EXCEPTION '已扣帳明細不可改寫或刪除，請先取消並建立新單';
  END IF;
- IF TG_OP='UPDATE' AND EXISTS (SELECT 1 FROM "ProductVariantInventoryTransaction" WHERE reference=
-   CASE WHEN TG_TABLE_NAME='OrderItem' THEN 'order:'||NEW."orderId" ELSE 'shipment:'||NEW."shipmentId" END)
- THEN RAISE EXCEPTION '已扣帳明細不可改寫或刪除，請先取消並建立新單'; END IF;
+ IF TG_OP='UPDATE' THEN
+   IF TG_TABLE_NAME='OrderItem' THEN source_key := 'order:'||NEW."orderId";
+   ELSE source_key := 'shipment:'||NEW."shipmentId"; END IF;
+   IF EXISTS (SELECT 1 FROM "ProductVariantInventoryTransaction" WHERE reference=source_key)
+   THEN RAISE EXCEPTION '已扣帳明細不可改寫或刪除，請先取消並建立新單'; END IF;
+ END IF;
  IF TG_OP='DELETE' THEN RETURN OLD; END IF;
  RETURN NEW;
 END $$;
