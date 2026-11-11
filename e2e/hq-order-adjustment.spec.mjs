@@ -35,7 +35,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   const order = await db.order.create({ data: {
     id: `oms-fixture-hq640-${suffix}`, orderNumber: source.order.name, source: 'shopify', status: 'pending_review',
     paymentStatus: 'unpaid', fulfillmentStatus: 'pending', subtotal: 100, total: 100,
-    externalStore: 'hq640-ci.myshopify.com', externalOrderId: suffix, externalOrderName: source.order.name,
+    externalStore: `hq640-${suffix}.myshopify.com`, externalOrderId: suffix, externalOrderName: source.order.name,
     omsStatus: 'NEW', shopifySnapshot: source, shopifySourceUpdatedAt: new Date(timestamp),
   } });
   await page.goto(`/login?next=${encodeURIComponent(`/orders/${order.id}`)}`);
