@@ -69,7 +69,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
       <p className="mt-1 text-sm text-muted-foreground">核對 HQ 實際訂單；人工修改只影響 HQ，Shopify 原單保留供比對。</p>
       {status === 'READY' ? <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm">
         <p className="font-semibold text-success">訂單已確認</p>
-        <p className="mt-1 text-muted-foreground">商品與配送內容維持以 Shopify 訂單為準。下一步：建立 HQ 出貨單。</p>
+        <p className="mt-1 text-muted-foreground">商品與配送內容已依 HQ 最新審核確認。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
     {['NEW', 'REVIEW', 'READY'].includes(status) ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, label: `${product.name} ${tier.weightGrams ?? ''}${tier.unit}`, price: String(tier.price) })))} /> : null}
