@@ -22,6 +22,7 @@ export async function repairShopifyShipment(form: FormData): Promise<void> {
       await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE`;
       const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true, shipments: { include: { items: true } } } });
       if (!order || order.deletedAt || order.archivedAt || order.omsStatus !== 'FULFILLMENT_PENDING' || order.status !== 'confirmed') throw new Error('僅能補齊尚未出貨的 Shopify 訂單');
+      if (await tx.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: order.id }, select: { id: true } })) throw new Error('此單已有 HQ 人工調整，不適用原單補齊工具，請依審核內容出貨');
       const snapshot = order.shopifySnapshot as Snapshot;
       if (!snapshot || snapshotHash(snapshot) !== sourceHash) throw new Error('來源內容已更新，請重新整理');
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'shopify:' + order.externalStore + ':' + order.externalOrderId}, 0))`;

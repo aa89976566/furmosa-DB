@@ -49,7 +49,7 @@ test('Shopify 訂單直接呈現來源商品，HQ 只補正履約欄位', async 
   }));
   assert.match(html, /◈壕大大◈雞霸/);
   assert.match(html, /7-11 取貨/);
-  assert.match(html, /商品與數量仍以 Shopify 訂單為準/);
+  assert.match(html, /人工調整僅影響 HQ 訂單與出貨內容/);
   assert.equal(html.includes('請選擇 HQ 商品'), false);
   assert.equal(html.includes('請確認溫層'), false);
   assert.equal(html.includes('name="productId"'), false);
