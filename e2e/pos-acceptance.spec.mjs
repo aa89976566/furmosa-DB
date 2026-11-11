@@ -402,4 +402,11 @@ test('HQ scent inventory renders separate balances and immutable reversals on de
   await expect(page.getByRole('cell',{name:'取消／退貨回補',exact:true})).toBeVisible();
   expect(await db.productVariantInventoryTransaction.count({where:{tierId:peony.id,type:'return_in'}})).toBe(1);
   expect(await db.inventoryBalance.count({where:{productId:product.id}})).toBe(0);
+  await page.goto('/inventory?q='+encodeURIComponent(product.name));
+  const overview=page.getByRole('table',{name:'香氣庫存總覽',exact:true});
+  await expect(overview).toBeVisible();
+  for(const name of ['牡丹','杜桑','經典迪奧','琥珀與薰衣草']) await expect(overview.getByRole('row').filter({has:overview.getByRole('cell',{name,exact:true})}).getByRole('cell',{name:'20 顆',exact:true})).toBeVisible();
+  await expect(overview.getByRole('button')).toHaveCount(0);
+  await page.goto('/products?q='+encodeURIComponent(product.name));
+  await expect(page.getByText(/牡丹 20 顆/)).toBeVisible();
 });
