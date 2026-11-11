@@ -17,11 +17,12 @@
 
 ## 發布與開帳
 
-1. CI 完整 typecheck/test 與隔離 Preview 驗證通過。
-2. 依 config/deployment-targets.json，以 Deploy Production 鎖定 exact PR/head SHA，standard plan 僅執行本次新增結構 migration。
-3. scripts/ops/initialize-collab-wax-variants.sql 是另行控制的資料開帳操作，不在 build、migration 或啟動程序自動執行。使用者已指定四款各20顆；仍需透過核准的專用 runner/plan 執行及驗證。
-4. 初始化會核對商品、四款SKU/variant、價格、成本、雞排成品及既有餘額；部分開帳或有非零舊庫存則拒絕。重跑不重設已售出的餘額。
-5. 開帳後唯讀核對四款各20顆及四筆開帳交易，確認後才可報告 HQ 庫存完成。初始化不會上架 Shopify 草稿商品。
+1. 先審查發布設定 PR #642。此 PR 只登記專用方案，不執行資料寫入；現有受信任控制器禁止自行合併控制器修改，必須依維護者更新程序處理，不得略過限制。#642 合併後先重整業務 PR 至最新 main。
+2. CI 完整 typecheck/test 與隔離 Preview 驗證通過。
+3. 依 config/deployment-targets.json，以 Deploy Production 鎖定 exact PR/head SHA，專用 hq_collab_wax_opening_20261111 plan，runner 只接受本次 migration 與固定 checksum 開帳 SQL。
+4. scripts/ops/initialize-collab-wax-variants.sql 是另行控制的資料開帳操作，不在 build、migration 或啟動程序自動執行。使用者已指定四款各20顆；透過 scripts/ops/deploy-collab-wax-opening.mjs 核對目標、執行及唯讀驗證，不得手動略過 release gate。
+5. 初始化會核對商品、四款SKU/variant、價格、成本、雞排成品及既有餘額；部分開帳或有非零舊庫存則拒絕。重跑不重設已售出的餘額。
+6. 開帳後唯讀核對四款各20顆及四筆開帳交易，確認後才可報告 HQ 庫存完成。初始化不會上架 Shopify 草稿商品。
 
 開帳依使用者指定數量，非已實際盤點。待辦為正式發布、開帳與正式讀回驗證；不能把分支推送或測試通過視為正式完成。
 
@@ -31,4 +32,4 @@
 
 ## 驗證
 
-node --test lib/__tests__/variant-inventory*.test.mjs：18項隔離 PostgreSQL 測試，涵蓋既有克數配方、香氣庫存、重送、回補、歷史訂單、OMS gate、跨來源防重與帳冊保護。Prisma schema validate 已通過；完整專案 typecheck/build 交由 CI，局部檔案環境無法替代完整驗證。
+node --test lib/__tests__/variant-inventory*.test.mjs：21項隔離 PostgreSQL 測試，涵蓋既有克數配方、香氣庫存、重送、回補、歷史訂單、OMS gate、跨來源防重與帳冊保護。Prisma schema validate 已通過；先前版本完整 CI 已通過；新增開帳 runner 後需重新等待最新 exact head CI，不沿用舊 SHA 結果。
