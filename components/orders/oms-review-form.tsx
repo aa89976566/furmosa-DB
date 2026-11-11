@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 
-type SourceSummary = { paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string; contents?: string }[] };
+type SourceSummary = { adminUrl?: string | null; subtotal?: string; shippingFee?: string; paymentLabel: string; paymentTone: 'ready' | 'hold' | 'danger'; total: string; currency: string; recipient: string; phone: string; address: string; shippingLabel: string; items?: { title: string; quantity: string; sku: string; contents?: string }[] };
 
 function Actions({ status, summary, alertText, canCreateShipment, pendingShipmentReview = false, locked = false }: { status: string; summary: string; alertText: string; canCreateShipment: boolean; pendingShipmentReview?: boolean; locked?: boolean }) {
   const { pending } = useFormStatus();
@@ -31,6 +31,18 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
   return <section className="space-y-3 rounded-xl border bg-background p-4" aria-label="Shopify 原始訂單">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-medium text-muted-foreground">Shopify 原始訂單</p><p className="mt-1 text-sm text-muted-foreground">HQ 直接呈現 Shopify 商品與配送資料，不需重新選擇商品或出貨溫層。</p></div><div className={`rounded-lg border px-3 py-2 text-right ${tone}`}><p className="text-xs text-muted-foreground">付款狀態</p><p className="font-semibold">{source.paymentLabel}</p></div></div>
     <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">訂單金額</p><p className="font-semibold tabular-nums">{total || '待確認'}</p></div><div><p className="text-xs text-muted-foreground">配送</p><p className="font-medium">{source.shippingLabel || 'Shopify 未提供配送資訊'}</p></div><div><p className="text-xs text-muted-foreground">收件人</p><p className="font-medium">{source.recipient || 'Shopify 未提供'}</p></div><div><p className="text-xs text-muted-foreground">電話</p><p className="font-medium">{source.phone || 'Shopify 未提供'}</p></div><div className="sm:col-span-2"><p className="text-xs text-muted-foreground">地址／門市地址</p><p className="break-words font-medium">{source.address || 'Shopify 未提供'}</p></div></div>
+    <dl className="grid gap-3 border-t pt-3 sm:grid-cols-3" aria-label="Shopify 金額明細">
+      <div><dt className="text-sm text-muted-foreground">商品小計</dt><dd className="font-semibold tabular-nums">{source.subtotal ? `${source.currency} ${source.subtotal}` : '待同步'}</dd></div>
+      <div><dt className="text-sm text-muted-foreground">實收運費</dt><dd className="font-semibold tabular-nums">{source.shippingFee ? `${source.currency} ${source.shippingFee}` : '待同步'}</dd></div>
+      <div><dt className="text-sm text-muted-foreground">訂單總額</dt><dd className="font-semibold tabular-nums">{total || '待同步'}</dd></div>
+    </dl>
+    <div className="space-y-3 rounded-lg border p-3">
+      <p className="text-sm">付款與商品修改需儲存至 Shopify，更新同步至 HQ 後再重新檢查。只有確認實際收到款項，才可標示已付款。</p>
+      <div className="flex flex-wrap gap-2">
+        {source.adminUrl ? <><Button asChild variant="outline"><a href={source.adminUrl} target="_blank" rel="noopener noreferrer">前往 Shopify 處理付款</a></Button><Button asChild variant="outline"><a href={source.adminUrl} target="_blank" rel="noopener noreferrer">修改 Shopify 訂單</a></Button></> : <p className="text-sm text-muted-foreground">來源訂單連結待確認，請從 Shopify 訂單列表查找。</p>}
+        <Button asChild variant="outline"><a href="/orders/new">新增 HQ 訂單</a></Button>
+      </div>
+    </div>
     <div className="border-t pt-3"><p className="text-xs text-muted-foreground">商品明細</p><ul className="mt-2 space-y-2 text-sm">{(source.items ?? []).map((item, index) => <li key={`${item.sku}-${index}`} className="rounded-md bg-muted/30 p-2"><div className="flex justify-between gap-3"><span>{item.title}</span><span className="shrink-0 font-medium">{item.quantity}</span></div>{item.contents ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">出貨內容：{item.contents}</p> : null}</li>)}</ul></div>
   </section>;
 }

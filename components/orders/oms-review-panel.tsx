@@ -8,6 +8,12 @@ import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel } from '@/lib/orders/shopify-source-review';
 
+function shopifyOrderUrl(store: string | null | undefined, id: unknown) {
+  const match = store?.match(/^([a-z0-9][a-z0-9-]*)\.myshopify\.com$/i);
+  const orderId = typeof id === 'string' ? id : String(id ?? '');
+  return match && /^[1-9]\d*$/.test(orderId) ? `https://admin.shopify.com/store/${match[1]}/orders/${orderId}` : null;
+}
+
 function paymentSummary(source: Snapshot) {
   const financialStatus = string(source.order.financial_status);
   const map: Record<string, { label: string; tone: 'ready' | 'hold' | 'danger' }> = {
@@ -22,7 +28,7 @@ function paymentSummary(source: Snapshot) {
   return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
 }
 
-export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; needsReviewRecovery?: boolean }) {
+export async function OmsReviewPanel({ orderId, snapshot, status, externalStore, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; externalStore?: string | null; needsReviewRecovery?: boolean }) {
   const sourceView = snapshotView(snapshot);
   if (!status || (!['NEW', 'REVIEW', 'READY'].includes(status) && !(needsReviewRecovery && status === 'FULFILLMENT_PENDING')) || !sourceView) return null;
   const session = await getCurrentUser();
@@ -62,6 +68,9 @@ export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRec
       draft={draft}
       sourceSummary={{
         paymentLabel: payment.label,
+        adminUrl: shopifyOrderUrl(externalStore, source.order.id),
+        subtotal: sourceView.subtotal,
+        shippingFee: sourceView.shippingFee,
         paymentTone: payment.tone,
         total: sourceView.total,
         currency: sourceView.currency,
