@@ -700,6 +700,8 @@ model Warehouse {
   purchaseReceipts      PurchaseReceipt[]
   purchaseOrders        PurchaseOrder[]
   stocktakeAdjustments  StocktakeAdjustment[]
+  variantBalances ProductVariantInventoryBalance[]
+  variantTransactions ProductVariantInventoryTransaction[]
 }
 
 model Product {
@@ -792,6 +794,12 @@ model ProductPriceTier {
   variantName               String? @map("variant_name")
   /// 唯一識別鍵；優先沿用規格 SKU，避免服務方案因相同單位而互相衝突。
   variantKey                String  @default("") @map("variant_key")
+
+  inventoryPolicy String @default("shared") @map("inventory_policy")
+  inventoryUnit String? @map("inventory_unit")
+  inventoryEnabledAt DateTime? @map("inventory_enabled_at")
+  variantBalances ProductVariantInventoryBalance[]
+  variantTransactions ProductVariantInventoryTransaction[]
 
   bundleComponents ProductBundleComponent[]
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -2134,3 +2142,34 @@ model ProductBundleComponent {
   @@id([tierId, componentProductId])
   @@index([componentProductId])
 }
+
+model ProductVariantInventoryBalance {
+  tierId String
+  warehouseId String
+  quantity Int @default(0)
+  unit String
+  updatedAt DateTime @updatedAt
+  tier ProductPriceTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  @@id([tierId, warehouseId])
+}
+
+model ProductVariantInventoryTransaction {
+  id String @id
+  eventKey String @unique
+  tierId String
+  warehouseId String
+  quantity Int
+  unit String
+  type String
+  reference String
+  sourceSnapshot Json
+  reversesId String? @unique
+  createdAt DateTime @default(now())
+  tier ProductPriceTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  reverses ProductVariantInventoryTransaction? @relation("VariantReversal", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversal ProductVariantInventoryTransaction? @relation("VariantReversal")
+  @@index([reference])
+}
+

@@ -58,6 +58,8 @@ export default async function ProductsPage(
         priceTiers: {
           select: {
             price: true,
+            inventoryPolicy: true, inventoryUnit: true, variantName: true,
+            variantBalances: { select: { quantity: true } },
             status: true,
             sku: true,
             shopifySku: true,
@@ -74,7 +76,13 @@ export default async function ProductsPage(
   ]);
 
   const rows: ProductManagementRow[] = products.map((product) => {
-    const onHand = product.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0);
+    const variantTiers = product.priceTiers.filter(t => t.inventoryPolicy === 'variant');
+    const onHand = variantTiers.length
+      ? variantTiers.reduce((sum,t) => sum+t.variantBalances.reduce((n,b)=>n+b.quantity,0),0)
+      : product.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0);
+    const inventorySummary = variantTiers.length
+      ? variantTiers.map(t => `${t.variantName ?? t.sku ?? '規格'} ${t.variantBalances.length ? t.variantBalances.reduce((sum,b)=>sum+b.quantity,0)+' '+(t.inventoryUnit ?? '') : '尚未開帳'}`).join(' ／ ')
+      : undefined;
     const activeTiers = product.priceTiers.filter((tier) => tier.status !== 'archived');
     return {
       id: product.id,
@@ -90,8 +98,8 @@ export default async function ProductsPage(
       priceRange: product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : activeTiers.length > 0
         ? formatPriceRange(activeTiers.map((tier) => tier.price))
         : formatCurrency(Number(product.price)),
-      onHand,
-      lowStock: onHand <= product.reorderPoint,
+      onHand, inventorySummary,
+      lowStock: variantTiers.length ? variantTiers.some(t => !t.variantBalances.length || t.variantBalances.reduce((sum,b)=>sum+b.quantity,0) <= product.reorderPoint) : onHand <= product.reorderPoint,
       readiness: deriveProductReadiness({
         consignmentEnabled: product.consignmentEnabled,
         wholesaleEnabled: product.wholesaleEnabled,
