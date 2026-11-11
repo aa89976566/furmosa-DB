@@ -361,3 +361,45 @@ test(`HQ ${orderMode} dispatch updates its row and stage counts without a manual
 });
 }
 
+
+test('HQ scent inventory renders separate balances and immutable reversals on desktop and mobile', async ({ page }) => {
+  test.setTimeout(180_000);
+  const key=randomUUID();
+  const wh=await db.warehouse.upsert({ where:{code:'WH-MAIN'}, update:{}, create:{code:'WH-MAIN',name:'CI主倉'} });
+  const product=await db.product.create({data:{
+    productId:'CI-WAX-'+key,sku:'CI-WAX-'+key,name:'CI四款香氣 '+key,
+    category:'other',productCategory:'STANDARD',status:'draft',unit:'組',price:399,cost:230,
+    priceTiers:{create:['牡丹','杜桑','經典迪奧','琥珀與薰衣草'].map((variantName,i)=>({
+      variantName,unit:'組',unitQty:1,price:399,cost:230,status:'active',
+      inventoryPolicy:'variant',inventoryUnit:'顆',inventoryEnabledAt:new Date(Date.now()-60000),
+      variantBalances:{create:{warehouseId:wh.id,quantity:20,unit:'顆'}},
+      variantTransactions:{create:{id:randomUUID(),eventKey:'CI-WAX-'+key+'-'+i,
+        warehouseId:wh.id,quantity:20,unit:'顆',type:'opening',reference:'CI opening '+key,sourceSnapshot:{quantity:20}}},
+    }))},
+  },include:{priceTiers:true}});
+  await page.goto('/login');
+  await page.getByLabel('Email',{exact:true}).fill(hqEmail);
+  await page.getByLabel('密碼',{exact:true}).fill(hqPassword);
+  await page.getByRole('button',{name:'登入',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'營運首頁',exact:true})).toBeVisible();
+  await page.goto('/products/'+product.id);
+  await expect(page.getByRole('heading',{name:product.name,exact:true})).toBeVisible();
+  const balanceRow=name=>page.getByRole('row').filter({has:page.getByRole('cell',{name,exact:true})}).filter({has:page.getByRole('cell',{name:'20 顆',exact:true})});
+  for(const name of ['牡丹','杜桑','經典迪奧','琥珀與薰衣草']) await expect(balanceRow(name)).toHaveCount(1);
+  const peony=product.priceTiers.find(t=>t.variantName==='牡丹');
+  const shipment=await db.shipment.create({data:{
+    shipmentNumber:'CI-WAX-S-'+key,type:'hq_sale',status:'shipped',hqInventoryEligible:true,
+    items:{create:{productId:product.id,productName:product.name,sku:product.sku,quantity:1,unit:'組',variantKey:peony.id}},
+  }});
+  await page.reload();
+  await expect(page.getByRole('row').filter({has:page.getByRole('cell',{name:'牡丹',exact:true})}).filter({has:page.getByRole('cell',{name:'19 顆',exact:true})})).toHaveCount(1);
+  for(const name of ['杜桑','經典迪奧','琥珀與薰衣草']) await expect(balanceRow(name)).toHaveCount(1);
+  await db.shipment.update({where:{id:shipment.id},data:{status:'cancelled'}});
+  await page.reload();
+  await expect(balanceRow('牡丹')).toHaveCount(1);
+  await page.getByText('規格庫存異動紀錄',{exact:true}).click();
+  await expect(page.getByRole('cell',{name:'出貨扣帳',exact:true})).toBeVisible();
+  await expect(page.getByRole('cell',{name:'取消／退貨回補',exact:true})).toBeVisible();
+  expect(await db.productVariantInventoryTransaction.count({where:{tierId:peony.id,type:'return_in'}})).toBe(1);
+  expect(await db.inventoryBalance.count({where:{productId:product.id}})).toBe(0);
+});
