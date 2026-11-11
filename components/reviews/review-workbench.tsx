@@ -53,7 +53,7 @@ function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: 
       {item.preview?.reference && item.preview.customer ? <span className={styles.queueCustomer}>{item.preview.customer}</span> : null}
       <div className={styles.queueSummary}>
         <p>{item.subtitle || '等待人工確認'}</p>
-        {item.preview?.amount ? <strong>{amountLabel(item.preview.amount)}</strong> : null}
+        {item.preview?.amount ? <strong>{item.preview.adjusted ? <small className={styles.adjustedLabel}>HQ 調整後</small> : null}{amountLabel(item.preview.amount)}</strong> : null}
       </div>
     </button>
   );
@@ -74,7 +74,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
         </div>
         <div className={styles.amountBlock}>
           <time dateTime={item.createdAt.toISOString()}>{formatDateTime(item.createdAt)}</time>
-          {item.preview?.amount ? <strong>{amountLabel(item.preview.amount)}</strong> : null}
+          {item.preview?.amount ? <strong>{item.preview.adjusted ? <small className={styles.adjustedLabel}>HQ 調整後</small> : null}{amountLabel(item.preview.amount)}</strong> : null}
         </div>
       </header>
 

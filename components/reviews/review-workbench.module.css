@@ -40,6 +40,7 @@
 .queueTitleRow strong { min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .queueTitleRow svg { width: 16px; flex: none; color: var(--review-green); }
 .queueCustomer { font-size: 13px; }
+.adjustedLabel { display: block; color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 500; }
 .queueSummary { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; }
 .queueSummary p { min-width: 0; overflow: hidden; color: hsl(var(--muted-foreground)); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .queueSummary strong { flex: none; color: var(--review-green-strong); font-size: 14px; font-variant-numeric: tabular-nums; }

@@ -89,7 +89,16 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   expect(change.before.lines).toHaveLength(2);
   expect(change.after.lines).toHaveLength(1);
   expect(change.after.lines[0].quantity).toBe(3);
-  await page.reload();
+  await page.goto('/reviews');
+  await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(source.order.name);
+  await expect(queue).toContainText('NT$250');
+  await queue.getByRole('button').filter({ hasText: source.order.name }).click();
+  await expect(detail).toContainText('HQ 調整後');
+  await expect(detail).toContainText('NT$250');
+  await expect(detail.getByText('× 3', { exact: true })).toBeVisible();
+  await expect(detail).not.toContainText(second.name);
+  await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
+  await expect(page.locator('#oms-review')).toBeVisible();
   await page.getByRole('button', { name: '儲存修改', exact: true }).click();
   await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsCheckedAt)).toBe(true);
   await page.getByRole('button', { name: '確認訂單', exact: true }).click();
