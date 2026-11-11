@@ -223,7 +223,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       <main className="order-theme mx-auto max-w-[1440px] p-4 sm:p-7 lg:p-10">
         <section className="flex flex-col gap-5 pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">{adjustmentAudit ? 'HQ 人工調整訂單 · Shopify 原單保留' : 'SHOPIFY 訂單'}</p>
+            <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">SHOPIFY 訂單</p>
+            {adjustmentAudit ? <p className="mt-2 text-sm font-semibold">以下為 HQ 人工調整內容 · Shopify 原單保留</p> : null}
             <h1 className="mt-3 text-4xl font-semibold tracking-tight">{customerName}</h1>
             <p className="mt-3 text-base text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
           </div>
