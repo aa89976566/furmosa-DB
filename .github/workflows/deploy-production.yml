@@ -19,6 +19,7 @@ on:
         options:
           - none
           - standard
+          - hq_collab_wax_opening_20261111
           - hq_inventory_advisory_20260917
           - hq_passkeys_20260918
           - pos_shipment_notifications_20260922

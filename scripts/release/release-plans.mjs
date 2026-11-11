@@ -9,6 +9,17 @@ export const RELEASE_PLANS = Object.freeze({
     migrationPrefixes: Object.freeze(['prisma/migrations/']),
     requiredPaths: Object.freeze([]),
   }),
+  hq_collab_wax_opening_20261111: Object.freeze({
+    runner: 'scripts/ops/deploy-collab-wax-opening.mjs',
+    migrationPrefixes: Object.freeze([
+      'prisma/migrations/20261111200004_variant_inventory/',
+    ]),
+    requiredPaths: Object.freeze([
+      'prisma/migrations/20261111200004_variant_inventory/migration.sql',
+      'scripts/ops/initialize-collab-wax-variants.sql',
+      'scripts/ops/deploy-collab-wax-opening.mjs',
+    ]),
+  }),
   hq_inventory_advisory_20260917: Object.freeze({
     runner: 'scripts/ops/deploy-hq-bulk.mjs',
     migrationPrefixes: Object.freeze([
