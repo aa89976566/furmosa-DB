@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import {
   AlertCircle,
   ArrowRight,
@@ -128,9 +127,10 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
       ) : null}
 
       <footer className={styles.actionBar}>
-        <Link href={item.href} className={styles.primaryAction}>
+        {/* Review forms must load fresh after an adjustment, including native select state. */}
+        <a href={item.href} className={styles.primaryAction}>
           {item.actionLabel}<ArrowRight aria-hidden />
-        </Link>
+        </a>
       </footer>
     </section>
   );
