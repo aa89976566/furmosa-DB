@@ -23,6 +23,7 @@ export type ProductManagementRow = {
   statusLabel: string;
   priceRange: string;
   onHand: number;
+  inventorySummary?: string;
   lowStock: boolean;
   readiness: ProductReadiness;
 };
@@ -202,7 +203,7 @@ function ProductRow({ row }: { row: ProductManagementRow }) {
             </div>
             <p className="mt-1 break-all font-mono text-[11px] text-muted-foreground">{row.productId} · {row.sku}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {row.categoryLabel} · {row.vendorName ?? '未指定廠商'} · {row.priceRange} · 庫存 <span className={row.lowStock ? 'font-semibold text-warning' : 'text-foreground'}>{row.onHand}</span>
+              {row.categoryLabel} · {row.vendorName ?? '未指定廠商'} · {row.priceRange} · 庫存 <span className={row.lowStock ? 'font-semibold text-warning' : 'text-foreground'}>{row.inventorySummary ?? row.onHand}</span>
             </p>
           </div>
         </div>
