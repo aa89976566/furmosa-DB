@@ -81,7 +81,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await expect(history.getByText('原因：CI移除新增商品並重新送審', { exact: true })).toBeVisible();
   const deletion = page.locator('#oms-review details').filter({ has: page.locator('summary').filter({ hasText: /^刪除訂單$/ }) });
   await deletion.locator('summary').click();
-  await deletion.getByLabel('刪除原因', { exact: true }).selectOption('測試訂單');
+  await deletion.locator('select[name="reason"]').selectOption('測試訂單');
   await deletion.getByRole('button', { name: '刪除訂單', exact: true }).click();
   await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).deletedAt)).toBe(true);
   await page.reload();
