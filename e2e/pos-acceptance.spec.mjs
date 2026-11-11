@@ -388,7 +388,7 @@ test('HQ scent inventory renders separate balances and immutable reversals on de
   for(const name of ['牡丹','杜桑','經典迪奧','琥珀與薰衣草']) await expect(balanceRow(name)).toHaveCount(1);
   const peony=product.priceTiers.find(t=>t.variantName==='牡丹');
   const shipment=await db.shipment.create({data:{
-    shipmentNumber:'CI-WAX-S-'+key,type:'hq_sale',status:'shipped',hqInventoryEligible:true,
+    shipmentNumber:'CI-WAX-S-'+key,type:'customer_order',status:'shipped',hqInventoryEligible:true,
     items:{create:{productId:product.id,productName:product.name,sku:product.sku,quantity:1,unit:'組',variantKey:peony.id}},
   }});
   await page.reload();
