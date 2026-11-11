@@ -39,7 +39,10 @@
 .queueTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .queueTitleRow strong { min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .queueTitleRow svg { width: 16px; flex: none; color: var(--review-green); }
-.queueItem > p { overflow: hidden; color: hsl(var(--muted-foreground)); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.queueCustomer { font-size: 13px; }
+.queueSummary { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; }
+.queueSummary p { min-width: 0; overflow: hidden; color: hsl(var(--muted-foreground)); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.queueSummary strong { flex: none; color: var(--review-green-strong); font-size: 14px; font-variant-numeric: tabular-nums; }
 
 .detail { display: flex; min-width: 0; min-height: 0; flex-direction: column; background: hsl(var(--card)); }
 .detailHeader { display: flex; min-height: 100px; flex: none; justify-content: space-between; gap: 20px; border-bottom: 1px solid hsl(var(--border)); padding: 18px 20px; background: hsl(var(--card)); }
@@ -69,8 +72,9 @@
 .sectionHeading > span, .deliveryHeading > span { border: 1px solid var(--review-green-line); border-radius: 999px; padding: 3px 8px; color: var(--review-green); font-size: 9px; font-weight: 750; }
 .pickSection { padding-top: 0; }
 .lines { display: grid; gap: 0; margin-top: 9px; }
-.lines li { border-top: 1px solid hsl(var(--border) / .65); padding: 9px 0; color: hsl(var(--foreground)); font-size: 11px; font-weight: 620; }
+.lines li { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid hsl(var(--border) / .65); padding: 9px 0; color: hsl(var(--foreground)); font-size: 11px; font-weight: 620; }
 .lines li:first-child { border-top: 0; }
+.lineQuantity { flex: none; font-variant-numeric: tabular-nums; font-weight: 500; }
 .more, .placeholder { color: hsl(var(--muted-foreground)); font-size: 11px; }
 .deliverySection { border-bottom: 0; }
 .deliveryFacts { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(140px, .8fr); gap: 14px 20px; margin-top: 14px; }
@@ -111,7 +115,9 @@
   .reviewFocusWarning p { font-size: 13px; line-height: 1.6; }
   .queueMeta { font-size: 12px; }
   .queueTitleRow strong { font-size: 15px; }
-  .queueItem > p { font-size: 13px; }
+  .queueSummary p { font-size: 13px; }
+  .queueSummary strong { font-size: 16px; }
+  .queueCustomer { font-size: 14px; }
   .actionBar { position: sticky; bottom: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .primaryAction { width: 100%; font-size: 15px; }
 }
@@ -122,7 +128,10 @@
   .search { min-width: 0; width: 100%; }
   .filters { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 3px; scrollbar-width: none; }
   .filters::-webkit-scrollbar { display: none; }
-  .filter, .filterActive { min-height: 44px; flex: none; font-size: 13px; }
+  .filters { gap: 4px; border-bottom: 1px solid hsl(var(--border)); }
+  .filter, .filterActive { min-height: 44px; flex: none; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; font-size: 14px; }
+  .filterActive { border-bottom-color: var(--review-green); color: var(--review-green); }
+  .queueMeta .kind { display: none; }
   .search input { font-size: 16px; }
   .detailHeader { align-items: flex-start; flex-direction: column; gap: 12px; }
   .amountBlock { width: 100%; grid-template-columns: 1fr auto; align-items: end; justify-items: start; }

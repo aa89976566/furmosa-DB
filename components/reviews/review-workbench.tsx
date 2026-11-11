@@ -47,10 +47,14 @@ function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: 
         <time dateTime={item.createdAt.toISOString()}>{formatDateTime(item.createdAt)}</time>
       </div>
       <div className={styles.queueTitleRow}>
-        <strong>{item.title}</strong>
+        <strong>{item.preview?.reference || item.title}</strong>
         <ChevronRight aria-hidden />
       </div>
-      <p>{item.subtitle || '等待人工確認'}</p>
+      {item.preview?.reference && item.preview.customer ? <span className={styles.queueCustomer}>{item.preview.customer}</span> : null}
+      <div className={styles.queueSummary}>
+        <p>{item.subtitle || '等待人工確認'}</p>
+        {item.preview?.amount ? <strong>{amountLabel(item.preview.amount)}</strong> : null}
+      </div>
     </button>
   );
 }
@@ -65,7 +69,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
       <header className={styles.detailHeader}>
         <div>
           <div className={styles.detailEyebrow}>{item.kindLabel} · {item.statusLabel}</div>
-          <h2>{item.title}</h2>
+          <h2>{item.preview?.reference ? `${item.preview.reference} · ${item.preview.customer || '收件人待確認'}` : item.title}</h2>
           {item.kind !== 'shopify_order' && item.subtitle ? <p>{item.subtitle}</p> : null}
         </div>
         <div className={styles.amountBlock}>
@@ -92,7 +96,10 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
           </div>
           {lines.length ? (
             <ul className={styles.lines}>
-              {lines.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}
+              {lines.map((line, index) => {
+                const parts = line.match(/^(.*) × (\d+|—)$/);
+                return <li key={`${line}-${index}`}>{parts ? <><span>{parts[1]}</span><span className={styles.lineQuantity}>× {parts[2]}</span></> : line}</li>;
+              })}
               {item.moreLabel ? <li className={styles.more}>{item.moreLabel}</li> : null}
             </ul>
           ) : (

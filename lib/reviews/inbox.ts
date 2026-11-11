@@ -23,6 +23,7 @@ export type ReviewInboxItem = {
   lines?: string[];
   moreLabel?: string;
   preview?: {
+    reference?: string;
     customer?: string;
     amount?: string;
     phone?: string;
@@ -198,6 +199,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
           ? `…另 ${source.items.length - MAX_LINES} 項`
           : undefined,
       preview: {
+        reference: order.externalOrderName?.trim() || source?.name.trim() || order.orderNumber,
         customer: source?.recipient.trim() || order.customer?.name?.trim() || undefined,
         amount: source?.total
           ? `${source.currency === 'TWD' || !source.currency ? 'NT$' : `${source.currency} `}${source.total}`
