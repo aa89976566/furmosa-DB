@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'pos-acceptance.spec.mjs',
+  testMatch: ['pos-acceptance.spec.mjs', 'hq-order-adjustment.spec.mjs'],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   retries: 0,
