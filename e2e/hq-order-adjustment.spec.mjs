@@ -43,6 +43,26 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await page.getByLabel('密碼', { exact: true }).fill(password);
   await page.getByRole('button', { name: '登入', exact: true }).click();
   await expect(page.locator('#oms-review')).toBeVisible();
+  // The mobile inbox opens one item at a time and can return to its filtered list.
+  await page.goto('/reviews');
+  await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(source.order.name);
+  const queue = page.getByRole('complementary', { name: '待審核清單', exact: true });
+  const detail = page.getByRole('region', { name: new RegExp(source.order.name) });
+  const mobileLayout = page.viewportSize().width <= 1100;
+  await expect(queue).toBeVisible();
+  if (mobileLayout) await expect(detail).toBeHidden();
+  await queue.getByRole('button').filter({ hasText: source.order.name }).click();
+  await expect(detail).toBeVisible();
+  if (mobileLayout) {
+    await expect(queue).toBeHidden();
+    await page.getByRole('button', { name: '返回待審核清單', exact: true }).click();
+    await expect(queue).toBeVisible();
+    await expect(detail).toBeHidden();
+    await expect(page.getByRole('textbox', { name: '搜尋待審核項目', exact: true })).toHaveValue(source.order.name);
+    await queue.getByRole('button').filter({ hasText: source.order.name }).click();
+  }
+  await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
+  await expect(page.locator('#oms-review')).toBeVisible();
   const editor = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^修改 HQ 訂單$/ }) });
   await editor.locator('summary').click();
   await editor.getByLabel('數量', { exact: true }).fill('2');

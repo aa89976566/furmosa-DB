@@ -215,7 +215,7 @@ describe('reviews page source assertions', () => {
   it('使用單一審核工作台，左側佇列與右側明細共用同一份資料', () => {
     assert.match(pageSource, /<ReviewWorkbench items=\{items\} counts=\{counts\} \/>/);
     assert.match(workbenchSource, /待處理佇列/);
-    assert.match(workbenchSource, /<DetailPanel item=\{selected\} \/>/);
+    assert.match(workbenchSource, /<DetailPanel item=\{selected\} onBack=/);
     assert.match(workbenchSource, /item\.lines/);
     assert.match(workbenchSource, /item\.moreLabel/);
     assert.match(workbenchStyles, /grid-template-columns: minmax\(260px, \.72fr\) minmax\(0, 1\.55fr\)/);
@@ -253,7 +253,7 @@ describe('reviews page source assertions', () => {
     assert.match(pageSource, /href="\/shipments\?status=pending"/);
     assert.doesNotMatch(pageSource, /pendingShipments/);
     assert.match(pageSource, />\s*管理\s*<\/summary>/);
-    assert.match(workbenchSource, /待處理<strong>\{total\}<\/strong>/);
-    assert.match(workbenchSource, /訂單<strong>\{counts\.shopify_order\}<\/strong>/);
+    assert.match(workbenchSource, /option\.key === 'all' \? total : counts\[option\.key\]/);
+    assert.match(workbenchSource, /\{option\.label\} <span>\{count\}<\/span>/);
   });
 });

@@ -5,12 +5,8 @@ import Link from 'next/link';
 import {
   AlertCircle,
   ArrowRight,
-  Check,
   ChevronRight,
-  ClipboardCheck,
-  PackageCheck,
   Search,
-  Truck,
 } from 'lucide-react';
 import type { ReviewInboxItem, ReviewKind } from '@/lib/reviews/inbox';
 import { formatDateTime } from '@/lib/format';
@@ -44,7 +40,7 @@ function deliveryLabel(address?: string) {
 
 function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: boolean; onSelect: () => void }) {
   return (
-    <button type="button" className={active ? `${styles.queueItem} ${styles.queueItemActive}` : styles.queueItem} onClick={onSelect}>
+    <button type="button" aria-pressed={active} className={active ? `${styles.queueItem} ${styles.queueItemActive}` : styles.queueItem} onClick={onSelect}>
       <div className={styles.queueMeta}>
         <span className={styles.kind}>{item.kindLabel}</span>
         <span className={styles.status}>{item.statusLabel}</span>
@@ -59,18 +55,18 @@ function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: 
   );
 }
 
-function DetailPanel({ item }: { item: ReviewInboxItem }) {
+function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => void }) {
   const lines = item.lines ?? [];
   const checks = item.preview?.checks ?? [];
   const warnings = checks.filter((check) => check.tone !== 'success');
-  const completedChecks = checks.length - warnings.length;
   return (
     <section className={styles.detail} aria-label={`審核內容：${item.title}`}>
+      <button type="button" className={styles.backToQueue} onClick={onBack}>返回待審核清單</button>
       <header className={styles.detailHeader}>
         <div>
-          <div className={styles.detailEyebrow}>{item.kindLabel}</div>
+          <div className={styles.detailEyebrow}>{item.kindLabel} · {item.statusLabel}</div>
           <h2>{item.title}</h2>
-          <p>{item.subtitle || '請確認資料後進入審核'}</p>
+          {item.kind !== 'shopify_order' && item.subtitle ? <p>{item.subtitle}</p> : null}
         </div>
         <div className={styles.amountBlock}>
           <time dateTime={item.createdAt.toISOString()}>{formatDateTime(item.createdAt)}</time>
@@ -78,12 +74,12 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
         </div>
       </header>
 
-      {checks.length ? (
-        <div className={warnings.length ? styles.reviewFocusWarning : styles.reviewFocusReady}>
-          {warnings.length ? <AlertCircle aria-hidden /> : <Check aria-hidden />}
+      {warnings.length ? (
+        <div className={styles.reviewFocusWarning}>
+          <AlertCircle aria-hidden />
           <div>
-            <strong>{warnings.length ? '需要人工判斷' : '基本資料已齊全'}</strong>
-            <p>{warnings.length ? warnings.map((check) => `${check.label}：${check.detail}`).join('；') : `已完成 ${completedChecks} 項基本檢查，請核對備貨與配送。`}</p>
+            <strong>待確認事項</strong>
+            <p>{warnings.map((check) => `${check.label}：${check.detail}`).join('；')}</p>
           </div>
         </div>
       ) : null}
@@ -91,7 +87,7 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
       <div className={styles.detailBody}>
         <section className={`${styles.section} ${styles.pickSection}`}>
           <div className={styles.sectionHeading}>
-            <h3><PackageCheck aria-hidden />本單要備貨</h3>
+            <h3>商品</h3>
             <span>{lines.length} 項</span>
           </div>
           {lines.length ? (
@@ -106,7 +102,7 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
 
         <section className={`${styles.section} ${styles.deliverySection}`}>
           <div className={styles.deliveryHeading}>
-            <h3><Truck aria-hidden />配送票卡</h3>
+            <h3>配送資料</h3>
             <span>{deliveryLabel(item.preview?.address)}</span>
           </div>
           <dl className={styles.deliveryFacts}>
@@ -116,20 +112,15 @@ function DetailPanel({ item }: { item: ReviewInboxItem }) {
           </dl>
         </section>
 
-        <section className={styles.section}>
-          <h3><ClipboardCheck aria-hidden />審核備註</h3>
-          <div className={styles.note}>備註會在開啟審核後填寫，並保留於訂單歷程。</div>
-        </section>
       </div>
 
       {item.kind === 'shopify_order' && item.supportsOrderDeletion ? (
-        <div className="px-4 pb-4 sm:px-6">
+        <div className={styles.secondaryActions}>
           <OrderDeletionForm key={item.id} orderId={item.id} orderNumber={item.title} deleted={false} />
         </div>
       ) : null}
 
       <footer className={styles.actionBar}>
-        <p>所有正式核准、退回與庫存動作仍依原有審核規則執行。</p>
         <Link href={item.href} className={styles.primaryAction}>
           {item.actionLabel}<ArrowRight aria-hidden />
         </Link>
@@ -157,32 +148,26 @@ export function ReviewWorkbench({ items, counts }: { items: ReviewInboxItem[]; c
   const total = items.length;
 
   return (
-    <div className={styles.workbench}>
-      <section className={styles.metrics} aria-label="審核摘要">
-        <div><ClipboardCheck aria-hidden /><span>待處理<strong>{total}</strong></span></div>
-        <div><PackageCheck aria-hidden /><span>訂單<strong>{counts.shopify_order}</strong></span></div>
-        <div><Truck aria-hidden /><span>其他申請<strong>{counts.ugc + counts.restock + counts.partner}</strong></span></div>
-      </section>
-
+    <div className={styles.workbench} data-mobile-detail={selectedKey && selected ? 'true' : 'false'}>
       <div className={styles.tools}>
-        <label className={styles.search}><Search aria-hidden /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋訂單、店家或申請人" /></label>
+        <label className={styles.search}><Search aria-hidden /><input aria-label="搜尋待審核項目" value={query} onChange={(event) => { setQuery(event.target.value); setSelectedKey(null); }} placeholder="搜尋訂單、店家或申請人" /></label>
         <div className={styles.filters} aria-label="審核類型">
           {FILTERS.map((option) => {
             const count = option.key === 'all' ? total : counts[option.key];
-            return <button key={option.key} type="button" className={filter === option.key ? styles.filterActive : styles.filter} onClick={() => setFilter(option.key)}>{option.label} <span>{count}</span></button>;
+            return <button key={option.key} type="button" aria-pressed={filter === option.key} className={filter === option.key ? styles.filterActive : styles.filter} onClick={() => { setFilter(option.key); setSelectedKey(null); }}>{option.label} <span>{count}</span></button>;
           })}
         </div>
       </div>
 
       {selected ? (
         <div className={styles.workspace}>
-          <aside className={styles.queue}>
+          <aside className={styles.queue} aria-label="待審核清單">
             <header><h2>待處理佇列</h2><span>{filtered.length} 筆</span></header>
             <div className={styles.queueList}>
               {filtered.map((item) => <QueueItem key={`${item.kind}-${item.id}`} item={item} active={selected.id === item.id && selected.kind === item.kind} onSelect={() => setSelectedKey(`${item.kind}-${item.id}`)} />)}
             </div>
           </aside>
-          <DetailPanel item={selected} />
+          <DetailPanel item={selected} onBack={() => setSelectedKey(null)} />
         </div>
       ) : (
         <section className={styles.empty}>沒有符合條件的待審核項目。</section>
