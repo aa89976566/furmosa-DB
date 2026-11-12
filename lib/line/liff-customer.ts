@@ -57,9 +57,6 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
           petSpecies: pet.petSpecies,
           petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
           petName: pet.petName,
-          petBreed: pet.petBreed,
-          petAgeYears: pet.petAgeYears,
-          petBirthday: pet.petBirthday,
         },
       });
       await ensureJarExchangeService(tx, existing.id);
@@ -73,7 +70,12 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
     phone,
     lineUserId,
     lineDisplay,
-    ...pet,
+    petSpecies: pet.petSpecies,
+    petSpeciesOther: pet.petSpecies === 'other' ? pet.petSpeciesOther : null,
+    petName: pet.petName,
+    petBreed: null,
+    petAgeYears: null,
+    petBirthday: null,
   });
   await ensureJarExchangeService(prisma, created.id);
 

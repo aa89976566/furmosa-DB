@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { fetchShopifyCatalog } from './catalog-source';
 import { planShopifyHqCatalogSync, type CatalogSyncPlan } from './catalog-sync';
 import { getShopifyAdminAccessToken, shopifyAdminAuthConfigFromEnv } from './admin-access-token';
+import { checkListingRules } from './listing-rules';
 
 export function catalogSyncFingerprint(plan: CatalogSyncPlan) {
   return createHash('sha256').update(JSON.stringify(plan)).digest('hex');
@@ -20,7 +21,7 @@ export async function loadShopifyCatalogAudit(db: Pick<PrismaClient, 'product'>)
       where: { productCategory: 'STANDARD', status: 'active' },
       orderBy: [{ productId: 'asc' }, { id: 'asc' }],
       select: {
-        id: true, productId: true, name: true, status: true, price: true, sourceSku: true,
+        id: true, productId: true, name: true, status: true, price: true, sourceSku: true, description: true, imageUrl: true,
         priceTiers: {
           orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }, { id: 'asc' }],
           select: {
@@ -33,7 +34,8 @@ export async function loadShopifyCatalogAudit(db: Pick<PrismaClient, 'product'>)
   ]);
   const shopifyProducts = allShopifyProducts.filter((product) => product.status === 'ACTIVE');
   const plan = planShopifyHqCatalogSync(shopifyProducts, hqProducts);
-  return { shopifyProducts, hqProducts, plan, fingerprint: catalogSyncFingerprint(plan) };
+  const listingChecks = shopifyProducts.map(product => ({ productId: product.id, title: product.title, ...checkListingRules(product, shopifyProducts) }));
+  return { shopifyProducts, hqProducts, plan, listingChecks, fingerprint: catalogSyncFingerprint(plan) };
 }
 
 type CatalogSyncTx = Pick<Prisma.TransactionClient, 'productPriceTier' | 'product' | 'statusAuditLog'>;
@@ -55,7 +57,10 @@ export async function applyCatalogSyncPlan(tx: CatalogSyncTx, input: {
     await tx.productPriceTier.update({ where: { id: row.tierId }, data: { status: 'archived' } });
   }
   for (const row of input.plan.productUpdates) {
-    await tx.product.update({ where: { id: row.productId }, data: { name: row.name, price: row.price, status: row.status } });
+    await tx.product.update({ where: { id: row.productId }, data: { name: row.name, price: row.price, status: row.status,
+      ...(row.description !== undefined ? { description: row.description } : {}),
+      ...(row.imageUrl !== undefined ? { imageUrl: row.imageUrl } : {}),
+    } });
   }
   const runId = randomUUID();
   await tx.statusAuditLog.create({

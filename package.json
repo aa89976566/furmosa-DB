@@ -13,7 +13,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "db:check": "prisma migrate deploy && node -e \"const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.\\$queryRaw\\`SELECT 1\\`.then(()=>{console.log('資料庫連線成功');return p.\\$disconnect();}).catch(e=>{console.error('連線失敗:',e.message);process.exit(1);})\"",
+    "db:check": "prisma migrate deploy && node -e \"const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.\\$queryRaw\\`SELECT 1\\`.then(()=>{console.log('\u8cc7\u6599\u5eab\u9023\u7dda\u6210\u529f');return p.\\$disconnect();}).catch(e=>{console.error('\u9023\u7dda\u5931\u6557:',e.message);process.exit(1);})\"",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
     "db:setup": "prisma migrate dev --name init && prisma db seed",
@@ -21,7 +21,7 @@
     "db:import": "tsx prisma/import.ts",
     "db:import-prices": "tsx prisma/import.ts --price-only",
     "db:reset": "prisma migrate reset --force",
-    "test": "node --import tsx --test lib/automation/__tests__/*.test.ts lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/orders/__tests__/*.test.tsx lib/inventory/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/restock-request/__tests__/*.test.ts lib/booking/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts lib/campaigns/jiba-two-piece/__tests__/*.test.ts lib/pos/__tests__/*.test.ts lib/refill/__tests__/*.test.ts lib/payments/ecpay/__tests__/*.test.ts lib/customers/__tests__/*.test.ts lib/shopify/__tests__/*.test.ts lib/products/__tests__/*.test.ts lib/reviews/__tests__/*.test.ts lib/notifications/__tests__/*.test.ts && node --experimental-strip-types --test middleware.test.ts app/store-redeem/retired-access.test.ts app/api/health/route.test.ts",
+    "test": "node --import tsx --test lib/automation/__tests__/*.test.ts lib/jar-exchange/__tests__/*.test.ts lib/line/__tests__/*.test.ts lib/orders/__tests__/*.test.ts lib/orders/__tests__/*.test.tsx lib/inventory/__tests__/*.test.ts lib/merchant-auth/__tests__/*.test.ts lib/restock-request/__tests__/*.test.ts lib/booking/__tests__/*.test.ts lib/coupons/__tests__/*.test.ts lib/__tests__/*.test.ts lib/campaigns/jiba-two-piece/__tests__/*.test.ts lib/pos/__tests__/*.test.ts lib/refill/__tests__/*.test.ts lib/payments/ecpay/__tests__/*.test.ts lib/customers/__tests__/*.test.ts lib/shopify/__tests__/*.test.ts lib/products/__tests__/*.test.ts lib/reviews/__tests__/*.test.ts lib/notifications/__tests__/*.test.ts && node --experimental-strip-types --test middleware.test.ts app/store-redeem/retired-access.test.ts app/api/health/route.test.ts && npm run test:variant-inventory",
     "merchant:create-user": "tsx scripts/create-merchant-user.ts",
     "merchant:ensure-demo-admin": "tsx scripts/ensure-demo-admin.ts",
     "product:ensure-mooncake": "tsx scripts/ensure-mooncake-product.ts",
@@ -31,7 +31,8 @@
     "smoke:production": "node scripts/production-smoke.mjs",
     "verify:deployment-contract": "node scripts/verify-deployment-contract.mjs",
     "automation:process": "tsx scripts/process-automation-jobs.ts",
-    "ci:railway": "npm run prisma:validate && npm run typecheck && NODE_ENV=test npm test && npm run build"
+    "ci:railway": "npm run prisma:validate && npm run typecheck && NODE_ENV=test npm test && npm run build",
+    "test:variant-inventory": "node --test lib/__tests__/variant-inventory*.test.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

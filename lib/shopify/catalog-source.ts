@@ -6,6 +6,12 @@ const CATALOG_QUERY = `query CatalogProducts($first: Int!, $after: String) {
       id
       title
       status
+      description
+      productType
+      featuredMedia { ... on MediaImage { image { url } } }
+      metafields(first: 30, keys: ["furmosa.food_source", "furmosa.storage_and_feeding", "furmosa.suitable_for", "furmosa.not_suitable_for", "furmosa.material_details", "furmosa.dimensions", "furmosa.package_contents", "furmosa.play_guide", "furmosa.cleaning_care", "furmosa.country_of_origin", "custom.procurement_record", "custom.hq_catalog_profile"]) {
+        nodes { namespace key value }
+      }
       variants(first: 100) {
         nodes { id title sku price }
         pageInfo { hasNextPage endCursor }
@@ -22,6 +28,10 @@ type CatalogResponse = {
         id?: unknown;
         title?: unknown;
         status?: unknown;
+        description?: string;
+        productType?: string;
+        featuredMedia?: { image?: { url?: string } } | null;
+        metafields?: { nodes?: Array<{ namespace: string; key: string; value: string }> };
         variants?: {
           nodes?: Array<{ id?: unknown; title?: unknown; sku?: unknown; price?: unknown }>;
           pageInfo?: { hasNextPage?: unknown };
@@ -90,6 +100,12 @@ export async function fetchShopifyCatalog(
         id: requiredText(row.id, 'product id'),
         title: requiredText(row.title, 'title'),
         status: productStatus(row.status),
+        ...(typeof row.description === 'string' ? { content: {
+          description: row.description,
+          productType: row.productType ?? '',
+          imageUrl: row.featuredMedia?.image?.url ?? null,
+          fields: Object.fromEntries((row.metafields?.nodes ?? []).map(field => [`${field.namespace}.${field.key}`, field.value])),
+        } } : {}),
         variants: (row.variants?.nodes ?? []).map((variant) => {
           const price = Number(variant.price);
           if (!Number.isFinite(price) || price < 0) throw new CatalogSourceError('Shopify variant price 資料不完整');

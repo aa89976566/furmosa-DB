@@ -39,6 +39,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         inventorySourceProduct: { include: { inventoryBalances: { include: { warehouse: true } } } },
         priceTiers: {
           orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
+          include: { variantBalances: { include: { warehouse: true } }, variantTransactions: { orderBy: { createdAt: 'desc' }, take: 12 } },
         },
         inventoryBalances: { include: { warehouse: true } },
         inventoryTransactions: {
@@ -74,6 +75,19 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
     variantName: tier.variantName,
   }));
 
+
+  const variantInventory = product.priceTiers.filter(t => t.inventoryPolicy === 'variant').map(t => ({
+    id: t.id, name: t.variantName ?? t.sku ?? t.id,
+    balances: t.variantBalances.map(b => ({ warehouse: b.warehouse.name, quantity: b.quantity, unit: b.unit })),
+    transactions: t.variantTransactions.map(tx => ({
+      id: tx.id, type: tx.type, quantity: tx.quantity, unit: tx.unit,
+      reference: tx.reference, createdAt: formatDateTime(tx.createdAt),
+    })),
+  }));
+  if (user?.role === 'inventory_reviewer' && variantInventory.length > 0) {
+    return <><PageHeader title={product.name} description="分香氣獨立庫存" />
+      <div className="mx-auto max-w-6xl p-4 sm:p-6"><VariantInventoryTable rows={variantInventory} /></div></>;
+  }
   if (user?.role === 'inventory_reviewer') {
     const mainBalance = product.inventoryBalances.find((balance) => balance.warehouse.code === 'WH-MAIN');
     const unit = inventoryUnit(mainBalance?.unit);
@@ -156,8 +170,10 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           <SummaryChip label="售價" value={product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : variationSummary.priceRange} />
           {product.productCategory === 'JAR_EXCHANGE'
             ? <SummaryChip label="來源庫存" value={product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
-            : <SummaryChip label="庫存" value={formatNumber(totalOnHand)} />}
+            : <SummaryChip label="庫存" value={variantInventory.length ? "依香氣分別記帳" : formatNumber(totalOnHand)} />}
         </div>
+
+        {variantInventory.length > 0 ? <VariantInventoryTable rows={variantInventory} /> : null}
 
         <div
           id="product-variants"
@@ -336,3 +352,23 @@ function SummaryChip({ label, value }: { label: string; value: string }) {
     </span>
   );
 }
+
+type VariantInventoryRow = {
+  id: string; name: string;
+  balances: { warehouse: string; quantity: number; unit: string }[];
+  transactions: { id: string; type: string; quantity: number; unit: string; reference: string; createdAt: string }[];
+};
+function VariantInventoryTable({ rows }: { rows: VariantInventoryRow[] }) {
+  const labels: Record<string,string> = { opening: '期初設定', sales_out: '出貨扣帳', return_in: '取消／退貨回補' };
+  return <SectionCard title="香氣庫存" description="每款獨立記帳；每組出貨一顆所選香氣蠟燭，雞排沿用既有接單現做規則">
+    <div className="overflow-x-auto">
+      <Table><TableHeader><TableRow><TableHead>香氣</TableHead><TableHead>倉庫</TableHead><TableHead className="text-right">可用數量</TableHead></TableRow></TableHeader>
+      <TableBody>{rows.flatMap(row => row.balances.length ? row.balances.map(b => <TableRow key={row.id+b.warehouse}><TableCell>{row.name}</TableCell><TableCell>{b.warehouse}</TableCell><TableCell className="text-right">{formatNumber(b.quantity)} {b.unit}{b.quantity < 0 ? '（待補庫）' : ''}</TableCell></TableRow>) : [<TableRow key={row.id}><TableCell>{row.name}</TableCell><TableCell colSpan={2}>尚未設定期初庫存</TableCell></TableRow>])}</TableBody></Table>
+    </div>
+    <details className="mt-4 rounded-xl border p-4"><summary className="cursor-pointer font-semibold">規格庫存異動紀錄</summary>
+      <div className="mt-3 overflow-x-auto"><Table><TableHeader><TableRow><TableHead>香氣</TableHead><TableHead>類型</TableHead><TableHead>數量</TableHead><TableHead>來源</TableHead><TableHead>時間</TableHead></TableRow></TableHeader>
+      <TableBody>{rows.flatMap(row => row.transactions.map(tx => <TableRow key={tx.id}><TableCell>{row.name}</TableCell><TableCell>{labels[tx.type] ?? tx.type}</TableCell><TableCell>{tx.quantity} {tx.unit}</TableCell><TableCell className="break-all">{tx.reference}</TableCell><TableCell>{tx.createdAt}</TableCell></TableRow>))}</TableBody></Table></div>
+    </details>
+  </SectionCard>;
+}
+
