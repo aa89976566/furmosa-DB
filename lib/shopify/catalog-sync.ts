@@ -236,7 +236,6 @@ export function planShopifyHqCatalogSync(
       fold(tier.sku) === sku
       && fold(tier.shopifySku) === sku
       && tier.shopifyVariantId?.trim() === shopifyVariantId
-      && tier.price === variant.price
       && tier.status === 'active'
     ) return [];
     return [{
@@ -246,7 +245,7 @@ export function planShopifyHqCatalogSync(
       sku,
       shopifySku: sku,
       shopifyVariantId,
-      price: variant.price,
+      price: tier.price,
       status: 'active',
     }];
   });
@@ -267,7 +266,7 @@ export function planShopifyHqCatalogSync(
       productId: product.id,
       shopifyProductId: shopifyProduct.id,
       name: shopifyProduct.title,
-      price: Math.min(...rows.map((row) => row.variant.price)),
+      price: product.price,
       status: hqStatus(shopifyProduct.status),
       ...(shopifyProduct.content ? { description: shopifyProduct.content.description, imageUrl: shopifyProduct.content.imageUrl } : {}),
     } satisfies CatalogProductUpdate;

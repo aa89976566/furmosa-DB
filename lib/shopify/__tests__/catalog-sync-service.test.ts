@@ -5,7 +5,28 @@ import {
   SHOPIFY_CANDIDATE_NO_SKU_NOTE,
   SHOPIFY_CANDIDATE_STALE_NOTE_PREFIX,
   stageUnmatchedCatalog,
+  applyCatalogSyncPlan,
 } from '../catalog-sync-service.ts';
+
+test('applying even a stale inbound plan cannot overwrite HQ prices or costs', async () => {
+  const writes: Record<string, unknown>[] = [];
+  const tx = {
+    productPriceTier: { async update(args: { data: Record<string, unknown> }) { writes.push(args.data); } },
+    product: { async update(args: { data: Record<string, unknown> }) { writes.push(args.data); } },
+    statusAuditLog: { async create() {} },
+  };
+  const input = plan([]);
+  input.tierUpdates.push({ tierId: 'salmon-50', productId: 'salmon', shopifyProductId: 'p1',
+    sku: 'FUR-SALMON-SKIN-50', shopifySku: 'FUR-SALMON-SKIN-50', shopifyVariantId: '64882303271289', price: 285, status: 'active' });
+  input.productUpdates.push({ productId: 'salmon', shopifyProductId: 'p1', name: '鮭魚皮', price: 285, status: 'active' });
+  await applyCatalogSyncPlan(tx as any, { plan: input, fingerprint: 'old-plan', actorId: 'admin-1' });
+  assert.equal(writes.length, 2);
+  for (const data of writes) {
+    assert.equal(Object.hasOwn(data, 'price'), false);
+    assert.equal(Object.hasOwn(data, 'cost'), false);
+  }
+  assert.equal(writes[0].shopifyVariantId, '64882303271289');
+});
 
 type Candidate = {
   id: string;

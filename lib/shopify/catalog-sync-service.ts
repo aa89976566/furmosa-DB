@@ -50,14 +50,15 @@ export async function applyCatalogSyncPlan(tx: CatalogSyncTx, input: {
   for (const row of input.plan.tierUpdates) {
     await tx.productPriceTier.update({
       where: { id: row.tierId },
-      data: { sku: row.sku, shopifySku: row.shopifySku, shopifyVariantId: row.shopifyVariantId, price: row.price, status: row.status },
+      // HQ owns prices. Ignore prices even in previously generated plans.
+      data: { sku: row.sku, shopifySku: row.shopifySku, shopifyVariantId: row.shopifyVariantId, status: row.status },
     });
   }
   for (const row of input.plan.tierArchives) {
     await tx.productPriceTier.update({ where: { id: row.tierId }, data: { status: 'archived' } });
   }
   for (const row of input.plan.productUpdates) {
-    await tx.product.update({ where: { id: row.productId }, data: { name: row.name, price: row.price, status: row.status,
+    await tx.product.update({ where: { id: row.productId }, data: { name: row.name, status: row.status,
       ...(row.description !== undefined ? { description: row.description } : {}),
       ...(row.imageUrl !== undefined ? { imageUrl: row.imageUrl } : {}),
     } });

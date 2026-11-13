@@ -40,7 +40,8 @@ https://shopify.dev/docs/api/admin-graphql/2026-10/mutations/productVariantsBulk
 
 - 已補：只有克重單位、unitQty=1、inventoryPolicy=shared 可套用；這三欄也納入來源指紋。
 - 已補：重量單位轉換的字串索引型別、null／異常 API envelope 保護。
-- 尚缺：`catalog-sync-service.ts` 的既有 Shopify → HQ 套用仍會更新 HQ 價格，與 HQ 唯一主檔目標衝突。完整主檔上線前，需調整雙向欄位所有權及測試；不能同時宣稱兩邊都是真實來源。
+- 已補：既有 Shopify → HQ 的計畫保留 HQ 售價；套用層不再寫入商品及規格的 price，舊計畫也無法覆蓋。名稱、描述、圖片與狀態仍沿用原流程，完整欄位所有權尚未調整。
+- 補充驗證：catalog-sync 與 catalog-sync-service 共 18 項測試通過，含價格差異不產生反向更新、舊計畫不能覆蓋 HQ 價格／成本。未執行正式同步。
 - 尚缺：同步期間 HQ 編輯與遠端價格變更的並行控制。
 - 尚缺：完整型別檢查、伺服器 action 的權限／旗標／稽核整合測試、隔離 Preview 驗收。
 - 尚缺：商品建立／唯一對應回存、圖片、完整食品資料／營養欄位／CSS、庫存扣克數與訂單全流程。此按鈕僅是既有規格更新功能，不能視為一鍵上架已完成。
