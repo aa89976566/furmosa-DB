@@ -181,6 +181,14 @@ describe('retired store-redeem middleware redirect', () => {
 
 
 describe('public webhook middleware paths', () => {
+  it('exposes only the exact public adoption read endpoint without auth cookies', async () => {
+    const res = await invoke(`${ORIGIN}/api/storefront/adoption`, true);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('x-middleware-next'), '1');
+    assert.equal(cookieReads.length, 0);
+    const nested = await invoke(`${ORIGIN}/api/storefront/adoption/admin`);
+    assert.equal(nested.status, 307);
+  });
   it('allows Shopify webhooks through without reading auth cookies', async () => {
     const res = await invoke(
       `${ORIGIN}/api/shopify/webhooks/orders-paid`,
