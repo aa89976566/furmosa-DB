@@ -70,3 +70,11 @@ test('接單現做雞霸排除現貨採購與首次盤點待辦', () => {
     { orderNow: [], incoming: [], stocktake: [] });
 });
 
+test('未出貨需求先減少可用量；在帳面庫存耗盡前提醒', () => {
+  const result = buildReorderAlertSummary([product({ onHand: 100, reorderPoint: 50, reserved: 50 })]);
+  assert.equal(result.orderNow[0].available, 50);
+  assert.equal(result.orderNow[0].onHand, 100);
+  assert.equal(buildReorderAlertSummary([product({ reserved: 100, demandVerified: false })]).stocktake.length, 1);
+  assert.equal(buildReorderAlertSummary([product({ reserved: -1 })]).stocktake.length, 1);
+});
+

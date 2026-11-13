@@ -3,6 +3,7 @@ import { bulkUnit } from './bulk';
 import { buildReorderAlertSummary } from './reorder-alerts';
 import { incomingHqGrams, missingShipmentDeductions, outstandingPurchaseLines } from './dashboard-procurement';
 import { INVENTORY_LOW_STOCK_THRESHOLD } from '@/lib/pos/inventory-groups';
+import { loadOutstandingDemand } from './load-outstanding-demand';
 
 export async function loadDashboardProcurement() {
   const auditSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -37,11 +38,13 @@ export async function loadDashboardProcurement() {
     }),
   ]);
   const incoming = incomingHqGrams(purchases);
+  const demand = await loadOutstandingDemand(prisma);
   const reorderAlerts = buildReorderAlertSummary(products.map(product => {
     const balance = product.inventoryBalances[0];
     const unit = bulkUnit(balance?.unit);
     return { id: product.id, name: product.name, sku: product.sku, reorderPoint: product.reorderPoint,
       vendorName: product.vendor?.name ?? null, onHand: balance?.quantity ?? 0, unit,
+      reserved: demand.reserved.get(product.id) ?? 0, demandVerified: demand.complete,
       unitVerified: Boolean(unit && unit === bulkUnit(product.unit)), lastCountedAt: balance?.lastCountedAt ?? null,
       incoming: unit === 'g' ? incoming.get(product.id) ?? 0 : 0 };
   }));
