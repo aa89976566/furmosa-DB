@@ -1,3 +1,4 @@
+import { adjustedSnapshot } from './hq-adjustment';
 import { checkShopifySource, mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel, SOURCE_REVIEW_VERSION } from './shopify-source-review';
 import { bulkConsumption } from '../inventory/bulk';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -81,7 +82,10 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         },
       },
     });
-    const snapshot = order.shopifySnapshot as Snapshot | null;
+    const adjustment = await tx.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    let snapshot: Snapshot | null;
+    try { snapshot = order.shopifySnapshot ? adjustedSnapshot(order.shopifySnapshot as Snapshot, adjustment) : null; }
+    catch (error) { throw new ReviewError(error instanceof Error ? error.message : 'HQ 調整資料無效', { kind: 'blocked' }); }
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
     const shipmentBase = `OMS-${order.id}`;
@@ -243,7 +247,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         omsCheckedSourceUpdatedAt: order.shopifySourceUpdatedAt, omsReviewedAt: null, omsReviewedById: null } });
       await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id,
         previousStatus: order.omsStatus, newStatus: 'REVIEW', actorType: 'user', actorId: actor.id,
-        metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, draft,
+        metadataJson: JSON.stringify({ schemaVersion: 1, sourceHash: command.sourceHash, beforeDraft: saved.draft ?? shopifySourceDraft(snapshot), draft,
           ...(recoveryShipment ? { pendingShipmentReview: true, shipmentId: recoveryShipment.id } : {}),
           reviewMode: command.sourceOnly ? SOURCE_REVIEW_VERSION : undefined,
           planVersion: result.plan.planVersion, rulesVersion: result.plan.rulesVersion,

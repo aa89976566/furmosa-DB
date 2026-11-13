@@ -85,7 +85,7 @@ function fakeDb(catalog = [cloneMooncake()], stock = 20, source = snapshot, form
       },
       findFirst: async () => [...order.shipments].reverse().find((row: any) => row.status !== 'cancelled') ?? null,
     },
-    statusAuditLog: { findFirst: async () => audits.filter(a => a.entityType === 'oms_review').at(-1) ?? null,
+    statusAuditLog: { findFirst: async ({ where }: any) => audits.filter(a => a.entityType === where.entityType).at(-1) ?? null,
       create: async ({ data }: any) => { const a = { id: `a${audits.length}`, ...data }; audits.push(a); return a; } },
   };
   const db = { $transaction: async (fn: any) => fn(tx) } as PrismaClient;

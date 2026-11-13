@@ -1,5 +1,51 @@
 // Furmosa HQ - Prisma schema
 
+// Public animal source data only. No adopter/customer information.
+model AdoptionSourceRecord {
+  id                String   @id @default(cuid())
+  source            String
+  sourceId          String   @map("source_id")
+  sourceUrl         String   @map("source_url")
+  region            String   @default("")
+  sourceStatus      String   @default("待確認") @map("source_status")
+  published         Boolean  @default(false)
+  data              Json
+  contentHash       String   @default("") @map("content_hash")
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  lastCheckedAt     DateTime? @map("last_checked_at")
+  nextCheckAt       DateTime @default(now()) @map("next_check_at")
+  missingCount      Int      @default(0) @map("missing_count")
+  consecutiveErrors Int      @default(0) @map("consecutive_errors")
+  lastError         String?  @map("last_error")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([source, sourceId])
+  @@index([source, nextCheckAt])
+  @@index([source, published])
+  @@map("adoption_source_records")
+}
+
+model AdoptionSyncRun {
+  id          String   @id @default(cuid())
+  source      String
+  origin      String
+  status      String   @default("running")
+  leaseKey    String?  @unique @map("lease_key")
+  leaseUntil  DateTime? @map("lease_until")
+  startedAt   DateTime @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  listComplete Boolean @default(false) @map("list_complete")
+  discovered  Int      @default(0)
+  checked     Int      @default(0)
+  changed     Int      @default(0)
+  errors      Json
+
+  @@index([source, startedAt])
+  @@index([source, listComplete, finishedAt])
+  @@map("adoption_sync_runs")
+}
+
 // Isolated business outreach ledger; no relation to operational customer/order data.
 model OutreachContact {
   id             String            @id @default(cuid())

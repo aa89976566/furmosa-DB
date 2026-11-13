@@ -172,7 +172,7 @@ function fakeDb(source = snapshot) {
       },
       findFirst: async () => [...order.shipments].reverse().find((row: any) => row.status !== 'cancelled') ?? null,
     },
-    statusAuditLog: { findFirst: async () => audits.filter(a => a.entityType === 'oms_review').at(-1) ?? null,
+    statusAuditLog: { findFirst: async ({ where }: any) => audits.filter(a => a.entityType === where.entityType).at(-1) ?? null,
       create: async ({ data }: any) => { const a = { id: `a${audits.length}`, ...data }; audits.push(a); return a; } },
   };
   const db = { $transaction: async (fn: any) => fn(tx) } as PrismaClient;
@@ -613,4 +613,20 @@ test('rechecking cannot approve changed shipment quantities or an already shippe
   f.order.shipments.push({ ...f.order.shipments[0], id: 'second-pending' });
   await assert.rejects(f.run('check', { ...command, pendingShipmentReview: true }), /僅能重新核對/);
   assert.equal(f.shipmentCreates, 1);
+});
+
+test('HQ adjustment controls reviewed shipment quantities without changing Shopify snapshot', async () => {
+  const { adjustedSnapshot } = await import('../hq-adjustment');
+  const f = fakeDb();
+  const adjustment = { id: 'adjustment-1', entityType: 'hq_order_adjustment', metadataJson: JSON.stringify({ version: 1, sourceHash: snapshotHash(snapshot), reason: '客人減少單價增加數量', after: {
+    lines: [{ sku: 'A', title: '商品', quantity: 2, price: '50.05', requires_shipping: true }], subtotal: '100.10', shippingFee: '60.00', total: '160.10',
+  } }) };
+  f.audits.push(adjustment);
+  const effective = adjustedSnapshot(snapshot, adjustment);
+  await assert.rejects(f.run('check', { sourceOnly: true }), /已更新/);
+  await f.run('check', { sourceOnly: true, sourceHash: snapshotHash(effective) });
+  await f.run('approve', { sourceOnly: true, sourceHash: snapshotHash(effective) });
+  assert.equal(f.shipmentCreates, 1);
+  assert.equal(f.order.shipments[0].items.create[0].quantity, 2);
+  assert.deepEqual(f.order.shopifySnapshot, snapshot);
 });
