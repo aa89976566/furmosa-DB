@@ -12,7 +12,7 @@ function renderMeetpets(reset) {
   if (reset) meetpetsShown = 12;
   var grid = el('fa-meetpets-grid'); if (!grid) return;
   var kind = el('fa-meetpets-kind').value, region = el('fa-meetpets-region').value;
-  var rows = meetpetsRecords.filter(function(a) { return (!kind || a.species === kind || kind === 'small' && !['dog','cat','rabbit'].includes(a.species)) && (!region || meetpetsArea(a.region) === region); });
+  var rows = meetpetsRecords.filter(function(a) { return (!kind || a.species === kind || kind === 'other' && !['dog','cat'].includes(a.species) || kind === 'small' && !['dog','cat','rabbit'].includes(a.species)) && (!region || meetpetsArea(a.region) === region); });
   grid.textContent = '';
   rows.slice(0, meetpetsShown).forEach(function(a) {
     var card = document.createElement('article'), img = document.createElement('img');
@@ -31,7 +31,7 @@ function renderMeetpets(reset) {
 }
 function updateMeetpetsSelection() {
   if (!el('fa-meetpets-kind')) return;
-  el('fa-meetpets-kind').value = state.kind === '狗' ? 'dog' : state.kind === '貓' ? 'cat' : state.kind === '其他' ? (state.species === 'rabbit' ? 'rabbit' : 'small') : '';
+  el('fa-meetpets-kind').value = state.kind === '狗' ? 'dog' : state.kind === '貓' ? 'cat' : state.kind === '其他' ? (state.species === 'rabbit' ? 'rabbit' : state.species ? 'small' : 'other') : '';
   el('fa-meetpets-region').value = state.region || ''; renderMeetpets(true);
 }
 async function refreshMeetpets() {
