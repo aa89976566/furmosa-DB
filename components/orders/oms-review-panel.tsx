@@ -1,3 +1,6 @@
+import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
+import { HqAdjustmentForm } from './hq-adjustment-form';
+import { OrderDeletionForm } from './order-deletion-form';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { record, snapshotHash, string, type Snapshot } from '@/lib/shopify/intake-policy';
@@ -7,6 +10,12 @@ import { currentReviewDraft } from '@/lib/orders/review-display';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { OmsReviewForm } from './oms-review-form';
 import { mergeShopifyFulfillmentDraft, shopifySourceDraft, shopifyShippingLabel } from '@/lib/orders/shopify-source-review';
+
+function shopifyOrderUrl(store: string | null | undefined, id: unknown) {
+  const match = store?.match(/^([a-z0-9][a-z0-9-]*)\.myshopify\.com$/i);
+  const orderId = typeof id === 'string' ? id : String(id ?? '');
+  return match && /^[1-9]\d*$/.test(orderId) ? `https://admin.shopify.com/store/${match[1]}/orders/${orderId}` : null;
+}
 
 function paymentSummary(source: Snapshot) {
   const financialStatus = string(source.order.financial_status);
@@ -22,7 +31,12 @@ function paymentSummary(source: Snapshot) {
   return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
 }
 
-export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; needsReviewRecovery?: boolean }) {
+export async function OmsReviewPanel({ orderId, snapshot, status, externalStore, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; externalStore?: string | null; needsReviewRecovery?: boolean }) {
+  const adjustment = await prisma.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  const originalSnapshot = snapshot;
+  let adjustmentError = '';
+  try { if (snapshotView(snapshot)) snapshot = adjustedSnapshot(snapshot as Snapshot, adjustment); }
+  catch (error) { adjustmentError = error instanceof Error ? error.message : 'HQ 調整資料無效'; }
   const sourceView = snapshotView(snapshot);
   if (!status || (!['NEW', 'REVIEW', 'READY'].includes(status) && !(needsReviewRecovery && status === 'FULFILLMENT_PENDING')) || !sourceView) return null;
   const session = await getCurrentUser();
@@ -52,16 +66,21 @@ export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRec
     <div className="border-b pb-4">
       <h2 className="text-lg font-semibold">{needsReviewRecovery ? '重新核對既有出貨單' : '處理訂單'}</h2>
       {needsReviewRecovery ? <p role="alert" className="mt-2 text-sm text-amber-700">這張待出貨單缺少審核紀錄。請重新檢查內容，再確認既有出貨單；不會建立另一張出貨單。</p> : null}
-      <p className="mt-1 text-sm text-muted-foreground">先核對 Shopify 原始內容；HQ 只處理系統無法判定的例外。</p>
+      <p className="mt-1 text-sm text-muted-foreground">核對 HQ 實際訂單；人工修改只影響 HQ，Shopify 原單保留供比對。</p>
       {status === 'READY' ? <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm">
         <p className="font-semibold text-success">訂單已確認</p>
-        <p className="mt-1 text-muted-foreground">商品與配送內容維持以 Shopify 訂單為準。下一步：建立 HQ 出貨單。</p>
+        <p className="mt-1 text-muted-foreground">商品與配送內容已依 HQ 最新審核確認。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
-    <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
+    {['NEW', 'REVIEW', 'READY'].includes(status) ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, label: `${product.name} ${tier.weightGrams ?? ''}${tier.unit}`, price: String(tier.price) })))} /> : null}
+    {actor.role === 'admin' ? <OrderDeletionForm orderId={orderId} orderNumber={sourceView.name} deleted={false} /> : null}
+    {adjustmentError ? <p role="alert" className="rounded-lg border p-3 text-destructive">{adjustmentError}</p> : <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
       draft={draft}
       sourceSummary={{
         paymentLabel: payment.label,
+        adminUrl: shopifyOrderUrl(externalStore, source.order.id),
+        subtotal: sourceView.subtotal,
+        shippingFee: sourceView.shippingFee,
         paymentTone: payment.tone,
         total: sourceView.total,
         currency: sourceView.currency,
@@ -82,6 +101,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status, needsReviewRec
             contents: decision.outcome === 'match' ? decision.tier.notes?.trim() || '' : '',
           };
         }),
-      }} />
+      }} /> }
+
   </section>;
 }

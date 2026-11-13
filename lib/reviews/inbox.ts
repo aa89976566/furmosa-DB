@@ -5,6 +5,8 @@ import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/miss
 import { activeOrderWhere } from '@/lib/order-list';
 import { restockStatusLabelForHq } from '@/lib/restock-request/constants';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
+import type { Snapshot } from '@/lib/shopify/intake-policy';
 
 export const REVIEW_KINDS = ['shopify_order', 'ugc', 'restock', 'partner'] as const;
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
@@ -23,6 +25,8 @@ export type ReviewInboxItem = {
   lines?: string[];
   moreLabel?: string;
   preview?: {
+    reference?: string;
+    adjusted?: boolean;
     customer?: string;
     amount?: string;
     phone?: string;
@@ -143,6 +147,15 @@ export function shopifyReviewTitle(order: {
   return `${formatDate(order.orderedAt)} · ${name} · ${reference}`;
 }
 
+export function reviewSnapshotView(snapshot: unknown, adjustment: { id: string; metadataJson: string | null } | null) {
+  try {
+    const effective = snapshot && adjustment ? adjustedSnapshot(snapshot as Snapshot, adjustment) : snapshot;
+    return { source: snapshotView(effective), effective, adjusted: Boolean(adjustment), conflict: false };
+  } catch {
+    return { source: snapshotView(snapshot), effective: snapshot, adjusted: false, conflict: true };
+  }
+}
+
 async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   const orders = await prisma.order.findMany({
     where: {
@@ -167,8 +180,14 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     take: 80,
   });
 
+  const adjustments = orders.length ? await prisma.statusAuditLog.findMany({
+    where: { entityType: 'hq_order_adjustment', entityId: { in: orders.filter(order => order.omsStatus).map(order => order.id) } },
+    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, entityId: true, metadataJson: true },
+  }) : [];
+  const adjustmentByOrder = new Map(adjustments.map(audit => [audit.entityId, audit]));
   return orders.map((order) => {
-    const source = snapshotView(order.shopifySnapshot);
+    const { source, effective, adjusted, conflict } = reviewSnapshotView(order.shopifySnapshot, adjustmentByOrder.get(order.id) ?? null);
     const title = shopifyReviewTitle({
       orderNumber: order.orderNumber,
       externalOrderName: order.externalOrderName,
@@ -182,7 +201,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       supportsOrderDeletion: order.source === 'shopify' && Boolean(order.omsStatus),
       kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
       title,
-      subtitle: orderContentSummary(order),
+      subtitle: orderContentSummary(adjusted ? { ...order, items: [], shopifySnapshot: effective } : order),
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
       statusLabel:
@@ -198,6 +217,8 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
           ? `…另 ${source.items.length - MAX_LINES} 項`
           : undefined,
       preview: {
+        adjusted,
+        reference: order.externalOrderName?.trim() || source?.name.trim() || order.orderNumber,
         customer: source?.recipient.trim() || order.customer?.name?.trim() || undefined,
         amount: source?.total
           ? `${source.currency === 'TWD' || !source.currency ? 'NT$' : `${source.currency} `}${source.total}`
@@ -205,6 +226,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
         phone: source?.phone || undefined,
         address: source?.address || undefined,
         checks: [
+          ...(conflict ? [{ label: 'HQ 調整待重新核對', detail: '來源訂單已更新或調整紀錄無效，請開啟審核確認', tone: 'warning' as const }] : []),
           {
             label: source?.recipient ? '收件人完整' : '收件人待確認',
             detail: source?.recipient ? '已取得收件姓名' : '來源訂單沒有收件姓名',

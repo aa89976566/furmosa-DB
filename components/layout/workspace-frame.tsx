@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 
-/** Compact chrome only on the inventory workbench; other HQ screens retain their layout. */
+/** Route markers keep workspaces focused without changing other HQ screens. */
 export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const inventory = pathname === '/inventory';
@@ -14,6 +14,7 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
       data-dashboard={pathname === '/dashboard' ? 'true' : undefined}
       data-order-workbench={orderWorkbench ? 'true' : undefined}
       data-inventory={inventory ? 'true' : undefined}
+      data-review={pathname === '/reviews' ? 'true' : undefined}
     >
       {children}
     </div>

@@ -51,6 +51,8 @@ export function snapshotView(value: unknown) {
   return {
     name: text(order.name), currency: text(order.currency),
     total: text(order.total_price),
+    subtotal: text(order.subtotal_price),
+    shippingFee: text(object(object(order.total_shipping_price_set).shop_money).amount),
     recipient: shopifyRecipientName(value),
     phone: text(shipping.phone) || text(order.phone) || text(customer.phone),
     address: ['zip', 'province', 'city', 'address1', 'address2'].map(key => text(shipping[key])).filter(Boolean).join(' '),

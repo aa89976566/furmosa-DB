@@ -27,7 +27,7 @@ export async function Topbar() {
       >
         <GlobalSearch />
       </Suspense>
-      <div className="contents group-data-[inventory=true]/shell:hidden"><CompanyProgressBar /></div>
+      <div className="contents group-data-[inventory=true]/shell:hidden max-xl:group-data-[review=true]/shell:hidden"><CompanyProgressBar /></div>
       <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
         <ThemeToggle />
         <OrderNotificationBell />
