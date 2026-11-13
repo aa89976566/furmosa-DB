@@ -78,6 +78,7 @@ test('ambiguous network result surfaces a verification request without retrying 
 });
 test('fingerprint ignores unrelated fields but changes when saved commercial values change', () => {
   const base = productPushFingerprint(product);
-  assert.equal(base, productPushFingerprint({ ...product, priceTiers: [{ ...product.priceTiers[0], bundleComponents: [] }] } as PushProduct));
+  const withUnrelatedFields = { ...product, priceTiers: [{ ...product.priceTiers[0], bundleComponents: [] }] };
+  assert.equal(base, productPushFingerprint(withUnrelatedFields));
   assert.notEqual(base, productPushFingerprint({ ...product, priceTiers: [{ ...product.priceTiers[0], price: 285 }] }));
 });
