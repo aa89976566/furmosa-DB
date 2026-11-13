@@ -37,10 +37,9 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
       <div><dt className="text-sm text-muted-foreground">訂單總額</dt><dd className="font-semibold tabular-nums">{total || '待同步'}</dd></div>
     </dl>
     <div className="space-y-3 rounded-lg border p-3">
-      <p className="text-sm">付款狀態依 Shopify 同步；商品調整請使用上方「修改 HQ 訂單」。只有確認實際收到款項，才可標示已付款。</p>
+      <p className="text-sm">付款狀態依 Shopify 同步；商品調整請使用商品區的「新增商品／修改商品」。只有確認實際收到款項，才可標示已付款。</p>
       <div className="flex flex-wrap gap-2">
         {source.adminUrl ? <><Button asChild variant="outline"><a href={source.adminUrl} target="_blank" rel="noopener noreferrer">前往 Shopify 處理付款</a></Button></> : <p className="text-sm text-muted-foreground">來源訂單連結待確認，請從 Shopify 訂單列表查找。</p>}
-        <Button asChild variant="outline"><a href="/orders/new">新增 HQ 訂單</a></Button>
       </div>
     </div>
     <div className="border-t pt-3"><p className="text-xs text-muted-foreground">商品明細</p><ul className="mt-2 space-y-2 text-sm">{(source.items ?? []).map((item, index) => <li key={`${item.sku}-${index}`} className="rounded-md bg-muted/30 p-2"><div className="flex justify-between gap-3"><span>{item.title}</span><span className="shrink-0 font-medium">{item.quantity}</span></div>{item.contents ? <p className="mt-1 text-xs leading-relaxed text-muted-foreground">出貨內容：{item.contents}</p> : null}</li>)}</ul></div>

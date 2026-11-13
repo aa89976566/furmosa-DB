@@ -14,7 +14,7 @@ export function WorkspaceFrame({ children }: { children: React.ReactNode }) {
       data-dashboard={pathname === '/dashboard' ? 'true' : undefined}
       data-order-workbench={orderWorkbench ? 'true' : undefined}
       data-inventory={inventory ? 'true' : undefined}
-      data-review={pathname === '/reviews' ? 'true' : undefined}
+      data-review={pathname === '/reviews' || /^\/orders\/[^/]+$/.test(pathname) && pathname !== '/orders/new' ? 'true' : undefined}
     >
       {children}
     </div>
