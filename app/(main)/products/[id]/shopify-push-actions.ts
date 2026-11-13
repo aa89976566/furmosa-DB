@@ -24,6 +24,7 @@ export async function pushProductToShopifyAction(_previous: ProductPushState, fo
     const product = await prisma.product.findUnique({ where: { id: productId }, select: {
       id: true, status: true, productCategory: true,
       priceTiers: { select: { id: true, status: true, sku: true, shopifySku: true, shopifyVariantId: true, weightGrams: true, price: true, cost: true,
+        unit: true, unitQty: true, inventoryPolicy: true,
         bundleComponents: { select: { componentProductId: true } } } },
     } });
     if (!product || productPushFingerprint(product) !== expected) return { ok: false, message: 'HQ 資料已更新，請重新整理後再同步' };

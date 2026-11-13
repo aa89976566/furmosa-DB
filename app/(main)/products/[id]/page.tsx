@@ -245,7 +245,8 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           <ShopifyProductPushForm productId={product.id}
             fingerprint={productPushFingerprint({ id: product.id, status: product.status, productCategory: product.productCategory,
               priceTiers: product.priceTiers.map(t => ({ id: t.id, status: t.status, sku: t.sku, shopifySku: t.shopifySku,
-                shopifyVariantId: t.shopifyVariantId, weightGrams: t.weightGrams, price: t.price, cost: t.cost })) })}
+                shopifyVariantId: t.shopifyVariantId, weightGrams: t.weightGrams, price: t.price, cost: t.cost,
+                unit: t.unit, unitQty: t.unitQty, inventoryPolicy: t.inventoryPolicy })) })}
             disabled={process.env.HQ_SHOPIFY_PRODUCT_PUSH_ENABLED !== 'true'}
             reason={process.env.HQ_SHOPIFY_PRODUCT_PUSH_ENABLED !== 'true' ? '反向同步尚未啟用。' : undefined} />
         </SectionCard> : null}

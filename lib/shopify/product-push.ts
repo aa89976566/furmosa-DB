@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 export type PushTier = { id: string; sku: string | null; shopifySku: string | null; shopifyVariantId: string | null;
-  weightGrams: number | null; price: number; cost: number | null; status: string };
+  weightGrams: number | null; unit: string; unitQty: number; inventoryPolicy: string;
+  price: number; cost: number | null; status: string };
 export type PushProduct = { id: string; status: string; productCategory: string; priceTiers: PushTier[] };
 export class ProductPushError extends Error {}
 export function productPushFingerprint(product: PushProduct) {
@@ -9,6 +10,7 @@ export function productPushFingerprint(product: PushProduct) {
     priceTiers: [...product.priceTiers].sort((a, b) => a.id.localeCompare(b.id)).map(t => ({
       id: t.id, status: t.status, sku: t.sku, shopifySku: t.shopifySku, shopifyVariantId: t.shopifyVariantId,
       weightGrams: t.weightGrams, price: t.price, cost: t.cost,
+      unit: t.unit, unitQty: t.unitQty, inventoryPolicy: t.inventoryPolicy,
     })) })).digest('hex');
 }
 export function singleTierForPush(product: PushProduct) {
@@ -16,6 +18,9 @@ export function singleTierForPush(product: PushProduct) {
   const tiers = product.priceTiers.filter(t => t.status === 'active');
   if (tiers.length !== 1) throw new ProductPushError('目前只支援單一有效規格；請先確認商品規格');
   const tier = tiers[0];
+  if (!['g', '克', '公克'].includes(tier.unit) || tier.unitQty !== 1 || tier.inventoryPolicy !== 'shared') {
+    throw new ProductPushError('目前只支援單份克重、共用散裝庫存的規格');
+  }
   if (!/^[1-9]\d*$/.test(tier.shopifyVariantId ?? '')) throw new ProductPushError('尚未綁定 Shopify 規格，請先完成對應');
   const sku = tier.shopifySku?.trim() || tier.sku?.trim();
   if (!sku) throw new ProductPushError('缺少販售 SKU');
@@ -63,7 +68,7 @@ export async function pushSingleProduct(product: PushProduct, config: { domain: 
     if (!response.ok) throw new ProductPushError(`Shopify 請求未完成（HTTP ${response.status}）；請重新核對結果`);
     let payload;
     try { payload = await response.json(); } catch { throw new ProductPushError('Shopify 回傳無法確認，請重新核對結果'); }
-    if (payload.errors || !payload.data) throw new ProductPushError('Shopify 回傳錯誤，請確認商品寫入權限及結果');
+    if (!payload || typeof payload !== 'object' || payload.errors || !payload.data || typeof payload.data !== 'object') throw new ProductPushError('Shopify 回傳錯誤，請確認商品寫入權限及結果');
     return payload.data;
   }
   async function read() {
@@ -78,7 +83,8 @@ export async function pushSingleProduct(product: PushProduct, config: { domain: 
   function matches(variant: Variant) {
     const cost = variant.inventoryItem?.unitCost;
     const weight = variant.inventoryItem?.measurement?.weight;
-    const grams = weight ? weight.value * ({ GRAMS: 1, KILOGRAMS: 1000, OUNCES: 28.349523125, POUNDS: 453.59237 }[weight.unit] ?? NaN) : NaN;
+    const gramsPerUnit: Record<string, number> = { GRAMS: 1, KILOGRAMS: 1000, OUNCES: 28.349523125, POUNDS: 453.59237 };
+    const grams = weight ? weight.value * (gramsPerUnit[weight.unit] ?? NaN) : NaN;
     return Number(variant.price) === tier.price && cost?.currencyCode === 'TWD' && Number(cost.amount) === tier.cost && Math.abs(grams - tier.weightGrams!) < 1e-6;
   }
   const before = await read();

@@ -5,6 +5,7 @@ import { productPushFingerprint, singleTierForPush, pushSingleProduct, PUSH_READ
 const product: PushProduct = { id: 'salmon', status: 'active', productCategory: 'STANDARD', priceTiers: [{
   id: 'tier50', status: 'active', sku: 'FUR-0129', shopifySku: 'FUR-SALMON-SKIN-50', shopifyVariantId: '64882303271289',
   weightGrams: 50, price: 250, cost: 100,
+  unit: 'g', unitQty: 1, inventoryPolicy: 'shared',
 }] };
 const config = { domain: 'example.myshopify.com', token: 'test-token' };
 function variant(price = '285.00', cost = '100.00', value = 50) { return {
@@ -49,11 +50,21 @@ test('mismatched SKU or currency blocks before mutation', async () => {
   }
 });
 test('invalid amounts, missing binding, special products and multiple active tiers block', () => {
-  for (const patch of [{ cost: null }, { cost: -1 }, { price: 0 }, { price: 250.001 }, { price: NaN }, { weightGrams: 0 }, { shopifyVariantId: null }]) {
+  for (const patch of [{ cost: null }, { cost: -1 }, { price: 0 }, { price: 250.001 }, { price: NaN }, { weightGrams: 0 }, { shopifyVariantId: null },
+    { unit: '件' }, { unitQty: 5 }, { inventoryPolicy: 'variant' }]) {
     assert.throws(() => singleTierForPush({ ...product, priceTiers: [{ ...product.priceTiers[0], ...patch }] }));
   }
   assert.throws(() => singleTierForPush({ ...product, productCategory: 'SERVICE' }));
   assert.throws(() => singleTierForPush({ ...product, priceTiers: [...product.priceTiers, ...product.priceTiers] }));
+});
+test('malformed JSON envelope and HTTP denial never cause a mutation', async () => {
+  for (const payload of [null, {}, { data: null }, { errors: [{ message: 'denied' }] }]) {
+    let calls = 0;
+    const request = (async () => { calls++; return Response.json(payload); }) as typeof fetch;
+    await assert.rejects(pushSingleProduct(product, config, request), /Shopify 回傳錯誤/);
+    assert.equal(calls, 1);
+  }
+  await assert.rejects(pushSingleProduct(product, config, (async () => new Response('', { status: 403 })) as typeof fetch), /HTTP 403/);
 });
 test('user errors and mismatched readback never report success', async () => {
   await assert.rejects(pushSingleProduct(product, config, api([read(), { data: { productVariantsBulkUpdate: { userErrors: [{ message: 'denied' }] } } }]).request));
