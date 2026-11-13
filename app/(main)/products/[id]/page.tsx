@@ -26,6 +26,8 @@ import { summarizeVariations } from '@/lib/product-variations';
 import { getCurrentUser } from '@/lib/auth';
 import { inventoryUnit } from '@/lib/inventory/workbench';
 import { OperatorProductStock } from './operator-product-stock';
+import { ShopifyProductPushForm } from '@/components/products/shopify-product-push-form';
+import { productPushFingerprint } from '@/lib/shopify/product-push';
 
 export const dynamic = 'force-dynamic';
 
@@ -238,6 +240,15 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
             deleteAction={deleteProduct}
           />
         </SectionCard>
+
+        {user?.role === 'admin' ? <SectionCard title="同步至 Shopify" description="使用 HQ 已儲存的販售規格">
+          <ShopifyProductPushForm productId={product.id}
+            fingerprint={productPushFingerprint({ id: product.id, status: product.status, productCategory: product.productCategory,
+              priceTiers: product.priceTiers.map(t => ({ id: t.id, status: t.status, sku: t.sku, shopifySku: t.shopifySku,
+                shopifyVariantId: t.shopifyVariantId, weightGrams: t.weightGrams, price: t.price, cost: t.cost })) })}
+            disabled={process.env.HQ_SHOPIFY_PRODUCT_PUSH_ENABLED !== 'true'}
+            reason={process.env.HQ_SHOPIFY_PRODUCT_PUSH_ENABLED !== 'true' ? '反向同步尚未啟用。' : undefined} />
+        </SectionCard> : null}
 
         <details className="group rounded-2xl border bg-card">
           <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold">
