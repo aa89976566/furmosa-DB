@@ -2,7 +2,10 @@
 
 ## 本次範圍
 
-`lib/inventory/sellable-packs.ts` 是純計算／檢查核心，尚未接正式讀取、占用帳或 Shopify 寫入。
+`lib/inventory/sellable-packs.ts` 是純計算／檢查核心。
+`load-hq-pack-preview.ts` 已新增 HQ 唯讀資料載入函式：由呼叫端傳入 DB 與明確倉庫代碼，
+在同一 Repeatable Read 交易讀取有效規格、既有組合配方、散裝來源與該倉庫帳面量。
+尚未接管理介面、正式執行、占用帳或 Shopify 寫入。
 不可宣稱已啟用自動同步。未變更 schema、正式庫存、排程或 webhook。
 
 ## 已確認商業規則
@@ -22,7 +25,7 @@
 
 ## 尚待整合與驗收
 
-1. 讀取既有 `InventoryBalance`、`ProductBundleComponent` 與有效規格，不從名稱猜配方。
+1. 唯讀載入函式已實作；仍須在隔離資料庫驗證及接管理介面。未綁 Shopify 的 HQ 克重規格也參與共料檢查；配方總重與規格不一致時阻擋。
 2. 依訂單、部分出貨及實際扣帳紀錄計算未扣帳需求，保留事件去重與取消釋放。
 3. 為共用原料建立明確可售量分配策略；占用建立必須有跨通路原子性保護。
 4. 串接 Shopify 單一指定地點的 inventory item，使用比較後寫入，防止覆蓋並行下單扣量。
@@ -31,5 +34,7 @@
 
 ## 已執行驗證
 
-`node --experimental-strip-types --test lib/inventory/__tests__/sellable-packs.test.ts`：5 組測試通過。
+`node --experimental-strip-types --test lib/inventory/__tests__/sellable-packs.test.ts lib/inventory/__tests__/hq-pack-preview.test.ts`：10 組測試通過（含資料載入模擬；非真實 DB）。
+預覽分開顯示 `stockCapacityBeforeReservations` 與可發布量；占用尚未驗證時後者固定為 null。
+尚未執行完整 TypeScript 型別檢查（此工作目錄未安裝專案依賴）。
 這是核心單元測試，非正式 DB／Shopify 端到端驗收。
