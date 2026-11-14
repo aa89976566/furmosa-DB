@@ -12,9 +12,12 @@ export type ReorderProductInput = {
   lastCountedAt: Date | null;
   incoming: number;
   unitVerified?: boolean;
+  reserved?: number;
+  demandVerified?: boolean;
 };
 
 export type ReorderAlertRow = ReorderProductInput & {
+  available: number;
   projected: number;
   deficit: number;
   state: 'order_now' | 'incoming' | 'stocktake';
@@ -35,15 +38,18 @@ export function buildReorderAlertSummary(products: ReorderProductInput[]): Reord
 
   for (const product of products) {
     if (isMadeToOrderHqProduct(product.sku)) continue;
-    const projected = product.onHand + product.incoming;
+    const reserved = product.reserved ?? 0;
+    const available = product.onHand - reserved;
+    const projected = available + product.incoming;
     const deficit = Math.max(0, product.reorderPoint - projected);
-    const base = { ...product, projected, deficit };
+    const base = { ...product, available, projected, deficit };
 
-    if (!product.lastCountedAt || !bulkUnit(product.unit) || product.unitVerified === false || product.onHand < 0) {
+    if (!product.lastCountedAt || !bulkUnit(product.unit) || product.unitVerified === false || product.onHand < 0 ||
+      product.demandVerified === false || !Number.isSafeInteger(reserved) || reserved < 0) {
       result.stocktake.push({ ...base, state: 'stocktake' });
       continue;
     }
-    if (product.onHand > product.reorderPoint) continue;
+    if (available > product.reorderPoint) continue;
     if (product.incoming > 0 && projected >= product.reorderPoint) {
       result.incoming.push({ ...base, state: 'incoming' });
       continue;
@@ -52,7 +58,7 @@ export function buildReorderAlertSummary(products: ReorderProductInput[]): Reord
   }
 
   const urgency = (a: ReorderAlertRow, b: ReorderAlertRow) => {
-    if ((a.onHand <= 0) !== (b.onHand <= 0)) return a.onHand <= 0 ? -1 : 1;
+    if ((a.available <= 0) !== (b.available <= 0)) return a.available <= 0 ? -1 : 1;
     if (a.projected !== b.projected) return a.projected - b.projected;
     return a.name.localeCompare(b.name, 'zh-Hant');
   };

@@ -33,11 +33,11 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
       </a>)}
     </nav>
 
-    <BoardSection id="purchase-now" title="立即採購" count={reorderAlerts.orderNow.length} description="缺口＝補貨點－主倉現存－主倉待到貨；這是補到安全線的參考量。">
+    <BoardSection id="purchase-now" title="立即採購" count={reorderAlerts.orderNow.length} description="可用量＝主倉現存－未扣帳訂單需求；缺口＝補貨點－可用量－待到貨。此處是提醒，尚未控制 Shopify 售完停售。">
       <ExpandableRows empty="目前沒有需要立即採購的商品。" rows={reorderAlerts.orderNow.map(row => <div key={row.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-xs font-medium ${row.onHand === 0 ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{row.onHand === 0 ? '缺貨' : '低庫存'}</span><Link href={`/products/${row.id}`} className="font-semibold hover:underline">{row.name}</Link></div>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-1 text-xs font-medium ${row.available <= 0 ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>{row.available <= 0 ? '可用量不足' : '低庫存'}</span><Link href={`/products/${row.id}`} className="font-semibold hover:underline">{row.name}</Link></div>
           <p className="mt-2 text-xs text-muted-foreground">{row.sku} · {row.vendorName ?? '供應商待設定'}</p>
-          <p className="mt-1 text-sm text-muted-foreground">現存 {quantity(row.onHand, row.unit)} · 補貨點 {quantity(row.reorderPoint, row.unit)}{row.incoming > 0 ? ` · 待到貨 ${quantity(row.incoming, row.unit)}` : ''}</p></div>
+          <p className="mt-1 text-sm text-muted-foreground">現存 {quantity(row.onHand, row.unit)} · 未扣帳需求 {quantity(row.reserved ?? 0, row.unit)} · 可用 {quantity(row.available, row.unit)} · 補貨點 {quantity(row.reorderPoint, row.unit)}{row.incoming > 0 ? ` · 待到貨 ${quantity(row.incoming, row.unit)}` : ''}</p></div>
         <div><p className="text-xs text-muted-foreground">{row.deficit > 0 ? '補到安全線尚缺' : '已到補貨點'}</p><p className="mt-1 text-lg font-semibold tabular-nums text-destructive">{row.deficit > 0 ? quantity(row.deficit, row.unit) : '請評估採購量'}</p></div>
         <Button variant="outline" className="min-h-11" asChild><Link href={purchaseHref(row)}>{row.unit === 'g' ? '建立採購單' : '查看商品設定'}</Link></Button>
       </div>)} />
@@ -52,9 +52,9 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
           <p className="mt-2 text-sm font-medium text-primary">查看並驗收入庫 →</p>
         </Link>)} />
       </BoardSection>
-      <BoardSection id="purchase-count" title="需要盤點" count={reorderAlerts.stocktake.length} description="負庫存、尚未盤點或單位不明，先核對再決定採購量。">
+      <BoardSection id="purchase-count" title="需要盤點／核對" count={reorderAlerts.stocktake.length} description="負庫存、尚未盤點、單位不明或訂單需求未確認，先核對再決定採購量。">
         <ExpandableRows empty="目前沒有需要優先盤點的商品。" rows={reorderAlerts.stocktake.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <div><p className="font-semibold">{row.name}</p><p className="mt-1 text-xs text-muted-foreground">{row.sku}</p><p className="mt-2 text-sm text-warning">{!row.unit || row.unitVerified === false ? '庫存單位待核對' : row.onHand < 0 ? `負庫存 ${quantity(row.onHand, row.unit)}` : '尚未完成盤點'}</p></div>
+          <div><p className="font-semibold">{row.name}</p><p className="mt-1 text-xs text-muted-foreground">{row.sku}</p><p className="mt-2 text-sm text-warning">{row.demandVerified === false ? '未出貨需求未完整核對，請先檢查訂單對應或查詢上限' : !row.unit || row.unitVerified === false ? '庫存單位待核對' : row.onHand < 0 ? `負庫存 ${quantity(row.onHand, row.unit)}` : '尚未完成盤點'}</p></div>
           <Button variant="outline" className="min-h-11" asChild><Link href={`/inventory?q=${encodeURIComponent(row.sku)}`}>核對庫存</Link></Button>
         </div>)} />
       </BoardSection>

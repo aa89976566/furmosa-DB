@@ -25,16 +25,16 @@ function shop(overrides: Partial<ShopifyCatalogProduct> = {}): ShopifyCatalogPro
   };
 }
 
-test('exact unique SKUs bind identities, prices and archive only obsolete tiers', () => {
+test('exact unique SKUs bind identities, preserve HQ prices and archive only obsolete tiers', () => {
   const plan = planShopifyHqCatalogSync([shop()], [hq()]);
   assert.equal(plan.conflicts.length, 0);
   assert.deepEqual(plan.tierUpdates.map((row) => [row.tierId, row.sku, row.shopifyVariantId, row.price]), [
-    ['tier-30', 'FD-11-30G', '30', 175],
-    ['tier-50', 'FD-11-50G', '50', 300],
+    ['tier-30', 'FD-11-30G', '30', 100],
+    ['tier-50', 'FD-11-50G', '50', 200],
   ]);
   assert.deepEqual(plan.tierArchives.map((row) => row.tierId), ['tier-old']);
   assert.deepEqual(plan.productUpdates[0], {
-    productId: 'hq-product-1', shopifyProductId: 'gid://shopify/Product/1', name: '雞肉丁凍乾', price: 175, status: 'active',
+    productId: 'hq-product-1', shopifyProductId: 'gid://shopify/Product/1', name: '雞肉丁凍乾', price: 100, status: 'active',
   });
 });
 
@@ -161,6 +161,16 @@ test('an already synchronized catalog produces no repeated writes', () => {
   assert.equal(plan.tierUpdates.length, 0);
   assert.equal(plan.productUpdates.length, 0);
   assert.equal(plan.tierArchives.length, 0);
+});
+
+test('price-only Shopify differences never generate inbound HQ price updates', () => {
+  const product = hq({ name: '雞肉丁凍乾', price: 250, priceTiers: [
+    { ...hq().priceTiers[0]!, sku: 'FD-11-30G', shopifySku: 'FD-11-30G', shopifyVariantId: '30', price: 250 },
+    { ...hq().priceTiers[1]!, shopifySku: 'FD-11-50G', shopifyVariantId: '50', price: 350 },
+  ] });
+  const result = planShopifyHqCatalogSync([shop()], [product]);
+  assert.deepEqual(result.tierUpdates, []);
+  assert.deepEqual(result.productUpdates, []);
 });
 
 

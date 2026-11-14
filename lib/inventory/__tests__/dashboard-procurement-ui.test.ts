@@ -13,6 +13,18 @@ const empty: DashboardProcurementData = {
   reorderAlerts: { orderNow: [], incoming: [], stocktake: [] }, purchases: [], merchantStocks: [],
   merchantStockCount: 0, merchantLowThreshold: 3, shipmentAudit: { checked: 0, limit: 100, days: 30, missing: [] },
 };
+
+test('dashboard distinguishes physical stock, pending demand and available quantity', () => {
+  const row = { id: 'salmon', name: '鮭魚皮', sku: 'FUR-0129', vendorName: null, unit: 'g',
+    onHand: 100, reserved: 100, available: 0, reorderPoint: 50, incoming: 0, projected: 0, deficit: 50,
+    lastCountedAt: new Date(), state: 'order_now' as const };
+  const document = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, orderNow: [row] } });
+  assert.match(document.body.textContent!, /未扣帳需求 100 g/);
+  assert.match(document.body.textContent!, /可用 0 g/);
+  assert.match(document.body.textContent!, /可用量不足/);
+  const unknown = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, stocktake: [{ ...row, state: 'stocktake', demandVerified: false }] } });
+  assert.match(unknown.body.textContent!, /未出貨需求未完整核對/);
+});
 function render(data: DashboardProcurementData) {
   return new JSDOM(renderToStaticMarkup(React.createElement(InventoryActionBoard, { data, today: new Date('2026-10-27T00:00:00+08:00') }))).window.document;
 }
@@ -27,7 +39,7 @@ test('空狀態仍顯示四個待辦分類，出貨沒有可查資料時不宣�
 
 test('採購帶入商品與缺口，全部商品可展開；計件商品不送到克數採購表', () => {
   const rows = Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, sku: `SKU${i}`, name: `商品${i}`, vendorName: '測試供應商',
-    onHand: 20, reorderPoint: 100, unit: 'g', lastCountedAt: new Date(), incoming: 30, projected: 50, deficit: 50, state: 'order_now' as const }));
+    onHand: 20, available: 20, reorderPoint: 100, unit: 'g', lastCountedAt: new Date(), incoming: 30, projected: 50, deficit: 50, state: 'order_now' as const }));
   rows.push({ ...rows[0]!, id: 'count', name: '計件品', unit: '隻' });
   const document = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, orderNow: rows } });
   const href = document.querySelector('#purchase-now a[href^="/inventory/purchase-orders/new"]')!.getAttribute('href')!;
