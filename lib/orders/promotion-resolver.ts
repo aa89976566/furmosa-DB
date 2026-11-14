@@ -1,3 +1,5 @@
+import { moneyToCents } from './money';
+export { moneyToCents } from './money';
 import { record, string, sourceDate, hasPromotionCapture, sourceFulfillmentLines, PROMOTION_GIFT_MARKER, PROMOTION_CHOICE_ATTRIBUTE, type Snapshot } from '../shopify/intake-policy';
 import type { OmsIssue } from './oms';
 
@@ -44,16 +46,6 @@ export type PromotionResolution = {
 };
 
 /** Integer-cent money from a Shopify decimal string. No float multiply-then-round. */
-export function moneyToCents(value: unknown): number | null {
-  if (typeof value !== 'string' || !/^\d+(?:\.\d{1,2})?$/.test(value)) return null;
-  const [whole, frac = ''] = value.split('.');
-  try {
-    const cents = BigInt(whole) * 100n + BigInt((frac + '00').slice(0, 2));
-    if (cents < 0n || cents > MAX_SAFE) return null;
-    const n = Number(cents);
-    return Number.isSafeInteger(n) ? n : null;
-  } catch { return null; }
-}
 
 export function multiplySafe(a: number, b: number): number | null {
   try {

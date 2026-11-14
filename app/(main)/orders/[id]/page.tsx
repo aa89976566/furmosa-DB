@@ -1,3 +1,5 @@
+import { HqOrderHistory } from '@/components/orders/hq-order-history';
+import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import { repairShopifyShipment } from '../repair-shopify-shipment';
 import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import Link from 'next/link';
@@ -58,6 +60,7 @@ import {
 import { updateOrderShippingFeeType } from '../actions';
 import { approveOrderForShipment } from '../actions';
 import { ShopifyIntakePanel } from '@/components/orders/shopify-intake-panel';
+import { HqAdjustmentTrigger } from '@/components/orders/hq-adjustment-trigger';
 import { OmsReviewPanel } from '@/components/orders/oms-review-panel';
 import { snapshotView, omsShipmentNotice } from '@/lib/shopify/snapshot-view';
 import { currentReviewDraft } from '@/lib/orders/review-display';
@@ -111,7 +114,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
       ? '訂單修改已儲存。'
       : null;
 
-  const sourceView = order.omsStatus ? snapshotView(order.shopifySnapshot) : null;
+  const adjustmentAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] }) : null;
+  let effectiveSnapshot = order.shopifySnapshot;
+  try { if (order.omsStatus && effectiveSnapshot) effectiveSnapshot = adjustedSnapshot(effectiveSnapshot as Snapshot, adjustmentAudit) as typeof effectiveSnapshot; } catch { /* The review panel displays the conflict and prevents approval. */ }
+  const sourceView = order.omsStatus ? snapshotView(effectiveSnapshot) : null;
   const sourceCatalog = sourceView?.items.length
     ? await prisma.product.findMany({
         where: { status: 'active' },
@@ -140,7 +146,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { metadataJson: true },
   }) : null;
-  const savedReview = order.omsStatus ? currentReviewDraft(order.shopifySnapshot, reviewAudit?.metadataJson) : null;
+  const savedReview = order.omsStatus ? currentReviewDraft(effectiveSnapshot, reviewAudit?.metadataJson) : null;
 
   const editable = isOrderEditable(order);
   const latestShipment = order.shipments[0];
@@ -219,11 +225,12 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         <section className="flex flex-col gap-5 pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">SHOPIFY 訂單</p>
+            {adjustmentAudit ? <p className="mt-2 text-sm font-semibold">以下為 HQ 人工調整內容 · Shopify 原單保留</p> : null}
             <h1 className="mt-3 text-4xl font-semibold tracking-tight">{customerName}</h1>
             <p className="mt-3 text-base text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
           </div>
           <div className="sm:text-right">
-            <p className="text-4xl font-semibold tabular-nums">{formatCurrency(Number(order.total))}</p>
+            <p className="text-4xl font-semibold tabular-nums">{formatCurrency(Number(sourceView?.total ?? order.total))}</p>
             <p className={cn('mt-1 text-sm font-semibold', omsTask.tone === 'danger' ? 'text-[hsl(var(--coral))]' : 'text-muted-foreground')}>{omsTask.label}</p>
           </div>
         </section>
@@ -238,7 +245,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             <section className="overflow-hidden rounded-2xl border bg-card">
               <div className="flex items-center justify-between border-b px-6 py-5">
                 <div><h2 className="text-xl font-semibold">商品與備貨</h2><p className="mt-1 text-sm text-muted-foreground">{sourceItemCount} 項商品 · {sourceQuantity} 件</p></div>
-                <Badge variant="secondary" className="rounded-full px-4 py-2">{OMS_LABELS[order.omsStatus]}</Badge>
+                <div className="flex shrink-0 flex-col items-end gap-2"><Badge variant="secondary" className="rounded-full px-4 py-2">{OMS_LABELS[order.omsStatus]}</Badge>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} add /> : null}</div>
               </div>
               <ul className="divide-y">
               {sourceItems.map((item, index) => {
@@ -248,13 +255,14 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 return <li key={index} className="p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0"><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.variantTitle || '規格待確認'} · SKU {item.sku || '待確認'}</p></div>
-                    <span className="shrink-0 text-lg font-semibold tabular-nums">× {item.quantity ?? '—'}</span>
+                    <div className="flex shrink-0 flex-col items-end gap-2"><span className="text-lg font-semibold tabular-nums">× {item.quantity ?? '—'}</span>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} index={index} /> : null}</div>
                   </div>
                   {sourceName ? <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg bg-primary/[0.08] px-3 py-2 text-sm text-primary"><Package className="h-4 w-4" aria-hidden="true" /><span className="text-xs opacity-70">貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName} ↗</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}
                   {item.giftCard ? <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"><p className="font-semibold">贈禮小卡</p><p className="mt-1">收禮毛友：{item.giftCard.recipient || '待補'}</p><p className="mt-1 whitespace-pre-wrap break-words">{item.giftCard.message || '小卡內容待補'}</p></div> : null}
                 </li>;
               })}
               </ul>
+              {order.shipments.some(s => s.status !== 'cancelled') ? <p className="border-t px-5 py-3 text-sm text-muted-foreground">已有出貨單，商品調整需先處理既有出貨單。</p> : null}
               {order.status === 'cancelled' ? <p className="border-t bg-muted/30 px-5 py-3 text-sm text-muted-foreground">已取消訂單不會進入揀貨與出貨清單。</p> : null}
             </section>
 
@@ -268,11 +276,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 </div>
               </div>
             </section> : null}
-            {!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' ? <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} needsReviewRecovery={order.omsStatus === 'FULFILLMENT_PENDING' && (!order.omsReviewedAt || !order.omsReviewedById)} /> : null}
+            {!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' ? <OmsReviewPanel externalStore={order.externalStore} orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} needsReviewRecovery={order.omsStatus === 'FULFILLMENT_PENDING' && (!order.omsReviewedAt || !order.omsReviewedById)} /> : null}
             {order.status !== 'cancelled' ? <section id="oms-shipping" tabIndex={-1} aria-labelledby="oms-shipping-title" className="rounded-xl border bg-card p-5">
               <h2 id="oms-shipping-title" className="font-semibold">出貨作業</h2>
               {repairMessage ? <p role="status" className="mt-2 rounded border p-3 text-sm">{repairMessage}</p> : null}
-              {order.omsStatus === 'FULFILLMENT_PENDING' && !order.deletedAt && !order.archivedAt && order.shipments.filter(s => s.status !== 'cancelled').length === 1 && order.shipments.some(s => s.status === 'pending') ? <form action={repairShopifyShipment} className="mt-3"><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="sourceHash" value={snapshotHash(order.shopifySnapshot as Snapshot)} /><Button type="submit" variant="outline" size="sm">核對並補齊漏掉的出貨品項</Button><p className="mt-1 text-xs text-muted-foreground">依已綁定的 Shopify 規格補齊尚未出貨的品項。</p></form> : null}
+              {!adjustmentAudit && order.omsStatus === 'FULFILLMENT_PENDING' && !order.deletedAt && !order.archivedAt && order.shipments.filter(s => s.status !== 'cancelled').length === 1 && order.shipments.some(s => s.status === 'pending') ? <form action={repairShopifyShipment} className="mt-3"><input type="hidden" name="orderId" value={order.id} /><input type="hidden" name="sourceHash" value={snapshotHash(order.shopifySnapshot as Snapshot)} /><Button type="submit" variant="outline" size="sm">核對並補齊漏掉的出貨品項</Button><p className="mt-1 text-xs text-muted-foreground">依已綁定的 Shopify 規格補齊尚未出貨的品項。</p></form> : null}
               {order.shipments.filter(shipment => shipment.status !== 'cancelled').map(shipment => <div key={shipment.id} className="mt-3 rounded-lg border p-3"><h3 className="text-sm font-semibold">HQ 實際出貨品項</h3><ul className="mt-2 space-y-3">{shipment.items.map(item => <li key={item.id} className="text-sm"><p className="font-medium">{item.productName} × {item.quantity} {item.unit || '件'}</p><p className="text-xs text-muted-foreground">SKU：{item.sku || '待核對'} · 每單位重量：{item.weightGrams ? `${item.weightGrams}g` : '未登記，請核對來源規格'}</p>{item.notes ? <p className="mt-1 whitespace-pre-line text-sm">揀貨內容：{item.notes}</p> : null}</li>)}</ul></div>)}
 
               {order.shipments.length > 0 ? (
@@ -299,8 +307,8 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </div>
 
           <aside className="space-y-5 min-[850px]:sticky min-[850px]:top-5">
-            <section className="rounded-2xl border bg-card p-6">
-              <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">收件與配送</h2><CopyDeliveryButton value={`${customerName} ${customerPhone}\n${shippingMethodLabel(order)}\n${deliveryAddress}`} /></div>
+            <details className="rounded-2xl border bg-card p-6">
+              <summary className="cursor-pointer text-lg font-semibold">收件與配送</summary><div className="mt-3 flex justify-end"><CopyDeliveryButton value={`${customerName} ${customerPhone}\n${shippingMethodLabel(order)}\n${deliveryAddress}`} /></div>
               <dl className="mt-7 grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-5 text-sm">
                 <dt className="text-muted-foreground">收件人</dt><dd className="font-semibold">{customerName} · <span className="font-mono">{customerPhone}</span></dd>
                 <dt className="text-muted-foreground">配送</dt><dd className="font-semibold">{shippingMethodLabel(order)}</dd>
@@ -310,7 +318,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
                 <p className="text-xs text-muted-foreground">運送單</p>
                 {order.shipments.length ? <ul className="mt-2 space-y-2">{order.shipments.map(shipment => <li key={shipment.id} className="flex items-center justify-between gap-2"><span className="min-w-0 truncate font-mono text-xs">{shipment.shipmentNumber}</span><Badge variant={shipmentStatusVariant[shipment.status] ?? 'secondary'}>{shipmentStatusLabel[shipment.status] ?? shipment.status}</Badge></li>)}</ul> : <p className="mt-1 text-sm text-muted-foreground">尚未建立</p>}
               </div>
-            </section>
+            </details>
           </aside>
         </div>
 
@@ -322,6 +330,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           </div>
         </section>
 
+        <div className="mt-5"><HqOrderHistory orderId={order.id} /></div>
         <details id="system-history" className="group mt-5 rounded-xl border bg-card">
           <summary className="cursor-pointer list-none px-5 py-4 font-semibold sm:px-6">系統與歷程 <span className="ml-2 text-xs font-normal text-muted-foreground">訂單來源、系統狀態與管理工具</span></summary>
           <div className="space-y-4 border-t p-4 sm:p-6">
@@ -439,7 +448,7 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           {order.omsStatus ? (
             <>
               <ShopifyIntakePanel snapshot={order.shopifySnapshot} status={order.omsStatus} issues={order.omsIssueFlags} />
-              {!order.deletedAt && <OmsReviewPanel orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />}
+              {!order.deletedAt && <OmsReviewPanel externalStore={order.externalStore} orderId={order.id} snapshot={order.shopifySnapshot} status={order.omsStatus} />}
             </>
           ) : (
             <div className="rounded-xl border bg-card p-4">

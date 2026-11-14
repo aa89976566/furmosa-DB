@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -60,6 +60,9 @@ function CounterWorkspace({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  // Server HTML is visible before React can handle search input.
+  const [searchReady, setSearchReady] = useState(false);
+  useEffect(() => { setSearchReady(true); }, []);
   const [category, setCategory] = useState<string | 'all'>('all');
   const [lines, setLines] = useState<CounterCartLine[]>([]);
   const [phase, setPhase] = useState<Phase>('edit');
@@ -166,6 +169,7 @@ function CounterWorkspace({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
+                  disabled={!searchReady}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜尋商品"
                   className="h-12 rounded-full border-0 bg-card pl-10 shadow-card"

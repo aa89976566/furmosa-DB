@@ -16,7 +16,7 @@ export default async function ReviewInboxPage() {
       <PageHeader
         tone="operations"
         title="待審核"
-        description="只顯示現在需要判斷的項目。選取案件後，可在同一畫面核對內容與下一步。"
+        description="選擇一筆，核對商品與配送後進入審核。"
         actions={<Link href="/shipments?status=pending" className="text-sm font-medium underline underline-offset-4">查看已審核訂單</Link>}
       />
       <div className="space-y-4 p-4 sm:p-6">
