@@ -33,7 +33,7 @@ export async function saveHqAdjustment(db: PrismaClient, input: { actorId: strin
         const tier = await tx.productPriceTier.findUnique({ where: { id: row.tierId }, include: { product: true } });
         if (!tier || tier.status !== 'active' || tier.product.status !== 'active') throw new Error('新增商品規格已停用');
         if (!tier.shopifyVariantId && !tier.shopifySku && !tier.sku && !tier.product.sku) throw new Error('此商品尚無可辨識規格');
-        lines.push({ title: tier.product.name, variant_title: `${tier.weightGrams ?? ''}${tier.unit}`, quantity: row.quantity, price: row.price,
+        lines.push({ title: tier.product.name, variant_title: tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`, quantity: row.quantity, price: row.price,
           sku: tier.shopifySku || tier.sku || tier.product.sku, variant_id: tier.shopifyVariantId || undefined,
           requires_shipping: true, total_discount: '0' });
       }

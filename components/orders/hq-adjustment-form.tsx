@@ -22,7 +22,7 @@ export function HqAdjustmentForm({ orderId, orderNumber, source, sourceHash, rev
   let previous: AdjustmentData | null = null;
   try { const data = JSON.parse(metadata ?? 'null'); if (data?.version === 1 && Array.isArray(data.after?.lines)) previous = data.after; } catch { /* Server rejects invalid audit data. */ }
   const originals = previous?.lines ?? (Array.isArray(source.order.line_items) ? source.order.line_items as Record<string, unknown>[] : []);
-  const initialRows: Row[] = originals.map((line, sourceIndex) => ({ sourceIndex, quantity: Number(line.quantity), price: String(line.price ?? ''), label: String(line.title ?? '') }));
+  const initialRows: Row[] = originals.map((line, sourceIndex) => ({ sourceIndex, quantity: Number(line.quantity), price: String(line.price ?? ''), label: [line.title, line.variant_title].filter(Boolean).join('｜') }));
   const shipping = source.order.total_shipping_price_set as { shop_money?: { amount?: string } } | undefined;
   const initialShipping = previous?.shippingFee ?? shipping?.shop_money?.amount ?? '';
   const [rows, setRows] = useState(initialRows);
