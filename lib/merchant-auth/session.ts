@@ -4,6 +4,8 @@ import { hashPassword, verifyPassword } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAuthSecretKey } from '@/lib/auth-secret';
 import { loginFailureMessage } from '@/lib/auth-errors';
+import { previewLoginDiagnostic } from './login-diagnostics';
+import deploymentTargets from '../../config/deployment-targets.json';
 
 export const MERCHANT_SESSION_COOKIE = 'furmosa_merchant_session';
 export const MERCHANT_SESSION_TYPE = 'merchant' as const;
@@ -171,11 +173,21 @@ export async function authenticateMerchantCredentials(
       }));
   const verify = deps?.verify ?? verifyPassword;
 
+  const report = (stage: Parameters<typeof previewLoginDiagnostic>[0]) => {
+    const diagnostic = previewLoginDiagnostic(stage, {
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      DATABASE_URL: process.env.DATABASE_URL,
+      POSTGRES_PRISMA_URL: process.env.POSTGRES_PRISMA_URL,
+      POSTGRES_URL: process.env.POSTGRES_URL,
+    }, deploymentTargets.preview.database.projectRef);
+    if (diagnostic) console.info('[pos/preview-login]', diagnostic);
+  };
   const user = await find(username.trim());
-  if (!user) return { ok: false, error: '帳號或密碼不正確' };
-  if (!user.isActive) return { ok: false, error: '此帳號已停用，請聯繫 Furmosa 總部' };
+  if (!user) { report('ACCOUNT_NOT_FOUND'); return { ok: false, error: '帳號或密碼不正確' }; }
+  if (!user.isActive) { report('ACCOUNT_INACTIVE'); return { ok: false, error: '此帳號已停用，請聯繫 Furmosa 總部' }; }
   const valid = await verify(password, user.passwordHash);
-  if (!valid) return { ok: false, error: '帳號或密碼不正確' };
+  if (!valid) { report('PASSWORD_MISMATCH'); return { ok: false, error: '帳號或密碼不正確' }; }
+  report('AUTHENTICATED');
   return { ok: true, user };
 }
 
