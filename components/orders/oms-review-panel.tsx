@@ -51,7 +51,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
     where: { status: 'active' },
     select: {
       id: true, name: true, sku: true, sourceSku: true, status: true, unit: true, defaultTemperature: true,
-      priceTiers: { where: { status: 'active' }, select: { id: true, weightGrams: true, unit: true, unitQty: true, price: true, sku: true, shopifySku: true, shopifyVariantId: true, status: true, notes: true } },
+      priceTiers: { where: { status: 'active' }, select: { id: true, variantName: true, weightGrams: true, unit: true, unitQty: true, price: true, sku: true, shopifySku: true, shopifyVariantId: true, status: true, notes: true } },
     },
   });
   const sourceDraft = shopifySourceDraft(source, products.map(product => ({ ...product, available: null })), saved?.duplicateConfirmed ?? false);
@@ -73,7 +73,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
         <p className="mt-1 text-muted-foreground">商品與配送內容已依 HQ 最新審核確認。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
-    {['NEW', 'REVIEW', 'READY'].includes(status) && !activeShipment ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderNumber={sourceView.name} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, label: `${product.name} ${tier.weightGrams ?? ''}${tier.unit}`, price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' })))} /> : null}
+    {['NEW', 'REVIEW', 'READY'].includes(status) && !activeShipment ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderNumber={sourceView.name} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`, price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' })))} /> : null}
     {actor.role === 'admin' ? <OrderDeletionForm orderId={orderId} orderNumber={sourceView.name} deleted={false} /> : null}
     {adjustmentError ? <p role="alert" className="rounded-lg border p-3 text-destructive">{adjustmentError}</p> : <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
       draft={draft}
