@@ -222,20 +222,20 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         </div>
       </header>
       <main className="order-theme mx-auto max-w-[1440px] p-4 sm:p-7 lg:p-10">
-        <section className="flex flex-col gap-5 pb-7 sm:flex-row sm:items-end sm:justify-between">
+        <section className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">SHOPIFY 訂單</p>
             {adjustmentAudit ? <p className="mt-2 text-sm font-semibold">以下為 HQ 人工調整內容 · Shopify 原單保留</p> : null}
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight">{customerName}</h1>
-            <p className="mt-3 text-base text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight">{customerName}</h1>
+            <p className="mt-2 text-sm text-muted-foreground">{formatDateTime(order.orderedAt)} · {order.paymentStatus === 'paid' ? '已付款' : '付款待確認'}</p>
           </div>
           <div className="sm:text-right">
-            <p className="text-4xl font-semibold tabular-nums">{formatCurrency(Number(sourceView?.total ?? order.total))}</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatCurrency(Number(sourceView?.total ?? order.total))}</p>
             <p className={cn('mt-1 text-sm font-semibold', omsTask.tone === 'danger' ? 'text-[hsl(var(--coral))]' : 'text-muted-foreground')}>{omsTask.label}</p>
           </div>
         </section>
 
-        <section className={cn('flex flex-col gap-4 rounded-2xl border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7', omsTask.tone === 'danger' && 'border-[hsl(var(--coral)/.28)] bg-[hsl(var(--coral)/.08)] text-[hsl(var(--coral))]', omsTask.tone === 'attention' && 'border-[hsl(38_70%_70%)] bg-[hsl(38_80%_95%)] text-[hsl(32_70%_28%)]', omsTask.tone === 'ready' && 'border-primary/20 bg-primary/5 text-primary', omsTask.tone === 'muted' && 'bg-muted/30')}>
+        <section className={cn('flex flex-col gap-4 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5', omsTask.tone === 'danger' && 'border-[hsl(var(--coral)/.28)] bg-[hsl(var(--coral)/.08)] text-[hsl(var(--coral))]', omsTask.tone === 'attention' && 'border-[hsl(38_70%_70%)] bg-[hsl(38_80%_95%)] text-[hsl(32_70%_28%)]', omsTask.tone === 'ready' && 'border-primary/20 bg-primary/5 text-primary', omsTask.tone === 'muted' && 'bg-muted/30')}>
           <div><p className="text-lg font-semibold">{order.status === 'cancelled' ? '此訂單已取消' : omsTask.label}</p><p className="mt-1 text-sm opacity-80">{order.status === 'cancelled' ? '不需要出貨，保留記錄供查核。' : omsTask.message}</p></div>
           {order.status === 'cancelled' ? <Button asChild variant="outline" className="shrink-0 border-[hsl(var(--coral)/.45)] bg-transparent text-[hsl(var(--coral))] hover:bg-[hsl(var(--coral)/.08)] hover:text-[hsl(var(--coral))]"><a href="#system-history">查看取消紀錄</a></Button> : <div className="shrink-0"><StatusBadge kind="payment" value={order.paymentStatus} /></div>}
         </section>
@@ -243,21 +243,21 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
         <div className="mt-6 grid items-start gap-6 min-[850px]:grid-cols-[minmax(0,1.65fr)_minmax(300px,.95fr)]">
           <div className="space-y-5">
             <section className="overflow-hidden rounded-2xl border bg-card">
-              <div className="flex items-center justify-between border-b px-6 py-5">
-                <div><h2 className="text-xl font-semibold">商品與備貨</h2><p className="mt-1 text-sm text-muted-foreground">{sourceItemCount} 項商品 · {sourceQuantity} 件</p></div>
-                <div className="flex shrink-0 flex-col items-end gap-2"><Badge variant="secondary" className="rounded-full px-4 py-2">{OMS_LABELS[order.omsStatus]}</Badge>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} add /> : null}</div>
+              <div className="flex items-center justify-between border-b px-4 py-3">
+                <div><h2 className="text-lg font-semibold">商品與備貨</h2><p className="mt-1 text-sm text-muted-foreground">{sourceItemCount} 項商品 · {sourceQuantity} 件</p></div>
+                <div className="flex shrink-0 flex-col items-end gap-2"><Badge variant="secondary" className="rounded-full px-2 py-1">{OMS_LABELS[order.omsStatus]}</Badge>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} add /> : null}</div>
               </div>
               <ul className="divide-y">
               {sourceItems.map((item, index) => {
                 const productSource = productSources[index];
                 const knownSource = resolveKnownShopifySourceName(item);
                 const sourceName = productSource?.vendorName || item.vendor || knownSource?.name;
-                return <li key={index} className="p-5 sm:p-6">
+                return <li key={index} className="px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0"><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.variantTitle || '規格待確認'} · SKU {item.sku || '待確認'}</p></div>
-                    <div className="flex shrink-0 flex-col items-end gap-2"><span className="text-lg font-semibold tabular-nums">× {item.quantity ?? '—'}</span>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} index={index} /> : null}</div>
+                    <div className="min-w-0"><p className="font-semibold">{item.title}</p><p className="mt-1 text-xs text-muted-foreground">{item.variantTitle || '規格待確認'}</p></div>
+                    <div className="flex shrink-0 flex-col items-end gap-2"><span className="text-lg font-semibold tabular-nums">× {item.quantity ?? '—'}</span>{!order.deletedAt && !order.archivedAt && order.status !== 'cancelled' && ['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') && !order.shipments.some(s => s.status !== 'cancelled') ? <HqAdjustmentTrigger orderId={order.id} index={index} variant={item.title.includes('雞排加蠟')} /> : null}</div>
                   </div>
-                  {sourceName ? <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg bg-primary/[0.08] px-3 py-2 text-sm text-primary"><Package className="h-4 w-4" aria-hidden="true" /><span className="text-xs opacity-70">貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName} ↗</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}
+                  <details className="mt-2 text-xs text-muted-foreground"><summary className="w-fit cursor-pointer py-1">商品詳情</summary><p className="py-2">SKU：{item.sku || '待確認'}</p>                  {sourceName ? <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-lg bg-primary/[0.08] px-3 py-2 text-sm text-primary"><Package className="h-4 w-4" aria-hidden="true" /><span className="text-xs opacity-70">貨源</span>{productSource ? <Link href={`/vendors/${productSource.vendorId}`} className="font-semibold underline underline-offset-4">{sourceName}</Link> : knownSource ? <a href={knownSource.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">{sourceName} ↗</a> : <span className="font-semibold">{sourceName}</span>}</div> : null}</details>
                   {item.giftCard ? <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950"><p className="font-semibold">贈禮小卡</p><p className="mt-1">收禮毛友：{item.giftCard.recipient || '待補'}</p><p className="mt-1 whitespace-pre-wrap break-words">{item.giftCard.message || '小卡內容待補'}</p></div> : null}
                 </li>;
               })}

@@ -111,9 +111,9 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
   await expect(page.locator('#oms-review')).toBeVisible();
   await expect(page.getByRole('combobox', { name: '配送方式', exact: true })).toHaveValue('home');
-  await page.getByRole('button', { name: '儲存修改', exact: true }).click();
+  await page.getByRole('button', { name: '儲存並檢查', exact: true }).click();
   await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsCheckedAt)).toBe(true);
-  await expect(page.getByRole('button', { name: '儲存修改', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '儲存並檢查', exact: true })).toBeEnabled();
   await expect(page.getByRole('combobox', { name: '配送方式', exact: true })).toHaveValue('home');
   await page.getByRole('button', { name: '確認訂單', exact: true }).click();
   await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');

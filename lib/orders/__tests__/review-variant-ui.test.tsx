@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import Module, { createRequire } from 'node:module';
+import test from 'node:test';
+const require = createRequire(import.meta.url);
+const { JSDOM } = require('jsdom');
+const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost' });
+for (const key of ['window','document','HTMLElement','HTMLInputElement','HTMLFormElement','Event','MouseEvent','FormData','MutationObserver','Node','NodeFilter','CustomEvent']) Object.defineProperty(globalThis,key,{configurable:true,value:dom.window[key]});
+Object.defineProperty(globalThis,'navigator',{configurable:true,value:dom.window.navigator});
+const React = require('react');
+Object.assign(globalThis,{ React, IS_REACT_ACT_ENVIRONMENT:true, getComputedStyle:dom.window.getComputedStyle });
+const router = { refresh() {} };
+let saves=0;
+const internal = Module as typeof Module & { _load: (...args:any[])=>any };
+const load=internal._load.bind(Module);
+internal._load=(request,...args)=> {
+  if(String(request).includes('hq-adjustment-actions')) return {hqAdjustmentAction:async()=>{saves++;return {message:'',ok:false};}};
+  if(request==='next/navigation')return {useRouter:()=>router};
+  return load(request,...args);
+};
+const {act,createElement}=React;
+const {createRoot}=require('react-dom/client');
+const {HqAdjustmentForm}=require('../../../components/orders/hq-adjustment-form');
+test('更換香氣只更新本地草稿，套用保留數量並使用正確規格，取消不變',async()=>{
+ const root=createRoot(document.getElementById('root'));
+ await act(async()=>root.render(createElement(HqAdjustmentForm,{orderId:'o1',orderNumber:'TEST',source:{order:{line_items:[{title:'雞排加蠟',variant_title:'牡丹',variant_id:'v1',sku:'W1',quantity:2,price:'399'}],total_shipping_price_set:{shop_money:{amount:'0'}}}},sourceHash:'hash',revision:'',metadata:null,options:[{id:'t1',productId:'p1',variantId:'v1',variantName:'牡丹',label:'雞排加蠟｜牡丹',price:'399',sku:'W1'},{id:'t2',productId:'p1',variantId:'v2',variantName:'杜桑',label:'雞排加蠟｜杜桑',price:'399',sku:'W2'}]})));
+ const click=async(text:string)=>{const button=[...document.querySelectorAll('button')].find((b:any)=>b.textContent===text) as HTMLButtonElement;assert.ok(button,text);await act(async()=>button.click());};
+ await act(async()=>document.dispatchEvent(new CustomEvent('hq-order-editor',{detail:{orderId:'o1',index:0,add:false,variant:true}})));
+ const radios=document.querySelectorAll('input[name="replacement"]');assert.equal(radios.length,2);
+ await act(async()=>(radios[1] as HTMLInputElement).click());await click('返回，不套用');
+ assert.equal(JSON.parse((document.querySelector('[name="lines"]') as HTMLInputElement).value)[0].sourceIndex,0);
+ await click('更換香氣／規格');await act(async()=>(document.querySelectorAll('input[name="replacement"]')[1] as HTMLInputElement).click());await click('套用香氣／規格');
+ const lines=JSON.parse((document.querySelector('[name="lines"]') as HTMLInputElement).value);assert.equal(lines[0].tierId,'t2');assert.equal(lines[0].quantity,2);assert.equal(lines[0].sourceIndex,undefined);assert.equal(saves,0);
+ await click('移除商品');assert.equal(JSON.parse((document.querySelector('[name="lines"]') as HTMLInputElement).value).length,0);await click('復原');assert.equal(JSON.parse((document.querySelector('[name="lines"]') as HTMLInputElement).value)[0].tierId,'t2');
+ await act(async()=>root.unmount());
+});
