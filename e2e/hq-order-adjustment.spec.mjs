@@ -110,10 +110,12 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await expect(detail).not.toContainText(second.name);
   await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
   await expect(page.locator('#oms-review')).toBeVisible();
+  await page.locator('summary').filter({ hasText: /^收件與配送/ }).click();
   await expect(page.getByRole('combobox', { name: '配送方式', exact: true })).toHaveValue('home');
   await page.getByRole('button', { name: '儲存並檢查', exact: true }).click();
   await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsCheckedAt)).toBe(true);
   await expect(page.getByRole('button', { name: '儲存並檢查', exact: true })).toBeEnabled();
+  await page.locator('summary').filter({ hasText: /^收件與配送/ }).click();
   await expect(page.getByRole('combobox', { name: '配送方式', exact: true })).toHaveValue('home');
   await page.getByRole('button', { name: '確認訂單', exact: true }).click();
   await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');
@@ -126,6 +128,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   const history = page.locator('details').filter({ has: page.locator('summary').filter({ hasText: /^操作紀錄/ }) });
   await history.locator('summary').first().click();
   await expect(history.getByText('原因：CI移除新增商品並重新送審', { exact: true })).toBeVisible();
+  await page.locator('#oms-review summary').filter({ hasText: /^更多訂單操作$/ }).click();
   const deletion = page.locator('#oms-review details').filter({ has: page.locator('summary').filter({ hasText: /^刪除訂單$/ }) });
   await deletion.locator('summary').click();
   await deletion.locator('select[name="reason"]').selectOption('測試訂單');
