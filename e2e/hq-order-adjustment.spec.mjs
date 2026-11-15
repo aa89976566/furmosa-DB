@@ -139,8 +139,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await deletion.getByRole('button', { name: '刪除訂單', exact: true }).click();
   await expect.poll(async () => Boolean((await db.order.findUniqueOrThrow({ where: { id: order.id } })).deletedAt)).toBe(true);
   await page.reload();
-  await page.locator('#oms-review summary').filter({ hasText: /^更多訂單操作$/ }).click();
-  await page.locator('#oms-review summary').filter({ hasText: /^還原訂單$/ }).click();
+  await page.locator('summary').filter({ hasText: /^還原訂單$/ }).click();
   await page.getByRole('button', { name: '確認還原', exact: true }).click();
   await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).deletedAt).toBeNull();
   const restored = await db.order.findUniqueOrThrow({ where: { id: order.id } });
