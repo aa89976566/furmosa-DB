@@ -170,15 +170,16 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
 });
 
 
-test('paid inbox approval leaves READY and never creates a shipment', async ({ page }, testInfo) => {
+for (const manualPayment of [false, true]) {
+test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval leaves READY and never creates a shipment`, async ({ page }, testInfo) => {
   const suffix = `quick-${testInfo.project.name}-${randomUUID()}`;
   const password = randomUUID();
   const email = `${suffix}@example.invalid`;
   await db.user.create({ data: { email, name: '一鍵審核驗收', role: 'admin', passwordHash: await bcrypt.hash(password, 10) } });
   const product = await db.product.create({ data: { productId: suffix, sku: suffix, name: suffix, category: 'toys', productCategory: 'STANDARD', status: 'active', price: 100, unit: '件', defaultTemperature: 'ambient', priceTiers: { create: { unit: '件', unitQty: 1, price: 100, sku: suffix, shopifySku: suffix, status: 'active' } } } });
   const timestamp = new Date();
-  const order = await db.order.create({ data: { orderNumber: suffix, source: 'shopify', status: 'pending_review', paymentStatus: 'paid', fulfillmentStatus: 'pending', subtotal: 100, total: 100, externalStore: `${suffix}.myshopify.com`, externalOrderId: suffix, omsStatus: 'NEW', shopifySourceUpdatedAt: timestamp,
-    shopifySnapshot: { schemaVersion: 1, promotionCaptureVersion: 1, order: { id: suffix, name: suffix, currency: 'TWD', updated_at: timestamp.toISOString(), financial_status: 'paid', subtotal_price: '100.00', total_price: '100.00', total_discounts: '0.00', total_shipping_price_set: { shop_money: { amount: '0.00' } }, shipping_address: { name: '測試', phone: '0900000000', address1: '隔離測試禁止寄送' }, shipping_lines: [{ title: '黑貓宅配' }], line_items: [{ title: product.name, sku: product.sku, quantity: 1, price: '100.00', requires_shipping: true }] } },
+  const order = await db.order.create({ data: { orderNumber: suffix, source: 'shopify', status: 'pending_review', paymentStatus: manualPayment ? 'unpaid' : 'paid', fulfillmentStatus: 'pending', subtotal: 100, total: 100, externalStore: `${suffix}.myshopify.com`, externalOrderId: suffix, omsStatus: 'NEW', shopifySourceUpdatedAt: timestamp,
+    shopifySnapshot: { schemaVersion: 1, promotionCaptureVersion: 1, order: { id: suffix, name: suffix, currency: 'TWD', updated_at: timestamp.toISOString(), financial_status: manualPayment ? 'pending' : 'paid', subtotal_price: '100.00', total_price: '100.00', total_discounts: '0.00', total_shipping_price_set: { shop_money: { amount: '0.00' } }, shipping_address: { name: '測試', phone: '0900000000', address1: '隔離測試禁止寄送' }, shipping_lines: [{ title: '黑貓宅配' }], line_items: [{ title: product.name, sku: product.sku, quantity: 1, price: '100.00', requires_shipping: true }] } },
   } });
   await page.goto('/login?next=%2Freviews');
   await page.getByLabel('Email', { exact: true }).fill(email);
@@ -186,6 +187,20 @@ test('paid inbox approval leaves READY and never creates a shipment', async ({ p
   await page.getByRole('button', { name: '登入', exact: true }).click();
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
   await page.getByRole('complementary', { name: '待審核清單', exact: true }).getByRole('button').filter({ hasText: suffix }).click();
+  if (manualPayment) {
+    await page.getByRole('button', { name: '通過', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('付款');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: '已付清', exact: true }).click();
+    await expect(page.getByRole('button', { name: '已付清', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: '通過', exact: true })).toBeEnabled();
+    const updated = await db.order.findUniqueOrThrow({ where: { id: order.id } });
+    expect(updated.paymentStatus).toBe('paid');
+    expect(updated.shopifySnapshot.order.financial_status).toBe('pending');
+    const audit = await db.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: order.id } });
+    expect(JSON.parse(audit.metadataJson).after.financialStatus).toBe('paid');
+    expect(audit.actorId).toBeTruthy();
+  }
   await page.getByRole('button', { name: '通過', exact: true }).click();
   await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');
   expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
@@ -194,6 +209,8 @@ test('paid inbox approval leaves READY and never creates a shipment', async ({ p
   await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
   expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
 });
+
+}
 
 test('standalone scent displays the same stock pool as its chicken bundle', async ({ page }, testInfo) => {
   const suffix = `wax-${testInfo.project.name}-${randomUUID()}`;
