@@ -1,7 +1,7 @@
 import { SALMON_STOCK } from './salmon-stock-source.ts';
 
 export const SALMON_ORDER_DEMAND = `query HqSalmonOrderDemand($after: String) {
-  orders(first: 50, after: $after, query: "sku:FUR-SALMON-SKIN-50 -status:cancelled") {
+  orders(first: 5, after: $after, query: "sku:FUR-SALMON-SKIN-50 -status:cancelled") {
     nodes { id cancelledAt displayFinancialStatus lineItems(first: 50) {
       nodes { sku unfulfilledQuantity variant { id } } pageInfo { hasNextPage }
     } } pageInfo { hasNextPage endCursor }
@@ -42,6 +42,13 @@ export async function readSalmonOrderDemand(domain: string, token: string, reque
     if (!response.ok) throw new StockDemandError('ORDER_SCAN_FAILED');
     let body: any;
     try { body = await response.json(); } catch { throw new StockDemandError('ORDER_SCAN_INVALID'); }
+    if (Array.isArray(body?.errors) && body.errors.length) {
+      const codes = new Set(body.errors.map((error: any) => error?.extensions?.code));
+      if (codes.has('ACCESS_DENIED')) throw new StockDemandError('ORDER_ACCESS_DENIED');
+      if (codes.has('MAX_COST_EXCEEDED')) throw new StockDemandError('ORDER_QUERY_COST_LIMIT');
+      if (codes.has('THROTTLED')) throw new StockDemandError('ORDER_API_THROTTLED');
+      throw new StockDemandError('ORDER_API_ERROR');
+    }
     const orders = body?.data?.orders;
     if (body?.errors || !Array.isArray(orders?.nodes) || typeof orders?.pageInfo?.hasNextPage !== 'boolean') throw new StockDemandError('ORDER_SCAN_INVALID');
     for (const order of orders.nodes) {

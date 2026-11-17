@@ -5,7 +5,8 @@ const plan: InventoryWritePlan = { variantId: 'gid://shopify/ProductVariant/1', 
   locationId: 'gid://shopify/Location/114718703993', sku: 'FUR-SALMON-SKIN-50', warehouseCode: 'WH-MAIN',
   available: 0, expectedCommitted: 0, issues: [], snapshotComplete: true, sourceRevision: 'a'.repeat(64), observedAt: '2026-11-17T12:00:00Z' };
 const level = (id: string, available: number, committed = 0) => ({ location: { id }, quantities: [{ name: 'available', quantity: available }, { name: 'committed', quantity: committed }] });
-function read(available: number, other = 0, policy = 'DENY', tracked = true) { return { data: { productVariant: {
+function read(available: number, other = 0, policy = 'DENY', tracked = true) { return { data: {
+  currentAppInstallation: { accessScopes: [{ handle: 'write_inventory' }] }, productVariant: {
   id: plan.variantId, sku: plan.sku, inventoryPolicy: policy, inventoryItem: { id: plan.inventoryItemId, tracked,
     inventoryLevels: { nodes: [level(plan.locationId, available), level('gid://shopify/Location/4', other)], pageInfo: { hasNextPage: false } } },
 } } }; }
@@ -32,6 +33,12 @@ test('HQ main warehouse only targets the user-confirmed Taipei location', async 
   const f = fixture([]);
   await assert.rejects(writeVerifiedInventory({ ...plan, locationId: 'gid://shopify/Location/114718048633' }, f.deps), /REQUIRES_TAIPEI/);
   assert.equal(f.calls.length, 0);
+});
+test('read-only app cannot claim a usable write pipeline, even when quantity already matches', async () => {
+  const payload = read(0); payload.data.currentAppInstallation.accessScopes = [{ handle: 'read_inventory' }];
+  const f = fixture([payload]);
+  await assert.rejects(writeVerifiedInventory(plan, f.deps), /WRITE_INVENTORY_SCOPE_REQUIRED/);
+  assert.equal(f.calls.length, 1);
 });
 test('same validated plan uses same key; already-applied state does not write again', async () => {
   const one = fixture([read(2), written, read(0)]), two = fixture([read(2), written, read(0)]);
