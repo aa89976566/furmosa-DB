@@ -189,7 +189,7 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval leaves READY a
   await page.getByRole('complementary', { name: '待審核清單', exact: true }).getByRole('button').filter({ hasText: suffix }).click();
   if (manualPayment) {
     await page.getByRole('button', { name: '通過', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('付款');
+    await expect(page.getByRole('alert').filter({ hasText: '付款' })).toContainText('付款');
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '已付清', exact: true }).click();
     await expect(page.getByRole('button', { name: '已付清', exact: true })).toHaveAttribute('aria-pressed', 'true');
