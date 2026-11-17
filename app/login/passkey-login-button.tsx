@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { startAuthentication } from '@simplewebauthn/browser';
 import { ScanFace } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -30,10 +29,14 @@ export function PasskeyLoginButton({ next }: { next?: string }) {
     setPending(true);
     setError('');
     try {
-      const options = await responseJson(await fetch('/api/auth/passkeys/authenticate/options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      }));
+      // Keep Face ID code off the initial password-login path. Load it alongside the challenge.
+      const [{ startAuthentication }, options] = await Promise.all([
+        import('@simplewebauthn/browser'),
+        fetch('/api/auth/passkeys/authenticate/options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }).then(responseJson),
+      ]);
       const authentication = await startAuthentication({ optionsJSON: options });
       await responseJson(await fetch('/api/auth/passkeys/authenticate/verify', {
         method: 'POST',

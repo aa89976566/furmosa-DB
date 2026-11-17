@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { loadReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
 import { ArchiveOlderOrdersForm } from '@/components/orders/archive-older-orders-form';
@@ -6,11 +7,7 @@ import { ReviewWorkbench } from '@/components/reviews/review-workbench';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ReviewInboxPage() {
-  const inbox = await loadReviewInbox();
-  const { items, counts } = inbox;
-  const total = reviewInboxTotal(counts);
-
+export default function ReviewInboxPage() {
   return (
     <>
       <PageHeader
@@ -19,7 +16,18 @@ export default async function ReviewInboxPage() {
         description="核對摘要後直接通過、修改或不通過。"
         actions={<Link href="/orders?work=ready" className="text-sm font-medium underline underline-offset-4">查看已審核訂單</Link>}
       />
-      <div className="space-y-4 p-4 sm:p-6">
+      <Suspense fallback={<div role="status" aria-busy="true" className="p-4 text-sm text-muted-foreground sm:p-6">正在載入待審核訂單…</div>}>
+        <ReviewInboxContent />
+      </Suspense>
+    </>
+  );
+}
+
+async function ReviewInboxContent() {
+  const { items, counts } = await loadReviewInbox();
+  const total = reviewInboxTotal(counts);
+  return (
+<div className="space-y-4 p-4 sm:p-6">
         <div className="flex justify-end">
           <details className="relative">
             <summary className="cursor-pointer list-none text-xs font-medium text-muted-foreground hover:text-foreground">管理</summary>
@@ -33,6 +41,5 @@ export default async function ReviewInboxPage() {
         </div> : null}
         {total > 0 ? <ReviewWorkbench items={items} counts={counts} /> : null}
       </div>
-    </>
   );
 }
