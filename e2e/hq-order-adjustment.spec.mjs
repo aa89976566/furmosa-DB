@@ -185,5 +185,6 @@ test('paid inbox approval leaves READY and never creates a shipment', async ({ p
   expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
   await page.reload();
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
-  await expect(page.getByRole('complementary', { name: '待審核清單', exact: true })).not.toContainText(suffix);
+  await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
+  expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
 });
