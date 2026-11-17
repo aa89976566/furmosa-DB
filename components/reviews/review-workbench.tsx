@@ -130,7 +130,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
       ) : null}
 
       <footer className={styles.actionBar}>
-        {item.quickReview ? <OrderReviewActions key={`${item.id}-${item.quickReview.sourceHash}`} orderId={item.id} sourceHash={item.quickReview.sourceHash} href={`${item.href}#oms-review`} /> : <>
+        {item.quickReview ? <OrderReviewActions key={`${item.id}-${item.quickReview.sourceHash}`} orderId={item.id} sourceHash={item.quickReview.sourceHash} reviewRevision={item.quickReview.reviewRevision} href={`${item.href}#oms-review`} /> : <>
         {/* Review forms must load fresh after an adjustment, including native select state. */}
         <a href={item.href} className={styles.primaryAction}>
           {item.actionLabel}<ArrowRight aria-hidden />

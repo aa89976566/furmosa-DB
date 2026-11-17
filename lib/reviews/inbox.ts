@@ -24,7 +24,7 @@ export type ReviewInboxItem = {
   statusLabel: string;
   actionLabel: string;
   supportsOrderDeletion?: boolean;
-  quickReview?: { sourceHash: string };
+  quickReview?: { sourceHash: string; reviewRevision: string };
   rejectionReason?: string;
   lines?: string[];
   moreLabel?: string;
@@ -200,14 +200,14 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
   const reviewAudits = orders.length ? await prisma.statusAuditLog.findMany({
     where: { entityType: 'oms_review', entityId: { in: orders.filter(order => order.omsStatus).map(order => order.id) } },
     distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
-    select: { entityId: true, metadataJson: true },
+    select: { id: true, entityId: true, metadataJson: true },
   }) : [];
-  const reviewByOrder = new Map(reviewAudits.map(audit => [audit.entityId, audit.metadataJson]));
+  const reviewByOrder = new Map(reviewAudits.map(audit => [audit.entityId, audit]));
   const decisionByOrder = new Map(decisions.map(audit => [audit.entityId, audit.metadataJson]));
   const adjustmentByOrder = new Map(adjustments.map(audit => [audit.entityId, audit]));
   return orders.map((order) => {
     const { source, effective, adjusted, conflict } = reviewSnapshotView(order.shopifySnapshot, adjustmentByOrder.get(order.id) ?? null);
-    const fulfillment = currentReviewDraft(effective, reviewByOrder.get(order.id));
+    const fulfillment = currentReviewDraft(effective, reviewByOrder.get(order.id)?.metadataJson);
     let rejectionReason: string | undefined;
     try {
       const decision = JSON.parse(decisionByOrder.get(order.id) ?? '{}');
@@ -224,7 +224,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       id: order.id,
       kind: 'shopify_order' as const,
       rejectionReason,
-      quickReview: order.source === 'shopify' && Boolean(order.omsStatus) && order._count.shipments === 0 && effective && !conflict ? { sourceHash: snapshotHash(effective as Snapshot) } : undefined,
+      quickReview: order.source === 'shopify' && Boolean(order.omsStatus) && order._count.shipments === 0 && effective && !conflict ? { sourceHash: snapshotHash(effective as Snapshot), reviewRevision: reviewByOrder.get(order.id)?.id ?? '' } : undefined,
       supportsOrderDeletion: order.source === 'shopify' && Boolean(order.omsStatus),
       kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
       title,

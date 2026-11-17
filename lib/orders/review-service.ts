@@ -39,7 +39,7 @@ export class ReviewError extends Error {
   }
 }
 export type ReviewCommand = { orderId: string; actorId: string; sourceHash: string;
-  action: ReviewAction; draft?: ReviewDraft; sourceOnly?: boolean; pendingShipmentReview?: boolean; quickApprove?: boolean; reason?: string };
+  action: ReviewAction; draft?: ReviewDraft; sourceOnly?: boolean; pendingShipmentReview?: boolean; quickApprove?: boolean; reviewRevision?: string; reason?: string };
 
 const shippingNext = (label: string) => ({ label, href: '#oms-shipping' });
 const paymentPendingNotes = [
@@ -136,6 +136,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       return emptyReviewResult({ ok: true, action: 'reject', message: '已記錄不通過原因，可修改後重新送審', omsStatus: 'REVIEW', kind: 'success' });
     }
     let audit = await tx.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    if (quickApprove && command.reviewRevision !== undefined && command.reviewRevision !== (audit?.id ?? '')) throw new ReviewError('審核資料已修改，請重新整理後再通過', { kind: 'blocked' });
     let saved: Record<string, unknown> = {};
     try { saved = JSON.parse(audit?.metadataJson ?? '{}'); } catch { /* fail closed below */ }
     let draft = command.action === 'check' ? reviewDraft(command.draft) : reviewDraft(saved.draft);

@@ -698,3 +698,12 @@ test('quick review preserves saved HQ delivery and rejects legacy OMS-null order
   await assert.rejects(legacy.run('reject', { reason: '缺貨' }), /不適用 Shopify OMS/);
   assert.equal(legacy.audits.length, 0);
 });
+
+
+test('one-click approval rejects a delivery edit made after the inbox was loaded', async () => {
+  const f = fakeDb();
+  await f.run('check', { sourceOnly: true, draft });
+  await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true, reviewRevision: '' }), /審核資料已修改/);
+  assert.equal(f.order.omsStatus, 'REVIEW');
+  assert.equal(f.shipmentCreates, 0);
+});

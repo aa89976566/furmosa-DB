@@ -17,11 +17,11 @@ async function reviewer() {
   return actor;
 }
 
-export async function reviewInboxDecision(input: { orderId: string; sourceHash: string; action: 'approve' | 'reject'; reason?: string }) {
+export async function reviewInboxDecision(input: { orderId: string; sourceHash: string; reviewRevision: string; action: 'approve' | 'reject'; reason?: string }) {
   try {
     const actor = await reviewer();
     if (input.action !== 'approve' && input.action !== 'reject') throw new ReviewError('不支援的審核操作');
-    const result = await runReview(prisma, { ...input, actorId: actor.id, sourceOnly: true, quickApprove: input.action === 'approve' });
+    const result = await runReview(prisma, { ...input, reviewRevision: String(input.reviewRevision ?? ''), actorId: actor.id, sourceOnly: true, quickApprove: input.action === 'approve' });
     // Cache failures after commit must not turn a successful decision into an apparent failure.
     try {
       for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path);

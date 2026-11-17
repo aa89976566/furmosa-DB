@@ -9,7 +9,7 @@ import { loadReviewOrderEditor, reviewInboxDecision } from '@/app/(main)/reviews
 import type { ReviewResult } from '@/lib/orders/review-service';
 
 type Editor = Awaited<ReturnType<typeof loadReviewOrderEditor>>;
-export function OrderReviewActions({ orderId, sourceHash, href }: { orderId: string; sourceHash: string; href: string }) {
+export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href }: { orderId: string; sourceHash: string; reviewRevision: string; href: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ReviewResult | null>(null);
@@ -22,7 +22,7 @@ export function OrderReviewActions({ orderId, sourceHash, href }: { orderId: str
     setResult(null);
     start(async () => {
       try {
-        const next = await reviewInboxDecision({ orderId, sourceHash, action, reason: [reason, note.trim()].filter(Boolean).join('：') });
+        const next = await reviewInboxDecision({ orderId, sourceHash, reviewRevision, action, reason: [reason, note.trim()].filter(Boolean).join('：') });
         setResult(next);
         if (next.ok) { setRejectOpen(false); router.refresh(); }
       } catch { setResult({ ok: false, action: null, message: '連線中斷，請重新整理確認審核結果', kind: 'error', omsStatus: null, blockers: [], next: null }); }
