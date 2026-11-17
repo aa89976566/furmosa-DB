@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { allowsExternalEffects } from '../external-effects.ts';
 import { getShopifyAdminAccessToken, shopifyAdminAuthConfigFromEnv } from './admin-access-token.ts';
 import { HQ_MAIN_SHOPIFY_LOCATION } from './inventory-location.ts';
 import { InventoryWriteError, writeVerifiedInventory } from './inventory-write.ts';
@@ -23,6 +24,8 @@ export async function runSalmonInventorySync(db: PrismaClient, mode: InventorySy
     newStatus: 'STARTED', actorType: 'system', actorId: 'salmon-stock-worker', metadataJson: JSON.stringify({ mode, sku: SALMON_STOCK.sku }) } });
   let writeAttempted = false;
   try {
+    if (mode === 'apply' && !allowsExternalEffects({ APP_ENV: env.APP_ENV,
+      EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE })) throw new StockDemandError('EXTERNAL_EFFECTS_DISABLED');
     if (mode === 'apply' && await db.statusAuditLog.findFirst({ where: {
       entityType: 'shopify_inventory_sync', entityId: SALMON_STOCK.productId,
       id: { not: audit.id }, newStatus: { in: ['STARTED', 'NEEDS_VERIFICATION'] },
