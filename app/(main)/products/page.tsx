@@ -60,6 +60,7 @@ export default async function ProductsPage(
             price: true,
             inventoryPolicy: true, inventoryUnit: true, variantName: true,
             variantBalances: { select: { quantity: true } },
+            inventorySourceTier: { select: { variantBalances: { select: { quantity: true } } } },
             status: true,
             sku: true,
             shopifySku: true,
@@ -78,10 +79,10 @@ export default async function ProductsPage(
   const rows: ProductManagementRow[] = products.map((product) => {
     const variantTiers = product.priceTiers.filter(t => t.inventoryPolicy === 'variant');
     const onHand = variantTiers.length
-      ? variantTiers.reduce((sum,t) => sum+t.variantBalances.reduce((n,b)=>n+b.quantity,0),0)
+      ? variantTiers.reduce((sum,t) => sum+(t.inventorySourceTier?.variantBalances ?? t.variantBalances).reduce((n,b)=>n+b.quantity,0),0)
       : product.inventoryBalances.reduce((sum, balance) => sum + balance.quantity, 0);
     const inventorySummary = variantTiers.length
-      ? variantTiers.map(t => `${t.variantName ?? t.sku ?? '規格'} ${t.variantBalances.length ? t.variantBalances.reduce((sum,b)=>sum+b.quantity,0)+' '+(t.inventoryUnit ?? '') : '尚未開帳'}`).join(' ／ ')
+      ? variantTiers.map(t => `${t.variantName ?? t.sku ?? '規格'}${t.inventorySourceTier ? '（共用）' : ''} ${(t.inventorySourceTier?.variantBalances ?? t.variantBalances).length ? (t.inventorySourceTier?.variantBalances ?? t.variantBalances).reduce((sum,b)=>sum+b.quantity,0)+' '+(t.inventoryUnit ?? '') : '尚未開帳'}`).join(' ／ ')
       : undefined;
     const activeTiers = product.priceTiers.filter((tier) => tier.status !== 'archived');
     return {
@@ -99,7 +100,7 @@ export default async function ProductsPage(
         ? formatPriceRange(activeTiers.map((tier) => tier.price))
         : formatCurrency(Number(product.price)),
       onHand, inventorySummary,
-      lowStock: variantTiers.length ? variantTiers.some(t => !t.variantBalances.length || t.variantBalances.reduce((sum,b)=>sum+b.quantity,0) <= product.reorderPoint) : onHand <= product.reorderPoint,
+      lowStock: variantTiers.length ? variantTiers.some(t => !(t.inventorySourceTier?.variantBalances ?? t.variantBalances).length || (t.inventorySourceTier?.variantBalances ?? t.variantBalances).reduce((sum,b)=>sum+b.quantity,0) <= product.reorderPoint) : onHand <= product.reorderPoint,
       readiness: deriveProductReadiness({
         consignmentEnabled: product.consignmentEnabled,
         wholesaleEnabled: product.wholesaleEnabled,
