@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { requestOmsReview } from '@/lib/orders/review-request';
 import type { ReviewResult } from '@/lib/orders/review-service';
+import { reviewAttentionTarget } from '@/lib/orders/review-attention';
+import type { OmsIssue } from '@/lib/orders/oms';
 import type { ReviewDraft } from '@/lib/orders/review-policy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +30,7 @@ function Actions({ status, summary, alertText, canCreateShipment, pendingShipmen
 function SourceOrderSummary({ source }: { source: SourceSummary }) {
   const tone = source.paymentTone === 'ready' ? 'border-success/40 bg-success/5' : source.paymentTone === 'danger' ? 'border-destructive/40 bg-destructive/5' : 'border-warning/40 bg-warning/5';
   const total = [source.currency, source.total].filter(Boolean).join(' ');
-  return <details className="rounded-lg border bg-background p-3 text-sm" aria-label="HQ 履約訂單"><summary className="cursor-pointer font-medium">訂單金額與來源明細</summary><div className="mt-4 space-y-3">
+  return <details data-review-target="source" className="rounded-lg border bg-background p-3 text-sm" aria-label="HQ 履約訂單"><summary className="cursor-pointer font-medium">訂單金額與來源明細</summary><div className="mt-4 space-y-3">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-medium text-muted-foreground">HQ 履約訂單</p><p className="mt-1 text-sm text-muted-foreground">依 Shopify 原單及 HQ 人工調整呈現；所有修改保留操作紀錄。</p></div><div className={`rounded-lg border px-3 py-2 text-right ${tone}`}><p className="text-xs text-muted-foreground">付款狀態</p><p className="font-semibold">{source.paymentLabel}</p></div></div>
     <div className="grid gap-3 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">訂單金額</p><p className="font-semibold tabular-nums">{total || '待確認'}</p></div><div><p className="text-xs text-muted-foreground">配送</p><p className="font-medium">{source.shippingLabel || 'Shopify 未提供配送資訊'}</p></div><div><p className="text-xs text-muted-foreground">收件人</p><p className="font-medium">{source.recipient || 'Shopify 未提供'}</p></div><div><p className="text-xs text-muted-foreground">電話</p><p className="font-medium">{source.phone || 'Shopify 未提供'}</p></div><div className="sm:col-span-2"><p className="text-xs text-muted-foreground">地址／門市地址</p><p className="break-words font-medium">{source.address || 'Shopify 未提供'}</p></div></div>
     <dl className="grid gap-3 border-t pt-3 sm:grid-cols-3" aria-label="HQ 金額明細">
@@ -61,9 +63,29 @@ async function submitReview(previous: ReviewResult, form: FormData): Promise<Rev
   }
 }
 
-export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary, pendingShipmentReview = false }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary; pendingShipmentReview?: boolean }) {
+export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary, initialIssues = [], pendingShipmentReview = false }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary; initialIssues?: OmsIssue[]; pendingShipmentReview?: boolean }) {
   const [state, action] = useFormState(submitReview, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const attention = (state.issues ?? initialIssues).filter((issue, index, issues) => issue.severity === 'blocking' && issue.code !== 'PAYMENT_PENDING' && issues.findIndex(item => item.code === issue.code && item.message === issue.message) === index);
+  function locateIssue(issue: OmsIssue) {
+    const target = reviewAttentionTarget(issue.code);
+    const scope = formRef.current;
+    const element = target === 'products'
+      ? scope?.closest('#oms-review')?.querySelector<HTMLElement>('[data-review-target="products"]')
+      : scope?.querySelector<HTMLElement>(target === 'source' ? '[data-review-target="source"]' : `[name="${target}"]`);
+    if (!element) return;
+    if (element instanceof HTMLDetailsElement) element.open = true;
+    let parent = element.parentElement;
+    while (parent && parent !== scope?.parentElement) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
+    if (target !== 'source' && target !== 'products' && target !== 'duplicateConfirmed') setDeliveryOpen(true);
+    const focus = element instanceof HTMLDetailsElement ? element.querySelector<HTMLElement>('summary') : element;
+    focus?.focus();
+    focus?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
   const ok = state.ok ?? null;
   const effectiveStatus = state.ok && state.omsStatus ? state.omsStatus : status;
   const [method, setMethod] = useState(draft.method || (draft.storeName || draft.storeId ? 'convenience' : ''));
@@ -95,7 +117,12 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   // React 19 resets native controls after a completed form action, including blocked
   // checks. Keep this review draft until the source changes (the panel's key remounts
   // it); otherwise method resets to empty while the 7-11 fields remain visible.
-  return <form action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}<SourceOrderSummary source={sourceSummary} />
+  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}{!readyForShipment && attention.length > 0 ? <section aria-label="待處理提示" className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+      <h3 className="font-semibold">還有 {attention.length} 項待處理</h3>
+      <p className="mt-1 text-sm text-muted-foreground">點選問題前往處理，完成後按「儲存並檢查」。</p>
+      <ul className="mt-3 divide-y divide-warning/20">{attention.map(issue => <li key={`${issue.code}-${issue.message}`}><button type="button" onClick={() => locateIssue(issue)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left text-sm transition-colors hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span>{issue.message}</span><span className="shrink-0 font-semibold underline underline-offset-4">前往處理</span></button></li>)}</ul>
+      <p className="mt-2 text-sm text-muted-foreground">依最近一次檢查結果顯示，儲存後重新確認。</p>
+    </section> : null}<SourceOrderSummary source={sourceSummary} />
     {readyForShipment ? <>
       <input type="hidden" name="method" value={draft.method} />
       <input type="hidden" name="temperature" value={draft.temperature} />
