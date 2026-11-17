@@ -176,7 +176,7 @@ function fakeDb(source = snapshot) {
       create: async ({ data }: any) => { const a = { id: `a${audits.length}`, ...data }; audits.push(a); return a; } },
   };
   const db = { $transaction: async (fn: any) => fn(tx) } as PrismaClient;
-  const run = (action: 'check' | 'approve' | 'ship', overrides = {}) => runReview(db, {
+  const run = (action: 'check' | 'approve' | 'ship' | 'reject', overrides = {}) => runReview(db, {
     orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(source), action, draft, ...overrides,
   });
   return { run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
@@ -629,4 +629,81 @@ test('HQ adjustment controls reviewed shipment quantities without changing Shopi
   assert.equal(f.shipmentCreates, 1);
   assert.equal(f.order.shipments[0].items.create[0].quantity, 2);
   assert.deepEqual(f.order.shopifySnapshot, snapshot);
+});
+
+
+describe('inbox one-click review decisions', () => {
+  const complete = shopifySnapshot({ ...raw, shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
+  it('checks and approves in one transaction without making a shipment', async () => {
+    const f = fakeDb(complete);
+    const result = await f.run('approve', { sourceOnly: true, quickApprove: true });
+    assert.equal(result.ok, true);
+    assert.equal(f.order.omsStatus, 'READY');
+    assert.equal(f.order.status, 'confirmed');
+    assert.equal(f.shipmentCreates, 0);
+    assert.ok(f.audits.some(a => a.entityType === 'oms_review'));
+    assert.ok(f.audits.some(a => a.metadataJson.includes('quick_approve')));
+  });
+  it('keeps unpaid, stale and unauthorized orders blocked', async () => {
+    const unpaid = fakeDb({ ...complete, order: { ...complete.order, financial_status: 'pending' } });
+    await assert.rejects(unpaid.run('approve', { sourceOnly: true, quickApprove: true }), /付款/);
+    assert.equal(unpaid.audits.length, 0);
+    assert.equal(unpaid.shipmentCreates, 0);
+    const stale = fakeDb(complete);
+    await assert.rejects(stale.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: 'stale' }), /已更新/);
+    stale.setRole('warehouse');
+    await assert.rejects(stale.run('approve', { sourceOnly: true, quickApprove: true }), /權限/);
+  });
+  it('records rejection and invalidates readiness without deleting the order', async () => {
+    const f = fakeDb(complete);
+    await f.run('approve', { sourceOnly: true, quickApprove: true });
+    const result = await f.run('reject', { reason: '缺貨' });
+    assert.equal(result.ok, true);
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.order.status, 'pending_review');
+    assert.equal(f.order.omsReviewedAt, null);
+    assert.equal(f.order.omsCheckedAt, null);
+    assert.equal(f.shipmentCreates, 0);
+    assert.equal(JSON.parse(f.audits.at(-1).metadataJson).reason, '缺貨');
+    assert.equal(f.audits.at(-1).entityType, 'oms_review_decision');
+    await assert.rejects(f.run('reject', { reason: '' }), /原因/);
+    await f.run('approve', { sourceOnly: true, quickApprove: true });
+    assert.equal(f.order.omsStatus, 'READY');
+    assert.equal(f.shipmentCreates, 0);
+  });
+  it('cannot reject orders already in fulfillment or archived', async () => {
+    const f = fakeDb(complete);
+    await f.run('check', { sourceOnly: true });
+    await f.run('approve', { sourceOnly: true });
+    await assert.rejects(f.run('reject', { reason: '客人取消' }), /出貨流程/);
+    const archived = fakeDb(complete);
+    archived.order.archivedAt = new Date();
+    await assert.rejects(archived.run('approve', { sourceOnly: true, quickApprove: true }), /封存/);
+    await assert.rejects(archived.run('reject', { reason: '缺貨' }), /封存/);
+  });
+});
+
+
+test('quick review preserves saved HQ delivery and rejects legacy OMS-null orders', async () => {
+  const f = fakeDb();
+  await f.run('check', { sourceOnly: true, draft });
+  await f.run('approve', { sourceOnly: true, quickApprove: true });
+  assert.equal(f.order.omsStatus, 'READY');
+  const saved = JSON.parse(f.audits.findLast(a => a.entityType === 'oms_review').metadataJson);
+  assert.equal(saved.draft.address, draft.address);
+  assert.equal(f.shipmentCreates, 0);
+  const legacy = fakeDb();
+  legacy.order.omsStatus = null;
+  await assert.rejects(legacy.run('approve', { sourceOnly: true, quickApprove: true }), /不適用 Shopify OMS/);
+  await assert.rejects(legacy.run('reject', { reason: '缺貨' }), /不適用 Shopify OMS/);
+  assert.equal(legacy.audits.length, 0);
+});
+
+
+test('one-click approval rejects a delivery edit made after the inbox was loaded', async () => {
+  const f = fakeDb();
+  await f.run('check', { sourceOnly: true, draft });
+  await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true, reviewRevision: '' }), /審核資料已修改/);
+  assert.equal(f.order.omsStatus, 'REVIEW');
+  assert.equal(f.shipmentCreates, 0);
 });

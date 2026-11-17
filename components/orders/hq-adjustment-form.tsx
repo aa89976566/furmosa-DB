@@ -16,7 +16,7 @@ function Save() {
   const { pending } = useFormStatus();
   return <Button disabled={pending} type="submit">{pending ? '儲存中…' : '儲存並重新送審'}</Button>;
 }
-export function HqAdjustmentForm({ orderId, orderNumber, source, sourceHash, revision, metadata, options }: { orderId: string; orderNumber: string; source: Snapshot; sourceHash: string; revision: string; metadata: string | null; options: Option[] }) {
+export function HqAdjustmentForm({ orderId, orderNumber, source, sourceHash, revision, metadata, options, initiallyOpen = false }: { orderId: string; orderNumber: string; source: Snapshot; sourceHash: string; revision: string; metadata: string | null; options: Option[]; initiallyOpen?: boolean }) {
   const [state, action] = useFormState(hqAdjustmentAction, { message: '', ok: false });
   const router = useRouter();
   let previous: AdjustmentData | null = null;
@@ -29,7 +29,7 @@ export function HqAdjustmentForm({ orderId, orderNumber, source, sourceHash, rev
   const [removed, setRemoved] = useState<{row: Row; index: number} | null>(null);
   const [shippingFee, setShippingFee] = useState(initialShipping);
   const [reason, setReason] = useState('');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [mode, setMode] = useState<'edit' | 'add' | 'confirm' | 'variant'>('edit');
   const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
   const [query, setQuery] = useState('');

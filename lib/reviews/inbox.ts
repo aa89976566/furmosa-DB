@@ -4,7 +4,9 @@ import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
 import { isMissingCampaignTableError } from '@/lib/campaigns/jiba-two-piece/missing-table';
 import { activeOrderWhere } from '@/lib/order-list';
 import { restockStatusLabelForHq } from '@/lib/restock-request/constants';
+import { snapshotHash, string } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
+import { currentReviewDraft } from '@/lib/orders/review-display';
 import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import type { Snapshot } from '@/lib/shopify/intake-policy';
 
@@ -22,11 +24,15 @@ export type ReviewInboxItem = {
   statusLabel: string;
   actionLabel: string;
   supportsOrderDeletion?: boolean;
+  quickReview?: { sourceHash: string; reviewRevision: string };
+  rejectionReason?: string;
   lines?: string[];
   moreLabel?: string;
   preview?: {
     reference?: string;
     adjusted?: boolean;
+    paymentLabel?: string;
+    shippingLabel?: string;
     customer?: string;
     amount?: string;
     phone?: string;
@@ -174,7 +180,8 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
       customer: { select: { name: true } },
       items: { select: { productName: true }, take: 4 },
       omsStatus: true,
-      _count: { select: { shipments: true } },
+      omsReviewedAt: true,
+      _count: { select: { shipments: { where: { status: { not: 'cancelled' } } } } },
     },
     orderBy: { orderedAt: 'desc' },
     take: 80,
@@ -185,9 +192,27 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
     select: { id: true, entityId: true, metadataJson: true },
   }) : [];
+  const decisions = orders.length ? await prisma.statusAuditLog.findMany({
+    where: { entityType: 'oms_review_decision', entityId: { in: orders.map(order => order.id) } },
+    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    select: { entityId: true, metadataJson: true },
+  }) : [];
+  const reviewAudits = orders.length ? await prisma.statusAuditLog.findMany({
+    where: { entityType: 'oms_review', entityId: { in: orders.filter(order => order.omsStatus).map(order => order.id) } },
+    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, entityId: true, metadataJson: true },
+  }) : [];
+  const reviewByOrder = new Map(reviewAudits.map(audit => [audit.entityId, audit]));
+  const decisionByOrder = new Map(decisions.map(audit => [audit.entityId, audit.metadataJson]));
   const adjustmentByOrder = new Map(adjustments.map(audit => [audit.entityId, audit]));
   return orders.map((order) => {
     const { source, effective, adjusted, conflict } = reviewSnapshotView(order.shopifySnapshot, adjustmentByOrder.get(order.id) ?? null);
+    const fulfillment = currentReviewDraft(effective, reviewByOrder.get(order.id)?.metadataJson);
+    let rejectionReason: string | undefined;
+    try {
+      const decision = JSON.parse(decisionByOrder.get(order.id) ?? '{}');
+      if (!conflict && effective && !order.omsReviewedAt && decision.action === 'reject' && decision.sourceHash === snapshotHash(effective as Snapshot)) rejectionReason = decision.reason;
+    } catch { /* Invalid decisions do not change order state. */ }
     const title = shopifyReviewTitle({
       orderNumber: order.orderNumber,
       externalOrderName: order.externalOrderName,
@@ -198,13 +223,15 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     return {
       id: order.id,
       kind: 'shopify_order' as const,
+      rejectionReason,
+      quickReview: order.source === 'shopify' && Boolean(order.omsStatus) && order._count.shipments === 0 && effective && !conflict ? { sourceHash: snapshotHash(effective as Snapshot), reviewRevision: reviewByOrder.get(order.id)?.id ?? '' } : undefined,
       supportsOrderDeletion: order.source === 'shopify' && Boolean(order.omsStatus),
       kindLabel: order.source === 'shopify' ? KIND_LABEL.shopify_order : '訂單待審核',
       title,
       subtitle: orderContentSummary(adjusted ? { ...order, items: [], shopifySnapshot: effective } : order),
       href: `/orders/${order.id}`,
       createdAt: order.orderedAt ?? order.createdAt,
-      statusLabel:
+      statusLabel: rejectionReason ? '不通過・待處理' :
         order.omsStatus === 'READY' && order._count.shipments === 0
           ? '已確認・待建出貨單'
           : '待審核',
@@ -218,13 +245,15 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
           : undefined,
       preview: {
         adjusted,
+        paymentLabel: ({ paid: '已付款', pending: '未付款', authorized: '待請款', partially_paid: '部分付款', refunded: '已退款', partially_refunded: '部分退款', voided: '已作廢' } as Record<string, string>)[string((effective as Snapshot | null)?.order.financial_status)] || '付款待確認',
         reference: order.externalOrderName?.trim() || source?.name.trim() || order.orderNumber,
-        customer: source?.recipient.trim() || order.customer?.name?.trim() || undefined,
+        shippingLabel: fulfillment?.method === 'convenience' ? `7-11 ${fulfillment.storeName}` : fulfillment?.method === 'home' ? '黑貓宅配' : undefined,
+        customer: fulfillment?.recipient || source?.recipient.trim() || order.customer?.name?.trim() || undefined,
         amount: source?.total
           ? `${source.currency === 'TWD' || !source.currency ? 'NT$' : `${source.currency} `}${source.total}`
           : undefined,
-        phone: source?.phone || undefined,
-        address: source?.address || undefined,
+        phone: fulfillment?.phone || source?.phone || undefined,
+        address: fulfillment?.address || source?.address || undefined,
         checks: [
           ...(conflict ? [{ label: 'HQ 調整待重新核對', detail: '來源訂單已更新或調整紀錄無效，請開啟審核確認', tone: 'warning' as const }] : []),
           {

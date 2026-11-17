@@ -67,7 +67,21 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
     await expect(page.getByRole('textbox', { name: '搜尋待審核項目', exact: true })).toHaveValue(source.order.name);
     await queue.getByRole('button').filter({ hasText: source.order.name }).click();
   }
-  await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
+  await detail.getByRole('button', { name: '通過', exact: true }).click();
+  await expect(detail.getByRole('alert')).toContainText('付款');
+  expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
+  await detail.getByRole('button', { name: '不通過', exact: true }).click();
+  const rejection = page.getByRole('dialog', { name: '不通過原因', exact: true });
+  await rejection.getByLabel('不通過原因', { exact: true }).selectOption('缺貨');
+  await rejection.getByRole('button', { name: '確認不通過', exact: true }).click();
+  await expect(rejection).toBeHidden();
+  await expect(detail).toContainText('不通過原因：缺貨');
+  expect(await db.statusAuditLog.count({ where: { entityType: 'oms_review_decision', entityId: order.id } })).toBe(1);
+  await detail.getByRole('button', { name: '修改', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: new RegExp(source.order.name) })).toBeVisible();
+  await expect(page).toHaveURL(/\/reviews$/);
+  await page.getByRole('dialog').getByRole('button', { name: '關閉', exact: true }).click();
+  await page.goto(`/orders/${order.id}`);
   await expect(page.locator('#oms-review')).toBeVisible();
   const editor = page.getByRole('dialog');
   await page.getByRole('button', { name: '修改商品', exact: true }).first().click();
@@ -114,7 +128,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   await expect(detail).toContainText('NT$250');
   await expect(detail.getByText('× 3', { exact: true })).toBeVisible();
   await expect(detail).not.toContainText(second.name);
-  await detail.getByRole('link', { name: '審核訂單', exact: true }).click();
+  await page.goto(`/orders/${order.id}`);
   await expect(page.locator('#oms-review')).toBeVisible();
   if (!(await page.getByRole('combobox', { name: '配送方式', exact: true }).isVisible())) {
     await page.locator('#oms-review summary').filter({ hasText: /^收件與配送/ }).click();
@@ -153,4 +167,30 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
   expect(restored.shopifySnapshot).toEqual(source);
   expect(await db.statusAuditLog.count({ where: { entityType: 'order_deletion', entityId: order.id, actorId: actor.id } })).toBe(2);
   expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
+});
+
+
+test('paid inbox approval leaves READY and never creates a shipment', async ({ page }, testInfo) => {
+  const suffix = `quick-${testInfo.project.name}-${randomUUID()}`;
+  const password = randomUUID();
+  const email = `${suffix}@example.invalid`;
+  await db.user.create({ data: { email, name: '一鍵審核驗收', role: 'admin', passwordHash: await bcrypt.hash(password, 10) } });
+  const product = await db.product.create({ data: { productId: suffix, sku: suffix, name: suffix, category: 'toys', productCategory: 'STANDARD', status: 'active', price: 100, unit: '件', defaultTemperature: 'ambient', priceTiers: { create: { unit: '件', unitQty: 1, price: 100, sku: suffix, shopifySku: suffix, status: 'active' } } } });
+  const timestamp = new Date();
+  const order = await db.order.create({ data: { orderNumber: suffix, source: 'shopify', status: 'pending_review', paymentStatus: 'paid', fulfillmentStatus: 'pending', subtotal: 100, total: 100, externalStore: `${suffix}.myshopify.com`, externalOrderId: suffix, omsStatus: 'NEW', shopifySourceUpdatedAt: timestamp,
+    shopifySnapshot: { schemaVersion: 1, promotionCaptureVersion: 1, order: { id: suffix, name: suffix, currency: 'TWD', updated_at: timestamp.toISOString(), financial_status: 'paid', subtotal_price: '100.00', total_price: '100.00', total_discounts: '0.00', total_shipping_price_set: { shop_money: { amount: '0.00' } }, shipping_address: { name: '測試', phone: '0900000000', address1: '隔離測試禁止寄送' }, shipping_lines: [{ title: '黑貓宅配' }], line_items: [{ title: product.name, sku: product.sku, quantity: 1, price: '100.00', requires_shipping: true }] } },
+  } });
+  await page.goto('/login?next=%2Freviews');
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('密碼', { exact: true }).fill(password);
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
+  await page.getByRole('complementary', { name: '待審核清單', exact: true }).getByRole('button').filter({ hasText: suffix }).click();
+  await page.getByRole('button', { name: '通過', exact: true }).click();
+  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');
+  expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
+  await page.reload();
+  await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
+  await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
+  expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
 });
