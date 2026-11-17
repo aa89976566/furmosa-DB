@@ -45,6 +45,16 @@ test('successful LINE registration preserves safe return navigation and otherwis
   assert.match(registerClientSource, /window\.clearTimeout\(autoCloseTimerRef\.current\)/);
 });
 
+test('first-time LIFF registration continues in chat with the registered main menu', () => {
+  assert.match(routeSource, /if \(result\.isNew\)/);
+  assert.match(routeSource, /pushLineMessages\(/);
+  assert.match(routeSource, /result\.lineUserId/);
+  assert.match(routeSource, /buildMainMenuMessages\(\{/);
+  assert.match(routeSource, /registered: true/);
+  assert.match(routeSource, /加入完成！已經幫你把 LINE 和匠寵會員連在一起了。想先去哪裡？/);
+  assert.match(routeSource, /runAfterReply\(/);
+});
+
 test('successful LINE registration keeps a manual close fallback separate from registration', () => {
   const closeButton = registerClientSource.match(
     /<Button\s+[\s\S]*?type="button"[\s\S]*?onClick=\{tryCloseLiffWindow\}[\s\S]*?>\s*回到 LINE\s*<\/Button>/,

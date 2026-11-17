@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { registerOrUpdateLineCustomer } from '@/lib/line/liff-customer';
+import { runAfterReply } from '@/lib/line/defer';
+import { buildMainMenuMessages } from '@/lib/line/flex-menu';
+import { pushLineMessages } from '@/lib/line/push';
 import type { PetSpeciesCode } from '@/lib/customers/pet-fields';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
 
@@ -39,6 +42,23 @@ export async function POST(req: Request) {
       petAgeYears: null,
       petBirthday: null,
     });
+
+    if (result.isNew) {
+      runAfterReply(
+        pushLineMessages(
+          result.lineUserId,
+          buildMainMenuMessages({
+            registered: true,
+            body: '加入完成！已經幫你把 LINE 和匠寵會員連在一起了。想先去哪裡？',
+          }),
+          { expand: false },
+        ).then((pushResult) => {
+          if (!pushResult.ok && !pushResult.skipped) {
+            console.error('[line/liff/register] welcome menu push failed', pushResult.error);
+          }
+        }),
+      );
+    }
 
     return NextResponse.json({
       ok: true,
