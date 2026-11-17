@@ -1,5 +1,7 @@
 /** 回家：官網與社群連結（可用環境變數覆寫） */
 
+export { FURMOSA_OFFICIAL_LINE_URL } from './official-line';
+
 function envUrl(key: string, fallback: string): string {
   const v = process.env[key]?.trim();
   return v || fallback;
