@@ -53,7 +53,12 @@ function RegisterForm({ idToken }: { idToken: string }) {
   function returnToOfficialLineChat() {
     try {
       if (liff.isInClient()) {
-        liff.openWindow({ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: true });
+        const context = liff.getContext();
+        if (context?.type === 'utou') {
+          liff.closeWindow();
+          return;
+        }
+        liff.openWindow({ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: false });
         return;
       }
     } catch {
@@ -153,7 +158,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
               開啟匠寵官方帳號
             </a>
             <p className="mt-3 text-xs leading-5 text-zinc-500">
-              若沒有自動返回，請點上方按鈕。
+              從匠寵對話開啟時會直接返回；其他入口請點上方按鈕。
             </p>
           </>
         ) : (
