@@ -34,11 +34,11 @@ test('real HQ order posting consumes 50g once and source never double reserves',
     assert.equal((await loadSalmonStockSource(db)).onHandGrams, 100);
     assert.equal((await loadSalmonStockSource(db)).available, 2);
   } finally {
-    if (orderId) await db.order.delete({ where: { id: orderId } });
     if (created) {
       // Reversals must be removed before the original ledger row (Restrict relation).
       await db.inventoryTransaction.deleteMany({ where: { productId: SALMON_STOCK.productId, reversesId: { not: null } } });
       await db.inventoryTransaction.deleteMany({ where: { productId: SALMON_STOCK.productId } });
+      if (orderId) await db.order.delete({ where: { id: orderId } });
       await db.product.delete({ where: { id: SALMON_STOCK.productId } });
     }
     await db.$disconnect();

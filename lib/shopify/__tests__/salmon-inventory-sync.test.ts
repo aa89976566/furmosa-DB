@@ -23,6 +23,8 @@ test('HQ grams become sellable 50g quantities without writing or rounding up', a
   assert.equal((await loadSalmonStockSource(f.db)).available, 2);
   f.product.inventoryBalances[0].quantity = 49;
   assert.equal((await loadSalmonStockSource(f.db)).available, 0);
+  f.product.inventoryBalances[0].quantity = -50;
+  assert.equal((await loadSalmonStockSource(f.db)).available, 0);
 });
 test('reserve once per order including its shipments; posted grams are not deducted twice', async () => {
   const f = sourceFixture();
@@ -48,11 +50,11 @@ test('standalone shipment reserves grams; invalid tier and unmapped Shopify line
   f.orders.push({ id: 'o1', items: [], shopifySnapshot: { sku: SALMON_STOCK.sku } });
   await assert.rejects(loadSalmonStockSource(f.db), /UNMAPPED/);
 });
-test('shared recipes, uncounted or negative balance and changed SKU prevent publication', async () => {
+test('shared recipes, uncounted balance and changed SKU prevent publication', async () => {
   for (const mutate of [
     (p: any) => { p._count.bundleIngredientFor = 1; },
     (p: any) => { p.inventoryBalances[0].lastCountedAt = null; },
-    (p: any) => { p.inventoryBalances[0].quantity = -1; },
+    (p: any) => { p.inventoryBalances[0].unit = null; },
     (p: any) => { p.priceTiers[0].shopifySku = 'OTHER'; },
   ]) { const f = sourceFixture(); mutate(f.product); await assert.rejects(loadSalmonStockSource(f.db)); }
 });
@@ -64,7 +66,7 @@ test('order coverage requires same store, identity and quantities; missing impor
   }
 });
 const orderPayload = (next = false) => ({ data: { orders: { nodes: [{ id: 'gid://shopify/Order/123', cancelledAt: null,
-  displayFinancialStatus: 'PAID', lineItems: { nodes: [{ sku: SALMON_STOCK.sku, unfulfilledQuantity: 1, variant: { id: SALMON_STOCK.variantId } }], pageInfo: { hasNextPage: false } } }],
+  displayFinancialStatus: 'PAID', lineItems: { nodes: [{ sku: SALMON_STOCK.sku, unfulfilledQuantity: 1, variant: { id: String(SALMON_STOCK.variantId) } }], pageInfo: { hasNextPage: false } } }],
   pageInfo: { hasNextPage: next, endCursor: next ? 'cursor1' : null } } } });
 test('remote reader rejects incomplete line pages, repeated pagination, wrong variant and API errors', async () => {
   const request = (body: any) => (async () => Response.json(body)) as typeof fetch;
@@ -85,7 +87,7 @@ function pipelineFixture() {
     write: async (plan: any, options: any) => { writes++; assert.equal(await options.verifySourceRevision(plan.sourceRevision), true); return { changed: true, before: 0, after: 2 }; } };
   return { ...f, db, deps, audits, writes: () => writes, loads: () => loads };
 }
-const env = { SHOPIFY_SHOP_DOMAIN: domain };
+const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', SHOPIFY_SHOP_DOMAIN: domain };
 test('inspect records audit without mutation; apply rechecks source and records verified readback', async () => {
   const f = pipelineFixture();
   assert.equal((await runSalmonInventorySync(f.db, 'inspect', f.deps, env)).available, 2);

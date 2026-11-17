@@ -14,13 +14,13 @@ const orderId = (value: string) => value.replace(/^gid:\/\/shopify\/Order\//, ''
 export function verifyDemandCoverage(hq: ExternalDemand[], remote: ExternalDemand[], domain: string) {
   function canonical(rows: ExternalDemand[]) {
     const ids = new Set<string>();
-    return rows.filter(row => row.quantity > 0).map(row => {
+    return rows.map(row => {
       const id = orderId(row.orderId);
       if (row.store.toLowerCase() !== domain.toLowerCase() || !/^[1-9]\d*$/.test(id) ||
-        !Number.isSafeInteger(row.quantity) || ids.has(id)) throw new StockDemandError('ORDER_COVERAGE_INVALID');
+        !Number.isSafeInteger(row.quantity) || row.quantity < 0 || ids.has(id)) throw new StockDemandError('ORDER_COVERAGE_INVALID');
       ids.add(id);
-      return `${id}:${row.quantity}`;
-    }).sort();
+      return row.quantity ? `${id}:${row.quantity}` : null;
+    }).filter(row => row !== null).sort();
   }
   if (JSON.stringify(canonical(hq)) !== JSON.stringify(canonical(remote))) throw new StockDemandError('ORDER_COVERAGE_MISMATCH');
   return remote.reduce((sum, row) => sum + row.quantity, 0);
@@ -53,6 +53,7 @@ export async function readSalmonOrderDemand(domain: string, token: string, reque
         if (line.sku !== SALMON_STOCK.sku || line.variant?.id !== SALMON_STOCK.variantId ||
           !Number.isSafeInteger(line.unfulfilledQuantity) || line.unfulfilledQuantity < 0) throw new StockDemandError('ORDER_BINDING_CHANGED');
         quantity += line.unfulfilledQuantity;
+        if (!Number.isSafeInteger(quantity)) throw new StockDemandError('ORDER_QUANTITY_OVERFLOW');
       }
       if (quantity) result.push({ store: domain, orderId: order.id, quantity });
     }
