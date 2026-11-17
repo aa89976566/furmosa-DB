@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { HQ_MAIN_SHOPIFY_LOCATION } from './inventory-location.ts';
 
 export type InventoryWritePlan = {
   variantId: string; inventoryItemId: string; locationId: string; sku: string;
@@ -34,6 +35,9 @@ export async function writeVerifiedInventory(plan: InventoryWritePlan, deps: {
   request?: typeof fetch; now?: () => number;
 }) {
   const now = deps.now ?? Date.now;
+  if (plan.warehouseCode !== HQ_MAIN_SHOPIFY_LOCATION.warehouseCode || plan.locationId !== HQ_MAIN_SHOPIFY_LOCATION.locationId) {
+    throw new InventoryWriteError('HQ_MAIN_REQUIRES_TAIPEI_LOCATION');
+  }
   const assertFresh = () => {
     const age = now() - Date.parse(plan.observedAt);
     if (!Number.isFinite(age) || age < 0 || age > 30_000) throw new InventoryWriteError('STALE_SOURCE');

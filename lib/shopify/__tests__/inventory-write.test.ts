@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { writeVerifiedInventory, type InventoryWritePlan } from '../inventory-write.ts';
 const plan: InventoryWritePlan = { variantId: 'gid://shopify/ProductVariant/1', inventoryItemId: 'gid://shopify/InventoryItem/2',
-  locationId: 'gid://shopify/Location/3', sku: 'FUR-SALMON-SKIN-50', warehouseCode: 'WH-MAIN',
+  locationId: 'gid://shopify/Location/114718703993', sku: 'FUR-SALMON-SKIN-50', warehouseCode: 'WH-MAIN',
   available: 0, issues: [], snapshotComplete: true, sourceRevision: 'a'.repeat(64), observedAt: '2026-11-17T12:00:00Z' };
 const level = (id: string, available: number, committed = 0) => ({ location: { id }, quantities: [{ name: 'available', quantity: available }, { name: 'committed', quantity: committed }] });
 function read(available: number, other = 0, policy = 'DENY', tracked = true) { return { data: { productVariant: {
@@ -27,6 +27,11 @@ test('sold-out write uses explicit location, CAS, required idempotency and readb
   assert.deepEqual(calls[1].variables.input.quantities, [{ inventoryItemId: plan.inventoryItemId, locationId: plan.locationId, quantity: 0, changeFromQuantity: 2 }]);
   assert.match(calls[1].query, /@idempotent/);
   assert.match(calls[1].variables.idempotencyKey, /^[a-f0-9]{64}$/);
+});
+test('HQ main warehouse only targets the user-confirmed Taipei location', async () => {
+  const f = fixture([]);
+  await assert.rejects(writeVerifiedInventory({ ...plan, locationId: 'gid://shopify/Location/114718048633' }, f.deps), /REQUIRES_TAIPEI/);
+  assert.equal(f.calls.length, 0);
 });
 test('same validated plan uses same key; already-applied state does not write again', async () => {
   const one = fixture([read(2), written, read(0)]), two = fixture([read(2), written, read(0)]);
