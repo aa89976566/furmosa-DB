@@ -1,3 +1,4 @@
+import { parseOmsIssues } from '@/lib/orders/oms';
 import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import { HqAdjustmentForm } from './hq-adjustment-form';
 import { OrderDeletionForm } from './order-deletion-form';
@@ -31,7 +32,7 @@ function paymentSummary(source: Snapshot) {
   return { financialStatus, ...(map[financialStatus] ?? { label: '付款待確認', tone: 'hold' as const }) };
 }
 
-export async function OmsReviewPanel({ orderId, snapshot, status, externalStore, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; externalStore?: string | null; needsReviewRecovery?: boolean }) {
+export async function OmsReviewPanel({ orderId, snapshot, status, externalStore, issues, needsReviewRecovery = false }: { orderId: string; snapshot: unknown; status: string | null; externalStore?: string | null; issues?: unknown; needsReviewRecovery?: boolean }) {
   const adjustment = await prisma.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: orderId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
   const originalSnapshot = snapshot;
   let adjustmentError = '';
@@ -76,6 +77,7 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
     {['NEW', 'REVIEW', 'READY'].includes(status) && !activeShipment ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderNumber={sourceView.name} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, productId: product.id, variantId: tier.shopifyVariantId, variantName: tier.variantName, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`, price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' })))} /> : null}
     {actor.role === 'admin' ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">更多訂單操作</summary><OrderDeletionForm orderId={orderId} orderNumber={sourceView.name} deleted={false} /></details> : null}
     {adjustmentError ? <p role="alert" className="rounded-lg border p-3 text-destructive">{adjustmentError}</p> : <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
+      initialIssues={parseOmsIssues(issues) ?? []}
       draft={draft}
       sourceSummary={{
         paymentLabel: payment.label,
