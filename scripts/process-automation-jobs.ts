@@ -4,6 +4,7 @@ import { retryFailedShopifyIntakes } from '../lib/shopify/recovery';
 import { meetpetsAdapter } from '../lib/adoption/meetpets-source.mjs';
 import { runAdoptionSync } from '../lib/adoption/sync-worker.mjs';
 import { runSalmonInventorySync } from '../lib/shopify/salmon-inventory-sync';
+import { runExclusiveStockBatch } from '../lib/shopify/exclusive-stock-batch';
 
 async function main() {
   const [automation, shopify] = await Promise.all([
@@ -19,6 +20,12 @@ async function main() {
       console.error('[shopify-inventory] Blocked; inspect shopify_inventory_sync audit');
       process.exitCode = 1;
     }
+  }
+  if (process.env.SHOPIFY_INVENTORY_SYNC_EXTENDED_ENABLED === 'true') {
+    const mode = process.env.SHOPIFY_INVENTORY_SYNC_EXTENDED_MODE === 'apply' ? 'apply' : 'inspect';
+    const inventoryBatch = await runExclusiveStockBatch(prisma, mode);
+    console.log(JSON.stringify({ inventoryBatch }));
+    if (inventoryBatch.blocked) process.exitCode = 1;
   }
   // Keep adoption source slowness/failures independent of existing order/LINE jobs.
   try {
