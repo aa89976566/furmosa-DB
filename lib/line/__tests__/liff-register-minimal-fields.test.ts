@@ -35,11 +35,13 @@ test('LINE LIFF registration renders and submits only the minimal pet fields', (
   }
 });
 
-test('successful LINE registration preserves safe return navigation and opens the official chat inside LINE', () => {
+test('successful LINE registration returns directly to its originating chat and keeps non-chat navigation inside LINE', () => {
   assert.match(registerClientSource, /returnPath && returnPath\.startsWith\('\/liff\/'\)/);
   assert.match(registerClientSource, /window\.location\.href = returnPath;\s*return;/);
   assert.match(registerClientSource, /liff\.isInClient\(\)/);
-  assert.match(registerClientSource, /liff\.openWindow\(\{ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: true \}\)/);
+  assert.match(registerClientSource, /context\?\.type === 'utou'/);
+  assert.match(registerClientSource, /liff\.closeWindow\(\)/);
+  assert.match(registerClientSource, /liff\.openWindow\(\{ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: false \}\)/);
   assert.match(registerClientSource, /liff\.getOS\(\)/);
   assert.match(registerClientSource, /os === 'ios' \|\| os === 'android'/);
   assert.match(registerClientSource, /autoCloseScheduledRef\.current/);
