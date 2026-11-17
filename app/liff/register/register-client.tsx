@@ -139,8 +139,15 @@ function RegisterForm({ idToken }: { idToken: string }) {
       onSubmit={onSubmit}
       aria-busy={status.type === 'loading'}
     >
+      <div className="flex justify-center">
+        <span className="inline-flex items-center gap-2 rounded-full border-2 border-[#91bdf3] bg-white px-4 py-2 text-xs font-bold text-[#17345f] shadow-[3px_3px_0_#ffd84d]">
+          <span className="h-2 w-2 rounded-full bg-[#2368b5]" aria-hidden="true" />
+          完成後會帶你回到 LINE 對話
+        </span>
+      </div>
+
       <section className="overflow-hidden rounded-[28px] border-2 border-[#5b9bec] bg-white shadow-[6px_7px_0_#ffd84d]">
-        <div className="relative mx-auto h-52 w-full bg-[#fffaf0]">
+        <div className="relative mx-auto h-44 w-full bg-[#fffaf0]">
           <Image
             src="/line/grooming/member-register-bath-dog.png"
             alt="洗完澡披著黃色毛巾的藍色狗狗插畫"
@@ -150,21 +157,34 @@ function RegisterForm({ idToken }: { idToken: string }) {
             className="object-cover object-[center_34%]"
           />
         </div>
-        <div className="p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-[#17345f]">先留下基本資料</h2>
-          <span className="shrink-0 rounded-full bg-[#ffd84d] px-3 py-1 text-xs font-bold text-[#17345f]">
-            約 30 秒
-          </span>
-        </div>
-        <p className="mt-2 text-sm leading-6 text-[#52677e]">
-          用 LINE 保存洗澡、換罐與毛孩紀錄。
-        </p>
+        <div className="space-y-3 p-5">
+          <div className="flex items-end gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2368b5] text-sm font-black text-white"
+              aria-hidden="true"
+            >
+              匠
+            </span>
+            <div className="max-w-[82%] rounded-[22px] rounded-bl-md bg-[#eef6ff] px-4 py-3 text-[#17345f]">
+              <h2 className="text-base font-bold">嗨！先告訴我怎麼稱呼你？</h2>
+              <p className="mt-1 text-sm leading-6 text-[#52677e]">
+                只需基本資料，毛孩資料可以之後再補。
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <span className="rounded-full bg-[#ffd84d] px-3 py-1 text-xs font-bold text-[#17345f]">
+              約 30 秒
+            </span>
+          </div>
         </div>
       </section>
 
       <section className="space-y-4 rounded-[28px] border-2 border-[#91bdf3] bg-white p-5">
-        <h2 className="text-base font-bold text-[#17345f]">基本資料</h2>
+        <div>
+          <p className="text-xs font-bold tracking-[0.12em] text-[#5a78a0]">你的回覆</p>
+          <h2 className="mt-1 text-base font-bold text-[#17345f]">基本資料</h2>
+        </div>
 
         <Field label="您的稱呼（必填）">
           <Input
@@ -173,7 +193,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
             maxLength={80}
             placeholder="例：王小姐"
             autoComplete="name"
-            className="h-12 rounded-2xl border-2 border-[#91bdf3] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
+            className="h-12 rounded-2xl border-2 border-[#91bdf3] bg-[#f8fbff] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
           />
         </Field>
 
@@ -185,7 +205,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
             maxLength={20}
             placeholder="例：0912345678"
             autoComplete="tel"
-            className="h-12 rounded-2xl border-2 border-[#91bdf3] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
+            className="h-12 rounded-2xl border-2 border-[#91bdf3] bg-[#f8fbff] px-4 text-base text-[#17345f] focus-visible:ring-[#2368b5]"
           />
         </Field>
       </section>
@@ -203,7 +223,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
         className="min-h-12 w-full rounded-full bg-[#2368b5] text-base font-bold text-white shadow-[4px_5px_0_#ffd84d] hover:bg-[#1c5798]"
         disabled={status.type === 'loading'}
       >
-        {status.type === 'loading' ? '正在加入…' : '加入會員'}
+        {status.type === 'loading' ? '正在完成…' : '完成並回到 LINE'}
       </Button>
 
       <p className="px-2 text-center text-xs leading-5 text-zinc-500">

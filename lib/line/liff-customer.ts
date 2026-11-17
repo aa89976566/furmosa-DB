@@ -62,7 +62,12 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
       await ensureJarExchangeService(tx, existing.id);
     });
 
-    return { customerId: existing.id, customerCode: existing.customerId, isNew: false };
+    return {
+      customerId: existing.id,
+      customerCode: existing.customerId,
+      lineUserId,
+      isNew: false,
+    };
   }
 
   const created = await createCustomerRecord({
@@ -79,7 +84,12 @@ export async function registerOrUpdateLineCustomer(input: LineRegisterInput) {
   });
   await ensureJarExchangeService(prisma, created.id);
 
-  return { customerId: created.id, customerCode: created.customerId, isNew: true };
+  return {
+    customerId: created.id,
+    customerCode: created.customerId,
+    lineUserId,
+    isNew: true,
+  };
 }
 
 export async function getLineMemberDashboard(idToken: string) {

@@ -25,8 +25,8 @@ const retiredFields = ['petBreed', 'petAgeYears', 'petBirthday'];
 test('LINE LIFF registration renders and submits only the minimal pet fields', () => {
   assert.match(registerClientSource, /<LinePetFields \/>/);
   assert.doesNotMatch(registerClientSource, /PetProfileFieldsBlock/);
-  assert.match(linePetFieldsSource, /name="petSpecies"/);
-  assert.match(linePetFieldsSource, /name="petSpeciesOther"/);
+  assert.doesNotMatch(linePetFieldsSource, /name="petSpecies"/);
+  assert.doesNotMatch(linePetFieldsSource, /name="petSpeciesOther"/);
   assert.match(linePetFieldsSource, /name="petName"/);
 
   for (const field of retiredFields) {
@@ -43,6 +43,16 @@ test('successful LINE registration preserves safe return navigation and otherwis
   assert.match(registerClientSource, /autoCloseScheduledRef\.current/);
   assert.match(registerClientSource, /window\.setTimeout\(tryCloseLiffWindow, 1000\)/);
   assert.match(registerClientSource, /window\.clearTimeout\(autoCloseTimerRef\.current\)/);
+});
+
+test('first-time LIFF registration continues in chat with the registered main menu', () => {
+  assert.match(routeSource, /if \(result\.isNew\)/);
+  assert.match(routeSource, /pushLineMessages\(/);
+  assert.match(routeSource, /result\.lineUserId/);
+  assert.match(routeSource, /buildMainMenuMessages\(\{/);
+  assert.match(routeSource, /registered: true/);
+  assert.match(routeSource, /加入完成！已經幫你把 LINE 和匠寵會員連在一起了。想先去哪裡？/);
+  assert.match(routeSource, /runAfterReply\(/);
 });
 
 test('successful LINE registration keeps a manual close fallback separate from registration', () => {
@@ -63,7 +73,8 @@ test('successful LINE registration keeps a manual close fallback separate from r
 test('LINE registration uses the branded single-column form and a single success state', () => {
   assert.match(registerClientSource, /title="加入匠寵會員"/);
   assert.match(registerClientSource, /約 30 秒/);
-  assert.match(registerClientSource, /先留下基本資料/);
+  assert.match(registerClientSource, /嗨！先告訴我怎麼稱呼你？/);
+  assert.match(registerClientSource, /完成並回到 LINE/);
   assert.match(registerClientSource, /if \(status\.type === 'ok'\) \{\s*return \(/);
   assert.match(registerClientSource, /已加入匠寵會員/);
   assert.match(registerClientSource, /會員資料已更新/);
@@ -72,12 +83,13 @@ test('LINE registration uses the branded single-column form and a single success
   assert.doesNotMatch(registerClientSource, /status\.type === 'ok' \? '已完成'/);
 });
 
-test('optional pet fields remain mounted in an accessible mobile disclosure', () => {
+test('optional pet name remains mounted in an accessible mobile disclosure without species questions', () => {
   assert.match(linePetFieldsSource, /<details/);
   assert.match(linePetFieldsSource, /<summary/);
   assert.match(linePetFieldsSource, /毛孩資料（選填）/);
+  assert.match(linePetFieldsSource, /毛孩名字/);
   assert.match(linePetFieldsSource, /h-12/);
-  assert.doesNotMatch(linePetFieldsSource, /sm:grid-cols-2/);
+  assert.doesNotMatch(linePetFieldsSource, /種類|PET_SPECIES_OPTIONS|sm:grid-cols-2/);
 });
 
 test('LINE registration route accepts legacy extras without reading their values', () => {

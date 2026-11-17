@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { isLineIdTokenUsable } from '@/lib/line/id-token-client';
 
-export type LiffState = 'loading' | 'ready' | 'error';
+export type LiffState = 'loading' | 'slow' | 'ready' | 'error';
 
 export function useLiff(liffId: string, reconnectPath?: string) {
   const [state, setState] = useState<LiffState>('loading');
@@ -12,11 +12,14 @@ export function useLiff(liffId: string, reconnectPath?: string) {
 
   useEffect(() => {
     let cancelled = false;
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) setState('slow');
+    }, 6_000);
 
     (async () => {
       try {
         const liff = (await import('@line/liff')).default;
-        await liff.init({ liffId });
+        await liff.init({ liffId, withLoginOnExternalBrowser: true });
         if (cancelled) return;
 
         const reconnectUrl = new URL(
@@ -39,6 +42,7 @@ export function useLiff(liffId: string, reconnectPath?: string) {
           return;
         }
         setIdToken(token);
+        window.clearTimeout(slowTimer);
         setState('ready');
       } catch (e) {
         if (cancelled) return;
@@ -56,6 +60,7 @@ export function useLiff(liffId: string, reconnectPath?: string) {
           return;
         }
 
+        window.clearTimeout(slowTimer);
         setError(message);
         setState('error');
       }
@@ -63,8 +68,17 @@ export function useLiff(liffId: string, reconnectPath?: string) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(slowTimer);
     };
   }, [liffId, reconnectPath]);
 
-  return { state, idToken, error };
+  const retry = () => {
+    const reconnectUrl = new URL(
+      reconnectPath ?? window.location.pathname,
+      window.location.origin,
+    );
+    window.location.replace(reconnectUrl.toString());
+  };
+
+  return { state, idToken, error, retry };
 }
