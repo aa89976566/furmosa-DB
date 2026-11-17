@@ -86,7 +86,7 @@ export function HqAdjustmentForm({ orderId, orderNumber, source, sourceHash, rev
   const variantOptions = currentOption ? options.filter(option => option.productId === currentOption.productId) : [];
   const shownOptions = options.filter(option => `${option.label} ${option.sku}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   return <Dialog.Root open={open} onOpenChange={close}>
-    <Dialog.Trigger asChild><Button type="button" variant="outline">修改 HQ 訂單</Button></Dialog.Trigger>
+    <Dialog.Trigger asChild><Button data-review-target="products" type="button" variant="outline">修改 HQ 訂單</Button></Dialog.Trigger>
     {state.message ? <p role="status">{state.message}</p> : null}
     <Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
       <Dialog.Content aria-describedby="hq-editor-description" onOpenAutoFocus={event => {
