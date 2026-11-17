@@ -20,7 +20,7 @@ export default async function InventoryPage(props: {
             where: { productCategory: { not: 'JAR_EXCHANGE' } },
             select: { id: true, productId: true, name: true, sku: true, sourceSku: true, category: true, imageUrl: true,
                 unit: true, status: true, productCategory: true, vendorId: true, reorderPoint: true,
-                priceTiers: { where: { OR: [{ status: 'active' }, { inventoryPolicy: 'variant' }] }, select: { id: true, weightGrams: true, unit: true, unitQty: true, inventoryPolicy: true, inventoryUnit: true, variantName: true, variantBalances: { select: { quantity: true, unit: true, warehouse: { select: { name: true, code: true } } } } } },
+                priceTiers: { where: { OR: [{ status: 'active' }, { inventoryPolicy: 'variant' }] }, select: { id: true, weightGrams: true, unit: true, unitQty: true, inventoryPolicy: true, inventoryUnit: true, variantName: true, inventorySourceTier: { select: { variantBalances: { select: { quantity: true, unit: true, warehouse: { select: { name: true, code: true } } } } } }, variantBalances: { select: { quantity: true, unit: true, warehouse: { select: { name: true, code: true } } } } } },
                 merchantStocks: { select: { merchantId: true, quantity: true, tierId: true, merchant: { select: { name: true } } } },
                 vendor: { select: { name: true } }, inventoryBalances: { select: {
                         quantity: true, unit: true, updatedAt: true, lastCountedAt: true, warehouse: { select: { code: true, name: true } },
@@ -66,12 +66,12 @@ export default async function InventoryPage(props: {
     const alerts = [...signatures.values()].filter(group => group.length > 1).map(group => ({ id: group[0].id, title: `${group[0].vendor?.name ?? '未指定廠商'}：${group.length} 筆採購內容相同`, detail: '請核對是否重複下單，勿直接重複入庫' }));
     for (const order of pendingOrders) if (/需沖銷|提前入庫|不得重複入庫/.test(order.note ?? '')) alerts.push({ id: order.id, title: `${order.orderNumber} 備註需核對`, detail: '原單註記入庫異常，收貨前請先核對' });
     return <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6">
-      {visibleVariants.length > 0 ? <div className="mb-6"><SectionCard title="香氣庫存" description="每款分開記帳 查看商品可核對異動紀錄">
+      {visibleVariants.length > 0 ? <div className="mb-6"><SectionCard title="香氣庫存" description="同香氣共用數量，各商品列不可相加；查看商品可核對異動紀錄">
         <div className="overflow-x-auto"><Table aria-label="香氣庫存總覽">
           <TableHeader><TableRow><TableHead>商品</TableHead><TableHead>香氣</TableHead><TableHead>倉庫</TableHead><TableHead className="text-right">數量</TableHead></TableRow></TableHeader>
           <TableBody>{visibleVariants.flatMap(p=>p.priceTiers.filter(t=>t.inventoryPolicy==='variant').flatMap(t=>
-            t.variantBalances.length ? t.variantBalances.map((b,i)=><TableRow key={t.id+i}><TableCell><Link className="underline" href={`/products/${p.id}`}>{p.name}</Link></TableCell><TableCell>{t.variantName ?? t.id}</TableCell><TableCell>{b.warehouse.name}</TableCell><TableCell className="text-right">{b.quantity} {b.unit}</TableCell></TableRow>)
-            : [<TableRow key={t.id}><TableCell><Link className="underline" href={`/products/${p.id}`}>{p.name}</Link></TableCell><TableCell>{t.variantName ?? t.id}</TableCell><TableCell colSpan={2}>尚未開帳</TableCell></TableRow>]
+            (t.inventorySourceTier?.variantBalances ?? t.variantBalances).length ? (t.inventorySourceTier?.variantBalances ?? t.variantBalances).map((b,i)=><TableRow key={t.id+i}><TableCell><Link className="underline" href={`/products/${p.id}`}>{p.name}</Link></TableCell><TableCell>{t.variantName ?? t.id}{t.inventorySourceTier ? '（共用）' : ''}</TableCell><TableCell>{b.warehouse.name}</TableCell><TableCell className="text-right">{b.quantity} {b.unit}</TableCell></TableRow>)
+            : [<TableRow key={t.id}><TableCell><Link className="underline" href={`/products/${p.id}`}>{p.name}</Link></TableCell><TableCell>{t.variantName ?? t.id}{t.inventorySourceTier ? '（共用）' : ''}</TableCell><TableCell colSpan={2}>尚未開帳</TableCell></TableRow>]
           ))}</TableBody>
         </Table></div>
       </SectionCard></div> : null}

@@ -841,6 +841,11 @@ model ProductPriceTier {
   /// 唯一識別鍵；優先沿用規格 SKU，避免服務方案因相同單位而互相衝突。
   variantKey                String  @default("") @map("variant_key")
 
+  /// Optional shared piece-count pool; a source must itself own its balance.
+  inventorySourceTierId String? @map("inventory_source_tier_id")
+  inventorySourceTier ProductPriceTier? @relation("VariantStockSource", fields: [inventorySourceTierId], references: [id], onDelete: Restrict, map: "tier_inventory_source_fk")
+  inventoryConsumers ProductPriceTier[] @relation("VariantStockSource")
+
   inventoryPolicy String @default("shared") @map("inventory_policy")
   inventoryUnit String? @map("inventory_unit")
   inventoryEnabledAt DateTime? @map("inventory_enabled_at")
@@ -850,6 +855,7 @@ model ProductPriceTier {
   bundleComponents ProductBundleComponent[]
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@index([inventorySourceTierId], map: "tier_inventory_source_idx")
   @@unique([productId, weightGrams, unit, unitQty, variantKey])
   @@index([productId])
   @@index([status])

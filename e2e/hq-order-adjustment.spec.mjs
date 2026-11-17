@@ -194,3 +194,36 @@ test('paid inbox approval leaves READY and never creates a shipment', async ({ p
   await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
   expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
 });
+
+test('standalone scent displays the same stock pool as its chicken bundle', async ({ page }, testInfo) => {
+  const suffix = `wax-${testInfo.project.name}-${randomUUID()}`;
+  const password = randomUUID();
+  const email = `${suffix}@example.invalid`;
+  const actor = await db.user.create({ data: { email, name: '共用香氣庫存隔離驗收', role: 'admin', passwordHash: await bcrypt.hash(password, 10) } });
+  const make = (kind, price, cost) => db.product.create({ data: {
+    productId: `${suffix}-${kind}`, sku: `${suffix}-${kind}`, name: `${suffix}-${kind}`,
+    category: 'other', productCategory: 'STANDARD', status: 'active', price, cost, unit: '顆',
+  } });
+  const combo = await make('combo',399,230);
+  const solo = await make('solo',250,190);
+  const source = await db.productPriceTier.create({ data: { productId: combo.id, unit: '組', unitQty: 1, price:399, cost:230,
+    variantName:'牡丹', variantKey:'peony', inventoryPolicy:'variant', inventoryUnit:'顆', inventoryEnabledAt:new Date(), } });
+  const alias = await db.productPriceTier.create({ data: { productId: solo.id, unit: '顆', unitQty: 1, price:250, cost:190,
+    variantName:'牡丹', variantKey:'peony', inventoryPolicy:'variant', inventoryUnit:'顆', inventoryEnabledAt:new Date(), inventorySourceTierId:source.id, } });
+  const warehouse = await db.warehouse.upsert({ where: { code:'WH-MAIN' }, update:{}, create:{code:'WH-MAIN',name:'隔離主倉'} });
+  await db.productVariantInventoryBalance.create({ data: { tierId:source.id,warehouseId:warehouse.id,quantity:20,unit:'顆' } });
+  await page.goto(`/login?next=${encodeURIComponent(`/products/${solo.id}`)}`);
+  await page.getByLabel('Email', { exact:true }).fill(email);
+  await page.getByLabel('密碼', { exact:true }).fill(password);
+  await page.getByRole('button', {name:'登入',exact:true}).click();
+  const stock = page.getByRole('row').filter({hasText:'牡丹'}).filter({hasText:'20 顆'});
+  await expect(stock).toContainText(`共用 ${combo.name}`);
+  await db.productVariantInventoryBalance.update({where:{tierId_warehouseId:{tierId:source.id,warehouseId:warehouse.id}},data:{quantity:19}});
+  await page.reload();
+  await expect(page.getByRole('row').filter({hasText:'牡丹'}).filter({hasText:'19 顆'})).toBeVisible();
+  expect(await db.productVariantInventoryBalance.count({where:{tierId:alias.id}})).toBe(0);
+  await page.goto(`/products/${combo.id}`);
+  await expect(page.getByRole('row').filter({hasText:'牡丹'}).filter({hasText:'19 顆'})).toBeVisible();
+  // Disposable CI fixtures only; the shared pool is intentionally not duplicated.
+  expect(actor.role).toBe('admin');
+});
