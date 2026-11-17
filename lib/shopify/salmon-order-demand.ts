@@ -1,4 +1,4 @@
-import { SALMON_STOCK } from './salmon-stock-source.ts';
+import { SALMON_STOCK, type StockTarget } from './salmon-stock-source.ts';
 
 export const SALMON_ORDER_DEMAND = `query HqSalmonOrderDemand($after: String) {
   orders(first: 5, after: $after, query: "sku:FUR-SALMON-SKIN-50 -status:cancelled") {
@@ -26,8 +26,10 @@ export function verifyDemandCoverage(hq: ExternalDemand[], remote: ExternalDeman
   return remote.reduce((sum, row) => sum + row.quantity, 0);
 }
 
-export async function readSalmonOrderDemand(domain: string, token: string, request: typeof fetch = fetch): Promise<ExternalDemand[]> {
+export async function readSalmonOrderDemand(domain: string, token: string, request: typeof fetch = fetch, stock: StockTarget = SALMON_STOCK): Promise<ExternalDemand[]> {
   if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(domain) || !token.trim()) throw new StockDemandError('INVALID_CONFIG');
+  if (!/^[A-Za-z0-9_-]+$/.test(stock.sku)) throw new StockDemandError('INVALID_STOCK_TARGET');
+  const query = SALMON_ORDER_DEMAND.replace('sku:FUR-SALMON-SKIN-50', `sku:${stock.sku}`);
   const result: ExternalDemand[] = [];
   const cursors = new Set<string>();
   let after: string | null = null;
@@ -36,7 +38,7 @@ export async function readSalmonOrderDemand(domain: string, token: string, reque
     let response: Response;
     try { response = await request(`https://${domain}/admin/api/2026-10/graphql.json`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-      body: JSON.stringify({ query: SALMON_ORDER_DEMAND, variables: { after } }),
+      body: JSON.stringify({ query, variables: { after } }),
       cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(12000),
     }); } catch { throw new StockDemandError('ORDER_SCAN_FAILED'); }
     if (!response.ok) throw new StockDemandError('ORDER_SCAN_FAILED');
@@ -56,8 +58,8 @@ export async function readSalmonOrderDemand(domain: string, token: string, reque
       if (order.cancelledAt || order.displayFinancialStatus === 'REFUNDED') continue;
       let quantity = 0;
       for (const line of order.lineItems.nodes) {
-        if (line.sku !== SALMON_STOCK.sku && line.variant?.id !== SALMON_STOCK.variantId) continue;
-        if (line.sku !== SALMON_STOCK.sku || line.variant?.id !== SALMON_STOCK.variantId ||
+        if (line.sku !== stock.sku && line.variant?.id !== stock.variantId) continue;
+        if (line.sku !== stock.sku || line.variant?.id !== stock.variantId ||
           !Number.isSafeInteger(line.unfulfilledQuantity) || line.unfulfilledQuantity < 0) throw new StockDemandError('ORDER_BINDING_CHANGED');
         quantity += line.unfulfilledQuantity;
         if (!Number.isSafeInteger(quantity)) throw new StockDemandError('ORDER_QUANTITY_OVERFLOW');

@@ -1,4 +1,12 @@
-# HQ 鮭魚皮 → Shopify 台北庫存同步
+# HQ 單一克重現貨 → Shopify 台北庫存同步
+
+## 2026-11-17 單一規格凍乾擴充
+
+`exclusive-stock-batch.ts` 明列已逐款核對的10款QIQI 40g凍乾，重用既有來源、訂單覆蓋及寫入閘門。每款只容許一個active規格、唯一綁定、已盤點克數、無來源共料及組合消耗。變更規格或新增共料會自動阻擋該款，不能把同一池克數同時發布給多個規格。
+
+擴充使用獨立開關 `SHOPIFY_INVENTORY_SYNC_EXTENDED_ENABLED=false`，獨立模式 `SHOPIFY_INVENTORY_SYNC_EXTENDED_MODE=inspect`；鮭魚皮開關與受保護cron行為不變。worker逐款依序處理，一款阻擋不會阻止其他款或原有LINE、訂單重試與領養工作。各款紀錄仍以product ID區分，保留個別未解寫入結果的停止規則。
+
+先部署預設關閉版本，啟用inspect檢查實際逐款紀錄，再依結果啟用apply。HQ已出貨而Shopify仍未出貨的雞柳條，不能強制略過訂單差異，也不能為了庫存同步擅改訂單或再次扣HQ；其餘核對成功商品可獨立繼續。以下鮭魚皮段落保留最初版本歷史，不代表目前正式開關狀態。
 
 ## 範圍
 
