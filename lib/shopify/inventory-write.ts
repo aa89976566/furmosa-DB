@@ -4,7 +4,7 @@ import { HQ_MAIN_SHOPIFY_LOCATION } from './inventory-location.ts';
 export type InventoryWritePlan = {
   variantId: string; inventoryItemId: string; locationId: string; sku: string;
   warehouseCode: 'WH-MAIN'; available: number | null; issues: string[];
-  snapshotComplete: boolean; sourceRevision: string; observedAt: string;
+  snapshotComplete: boolean; sourceRevision: string; observedAt: string; expectedCommitted: number;
 };
 export class InventoryWriteError extends Error {}
 export const INVENTORY_WRITE = `mutation HqInventoryWrite($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
@@ -44,7 +44,8 @@ export async function writeVerifiedInventory(plan: InventoryWritePlan, deps: {
   };
   if (!plan.snapshotComplete || plan.issues.length || plan.available == null) throw new InventoryWriteError('UNVERIFIED_SOURCE');
   if (plan.warehouseCode !== 'WH-MAIN' || !/^[a-f0-9]{64}$/.test(plan.sourceRevision) || !plan.sku.trim() ||
-    !Number.isSafeInteger(plan.available) || plan.available < 0 || plan.available > 2147483647) throw new InventoryWriteError('INVALID_PLAN');
+    !Number.isSafeInteger(plan.available) || plan.available < 0 || plan.available > 2147483647 ||
+    !Number.isSafeInteger(plan.expectedCommitted) || plan.expectedCommitted < 0) throw new InventoryWriteError('INVALID_PLAN');
   for (const [type, value] of [['ProductVariant', plan.variantId], ['InventoryItem', plan.inventoryItemId], ['Location', plan.locationId]]) {
     if (!new RegExp(`^gid://shopify/${type}/[1-9]\\d*$`).test(value)) throw new InventoryWriteError('INVALID_BINDING');
   }
@@ -82,6 +83,7 @@ export async function writeVerifiedInventory(plan: InventoryWritePlan, deps: {
         throw new InventoryWriteError('OTHER_LOCATION_HAS_STOCK_OR_DEMAND');
       }
     }
+    if (quantity(matches[0], 'committed') !== plan.expectedCommitted) throw new InventoryWriteError('SHOPIFY_DEMAND_CHANGED');
     return quantity(matches[0], 'available');
   }
   const before = await read();

@@ -1,24 +1,27 @@
-# Shopify 指定地點庫存寫入防護
+# HQ 鮭魚皮 → Shopify 台北庫存同步
 
-本次新增 `lib/shopify/inventory-write.ts` 傳輸函式，不新增 API、排程或正式資料寫入。尚未接上 HQ 資料載入，也不代表自動同步已啟用。
+## 範圍
 
-## 已完成
+只處理已核實的 FUR-SALMON-SKIN-50，每份50g、WH-MAIN → 台北114718703993。HQ保持克數；Shopify可售數為 floor(max(0, 實存克數−尚未過帳需求克數)/50)。不提前扣HQ、不修改價格、不繞過出貨READY、不處理共料或組合商品。
 
-- 明確核對 variant、SKU、inventory item、location，要求 tracked=true、售完政策 DENY。
-- 資料快照不完整、有 issues、超過30秒、來源版本改變，均阻擋。
-- 檢查全部地點（上限50；仍有下一頁時阻擋），其他地點有庫存或已承諾訂單時阻擋。
-- Shopify 2026-10 使用 `changeFromQuantity`，不沿用2026-04以前的 `compareQuantity`。
-- 每次寫入使用必填的 `@idempotent`；相同計畫與遠端起始量產生同一鍵，不自動重試未知結果。
-- 寫後讀回核對；遇並行訂單或拒絕時重新核對，不強制蓋回原量。
+## 已接通的程式
 
-## 正式串接前仍須完成
+- RepeatableRead讀取盤點、規格、所有相關未取消／未退款訂單與獨立出貨、扣庫流水；已出貨狀態不能單獨釋放保留量。
+- 規格、SKU、單位、唯一綁定、盤點或來源不完整時停止。關聯出貨與訂單只計一次；已過帳消耗不重複扣。
+- Shopify未出貨訂單逐單對照HQ，防止尚未匯入的訂單被補回庫存；分頁不完整、API錯誤或綁定變動均停止。
+- 逐值核對variant、SKU、inventory item與全部地點，要求tracked、DENY；其他地點有庫存或承諾需求時停止。只寫台北，不刪除Shop location。
+- 寫入前再次核對HQ版本、遠端訂單及committed量；來源最多30秒。使用2026-10的changeFromQuantity與必填@idempotent，寫後讀回。
+- status_audit_logs保存STARTED／INSPECTED／VERIFIED／BLOCKED／NEEDS_VERIFICATION。未知結果不強制重試；存在NEEDS_VERIFICATION時阻擋後續apply，必須先人工核對並處理該紀錄。
+- 既有automation worker及POST /api/cron/shopify-inventory都接同一函式；沿用CRON_SECRET授權。預設SHOPIFY_INVENTORY_SYNC_ENABLED=false，模式inspect。
 
-1. HQ 單一一致快照載入及可信 sourceRevision；既有 `loadHqPackPreview` 仍不能發布。
-2. HQ與Shopify尚未匯入需求的完整涵蓋、共料分配、跨通路並行控制。單靠遠端比較後寫入不能防止HQ同時新增需求。
-3. 主倉地點已由使用者確認：WH-MAIN 固定對應「台北」114718703993；寫入函式拒絕其他地點。不刪除Shop location，也不寫入或複製庫存到該處。
-4. 管理員授權、持久化稽核／待確認紀錄、失敗重試與受控觸發；目前函式不是授權邊界。
-5. 以隔離商店與DB驗收後受控發布；不拿歷史100g當作今日現貨。
+## 驗證與正式發布界線
 
-本次8項單元測試通過；本地TypeScript檢查長時間未回應後已中止，不能視為通過，交由PR的CI重新驗證。讀／寫操作皆通過2026-10 GraphQL schema驗證。未正式呼叫庫存mutation。
+17項針對性測試通過。遠端訂單讀取經Shopify schema驗證且執行成功；目前無該SKU訂單。完整TypeScript、測試、build與隔離DB驗證交由PR CI，不宣稱本地完整檢查已通過。
+
+尚未正式部署或啟用自動寫入。啟用前須通過exact SHA CI、隔離環境驗收與固定Deploy Production流程。已有主倉100g／Shopify台北2份為先前單次核對結果，不能當作永久固定值。
+
+跨系統無共同交易：HQ可能在最後核對後新建其他通路需求。寫後重查與後續排程可偵測，但不能保證零時間差。此版本預設inspect；未完成跨通路同時預留的驗收前不可宣稱即時同步已完成。未設定共料分配，不可擴到其他商品。
+
+訂單掃描上限1000筆、流水5000筆，超限停止而非截斷發布。Shopify歷史訂單權限不足、HQ已扣但Shopify仍未出貨、舊單無扣庫流水等差異會阻擋，需依操作紀錄解決。
 
 來源：https://shopify.dev/docs/api/admin-graphql/2026-10/mutations/inventorySetQuantities

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { writeVerifiedInventory, type InventoryWritePlan } from '../inventory-write.ts';
 const plan: InventoryWritePlan = { variantId: 'gid://shopify/ProductVariant/1', inventoryItemId: 'gid://shopify/InventoryItem/2',
   locationId: 'gid://shopify/Location/114718703993', sku: 'FUR-SALMON-SKIN-50', warehouseCode: 'WH-MAIN',
-  available: 0, issues: [], snapshotComplete: true, sourceRevision: 'a'.repeat(64), observedAt: '2026-11-17T12:00:00Z' };
+  available: 0, expectedCommitted: 0, issues: [], snapshotComplete: true, sourceRevision: 'a'.repeat(64), observedAt: '2026-11-17T12:00:00Z' };
 const level = (id: string, available: number, committed = 0) => ({ location: { id }, quantities: [{ name: 'available', quantity: available }, { name: 'committed', quantity: committed }] });
 function read(available: number, other = 0, policy = 'DENY', tracked = true) { return { data: { productVariant: {
   id: plan.variantId, sku: plan.sku, inventoryPolicy: policy, inventoryItem: { id: plan.inventoryItemId, tracked,
@@ -51,6 +51,13 @@ test('unknown HQ source, stale snapshot and invalid quantities never read or wri
 test('a changed HQ revision after remote read blocks the mutation', async () => {
   const f = fixture([read(2)], false);
   await assert.rejects(writeVerifiedInventory(plan, f.deps), /SOURCE_CHANGED/);
+  assert.equal(f.calls.length, 1);
+});
+test('new Shopify commitment blocks even when available quantity has not changed', async () => {
+  const payload = read(2);
+  payload.data.productVariant.inventoryItem.inventoryLevels.nodes[0].quantities[1].quantity = 1;
+  const f = fixture([payload]);
+  await assert.rejects(writeVerifiedInventory(plan, f.deps), /SHOPIFY_DEMAND_CHANGED/);
   assert.equal(f.calls.length, 1);
 });
 test('unknown location, SKU mismatch, untracked stock, continue selling or other-location stock block', async () => {

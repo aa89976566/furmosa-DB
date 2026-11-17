@@ -3,6 +3,7 @@ import { processDueAutomationJobs } from '../lib/automation/line-jobs';
 import { retryFailedShopifyIntakes } from '../lib/shopify/recovery';
 import { meetpetsAdapter } from '../lib/adoption/meetpets-source.mjs';
 import { runAdoptionSync } from '../lib/adoption/sync-worker.mjs';
+import { runSalmonInventorySync } from '../lib/shopify/salmon-inventory-sync';
 
 async function main() {
   const [automation, shopify] = await Promise.all([
@@ -10,6 +11,15 @@ async function main() {
     retryFailedShopifyIntakes(prisma, 10),
   ]);
   console.log(JSON.stringify({ ok: true, automation, shopify }));
+  if (process.env.SHOPIFY_INVENTORY_SYNC_ENABLED === 'true') {
+    try {
+      const mode = process.env.SHOPIFY_INVENTORY_SYNC_MODE === 'apply' ? 'apply' : 'inspect';
+      console.log(JSON.stringify({ inventory: await runSalmonInventorySync(prisma, mode) }));
+    } catch {
+      console.error('[shopify-inventory] Blocked; inspect shopify_inventory_sync audit');
+      process.exitCode = 1;
+    }
+  }
   // Keep adoption source slowness/failures independent of existing order/LINE jobs.
   try {
     const adoption = await Promise.all([undefined, meetpetsAdapter].map(adapter => runAdoptionSync(prisma, {
