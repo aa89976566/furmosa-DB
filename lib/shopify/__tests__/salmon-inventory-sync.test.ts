@@ -79,6 +79,12 @@ test('remote reader rejects incomplete line pages, repeated pagination, wrong va
     await assert.rejects(readSalmonOrderDemand(domain, 'test', request(body)));
   }
 });
+test('remote API permission and query cost errors remain actionable without logging raw responses', async () => {
+  for (const [code, expected] of [['ACCESS_DENIED', 'ORDER_ACCESS_DENIED'], ['MAX_COST_EXCEEDED', 'ORDER_QUERY_COST_LIMIT'], ['THROTTLED', 'ORDER_API_THROTTLED']]) {
+    const request = (async () => Response.json({ errors: [{ message: 'private-response-do-not-log', extensions: { code } }] })) as typeof fetch;
+    await assert.rejects(readSalmonOrderDemand(domain, 'test', request), { message: expected });
+  }
+});
 function pipelineFixture() {
   const f = sourceFixture();
   const audits: any[] = []; let writes = 0, loads = 0;
