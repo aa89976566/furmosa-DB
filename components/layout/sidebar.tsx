@@ -25,7 +25,7 @@ export function Sidebar() {
             <div className="h-40 animate-pulse rounded-xl bg-muted/50" />
           }
         >
-          <SidebarNav itemExtras={{ "/reviews": <ReviewInboxBadge /> }} />
+          <SidebarNav itemExtras={{ "/reviews": <Suspense fallback={null}><ReviewInboxBadge /></Suspense> }} />
         </Suspense>
       </ScrollArea>
       <div className="space-y-2 border-t border-border/70 px-3 py-3">

@@ -27,7 +27,7 @@ export async function Topbar() {
       >
         <GlobalSearch />
       </Suspense>
-      <div className="contents group-data-[inventory=true]/shell:hidden max-xl:group-data-[review=true]/shell:hidden"><CompanyProgressBar /></div>
+      <div className="contents group-data-[inventory=true]/shell:hidden max-xl:group-data-[review=true]/shell:hidden"><Suspense fallback={<div aria-label="載入出貨進度" className="h-20 flex-1 animate-pulse rounded-2xl bg-muted/40" />}><CompanyProgressBar /></Suspense></div>
       <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
         <ThemeToggle />
         <OrderNotificationBell />

@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
 import { formatDate } from '@/lib/format';
 import { APP_STATUS } from '@/lib/campaigns/jiba-two-piece/constants';
@@ -187,21 +188,17 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
     take: 80,
   });
 
-  const adjustments = orders.length ? await prisma.statusAuditLog.findMany({
-    where: { entityType: 'hq_order_adjustment', entityId: { in: orders.filter(order => order.omsStatus).map(order => order.id) } },
-    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
-    select: { id: true, entityId: true, metadataJson: true },
+  // Fetch the latest record of each kind in one round trip; never mix their revisions.
+  const omsOrderIds = orders.filter(order => order.omsStatus).map(order => order.id);
+  const history = omsOrderIds.length ? await prisma.statusAuditLog.findMany({
+    where: { entityType: { in: ['hq_order_adjustment', 'oms_review_decision', 'oms_review'] }, entityId: { in: omsOrderIds } },
+    distinct: ['entityId', 'entityType'],
+    orderBy: [{ entityId: 'asc' }, { entityType: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, entityId: true, entityType: true, metadataJson: true },
   }) : [];
-  const decisions = orders.length ? await prisma.statusAuditLog.findMany({
-    where: { entityType: 'oms_review_decision', entityId: { in: orders.map(order => order.id) } },
-    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
-    select: { entityId: true, metadataJson: true },
-  }) : [];
-  const reviewAudits = orders.length ? await prisma.statusAuditLog.findMany({
-    where: { entityType: 'oms_review', entityId: { in: orders.filter(order => order.omsStatus).map(order => order.id) } },
-    distinct: ['entityId'], orderBy: [{ entityId: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
-    select: { id: true, entityId: true, metadataJson: true },
-  }) : [];
+  const adjustments = history.filter(audit => audit.entityType === 'hq_order_adjustment');
+  const decisions = history.filter(audit => audit.entityType === 'oms_review_decision');
+  const reviewAudits = history.filter(audit => audit.entityType === 'oms_review');
   const reviewByOrder = new Map(reviewAudits.map(audit => [audit.entityId, audit]));
   const decisionByOrder = new Map(decisions.map(audit => [audit.entityId, audit.metadataJson]));
   const adjustmentByOrder = new Map(adjustments.map(audit => [audit.entityId, audit]));
@@ -455,7 +452,8 @@ async function countPendingPartnerApplications() {
 }
 
 /** 側欄／首頁用的待審核筆數，不載入明細。 */
-export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
+// React cache deduplicates sidebar, mobile navigation and page reads within one request only.
+export const countReviewInbox = cache(async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
   const [shopify_order, restock, ugc, partner] = await Promise.all([
     prisma.order.count({
       where: {
@@ -471,7 +469,7 @@ export async function countReviewInbox(): Promise<Record<ReviewKind, number>> {
     countPendingPartnerApplications(),
   ]);
   return { shopify_order, restock, ugc, partner };
-}
+});
 
 export async function loadReviewInbox(): Promise<{
   items: ReviewInboxItem[];
