@@ -62,3 +62,38 @@ test('四款香氣以規格 ID 加入同一待審訂單並保留名稱與 Shopif
     assert.deepEqual(f.order.shopifySnapshot, snapshot);
   }
 });
+
+test('HQ 人工付款保留原單、折扣及既有商品調整，審核必須重新確認', async () => {
+  const { saveReviewPayment } = await import('../hq-adjustment-service');
+  const f = fixture();
+  await saveHqAdjustment(f.db, f.command);
+  let effective = adjustedSnapshot(snapshot, f.audits.at(-1));
+  await saveReviewPayment(f.db, { actorId: 'staff1', orderId: 'o1', sourceHash: snapshotHash(effective), payment: 'pending' });
+  effective = adjustedSnapshot(snapshot, f.audits.at(-1));
+  assert.equal(effective.order.financial_status, 'pending');
+  assert.equal(effective.order.total_price, '199.90');
+  assert.equal((effective.order.line_items as any[])[0].quantity, 2);
+  assert.equal(f.order.paymentStatus, 'unpaid');
+  assert.equal(f.order.omsStatus, 'REVIEW');
+  assert.equal(f.order.omsReviewedAt, null);
+  await saveReviewPayment(f.db, { actorId: 'staff1', orderId: 'o1', sourceHash: snapshotHash(effective), payment: 'paid' });
+  assert.equal(adjustedSnapshot(snapshot, f.audits.at(-1)).order.financial_status, 'paid');
+  assert.equal(f.order.paymentStatus, 'paid');
+  assert.deepEqual(f.order.shopifySnapshot, snapshot);
+  const data = JSON.parse(f.audits.at(-1).metadataJson);
+  assert.equal(data.before.financialStatus, 'pending'); assert.equal(data.after.financialStatus, 'paid');
+  assert.equal(f.audits.at(-1).actorId, 'staff1');
+  await saveHqAdjustment(f.db, { ...f.command, revision: f.audits.at(-1).id });
+  assert.equal(adjustedSnapshot(snapshot, f.audits.at(-1)).order.financial_status, 'paid');
+});
+test('人工付款拒絕越權、過期版本、已出貨、未知狀態與來源變更', async () => {
+  const { saveReviewPayment } = await import('../hq-adjustment-service');
+  const command = { actorId: 'staff1', orderId: 'o1', sourceHash: snapshotHash(snapshot), payment: 'paid' as const };
+  let f = fixture(); f.setRole('inventory_reviewer'); await assert.rejects(saveReviewPayment(f.db, command), /權限/);
+  f = fixture(); await assert.rejects(saveReviewPayment(f.db, { ...command, sourceHash: 'stale' }), /已更新/);
+  f = fixture(); f.order.shipments = [{ status: 'pending' }]; await assert.rejects(saveReviewPayment(f.db, command), /出貨單/);
+  f = fixture(); await assert.rejects(saveReviewPayment(f.db, { ...command, payment: 'refunded' as any }), /選擇/);
+  f = fixture(); await saveReviewPayment(f.db, command);
+  f.order.shopifySnapshot = { ...snapshot, order: { ...snapshot.order, total_price: '200' } };
+  await assert.rejects(saveReviewPayment(f.db, command), /原單已有更新/);
+});

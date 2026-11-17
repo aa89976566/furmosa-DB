@@ -1,14 +1,17 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button';
 import { HqAdjustmentForm } from '@/components/orders/hq-adjustment-form';
-import { loadReviewOrderEditor, reviewInboxDecision } from '@/app/(main)/reviews/actions';
+import { loadReviewOrderEditor, reviewInboxDecision, reviewPaymentChoice } from '@/app/(main)/reviews/actions';
 import type { ReviewResult } from '@/lib/orders/review-service';
 
 type Editor = Awaited<ReturnType<typeof loadReviewOrderEditor>>;
-export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href }: { orderId: string; sourceHash: string; reviewRevision: string; href: string }) {
+export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, payment }: { payment?: string; orderId: string; sourceHash: string; reviewRevision: string; href: string }) {
+  const router = useRouter();
+  const [paymentMessage, setPaymentMessage] = useState('');
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -22,11 +25,20 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href }
       try {
         const next = await reviewInboxDecision({ orderId, sourceHash, reviewRevision, action, reason: [reason, note.trim()].filter(Boolean).join('：') });
         setResult(next);
+        if (!next.ok && next.blockers.some(text => text.includes('付款'))) setPaymentMessage('請先在上方確認已付清並儲存，再按通過。');
         if (next.ok) setRejectOpen(false);
       } catch { setResult({ ok: false, action: null, message: '連線中斷，請重新整理確認審核結果', kind: 'error', omsStatus: null, blockers: [], next: null }); }
     });
   }
   return <div className="w-full space-y-3">
+    <fieldset disabled={pending} className="space-y-2"><legend className="text-sm font-medium">確認 HQ 付款狀態</legend>
+      <div className="grid grid-cols-2 gap-2">{(['paid', 'pending'] as const).map(value => <Button key={value} type="button" variant={payment === value ? 'default' : 'outline'} aria-pressed={payment === value} className="min-h-11" onClick={() => {
+        if (!window.confirm(value === 'paid' ? '確認已收到此訂單全額款項？只記錄 HQ，不會向客人扣款或更新 Shopify。' : '確認將 HQ 訂單標示為未付款？')) return;
+        start(async () => { try { const next = await reviewPaymentChoice({ orderId, sourceHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok) router.refresh(); }
+          catch { setPaymentMessage('連線中斷，請重新整理確認付款狀態'); } });
+      }}>{value === 'paid' ? '已付清' : '未付款'}</Button>)}</div>
+      {paymentMessage ? <p role="status" className="text-sm">{paymentMessage}</p> : null}
+    </fieldset>
     {result ? <div role={result.ok ? 'status' : 'alert'} className="rounded-lg border p-3 text-sm"><p>{result.ok && result.action === 'approve' ? '審核通過，可前往訂單建立出貨單' : result.action === 'reject' && result.ok ? `不通過原因：${[reason, note.trim()].filter(Boolean).join('：')}。訂單保留，可修改後重新送審。` : result.message}</p>{result.blockers.length ? <ul className="mt-2 list-inside list-disc">{[...new Set(result.blockers)].map(text => <li key={text}>{text}</li>)}</ul> : null}{!result.ok ? <a href={href} className="mt-2 inline-block underline">開啟完整資料處理</a> : null}</div> : null}
     <div className="grid grid-cols-3 gap-2 [&>button]:min-h-11">
       <Button disabled={pending} onClick={() => decide('approve')}>{pending ? '處理中…' : '通過'}</Button>

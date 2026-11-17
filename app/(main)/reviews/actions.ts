@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { emptyReviewResult, ReviewError, runReview } from '@/lib/orders/review-service';
+import { saveReviewPayment } from '@/lib/orders/hq-adjustment-service';
 import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
@@ -54,4 +55,13 @@ export async function loadReviewOrderEditor(orderId: string, expectedHash: strin
     options: products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, productId: product.id,
       variantId: tier.shopifyVariantId, variantName: tier.variantName, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`,
       price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' }))) };
+}
+
+export async function reviewPaymentChoice(input: { orderId: string; sourceHash: string; payment: 'paid' | 'pending' }) {
+  try {
+    const actor = await reviewer();
+    await saveReviewPayment(prisma, { ...input, actorId: actor.id });
+    try { for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path); } catch { /* Saved audit is authoritative. */ }
+    return { ok: true, message: '付款狀態已儲存並留下操作紀錄，請再按通過' };
+  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '付款狀態未儲存，請重試' }; }
 }
