@@ -105,3 +105,18 @@ test('unimported remote order blocks before write; unknown write result persists
   assert.equal(f.audits.at(-1).newStatus, 'NEEDS_VERIFICATION');
   assert.doesNotMatch(JSON.stringify(f.audits), /do-not-log/);
 });
+test('unresolved write prevents the next automatic apply before loading stock', async () => {
+  const f = pipelineFixture();
+  f.db.statusAuditLog.findFirst = async () => ({ id: 'previous-unknown' });
+  await assert.rejects(runSalmonInventorySync(f.db, 'apply', f.deps, env), /PREVIOUS_WRITE/);
+  assert.equal(f.writes(), 0); assert.equal(f.loads(), 0);
+});
+test('new HQ demand after writing leaves a reconciliation record and never restores inventory', async () => {
+  const f = pipelineFixture();
+  const deps = { ...f.deps, write: async () => {
+    f.orders.push({ id: 'new-order', externalStore: null, externalOrderId: null, items: [f.line], shipments: [] });
+    return { changed: true, before: 0, after: 2 };
+  } };
+  await assert.rejects(runSalmonInventorySync(f.db, 'apply', deps, env), /POST_WRITE_SOURCE_CHANGED/);
+  assert.equal(f.audits.at(-1).newStatus, 'NEEDS_VERIFICATION');
+});
