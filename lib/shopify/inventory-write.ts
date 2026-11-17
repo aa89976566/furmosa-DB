@@ -14,6 +14,7 @@ export const INVENTORY_WRITE = `mutation HqInventoryWrite($input: InventorySetQu
   }
 }`;
 export const INVENTORY_READ = `query HqInventoryWriteRead($id: ID!) {
+  currentAppInstallation { accessScopes { handle } }
   productVariant(id: $id) {
     id sku inventoryPolicy
     inventoryItem { id tracked inventoryLevels(first: 50) {
@@ -23,7 +24,7 @@ export const INVENTORY_READ = `query HqInventoryWriteRead($id: ID!) {
   }
 }`;
 type Level = { location: { id: string }; quantities: { name: string; quantity: number }[] };
-type ReadResponse = { productVariant: { id: string; sku: string; inventoryPolicy: string;
+type ReadResponse = { currentAppInstallation: { accessScopes: { handle: string }[] }; productVariant: { id: string; sku: string; inventoryPolicy: string;
   inventoryItem: { id: string; tracked: boolean; inventoryLevels: { nodes: Level[]; pageInfo: { hasNextPage: boolean } } } } | null };
 type WriteResponse = { inventorySetQuantities: { inventoryAdjustmentGroup: { referenceDocumentUri: string } | null;
   userErrors: { code?: string; field?: string[]; message?: string }[] } };
@@ -66,7 +67,11 @@ export async function writeVerifiedInventory(plan: InventoryWritePlan, deps: {
     return data.data;
   }
   async function read() {
-    const v = (await graphql<ReadResponse>(INVENTORY_READ, { id: plan.variantId })).productVariant;
+    const data = await graphql<ReadResponse>(INVENTORY_READ, { id: plan.variantId });
+    if (!data.currentAppInstallation?.accessScopes?.some(scope => scope.handle === 'write_inventory')) {
+      throw new InventoryWriteError('WRITE_INVENTORY_SCOPE_REQUIRED');
+    }
+    const v = data.productVariant;
     if (!v || v.id !== plan.variantId || v.sku !== plan.sku || v.inventoryItem?.id !== plan.inventoryItemId) throw new InventoryWriteError('BINDING_CHANGED');
     if (!v.inventoryItem.tracked || v.inventoryPolicy !== 'DENY') throw new InventoryWriteError('SOLD_OUT_POLICY_REQUIRED');
     const levels = v.inventoryItem.inventoryLevels;

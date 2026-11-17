@@ -89,7 +89,8 @@ function pipelineFixture() {
     write: async (plan: any, options: any) => { writes++; assert.equal(await options.verifySourceRevision(plan.sourceRevision), true); return { changed: true, before: 0, after: 2 }; } };
   return { ...f, db, deps, audits, writes: () => writes, loads: () => loads };
 }
-const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', SHOPIFY_SHOP_DOMAIN: domain };
+const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', SHOPIFY_SHOP_DOMAIN: domain,
+  APP_ENV: 'production', EXTERNAL_EFFECTS_MODE: 'enabled' };
 test('inspect records audit without mutation; apply rechecks source and records verified readback', async () => {
   const f = pipelineFixture();
   assert.equal((await runSalmonInventorySync(f.db, 'inspect', f.deps, env)).available, 2);
@@ -98,6 +99,14 @@ test('inspect records audit without mutation; apply rechecks source and records 
   assert.equal(f.writes(), 1); assert.equal(f.loads(), 4);
   assert.equal(f.audits.at(-1).newStatus, 'VERIFIED');
   assert.doesNotMatch(JSON.stringify(f.audits), /secret-test/);
+});
+test('shared external-effects policy blocks disabled, missing or non-production apply before any source or remote IO', async () => {
+  for (const patch of [{ APP_ENV: 'preview' }, { EXTERNAL_EFFECTS_MODE: 'disabled' }, { APP_ENV: undefined }, { EXTERNAL_EFFECTS_MODE: undefined }]) {
+    const f = pipelineFixture();
+    await assert.rejects(runSalmonInventorySync(f.db, 'apply', f.deps, { ...env, ...patch }), /EXTERNAL_EFFECTS_DISABLED/);
+    assert.equal(f.loads(), 0); assert.equal(f.writes(), 0);
+    assert.equal(f.audits.at(-1).newStatus, 'BLOCKED');
+  }
 });
 test('unimported remote order blocks before write; unknown write result persists reconciliation', async () => {
   const f = pipelineFixture();
