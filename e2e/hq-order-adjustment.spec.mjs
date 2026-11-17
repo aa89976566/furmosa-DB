@@ -37,12 +37,18 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
     paymentStatus: 'unpaid', fulfillmentStatus: 'pending', subtotal: 100, total: 100,
     externalStore: `hq640-${suffix}.myshopify.com`, externalOrderId: suffix, externalOrderName: source.order.name,
     omsStatus: 'NEW', shopifySnapshot: source, shopifySourceUpdatedAt: new Date(timestamp),
+    omsIssueFlags: [{ code: 'PHONE_MISSING', severity: 'blocking', message: '請核對收件電話' }],
   } });
   await page.goto(`/login?next=${encodeURIComponent(`/orders/${order.id}`)}`);
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('密碼', { exact: true }).fill(password);
   await page.getByRole('button', { name: '登入', exact: true }).click();
   await expect(page.locator('#oms-review')).toBeVisible();
+  const attention = page.getByRole('region', { name: '待處理提示', exact: true });
+  await expect(attention).toBeVisible();
+  await attention.getByRole('button', { name: /請核對收件電話/ }).click();
+  await expect(page.getByRole('textbox', { name: '收件電話', exact: true })).toBeFocused();
+  expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsCheckedAt).toBeNull();
   // The mobile inbox opens one item at a time and can return to its filtered list.
   await page.goto('/reviews');
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(source.order.name);

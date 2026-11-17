@@ -6,7 +6,7 @@ import { record, snapshotHash, string, type Snapshot } from '../shopify/intake-p
 import { fulfillmentPlanHash, parseFrozenFulfillmentPlan } from './fulfillment-plan';
 import { PROMOTION_GIFT_SKU } from './promotion-resolver';
 import { checkReview, reviewDraft, type ReviewDraft } from './review-policy';
-import { omsApprovalBlockers, parseOmsIssues, type OmsStatus } from './oms';
+import { omsApprovalBlockers, parseOmsIssues, type OmsIssue, type OmsStatus } from './oms';
 
 export type ReviewAction = 'check' | 'approve' | 'ship';
 export type ReviewResultKind = 'success' | 'blocked' | 'error' | null;
@@ -16,6 +16,7 @@ export type ReviewResult = {
   message: string;
   omsStatus: OmsStatus | null;
   blockers: string[];
+  issues?: OmsIssue[];
   kind: ReviewResultKind;
   next: { label: string; href: string } | null;
   uncertain?: boolean;
@@ -256,7 +257,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       return emptyReviewResult({
         ok: blocking.length === 0, action: 'check', omsStatus: 'REVIEW',
         message: blocking.length ? '已儲存，請處理上方列出的問題後重新檢查' : '檢查通過，可以確認訂單',
-        blockers: blocking, kind: blocking.length ? 'blocked' : 'success',
+        issues: result.issues, blockers: blocking, kind: blocking.length ? 'blocked' : 'success',
       });
     }
     const savedPlan = parseFrozenFulfillmentPlan(saved.fulfillmentPlan);
