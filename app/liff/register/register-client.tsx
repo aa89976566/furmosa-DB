@@ -10,7 +10,7 @@ import { LiffStatus } from '@/components/liff/liff-status';
 import { LinePetFields } from './line-pet-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FURMOSA_OFFICIAL_LINE_URL } from '@/lib/line/official-line';
+import { FURMOSA_OFFICIAL_LINE_CHAT_URL } from '@/lib/line/official-line';
 
 type Props = { liffId: string };
 type ReturnMode = 'line' | 'mobile' | 'desktop';
@@ -34,7 +34,6 @@ function RegisterForm({ idToken }: { idToken: string }) {
     text?: string;
     isNew?: boolean;
   }>({ type: 'idle' });
-  const [closeUnavailable, setCloseUnavailable] = useState(false);
   const [returnMode, setReturnMode] = useState<ReturnMode>('desktop');
 
   useEffect(() => {
@@ -51,16 +50,16 @@ function RegisterForm({ idToken }: { idToken: string }) {
     }
   }, [status.type]);
 
-  function tryCloseLiffWindow() {
+  function returnToOfficialLineChat() {
     try {
-      if (!liff.isInClient()) {
-        setCloseUnavailable(true);
+      if (liff.isInClient()) {
+        liff.openWindow({ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: true });
         return;
       }
-      liff.closeWindow();
     } catch {
-      setCloseUnavailable(true);
+      // Fall through to the universal LINE URL below.
     }
+    window.location.href = FURMOSA_OFFICIAL_LINE_CHAT_URL;
   }
 
   function resolveReturnMode(): ReturnMode {
@@ -105,7 +104,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
       setStatus({ type: 'ok', text: data.message ?? '完成！', isNew: data.isNew });
       if (nextReturnMode === 'line' && !autoCloseScheduledRef.current) {
         autoCloseScheduledRef.current = true;
-        autoCloseTimerRef.current = window.setTimeout(tryCloseLiffWindow, 1200);
+        autoCloseTimerRef.current = window.setTimeout(returnToOfficialLineChat, 1200);
       }
     } catch (err) {
       setStatus({
@@ -133,22 +132,22 @@ function RegisterForm({ idToken }: { idToken: string }) {
           {status.isNew ? '已加入匠寵會員' : '會員資料已更新'}
         </h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          {returnMode === 'line' && !closeUnavailable
+          {returnMode === 'line'
             ? '正在帶您回到 LINE…'
             : '資料已儲存，可以回到匠寵官方帳號繼續。'}
         </p>
 
-        {returnMode === 'line' && !closeUnavailable ? (
+        {returnMode === 'line' ? (
           <>
             <Button
               type="button"
               className="mt-6 min-h-12 w-full rounded-full bg-[#2368b5] text-base font-semibold text-white hover:bg-[#1c5798]"
-              onClick={tryCloseLiffWindow}
+              onClick={returnToOfficialLineChat}
             >
-              回到 LINE 對話
+              回到匠寵 LINE 對話
             </Button>
             <a
-              href={FURMOSA_OFFICIAL_LINE_URL}
+              href={FURMOSA_OFFICIAL_LINE_CHAT_URL}
               className="mt-4 inline-flex min-h-11 items-center justify-center text-sm font-semibold text-[#2368b5] underline underline-offset-4"
             >
               開啟匠寵官方帳號
@@ -160,7 +159,7 @@ function RegisterForm({ idToken }: { idToken: string }) {
         ) : (
           <>
             <a
-              href={FURMOSA_OFFICIAL_LINE_URL}
+              href={FURMOSA_OFFICIAL_LINE_CHAT_URL}
               target={returnMode === 'desktop' ? '_blank' : undefined}
               rel={returnMode === 'desktop' ? 'noopener noreferrer' : undefined}
               className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#2368b5] px-5 text-base font-semibold text-white hover:bg-[#1c5798]"
