@@ -250,7 +250,7 @@ describe('reviews page source assertions', () => {
 
   it('待審核頁只保留待判斷項目，已核准訂單移至獨立入口', () => {
     assert.match(pageSource, /查看已審核訂單/);
-    assert.match(pageSource, /href="\/shipments\?status=pending"/);
+    assert.match(pageSource, /href="\/orders\?work=ready"/);
     assert.doesNotMatch(pageSource, /pendingShipments/);
     assert.match(pageSource, />\s*管理\s*<\/summary>/);
     assert.match(workbenchSource, /option\.key === 'all' \? total : counts\[option\.key\]/);

@@ -10,6 +10,7 @@ import {
 import type { ReviewInboxItem, ReviewKind } from '@/lib/reviews/inbox';
 import { formatDateTime } from '@/lib/format';
 import styles from './review-workbench.module.css';
+import { OrderReviewActions } from './order-review-actions';
 import { OrderDeletionForm } from '@/components/orders/order-deletion-form';
 
 type ReviewCounts = Record<ReviewKind, number>;
@@ -77,6 +78,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
         </div>
       </header>
 
+      {item.rejectionReason ? <p className={styles.reviewFocusWarning}>不通過原因：{item.rejectionReason}</p> : null}
       {warnings.length ? (
         <div className={styles.reviewFocusWarning}>
           <AlertCircle aria-hidden />
@@ -109,8 +111,9 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
         <section className={`${styles.section} ${styles.deliverySection}`}>
           <div className={styles.deliveryHeading}>
             <h3>配送資料</h3>
-            <span>{deliveryLabel(item.preview?.address)}</span>
+            <span>{item.preview?.shippingLabel || deliveryLabel(item.preview?.address)}</span>
           </div>
+          {item.preview?.paymentLabel ? <p className="mt-3 text-sm font-medium">付款：{item.preview.paymentLabel}</p> : null}
           <dl className={styles.deliveryFacts}>
             <div><dt>收件人</dt><dd>{item.preview?.customer || item.subtitle || '待確認'}</dd></div>
             {item.preview?.phone ? <div><dt>聯絡電話</dt><dd>{item.preview.phone}</dd></div> : null}
@@ -127,10 +130,11 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
       ) : null}
 
       <footer className={styles.actionBar}>
+        {item.quickReview ? <OrderReviewActions key={`${item.id}-${item.quickReview.sourceHash}`} orderId={item.id} sourceHash={item.quickReview.sourceHash} href={`${item.href}#oms-review`} /> : <>
         {/* Review forms must load fresh after an adjustment, including native select state. */}
         <a href={item.href} className={styles.primaryAction}>
           {item.actionLabel}<ArrowRight aria-hidden />
-        </a>
+        </a></>}
       </footer>
     </section>
   );
