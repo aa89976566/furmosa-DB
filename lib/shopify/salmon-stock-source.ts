@@ -32,7 +32,7 @@ export async function loadSalmonStockSource(db: Pick<PrismaClient, '$transaction
     if (!balance.lastCountedAt || !['g', '克', '公克'].includes(balance.unit ?? '') ||
       !Number.isSafeInteger(balance.quantity)) throw new StockSourceError('SOURCE_COUNT_REQUIRED');
     const bindings = await tx.productPriceTier.count({ where: { status: 'active', OR: [
-      { shopifyVariantId: '64882303271289' }, { shopifySku: { equals: SALMON_STOCK.sku, mode: 'insensitive' } },
+      { shopifyVariantId: { in: ['64882303271289', SALMON_STOCK.variantId] } }, { shopifySku: { equals: SALMON_STOCK.sku, mode: 'insensitive' } },
       { sku: { equals: SALMON_STOCK.sku, mode: 'insensitive' } },
     ] } });
     if (bindings !== 1) throw new StockSourceError('DUPLICATE_SOURCE_BINDING');

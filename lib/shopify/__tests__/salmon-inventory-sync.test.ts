@@ -13,7 +13,9 @@ function sourceFixture() {
     _count: { inventoryDerivedProducts: 0, bundleIngredientFor: 0 } };
   const line = { id: 'line', productId: SALMON_STOCK.productId, quantity: 1, weightGrams: 50, variantKey: SALMON_STOCK.tierId };
   const orders: any[] = [], shipments: any[] = [], postings: any[] = [];
-  const tx = { product: { findUnique: async () => product }, productPriceTier: { count: async () => 1 },
+  const tx = { product: { findUnique: async () => product }, productPriceTier: { count: async (args: any) => {
+    assert.deepEqual(args.where.OR[0].shopifyVariantId.in, ['64882303271289', SALMON_STOCK.variantId]); return 1;
+  } },
     order: { findMany: async () => orders }, shipment: { findMany: async () => shipments }, inventoryTransaction: { findMany: async () => postings } };
   const db = { $transaction: async (fn: any, options: any) => { assert.equal(options.isolationLevel, 'RepeatableRead'); return fn(tx); } } as any;
   return { db, product, line, orders, shipments, postings };
