@@ -42,6 +42,7 @@ export function useLiff(liffId: string, reconnectPath?: string) {
           return;
         }
         setIdToken(token);
+        window.clearTimeout(slowTimer);
         setState('ready');
       } catch (e) {
         if (cancelled) return;
@@ -59,6 +60,7 @@ export function useLiff(liffId: string, reconnectPath?: string) {
           return;
         }
 
+        window.clearTimeout(slowTimer);
         setError(message);
         setState('error');
       }
