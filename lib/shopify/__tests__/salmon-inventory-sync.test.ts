@@ -79,8 +79,8 @@ function pipelineFixture() {
   const f = sourceFixture();
   const audits: any[] = []; let writes = 0, loads = 0;
   const db = { ...f.db, statusAuditLog: { findFirst: async () => null,
-    create: async ({ data }: any) => { audits.push(data); return { id: 'a1' }; },
-    update: async ({ data }: any) => { audits.push(data); return data; } } } as any;
+    create: async ({ data }: any) => { assert.equal(typeof data.metadataJson, 'string'); audits.push(data); return { id: 'a1' }; },
+    update: async ({ data }: any) => { assert.equal(typeof data.metadataJson, 'string'); audits.push(data); return data; } } } as any;
   const deps = { source: async () => { loads++; return loadSalmonStockSource(f.db); }, orders: async () => [], token: async () => 'secret-test',
     write: async (plan: any, options: any) => { writes++; assert.equal(await options.verifySourceRevision(plan.sourceRevision), true); return { changed: true, before: 0, after: 2 }; } };
   return { ...f, db, deps, audits, writes: () => writes, loads: () => loads };
