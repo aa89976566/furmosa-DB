@@ -23,7 +23,7 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
   ];
   return <section aria-labelledby="procurement-title" className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div><p className="text-xs font-semibold tracking-widest text-primary">FURMOSA HQ · 庫存待辦</p><h2 id="procurement-title" className="mt-1 text-2xl font-semibold tracking-tight text-navy">今天要採購什麼</h2><p className="mt-1 text-sm text-muted-foreground">先處理缺貨，再確認到貨與店家補貨。</p></div>
+      <div><p className="text-xs font-semibold tracking-widest text-primary">FURMOSA HQ · 庫存待辦</p><h2 id="procurement-title" className="mt-1 text-2xl font-semibold tracking-tight text-navy">今天要製作與採購什麼</h2><p className="mt-1 text-sm text-muted-foreground">現做品看訂單需求；現貨品看庫存與補貨。</p></div>
       <Button variant="outline" asChild><Link href="/inventory">全部庫存<ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
     </div>
     <nav aria-label="庫存待辦分類" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -32,6 +32,16 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
         <p className="mt-3 text-3xl font-semibold tabular-nums text-navy">{count}<span className="ml-2 text-xs font-normal text-muted-foreground">{unit}</span></p>
       </a>)}
     </nav>
+
+    <BoardSection id="production-demand" title="現做待辦" count={data.production.rows.length} description="彙整未出貨訂單的成品克數，扣除已出貨部分；已完成製作但未出貨仍會列出。請先確認審核、付款及備料，再安排製作。">
+      {!data.production.complete ? <p role="status" className="py-3 text-sm text-warning">需求尚未完整核對，請勿將目前數字當成全部製作量。最多查核最早 {data.production.limit} 張訂單。</p> : null}
+      <ExpandableRows empty="目前沒有已對應現做商品的未出貨需求。" rows={data.production.rows.map(row => <div key={`${row.orderId}:${row.productId}`} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+        <div><p className="font-semibold">{row.name}</p><p className="mt-1 text-xs text-muted-foreground">{row.orderNumber} · {row.reviewRequired ? '待審核，尚不可出貨' : '依訂單審核流程出貨'} · {row.paymentStatus === 'paid' ? '已付款' : row.paymentStatus === 'cod' ? '貨到付款' : '付款待確認'}</p></div>
+        <p className={`font-semibold tabular-nums ${row.issue ? 'text-warning' : 'text-navy'}`}>{row.issue ?? `${row.grams?.toLocaleString('zh-TW')} g 成品`}</p>
+        <Button variant="outline" className="min-h-11" asChild><Link href={`/orders/${row.orderId}`}>查看訂單</Link></Button>
+      </div>)} />
+      <p className="border-t py-3 text-xs leading-relaxed text-warning">備料提醒：現做品的原料配方與生鮮庫存尚未對應，無法換算原料缺口。上方是成品克數，不是生肉採購量；此清單不會扣庫存或自動通過出貨審核。</p>
+    </BoardSection>
 
     <BoardSection id="purchase-now" title="立即採購" count={reorderAlerts.orderNow.length} description="可用量＝主倉現存－未扣帳訂單需求；缺口＝補貨點－可用量－待到貨。此處是提醒，尚未控制 Shopify 售完停售。">
       <ExpandableRows empty="目前沒有需要立即採購的商品。" rows={reorderAlerts.orderNow.map(row => <div key={row.id} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
@@ -76,7 +86,7 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
 
     <BoardSection id="shipment-stock-check" title="出貨扣庫存檢查" count={shipmentAudit.missing.length} description={`近 ${shipmentAudit.days} 天已出貨的納管出貨單，最多檢查最新 ${shipmentAudit.limit} 筆；本次 ${shipmentAudit.checked} 筆。`}>
       <ExpandableRows empty={shipmentAudit.checked ? '本次檢查未發現缺少商品扣庫存紀錄；數量差異仍需對帳。' : '此範圍內尚無可檢查的納管出貨單。'} rows={shipmentAudit.missing.map(shipment => <Link key={shipment.id} href={`/shipments/${shipment.id}`} className="block py-4 hover:bg-muted/25"><p className="font-semibold text-destructive">{shipment.shipmentNumber} · 扣庫存紀錄待核對</p><p className="mt-1 text-sm text-muted-foreground">{shipment.missing.join('、')}</p><p className="mt-2 text-sm font-medium text-primary">查看出貨單 →</p></Link>)} />
-      <p className="border-t py-3 text-xs leading-relaxed text-muted-foreground">原味雞霸 FUR-0002 為接單現做，不扣主倉現貨。歷史未納管出貨及已退款／退貨訂單排除；此處僅提示，不會自動補扣庫存。</p>
+      <p className="border-t py-3 text-xs leading-relaxed text-muted-foreground">原味雞霸、雞肉南瓜、牛肉地瓜與黃金條為接單現做，需求另列於現做待辦，不以成品現貨不足阻擋接單。歷史未納管出貨及已退款／退貨訂單排除；此處僅提示，不會自動補扣庫存。</p>
     </BoardSection>
   </section>;
 }

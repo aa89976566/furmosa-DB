@@ -4,11 +4,12 @@ import { buildReorderAlertSummary } from './reorder-alerts';
 import { incomingHqGrams, missingShipmentDeductions, outstandingPurchaseLines } from './dashboard-procurement';
 import { INVENTORY_LOW_STOCK_THRESHOLD } from '@/lib/pos/inventory-groups';
 import { loadOutstandingDemand } from './load-outstanding-demand';
+import { loadMadeToOrderDemand } from './load-made-to-order';
 
 export async function loadDashboardProcurement() {
   const auditSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const receiptSelect = { id: true, purchaseOrderId: true, items: { select: { productId: true, quantityGrams: true, sourceOrderItemId: true } } } as const;
-  const [products, purchases, merchantStocks, merchantStockCount, shipments] = await Promise.all([
+  const [products, purchases, merchantStocks, merchantStockCount, shipments, production] = await Promise.all([
     prisma.product.findMany({
       where: { status: 'active', productCategory: 'STANDARD', category: { in: ['staple_food', 'treats', 'freeze_dried', 'health'] } },
       select: { id: true, name: true, sku: true, unit: true, reorderPoint: true, vendor: { select: { name: true } },
@@ -36,6 +37,7 @@ export async function loadDashboardProcurement() {
         items: { select: { id: true, productId: true, productName: true, quantity: true, product: { select: { sku: true, category: true, inventorySourceProductId: true } } } } },
       orderBy: [{ shippedAt: 'desc' }, { id: 'desc' }], take: 100,
     }),
+    loadMadeToOrderDemand(),
   ]);
   const incoming = incomingHqGrams(purchases);
   const demand = await loadOutstandingDemand(prisma);
@@ -52,7 +54,7 @@ export async function loadDashboardProcurement() {
     where: { type: 'sales_out', reference: { in: shipments.map(row => `shipment:${row.id}`) }, warehouse: { code: 'WH-MAIN' }, eventKey: { not: null } },
     select: { reference: true, productId: true, quantity: true, eventKey: true },
   }) : [];
-  return { reorderAlerts,
+  return { reorderAlerts, production,
     purchases: purchases.map(order => ({ ...order, remainingLines: outstandingPurchaseLines(order) })),
     merchantStocks, merchantStockCount, merchantLowThreshold: INVENTORY_LOW_STOCK_THRESHOLD,
     shipmentAudit: { checked: shipments.length, limit: 100, days: 30, missing: missingShipmentDeductions(shipments, ledger) },

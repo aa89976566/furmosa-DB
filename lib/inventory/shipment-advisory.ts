@@ -1,6 +1,6 @@
 import { bulkConsumption, bulkUnit, type BulkTier } from './bulk';
 
-export const MADE_TO_ORDER_HQ_SKUS = new Set(['FUR-0002']);
+export const MADE_TO_ORDER_HQ_SKUS = new Set(['FUR-0002', 'FUR-0014', 'FUR-0001', 'BF-03-30G']);
 
 type AdvisoryBalance = {
   quantity: number;
