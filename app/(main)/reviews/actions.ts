@@ -61,7 +61,9 @@ export async function reviewPaymentChoice(input: { orderId: string; sourceHash: 
   try {
     const actor = await reviewer();
     const saved = await saveReviewPayment(prisma, { ...input, actorId: actor.id });
-    try { for (const path of ['/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path); } catch { /* Saved audit is authoritative. */ }
+    // Return the committed revision directly. Revalidating this action can hold the
+    // entire review workbench in a streamed transition after the payment is saved.
+    // Approval refreshes the inbox; other order pages read the authoritative DB on navigation.
     return { ok: true as const, ...saved, message: '付款狀態已儲存並留下操作紀錄，請再按通過' };
   } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : '付款狀態未儲存，請重試' }; }
 }

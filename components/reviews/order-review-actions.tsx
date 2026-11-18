@@ -13,7 +13,9 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
   const [currentHash, setCurrentHash] = useState(sourceHash);
   const [currentRevision, setCurrentRevision] = useState(reviewRevision);
   const [paymentMessage, setPaymentMessage] = useState('');
-  const [pending, start] = useTransition();
+  const [reviewPending, start] = useTransition();
+  const [paymentPending, setPaymentPending] = useState(false);
+  const pending = reviewPending || paymentPending;
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -33,10 +35,12 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
   }
   return <div className="w-full space-y-3">
     <fieldset disabled={pending} className="space-y-2"><legend className="text-sm font-medium">確認 HQ 付款狀態</legend>
-      <div className="grid grid-cols-2 gap-2">{(['paid', 'pending'] as const).map(value => <Button key={value} type="button" variant={confirmedPayment === value ? 'default' : 'outline'} aria-pressed={confirmedPayment === value} className="min-h-11" onClick={() => {
+      <div className="grid grid-cols-2 gap-2">{(['paid', 'pending'] as const).map(value => <Button key={value} type="button" variant={confirmedPayment === value ? 'default' : 'outline'} aria-pressed={confirmedPayment === value} className="min-h-11" onClick={async () => {
         if (!window.confirm(value === 'paid' ? '確認已收到此訂單全額款項？只記錄 HQ，不會向客人扣款或更新 Shopify。' : '確認將 HQ 訂單標示為未付款？')) return;
-        start(async () => { try { const next = await reviewPaymentChoice({ orderId, sourceHash: currentHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok && next.sourceHash) { setConfirmedPayment(next.payment); setCurrentHash(next.sourceHash); setCurrentRevision(next.reviewRevision); } }
-          catch { setPaymentMessage('連線中斷，請重新整理確認付款狀態'); } });
+        setPaymentPending(true);
+        try { const next = await reviewPaymentChoice({ orderId, sourceHash: currentHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok && next.sourceHash) { setConfirmedPayment(next.payment); setCurrentHash(next.sourceHash); setCurrentRevision(next.reviewRevision); } }
+          catch { setPaymentMessage('連線中斷，請重新整理確認付款狀態'); }
+          finally { setPaymentPending(false); }
       }}>{value === 'paid' ? '已付清' : '未付款'}</Button>)}</div>
       {paymentMessage ? <p role="status" className="text-sm">{paymentMessage}</p> : null}
     </fieldset>
