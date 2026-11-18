@@ -14,6 +14,7 @@ export type ReorderProductInput = {
   unitVerified?: boolean;
   reserved?: number;
   demandVerified?: boolean;
+  observedStockComparable?: boolean;
 };
 
 export type ReorderAlertRow = ReorderProductInput & {
@@ -31,7 +32,7 @@ export type ReorderAlertSummary = {
 
 /** Physical low stock remains visible even when demand is not yet verified. */
 export function hasObservedLowStock(product: ReorderProductInput): boolean {
-  return Boolean(product.lastCountedAt && bulkUnit(product.unit) && product.unitVerified !== false &&
+  return Boolean(product.observedStockComparable !== false && product.lastCountedAt && bulkUnit(product.unit) && product.unitVerified !== false &&
     Number.isFinite(product.onHand) && product.onHand >= 0 && Number.isFinite(product.reorderPoint) &&
     product.reorderPoint >= 0 && product.onHand <= product.reorderPoint);
 }

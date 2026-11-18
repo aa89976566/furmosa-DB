@@ -87,7 +87,7 @@ test('需求未確認仍優先提醒帳面低庫存，不跳過採購核對', ()
   assert.equal(result.stocktake[0].id, 'milkfish');
   assert.equal(result.orderNow.length, 0);
   assert.equal(hasObservedLowStock(result.stocktake[0]), true);
-  for (const patch of [{ unit: null }, { unitVerified: false }, { lastCountedAt: null }, { onHand: -1 }, { onHand: NaN }]) {
+  for (const patch of [{ observedStockComparable: false }, { unit: null }, { unitVerified: false }, { lastCountedAt: null }, { onHand: -1 }, { onHand: NaN }]) {
     assert.equal(hasObservedLowStock(product(patch)), false);
   }
 });

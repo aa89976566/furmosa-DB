@@ -12,7 +12,8 @@ export async function loadDashboardProcurement() {
   const [products, purchases, merchantStocks, merchantStockCount, shipments, production] = await Promise.all([
     prisma.product.findMany({
       where: { status: 'active', productCategory: 'STANDARD', category: { in: ['staple_food', 'treats', 'freeze_dried', 'health'] } },
-      select: { id: true, name: true, sku: true, unit: true, reorderPoint: true, vendor: { select: { name: true } },
+      select: { id: true, name: true, sku: true, unit: true, reorderPoint: true, inventorySourceProductId: true,
+        priceTiers: { select: { bundleComponents: { select: { componentProductId: true }, take: 1 } } }, vendor: { select: { name: true } },
         inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } }, select: { quantity: true, unit: true, lastCountedAt: true } } },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     }),
@@ -47,6 +48,7 @@ export async function loadDashboardProcurement() {
     return { id: product.id, name: product.name, sku: product.sku, reorderPoint: product.reorderPoint,
       vendorName: product.vendor?.name ?? null, onHand: balance?.quantity ?? 0, unit,
       reserved: demand.reserved.get(product.id) ?? 0, demandVerified: demand.complete,
+      observedStockComparable: !product.inventorySourceProductId && !product.priceTiers.some(tier => tier.bundleComponents.length > 0),
       unitVerified: Boolean(unit && unit === bulkUnit(product.unit)), lastCountedAt: balance?.lastCountedAt ?? null,
       incoming: unit === 'g' ? incoming.get(product.id) ?? 0 : 0 };
   }));
