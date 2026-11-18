@@ -3,10 +3,10 @@
  * A merchant-specific price always takes priority. Otherwise:
  * - 肉乾／常溫零食：零售價 8 折
  * - 凍乾：零售價 7 折
- * - 棒棒牛／脆脆鴨／菜菜雞單支小禮包：固定 NT$25
+ * - 棒棒牛／棒棒雞單支小禮包：固定 NT$25
  * All calculated prices round to whole TWD.
  */
-const FIXED_PRICE_GIFT_PACK = /棒棒牛|脆脆鴨|菜菜雞/;
+const FIXED_PRICE_GIFT_PACK = /^(棒棒牛|棒棒雞)(?:｜單支小禮包|小禮包)?$/;
 
 export type BuyoutTierQuote = {
   ruleId: 'sheet-buyout-v1';
