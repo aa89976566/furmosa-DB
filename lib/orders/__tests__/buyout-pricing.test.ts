@@ -29,13 +29,19 @@ test('凍乾買斷為零售價 7 折並四捨五入整元', () => {
   assert.equal(quote.wholesaleUnitPrice, 151);
 });
 
-test('三款單支小禮包固定為 NT$25', () => {
+test('兩款單支小禮包固定為 NT$25', () => {
   const quote = quoteDefaultBuyoutTier({
     name: '棒棒牛小禮包',
     category: 'treats',
     retailUnitPrice: 45,
     quantity: 1,
   });
+  assert.equal(quoteDefaultBuyoutTier({
+    name: '棒棒雞｜單支小禮包',
+    category: 'treats',
+    retailUnitPrice: 45,
+    quantity: 1,
+  }).wholesaleUnitPrice, 25);
   assert.equal(quote.calculation, 'fixed_price');
   assert.equal(quote.wholesaleUnitPrice, 25);
 });
