@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildReorderAlertSummary, type ReorderProductInput } from '../reorder-alerts';
+import { buildReorderAlertSummary, hasObservedLowStock, type ReorderProductInput } from '../reorder-alerts';
 
 const countedAt = new Date('2026-10-01T00:00:00.000Z');
 const product = (overrides: Partial<ReorderProductInput> = {}): ReorderProductInput => ({
@@ -78,3 +78,16 @@ test('未出貨需求先減少可用量；在帳面庫存耗盡前提醒', () =>
   assert.equal(buildReorderAlertSummary([product({ reserved: -1 })]).stocktake.length, 1);
 });
 
+
+test('需求未確認仍優先提醒帳面低庫存，不跳過採購核對', () => {
+  const result = buildReorderAlertSummary([
+    product({ id: 'high', name: 'AAA', onHand: 1000, demandVerified: false }),
+    product({ id: 'milkfish', name: '虱目魚', onHand: 40, reorderPoint: 40, demandVerified: false }),
+  ]);
+  assert.equal(result.stocktake[0].id, 'milkfish');
+  assert.equal(result.orderNow.length, 0);
+  assert.equal(hasObservedLowStock(result.stocktake[0]), true);
+  for (const patch of [{ unit: null }, { unitVerified: false }, { lastCountedAt: null }, { onHand: -1 }, { onHand: NaN }]) {
+    assert.equal(hasObservedLowStock(product(patch)), false);
+  }
+});

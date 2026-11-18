@@ -4,7 +4,7 @@ import { ArrowRight, ClipboardCheck, PackageCheck, ShoppingCart, Store } from 'l
 import { Button } from '@/components/ui/button';
 import { formatPurchaseDate } from '@/lib/inventory/purchase-presentation';
 import type { DashboardProcurementData } from '@/lib/inventory/load-dashboard-procurement';
-import type { ReorderAlertRow } from '@/lib/inventory/reorder-alerts';
+import { hasObservedLowStock, type ReorderAlertRow } from '@/lib/inventory/reorder-alerts';
 
 const quantity = (value: number, unit: string | null) => `${value.toLocaleString('zh-TW')} ${unit ?? '（單位待核對）'}`;
 function purchaseHref(row: ReorderAlertRow) {
@@ -62,9 +62,9 @@ export function InventoryActionBoard({ data, today }: { data: DashboardProcureme
           <p className="mt-2 text-sm font-medium text-primary">查看並驗收入庫 →</p>
         </Link>)} />
       </BoardSection>
-      <BoardSection id="purchase-count" title="需要盤點／核對" count={reorderAlerts.stocktake.length} description="負庫存、尚未盤點、單位不明或訂單需求未確認，先核對再決定採購量。">
+      <BoardSection id="purchase-count" title="需要盤點／核對" count={reorderAlerts.stocktake.length} description="帳面已達補貨點的商品優先列出；需求、單位或盤點尚未確認時，先核對再決定採購量。">
         <ExpandableRows empty="目前沒有需要優先盤點的商品。" rows={reorderAlerts.stocktake.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <div><p className="font-semibold">{row.name}</p><p className="mt-1 text-xs text-muted-foreground">{row.sku}</p><p className="mt-2 text-sm text-warning">{row.demandVerified === false ? '未出貨需求未完整核對，請先檢查訂單對應或查詢上限' : !row.unit || row.unitVerified === false ? '庫存單位待核對' : row.onHand < 0 ? `負庫存 ${quantity(row.onHand, row.unit)}` : '尚未完成盤點'}</p></div>
+          <div><p className="font-semibold">{row.name}</p>{hasObservedLowStock(row) ? <p className="mt-2 text-sm font-semibold text-destructive">帳面低庫存 · 現存 {quantity(row.onHand, row.unit)} · 補貨點 {quantity(row.reorderPoint, row.unit)}</p> : null}<p className="mt-1 text-xs text-muted-foreground">{row.sku}</p><p className="mt-2 text-sm text-warning">{row.demandVerified === false ? '未出貨需求未完整核對，請先檢查訂單對應或查詢上限' : !row.unit || row.unitVerified === false ? '庫存單位待核對' : row.onHand < 0 ? `負庫存 ${quantity(row.onHand, row.unit)}` : '尚未完成盤點'}</p></div>
           <Button variant="outline" className="min-h-11" asChild><Link href={`/inventory?q=${encodeURIComponent(row.sku)}`}>核對庫存</Link></Button>
         </div>)} />
       </BoardSection>

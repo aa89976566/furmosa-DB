@@ -29,6 +29,13 @@ export type ReorderAlertSummary = {
   stocktake: ReorderAlertRow[];
 };
 
+/** Physical low stock remains visible even when demand is not yet verified. */
+export function hasObservedLowStock(product: ReorderProductInput): boolean {
+  return Boolean(product.lastCountedAt && bulkUnit(product.unit) && product.unitVerified !== false &&
+    Number.isFinite(product.onHand) && product.onHand >= 0 && Number.isFinite(product.reorderPoint) &&
+    product.reorderPoint >= 0 && product.onHand <= product.reorderPoint);
+}
+
 /**
  * 補貨點是商品主檔的安全線；待收貨採購需先扣抵，避免重複下單。
  * 沒有盤點時間的舊數字不直接拿來產生採購建議。
@@ -64,7 +71,7 @@ export function buildReorderAlertSummary(products: ReorderProductInput[]): Reord
   };
   result.orderNow.sort(urgency);
   result.incoming.sort(urgency);
-  result.stocktake.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  result.stocktake.sort((a, b) => Number(hasObservedLowStock(b)) - Number(hasObservedLowStock(a)) || a.name.localeCompare(b.name, 'zh-Hant'));
   return result;
 }
 
