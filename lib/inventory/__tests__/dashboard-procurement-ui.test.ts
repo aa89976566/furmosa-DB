@@ -10,9 +10,26 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { JSDOM } = require('jsdom');
 const { InventoryActionBoard } = require('../../../components/dashboard/inventory-action-board');
 const empty: DashboardProcurementData = {
+  production: { rows: [], complete: true, limit: 500 },
   reorderAlerts: { orderNow: [], incoming: [], stocktake: [] }, purchases: [], merchantStocks: [],
   merchantStockCount: 0, merchantLowThreshold: 3, shipmentAudit: { checked: 0, limit: 100, days: 30, missing: [] },
 };
+
+test('現做待辦顯示成品克數、審核狀態與原料限制，缺失規格不假裝為零', () => {
+  const document = render({ ...empty, production: { complete: false, limit: 500, rows: [
+    { orderId: 'o1', orderNumber: 'ORD-1', productId: 'p1', name: '雞肉南瓜', grams: 100,
+      reviewRequired: true, paymentStatus: 'unpaid', issue: null },
+    { orderId: 'o2', orderNumber: 'ORD-2', productId: 'p2', name: '黃金條', grams: null,
+      reviewRequired: false, paymentStatus: 'paid', issue: '規格或克數待核對' },
+  ] } });
+  const panel = document.querySelector('#production-demand')!;
+  assert.match(panel.textContent!, /100 g 成品/);
+  assert.match(panel.textContent!, /待審核，尚不可出貨/);
+  assert.match(panel.textContent!, /付款待確認/);
+  assert.match(panel.textContent!, /規格或克數待核對/);
+  assert.match(panel.textContent!, /不是生肉採購量/);
+  assert.ok(panel.querySelector('a[href="/orders/o1"]'));
+});
 
 test('dashboard distinguishes physical stock, pending demand and available quantity', () => {
   const row = { id: 'salmon', name: '鮭魚皮', sku: 'FUR-0129', vendorName: null, unit: 'g',
@@ -61,4 +78,17 @@ test('負庫存和舊規格引導核對，正常店家規格可建立補貨；�
   assert.equal(document.querySelectorAll('#purchase-merchant a[href^="/inventory?q="]').length, 2);
   assert.ok(document.querySelector('a[href="/shipments/s1"]'));
   assert.match(document.body.textContent!, /不會自動補扣庫存/);
+});
+
+test('需求未核對仍顯示帳面低庫存和補貨點，不提供未核實採購量', () => {
+  const row = { id: 'milkfish', name: '虱目魚', sku: 'FUR-0048', vendorName: null, unit: 'g',
+    onHand: 40, reserved: 0, available: 40, reorderPoint: 40, incoming: 0, projected: 40, deficit: 0,
+    lastCountedAt: new Date(), demandVerified: false, state: 'stocktake' as const };
+  const document = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, stocktake: [row] } });
+  const panel = document.querySelector('#purchase-count')!;
+  assert.match(panel.textContent!, /帳面低庫存 · 現存 40 g · 補貨點 40 g/);
+  assert.match(panel.textContent!, /未出貨需求未完整核對/);
+  assert.equal(panel.querySelectorAll('a[href^="/inventory/purchase-orders/new"]').length, 0);
+  const unknown = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, stocktake: [{ ...row, unitVerified: false }] } });
+  assert.doesNotMatch(unknown.querySelector('#purchase-count')!.textContent!, /帳面低庫存/);
 });

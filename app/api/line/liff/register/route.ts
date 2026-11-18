@@ -5,6 +5,11 @@ import { buildMainMenuMessages } from '@/lib/line/flex-menu';
 import { pushLineMessages } from '@/lib/line/push';
 import type { PetSpeciesCode } from '@/lib/customers/pet-fields';
 import { PET_SPECIES_CODES } from '@/lib/customers/pet-fields';
+import {
+  createRefillLineSession,
+  REFILL_LINE_SESSION_COOKIE,
+  refillLineSessionCookieOptions,
+} from '@/lib/refill/line-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,11 +65,17 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       ok: true,
       isNew: result.isNew,
       message: result.isNew ? '註冊完成！之後直接傳 8 位序號就能存罐入帳。' : '資料已更新。',
     });
+    response.cookies.set(
+      REFILL_LINE_SESSION_COOKIE,
+      await createRefillLineSession(idToken, result.lineUserId),
+      refillLineSessionCookieOptions(),
+    );
+    return response;
   } catch (e) {
     const message = e instanceof Error ? e.message : '註冊失敗';
     return NextResponse.json({ error: message }, { status: 400 });

@@ -35,13 +35,18 @@ test('LINE LIFF registration renders and submits only the minimal pet fields', (
   }
 });
 
-test('successful LINE registration preserves safe return navigation and otherwise closes LIFF once', () => {
+test('successful LINE registration returns directly to its originating chat and keeps non-chat navigation inside LINE', () => {
   assert.match(registerClientSource, /returnPath && returnPath\.startsWith\('\/liff\/'\)/);
   assert.match(registerClientSource, /window\.location\.href = returnPath;\s*return;/);
   assert.match(registerClientSource, /liff\.isInClient\(\)/);
+  assert.match(registerClientSource, /context\?\.type === 'utou'/);
   assert.match(registerClientSource, /liff\.closeWindow\(\)/);
+  assert.match(registerClientSource, /liff\.openWindow\(\{ url: FURMOSA_OFFICIAL_LINE_CHAT_URL, external: false \}\)/);
+  assert.match(registerClientSource, /liff\.getOS\(\)/);
+  assert.match(registerClientSource, /os === 'ios' \|\| os === 'android'/);
   assert.match(registerClientSource, /autoCloseScheduledRef\.current/);
-  assert.match(registerClientSource, /window\.setTimeout\(tryCloseLiffWindow, 1000\)/);
+  assert.match(registerClientSource, /nextReturnMode === 'line' && !autoCloseScheduledRef\.current/);
+  assert.match(registerClientSource, /window\.setTimeout\(returnToOfficialLineChat, 1200\)/);
   assert.match(registerClientSource, /window\.clearTimeout\(autoCloseTimerRef\.current\)/);
 });
 
@@ -55,19 +60,32 @@ test('first-time LIFF registration continues in chat with the registered main me
   assert.match(routeSource, /runAfterReply\(/);
 });
 
-test('successful LINE registration keeps a manual close fallback separate from registration', () => {
+test('successful LINE registration keeps official-chat navigation separate from registration', () => {
   const closeButton = registerClientSource.match(
-    /<Button\s+[\s\S]*?type="button"[\s\S]*?onClick=\{tryCloseLiffWindow\}[\s\S]*?>\s*回到 LINE\s*<\/Button>/,
+    /<Button\s+[\s\S]*?type="button"[\s\S]*?onClick=\{returnToOfficialLineChat\}[\s\S]*?>\s*回到匠寵 LINE 對話\s*<\/Button>/,
   );
   assert.ok(closeButton, 'manual LINE close button is missing or can submit the form');
   assert.doesNotMatch(closeButton[0], /onSubmit|fetch|\/api\/line\/liff\/register/);
-  assert.match(registerClientSource, /請關閉此頁並回到 LINE。/);
+  assert.match(registerClientSource, /FURMOSA_OFFICIAL_LINE_CHAT_URL/);
+  assert.match(registerClientSource, /returnMode === 'desktop' \? '_blank' : undefined/);
+  assert.match(registerClientSource, /開啟 LINE 匠寵對話/);
+  assert.match(registerClientSource, /開啟匠寵官方帳號/);
 
   const closeHandler = registerClientSource.match(
-    /function tryCloseLiffWindow\(\) \{([\s\S]*?)\n  \}/,
+    /function returnToOfficialLineChat\(\) \{([\s\S]*?)\n  \}/,
   );
   assert.ok(closeHandler, 'LIFF close handler is missing');
   assert.doesNotMatch(closeHandler[1], /fetch|onSubmit|\/api\/line\/liff\/register/);
+});
+
+test('official LINE URL is isolated from server-only brand link configuration', () => {
+  const officialLineSource = readFileSync(new URL('../official-line.ts', import.meta.url), 'utf8');
+  assert.equal(
+    officialLineSource.trim(),
+    "export const FURMOSA_OFFICIAL_LINE_URL = 'https://line.me/R/ti/p/@902rkfzv';\nexport const FURMOSA_OFFICIAL_LINE_CHAT_URL =\n  'https://line.me/R/oaMessage/%40902rkfzv/';",
+  );
+  assert.doesNotMatch(registerClientSource, /brand-links/);
+  assert.doesNotMatch(officialLineSource, /process\.env|import /);
 });
 
 test('LINE registration uses the branded single-column form and a single success state', () => {

@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { isLineIdTokenUsable } from '@/lib/line/id-token-client';
 
+// Start fetching the LIFF SDK as soon as this client module is evaluated.
+// Previously the download did not begin until React ran the effect, adding an
+// avoidable network round trip before initialization could even start.
+const liffModulePromise = import('@line/liff');
+
 export type LiffState = 'loading' | 'slow' | 'ready' | 'error';
 
 export function useLiff(liffId: string, reconnectPath?: string) {
@@ -18,7 +23,7 @@ export function useLiff(liffId: string, reconnectPath?: string) {
 
     (async () => {
       try {
-        const liff = (await import('@line/liff')).default;
+        const liff = (await liffModulePromise).default;
         await liff.init({ liffId, withLoginOnExternalBrowser: true });
         if (cancelled) return;
 

@@ -4,14 +4,16 @@ import { buildReorderAlertSummary } from './reorder-alerts';
 import { incomingHqGrams, missingShipmentDeductions, outstandingPurchaseLines } from './dashboard-procurement';
 import { INVENTORY_LOW_STOCK_THRESHOLD } from '@/lib/pos/inventory-groups';
 import { loadOutstandingDemand } from './load-outstanding-demand';
+import { loadMadeToOrderDemand } from './load-made-to-order';
 
 export async function loadDashboardProcurement() {
   const auditSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const receiptSelect = { id: true, purchaseOrderId: true, items: { select: { productId: true, quantityGrams: true, sourceOrderItemId: true } } } as const;
-  const [products, purchases, merchantStocks, merchantStockCount, shipments] = await Promise.all([
+  const [products, purchases, merchantStocks, merchantStockCount, shipments, production] = await Promise.all([
     prisma.product.findMany({
       where: { status: 'active', productCategory: 'STANDARD', category: { in: ['staple_food', 'treats', 'freeze_dried', 'health'] } },
-      select: { id: true, name: true, sku: true, unit: true, reorderPoint: true, vendor: { select: { name: true } },
+      select: { id: true, name: true, sku: true, unit: true, reorderPoint: true, inventorySourceProductId: true,
+        priceTiers: { select: { bundleComponents: { select: { componentProductId: true }, take: 1 } } }, vendor: { select: { name: true } },
         inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } }, select: { quantity: true, unit: true, lastCountedAt: true } } },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     }),
@@ -36,6 +38,7 @@ export async function loadDashboardProcurement() {
         items: { select: { id: true, productId: true, productName: true, quantity: true, product: { select: { sku: true, category: true, inventorySourceProductId: true } } } } },
       orderBy: [{ shippedAt: 'desc' }, { id: 'desc' }], take: 100,
     }),
+    loadMadeToOrderDemand(),
   ]);
   const incoming = incomingHqGrams(purchases);
   const demand = await loadOutstandingDemand(prisma);
@@ -45,6 +48,7 @@ export async function loadDashboardProcurement() {
     return { id: product.id, name: product.name, sku: product.sku, reorderPoint: product.reorderPoint,
       vendorName: product.vendor?.name ?? null, onHand: balance?.quantity ?? 0, unit,
       reserved: demand.reserved.get(product.id) ?? 0, demandVerified: demand.complete,
+      observedStockComparable: !product.inventorySourceProductId && !product.priceTiers.some(tier => tier.bundleComponents.length > 0),
       unitVerified: Boolean(unit && unit === bulkUnit(product.unit)), lastCountedAt: balance?.lastCountedAt ?? null,
       incoming: unit === 'g' ? incoming.get(product.id) ?? 0 : 0 };
   }));
@@ -52,7 +56,7 @@ export async function loadDashboardProcurement() {
     where: { type: 'sales_out', reference: { in: shipments.map(row => `shipment:${row.id}`) }, warehouse: { code: 'WH-MAIN' }, eventKey: { not: null } },
     select: { reference: true, productId: true, quantity: true, eventKey: true },
   }) : [];
-  return { reorderAlerts,
+  return { reorderAlerts, production,
     purchases: purchases.map(order => ({ ...order, remainingLines: outstandingPurchaseLines(order) })),
     merchantStocks, merchantStockCount, merchantLowThreshold: INVENTORY_LOW_STOCK_THRESHOLD,
     shipmentAudit: { checked: shipments.length, limit: 100, days: 30, missing: missingShipmentDeductions(shipments, ledger) },
