@@ -78,13 +78,16 @@ export async function saveReviewPayment(db: PrismaClient, input: { actorId: stri
     const review = await tx.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
     let saved: Record<string, unknown> = {};
     try { saved = JSON.parse(review?.metadataJson ?? '{}'); } catch { /* No valid saved delivery override. */ }
+    let reviewRevision = review?.id ?? '';
     if (saved.sourceHash === input.sourceHash && saved.draft) {
-      await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id, actorType: 'user', actorId: input.actorId,
+      const rebasedReview = await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id, actorType: 'user', actorId: input.actorId,
         previousStatus: order.omsStatus, newStatus: 'REVIEW', metadataJson: JSON.stringify({ ...saved,
           sourceHash: snapshotHash(adjustedSnapshot(source, paymentAudit)), action: 'payment_confirmation_requires_recheck' }) } });
+      reviewRevision = rebasedReview.id;
     }
     await tx.order.update({ where: { id: order.id }, data: { paymentStatus: input.payment === 'paid' ? 'paid' : 'unpaid', status: 'pending_review',
       omsStatus: 'REVIEW', omsReviewedAt: null, omsReviewedById: null, omsCheckedAt: null, omsCheckedSourceUpdatedAt: null,
       omsIssueFlags: [{ code: 'ORDER_CHANGED', severity: 'blocking', message: 'HQ 付款狀態已調整，請重新通過審核' }] } });
+    return { sourceHash: snapshotHash(adjustedSnapshot(source, paymentAudit)), reviewRevision, payment: input.payment };
   });
 }

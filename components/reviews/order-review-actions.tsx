@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,9 @@ import type { ReviewResult } from '@/lib/orders/review-service';
 
 type Editor = Awaited<ReturnType<typeof loadReviewOrderEditor>>;
 export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, payment }: { payment?: string; orderId: string; sourceHash: string; reviewRevision: string; href: string }) {
-  const router = useRouter();
+  const [confirmedPayment, setConfirmedPayment] = useState(payment);
+  const [currentHash, setCurrentHash] = useState(sourceHash);
+  const [currentRevision, setCurrentRevision] = useState(reviewRevision);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [pending, start] = useTransition();
   const [result, setResult] = useState<ReviewResult | null>(null);
@@ -23,7 +24,7 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
     setResult(null);
     start(async () => {
       try {
-        const next = await reviewInboxDecision({ orderId, sourceHash, reviewRevision, action, reason: [reason, note.trim()].filter(Boolean).join('：') });
+        const next = await reviewInboxDecision({ orderId, sourceHash: currentHash, reviewRevision: currentRevision, action, reason: [reason, note.trim()].filter(Boolean).join('：') });
         setResult(next);
         if (!next.ok && next.blockers.some(text => text.includes('付款'))) setPaymentMessage('請先在上方確認已付清並儲存，再按通過。');
         if (next.ok) setRejectOpen(false);
@@ -32,9 +33,9 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
   }
   return <div className="w-full space-y-3">
     <fieldset disabled={pending} className="space-y-2"><legend className="text-sm font-medium">確認 HQ 付款狀態</legend>
-      <div className="grid grid-cols-2 gap-2">{(['paid', 'pending'] as const).map(value => <Button key={value} type="button" variant={payment === value ? 'default' : 'outline'} aria-pressed={payment === value} className="min-h-11" onClick={() => {
+      <div className="grid grid-cols-2 gap-2">{(['paid', 'pending'] as const).map(value => <Button key={value} type="button" variant={confirmedPayment === value ? 'default' : 'outline'} aria-pressed={confirmedPayment === value} className="min-h-11" onClick={() => {
         if (!window.confirm(value === 'paid' ? '確認已收到此訂單全額款項？只記錄 HQ，不會向客人扣款或更新 Shopify。' : '確認將 HQ 訂單標示為未付款？')) return;
-        start(async () => { try { const next = await reviewPaymentChoice({ orderId, sourceHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok) router.refresh(); }
+        start(async () => { try { const next = await reviewPaymentChoice({ orderId, sourceHash: currentHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok && next.sourceHash) { setConfirmedPayment(next.payment); setCurrentHash(next.sourceHash); setCurrentRevision(next.reviewRevision); } }
           catch { setPaymentMessage('連線中斷，請重新整理確認付款狀態'); } });
       }}>{value === 'paid' ? '已付清' : '未付款'}</Button>)}</div>
       {paymentMessage ? <p role="status" className="text-sm">{paymentMessage}</p> : null}
@@ -44,7 +45,7 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
       <Button disabled={pending} onClick={() => decide('approve')}>{pending ? '處理中…' : '通過'}</Button>
       <Button variant="outline" disabled={pending} onClick={() => start(async () => {
         setResult(null);
-        try { const data = await loadReviewOrderEditor(orderId, sourceHash); setEditor(data); setGeneration(value => value + 1); }
+        try { const data = await loadReviewOrderEditor(orderId, currentHash); setEditor(data); setGeneration(value => value + 1); }
         catch (error) { setResult({ ok: false, action: null, message: error instanceof Error ? error.message : '無法開啟修改', kind: 'error', omsStatus: null, blockers: [], next: null }); }
       })}>修改</Button>
       <Button variant="outline" disabled={pending} onClick={() => { setReason(''); setNote(''); setRejectOpen(true); }}>不通過</Button>

@@ -715,9 +715,11 @@ test('待審核人工確認已付清後可直接通過，未付款仍阻擋且�
   const f = fakeDb(source);
   await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true }), /付款/);
   await f.run('check', { sourceOnly: true, draft: { ...draft, address: 'HQ 更正地址' } });
-  await saveReviewPayment(f.db, { actorId: 'u1', orderId: 'o1', sourceHash: snapshotHash(source), payment: 'paid' });
+  const paymentResult = await saveReviewPayment(f.db, { actorId: 'u1', orderId: 'o1', sourceHash: snapshotHash(source), payment: 'paid' });
   const effective = adjustedSnapshot(source, f.audits.filter(a => a.entityType === 'hq_order_adjustment').at(-1)!);
-  const result = await f.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: snapshotHash(effective), reviewRevision: f.audits.filter(a => a.entityType === 'oms_review').at(-1)!.id });
+  assert.equal(paymentResult.sourceHash, snapshotHash(effective));
+  assert.equal(paymentResult.reviewRevision, f.audits.filter(a => a.entityType === 'oms_review').at(-1)!.id);
+  const result = await f.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: paymentResult.sourceHash, reviewRevision: paymentResult.reviewRevision });
   assert.equal(result.ok, true); assert.equal(f.order.omsStatus, 'READY'); assert.equal(f.shipmentCreates, 0);
   assert.equal(f.order.paymentStatus, 'paid'); assert.deepEqual(f.order.shopifySnapshot, source);
   const review = f.audits.filter(a => a.entityType === 'oms_review').at(-1)!;

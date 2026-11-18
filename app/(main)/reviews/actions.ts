@@ -60,8 +60,8 @@ export async function loadReviewOrderEditor(orderId: string, expectedHash: strin
 export async function reviewPaymentChoice(input: { orderId: string; sourceHash: string; payment: 'paid' | 'pending' }) {
   try {
     const actor = await reviewer();
-    await saveReviewPayment(prisma, { ...input, actorId: actor.id });
-    try { for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path); } catch { /* Saved audit is authoritative. */ }
-    return { ok: true, message: '付款狀態已儲存並留下操作紀錄，請再按通過' };
-  } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '付款狀態未儲存，請重試' }; }
+    const saved = await saveReviewPayment(prisma, { ...input, actorId: actor.id });
+    try { for (const path of ['/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path); } catch { /* Saved audit is authoritative. */ }
+    return { ok: true as const, ...saved, message: '付款狀態已儲存並留下操作紀錄，請再按通過' };
+  } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : '付款狀態未儲存，請重試' }; }
 }
