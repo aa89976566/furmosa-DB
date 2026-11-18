@@ -44,7 +44,7 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
       }}>{value === 'paid' ? '已付清' : '未付款'}</Button>)}</div>
       {paymentMessage ? <p role="status" className="text-sm">{paymentMessage}</p> : null}
     </fieldset>
-    {result ? <div role={result.ok ? 'status' : 'alert'} className="rounded-lg border p-3 text-sm"><p>{result.ok && result.action === 'approve' ? '審核通過，可前往訂單建立出貨單' : result.action === 'reject' && result.ok ? `不通過原因：${[reason, note.trim()].filter(Boolean).join('：')}。訂單保留，可修改後重新送審。` : result.message}</p>{result.blockers.length ? <ul className="mt-2 list-inside list-disc">{[...new Set(result.blockers)].map(text => <li key={text}>{text}</li>)}</ul> : null}{!result.ok ? <a href={href} className="mt-2 inline-block underline">開啟完整資料處理</a> : null}</div> : null}
+    {result ? <div role={result.ok ? 'status' : 'alert'} className="rounded-lg border p-3 text-sm"><p>{result.ok && result.action === 'approve' ? '審核通過，可前往訂單建立出貨單' : result.action === 'reject' && result.ok ? `不通過原因：${[reason, note.trim()].filter(Boolean).join('：')}。訂單保留，可修改後重新送審。` : result.message}</p>{result.blockers.length ? <ul className="mt-2 list-inside list-disc">{[...new Set(result.blockers)].map(text => <li key={text}>{text}</li>)}</ul> : null}{result.ok && result.action === 'ship' && result.next ? <a href={result.next.href} className="mt-2 inline-block underline">查看待出貨單</a> : null}{!result.ok ? <a href={href} className="mt-2 inline-block underline">開啟完整資料處理</a> : null}</div> : null}
     <div className="grid grid-cols-3 gap-2 [&>button]:min-h-11">
       <Button disabled={pending} onClick={() => decide('approve')}>{pending ? '處理中…' : '通過'}</Button>
       <Button variant="outline" disabled={pending} onClick={() => start(async () => {

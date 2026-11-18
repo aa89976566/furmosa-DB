@@ -171,7 +171,7 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
 
 
 for (const manualPayment of [false, true]) {
-test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval leaves READY and never creates a shipment`, async ({ page }, testInfo) => {
+test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pending shipment`, async ({ page }, testInfo) => {
   const suffix = `quick-${testInfo.project.name}-${randomUUID()}`;
   const password = randomUUID();
   const email = `${suffix}@example.invalid`;
@@ -202,12 +202,16 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval leaves READY a
     expect(audit.actorId).toBeTruthy();
   }
   await page.getByRole('button', { name: '通過', exact: true }).click();
-  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');
-  expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
+  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('FULFILLMENT_PENDING');
+  const shipments = await db.shipment.findMany({ where: { orderId: order.id } });
+  expect(shipments).toHaveLength(1);
+  expect(shipments[0].status).toBe('pending');
   await page.reload();
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
   await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
   expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
+  await page.goto(`/shipments?status=pending&q=${encodeURIComponent(suffix)}`);
+  await expect(page.getByRole('main')).toContainText(suffix);
 });
 
 }
