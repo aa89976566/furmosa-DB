@@ -33,6 +33,16 @@ export function merchantCommercialModesAt(
   return MERCHANT_ORDER_MODES.filter((mode) => activeModes.has(mode));
 }
 
+/** HQ can record a one-off buyout for an active store without changing its agreement. */
+export function hqMerchantOrderModesAt(
+  modules: MerchantCommercialModuleRow[],
+  legacyTypes: MerchantType[],
+  at = new Date(),
+): MerchantOrderMode[] {
+  const modes = merchantCommercialModesAt(modules, legacyTypes, at);
+  return MERCHANT_ORDER_MODES.filter((mode) => mode === 'wholesale' || modes.includes(mode));
+}
+
 export function merchantProductAllowsMode(
   product: MerchantCommercialProduct,
   mode: MerchantOrderMode,
