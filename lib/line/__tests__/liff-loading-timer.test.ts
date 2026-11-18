@@ -21,3 +21,12 @@ test('LIFF slow-loading timer stops after initialization fails', () => {
     /window\.clearTimeout\(slowTimer\);\s*setError\(message\);\s*setState\('error'\);/,
   );
 });
+
+test('LIFF SDK download begins when the client module loads', () => {
+  assert.match(source, /const liffModulePromise = import\('@line\/liff'\);/);
+  assert.match(source, /const liff = \(await liffModulePromise\)\.default;/);
+  assert.doesNotMatch(
+    source,
+    /useEffect\(\(\) => \{[\s\S]*?const liff = \(await import\('@line\/liff'\)\)\.default;/,
+  );
+});
