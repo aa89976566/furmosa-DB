@@ -330,20 +330,37 @@ export async function getRefillEligibility(input: {
   appointmentId?: string | null;
   storeId?: string | null;
 }) {
-  const issuedCount = await countIssuedJars(input.customerId);
+  // These reads do not depend on one another. Running them together avoids
+  // stacking four database round trips on the LIFF page's critical path.
+  const [issuedCount, customer, bookings, openPaid] = await Promise.all([
+    countIssuedJars(input.customerId),
+    prisma.customer.findUnique({
+      where: { id: input.customerId },
+      select: { name: true, petName: true },
+    }),
+    listRefillBookings({
+      customerId: input.customerId,
+      storeId: input.storeId,
+    }),
+    prisma.refillOrder.findMany({
+      where: {
+        customerId: input.customerId,
+        status: { in: [...REFILL_PAID_OPEN_STATUSES, 'payment_pending', 'draft'] },
+      },
+      orderBy: { createdAt: 'desc' as const },
+      take: 5,
+      select: {
+        id: true,
+        status: true,
+        totalAmount: true,
+        appointmentId: true,
+        merchantId: true,
+      },
+    }),
+  ]);
   const hasIssuedJar = issuedCount > 0;
   const orderType: RefillOrderType = hasIssuedJar ? 'exchange' : 'first';
   const amounts = amountsForOrderType(orderType);
-
-  const customer = await prisma.customer.findUnique({
-    where: { id: input.customerId },
-    select: { name: true, petName: true },
-  });
-
-  const bookings = await listRefillBookings({
-    customerId: input.customerId,
-    storeId: input.storeId,
-  });
 
   let selected = null as (typeof bookings)[number] | null;
   if (input.appointmentId) {
@@ -374,23 +391,6 @@ export async function getRefillEligibility(input: {
   } else if (bookings.length === 1) {
     selected = bookings[0];
   }
-
-  // open paid orders for customer (any appointment)
-  const openPaid = await prisma.refillOrder.findMany({
-    where: {
-      customerId: input.customerId,
-      status: { in: [...REFILL_PAID_OPEN_STATUSES, 'payment_pending', 'draft'] },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-    select: {
-      id: true,
-      status: true,
-      totalAmount: true,
-      appointmentId: true,
-      merchantId: true,
-    },
-  });
 
   return {
     registered: true,
