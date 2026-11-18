@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  hqMerchantOrderModesAt,
   merchantCommercialModesAt,
   merchantProductAllowsMode,
 } from '../merchant-commercial-access.ts';
@@ -65,4 +66,19 @@ test('product category and mode must agree even when the flag is enabled', () =>
     wholesaleEnabled: null,
     jarExchangeEnabled: true,
   }, 'jar_exchange'), true);
+});
+
+test('HQ can open a buyout for a store with consignment and refill modules', () => {
+  const at = new Date('2026-11-18T00:00:00Z');
+  const modules = ['consignment', 'jar_exchange'].map((mode) => ({
+    mode,
+    effectiveFrom: at,
+    effectiveUntil: null,
+  }));
+  assert.deepEqual(hqMerchantOrderModesAt(modules, [], at), [
+    'consignment', 'wholesale', 'jar_exchange',
+  ]);
+  assert.deepEqual(hqMerchantOrderModesAt([], ['consignment'], at), [
+    'consignment', 'wholesale',
+  ]);
 });

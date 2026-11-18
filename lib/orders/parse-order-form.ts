@@ -26,7 +26,7 @@ import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
 import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 import {
-  merchantCommercialModesAt,
+  hqMerchantOrderModesAt,
   merchantProductAllowsMode,
 } from '@/lib/orders/merchant-commercial-access';
 import {
@@ -213,7 +213,7 @@ export async function parseOrderFormData(
     });
     if (!merchant || merchant.status !== 'active') throw new Error('店家不存在或已停用');
     const merchantTypes = await getMerchantTypes(prisma, merchant.id, merchant.type);
-    const commercialModes = merchantCommercialModesAt(
+    const commercialModes = hqMerchantOrderModesAt(
       merchant.commercialModules,
       merchantTypes,
     );
