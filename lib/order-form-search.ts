@@ -22,6 +22,7 @@ export type OrderFormProductHit = {
   imageUrl?: string | null;
   sku: string;
   productCategory: string;
+  category: string;
   availableStock: number;
   inventorySourceLabel?: string | null;
   price: number;
@@ -70,6 +71,7 @@ const productSelect = {
   sku: true,
   imageUrl: true,
   productCategory: true,
+  category: true,
   businessTier: true,
   defaultConsignmentCommissionMode: true,
   defaultConsignmentCommissionValue: true,
@@ -131,6 +133,7 @@ function toOrderFormProductHit(
     imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
+    category: row.category,
     availableStock: (row.productCategory === 'JAR_EXCHANGE' ? row.inventorySourceProduct?.inventoryBalances ?? [] : row.inventoryBalances).reduce((sum, balance) => sum + balance.quantity, 0),
     inventorySourceLabel: row.productCategory === 'JAR_EXCHANGE'
       ? row.inventorySourceProduct?.status === 'active' ? `來源：${row.inventorySourceProduct.name}（g）` : '尚未設定有效庫存來源'
