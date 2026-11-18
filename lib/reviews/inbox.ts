@@ -33,6 +33,7 @@ export type ReviewInboxItem = {
     reference?: string;
     adjusted?: boolean;
     paymentLabel?: string;
+    paymentStatus?: string;
     shippingLabel?: string;
     customer?: string;
     amount?: string;
@@ -242,6 +243,7 @@ async function loadPendingOrders(): Promise<ReviewInboxItem[]> {
           : undefined,
       preview: {
         adjusted,
+        paymentStatus: string((effective as Snapshot | null)?.order.financial_status),
         paymentLabel: ({ paid: '已付款', pending: '未付款', authorized: '待請款', partially_paid: '部分付款', refunded: '已退款', partially_refunded: '部分退款', voided: '已作廢' } as Record<string, string>)[string((effective as Snapshot | null)?.order.financial_status)] || '付款待確認',
         reference: order.externalOrderName?.trim() || source?.name.trim() || order.orderNumber,
         shippingLabel: fulfillment?.method === 'convenience' ? `7-11 ${fulfillment.storeName}` : fulfillment?.method === 'home' ? '黑貓宅配' : undefined,

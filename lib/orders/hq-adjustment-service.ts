@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { snapshotHash, type Snapshot } from '../shopify/intake-policy';
-import { adjustmentTotals, parseAdjustment, sourceRows, type AdjustmentLine } from './hq-adjustment';
+import { adjustedSnapshot, adjustmentTotals, parseAdjustment, sourceRows, type AdjustmentLine } from './hq-adjustment';
 
 export async function saveHqAdjustment(db: PrismaClient, input: { actorId: string; orderId: string; sourceHash: string; revision: string; reason: string; lines: AdjustmentLine[]; shippingFee: string }) {
   if (!input.reason.trim() || input.reason.trim().length > 500) throw new Error('請填寫修改原因，最多 500 字');
@@ -39,7 +39,7 @@ export async function saveHqAdjustment(db: PrismaClient, input: { actorId: strin
       }
     }
     const totals = adjustmentTotals(lines, input.shippingFee);
-    const after = { lines, ...totals };
+    const after = { lines, ...totals, ...(previous?.financialStatus ? { financialStatus: previous.financialStatus } : {}) };
     const before = previous ? { lines: previous.lines, shippingFee: previous.shippingFee, subtotal: previous.subtotal, total: previous.total } : {
       lines: sourceRows(source), shippingFee: String((source.order.total_shipping_price_set as { shop_money?: { amount?: string } })?.shop_money?.amount ?? ''), subtotal: source.order.subtotal_price, total: source.order.total_price,
     };
@@ -48,5 +48,46 @@ export async function saveHqAdjustment(db: PrismaClient, input: { actorId: strin
     await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'REVIEW', omsReviewedAt: null, omsReviewedById: null, omsCheckedAt: null, omsCheckedSourceUpdatedAt: null,
       omsIssueFlags: [{ code: 'ORDER_CHANGED', severity: 'blocking', message: 'HQ 已人工調整，請重新儲存並檢查後送審' }] } });
     return 'HQ 訂單已修改並留下操作紀錄，請重新檢查後確認訂單';
+  });
+}
+
+/** HQ-only manual payment confirmation; preserves the source and every existing adjustment. */
+export async function saveReviewPayment(db: PrismaClient, input: { actorId: string; orderId: string; sourceHash: string; payment: 'paid' | 'pending' }) {
+  if (!['paid', 'pending'].includes(input.payment)) throw new Error('請選擇已付清或未付款');
+  return db.$transaction(async tx => {
+    const actor = await tx.user.findUnique({ where: { id: input.actorId }, select: { role: true } });
+    if (!actor || !['admin', 'staff'].includes(actor.role)) throw new Error('需要 HQ 訂單管理權限');
+    const key = await tx.order.findUniqueOrThrow({ where: { id: input.orderId } });
+    if (!key.externalStore || !key.externalOrderId || !key.omsStatus) throw new Error('此訂單不適用 HQ 調整');
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0))`;
+    const order = await tx.order.findUniqueOrThrow({ where: { id: key.id }, include: { shipments: true } });
+    if (order.deletedAt || order.archivedAt || order.status === 'cancelled' || !['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') || order.shipments.some(s => s.status !== 'cancelled')) throw new Error('只能修改尚未建立出貨單的待審核訂單');
+    const source = order.shopifySnapshot as Snapshot;
+    const latest = await tx.statusAuditLog.findFirst({ where: { entityType: 'hq_order_adjustment', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    const effective = adjustedSnapshot(source, latest);
+    if (snapshotHash(effective) !== input.sourceHash) throw new Error('訂單已更新，請重新整理後確認付款');
+    const previous = parseAdjustment(latest?.metadataJson);
+    const before = previous ?? { lines: sourceRows(source),
+      shippingFee: String((source.order.total_shipping_price_set as { shop_money?: { amount?: string } })?.shop_money?.amount ?? '0'),
+      subtotal: String(source.order.subtotal_price ?? ''), total: String(source.order.total_price ?? '') };
+    const after = { ...before, totalDiscounts: previous?.totalDiscounts ?? (previous ? '0.00' : String(source.order.total_discounts ?? '0.00')), financialStatus: input.payment };
+    const paymentAudit = await tx.statusAuditLog.create({ data: { entityType: 'hq_order_adjustment', entityId: order.id, actorType: 'user', actorId: input.actorId,
+      previousStatus: order.omsStatus, newStatus: 'REVIEW', metadataJson: JSON.stringify({ version: 1, action: 'payment_confirmation', sourceHash: snapshotHash(source),
+        reason: input.payment === 'paid' ? 'HQ 人工確認已付清' : 'HQ 人工確認未付款', before: { ...before, financialStatus: effective.order.financial_status }, after }) } });
+    // Preserve same-version HQ delivery corrections; payment changes still invalidate approval/checks.
+    const review = await tx.statusAuditLog.findFirst({ where: { entityType: 'oms_review', entityId: order.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+    let saved: Record<string, unknown> = {};
+    try { saved = JSON.parse(review?.metadataJson ?? '{}'); } catch { /* No valid saved delivery override. */ }
+    let reviewRevision = review?.id ?? '';
+    if (saved.sourceHash === input.sourceHash && saved.draft) {
+      const rebasedReview = await tx.statusAuditLog.create({ data: { entityType: 'oms_review', entityId: order.id, actorType: 'user', actorId: input.actorId,
+        previousStatus: order.omsStatus, newStatus: 'REVIEW', metadataJson: JSON.stringify({ ...saved,
+          sourceHash: snapshotHash(adjustedSnapshot(source, paymentAudit)), action: 'payment_confirmation_requires_recheck' }) } });
+      reviewRevision = rebasedReview.id;
+    }
+    await tx.order.update({ where: { id: order.id }, data: { paymentStatus: input.payment === 'paid' ? 'paid' : 'unpaid', status: 'pending_review',
+      omsStatus: 'REVIEW', omsReviewedAt: null, omsReviewedById: null, omsCheckedAt: null, omsCheckedSourceUpdatedAt: null,
+      omsIssueFlags: [{ code: 'ORDER_CHANGED', severity: 'blocking', message: 'HQ 付款狀態已調整，請重新通過審核' }] } });
+    return { sourceHash: snapshotHash(adjustedSnapshot(source, paymentAudit)), reviewRevision, payment: input.payment };
   });
 }

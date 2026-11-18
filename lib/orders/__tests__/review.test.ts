@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { adjustedSnapshot } from '../hq-adjustment';
 import { describe, it, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import { record, shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
@@ -179,7 +180,7 @@ function fakeDb(source = snapshot) {
   const run = (action: 'check' | 'approve' | 'ship' | 'reject', overrides = {}) => runReview(db, {
     orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(source), action, draft, ...overrides,
   });
-  return { run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
+  return { db, run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
     get audits() { return audits; },
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
@@ -706,4 +707,21 @@ test('one-click approval rejects a delivery edit made after the inbox was loaded
   await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true, reviewRevision: '' }), /審核資料已修改/);
   assert.equal(f.order.omsStatus, 'REVIEW');
   assert.equal(f.shipmentCreates, 0);
+});
+
+test('待審核人工確認已付清後可直接通過，未付款仍阻擋且無自動出貨', async () => {
+  const { saveReviewPayment } = await import('../hq-adjustment-service');
+  const source = shopifySnapshot({ ...raw, financial_status: 'pending', shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
+  const f = fakeDb(source);
+  await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true }), /付款/);
+  await f.run('check', { sourceOnly: true, draft: { ...draft, address: 'HQ 更正地址' } });
+  const paymentResult = await saveReviewPayment(f.db, { actorId: 'u1', orderId: 'o1', sourceHash: snapshotHash(source), payment: 'paid' });
+  const effective = adjustedSnapshot(source, f.audits.filter(a => a.entityType === 'hq_order_adjustment').at(-1)!);
+  assert.equal(paymentResult.sourceHash, snapshotHash(effective));
+  assert.equal(paymentResult.reviewRevision, f.audits.filter(a => a.entityType === 'oms_review').at(-1)!.id);
+  const result = await f.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: paymentResult.sourceHash, reviewRevision: paymentResult.reviewRevision });
+  assert.equal(result.ok, true); assert.equal(f.order.omsStatus, 'READY'); assert.equal(f.shipmentCreates, 0);
+  assert.equal(f.order.paymentStatus, 'paid'); assert.deepEqual(f.order.shopifySnapshot, source);
+  const review = f.audits.filter(a => a.entityType === 'oms_review').at(-1)!;
+  assert.equal(JSON.parse(review.metadataJson).draft.address, 'HQ 更正地址');
 });
