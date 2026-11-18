@@ -86,6 +86,7 @@ import { writeOrderFormLines } from '@/lib/orders/order-form-lines';
 import { resolveGiftWeightCost } from '@/lib/order-item-cost';
 import styles from './order-workbench.module.css';
 import { findLastMerchantOrder } from './workbench-actions';
+import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 
 export type ProductTierOption = {
   id: string;
@@ -103,6 +104,7 @@ export type ProductOption = {
   imageUrl?: string | null;
   sku: string;
   productCategory: string;
+  category: string;
   availableStock: number;
   price: number;
   cost: number;
@@ -1105,12 +1107,18 @@ export function OrderForm({
   ): { unitPrice: number; unitCost: number; weightGrams: number | null; unit: string | null; tierId: string } {
     const useCatalogPrice =
       orderType === 'customer' || merchantOrderMode === 'consignment';
-    const wholesalePrice = (tierId: string) =>
+    const wholesalePrice = (tierId: string, retailUnitPrice: number) =>
       merchantOrderMode === 'wholesale'
         ? findMerchantWholesalePrice(p.wholesalePrices, merchantId, p.id, tierId) ??
           (tierId
             ? p.priceTiers.find((tier) => tier.id === tierId)?.defaultWholesaleUnitPrice ?? null
-            : p.defaultWholesaleUnitPrice)
+            : p.defaultWholesaleUnitPrice) ??
+          quoteDefaultBuyoutTier({
+            name: p.name,
+            category: p.category,
+            retailUnitPrice,
+            quantity: 1,
+          }).wholesaleUnitPrice
         : 0;
     if (p.priceTiers.length > 0) {
       const resolvedTierId = resolveOrderLineTierId(p.priceTiers, tierId);
@@ -1119,7 +1127,7 @@ export function OrderForm({
         tierId: t.id,
         unitPrice: useCatalogPrice
           ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? t.price : t.price)
-          : wholesalePrice(t.id) ?? 0,
+          : wholesalePrice(t.id, t.price) ?? 0,
         unitCost: resolveOrderItemUnitCost(p, t.id),
         weightGrams: t.weightGrams,
         unit: t.unit,
@@ -1129,7 +1137,7 @@ export function OrderForm({
       tierId: '',
       unitPrice: useCatalogPrice
         ? (orderType === 'merchant' ? p.merchantSuggestedPrice ?? p.price : p.price)
-        : wholesalePrice('') ?? 0,
+        : wholesalePrice('', p.price) ?? 0,
       unitCost: resolveOrderItemUnitCost(p),
       weightGrams: null,
       unit: p.unit,

@@ -300,6 +300,7 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
+      category: true,
       consignmentEnabled: true,
       wholesaleEnabled: true,
       jarExchangeEnabled: true,
@@ -399,7 +400,8 @@ export async function parseOrderFormData(
       const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
       const automaticQuote = configuredPrice == null
         ? quoteDefaultBuyoutTier({
-            sku: prod.sku,
+            name: prod.name,
+            category: prod.category,
             retailUnitPrice: selectedTier?.price ?? prod.price,
             quantity: quantityByProductId.get(prod.id) ?? it.quantity,
           })
@@ -481,7 +483,8 @@ export async function parseOrderFormData(
           automaticWholesaleUnitPrice:
             merchantOrderMode === 'wholesale' && configuredWholesalePrice == null
               ? quoteDefaultBuyoutTier({
-                  sku: prod.sku,
+                  name: prod.name,
+            category: prod.category,
                   retailUnitPrice: selectedTier?.price ?? prod.price,
                   quantity: quantityByProductId.get(prod.id) ?? it.quantity,
                 })?.wholesaleUnitPrice ?? null
