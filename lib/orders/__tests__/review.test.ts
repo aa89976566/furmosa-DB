@@ -635,13 +635,16 @@ test('HQ adjustment controls reviewed shipment quantities without changing Shopi
 
 describe('inbox one-click review decisions', () => {
   const complete = shopifySnapshot({ ...raw, shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
-  it('checks and approves in one transaction without making a shipment', async () => {
+  it('creates exactly one pending shipment for duplicate approval requests', async () => {
     const f = fakeDb(complete);
     const result = await f.run('approve', { sourceOnly: true, quickApprove: true });
     assert.equal(result.ok, true);
-    assert.equal(f.order.omsStatus, 'READY');
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.order.status, 'confirmed');
-    assert.equal(f.shipmentCreates, 0);
+    const repeated = await f.run('approve', { sourceOnly: true, quickApprove: true });
+    assert.equal(repeated.next?.href, result.next?.href);
+    assert.equal(f.shipmentCreates, 1);
+    assert.equal(f.order.shipments[0].status, 'pending');
     assert.ok(f.audits.some(a => a.entityType === 'oms_review'));
     assert.ok(f.audits.some(a => a.metadataJson.includes('quick_approve')));
   });
@@ -657,7 +660,7 @@ describe('inbox one-click review decisions', () => {
   });
   it('records rejection and invalidates readiness without deleting the order', async () => {
     const f = fakeDb(complete);
-    await f.run('approve', { sourceOnly: true, quickApprove: true });
+    await f.run('check', { sourceOnly: true });
     const result = await f.run('reject', { reason: '缺貨' });
     assert.equal(result.ok, true);
     assert.equal(f.order.omsStatus, 'REVIEW');
@@ -669,8 +672,8 @@ describe('inbox one-click review decisions', () => {
     assert.equal(f.audits.at(-1).entityType, 'oms_review_decision');
     await assert.rejects(f.run('reject', { reason: '' }), /原因/);
     await f.run('approve', { sourceOnly: true, quickApprove: true });
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
   });
   it('cannot reject orders already in fulfillment or archived', async () => {
     const f = fakeDb(complete);
@@ -689,10 +692,11 @@ test('quick review preserves saved HQ delivery and rejects legacy OMS-null order
   const f = fakeDb();
   await f.run('check', { sourceOnly: true, draft });
   await f.run('approve', { sourceOnly: true, quickApprove: true });
-  assert.equal(f.order.omsStatus, 'READY');
+  assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
   const saved = JSON.parse(f.audits.findLast(a => a.entityType === 'oms_review').metadataJson);
   assert.equal(saved.draft.address, draft.address);
-  assert.equal(f.shipmentCreates, 0);
+  assert.equal(f.shipmentCreates, 1);
+  assert.equal(f.order.shipments[0].recipientAddress, draft.address);
   const legacy = fakeDb();
   legacy.order.omsStatus = null;
   await assert.rejects(legacy.run('approve', { sourceOnly: true, quickApprove: true }), /不適用 Shopify OMS/);
@@ -709,7 +713,7 @@ test('one-click approval rejects a delivery edit made after the inbox was loaded
   assert.equal(f.shipmentCreates, 0);
 });
 
-test('待審核人工確認已付清後可直接通過，未付款仍阻擋且無自動出貨', async () => {
+test('待審核人工確認已付清後可直接通過，未付款仍阻擋且只建立待出貨單', async () => {
   const { saveReviewPayment } = await import('../hq-adjustment-service');
   const source = shopifySnapshot({ ...raw, financial_status: 'pending', shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
   const f = fakeDb(source);
@@ -720,7 +724,7 @@ test('待審核人工確認已付清後可直接通過，未付款仍阻擋且�
   assert.equal(paymentResult.sourceHash, snapshotHash(effective));
   assert.equal(paymentResult.reviewRevision, f.audits.filter(a => a.entityType === 'oms_review').at(-1)!.id);
   const result = await f.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: paymentResult.sourceHash, reviewRevision: paymentResult.reviewRevision });
-  assert.equal(result.ok, true); assert.equal(f.order.omsStatus, 'READY'); assert.equal(f.shipmentCreates, 0);
+  assert.equal(result.ok, true); assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING'); assert.equal(f.shipmentCreates, 1);
   assert.equal(f.order.paymentStatus, 'paid'); assert.deepEqual(f.order.shopifySnapshot, source);
   const review = f.audits.filter(a => a.entityType === 'oms_review').at(-1)!;
   assert.equal(JSON.parse(review.metadataJson).draft.address, 'HQ 更正地址');

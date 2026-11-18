@@ -25,7 +25,7 @@ export async function reviewInboxDecision(input: { orderId: string; sourceHash: 
     const result = await runReview(prisma, { ...input, reviewRevision: String(input.reviewRevision ?? ''), actorId: actor.id, sourceOnly: true, quickApprove: input.action === 'approve' });
     // Cache failures after commit must not turn a successful decision into an apparent failure.
     try {
-      for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path);
+      for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard', '/shipments']) revalidatePath(path);
       void bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals).catch(() => {});
     } catch { /* Committed decision is authoritative. */ }
     return result;
