@@ -300,6 +300,7 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
+      category: true,
       consignmentEnabled: true,
       wholesaleEnabled: true,
       jarExchangeEnabled: true,
