@@ -367,7 +367,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       return approveSuccess(awaitingPayment);
     }
     return emptyReviewResult({
-      ok: true, action: 'ship', message: '已通過並建立待出貨單',
+      ok: true, action: 'ship', message: '已進待出貨',
       omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
       next: shipment ? { label: '查看待出貨單', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });

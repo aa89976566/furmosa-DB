@@ -27,6 +27,18 @@ function Actions({ status, summary, alertText, canCreateShipment, pendingShipmen
   </div>;
 }
 
+function ConfirmPaymentButton({ locked }: { locked: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" name="action" value="confirm-payment" formNoValidate disabled={pending || locked}
+      className="min-h-11" onClick={event => {
+        if (!window.confirm('確認已收到這張訂單的全部款項？')) event.preventDefault();
+      }}>
+      確認已收款
+    </Button>
+  );
+}
+
 function SourceOrderSummary({ source }: { source: SourceSummary }) {
   const tone = source.paymentTone === 'ready' ? 'border-success/40 bg-success/5' : source.paymentTone === 'danger' ? 'border-destructive/40 bg-destructive/5' : 'border-warning/40 bg-warning/5';
   const total = [source.currency, source.total].filter(Boolean).join(' ');
@@ -93,6 +105,7 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const [deliveryOpen, setDeliveryOpen] = useState(!draft.recipient || !draft.phone || !draft.address || !draft.method);
   const readyForShipment = effectiveStatus === 'READY';
   const canCreateShipment = sourceSummary.paymentTone === 'ready';
+  const canConfirmPayment = sourceSummary.paymentTone === 'hold' && !pendingShipmentReview && ['NEW', 'REVIEW', 'READY'].includes(effectiveStatus);
 
   useEffect(() => {
     // A check commits the fulfillment draft even when other checks still block approval.
@@ -158,5 +171,5 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
         {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" value={storeId} onChange={event => setStoreId(event.target.value)} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} onChange={() => setStoreId('')} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
       </div>
     </details>}
-    {!readyForShipment ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">處理規則</summary><p className="mt-1 text-muted-foreground">人工調整僅影響 HQ 訂單與出貨內容；Shopify 原單保留。修改後請重新儲存並檢查，再確認訂單。</p></details> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{isError ? <a className="inline-flex font-medium underline underline-offset-4" href={`/orders/${encodeURIComponent(orderId)}`}>重新載入訂單並核對狀態</a> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} pendingShipmentReview={pendingShipmentReview} locked={Boolean(state.uncertain)} /></form>;
+    {!readyForShipment ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">處理規則</summary><p className="mt-1 text-muted-foreground">人工調整僅影響 HQ 訂單與出貨內容；Shopify 原單保留。修改後請重新儲存並檢查，再確認訂單。</p></details> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{isError ? <a className="inline-flex font-medium underline underline-offset-4" href={`/orders/${encodeURIComponent(orderId)}`}>重新載入訂單並核對狀態</a> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}{canConfirmPayment ? <ConfirmPaymentButton locked={Boolean(state.uncertain)} /> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} pendingShipmentReview={pendingShipmentReview} locked={Boolean(state.uncertain)} /></form>;
 }

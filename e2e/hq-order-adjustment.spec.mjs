@@ -170,8 +170,10 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
 });
 
 
-for (const manualPayment of [false, true]) {
-test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pending shipment`, async ({ page }, testInfo) => {
+for (const entry of ['paid-inbox', 'manual-inbox', 'manual-detail']) {
+const manualPayment = entry !== 'paid-inbox';
+const detailPayment = entry === 'manual-detail';
+test(`${entry} approval adds one pending shipment`, async ({ page }, testInfo) => {
   const suffix = `quick-${testInfo.project.name}-${randomUUID()}`;
   const password = randomUUID();
   const email = `${suffix}@example.invalid`;
@@ -187,11 +189,15 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pendi
   await page.getByRole('button', { name: '登入', exact: true }).click();
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
   await page.getByRole('complementary', { name: '待審核清單', exact: true }).getByRole('button').filter({ hasText: suffix }).click();
+  if (detailPayment) {
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByRole('button', { name: '確認已收款', exact: true })).toBeVisible();
+  }
   if (manualPayment) {
-    await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeDisabled();
+    if (!detailPayment) await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeDisabled();
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '確認已收款', exact: true }).click();
-    await expect(page.getByRole('button', { name: '已付清', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    if (!detailPayment) await expect(page.getByRole('button', { name: '已付清', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeEnabled();
     const updated = await db.order.findUniqueOrThrow({ where: { id: order.id } });
     expect(updated.paymentStatus).toBe('paid');
@@ -205,7 +211,7 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pendi
   const shipments = await db.shipment.findMany({ where: { orderId: order.id } });
   expect(shipments).toHaveLength(1);
   expect(shipments[0].status).toBe('pending');
-  await page.reload();
+  await page.goto('/reviews');
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
   await expect(page.getByText('沒有符合條件的待審核項目。', { exact: true })).toBeVisible();
   expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('confirmed');
