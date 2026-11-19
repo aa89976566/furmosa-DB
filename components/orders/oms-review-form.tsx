@@ -63,7 +63,10 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
 async function submitReview(previous: ReviewResult, form: FormData): Promise<ReviewResult> {
   try {
     if (previous.uncertain) return previous;
-    return await requestOmsReview(form);
+    const result = await requestOmsReview(form);
+    return previous.confirmedPaymentSourceHash && !result.confirmedPaymentSourceHash
+      ? { ...result, confirmedPaymentSourceHash: previous.confirmedPaymentSourceHash }
+      : result;
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     const stalePage = /Failed to find Server Action|Server Action[^\n]*was not found on the server/i.test(message);
@@ -104,8 +107,8 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const [storeId, setStoreId] = useState(draft.storeId);
   const [deliveryOpen, setDeliveryOpen] = useState(!draft.recipient || !draft.phone || !draft.address || !draft.method);
   const readyForShipment = effectiveStatus === 'READY';
-  const canCreateShipment = sourceSummary.paymentTone === 'ready';
-  const canConfirmPayment = sourceSummary.paymentTone === 'hold' && !pendingShipmentReview && ['NEW', 'REVIEW', 'READY'].includes(effectiveStatus);
+  const canCreateShipment = sourceSummary.paymentTone === 'ready' || Boolean(state.confirmedPaymentSourceHash);
+  const canConfirmPayment = !canCreateShipment && sourceSummary.paymentTone === 'hold' && !pendingShipmentReview && ['NEW', 'REVIEW', 'READY'].includes(effectiveStatus);
 
   useEffect(() => {
     // A check commits the fulfillment draft even when other checks still block approval.
@@ -130,12 +133,13 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   // React 19 resets native controls after a completed form action, including blocked
   // checks. Keep this review draft until the source changes (the panel's key remounts
   // it); otherwise method resets to empty while the 7-11 fields remain visible.
-  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}{!readyForShipment && attention.length > 0 ? <section aria-label="待處理提示" className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={state.confirmedPaymentSourceHash ?? sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}{!readyForShipment && attention.length > 0 ? <section aria-label="待處理提示" className="rounded-xl border border-warning/40 bg-warning/5 p-4">
       <h3 className="font-semibold">還有 {attention.length} 項待處理</h3>
       <p className="mt-1 text-sm text-muted-foreground">點選問題前往處理，完成後按「儲存並檢查」。</p>
       <ul className="mt-3 divide-y divide-warning/20">{attention.map(issue => <li key={`${issue.code}-${issue.message}`}><button type="button" onClick={() => locateIssue(issue)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left text-sm transition-colors hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span>{issue.message}</span><span className="shrink-0 font-semibold underline underline-offset-4">前往處理</span></button></li>)}</ul>
       <p className="mt-2 text-sm text-muted-foreground">依最近一次檢查結果顯示，儲存後重新確認。</p>
-    </section> : null}<SourceOrderSummary source={sourceSummary} />
+    </section> : null}<SourceOrderSummary source={state.confirmedPaymentSourceHash
+      ? { ...sourceSummary, paymentLabel: '已付款', paymentTone: 'ready' } : sourceSummary} />
     {readyForShipment ? <>
       <input type="hidden" name="method" value={draft.method} />
       <input type="hidden" name="temperature" value={draft.temperature} />

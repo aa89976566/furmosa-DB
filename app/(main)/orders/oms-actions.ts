@@ -58,5 +58,12 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
 
   // Return the committed state immediately. The client refreshes and scrolls after showing
   // a visible success state, avoiding long server-side redirect waits on slow cache invalidation.
+  if (paymentSaved) {
+    return {
+      ...result,
+      confirmedPaymentSourceHash: sourceHash,
+      message: result.ok ? '已確認收款，可以移至待出貨。' : `已確認收款。${result.message}`,
+    };
+  }
   return result;
 }

@@ -20,6 +20,7 @@ export type ReviewResult = {
   kind: ReviewResultKind;
   next: { label: string; href: string } | null;
   uncertain?: boolean;
+  confirmedPaymentSourceHash?: string;
 };
 
 export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
