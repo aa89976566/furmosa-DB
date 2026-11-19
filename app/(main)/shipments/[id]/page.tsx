@@ -36,7 +36,7 @@ import { cn } from '@/lib/utils';
 import { ShipmentStatusActions } from '@/components/shipments/shipment-status-actions';
 import { parsePlanContents } from '@/lib/plan-contents';
 import { resolveShipActionCarrierDefaults } from '@/lib/merchant-shipping-defaults';
-import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
+import { shipmentInventoryAdvisories, shipmentRecipeStock } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 import { displayOrderNumber } from '@/lib/orders/display-order-number';
 import {
@@ -74,7 +74,7 @@ export default async function ShipmentDetailPage(
           product: {
             include: {
               inventorySourceProduct: { include: { inventoryBalances: { where: { warehouse: { code: 'WH-MAIN' } } } } },
-              priceTiers: true,
+              priceTiers: { include: shipmentRecipeStock.select },
               inventoryBalances: {
                 where: { warehouse: { code: 'WH-MAIN' } },
                 take: 1,

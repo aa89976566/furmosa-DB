@@ -1,8 +1,8 @@
-import { bulkConsumption, type BulkTier } from './bulk';
+import { bulkConsumption, refillRecipeTier, validRefillRecipeQuantity, type BulkTier } from './bulk';
 import { isMadeToOrderHqProduct } from './shipment-advisory';
 
 export type DemandLine = { quantity: number; weightGrams: number | null; variantKey: string | null;
-  product: { id: string; sku: string; unit: string; category: string; inventorySourceProductId: string | null;
+  product: { id: string; sku: string; unit: string; category: string; productCategory?: string; inventorySourceProductId: string | null;
     priceTiers: (BulkTier & { bundleComponents: { componentProductId: string; gramsPerPack: number }[] })[] } };
 export type DemandGroup = { id: string; references: string[]; items: DemandLine[] };
 export type DemandPosting = { reference: string | null; productId: string; quantity: number; reversal: { quantity: number } | null };
@@ -21,13 +21,25 @@ export function outstandingDemand(groups: DemandGroup[], postings: DemandPosting
       const p = line.product;
       if (!['staple_food', 'treats', 'freeze_dried', 'health'].includes(p.category) || isMadeToOrderHqProduct(p.sku)) continue;
       try {
-        const amount = bulkConsumption(p, line);
-        const tiers = p.priceTiers.filter(t => line.variantKey ? t.id === line.variantKey : t.weightGrams === line.weightGrams);
+        const isJar = p.productCategory === 'JAR_EXCHANGE';
+        const tier = isJar ? refillRecipeTier(p.priceTiers, line) : null;
+        const tiers = isJar ? (tier ? [tier] : []) : p.priceTiers.filter(t => line.variantKey
+          ? t.id === line.variantKey : t.weightGrams === line.weightGrams);
         if (tiers.length !== 1) throw new Error('AMBIGUOUS_TIER');
         const components = tiers[0].bundleComponents;
-        if (components.length && components.reduce((sum, c) => sum + c.gramsPerPack, 0) !== tiers[0].weightGrams) throw new Error('INVALID_RECIPE');
-        const requirements = components.length ? components.map(c => ({ id: c.componentProductId, amount: c.gramsPerPack * line.quantity })) :
-          [{ id: p.inventorySourceProductId ?? p.id, amount }];
+        if (isJar && Boolean(components.length) === Boolean(p.inventorySourceProductId)) throw new Error('INVALID_JAR_SOURCE');
+        let requirements;
+        if (components.length) {
+          const grams = components.reduce((sum, c) => sum + c.gramsPerPack, 0);
+          if (isJar ? !validRefillRecipeQuantity(tiers[0], line, grams) : grams !== tiers[0].weightGrams) {
+            throw new Error('INVALID_RECIPE');
+          }
+          if (!isJar) bulkConsumption(p, line);
+          requirements = components.map(c => ({ id: c.componentProductId, amount: c.gramsPerPack * line.quantity }));
+        } else {
+          const amount = bulkConsumption(isJar ? { ...p, unit: 'g' } : p, line);
+          requirements = [{ id: p.inventorySourceProductId ?? p.id, amount }];
+        }
         for (const r of requirements) {
           if (!Number.isSafeInteger(r.amount) || r.amount <= 0) throw new Error('INVALID_DEMAND');
           const total = (demand.get(r.id) ?? 0) + r.amount;

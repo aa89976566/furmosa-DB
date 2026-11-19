@@ -41,7 +41,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
         inventorySourceProduct: { include: { inventoryBalances: { include: { warehouse: true } } } },
         priceTiers: {
           orderBy: [{ weightGrams: 'asc' }, { unitQty: 'asc' }],
-          include: { inventorySourceTier: { include: { variantBalances: { include: { warehouse: true } }, variantTransactions: { orderBy: { createdAt: 'desc' }, take: 12 }, product: { select: { name: true } } } }, variantBalances: { include: { warehouse: true } }, variantTransactions: { orderBy: { createdAt: 'desc' }, take: 12 } },
+          include: {
+            bundleComponents: { orderBy: { gramsPerPack: 'asc' }, include: { componentProduct: { select: { id: true, name: true } } } },
+            inventorySourceTier: { include: { variantBalances: { include: { warehouse: true } }, variantTransactions: { orderBy: { createdAt: 'desc' }, take: 12 }, product: { select: { name: true } } } }, variantBalances: { include: { warehouse: true } }, variantTransactions: { orderBy: { createdAt: 'desc' }, take: 12 } },
         },
         inventoryBalances: { include: { warehouse: true } },
         inventoryTransactions: {
@@ -127,6 +129,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
   }
 
   const totalOnHand = (product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct?.inventoryBalances.filter(b => b.warehouse.code === 'WH-MAIN') ?? [] : product.inventoryBalances).reduce((sum, b) => sum + b.quantity, 0);
+  const recipeTiers = product.productCategory === 'JAR_EXCHANGE'
+    ? product.priceTiers.filter(tier => tier.bundleComponents.length > 0)
+    : [];
   const variationSummary = summarizeVariations(variations);
   // A unit becomes part of the inventory ledger once the product has a tier,
   // balance, or transaction. Only a brand-new standard product may correct it.
@@ -171,7 +176,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
           <SummaryChip label="規格" value={`${formatNumber(variationSummary.count)} 個`} />
           <SummaryChip label="售價" value={product.productCategory === 'JAR_EXCHANGE' ? refillPriceLabel() : variationSummary.priceRange} />
           {product.productCategory === 'JAR_EXCHANGE'
-            ? <SummaryChip label="來源庫存" value={product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
+            ? <SummaryChip label="來源庫存" value={recipeTiers.length ? '依配方扣原料' : product.inventorySourceProduct ? `${formatNumber(totalOnHand)}g` : '尚未設定'} />
             : <SummaryChip label="庫存" value={variantInventory.length ? "依香氣分別記帳" : formatNumber(totalOnHand)} />}
         </div>
 
@@ -222,6 +227,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
               notes: product.notes,
               defaultTemperature: product.defaultTemperature,
               inventorySourceProductId: product.inventorySourceProductId,
+              usesInventoryRecipe: recipeTiers.length > 0,
               productCategory: product.productCategory,
               businessTier: product.businessTier,
               defaultConsignmentCommissionMode: product.defaultConsignmentCommissionMode,
@@ -286,10 +292,22 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
 
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {product.productCategory === 'JAR_EXCHANGE' ? '來源單品庫存' : '各倉庫庫存'}
+              {recipeTiers.length ? '出貨扣庫存配方' : product.productCategory === 'JAR_EXCHANGE' ? '來源單品庫存' : '各倉庫庫存'}
             </p>
-            {product.productCategory === 'JAR_EXCHANGE' ? <p className="text-sm">{product.inventorySourceProduct ? <Link className="underline" href={`/products/${product.inventorySourceProduct.id}`}>{product.inventorySourceProduct.name} · {product.inventorySourceProduct.sku}</Link> : '尚未設定庫存來源，無法出貨'}；換罐本身不另計庫存。</p> : null}
-            <Table>
+            {recipeTiers.length > 0 ? (
+              <ul className="space-y-2 text-sm">
+                {recipeTiers.map(tier => (
+                  <li key={tier.id}>
+                    每罐扣除 {tier.bundleComponents.map(({ componentProduct, gramsPerPack }) => (
+                      <Link key={componentProduct.id} className="mr-2 underline" href={`/products/${componentProduct.id}`}>
+                        {componentProduct.name} {gramsPerPack}g
+                      </Link>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            ) : product.productCategory === 'JAR_EXCHANGE' ? <p className="text-sm">{product.inventorySourceProduct ? <Link className="underline" href={`/products/${product.inventorySourceProduct.id}`}>{product.inventorySourceProduct.name} · {product.inventorySourceProduct.sku}</Link> : '尚未設定庫存來源，無法出貨'}；換罐本身不另計庫存。</p> : null}
+            {recipeTiers.length === 0 ? <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>倉庫</TableHead>
@@ -308,7 +326,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table> : null}
           </div>
           </div>
         </details>
