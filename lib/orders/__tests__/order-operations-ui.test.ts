@@ -84,7 +84,7 @@ test('新增訂單逐題展開，已回答區塊保留且不需要下一題按�
   assert.match(orderFormSource, /revealThrough\(8\)/);
   assert.match(orderFormSource, /這張訂單從哪裡來/);
   assert.match(orderFormSource, /這張訂單是哪一家店的/);
-  assert.match(orderFormSource, /title="商品"/);
+  assert.match(orderFormSource, /<OrderProductPicker[\s\S]*?<OrderLineItemsTable\s+title="訂單明細"/);
   assert.match(orderFormSource, /合作條件/);
   assert.match(orderFormSource, /已恢復草稿/);
   assert.match(orderFormSource, /prod && prod\.priceTiers\.length === 1/);

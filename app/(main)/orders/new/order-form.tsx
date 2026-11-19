@@ -22,7 +22,6 @@ import {
   Coins,
   CreditCard,
   HandCoins,
-  Plus,
   Save,
   Store,
   Trash2,
@@ -231,8 +230,6 @@ function OrderLineItemsTable({
   merchantId,
   showCommercialTerms,
   updateItem,
-  onOpenProductPicker,
-  productPickerDisabled,
   removeItem,
 }: {
   title: string;
@@ -250,8 +247,6 @@ function OrderLineItemsTable({
   merchantId: string;
   showCommercialTerms: boolean;
   updateItem: (key: string, patch: Partial<LineItem>) => void;
-  onOpenProductPicker: () => void;
-  productPickerDisabled?: boolean;
   removeItem: (key: string) => void;
 }) {
   const hasAnyLine = items.some((it) => it.productId && it.quantity > 0);
@@ -264,17 +259,6 @@ function OrderLineItemsTable({
             <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>
           ) : null}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={onOpenProductPicker}
-          disabled={productPickerDisabled}
-          className="self-end"
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          加入商品
-        </Button>
       </div>
 
       <Table className="block w-full min-w-0 table-fixed md:table md:min-w-[760px]">
@@ -813,7 +797,6 @@ export function OrderForm({
   const [customers, setCustomers] = useState<CustomerOption[]>(initialCustomers);
   const [productCatalog, setProductCatalog] = useState<ProductOption[]>(products);
   const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     phone: '',
@@ -1260,6 +1243,19 @@ export function OrderForm({
         if (merged.merged) return merged.items;
       }
 
+      const matchingLine = current.find((item) =>
+        !item.isGift &&
+        !item.commercialOverrideEnabled &&
+        item.productId === incoming.productId &&
+        item.tierId === incoming.tierId &&
+        item.unitPrice === incoming.unitPrice,
+      );
+      if (matchingLine) {
+        return current.map((item) => item.key === matchingLine.key
+          ? { ...item, quantity: item.quantity + 1 }
+          : item);
+      }
+
       const emptyLine = current.find((item) => !item.productId);
       if (emptyLine) {
         return current.map((item) =>
@@ -1269,7 +1265,6 @@ export function OrderForm({
       return [...current, incoming];
     });
     revealThrough(5);
-    setProductPickerOpen(false);
     setSubmitNotice(`已加入 ${product.name}`);
   }
   function removeItem(key: string) {
@@ -1720,8 +1715,27 @@ export function OrderForm({
         {lastOrder && hasValidLines ? <p className="basis-full text-xs text-muted-foreground">本次已選商品；如需複製，請從訂單列表開啟上次訂單。</p> : null}
       </div> : null}
       {/* Step 3: 商品明細 */}
-      {revealedStep >= 4 ? <OrderLineItemsTable
-        title="商品"
+      {revealedStep >= 4 ? <>
+      <OrderProductPicker
+        key={JSON.stringify([orderType, merchantId, merchantOrderMode])}
+        products={visibleProducts.map((product) => productMap.get(product.id) ?? product)}
+        onSearch={handleSearchProducts}
+        onPick={addProductFromPicker}
+        getUnitPrice={(product, tierId) => {
+          try {
+            return linePricing(product as ProductOption, tierId).unitPrice;
+          } catch {
+            return null;
+          }
+        }}
+        disabled={
+          orderType === 'merchant' &&
+          merchantOrderMode === 'wholesale' &&
+          !merchantId
+        }
+      />
+      <OrderLineItemsTable
+        title="訂單明細"
         hint={
           orderType === 'customer'
             ? '選商品與數量'
@@ -1746,27 +1760,11 @@ export function OrderForm({
         merchantId={merchantId}
         showCommercialTerms={!isEdit}
         updateItem={updateItem}
-        onOpenProductPicker={() => setProductPickerOpen(true)}
-        productPickerDisabled={
-          orderType === 'merchant' &&
-          merchantOrderMode === 'wholesale' &&
-          !merchantId
-        }
         removeItem={removeItem}
-      /> : null}
-
-      <OrderProductPicker
-        open={productPickerOpen}
-        onOpenChange={setProductPickerOpen}
-        products={visibleProducts.map((product) => productMap.get(product.id) ?? product)}
-        onSearch={handleSearchProducts}
-        onPick={addProductFromPicker}
-        disabled={
-          orderType === 'merchant' &&
-          merchantOrderMode === 'wholesale' &&
-          !merchantId
-        }
       />
+      </> : null}
+
+
 
       </div>
       </div>
