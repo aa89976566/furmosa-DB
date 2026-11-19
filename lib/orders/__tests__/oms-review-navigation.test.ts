@@ -29,12 +29,13 @@ test('successful ship retains feedback with an explicit shipments link', () => {
   const form = fs.readFileSync('components/orders/oms-review-form.tsx', 'utf8');
   assert.doesNotMatch(form, /router\.push\(/);
   assert.match(form, /href=\{state\.next\.href\}/);
-  assert.match(form, /確認並建立 HQ 出貨單/);
+  assert.match(form, /通過並移至待出貨/);
   assert.match(form, /正在確認並建立出貨單/);
   assert.match(form, /建立 HQ 出貨單/);
   assert.match(form, /等待付款/);
   const service = fs.readFileSync('lib/orders/review-service.ts', 'utf8');
   assert.match(service, /const createsShipment = command\.action === 'ship' \|\|/);
-  assert.match(service, /command\.action === 'approve' && command\.sourceOnly && !awaitingPayment/);
+  assert.match(service, /command\.action === 'approve' && command\.sourceOnly/);
+  assert.match(service, /createsShipment \? 'ship' : 'review'/);
   assert.match(service, /href: `\/shipments\?s=\$\{encodeURIComponent\(shipment\.id\)\}`/);
 });

@@ -67,8 +67,8 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
     await expect(page.getByRole('textbox', { name: '搜尋待審核項目', exact: true })).toHaveValue(source.order.name);
     await queue.getByRole('button').filter({ hasText: source.order.name }).click();
   }
-  await detail.getByRole('button', { name: '通過', exact: true }).click();
-  await expect(detail.getByRole('alert')).toContainText('付款');
+  await expect(detail.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeDisabled();
+  await expect(detail).toContainText('請先確認付款');
   expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
   await detail.getByRole('button', { name: '不通過', exact: true }).click();
   const rejection = page.getByRole('dialog', { name: '不通過原因', exact: true });
@@ -141,8 +141,8 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
     await page.locator('#oms-review summary').filter({ hasText: /^收件與配送/ }).click();
   }
   await expect(page.getByRole('combobox', { name: '配送方式', exact: true })).toHaveValue('home');
-  await page.getByRole('button', { name: '確認訂單', exact: true }).click();
-  await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('READY');
+  await expect(page.getByRole('button', { name: '等待付款', exact: true })).toBeDisabled();
+  expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('REVIEW');
   expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
   expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).shopifySnapshot).toEqual(source);
   await page.getByRole('button', { name: '新增商品', exact: true }).first().click();
@@ -188,12 +188,11 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pendi
   await page.getByRole('textbox', { name: '搜尋待審核項目', exact: true }).fill(suffix);
   await page.getByRole('complementary', { name: '待審核清單', exact: true }).getByRole('button').filter({ hasText: suffix }).click();
   if (manualPayment) {
-    await page.getByRole('button', { name: '通過', exact: true }).click();
-    await expect(page.getByRole('alert').filter({ hasText: '付款' })).toContainText('付款');
+    await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeDisabled();
     page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: '已付清', exact: true }).click();
+    await page.getByRole('button', { name: '確認已收款', exact: true }).click();
     await expect(page.getByRole('button', { name: '已付清', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByRole('button', { name: '通過', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeEnabled();
     const updated = await db.order.findUniqueOrThrow({ where: { id: order.id } });
     expect(updated.paymentStatus).toBe('paid');
     expect(updated.shopifySnapshot.order.financial_status).toBe('pending');
@@ -201,7 +200,7 @@ test(`${manualPayment ? 'manual payment' : 'paid'} inbox approval adds one pendi
     expect(JSON.parse(audit.metadataJson).after.financialStatus).toBe('paid');
     expect(audit.actorId).toBeTruthy();
   }
-  await page.getByRole('button', { name: '通過', exact: true }).click();
+  await page.getByRole('button', { name: '通過並移至待出貨', exact: true }).click();
   await expect.poll(async () => (await db.order.findUniqueOrThrow({ where: { id: order.id } })).omsStatus).toBe('FULFILLMENT_PENDING');
   const shipments = await db.shipment.findMany({ where: { orderId: order.id } });
   expect(shipments).toHaveLength(1);

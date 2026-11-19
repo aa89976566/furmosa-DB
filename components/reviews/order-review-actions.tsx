@@ -16,6 +16,7 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
   const [reviewPending, start] = useTransition();
   const [paymentPending, setPaymentPending] = useState(false);
   const pending = reviewPending || paymentPending;
+  const paymentReady = confirmedPayment === 'paid';
   const [result, setResult] = useState<ReviewResult | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -41,12 +42,12 @@ export function OrderReviewActions({ orderId, sourceHash, reviewRevision, href, 
         try { const next = await reviewPaymentChoice({ orderId, sourceHash: currentHash, payment: value }); setPaymentMessage(next.message); setResult(null); if (next.ok && next.sourceHash) { setConfirmedPayment(next.payment); setCurrentHash(next.sourceHash); setCurrentRevision(next.reviewRevision); } }
           catch { setPaymentMessage('連線中斷，請重新整理確認付款狀態'); }
           finally { setPaymentPending(false); }
-      }}>{value === 'paid' ? '已付清' : '未付款'}</Button>)}</div>
-      {paymentMessage ? <p role="status" className="text-sm">{paymentMessage}</p> : null}
+      }}>{value === 'paid' ? (paymentReady ? '已付清' : '確認已收款') : '未付款'}</Button>)}</div>
+      {paymentMessage || !paymentReady ? <p role="status" className="text-sm">{paymentMessage || '請先確認付款，再移至待出貨。'}</p> : null}
     </fieldset>
-    {result ? <div role={result.ok ? 'status' : 'alert'} className="rounded-lg border p-3 text-sm"><p>{result.ok && result.action === 'approve' ? '審核通過，可前往訂單建立出貨單' : result.action === 'reject' && result.ok ? `不通過原因：${[reason, note.trim()].filter(Boolean).join('：')}。訂單保留，可修改後重新送審。` : result.message}</p>{result.blockers.length ? <ul className="mt-2 list-inside list-disc">{[...new Set(result.blockers)].map(text => <li key={text}>{text}</li>)}</ul> : null}{result.ok && result.action === 'ship' && result.next ? <a href={result.next.href} className="mt-2 inline-block underline">查看待出貨單</a> : null}{!result.ok ? <a href={href} className="mt-2 inline-block underline">開啟完整資料處理</a> : null}</div> : null}
+    {result ? <div role={result.ok ? 'status' : 'alert'} className="rounded-lg border p-3 text-sm"><p>{result.action === 'reject' && result.ok ? `不通過原因：${[reason, note.trim()].filter(Boolean).join('：')}。訂單保留，可修改後重新送審。` : result.message}</p>{result.blockers.length ? <ul className="mt-2 list-inside list-disc">{[...new Set(result.blockers)].map(text => <li key={text}>{text}</li>)}</ul> : null}{result.ok && result.action === 'ship' && result.next ? <a href={result.next.href} className="mt-2 inline-block underline">查看待出貨單</a> : null}{!result.ok ? <a href={href} className="mt-2 inline-block underline">開啟完整資料處理</a> : null}</div> : null}
     <div className="grid grid-cols-3 gap-2 [&>button]:min-h-11">
-      <Button disabled={pending} onClick={() => decide('approve')}>{pending ? '處理中…' : '通過'}</Button>
+      <Button className="col-span-3 sm:col-span-1" disabled={pending || !paymentReady || Boolean(result?.ok && result.action === 'ship')} onClick={() => decide('approve')}>{pending ? '處理中…' : '通過並移至待出貨'}</Button>
       <Button variant="outline" disabled={pending} onClick={() => start(async () => {
         setResult(null);
         try { const data = await loadReviewOrderEditor(orderId, currentHash); setEditor(data); setGeneration(value => value + 1); }

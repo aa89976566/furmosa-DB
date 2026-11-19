@@ -26,7 +26,7 @@ export async function reviewInboxDecision(input: { orderId: string; sourceHash: 
     // Cache failures after commit must not turn a successful decision into an apparent failure.
     try {
       for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard', '/shipments']) revalidatePath(path);
-      void bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals).catch(() => {});
+      void bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals, CACHE_TAGS.shipmentQueueCounts).catch(() => {});
     } catch { /* Committed decision is authoritative. */ }
     return result;
   } catch (error) {
