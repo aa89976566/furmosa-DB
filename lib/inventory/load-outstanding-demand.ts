@@ -5,7 +5,7 @@ import { outstandingDemand } from './outstanding-demand';
 export async function loadOutstandingDemand(db: Pick<PrismaClient, '$transaction'>) {
   return db.$transaction(async tx => {
     const items = { select: { quantity: true, weightGrams: true, variantKey: true,
-      product: { select: { id: true, sku: true, unit: true, category: true, inventorySourceProductId: true,
+      product: { select: { id: true, sku: true, unit: true, category: true, productCategory: true, inventorySourceProductId: true,
         priceTiers: { select: { id: true, weightGrams: true, unit: true, unitQty: true,
           bundleComponents: { select: { componentProductId: true, gramsPerPack: true } } } } } } } } as const;
     const orders = await tx.order.findMany({ where: { status: { not: 'cancelled' }, paymentStatus: { not: 'refunded' },

@@ -56,3 +56,20 @@ test('換罐與一般商品共用來源單品，庫存提醒累加克數', () =>
   assert.deepEqual(shipmentInventoryAdvisories([standard, jar]), ['測試零食庫存 80g，本次需 100g，寄出後為 -20g']);
   assert.match(shipmentInventoryAdvisories([{ ...jar, product: { ...jar.product, inventorySourceProduct: null } }])[0], /尚未設定有效庫存來源/);
 });
+
+test('現做換罐按兩種原料的庫存各自提醒', () => {
+  const throat = { ...item({ sku: 'FUR-0008', stock: 20 }).product, name: '鴨喉', status: 'active' };
+  const lung = { ...item({ sku: 'FUR-0005', stock: 100 }).product, name: '鴨肺', status: 'active' };
+  const jar = {
+    quantity: 2, weightGrams: null, variantKey: 'jar-tier',
+    product: {
+      ...item({ sku: 'RF-CRISPY-DUCK' }).product,
+      name: '脆脆鴨', unit: '罐', productCategory: 'JAR_EXCHANGE',
+      priceTiers: [{ id: 'jar-tier', weightGrams: null, unit: '罐', unitQty: 1, bundleComponents: [
+        { componentProduct: throat, gramsPerPack: 12 }, { componentProduct: lung, gramsPerPack: 15 },
+      ] }],
+    },
+  };
+  assert.deepEqual(shipmentInventoryAdvisories([jar]), ['鴨喉庫存 20g，本次需 24g，寄出後為 -4g']);
+  assert.match(shipmentInventoryAdvisories([{ ...jar, weightGrams: 28 }])[0], /配方與規格不一致/);
+});

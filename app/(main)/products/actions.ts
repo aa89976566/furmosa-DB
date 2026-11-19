@@ -140,6 +140,7 @@ export async function updateProduct(formData: FormData) {
       vendorId: true,
       productCategory: true,
       inventorySourceProductId: true,
+      priceTiers: { where: { bundleComponents: { some: {} } }, select: { id: true }, take: 1 },
       businessTier: true,
       defaultConsignmentCommissionMode: true,
       defaultConsignmentCommissionValue: true,
@@ -164,6 +165,7 @@ export async function updateProduct(formData: FormData) {
     if (!user || !['admin', 'warehouse'].includes(user.role)) throw new Error('你沒有設定庫存來源的權限');
   }
   if (existing.productCategory === 'JAR_EXCHANGE' && inventorySourceProductId) {
+    if (existing.priceTiers.length > 0) throw new Error('已使用配方扣庫存，不能再設定單一庫存來源');
     const source = await prisma.product.findFirst({ where: { id: inventorySourceProductId, productCategory: 'STANDARD', status: 'active', inventorySourceProductId: null, unit: { in: ['g', '克', '公克'] } } });
     if (!source || source.id === id) throw new Error('庫存來源必須是以克計量的一般單品');
   }
