@@ -56,6 +56,7 @@ export type ShipmentQueueRow = {
   order: {
     id: string;
     orderNumber: string;
+    orderedAt: string;
     displayOrderNumber: string;
     omsStatus: OmsStatus | null;
     status: string;
@@ -272,6 +273,26 @@ function EmptyQueueState() {
   );
 }
 
+const orderTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
+  timeZone: 'Asia/Taipei',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function ShipmentOrderTime({ orderedAt }: { orderedAt?: string }) {
+  if (!orderedAt) return <span className="text-xs text-muted-foreground">—</span>;
+
+  return (
+    <time dateTime={orderedAt} className="block whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+      {orderTimeFormatter.format(new Date(orderedAt))}
+    </time>
+  );
+}
+
 function ShipmentQueueCard({
   view,
   variant,
@@ -310,6 +331,10 @@ function ShipmentQueueCard({
         )}
       />
 
+      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>訂單建立時間</span>
+        <ShipmentOrderTime orderedAt={shipment.order?.orderedAt} />
+      </div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -443,6 +468,7 @@ export function ShipmentQueueTable({
         <Table className="min-w-[56rem] table-fixed">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
+              <TableHead className="w-[10rem]">訂單建立時間</TableHead>
               <TableHead className="w-[16rem]">訂單</TableHead>
               <TableHead>商品</TableHead>
               <TableHead className="w-[20rem]">配送</TableHead>
@@ -464,6 +490,9 @@ export function ShipmentQueueTable({
                   onClick={() => onSelectShipment(shipment)}
                   title={`${orderLabel} · ${partyLabel}`}
                 >
+                  <TableCell className="py-3">
+                    <ShipmentOrderTime orderedAt={shipment.order?.orderedAt} />
+                  </TableCell>
                   <TableCell
                     className={cn(
                       'relative py-3',

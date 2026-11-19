@@ -82,6 +82,7 @@ const shipmentInclude = {
     select: {
       id: true,
       orderNumber: true,
+      orderedAt: true,
       source: true,
       externalOrderName: true,
       status: true,
@@ -245,6 +246,7 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          orderedAt: s.order.orderedAt.toISOString(),
           displayOrderNumber: displayOrderNumber(s.order),
           omsStatus: s.order.omsStatus,
           status: s.order.status,
