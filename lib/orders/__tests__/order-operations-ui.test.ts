@@ -48,14 +48,15 @@ test('訂單使用單一自適應 Resource List，不重複產生桌機與手機
   assert.match(resourceListStyles, /@container \(min-width: 900px\)/);
 });
 
-test('列表優先顯示訂單編號與問題分類，搜尋結果才補充訂單日期', () => {
+test('所有訂單列表在單號前顯示台灣時間', () => {
   assert.match(listSource, /className=\{styles\.orderNumber\}/);
   assert.match(listSource, /ISSUE_CATEGORY/);
   assert.match(listSource, /className=\{`\$\{styles\.issueTag\}/);
-  assert.match(listSource, /showOrderDate/);
-  assert.match(listSource, /訂單日期/);
-  assert.match(ordersPageSource, /showOrderDate=\{isSearching\}/);
-  assert.equal(listSource.includes('formatDateTime'), false);
+  assert.match(listSource, /<time className=\{styles\.orderDate\} dateTime=\{order\.orderedAt\.toISOString\(\)\}/);
+  assert.match(listSource, /timeZone: 'Asia\/Taipei'/);
+  assert.ok(listSource.indexOf('<time ') < listSource.indexOf('<div className={styles.identity}>'));
+  assert.match(resourceListStyles, /"date identity summary money cta"/);
+  assert.match(ordersPageSource, /<OrderListTable orders=\{orders\} \/>/);
   assert.equal(listSource.includes('logistics.destination'), false);
 });
 

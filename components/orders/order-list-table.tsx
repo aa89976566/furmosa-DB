@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
 import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
@@ -13,6 +13,16 @@ import styles from './order-resource-list.module.css';
 import { canonicalProductName } from '@/lib/product-label';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
+
+const orderTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
+  timeZone: 'Asia/Taipei',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 function orderCustomer(order: OrderListRow) {
   const snapshot = snapshotView(order.shopifySnapshot);
@@ -77,21 +87,19 @@ function issueCategory(order: OrderListRow) {
 
 export function OrderListTable({
   orders,
-  showOrderDate = false,
 }: {
   orders: OrderListRow[];
-  showOrderDate?: boolean;
 }) {
   if (orders.length === 0) {
     return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
   }
 
   return <section className={styles.list} aria-label="訂單列表">
-    {orders.map((order) => <OrderResourceRow key={order.id} order={order} showOrderDate={showOrderDate} />)}
+    {orders.map((order) => <OrderResourceRow key={order.id} order={order} />)}
   </section>;
 }
 
-function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showOrderDate: boolean }) {
+function OrderResourceRow({ order }: { order: OrderListRow }) {
   const customer = orderCustomer(order);
   const item = orderItemSummary(order);
   const logistics = resolveLogisticsForOrderList(order);
@@ -99,10 +107,14 @@ function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showO
   const issue = issueCategory(order);
   const orderReference = order.externalOrderName || order.orderNumber;
 
+  const orderTime = orderTimeFormatter.format(order.orderedAt);
+
   return <article className={styles.row}>
+    <time className={styles.orderDate} dateTime={order.orderedAt.toISOString()} aria-label={`訂單建立時間（台灣時間） ${orderTime}`}>
+      {orderTime}
+    </time>
     <div className={styles.identity}>
       <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
-      {showOrderDate ? <p className={styles.orderDate}>訂單日期 {formatDate(order.orderedAt)}</p> : null}
       <div className={styles.tags}>
         <StatusBadge kind="orderSource" value={order.source} />
         <span className={`${styles.issueTag} ${styles[issue.tone]}`}>{issue.label}</span>

@@ -161,7 +161,7 @@ async function OrdersTableSection({
         }
         label="筆訂單"
       />
-      <OrderListTable orders={orders} showOrderDate={isSearching} />
+      <OrderListTable orders={orders} />
       {pages > 1 ? (
         <ListPagination
           page={safePage}
