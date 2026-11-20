@@ -268,6 +268,14 @@ export function buildJarHubItems(
       message: '輸入序號',
     },
     {
+      id: 'jar_member',
+      mark: '',
+      label: '我的會員與紀錄',
+      subtitle: '查毛孩資料、點數、序號與最近換罐紀錄。',
+      heroKey: 'jar-vault',
+      message: '我的會員與紀錄',
+    },
+    {
       id: 'redeem_coupon',
       mark: '',
       label: '點數換折價',
@@ -286,8 +294,8 @@ export function buildJarHubItems(
   );
 
   return {
-    // 輸入序號固定主色 highlight
-    primaryId: 'jar_enter',
+    // 第一次進來先看懂計畫；輸入與會員操作留在下一層
+    primaryId: 'jar_explain_intro',
     body: '',
     items,
   };
