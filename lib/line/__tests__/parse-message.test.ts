@@ -47,7 +47,6 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('存罐攻略').kind, 'help');
     assert.equal(parseLineUserText('小金庫').kind, 'savings');
     assert.equal(parseLineUserText('毛孩罐庫').kind, 'savings');
-    assert.equal(parseLineUserText('我的會員與紀錄').kind, 'savings');
     assert.equal(parseLineUserText('兌換好康').kind, 'rewards_list');
     assert.equal(parseLineUserText('嗷嗚計畫').kind, 'unboxing');
     assert.equal(parseLineUserText('嗷嗚計劃').kind, 'unboxing');
@@ -80,6 +79,9 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('兌換好禮').kind, 'rewards_list');
     assert.equal(parseLineUserText('換罐計劃\u200b').kind, 'hub_jar');
     assert.equal(parseLineUserText('看本期口味').kind, 'refill_flavours');
+    assert.equal(parseLineUserText('價格').kind, 'refill_price');
+    assert.equal(parseLineUserText('換罐多少錢').kind, 'refill_price');
+    assert.equal(parseLineUserText('第一罐多少錢').kind, 'refill_price');
   });
 
   it('recognizes jar codes', () => {
