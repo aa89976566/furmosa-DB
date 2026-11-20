@@ -205,11 +205,11 @@ describe('換罐計劃選單', () => {
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), hasRefillEnv ? 6 : 5);
+    assert.equal(countButtons(memberFlex), hasRefillEnv ? 7 : 6);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /輸入序號/);
     assert.match(memberRaw, /點數換折價/);
-    assert.match(memberRaw, /幫毛孩開戶/);
+    assert.match(memberRaw, /幫毛孩開戶/);\n    assert.match(memberRaw, /我的會員與紀錄/);
     assert.match(memberRaw, /"type":"message"/);
     assert.match(memberRaw, /"style":"primary"/);
     assert.doesNotMatch(memberRaw, /點數換好康/);
