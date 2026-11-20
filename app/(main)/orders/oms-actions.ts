@@ -40,14 +40,17 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
   } catch (error) {
     const failure = error && typeof error === 'object' ? error as { code?: unknown; meta?: { modelName?: unknown; column?: unknown } } : null;
     if (!(error instanceof ReviewError)) console.error('[oms.review]', { action, code: failure?.code, model: failure?.meta?.modelName, column: failure?.meta?.column });
-    return emptyReviewResult({
+    const failureResult = emptyReviewResult({
       ok: false,
       action,
-      message: paymentSaved ? '已確認收款，訂單檢查未完成。請重新載入訂單後繼續。'
+      message: paymentSaved ? '已確認收款，訂單仍在待審核。請重新載入訂單後繼續。'
         : error instanceof ReviewError || (confirmPayment && error instanceof Error) ? error.message : '操作未完成，請重新整理後再試；若持續失敗請聯絡管理員',
       blockers: error instanceof ReviewError ? error.blockers : [],
-      kind: error instanceof ReviewError ? error.kind : 'error',
+      kind: !paymentSaved && error instanceof ReviewError ? error.kind : 'error',
+      ...(paymentSaved ? { paymentRecordedNeedsReload: true, confirmedPaymentSourceHash: sourceHash } : {}),
     });
+    if (!paymentSaved) return failureResult;
+    result = failureResult;
   }
   // A cache error after commit must not be reported as a failed order mutation.
   try {
@@ -58,7 +61,7 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
 
   // Return the committed state immediately. The client refreshes and scrolls after showing
   // a visible success state, avoiding long server-side redirect waits on slow cache invalidation.
-  if (paymentSaved) {
+  if (paymentSaved && !result.paymentRecordedNeedsReload) {
     return {
       ...result,
       confirmedPaymentSourceHash: sourceHash,

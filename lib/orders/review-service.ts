@@ -21,6 +21,7 @@ export type ReviewResult = {
   next: { label: string; href: string } | null;
   uncertain?: boolean;
   confirmedPaymentSourceHash?: string;
+  paymentRecordedNeedsReload?: boolean;
 };
 
 export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {

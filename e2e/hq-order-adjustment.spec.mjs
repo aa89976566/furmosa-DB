@@ -170,14 +170,15 @@ test('HQ-only adjustment, re-review, audit history, deletion and restoration', a
 });
 
 
-for (const entry of ['paid-inbox', 'manual-inbox', 'manual-detail']) {
-const manualPayment = entry !== 'paid-inbox';
+for (const entry of ['paid-inbox', 'manual-inbox', 'manual-detail', 'reviewer-paid-inbox']) {
+const manualPayment = entry.startsWith('manual-');
+const reviewer = entry === 'reviewer-paid-inbox';
 const detailPayment = entry === 'manual-detail';
 test(`${entry} approval adds one pending shipment`, async ({ page }, testInfo) => {
   const suffix = `quick-${testInfo.project.name}-${randomUUID()}`;
   const password = randomUUID();
   const email = `${suffix}@example.invalid`;
-  await db.user.create({ data: { email, name: '一鍵審核驗收', role: 'admin', passwordHash: await bcrypt.hash(password, 10) } });
+  await db.user.create({ data: { email, name: '一鍵審核驗收', role: reviewer ? 'inventory_reviewer' : 'admin', passwordHash: await bcrypt.hash(password, 10) } });
   const product = await db.product.create({ data: { productId: suffix, sku: suffix, name: suffix, category: 'toys', productCategory: 'STANDARD', status: 'active', price: 100, unit: '件', defaultTemperature: 'ambient', priceTiers: { create: { unit: '件', unitQty: 1, price: 100, sku: suffix, shopifySku: suffix, status: 'active' } } } });
   const timestamp = new Date();
   const order = await db.order.create({ data: { orderNumber: suffix, source: 'shopify', status: 'pending_review', paymentStatus: manualPayment ? 'unpaid' : 'paid', fulfillmentStatus: 'pending', subtotal: 100, total: 100, externalStore: `${suffix}.myshopify.com`, externalOrderId: suffix, omsStatus: 'NEW', shopifySourceUpdatedAt: timestamp,
@@ -192,6 +193,10 @@ test(`${entry} approval adds one pending shipment`, async ({ page }, testInfo) =
   if (detailPayment) {
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByRole('button', { name: '確認已收款', exact: true })).toBeVisible();
+  }
+  if (reviewer) {
+    await expect(page.getByRole('group', { name: '確認 HQ 付款狀態', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeEnabled();
   }
   if (manualPayment) {
     if (!detailPayment) await expect(page.getByRole('button', { name: '通過並移至待出貨', exact: true })).toBeDisabled();
