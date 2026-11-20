@@ -326,7 +326,12 @@ describe('未開戶擋序號', () => {
     const flex = flexFrom(msgs);
     const raw = JSON.stringify(flex);
     assert.match(raw, /立刻開戶|先幫毛孩開戶|開戶/);
-    assert.match(raw, /next=enter/);
+    if (process.env.LINE_LIFF_ID_REGISTER?.trim()) {
+      assert.match(raw, /https:\/\/liff\.line\.me\//);
+      assert.doesNotMatch(raw, /next=enter/);
+    } else {
+      assert.match(raw, /next=enter/);
+    }
     assert.equal(flex.contents.type, 'bubble');
     assert.ok(countButtons(flex) >= 1);
     assert.doesNotMatch(raw, /carousel/);
