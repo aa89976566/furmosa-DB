@@ -7,7 +7,7 @@ test('待審核工作台只渲染一套 responsive DOM，正式動作連回既�
   const workbench = readFileSync(new URL('../../../components/reviews/review-workbench.tsx', import.meta.url), 'utf8');
   const styles = readFileSync(new URL('../../../components/reviews/review-workbench.module.css', import.meta.url), 'utf8');
 
-  assert.match(page, /<ReviewWorkbench items=\{items\} counts=\{counts\} \/>/);
+  assert.match(page, /<ReviewWorkbench items=\{items\} counts=\{counts\} canManagePayment=\{canManagePayment\} \/>/);
   assert.equal((workbench.match(/href=\{item\.href\}/g) ?? []).length, 1);
   assert.match(workbench, /\{item\.title\}/);
   assert.match(workbench, /\{item\.actionLabel\}/);

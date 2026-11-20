@@ -59,7 +59,7 @@ function QueueItem({ item, active, onSelect }: { item: ReviewInboxItem; active: 
   );
 }
 
-function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => void }) {
+function DetailPanel({ item, onBack, canManagePayment }: { item: ReviewInboxItem; onBack: () => void; canManagePayment: boolean }) {
   const lines = item.lines ?? [];
   const checks = item.preview?.checks ?? [];
   const warnings = checks.filter((check) => check.tone !== 'success');
@@ -130,7 +130,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
       ) : null}
 
       <footer className={styles.actionBar}>
-        {item.quickReview ? <OrderReviewActions key={`${item.id}-${item.quickReview.sourceHash}`} orderId={item.id} sourceHash={item.quickReview.sourceHash} payment={item.preview?.paymentStatus} reviewRevision={item.quickReview.reviewRevision} href={`${item.href}#oms-review`} /> : <>
+        {item.quickReview ? <OrderReviewActions key={`${item.id}-${item.quickReview.sourceHash}`} orderId={item.id} sourceHash={item.quickReview.sourceHash} payment={item.preview?.paymentStatus} canManagePayment={canManagePayment} reviewRevision={item.quickReview.reviewRevision} href={`${item.href}#oms-review`} /> : <>
         {/* Review forms must load fresh after an adjustment, including native select state. */}
         <a href={item.href} className={styles.primaryAction}>
           {item.actionLabel}<ArrowRight aria-hidden />
@@ -140,7 +140,7 @@ function DetailPanel({ item, onBack }: { item: ReviewInboxItem; onBack: () => vo
   );
 }
 
-export function ReviewWorkbench({ items, counts }: { items: ReviewInboxItem[]; counts: ReviewCounts }) {
+export function ReviewWorkbench({ items, counts, canManagePayment }: { items: ReviewInboxItem[]; counts: ReviewCounts; canManagePayment: boolean }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => {
@@ -178,7 +178,7 @@ export function ReviewWorkbench({ items, counts }: { items: ReviewInboxItem[]; c
               {filtered.map((item) => <QueueItem key={`${item.kind}-${item.id}`} item={item} active={selected.id === item.id && selected.kind === item.kind} onSelect={() => setSelectedKey(`${item.kind}-${item.id}`)} />)}
             </div>
           </aside>
-          <DetailPanel item={selected} onBack={() => setSelectedKey(null)} />
+          <DetailPanel item={selected} onBack={() => setSelectedKey(null)} canManagePayment={canManagePayment} />
         </div>
       ) : (
         <section className={styles.empty}>沒有符合條件的待審核項目。</section>

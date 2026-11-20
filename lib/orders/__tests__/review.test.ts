@@ -313,13 +313,13 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1, 'replacement confirmation is also idempotent');
   });
 
-  it('unpaid order with cancelled shipment can be reviewed without creating another shipment', async () => {
+  it('unpaid order with cancelled shipment stays in review without another shipment', async () => {
     const source = shopifySnapshot({ ...raw, financial_status: 'pending' });
     const f = fakeDb(source);
     f.order.shipments.push({ id: 'old', shipmentNumber: 'OMS-o1', status: 'cancelled' });
     await f.run('check', { sourceOnly: true });
-    const result = await f.run('approve', { sourceOnly: true });
-    assert.equal(result.omsStatus, 'READY');
+    await assert.rejects(f.run('approve', { sourceOnly: true }), /付款/);
+    assert.equal(f.order.omsStatus, 'REVIEW');
     assert.equal(f.shipmentCreates, 0);
     assert.equal(f.order.shipments[0].status, 'cancelled');
     await assert.rejects(() => f.run('ship', { sourceOnly: true }), ReviewError);
@@ -442,26 +442,13 @@ describe('OMS review action result contract', () => {
     assert.deepEqual(passed.blockers, []);
   });
 
-  it('lets unpaid orders become READY and reports payment still pending', async () => {
+  it('keeps unpaid orders in review from the detail page', async () => {
     const f = fakeDb(unpaidSnapshot);
     await f.run('check', { sourceOnly: true });
-    const approved = await f.run('approve', { sourceOnly: true });
-    assert.equal(approved.ok, true);
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(approved.message, '已確認訂單');
-    assert.ok(approved.blockers.includes('等待 Shopify 付款完成'));
-    assert.ok(approved.blockers.includes('Shopify 付款完成後訂單會回到待審核，需重新檢查並確認'));
-    assert.equal(approved.kind, 'success');
-    assert.deepEqual(approved.next, { label: '前往運送資訊', href: '#oms-shipping' });
-    assert.deepEqual(serializable(approved), approved);
-    await assert.rejects(
-      f.run('ship', { sourceOnly: true }),
-      (error: unknown) => {
-        assert.ok(error instanceof ReviewError);
-        assert.ok(error.blockers.some(message => message.includes('付款')));
-        return true;
-      },
-    );
+    const checks = f.audits.length;
+    await assert.rejects(f.run('approve', { sourceOnly: true }), /付款/);
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.audits.length, checks);
     assert.equal(f.shipmentCreates, 0);
   });
 

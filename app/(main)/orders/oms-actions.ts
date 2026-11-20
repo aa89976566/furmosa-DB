@@ -3,6 +3,7 @@
 import { getCurrentUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ReviewError, emptyReviewResult, runReview, type ReviewResult } from '@/lib/orders/review-service';
+import { saveReviewPayment } from '@/lib/orders/hq-adjustment-service';
 import { reviewDraft } from '@/lib/orders/review-policy';
 import { revalidatePath } from 'next/cache';
 import { bustCacheTags } from '@/lib/runtime-cache';
@@ -11,7 +12,8 @@ import { CACHE_TAGS } from '@/lib/cache-tags';
 export async function omsReviewAction(_previous: ReviewResult, form: FormData): Promise<ReviewResult> {
   const user = await getCurrentUser();
   if (!user) return emptyReviewResult({ ok: false, message: '請先登入 HQ', kind: 'error' });
-  const action = form.get('action');
+  const confirmPayment = form.get('action') === 'confirm-payment';
+  const action = confirmPayment ? 'check' : form.get('action');
   if (action !== 'check' && action !== 'approve' && action !== 'ship') {
     return emptyReviewResult({ ok: false, message: '不支援的操作', kind: 'error' });
   }
@@ -20,22 +22,35 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
     lines: form.getAll('productId').map((id, index) => ({ productId: id, temperature: form.getAll('lineTemperature')[index] })),
     giftsConfirmed: form.get('giftsConfirmed') === 'on', duplicateConfirmed: form.get('duplicateConfirmed') === 'on',
   });
+  let sourceHash = field('sourceHash');
   let result;
+  let paymentSaved = false;
   try {
+    if (confirmPayment) {
+      const payment = await saveReviewPayment(prisma, {
+        orderId: field('orderId'), actorId: user.userId, sourceHash, payment: 'paid',
+      });
+      sourceHash = payment.sourceHash;
+      paymentSaved = true;
+    }
     // A clean paid Shopify review creates the HQ shipment in the same atomic approval.
     // Payment-pending or blocking cases remain in review and cannot create a shipment.
     result = await runReview(prisma, { orderId: field('orderId'), actorId: user.userId,
-      sourceHash: field('sourceHash'), action, draft, sourceOnly: true, pendingShipmentReview: form.get('pendingShipmentReview') === '1' });
+      sourceHash, action, draft, sourceOnly: true, pendingShipmentReview: form.get('pendingShipmentReview') === '1' });
   } catch (error) {
     const failure = error && typeof error === 'object' ? error as { code?: unknown; meta?: { modelName?: unknown; column?: unknown } } : null;
     if (!(error instanceof ReviewError)) console.error('[oms.review]', { action, code: failure?.code, model: failure?.meta?.modelName, column: failure?.meta?.column });
-    return emptyReviewResult({
+    const failureResult = emptyReviewResult({
       ok: false,
       action,
-      message: error instanceof ReviewError ? error.message : '操作未完成，請重新整理後再試；若持續失敗請聯絡管理員',
+      message: paymentSaved ? '已確認收款，訂單仍在待審核。請重新載入訂單後繼續。'
+        : error instanceof ReviewError || (confirmPayment && error instanceof Error) ? error.message : '操作未完成，請重新整理後再試；若持續失敗請聯絡管理員',
       blockers: error instanceof ReviewError ? error.blockers : [],
-      kind: error instanceof ReviewError ? error.kind : 'error',
+      kind: !paymentSaved && error instanceof ReviewError ? error.kind : 'error',
+      ...(paymentSaved ? { paymentRecordedNeedsReload: true, confirmedPaymentSourceHash: sourceHash } : {}),
     });
+    if (!paymentSaved) return failureResult;
+    result = failureResult;
   }
   // A cache error after commit must not be reported as a failed order mutation.
   try {
@@ -46,5 +61,12 @@ export async function omsReviewAction(_previous: ReviewResult, form: FormData): 
 
   // Return the committed state immediately. The client refreshes and scrolls after showing
   // a visible success state, avoiding long server-side redirect waits on slow cache invalidation.
+  if (paymentSaved && !result.paymentRecordedNeedsReload) {
+    return {
+      ...result,
+      confirmedPaymentSourceHash: sourceHash,
+      message: result.ok ? '已確認收款，可以移至待出貨。' : `已確認收款。${result.message}`,
+    };
+  }
   return result;
 }
