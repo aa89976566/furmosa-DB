@@ -65,7 +65,7 @@ describe('buildMainMenuMessages', () => {
     assert.match(raw, /換罐計劃/);
     assert.match(raw, /一起野放/);
     assert.match(raw, /回家/);
-    assert.match(raw, /"type":"button"/);
+    assert.doesNotMatch(raw, /"type":"button"/);
     assert.doesNotMatch(raw, /carousel/);
     assert.doesNotMatch(raw, /訂閱爆罐|領福利|產品導購|粉絲專頁/);
   });
@@ -179,7 +179,7 @@ describe('換罐計劃選單', () => {
     // 測試環境通常未設 LINE_LIFF_ID_REFILL → 六鍵；有設則七鍵含「線上預購換罐」
     const raw = JSON.stringify(flex.contents);
     const hasRefillEnv = Boolean(process.env.LINE_LIFF_ID_REFILL?.trim());
-    assert.equal(countButtons(flex), hasRefillEnv ? 7 : 6);
+    assert.equal(countButtons(flex), 0);
     assert.match(raw, /什麼是換罐計劃？/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /毛爸媽常問/);
@@ -187,32 +187,37 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /點數換折價/);
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐先別丟/);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /#F8F3EA8C/);
+    assert.match(raw, /換罐計畫/);
+    assert.match(raw, /從這裡開始/);
+    assert.match(raw, /#2F6FBB/);
+    assert.match(raw, /#FFD348/);
+    assert.match(raw, /#FFFAF0/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /#1F5C45/);
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);
-    assert.match(raw, /"style":"primary"/);
+    assert.match(raw, /"backgroundColor":"#2F6FBB"/);
     if (hasRefillEnv) {
       assert.match(raw, /線上預購換罐/);
       assert.match(raw, /liff\.line\.me/);
     }
     assert.doesNotMatch(raw, /點下面按鈕/);
-    assert.match(raw, /"type":"button"/);
+    assert.doesNotMatch(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
 
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), hasRefillEnv ? 7 : 6);
+    assert.equal(countButtons(memberFlex), 0);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /輸入序號/);
     assert.match(memberRaw, /點數換折價/);
     assert.match(memberRaw, /幫毛孩開戶/);
     assert.match(memberRaw, /我的會員與紀錄/);
     assert.match(memberRaw, /"type":"message"/);
-    assert.match(memberRaw, /"style":"primary"/);
+    assert.match(memberRaw, /"backgroundColor":"#2F6FBB"/);
     assert.doesNotMatch(memberRaw, /點數換好康/);
   });
 });
@@ -226,7 +231,7 @@ describe('一起野放', () => {
     assert.match(raw, /活動中心/);
     assert.match(raw, /開箱任務/);
     assert.match(raw, /探索新鮮事/);
-    assert.match(raw, /"type":"button"/);
+    assert.doesNotMatch(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.equal(countButtons(flex), 3);
     assert.doesNotMatch(raw, /"label":"青蛙誰在怕"/);
@@ -287,7 +292,7 @@ describe('回家', () => {
     const raw = JSON.stringify(flexFrom(msgs));
     assert.match(raw, /進狗屋（官網）/);
     assert.match(raw, /去院子（Instagram）/);
-    assert.match(raw, /"type":"button"/);
+    assert.doesNotMatch(raw, /"type":"button"/);
     assert.doesNotMatch(raw, /Threads|Facebook|合作店家|品牌故事|carousel/);
     assert.doesNotMatch(raw, /開飯去|去厝邊/);
   });
@@ -364,7 +369,13 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 2);
     assert.equal(msgs[1]?.type, 'flex');
     const raw = JSON.stringify(msgs[1]);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.match(raw, /換罐計畫/);
+    assert.match(raw, /從這裡開始/);
+    assert.match(raw, /#2F6FBB/);
+    assert.match(raw, /#FFD348/);
+    assert.match(raw, /#FFFAF0/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /#1F5C45/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /吃完，不用說再見/);
     assert.match(raw, /NT\$129/);
@@ -425,7 +436,13 @@ describe('換罐說明', () => {
     assert.equal(msgs[0]?.type, 'flex');
     const raw = JSON.stringify(msgs);
     assert.ok(msgs.every((m) => m.type !== 'image'));
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.match(raw, /換罐計畫/);
+    assert.match(raw, /從這裡開始/);
+    assert.match(raw, /#2F6FBB/);
+    assert.match(raw, /#FFD348/);
+    assert.match(raw, /#FFFAF0/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /#1F5C45/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /換罐循環故事/);
     assert.match(raw, /第一次買一罐/);
@@ -443,7 +460,13 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
     const raw = JSON.stringify(msgs[0]);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.match(raw, /換罐計畫/);
+    assert.match(raw, /從這裡開始/);
+    assert.match(raw, /#2F6FBB/);
+    assert.match(raw, /#FFD348/);
+    assert.match(raw, /#FFFAF0/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /#1F5C45/);
     assert.match(raw, /第一罐多少錢/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
