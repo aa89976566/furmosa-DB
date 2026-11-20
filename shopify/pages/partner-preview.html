@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>FURMOSA 換罐合作｜示意</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #fbf6ee;
+      --mint: #d5efc8;
+      --sky: #d4e8f8;
+      --yellow: #ffe14a;
+      --berry: #e23b4a;
+      --ink: #171717;
+      --round: "Zen Maru Gothic", "Noto Sans TC", sans-serif;
+      --sans: "Noto Sans TC", "PingFang TC", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 1.08rem;
+      line-height: 1.6;
+    }
+    h1, h2, h3, p, figure { margin: 0; }
+    h1, h2, h3, .num, .money {
+      font-family: var(--round);
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+    img { display: block; width: 100%; }
+
+    .hero {
+      padding: clamp(4.6rem, 10vw, 7.4rem) 1.25rem clamp(3.2rem, 6vw, 4.6rem);
+      text-align: center;
+    }
+    h1 {
+      font-size: clamp(3rem, 7vw, 5.8rem);
+      line-height: 1.12;
+    }
+    .accent { color: var(--berry); }
+    .lede {
+      max-width: 18em;
+      margin: 1.35rem auto 0;
+      font-size: clamp(1.15rem, 2vw, 1.4rem);
+    }
+
+    .how {
+      background: var(--mint);
+      padding: clamp(3.4rem, 7vw, 5rem) 1.25rem;
+      text-align: center;
+    }
+    h2 {
+      font-size: clamp(2.2rem, 4.6vw, 3.5rem);
+      line-height: 1.2;
+      text-align: center;
+    }
+    .how figure {
+      width: min(960px, 100%);
+      margin: clamp(1.6rem, 3vw, 2.4rem) auto 0;
+    }
+    .how img {
+      aspect-ratio: 5 / 4;
+      object-fit: cover;
+      object-position: 50% 42%;
+      border-radius: 36px;
+    }
+
+    .steps {
+      background: var(--paper);
+      padding: clamp(2.2rem, 5vw, 3.4rem) 0 clamp(3.4rem, 7vw, 5rem);
+    }
+    .sheet {
+      width: min(1080px, calc(100% - 2.5rem));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    .card {
+      background: var(--yellow);
+      border-radius: 36px;
+      min-height: 240px;
+      padding: 2rem 1.4rem 1.7rem;
+      text-align: center;
+    }
+    .card.wide { grid-column: 1 / -1; }
+    .card.tall {
+      min-height: 440px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .num {
+      width: 4.5rem;
+      height: 4.5rem;
+      margin: 0 auto 0.9rem;
+      border-radius: 50%;
+      background: var(--berry);
+      color: #fff;
+      font-size: 2rem;
+      line-height: 4.5rem;
+      text-align: center;
+    }
+    .card h3 {
+      font-size: clamp(1.5rem, 2.3vw, 2rem);
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .card p { margin-top: 0.4rem; font-size: 1.08rem; }
+    .photo {
+      width: 100%;
+      height: 100%;
+      min-height: 440px;
+      object-fit: cover;
+      object-position: 50% 14%;
+      border-radius: 36px;
+    }
+    .photo.captain { object-position: 50% 16%; }
+
+    .rules {
+      background: var(--sky);
+      padding: clamp(3.2rem, 7vw, 5rem) 1.25rem clamp(3.8rem, 8vw, 5.6rem);
+      text-align: center;
+    }
+    .groups {
+      width: min(860px, 100%);
+      margin: clamp(1.8rem, 4vw, 2.8rem) auto 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.6rem 3rem;
+    }
+    .groups h3 {
+      margin-bottom: 0.65rem;
+      color: var(--berry);
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .groups p { margin: 0.25rem 0; font-size: 1.12rem; }
+    .money { font-size: 1.65rem; line-height: 1; }
+
+    .apply {
+      background: var(--paper);
+      padding: clamp(3rem, 6vw, 4.4rem) 1.25rem clamp(4.5rem, 9vw, 6.5rem);
+      text-align: center;
+    }
+    .form {
+      width: min(520px, 100%);
+      margin: 1.5rem auto 0;
+      text-align: left;
+    }
+    label {
+      display: block;
+      margin: 0.95rem 0 0.35rem;
+      font-size: 0.92rem;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      padding: 0.95rem 1rem;
+    }
+    input:focus { outline: 3px solid var(--berry); outline-offset: 2px; }
+    button {
+      display: block;
+      width: 100%;
+      margin-top: 1.25rem;
+      padding: 1.05rem;
+      border: 0;
+      border-radius: 12px;
+      background: var(--berry);
+      color: #fff;
+      font-family: var(--round);
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .fine {
+      margin-top: 0.8rem;
+      text-align: center;
+      color: rgba(23, 23, 23, 0.68);
+      font-size: 0.92rem;
+    }
+    .thanks {
+      margin-top: 1rem;
+      font-family: var(--round);
+      font-weight: 700;
+      font-size: 1.4rem;
+    }
+
+    @media (max-width: 800px) {
+      .sheet, .groups { grid-template-columns: 1fr; }
+      .card.wide { grid-column: auto; }
+      .photo, .card.tall { min-height: 0; height: auto; }
+      .photo { aspect-ratio: 4 / 5; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>把空罐帶回來，<br>下一罐<span class="accent">少一點</span>。</h1>
+    <p class="lede">第一次買 NT$129；帶空罐回合作店，下一罐 NT$99。</p>
+  </header>
+
+  <section class="how">
+    <h2>換罐，就這麼簡單。</h2>
+    <figure>
+      <img
+        src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-exchange.png?v=1790019478"
+        alt="兩個人在木桌前，把玻璃罐裡的零食交給對方"
+        width="1254"
+        height="1254"
+      >
+    </figure>
+  </section>
+
+  <section class="steps">
+    <div class="sheet">
+      <article class="card">
+        <p class="num">1</p>
+        <h3>找一家換罐合作店</h3>
+        <p>看地圖或問店家。</p>
+      </article>
+      <article class="card">
+        <p class="num">2</p>
+        <h3>第一次買</h3>
+        <p>首罐 NT$129。</p>
+      </article>
+      <article class="card tall">
+        <p class="num">3</p>
+        <h3>吃完留下空罐</h3>
+        <p>洗乾淨、不要丟。</p>
+      </article>
+      <img
+        class="photo"
+        src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-milo.png?v=1790019478"
+        alt="一隻淺色的狗坐在木地板上，看向鏡頭"
+        width="1076"
+        height="1522"
+      >
+      <article class="card tall">
+        <p class="num">4</p>
+        <h3>回店換下一罐</h3>
+        <p>空罐回店 NT$99。</p>
+      </article>
+      <img
+        class="photo captain"
+        src="https://cdn.shopify.com/s/files/1/0989/6316/1465/files/furmosa-drive-captain.png?v=1790019477"
+        alt="一個人坐在桌前，手裡拿著貼有標籤的玻璃罐"
+        width="1055"
+        height="1491"
+      >
+      <article class="card wide">
+        <p class="num">5</p>
+        <h3>照同一套規則再來</h3>
+        <p>每次都算得清楚。</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="rules">
+    <h2>規則</h2>
+    <div class="groups">
+      <div>
+        <h3>客人</h3>
+        <p>首罐 <span class="money">NT$129</span></p>
+        <p>空罐回店 <span class="money">NT$99</span></p>
+      </div>
+      <div>
+        <h3>推薦人</h3>
+        <p>帶來新客 <span class="money">NT$15</span></p>
+        <p>帶回換罐 <span class="money">NT$8</span></p>
+      </div>
+      <div>
+        <h3>合作店</h3>
+        <p>店內完成換罐 <span class="money">NT$12–14</span></p>
+        <p>推薦人帶回 <span class="money">NT$6</span></p>
+      </div>
+      <div>
+        <h3>商品合作</h3>
+        <p>肉乾批發 <span class="money">約 20%</span></p>
+        <p>凍乾批發 <span class="money">30%</span></p>
+        <p>肉乾寄售 <span class="money">12%</span></p>
+        <p>凍乾寄售 <span class="money">22%</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="apply">
+    <h2>想成為換罐合作店？</h2>
+    <p class="lede">留下店名，我們跟你聊。</p>
+    <p class="thanks" id="thanks" hidden>收到了。這是示意，還沒送到店裡。</p>
+    <form class="form" id="apply-form">
+      <label for="store">店名</label>
+      <input id="store" name="store" type="text" required autocomplete="organization">
+      <label for="name">你的名字</label>
+      <input id="name" name="name" type="text" required autocomplete="name">
+      <label for="phone">電話</label>
+      <input id="phone" name="phone" type="tel" required autocomplete="tel">
+      <label for="email">信箱</label>
+      <input id="email" name="email" type="email" required autocomplete="email">
+      <button type="submit">送出</button>
+      <p class="fine">這頁只是示意，不會送到正式站。</p>
+    </form>
+  </section>
+
+  <script>
+    document.getElementById("apply-form").addEventListener("submit", function (event) {
+      event.preventDefault();
+      document.getElementById("thanks").hidden = false;
+      this.hidden = true;
+    });
+  </script>
+</body>
+</html>
