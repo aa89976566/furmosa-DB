@@ -9,6 +9,7 @@ import {
   buildJarDialogueBubble,
   withJarDialogueBackground,
 } from '@/lib/line/jar-dialogue-shell';
+import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import type { LineReplyMessage } from '@/lib/line/reply';
 
 const THEME = {
@@ -71,6 +72,7 @@ function storeRow(name: string) {
 }
 
 function introBubble(storeCount: number): Record<string, unknown> {
+  const registerLiffUrl = getLiffUrlIfConfigured('register');
   return buildJarDialogueBubble({
     bodyContents: [
       text('合作美容店', { size: 'lg', weight: 'bold' }),
@@ -96,11 +98,17 @@ function introBubble(storeCount: number): Record<string, unknown> {
         style: 'primary',
         height: 'sm',
         color: THEME.accent,
-        action: {
-          type: 'message',
-          label: '幫毛孩開戶',
-          text: '幫毛孩開戶',
-        },
+        action: registerLiffUrl
+          ? {
+              type: 'uri',
+              label: '幫毛孩開戶',
+              uri: registerLiffUrl,
+            }
+          : {
+              type: 'message',
+              label: '幫毛孩開戶',
+              text: '幫毛孩開戶',
+            },
       },
     ],
   });

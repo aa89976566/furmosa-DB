@@ -30,6 +30,7 @@ export type ParsedLineText =
   | { kind: 'jar_stores' }
   | { kind: 'redeem_coupon' }
   | { kind: 'refill_flavours' }
+  | { kind: 'refill_price' }
   | { kind: 'unknown'; text: string };
 
 const BIND_RE = /^(?:綁定|绑定|bind)\s*[：:\s]?\s*(.+)$/i;
@@ -69,6 +70,8 @@ const REDEEM_COUPON_RE =
   /^(?:點數換折價|換成美容折價|兌換優惠券|兌換優惠卷|兌換美容折價券)$/;
 const JAR_STORES_RE = /^(?:查看合作店|合作店家|合作美容店|配合店家)$/;
 const REFILL_FLAVOURS_RE = /^(?:看本期口味|本期口味)$/;
+const REFILL_PRICE_RE =
+  /^(?:價格|價錢|多少錢|費用|換罐價格|換罐價錢|換罐多少錢|第一罐多少錢)$/;
 
 /** 去掉零寬字元，避免 Rich Menu 帶入後對不到捷徑 */
 function normalizeLineUserText(raw: string): string {
@@ -107,6 +110,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (JAR_EXPLAIN_FAQ_RE.test(text)) return { kind: 'jar_explain_faq' };
   if (JAR_STORES_RE.test(text)) return { kind: 'jar_stores' };
   if (REFILL_FLAVOURS_RE.test(text)) return { kind: 'refill_flavours' };
+  if (REFILL_PRICE_RE.test(text)) return { kind: 'refill_price' };
 
   const redeemReward = text.match(REDEEM_REWARD_RE);
   if (redeemReward?.[1]) {

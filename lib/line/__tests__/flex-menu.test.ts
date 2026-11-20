@@ -106,33 +106,35 @@ describe('垂直按鈕選單', () => {
 });
 
 describe('換罐計劃選單', () => {
-  const fiveIds = [
+  const baseIds = [
     'jar_explain_intro',
     'jar_reg',
     'jar_enter',
+    'jar_member',
     'redeem_coupon',
     'jar_faq',
   ];
 
-  it('未開戶：固定五鍵，輸入序號 highlight', () => {
+  it('未開戶：固定六鍵，換罐介紹 highlight', () => {
     const hub = buildJarHubItems(false);
     const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, fiveIds);
-    assert.equal(hub.primaryId, 'jar_enter');
+    assert.deepEqual(ids, baseIds);
+    assert.equal(hub.primaryId, 'jar_explain_intro');
     assert.deepEqual(
       hub.items.map((i) => i.label),
-      ['什麼是換罐計劃？', '幫毛孩開戶', '輸入序號', '點數換折價', '毛爸媽常問'],
+      ['什麼是換罐計劃？', '幫毛孩開戶', '輸入序號', '我的會員與紀錄', '點數換折價', '毛爸媽常問'],
     );
     assert.ok(!ids.includes('jar_explain'));
     assert.ok(!ids.includes('jar_stores'));
   });
 
-  it('已開戶：同樣五鍵與語境文案', () => {
+  it('已開戶：同樣六鍵與語境文案', () => {
     const hub = buildJarHubItems(true);
     const ids = hub.items.map((i) => i.id);
-    assert.deepEqual(ids, fiveIds);
-    assert.equal(hub.primaryId, 'jar_enter');
+    assert.deepEqual(ids, baseIds);
+    assert.equal(hub.primaryId, 'jar_explain_intro');
     assert.equal(hub.items.find((i) => i.id === 'jar_reg')!.label, '幫毛孩開戶');
+    assert.equal(hub.items.find((i) => i.id === 'jar_member')!.label, '我的會員與紀錄');
     assert.equal(hub.items.find((i) => i.id === 'redeem_coupon')!.label, '點數換折價');
     assert.equal(hub.items.find((i) => i.id === 'jar_faq')!.label, '毛爸媽常問');
   });
@@ -144,7 +146,7 @@ describe('換罐計劃選單', () => {
     assert.equal(hub.items[2]?.id, 'jar_refill_pay');
     assert.equal(hub.items[2]?.label, '線上預購換罐');
     assert.equal(hub.items[2]?.uri, 'https://liff.line.me/2009953429-1hqRSGV8');
-    assert.equal(hub.primaryId, 'jar_enter');
+    assert.equal(hub.primaryId, 'jar_explain_intro');
     assert.deepEqual(
       hub.items.map((i) => i.id),
       [
@@ -152,25 +154,36 @@ describe('換罐計劃選單', () => {
         'jar_reg',
         'jar_refill_pay',
         'jar_enter',
+        'jar_member',
         'redeem_coupon',
         'jar_faq',
       ],
     );
   });
 
-  it('只回選單卡；輸入序號為 primary highlight', () => {
+  it('有註冊 LIFF URL 時，幫毛孩開戶直接打開新版視窗', () => {
+    const hub = buildJarHubItems(false, {
+      registerLiffUrl: 'https://liff.line.me/2009953429-register',
+    });
+    const register = hub.items.find((item) => item.id === 'jar_reg');
+    assert.equal(register?.uri, 'https://liff.line.me/2009953429-register');
+    assert.equal(register?.message, undefined);
+  });
+
+  it('只回選單卡；換罐介紹為 primary highlight', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
     assert.equal(guest.length, 1);
     assert.equal(guest[0]?.type, 'flex');
     const flex = flexFrom(guest);
     assert.equal(flex.contents.type, 'bubble');
-    // 測試環境通常未設 LINE_LIFF_ID_REFILL → 五鍵；有設則六鍵含「線上預購換罐」
+    // 測試環境通常未設 LINE_LIFF_ID_REFILL → 六鍵；有設則七鍵含「線上預購換罐」
     const raw = JSON.stringify(flex.contents);
     const hasRefillEnv = Boolean(process.env.LINE_LIFF_ID_REFILL?.trim());
-    assert.equal(countButtons(flex), hasRefillEnv ? 6 : 5);
+    assert.equal(countButtons(flex), hasRefillEnv ? 7 : 6);
     assert.match(raw, /什麼是換罐計劃？/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /毛爸媽常問/);
+    assert.match(raw, /我的會員與紀錄/);
     assert.match(raw, /點數換折價/);
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐先別丟/);
@@ -192,11 +205,12 @@ describe('換罐計劃選單', () => {
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), hasRefillEnv ? 6 : 5);
+    assert.equal(countButtons(memberFlex), hasRefillEnv ? 7 : 6);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /輸入序號/);
     assert.match(memberRaw, /點數換折價/);
     assert.match(memberRaw, /幫毛孩開戶/);
+    assert.match(memberRaw, /我的會員與紀錄/);
     assert.match(memberRaw, /"type":"message"/);
     assert.match(memberRaw, /"style":"primary"/);
     assert.doesNotMatch(memberRaw, /點數換好康/);
@@ -378,13 +392,26 @@ describe('換罐說明', () => {
   });
 
   it('開始換罐：未開戶只引導開戶，不假裝已可輸入序號', () => {
-    const msgs = buildJarStartMessages({ registered: false });
+    const msgs = buildJarStartMessages({
+      registered: false,
+      registerLiffUrl: null,
+    });
     const raw = JSON.stringify(msgs);
     assert.match(raw, /開始換罐/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /jar_reg&next=enter/);
     assert.doesNotMatch(raw, /輸入序號/);
     assert.doesNotMatch(raw, /已開戶/);
+  });
+
+  it('開始換罐：正式註冊 LIFF 已設定時直接開啟新版視窗', () => {
+    const msgs = buildJarStartMessages({
+      registered: false,
+      registerLiffUrl: 'https://liff.line.me/2009953429-register',
+    });
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /https:\/\/liff\.line\.me\/2009953429-register/);
+    assert.doesNotMatch(raw, /jar_reg&next=enter/);
   });
 
   it('點流程：無圖八幕故事卡', async () => {

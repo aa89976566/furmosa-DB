@@ -143,6 +143,7 @@ export async function startRegisterFlow(
       buildJarStartMessages({
         registered: true,
         customerName: existing.name,
+        registerLiffUrl: getLiffUrlIfConfigured('register'),
         refillLiffUrl: getLiffUrlIfConfigured('refill'),
       }),
     );
