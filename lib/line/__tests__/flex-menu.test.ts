@@ -179,7 +179,7 @@ describe('換罐計劃選單', () => {
     // 測試環境通常未設 LINE_LIFF_ID_REFILL → 六鍵；有設則七鍵含「線上預購換罐」
     const raw = JSON.stringify(flex.contents);
     const hasRefillEnv = Boolean(process.env.LINE_LIFF_ID_REFILL?.trim());
-    assert.equal(countButtons(flex), hasRefillEnv ? 7 : 6);
+    assert.equal(countButtons(flex), 0);
     assert.match(raw, /什麼是換罐計劃？/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /毛爸媽常問/);
@@ -187,32 +187,37 @@ describe('換罐計劃選單', () => {
     assert.match(raw, /點數換折價/);
     assert.match(raw, /輸入序號/);
     assert.match(raw, /空罐先別丟/);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /#F8F3EA8C/);
+    assert.match(raw, /換罐計畫/);
+    assert.match(raw, /從這裡開始/);
+    assert.match(raw, /#2F6FBB/);
+    assert.match(raw, /#FFD348/);
+    assert.match(raw, /#FFFAF0/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /#1F5C45/);
     assert.doesNotMatch(raw, /這計劃到底幹嘛/);
     assert.doesNotMatch(raw, /先別急著問客服/);
     assert.doesNotMatch(raw, /吃完別丟/);
-    assert.match(raw, /"style":"primary"/);
+    assert.match(raw, /"backgroundColor":"#2F6FBB"/);
     if (hasRefillEnv) {
       assert.match(raw, /線上預購換罐/);
       assert.match(raw, /liff\.line\.me/);
     }
     assert.doesNotMatch(raw, /點下面按鈕/);
-    assert.match(raw, /"type":"button"/);
+    assert.doesNotMatch(raw, /"type":"button"/);
     assert.match(raw, /"type":"message"/);
     assert.doesNotMatch(raw, /carousel/);
 
     const member = buildWorldHubMessages('jar', { registered: true });
     assert.equal(member.length, 1);
     const memberFlex = flexFrom(member);
-    assert.equal(countButtons(memberFlex), hasRefillEnv ? 7 : 6);
+    assert.equal(countButtons(memberFlex), 0);
     const memberRaw = JSON.stringify(memberFlex.contents);
     assert.match(memberRaw, /輸入序號/);
     assert.match(memberRaw, /點數換折價/);
     assert.match(memberRaw, /幫毛孩開戶/);
     assert.match(memberRaw, /我的會員與紀錄/);
     assert.match(memberRaw, /"type":"message"/);
-    assert.match(memberRaw, /"style":"primary"/);
+    assert.match(memberRaw, /"backgroundColor":"#2F6FBB"/);
     assert.doesNotMatch(memberRaw, /點數換好康/);
   });
 });
