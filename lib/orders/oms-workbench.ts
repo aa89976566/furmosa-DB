@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { OMS_STATUSES, OMS_LABELS, type OmsStatus } from './oms';
-import { activeOrderWhere } from '../order-list';
+import { activeOrderWhere, completedOrderShipmentsWhere, legacyReadyOrderWhere } from '../order-list';
 import { hrefWithPage } from '../list-pagination';
 
 export const OMS_FILTERS = [
@@ -54,9 +54,8 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
         shipments: { some: { status: { in: ['pending', 'packed'] } } },
       },
       {
-        omsStatus: null,
-        status: { in: ['confirmed', 'packed'] },
-        fulfillmentStatus: { in: ['pending', 'packed'] },
+        ...legacyReadyOrderWhere,
+        NOT: completedOrderShipmentsWhere,
       },
     ],
   };
@@ -82,6 +81,7 @@ export function orderWorkWhere(value?: string): Prisma.OrderWhereInput {
           { fulfillmentStatus: 'delivered' },
         ],
       },
+      { ...legacyReadyOrderWhere, ...completedOrderShipmentsWhere },
     ],
   };
   return {};

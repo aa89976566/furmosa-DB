@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 
 type ProductInput = {
   inventorySourceProductId?: string | null;
+  usesInventoryRecipe?: boolean;
   id?: string;
   productId?: string;
   sku?: string;
@@ -123,7 +124,9 @@ export function ProductForm({
   return (
     <div className="space-y-4">
       <form action={handleSave} className={studio ? 'space-y-6' : 'space-y-4'}>
-        {product.productCategory === 'JAR_EXCHANGE' ? <label className="block space-y-2 text-sm font-medium">庫存來源單品
+        {product.usesInventoryRecipe ? (
+          <p className="text-sm text-muted-foreground">此商品接單現做，出貨依規格配方扣原料。</p>
+        ) : product.productCategory === 'JAR_EXCHANGE' ? <label className="block space-y-2 text-sm font-medium">庫存來源單品
           <select name="inventorySourceProductId" defaultValue={product.inventorySourceProductId ?? ''} className="w-full rounded-md border bg-background p-2">
             <option value="">尚未設定（不可出貨）</option>
             {inventorySources.map(source => <option key={source.id} value={source.id}>{source.name} · {source.sku}</option>)}

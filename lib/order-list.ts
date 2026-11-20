@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 /** 訂單列表／歷史訂單共用查詢條件 */
 
 export const ORDER_LIST_INCLUDE = {
@@ -27,7 +29,6 @@ export const ORDER_LIST_INCLUDE = {
   },
   shipments: {
     orderBy: { createdAt: 'desc' as const },
-    take: 1,
     select: {
       id: true,
       shipmentNumber: true,
@@ -66,3 +67,34 @@ export const activeOrderWhere = {
   fulfillmentStatus: { not: 'returned' as const },
   status: { not: 'cancelled' as const },
 };
+
+const legacyReadyOrderStatuses = ['confirmed', 'packed'];
+const legacyReadyFulfillmentStatuses = ['pending', 'packed'];
+const completedShipmentStatuses = ['delivered', 'received'];
+const cancelledShipmentStatus = 'cancelled';
+
+export const legacyReadyOrderWhere = {
+  omsStatus: null,
+  status: { in: legacyReadyOrderStatuses },
+  fulfillmentStatus: { in: legacyReadyFulfillmentStatuses },
+} satisfies Prisma.OrderWhereInput;
+
+export const completedOrderShipmentsWhere = {
+  shipments: {
+    some: { status: { in: completedShipmentStatuses } },
+    every: { status: { in: [...completedShipmentStatuses, cancelledShipmentStatus] } },
+  },
+} satisfies Prisma.OrderWhereInput;
+
+/** Display the receipt outcome for legacy orders whose original fields still show pending. */
+export function legacyOrderCompletedByShipments(order: {
+  omsStatus: string | null;
+  status: string;
+  fulfillmentStatus: string;
+  shipments: readonly { status: string }[];
+}) {
+  if (order.omsStatus !== null || !legacyReadyOrderStatuses.includes(order.status)
+    || !legacyReadyFulfillmentStatuses.includes(order.fulfillmentStatus)) return false;
+  const active = order.shipments.filter(shipment => shipment.status !== cancelledShipmentStatus);
+  return active.length > 0 && active.every(shipment => completedShipmentStatuses.includes(shipment.status));
+}

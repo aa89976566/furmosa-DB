@@ -1,3 +1,4 @@
+import { refillRecipeTier, type BulkTier } from './bulk';
 import { purchaseLineReceived } from './purchase-presentation';
 import { isMadeToOrderHqProduct } from './shipment-advisory';
 
@@ -31,7 +32,14 @@ export function incomingHqGrams(orders: PendingPurchase[]) {
 export type ShipmentAuditInput = {
   id: string; shipmentNumber: string; hqInventoryEligible: boolean; status: string;
   order: { status: string; fulfillmentStatus: string; paymentStatus: string } | null;
-  items: { id?: string; productId: string; productName: string; quantity: number; product: { sku: string; category: string; inventorySourceProductId?: string | null } }[];
+  items: {
+    id?: string; productId: string; productName: string; quantity: number;
+    weightGrams?: number | null; variantKey?: string | null;
+    product: {
+      sku: string; category: string; productCategory?: string; inventorySourceProductId?: string | null;
+      priceTiers?: (BulkTier & { bundleComponents: { componentProductId: string }[] })[];
+    };
+  }[];
 };
 type Ledger = { reference: string | null; productId: string; quantity: number; eventKey: string | null };
 const trackedCategories = new Set(['staple_food', 'treats', 'freeze_dried', 'health']);
@@ -45,12 +53,20 @@ export function missingShipmentDeductions(shipments: ShipmentAuditInput[], ledge
     if (!shipment.hqInventoryEligible || !['shipped', 'delivered', 'received'].includes(shipment.status)) return [];
     const order = shipment.order;
     if (order && (['cancelled', 'returned'].includes(order.status) || order.fulfillmentStatus === 'returned' || order.paymentStatus === 'refunded')) return [];
-    const missing = [...new Map(shipment.items.filter(item => item.quantity > 0 && trackedCategories.has(item.product.category)
-      && !isMadeToOrderHqProduct(item.product.sku)
-      && !(item.id && postedEvents.has(`shipment:${shipment.id}:${item.id}`))
-      && !posted.has(JSON.stringify([`shipment:${shipment.id}`, item.productId]))
-      && !posted.has(JSON.stringify([`shipment:${shipment.id}`, item.product.inventorySourceProductId])))
-      .map(item => [item.productId, item.productName])).values()];
+    const reference = `shipment:${shipment.id}`;
+    const missing = [...new Map(shipment.items.filter(item => {
+      if (item.quantity <= 0 || !trackedCategories.has(item.product.category) || isMadeToOrderHqProduct(item.product.sku)) return false;
+      if (item.id && postedEvents.has(`${reference}:${item.id}`)) return false;
+      const recipe = item.product.productCategory === 'JAR_EXCHANGE'
+        ? refillRecipeTier(item.product.priceTiers ?? [], item)?.bundleComponents
+        : undefined;
+      if (recipe?.length) {
+        return !item.id || recipe.some(component =>
+          !postedEvents.has(`${reference}:${item.id}:component:${component.componentProductId}`));
+      }
+      return !posted.has(JSON.stringify([reference, item.productId]))
+        && !posted.has(JSON.stringify([reference, item.product.inventorySourceProductId]));
+    }).map(item => [item.productId, item.productName])).values()];
     return missing.length ? [{ id: shipment.id, shipmentNumber: shipment.shipmentNumber, missing }] : [];
   });
 }

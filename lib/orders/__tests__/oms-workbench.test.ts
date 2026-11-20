@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { Prisma } from '@prisma/client';
 import { OMS_FILTERS, ORDER_WORK_FILTERS, orderListVisibleWhere, orderWorkWhere, omsFilterWhere, omsProblemsWhere, taiwanToday, workbenchHref, workbenchVisibleWhere, omsSourceSearchWhere } from '../oms-workbench';
 import { OMS_STATUSES } from '../oms';
+import { legacyOrderCompletedByShipments } from '../../order-list';
 import { mergeSearchWhere, orderSearchWhere } from '../../site-search';
 
 describe('OMS workbench read-only queries', () => {
@@ -35,6 +36,36 @@ describe('OMS workbench read-only queries', () => {
     assert.doesNotMatch(shipping, /FULFILLMENT_PENDING/);
     assert.match(done, /FULFILLED/);
     assert.match(done, /delivered/);
+  });
+  it('moves legacy orders with completed shipments from ready to done using the same receipt filter', () => {
+    const ready = orderWorkWhere('ready').OR?.find(where => where.omsStatus === null);
+    assert.deepEqual(ready, {
+      omsStatus: null,
+      status: { in: ['confirmed', 'packed'] },
+      fulfillmentStatus: { in: ['pending', 'packed'] },
+      NOT: { shipments: {
+        some: { status: { in: ['delivered', 'received'] } },
+        every: { status: { in: ['delivered', 'received', 'cancelled'] } },
+      } },
+    });
+    const { NOT, ...legacyReadyFields } = ready!;
+    assert.ok(orderWorkWhere('done').OR?.some(where => {
+      return JSON.stringify(where) === JSON.stringify({ ...legacyReadyFields, ...NOT });
+    }));
+  });
+  it('shows a legacy order as completed only once every active shipment is completed', () => {
+    const order = { omsStatus: null, status: 'confirmed', fulfillmentStatus: 'pending' };
+    const completed = (statuses: string[], fields = {}) => legacyOrderCompletedByShipments({
+      ...order, ...fields, shipments: statuses.map(status => ({ status })),
+    });
+    assert.equal(completed(['received']), true);
+    assert.equal(completed(['delivered', 'received', 'cancelled']), true);
+    for (const statuses of [[], ['cancelled'], ['received', 'pending'], ['received', 'shipped'], ['received', 'packed']]) {
+      assert.equal(completed(statuses), false);
+    }
+    assert.equal(completed(['received'], { omsStatus: 'FULFILLMENT_PENDING' }), false);
+    assert.equal(completed(['received'], { status: 'cancelled' }), false);
+    assert.equal(completed(['received'], { fulfillmentStatus: 'returned' }), false);
   });
   it('includes uninspected, null and nonempty issue flags, not only red flags', () => {
     assert.deepEqual(omsProblemsWhere.OR, [{ omsCheckedAt: null },
