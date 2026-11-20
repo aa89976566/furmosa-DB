@@ -40,10 +40,7 @@ import {
 } from '@/lib/line/flex-hubs';
 import { getLiffUrlIfConfigured } from '@/lib/line/liff-config';
 import { LINE_BTN } from '@/lib/line/line-copy';
-import {
-  handleRegisterPostback,
-  startRegisterFlow,
-} from '@/lib/line/register-from-chat';
+import { handleRegisterPostback } from '@/lib/line/register-from-chat';
 import { clearLineChatSession, getLineChatSession } from '@/lib/line/chat-session';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { replyLineTextWithMenu, replyMenuHub } from '@/lib/line/reply-menu';
@@ -208,8 +205,24 @@ export async function handleLinePostback(
   }
 
   if (action === 'jar_reg' || action === 'reg') {
-    const resumeAfter = params.get('next') === 'enter' ? 'enter_code' : null;
-    await startRegisterFlow(replyToken, lineUserId, { resumeAfter });
+    if (customer) {
+      await replyLineMessage(
+        replyToken,
+        buildJarStartMessages({
+          registered: true,
+          customerName: customer.name,
+          registerLiffUrl: getLiffUrlIfConfigured('register'),
+          refillLiffUrl: getLiffUrlIfConfigured('refill'),
+        }),
+      );
+      return;
+    }
+    await replyLineMessage(
+      replyToken,
+      buildRegisterGateMessages('點一下就會打開新版開戶頁。', {
+        registerLiffUrl: getLiffUrlIfConfigured('register'),
+      }),
+    );
     return;
   }
 
@@ -219,6 +232,7 @@ export async function handleLinePostback(
       buildJarStartMessages({
         registered,
         customerName: customer?.name ?? null,
+        registerLiffUrl: getLiffUrlIfConfigured('register'),
         refillLiffUrl: getLiffUrlIfConfigured('refill'),
       }),
     );
