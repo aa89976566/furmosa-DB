@@ -44,7 +44,7 @@ import {
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
-import { handleRegisterFlowMessage, startRegisterFlow } from '@/lib/line/register-from-chat';
+import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
 import {
   handleJibaUnboxMessage,
   isJibaUnboxSessionActive,
@@ -217,16 +217,13 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
-  // 換罐選單捷徑（介紹／Q&A／開戶…）：略過開箱／開戶 session
-  // 否則開箱「選門市」會把「介紹」當成店名候選
+  // 換罐選單捷徑（介紹／Q&A／開戶…）：略過開箱／舊開戶 session。
+  // 新開戶一律由 LIFF 表單處理，捷徑不再建立聊天室問答 session。
   const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
   if (bypassSession) {
-    // bind_help（立即開戶）會建立 register session，不可先 clear 掉
-    if (parsed.kind !== 'bind_help') {
-      await clearLineChatSession(lineUserId).catch((err) => {
-        console.error('[line] clear session on jar shortcut failed', err);
-      });
-    }
+    await clearLineChatSession(lineUserId).catch((err) => {
+      console.error('[line] clear session on jar shortcut failed', err);
+    });
   } else {
     // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
     try {
@@ -373,7 +370,24 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'bind_help') {
-    await startRegisterFlow(replyToken, lineUserId);
+    if (customer) {
+      await replyLineMessage(
+        replyToken,
+        buildJarStartMessages({
+          registered: true,
+          customerName: customer.name,
+          registerLiffUrl: getLiffUrlIfConfigured('register'),
+          refillLiffUrl: getLiffUrlIfConfigured('refill'),
+        }),
+      );
+      return;
+    }
+    await replyLineMessage(
+      replyToken,
+      buildRegisterGateMessages('點一下就會打開新版開戶頁。', {
+        registerLiffUrl: getLiffUrlIfConfigured('register'),
+      }),
+    );
     return;
   }
 
