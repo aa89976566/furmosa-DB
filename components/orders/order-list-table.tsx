@@ -6,7 +6,7 @@ import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { formatCurrency } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
-import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { legacyOrderCompletedByShipments, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { omsNextActionLabel, parseOmsIssues, type OmsIssueCode } from '@/lib/orders/oms';
 import styles from './order-resource-list.module.css';
@@ -59,6 +59,7 @@ function nextAction(order: OrderListRow) {
   }
   if (order.status === 'cancelled') return { label: '已取消', hint: '無需處理', active: false };
   if (order.fulfillmentStatus === 'delivered' || order.status === 'completed') return { label: '已完成', hint: '交易完成', active: false };
+  if (legacyOrderCompletedByShipments(order)) return { label: '已完成', hint: '出貨已驗收或送達', active: false };
   if (order.fulfillmentStatus === 'shipped') return { label: '運送中', hint: '等待送達', active: false };
   if (order.status === 'pending_review' || order.status === 'draft') return { label: '處理訂單', hint: '核對內容', active: true };
   if (order.status === 'confirmed' || order.status === 'packed') return { label: '處理出貨', hint: '建立物流', active: true };

@@ -1,3 +1,4 @@
+import { legacyOrderCompletedByShipments } from '@/lib/order-list';
 import { HqOrderHistory } from '@/components/orders/hq-order-history';
 import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import { repairShopifyShipment } from '../repair-shopify-shipment';
@@ -140,6 +141,9 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
   const productSources = sourceView
     ? resolveShopifyProductSources(sourceView.items, sourceCatalog)
     : [];
+  const completedByShipments = legacyOrderCompletedByShipments(order);
+  const displayOrderStatus = completedByShipments ? 'completed' : order.status;
+  const displayFulfillmentStatus = completedByShipments ? 'delivered' : order.fulfillmentStatus;
   const shipmentNotice = omsShipmentNotice(order.omsStatus, order.shipments.length);
   const reviewAudit = order.omsStatus ? await prisma.statusAuditLog.findFirst({
     where: { entityType: 'oms_review', entityId: order.id },
@@ -453,12 +457,13 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
           ) : (
             <div className="rounded-xl border bg-card p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge kind="order" value={order.status} />
+                <StatusBadge kind="order" value={displayOrderStatus} />
                 <StatusBadge kind="payment" value={order.paymentStatus} />
-                <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
+                <StatusBadge kind="fulfillment" value={displayFulfillmentStatus} />
               </div>
               <p className="mt-3 text-sm font-medium">
-                {order.status === 'completed' || order.fulfillmentStatus === 'delivered'
+                {completedByShipments ? '此訂單的出貨單均已驗收或送達'
+                  : order.status === 'completed' || order.fulfillmentStatus === 'delivered'
                   ? '此訂單已完成'
                   : !paymentLabel && order.paymentStatus !== 'paid'
                     ? '等待付款'
@@ -479,10 +484,10 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
             <DetailBadgeRow className="mb-3">
               <StatusBadge kind="orderSource" value={order.source} />
               {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
-                : <StatusBadge kind="order" value={order.status} />}
+                : <StatusBadge kind="order" value={displayOrderStatus} />}
               <StatusBadge kind="payment" value={order.paymentStatus} />
               {shipmentNotice ? <span className="text-xs text-muted-foreground">{shipmentNotice}</span>
-                : <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />}
+                : <StatusBadge kind="fulfillment" value={displayFulfillmentStatus} />}
             </DetailBadgeRow>
 
             <div className="mb-3 rounded-lg border bg-muted/20 p-3">
@@ -988,11 +993,11 @@ export default async function OrderDetailPage(props: { params: Promise<{ id: str
               <div className="mt-3 flex flex-wrap gap-2">
                 {paymentLabel ? <Badge variant="secondary">{paymentLabel}</Badge> : <StatusBadge kind="payment" value={order.paymentStatus} />}
                 {order.omsStatus ? <Badge variant="secondary">{OMS_LABELS[order.omsStatus]}</Badge>
-                  : <StatusBadge kind="order" value={order.status} />}
+                  : <StatusBadge kind="order" value={displayOrderStatus} />}
                 {merchantModeLabel
                   ? <Badge variant="secondary">{merchantModeLabel}</Badge>
                   : <StatusBadge kind="orderSource" value={order.source} />}
-                <StatusBadge kind="fulfillment" value={order.fulfillmentStatus} />
+                <StatusBadge kind="fulfillment" value={displayFulfillmentStatus} />
               </div>
               <dl className="mt-4 space-y-2 border-t pt-3 text-sm">
                 <div className="flex justify-between gap-4"><dt className="text-muted-foreground">訂單編號</dt><dd className="font-mono">{order.orderNumber}</dd></div>
