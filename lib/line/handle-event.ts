@@ -44,7 +44,7 @@ import {
 import { getOnboardingPromptFlags } from '@/lib/line/prompt-throttle';
 import { handleLinePostback } from '@/lib/line/postback-actions';
 import { parseLineUserText } from '@/lib/line/parse-message';
-import { handleRegisterFlowMessage } from '@/lib/line/register-from-chat';
+import { handleRegisterFlowMessage, startRegisterFlow } from '@/lib/line/register-from-chat';
 import {
   handleJibaUnboxMessage,
   isJibaUnboxSessionActive,
@@ -217,13 +217,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
-  // 換罐選單捷徑（介紹／Q&A／開戶…）：略過開箱／舊開戶 session。
-  // 新開戶一律由 LIFF 表單處理，捷徑不再建立聊天室問答 session。
+  // 換罐選單捷徑（介紹／Q&A／開戶…）：略過開箱／開戶 session
+  // 否則開箱「選門市」會把「介紹」當成店名候選
   const bypassSession = SESSION_BYPASS_KINDS.has(parsed.kind);
   if (bypassSession) {
-    await clearLineChatSession(lineUserId).catch((err) => {
-      console.error('[line] clear session on jar shortcut failed', err);
-    });
+    // bind_help（立即開戶）會建立 register session，不可先 clear 掉
+    if (parsed.kind !== 'bind_help') {
+      await clearLineChatSession(lineUserId).catch((err) => {
+        console.error('[line] clear session on jar shortcut failed', err);
+      });
+    }
   } else {
     // 開戶進行中優先於開箱：暱稱／手機不可被 CONFIRM_STORE 吃掉
     try {
@@ -263,7 +266,8 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     parsed.kind === 'jar_explain' ||
     parsed.kind === 'jar_explain_flow' ||
     parsed.kind === 'jar_explain_faq' ||
-    parsed.kind === 'refill_flavours'
+    parsed.kind === 'refill_flavours' ||
+    parsed.kind === 'refill_price'
   ) {
     try {
       if (parsed.kind === 'jar_explain_flow') {
@@ -282,6 +286,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
         await replyLineMessage(replyToken, await buildRefillFlavoursListMessages(), {
           lineUserId,
         });
+        return;
+      }
+      if (parsed.kind === 'refill_price') {
+        const settings = await getRefillPlanSettings();
+        await replyLineText(
+          replyToken,
+          [
+            '換罐價格',
+            '',
+            `第一罐 NT$${settings.firstJarPrice}`,
+            `帶一個匠寵空罐換新罐 NT$${settings.exchangePrice}`,
+            '',
+            '換罐價必須一罐換一罐；沒有空罐時使用第一罐價格。',
+          ].join('\n'),
+        );
         return;
       }
 
@@ -370,24 +389,7 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   if (parsed.kind === 'bind_help') {
-    if (customer) {
-      await replyLineMessage(
-        replyToken,
-        buildJarStartMessages({
-          registered: true,
-          customerName: customer.name,
-          registerLiffUrl: getLiffUrlIfConfigured('register'),
-          refillLiffUrl: getLiffUrlIfConfigured('refill'),
-        }),
-      );
-      return;
-    }
-    await replyLineMessage(
-      replyToken,
-      buildRegisterGateMessages('點一下就會打開新版開戶頁。', {
-        registerLiffUrl: getLiffUrlIfConfigured('register'),
-      }),
-    );
+    await startRegisterFlow(replyToken, lineUserId);
     return;
   }
 
