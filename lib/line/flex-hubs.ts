@@ -518,6 +518,7 @@ export function buildWorldHubMessages(
   if (hub === 'jar') {
     // 與一起野放相同：只回選單卡；LIFF 就緒時第三鍵「線上預購換罐」
     const hubCfg = buildJarHubItems(registered, {
+      registerLiffUrl: getLiffUrlIfConfigured('register'),
       refillLiffUrl: getLiffUrlIfConfigured('refill'),
     });
     const messages: LineReplyMessage[] = [];
@@ -564,8 +565,13 @@ export function buildWorldHubMessages(
 /** 未開戶擋序號：垂直按鈕 */
 export function buildRegisterGateMessages(
   text: string = JAR_ENTER_BLOCKED_GUEST,
+  opts?: { registerLiffUrl?: string | null },
 ): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
+  const registerLiffUrl =
+    opts && 'registerLiffUrl' in opts
+      ? opts.registerLiffUrl?.trim() || null
+      : getLiffUrlIfConfigured('register');
   return [
     buildButtonMenuFlex({
       altText: '先幫毛孩開戶',
@@ -576,11 +582,13 @@ export function buildRegisterGateMessages(
       items: [
         {
           label: LINE_BTN.registerNow,
-          action: {
-            type: 'postback',
-            data: 'jd=jar_reg&next=enter',
-            displayText: LINE_BTN.registerNow,
-          },
+          action: registerLiffUrl
+            ? { type: 'uri', uri: registerLiffUrl }
+            : {
+                type: 'postback',
+                data: 'jd=jar_reg&next=enter',
+                displayText: LINE_BTN.registerNow,
+              },
           style: 'primary',
         },
       ],
@@ -659,11 +667,16 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
 export function buildJarStartMessages(opts: {
   registered: boolean;
   customerName?: string | null;
+  registerLiffUrl?: string | null;
   refillLiffUrl?: string | null;
 }): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
 
   if (!opts.registered) {
+    const registerLiffUrl =
+      'registerLiffUrl' in opts
+        ? opts.registerLiffUrl?.trim() || null
+        : getLiffUrlIfConfigured('register');
     return [
       buildButtonMenuFlex({
         altText: '開始換罐・先開戶',
@@ -674,11 +687,13 @@ export function buildJarStartMessages(opts: {
         items: [
           {
             label: '幫毛孩開戶',
-            action: {
-              type: 'postback',
-              data: 'jd=jar_reg&next=enter',
-              displayText: '幫毛孩開戶',
-            },
+            action: registerLiffUrl
+              ? { type: 'uri', uri: registerLiffUrl }
+              : {
+                  type: 'postback',
+                  data: 'jd=jar_reg&next=enter',
+                  displayText: '幫毛孩開戶',
+                },
             style: 'primary',
           },
           {
