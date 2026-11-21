@@ -158,6 +158,15 @@ describe('換罐計劃選單', () => {
     );
   });
 
+  it('有註冊 LIFF URL 時，幫毛孩開戶直接打開新版視窗', () => {
+    const hub = buildJarHubItems(false, {
+      registerLiffUrl: 'https://liff.line.me/2009953429-register',
+    });
+    const register = hub.items.find((item) => item.id === 'jar_reg');
+    assert.equal(register?.uri, 'https://liff.line.me/2009953429-register');
+    assert.equal(register?.message, undefined);
+  });
+
   it('只回選單卡；輸入序號為 primary highlight', () => {
     const guest = buildWorldHubMessages('jar', { registered: false });
     assert.equal(guest.length, 1);
@@ -337,26 +346,25 @@ describe('換罐說明', () => {
     assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
 
-  it('點介紹：主視覺＋制度 Flex（不再三則泡泡）', async () => {
+  it('點介紹：單一純文字 Flex 顯示三款換罐內容與集點規則', async () => {
     const msgs = await buildJarExplainTopicMessages('intro');
-    assert.equal(msgs[0]?.type, 'image');
-    const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /refill-flavours-v2\.jpg/);
-    assert.equal(msgs.length, 2);
-    assert.equal(msgs[1]?.type, 'flex');
-    const raw = JSON.stringify(msgs[1]);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /"position":"absolute"/);
-    assert.match(raw, /吃完，不用說再見/);
-    assert.match(raw, /NT\$129/);
-    assert.match(raw, /NT\$99/);
-    assert.match(raw, /開始換罐/);
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const raw = JSON.stringify(msgs[0]);
+    assert.match(raw, /棒棒牛/);
+    assert.match(raw, /棒棒雞/);
+    assert.match(raw, /脆脆鴨/);
+    assert.match(raw, /5條／罐/);
+    assert.match(raw, /27g／罐/);
+    assert.match(raw, /到店換罐，每罐累積 1 點/);
+    assert.match(raw, /集滿 10 點，兌換 NT\$200 店家折價券/);
+    assert.match(raw, /首罐不計點/);
+    assert.match(raw, /線上預購換罐/);
     assert.match(raw, /"text":"開始換罐"/);
-    assert.doesNotMatch(raw, /"text":"立即開戶"/);
-    assert.doesNotMatch(raw, /"text":"兌換序號"/);
-    assert.match(raw, /看本期口味/);
-    assert.doesNotMatch(raw, /零食罐吃完先別丟/);
-    assert.doesNotMatch(JSON.stringify(msgs), /罐底那串 8 碼傳上來/);
+    assert.doesNotMatch(raw, /"type":"image"/);
+    assert.doesNotMatch(raw, /"hero"/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /7 種|每兩週|菜菜雞/);
   });
 
   it('開始換罐：已開戶回下一步卡，不含開戶文案', () => {
@@ -378,13 +386,26 @@ describe('換罐說明', () => {
   });
 
   it('開始換罐：未開戶只引導開戶，不假裝已可輸入序號', () => {
-    const msgs = buildJarStartMessages({ registered: false });
+    const msgs = buildJarStartMessages({
+      registered: false,
+      registerLiffUrl: null,
+    });
     const raw = JSON.stringify(msgs);
     assert.match(raw, /開始換罐/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /jar_reg&next=enter/);
     assert.doesNotMatch(raw, /輸入序號/);
     assert.doesNotMatch(raw, /已開戶/);
+  });
+
+  it('開始換罐：正式註冊 LIFF 已設定時直接開啟新版視窗', () => {
+    const msgs = buildJarStartMessages({
+      registered: false,
+      registerLiffUrl: 'https://liff.line.me/2009953429-register',
+    });
+    const raw = JSON.stringify(msgs);
+    assert.match(raw, /https:\/\/liff\.line\.me\/2009953429-register/);
+    assert.doesNotMatch(raw, /jar_reg&next=enter/);
   });
 
   it('點流程：無圖八幕故事卡', async () => {
