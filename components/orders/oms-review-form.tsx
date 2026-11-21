@@ -23,8 +23,20 @@ function Actions({ status, summary, alertText, canCreateShipment, pendingShipmen
       : '正在儲存並檢查…';
   return <div className="sticky bottom-3 z-10 space-y-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur" aria-busy={pending}>
     <div className="flex min-h-5 min-w-0 items-center gap-2 overflow-hidden text-sm"><p role="status" aria-live="polite" className="min-w-0 truncate font-medium">{pending ? pendingLabel : summary}</p><p role="alert" className="min-w-0 truncate font-medium text-destructive">{alertText}</p></div>
-    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending || locked} variant={status === 'NEW' ? 'default' : 'outline'}>{pendingShipmentReview ? '重新檢查出貨內容' : status === 'READY' ? '重新開啟審核' : '儲存並檢查'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending || locked}>{pending ? '處理中…' : pendingShipmentReview ? '確認既有出貨單' : canCreateShipment ? '確認並建立 HQ 出貨單' : '確認訂單'}</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending || locked || !canCreateShipment}>{pending ? '建立中…' : canCreateShipment ? '建立 HQ 出貨單' : '等待付款'}</Button>}</div>
+    <div className="flex flex-wrap justify-end gap-2">{(status === 'NEW' || status === 'REVIEW' || status === 'READY') && <Button type="submit" name="action" value="check" formNoValidate disabled={pending || locked} variant={status === 'NEW' ? 'default' : 'outline'}>{pendingShipmentReview ? '重新檢查出貨內容' : status === 'READY' ? '重新開啟審核' : '儲存並檢查'}</Button>}{status === 'REVIEW' && <Button type="submit" name="action" value="approve" disabled={pending || locked || !canCreateShipment}>{pending ? '處理中…' : !canCreateShipment ? '等待付款' : pendingShipmentReview ? '確認既有出貨單' : '通過並移至待出貨'}</Button>}{status === 'READY' && <Button type="submit" name="action" value="ship" disabled={pending || locked || !canCreateShipment}>{pending ? '建立中…' : canCreateShipment ? '建立 HQ 出貨單' : '等待付款'}</Button>}</div>
   </div>;
+}
+
+function ConfirmPaymentButton({ locked }: { locked: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" name="action" value="confirm-payment" formNoValidate disabled={pending || locked}
+      className="min-h-11" onClick={event => {
+        if (!window.confirm('確認已收到這張訂單的全部款項？')) event.preventDefault();
+      }}>
+      確認已收款
+    </Button>
+  );
 }
 
 function SourceOrderSummary({ source }: { source: SourceSummary }) {
@@ -50,8 +62,11 @@ function SourceOrderSummary({ source }: { source: SourceSummary }) {
 
 async function submitReview(previous: ReviewResult, form: FormData): Promise<ReviewResult> {
   try {
-    if (previous.uncertain) return previous;
-    return await requestOmsReview(form);
+    if (previous.uncertain || previous.paymentRecordedNeedsReload) return previous;
+    const result = await requestOmsReview(form);
+    return previous.confirmedPaymentSourceHash && !result.confirmedPaymentSourceHash
+      ? { ...result, confirmedPaymentSourceHash: previous.confirmedPaymentSourceHash }
+      : result;
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
     const stalePage = /Failed to find Server Action|Server Action[^\n]*was not found on the server/i.test(message);
@@ -63,7 +78,7 @@ async function submitReview(previous: ReviewResult, form: FormData): Promise<Rev
   }
 }
 
-export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary, initialIssues = [], pendingShipmentReview = false }: { orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary; initialIssues?: OmsIssue[]; pendingShipmentReview?: boolean }) {
+export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummary, initialIssues = [], pendingShipmentReview = false, canManagePayment = false }: { canManagePayment?: boolean; orderId: string; sourceHash: string; status: string; draft: ReviewDraft; sourceSummary: SourceSummary; initialIssues?: OmsIssue[]; pendingShipmentReview?: boolean }) {
   const [state, action] = useFormState(submitReview, { ok: null, action: null, message: '', omsStatus: null, blockers: [], kind: null, next: null });
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -92,7 +107,9 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   const [storeId, setStoreId] = useState(draft.storeId);
   const [deliveryOpen, setDeliveryOpen] = useState(!draft.recipient || !draft.phone || !draft.address || !draft.method);
   const readyForShipment = effectiveStatus === 'READY';
-  const canCreateShipment = sourceSummary.paymentTone === 'ready';
+  const canCreateShipment = sourceSummary.paymentTone === 'ready' || Boolean(state.confirmedPaymentSourceHash);
+  const locked = Boolean(state.uncertain || state.paymentRecordedNeedsReload);
+  const canConfirmPayment = canManagePayment && !canCreateShipment && sourceSummary.paymentTone === 'hold' && !pendingShipmentReview && ['NEW', 'REVIEW', 'READY'].includes(effectiveStatus);
 
   useEffect(() => {
     // A check commits the fulfillment draft even when other checks still block approval.
@@ -117,12 +134,13 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
   // React 19 resets native controls after a completed form action, including blocked
   // checks. Keep this review draft until the source changes (the panel's key remounts
   // it); otherwise method resets to empty while the 7-11 fields remain visible.
-  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}{!readyForShipment && attention.length > 0 ? <section aria-label="待處理提示" className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} className="space-y-5"><input type="hidden" name="orderId" value={orderId} /><input type="hidden" name="sourceHash" value={state.confirmedPaymentSourceHash ?? sourceHash} />{pendingShipmentReview ? <input type="hidden" name="pendingShipmentReview" value="1" /> : null}{!readyForShipment && attention.length > 0 ? <section aria-label="待處理提示" className="rounded-xl border border-warning/40 bg-warning/5 p-4">
       <h3 className="font-semibold">還有 {attention.length} 項待處理</h3>
       <p className="mt-1 text-sm text-muted-foreground">點選問題前往處理，完成後按「儲存並檢查」。</p>
       <ul className="mt-3 divide-y divide-warning/20">{attention.map(issue => <li key={`${issue.code}-${issue.message}`}><button type="button" onClick={() => locateIssue(issue)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left text-sm transition-colors hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span>{issue.message}</span><span className="shrink-0 font-semibold underline underline-offset-4">前往處理</span></button></li>)}</ul>
       <p className="mt-2 text-sm text-muted-foreground">依最近一次檢查結果顯示，儲存後重新確認。</p>
-    </section> : null}<SourceOrderSummary source={sourceSummary} />
+    </section> : null}<SourceOrderSummary source={state.confirmedPaymentSourceHash
+      ? { ...sourceSummary, paymentLabel: '已付款', paymentTone: 'ready' } : sourceSummary} />
     {readyForShipment ? <>
       <input type="hidden" name="method" value={draft.method} />
       <input type="hidden" name="temperature" value={draft.temperature} />
@@ -158,5 +176,5 @@ export function OmsReviewForm({ orderId, sourceHash, status, draft, sourceSummar
         {method === 'convenience' ? <><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市店號（選填）</span><Input name="storeId" value={storeId} onChange={event => setStoreId(event.target.value)} placeholder="可留空" /></label><label className="space-y-1 text-sm"><span className="text-muted-foreground">7-11 門市名稱</span><Input name="storeName" defaultValue={draft.storeName} onChange={() => setStoreId('')} placeholder="例如：大銅門市" required /></label></> : <><input type="hidden" name="storeId" value={draft.storeId} /><input type="hidden" name="storeName" value={draft.storeName} /></>}
       </div>
     </details>}
-    {!readyForShipment ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">處理規則</summary><p className="mt-1 text-muted-foreground">人工調整僅影響 HQ 訂單與出貨內容；Shopify 原單保留。修改後請重新儲存並檢查，再確認訂單。</p></details> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{isError ? <a className="inline-flex font-medium underline underline-offset-4" href={`/orders/${encodeURIComponent(orderId)}`}>重新載入訂單並核對狀態</a> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} pendingShipmentReview={pendingShipmentReview} locked={Boolean(state.uncertain)} /></form>;
+    {!readyForShipment ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">處理規則</summary><p className="mt-1 text-muted-foreground">人工調整僅影響 HQ 訂單與出貨內容；Shopify 原單保留。修改後請重新儲存並檢查，再確認訂單。</p></details> : null}<details className={readyForShipment ? "hidden" : "rounded-lg border bg-muted/20 p-3 text-sm"}><summary className="cursor-pointer font-medium">例外確認</summary><label className="mt-3 flex items-start gap-2 text-sm"><input className="mt-0.5" type="checkbox" name="duplicateConfirmed" defaultChecked={draft.duplicateConfirmed} />僅在系統提示疑似重複訂單時勾選：已確認仍需出貨</label></details>{ok != null ? <div className={`space-y-2 rounded-lg border p-3 text-sm ${resultTone}`} aria-live="polite"><p className="flex items-start gap-2 font-medium">{hasBlockers || !ok ? <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${isError ? 'text-destructive' : 'text-warning'}`} aria-hidden /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />}<span>{state.message}</span></p>{hasBlockers ? <><p className="font-medium">尚待條件</p><ul className="list-disc space-y-1 pl-5">{state.blockers.map(item => <li key={item}>{item}</li>)}</ul></> : null}{isError ? <a className="inline-flex font-medium underline underline-offset-4" href={`/orders/${encodeURIComponent(orderId)}`}>重新載入訂單並核對狀態</a> : null}{ok && state.next ? <a className="inline-flex font-medium underline underline-offset-4" href={state.next.href}>{state.next.label}</a> : null}</div> : null}{canConfirmPayment ? <ConfirmPaymentButton locked={locked} /> : null}<Actions status={effectiveStatus} summary={isError ? '' : (ok != null ? state.message : '')} alertText={isError ? state.message : ''} canCreateShipment={canCreateShipment} pendingShipmentReview={pendingShipmentReview} locked={locked} /></form>;
 }

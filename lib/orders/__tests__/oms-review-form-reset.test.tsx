@@ -18,12 +18,17 @@ const { createRoot } = require('react-dom/client');
 const submissions: Record<string, FormDataEntryValue>[] = [];
 const navigation: string[] = [];
 let refreshes = 0;
-let outcome: 'check' | 'blocked' | 'ship' | 'disconnected' | 'stale' = 'check';
+let outcome: 'check' | 'blocked' | 'ship' | 'disconnected' | 'stale' | 'payment-reload' = 'check';
 const actionStub = {
   requestOmsReview: async (form: FormData) => {
     submissions.push(Object.fromEntries(form.entries()));
     if (outcome === 'stale') throw new Error('Server Action "old-action" was not found on the server.');
     if (outcome === 'disconnected') throw new Error('Failed to fetch');
+    if (outcome === 'payment-reload') return {
+      ok: false, action: 'check', omsStatus: null, kind: 'error', blockers: [], next: null,
+      paymentRecordedNeedsReload: true, confirmedPaymentSourceHash: 'paid-source',
+      message: '已確認收款，訂單仍在待審核。請重新載入訂單後繼續。',
+    };
     return {
       ok: outcome !== 'blocked', action: outcome === 'ship' ? 'ship' : form.get('action'),
       omsStatus: outcome === 'ship' ? 'FULFILLMENT_PENDING' : 'REVIEW',
@@ -156,6 +161,26 @@ test('review retains shipping selection through repeated checks and approval', a
       assert.ok(container.textContent?.includes('檢查通過'));
       assert.equal(container.querySelector('a[href="/shipments?s=test"]')?.textContent, '前往運輸區');
     }
+
+    const unpaidSummary = { ...sourceSummary, paymentLabel: '未付款', paymentTone: 'hold' };
+    const renderUnpaid = (canManagePayment: boolean) => act(async () => root.render(createElement(OmsReviewForm, {
+      key: String(canManagePayment), orderId: 'test-order', sourceHash: 'same-source', status: 'REVIEW',
+      draft, sourceSummary: unpaidSummary, canManagePayment,
+    })));
+    await renderUnpaid(false);
+    assert.equal(container.querySelector('button[value="confirm-payment"]'), null);
+    await renderUnpaid(true);
+    submissions.length = 0;
+    outcome = 'payment-reload';
+    await submit('confirm-payment');
+    assert.equal(submissions[0].action, 'confirm-payment');
+    assert.equal(container.querySelector('button[value="confirm-payment"]'), null);
+    assert.ok(container.textContent?.includes('已確認收款，訂單仍在待審核'));
+    assert.ok(container.querySelector('a[href="/orders/test-order"]'));
+    assert.ok((container.querySelector('button[value="check"]') as HTMLButtonElement).disabled);
+    assert.ok((container.querySelector('button[value="approve"]') as HTMLButtonElement).disabled);
+    await submit('check');
+    assert.equal(submissions.length, 1, 'a stale form must not submit again after payment has been recorded');
   } finally {
     await act(async () => root.unmount());
     internal._load = originalLoad;

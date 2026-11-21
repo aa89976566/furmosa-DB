@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { bustCacheTags } from '@/lib/runtime-cache';
 import { CACHE_TAGS } from '@/lib/cache-tags';
 import { emptyReviewResult, ReviewError, runReview } from '@/lib/orders/review-service';
+import { saveReviewPayment } from '@/lib/orders/hq-adjustment-service';
 import { adjustedSnapshot } from '@/lib/orders/hq-adjustment';
 import { snapshotHash, type Snapshot } from '@/lib/shopify/intake-policy';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
@@ -24,8 +25,8 @@ export async function reviewInboxDecision(input: { orderId: string; sourceHash: 
     const result = await runReview(prisma, { ...input, reviewRevision: String(input.reviewRevision ?? ''), actorId: actor.id, sourceOnly: true, quickApprove: input.action === 'approve' });
     // Cache failures after commit must not turn a successful decision into an apparent failure.
     try {
-      for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard']) revalidatePath(path);
-      void bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals).catch(() => {});
+      for (const path of ['/reviews', '/orders', `/orders/${input.orderId}`, '/dashboard', '/shipments']) revalidatePath(path);
+      void bustCacheTags(CACHE_TAGS.dashboard, CACHE_TAGS.orderHubTotals, CACHE_TAGS.shipmentQueueCounts).catch(() => {});
     } catch { /* Committed decision is authoritative. */ }
     return result;
   } catch (error) {
@@ -54,4 +55,15 @@ export async function loadReviewOrderEditor(orderId: string, expectedHash: strin
     options: products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, productId: product.id,
       variantId: tier.shopifyVariantId, variantName: tier.variantName, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`,
       price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' }))) };
+}
+
+export async function reviewPaymentChoice(input: { orderId: string; sourceHash: string; payment: 'paid' | 'pending' }) {
+  try {
+    const actor = await reviewer();
+    const saved = await saveReviewPayment(prisma, { ...input, actorId: actor.id });
+    // Return the committed revision directly. Revalidating this action can hold the
+    // entire review workbench in a streamed transition after the payment is saved.
+    // Approval refreshes the inbox; other order pages read the authoritative DB on navigation.
+    return { ok: true as const, ...saved, message: '付款狀態已儲存並留下操作紀錄，請再按通過' };
+  } catch (error) { return { ok: false as const, message: error instanceof Error ? error.message : '付款狀態未儲存，請重試' }; }
 }

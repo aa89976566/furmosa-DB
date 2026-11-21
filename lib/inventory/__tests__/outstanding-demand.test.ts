@@ -27,3 +27,17 @@ test('bundle demand follows explicit recipe and ledger for each ingredient', () 
   assert.equal(result.complete, true);
   assert.deepEqual([...result.reserved.values()], [0, 15, 15]);
 });
+
+test('count-based refill reserves both ingredients and subtracts their posted amounts', () => {
+  const line = structuredClone(group.items[0]);
+  line.weightGrams = null;
+  line.product.productCategory = 'JAR_EXCHANGE';
+  line.product.unit = '罐';
+  line.product.priceTiers = [{ id: 't', weightGrams: null, unit: '罐', unitQty: 1, bundleComponents: [
+    { componentProductId: 'throat', gramsPerPack: 12 },
+    { componentProductId: 'lung', gramsPerPack: 15 },
+  ] }];
+  const result = outstandingDemand([{ ...group, items: [line] }], [{ ...posted, productId: 'throat', quantity: -12 }]);
+  assert.equal(result.complete, true);
+  assert.deepEqual([...result.reserved], [['throat', 12], ['lung', 30]]);
+});

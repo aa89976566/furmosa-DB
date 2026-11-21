@@ -26,7 +26,7 @@ import { loadMerchantWholesalePrices } from '@/lib/merchant-wholesale-prices';
 import { findMerchantWholesalePrice } from '@/lib/orders/merchant-wholesale-price';
 import { quoteDefaultBuyoutTier } from '@/lib/orders/buyout-pricing';
 import {
-  merchantCommercialModesAt,
+  hqMerchantOrderModesAt,
   merchantProductAllowsMode,
 } from '@/lib/orders/merchant-commercial-access';
 import {
@@ -213,7 +213,7 @@ export async function parseOrderFormData(
     });
     if (!merchant || merchant.status !== 'active') throw new Error('店家不存在或已停用');
     const merchantTypes = await getMerchantTypes(prisma, merchant.id, merchant.type);
-    const commercialModes = merchantCommercialModesAt(
+    const commercialModes = hqMerchantOrderModesAt(
       merchant.commercialModules,
       merchantTypes,
     );
@@ -300,6 +300,7 @@ export async function parseOrderFormData(
       price: true,
       cost: true,
       productCategory: true,
+      category: true,
       consignmentEnabled: true,
       wholesaleEnabled: true,
       jarExchangeEnabled: true,
@@ -399,7 +400,8 @@ export async function parseOrderFormData(
       const selectedTier = prod.priceTiers.find((tier) => tier.id === it.tierId) ?? null;
       const automaticQuote = configuredPrice == null
         ? quoteDefaultBuyoutTier({
-            sku: prod.sku,
+            name: prod.name,
+            category: prod.category,
             retailUnitPrice: selectedTier?.price ?? prod.price,
             quantity: quantityByProductId.get(prod.id) ?? it.quantity,
           })
@@ -481,7 +483,8 @@ export async function parseOrderFormData(
           automaticWholesaleUnitPrice:
             merchantOrderMode === 'wholesale' && configuredWholesalePrice == null
               ? quoteDefaultBuyoutTier({
-                  sku: prod.sku,
+                  name: prod.name,
+            category: prod.category,
                   retailUnitPrice: selectedTier?.price ?? prod.price,
                   quantity: quantityByProductId.get(prod.id) ?? it.quantity,
                 })?.wholesaleUnitPrice ?? null

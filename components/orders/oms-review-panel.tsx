@@ -42,7 +42,8 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
   if (!status || (!['NEW', 'REVIEW', 'READY'].includes(status) && !(needsReviewRecovery && status === 'FULFILLMENT_PENDING')) || !sourceView) return null;
   const session = await getCurrentUser();
   const actor = session ? await prisma.user.findUnique({ where: { id: session.userId }, select: { role: true } }) : null;
-  if (!actor || !['admin', 'staff'].includes(actor.role)) return <p>需要 HQ 審核人員確認此訂單。</p>;
+  const canManagePayment = actor?.role === 'admin' || actor?.role === 'staff';
+  if (!canManagePayment && actor?.role !== 'inventory_reviewer') return <p>需要 HQ 審核人員確認此訂單。</p>;
   const source = snapshot as Snapshot;
   const hash = snapshotHash(source);
 
@@ -74,9 +75,9 @@ export async function OmsReviewPanel({ orderId, snapshot, status, externalStore,
         <p className="mt-1 text-muted-foreground">商品與配送內容已依 HQ 最新審核確認。下一步：建立 HQ 出貨單。</p>
       </div> : null}
     </div>
-    {['NEW', 'REVIEW', 'READY'].includes(status) && !activeShipment ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderNumber={sourceView.name} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, productId: product.id, variantId: tier.shopifyVariantId, variantName: tier.variantName, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`, price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' })))} /> : null}
-    {actor.role === 'admin' ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">更多訂單操作</summary><OrderDeletionForm orderId={orderId} orderNumber={sourceView.name} deleted={false} /></details> : null}
-    {adjustmentError ? <p role="alert" className="rounded-lg border p-3 text-destructive">{adjustmentError}</p> : <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery}
+    {canManagePayment && ['NEW', 'REVIEW', 'READY'].includes(status) && !activeShipment ? <HqAdjustmentForm key={`${hash}-${adjustment?.id ?? ''}`} orderNumber={sourceView.name} orderId={orderId} source={originalSnapshot as Snapshot} sourceHash={snapshotHash(originalSnapshot as Snapshot)} revision={adjustment?.id ?? ''} metadata={adjustment?.metadataJson ?? null} options={products.flatMap(product => product.priceTiers.map(tier => ({ id: tier.id, productId: product.id, variantId: tier.shopifyVariantId, variantName: tier.variantName, label: `${product.name}｜${tier.variantName?.trim() || `${tier.weightGrams ?? ''}${tier.unit}`}`, price: String(tier.price), sku: tier.shopifySku || tier.sku || product.sku || '' })))} /> : null}
+    {actor?.role === 'admin' ? <details className="text-sm"><summary className="cursor-pointer py-2 text-muted-foreground">更多訂單操作</summary><OrderDeletionForm orderId={orderId} orderNumber={sourceView.name} deleted={false} /></details> : null}
+    {adjustmentError ? <p role="alert" className="rounded-lg border p-3 text-destructive">{adjustmentError}</p> : <OmsReviewForm key={hash} orderId={orderId} sourceHash={hash} status={needsReviewRecovery ? 'NEW' : status} pendingShipmentReview={needsReviewRecovery} canManagePayment={canManagePayment}
       initialIssues={parseOmsIssues(issues) ?? []}
       draft={draft}
       sourceSummary={{

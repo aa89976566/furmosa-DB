@@ -14,6 +14,7 @@ export type ReorderProductInput = {
   unitVerified?: boolean;
   reserved?: number;
   demandVerified?: boolean;
+  observedStockComparable?: boolean;
 };
 
 export type ReorderAlertRow = ReorderProductInput & {
@@ -28,6 +29,13 @@ export type ReorderAlertSummary = {
   incoming: ReorderAlertRow[];
   stocktake: ReorderAlertRow[];
 };
+
+/** Physical low stock remains visible even when demand is not yet verified. */
+export function hasObservedLowStock(product: ReorderProductInput): boolean {
+  return Boolean(product.observedStockComparable !== false && product.lastCountedAt && bulkUnit(product.unit) && product.unitVerified !== false &&
+    Number.isFinite(product.onHand) && product.onHand >= 0 && Number.isFinite(product.reorderPoint) &&
+    product.reorderPoint >= 0 && product.onHand <= product.reorderPoint);
+}
 
 /**
  * 補貨點是商品主檔的安全線；待收貨採購需先扣抵，避免重複下單。
@@ -64,7 +72,7 @@ export function buildReorderAlertSummary(products: ReorderProductInput[]): Reord
   };
   result.orderNow.sort(urgency);
   result.incoming.sort(urgency);
-  result.stocktake.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+  result.stocktake.sort((a, b) => Number(hasObservedLowStock(b)) - Number(hasObservedLowStock(a)) || a.name.localeCompare(b.name, 'zh-Hant'));
   return result;
 }
 

@@ -79,3 +79,16 @@ test('負庫存和舊規格引導核對，正常店家規格可建立補貨；�
   assert.ok(document.querySelector('a[href="/shipments/s1"]'));
   assert.match(document.body.textContent!, /不會自動補扣庫存/);
 });
+
+test('需求未核對仍顯示帳面低庫存和補貨點，不提供未核實採購量', () => {
+  const row = { id: 'milkfish', name: '虱目魚', sku: 'FUR-0048', vendorName: null, unit: 'g',
+    onHand: 40, reserved: 0, available: 40, reorderPoint: 40, incoming: 0, projected: 40, deficit: 0,
+    lastCountedAt: new Date(), demandVerified: false, state: 'stocktake' as const };
+  const document = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, stocktake: [row] } });
+  const panel = document.querySelector('#purchase-count')!;
+  assert.match(panel.textContent!, /帳面低庫存 · 現存 40 g · 補貨點 40 g/);
+  assert.match(panel.textContent!, /未出貨需求未完整核對/);
+  assert.equal(panel.querySelectorAll('a[href^="/inventory/purchase-orders/new"]').length, 0);
+  const unknown = render({ ...empty, reorderAlerts: { ...empty.reorderAlerts, stocktake: [{ ...row, unitVerified: false }] } });
+  assert.doesNotMatch(unknown.querySelector('#purchase-count')!.textContent!, /帳面低庫存/);
+});

@@ -20,6 +20,8 @@ export type ReviewResult = {
   kind: ReviewResultKind;
   next: { label: string; href: string } | null;
   uncertain?: boolean;
+  confirmedPaymentSourceHash?: string;
+  paymentRecordedNeedsReload?: boolean;
 };
 
 export function emptyReviewResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
@@ -68,7 +70,7 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       ? await tx.$queryRaw<Array<{ acquired: boolean }>>`SELECT pg_try_advisory_xact_lock(hashtextextended(${`shopify:${key.externalStore}:${key.externalOrderId}`}, 0)) AS acquired`
       : [{ acquired: true }];
     if (!sourceLock?.acquired) {
-      throw new ReviewError('訂單正在與 Shopify 同步，請稍候 5 秒再按「儲存並檢查」', { kind: 'blocked' });
+      throw new ReviewError('訂單正在處理，請稍後重新整理確認結果', { kind: 'blocked' });
     }
     const order = await tx.order.findUniqueOrThrow({
       where: { id: key.id },
@@ -90,9 +92,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     catch (error) { throw new ReviewError(error instanceof Error ? error.message : 'HQ 調整資料無效', { kind: 'blocked' }); }
     if (order.deletedAt) throw new ReviewError('訂單已從 HQ 刪除，請先還原後重新審核', { kind: 'error' });
     if (!snapshot || snapshotHash(snapshot) !== command.sourceHash) throw new ReviewError('訂單已更新，請重新整理後再審核', { kind: 'error' });
+    if ((command.sourceOnly || command.action === 'reject') && order.archivedAt) throw new ReviewError('訂單已封存，請先還原後再審核', { kind: 'blocked' });
     const shipmentBase = `OMS-${order.id}`;
     const activeShipments = order.shipments.filter(s => s.status !== 'cancelled');
-    if (quickApprove && activeShipments.length) throw new ReviewError('已有出貨單，請至出貨區處理', { kind: 'blocked' });
     const existingOmsShipment = activeShipments.find(
       s => s.shipmentNumber === shipmentBase || s.shipmentNumber.startsWith(`${shipmentBase}-R`),
     );
@@ -117,16 +119,16 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         message: '訂單已確認並已有出貨單',
         omsStatus: 'FULFILLMENT_PENDING',
         kind: 'success',
-        next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(existingOmsShipment.id)}` },
+        next: { label: '查看待出貨單', href: `/shipments?s=${encodeURIComponent(existingOmsShipment.id)}` },
       });
     }
+    if (quickApprove && activeShipments.length) throw new ReviewError('已有出貨單，請至出貨區處理', { kind: 'blocked' });
     if (!recoveringPending && (!['NEW', 'REVIEW', 'READY'].includes(order.omsStatus ?? '') ||
       ['cancelled', 'packed', 'shipped', 'delivered', 'completed'].includes(order.status) || activeShipments.length)) {
       throw new ReviewError('訂單已取消或已進入出貨流程，不能變更審核', { kind: 'error' });
     }
     // Conflicting same-version payload must be reconciled at source, not cleared by a reviewer.
     if (parseOmsIssues(order.omsIssueFlags)?.some(i => i.code === 'SOURCE_VERSION_UNKNOWN')) throw new ReviewError('來源版本不明或衝突，需先重新同步 Shopify', { kind: 'error' });
-    if ((quickApprove || command.action === 'reject') && order.archivedAt) throw new ReviewError('訂單已封存，請先還原後再審核', { kind: 'blocked' });
     if (command.action === 'reject') {
       const reason = command.reason?.trim();
       if (!reason || reason.length > 500) throw new ReviewError('請選擇不通過原因，最多 500 字', { kind: 'blocked' });
@@ -283,18 +285,18 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
     if (!command.sourceOnly && (!savedPlan || fulfillmentPlanHash(savedPlan) !== result.plan.frozenHash || savedPlan.sourceHash !== command.sourceHash)) {
       throw new ReviewError('出貨計畫已變更或不完整，請重新檢查', { kind: 'error' });
     }
-    if (!quickApprove && command.action === 'approve' && order.omsStatus === 'READY' && order.omsReviewedAt && order.omsReviewedById) {
+    if (!command.sourceOnly && command.action === 'approve' && order.omsStatus === 'READY' && order.omsReviewedAt && order.omsReviewedById) {
       return approveSuccess(result.issues.some(issue => issue.code === 'PAYMENT_PENDING'));
     }
+    const createsShipment = command.action === 'ship' || (command.action === 'approve' && command.sourceOnly);
     const blockers = omsApprovalBlockers({ omsStatus: command.action === 'ship' || recoveringPending || quickApprove ? 'REVIEW' : order.omsStatus,
       issues: result.issues, checkedAt: quickApprove ? now : order.omsCheckedAt, checkedSourceUpdatedAt: quickApprove ? order.shopifySourceUpdatedAt : order.omsCheckedSourceUpdatedAt,
       sourceUpdatedAt: order.shopifySourceUpdatedAt, actorId: actor.id, actorCanReview: true, cancelled: Boolean(snapshot.order.cancelled_at) },
-      command.action === 'ship' ? 'ship' : 'review');
+      createsShipment ? 'ship' : 'review');
     if (blockers.length) throw new ReviewError(blockers[0] ?? '無法完成審核', { blockers, kind: 'blocked' });
     const awaitingPayment = result.issues.some(issue => issue.code === 'PAYMENT_PENDING');
 
     if (recoveryShipment) {
-      if (awaitingPayment) throw new ReviewError('付款尚未完成，不能確認出貨', { kind: 'blocked' });
       await tx.order.update({ where: { id: order.id }, data: {
         omsReviewedAt: now, omsReviewedById: actor.id,
         omsIssueFlags: result.issues as Prisma.InputJsonValue, omsCheckedAt: now,
@@ -305,14 +307,14 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
           reviewAuditId: audit!.id, shipmentId: recoveryShipment.id }) } });
       return emptyReviewResult({ ok: true, action: 'approve', message: '已重新確認既有出貨單，可以回到出貨列表標記寄出',
         omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
-        next: { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(recoveryShipment.id)}` } });
+        next: { label: '查看待出貨單', href: `/shipments?s=${encodeURIComponent(recoveryShipment.id)}` } });
     }
 
-    // Shopify orders with a clean, paid review enter the HQ shipment queue in the
-    // same atomic confirmation. Exceptions (including payment pending) remain in
-    // READY for a later explicit shipment action; legacy review remains two-step.
-    const createsShipment = command.action === 'ship' ||
-      (command.action === 'approve' && command.sourceOnly && !awaitingPayment && !quickApprove);
+    if (quickApprove && createsShipment) {
+      await tx.order.update({ where: { id: order.id }, data: {
+        omsStatus: 'READY', status: 'confirmed', omsReviewedAt: now, omsReviewedById: actor.id,
+      } });
+    }
     let shipment: { id: string } | null = null;
     if (!createsShipment) {
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'READY', ...(quickApprove ? { status: 'confirmed' } : {}), omsReviewedAt: now,
@@ -355,7 +357,8 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
         items: { create: result.items.map(({ productId, productName, sku, quantity, weightGrams, unit, variantKey, notes }) => (
           { productId, productName, sku, quantity, weightGrams, unit, variantKey, notes })) } } });
       await tx.order.update({ where: { id: order.id }, data: { omsStatus: 'FULFILLMENT_PENDING', status: 'confirmed',
-        omsReviewedAt: order.omsReviewedAt ?? now, omsReviewedById: order.omsReviewedById ?? actor.id,
+        omsReviewedAt: quickApprove ? now : order.omsReviewedAt ?? now,
+        omsReviewedById: quickApprove ? actor.id : order.omsReviewedById ?? actor.id,
         shippingMethod: draft.method, shippingAddress: draft.address, cvsBrand: draft.method === 'convenience' ? '7-11' : null,
         cvsStoreId: draft.storeId || null, cvsStoreName: draft.storeName || null } });
     }
@@ -366,9 +369,9 @@ export async function runReview(db: PrismaClient, command: ReviewCommand) {
       return approveSuccess(awaitingPayment);
     }
     return emptyReviewResult({
-      ok: true, action: 'ship', message: '訂單已確認，已建立待出貨任務；尚未連接物流供應商',
+      ok: true, action: 'ship', message: '已進待出貨',
       omsStatus: 'FULFILLMENT_PENDING', kind: 'success',
-      next: shipment ? { label: '前往運輸區', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
+      next: shipment ? { label: '查看待出貨單', href: `/shipments?s=${encodeURIComponent(shipment.id)}` } : shippingNext('查看出貨單'),
     });
   }, { maxWait: 2000, timeout: 20000 });
 }

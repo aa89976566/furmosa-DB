@@ -33,7 +33,7 @@ import {
 import { mergeSearchWhere, shipmentSearchWhere } from '@/lib/site-search';
 import type { Prisma } from '@prisma/client';
 import { cn } from '@/lib/utils';
-import { shipmentInventoryAdvisories } from '@/lib/inventory/shipment-advisory';
+import { shipmentInventoryAdvisories, shipmentRecipeStock } from '@/lib/inventory/shipment-advisory';
 import { normalizeStoredShopifyRecipient } from '@/lib/shopify/recipient-name';
 import { displayOrderNumber } from '@/lib/orders/display-order-number';
 import { resolveShopifyBundleDisplay } from '@/lib/shopify/bundle-contents';
@@ -56,6 +56,7 @@ const queueTierSelect = {
   weightGrams: true,
   unit: true,
   unitQty: true,
+  ...shipmentRecipeStock.select,
 } as const;
 
 const queueBalanceSelect = {
@@ -82,6 +83,7 @@ const shipmentInclude = {
     select: {
       id: true,
       orderNumber: true,
+      orderedAt: true,
       source: true,
       externalOrderName: true,
       status: true,
@@ -245,6 +247,7 @@ function toQueueRow(
       ? {
           id: s.order.id,
           orderNumber: s.order.orderNumber,
+          orderedAt: s.order.orderedAt.toISOString(),
           displayOrderNumber: displayOrderNumber(s.order),
           omsStatus: s.order.omsStatus,
           status: s.order.status,

@@ -36,6 +36,7 @@ test('詳情以 OMS 狀態與真實審核時間呈現，舊流程仍保留', () 
   assert.match(page, /OMS_LABELS\[order.omsStatus\]/);
   assert.match(page, /time=\{order.omsReviewedAt\}/);
   assert.match(page, /!order.omsStatus && order.status !== 'draft'/);
-  assert.match(page, /<StatusBadge kind="order" value=\{order.status\}/);
+  assert.match(page, /const displayOrderStatus = completedByShipments \? 'completed' : order.status/);
+  assert.match(page, /<StatusBadge kind="order" value=\{displayOrderStatus\}/);
   assert.match(page, /savedReview.recipient/);
 });

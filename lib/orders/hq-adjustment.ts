@@ -2,7 +2,7 @@ import { record, snapshotHash, type Snapshot } from '../shopify/intake-policy';
 import { moneyToCents } from './promotion-resolver';
 
 export type AdjustmentLine = { sourceIndex?: number; tierId?: string; quantity: number; price: string };
-export type AdjustmentData = { sourceHash: string; lines: Record<string, unknown>[]; shippingFee: string; subtotal: string; total: string; reason: string };
+export type AdjustmentData = { sourceHash: string; financialStatus?: 'paid' | 'pending'; totalDiscounts?: string; lines: Record<string, unknown>[]; shippingFee: string; subtotal: string; total: string; reason: string };
 export const centsText = (cents: number) => `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 export function parseAdjustment(metadata: string | null | undefined): AdjustmentData | null {
   if (!metadata) return null;
@@ -15,8 +15,9 @@ export function adjustedSnapshot(source: Snapshot, audit: { id: string; metadata
   const adjustment = parseAdjustment(audit.metadataJson);
   if (!adjustment || adjustment.sourceHash !== snapshotHash(source)) throw new Error('Shopify 原單已有更新，請先核對並重新儲存 HQ 調整');
   return { ...source, order: { ...source.order,
+    ...(adjustment.financialStatus ? { financial_status: adjustment.financialStatus } : {}),
     line_items: adjustment.lines as Snapshot['order'][string], subtotal_price: adjustment.subtotal,
-    total_price: adjustment.total, total_discounts: '0.00',
+    total_price: adjustment.total, total_discounts: adjustment.totalDiscounts ?? '0.00',
     total_shipping_price_set: { shop_money: { amount: adjustment.shippingFee, currency_code: source.order.currency ?? 'TWD' } },
     _hq_adjustment_revision: audit.id,
   } };

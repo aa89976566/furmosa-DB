@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { adjustedSnapshot } from '../hq-adjustment';
 import { describe, it, test } from 'node:test';
 import type { PrismaClient } from '@prisma/client';
 import { record, shopifySnapshot, snapshotHash } from '../../shopify/intake-policy';
@@ -179,7 +180,7 @@ function fakeDb(source = snapshot) {
   const run = (action: 'check' | 'approve' | 'ship' | 'reject', overrides = {}) => runReview(db, {
     orderId: 'o1', actorId: 'u1', sourceHash: snapshotHash(source), action, draft, ...overrides,
   });
-  return { run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
+  return { db, run, get order() { return order; }, get shipmentCreates() { return shipmentCreates; },
     get audits() { return audits; },
     setStock: (n: number) => { stock = n; }, setRole: (value: string) => { role = value; } };
 }
@@ -312,13 +313,13 @@ describe('OMS review transaction contract', () => {
     assert.equal(f.shipmentCreates, 1, 'replacement confirmation is also idempotent');
   });
 
-  it('unpaid order with cancelled shipment can be reviewed without creating another shipment', async () => {
+  it('unpaid order with cancelled shipment stays in review without another shipment', async () => {
     const source = shopifySnapshot({ ...raw, financial_status: 'pending' });
     const f = fakeDb(source);
     f.order.shipments.push({ id: 'old', shipmentNumber: 'OMS-o1', status: 'cancelled' });
     await f.run('check', { sourceOnly: true });
-    const result = await f.run('approve', { sourceOnly: true });
-    assert.equal(result.omsStatus, 'READY');
+    await assert.rejects(f.run('approve', { sourceOnly: true }), /付款/);
+    assert.equal(f.order.omsStatus, 'REVIEW');
     assert.equal(f.shipmentCreates, 0);
     assert.equal(f.order.shipments[0].status, 'cancelled');
     await assert.rejects(() => f.run('ship', { sourceOnly: true }), ReviewError);
@@ -441,26 +442,13 @@ describe('OMS review action result contract', () => {
     assert.deepEqual(passed.blockers, []);
   });
 
-  it('lets unpaid orders become READY and reports payment still pending', async () => {
+  it('keeps unpaid orders in review from the detail page', async () => {
     const f = fakeDb(unpaidSnapshot);
     await f.run('check', { sourceOnly: true });
-    const approved = await f.run('approve', { sourceOnly: true });
-    assert.equal(approved.ok, true);
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(approved.message, '已確認訂單');
-    assert.ok(approved.blockers.includes('等待 Shopify 付款完成'));
-    assert.ok(approved.blockers.includes('Shopify 付款完成後訂單會回到待審核，需重新檢查並確認'));
-    assert.equal(approved.kind, 'success');
-    assert.deepEqual(approved.next, { label: '前往運送資訊', href: '#oms-shipping' });
-    assert.deepEqual(serializable(approved), approved);
-    await assert.rejects(
-      f.run('ship', { sourceOnly: true }),
-      (error: unknown) => {
-        assert.ok(error instanceof ReviewError);
-        assert.ok(error.blockers.some(message => message.includes('付款')));
-        return true;
-      },
-    );
+    const checks = f.audits.length;
+    await assert.rejects(f.run('approve', { sourceOnly: true }), /付款/);
+    assert.equal(f.order.omsStatus, 'REVIEW');
+    assert.equal(f.audits.length, checks);
     assert.equal(f.shipmentCreates, 0);
   });
 
@@ -634,13 +622,16 @@ test('HQ adjustment controls reviewed shipment quantities without changing Shopi
 
 describe('inbox one-click review decisions', () => {
   const complete = shopifySnapshot({ ...raw, shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
-  it('checks and approves in one transaction without making a shipment', async () => {
+  it('creates exactly one pending shipment for duplicate approval requests', async () => {
     const f = fakeDb(complete);
     const result = await f.run('approve', { sourceOnly: true, quickApprove: true });
     assert.equal(result.ok, true);
-    assert.equal(f.order.omsStatus, 'READY');
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
     assert.equal(f.order.status, 'confirmed');
-    assert.equal(f.shipmentCreates, 0);
+    const repeated = await f.run('approve', { sourceOnly: true, quickApprove: true });
+    assert.equal(repeated.next?.href, result.next?.href);
+    assert.equal(f.shipmentCreates, 1);
+    assert.equal(f.order.shipments[0].status, 'pending');
     assert.ok(f.audits.some(a => a.entityType === 'oms_review'));
     assert.ok(f.audits.some(a => a.metadataJson.includes('quick_approve')));
   });
@@ -656,7 +647,7 @@ describe('inbox one-click review decisions', () => {
   });
   it('records rejection and invalidates readiness without deleting the order', async () => {
     const f = fakeDb(complete);
-    await f.run('approve', { sourceOnly: true, quickApprove: true });
+    await f.run('check', { sourceOnly: true });
     const result = await f.run('reject', { reason: '缺貨' });
     assert.equal(result.ok, true);
     assert.equal(f.order.omsStatus, 'REVIEW');
@@ -668,8 +659,8 @@ describe('inbox one-click review decisions', () => {
     assert.equal(f.audits.at(-1).entityType, 'oms_review_decision');
     await assert.rejects(f.run('reject', { reason: '' }), /原因/);
     await f.run('approve', { sourceOnly: true, quickApprove: true });
-    assert.equal(f.order.omsStatus, 'READY');
-    assert.equal(f.shipmentCreates, 0);
+    assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
+    assert.equal(f.shipmentCreates, 1);
   });
   it('cannot reject orders already in fulfillment or archived', async () => {
     const f = fakeDb(complete);
@@ -688,10 +679,11 @@ test('quick review preserves saved HQ delivery and rejects legacy OMS-null order
   const f = fakeDb();
   await f.run('check', { sourceOnly: true, draft });
   await f.run('approve', { sourceOnly: true, quickApprove: true });
-  assert.equal(f.order.omsStatus, 'READY');
+  assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING');
   const saved = JSON.parse(f.audits.findLast(a => a.entityType === 'oms_review').metadataJson);
   assert.equal(saved.draft.address, draft.address);
-  assert.equal(f.shipmentCreates, 0);
+  assert.equal(f.shipmentCreates, 1);
+  assert.equal(f.order.shipments[0].recipientAddress, draft.address);
   const legacy = fakeDb();
   legacy.order.omsStatus = null;
   await assert.rejects(legacy.run('approve', { sourceOnly: true, quickApprove: true }), /不適用 Shopify OMS/);
@@ -706,4 +698,21 @@ test('one-click approval rejects a delivery edit made after the inbox was loaded
   await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true, reviewRevision: '' }), /審核資料已修改/);
   assert.equal(f.order.omsStatus, 'REVIEW');
   assert.equal(f.shipmentCreates, 0);
+});
+
+test('待審核人工確認已付清後可直接通過，未付款仍阻擋且只建立待出貨單', async () => {
+  const { saveReviewPayment } = await import('../hq-adjustment-service');
+  const source = shopifySnapshot({ ...raw, financial_status: 'pending', shipping_address: { name: '測試', phone: '0912345678', address1: '測試地址' }, shipping_lines: [{ title: '黑貓宅配' }] });
+  const f = fakeDb(source);
+  await assert.rejects(f.run('approve', { sourceOnly: true, quickApprove: true }), /付款/);
+  await f.run('check', { sourceOnly: true, draft: { ...draft, address: 'HQ 更正地址' } });
+  const paymentResult = await saveReviewPayment(f.db, { actorId: 'u1', orderId: 'o1', sourceHash: snapshotHash(source), payment: 'paid' });
+  const effective = adjustedSnapshot(source, f.audits.filter(a => a.entityType === 'hq_order_adjustment').at(-1)!);
+  assert.equal(paymentResult.sourceHash, snapshotHash(effective));
+  assert.equal(paymentResult.reviewRevision, f.audits.filter(a => a.entityType === 'oms_review').at(-1)!.id);
+  const result = await f.run('approve', { sourceOnly: true, quickApprove: true, sourceHash: paymentResult.sourceHash, reviewRevision: paymentResult.reviewRevision });
+  assert.equal(result.ok, true); assert.equal(f.order.omsStatus, 'FULFILLMENT_PENDING'); assert.equal(f.shipmentCreates, 1);
+  assert.equal(f.order.paymentStatus, 'paid'); assert.deepEqual(f.order.shopifySnapshot, source);
+  const review = f.audits.filter(a => a.entityType === 'oms_review').at(-1)!;
+  assert.equal(JSON.parse(review.metadataJson).draft.address, 'HQ 更正地址');
 });

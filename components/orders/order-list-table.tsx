@@ -4,15 +4,25 @@ import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import type { Prisma } from '@prisma/client';
 import { StatusBadge } from '@/components/shared/status-badge';
-import { formatCurrency, formatDate } from '@/lib/format';
+import { formatCurrency } from '@/lib/format';
 import { resolveLogisticsForOrderList } from '@/lib/logistics-display';
-import { ORDER_LIST_INCLUDE } from '@/lib/order-list';
+import { legacyOrderCompletedByShipments, ORDER_LIST_INCLUDE } from '@/lib/order-list';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { omsNextActionLabel, parseOmsIssues, type OmsIssueCode } from '@/lib/orders/oms';
 import styles from './order-resource-list.module.css';
 import { canonicalProductName } from '@/lib/product-label';
 
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
+
+const orderTimeFormatter = new Intl.DateTimeFormat('zh-TW', {
+  timeZone: 'Asia/Taipei',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 function orderCustomer(order: OrderListRow) {
   const snapshot = snapshotView(order.shopifySnapshot);
@@ -49,6 +59,7 @@ function nextAction(order: OrderListRow) {
   }
   if (order.status === 'cancelled') return { label: '已取消', hint: '無需處理', active: false };
   if (order.fulfillmentStatus === 'delivered' || order.status === 'completed') return { label: '已完成', hint: '交易完成', active: false };
+  if (legacyOrderCompletedByShipments(order)) return { label: '已完成', hint: '出貨已驗收或送達', active: false };
   if (order.fulfillmentStatus === 'shipped') return { label: '運送中', hint: '等待送達', active: false };
   if (order.status === 'pending_review' || order.status === 'draft') return { label: '處理訂單', hint: '核對內容', active: true };
   if (order.status === 'confirmed' || order.status === 'packed') return { label: '處理出貨', hint: '建立物流', active: true };
@@ -77,21 +88,19 @@ function issueCategory(order: OrderListRow) {
 
 export function OrderListTable({
   orders,
-  showOrderDate = false,
 }: {
   orders: OrderListRow[];
-  showOrderDate?: boolean;
 }) {
   if (orders.length === 0) {
     return <section className={styles.empty}>目前沒有需要處理的訂單</section>;
   }
 
   return <section className={styles.list} aria-label="訂單列表">
-    {orders.map((order) => <OrderResourceRow key={order.id} order={order} showOrderDate={showOrderDate} />)}
+    {orders.map((order) => <OrderResourceRow key={order.id} order={order} />)}
   </section>;
 }
 
-function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showOrderDate: boolean }) {
+function OrderResourceRow({ order }: { order: OrderListRow }) {
   const customer = orderCustomer(order);
   const item = orderItemSummary(order);
   const logistics = resolveLogisticsForOrderList(order);
@@ -99,10 +108,14 @@ function OrderResourceRow({ order, showOrderDate }: { order: OrderListRow; showO
   const issue = issueCategory(order);
   const orderReference = order.externalOrderName || order.orderNumber;
 
+  const orderTime = orderTimeFormatter.format(order.orderedAt);
+
   return <article className={styles.row}>
+    <time className={styles.orderDate} dateTime={order.orderedAt.toISOString()} aria-label={`訂單建立時間（台灣時間） ${orderTime}`}>
+      {orderTime}
+    </time>
     <div className={styles.identity}>
       <Link href={`/orders/${order.id}`} className={styles.orderNumber}>{orderReference}</Link>
-      {showOrderDate ? <p className={styles.orderDate}>訂單日期 {formatDate(order.orderedAt)}</p> : null}
       <div className={styles.tags}>
         <StatusBadge kind="orderSource" value={order.source} />
         <span className={`${styles.issueTag} ${styles[issue.tone]}`}>{issue.label}</span>

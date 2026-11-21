@@ -432,6 +432,150 @@ function menuFromItems(opts: {
   });
 }
 
+/**
+ * 換罐主導覽：對齊已確認的官網黃藍視覺。
+ * 不再沿用綠色狗鼻背景；功能入口維持完整，避免改版時遺失既有能力。
+ */
+function buildJarNavigationMenu(opts: {
+  items: WorldMenuItem[];
+  primaryId?: string;
+}): LineReplyMessage {
+  const blue = '#2F6FBB';
+  const blueSoft = '#EAF3FF';
+  const yellow = '#FFD348';
+  const cream = '#FFFAF0';
+  const ink = '#17335B';
+  const muted = '#5C7090';
+  const border = '#8BB6ED';
+
+  const rows = opts.items.map((item) => {
+    const action: CardAction = item.uri
+      ? { type: 'uri', uri: item.uri }
+      : item.message
+        ? { type: 'message', text: item.message }
+        : { type: 'postback', data: `jd=${item.id}`, displayText: item.label };
+    const isPrimary = item.id === opts.primaryId;
+    const componentAction =
+      action.type === 'postback'
+        ? {
+            type: 'postback' as const,
+            data: action.data,
+            displayText: action.displayText ?? item.label,
+          }
+        : action.type === 'uri'
+          ? { type: 'uri' as const, uri: action.uri }
+          : { type: 'message' as const, text: action.text };
+
+    return {
+      type: 'box',
+      layout: 'horizontal',
+      paddingAll: '13px',
+      margin: 'sm',
+      cornerRadius: '12px',
+      borderWidth: 'light',
+      borderColor: isPrimary ? blue : border,
+      backgroundColor: isPrimary ? blue : '#FFFFFF',
+      action: componentAction,
+      contents: [
+        {
+          type: 'text',
+          text: item.label,
+          size: 'sm',
+          weight: 'bold',
+          color: isPrimary ? '#FFFFFF' : ink,
+          flex: 1,
+          wrap: true,
+        },
+        {
+          type: 'text',
+          text: item.uri ? '↗' : '›',
+          size: 'md',
+          weight: 'bold',
+          color: isPrimary ? '#FFFFFF' : blue,
+          align: 'end',
+          flex: 0,
+        },
+      ],
+    };
+  });
+
+  return {
+    type: 'flex',
+    altText: '換罐計畫｜從這裡開始',
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      styles: {
+        body: { backgroundColor: cream },
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '0px',
+        backgroundColor: cream,
+        contents: [
+          {
+            type: 'box',
+            layout: 'vertical',
+            height: '10px',
+            backgroundColor: yellow,
+            contents: [{ type: 'filler' }],
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            paddingAll: '18px',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'text',
+                text: '換罐計畫',
+                size: 'xs',
+                weight: 'bold',
+                color: blue,
+              },
+              {
+                type: 'text',
+                text: '從這裡開始',
+                size: 'xl',
+                weight: 'bold',
+                color: ink,
+                wrap: true,
+              },
+              {
+                type: 'text',
+                text: '開戶、存序號、查紀錄，都在同一條路上。',
+                size: 'sm',
+                color: muted,
+                wrap: true,
+                margin: 'xs',
+              },
+              {
+                type: 'box',
+                layout: 'vertical',
+                margin: 'md',
+                paddingAll: '10px',
+                cornerRadius: '12px',
+                backgroundColor: blueSoft,
+                contents: [
+                  {
+                    type: 'text',
+                    text: '空罐先別丟。你今天想處理哪一件事？',
+                    size: 'sm',
+                    color: ink,
+                    wrap: true,
+                  },
+                ],
+              },
+              ...rows,
+            ],
+          },
+        ],
+      },
+    },
+  };
+}
+
 /** 聊天內備援：四格入口 */
 export function buildThreeWorldsMenuMessages(opts?: { body?: string }): LineReplyMessage[] {
   const intro = opts?.body ?? '下面四格，想晃哪格點哪格。';
@@ -518,6 +662,7 @@ export function buildWorldHubMessages(
   if (hub === 'jar') {
     // 與一起野放相同：只回選單卡；LIFF 就緒時第三鍵「線上預購換罐」
     const hubCfg = buildJarHubItems(registered, {
+      registerLiffUrl: getLiffUrlIfConfigured('register'),
       refillLiffUrl: getLiffUrlIfConfigured('refill'),
     });
     const messages: LineReplyMessage[] = [];
@@ -525,14 +670,9 @@ export function buildWorldHubMessages(
       messages.push({ type: 'text', text: opts.body });
     }
     messages.push(
-      menuFromItems({
-        altText: WORLD_HUB_LABELS.jar,
-        theme,
-        title: WORLD_HUB_LABELS.jar,
-        subtitle: WORLD_HUB_TAGLINE.jar,
+      buildJarNavigationMenu({
         items: hubCfg.items,
         primaryId: hubCfg.primaryId || undefined,
-        dogFrame: true,
       }),
     );
     return messages;
@@ -564,8 +704,13 @@ export function buildWorldHubMessages(
 /** 未開戶擋序號：垂直按鈕 */
 export function buildRegisterGateMessages(
   text: string = JAR_ENTER_BLOCKED_GUEST,
+  opts?: { registerLiffUrl?: string | null },
 ): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
+  const registerLiffUrl =
+    opts && 'registerLiffUrl' in opts
+      ? opts.registerLiffUrl?.trim() || null
+      : getLiffUrlIfConfigured('register');
   return [
     buildButtonMenuFlex({
       altText: '先幫毛孩開戶',
@@ -576,11 +721,13 @@ export function buildRegisterGateMessages(
       items: [
         {
           label: LINE_BTN.registerNow,
-          action: {
-            type: 'postback',
-            data: 'jd=jar_reg&next=enter',
-            displayText: LINE_BTN.registerNow,
-          },
+          action: registerLiffUrl
+            ? { type: 'uri', uri: registerLiffUrl }
+            : {
+                type: 'postback',
+                data: 'jd=jar_reg&next=enter',
+                displayText: LINE_BTN.registerNow,
+              },
           style: 'primary',
         },
       ],
@@ -659,11 +806,16 @@ export function buildEnterCodePromptMessages(): LineReplyMessage[] {
 export function buildJarStartMessages(opts: {
   registered: boolean;
   customerName?: string | null;
+  registerLiffUrl?: string | null;
   refillLiffUrl?: string | null;
 }): LineReplyMessage[] {
   const theme = WORLD_THEME.jar;
 
   if (!opts.registered) {
+    const registerLiffUrl =
+      'registerLiffUrl' in opts
+        ? opts.registerLiffUrl?.trim() || null
+        : getLiffUrlIfConfigured('register');
     return [
       buildButtonMenuFlex({
         altText: '開始換罐・先開戶',
@@ -674,11 +826,13 @@ export function buildJarStartMessages(opts: {
         items: [
           {
             label: '幫毛孩開戶',
-            action: {
-              type: 'postback',
-              data: 'jd=jar_reg&next=enter',
-              displayText: '幫毛孩開戶',
-            },
+            action: registerLiffUrl
+              ? { type: 'uri', uri: registerLiffUrl }
+              : {
+                  type: 'postback',
+                  data: 'jd=jar_reg&next=enter',
+                  displayText: '幫毛孩開戶',
+                },
             style: 'primary',
           },
           {

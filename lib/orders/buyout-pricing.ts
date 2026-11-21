@@ -1,44 +1,57 @@
 /**
- * Default merchant buyout rules.
- * Merchant event/group-buy exceptions are resolved separately and take priority.
- * Values are calculated from the current SKU retail price and snapshotted on the order.
+ * Default merchant buyout rules from「匠寵｜零食產品清單」.
+ * A merchant-specific price always takes priority. Otherwise:
+ * - 肉乾／常溫零食：零售價 8 折
+ * - 凍乾：零售價 7 折
+ * - 棒棒牛／棒棒雞單支小禮包：固定 NT$25
+ * All calculated prices round to whole TWD.
  */
-export const CHICKEN_BUYOUT_SKU = 'FUR-0002' as const;
+const FIXED_PRICE_GIFT_PACK = /^(棒棒牛|棒棒雞)(?:｜單支小禮包|小禮包)?$/;
 
 export type BuyoutTierQuote = {
-  ruleId: 'chicken-buyout-v2';
-  discountBps: 2500 | 3000;
-  minimumQuantity: 30 | 50;
+  ruleId: 'sheet-buyout-v1';
+  discountBps: 2000 | 3000 | null;
   retailUnitPrice: number;
   wholesaleUnitPrice: number;
+  calculation: 'retail_discount' | 'fixed_price';
 };
 
-function roundTwdCents(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+function roundTwd(value: number) {
+  return Math.round(value + Number.EPSILON);
 }
 
-/** Returns null for products governed by their own SKU rule. */
+/** Calculates the default shop buyout price for a single sellable SKU/tier. */
 export function quoteDefaultBuyoutTier(input: {
-  sku: string;
+  name: string;
+  category: string;
   retailUnitPrice: number;
   quantity: number;
-}): BuyoutTierQuote | null {
-  if (input.sku !== CHICKEN_BUYOUT_SKU) return null;
+}): BuyoutTierQuote {
   if (!Number.isFinite(input.retailUnitPrice) || input.retailUnitPrice <= 0) {
-    throw new Error('雞霸尚未設定有效零售參考價');
+    throw new Error('商品尚未設定有效零售參考價');
   }
-  if (!Number.isInteger(input.quantity) || input.quantity < 30) {
-    throw new Error('雞霸買斷最低 30 件');
+  if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
+    throw new Error('買斷數量必須大於 0');
   }
 
-  const discountBps: 2500 | 3000 = input.quantity >= 50 ? 3000 : 2500;
+  if (FIXED_PRICE_GIFT_PACK.test(input.name)) {
+    return {
+      ruleId: 'sheet-buyout-v1',
+      discountBps: null,
+      retailUnitPrice: input.retailUnitPrice,
+      wholesaleUnitPrice: 25,
+      calculation: 'fixed_price',
+    };
+  }
+
+  const discountBps: 2000 | 3000 = input.category === 'freeze_dried' ? 3000 : 2000;
   return {
-    ruleId: 'chicken-buyout-v2',
+    ruleId: 'sheet-buyout-v1',
     discountBps,
-    minimumQuantity: input.quantity >= 50 ? 50 : 30,
     retailUnitPrice: input.retailUnitPrice,
-    wholesaleUnitPrice: roundTwdCents(
+    wholesaleUnitPrice: roundTwd(
       input.retailUnitPrice * (10_000 - discountBps) / 10_000,
     ),
+    calculation: 'retail_discount',
   };
 }

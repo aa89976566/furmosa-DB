@@ -72,3 +72,18 @@ test('來源對應修改後稽核仍以原始出貨明細事件辨識扣帳', ()
   const jar = { ...shipment, items: [{ ...shipment.items[0]!, id: 'line1', productId: 'jar', product: { ...shipment.items[0]!.product, inventorySourceProductId: 'new-source' } }] };
   assert.deepEqual(missingShipmentDeductions([jar], [{ ...posted, eventKey: 'shipment:s1:line1', productId: 'old-source' }]), []);
 });
+
+test('換罐配方稽核要求同一出貨明細的每項原料都已扣帳', () => {
+  const jar: ShipmentAuditInput = { ...shipment, items: [{
+    id: 'jar-line', productId: 'jar', productName: '脆脆鴨', quantity: 1, variantKey: 'jar-tier',
+    product: { sku: 'RF-CRISPY-DUCK', category: 'treats', productCategory: 'JAR_EXCHANGE',
+      priceTiers: [{ id: 'jar-tier', weightGrams: null, unit: '罐', unitQty: 1, bundleComponents: [
+        { componentProductId: 'throat' }, { componentProductId: 'lung' },
+      ] }],
+    },
+  }] };
+  const throat = { ...posted, productId: 'throat', quantity: -12, eventKey: 'shipment:s1:jar-line:component:throat' };
+  const lung = { ...posted, productId: 'lung', quantity: -15, eventKey: 'shipment:s1:jar-line:component:lung' };
+  assert.deepEqual(missingShipmentDeductions([jar], [throat])[0]?.missing, ['脆脆鴨']);
+  assert.deepEqual(missingShipmentDeductions([jar], [throat, lung]), []);
+});

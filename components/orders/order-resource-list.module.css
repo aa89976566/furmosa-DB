@@ -9,7 +9,7 @@
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "identity money" "summary summary" "cta cta";
+  grid-template-areas: "date date" "identity money" "summary summary" "cta cta";
   gap: 12px 16px;
   padding: 16px;
   border-bottom: 1px solid hsl(var(--border));
@@ -34,6 +34,8 @@
 
 .orderNumber:hover, a.customer:hover { text-decoration: underline; }
 .orderDate {
+  grid-area: date;
+  white-space: nowrap;
   color: hsl(var(--muted-foreground));
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -113,7 +115,7 @@
 @container (min-width: 600px) {
   .row {
     grid-template-columns: minmax(230px, 1fr) auto;
-    grid-template-areas: "identity money" "summary cta";
+    grid-template-areas: "date date" "identity money" "summary cta";
     align-items: end;
     padding: 15px 18px;
   }
@@ -122,8 +124,8 @@
 
 @container (min-width: 900px) {
   .row {
-    grid-template-columns: minmax(220px, .9fr) minmax(260px, 1.5fr) auto minmax(130px, auto);
-    grid-template-areas: "identity summary money cta";
+    grid-template-columns: max-content minmax(170px, .9fr) minmax(220px, 1.5fr) auto minmax(130px, auto);
+    grid-template-areas: "date identity summary money cta";
     align-items: center;
     gap: 22px;
     min-height: 76px;

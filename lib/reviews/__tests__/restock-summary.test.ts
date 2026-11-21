@@ -213,7 +213,7 @@ describe('restockReviewSummary', () => {
 
 describe('reviews page source assertions', () => {
   it('使用單一審核工作台，左側佇列與右側明細共用同一份資料', () => {
-    assert.match(pageSource, /<ReviewWorkbench items=\{items\} counts=\{counts\} \/>/);
+    assert.match(pageSource, /<ReviewWorkbench items=\{items\} counts=\{counts\} canManagePayment=\{canManagePayment\} \/>/);
     assert.match(workbenchSource, /待處理佇列/);
     assert.match(workbenchSource, /<DetailPanel item=\{selected\} onBack=/);
     assert.match(workbenchSource, /item\.lines/);

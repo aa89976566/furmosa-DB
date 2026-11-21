@@ -9,7 +9,7 @@ import {
 } from '@/lib/order-form-search';
 import { getMerchantTypesMap } from '@/lib/merchant-types-persist';
 import type { MerchantType } from '@/lib/merchant-types';
-import { merchantCommercialModesAt } from '@/lib/orders/merchant-commercial-access';
+import { hqMerchantOrderModesAt } from '@/lib/orders/merchant-commercial-access';
 import type { MerchantOrderMode } from '@/lib/orders/merchant-order-mode';
 
 export type OrderFormMerchantOption = {
@@ -83,7 +83,7 @@ export async function loadOrderFormOptions(seed?: {
     return {
       ...option,
       types,
-      commercialModes: merchantCommercialModesAt(commercialModules, types, now),
+      commercialModes: hqMerchantOrderModesAt(commercialModules, types, now),
     };
   });
 

@@ -22,6 +22,7 @@ export type OrderFormProductHit = {
   imageUrl?: string | null;
   sku: string;
   productCategory: string;
+  category: string;
   availableStock: number;
   inventorySourceLabel?: string | null;
   price: number;
@@ -70,6 +71,7 @@ const productSelect = {
   sku: true,
   imageUrl: true,
   productCategory: true,
+  category: true,
   businessTier: true,
   defaultConsignmentCommissionMode: true,
   defaultConsignmentCommissionValue: true,
@@ -95,6 +97,11 @@ const productSelect = {
       cost: true,
       defaultWholesaleUnitPrice: true,
       notes: true,
+      status: true,
+      bundleComponents: {
+        select: { gramsPerPack: true, componentProduct: { select: { name: true } } },
+        orderBy: { gramsPerPack: 'asc' as const },
+      },
     },
   },
 };
@@ -117,8 +124,20 @@ export function orderFormProductScopeWhere(
   return {};
 }
 
+type OrderFormProductRow = Awaited<ReturnType<typeof findProductsForOrderForm>>[number];
+
+function orderInventorySourceLabel(row: OrderFormProductRow) {
+  if (row.productCategory !== 'JAR_EXCHANGE') return null;
+  if (row.inventorySourceProduct?.status === 'active') return `來源：${row.inventorySourceProduct.name}（g）`;
+  const activeTiers = row.priceTiers.filter(tier => tier.status === 'active');
+  const recipe = activeTiers.length === 1 ? activeTiers[0].bundleComponents : [];
+  return recipe.length
+    ? `接單現做 · ${recipe.map(({ componentProduct, gramsPerPack }) => `${componentProduct.name} ${gramsPerPack}g`).join('＋')}／罐`
+    : '尚未設定有效庫存來源';
+}
+
 function toOrderFormProductHit(
-  row: Awaited<ReturnType<typeof findProductsForOrderForm>>[number],
+  row: OrderFormProductRow,
   wholesalePrices: MerchantWholesalePriceRow[] = [],
   merchantSuggestedPrices: Map<string, number> = new Map(),
   merchantCommissionRules: Map<string, { mode: string; value: number }> = new Map(),
@@ -131,10 +150,9 @@ function toOrderFormProductHit(
     imageUrl: row.imageUrl,
     sku: row.sku,
     productCategory: row.productCategory,
+    category: row.category,
     availableStock: (row.productCategory === 'JAR_EXCHANGE' ? row.inventorySourceProduct?.inventoryBalances ?? [] : row.inventoryBalances).reduce((sum, balance) => sum + balance.quantity, 0),
-    inventorySourceLabel: row.productCategory === 'JAR_EXCHANGE'
-      ? row.inventorySourceProduct?.status === 'active' ? `來源：${row.inventorySourceProduct.name}（g）` : '尚未設定有效庫存來源'
-      : null,
+    inventorySourceLabel: orderInventorySourceLabel(row),
     price: row.price,
     cost: row.cost,
     unit: row.unit,
@@ -303,32 +321,5 @@ export async function getProductsByIdentitiesForOrderForm(
     },
     select: productSelect,
   });
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    imageUrl: row.imageUrl,
-    sku: row.sku,
-    productCategory: row.productCategory,
-    availableStock: (row.productCategory === 'JAR_EXCHANGE' ? row.inventorySourceProduct?.inventoryBalances ?? [] : row.inventoryBalances).reduce((sum, balance) => sum + balance.quantity, 0),
-    inventorySourceLabel: row.productCategory === 'JAR_EXCHANGE'
-      ? row.inventorySourceProduct?.status === 'active' ? `來源：${row.inventorySourceProduct.name}（g）` : '尚未設定有效庫存來源'
-      : null,
-    price: row.price,
-    cost: row.cost,
-    unit: row.unit,
-    priceTiers: row.priceTiers,
-    wholesalePrices: [],
-    merchantSuggestedPrice: null,
-    consignmentEnabled: row.consignmentEnabled,
-    wholesaleEnabled: row.wholesaleEnabled,
-    jarExchangeEnabled: row.jarExchangeEnabled,
-    businessTier: row.businessTier,
-    defaultConsignmentCommissionMode: row.defaultConsignmentCommissionMode,
-    defaultConsignmentCommissionValue: row.defaultConsignmentCommissionValue,
-    defaultWholesaleUnitPrice: row.defaultWholesaleUnitPrice,
-    commercialTermsVersion: row.commercialTermsVersion,
-    merchantCommissionMode: null,
-    merchantCommissionValue: null,
-    merchantCommercialContextId: null,
-  }));
+  return rows.map((row) => toOrderFormProductHit(row));
 }

@@ -1,4 +1,4 @@
-import { bulkConsumption, bulkUnit, type BulkTier } from './bulk';
+import { bulkConsumption, bulkUnit, refillRecipeTier, validRefillRecipeQuantity, type BulkTier } from './bulk';
 
 export const MADE_TO_ORDER_HQ_SKUS = new Set(['FUR-0002', 'FUR-0014', 'FUR-0001', 'BF-03-30G']);
 
@@ -6,6 +6,28 @@ type AdvisoryBalance = {
   quantity: number;
   unit?: string | null;
   lastCountedAt?: Date | string | null;
+};
+
+const componentStock = {
+  select: {
+    gramsPerPack: true,
+    componentProduct: {
+      select: {
+        id: true, sku: true, name: true, unit: true, status: true,
+        inventoryBalances: {
+          where: { warehouse: { code: 'WH-MAIN' } },
+          select: { quantity: true, unit: true, lastCountedAt: true },
+        },
+      },
+    },
+  },
+} as const;
+
+export const shipmentRecipeStock = { select: { bundleComponents: componentStock } } as const;
+
+type AdvisorySource = { id: string; sku: string; name: string; inventoryBalances?: AdvisoryBalance[] };
+type AdvisoryTier = BulkTier & {
+  bundleComponents?: { gramsPerPack: number; componentProduct: AdvisorySource & { unit: string; status: string } }[];
 };
 
 type AdvisoryItem = {
@@ -20,7 +42,7 @@ type AdvisoryItem = {
     name: string;
     category: string;
     unit?: string | null;
-    priceTiers?: BulkTier[];
+    priceTiers?: AdvisoryTier[];
     inventoryBalances?: AdvisoryBalance[];
   };
 };
@@ -38,25 +60,47 @@ export function shipmentInventoryAdvisories(items: AdvisoryItem[]): string[] {
     { name: string; sku: string; unit: string; amount: number; balance: AdvisoryBalance | null }
   >();
 
+  function addRequirement(source: AdvisorySource, unit: string, amount: number) {
+    const current = required.get(source.id);
+    required.set(source.id, {
+      name: source.name,
+      sku: source.sku,
+      unit,
+      amount: (current?.amount ?? 0) + amount,
+      balance: current?.balance ?? source.inventoryBalances?.[0] ?? null,
+    });
+  }
+
   for (const item of items) {
     const product = item.product;
     if ((product.productCategory !== 'JAR_EXCHANGE' && !TRACKED_CATEGORIES.has(product.category)) || isMadeToOrderHqProduct(product.sku)) continue;
-    const source = product.productCategory === 'JAR_EXCHANGE' ? product.inventorySourceProduct : product;
+    const isJar = product.productCategory === 'JAR_EXCHANGE';
+    if (isJar) {
+      const tier = refillRecipeTier(product.priceTiers ?? [], item);
+      if (tier?.bundleComponents?.length) {
+        const components = tier.bundleComponents;
+        const gramsPerJar = components.reduce((sum, component) => sum + component.gramsPerPack, 0);
+        if (product.inventorySourceProduct || !validRefillRecipeQuantity(tier, item, gramsPerJar)) {
+          return [`${product.name}的庫存配方與規格不一致`];
+        }
+        const invalid = components.find(({ componentProduct }) => componentProduct.status !== 'active' ||
+          bulkUnit(componentProduct.unit) !== 'g' || componentProduct.inventoryBalances?.[0]?.unit !== 'g');
+        if (invalid) return [`${invalid.componentProduct.name}尚未設定有效的克數庫存，無法出貨`];
+        for (const { componentProduct, gramsPerPack } of components) {
+          addRequirement(componentProduct, 'g', gramsPerPack * item.quantity);
+        }
+        continue;
+      }
+    }
+    const source = isJar ? product.inventorySourceProduct : product;
     if (!source || ('status' in source && source.status !== 'active')) {
       return [`${product.name}尚未設定有效庫存來源單品，無法出貨`];
     }
     const unit = bulkUnit(source.unit);
     if (!unit) continue;
     try {
-      const amount = bulkConsumption(product.productCategory === 'JAR_EXCHANGE' ? { ...product, unit: 'g' } : product, item);
-      const current = required.get(source.id);
-      required.set(source.id, {
-        name: source.name,
-        sku: source.sku,
-        unit,
-        amount: (current?.amount ?? 0) + amount,
-        balance: current?.balance ?? source.inventoryBalances?.[0] ?? null,
-      });
+      const amount = bulkConsumption(isJar ? { ...product, unit: 'g' } : product, item);
+      addRequirement(source, unit, amount);
     } catch {
       // 規格錯誤仍由既有後端驗證阻擋；此函式只負責庫存數量提醒。
     }

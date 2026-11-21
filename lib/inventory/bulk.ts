@@ -19,3 +19,22 @@ export function bulkConsumption(product: { unit?: string | null; priceTiers?: Bu
   if (!Number.isSafeInteger(amount) || amount > 2147483647) throw new Error('耗用量超出範圍');
   return amount;
 }
+
+/** Refill recipes can keep the sales unit as one jar, with grams stored on each ingredient. */
+export function refillRecipeTier<T extends BulkTier>(tiers: T[],
+  line: { weightGrams?: number | null; variantKey?: string | null }) {
+  const matching = tiers.filter(tier => line.variantKey ? tier.id === line.variantKey
+    : tier.weightGrams === (line.weightGrams ?? null) &&
+      (tier.weightGrams !== null || (tier.unit === '罐' && tier.unitQty === 1)));
+  return matching.length === 1 ? matching[0] : undefined;
+}
+
+export function validRefillRecipeQuantity(tier: BulkTier,
+  line: { quantity: number; weightGrams?: number | null }, gramsPerJar: number) {
+  const grams = gramsPerJar * line.quantity;
+  return Number.isSafeInteger(line.quantity) && line.quantity > 0 &&
+    Number.isSafeInteger(grams) && grams > 0 && grams <= 2147483647 &&
+    (tier.weightGrams === null
+      ? tier.unit === '罐' && tier.unitQty === 1 && line.weightGrams == null
+      : tier.weightGrams === line.weightGrams && tier.weightGrams === gramsPerJar);
+}

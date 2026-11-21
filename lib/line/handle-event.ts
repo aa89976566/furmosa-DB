@@ -266,7 +266,8 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     parsed.kind === 'jar_explain' ||
     parsed.kind === 'jar_explain_flow' ||
     parsed.kind === 'jar_explain_faq' ||
-    parsed.kind === 'refill_flavours'
+    parsed.kind === 'refill_flavours' ||
+    parsed.kind === 'refill_price'
   ) {
     try {
       if (parsed.kind === 'jar_explain_flow') {
@@ -285,6 +286,21 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
         await replyLineMessage(replyToken, await buildRefillFlavoursListMessages(), {
           lineUserId,
         });
+        return;
+      }
+      if (parsed.kind === 'refill_price') {
+        const settings = await getRefillPlanSettings();
+        await replyLineText(
+          replyToken,
+          [
+            '換罐價格',
+            '',
+            `第一罐 NT$${settings.firstJarPrice}`,
+            `帶一個匠寵空罐換新罐 NT$${settings.exchangePrice}`,
+            '',
+            '換罐價必須一罐換一罐；沒有空罐時使用第一罐價格。',
+          ].join('\n'),
+        );
         return;
       }
 
