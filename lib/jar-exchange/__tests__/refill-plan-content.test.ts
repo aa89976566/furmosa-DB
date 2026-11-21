@@ -5,6 +5,7 @@ import {
   formatRefillSize,
   parseOptionalRefillWeight,
   REFILL_INTRO_COPY,
+  REFILL_INTRO_PRODUCTS,
   REFILL_PLAN_FAQ,
   REFILL_PLAN_RULES,
   DEFAULT_REFILL_FLAVOURS,
@@ -41,9 +42,27 @@ describe('refill plan content', () => {
   });
 
   it('intro CTA labels are concrete', () => {
-    assert.equal(REFILL_INTRO_COPY.ctaStart, '開始換罐');
+    assert.equal(REFILL_INTRO_COPY.ctaStart, '線上預購換罐');
     assert.equal(REFILL_INTRO_COPY.ctaFlavours, '看本期口味');
     assert.equal(REFILL_INTRO_COPY.ctaStores, '查看合作店');
+  });
+
+  it('keeps the approved three-product public introduction', () => {
+    assert.deepEqual(
+      REFILL_INTRO_PRODUCTS.map(({ name, size }) => ({ name, size })),
+      [
+        { name: '棒棒牛', size: '5條／罐' },
+        { name: '棒棒雞', size: '5條／罐' },
+        { name: '脆脆鴨', size: '27g／罐' },
+      ],
+    );
+    assert.match(REFILL_INTRO_PRODUCTS[0].description, /鴨喉嚨.*牛肉.*蔬菜凍乾/);
+    assert.match(REFILL_INTRO_PRODUCTS[1].description, /雞肉.*蔬菜凍乾.*低溫烘乾/);
+    assert.match(REFILL_INTRO_PRODUCTS[2].description, /鴨喉 12g.*鴨肺 15g/);
+    assert.equal(REFILL_INTRO_COPY.pointsHeadline, '到店換罐，每罐累積 1 點');
+    assert.match(REFILL_INTRO_COPY.pointsReward, /10 點.*NT\$200/);
+    assert.match(REFILL_INTRO_COPY.notes.join('\n'), /首罐不計點/);
+    assert.match(REFILL_INTRO_COPY.notes.join('\n'), /同一間店家/);
   });
 });
 

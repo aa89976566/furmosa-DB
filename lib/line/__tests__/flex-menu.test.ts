@@ -361,26 +361,25 @@ describe('換罐說明', () => {
     assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
 
-  it('點介紹：主視覺＋制度 Flex（不再三則泡泡）', async () => {
+  it('點介紹：單一純文字 Flex 顯示三款換罐內容與集點規則', async () => {
     const msgs = await buildJarExplainTopicMessages('intro');
-    assert.equal(msgs[0]?.type, 'image');
-    const img = msgs[0] as { originalContentUrl: string };
-    assert.match(img.originalContentUrl, /refill-flavours-v2\.jpg/);
-    assert.equal(msgs.length, 2);
-    assert.equal(msgs[1]?.type, 'flex');
-    const raw = JSON.stringify(msgs[1]);
-    assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
-    assert.match(raw, /"position":"absolute"/);
-    assert.match(raw, /吃完，不用說再見/);
-    assert.match(raw, /NT\$129/);
-    assert.match(raw, /NT\$99/);
-    assert.match(raw, /開始換罐/);
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0]?.type, 'flex');
+    const raw = JSON.stringify(msgs[0]);
+    assert.match(raw, /棒棒牛/);
+    assert.match(raw, /棒棒雞/);
+    assert.match(raw, /脆脆鴨/);
+    assert.match(raw, /5條／罐/);
+    assert.match(raw, /27g／罐/);
+    assert.match(raw, /到店換罐，每罐累積 1 點/);
+    assert.match(raw, /集滿 10 點，兌換 NT\$200 店家折價券/);
+    assert.match(raw, /首罐不計點/);
+    assert.match(raw, /線上預購換罐/);
     assert.match(raw, /"text":"開始換罐"/);
-    assert.doesNotMatch(raw, /"text":"立即開戶"/);
-    assert.doesNotMatch(raw, /"text":"兌換序號"/);
-    assert.match(raw, /看本期口味/);
-    assert.doesNotMatch(raw, /零食罐吃完先別丟/);
-    assert.doesNotMatch(JSON.stringify(msgs), /罐底那串 8 碼傳上來/);
+    assert.doesNotMatch(raw, /"type":"image"/);
+    assert.doesNotMatch(raw, /"hero"/);
+    assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
+    assert.doesNotMatch(raw, /7 種|每兩週|菜菜雞/);
   });
 
   it('開始換罐：已開戶回下一步卡，不含開戶文案', () => {
