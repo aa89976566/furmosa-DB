@@ -128,3 +128,102 @@ test('pending Shopify cleanup is bounded, digest-locked and preserves source ide
   assert.doesNotMatch(script, /omsStatus: 'NEW'/);
   assert.doesNotMatch(script, /\.order\.deleteMany|\.order\.delete\(/);
 });
+
+
+// Run the real controller with synthetic API responses: no GitHub/DB access.
+function preflightFixture(options: {
+  status?: string; behind?: number; merged?: boolean;
+  checks?: Array<Record<string, unknown>>; secondPage?: Array<Record<string, unknown>>;
+  files?: string[];
+}) {
+  const harness = `
+    import { readFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+    import { tmpdir } from 'node:os';
+    import { join } from 'node:path';
+    import { pathToFileURL } from 'node:url';
+    const fixture = JSON.parse(process.env.AUDIT_FIXTURE);
+    const folder = mkdtempSync(join(tmpdir(), 'release-preflight-test-'));
+    const output = join(folder, 'output');
+    Object.assign(process.env, {
+      GITHUB_TOKEN: 'synthetic', GITHUB_REPOSITORY: 'fixture/repo',
+      RELEASE_PR_NUMBER: '1', RELEASE_EXPECTED_HEAD_SHA: 'a'.repeat(40),
+      RELEASE_MIGRATION_PLAN: 'none', GITHUB_OUTPUT: output,
+    });
+    const requests = [];
+    globalThis.fetch = async url => {
+      const u = new URL(url); requests.push(u.pathname + u.search);
+      let data;
+      if (u.pathname.endsWith('/pulls/1')) data = {
+        state: fixture.merged ? 'closed' : 'open', draft: false,
+        merged_at: fixture.merged ? '2026-11-09' : null,
+        merge_commit_sha: fixture.merged ? 'b'.repeat(40) : null,
+        base: { ref: 'main' }, head: { sha: 'a'.repeat(40) }, title: 'Fixture',
+      };
+      else if (u.pathname.includes('/compare/')) data = {
+        status: fixture.status ?? 'ahead', behind_by: fixture.behind ?? 0,
+      };
+      else if (u.pathname.endsWith('/check-runs')) data = {
+        check_runs: u.searchParams.get('page') === '2' ? (fixture.secondPage ?? []) :
+          (fixture.checks ?? [{ id: 1, name: 'verify', status: 'completed', conclusion: 'success' }]),
+      };
+      else if (u.pathname.endsWith('/files')) data = (fixture.files ?? []).map(filename => ({ filename }));
+      else throw new Error('Unexpected mock endpoint');
+      return { ok: true, json: async () => data };
+    };
+    try {
+      const source = readFileSync('scripts/release/verify-pr.mjs', 'utf8').replace(
+        "'./release-plans.mjs'", JSON.stringify(pathToFileURL(join(process.cwd(), 'scripts/release/release-plans.mjs')).href));
+      await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+      console.log(JSON.stringify({ ok: true, requests, output: readFileSync(output, 'utf8') }));
+    } catch (error) {
+      console.log(JSON.stringify({ ok: false, requests, error: error.message, wroteOutput: existsSync(output) }));
+    } finally { rmSync(folder, { recursive: true, force: true }); }
+  `;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', harness], {
+    encoding: 'utf8', env: { AUDIT_FIXTURE: JSON.stringify(options) },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  return JSON.parse(run.stdout.trim().split('\n').at(-1)!);
+}
+
+test('open release candidates must include live main; merged recovery keeps ancestry checks', () => {
+  for (const status of ['behind', 'diverged']) {
+    const result = preflightFixture({ status, behind: 1 });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /behind or diverged/);
+    assert.equal(result.wroteOutput, false);
+  }
+  assert.equal(preflightFixture({ status: 'ahead', behind: 1 }).ok, false);
+  for (const status of ['ahead', 'identical']) {
+    const result = preflightFixture({ status });
+    assert.equal(result.ok, true);
+    assert.ok(result.requests.some((path: string) => path.includes('/compare/main...')));
+    assert.equal(preflightFixture({ status, merged: true }).ok, true);
+  }
+  assert.equal(preflightFixture({ status: 'diverged', merged: true }).ok, false);
+});
+
+test('new verify attempts cannot inherit an older successful result', () => {
+  const old = { id: 10, name: 'verify', status: 'completed', conclusion: 'success', completed_at: '2026-11-09T12:00:00Z' };
+  for (const status of ['queued', 'in_progress', 'completed']) {
+    const newest = { id: 11, name: 'verify', status, conclusion: status === 'completed' ? 'failure' : null, completed_at: null };
+    for (const checks of [[old, newest], [newest, old]]) {
+      const result = preflightFixture({ checks });
+      assert.equal(result.ok, false);
+      assert.equal(result.wroteOutput, false);
+    }
+  }
+  assert.equal(preflightFixture({ checks: [old, { ...old, id: 11, completed_at: '2026-11-09T11:00:00Z' }] }).ok, true);
+  assert.equal(preflightFixture({ checks: [] }).ok, false);
+  assert.equal(preflightFixture({ checks: [{ ...old, id: null }] }).ok, false);
+});
+
+test('verify selection reads every API page and preserves controller protection', () => {
+  const checks = Array.from({ length: 100 }, (_, i) => ({ id: i + 1, name: 'other', status: 'completed', conclusion: 'success' }));
+  const result = preflightFixture({ checks, secondPage: [{ id: 101, name: 'verify', status: 'in_progress' }] });
+  assert.equal(result.ok, false);
+  assert.ok(result.requests.some((path: string) => path.includes('filter=all&per_page=100&page=2')));
+  const protectedResult = preflightFixture({ files: ['scripts/release/verify-pr.mjs'] });
+  assert.equal(protectedResult.ok, false);
+  assert.match(protectedResult.error, /must not modify the trusted release controller/);
+});
