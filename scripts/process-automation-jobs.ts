@@ -6,12 +6,23 @@ import { runAdoptionSync } from '../lib/adoption/sync-worker.mjs';
 import { runSalmonInventorySync } from '../lib/shopify/salmon-inventory-sync';
 import { runExclusiveStockBatch } from '../lib/shopify/exclusive-stock-batch';
 
+const shutdown = new AbortController();
+const requestShutdown = () => {
+  if (shutdown.signal.aborted) return;
+  shutdown.abort();
+  console.log('[automation-worker] Shutdown requested; finishing active work');
+};
+
+process.on('SIGTERM', requestShutdown);
+process.on('SIGINT', requestShutdown);
+
 async function main() {
   const [automation, shopify] = await Promise.all([
     processDueAutomationJobs(50),
     retryFailedShopifyIntakes(prisma, 10),
   ]);
   console.log(JSON.stringify({ ok: true, automation, shopify }));
+  if (shutdown.signal.aborted) return;
   if (process.env.SHOPIFY_INVENTORY_SYNC_ENABLED === 'true') {
     try {
       const mode = process.env.SHOPIFY_INVENTORY_SYNC_MODE === 'apply' ? 'apply' : 'inspect';
@@ -21,12 +32,14 @@ async function main() {
       process.exitCode = 1;
     }
   }
+  if (shutdown.signal.aborted) return;
   if (process.env.SHOPIFY_INVENTORY_SYNC_EXTENDED_ENABLED === 'true') {
     const mode = process.env.SHOPIFY_INVENTORY_SYNC_EXTENDED_MODE === 'apply' ? 'apply' : 'inspect';
-    const inventoryBatch = await runExclusiveStockBatch(prisma, mode);
+    const inventoryBatch = await runExclusiveStockBatch(prisma, mode, process.env, undefined, shutdown.signal);
     console.log(JSON.stringify({ inventoryBatch }));
     if (inventoryBatch.blocked) process.exitCode = 1;
   }
+  if (shutdown.signal.aborted) return;
   // Keep adoption source slowness/failures independent of existing order/LINE jobs.
   try {
     const adoption = await Promise.all([undefined, meetpetsAdapter].map(adapter => runAdoptionSync(prisma, {
@@ -46,5 +59,10 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await prisma.$disconnect();
+    try {
+      await prisma.$disconnect();
+    } finally {
+      process.off('SIGTERM', requestShutdown);
+      process.off('SIGINT', requestShutdown);
+    }
   });
