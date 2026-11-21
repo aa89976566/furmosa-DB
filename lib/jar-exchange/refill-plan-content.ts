@@ -108,6 +108,7 @@ export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
 
 export const REFILL_INTRO_COPY = {
   flexTitle: '換罐計畫',
+  flavourSectionTitle: '目前可預購的換罐品項',
   pointsHeadline: '到店換罐，每罐累積 1 點',
   pointsReward: '集滿 10 點，兌換 NT$200 店家折價券',
   notes: [
