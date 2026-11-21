@@ -11,7 +11,7 @@ export const REFILL_PLAN_RULES = {
   /** 必須一罐空罐換一罐新品 */
   oneForOneRequired: true,
   /** 口味／庫存更新節奏文案 */
-  flavourUpdateCadence: '每兩週更新',
+  flavourUpdateCadence: '依合作店實際供應狀況更新',
   stockDisclaimer: '依合作店當期庫存為準',
   serialDigits: 8,
   pointsPerJar: 1,
@@ -48,7 +48,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'choose-flavour',
     question: '可以自己選口味嗎？',
-    answer: '可以從預約店家當期有庫存的口味中選擇。各店品項每兩週更新。',
+    answer: '可以從預約店家當期可供應的品項中選擇，實際可預購品項以換罐頁為準。',
   },
   {
     id: 'serial-where',
@@ -58,22 +58,22 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'how-points',
     question: '如何集點？',
-    answer: '建立毛孩帳號後，於官方 LINE 輸入罐底序號，每個有效序號累積 1 點。',
+    answer: '首罐不計點；交回完整空罐並完成到店換罐後，每罐累積 1 點。',
   },
   {
     id: 'ten-points',
     question: '集滿 10 點可以做什麼？',
-    answer: '可於帳號綁定的合作美容店折抵美容費：一般合作店 NT$200，豬窩各門市 NT$250。折抵由匠寵補貼店家。',
+    answer: '可在累積點數的同一間合作店家兌換 NT$200 店家折價券。',
   },
   {
     id: 'points-share',
     question: '不同店家的點數可以共用嗎？',
-    answer: '折價使用規則依帳號綁定的合作店為準；開戶完成後會顯示你綁定的店家。',
+    answer: '不共用。點數與折價券限在累積點數的同一間店家使用。',
   },
   {
     id: 'all-seven',
     question: '目前有哪些換罐口味？',
-    answer: '本期新口味為脆脆鴨、菜菜雞、棒棒牛。舊口味仍保留，實際可選品項依各合作店當期庫存為準。',
+    answer: '目前介紹三款：棒棒牛、棒棒雞、脆脆鴨。實際可預購品項以換罐頁為準。',
   },
 ];
 
@@ -101,41 +101,48 @@ export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
   },
   {
     no: '04',
-    title: '輸入瓶底序號',
-    body: '每罐累積 1 點，滿 10 點折 NT$200 美容費。',
+    title: '完成換罐後集點',
+    body: '首罐不計點；完成到店換罐後每罐累積 1 點，滿 10 點兌換 NT$200 店家折價券。',
   },
 ];
 
 export const REFILL_INTRO_COPY = {
-  flexTitle: '匠寵換罐計劃',
-  headline: '吃完，不用說再見。',
-  bodyLines: [
-    '第一罐 NT$129。',
-    '下次美容帶回空罐，',
-    'NT$99 就能換一罐新口味。',
-    '',
-    '每個瓶底都有專屬 8 位序號。',
-    '加入官方 LINE、建立毛孩帳號，',
-    '輸入序號即可累積 1 點。',
-    '',
-    '集滿 10 點，',
-    '可在綁定的合作美容店',
-    '折抵 NT$200 美容費。',
-  ],
-  tags: ['7 種口味', '每兩週更新', '合作店取貨'] as const,
-  flavourSectionTitle: '這期想吃哪一罐？',
-  flavourSectionLead: [
-    '目前共有 7 種口味，',
-    '各合作店可選品項每兩週更新一次。',
-    '',
-    '依合作店當期庫存為準。',
-  ],
-  ctaStart: '開始換罐',
+  flexTitle: '換罐計畫',
+  flavourSectionTitle: '目前可預購的換罐品項',
+  pointsHeadline: '到店換罐，每罐累積 1 點',
+  pointsReward: '集滿 10 點，兌換 NT$200 店家折價券',
+  notes: [
+    '首罐不計點；交回完整空罐、完成換罐後才入點',
+    '點數與折價券限同一間店家使用',
+    '棒棒牛、脆脆鴨含鴨肉；棒棒雞不含鴨',
+  ] as const,
+  altText:
+    '換罐計畫｜棒棒牛、棒棒雞、脆脆鴨。到店換罐每罐累積 1 點，集滿 10 點兌換 NT$200 店家折價券（首罐不計點）。',
+  ctaStart: '線上預購換罐',
   ctaFlavours: '看本期口味',
   ctaStores: '查看合作店',
 } as const;
 
-/** 預設七種口味（seed／後備；正式顯示以 DB isActive 為準） */
+/** LINE 對外介紹用的三款換罐內容；不參與 SKU、庫存或資格判斷。 */
+export const REFILL_INTRO_PRODUCTS = [
+  {
+    name: '棒棒牛',
+    size: '5條／罐',
+    description: '鴨喉嚨包覆牛肉，外層裹蔬菜凍乾',
+  },
+  {
+    name: '棒棒雞',
+    size: '5條／罐',
+    description: '雞肉加蔬菜凍乾打成泥，低溫烘乾',
+  },
+  {
+    name: '脆脆鴨',
+    size: '27g／罐',
+    description: '鴨喉 12g＋鴨肺 15g，低溫烘烤',
+  },
+] as const;
+
+/** 舊版預設口味（seed／後備；正式顯示以 DB isActive 為準） */
 export const DEFAULT_REFILL_FLAVOURS = [
   { code: 'veggie-25', name: '蔬果凍乾', weightGrams: 25, sortOrder: 1 },
   { code: 'beef-20', name: '牛肉凍乾', weightGrams: 20, sortOrder: 2 },
