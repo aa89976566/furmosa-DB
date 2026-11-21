@@ -5,7 +5,6 @@ import test from 'node:test';
 const publicLinkSources = [
   '../line/jar-dialogue-shell.ts',
   '../line/flex-hubs.ts',
-  '../line/refill-intro-flex.ts',
   '../campaigns/jiba-two-piece/service.ts',
 ];
 
