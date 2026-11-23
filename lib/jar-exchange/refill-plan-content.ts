@@ -33,12 +33,12 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'price-first',
     question: '第一罐多少錢？',
-    answer: '第一罐 NT$129。',
+    answer: '第一罐 NT$129，不用帶空罐。',
   },
   {
     id: 'price-exchange',
     question: '換罐多少錢？',
-    answer: '帶回一個完整的匠寵空罐並完成到店換罐，可用 NT$99 換一罐新口味。',
+    answer: '吃完後帶回一個完整的匠寵空罐並完成到店換罐，就能用 NT$99 續罐；可改選店家當期供應的其他口味。',
   },
   {
     id: 'no-empty',
@@ -80,6 +80,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
 export const REFILL_INTRO_COPY = {
   flexTitle: '換罐計畫',
   flavourSectionTitle: '目前可預購的換罐品項',
+  priceHeadline: '第一罐 NT$129；帶完整空罐續罐 NT$99',
   pointsHeadline: '到店換罐，每罐累積 1 點',
   pointsReward: '集滿 10 點，兌換 NT$200 店家折價券',
   notes: [
@@ -88,7 +89,7 @@ export const REFILL_INTRO_COPY = {
     '棒棒牛、脆脆鴨含鴨肉；棒棒雞不含鴨',
   ] as const,
   altText:
-    '換罐計畫｜棒棒牛、棒棒雞、脆脆鴨。到店換罐每罐累積 1 點，集滿 10 點兌換 NT$200 店家折價券（首罐不計點）。',
+    '換罐計畫｜第一罐 NT$129，不用帶空罐；吃完帶完整空罐回原店，棒棒牛、棒棒雞、脆脆鴨可依供應口味用 NT$99 續罐。完成到店換罐每罐累積 1 點，集滿 10 點兌換 NT$200 店家折價券（首罐不計點）。',
   ctaStart: '線上預購換罐',
   ctaFlavours: '看本期口味',
   ctaStores: '查看合作店',

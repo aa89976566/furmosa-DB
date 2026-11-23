@@ -361,7 +361,7 @@ describe('換罐說明', () => {
     assert.doesNotMatch(JSON.stringify(msgs), /換罐怎麼玩/);
   });
 
-  it('點介紹：單一純文字 Flex 顯示三款換罐內容與集點規則', async () => {
+  it('點介紹：單一 Flex 顯示真實產品照、三款換罐內容與集點規則', async () => {
     const msgs = await buildJarExplainTopicMessages('intro');
     assert.equal(msgs.length, 1);
     assert.equal(msgs[0]?.type, 'flex');
@@ -376,8 +376,9 @@ describe('換罐說明', () => {
     assert.match(raw, /首罐不計點/);
     assert.match(raw, /線上預購換罐/);
     assert.match(raw, /"text":"開始換罐"/);
-    assert.doesNotMatch(raw, /"type":"image"/);
-    assert.doesNotMatch(raw, /"hero"/);
+    assert.match(raw, /"type":"image"/);
+    assert.match(raw, /"hero"/);
+    assert.match(raw, /https:\/\/hq\.furmosa\.com\/line\/refill\/intro-products\.jpg/);
     assert.doesNotMatch(raw, /dialogue-bg-nose-v3\.jpg/);
     assert.doesNotMatch(raw, /7 種|每兩週|菜菜雞/);
   });

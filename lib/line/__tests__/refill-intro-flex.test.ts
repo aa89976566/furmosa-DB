@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import { buildJarIntroMessages } from '../refill-intro-flex';
 
 describe('LINE refill introduction Flex', () => {
-  it('returns one compact text-only message with the approved content', async () => {
+  it('returns one compact message with the real refill product photo and approved content', async () => {
     const messages = await buildJarIntroMessages();
     assert.equal(messages.length, 1);
     assert.equal(messages[0]?.type, 'flex');
 
     const json = JSON.stringify(messages[0]);
+    assert.match(
+      json,
+      /https:\/\/hq\.furmosa\.com\/line\/refill\/intro-products\.jpg/,
+    );
+    assert.match(json, /\"hero\"/);
+    assert.match(json, /\"type\":\"image\"/);
     for (const expected of [
       '棒棒牛',
       '棒棒雞',
@@ -24,7 +30,7 @@ describe('LINE refill introduction Flex', () => {
       assert.match(json, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
 
-    for (const forbidden of ['"type":"image"', '"hero"', '7 種', '7種', '每兩週', '菜菜雞', '輪替', '每瓶']) {
+    for (const forbidden of ['7 種', '7種', '每兩週', '菜菜雞', '輪替', '每瓶']) {
       assert.doesNotMatch(json, new RegExp(forbidden));
     }
 

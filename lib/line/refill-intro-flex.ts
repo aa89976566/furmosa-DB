@@ -24,6 +24,9 @@ const INTRO_THEME = {
   border: '#8AB9F4',
 } as const;
 
+const REFILL_INTRO_HERO_URL =
+  'https://hq.furmosa.com/line/refill/intro-products.jpg';
+
 type FlexComponent = Record<string, unknown>;
 
 
@@ -126,6 +129,13 @@ function buildIntroFlexContents() {
   return {
     type: 'bubble',
     size: 'mega',
+    hero: {
+      type: 'image',
+      url: REFILL_INTRO_HERO_URL,
+      size: 'full',
+      aspectRatio: '4:3',
+      aspectMode: 'cover',
+    },
     styles: {
       body: { backgroundColor: INTRO_THEME.bg },
       footer: { backgroundColor: INTRO_THEME.bg },
@@ -159,7 +169,7 @@ function buildIntroFlexContents() {
 }
 
 /**
- * 換罐計畫 → 介紹：一張純文字 Flex，不讀 DB、不傳圖片。
+ * 換罐計畫 → 介紹：真實罐裝主視覺加上規則 Flex；不讀 DB。
  */
 export async function buildJarIntroMessages(opts?: {
   registered?: boolean;

@@ -57,9 +57,9 @@ export const WILD_INTRO = `歡迎回家～
 /** 換罐說明：點按鈕後的對話氣泡（台灣毛爸媽口吻） */
 export const JAR_EXPLAIN_DIALOGUE = {
   intro: [
-    '目前換罐有棒棒牛、棒棒雞、脆脆鴨三款。',
-    '首罐不計點；交回完整空罐並完成到店換罐後，每罐累積 1 點。',
-    '集滿 10 點，可在累積點數的同一間合作店家兌換 NT$200 折價券。',
+    '第一罐 NT$129，不用帶空罐；目前有棒棒牛、棒棒雞、脆脆鴨三款。',
+    '吃完後保留完整空罐，帶回原合作店家，就能用 NT$99 續罐；店家當期有供應的口味都可以改選。',
+    '首罐不計點；每次完成到店換罐累積 1 點。集滿 10 點，可在累積點數的同一間合作店家兌換 NT$200 折價券。',
   ],
   /** @deprecated 流程改走 JAR_FLOW_STORY_STEPS（無圖故事卡） */
   flow: [
@@ -230,7 +230,7 @@ export function buildJarHubItems(
       id: 'jar_explain_intro',
       mark: '',
       label: '什麼是換罐計劃？',
-      subtitle: '空罐怎麼變成下一罐，先看這頁就懂。',
+      subtitle: '第一罐 $129，帶完整空罐可用 $99 續罐。',
       heroKey: 'jar-explain',
       message: '什麼是換罐計劃？',
     },
