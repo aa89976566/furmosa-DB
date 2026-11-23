@@ -432,13 +432,16 @@ describe('換罐說明', () => {
     assert.match(raw, /dialogue-bg-nose-v3\.jpg/);
     assert.match(raw, /"position":"absolute"/);
     assert.match(raw, /換罐循環故事/);
-    assert.match(raw, /第一次買一罐/);
+    assert.match(raw, /線上預購第一罐/);
+    assert.match(raw, /棒棒牛、棒棒雞、脆脆鴨/);
     assert.match(raw, /NT\$129/);
     assert.match(raw, /NT\$99/);
-    assert.match(raw, /瓶底 8 碼|8 碼/);
-    assert.match(raw, /集滿 10 點/);
+    assert.match(raw, /到店完成換罐/);
+    assert.match(raw, /首罐不計點/);
+    assert.match(raw, /滿 10 點/);
     assert.match(raw, /NT\$200/);
-    assert.match(raw, /一直循環/);
+    assert.match(raw, /同一間店/);
+    assert.doesNotMatch(raw, /毛孩去美容|美容店確認預約|每換一次就集 1 點/);
     assert.doesNotMatch(raw, /玩法很簡單/);
   });
 
