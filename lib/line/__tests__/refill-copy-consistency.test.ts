@@ -22,7 +22,7 @@ describe('LINE 換罐文案一致性', () => {
     assert.match(copy, /首罐不計點/);
     assert.match(copy, /完成到店換罐|到店換罐/);
     assert.match(copy, /10 點/);
-    assert.match(copy, /NT\\$200/);
+    assert.ok(copy.includes('NT$200'));
     assert.match(copy, /同一間/);
     assert.doesNotMatch(copy, /菜菜雞|7 種|每兩週|毛孩去美容|美容店確認預約|金額依.*門市/);
   });
