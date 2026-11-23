@@ -38,7 +38,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'price-exchange',
     question: '換罐多少錢？',
-    answer: '下次美容帶回一個匠寵空罐，可用 NT$99 換一罐新口味。',
+    answer: '帶回一個完整的匠寵空罐並完成到店換罐，可用 NT$99 換一罐新口味。',
   },
   {
     id: 'no-empty',
@@ -48,7 +48,7 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
   {
     id: 'choose-flavour',
     question: '可以自己選口味嗎？',
-    answer: '可以從預約店家當期可供應的品項中選擇，實際可預購品項以換罐頁為準。',
+    answer: '可以從所選店家當期可供應的品項中選擇，實際可預購品項以換罐頁為準。',
   },
   {
     id: 'serial-where',
@@ -74,35 +74,6 @@ export const REFILL_PLAN_FAQ: RefillPlanFaqItem[] = [
     id: 'all-seven',
     question: '目前有哪些換罐口味？',
     answer: '目前介紹三款：棒棒牛、棒棒雞、脆脆鴨。實際可預購品項以換罐頁為準。',
-  },
-];
-
-export type RefillIntroStep = {
-  no: string;
-  title: string;
-  body: string;
-};
-
-export const REFILL_INTRO_STEPS: RefillIntroStep[] = [
-  {
-    no: '01',
-    title: '先帶一罐回家',
-    body: '第一罐 NT$129，於合作美容店取貨。',
-  },
-  {
-    no: '02',
-    title: '吃完留下空罐',
-    body: '下次預約美容時，把空罐一起帶回來。',
-  },
-  {
-    no: '03',
-    title: 'NT$99 換新口味',
-    body: '店家確認空罐後，交付本期可選的新罐。',
-  },
-  {
-    no: '04',
-    title: '完成換罐後集點',
-    body: '首罐不計點；完成到店換罐後每罐累積 1 點，滿 10 點兌換 NT$200 店家折價券。',
   },
 ];
 
