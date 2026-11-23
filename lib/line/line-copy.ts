@@ -37,7 +37,7 @@ export {
 } from '@/lib/stores/signup-stores';
 
 export const LINE_STORE_PROMPT =
-  '請選一間常去的合作美容店喔。之後折價券會綁這間；可折金額依門市，綁定後會跟你說。';
+  '請選一間常去的合作店家喔。之後換罐點數與 NT$200 折價券都會記在這間店。';
 
 export const LINE_REGISTER_INTRO =
   '【開戶】先跟我們說一下你的暱稱～（例：小美）\n\n如果想先暫停，傳「取消」就可以。';
@@ -47,15 +47,6 @@ export const LINE_REGISTER_PHONE_PROMPT =
 
 export const LINE_PET_NAME_PROMPT = '毛孩叫什麼名字呀？';
 
-export const LINE_PET_BREED_PROMPT =
-  '品種是？（例：柯基、米克斯）\n不確定的話可以傳「略過」';
-
-export const LINE_PET_BIRTHDAY_PROMPT =
-  '生日是哪一天呢？（例：2020-05-06）\n選填，也可以傳「略過」';
-
-export const LINE_PET_AGE_PROMPT =
-  '毛孩大概幾歲呀？傳數字就好（例：3）\n或直接傳生日（例：2020-05-06）\n不確定可以傳「略過」';
-
 export const LINE_COUPON_VERIFY_HINT =
   '⚠️ 結帳前記得把券給店家看喔。\n店家按「驗證優惠券」後才能折抵。\n核銷過就不能再用了。';
 
@@ -64,7 +55,7 @@ export const LINE_CONTACT_INFO =
 
 /** @deprecated */
 export const LINE_ACTIVITY_INFO =
-  '空罐序號入帳得點數。滿 10 點可換美容折價，金額依你綁定的合作門市。';
+  '首罐不計點；交回完整空罐並完成到店換罐後，每罐累積 1 點。滿 10 點可在同一間店兌換 NT$200 折價券。';
 
 /** @deprecated */
 export const LINE_UNBOXING_INFO = `【嗷嗚計劃】
