@@ -19,6 +19,10 @@ describe('LINE 換罐文案一致性', () => {
       dialogue: JAR_EXPLAIN_DIALOGUE,
       flow: JAR_FLOW_STORY,
     });
+    assert.match(copy, /第一罐 NT\\\$129/);
+    assert.match(copy, /NT\\\$99 續罐/);
+    assert.match(copy, /完整空罐/);
+    assert.match(copy, /口味都可以改選|其他口味/);
     assert.match(copy, /首罐不計點/);
     assert.match(copy, /完成到店換罐|到店換罐/);
     assert.match(copy, /10 點/);
