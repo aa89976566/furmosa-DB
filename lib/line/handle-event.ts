@@ -371,6 +371,24 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     return;
   }
 
+  if (parsed.kind === 'partner_apply') {
+    await replyLineTextWithMenu(
+      replyToken,
+      lineUserId,
+      [
+        '想跟匠寵合作，歡迎直接在這裡告訴我們：',
+        '',
+        '1. 店家名稱與所在區域',
+        '2. 聯絡人與電話',
+        '3. 想合作的方式（進貨／寄賣／換罐計畫）',
+        '',
+        '我們會由真人接續確認，不會自動建立店家或改動任何資料。',
+      ].join('\n'),
+      { registered },
+    );
+    return;
+  }
+
   if (parsed.kind === 'events_center') {
     // 主動入口：不節流
     await replyLineMessage(replyToken, buildEventsCenterMessages({ registered }));

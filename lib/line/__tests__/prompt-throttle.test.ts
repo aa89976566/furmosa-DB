@@ -39,7 +39,7 @@ describe('buildGuestWelcomeText', () => {
     const text = buildGuestWelcomeText({ showRegister: false, showJar: false });
     assert.doesNotMatch(text, /罐底 8 碼/);
     assert.doesNotMatch(text, /→「開戶」/);
-    assert.match(text, /四格/);
+    assert.match(text, /下面選單/);
   });
 });
 

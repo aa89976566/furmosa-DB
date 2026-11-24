@@ -91,7 +91,10 @@ describe('parseLineUserText', () => {
 
   it('recognizes balance and help', () => {
     assert.equal(parseLineUserText('點數').kind, 'balance');
+    assert.equal(parseLineUserText('會員點數').kind, 'balance');
     assert.equal(parseLineUserText('說明').kind, 'help');
+    assert.equal(parseLineUserText('問問匠寵').kind, 'help');
+    assert.equal(parseLineUserText('申請合作').kind, 'partner_apply');
   });
 
   it('recognizes rewards and redeem', () => {
