@@ -1,20 +1,10 @@
 /**
- * 部署四格漫畫 Rich Menu（2×2）。
- *
- * 用法：
- *   LINE_CHANNEL_ACCESS_TOKEN=xxx npx tsx scripts/deploy-line-rich-menu.ts
- *
- * 圖檔優先：public/line/rich-menu-comic-2x2.jpg
- * 熱區依 rich-menu-comic-2x2.meta.json 的 content box（contain 留邊後的實際圖面）。
- *
- * 熱區：
- *   左上 一起野放 → 社區／UGC／活動
- *   右上 預約美容 → 好玩的還沒好
- *   左下 換罐計劃 → 開戶／序號／會員
- *   右下 回家 → furmosa.com＋@furmosa_food
+ * 部署「購物 × 換罐」六入口 Rich Menu。
+ * 只在人工執行此檔時才會呼叫 LINE API。
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { LINE_RICH_MENU_BODY } from '../lib/line/rich-menu-config';
 
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim();
 if (!TOKEN) {
@@ -23,169 +13,68 @@ if (!TOKEN) {
 }
 
 const API = 'https://api.line.me/v2/bot';
-const headers = {
-  Authorization: `Bearer ${TOKEN}`,
-  'Content-Type': 'application/json',
-};
-
-const CANVAS_W = 2500;
-const CANVAS_H = 1686;
-
-type ContentBox = { x: number; y: number; width: number; height: number };
-
-function loadContentBox(): ContentBox {
-  const metaPath = resolve('public/line/rich-menu-comic-2x2.meta.json');
-  if (existsSync(metaPath)) {
-    const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as {
-      content?: ContentBox;
-    };
-    if (
-      meta.content &&
-      Number.isFinite(meta.content.x) &&
-      Number.isFinite(meta.content.y) &&
-      Number.isFinite(meta.content.width) &&
-      Number.isFinite(meta.content.height)
-    ) {
-      return meta.content;
-    }
-  }
-  // 後備：整張等分（舊 cover 圖）
-  return { x: 0, y: 0, width: CANVAS_W, height: CANVAS_H };
-}
-
-/** 左格含左側白邊、右格含右側白邊，避免點到留邊沒反應。 */
-function buildAreas(content: ContentBox) {
-  const midX = content.x + Math.floor(content.width / 2);
-  const midY = content.y + Math.floor(content.height / 2);
-  const leftW = midX;
-  const rightW = CANVAS_W - midX;
-  const topH = midY;
-  const bottomH = CANVAS_H - midY;
-
-  return [
-    {
-      bounds: { x: 0, y: 0, width: leftW, height: topH },
-      action: { type: 'message' as const, text: '一起野放' },
-    },
-    {
-      bounds: { x: midX, y: 0, width: rightW, height: topH },
-      action: { type: 'message' as const, text: '預約美容' },
-    },
-    {
-      bounds: { x: 0, y: midY, width: leftW, height: bottomH },
-      action: { type: 'message' as const, text: '換罐計畫' },
-    },
-    {
-      bounds: { x: midX, y: midY, width: rightW, height: bottomH },
-      action: { type: 'message' as const, text: '回家' },
-    },
-  ];
-}
+const authHeaders = { Authorization: `Bearer ${TOKEN}` };
+const jsonHeaders = { ...authHeaders, 'Content-Type': 'application/json' };
 
 async function main() {
-  const listRes = await fetch(`${API}/richmenu/list`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  let existing: { richMenuId: string; name: string }[] = [];
-  if (listRes.ok) {
-    const list = (await listRes.json()) as { richmenus?: { richMenuId: string; name: string }[] };
-    existing = list.richmenus ?? [];
-    console.log(
-      'existing rich menus:',
-      existing.map((m) => `${m.name} (${m.richMenuId})`).join(', ') || '(none)',
-    );
-  }
-
-  const content = loadContentBox();
-  const areas = buildAreas(content);
-  console.log('content box', content);
-  console.log(
-    'areas',
-    areas.map((a) => `${a.action.text} ${JSON.stringify(a.bounds)}`).join(' | '),
-  );
-
-  const body = {
-    size: { width: CANVAS_W, height: CANVAS_H },
-    selected: true,
-    name: 'furmosa-comic-2x2',
-    chatBarText: '選單',
-    areas,
+  const listRes = await fetch(`${API}/richmenu/list`, { headers: authHeaders });
+  if (!listRes.ok) throw new Error(`讀取既有 Rich Menu 失敗：${listRes.status}`);
+  const list = (await listRes.json()) as {
+    richmenus?: { richMenuId: string; name: string }[];
   };
+  const existing = list.richmenus ?? [];
 
   const createRes = await fetch(`${API}/richmenu`, {
     method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+    headers: jsonHeaders,
+    body: JSON.stringify(LINE_RICH_MENU_BODY),
   });
-  const createJson = (await createRes.json()) as { richMenuId?: string; message?: string };
-  if (!createRes.ok || !createJson.richMenuId) {
-    console.error('建立 Rich Menu 失敗', createRes.status, createJson);
-    process.exit(1);
+  const created = (await createRes.json()) as { richMenuId?: string; message?: string };
+  if (!createRes.ok || !created.richMenuId) {
+    throw new Error(`建立 Rich Menu 失敗：${createRes.status} ${created.message ?? ''}`);
   }
-  const richMenuId = createJson.richMenuId;
-  console.log('created', richMenuId);
+  const richMenuId = created.richMenuId;
 
   const candidates = [
-    resolve('public/line/rich-menu-comic-2x2.jpg'),
-    resolve('public/line/rich-menu-comic-2x2.png'),
-    resolve('public/line/rich-menu-three-worlds.jpg'),
-    resolve('public/line/rich-menu-three-worlds.png'),
+    resolve('public/line/rich-menu-shop-refill.jpg'),
+    resolve('public/line/rich-menu-shop-refill.png'),
   ];
-  const imagePath = candidates.find((p) => existsSync(p));
-  if (!imagePath) {
-    console.error('找不到 Rich Menu 圖檔');
-    process.exit(1);
-  }
-  const bytes = readFileSync(imagePath);
-  const contentType =
-    imagePath.endsWith('.jpg') || imagePath.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
-  console.log('uploading', imagePath, bytes.length, 'bytes');
+  const imagePath = candidates.find((candidate) => existsSync(candidate));
+  if (!imagePath) throw new Error('找不到新版 Rich Menu 圖檔');
 
+  const image = readFileSync(imagePath);
+  const contentType = imagePath.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
   const uploadRes = await fetch(
     `https://api-data.line.me/v2/bot/richmenu/${richMenuId}/content`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': contentType,
-      },
-      body: bytes,
-    },
+    { method: 'POST', headers: { ...authHeaders, 'Content-Type': contentType }, body: image },
   );
   if (!uploadRes.ok) {
-    console.error('上傳圖片失敗', uploadRes.status, await uploadRes.text());
-    process.exit(1);
+    await fetch(`${API}/richmenu/${richMenuId}`, { method: 'DELETE', headers: authHeaders });
+    throw new Error(`上傳圖片失敗：${uploadRes.status} ${await uploadRes.text()}`);
   }
-  console.log('image uploaded');
 
-  const defRes = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
+  const defaultRes = await fetch(`${API}/user/all/richmenu/${richMenuId}`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      'Content-Length': '0',
-    },
+    headers: { ...authHeaders, 'Content-Length': '0' },
   });
-  if (!defRes.ok) {
-    console.error('設為預設失敗', defRes.status, await defRes.text());
-    process.exit(1);
-  }
-  console.log('set as default for all users');
-
-  // 清掉同名舊選單，避免 OA 裡堆太多
-  for (const m of existing) {
-    if (m.name === 'furmosa-comic-2x2' && m.richMenuId !== richMenuId) {
-      const del = await fetch(`${API}/richmenu/${m.richMenuId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${TOKEN}` },
-      });
-      console.log('deleted old', m.richMenuId, del.status);
-    }
+  if (!defaultRes.ok) {
+    await fetch(`${API}/richmenu/${richMenuId}`, { method: 'DELETE', headers: authHeaders });
+    throw new Error(`設為預設選單失敗：${defaultRes.status} ${await defaultRes.text()}`);
   }
 
-  console.log('Done. Reopen chat → 2×2 comic menu (text fully visible).');
+  // 新選單成功後才清同名舊版；不碰其他活動選單。
+  for (const menu of existing) {
+    if (menu.name !== LINE_RICH_MENU_BODY.name || menu.richMenuId === richMenuId) continue;
+    const deleted = await fetch(`${API}/richmenu/${menu.richMenuId}`, {
+      method: 'DELETE', headers: authHeaders,
+    });
+    if (!deleted.ok) console.warn('舊版選單未刪除', menu.richMenuId, deleted.status);
+  }
+
+  console.log(`Rich Menu 已建立並設為預設：${richMenuId}`);
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });
