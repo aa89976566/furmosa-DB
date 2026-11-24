@@ -12,7 +12,7 @@ describe('LINE rich menu config', () => {
     assert.deepEqual(
       LINE_RICH_MENU_AREAS.map((area) => area.action),
       [
-        { type: 'uri', uri: 'https://furmosa.com/collections/all' },
+        { type: 'message', text: '線上購物' },
         { type: 'message', text: '換罐計畫' },
         { type: 'message', text: '會員點數' },
         { type: 'message', text: '申請合作' },

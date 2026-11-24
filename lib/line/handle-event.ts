@@ -64,6 +64,12 @@ import {
 } from '@/lib/line/reward-menu';
 import { prisma } from '@/lib/prisma';
 import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
+import { listLineShopProducts } from '@/lib/line/shop-catalog';
+import {
+  buildShopFallbackMessages,
+  buildShopHomeMessages,
+  buildShopProductMessages,
+} from '@/lib/line/shop-flex';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -175,6 +181,29 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   }
 
   const parsed = parseLineUserText(msgEvent.message.text);
+
+  // 購物入口不需要會員或 HQ 查詢：先在 LINE 顯示分類／商品卡，Shopify 接手購物車與結帳。
+  if (parsed.kind === 'shop_home' || parsed.kind === 'shop_category') {
+    await clearLineChatSession(lineUserId).catch((err) => {
+      console.error('[line] clear session on shop shortcut failed', err);
+    });
+    if (parsed.kind === 'shop_home') {
+      await replyLineMessage(replyToken, buildShopHomeMessages(), { lineUserId });
+      return;
+    }
+    try {
+      const products = await listLineShopProducts(parsed.category, { limit: 8 });
+      await replyLineMessage(replyToken, buildShopProductMessages(parsed.category, products), {
+        lineUserId,
+      });
+    } catch (err) {
+      console.error('[line] Shopify catalog unavailable', err);
+      await replyLineMessage(replyToken, buildShopFallbackMessages(parsed.category), {
+        lineUserId,
+      });
+    }
+    return;
+  }
 
   // Rich Menu 四格／世界捷徑：不經開箱／開戶 session，先清除舊流程再回選單。
   if (RICH_MENU_HUB_KINDS.has(parsed.kind)) {

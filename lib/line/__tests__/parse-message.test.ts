@@ -13,6 +13,14 @@ import { parseLineUserText } from '../parse-message';
 import { CUSTOMER_ID_EXAMPLE } from '../../customers/customer-id';
 
 describe('parseLineUserText', () => {
+  it('routes hybrid shopping entry and categories', () => {
+    assert.equal(parseLineUserText('線上購物').kind, 'shop_home');
+    assert.deepEqual(parseLineUserText('逛零食'), { kind: 'shop_category', category: 'treats' });
+    assert.deepEqual(parseLineUserText('逛玩具'), { kind: 'shop_category', category: 'toys' });
+    assert.deepEqual(parseLineUserText('逛服務'), { kind: 'shop_category', category: 'services' });
+    assert.deepEqual(parseLineUserText('逛全部'), { kind: 'shop_category', category: 'all' });
+  });
+
   it('formats redeem button label with gift name and points', () => {
     assert.equal(
       formatRedeemButtonLabel({ rewardName: '洗澡折 250', pointsRequired: 10 }),
