@@ -30,6 +30,7 @@ export async function showLineLoadingAnimation(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ chatId, loadingSeconds }),
+      signal: AbortSignal.timeout(1200),
     });
     if (!res.ok && res.status !== 202) {
       const body = await res.text().catch(() => '');
