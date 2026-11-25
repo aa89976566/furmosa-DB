@@ -1,4 +1,4 @@
-export type LineShopCategory = 'treats' | 'toys' | 'services' | 'all';
+export type LineShopCategory = 'treats' | 'toys' | 'gifts' | 'all';
 
 export type LineShopProduct = {
   id: string;
@@ -74,16 +74,17 @@ export function productMatchesCategory(
   product: LineShopProduct,
   category: LineShopCategory,
 ) {
-  if (category === 'all') return true;
   const productType = product.productType.toLowerCase();
   const haystack = [product.title, productType, ...product.tags].join(' ').toLowerCase();
   const isService = /服務|預約|溝通|課程|活動|體驗/.test(haystack);
+  const isGift = /禮品|禮盒|吊飾|鑰匙圈|客製|畫作|藝術|聯名|蠟燭|送禮/.test(haystack);
   const isToy =
     /玩具|飛盤|拉扯|嗅聞|互動|用品/.test(productType) ||
     /玩具|飛盤|拉扯|嗅聞/.test(haystack);
-  if (category === 'services') return isService;
+  if (category === 'all') return !isService;
+  if (category === 'gifts') return !isService && isGift;
   if (category === 'toys') return !isService && isToy;
-  return !isService && !isToy && /零食|肉乾|凍乾|潔牙|咬咬|食/.test(haystack);
+  return !isService && !isGift && !isToy && /零食|肉乾|凍乾|潔牙|咬咬|食/.test(haystack);
 }
 
 export function getProductUrl(product: Pick<LineShopProduct, 'handle'>) {
@@ -96,7 +97,7 @@ export function getCartUrl(product: Pick<LineShopProduct, 'variantId'>) {
 
 export function getCollectionUrl(category: LineShopCategory) {
   if (category === 'all') return `${SHOP_ORIGIN}/collections/all`;
-  const query = { treats: '零食', toys: '玩具', services: '服務' }[category];
+  const query = { treats: '零食', toys: '玩具', gifts: '禮品' }[category];
   return `${SHOP_ORIGIN}/search?q=${encodeURIComponent(query)}&type=product`;
 }
 
@@ -122,11 +123,7 @@ export async function listLineShopProducts(
     .filter(
       (product) => product.available && productMatchesCategory(product, category),
     )
-    .sort((left, right) => {
-      if (category !== 'all') return 0;
-      return Number(productMatchesCategory(left, 'services')) -
-        Number(productMatchesCategory(right, 'services'));
-    })
+    .sort(() => 0)
     .slice(0, options.limit ?? 8);
 }
 

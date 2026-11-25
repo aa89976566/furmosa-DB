@@ -30,7 +30,7 @@ function eventReplyToken(event: LineWebhookEvent): string | undefined {
     : undefined;
 }
 
-const FAST_SHOP_ACTION_RE = /^(?:線上購物|逛商品|購物|商城|買東西|逛零食|零食點心|逛玩具|玩具用品|逛服務|生活服務|逛全部|全部商品)$/i;
+const FAST_SHOP_ACTION_RE = /^(?:線上購物|逛商品|購物|商城|買東西|逛零食|零食點心|逛玩具|玩具用品|逛禮品|禮品選物|禮品|逛全部|全部商品)$/i;
 
 function shouldShowLoading(event: LineWebhookEvent): boolean {
   if (event.type !== 'message') return event.type === 'postback';

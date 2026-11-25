@@ -13,7 +13,7 @@ const PAPER = '#FFF9EC';
 const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   treats: '零食點心',
   toys: '玩具用品',
-  services: '生活服務',
+  gifts: '禮品選物',
   all: '全部商品',
 };
 
@@ -25,7 +25,7 @@ export function buildShopHomeMessages(): LineReplyMessage[] {
       items: [
         { type: 'action', action: { type: 'message', label: '零食', text: '逛零食' } },
         { type: 'action', action: { type: 'message', label: '玩具', text: '逛玩具' } },
-        { type: 'action', action: { type: 'message', label: '生活服務', text: '逛服務' } },
+        { type: 'action', action: { type: 'message', label: '禮品選物', text: '逛禮品' } },
         { type: 'action', action: { type: 'message', label: '全部', text: '逛全部' } },
       ],
     },
