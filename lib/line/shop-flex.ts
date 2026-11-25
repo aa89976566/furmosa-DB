@@ -9,6 +9,19 @@ import {
 
 const BLUE = '#123A70';
 const PAPER = '#FFF9EC';
+const YELLOW = '#FFD447';
+const RED = '#C9483B';
+const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-chicken-cutlet.png';
+
+function publicAssetUrl(path: string): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
+  const looksEphemeral =
+    /vercel\.app$/i.test(configured) &&
+    !/^https:\/\/furmosa-db\.vercel\.app\/?$/i.test(configured);
+  const base = configured && !looksEphemeral ? configured : 'https://hq.furmosa.com';
+  const clean = path.startsWith('/') ? path : `/${path}`;
+  return `${base.replace(/\/$/, '')}${clean}`;
+}
 
 const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   treats: '零食點心',
@@ -19,15 +32,79 @@ const CATEGORY_LABELS: Record<LineShopCategory, string> = {
 
 export function buildShopHomeMessages(): LineReplyMessage[] {
   return [{
-    type: 'text',
-    text: '想看哪一類？',
-    quickReply: {
-      items: [
-        { type: 'action', action: { type: 'message', label: '零食', text: '逛零食' } },
-        { type: 'action', action: { type: 'message', label: '玩具', text: '逛玩具' } },
-        { type: 'action', action: { type: 'message', label: '禮品選物', text: '逛禮品' } },
-        { type: 'action', action: { type: 'message', label: '全部', text: '逛全部' } },
-      ],
+    type: 'flex',
+    altText: '匠寵線上購物｜今天想寵哪一招？',
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      styles: {
+        hero: { backgroundColor: YELLOW },
+        body: { backgroundColor: PAPER },
+      },
+      hero: {
+        type: 'image',
+        url: publicAssetUrl(SHOP_GUIDE_IMAGE_PATH),
+        size: 'full',
+        aspectRatio: '20:13',
+        aspectMode: 'contain',
+        backgroundColor: YELLOW,
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        paddingAll: '20px',
+        contents: [
+          {
+            type: 'text',
+            text: '今天想寵哪一招？',
+            size: 'xl',
+            weight: 'bold',
+            color: BLUE,
+            wrap: true,
+          },
+          {
+            type: 'text',
+            text: '好貨都幫你挑好了。',
+            size: 'sm',
+            color: BLUE,
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            margin: 'md',
+            contents: [
+              {
+                type: 'button',
+                style: 'primary',
+                color: RED,
+                height: 'sm',
+                action: { type: 'message', label: '好料先吃', text: '逛零食' },
+              },
+              {
+                type: 'button',
+                style: 'primary',
+                color: BLUE,
+                height: 'sm',
+                action: { type: 'message', label: '玩到沒電', text: '逛玩具' },
+              },
+              {
+                type: 'button',
+                style: 'secondary',
+                height: 'sm',
+                action: { type: 'message', label: '送禮有面子', text: '逛禮品' },
+              },
+              {
+                type: 'button',
+                style: 'secondary',
+                height: 'sm',
+                action: { type: 'message', label: '全部都要', text: '逛全部' },
+              },
+            ],
+          },
+        ],
+      },
     },
   }];
 }
