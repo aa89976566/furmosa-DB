@@ -7,6 +7,8 @@ describe('LINE hybrid shopping Flex', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
     assert.match(raw, /今天想寵哪一招/);
     assert.match(raw, /hoodie-dog-chicken-cutlet\.png/);
+    assert.match(raw, /"aspectMode":"fit"/);
+    assert.doesNotMatch(raw, /"aspectMode":"contain"/);
     assert.match(raw, /好料先吃/);
     assert.match(raw, /玩到沒電/);
     assert.match(raw, /送禮有面子/);
