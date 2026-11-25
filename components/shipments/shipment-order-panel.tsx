@@ -25,7 +25,7 @@ import {
   shipmentStatusLabel,
   shipmentDisplayStatus,
   shipmentStatusVariant,
-  shipmentTypeLabel,
+  shipmentDetailTypeLabel,
 } from '@/lib/shipment';
 import { ClipboardList, Loader2, MapPin, Package, Pencil, Phone, StickyNote, Truck } from 'lucide-react';
 import Link from 'next/link';
@@ -162,7 +162,7 @@ export function ShipmentOrderPanel({
             出貨單 {data.shipmentNumber}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{shipmentTypeLabel[data.type] ?? data.type}</Badge>
+            <Badge variant="secondary">{shipmentDetailTypeLabel(data.type, data.order?.merchantOrderMode)}</Badge>
             <Badge variant={shipmentStatusVariant[displayStatus] ?? 'secondary'}>
               {shipmentStatusLabel[displayStatus] ?? displayStatus}
             </Badge>
