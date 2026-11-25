@@ -3,15 +3,17 @@ import { describe, it } from 'node:test';
 import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('starts with a simple category question inside the conversation', () => {
+  it('starts with the lightweight branded category chooser', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
     assert.match(raw, /想找哪一種/);
+    assert.match(raw, /bark-sniff-shopping-hero-v1\.jpg/);
+    assert.match(raw, /"aspectRatio":"20:13"/);
+    assert.match(raw, /"aspectMode":"cover"/);
     assert.match(raw, /逛零食/);
     assert.match(raw, /逛玩具/);
     assert.match(raw, /逛禮品/);
     assert.match(raw, /逛生活用品/);
-    assert.match(raw, /quickReply/);
-    assert.doesNotMatch(raw, /hoodie-dog-shopping-packages/);
+    assert.doesNotMatch(raw, /quickReply/);
     assert.doesNotMatch(raw, /今天想寵哪一招/);
     assert.doesNotMatch(raw, /好料先吃|玩到沒電|送禮有面子|全部都要/);
     assert.doesNotMatch(raw, /狗老闆/);

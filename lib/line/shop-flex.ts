@@ -8,6 +8,17 @@ import {
 
 const PAPER = '#FFF9EC';
 const BLUE = '#123A70';
+const SHOP_HERO_PATH = '/line/shop/bark-sniff-shopping-hero-v1.jpg';
+
+function publicAssetUrl(path: string): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
+  const looksEphemeral =
+    /vercel\.app$/i.test(configured) &&
+    !/^https:\/\/furmosa-db\.vercel\.app\/?$/i.test(configured);
+  const base = configured && !looksEphemeral ? configured : 'https://hq.furmosa.com';
+  const clean = path.startsWith('/') ? path : `/${path}`;
+  return `${base.replace(/\/$/, '')}${clean}`;
+}
 
 const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   treats: '零食點心',
@@ -19,27 +30,68 @@ const CATEGORY_LABELS: Record<LineShopCategory, string> = {
 
 export function buildShopHomeMessages(): LineReplyMessage[] {
   return [{
-    type: 'text',
-    text: '想找哪一種？',
-    quickReply: {
-      items: [
-        {
-          type: 'action',
-          action: { type: 'message', label: '零食', text: '逛零食' },
-        },
-        {
-          type: 'action',
-          action: { type: 'message', label: '玩具', text: '逛玩具' },
-        },
-        {
-          type: 'action',
-          action: { type: 'message', label: '禮品', text: '逛禮品' },
-        },
-        {
-          type: 'action',
-          action: { type: 'message', label: '生活用品', text: '逛生活用品' },
-        },
-      ],
+    type: 'flex',
+    altText: '匠寵線上購物｜想找哪一種？',
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      styles: {
+        hero: { backgroundColor: PAPER },
+        body: { backgroundColor: PAPER },
+      },
+      hero: {
+        type: 'image',
+        url: publicAssetUrl(SHOP_HERO_PATH),
+        size: 'full',
+        aspectRatio: '20:13',
+        aspectMode: 'cover',
+        backgroundColor: PAPER,
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'md',
+        paddingAll: '18px',
+        contents: [
+          {
+            type: 'text',
+            text: '想找哪一種？',
+            size: 'xl',
+            weight: 'bold',
+            color: BLUE,
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '零食', text: '逛零食' },
+              },
+              {
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '玩具', text: '逛玩具' },
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '禮品', text: '逛禮品' },
+              },
+              {
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '生活用品', text: '逛生活用品' },
+              },
+            ],
+          },
+        ],
+      },
     },
   }];
 }
