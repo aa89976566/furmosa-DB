@@ -17,6 +17,21 @@ const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   all: '全部商品',
 };
 
+export function buildShopHomeMessages(): LineReplyMessage[] {
+  return [{
+    type: 'text',
+    text: '想看哪一類？',
+    quickReply: {
+      items: [
+        { type: 'action', action: { type: 'message', label: '零食', text: '逛零食' } },
+        { type: 'action', action: { type: 'message', label: '玩具', text: '逛玩具' } },
+        { type: 'action', action: { type: 'message', label: '生活服務', text: '逛服務' } },
+        { type: 'action', action: { type: 'message', label: '全部', text: '逛全部' } },
+      ],
+    },
+  }];
+}
+
 function formatPrice(price: number) {
   return `NT$${Math.round(price).toLocaleString('zh-TW')}`;
 }

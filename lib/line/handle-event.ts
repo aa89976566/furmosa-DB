@@ -67,6 +67,7 @@ import { SESSION_BYPASS_KINDS } from '@/lib/line/session-leave';
 import { listLineShopProducts } from '@/lib/line/shop-catalog';
 import {
   buildShopFallbackMessages,
+  buildShopHomeMessages,
   buildShopProductMessages,
 } from '@/lib/line/shop-flex';
 
@@ -181,23 +182,29 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   const parsed = parseLineUserText(msgEvent.message.text);
 
-  // 購物入口不需要會員或 HQ 查詢：直接在 LINE 顯示商品卡，Shopify 接手購物車與結帳。
+  // 購物入口不需要會員或 HQ 查詢：先選分類，再由 Shopify 提供商品卡與結帳。
   if (parsed.kind === 'shop_home' || parsed.kind === 'shop_category') {
     await clearLineChatSession(lineUserId).catch((err) => {
       console.error('[line] clear session on shop shortcut failed', err);
     });
-    const category = parsed.kind === 'shop_home' ? 'all' : parsed.category;
+    if (parsed.kind === 'shop_home') {
+      await replyLineMessage(replyToken, buildShopHomeMessages(), { lineUserId });
+      return;
+    }
+    const category = parsed.category;
+    let products;
     try {
-      const products = await listLineShopProducts(category, { limit: 8 });
-      await replyLineMessage(replyToken, buildShopProductMessages(category, products), {
-        lineUserId,
-      });
+      products = await listLineShopProducts(category, { limit: 8 });
     } catch (err) {
       console.error('[line] Shopify catalog unavailable', err);
       await replyLineMessage(replyToken, buildShopFallbackMessages(category), {
         lineUserId,
       });
+      return;
     }
+    await replyLineMessage(replyToken, buildShopProductMessages(category, products), {
+      lineUserId,
+    });
     return;
   }
 

@@ -30,6 +30,14 @@ function eventReplyToken(event: LineWebhookEvent): string | undefined {
     : undefined;
 }
 
+const FAST_SHOP_ACTION_RE = /^(?:線上購物|逛商品|購物|商城|買東西|逛零食|零食點心|逛玩具|玩具用品|逛服務|生活服務|逛全部|全部商品)$/i;
+
+function shouldShowLoading(event: LineWebhookEvent): boolean {
+  if (event.type !== 'message') return event.type === 'postback';
+  if (!('message' in event) || event.message?.type !== 'text') return true;
+  return !FAST_SHOP_ACTION_RE.test(event.message.text?.trim() ?? '');
+}
+
 function processLineWebhookEvent(event: LineWebhookEvent, eventId: string | undefined): Promise<void> {
   return (async () => {
     try {
@@ -75,7 +83,7 @@ export async function POST(req: Request) {
 
   // 感知速度：先顯示 Loading，再做業務（不 await）
   for (const event of events) {
-    if (event.type !== 'message' && event.type !== 'postback') continue;
+    if (!shouldShowLoading(event)) continue;
     const uid = eventUserId(event);
     if (uid) void showLineLoadingAnimation(uid, 20);
   }

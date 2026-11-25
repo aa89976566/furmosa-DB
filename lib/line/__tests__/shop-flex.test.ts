@@ -1,8 +1,19 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildShopProductMessages } from '../shop-flex';
+import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
+  it('asks for a category without headings or subtitles', () => {
+    const raw = JSON.stringify(buildShopHomeMessages());
+    assert.match(raw, /想看哪一類/);
+    assert.match(raw, /逛零食/);
+    assert.match(raw, /逛玩具/);
+    assert.match(raw, /逛服務/);
+    assert.match(raw, /逛全部/);
+    assert.doesNotMatch(raw, /今天想逛什麼/);
+    assert.doesNotMatch(raw, /先在聊天室看商品/);
+  });
+
   it('renders product photos and Shopify cart links', () => {
     const messages = buildShopProductMessages('treats', [{
       id: '1', title: '牛肉凍乾', handle: 'beef-freeze-dried', productType: '寵物零食',
