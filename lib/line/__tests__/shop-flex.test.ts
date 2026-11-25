@@ -1,17 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
+import { buildShopProductMessages } from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('offers four shopping categories in chat', () => {
-    const raw = JSON.stringify(buildShopHomeMessages());
-    assert.match(raw, /今天想逛什麼/);
-    assert.match(raw, /逛零食/);
-    assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛服務/);
-    assert.match(raw, /逛全部/);
-  });
-
   it('renders product photos and Shopify cart links', () => {
     const messages = buildShopProductMessages('treats', [{
       id: '1', title: '牛肉凍乾', handle: 'beef-freeze-dried', productType: '寵物零食',
@@ -24,5 +15,9 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /NT\$359/);
     assert.match(raw, /cart\/11:1/);
     assert.match(raw, /加入購物車/);
+    assert.doesNotMatch(raw, /100g/);
+    assert.match(raw, /逛零食/);
+    assert.match(raw, /逛玩具/);
+    assert.match(raw, /逛全部/);
   });
 });
