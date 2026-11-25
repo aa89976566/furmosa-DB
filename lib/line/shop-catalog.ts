@@ -1,4 +1,4 @@
-export type LineShopCategory = 'treats' | 'toys' | 'gifts' | 'all';
+export type LineShopCategory = 'treats' | 'toys' | 'gifts' | 'lifestyle' | 'all';
 
 export type LineShopProduct = {
   id: string;
@@ -79,12 +79,18 @@ export function productMatchesCategory(
   const isService = /服務|預約|溝通|課程|活動|體驗/.test(haystack);
   const isGift = /禮品|禮盒|吊飾|鑰匙圈|客製|畫作|藝術|聯名|蠟燭|送禮/.test(haystack);
   const isToy =
-    /玩具|飛盤|拉扯|嗅聞|互動|用品/.test(productType) ||
+    /玩具|飛盤|拉扯|嗅聞|互動/.test(productType) ||
     /玩具|飛盤|拉扯|嗅聞/.test(haystack);
+  const isLifestyle =
+    /生活用品|清潔用品|洗澡用品|美容用品|外出用品|居家用品|清潔|洗澡|美容|梳|刷|碗|餐具|牽繩|胸背|外出|收納|居家/.test(haystack);
   if (category === 'all') return !isService;
   if (category === 'gifts') return !isService && isGift;
   if (category === 'toys') return !isService && isToy;
-  return !isService && !isGift && !isToy && /零食|肉乾|凍乾|潔牙|咬咬|食/.test(haystack);
+  if (category === 'lifestyle') {
+    return !isService && !isGift && !isToy && isLifestyle;
+  }
+  return !isService && !isGift && !isToy && !isLifestyle &&
+    /零食|肉乾|凍乾|潔牙|咬咬|食/.test(haystack);
 }
 
 export function getProductUrl(product: Pick<LineShopProduct, 'handle'>) {
@@ -97,7 +103,12 @@ export function getCartUrl(product: Pick<LineShopProduct, 'variantId'>) {
 
 export function getCollectionUrl(category: LineShopCategory) {
   if (category === 'all') return `${SHOP_ORIGIN}/collections/all`;
-  const query = { treats: '零食', toys: '玩具', gifts: '禮品' }[category];
+  const query = {
+    treats: '零食',
+    toys: '玩具',
+    gifts: '禮品',
+    lifestyle: '生活用品',
+  }[category];
   return `${SHOP_ORIGIN}/search?q=${encodeURIComponent(query)}&type=product`;
 }
 
