@@ -5,7 +5,7 @@
 
 /** Rich Menu 四格／世界入口 */
 export const WORLD_NAV_LEAVE_RE =
-  /^(?:一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|會員點數|申請合作|問問匠寵|回家|還有很多故事|野放中)$/;
+  /^(?:線上購物|逛商品|逛零食|逛玩具|逛服務|逛全部|一起野放|野放一下|預約美容|漂亮一下|換罐計畫|換罐計劃|會員點數|申請合作|問問匠寵|回家|還有很多故事|野放中)$/;
 
 /** 換罐計劃選單與說明捷徑 */
 export const JAR_MENU_LEAVE_RE =
@@ -56,4 +56,6 @@ export const SESSION_BYPASS_KINDS = new Set([
   'balance',
   'help',
   'partner_apply',
+  'shop_home',
+  'shop_category',
 ]);

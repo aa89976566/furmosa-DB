@@ -9,8 +9,6 @@ export type RichMenuArea = {
   action: RichMenuAction;
 };
 
-const SHOP_URL = process.env.LINE_SHOP_URL?.trim() || 'https://furmosa.com/collections/all';
-
 /**
  * 新版選單沿用既有 Bot 指令。標題區只作品牌識別，不設點擊區，
  * 避免使用者誤觸；其餘六區完整覆蓋可操作範圍。
@@ -18,7 +16,7 @@ const SHOP_URL = process.env.LINE_SHOP_URL?.trim() || 'https://furmosa.com/colle
 export const LINE_RICH_MENU_AREAS: readonly RichMenuArea[] = [
   {
     bounds: { x: 0, y: 200, width: 1375, height: 1260 },
-    action: { type: 'uri', uri: SHOP_URL },
+    action: { type: 'message', text: '線上購物' },
   },
   {
     bounds: { x: 1375, y: 200, width: 1125, height: 1260 },

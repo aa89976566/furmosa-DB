@@ -1,0 +1,135 @@
+export type LineShopCategory = 'treats' | 'toys' | 'services' | 'all';
+
+export type LineShopProduct = {
+  id: string;
+  title: string;
+  handle: string;
+  productType: string;
+  tags: string[];
+  imageUrl: string | null;
+  variantId: string;
+  variantTitle: string;
+  price: number;
+  available: boolean;
+};
+
+type ShopifyProductJson = {
+  id: number | string;
+  title: string;
+  handle: string;
+  product_type?: string;
+  tags?: string[];
+  images?: Array<{ src?: string }>;
+  image?: { src?: string } | null;
+  variants?: Array<{
+    id: number | string;
+    title?: string;
+    price?: string | number;
+    available?: boolean;
+  }>;
+};
+
+type ShopifyProductsResponse = { products?: ShopifyProductJson[] };
+
+const SHOP_ORIGIN = (process.env.LINE_SHOP_URL?.trim() || 'https://furmosa.com')
+  .replace(/\/collections\/.*$/, '')
+  .replace(/\/$/, '');
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+let catalogCache: { expiresAt: number; products: LineShopProduct[] } | null = null;
+
+function firstAvailableVariant(product: ShopifyProductJson) {
+  const variants = product.variants ?? [];
+  return (
+    variants.find((variant) => variant.available !== false) ?? variants[0] ?? null
+  );
+}
+
+export function normalizeShopifyProducts(
+  payload: ShopifyProductsResponse,
+): LineShopProduct[] {
+  return (payload.products ?? []).flatMap((product) => {
+    const variant = firstAvailableVariant(product);
+    if (!product.handle || !variant?.id) return [];
+    const price = Number(variant.price ?? 0);
+    if (!Number.isFinite(price) || price < 0) return [];
+    return [
+      {
+        id: String(product.id),
+        title: product.title.trim(),
+        handle: product.handle,
+        productType: product.product_type?.trim() ?? '',
+        tags: Array.isArray(product.tags) ? product.tags : [],
+        imageUrl: product.images?.[0]?.src ?? product.image?.src ?? null,
+        variantId: String(variant.id),
+        variantTitle: variant.title?.trim() || '單一規格',
+        price,
+        available: variant.available !== false,
+      } satisfies LineShopProduct,
+    ];
+  });
+}
+
+export function productMatchesCategory(
+  product: LineShopProduct,
+  category: LineShopCategory,
+) {
+  if (category === 'all') return true;
+  const productType = product.productType.toLowerCase();
+  const haystack = [product.title, productType, ...product.tags].join(' ').toLowerCase();
+  const isService = /服務|預約|溝通|課程|活動|體驗/.test(haystack);
+  const isToy =
+    /玩具|飛盤|拉扯|嗅聞|互動|用品/.test(productType) ||
+    /玩具|飛盤|拉扯|嗅聞/.test(haystack);
+  if (category === 'services') return isService;
+  if (category === 'toys') return !isService && isToy;
+  return !isService && !isToy && /零食|肉乾|凍乾|潔牙|咬咬|食/.test(haystack);
+}
+
+export function getProductUrl(product: Pick<LineShopProduct, 'handle'>) {
+  return `${SHOP_ORIGIN}/products/${encodeURIComponent(product.handle)}`;
+}
+
+export function getCartUrl(product: Pick<LineShopProduct, 'variantId'>) {
+  return `${SHOP_ORIGIN}/cart/${encodeURIComponent(product.variantId)}:1`;
+}
+
+export function getCollectionUrl(category: LineShopCategory) {
+  if (category === 'all') return `${SHOP_ORIGIN}/collections/all`;
+  const query = { treats: '零食', toys: '玩具', services: '服務' }[category];
+  return `${SHOP_ORIGIN}/search?q=${encodeURIComponent(query)}&type=product`;
+}
+
+export async function listLineShopProducts(
+  category: LineShopCategory,
+  options: { limit?: number; forceRefresh?: boolean } = {},
+) {
+  const now = Date.now();
+  let products = catalogCache?.products;
+  if (options.forceRefresh || !products || !catalogCache || catalogCache.expiresAt <= now) {
+    const response = await fetch(`${SHOP_ORIGIN}/collections/all/products.json?limit=100`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(4500),
+    });
+    if (!response.ok) throw new Error(`Shopify 商品讀取失敗 (${response.status})`);
+    products = normalizeShopifyProducts(
+      (await response.json()) as ShopifyProductsResponse,
+    );
+    catalogCache = { products, expiresAt: now + CACHE_TTL_MS };
+  }
+
+  return [...products]
+    .filter(
+      (product) => product.available && productMatchesCategory(product, category),
+    )
+    .sort((left, right) => {
+      if (category !== 'all') return 0;
+      return Number(productMatchesCategory(left, 'services')) -
+        Number(productMatchesCategory(right, 'services'));
+    })
+    .slice(0, options.limit ?? 8);
+}
+
+export function clearLineShopCatalogCache() {
+  catalogCache = null;
+}
