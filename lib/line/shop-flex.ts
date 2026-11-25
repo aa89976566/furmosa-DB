@@ -10,8 +10,7 @@ import {
 const BLUE = '#123A70';
 const PAPER = '#FFF9EC';
 const YELLOW = '#FFD447';
-const RED = '#C9483B';
-const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-chicken-cutlet.png';
+const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-shopping-scene-v2.png';
 
 function publicAssetUrl(path: string): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
@@ -77,27 +76,25 @@ export function buildShopHomeMessages(): LineReplyMessage[] {
             contents: [
               {
                 type: 'button',
-                style: 'primary',
-                color: RED,
+                style: 'link',
                 height: 'sm',
                 action: { type: 'message', label: '好料先吃', text: '逛零食' },
               },
               {
                 type: 'button',
-                style: 'primary',
-                color: BLUE,
+                style: 'link',
                 height: 'sm',
                 action: { type: 'message', label: '玩到沒電', text: '逛玩具' },
               },
               {
                 type: 'button',
-                style: 'secondary',
+                style: 'link',
                 height: 'sm',
                 action: { type: 'message', label: '送禮有面子', text: '逛禮品' },
               },
               {
                 type: 'button',
-                style: 'secondary',
+                style: 'link',
                 height: 'sm',
                 action: { type: 'message', label: '全部都要', text: '逛全部' },
               },

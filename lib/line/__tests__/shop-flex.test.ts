@@ -6,7 +6,7 @@ describe('LINE hybrid shopping Flex', () => {
   it('shows the branded category chooser inside the conversation', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
     assert.match(raw, /今天想寵哪一招/);
-    assert.match(raw, /hoodie-dog-chicken-cutlet\.png/);
+    assert.match(raw, /hoodie-dog-shopping-scene-v2\.png/);
     assert.match(raw, /"aspectMode":"fit"/);
     assert.doesNotMatch(raw, /"aspectMode":"contain"/);
     assert.match(raw, /好料先吃/);
@@ -19,6 +19,8 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /逛全部/);
     assert.doesNotMatch(raw, /quickReply/);
     assert.doesNotMatch(raw, /狗老闆/);
+    assert.doesNotMatch(raw, /"style":"primary"/);
+    assert.doesNotMatch(raw, /"style":"secondary"/);
   });
 
   it('renders product photos and Shopify cart links', () => {
