@@ -3,15 +3,20 @@ import { describe, it } from 'node:test';
 import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('asks for a category without headings or subtitles', () => {
+  it('shows the branded category chooser inside the conversation', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
-    assert.match(raw, /想看哪一類/);
+    assert.match(raw, /今天想寵哪一招/);
+    assert.match(raw, /hoodie-dog-chicken-cutlet\.png/);
+    assert.match(raw, /好料先吃/);
+    assert.match(raw, /玩到沒電/);
+    assert.match(raw, /送禮有面子/);
+    assert.match(raw, /全部都要/);
     assert.match(raw, /逛零食/);
     assert.match(raw, /逛玩具/);
     assert.match(raw, /逛禮品/);
     assert.match(raw, /逛全部/);
-    assert.doesNotMatch(raw, /今天想逛什麼/);
-    assert.doesNotMatch(raw, /先在聊天室看商品/);
+    assert.doesNotMatch(raw, /quickReply/);
+    assert.doesNotMatch(raw, /狗老闆/);
   });
 
   it('renders product photos and Shopify cart links', () => {
