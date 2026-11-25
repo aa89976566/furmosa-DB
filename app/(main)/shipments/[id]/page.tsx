@@ -27,7 +27,7 @@ import { paymentStatusLabel } from '@/lib/labels';
 import {
   shipmentStatusLabel,
   shipmentStatusVariant,
-  shipmentTypeLabel,
+  shipmentDetailTypeLabel,
   nextStatuses,
   timelineSteps,
 } from '@/lib/shipment';
@@ -141,7 +141,7 @@ export default async function ShipmentDetailPage(
         title={`出貨單 ${shipment.shipmentNumber}`}
         description={
           <span className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{shipmentTypeLabel[shipment.type] ?? shipment.type}</Badge>
+            <Badge variant="secondary">{shipmentDetailTypeLabel(shipment.type, shipment.order?.merchantOrderMode)}</Badge>
             <Badge variant={shipmentStatusVariant[shipment.status] ?? 'secondary'}>
               {shipmentStatusLabel[shipment.status] ?? shipment.status}
             </Badge>
@@ -267,7 +267,7 @@ export default async function ShipmentDetailPage(
 
         <SectionCard title="收件 / 物流資訊" className="lg:col-span-1">
           <dl className="space-y-2 text-sm">
-            <Row label="類型" value={shipmentTypeLabel[shipment.type] ?? shipment.type} />
+            <Row label="類型" value={shipmentDetailTypeLabel(shipment.type, shipment.order?.merchantOrderMode)} />
             <Row
               label="目的地"
               value={

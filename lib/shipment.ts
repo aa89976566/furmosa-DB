@@ -1,4 +1,5 @@
 import type { Shipment } from '@prisma/client';
+import { merchantOrderDisplayLabel } from './orders/merchant-order-mode';
 
 export const SHIPMENT_STATUSES = [
   'pending',
@@ -48,6 +49,13 @@ export const shipmentTypeLabel: Record<string, string> = {
   customer_order: '客戶訂單',
   subscription: '訂閱出貨',
 };
+
+export function shipmentDetailTypeLabel(type: string, merchantOrderMode?: string | null) {
+  if (type === 'merchant_restock') {
+    return merchantOrderDisplayLabel(merchantOrderMode) ?? shipmentTypeLabel.merchant_restock;
+  }
+  return shipmentTypeLabel[type] ?? type;
+}
 
 export const shipmentTypeIcon: Record<string, string> = {
   merchant_restock: 'store',

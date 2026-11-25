@@ -670,6 +670,7 @@ export type ShipmentPanelData = {
     id: string;
     orderNumber: string;
     displayOrderNumber: string;
+    merchantOrderMode: string | null;
     status: string;
     shippingMethod: string;
     cvsBrand: string | null;
@@ -758,6 +759,7 @@ export async function fetchShipmentPanel(shipmentId: string): Promise<ShipmentPa
           id: shipment.order.id,
           orderNumber: shipment.order.orderNumber,
           displayOrderNumber: displayOrderNumber(shipment.order),
+          merchantOrderMode: shipment.order.merchantOrderMode,
           status: shipment.order.status,
           shippingMethod: shipment.order.shippingMethod,
           cvsBrand: shipment.order.cvsBrand,
