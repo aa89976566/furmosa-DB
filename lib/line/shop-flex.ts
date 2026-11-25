@@ -46,7 +46,7 @@ export function buildShopHomeMessages(): LineReplyMessage[] {
         url: publicAssetUrl(SHOP_GUIDE_IMAGE_PATH),
         size: 'full',
         aspectRatio: '20:13',
-        aspectMode: 'contain',
+        aspectMode: 'fit',
         backgroundColor: YELLOW,
       },
       body: {
