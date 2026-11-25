@@ -92,7 +92,7 @@ export default async function TasksPage() {
                           </div>
 
                           {t.description ? (
-                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            <p className={cn('text-xs leading-relaxed text-muted-foreground', t.taskId.startsWith('BOOK-CYN-') ? 'whitespace-pre-line break-words' : 'line-clamp-2')}>
                               {t.description}
                             </p>
                           ) : null}
