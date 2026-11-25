@@ -17,73 +17,6 @@ const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   all: '全部商品',
 };
 
-function messageButton(label: string, text: string, primary = false) {
-  return {
-    type: 'button',
-    style: primary ? 'primary' : 'secondary',
-    color: primary ? BLUE : undefined,
-    height: 'sm',
-    action: { type: 'message', label, text },
-  };
-}
-
-export function buildShopHomeMessages(): LineReplyMessage[] {
-  return [
-    {
-      type: 'flex',
-      altText: '匠寵線上購物｜先選想逛的分類',
-      contents: {
-        type: 'bubble',
-        styles: {
-          body: { backgroundColor: PAPER },
-          footer: { backgroundColor: PAPER },
-        },
-        body: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'md',
-          contents: [
-            {
-              type: 'text',
-              text: 'FURMOSA 匠寵',
-              size: 'sm',
-              color: BLUE,
-              weight: 'bold',
-            },
-            {
-              type: 'text',
-              text: '今天想逛什麼？',
-              size: 'xl',
-              color: BLUE,
-              weight: 'bold',
-              wrap: true,
-            },
-            {
-              type: 'text',
-              text: '先在聊天室看商品，再到 LINE 內的購物車完成結帳。',
-              size: 'sm',
-              color: '#55708E',
-              wrap: true,
-            },
-            { type: 'separator', color: '#FFD447', margin: 'md' },
-          ],
-        },
-        footer: {
-          type: 'box',
-          layout: 'vertical',
-          spacing: 'sm',
-          contents: [
-            messageButton('零食點心', '逛零食', true),
-            messageButton('玩具用品', '逛玩具'),
-            messageButton('生活服務', '逛服務'),
-            messageButton('全部商品', '逛全部'),
-          ],
-        },
-      },
-    },
-  ];
-}
-
 function formatPrice(price: number) {
   return `NT$${Math.round(price).toLocaleString('zh-TW')}`;
 }
@@ -102,11 +35,6 @@ function productBubble(product: LineShopProduct) {
         {
           type: 'text', text: product.title, size: 'md', color: BLUE,
           weight: 'bold', wrap: true, maxLines: 2,
-        },
-        {
-          type: 'text',
-          text: product.variantTitle === 'Default Title' ? '單一規格' : product.variantTitle,
-          size: 'xs', color: '#55708E', wrap: true, maxLines: 1,
         },
         {
           type: 'text', text: formatPrice(product.price), size: 'lg',
@@ -166,7 +94,15 @@ export function buildShopProductMessages(
       items: [
         {
           type: 'action',
-          action: { type: 'message', label: '換分類', text: '線上購物' },
+          action: { type: 'message', label: '零食', text: '逛零食' },
+        },
+        {
+          type: 'action',
+          action: { type: 'message', label: '玩具', text: '逛玩具' },
+        },
+        {
+          type: 'action',
+          action: { type: 'message', label: '全部', text: '逛全部' },
         },
         {
           type: 'action',
