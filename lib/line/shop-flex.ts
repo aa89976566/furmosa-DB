@@ -10,7 +10,7 @@ import {
 const BLUE = '#123A70';
 const PAPER = '#FFF9EC';
 const YELLOW = '#FFD447';
-const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-shopping-scene-v2.png';
+const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-shopping-products-v3.png';
 
 function publicAssetUrl(path: string): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
