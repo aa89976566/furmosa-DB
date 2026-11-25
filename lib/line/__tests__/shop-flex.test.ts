@@ -6,7 +6,7 @@ describe('LINE hybrid shopping Flex', () => {
   it('shows the branded category chooser inside the conversation', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
     assert.match(raw, /今天想寵哪一招/);
-    assert.match(raw, /hoodie-dog-shopping-packages-v4\.png/);
+    assert.match(raw, /hoodie-dog-shopping-chicken-products-v5\.png/);
     assert.match(raw, /"aspectMode":"fit"/);
     assert.doesNotMatch(raw, /"aspectMode":"contain"/);
     assert.match(raw, /好料先吃/);
