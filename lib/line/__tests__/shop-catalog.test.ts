@@ -52,6 +52,25 @@ describe('LINE shop catalog', () => {
     assert.equal(productMatchesCategory(toy, 'toys'), true);
   });
 
+  it('shows gifts but excludes booking services from shopping', () => {
+    const gift = {
+      ...products[1]!,
+      title: '雞霸吊飾',
+      productType: '手作黏土吊飾',
+      tags: ['禮品', '鑰匙圈'],
+    };
+    const booking = {
+      ...products[1]!,
+      title: '動物溝通預約',
+      productType: '預約服務',
+      tags: ['動物溝通'],
+    };
+    assert.equal(productMatchesCategory(gift, 'gifts'), true);
+    assert.equal(productMatchesCategory(gift, 'all'), true);
+    assert.equal(productMatchesCategory(booking, 'gifts'), false);
+    assert.equal(productMatchesCategory(booking, 'all'), false);
+  });
+
   it('builds Shopify product and cart URLs', () => {
     assert.equal(getProductUrl(products[0]!), 'https://furmosa.com/products/beef-freeze-dried');
     assert.equal(getCartUrl(products[0]!), 'https://furmosa.com/cart/11:1');

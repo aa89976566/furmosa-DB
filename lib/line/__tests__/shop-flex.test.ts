@@ -8,7 +8,7 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /想看哪一類/);
     assert.match(raw, /逛零食/);
     assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛服務/);
+    assert.match(raw, /逛禮品/);
     assert.match(raw, /逛全部/);
     assert.doesNotMatch(raw, /今天想逛什麼/);
     assert.doesNotMatch(raw, /先在聊天室看商品/);

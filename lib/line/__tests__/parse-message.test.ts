@@ -17,7 +17,7 @@ describe('parseLineUserText', () => {
     assert.equal(parseLineUserText('線上購物').kind, 'shop_home');
     assert.deepEqual(parseLineUserText('逛零食'), { kind: 'shop_category', category: 'treats' });
     assert.deepEqual(parseLineUserText('逛玩具'), { kind: 'shop_category', category: 'toys' });
-    assert.deepEqual(parseLineUserText('逛服務'), { kind: 'shop_category', category: 'services' });
+    assert.deepEqual(parseLineUserText('逛禮品'), { kind: 'shop_category', category: 'gifts' });
     assert.deepEqual(parseLineUserText('逛全部'), { kind: 'shop_category', category: 'all' });
   });
 

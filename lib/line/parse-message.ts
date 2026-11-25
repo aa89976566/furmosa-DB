@@ -10,7 +10,7 @@ export type ParsedLineText =
   | { kind: 'help' }
   | { kind: 'partner_apply' }
   | { kind: 'shop_home' }
-  | { kind: 'shop_category'; category: 'treats' | 'toys' | 'services' | 'all' }
+  | { kind: 'shop_category'; category: 'treats' | 'toys' | 'gifts' | 'all' }
   | { kind: 'greeting' }
   | { kind: 'status' }
   | { kind: 'rewards_list' }
@@ -129,7 +129,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (SHOP_HOME_RE.test(text)) return { kind: 'shop_home' };
   if (/^(?:逛零食|零食點心)$/.test(text)) return { kind: 'shop_category', category: 'treats' };
   if (/^(?:逛玩具|玩具用品)$/.test(text)) return { kind: 'shop_category', category: 'toys' };
-  if (/^(?:逛服務|生活服務)$/.test(text)) return { kind: 'shop_category', category: 'services' };
+  if (/^(?:逛禮品|禮品選物|禮品)$/.test(text)) return { kind: 'shop_category', category: 'gifts' };
   if (/^(?:逛全部|全部商品)$/.test(text)) return { kind: 'shop_category', category: 'all' };
   if (HELP_RE.test(text)) return { kind: 'help' };
   if (GREETING_RE.test(text)) return { kind: 'greeting' };
