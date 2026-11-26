@@ -11,6 +11,7 @@ export type LineShopProduct = {
   variantTitle: string;
   price: number;
   available: boolean;
+  description?: string;
 };
 
 type ShopifyProductJson = {
@@ -18,6 +19,7 @@ type ShopifyProductJson = {
   title: string;
   handle: string;
   product_type?: string;
+  body_html?: string;
   tags?: string[];
   images?: Array<{ src?: string }>;
   image?: { src?: string } | null;
@@ -30,6 +32,20 @@ type ShopifyProductJson = {
 };
 
 type ShopifyProductsResponse = { products?: ShopifyProductJson[] };
+
+function plainDescription(value?: string) {
+  return (value ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180);
+}
 
 const SHOP_ORIGIN = (process.env.LINE_SHOP_URL?.trim() || 'https://furmosa.com')
   .replace(/\/collections\/.*$/, '')
@@ -65,6 +81,7 @@ export function normalizeShopifyProducts(
         variantTitle: variant.title?.trim() || '單一規格',
         price,
         available: variant.available !== false,
+        description: plainDescription(product.body_html),
       } satisfies LineShopProduct,
     ];
   });

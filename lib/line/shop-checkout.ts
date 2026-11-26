@@ -75,6 +75,11 @@ async function currentShop(lineUserId: string) {
   return { session, draft: parseLineShopDraft(session.payload) };
 }
 
+export async function getLineShopCart(lineUserId: string) {
+  const current = await currentShop(lineUserId);
+  return current?.draft ?? { items: [] };
+}
+
 export async function addLineShopItem(lineUserId: string, variantId: string) {
   const products = await listLineShopProducts('all', { limit: 100 });
   const product = products.find((entry) => entry.variantId === variantId);

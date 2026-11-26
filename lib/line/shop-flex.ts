@@ -112,11 +112,23 @@ function categoryQuickReplies() {
   ];
 }
 
+function cartQuickReply() {
+  return {
+    type: 'action' as const,
+    action: {
+      type: 'postback' as const,
+      label: '購物車',
+      data: 'jd=shop_cart',
+      displayText: '查看購物車',
+    },
+  };
+}
+
 export function buildShopHomeMessages(): LineReplyMessage[] {
   return [{
     type: 'text',
     text: '想幫毛孩找哪一種？',
-    quickReply: { items: categoryQuickReplies() },
+    quickReply: { items: [...categoryQuickReplies(), cartQuickReply()] },
   }];
 }
 
@@ -135,6 +147,15 @@ function productBubble(product: LineShopProduct) {
     body: {
       type: 'box', layout: 'vertical', spacing: 'sm',
       contents: [
+        {
+          type: 'button', style: 'link', height: 'sm',
+          action: {
+            type: 'postback',
+            label: '看商品介紹',
+            data: `jd=shop_product&variant=${encodeURIComponent(product.variantId)}`,
+            displayText: `想了解：${product.title}`,
+          },
+        },
         {
           type: 'text', text: product.title, size: 'md', color: BLUE,
           weight: 'bold', wrap: true, maxLines: 2,
@@ -169,7 +190,7 @@ function productBubble(product: LineShopProduct) {
       aspectMode: 'cover',
       action: {
         type: 'postback',
-        data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+        data: `jd=shop_product&variant=${encodeURIComponent(product.variantId)}`,
       },
     };
   }
@@ -231,6 +252,7 @@ export function buildShopProductMessages(
     contents: { type: 'carousel', contents: cards },
     quickReply: {
       items: [
+        cartQuickReply(),
         ...categoryQuickReplies(),
         {
           type: 'action',
@@ -238,6 +260,55 @@ export function buildShopProductMessages(
         },
       ],
     },
+  }];
+}
+
+export function buildShopProductDetailMessages(product: LineShopProduct): LineReplyMessage[] {
+  const description = product.description || '這項商品的完整介紹正在整理中；價格與規格以目前卡片顯示為準。';
+  const bubble: Record<string, unknown> = {
+    type: 'bubble',
+    size: 'mega',
+    styles: {
+      hero: { backgroundColor: PAPER },
+      body: { backgroundColor: PAPER },
+      footer: { backgroundColor: PAPER },
+    },
+    body: {
+      type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px',
+      contents: [
+        { type: 'text', text: product.title, size: 'xl', color: BLUE, weight: 'bold', wrap: true },
+        { type: 'text', text: product.variantTitle, size: 'sm', color: '#5B6F86', wrap: true },
+        { type: 'text', text: description, size: 'sm', color: BLUE, wrap: true },
+        { type: 'text', text: formatPrice(product.price), size: 'xl', color: BLUE, weight: 'bold' },
+      ],
+    },
+    footer: {
+      type: 'box', layout: 'vertical', spacing: 'sm',
+      contents: [
+        {
+          type: 'button', style: 'primary', color: BLUE,
+          action: {
+            type: 'postback', label: '加入購物車',
+            data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+            displayText: `加入購物車：${product.title}`,
+          },
+        },
+        {
+          type: 'button', style: 'link',
+          action: { type: 'postback', label: '查看購物車', data: 'jd=shop_cart', displayText: '查看購物車' },
+        },
+      ],
+    },
+  };
+  if (product.imageUrl) {
+    bubble.hero = {
+      type: 'image', url: product.imageUrl, size: 'full',
+      aspectRatio: '1:1', aspectMode: 'cover', backgroundColor: PAPER,
+    };
+  }
+  return [{
+    type: 'flex', altText: `${product.title}｜商品介紹`, contents: bubble,
+    quickReply: { items: [cartQuickReply(), ...categoryQuickReplies()] },
   }];
 }
 
