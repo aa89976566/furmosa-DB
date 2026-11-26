@@ -172,10 +172,12 @@ test('Dashboard 分開今日工作與營運數據，不再疊加舊區塊', () =
 });
 
 test('Dashboard 聚焦可執行工作，不重複顯示完成卡或假精準進度條', () => {
-  assert.match(dashboardWorkSource, /countReviewInbox/);
-  assert.match(dashboardWorkSource, /reviewCounts\.ugc \+ reviewCounts\.restock/);
-  assert.match(dashboardWorkSource, /其他待處理/);
-  assert.match(dashboardWorkSource, /今日完成 \{completedSteps\}/);
+  assert.match(dashboardWorkSource, /reviewInboxTotal\(reviews.value\)/);
+  assert.match(dashboardWorkSource, /getShipmentQueueCounts\(\{ \s*\.\.\.activeShipmentQueueWhere/);
+  assert.match(dashboardWorkSource, /waitingWhere = \{ AND: \[orderScope, orderWorkWhere\('waiting'\)\]/);
+  assert.match(dashboardWorkSource, /shipments.value.pendingCount/);
+  assert.match(dashboardWorkSource, /暫時無法取得/);
+  assert.ok(dashboardWorkSource.indexOf(">優先處理</h2>") < dashboardWorkSource.indexOf(">待處理清單</h2>"));
   assert.equal(dashboardWorkSource.includes('今日工作完成 ${progress}%'), false);
   assert.equal(dashboardWorkSource.includes('<h3 className="font-semibold">今天完成</h3>'), false);
 });
