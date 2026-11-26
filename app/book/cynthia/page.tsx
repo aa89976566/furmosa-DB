@@ -7,13 +7,13 @@ export default async function CynthiaBookingPage({ searchParams }: { searchParam
   const { submitted } = await searchParams;
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   return (
-    <main className="mx-auto max-w-xl space-y-6 px-5 py-10">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold">Cynthia 西亞｜動物溝通預約</h1>
-        <p>選擇服務並提供方便的日期，匠寵會以電子郵件聯繫你確認。</p>
-      </header>
+    <main className="mx-auto max-w-xl px-4 py-6 sm:px-6">
+      <h1 className="sr-only">Cynthia 西亞｜動物溝通預約</h1>
       {submitted === '1' ? (
-        <p className="rounded-xl border p-5" role="status">已收到預約申請。請留意匠寵的確認信，時段以客服回覆為準。</p>
+        <section className="space-y-2 rounded-xl bg-[#fff9df] p-5 text-neutral-950" role="status">
+          <h2 className="text-xl font-bold">已收到預約申請</h2>
+          <p>匠寵會以 Email 確認日期與付款方式。</p>
+        </section>
       ) : <BookingForm today={today} />}
     </main>
   );
