@@ -24,7 +24,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
     ? await Promise.all([getTodayTasksForDashboard(), getDashboardData(), getTaskAssignees()])
     : [[], null, []];
   return <>
-    <PageHeader tone="overview" title={insights ? '營運數據' : '今日工作'}
+    <PageHeader tone="overview" title={workbench ? '角色工作台預覽' : '營運首頁'}
       description={insights ? '看懂近期營運變化，需要時再深入完整報表。' : workbench ? '用自己的工作視角開始今天，資料仍來自同一套 HQ。' : '先完成今天最重要的工作，系統會告訴你下一步。'}
       actions={workbench ? <Button size="sm" variant="outline" asChild><Link href="/dashboard?view=insights">看營運數據</Link></Button> : <Button size="sm" asChild><Link href="/orders/new"><Plus className="mr-1 h-4 w-4" />新增訂單</Link></Button>} />
     <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-5 sm:px-6 sm:py-7">
