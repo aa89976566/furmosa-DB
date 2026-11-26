@@ -3,6 +3,11 @@ import type { LineShopCategory, LineShopProduct } from '@/lib/line/shop-catalog'
 
 const PAPER = '#FFF9EC';
 const BLUE = '#123A70';
+const SITE_PAPER = '#F8F6EF';
+const SITE_SURFACE = '#FFFDF8';
+const SITE_BLUE = '#203E54';
+const SITE_MUTED = '#60717D';
+const SITE_LINE = '#DEDBD5';
 const SHOP_HERO_PATH = '/line/shop/bark-sniff-shopping-hero-v1.jpg';
 
 function publicAssetUrl(path: string): string {
@@ -265,47 +270,91 @@ export function buildShopProductMessages(
 
 export function buildShopProductDetailMessages(product: LineShopProduct): LineReplyMessage[] {
   const description = product.description || '這項商品的完整介紹正在整理中；價格與規格以目前卡片顯示為準。';
+  const summaryContents: Record<string, unknown>[] = [];
+  if (product.imageUrl) {
+    summaryContents.push({
+      type: 'image',
+      url: product.imageUrl,
+      size: 'full',
+      aspectRatio: '1:1',
+      aspectMode: 'cover',
+      backgroundColor: SITE_PAPER,
+      flex: 2,
+    });
+  }
+  summaryContents.push({
+    type: 'box',
+    layout: 'vertical',
+    spacing: 'sm',
+    paddingAll: '16px',
+    flex: 3,
+    contents: [
+      { type: 'text', text: product.productType || '匠寵選物', size: 'xs', color: SITE_MUTED, wrap: true },
+      { type: 'text', text: product.title, size: 'lg', color: SITE_BLUE, weight: 'bold', wrap: true, maxLines: 2 },
+      { type: 'text', text: formatPrice(product.price), size: 'xl', color: SITE_BLUE, weight: 'bold' },
+    ],
+  });
   const bubble: Record<string, unknown> = {
     type: 'bubble',
     size: 'mega',
     styles: {
-      hero: { backgroundColor: PAPER },
-      body: { backgroundColor: PAPER },
-      footer: { backgroundColor: PAPER },
+      body: { backgroundColor: SITE_PAPER },
+      footer: { backgroundColor: SITE_PAPER },
     },
     body: {
-      type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px',
+      type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '14px',
       contents: [
-        { type: 'text', text: product.title, size: 'xl', color: BLUE, weight: 'bold', wrap: true },
-        { type: 'text', text: product.variantTitle, size: 'sm', color: '#5B6F86', wrap: true },
-        { type: 'text', text: description, size: 'sm', color: BLUE, wrap: true },
-        { type: 'text', text: formatPrice(product.price), size: 'xl', color: BLUE, weight: 'bold' },
+        {
+          type: 'box',
+          layout: 'horizontal',
+          backgroundColor: SITE_SURFACE,
+          cornerRadius: '18px',
+          contents: summaryContents,
+        },
+        {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '16px',
+          backgroundColor: SITE_SURFACE,
+          cornerRadius: '18px',
+          contents: [
+            { type: 'text', text: '商品介紹', size: 'xs', color: SITE_MUTED },
+            { type: 'text', text: description, size: 'sm', color: SITE_BLUE, wrap: true, maxLines: 5 },
+            { type: 'separator', color: SITE_LINE, margin: 'md' },
+            {
+              type: 'box', layout: 'horizontal', alignItems: 'center',
+              contents: [
+                { type: 'text', text: '規格', size: 'xs', color: SITE_MUTED, flex: 0 },
+                { type: 'text', text: product.variantTitle, size: 'sm', color: SITE_BLUE, weight: 'bold', align: 'end', wrap: true },
+              ],
+            },
+          ],
+        },
       ],
     },
     footer: {
-      type: 'box', layout: 'vertical', spacing: 'sm',
+      type: 'box', layout: 'horizontal', spacing: 'sm', paddingAll: '14px', paddingTop: '0px',
       contents: [
         {
-          type: 'button', style: 'primary', color: BLUE,
+          type: 'button', style: 'secondary', height: 'sm',
+          action: {
+            type: 'postback', label: '繼續逛',
+            data: 'jd=shop_home',
+            displayText: '繼續逛商品',
+          },
+        },
+        {
+          type: 'button', style: 'primary', color: SITE_BLUE, height: 'sm',
           action: {
             type: 'postback', label: '加入購物車',
             data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
             displayText: `加入購物車：${product.title}`,
           },
         },
-        {
-          type: 'button', style: 'link',
-          action: { type: 'postback', label: '查看購物車', data: 'jd=shop_cart', displayText: '查看購物車' },
-        },
       ],
     },
   };
-  if (product.imageUrl) {
-    bubble.hero = {
-      type: 'image', url: product.imageUrl, size: 'full',
-      aspectRatio: '1:1', aspectMode: 'cover', backgroundColor: PAPER,
-    };
-  }
   return [{
     type: 'flex', altText: `${product.title}｜商品介紹`, contents: bubble,
     quickReply: { items: [cartQuickReply(), ...categoryQuickReplies()] },

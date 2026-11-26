@@ -75,5 +75,11 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /45g/);
     assert.match(raw, /jd=shop_add/);
     assert.match(raw, /jd=shop_cart/);
+    assert.match(raw, /商品介紹/);
+    assert.match(raw, /繼續逛/);
+    assert.match(raw, /#F8F6EF/);
+    assert.match(raw, /#203E54/);
+    assert.match(raw, /"layout":"horizontal"/);
+    assert.doesNotMatch(raw, /"hero"/);
   });
 });
