@@ -70,6 +70,7 @@ import {
   buildShopHomeMessages,
   buildShopProductMessages,
 } from '@/lib/line/shop-flex';
+import { handleLineShopMessage } from '@/lib/line/shop-checkout';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -184,9 +185,6 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
 
   // 購物入口不需要會員或 HQ 查詢：先選分類，再由 Shopify 提供商品卡與結帳。
   if (parsed.kind === 'shop_home' || parsed.kind === 'shop_category') {
-    await clearLineChatSession(lineUserId).catch((err) => {
-      console.error('[line] clear session on shop shortcut failed', err);
-    });
     if (parsed.kind === 'shop_home') {
       await replyLineMessage(replyToken, buildShopHomeMessages(), { lineUserId });
       return;
@@ -205,6 +203,16 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
     await replyLineMessage(replyToken, buildShopProductMessages(category, products), {
       lineUserId,
     });
+    return;
+  }
+
+  try {
+    if (await handleLineShopMessage(replyToken, lineUserId, msgEvent.message.text)) {
+      return;
+    }
+  } catch (err) {
+    console.error('[line/shop] checkout flow failed', err);
+    await replyLineText(replyToken, '結帳剛剛卡住，資料沒有遺失。請再回覆一次。');
     return;
   }
 

@@ -52,6 +52,44 @@ import {
 import { buildPartnerStoresMessages } from '@/lib/line/partner-stores-flex';
 import { listPartnerStoresFromDb } from '@/lib/stores/partner-stores';
 import { prisma } from '@/lib/prisma';
+import {
+  addLineShopItem,
+  buildLineShopCartMessages,
+  startLineShopCheckout,
+} from '@/lib/line/shop-checkout';
+import { listLineShopProducts, type LineShopCategory } from '@/lib/line/shop-catalog';
+import {
+  buildShopFallbackMessages,
+  buildShopHomeMessages,
+  buildShopProductMessages,
+} from '@/lib/line/shop-flex';
+
+const LINE_SHOP_CATEGORIES = new Set<LineShopCategory>([
+  'treats', 'toys', 'gifts', 'lifestyle', 'all',
+]);
+
+function parseShopCategory(value: string | null): LineShopCategory | null {
+  return value && LINE_SHOP_CATEGORIES.has(value as LineShopCategory)
+    ? value as LineShopCategory
+    : null;
+}
+
+async function replyShopCategory(
+  replyToken: string,
+  category: LineShopCategory,
+  page = 1,
+) {
+  try {
+    const products = await listLineShopProducts(category, { limit: 100 });
+    await replyLineMessage(
+      replyToken,
+      buildShopProductMessages(category, products, { page }),
+    );
+  } catch (err) {
+    console.error('[line/shop] catalog unavailable', err);
+    await replyLineMessage(replyToken, buildShopFallbackMessages(category));
+  }
+}
 
 async function loadVaultSnapshot(
   customer: NonNullable<Awaited<ReturnType<typeof findCustomerByLineUserId>>>,
@@ -143,6 +181,43 @@ export async function handleLinePostback(
 ): Promise<void> {
   const params = parseLinePostbackData(data);
   const action = params.get('jd');
+
+  if (action === 'shop_home') {
+    await replyLineMessage(replyToken, buildShopHomeMessages());
+    return;
+  }
+  if (action === 'shop_category' || action === 'shop_more') {
+    const category = parseShopCategory(params.get('category'));
+    if (!category) {
+      await replyLineMessage(replyToken, buildShopHomeMessages());
+      return;
+    }
+    const page = action === 'shop_more'
+      ? Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
+      : 1;
+    await replyShopCategory(replyToken, category, page);
+    return;
+  }
+
+  if (action === 'shop_add') {
+    const variantId = params.get('variant') ?? '';
+    try {
+      const result = await addLineShopItem(lineUserId, variantId);
+      if (!result.ok) {
+        await replyLineText(replyToken, result.error);
+        return;
+      }
+      await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
+    } catch (err) {
+      console.error('[line/shop] add item failed', err);
+      await replyLineText(replyToken, '商品剛剛沒有成功加入，請再試一次。');
+    }
+    return;
+  }
+  if (action === 'shop_checkout') {
+    await startLineShopCheckout(replyToken, lineUserId);
+    return;
+  }
 
   if (await handleRegisterPostback(replyToken, lineUserId, params)) return;
 

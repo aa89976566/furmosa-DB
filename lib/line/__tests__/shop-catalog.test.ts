@@ -71,6 +71,18 @@ describe('LINE shop catalog', () => {
     assert.equal(productMatchesCategory(booking, 'all'), false);
   });
 
+  it('keeps生活用品 separate from toys and treats', () => {
+    const brush = {
+      ...products[1]!,
+      title: 'KONG ZOOM GROOM 除毛按摩刷',
+      productType: 'Pet Grooming Tools',
+      tags: ['洗澡用品', '美容清潔'],
+    };
+    assert.equal(productMatchesCategory(brush, 'lifestyle'), true);
+    assert.equal(productMatchesCategory(brush, 'toys'), false);
+    assert.equal(productMatchesCategory(brush, 'treats'), false);
+  });
+
   it('builds Shopify product and cart URLs', () => {
     assert.equal(getProductUrl(products[0]!), 'https://furmosa.com/products/beef-freeze-dried');
     assert.equal(getCartUrl(products[0]!), 'https://furmosa.com/cart/11:1');

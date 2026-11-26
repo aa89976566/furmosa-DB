@@ -1,27 +1,28 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
+import {
+  buildLegacyShopHomeMessages,
+  buildShopHomeMessages,
+  buildShopProductMessages,
+} from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('shows the branded category chooser inside the conversation', () => {
+  it('starts with a text question and postback quick replies', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
-    assert.match(raw, /今天想寵哪一招/);
-    assert.match(raw, /hoodie-dog-chicken-cutlet\.png/);
-    assert.match(raw, /"aspectMode":"fit"/);
-    assert.doesNotMatch(raw, /"aspectMode":"contain"/);
-    assert.match(raw, /好料先吃/);
-    assert.match(raw, /玩到沒電/);
-    assert.match(raw, /送禮有面子/);
-    assert.match(raw, /全部都要/);
-    assert.match(raw, /逛零食/);
-    assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛禮品/);
-    assert.match(raw, /逛全部/);
-    assert.doesNotMatch(raw, /quickReply/);
-    assert.doesNotMatch(raw, /狗老闆/);
+    assert.match(raw, /想幫毛孩找哪一種/);
+    assert.match(raw, /quickReply/);
+    assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
+    assert.doesNotMatch(raw, /bark-sniff-shopping-hero-v1\.jpg/);
+    assert.doesNotMatch(raw, /"type":"message"/);
   });
 
-  it('renders product photos and Shopify cart links', () => {
+  it('keeps the legacy hero builder available for rollback', () => {
+    const raw = JSON.stringify(buildLegacyShopHomeMessages());
+    assert.match(raw, /bark-sniff-shopping-hero-v1\.jpg/);
+    assert.match(raw, /"aspectRatio":"20:13"/);
+  });
+
+  it('renders real product photos with a neutral in-chat cart action', () => {
     const messages = buildShopProductMessages('treats', [{
       id: '1', title: '牛肉凍乾', handle: 'beef-freeze-dried', productType: '寵物零食',
       tags: ['凍乾'], imageUrl: 'https://cdn.example.com/beef.jpg', variantId: '11',
@@ -31,11 +32,31 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /carousel/);
     assert.match(raw, /beef\.jpg/);
     assert.match(raw, /NT\$359/);
-    assert.match(raw, /cart\/11:1/);
     assert.match(raw, /加入購物車/);
+    assert.match(raw, /jd=shop_add&amp;variant=11|jd=shop_add&variant=11/);
+    assert.doesNotMatch(raw, /cart\/11:1/);
+    assert.doesNotMatch(raw, /products\/beef-freeze-dried/);
+    assert.doesNotMatch(raw, /"style":"primary"/);
+    assert.doesNotMatch(raw, /"style":"secondary"/);
     assert.doesNotMatch(raw, /100g/);
-    assert.match(raw, /逛零食/);
-    assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛全部/);
+    assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
+    assert.doesNotMatch(raw, /"type":"message"/);
+  });
+
+  it('shows five products and a LINE-native more card', () => {
+    const products = Array.from({ length: 6 }, (_, index) => ({
+      id: String(index), title: `商品 ${index}`, handle: `product-${index}`,
+      productType: '寵物零食', tags: ['零食'], imageUrl: null,
+      variantId: String(100 + index), variantTitle: '單一規格', price: 100,
+      available: true,
+    }));
+    const raw = JSON.stringify(buildShopProductMessages('treats', products));
+    assert.equal((raw.match(/"type":"bubble"/g) ?? []).length, 6);
+    assert.match(raw, /jd=shop_more&amp;category=treats&amp;page=2|jd=shop_more&category=treats&page=2/);
+    assert.doesNotMatch(raw, /商品 5/);
+
+    const lastPage = JSON.stringify(buildShopProductMessages('treats', products, { page: 99 }));
+    assert.match(lastPage, /商品 5/);
+    assert.doesNotMatch(lastPage, /"contents":\[\]/);
   });
 });

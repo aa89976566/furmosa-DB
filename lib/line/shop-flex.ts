@@ -1,17 +1,9 @@
 import type { LineReplyMessage } from '@/lib/line/reply';
-import {
-  getCartUrl,
-  getCollectionUrl,
-  getProductUrl,
-  type LineShopCategory,
-  type LineShopProduct,
-} from '@/lib/line/shop-catalog';
+import type { LineShopCategory, LineShopProduct } from '@/lib/line/shop-catalog';
 
-const BLUE = '#123A70';
 const PAPER = '#FFF9EC';
-const YELLOW = '#FFD447';
-const RED = '#C9483B';
-const SHOP_GUIDE_IMAGE_PATH = '/line/shop/hoodie-dog-chicken-cutlet.png';
+const BLUE = '#123A70';
+const SHOP_HERO_PATH = '/line/shop/bark-sniff-shopping-hero-v1.jpg';
 
 function publicAssetUrl(path: string): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim() || '';
@@ -27,85 +19,104 @@ const CATEGORY_LABELS: Record<LineShopCategory, string> = {
   treats: '零食點心',
   toys: '玩具用品',
   gifts: '禮品選物',
+  lifestyle: '生活用品',
   all: '全部商品',
 };
 
-export function buildShopHomeMessages(): LineReplyMessage[] {
+export function buildLegacyShopHomeMessages(): LineReplyMessage[] {
   return [{
     type: 'flex',
-    altText: '匠寵線上購物｜今天想寵哪一招？',
+    altText: '匠寵線上購物｜想找哪一種？',
     contents: {
       type: 'bubble',
       size: 'mega',
       styles: {
-        hero: { backgroundColor: YELLOW },
+        hero: { backgroundColor: PAPER },
         body: { backgroundColor: PAPER },
       },
       hero: {
         type: 'image',
-        url: publicAssetUrl(SHOP_GUIDE_IMAGE_PATH),
+        url: publicAssetUrl(SHOP_HERO_PATH),
         size: 'full',
         aspectRatio: '20:13',
-        aspectMode: 'fit',
-        backgroundColor: YELLOW,
+        aspectMode: 'cover',
+        backgroundColor: PAPER,
       },
       body: {
         type: 'box',
         layout: 'vertical',
         spacing: 'md',
-        paddingAll: '20px',
+        paddingAll: '18px',
         contents: [
           {
             type: 'text',
-            text: '今天想寵哪一招？',
+            text: '想找哪一種？',
             size: 'xl',
             weight: 'bold',
-            color: BLUE,
-            wrap: true,
-          },
-          {
-            type: 'text',
-            text: '好貨都幫你挑好了。',
-            size: 'sm',
             color: BLUE,
           },
           {
             type: 'box',
-            layout: 'vertical',
+            layout: 'horizontal',
             spacing: 'sm',
-            margin: 'md',
             contents: [
               {
-                type: 'button',
-                style: 'primary',
-                color: RED,
-                height: 'sm',
-                action: { type: 'message', label: '好料先吃', text: '逛零食' },
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '零食', text: '逛零食' },
               },
               {
-                type: 'button',
-                style: 'primary',
-                color: BLUE,
-                height: 'sm',
-                action: { type: 'message', label: '玩到沒電', text: '逛玩具' },
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '玩具', text: '逛玩具' },
+              },
+            ],
+          },
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: [
+              {
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '禮品', text: '逛禮品' },
               },
               {
-                type: 'button',
-                style: 'secondary',
-                height: 'sm',
-                action: { type: 'message', label: '送禮有面子', text: '逛禮品' },
-              },
-              {
-                type: 'button',
-                style: 'secondary',
-                height: 'sm',
-                action: { type: 'message', label: '全部都要', text: '逛全部' },
+                type: 'button', style: 'link', height: 'sm',
+                action: { type: 'message', label: '生活用品', text: '逛生活用品' },
               },
             ],
           },
         ],
       },
     },
+  }];
+}
+
+function categoryPostback(category: LineShopCategory, label: string) {
+  return {
+    type: 'action' as const,
+    action: {
+      type: 'postback' as const,
+      label,
+      data: `jd=shop_category&category=${category}`,
+      displayText: label,
+    },
+  };
+}
+
+function categoryQuickReplies() {
+  return [
+    categoryPostback('treats', '零食'),
+    categoryPostback('toys', '玩具'),
+    categoryPostback('gifts', '禮品'),
+    categoryPostback('lifestyle', '生活用品'),
+  ];
+}
+
+export function buildShopHomeMessages(): LineReplyMessage[] {
+  return [{
+    type: 'text',
+    text: '想幫毛孩找哪一種？',
+    quickReply: { items: categoryQuickReplies() },
   }];
 }
 
@@ -135,15 +146,16 @@ function productBubble(product: LineShopProduct) {
       ],
     },
     footer: {
-      type: 'box', layout: 'vertical', spacing: 'sm',
+      type: 'box', layout: 'vertical',
       contents: [
         {
-          type: 'button', style: 'primary', color: BLUE, height: 'sm',
-          action: { type: 'uri', label: '加入購物車', uri: getCartUrl(product) },
-        },
-        {
-          type: 'button', style: 'secondary', height: 'sm',
-          action: { type: 'uri', label: '看商品', uri: getProductUrl(product) },
+          type: 'button', style: 'link', height: 'sm',
+          action: {
+            type: 'postback',
+            label: '加入購物車',
+            data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+            displayText: `加入購物車：${product.title}`,
+          },
         },
       ],
     },
@@ -155,7 +167,10 @@ function productBubble(product: LineShopProduct) {
       size: 'full',
       aspectRatio: '1:1',
       aspectMode: 'cover',
-      action: { type: 'uri', uri: getProductUrl(product) },
+      action: {
+        type: 'postback',
+        data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+      },
     };
   }
   return contents;
@@ -164,41 +179,62 @@ function productBubble(product: LineShopProduct) {
 export function buildShopProductMessages(
   category: LineShopCategory,
   products: LineShopProduct[],
+  options: { page?: number } = {},
 ): LineReplyMessage[] {
   const label = CATEGORY_LABELS[category];
   if (products.length === 0) {
     return [{
       type: 'text',
       text: `${label}目前沒有可顯示的商品。你可以先逛全部商品。`,
-      quickReply: {
-        items: [{
-          type: 'action',
-          action: { type: 'uri', label: '前往商城', uri: getCollectionUrl('all') },
+      quickReply: { items: categoryQuickReplies() },
+    }];
+  }
+  const pageSize = 5;
+  const maxPage = Math.max(1, Math.ceil(products.length / pageSize));
+  const page = Math.min(maxPage, Math.max(1, Math.floor(options.page ?? 1)));
+  const start = (page - 1) * pageSize;
+  const visible = products.slice(start, start + pageSize);
+  const hasMore = products.length > start + pageSize;
+  const cards = visible.map(productBubble);
+  if (hasMore) {
+    cards.push({
+      type: 'bubble',
+      size: 'kilo',
+      styles: {
+        body: { backgroundColor: PAPER },
+        footer: { backgroundColor: PAPER },
+      },
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'md',
+        contents: [
+          { type: 'text', text: `還有更多${label}`, size: 'lg', color: BLUE, weight: 'bold', wrap: true },
+          { type: 'text', text: '繼續在 LINE 裡慢慢看。', size: 'sm', color: '#5B6F86', wrap: true },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical',
+        contents: [{
+          type: 'button', style: 'link', height: 'sm',
+          action: {
+            type: 'postback',
+            label: '看更多',
+            data: `jd=shop_more&category=${category}&page=${page + 1}`,
+            displayText: `看更多${label}`,
+          },
         }],
       },
-    }];
+    });
   }
   return [{
     type: 'flex',
     altText: `匠寵線上購物｜${label}`,
-    contents: { type: 'carousel', contents: products.slice(0, 10).map(productBubble) },
+    contents: { type: 'carousel', contents: cards },
     quickReply: {
       items: [
+        ...categoryQuickReplies(),
         {
           type: 'action',
-          action: { type: 'message', label: '零食', text: '逛零食' },
-        },
-        {
-          type: 'action',
-          action: { type: 'message', label: '玩具', text: '逛玩具' },
-        },
-        {
-          type: 'action',
-          action: { type: 'message', label: '全部', text: '逛全部' },
-        },
-        {
-          type: 'action',
-          action: { type: 'uri', label: '逛完整商城', uri: getCollectionUrl(category) },
+          action: { type: 'postback', label: '回購物首頁', data: 'jd=shop_home', displayText: '回購物首頁' },
         },
       ],
     },
@@ -208,13 +244,18 @@ export function buildShopProductMessages(
 export function buildShopFallbackMessages(category: LineShopCategory): LineReplyMessage[] {
   return [{
     type: 'text',
-    text: '商品卡剛剛讀取較慢，先帶你到匠寵商城，結帳仍會在 LINE 內開啟。',
-    quickReply: {
-      items: [{
+    text: `${CATEGORY_LABELS[category]}剛剛讀取比較慢。可以再試一次，或先看看其他分類。`,
+    quickReply: { items: [
+      {
         type: 'action',
-        action: { type: 'uri', label: '前往商城', uri: getCollectionUrl(category) },
-      }],
-    },
+        action: {
+          type: 'postback', label: '再試一次',
+          data: `jd=shop_category&category=${category}`,
+          displayText: `再看一次${CATEGORY_LABELS[category]}`,
+        },
+      },
+      ...categoryQuickReplies(),
+    ] },
   }];
 }
 

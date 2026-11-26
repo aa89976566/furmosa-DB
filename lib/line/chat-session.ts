@@ -23,9 +23,30 @@ export type JibaUnboxDraft = {
   applicationId?: string;
 };
 
-export type LineChatFlow = 'register' | 'jiba_unbox';
+export type LineShopCartItem = {
+  productId: string;
+  title: string;
+  variantId: string;
+  variantTitle: string;
+  price: number;
+  quantity: number;
+  imageUrl?: string | null;
+};
 
-export type LineChatPayload = RegisterDraft | JibaUnboxDraft;
+export type LineShopDraft = {
+  items: LineShopCartItem[];
+  checkoutKey?: string;
+  shippingMode?: 'home' | '711';
+  recipientName?: string;
+  phone?: string;
+  addressOrStore?: string;
+  orderId?: string;
+  orderNumber?: string;
+};
+
+export type LineChatFlow = 'register' | 'jiba_unbox' | 'shop';
+
+export type LineChatPayload = RegisterDraft | JibaUnboxDraft | LineShopDraft;
 
 /** 未完成流程超過此時間視為過期，不再攔截一般訊息 */
 export const REGISTER_SESSION_TTL_MS = 30 * 60 * 1000;
@@ -103,5 +124,14 @@ export function parseRegisterDraft(payload: string): RegisterDraft {
     return JSON.parse(payload) as RegisterDraft;
   } catch {
     return {};
+  }
+}
+
+export function parseLineShopDraft(payload: string): LineShopDraft {
+  try {
+    const parsed = JSON.parse(payload) as Partial<LineShopDraft>;
+    return { ...parsed, items: Array.isArray(parsed.items) ? parsed.items : [] };
+  } catch {
+    return { items: [] };
   }
 }
