@@ -26,6 +26,10 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await page.getByRole('button', { name: '下個月', exact: true }).click();
   await page.getByRole('button', { name: date, exact: true }).click();
   await page.getByLabel('開始時間（台灣時間）').fill('16:30');
+  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '確認預約申請' })).toBeVisible();
+  await expect(page.getByText(date + ' 14:00', { exact: true })).toBeVisible();
+  await expect(page.getByText(date + ' 16:30', { exact: true })).toBeVisible();
   await page.getByLabel('聯絡人姓名').fill('隔離送單');
   await page.getByLabel('電子郵件').fill(email);
   await page.getByRole('button', { name: '送出預約申請' }).click();
